@@ -1,0 +1,872 @@
+# Modern Python Project Configuration
+# Project: docfusion
+# Generated from template - follows PEP 621 standards
+# Optimized for UV package manager and modern tooling
+
+[project]
+name = "docfusion"
+version = "0.1.0"
+description = "docfusion - A modern Python project built with best practices"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Nyimbi Odero", email = "nyimbi@gmail.com"},
+]
+maintainers = [
+    {name = "Nyimbi Odero", email = "nyimbi@gmail.com"},
+]
+requires-python = ">=3.10"
+keywords = [
+    "python",
+    "docfusion",
+    "modern-development",
+    "uv",
+    "automation"
+]
+classifiers = [
+    # Development Status
+    "Development Status :: 3 - Alpha",
+
+    # Intended Audience
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Science/Research",
+
+    # License
+    "License :: OSI Approved :: MIT License",
+
+    # Programming Language
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+
+    # Operating System
+    "Operating System :: OS Independent",
+    "Operating System :: POSIX",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+
+    # Topic
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Utilities",
+
+    # Typing
+    "Typing :: Typed",
+]
+
+# Production dependencies
+dependencies = [
+    # Add your core production dependencies here
+    # Example: "requests>=2.31.0",
+    # Example: "click>=8.1.0",
+    # Example: "pydantic>=2.0.0",
+]
+
+# Optional dependency groups
+[project.optional-dependencies]
+
+# Development dependencies
+dev = [
+    # Testing Framework
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.3.0",              # Parallel testing
+    "pytest-html>=3.2.0",               # HTML test reports
+    "pytest-mock>=3.11.0",              # Mocking utilities
+    "pytest-asyncio>=0.21.0",           # Async testing support
+    "pytest-benchmark>=4.0.0",          # Performance benchmarking
+    "pytest-randomly>=3.15.0",          # Randomize test order
+    "pytest-sugar>=0.9.7",              # Better test output
+
+    # Code Quality and Formatting
+    "ruff>=0.1.6",                      # Fast linter and formatter (replaces black, isort, flake8)
+    "mypy>=1.7.0",                      # Static type checking
+    "pre-commit>=3.5.0",                # Git hooks for quality checks
+
+    # Security and Vulnerability Scanning
+    "bandit[toml]>=1.7.5",              # Security linting
+    "safety>=2.3.0",                    # Dependency vulnerability checking
+    "pip-audit>=2.6.0",                 # Python package vulnerability scanner
+
+    # Documentation
+    "sphinx>=7.2.0",                    # Documentation generator
+    "sphinx-rtd-theme>=1.3.0",          # Read the Docs theme
+    "sphinx-autodoc-typehints>=1.25.0", # Type hints in docs
+    "myst-parser>=2.0.0",               # Markdown support for Sphinx
+
+    # Development Tools
+    "ipython>=8.17.0",                  # Enhanced Python REPL
+    "ipdb>=0.13.13",                    # IPython debugger
+    "rich>=13.7.0",                     # Rich text and beautiful formatting
+    "typer>=0.9.0",                     # Modern CLI framework
+
+    # Performance and Profiling
+    "memory-profiler>=0.61.0",          # Memory usage profiling
+    "py-spy>=0.3.14",                   # Sampling profiler
+    "line-profiler>=4.1.0",             # Line-by-line profiling
+
+    # Code Analysis
+    "radon>=6.0.1",                     # Code complexity analysis
+    "vulture>=2.10",                    # Dead code finder
+    "interrogate>=1.5.0",               # Documentation coverage
+]
+
+# Web development dependencies
+web = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "httpx>=0.25.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.6",
+]
+
+# Data science dependencies
+data = [
+    "pandas>=2.1.0",
+    "numpy>=1.25.0",
+    "matplotlib>=3.8.0",
+    "seaborn>=0.13.0",
+    "scikit-learn>=1.3.0",
+    "jupyter>=1.0.0",
+    "jupyterlab>=4.0.0",
+    "notebook>=7.0.0",
+]
+
+# Machine learning dependencies
+ml = [
+    "pgai",
+    "torch>=2.1.0",
+    "torchaudio",
+    "tensorflow>=2.14.0",
+    "transformers>=4.35.0",
+    "datasets>=2.14.0",
+    "accelerate>=0.24.0",
+]
+
+# Database dependencies
+db = [
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.12.0",
+    "psycopg2-binary>=2.9.0",
+    "asyncpg>=0.29.0",
+]
+
+# All optional dependencies combined
+all = [
+    "docfusion[web,data,ml,db]"
+]
+
+# Entry points for command-line scripts
+[project.scripts]
+docfusion = "docfusion.main:main"
+# Add additional CLI commands as needed:
+# docfusion-cli = "docfusion.cli:main"
+# docfusion-server = "docfusion.server:main"
+
+# GUI entry points (if applicable)
+[project.gui-scripts]
+# docfusion-gui = "docfusion.gui:main"
+
+# Project URLs
+[project.urls]
+Homepage = "https://github.com/yourusername/docfusion"
+Documentation = "https://docfusion.readthedocs.io/"
+Repository = "https://github.com/yourusername/docfusion.git"
+"Bug Tracker" = "https://github.com/yourusername/docfusion/issues"
+Changelog = "https://github.com/yourusername/docfusion/blob/main/CHANGELOG.md"
+Discussions = "https://github.com/yourusername/docfusion/discussions"
+Funding = "https://github.com/sponsors/yourusername"
+
+# ============================================================================
+# BUILD SYSTEM CONFIGURATION
+# ============================================================================
+
+[build-system]
+requires = ["hatchling>=1.18.0"]
+build-backend = "hatchling.build"
+
+# Hatchling build configuration
+[tool.hatch.build.targets.wheel]
+packages = ["src/docfusion"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/docs",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/pyproject.toml",
+]
+exclude = [
+    "/.github",
+    "/dist",
+    "/build",
+    "/__pycache__",
+    "*.pyc",
+    "/.pytest_cache",
+    "/.mypy_cache",
+    "/.ruff_cache",
+    "/reports",
+]
+
+# Version management
+[tool.hatch.version]
+path = "src/docfusion/__init__.py"
+
+# ============================================================================
+# RUFF CONFIGURATION (Linting and Formatting)
+# ============================================================================
+
+[tool.ruff]
+# Python version target
+target-version = "py310"
+
+# Line length (matching Black's default)
+line-length = 88
+
+# Source code paths
+src = ["src", "tests", "docs"]
+
+# Output format
+output-format = "grouped"
+
+# Show fixes in output
+show-fixes = true
+
+# Show source code in output
+show-source = true
+
+# Respect gitignore
+respect-gitignore = true
+
+# File patterns to include
+include = ["*.py", "*.pyi", "**/pyproject.toml"]
+
+# File patterns to exclude
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "migrations",
+]
+
+# Linting configuration
+[tool.ruff.lint]
+# Rule selection - comprehensive but practical
+select = [
+    # Pyflakes
+    "F",
+    # pycodestyle (Error)
+    "E",
+    # pycodestyle (Warning)
+    "W",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pydocstyle
+    "D",
+    # pyupgrade
+    "UP",
+    # flake8-2020
+    "YTT",
+    # flake8-annotations
+    "ANN",
+    # flake8-async
+    "ASYNC",
+    # flake8-bandit
+    "S",
+    # flake8-blind-except
+    "BLE",
+    # flake8-boolean-trap
+    "FBT",
+    # flake8-bugbear
+    "B",
+    # flake8-builtins
+    "A",
+    # flake8-commas
+    "COM",
+    # flake8-comprehensions
+    "C4",
+    # flake8-datetimez
+    "DTZ",
+    # flake8-debugger
+    "T10",
+    # flake8-django
+    "DJ",
+    # flake8-errmsg
+    "EM",
+    # flake8-executable
+    "EXE",
+    # flake8-future-annotations
+    "FA",
+    # flake8-implicit-str-concat
+    "ISC",
+    # flake8-import-conventions
+    "ICN",
+    # flake8-logging-format
+    "G",
+    # flake8-no-pep420
+    "INP",
+    # flake8-pie
+    "PIE",
+    # flake8-print
+    "T20",
+    # flake8-pyi
+    "PYI",
+    # flake8-pytest-style
+    "PT",
+    # flake8-quotes
+    "Q",
+    # flake8-raise
+    "RSE",
+    # flake8-return
+    "RET",
+    # flake8-self
+    "SLF",
+    # flake8-simplify
+    "SIM",
+    # flake8-tidy-imports
+    "TID",
+    # flake8-type-checking
+    "TCH",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-use-pathlib
+    "PTH",
+    # pandas-vet
+    "PD",
+    # pygrep-hooks
+    "PGH",
+    # Pylint
+    "PL",
+    # tryceratops
+    "TRY",
+    # flynt
+    "FLY",
+    # NumPy-specific rules
+    "NPY",
+    # Airflow
+    "AIR",
+    # Perflint
+    "PERF",
+    # refurb
+    "FURB",
+    # flake8-logging
+    "LOG",
+    # Ruff-specific rules
+    "RUF",
+]
+
+# Rules to ignore
+ignore = [
+    # Allow non-abstract empty methods in abstract base classes
+    "B027",
+    # Allow boolean positional values in function calls
+    "FBT003",
+    # Ignore complexity in __init__ files
+    "C901",
+    # Allow print statements (useful for debugging)
+    "T201",
+    # Allow TODO comments
+    "FIX002",
+    # Allow XXX comments
+    "FIX004",
+    # Ignore line length (handled by formatter)
+    "E501",
+    # Allow assert statements (useful for tests)
+    "S101",
+    # Allow subprocess without shell=True check
+    "S602",
+    # Allow hardcoded passwords in tests
+    "S106",
+    # Allow use of datetime without timezone
+    "DTZ005",
+    # Allow broad exception catching in CLI apps
+    "BLE001",
+    # Allow magic values in tests
+    "PLR2004",
+    # Allow too many arguments (sometimes necessary)
+    "PLR0913",
+    # Allow too many branches (sometimes necessary)
+    "PLR0912",
+    # Allow too many statements (sometimes necessary)
+    "PLR0915",
+]
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Files that should be treated as typing stubs
+typing-modules = ["typing", "typing_extensions"]
+
+# Per-file ignores
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and other test-specific patterns
+"tests/**/*" = [
+    "S101",    # assert statements
+    "PLR2004", # magic values
+    "S106",    # hardcoded passwords
+    "S108",    # hardcoded temporary file
+    "ARG001",  # unused function arguments
+    "ARG002",  # unused method arguments
+    "FBT001",  # boolean positional arguments
+    "D100",    # missing docstrings
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+]
+
+# CLI modules can use print and exit
+"**/cli.py" = ["T201", "S603"]
+"**/main.py" = ["T201"]
+
+# Configuration files
+"conftest.py" = ["D100"]
+"docs/**/*" = ["D100", "D101", "D102", "D103"]
+
+# Migration files (if using Django/SQLAlchemy)
+"**/migrations/*" = ["ALL"]
+
+# pydocstyle configuration
+[tool.ruff.lint.pydocstyle]
+convention = "google"  # Use Google docstring style
+
+# isort configuration
+[tool.ruff.lint.isort]
+known-first-party = ["docfusion"]
+force-single-line = false
+force-sort-within-sections = true
+single-line-exclusions = ["typing", "typing_extensions"]
+
+# Formatter configuration
+[tool.ruff.format]
+# Use single quotes for strings
+quote-style = "double"
+
+# Use spaces for indentation
+indent-style = "space"
+
+# Respect magic trailing comma
+skip-magic-trailing-comma = false
+
+# Line ending style
+line-ending = "auto"
+
+# Format docstrings
+docstring-code-format = true
+
+# Format code in docstrings
+docstring-code-line-length = "dynamic"
+
+# ============================================================================
+# MYPY CONFIGURATION (Static Type Checking)
+# ============================================================================
+
+[tool.mypy]
+# Python version
+python_version = "3.10"
+
+# Import discovery
+mypy_path = "src"
+packages = ["docfusion"]
+namespace_packages = true
+
+# Platform configuration
+platform = "linux"
+
+# Strictness settings
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+
+# Error output
+show_error_codes = true
+show_column_numbers = true
+show_error_context = true
+color_output = true
+pretty = true
+error_summary = true
+
+# Incremental mode
+incremental = true
+cache_dir = ".mypy_cache"
+
+# Untyped definitions
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+
+# Optional handling
+no_implicit_optional = true
+strict_optional = true
+
+# Imports
+ignore_missing_imports = false
+follow_imports = "normal"
+follow_imports_for_stubs = true
+
+# Miscellaneous
+strict_equality = true
+extra_checks = true
+implicit_reexport = false
+
+# Per-module configuration
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "pytest.*",
+    "setuptools.*",
+    "_pytest.*",
+]
+ignore_missing_imports = true
+
+# ============================================================================
+# PYTEST CONFIGURATION (Testing Framework)
+# ============================================================================
+
+[tool.pytest.ini_options]
+# Minimum pytest version
+minversion = "7.0"
+
+# Test discovery
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Output and behavior
+addopts = [
+    "--strict-markers",      # Treat unregistered markers as errors
+    "--strict-config",       # Treat config errors as errors
+    "--disable-warnings",    # Disable warnings in output
+    "--tb=short",           # Short traceback format
+    "--ra",                 # Show all test results except passed
+    "-q",                   # Quiet output
+    "--durations=10",       # Show slowest 10 tests
+    "--color=yes",          # Colored output
+]
+
+# Logging
+log_cli = false
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s: %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+
+# Test markers
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "smoke: marks tests as smoke tests (quick health checks)",
+    "security: marks tests as security-related",
+    "performance: marks tests as performance benchmarks",
+    "network: marks tests that require network access",
+    "database: marks tests that require database access",
+    "gpu: marks tests that require GPU access",
+    "expensive: marks tests that consume significant resources",
+]
+
+# Test filtering
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# Timeout (in seconds)
+timeout = 300
+
+# ============================================================================
+# COVERAGE CONFIGURATION (Test Coverage)
+# ============================================================================
+
+[tool.coverage.run]
+# Source code paths
+source = ["src"]
+branch = true
+parallel = true
+
+# Files to omit from coverage
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__main__.py",
+    "*/conftest.py",
+    "*/migrations/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+# Dynamic contexts for better coverage tracking
+dynamic_contexts = ["test_function"]
+
+[tool.coverage.paths]
+# Path mapping for consistent coverage across environments
+source = [
+    "src/",
+    "*/site-packages/",
+]
+
+[tool.coverage.report]
+# Reporting configuration
+show_missing = true
+precision = 2
+sort = "Cover"
+skip_covered = false
+skip_empty = false
+
+# Coverage thresholds
+fail_under = 80
+
+# Lines to exclude from coverage
+exclude_lines = [
+    # Have to re-enable the standard pragma
+    "pragma: no cover",
+
+    # Don't complain about missing debug-only code
+    "def __repr__",
+    "if self\\.debug",
+    "if settings\\.DEBUG",
+
+    # Don't complain if tests don't hit defensive assertion code
+    "raise AssertionError",
+    "raise NotImplementedError",
+
+    # Don't complain if non-runnable code isn't run
+    "if 0:",
+    "if __name__ == .__main__.:",
+
+    # Don't complain about abstract methods
+    "@(abc\\.)?abstractmethod",
+
+    # Don't complain about protocol methods
+    "class .*\\bProtocol\\):",
+    "@(typing\\.)?overload",
+
+    # Don't complain about platform-specific code
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "reports/coverage"
+title = "docfusion Coverage Report"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.json]
+output = "reports/coverage.json"
+pretty_print = true
+
+# ============================================================================
+# BANDIT CONFIGURATION (Security Linting)
+# ============================================================================
+
+[tool.bandit]
+# Paths to scan
+targets = ["src"]
+
+# Paths to exclude
+exclude_dirs = [
+    "tests",
+    "build",
+    "dist",
+    ".venv",
+    "venv",
+    ".git",
+    "__pycache__",
+]
+
+# Tests to skip
+skips = [
+    "B101",  # Test for use of assert
+    "B601",  # Parameterized shell injection
+]
+
+# Confidence levels to report
+confidence = ["HIGH", "MEDIUM"]
+
+# Severity levels to report
+severity = ["HIGH", "MEDIUM"]
+
+# Output format
+format = "txt"
+
+# Aggregation type
+aggregate = "file"
+
+# Number of lines of code context
+context_lines = 3
+
+[tool.bandit.assert_used]
+# Skip assert usage checks in test files
+skips = ["*/*test*.py", "*/test_*.py", "tests/*"]
+
+# ============================================================================
+# INTERROGATE CONFIGURATION (Documentation Coverage)
+# ============================================================================
+
+[tool.interrogate]
+# Paths to check
+paths = ["src"]
+
+# Minimum coverage percentage
+fail-under = 80
+
+# Include various items in coverage calculation
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-semiprivate = false
+ignore-private = false
+ignore-property-decorators = false
+ignore-module = false
+ignore-nested-functions = false
+ignore-nested-classes = true
+
+# Output configuration
+verbose = 2
+quiet = false
+whitelist-regex = []
+color = true
+
+# Generate reports
+generate-badge = "reports/"
+badge-format = "svg"
+
+# ============================================================================
+# VULTURE CONFIGURATION (Dead Code Detection)
+# ============================================================================
+
+[tool.vulture]
+# Paths to scan
+paths = ["src", "tests"]
+
+# Minimum confidence (0-100)
+min_confidence = 60
+
+# Sort by confidence
+sort_by_size = true
+
+# Ignore decorators
+ignore_decorators = ["@app.route", "@require_*"]
+
+# Ignore names
+ignore_names = ["_*", "test_*"]
+
+# Make whitelist
+make_whitelist = false
+
+# ============================================================================
+# ADDITIONAL TOOL CONFIGURATIONS
+# ============================================================================
+
+# IPython configuration
+[tool.ipython]
+# Enable autoreload extension
+extension = "autoreload"
+
+# Rich configuration for better output
+[tool.rich]
+# Use rich traceback in development
+traceback_show_locals = true
+
+# Typer configuration for CLI
+[tool.typer]
+# Rich markup in help
+rich_markup_mode = "rich"
+
+# ============================================================================
+# CUSTOM PROJECT CONFIGURATION
+# ============================================================================
+
+# Project-specific configuration section
+# Add your custom configuration here
+[tool.docfusion]
+# Example configuration options:
+# debug = false
+# api_timeout = 30
+# max_retries = 3
+# log_level = "INFO"
+
+# Feature flags
+[tool.docfusion.features]
+# Example feature flags:
+# experimental_feature = false
+# beta_feature = true
+
+# Environment-specific settings
+[tool.docfusion.environments]
+# Example environment configurations:
+# development = {debug = true, log_level = "DEBUG"}
+# production = {debug = false, log_level = "WARNING"}
+# testing = {debug = true, log_level = "DEBUG"}
+
+# ============================================================================
+# METADATA AND DOCUMENTATION
+# ============================================================================
+
+# This pyproject.toml provides comprehensive configuration for docfusion
+# Generated from template - follows modern Python standards (PEP 621, PEP 518)
+#
+# Key features:
+# - Complete project metadata with proper classifiers
+# - Comprehensive dependency management with optional groups
+# - Modern build system (Hatchling)
+# - Ruff for fast linting and formatting (replaces multiple tools)
+# - MyPy for strict static type checking
+# - Pytest with comprehensive testing configuration
+# - Coverage analysis with detailed reporting
+# - Security scanning with Bandit
+# - Documentation coverage with Interrogate
+# - Dead code detection with Vulture
+# - Rich development experience with colored output
+#
+# Dependencies are organized into logical groups:
+# - dev: Core development tools
+# - web: Web development frameworks
+# - data: Data science and analysis
+# - ml: Machine learning and AI
+# - db: Database connectivity
+# - all: Everything combined
+#
+# To install specific groups:
+# uv sync --extra web          # Web development
+# uv sync --extra data         # Data science
+# uv sync --all-extras --dev   # Everything including dev tools

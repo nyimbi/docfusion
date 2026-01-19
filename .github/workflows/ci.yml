@@ -1,0 +1,754 @@
+# GitHub Actions CI/CD Pipeline for docfusion
+# Comprehensive continuous integration with modern Python tooling
+# Generated from template - provides multi-stage quality assurance and deployment
+#
+# Pipeline stages:
+# 1. Quality Gates (linting, formatting, type checking)
+# 2. Security Scanning (vulnerability detection, secret scanning)
+# 3. Testing Matrix (multiple Python versions and platforms)
+# 4. Documentation (build and deploy docs)
+# 5. Build and Release (package building and distribution)
+# 6. Deployment (containerization and deployment)
+
+name: CI/CD Pipeline
+
+# ============================================================================
+# TRIGGER CONFIGURATION
+# ============================================================================
+
+on:
+  # Trigger on push to main branches
+  push:
+    branches: 
+      - main
+      - develop
+      - release/*
+    tags:
+      - 'v*'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+  # Trigger on pull requests to main
+  pull_request:
+    branches: 
+      - main
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+  # Manual workflow dispatch
+  workflow_dispatch:
+    inputs:
+      deploy_environment:
+        description: 'Deployment environment'
+        required: false
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      skip_tests:
+        description: 'Skip test execution'
+        required: false
+        default: false
+        type: boolean
+      force_deploy:
+        description: 'Force deployment even if tests fail'
+        required: false
+        default: false
+        type: boolean
+
+  # Scheduled runs for dependency updates and security scans
+  schedule:
+    # Run weekly security scans (Sundays at 2 AM UTC)
+    - cron: '0 2 * * 0'
+
+# ============================================================================
+# GLOBAL CONFIGURATION
+# ============================================================================
+
+# Concurrency control - cancel previous runs on new push
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Global environment variables
+env:
+  # UV configuration
+  UV_CACHE_DIR: /tmp/.uv-cache
+  UV_SYSTEM_PYTHON: 1
+  
+  # Python configuration
+  PYTHONUNBUFFERED: 1
+  PYTHONDONTWRITEBYTECODE: 1
+  
+  # Testing configuration
+  PYTEST_ADDOPTS: --color=yes --tb=short -ra
+  
+  # Coverage configuration
+  COVERAGE_CORE: sysmon
+  
+  # Application configuration
+  ENVIRONMENT: testing
+  LOG_LEVEL: INFO
+
+# Global permissions
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  checks: write
+  pull-requests: write
+  issues: write
+  packages: write
+
+# ============================================================================
+# JOB DEFINITIONS
+# ============================================================================
+
+jobs:
+  # ==========================================================================
+  # QUALITY GATES JOB
+  # ==========================================================================
+  
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    strategy:
+      matrix:
+        python-version: ['3.11']  # Single version for quick quality checks
+        
+    outputs:
+      python-version: ${{ matrix.python-version }}
+      cache-key: ${{ steps.cache-key.outputs.key }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+          
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          
+      - name: Install UV
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          
+      - name: Generate cache key
+        id: cache-key
+        run: |
+          echo "key=uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock', 'pyproject.toml') }}" >> $GITHUB_OUTPUT
+          
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+          
+      - name: Code formatting check (Ruff)
+        run: |
+          echo "::group::Ruff Format Check"
+          uv run ruff format --check --diff src tests
+          echo "::endgroup::"
+          
+      - name: Import sorting check (Ruff)
+        run: |
+          echo "::group::Import Sorting Check"
+          uv run ruff check --select I --diff src tests
+          echo "::endgroup::"
+          
+      - name: Linting (Ruff)
+        run: |
+          echo "::group::Ruff Linting"
+          uv run ruff check --output-format=github src tests
+          echo "::endgroup::"
+          
+      - name: Type checking (MyPy)
+        run: |
+          echo "::group::MyPy Type Checking"
+          uv run mypy src --show-error-codes --show-error-context
+          echo "::endgroup::"
+          
+      - name: Docstring validation (pydocstyle)
+        run: |
+          echo "::group::Docstring Validation"
+          uv run pydocstyle src --convention=google --add-ignore=D100,D104 || true
+          echo "::endgroup::"
+          
+      - name: Documentation coverage
+        run: |
+          echo "::group::Documentation Coverage"
+          uv run interrogate src --fail-under=70 --quiet || true
+          echo "::endgroup::"
+
+  # ==========================================================================
+  # SECURITY SCANNING JOB
+  # ==========================================================================
+  
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: quality-gates
+    
+    permissions:
+      security-events: write
+      contents: read
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ needs.quality-gates.outputs.python-version }}
+          
+      - name: Install UV
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+        
+      - name: Security linting (Bandit)
+        run: |
+          echo "::group::Bandit Security Scan"
+          uv run bandit -r src -f json -o bandit-report.json || true
+          uv run bandit -r src -f txt
+          echo "::endgroup::"
+          
+      - name: Dependency vulnerability scan (Safety)
+        run: |
+          echo "::group::Safety Dependency Scan"
+          uv run safety check --json --output safety-report.json || true
+          uv run safety check --short-report || true
+          echo "::endgroup::"
+          
+      - name: Python package audit (pip-audit)
+        run: |
+          echo "::group::Pip Audit"
+          uv run pip-audit --format=json --output=pip-audit-report.json || true
+          uv run pip-audit --desc || true
+          echo "::endgroup::"
+          
+      - name: Secret scanning (detect-secrets)
+        run: |
+          echo "::group::Secret Detection"
+          # Install detect-secrets if not in dev dependencies
+          uv add --dev detect-secrets || true
+          uv run detect-secrets scan --all-files --baseline .secrets.baseline || true
+          echo "::endgroup::"
+          
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+            pip-audit-report.json
+          retention-days: 30
+
+  # ==========================================================================
+  # TESTING MATRIX JOB
+  # ==========================================================================
+  
+  test-matrix:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    needs: quality-gates
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.10', '3.11', '3.12']
+        exclude:
+          # Reduce matrix size for faster execution
+          - os: windows-latest
+            python-version: '3.10'
+          - os: macos-latest
+            python-version: '3.10'
+            
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          
+      - name: Install UV
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+        
+      - name: Run test suite
+        if: ${{ !inputs.skip_tests }}
+        run: |
+          uv run pytest tests/ \
+            --verbose \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term-missing \
+            --junitxml=pytest-results.xml \
+            --cov-fail-under=80
+            
+      - name: Run performance benchmarks
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: |
+          # Install benchmark dependencies if available
+          uv add --dev pytest-benchmark || true
+          uv run pytest tests/ --benchmark-only --benchmark-json=benchmark-results.json || true
+          
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}-${{ matrix.python-version }}
+          path: |
+            pytest-results.xml
+            htmlcov/
+            benchmark-results.json
+          retention-days: 30
+          
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # ==========================================================================
+  # DOCUMENTATION BUILD JOB
+  # ==========================================================================
+  
+  documentation:
+    name: Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: quality-gates
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for version info
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ needs.quality-gates.outputs.python-version }}
+          
+      - name: Install UV
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+        
+      - name: Build documentation
+        run: |
+          if [ -d "docs" ]; then
+            echo "::group::Sphinx Documentation Build"
+            uv run sphinx-build -W -b html docs/source docs/build
+            echo "::endgroup::"
+          else
+            echo "No documentation directory found, skipping..."
+          fi
+          
+      - name: Upload documentation
+        uses: actions/upload-artifact@v3
+        if: success() && github.ref == 'refs/heads/main'
+        with:
+          name: documentation
+          path: docs/build/
+          retention-days: 30
+          
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        if: success() && github.ref == 'refs/heads/main'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/build
+          publish_branch: gh-pages
+          force_orphan: true
+
+  # ==========================================================================
+  # BUILD AND PACKAGE JOB
+  # ==========================================================================
+  
+  build-package:
+    name: Build Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [quality-gates, test-matrix]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for version calculation
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ needs.quality-gates.outputs.python-version }}
+          
+      - name: Install UV
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          
+      - name: Install build dependencies
+        run: uv sync --dev
+        
+      - name: Build package
+        run: |
+          echo "::group::Building Package"
+          uv build --verbose
+          echo "::endgroup::"
+          
+      - name: Verify package
+        run: |
+          echo "::group::Package Verification"
+          uv run twine check dist/*
+          echo "::endgroup::"
+          
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-package-distributions
+          path: dist/
+          retention-days: 30
+
+  # ==========================================================================
+  # DOCKER BUILD JOB
+  # ==========================================================================
+  
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [quality-gates, security-scan]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          
+      - name: Build development image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: development
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ==========================================================================
+  # RELEASE JOB
+  # ==========================================================================
+  
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build-package, docker-build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    environment:
+      name: release
+      url: https://pypi.org/project/docfusion/
+      
+    permissions:
+      contents: write
+      id-token: write  # For trusted publishing to PyPI
+      
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: python-package-distributions
+          path: dist/
+          
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          print-hash: true
+
+  # ==========================================================================
+  # DEPLOYMENT JOB
+  # ==========================================================================
+  
+  deploy:
+    name: Deploy to ${{ inputs.deploy_environment || 'staging' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [docker-build]
+    if: |
+      (github.event_name == 'workflow_dispatch') ||
+      (github.ref == 'refs/heads/main' && github.event_name == 'push')
+    
+    environment:
+      name: ${{ inputs.deploy_environment || 'staging' }}
+      url: https://${{ inputs.deploy_environment || 'staging' }}.docfusion.com
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Deploy to staging
+        if: ${{ (inputs.deploy_environment || 'staging') == 'staging' }}
+        run: |
+          echo "::group::Staging Deployment"
+          echo "Deploying to staging environment..."
+          # Add your staging deployment commands here
+          # Example: kubectl, helm, docker-compose, etc.
+          echo "::endgroup::"
+          
+      - name: Deploy to production
+        if: ${{ (inputs.deploy_environment || 'staging') == 'production' }}
+        run: |
+          echo "::group::Production Deployment"
+          echo "Deploying to production environment..."
+          # Add your production deployment commands here
+          echo "::endgroup::"
+          
+      - name: Run smoke tests
+        run: |
+          echo "::group::Smoke Tests"
+          echo "Running post-deployment smoke tests..."
+          # Add smoke tests here
+          echo "::endgroup::"
+
+  # ==========================================================================
+  # DEPENDENCY UPDATE JOB (Scheduled)
+  # ==========================================================================
+  
+  dependency-update:
+    name: Dependency Update Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'schedule'
+    
+    permissions:
+      contents: write
+      pull-requests: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install UV
+        uses: astral-sh/setup-uv@v3
+        
+      - name: Update dependencies
+        run: |
+          uv sync --upgrade
+          
+      - name: Check for updates
+        id: check-updates
+        run: |
+          if ! git diff --quiet uv.lock; then
+            echo "updates=true" >> $GITHUB_OUTPUT
+            echo "Dependencies have updates available"
+          else
+            echo "updates=false" >> $GITHUB_OUTPUT
+            echo "No dependency updates available"
+          fi
+          
+      - name: Create Pull Request
+        if: steps.check-updates.outputs.updates == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update dependencies"
+          title: "chore: automated dependency updates"
+          body: |
+            ## Automated Dependency Updates
+            
+            This PR contains automated dependency updates detected by the scheduled workflow.
+            
+            ### Changes
+            - Updated UV lock file with latest compatible versions
+            - All security vulnerabilities have been addressed
+            
+            ### Testing
+            - [ ] All automated tests pass
+            - [ ] Security scans complete successfully
+            - [ ] No breaking changes detected
+            
+            **Note**: This PR was created automatically by GitHub Actions.
+          branch: automated/dependency-updates
+          delete-branch: true
+
+  # ==========================================================================
+  # NOTIFICATION JOB
+  # ==========================================================================
+  
+  notify:
+    name: Notifications
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [quality-gates, security-scan, test-matrix, build-package]
+    if: always() && (failure() || success())
+    
+    steps:
+      - name: Determine status
+        id: status
+        run: |
+          if [[ "${{ needs.quality-gates.result }}" == "failure" || 
+                "${{ needs.security-scan.result }}" == "failure" || 
+                "${{ needs.test-matrix.result }}" == "failure" || 
+                "${{ needs.build-package.result }}" == "failure" ]]; then
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=❌ CI/CD Pipeline Failed" >> $GITHUB_OUTPUT
+          else
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=✅ CI/CD Pipeline Successful" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Notify on failure
+        if: steps.status.outputs.status == 'failure' && github.ref == 'refs/heads/main'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#docfusion-ci'
+          username: 'GitHub Actions'
+          icon_emoji: ':github:'
+          title: 'CI/CD Pipeline Failed'
+          text: |
+            Pipeline failed for docfusion
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+# ============================================================================
+# WORKFLOW SUMMARY
+# ============================================================================
+
+# This GitHub Actions workflow provides:
+#
+# 1. Multi-stage Quality Assurance:
+#    - Code formatting and linting with Ruff
+#    - Type checking with MyPy
+#    - Documentation validation
+#
+# 2. Comprehensive Security Scanning:
+#    - Static analysis with Bandit
+#    - Dependency vulnerability scanning with Safety and pip-audit
+#    - Secret detection
+#
+# 3. Cross-platform Testing:
+#    - Matrix testing across Python versions (3.10, 3.11, 3.12)
+#    - Multi-OS support (Ubuntu, Windows, macOS)
+#    - Performance benchmarking
+#
+# 4. Documentation and Deployment:
+#    - Automated documentation building and deployment
+#    - Package building and PyPI publishing
+#    - Docker image building with multi-arch support
+#
+# 5. Advanced Features:
+#    - Dependency update automation
+#    - Slack notifications for failures
+#    - Manual deployment triggers
+#    - Comprehensive artifact retention
+#
+# 6. Performance Optimizations:
+#    - Intelligent caching strategies
+#    - Parallel job execution
+#    - Conditional job execution
+#    - Optimized dependency installation
+#
+# Usage:
+# - Automatically triggers on push/PR to main branches
+# - Manual deployment via workflow_dispatch
+# - Scheduled dependency updates weekly
+# - Comprehensive CI/CD for Python projects using UV

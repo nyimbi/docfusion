@@ -1,0 +1,554 @@
+# Pre-commit Configuration for {{PROJECT_NAME}}
+# Comprehensive quality gates and automated code improvement
+# Generated from template - provides multi-layered quality assurance
+#
+# Installation: pre-commit install
+# Run on all files: pre-commit run --all-files
+# Update hooks: pre-commit autoupdate
+#
+# Hook execution order:
+# 1. File format and structure checks
+# 2. Code formatting and import sorting  
+# 3. Linting and code quality
+# 4. Security scanning
+# 5. Type checking
+# 6. Documentation checks
+# 7. Testing and coverage (on push)
+
+# Exclude patterns - files/directories to skip
+exclude: |
+  (?x)^(
+    \.git/.*|
+    \.venv/.*|
+    venv/.*|
+    \.tox/.*|
+    \.nox/.*|
+    build/.*|
+    dist/.*|
+    \.egg-info/.*|
+    __pycache__/.*|
+    \.mypy_cache/.*|
+    \.pytest_cache/.*|
+    \.ruff_cache/.*|
+    node_modules/.*|
+    migrations/.*|
+    \.min\.(js|css)$|
+    package-lock\.json$|
+    yarn\.lock$
+  )
+
+# Fail fast - stop on first failure
+fail_fast: false
+
+# Minimum pre-commit version
+minimum_pre_commit_version: '3.5.0'
+
+# Default language version
+default_language_version:
+  python: python3.11
+
+# Repository configurations
+repos:
+  # ============================================================================
+  # GENERAL FILE CHECKS AND FORMATTING
+  # ============================================================================
+  
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # File format and structure
+      - id: trailing-whitespace
+        name: "Remove trailing whitespace"
+        description: "Remove trailing whitespace from all files"
+        args: [--markdown-linebreak-ext=md]
+        
+      - id: end-of-file-fixer
+        name: "Fix end of files"
+        description: "Ensure files end with a newline"
+        
+      - id: check-merge-conflict
+        name: "Check for merge conflicts"
+        description: "Check for files that contain merge conflict strings"
+        
+      - id: check-case-conflict
+        name: "Check for case conflicts"
+        description: "Check for files that would conflict in case-insensitive filesystems"
+        
+      # JSON and YAML validation
+      - id: check-json
+        name: "Validate JSON"
+        description: "Check JSON files for parseable syntax"
+        
+      - id: check-yaml
+        name: "Validate YAML"
+        description: "Check YAML files for parseable syntax"
+        args: [--allow-multiple-documents]
+        
+      - id: check-toml
+        name: "Validate TOML"
+        description: "Check TOML files for parseable syntax"
+        
+      - id: check-xml
+        name: "Validate XML"
+        description: "Check XML files for parseable syntax"
+        
+      # Python-specific checks
+      - id: check-ast
+        name: "Check Python AST"
+        description: "Check whether files parse as valid Python"
+        
+      - id: check-builtin-literals
+        name: "Check builtin literals"
+        description: "Require literal syntax when initializing empty or zero Python builtin types"
+        
+      - id: check-docstring-first
+        name: "Check docstring first"
+        description: "Check that docstrings come first in Python files"
+        
+      - id: debug-statements
+        name: "Check for debug statements"
+        description: "Check for debugger imports and breakpoint() calls"
+        
+      - id: name-tests-test
+        name: "Tests should be named test_*"
+        description: "Check that test files are named correctly"
+        args: [--pytest-test-first]
+        files: ^tests/.*\.py$
+        
+      # Security and credentials
+      - id: detect-private-key
+        name: "Detect private keys"
+        description: "Check for private keys in repository"
+        
+      - id: check-added-large-files
+        name: "Check for large files"
+        description: "Prevent giant files from being committed"
+        args: [--maxkb=1000]
+        
+      # File permissions and executables
+      - id: check-executables-have-shebangs
+        name: "Check executable shebangs"
+        description: "Check that executable files have shebangs"
+        
+      - id: check-shebang-scripts-are-executable
+        name: "Check shebang executables"
+        description: "Check that files with shebangs are executable"
+        
+      # Miscellaneous
+      - id: mixed-line-ending
+        name: "Check line endings"
+        description: "Replace or check mixed line endings"
+        args: [--fix=lf]
+
+  # ============================================================================
+  # PYTHON CODE FORMATTING AND IMPORTS
+  # ============================================================================
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.6
+    hooks:
+      # Ruff linter - comprehensive rule checking
+      - id: ruff
+        name: "Ruff linter"
+        description: "Run Ruff linter with auto-fixes"
+        args: 
+          - --fix
+          - --exit-non-zero-on-fix
+          - --show-fixes
+        types_or: [python, pyi, jupyter]
+        
+      # Ruff formatter - code formatting (replaces Black + isort)
+      - id: ruff-format
+        name: "Ruff formatter"
+        description: "Format Python code with Ruff"
+        types_or: [python, pyi, jupyter]
+
+  # ============================================================================
+  # STATIC TYPE CHECKING
+  # ============================================================================
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.7.1
+    hooks:
+      - id: mypy
+        name: "MyPy type checking"
+        description: "Static type checking with MyPy"
+        additional_dependencies:
+          # Type stubs for common packages
+          - types-requests
+          - types-pyyaml
+          - types-toml
+          - types-setuptools
+          - types-redis
+          - types-psycopg2
+          - types-pillow
+          - types-dateutil
+          # Common packages that need to be available for type checking
+          - pydantic
+          - fastapi
+          - sqlalchemy
+        args:
+          - --strict
+          - --show-error-codes
+          - --show-error-context
+          - --pretty
+        files: ^src/.*\.py$
+        # Skip test files for less strict type checking
+        exclude: ^tests/.*$
+
+  # ============================================================================
+  # SECURITY SCANNING
+  # ============================================================================
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        name: "Bandit security linter"
+        description: "Security vulnerability scanner for Python"
+        args:
+          - --configfile=pyproject.toml
+          - --format=custom
+          - --msg-template='{abspath}:{line}: [{test_id}:{severity}] {msg}'
+        additional_dependencies: ["bandit[toml]"]
+        files: ^src/.*\.py$
+        # Skip test files as they often contain intentionally insecure code
+        exclude: ^tests/.*$
+
+  - repo: https://github.com/pyupio/safety
+    rev: 2.3.4
+    hooks:
+      - id: safety
+        name: "Safety dependency scanner"
+        description: "Check Python dependencies for known security vulnerabilities"
+        args:
+          - --json
+          - --ignore=70612  # Jinja2 vulnerability (if using older versions)
+        files: ^(pyproject\.toml|requirements.*\.txt)$
+
+  # ============================================================================
+  # DOCUMENTATION AND DOCSTRINGS
+  # ============================================================================
+
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        name: "Docstring style checker"
+        description: "Check compliance with Python docstring conventions"
+        args:
+          - --convention=google
+          - --add-ignore=D100,D104  # Missing docstrings in public modules and packages
+        files: ^src/.*\.py$
+
+  - repo: https://github.com/econchick/interrogate
+    rev: 1.5.0
+    hooks:
+      - id: interrogate
+        name: "Documentation coverage"
+        description: "Check documentation coverage of Python code"
+        args:
+          - --config=pyproject.toml
+          - --quiet
+          - --fail-under=80
+        files: ^src/.*\.py$
+
+  # ============================================================================
+  # CODE QUALITY AND COMPLEXITY
+  # ============================================================================
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.15.0
+    hooks:
+      - id: pyupgrade
+        name: "Python syntax upgrader"
+        description: "Upgrade syntax for newer versions of Python"
+        args: [--py310-plus]
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.6
+    hooks:
+      - id: codespell
+        name: "Spell checker"
+        description: "Check for common misspellings in text files"
+        args:
+          - --write-changes
+          - --ignore-words-list=crate,aks,ans,buildd,asend
+        additional_dependencies:
+          - tomli
+
+  # ============================================================================
+  # JUPYTER NOTEBOOK SUPPORT
+  # ============================================================================
+
+  - repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.7.1
+    hooks:
+      - id: nbqa-ruff
+        name: "Notebook linting with Ruff"
+        description: "Run Ruff on Jupyter notebooks"
+        args: [--fix]
+        
+      - id: nbqa-mypy
+        name: "Notebook type checking"
+        description: "Run MyPy on Jupyter notebooks"
+        additional_dependencies: [mypy]
+
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.6.1
+    hooks:
+      - id: nbstripout
+        name: "Strip notebook outputs"
+        description: "Strip output from Jupyter notebooks"
+        args:
+          - --drop-empty-cells
+          - --strip-init-cells
+
+  # ============================================================================
+  # SECRETS AND CREDENTIALS DETECTION
+  # ============================================================================
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        name: "Detect secrets"
+        description: "Detect secrets in code"
+        args:
+          - --baseline=.secrets.baseline
+          - --exclude-files=.*\.lock$
+          - --exclude-files=.*\.min\.(js|css)$
+        exclude: |
+          (?x)^(
+            \.secrets\.baseline$|
+            .*\.lock$|
+            .*\.min\.(js|css)$
+          )
+
+  # ============================================================================
+  # INFRASTRUCTURE AS CODE
+  # ============================================================================
+
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        name: "Dockerfile linter"
+        description: "Lint Dockerfiles for best practices"
+        args:
+          - --ignore=DL3008  # Pin versions in apt get install
+          - --ignore=DL3009  # Delete the apt-get lists after installing
+        files: Dockerfile.*
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.33.0
+    hooks:
+      - id: yamllint
+        name: "YAML linter"
+        description: "Lint YAML files"
+        args:
+          - --format=parsable
+          - --strict
+        files: \.(yaml|yml)$
+
+  # ============================================================================
+  # DEPENDENCY MANAGEMENT
+  # ============================================================================
+
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.4
+    hooks:
+      - id: remove-crlf
+        name: "Remove CRLF line endings"
+        description: "Replace CRLF line endings with LF"
+        
+      - id: remove-tabs
+        name: "Remove tabs"
+        description: "Replace tabs with spaces"
+        args: [--whitespaces-count=4]
+        files: \.(py|yaml|yml|json|md|txt)$
+
+  # ============================================================================
+  # COMMIT MESSAGE VALIDATION
+  # ============================================================================
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.12.0
+    hooks:
+      - id: commitizen
+        name: "Conventional commits"
+        description: "Check commit message follows conventional commits"
+        stages: [commit-msg]
+
+  # ============================================================================
+  # LOCAL HOOKS (Using project environment)
+  # ============================================================================
+
+  - repo: local
+    hooks:
+      # Test execution hook
+      - id: tests
+        name: "Run test suite"
+        description: "Execute the test suite with coverage"
+        entry: uv run pytest
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+
+      # Coverage validation
+      - id: coverage-check
+        name: "Coverage validation"
+        description: "Ensure test coverage meets minimum threshold"
+        entry: uv run pytest --cov=src --cov-fail-under=80 --cov-report=term-missing
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+
+      # Security audit with pip-audit
+      - id: pip-audit
+        name: "Dependency security audit"
+        description: "Audit Python packages for known vulnerabilities"
+        entry: uv run pip-audit
+        language: system
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+        stages: [pre-push]
+
+      # Documentation build test
+      - id: docs-build
+        name: "Documentation build test"
+        description: "Test that documentation builds successfully"
+        entry: bash -c 'if [ -d "docs" ]; then uv run sphinx-build -W -b html docs/source docs/build; fi'
+        language: system
+        files: ^docs/.*$
+        pass_filenames: false
+
+      # Check for TODO/FIXME comments in production code
+      - id: check-todos
+        name: "Check for TODO/FIXME"
+        description: "Flag TODO/FIXME comments in source code"
+        entry: bash -c 'grep -rn "TODO\|FIXME\|XXX\|HACK" src/ && exit 1 || exit 0'
+        language: system
+        files: ^src/.*\.py$
+        pass_filenames: false
+        # Only warn, don't fail
+        verbose: true
+
+      # Validate pyproject.toml
+      - id: validate-pyproject
+        name: "Validate pyproject.toml"
+        description: "Validate pyproject.toml syntax and structure"
+        entry: uv run python -c "import tomllib; tomllib.load(open('pyproject.toml', 'rb'))"
+        language: system
+        files: ^pyproject\.toml$
+        pass_filenames: false
+
+      # Check import sorting with isort validation
+      - id: import-sorting-check
+        name: "Import sorting validation"
+        description: "Ensure imports are properly sorted"
+        entry: uv run python -c "
+          import ast, sys
+          from pathlib import Path
+          for file in sys.argv[1:]:
+              try:
+                  with open(file) as f:
+                      ast.parse(f.read())
+              except SyntaxError as e:
+                  print(f'Syntax error in {file}: {e}')
+                  sys.exit(1)
+          "
+        language: system
+        files: ^src/.*\.py$
+
+# ============================================================================
+# CI CONFIGURATION
+# ============================================================================
+
+# Configuration for pre-commit.ci service
+ci:
+  # Auto-fix commits
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com hooks
+    
+    for more information, see https://pre-commit.ci
+
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  
+  # Skip certain hooks in CI (too slow or require specific setup)
+  skip: 
+    - tests
+    - coverage-check
+    - pip-audit
+    - docs-build
+
+  # Submodules support
+  submodules: false
+
+# ============================================================================
+# USAGE INSTRUCTIONS
+# ============================================================================
+
+# To set up pre-commit hooks:
+# 1. Install pre-commit: uv add --dev pre-commit
+# 2. Install hooks: pre-commit install
+# 3. Install commit-msg hook: pre-commit install --hook-type commit-msg
+# 4. Install pre-push hook: pre-commit install --hook-type pre-push
+#
+# To run hooks manually:
+# - All hooks on all files: pre-commit run --all-files
+# - Specific hook: pre-commit run ruff --all-files
+# - Skip hook: SKIP=mypy git commit -m "message"
+#
+# To update hooks:
+# - Update to latest: pre-commit autoupdate
+# - Update specific repo: pre-commit autoupdate --repo https://github.com/astral-sh/ruff-pre-commit
+#
+# Debugging hooks:
+# - Verbose output: pre-commit run --verbose --all-files
+# - Show diff: pre-commit run --show-diff-on-failure
+# - Debug mode: pre-commit run --debug
+
+# ============================================================================
+# CUSTOMIZATION NOTES
+# ============================================================================
+
+# Hook stages explained:
+# - commit: Run on every commit (default)
+# - merge-commit: Run only on merge commits
+# - push: Run on git push
+# - pre-push: Run before git push
+# - commit-msg: Validate commit messages
+# - post-checkout: Run after git checkout
+# - post-commit: Run after git commit
+# - post-merge: Run after git merge
+# - manual: Only run when explicitly called
+
+# Performance optimization:
+# - Use fail_fast: true to stop on first failure
+# - Use pass_filenames: false for hooks that check entire project
+# - Use files regex to limit scope of hooks
+# - Use exclude patterns to skip unnecessary files
+
+# Security considerations:
+# - Secrets detection prevents credential leaks
+# - Dependency scanning catches vulnerabilities
+# - Bandit identifies security issues in code
+# - Safety checks for known CVEs in dependencies
+
+# Quality gates:
+# - Multiple layers of checking (syntax, style, security, types)
+# - Automatic fixes where possible (formatting, imports)
+# - Documentation coverage enforcement
+# - Test coverage validation on push
+
+# Integration with {{PROJECT_NAME}}:
+# - Uses project's pyproject.toml for configuration
+# - Leverages UV for dependency management
+# - Integrates with project structure (src/ layout)
+# - Supports all major Python development tools
