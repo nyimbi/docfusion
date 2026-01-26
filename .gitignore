@@ -685,3 +685,6 @@ webserver_config.py
 uv.lock
 .uv-cache/
 .aider*
+
+# Additional from proposal_writer merge
+temp/

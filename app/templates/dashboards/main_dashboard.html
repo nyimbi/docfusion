@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="docufusion-header">
+  <h1><i class="fa fa-dashboard"></i> DocuFusion Dashboard</h1>
+  <p>Welcome to your AI-powered document intelligence workspace</p>
+</div>
+
+<div class="row">
+  <!-- User Statistics -->
+  <div class="col-md-3">
+    <div class="metric-card">
+      <div class="metric-value">{{ user_stats.total_documents }}</div>
+      <div class="metric-label">My Documents</div>
+    </div>
+  </div>
+  
+  <div class="col-md-3">
+    <div class="metric-card">
+      <div class="metric-value">{{ user_stats.total_projects }}</div>
+      <div class="metric-label">My Projects</div>
+    </div>
+  </div>
+  
+  <div class="col-md-3">
+    <div class="metric-card">
+      <div class="metric-value">{{ user_stats.recent_documents }}</div>
+      <div class="metric-label">Recent Docs (30d)</div>
+    </div>
+  </div>
+  
+  <div class="col-md-3">
+    <div class="metric-card">
+      <div class="metric-value">{{ "%.1f" | format(user_stats.productivity_score) }}%</div>
+      <div class="metric-label">Productivity Score</div>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top: 2rem;">
+  <!-- System Overview -->
+  <div class="col-md-6">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title"><i class="fa fa-bar-chart"></i> System Overview</h3>
+      </div>
+      <div class="panel-body">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="metric-card">
+              <div class="metric-value">{{ system_stats.total_documents }}</div>
+              <div class="metric-label">Total Documents</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="metric-card">
+              <div class="metric-value">{{ system_stats.total_opportunities }}</div>
+              <div class="metric-label">Opportunities</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="row">
+          <div class="col-md-6">
+            <div class="metric-card">
+              <div class="metric-value">{{ system_stats.active_workflows }}</div>
+              <div class="metric-label">Active Workflows</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="metric-card">
+              <div class="metric-value">{{ system_stats.recent_activity }}</div>
+              <div class="metric-label">Recent Activity (7d)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Recent Activity -->
+  <div class="col-md-6">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title"><i class="fa fa-clock-o"></i> Recent Activity</h3>
+      </div>
+      <div class="panel-body">
+        {% for activity in recent_activity[:5] %}
+        <div class="timeline-item">
+          <div class="row">
+            <div class="col-md-8">
+              <strong>{{ activity.title }}</strong><br>
+              <small class="text-muted">
+                {{ activity.action }} by {{ activity.user }} 
+                {% if activity.timestamp %}
+                  - {{ moment(activity.timestamp).fromNow() }}
+                {% endif %}
+              </small>
+            </div>
+            <div class="col-md-4 text-right">
+              {% if activity.url %}
+                <a href="{{ activity.url }}" class="btn btn-xs btn-primary">View</a>
+              {% endif %}
+              <span class="label label-info">{{ activity.type }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+        
+        {% if recent_activity|length == 0 %}
+        <p class="text-muted text-center">No recent activity</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top: 2rem;">
+  <!-- Document Status Distribution -->
+  <div class="col-md-6">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title"><i class="fa fa-pie-chart"></i> My Document Status</h3>
+      </div>
+      <div class="panel-body">
+        {% for status, count in user_stats.status_distribution.items() %}
+        <div class="row" style="margin-bottom: 0.5rem;">
+          <div class="col-md-6">
+            <span class="status-badge status-{{ status }}">{{ status|title }}</span>
+          </div>
+          <div class="col-md-6 text-right">
+            <strong>{{ count }}</strong>
+          </div>
+        </div>
+        {% endfor %}
+        
+        {% if user_stats.status_distribution|length == 0 %}
+        <p class="text-muted text-center">No documents yet</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  
+  <!-- System Health -->
+  <div class="col-md-6">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title"><i class="fa fa-heartbeat"></i> System Health</h3>
+      </div>
+      <div class="panel-body">
+        <div class="row">
+          <div class="col-md-12">
+            <h4>
+              Status: 
+              {% if system_stats.system_health.status == 'healthy' %}
+                <span class="label label-success">Healthy</span>
+              {% elif system_stats.system_health.status == 'warning' %}
+                <span class="label label-warning">Warning</span>
+              {% else %}
+                <span class="label label-danger">Error</span>
+              {% endif %}
+            </h4>
+          </div>
+        </div>
+        
+        {% for indicator in system_stats.system_health.indicators %}
+        <div class="row" style="margin-bottom: 0.5rem;">
+          <div class="col-md-8">
+            <strong>{{ indicator.name }}</strong><br>
+            <small class="text-muted">{{ indicator.message }}</small>
+          </div>
+          <div class="col-md-4 text-right">
+            {% if indicator.status == 'healthy' %}
+              <span class="label label-success">OK</span>
+            {% elif indicator.status == 'warning' %}
+              <span class="label label-warning">Warning</span>
+            {% else %}
+              <span class="label label-danger">Error</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row" style="margin-top: 2rem;">
+  <div class="col-md-12">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title"><i class="fa fa-bolt"></i> Quick Actions</h3>
+      </div>
+      <div class="panel-body text-center">
+        <a href="{{ url_for('DocumentModelView.add') }}" class="btn btn-primary btn-lg">
+          <i class="fa fa-plus"></i> New Document
+        </a>
+        <a href="{{ url_for('TemplateModelView.list') }}" class="btn btn-info btn-lg">
+          <i class="fa fa-file-code-o"></i> Browse Templates
+        </a>
+        <a href="{{ url_for('ProjectModelView.add') }}" class="btn btn-success btn-lg">
+          <i class="fa fa-folder-open"></i> New Project
+        </a>
+        <a href="{{ url_for('OpportunityModelView.list') }}" class="btn btn-warning btn-lg">
+          <i class="fa fa-search"></i> Find Opportunities
+        </a>
+        <a href="{{ url_for('AIFeaturesView.ai_features') }}" class="btn btn-purple btn-lg">
+          <i class="fa fa-magic"></i> AI Assistant
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block tail_js %}
+  {{super()}}
+  <script>
+    // Auto-refresh dashboard data every 5 minutes
+    setInterval(function() {
+      // Only refresh if user is still on the page
+      if (!document.hidden) {
+        location.reload();
+      }
+    }, 300000); // 5 minutes
+    
+    // Add some interactivity to metric cards
+    $('.metric-card').hover(
+      function() { $(this).css('transform', 'translateY(-2px)'); },
+      function() { $(this).css('transform', 'translateY(0)'); }
+    );
+  </script>
+{% endblock %}

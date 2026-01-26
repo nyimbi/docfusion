@@ -1,0 +1,69 @@
+# Flask-AppBuilder and Core Dependencies
+Flask==2.3.3
+Flask-AppBuilder==4.3.10
+Flask-SQLAlchemy==3.0.5
+SQLAlchemy==2.0.21
+Flask-Login==0.6.3
+Flask-Babel==3.1.0
+Flask-WTF==1.1.1
+WTForms==3.0.1
+
+# Database Support
+psycopg2-binary==2.9.7  # PostgreSQL
+pymysql==1.1.0  # MySQL
+
+# Document Generation
+WeasyPrint==60.1  # PDF generation
+python-docx==0.8.11  # DOCX generation
+Jinja2==3.1.2  # Template rendering
+
+# NLP and AI (Optional - fallback to mock if not available)
+transformers>=4.30.0  # For advanced NLP features
+torch>=2.0.0  # PyTorch for transformers
+spacy>=3.6.0  # For NLP processing
+scikit-learn>=1.3.0  # For ML features
+
+# Web and API
+requests==2.31.0  # For external API calls
+Flask-CORS==4.0.0  # CORS support
+Flask-RESTful==0.3.10  # REST API helpers
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3
+uuid==1.30
+pathlib2==2.3.7
+
+# Development Dependencies (optional)
+pytest==7.4.2
+pytest-flask==1.2.0
+pytest-cov==4.1.0
+black==23.7.0
+flake8==6.0.0
+
+# Production Dependencies (optional)
+gunicorn==21.2.0  # WSGI server
+redis==5.0.0  # For caching and sessions
+celery==5.3.1  # For async tasks
+
+# Security
+cryptography==41.0.4
+bcrypt==4.0.1
+
+# File Processing
+openpyxl==3.1.2  # Excel files
+PyPDF2==3.0.1  # PDF processing
+beautifulsoup4==4.12.2  # HTML parsing
+
+# Image Processing (for document generation)
+Pillow==10.0.0
+
+# Data Validation
+marshmallow==3.20.1
+email-validator==2.0.0
+
+# Logging and Monitoring
+structlog==23.1.0
+
+# Configuration Management
+python-dotenv==1.0.0

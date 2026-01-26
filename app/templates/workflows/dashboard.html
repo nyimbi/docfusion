@@ -1,0 +1,976 @@
+{% extends "appbuilder/general/widgets/base_list.html" %}
+{% import 'appbuilder/general/lib.html' as lib %}
+
+{% block content %}
+<div class="container-fluid">
+	<div class="row">
+		<div class="col-md-12">
+			<!-- Workflow Dashboard Header -->
+			<div class="panel panel-warning">
+				<div class="panel-heading">
+					<div class="row">
+						<div class="col-md-8">
+							<h3 class="panel-title">
+								<i class="fa fa-cogs"></i> Workflow Dashboard
+							</h3>
+							<small class="text-muted">Monitor and manage your document workflows and automation processes</small>
+						</div>
+						<div class="col-md-4 text-right">
+							<div class="btn-group" role="group">
+								<button type="button" class="btn btn-sm btn-warning" data-action="create-workflow">
+									<i class="fa fa-plus"></i> Create Workflow
+								</button>
+								<button type="button" class="btn btn-sm btn-info" data-action="workflow-templates">
+									<i class="fa fa-book"></i> Templates
+								</button>
+								<button type="button" class="btn btn-sm btn-default" data-action="refresh-dashboard">
+									<i class="fa fa-refresh"></i> Refresh
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	
+	<!-- Workflow Overview Cards -->
+	<div class="row">
+		<div class="col-md-3">
+			<div class="info-box bg-blue">
+				<div class="info-box-icon">
+					<i class="fa fa-play"></i>
+				</div>
+				<div class="info-box-content">
+					<div class="info-box-number">{{ workflow_stats.active_workflows }}</div>
+					<div class="info-box-text">Active Workflows</div>
+					<div class="progress">
+						<div class="progress-bar" style="width: 100%"></div>
+					</div>
+				</div>
+			</div>
+		</div>
+		
+		<div class="col-md-3">
+			<div class="info-box bg-green">
+				<div class="info-box-icon">
+					<i class="fa fa-check-circle"></i>
+				</div>
+				<div class="info-box-content">
+					<div class="info-box-number">{{ workflow_stats.completed_today }}</div>
+					<div class="info-box-text">Completed Today</div>
+					<div class="info-box-more">
+						<span class="badge">{{ workflow_stats.completion_rate }}% success rate</span>
+					</div>
+				</div>
+			</div>
+		</div>
+		
+		<div class="col-md-3">
+			<div class="info-box bg-yellow">
+				<div class="info-box-icon">
+					<i class="fa fa-clock-o"></i>
+				</div>
+				<div class="info-box-content">
+					<div class="info-box-number">{{ workflow_stats.pending_tasks }}</div>
+					<div class="info-box-text">Pending Tasks</div>
+					<div class="info-box-more">
+						<span class="badge">{{ workflow_stats.overdue_tasks }} overdue</span>
+					</div>
+				</div>
+			</div>
+		</div>
+		
+		<div class="col-md-3">
+			<div class="info-box bg-red">
+				<div class="info-box-icon">
+					<i class="fa fa-exclamation-triangle"></i>
+				</div>
+				<div class="info-box-content">
+					<div class="info-box-number">{{ workflow_stats.failed_workflows }}</div>
+					<div class="info-box-text">Failed Workflows</div>
+					<div class="info-box-more">
+						<a href="#" class="small-box-footer" data-action="view-failed">
+							View Details <i class="fa fa-arrow-circle-right"></i>
+						</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	
+	<div class="row">
+		<!-- Active Workflows -->
+		<div class="col-md-8">
+			<div class="panel panel-primary">
+				<div class="panel-heading">
+					<h4><i class="fa fa-play-circle"></i> Active Workflows</h4>
+					<div class="panel-tools">
+						<button type="button" class="btn btn-xs btn-primary" data-action="view-all-workflows">
+							<i class="fa fa-list"></i> View All
+						</button>
+					</div>
+				</div>
+				<div class="panel-body">
+					{% if active_workflows %}
+					<div class="table-responsive">
+						<table class="table table-striped">
+							<thead>
+								<tr>
+									<th>Workflow</th>
+									<th>Document</th>
+									<th>Progress</th>
+									<th>Current Step</th>
+									<th>Due Date</th>
+									<th>Actions</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for workflow in active_workflows %}
+								<tr>
+									<td>
+										<strong>{{ workflow.workflow_name }}</strong>
+										<br><small class="text-muted">{{ workflow.workflow_type.replace('_', ' ').title() }}</small>
+									</td>
+									<td>
+										<a href="{{ url_for('DocumentModelView.show', pk=workflow.document.id) }}">
+											{{ workflow.document.title }}
+										</a>
+									</td>
+									<td>
+										<div class="progress">
+											<div class="progress-bar progress-bar-{% if workflow.progress >= 80 %}success{% elif workflow.progress >= 50 %}info{% elif workflow.progress >= 25 %}warning{% else %}danger{% endif %}" 
+												 style="width: {{ workflow.progress }}%">
+												{{ "%.0f"|format(workflow.progress) }}%
+											</div>
+										</div>
+									</td>
+									<td>
+										<span class="label label-info">{{ workflow.current_step.replace('_', ' ').title() }}</span>
+									</td>
+									<td>
+										{% if workflow.due_date %}
+										<span class="{% if workflow.is_overdue %}text-danger{% elif workflow.due_soon %}text-warning{% endif %}">
+											{{ workflow.due_date.strftime('%Y-%m-%d') }}
+										</span>
+										{% else %}
+										<span class="text-muted">No due date</span>
+										{% endif %}
+									</td>
+									<td>
+										<div class="btn-group btn-group-xs" role="group">
+											<button type="button" class="btn btn-default" data-action="view-workflow" data-workflow="{{ workflow.id }}" title="View Details">
+												<i class="fa fa-eye"></i>
+											</button>
+											<button type="button" class="btn btn-default" data-action="pause-workflow" data-workflow="{{ workflow.id }}" title="Pause">
+												<i class="fa fa-pause"></i>
+											</button>
+											<button type="button" class="btn btn-default" data-action="cancel-workflow" data-workflow="{{ workflow.id }}" title="Cancel">
+												<i class="fa fa-stop"></i>
+											</button>
+										</div>
+									</td>
+								</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+					{% else %}
+					<div class="empty-state text-center">
+						<i class="fa fa-cogs fa-3x text-muted"></i>
+						<h4>No Active Workflows</h4>
+						<p class="text-muted">Create a workflow to automate your document processes.</p>
+						<button type="button" class="btn btn-primary" data-action="create-workflow">
+							<i class="fa fa-plus"></i> Create Workflow
+						</button>
+					</div>
+					{% endif %}
+				</div>
+			</div>
+		</div>
+		
+		<!-- Recent Activity -->
+		<div class="col-md-4">
+			<div class="panel panel-default">
+				<div class="panel-heading">
+					<h4><i class="fa fa-bell"></i> Recent Activity</h4>
+				</div>
+				<div class="panel-body">
+					<div class="activity-feed">
+						{% for activity in recent_activities %}
+						<div class="activity-item">
+							<div class="activity-icon bg-{{ activity.color }}">
+								<i class="fa fa-{{ activity.icon }}"></i>
+							</div>
+							<div class="activity-content">
+								<div class="activity-header">
+									<strong>{{ activity.title }}</strong>
+									<small class="activity-time">{{ activity.timestamp.strftime('%H:%M') }}</small>
+								</div>
+								<div class="activity-description">{{ activity.description }}</div>
+								{% if activity.workflow_id %}
+								<div class="activity-link">
+									<a href="#" data-action="view-workflow" data-workflow="{{ activity.workflow_id }}">View Workflow</a>
+								</div>
+								{% endif %}
+							</div>
+						</div>
+						{% endfor %}
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	
+	<div class="row">
+		<!-- Workflow Templates -->
+		<div class="col-md-6">
+			<div class="panel panel-success">
+				<div class="panel-heading">
+					<h4><i class="fa fa-book"></i> Workflow Templates</h4>
+					<div class="panel-tools">
+						<button type="button" class="btn btn-xs btn-success" data-action="create-template">
+							<i class="fa fa-plus"></i> New Template
+						</button>
+					</div>
+				</div>
+				<div class="panel-body">
+					<div class="workflow-templates">
+						{% for template in workflow_templates %}
+						<div class="template-card">
+							<div class="template-header">
+								<div class="template-icon">
+									<i class="fa fa-{% if template.category == 'rfp' %}file-text{% elif template.category == 'approval' %}check-circle{% elif template.category == 'collaboration' %}users{% else %}cogs{% endif %}"></i>
+								</div>
+								<div class="template-info">
+									<h5>{{ template.name }}</h5>
+									<p class="text-muted">{{ template.description }}</p>
+								</div>
+							</div>
+							<div class="template-stats">
+								<span class="stat-item">
+									<i class="fa fa-clock-o"></i> {{ template.avg_duration }} avg
+								</span>
+								<span class="stat-item">
+									<i class="fa fa-check"></i> {{ template.success_rate }}% success
+								</span>
+							</div>
+							<div class="template-actions">
+								<button type="button" class="btn btn-sm btn-primary" data-action="use-template" data-template="{{ template.id }}">
+									<i class="fa fa-rocket"></i> Use Template
+								</button>
+								<button type="button" class="btn btn-sm btn-default" data-action="edit-template" data-template="{{ template.id }}">
+									<i class="fa fa-edit"></i> Edit
+								</button>
+							</div>
+						</div>
+						{% endfor %}
+					</div>
+				</div>
+			</div>
+		</div>
+		
+		<!-- Performance Analytics -->
+		<div class="col-md-6">
+			<div class="panel panel-info">
+				<div class="panel-heading">
+					<h4><i class="fa fa-bar-chart"></i> Performance Analytics</h4>
+					<div class="panel-tools">
+						<select class="form-control input-sm" id="analytics-period" style="width: auto; display: inline-block;">
+							<option value="7">Last 7 days</option>
+							<option value="30" selected>Last 30 days</option>
+							<option value="90">Last 90 days</option>
+						</select>
+					</div>
+				</div>
+				<div class="panel-body">
+					<!-- Workflow Performance Chart -->
+					<div class="chart-container">
+						<canvas id="workflow-performance-chart" width="400" height="200"></canvas>
+					</div>
+					
+					<!-- Performance Metrics -->
+					<div class="performance-metrics">
+						<div class="row">
+							<div class="col-md-6">
+								<div class="metric-item">
+									<div class="metric-value">{{ "%.1f"|format(performance_metrics.avg_completion_time) }}</div>
+									<div class="metric-label">Avg Completion Time (hours)</div>
+								</div>
+							</div>
+							<div class="col-md-6">
+								<div class="metric-item">
+									<div class="metric-value">{{ performance_metrics.automation_rate }}%</div>
+									<div class="metric-label">Automation Rate</div>
+								</div>
+							</div>
+						</div>
+						<div class="row">
+							<div class="col-md-6">
+								<div class="metric-item">
+									<div class="metric-value">{{ performance_metrics.error_rate }}%</div>
+									<div class="metric-label">Error Rate</div>
+								</div>
+							</div>
+							<div class="col-md-6">
+								<div class="metric-item">
+									<div class="metric-value">{{ performance_metrics.time_saved }}</div>
+									<div class="metric-label">Hours Saved</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<!-- Top Performing Workflows -->
+					<div class="top-workflows">
+						<h6>Top Performing Workflows:</h6>
+						{% for workflow in top_workflows %}
+						<div class="workflow-performance-item">
+							<span class="workflow-name">{{ workflow.name }}</span>
+							<span class="workflow-score">{{ workflow.performance_score }}%</span>
+						</div>
+						{% endfor %}
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Create Workflow Modal -->
+<div class="modal fade" id="create-workflow-modal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-lg" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h4 class="modal-title">Create New Workflow</h4>
+			</div>
+			<form id="create-workflow-form">
+				<div class="modal-body">
+					<div class="row">
+						<div class="col-md-6">
+							<div class="form-group">
+								<label for="workflow-name">Workflow Name</label>
+								<input type="text" class="form-control" id="workflow-name" name="name" required>
+							</div>
+							<div class="form-group">
+								<label for="workflow-type">Workflow Type</label>
+								<select class="form-control" id="workflow-type" name="workflow_type" required>
+									<option value="">Select Type</option>
+									<option value="rfp_response">RFP Response</option>
+									<option value="document_approval">Document Approval</option>
+									<option value="collaborative_editing">Collaborative Editing</option>
+									<option value="compliance_review">Compliance Review</option>
+									<option value="custom">Custom Workflow</option>
+								</select>
+							</div>
+							<div class="form-group">
+								<label for="workflow-document">Document</label>
+								<select class="form-control" id="workflow-document" name="document_id">
+									<option value="">Select Document</option>
+									{% for document in documents %}
+									<option value="{{ document.id }}">{{ document.title }}</option>
+									{% endfor %}
+								</select>
+							</div>
+						</div>
+						<div class="col-md-6">
+							<div class="form-group">
+								<label for="workflow-description">Description</label>
+								<textarea class="form-control" id="workflow-description" name="description" rows="3"></textarea>
+							</div>
+							<div class="form-group">
+								<label for="workflow-due-date">Due Date (optional)</label>
+								<input type="date" class="form-control" id="workflow-due-date" name="due_date">
+							</div>
+							<div class="form-group">
+								<label for="workflow-assignees">Assignees</label>
+								<select class="form-control" id="workflow-assignees" name="assignees[]" multiple>
+									{% for user in users %}
+									<option value="{{ user.id }}">{{ user.username }} ({{ user.first_name }} {{ user.last_name }})</option>
+									{% endfor %}
+								</select>
+							</div>
+						</div>
+					</div>
+					
+					<!-- Workflow Steps -->
+					<div class="workflow-steps">
+						<h5>Workflow Steps:</h5>
+						<div id="workflow-steps-container">
+							<div class="workflow-step">
+								<div class="row">
+									<div class="col-md-4">
+										<input type="text" class="form-control" name="steps[0][name]" placeholder="Step name" required>
+									</div>
+									<div class="col-md-3">
+										<select class="form-control" name="steps[0][type]" required>
+											<option value="manual">Manual Task</option>
+											<option value="automated">Automated Task</option>
+											<option value="approval">Approval Required</option>
+											<option value="review">Review Task</option>
+										</select>
+									</div>
+									<div class="col-md-3">
+										<select class="form-control" name="steps[0][assignee]">
+											<option value="">Auto-assign</option>
+											{% for user in users %}
+											<option value="{{ user.id }}">{{ user.username }}</option>
+											{% endfor %}
+										</select>
+									</div>
+									<div class="col-md-2">
+										<button type="button" class="btn btn-danger btn-sm remove-step">
+											<i class="fa fa-trash"></i>
+										</button>
+									</div>
+								</div>
+							</div>
+						</div>
+						<button type="button" class="btn btn-success btn-sm" id="add-workflow-step">
+							<i class="fa fa-plus"></i> Add Step
+						</button>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+					<button type="submit" class="btn btn-warning">Create Workflow</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<!-- Workflow Details Modal -->
+<div class="modal fade" id="workflow-details-modal" tabindex="-1" role="dialog">
+	<div class="modal-dialog modal-lg" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h4 class="modal-title">Workflow Details</h4>
+			</div>
+			<div class="modal-body">
+				<div id="workflow-details-content">
+					<div class="loading text-center">
+						<i class="fa fa-spinner fa-spin fa-2x"></i>
+						<p>Loading workflow details...</p>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				<button type="button" class="btn btn-primary" id="workflow-action-btn">Action</button>
+			</div>
+		</div>
+	</div>
+</div>
+{% endblock %}
+
+{% block add_tail_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+$(document).ready(function() {
+	var stepCounter = 1;
+	
+	// Initialize charts
+	initializePerformanceChart();
+	
+	// Handle action buttons
+	$('[data-action]').on('click', function() {
+		var action = $(this).data('action');
+		var workflowId = $(this).data('workflow');
+		var templateId = $(this).data('template');
+		
+		switch(action) {
+			case 'create-workflow':
+				$('#create-workflow-modal').modal('show');
+				break;
+			case 'workflow-templates':
+				showWorkflowTemplates();
+				break;
+			case 'refresh-dashboard':
+				location.reload();
+				break;
+			case 'view-workflow':
+				viewWorkflowDetails(workflowId);
+				break;
+			case 'pause-workflow':
+				pauseWorkflow(workflowId);
+				break;
+			case 'cancel-workflow':
+				cancelWorkflow(workflowId);
+				break;
+			case 'use-template':
+				useWorkflowTemplate(templateId);
+				break;
+			case 'edit-template':
+				editWorkflowTemplate(templateId);
+				break;
+		}
+	});
+	
+	// Add workflow step
+	$('#add-workflow-step').on('click', function() {
+		addWorkflowStep();
+	});
+	
+	// Remove workflow step
+	$(document).on('click', '.remove-step', function() {
+		if ($('.workflow-step').length > 1) {
+			$(this).closest('.workflow-step').remove();
+		}
+	});
+	
+	// Form submission
+	$('#create-workflow-form').on('submit', function(e) {
+		e.preventDefault();
+		createWorkflow();
+	});
+	
+	// Analytics period change
+	$('#analytics-period').on('change', function() {
+		updateAnalytics($(this).val());
+	});
+	
+	function addWorkflowStep() {
+		var stepHtml = `
+			<div class="workflow-step">
+				<div class="row">
+					<div class="col-md-4">
+						<input type="text" class="form-control" name="steps[${stepCounter}][name]" placeholder="Step name" required>
+					</div>
+					<div class="col-md-3">
+						<select class="form-control" name="steps[${stepCounter}][type]" required>
+							<option value="manual">Manual Task</option>
+							<option value="automated">Automated Task</option>
+							<option value="approval">Approval Required</option>
+							<option value="review">Review Task</option>
+						</select>
+					</div>
+					<div class="col-md-3">
+						<select class="form-control" name="steps[${stepCounter}][assignee]">
+							<option value="">Auto-assign</option>
+							{% for user in users %}
+							<option value="{{ user.id }}">{{ user.username }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<div class="col-md-2">
+						<button type="button" class="btn btn-danger btn-sm remove-step">
+							<i class="fa fa-trash"></i>
+						</button>
+					</div>
+				</div>
+			</div>
+		`;
+		$('#workflow-steps-container').append(stepHtml);
+		stepCounter++;
+	}
+	
+	function createWorkflow() {
+		$.ajax({
+			url: '/api/workflows',
+			method: 'POST',
+			data: $('#create-workflow-form').serialize(),
+			success: function(response) {
+				$('#create-workflow-modal').modal('hide');
+				location.reload();
+			},
+			error: function() {
+				alert('Error creating workflow');
+			}
+		});
+	}
+	
+	function viewWorkflowDetails(workflowId) {
+		$('#workflow-details-modal').modal('show');
+		
+		$.ajax({
+			url: '/api/workflows/' + workflowId + '/details',
+			method: 'GET',
+			success: function(response) {
+				$('#workflow-details-content').html(response.html);
+			},
+			error: function() {
+				$('#workflow-details-content').html('<div class="alert alert-danger">Error loading workflow details</div>');
+			}
+		});
+	}
+	
+	function pauseWorkflow(workflowId) {
+		if (confirm('Pause this workflow?')) {
+			$.ajax({
+				url: '/api/workflows/' + workflowId + '/pause',
+				method: 'POST',
+				success: function() {
+					location.reload();
+				},
+				error: function() {
+					alert('Error pausing workflow');
+				}
+			});
+		}
+	}
+	
+	function cancelWorkflow(workflowId) {
+		if (confirm('Cancel this workflow? This action cannot be undone.')) {
+			$.ajax({
+				url: '/api/workflows/' + workflowId + '/cancel',
+				method: 'POST',
+				success: function() {
+					location.reload();
+				},
+				error: function() {
+					alert('Error canceling workflow');
+				}
+			});
+		}
+	}
+	
+	function useWorkflowTemplate(templateId) {
+		// Populate form with template data
+		$.ajax({
+			url: '/api/workflow-templates/' + templateId,
+			method: 'GET',
+			success: function(template) {
+				$('#workflow-name').val(template.name);
+				$('#workflow-type').val(template.workflow_type);
+				$('#workflow-description').val(template.description);
+				// Populate steps
+				populateWorkflowSteps(template.steps);
+				$('#create-workflow-modal').modal('show');
+			},
+			error: function() {
+				alert('Error loading template');
+			}
+		});
+	}
+	
+	function populateWorkflowSteps(steps) {
+		$('#workflow-steps-container').empty();
+		stepCounter = 0;
+		
+		steps.forEach(function(step, index) {
+			var stepHtml = `
+				<div class="workflow-step">
+					<div class="row">
+						<div class="col-md-4">
+							<input type="text" class="form-control" name="steps[${index}][name]" value="${step.name}" required>
+						</div>
+						<div class="col-md-3">
+							<select class="form-control" name="steps[${index}][type]" required>
+								<option value="manual" ${step.type === 'manual' ? 'selected' : ''}>Manual Task</option>
+								<option value="automated" ${step.type === 'automated' ? 'selected' : ''}>Automated Task</option>
+								<option value="approval" ${step.type === 'approval' ? 'selected' : ''}>Approval Required</option>
+								<option value="review" ${step.type === 'review' ? 'selected' : ''}>Review Task</option>
+							</select>
+						</div>
+						<div class="col-md-3">
+							<select class="form-control" name="steps[${index}][assignee]">
+								<option value="">Auto-assign</option>
+								{% for user in users %}
+								<option value="{{ user.id }}">{{ user.username }}</option>
+								{% endfor %}
+							</select>
+						</div>
+						<div class="col-md-2">
+							<button type="button" class="btn btn-danger btn-sm remove-step">
+								<i class="fa fa-trash"></i>
+							</button>
+						</div>
+					</div>
+				</div>
+			`;
+			$('#workflow-steps-container').append(stepHtml);
+		});
+		
+		stepCounter = steps.length;
+	}
+	
+	function initializePerformanceChart() {
+		var ctx = document.getElementById('workflow-performance-chart').getContext('2d');
+		var chart = new Chart(ctx, {
+			type: 'line',
+			data: {
+				labels: {{ chart_data.labels | tojson }},
+				datasets: [{
+					label: 'Completed Workflows',
+					data: {{ chart_data.completed | tojson }},
+					borderColor: 'rgb(75, 192, 192)',
+					backgroundColor: 'rgba(75, 192, 192, 0.2)',
+					tension: 0.1
+				}, {
+					label: 'Failed Workflows',
+					data: {{ chart_data.failed | tojson }},
+					borderColor: 'rgb(255, 99, 132)',
+					backgroundColor: 'rgba(255, 99, 132, 0.2)',
+					tension: 0.1
+				}]
+			},
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				scales: {
+					y: {
+						beginAtZero: true
+					}
+				}
+			}
+		});
+	}
+	
+	function updateAnalytics(period) {
+		$.ajax({
+			url: '/api/workflows/analytics',
+			method: 'GET',
+			data: { period: period },
+			success: function(response) {
+				// Update chart and metrics
+				location.reload(); // Simplified for demo
+			}
+		});
+	}
+});
+</script>
+{% endblock %}
+
+{% block add_tail_css %}
+<style>
+.info-box {
+	display: block;
+	min-height: 90px;
+	background: #fff;
+	width: 100%;
+	box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+	border-radius: 2px;
+	margin-bottom: 15px;
+}
+
+.info-box-icon {
+	border-top-left-radius: 2px;
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+	border-bottom-left-radius: 2px;
+	display: block;
+	float: left;
+	height: 90px;
+	width: 90px;
+	text-align: center;
+	font-size: 45px;
+	line-height: 90px;
+	background: rgba(0,0,0,0.2);
+	color: #fff;
+}
+
+.info-box-content {
+	padding: 5px 10px;
+	margin-left: 90px;
+}
+
+.info-box-number {
+	display: block;
+	font-weight: bold;
+	font-size: 18px;
+}
+
+.info-box-text {
+	display: block;
+	font-size: 14px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.info-box-more {
+	display: block;
+	margin-top: 5px;
+}
+
+.bg-blue { background-color: #3c8dbc !important; }
+.bg-green { background-color: #00a65a !important; }
+.bg-yellow { background-color: #f39c12 !important; }
+.bg-red { background-color: #dd4b39 !important; }
+
+.panel-tools {
+	float: right;
+	margin-top: -5px;
+}
+
+.empty-state {
+	padding: 40px 20px;
+	text-align: center;
+}
+
+.activity-feed {
+	max-height: 400px;
+	overflow-y: auto;
+}
+
+.activity-item {
+	display: flex;
+	margin-bottom: 15px;
+	padding-bottom: 15px;
+	border-bottom: 1px solid #eee;
+}
+
+.activity-item:last-child {
+	border-bottom: none;
+}
+
+.activity-icon {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: white;
+	margin-right: 15px;
+}
+
+.activity-content {
+	flex: 1;
+}
+
+.activity-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 5px;
+}
+
+.activity-time {
+	color: #666;
+}
+
+.activity-description {
+	font-size: 13px;
+	color: #666;
+	margin-bottom: 5px;
+}
+
+.activity-link a {
+	font-size: 12px;
+	color: #007bff;
+}
+
+.template-card {
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	padding: 15px;
+	margin-bottom: 15px;
+	background: white;
+}
+
+.template-header {
+	display: flex;
+	align-items: center;
+	margin-bottom: 10px;
+}
+
+.template-icon {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background: #28a745;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: white;
+	margin-right: 15px;
+}
+
+.template-info h5 {
+	margin: 0;
+	font-size: 16px;
+}
+
+.template-info p {
+	margin: 0;
+	font-size: 13px;
+}
+
+.template-stats {
+	margin-bottom: 15px;
+}
+
+.stat-item {
+	display: inline-block;
+	margin-right: 15px;
+	font-size: 12px;
+	color: #666;
+}
+
+.template-actions {
+	text-align: right;
+}
+
+.chart-container {
+	position: relative;
+	height: 200px;
+	margin-bottom: 20px;
+}
+
+.performance-metrics {
+	margin-bottom: 20px;
+}
+
+.metric-item {
+	text-align: center;
+	padding: 10px;
+	background: #f8f9fa;
+	border-radius: 4px;
+}
+
+.metric-value {
+	font-size: 18px;
+	font-weight: bold;
+	color: #333;
+}
+
+.metric-label {
+	font-size: 11px;
+	color: #666;
+	text-transform: uppercase;
+}
+
+.top-workflows {
+	border-top: 1px solid #eee;
+	padding-top: 15px;
+}
+
+.workflow-performance-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 5px 0;
+	font-size: 13px;
+}
+
+.workflow-name {
+	color: #333;
+}
+
+.workflow-score {
+	font-weight: bold;
+	color: #28a745;
+}
+
+.workflow-steps {
+	margin-top: 20px;
+	border-top: 1px solid #eee;
+	padding-top: 20px;
+}
+
+.workflow-step {
+	margin-bottom: 10px;
+	padding: 10px;
+	background: #f8f9fa;
+	border-radius: 4px;
+}
+
+.loading {
+	padding: 40px;
+}
+</style>
+{% endblock %}

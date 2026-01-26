@@ -60,10 +60,33 @@ classifiers = [
 
 # Production dependencies
 dependencies = [
-    # Add your core production dependencies here
-    # Example: "requests>=2.31.0",
-    # Example: "click>=8.1.0",
-    # Example: "pydantic>=2.0.0",
+    "aiofiles>=24.1.0",
+    "aiohttp>=3.12.14",
+    "asyncpg>=0.30.0",
+    "beautifulsoup4>=4.13.4",
+    "chardet>=5.2.0",
+    "cloudscraper>=1.2.71",
+    "crawl4ai>=0.2.77",
+    "crawlee>=0.0.6",
+    "gitpython>=3.1.44",
+    "nltk>=3.9.1",
+    "numpy>=2.1.3",
+    "openai>=1.97.0",
+    "opencv-python>=4.12.0.88",
+    "pandas>=2.3.1",
+    "pgai>=0.11.4",
+    "playwright>=1.53.0",
+    "psycopg2-binary>=2.9.10",
+    "psutil>=6.1.0",
+    "pydantic>=2.0.0",
+    "pyotp>=2.9.0",
+    "qrcode>=8.2",
+    "scikit-learn>=1.5.0",
+    "scipy>=1.15.3",
+    "statsmodels>=0.14.5",
+    "xgboost>=3.0.2",
+    "sqlalchemy>=2.0.41",
+    "alembic>=1.16.4",
 ]
 
 # Optional dependency groups
@@ -573,10 +596,8 @@ python_functions = ["test_*"]
 addopts = [
     "--strict-markers",      # Treat unregistered markers as errors
     "--strict-config",       # Treat config errors as errors
-    "--disable-warnings",    # Disable warnings in output
     "--tb=short",           # Short traceback format
-    "--ra",                 # Show all test results except passed
-    "-q",                   # Quiet output
+    "-v",                   # Verbose output
     "--durations=10",       # Show slowest 10 tests
     "--color=yes",          # Colored output
 ]
@@ -609,8 +630,8 @@ filterwarnings = [
     "ignore::PendingDeprecationWarning",
 ]
 
-# Timeout (in seconds)
-timeout = 300
+# Asyncio configuration
+asyncio_mode = "auto"
 
 # ============================================================================
 # COVERAGE CONFIGURATION (Test Coverage)

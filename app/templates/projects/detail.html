@@ -1,0 +1,548 @@
+{% extends "appbuilder/general/widgets/base_list.html" %}
+{% import 'appbuilder/general/lib.html' as lib %}
+
+{% block content %}
+<div class="container-fluid">
+	<div class="row">
+		<div class="col-md-12">
+			<!-- Project Header -->
+			<div class="panel panel-primary">
+				<div class="panel-heading">
+					<div class="row">
+						<div class="col-md-8">
+							<h3 class="panel-title">
+								<i class="fa fa-folder-open"></i> {{ project.name }}
+							</h3>
+							<small class="text-muted">{{ project.client_name }}</small>
+						</div>
+						<div class="col-md-4 text-right">
+							<span class="label label-{% if project.status == 'active' %}success{% elif project.status == 'completed' %}primary{% else %}warning{% endif %}">
+								{{ project.status.title() }}
+							</span>
+							<div class="btn-group" role="group">
+								<a href="{{ url_for('ProjectModelView.edit', pk=project.id) }}" class="btn btn-sm btn-default">
+									<i class="fa fa-edit"></i> Edit
+								</a>
+								<button type="button" class="btn btn-sm btn-success" data-action="new-document">
+									<i class="fa fa-file-text-o"></i> New Document
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="panel-body">
+					<div class="row">
+						<div class="col-md-8">
+							<p class="lead">{{ project.description or 'No description available.' }}</p>
+						</div>
+						<div class="col-md-4">
+							<div class="project-stats">
+								<div class="stat-item">
+									<strong>Start Date:</strong> {{ project.start_date.strftime('%Y-%m-%d') if project.start_date else 'Not set' }}
+								</div>
+								<div class="stat-item">
+									<strong>Due Date:</strong> {{ project.due_date.strftime('%Y-%m-%d') if project.due_date else 'Not set' }}
+								</div>
+								<div class="stat-item">
+									<strong>Documents:</strong> {{ project.documents|length }}
+								</div>
+								<div class="stat-item">
+									<strong>Opportunities:</strong> {{ project.opportunities|length }}
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	
+	<div class="row">
+		<!-- Documents Section -->
+		<div class="col-md-6">
+			<div class="panel panel-default">
+				<div class="panel-heading">
+					<h4><i class="fa fa-file-text"></i> Project Documents</h4>
+					<div class="panel-tools">
+						<button type="button" class="btn btn-xs btn-primary" data-action="upload-document">
+							<i class="fa fa-upload"></i> Upload
+						</button>
+					</div>
+				</div>
+				<div class="panel-body">
+					{% if project.documents %}
+					<div class="table-responsive">
+						<table class="table table-striped">
+							<thead>
+								<tr>
+									<th>Title</th>
+									<th>Type</th>
+									<th>Status</th>
+									<th>Modified</th>
+									<th>Actions</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for document in project.documents %}
+								<tr>
+									<td>
+										<a href="{{ url_for('DocumentModelView.show', pk=document.id) }}">
+											{{ document.title }}
+										</a>
+									</td>
+									<td>
+										<span class="label label-default">{{ document.document_type }}</span>
+									</td>
+									<td>
+										<span class="label label-{% if document.status == 'final' %}success{% elif document.status == 'approved' %}info{% elif document.status == 'review' %}warning{% else %}default{% endif %}">
+											{{ document.status }}
+										</span>
+									</td>
+									<td>{{ document.changed_on.strftime('%Y-%m-%d') if document.changed_on else '-' }}</td>
+									<td>
+										<div class="btn-group btn-group-xs" role="group">
+											<a href="{{ url_for('DocumentModelView.edit', pk=document.id) }}" class="btn btn-default" title="Edit">
+												<i class="fa fa-edit"></i>
+											</a>
+											<button type="button" class="btn btn-default" data-action="generate-pdf" data-document="{{ document.id }}" title="Generate PDF">
+												<i class="fa fa-file-pdf-o"></i>
+											</button>
+											<button type="button" class="btn btn-default" data-action="duplicate" data-document="{{ document.id }}" title="Duplicate">
+												<i class="fa fa-copy"></i>
+											</button>
+										</div>
+									</td>
+								</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+					{% else %}
+					<div class="empty-state text-center">
+						<i class="fa fa-file-text-o fa-3x text-muted"></i>
+						<h4>No Documents Yet</h4>
+						<p class="text-muted">Create your first document for this project.</p>
+						<button type="button" class="btn btn-primary" data-action="new-document">
+							<i class="fa fa-plus"></i> Create Document
+						</button>
+					</div>
+					{% endif %}
+				</div>
+			</div>
+		</div>
+		
+		<!-- Opportunities Section -->
+		<div class="col-md-6">
+			<div class="panel panel-info">
+				<div class="panel-heading">
+					<h4><i class="fa fa-target"></i> Related Opportunities</h4>
+					<div class="panel-tools">
+						<button type="button" class="btn btn-xs btn-info" data-action="link-opportunity">
+							<i class="fa fa-link"></i> Link Opportunity
+						</button>
+					</div>
+				</div>
+				<div class="panel-body">
+					{% if project.opportunities %}
+					<div class="opportunity-list">
+						{% for opportunity in project.opportunities %}
+						<div class="opportunity-item">
+							<div class="row">
+								<div class="col-md-8">
+									<h5>
+										<a href="{{ url_for('OpportunityModelView.show', pk=opportunity.id) }}">
+											{{ opportunity.title }}
+										</a>
+									</h5>
+									<p class="text-muted">{{ opportunity.source_organization }}</p>
+								</div>
+								<div class="col-md-4 text-right">
+									<span class="label label-{% if opportunity.status == 'won' %}success{% elif opportunity.status == 'submitted' %}info{% elif opportunity.status == 'in_progress' %}warning{% else %}default{% endif %}">
+										{{ opportunity.status.replace('_', ' ').title() }}
+									</span>
+									<div class="opportunity-value">
+										{% if opportunity.estimated_value %}
+										<strong>${{ "{:,.0f}".format(opportunity.estimated_value) }}</strong>
+										{% endif %}
+									</div>
+								</div>
+							</div>
+						</div>
+						{% endfor %}
+					</div>
+					{% else %}
+					<div class="empty-state text-center">
+						<i class="fa fa-target fa-3x text-muted"></i>
+						<h4>No Opportunities Linked</h4>
+						<p class="text-muted">Link opportunities to track project success.</p>
+						<button type="button" class="btn btn-info" data-action="link-opportunity">
+							<i class="fa fa-link"></i> Link Opportunity
+						</button>
+					</div>
+					{% endif %}
+				</div>
+			</div>
+		</div>
+	</div>
+	
+	<div class="row">
+		<!-- Project Timeline -->
+		<div class="col-md-8">
+			<div class="panel panel-default">
+				<div class="panel-heading">
+					<h4><i class="fa fa-clock-o"></i> Project Timeline</h4>
+				</div>
+				<div class="panel-body">
+					<div class="timeline">
+						{% for activity in project_timeline %}
+						<div class="timeline-item">
+							<div class="timeline-icon bg-{% if activity.type == 'document' %}primary{% elif activity.type == 'opportunity' %}info{% else %}default{% endif %}">
+								<i class="fa fa-{% if activity.type == 'document' %}file-text{% elif activity.type == 'opportunity' %}target{% else %}calendar{% endif %}"></i>
+							</div>
+							<div class="timeline-content">
+								<h5>{{ activity.title }}</h5>
+								<p class="text-muted">{{ activity.description }}</p>
+								<small class="timeline-date">{{ activity.date.strftime('%Y-%m-%d %H:%M') }}</small>
+							</div>
+						</div>
+						{% endfor %}
+					</div>
+				</div>
+			</div>
+		</div>
+		
+		<!-- Project Analytics -->
+		<div class="col-md-4">
+			<div class="panel panel-warning">
+				<div class="panel-heading">
+					<h4><i class="fa fa-bar-chart"></i> Project Analytics</h4>
+				</div>
+				<div class="panel-body">
+					<div class="analytics-widget">
+						<div class="metric">
+							<div class="metric-value">{{ project_stats.completion_percentage }}%</div>
+							<div class="metric-label">Completion</div>
+							<div class="progress">
+								<div class="progress-bar" style="width: {{ project_stats.completion_percentage }}%"></div>
+							</div>
+						</div>
+						
+						<div class="metric">
+							<div class="metric-value">{{ project_stats.days_remaining }}</div>
+							<div class="metric-label">Days Remaining</div>
+						</div>
+						
+						<div class="metric">
+							<div class="metric-value">{{ project_stats.document_score }}%</div>
+							<div class="metric-label">Avg Document Score</div>
+						</div>
+						
+						<div class="metric">
+							<div class="metric-value">${{ "{:,.0f}".format(project_stats.total_value) if project_stats.total_value else '0' }}</div>
+							<div class="metric-label">Total Value</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			
+			<!-- Recent Activity -->
+			<div class="panel panel-default">
+				<div class="panel-heading">
+					<h4><i class="fa fa-bell"></i> Recent Activity</h4>
+				</div>
+				<div class="panel-body">
+					<div class="activity-feed">
+						{% for activity in recent_activities %}
+						<div class="activity-item">
+							<div class="activity-icon">
+								<i class="fa fa-{{ activity.icon }} text-{{ activity.color }}"></i>
+							</div>
+							<div class="activity-content">
+								<p>{{ activity.message }}</p>
+								<small class="text-muted">{{ activity.timestamp.strftime('%H:%M') }}</small>
+							</div>
+						</div>
+						{% endfor %}
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- New Document Modal -->
+<div class="modal fade" id="new-document-modal" tabindex="-1" role="dialog">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h4 class="modal-title">Create New Document</h4>
+			</div>
+			<form id="new-document-form">
+				<div class="modal-body">
+					<div class="form-group">
+						<label for="doc-title">Title</label>
+						<input type="text" class="form-control" id="doc-title" name="title" required>
+					</div>
+					<div class="form-group">
+						<label for="doc-type">Document Type</label>
+						<select class="form-control" id="doc-type" name="document_type" required>
+							<option value="proposal">Proposal</option>
+							<option value="rfp_response">RFP Response</option>
+							<option value="contract">Contract</option>
+							<option value="technical_spec">Technical Specification</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<label for="doc-template">Template</label>
+						<select class="form-control" id="doc-template" name="template_id">
+							<option value="">No Template</option>
+							{% for template in templates %}
+							<option value="{{ template.id }}">{{ template.name }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<input type="hidden" name="project_id" value="{{ project.id }}">
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+					<button type="submit" class="btn btn-primary">Create Document</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<!-- Link Opportunity Modal -->
+<div class="modal fade" id="link-opportunity-modal" tabindex="-1" role="dialog">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h4 class="modal-title">Link Opportunity</h4>
+			</div>
+			<form id="link-opportunity-form">
+				<div class="modal-body">
+					<div class="form-group">
+						<label for="opportunity-select">Select Opportunity</label>
+						<select class="form-control" id="opportunity-select" name="opportunity_id" required>
+							<option value="">Choose an opportunity...</option>
+							{% for opportunity in available_opportunities %}
+							<option value="{{ opportunity.id }}">{{ opportunity.title }} - {{ opportunity.source_organization }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<input type="hidden" name="project_id" value="{{ project.id }}">
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+					<button type="submit" class="btn btn-info">Link Opportunity</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+{% endblock %}
+
+{% block add_tail_js %}
+<script>
+$(document).ready(function() {
+	// Handle action buttons
+	$('[data-action]').on('click', function() {
+		var action = $(this).data('action');
+		var documentId = $(this).data('document');
+		
+		switch(action) {
+			case 'new-document':
+				$('#new-document-modal').modal('show');
+				break;
+			case 'link-opportunity':
+				$('#link-opportunity-modal').modal('show');
+				break;
+			case 'generate-pdf':
+				generatePDF(documentId);
+				break;
+			case 'duplicate':
+				duplicateDocument(documentId);
+				break;
+			case 'upload-document':
+				uploadDocument();
+				break;
+		}
+	});
+	
+	// Handle new document form
+	$('#new-document-form').on('submit', function(e) {
+		e.preventDefault();
+		
+		$.ajax({
+			url: '{{ url_for("DocumentModelView.add") }}',
+			method: 'POST',
+			data: $(this).serialize(),
+			success: function(response) {
+				$('#new-document-modal').modal('hide');
+				location.reload();
+			},
+			error: function() {
+				alert('Error creating document');
+			}
+		});
+	});
+	
+	// Handle link opportunity form
+	$('#link-opportunity-form').on('submit', function(e) {
+		e.preventDefault();
+		
+		$.ajax({
+			url: '/api/projects/{{ project.id }}/link-opportunity',
+			method: 'POST',
+			data: $(this).serialize(),
+			success: function(response) {
+				$('#link-opportunity-modal').modal('hide');
+				location.reload();
+			},
+			error: function() {
+				alert('Error linking opportunity');
+			}
+		});
+	});
+	
+	function generatePDF(documentId) {
+		window.open('/documents/generate/' + documentId, '_blank');
+	}
+	
+	function duplicateDocument(documentId) {
+		if (confirm('Create a copy of this document?')) {
+			$.ajax({
+				url: '/api/documents/' + documentId + '/duplicate',
+				method: 'POST',
+				success: function(response) {
+					location.reload();
+				},
+				error: function() {
+					alert('Error duplicating document');
+				}
+			});
+		}
+	}
+	
+	function uploadDocument() {
+		// This would open a file upload dialog
+		alert('File upload functionality would be implemented here');
+	}
+});
+</script>
+{% endblock %}
+
+{% block add_tail_css %}
+<style>
+.project-stats .stat-item {
+	margin-bottom: 10px;
+}
+
+.panel-tools {
+	float: right;
+	margin-top: -5px;
+}
+
+.empty-state {
+	padding: 40px 20px;
+}
+
+.opportunity-item {
+	border-bottom: 1px solid #eee;
+	padding: 15px 0;
+}
+
+.opportunity-item:last-child {
+	border-bottom: none;
+}
+
+.opportunity-value {
+	margin-top: 5px;
+	font-size: 14px;
+}
+
+.timeline {
+	position: relative;
+	padding-left: 30px;
+}
+
+.timeline:before {
+	content: '';
+	position: absolute;
+	left: 15px;
+	top: 0;
+	bottom: 0;
+	width: 2px;
+	background: #ddd;
+}
+
+.timeline-item {
+	position: relative;
+	margin-bottom: 20px;
+}
+
+.timeline-icon {
+	position: absolute;
+	left: -22px;
+	top: 0;
+	width: 30px;
+	height: 30px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: white;
+}
+
+.timeline-content {
+	background: #f9f9f9;
+	padding: 15px;
+	border-radius: 4px;
+	border-left: 3px solid #007bff;
+}
+
+.timeline-date {
+	float: right;
+	color: #666;
+}
+
+.analytics-widget .metric {
+	margin-bottom: 20px;
+	text-align: center;
+}
+
+.metric-value {
+	font-size: 24px;
+	font-weight: bold;
+	color: #333;
+}
+
+.metric-label {
+	font-size: 12px;
+	color: #666;
+	text-transform: uppercase;
+}
+
+.activity-feed .activity-item {
+	display: flex;
+	margin-bottom: 15px;
+}
+
+.activity-icon {
+	width: 30px;
+	text-align: center;
+	margin-right: 10px;
+}
+
+.activity-content {
+	flex: 1;
+}
+
+.activity-content p {
+	margin: 0;
+	font-size: 13px;
+}
+</style>
+{% endblock %}

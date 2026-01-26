@@ -1,0 +1,400 @@
+# Docker Compose configuration for DocuFusion Flask-AppBuilder
+# Provides complete development and production environments
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # DOCUFUSION FLASK-APPBUILDER APPLICATION
+  # ============================================================================
+  
+  docufusion-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: docufusion-app
+    ports:
+      - "5000:5000"
+    environment:
+      # Flask Configuration
+      - FLASK_ENV=production
+      - FLASK_APP=run_standalone.py
+      - SECRET_KEY=${SECRET_KEY:-docufusion-secret-key-change-in-production}
+      
+      # Database Configuration
+      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:-docufusion123}@postgres:5432/docufusion
+      
+      # Redis Configuration  
+      - REDIS_URL=redis://redis:6379/0
+      
+      # DocuFusion Configuration
+      - DOCUFUSION_API_BASE=http://localhost:8000
+      - DOCUFUSION_ENABLE_AI_FEATURES=true
+      - DOCUFUSION_ENABLE_COLLABORATION=true
+      - DOCUFUSION_ENABLE_WORKFLOW=true
+      
+      # Email Configuration (optional)
+      - MAIL_SERVER=${MAIL_SERVER:-smtp.example.com}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USE_TLS=${MAIL_USE_TLS:-true}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      
+      # External Integrations (optional)
+      - SALESFORCE_CLIENT_ID=${SALESFORCE_CLIENT_ID:-}
+      - HUBSPOT_API_KEY=${HUBSPOT_API_KEY:-}
+      
+    volumes:
+      - app-uploads:/app/uploads
+      - app-generated:/app/generated_documents
+      - app-logs:/app/logs
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    networks:
+      - docufusion-network
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.docufusion.rule=Host(`docufusion.local`)"
+      - "traefik.http.services.docufusion.loadbalancer.server.port=5000"
+
+  # ============================================================================
+  # DEVELOPMENT VERSION
+  # ============================================================================
+  
+  docufusion-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: docufusion-dev
+    ports:
+      - "5000:5000"
+      - "8888:8888"  # Jupyter Lab
+    environment:
+      - FLASK_ENV=development
+      - FLASK_APP=run_standalone.py
+      - FLASK_DEBUG=1
+      - SECRET_KEY=dev-secret-key
+      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:-docufusion123}@postgres:5432/docufusion
+      - REDIS_URL=redis://redis:6379/0
+      - DOCUFUSION_ENABLE_AI_FEATURES=true
+      - DOCUFUSION_ENABLE_COLLABORATION=true
+      - DOCUFUSION_ENABLE_WORKFLOW=true
+    
+    volumes:
+      # Mount source code for hot reload
+      - .:/app
+      - app-uploads:/app/uploads
+      - app-generated:/app/generated_documents
+      - app-logs:/app/logs
+      # UV cache for faster rebuilds
+      - uv-cache:/opt/uv-cache
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    networks:
+      - docufusion-network
+    
+    command: ["python", "run_standalone.py"]
+    
+    profiles:
+      - development
+
+  # ============================================================================
+  # DATABASE SERVICES
+  # ============================================================================
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: docufusion-postgres
+    environment:
+      - POSTGRES_DB=docufusion
+      - POSTGRES_USER=docufusion
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-docufusion123}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --locale=C
+    
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Custom initialization scripts
+      - ./scripts/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    
+    ports:
+      - "5432:5432"
+    
+    networks:
+      - docufusion-network
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docufusion -d docufusion"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    command: >
+      postgres
+      -c log_statement=all
+      -c log_destination=stderr
+      -c log_min_duration_statement=0
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=all
+
+  # ============================================================================
+  # CACHE AND SESSION STORAGE
+  # ============================================================================
+  
+  redis:
+    image: redis:7-alpine
+    container_name: docufusion-redis
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    
+    volumes:
+      - redis-data:/data
+    
+    ports:
+      - "6379:6379"
+    
+    networks:
+      - docufusion-network
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ============================================================================
+  # MONITORING AND OBSERVABILITY
+  # ============================================================================
+  
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: docufusion-prometheus
+    ports:
+      - "9090:9090"
+    
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    
+    networks:
+      - docufusion-network
+    
+    restart: unless-stopped
+    
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: docufusion-grafana
+    ports:
+      - "3000:3000"
+    
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    
+    depends_on:
+      - prometheus
+    
+    networks:
+      - docufusion-network
+    
+    restart: unless-stopped
+    
+    profiles:
+      - monitoring
+
+  # ============================================================================
+  # REVERSE PROXY AND LOAD BALANCER
+  # ============================================================================
+  
+  traefik:
+    image: traefik:v3.0
+    container_name: docufusion-traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=admin@example.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Traefik dashboard
+    
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt-data:/letsencrypt
+    
+    networks:
+      - docufusion-network
+    
+    restart: unless-stopped
+    
+    profiles:
+      - production
+      - traefik
+
+  # ============================================================================
+  # BACKGROUND SERVICES
+  # ============================================================================
+  
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: docufusion-celery
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:-docufusion123}@postgres:5432/docufusion
+    
+    volumes:
+      - app-uploads:/app/uploads
+      - app-generated:/app/generated_documents
+      - app-logs:/app/logs
+    
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    
+    networks:
+      - docufusion-network
+    
+    command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=info"]
+    
+    restart: unless-stopped
+    
+    profiles:
+      - celery
+      - production
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: docufusion-celery-beat
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:-docufusion123}@postgres:5432/docufusion
+    
+    volumes:
+      - app-logs:/app/logs
+    
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    
+    networks:
+      - docufusion-network
+    
+    command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
+    
+    restart: unless-stopped
+    
+    profiles:
+      - celery
+      - production
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+
+volumes:
+  # Database storage
+  postgres-data:
+    driver: local
+  
+  redis-data:
+    driver: local
+  
+  # Application data
+  app-uploads:
+    driver: local
+  
+  app-generated:
+    driver: local
+  
+  app-logs:
+    driver: local
+  
+  # Development cache
+  uv-cache:
+    driver: local
+  
+  # Monitoring data
+  prometheus-data:
+    driver: local
+  
+  grafana-data:
+    driver: local
+  
+  # SSL certificates
+  letsencrypt-data:
+    driver: local
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+
+networks:
+  docufusion-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

@@ -1,0 +1,123 @@
+{% extends "appbuilder/base.html" %}
+
+{% block head_css %}
+  {{super()}}
+  <style>
+    /* Custom DocuFusion Styles */
+    .docufusion-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      border-radius: 8px;
+    }
+    
+    .metric-card {
+      background: white;
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-left: 4px solid #667eea;
+      margin-bottom: 1rem;
+    }
+    
+    .metric-value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #333;
+    }
+    
+    .metric-label {
+      color: #666;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .status-badge {
+      padding: 0.25rem 0.75rem;
+      border-radius: 1rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .status-draft { background-color: #fef3c7; color: #92400e; }
+    .status-active { background-color: #d1fae5; color: #065f46; }
+    .status-completed { background-color: #dbeafe; color: #1e40af; }
+    .status-in-review { background-color: #fde4ff; color: #86198f; }
+    
+    .priority-high { border-left-color: #dc2626; }
+    .priority-medium { border-left-color: #f59e0b; }
+    .priority-low { border-left-color: #10b981; }
+    
+    .ai-suggestion {
+      background: #f0f9ff;
+      border: 1px solid #0284c7;
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 0.5rem 0;
+    }
+    
+    .ai-suggestion.high-priority {
+      background: #fef2f2;
+      border-color: #dc2626;
+    }
+    
+    .timeline-item {
+      border-left: 2px solid #e5e7eb;
+      padding-left: 1rem;
+      margin-bottom: 1rem;
+      position: relative;
+    }
+    
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -5px;
+      top: 0.5rem;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #667eea;
+    }
+    
+    .collaboration-user {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #667eea;
+      color: white;
+      text-align: center;
+      line-height: 32px;
+      margin-right: 0.5rem;
+      font-weight: bold;
+    }
+  </style>
+{% endblock %}
+
+{% block brand %}
+  <a class="navbar-brand" href="/">
+    <i class="fa fa-file-text-o"></i> DocuFusion
+  </a>
+{% endblock %}
+
+{% block footer %}
+  <footer class="footer">
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col-md-6">
+          <p class="text-muted">DocuFusion - AI-Powered Document Intelligence Platform</p>
+        </div>
+        <div class="col-md-6 text-right">
+          <p class="text-muted">
+            <i class="fa fa-magic"></i> Enhanced with AI |
+            <i class="fa fa-shield"></i> Enterprise Secure |
+            <i class="fa fa-users"></i> Collaboration Ready
+          </p>
+        </div>
+      </div>
+    </div>
+  </footer>
+{% endblock %}

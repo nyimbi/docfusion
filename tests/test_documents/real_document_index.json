@@ -1,0 +1,89 @@
+[
+  {
+    "title": "Enterprise IT Modernization Services",
+    "solicitation_number": "GS00Q17GWD2035",
+    "posted_date": "2024-03-15",
+    "response_date": "2024-05-30",
+    "description": "Comprehensive IT modernization including cloud migration, cybersecurity, and system integration",
+    "agency": "General Services Administration",
+    "office": "Federal Acquisition Service",
+    "set_aside": "Total Small Business",
+    "classification_code": "70",
+    "naics_code": "541512",
+    "document_urls": [
+      "https://sam.gov/api/opportunities/v2/opportunities/abc123/attachments/solicitation.pdf"
+    ]
+  },
+  {
+    "title": "NSF 24-514: Partnerships for Research and Education in Physics (PREP) | NSF - National Science Foundation",
+    "source": "NSF",
+    "url": "https://www.nsf.gov/publications/pub_summ.jsp?ods_key=nsf24514",
+    "pdf_urls": [
+      "https://resources.research.gov/common/attachment/Common/Grants_govProposal_Processing_in_Research.pdf",
+      "https://www.research.gov/common/attachment/Desktop/Grants_gov_Integration_with_Research_gov_Guide_Final_508.pdf"
+    ]
+  },
+  {
+    "title": "NSF 24-515: Centers for Innovation and Community Engagement in Solid Earth Geohazards | NSF - National Science Foundation",
+    "source": "NSF",
+    "url": "https://www.nsf.gov/publications/pub_summ.jsp?ods_key=nsf24515",
+    "pdf_urls": [
+      "https://resources.research.gov/common/attachment/Common/Grants_govProposal_Processing_in_Research.pdf",
+      "https://www.research.gov/common/attachment/Desktop/Grants_gov_Integration_with_Research_gov_Guide_Final_508.pdf",
+      "https://www.nsf.gov/policies/records/NSF-50_Principal_Investigator_Proposal_File_and_Associated_Records.pdf",
+      "https://www.nsf.gov/policies/SOR_PA_NSF-51_Reviewer_Proposal_File.pdf"
+    ]
+  },
+  {
+    "title": "NSF 24-516: Partnerships in Astronomy &amp; Astrophysics Research and Education (PAARE) | NSF - National Science Foundation",
+    "source": "NSF",
+    "url": "https://www.nsf.gov/publications/pub_summ.jsp?ods_key=nsf24516",
+    "pdf_urls": [
+      "https://resources.research.gov/common/attachment/Common/Grants_govProposal_Processing_in_Research.pdf",
+      "https://www.research.gov/common/attachment/Desktop/Grants_gov_Integration_with_Research_gov_Guide_Final_508.pdf"
+    ]
+  },
+  {
+    "title": "UC System - Enterprise System Modernization",
+    "institution": "UC System",
+    "type": "University RFP",
+    "url": "https://www.ucop.edu/procurement-services/",
+    "estimated_pages": 120,
+    "complexity": "High"
+  },
+  {
+    "title": "SUNY System - Enterprise System Modernization",
+    "institution": "SUNY System",
+    "type": "University RFP",
+    "url": "https://www.suny.edu/about/administration/procurement/",
+    "estimated_pages": 120,
+    "complexity": "High"
+  },
+  {
+    "title": "California DMV Modernization RFP",
+    "source": "California State",
+    "type": "Government RFP",
+    "estimated_pages": 180,
+    "complexity": "Very High",
+    "url": "https://example.gov/rfp/dmv-modernization.pdf",
+    "description": "Complete modernization of DMV systems including online services, mobile apps, and backend integration"
+  },
+  {
+    "title": "NIH Biomedical Informatics Research Grant",
+    "source": "National Institutes of Health",
+    "type": "Research Grant",
+    "estimated_pages": 85,
+    "complexity": "High",
+    "url": "https://grants.nih.gov/grants/guide/pa-files/PA-24-123.html",
+    "description": "Multi-year research program for advanced biomedical data analysis and AI applications"
+  },
+  {
+    "title": "DoD Cloud Computing Initiative RFP",
+    "source": "Department of Defense",
+    "type": "Federal RFP",
+    "estimated_pages": 250,
+    "complexity": "Very High",
+    "url": "https://example.defense.gov/rfp/cloud-initiative.pdf",
+    "description": "Enterprise cloud strategy implementation with security clearance requirements"
+  }
+]
