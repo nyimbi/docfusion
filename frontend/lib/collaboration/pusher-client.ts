@@ -7,6 +7,9 @@
 
 import Pusher, { type Channel, type PresenceChannel } from "pusher-js";
 import type { DocumentId } from "@/lib/types/document";
+import { loggers } from "@/lib/utils/debug-logger";
+
+const log = loggers.pusher;
 
 /** Pusher client singleton */
 let pusherInstance: Pusher | null = null;
@@ -89,19 +92,19 @@ export function getPusherClient(): Pusher {
  */
 function setupConnectionHandlers(pusher: Pusher): void {
 	pusher.connection.bind("connected", () => {
-		console.log("[Pusher] Connected, socket_id:", pusher.connection.socket_id);
+		log.info(" Connected, socket_id:", pusher.connection.socket_id);
 	});
 
 	pusher.connection.bind("disconnected", () => {
-		console.log("[Pusher] Disconnected");
+		log.info(" Disconnected");
 	});
 
 	pusher.connection.bind("error", (error: Error) => {
-		console.error("[Pusher] Connection error:", error);
+		log.error(" Connection error:", error);
 	});
 
 	pusher.connection.bind("state_change", (states: { current: string; previous: string }) => {
-		console.log("[Pusher] State changed:", states.previous, "->", states.current);
+		log.info(" State changed:", states.previous, "->", states.current);
 	});
 }
 

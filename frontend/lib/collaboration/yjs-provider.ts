@@ -9,6 +9,9 @@ import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import type { DocumentId } from "@/lib/types/document";
 import { fetcher } from "@/lib/api/client";
+import { loggers } from "@/lib/utils/debug-logger";
+
+const log = loggers.yjs;
 
 /** Active Yjs document instances keyed by document ID */
 const activeDocuments = new Map<DocumentId, YjsDocumentInstance>();
@@ -73,7 +76,7 @@ export function getYjsDocument(
 		const persistence = new IndexeddbPersistence(`docfusion-${documentId}`, doc);
 
 		persistence.on("synced", () => {
-			console.log(`[Yjs] IndexedDB synced for document ${documentId}`);
+			log.info(` IndexedDB synced for document ${documentId}`);
 			instance.isSynced = true;
 			options.onSync?.();
 		});
@@ -112,7 +115,7 @@ export function releaseYjsDocument(documentId: DocumentId): void {
 		instance.doc.destroy();
 
 		activeDocuments.delete(documentId);
-		console.log(`[Yjs] Document ${documentId} destroyed`);
+		log.info(` Document ${documentId} destroyed`);
 	}
 }
 
@@ -190,12 +193,12 @@ export async function loadDocumentState(
 		if (response.state) {
 			const update = base64Decode(response.state);
 			Y.applyUpdate(doc, update, "server");
-			console.log(`[Yjs] Loaded state for document ${documentId}, version ${response.version}`);
+			log.info(` Loaded state for document ${documentId}, version ${response.version}`);
 		} else {
-			console.log(`[Yjs] No server state for document ${documentId}, starting fresh`);
+			log.info(` No server state for document ${documentId}, starting fresh`);
 		}
 	} catch (error) {
-		console.error(`[Yjs] Failed to load state for document ${documentId}:`, error);
+		log.error(` Failed to load state for document ${documentId}:`, error);
 		throw error;
 	}
 }
@@ -217,7 +220,7 @@ export async function saveDocumentState(
 		}
 	);
 
-	console.log(`[Yjs] Saved state for document ${documentId}, version ${response.version}`);
+	log.info(` Saved state for document ${documentId}, version ${response.version}`);
 	return response;
 }
 
@@ -247,9 +250,9 @@ export async function mergeWithServerState(
 			}
 		}
 
-		console.log(`[Yjs] Merged state for document ${documentId}`);
+		log.info(` Merged state for document ${documentId}`);
 	} catch (error) {
-		console.error(`[Yjs] Failed to merge state for document ${documentId}:`, error);
+		log.error(` Failed to merge state for document ${documentId}:`, error);
 		throw error;
 	}
 }

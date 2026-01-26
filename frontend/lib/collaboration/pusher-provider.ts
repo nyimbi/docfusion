@@ -31,6 +31,9 @@ import {
 	type YjsDocumentInstance,
 } from "./yjs-provider";
 import { getCollaboratorColor } from "@/lib/types/collaboration";
+import { loggers } from "@/lib/utils/debug-logger";
+
+const log = loggers.pusherYjs;
 
 /**
  * Pusher-Yjs provider configuration.
@@ -128,7 +131,7 @@ export class PusherYjsProvider {
 			// Setup auto-save
 			this.setupAutoSave();
 
-			console.log(`[PusherYjs] Connected to document ${this.documentId}`);
+			log.info(` Connected to document ${this.documentId}`);
 		} catch (error) {
 			this.config.onConnectionChange?.(false);
 			this.config.onError?.(error as Error);
@@ -156,7 +159,7 @@ export class PusherYjsProvider {
 		}
 
 		this.config.onConnectionChange?.(false);
-		console.log(`[PusherYjs] Disconnected from document ${this.documentId}`);
+		log.info(` Disconnected from document ${this.documentId}`);
 	}
 
 	/**
@@ -176,7 +179,7 @@ export class PusherYjsProvider {
 		// Release Yjs document
 		releaseYjsDocument(this.documentId);
 
-		console.log(`[PusherYjs] Provider destroyed for document ${this.documentId}`);
+		log.info(` Provider destroyed for document ${this.documentId}`);
 	}
 
 	/**
@@ -188,7 +191,7 @@ export class PusherYjsProvider {
 		try {
 			await saveDocumentState(this.documentId, this.doc);
 			this.lastServerSave = Date.now();
-			console.log(`[PusherYjs] Saved document ${this.documentId}`);
+			log.info(` Saved document ${this.documentId}`);
 		} catch (error) {
 			this.config.onError?.(error as Error);
 			throw error;
@@ -271,7 +274,7 @@ export class PusherYjsProvider {
 		this.channel.bind(
 			pusherEvents.SUBSCRIPTION_SUCCEEDED,
 			(data: PresenceSubscriptionData) => {
-				console.log(`[PusherYjs] Presence subscription succeeded, ${data.count} members`);
+				log.info(` Presence subscription succeeded, ${data.count} members`);
 
 				// Process existing members
 				const collaborators: CollaboratorUser[] = [];
@@ -292,13 +295,13 @@ export class PusherYjsProvider {
 
 		// Handle member added
 		this.channel.bind(pusherEvents.MEMBER_ADDED, (member: PresenceMember) => {
-			console.log(`[PusherYjs] Member joined: ${member.info.name}`);
+			log.info(` Member joined: ${member.info.name}`);
 			this.config.onCollaboratorsChange?.(this.getCollaborators());
 		});
 
 		// Handle member removed
 		this.channel.bind(pusherEvents.MEMBER_REMOVED, (member: PresenceMember) => {
-			console.log(`[PusherYjs] Member left: ${member.info.name}`);
+			log.info(` Member left: ${member.info.name}`);
 			this.config.onCollaboratorsChange?.(this.getCollaborators());
 		});
 
@@ -325,7 +328,7 @@ export class PusherYjsProvider {
 
 		// Handle subscription error
 		this.channel.bind(pusherEvents.SUBSCRIPTION_ERROR, (error: Error) => {
-			console.error(`[PusherYjs] Subscription error:`, error);
+			log.error(` Subscription error:`, error);
 			this.config.onError?.(error);
 		});
 	}
@@ -379,14 +382,14 @@ export class PusherYjsProvider {
 				try {
 					await this.save();
 				} catch (error) {
-					console.error("[PusherYjs] Auto-save failed:", error);
+					log.error(" Auto-save failed:", error);
 				}
 			}
 		}, interval);
 	}
 
 	private handleLocalSync(): void {
-		console.log(`[PusherYjs] Local persistence synced for document ${this.documentId}`);
+		log.info(` Local persistence synced for document ${this.documentId}`);
 
 		// Flush pending updates after local sync
 		if (this.pendingUpdates.length > 0 && this.channel) {

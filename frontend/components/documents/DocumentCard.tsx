@@ -9,8 +9,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 import type { DocumentSummary, DocumentStatus } from "@/lib/types/document";
+import { StatusBadge } from "./StatusBadge";
 import {
 	Card,
 	CardHeader,
@@ -72,7 +73,7 @@ export interface DocumentCardProps {
  * />
  * ```
  */
-export function DocumentCard({
+export const DocumentCard = React.memo(function DocumentCard({
 	document,
 	onClick,
 	onFavorite,
@@ -135,7 +136,9 @@ export function DocumentCard({
 			</Link>
 		</Card>
 	);
-}
+});
+
+DocumentCard.displayName = "DocumentCard";
 
 /**
  * Document actions dropdown.
@@ -208,67 +211,7 @@ function DocumentActions({
 	);
 }
 
-/**
- * Status badge component.
- */
-function StatusBadge({ status }: { status: DocumentStatus }) {
-	const config: Record<DocumentStatus, { bg: string; text: string; label: string }> = {
-		draft: {
-			bg: "bg-gray-100 dark:bg-gray-800",
-			text: "text-gray-600 dark:text-gray-400",
-			label: "Draft",
-		},
-		in_review: {
-			bg: "bg-amber-100 dark:bg-amber-900/30",
-			text: "text-amber-700 dark:text-amber-400",
-			label: "In Review",
-		},
-		approved: {
-			bg: "bg-green-100 dark:bg-green-900/30",
-			text: "text-green-700 dark:text-green-400",
-			label: "Approved",
-		},
-		archived: {
-			bg: "bg-gray-100 dark:bg-gray-800",
-			text: "text-gray-500 dark:text-gray-500",
-			label: "Archived",
-		},
-	};
 
-	const statusConfig = config[status];
-
-	return (
-		<span
-			className={cn(
-				"inline-flex px-2 py-0.5 text-xs font-medium rounded",
-				statusConfig.bg,
-				statusConfig.text
-			)}
-		>
-			{statusConfig.label}
-		</span>
-	);
-}
-
-/**
- * Format relative time helper.
- */
-function formatRelativeTime(dateString: string): string {
-	const date = new Date(dateString);
-	const now = new Date();
-	const diffMs = now.getTime() - date.getTime();
-	const diffSecs = Math.floor(diffMs / 1000);
-	const diffMins = Math.floor(diffSecs / 60);
-	const diffHours = Math.floor(diffMins / 60);
-	const diffDays = Math.floor(diffHours / 24);
-
-	if (diffSecs < 60) return "Just now";
-	if (diffMins < 60) return `${diffMins}m ago`;
-	if (diffHours < 24) return `${diffHours}h ago`;
-	if (diffDays < 7) return `${diffDays}d ago`;
-
-	return date.toLocaleDateString();
-}
 
 /**
  * Skeleton for DocumentCard loading state.
