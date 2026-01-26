@@ -617,12 +617,12 @@ validate-env: ## Validate development environment setup
 
 run: ## Run the FastAPI backend server
 	@echo "$(BOLD)🚀 Running $(PROJECT_NAME) FastAPI server...$(RESET)"
-	$(UV) run python -m uvicorn src.docfusion.api.main:app --host 0.0.0.0 --port 8000 --reload
+	$(UV) run python -m hypercorn src.docfusion.api.app:app --bind 0.0.0.0:8000 --reload
 
 run-dev: ## Run application in development mode with debugger
 	@echo "$(BOLD)🚀 Running $(PROJECT_NAME) in development mode...$(RESET)"
 	@echo "$(YELLOW)Debugger listening on port 5678$(RESET)"
-	$(UV) run python -m debugpy --listen 5678 --wait-for-client -m uvicorn src.docfusion.api.main:app --host 0.0.0.0 --port 8000 --reload
+	$(UV) run python -m debugpy --listen 5678 --wait-for-client -m hypercorn src.docfusion.api.app:app --bind 0.0.0.0:8000 --reload
 
 run-api: ## Run FastAPI backend server (alias for run)
 	@$(MAKE) run

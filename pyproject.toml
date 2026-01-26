@@ -87,6 +87,12 @@ dependencies = [
     "xgboost>=3.0.2",
     "sqlalchemy>=2.0.41",
     "alembic>=1.16.4",
+    "uvicorn[standard]>=0.40.0",
+    "fastapi>=0.128.0",
+    "hypercorn>=0.18.0",
+    "bcrypt>=5.0.0",
+    "pyjwt>=2.10.1",
+    "uuid7>=0.1.0",
 ]
 
 # Optional dependency groups

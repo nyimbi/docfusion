@@ -285,7 +285,7 @@ module.exports = {
       name: '${PM2_BACKEND_NAME}',
       cwd: '${REMOTE_PATH}',
       script: '.venv/bin/python',
-      args: '-m uvicorn app.main:app --host 0.0.0.0 --port ${BACKEND_PORT} --workers 4',
+      args: '-m hypercorn src.docfusion.api.app:app --bind 0.0.0.0:${BACKEND_PORT} --workers 4',
       instances: 1,
       exec_mode: 'fork',
       env: {

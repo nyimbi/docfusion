@@ -11,20 +11,24 @@ from .authentication.api_authentication import APIAuthentication, APIKey, APIKey
 from .authorization.role_based_access import RoleBasedAccess, Role, Permission, AccessResult
 from .authorization.document_permissions import DocumentPermissions, DocumentAccess, PermissionLevel
 from .encryption.data_encryption import DataEncryption, EncryptionResult
-from .audit.audit_logger import AuditLogger, AuditEvent, AuditEventType
+from .audit.audit_logger import AuditLogger, AuditEvent, AuditEventType, AuditSeverity
+from .security_manager import SecurityManager, SecurityManagerConfiguration
 
 __all__ = [
     # Authentication
     "UserAuthentication", "UserCredentials", "AuthenticationResult",
     "APIAuthentication", "APIKey", "APIKeyResult",
-    
+
     # Authorization
     "RoleBasedAccess", "Role", "Permission", "AccessResult",
     "DocumentPermissions", "DocumentAccess", "PermissionLevel",
-    
+
     # Encryption
     "DataEncryption", "EncryptionResult",
-    
+
     # Audit
-    "AuditLogger", "AuditEvent", "AuditEventType"
+    "AuditLogger", "AuditEvent", "AuditEventType", "AuditSeverity",
+
+    # Security Manager
+    "SecurityManager", "SecurityManagerConfiguration",
 ]

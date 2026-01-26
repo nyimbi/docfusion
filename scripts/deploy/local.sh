@@ -149,8 +149,8 @@ start_backend() {
 		return 0
 	fi
 
-	# Start FastAPI with uvicorn in background
-	uv run python -m uvicorn src.docfusion.api.main:app --host 0.0.0.0 --port "$BACKEND_PORT" --reload &
+	# Start FastAPI with hypercorn in background
+	uv run python -m hypercorn src.docfusion.api.app:app --bind 0.0.0.0:"$BACKEND_PORT" --reload &
 	echo $! > "$BACKEND_DIR/.backend.pid"
 
 	wait_for_port "$BACKEND_PORT" 30 1
