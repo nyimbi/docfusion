@@ -688,3 +688,6 @@ uv.lock
 
 # Additional from proposal_writer merge
 temp/
+
+# Allow frontend lib directory (overrides lib/ ignore for Python)
+!frontend/lib/
