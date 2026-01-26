@@ -19,22 +19,15 @@ import {
 import { Input } from "@/components/ui/input";
 import type { DocumentSummary, DocumentStatus } from "@/lib/types/document";
 import { StatusBadge } from "@/components/documents/StatusBadge";
+import { DocumentActions } from "@/components/documents/DocumentActions";
 import {
 	Plus,
 	Search,
 	FileText,
 	Clock,
-	User,
-	Tag,
 	LayoutGrid,
 	List,
 	Filter,
-	SortAsc,
-	MoreVertical,
-	Trash2,
-	Copy,
-	Archive,
-	Star,
 } from "lucide-react";
 import {
 	DropdownMenu,
@@ -309,7 +302,7 @@ function DocumentCard({ document }: { document: DocumentSummary }) {
 						<CardTitle className="text-base line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400">
 							{document.title}
 						</CardTitle>
-						<DocumentActions document={document} />
+						<DocumentActions document={document} showNavigationLinks={false} />
 					</div>
 					<CardDescription className="text-xs">
 						<StatusBadge status={document.status} />
@@ -379,51 +372,8 @@ function DocumentListItem({ document }: { document: DocumentSummary }) {
 				</div>
 			)}
 
-			<DocumentActions document={document} />
+			<DocumentActions document={document} showNavigationLinks={false} />
 		</div>
-	);
-}
-
-/**
- * Document actions dropdown.
- */
-function DocumentActions({ document }: { document: DocumentSummary }) {
-	const handleClick = (e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-	};
-
-	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild onClick={handleClick}>
-				<button
-					type="button"
-					className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
-					aria-label="Document actions"
-				>
-					<MoreVertical className="h-4 w-4" />
-				</button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" onClick={handleClick}>
-				<DropdownMenuItem>
-					<Star className="h-4 w-4 mr-2" />
-					Add to favorites
-				</DropdownMenuItem>
-				<DropdownMenuItem>
-					<Copy className="h-4 w-4 mr-2" />
-					Duplicate
-				</DropdownMenuItem>
-				<DropdownMenuSeparator />
-				<DropdownMenuItem>
-					<Archive className="h-4 w-4 mr-2" />
-					Archive
-				</DropdownMenuItem>
-				<DropdownMenuItem className="text-red-600 dark:text-red-400">
-					<Trash2 className="h-4 w-4 mr-2" />
-					Delete
-				</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
 	);
 }
 

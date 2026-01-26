@@ -12,6 +12,7 @@ import Link from "next/link";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import type { DocumentSummary, DocumentStatus } from "@/lib/types/document";
 import { StatusBadge } from "./StatusBadge";
+import { DocumentActions } from "./DocumentActions";
 import {
 	Card,
 	CardHeader,
@@ -21,22 +22,8 @@ import {
 	CardFooter,
 } from "@/components/ui/card";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
 	FileText,
 	Clock,
-	MoreVertical,
-	Trash2,
-	Copy,
-	Archive,
-	Star,
-	Edit3,
-	Eye,
 	Users,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -139,79 +126,6 @@ export const DocumentCard = React.memo(function DocumentCard({
 });
 
 DocumentCard.displayName = "DocumentCard";
-
-/**
- * Document actions dropdown.
- */
-function DocumentActions({
-	document,
-	onFavorite,
-	onDuplicate,
-	onArchive,
-	onDelete,
-}: {
-	document: DocumentSummary;
-	onFavorite?: (document: DocumentSummary) => void;
-	onDuplicate?: (document: DocumentSummary) => void;
-	onArchive?: (document: DocumentSummary) => void;
-	onDelete?: (document: DocumentSummary) => void;
-}) {
-	const handleClick = (e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-	};
-
-	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild onClick={handleClick}>
-				<button
-					type="button"
-					className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity"
-					aria-label="Document actions"
-				>
-					<MoreVertical className="h-4 w-4" />
-				</button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" onClick={handleClick}>
-				<DropdownMenuItem asChild>
-					<Link href={`/documents/${document.id}`}>
-						<Edit3 className="h-4 w-4 mr-2" />
-						Edit
-					</Link>
-				</DropdownMenuItem>
-				<DropdownMenuItem asChild>
-					<Link href={`/documents/${document.id}?mode=view`}>
-						<Eye className="h-4 w-4 mr-2" />
-						View
-					</Link>
-				</DropdownMenuItem>
-				<DropdownMenuSeparator />
-				<DropdownMenuItem onClick={() => onFavorite?.(document)}>
-					<Star className="h-4 w-4 mr-2" />
-					Add to favorites
-				</DropdownMenuItem>
-				<DropdownMenuItem onClick={() => onDuplicate?.(document)}>
-					<Copy className="h-4 w-4 mr-2" />
-					Duplicate
-				</DropdownMenuItem>
-				<DropdownMenuSeparator />
-				<DropdownMenuItem onClick={() => onArchive?.(document)}>
-					<Archive className="h-4 w-4 mr-2" />
-					Archive
-				</DropdownMenuItem>
-				<DropdownMenuItem
-					className="text-red-600 dark:text-red-400"
-					onClick={() => onDelete?.(document)}
-				>
-					<Trash2 className="h-4 w-4 mr-2" />
-					Delete
-				</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
-	);
-}
-
-
 
 /**
  * Skeleton for DocumentCard loading state.
