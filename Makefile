@@ -615,31 +615,17 @@ validate-env: ## Validate development environment setup
 # ENHANCED APPLICATION EXECUTION
 # ============================================================================
 
-run: ## Run the main application (console mode)
-	@echo "$(BOLD)🚀 Running $(PROJECT_NAME) console application...$(RESET)"
-	@if [ -f "main.py" ]; then \
-		$(UV) run python main.py; \
-	else \
-		echo "$(YELLOW)⚠️  main.py not found. Use 'make run-flask' for web application$(RESET)"; \
-	fi
+run: ## Run the FastAPI backend server
+	@echo "$(BOLD)🚀 Running $(PROJECT_NAME) FastAPI server...$(RESET)"
+	$(UV) run python -m uvicorn src.docfusion.api.main:app --host 0.0.0.0 --port 8000 --reload
 
 run-dev: ## Run application in development mode with debugger
 	@echo "$(BOLD)🚀 Running $(PROJECT_NAME) in development mode...$(RESET)"
 	@echo "$(YELLOW)Debugger listening on port 5678$(RESET)"
-	@if [ -f "main.py" ]; then \
-		$(UV) run python -m debugpy --listen 5678 --wait-for-client main.py; \
-	else \
-		echo "$(YELLOW)⚠️  main.py not found. Use 'make flask-run-debug' for web application$(RESET)"; \
-	fi
+	$(UV) run python -m debugpy --listen 5678 --wait-for-client -m uvicorn src.docfusion.api.main:app --host 0.0.0.0 --port 8000 --reload
 
-run-flask: ## Run Flask-AppBuilder web application
-	@echo "$(BOLD)🌐 Starting Flask-AppBuilder web application...$(RESET)"
-	@if [ -f "$(FAB_APP_FILE)" ]; then \
-		export FLASK_APP=$(FAB_APP_FILE) && export FLASK_ENV=development && $(UV) run flask run --host=0.0.0.0 --port=5000; \
-	else \
-		echo "$(RED)❌ Flask application not found. Run 'make init' first.$(RESET)"; \
-		exit 1; \
-	fi
+run-api: ## Run FastAPI backend server (alias for run)
+	@$(MAKE) run
 
 # ============================================================================
 # DEPENDENCY MANAGEMENT

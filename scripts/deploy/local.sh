@@ -83,9 +83,9 @@ EOF
 	if [[ ! -f "$BACKEND_DIR/.env" ]]; then
 		log_substep "Creating backend .env"
 		cat > "$BACKEND_DIR/.env" <<EOF
-# DocFusion Backend - Local Development
-FLASK_ENV=development
-FLASK_DEBUG=1
+# DocFusion Backend - Local Development (FastAPI)
+ENV=development
+DEBUG=1
 DATABASE_URL=sqlite:///./docfusion.db
 
 # Pusher/Soketi configuration
@@ -97,6 +97,7 @@ PUSHER_PORT=${SOKETI_PORT}
 
 # AI Configuration
 OPENAI_API_KEY=your-openai-key-here
+ANTHROPIC_API_KEY=your-anthropic-key-here
 EOF
 		log_success "Created backend .env"
 	else
@@ -148,8 +149,8 @@ start_backend() {
 		return 0
 	fi
 
-	# Start with UV in background
-	FLASK_DEBUG=1 uv run flask run --host 0.0.0.0 --port "$BACKEND_PORT" &
+	# Start FastAPI with uvicorn in background
+	uv run python -m uvicorn src.docfusion.api.main:app --host 0.0.0.0 --port "$BACKEND_PORT" --reload &
 	echo $! > "$BACKEND_DIR/.backend.pid"
 
 	wait_for_port "$BACKEND_PORT" 30 1
