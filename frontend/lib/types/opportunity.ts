@@ -232,6 +232,8 @@ export interface OpportunityFilters {
 	fitScoreMax?: number;
 	sourceFiles?: string[];
 	assignedTo?: string;
+	/** Continent filter for geographic grouping (e.g., "africa", "asia") */
+	continent?: string;
 }
 
 /**

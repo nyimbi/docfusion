@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { QueryProvider } from "@/lib/query/provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/lib/auth-provider";
+import { ThemeProvider } from "@/lib/theme-provider";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
@@ -24,9 +26,13 @@ export default function RootLayout({
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<body className="min-h-screen bg-background font-sans antialiased">
-				<QueryProvider>
-					<TooltipProvider>{children}</TooltipProvider>
-				</QueryProvider>
+				<AuthProvider>
+					<ThemeProvider>
+						<QueryProvider>
+							<TooltipProvider>{children}</TooltipProvider>
+						</QueryProvider>
+					</ThemeProvider>
+				</AuthProvider>
 			</body>
 		</html>
 	);

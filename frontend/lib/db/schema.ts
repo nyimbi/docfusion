@@ -5,6 +5,9 @@
  * Using PostgreSQL-native features like JSONB for content storage and full-text search.
  */
 
+// Re-export auth schema so Drizzle sees all tables
+export * from "./auth-schema";
+
 import {
 	pgTable,
 	text,

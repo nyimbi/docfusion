@@ -76,6 +76,13 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
 	// Enable React strict mode
 	reactStrictMode: true,
+	// Transpile auth packages that may have ESM/CJS issues
+	transpilePackages: [
+		"better-auth",
+		"@daveyplate/better-auth-ui",
+		"@better-auth/passkey",
+		"@daveyplate/better-auth-tanstack",
+	],
 	// API proxy to backend
 	async rewrites() {
 		return [

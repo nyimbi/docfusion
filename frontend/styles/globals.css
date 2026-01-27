@@ -74,6 +74,22 @@
 	--accent: var(--accent-500);
 	--accent-foreground: var(--paper-white);
 
+	/* shadcn/ui Compatibility Variables (for better-auth-ui) */
+	--card: var(--paper-cream);
+	--card-foreground: var(--ink-900);
+	--popover: var(--paper-white);
+	--popover-foreground: var(--ink-900);
+	--primary: var(--accent-500);
+	--primary-foreground: var(--paper-white);
+	--secondary: var(--ink-100);
+	--secondary-foreground: var(--ink-900);
+	--muted: var(--paper-warm);
+	--muted-foreground: var(--ink-500);
+	--destructive: var(--error-500);
+	--destructive-foreground: var(--paper-white);
+	--input: var(--ink-200);
+	--radius: 0.5rem;
+
 	/* Shadows - Warm, subtle */
 	--shadow-xs: 0 1px 2px rgba(13, 12, 11, 0.04);
 	--shadow-sm: 0 1px 3px rgba(13, 12, 11, 0.06), 0 1px 2px rgba(13, 12, 11, 0.04);
@@ -122,12 +138,60 @@
 		--border: var(--ink-800);
 		--border-strong: var(--ink-700);
 
+		/* shadcn/ui Compatibility - Dark Mode */
+		--card: var(--ink-900);
+		--card-foreground: var(--ink-50);
+		--popover: var(--ink-900);
+		--popover-foreground: var(--ink-50);
+		--primary: var(--accent-500);
+		--primary-foreground: var(--ink-950);
+		--secondary: var(--ink-800);
+		--secondary-foreground: var(--ink-50);
+		--muted: var(--ink-800);
+		--muted-foreground: var(--ink-400);
+		--destructive: var(--error-500);
+		--destructive-foreground: var(--ink-50);
+		--input: var(--ink-700);
+
 		--shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
 		--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
 		--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
 		--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
 		--shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
 	}
+}
+
+/* Also support class-based dark mode (for next-themes) */
+.dark {
+	--background: var(--ink-950);
+	--background-subtle: var(--ink-900);
+	--background-muted: var(--ink-800);
+	--foreground: var(--ink-50);
+	--foreground-muted: var(--ink-400);
+	--foreground-subtle: var(--ink-500);
+	--border: var(--ink-800);
+	--border-strong: var(--ink-700);
+
+	/* shadcn/ui Compatibility - Dark Mode */
+	--card: var(--ink-900);
+	--card-foreground: var(--ink-50);
+	--popover: var(--ink-900);
+	--popover-foreground: var(--ink-50);
+	--primary: var(--accent-500);
+	--primary-foreground: var(--ink-950);
+	--secondary: var(--ink-800);
+	--secondary-foreground: var(--ink-50);
+	--muted: var(--ink-800);
+	--muted-foreground: var(--ink-400);
+	--destructive: var(--error-500);
+	--destructive-foreground: var(--ink-50);
+	--input: var(--ink-700);
+
+	--shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+	--shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
 }
 
 /* ============================================
@@ -635,4 +699,198 @@ body {
 	bottom: 0;
 	width: 3rem;
 	background: linear-gradient(to right, transparent, var(--background));
+}
+
+/* ============================================
+   Better Auth UI Styles
+   Style the authentication forms from @daveyplate/better-auth-ui
+   ============================================ */
+
+/* Auth form container */
+[data-auth-view],
+.auth-view {
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+	width: 100%;
+}
+
+/* Auth form headings */
+[data-auth-view] > div:first-child,
+.auth-form-header {
+	text-align: center;
+	margin-bottom: 0.5rem;
+}
+
+[data-auth-view] > div:first-child > div:first-child {
+	font-family: var(--font-display);
+	font-size: 1.75rem;
+	font-weight: 400;
+	color: var(--foreground);
+	letter-spacing: -0.02em;
+	margin-bottom: 0.5rem;
+}
+
+[data-auth-view] > div:first-child > div:last-child {
+	font-size: 0.875rem;
+	color: var(--foreground-muted);
+}
+
+/* Form field groups */
+[data-auth-view] form,
+[data-auth-view] > div:nth-child(2) {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+
+/* Individual field wrappers */
+[data-auth-view] form > div,
+[data-auth-view] > div:nth-child(2) > div {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+/* Field labels */
+[data-auth-view] form > div > div:first-child,
+[data-auth-view] > div:nth-child(2) > div > div:first-child {
+	font-size: 0.875rem;
+	font-weight: 500;
+	color: var(--foreground);
+}
+
+/* Password field row with forgot link */
+[data-auth-view] form > div > div:has(a),
+[data-auth-view] > div:nth-child(2) > div > div:has(a) {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+/* Forgot password link */
+[data-auth-view] a {
+	font-size: 0.8125rem;
+	color: var(--accent-600);
+	text-decoration: none;
+	transition: color var(--transition-fast);
+}
+
+[data-auth-view] a:hover {
+	color: var(--accent-700);
+	text-decoration: underline;
+}
+
+/* Text inputs */
+[data-auth-view] input[type="text"],
+[data-auth-view] input[type="email"],
+[data-auth-view] input[type="password"],
+[data-auth-view] input:not([type]) {
+	width: 100%;
+	padding: 0.75rem 1rem;
+	font-family: var(--font-body);
+	font-size: 0.9375rem;
+	color: var(--foreground);
+	background: var(--background);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-md);
+	outline: none;
+	transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+[data-auth-view] input::placeholder {
+	color: var(--foreground-subtle);
+}
+
+[data-auth-view] input:focus {
+	border-color: var(--accent);
+	box-shadow: var(--shadow-glow);
+}
+
+/* Password input wrapper (with visibility toggle) */
+[data-auth-view] div:has(> input[type="password"]) {
+	position: relative;
+}
+
+[data-auth-view] div:has(> input[type="password"]) > button {
+	position: absolute;
+	right: 0.75rem;
+	top: 50%;
+	transform: translateY(-50%);
+	background: none;
+	border: none;
+	padding: 0.25rem;
+	cursor: pointer;
+	color: var(--foreground-subtle);
+	transition: color var(--transition-fast);
+}
+
+[data-auth-view] div:has(> input[type="password"]) > button:hover {
+	color: var(--foreground);
+}
+
+/* Submit buttons */
+[data-auth-view] button[type="submit"],
+[data-auth-view] form > button,
+[data-auth-view] > div:nth-child(2) > button {
+	width: 100%;
+	padding: 0.75rem 1.5rem;
+	font-family: var(--font-body);
+	font-size: 0.9375rem;
+	font-weight: 500;
+	color: var(--accent-foreground);
+	background: var(--accent);
+	border: none;
+	border-radius: var(--radius-md);
+	cursor: pointer;
+	transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+[data-auth-view] button[type="submit"]:hover,
+[data-auth-view] form > button:hover,
+[data-auth-view] > div:nth-child(2) > button:hover {
+	background: var(--accent-600);
+}
+
+[data-auth-view] button[type="submit"]:active,
+[data-auth-view] form > button:active,
+[data-auth-view] > div:nth-child(2) > button:active {
+	transform: scale(0.98);
+}
+
+/* Footer text with sign up/sign in link */
+[data-auth-view] > div:last-child {
+	text-align: center;
+	font-size: 0.875rem;
+	color: var(--foreground-muted);
+}
+
+[data-auth-view] > div:last-child a,
+[data-auth-view] > div:last-child button {
+	color: var(--accent-600);
+	font-weight: 500;
+	background: none;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+}
+
+[data-auth-view] > div:last-child a:hover,
+[data-auth-view] > div:last-child button:hover {
+	text-decoration: underline;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+	[data-auth-view] input[type="text"],
+	[data-auth-view] input[type="email"],
+	[data-auth-view] input[type="password"],
+	[data-auth-view] input:not([type]) {
+		background: var(--ink-900);
+		border-color: var(--ink-700);
+	}
+
+	[data-auth-view] input:focus {
+		border-color: var(--accent-500);
+	}
 }
