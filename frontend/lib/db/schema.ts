@@ -798,6 +798,81 @@ export const opportunityPartnersRelations = relations(opportunityPartners, ({ on
 }));
 
 // ============================================================================
+// Company Settings (Organization Profile)
+// ============================================================================
+
+export const companySettings = pgTable(
+	"company_settings",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		/** Organization name */
+		companyName: varchar("company_name", { length: 500 }).notNull(),
+		/** Legal entity name (if different) */
+		legalName: varchar("legal_name", { length: 500 }),
+		/** Company registration/tax ID */
+		registrationNumber: varchar("registration_number", { length: 100 }),
+		/** Tax ID / EIN */
+		taxId: varchar("tax_id", { length: 100 }),
+		/** DUNS number (for government contracts) */
+		dunsNumber: varchar("duns_number", { length: 20 }),
+		/** CAGE code (for government contracts) */
+		cageCode: varchar("cage_code", { length: 10 }),
+		/** SAM.gov UEI (Unique Entity Identifier) */
+		samUei: varchar("sam_uei", { length: 20 }),
+		/** NAICS codes */
+		naicsCodes: jsonb("naics_codes").notNull().default([]),
+		/** Industry description */
+		industryDescription: text("industry_description"),
+		/** Year founded */
+		yearFounded: integer("year_founded"),
+		/** Number of employees */
+		employeeCount: integer("employee_count"),
+		/** Annual revenue (for qualifications) */
+		annualRevenue: varchar("annual_revenue", { length: 100 }),
+		/** Small business certifications */
+		certifications: jsonb("certifications").notNull().default([]),
+		/** Website URL */
+		website: varchar("website", { length: 500 }),
+		/** Primary address */
+		addressLine1: varchar("address_line_1", { length: 500 }),
+		addressLine2: varchar("address_line_2", { length: 500 }),
+		city: varchar("city", { length: 200 }),
+		stateProvince: varchar("state_province", { length: 100 }),
+		postalCode: varchar("postal_code", { length: 50 }),
+		country: varchar("country", { length: 100 }),
+		/** Primary contact */
+		primaryContactName: varchar("primary_contact_name", { length: 200 }),
+		primaryContactTitle: varchar("primary_contact_title", { length: 200 }),
+		primaryContactEmail: varchar("primary_contact_email", { length: 200 }),
+		primaryContactPhone: varchar("primary_contact_phone", { length: 50 }),
+		/** Contracts/BD contact */
+		contractsContactName: varchar("contracts_contact_name", { length: 200 }),
+		contractsContactEmail: varchar("contracts_contact_email", { length: 200 }),
+		contractsContactPhone: varchar("contracts_contact_phone", { length: 50 }),
+		/** Core capabilities (for proposals) */
+		coreCapabilities: jsonb("core_capabilities").notNull().default([]),
+		/** Key differentiators */
+		differentiators: jsonb("differentiators").notNull().default([]),
+		/** Past performance summary */
+		pastPerformanceSummary: text("past_performance_summary"),
+		/** Standard company boilerplate text */
+		companyBoilerplate: text("company_boilerplate"),
+		/** Logo URL or base64 */
+		logoUrl: text("logo_url"),
+		/** Primary brand color (hex) */
+		primaryColor: varchar("primary_color", { length: 10 }),
+		/** Secondary brand color (hex) */
+		secondaryColor: varchar("secondary_color", { length: 10 }),
+		/** Default branding for exports */
+		defaultBranding: jsonb("default_branding"),
+		/** Additional custom fields */
+		customFields: jsonb("custom_fields").notNull().default({}),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+	}
+);
+
+// ============================================================================
 // Opportunity Type Exports
 // ============================================================================
 
@@ -836,3 +911,6 @@ export type NewPartner = typeof partners.$inferInsert;
 
 export type OpportunityPartnerRow = typeof opportunityPartners.$inferSelect;
 export type NewOpportunityPartner = typeof opportunityPartners.$inferInsert;
+
+export type CompanySettingsRow = typeof companySettings.$inferSelect;
+export type NewCompanySettings = typeof companySettings.$inferInsert;

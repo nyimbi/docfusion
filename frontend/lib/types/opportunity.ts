@@ -1626,3 +1626,145 @@ export interface CollaborationSession {
 	startedAt: Date;
 	lastActivityAt: Date;
 }
+
+// ============================================================================
+// Company Settings Types
+// ============================================================================
+
+/** Small business certification types */
+export type SmallBusinessCertification =
+	| "8a"
+	| "hubzone"
+	| "wosb"
+	| "edwosb"
+	| "sdvosb"
+	| "vosb"
+	| "sdb"
+	| "mbe"
+	| "wbe"
+	| "dbe"
+	| "other";
+
+/**
+ * Company/Organization settings.
+ */
+export interface CompanySettings {
+	id: string;
+	companyName: string;
+	legalName: string | null;
+	registrationNumber: string | null;
+	taxId: string | null;
+	dunsNumber: string | null;
+	cageCode: string | null;
+	samUei: string | null;
+	naicsCodes: string[];
+	industryDescription: string | null;
+	yearFounded: number | null;
+	employeeCount: number | null;
+	annualRevenue: string | null;
+	certifications: SmallBusinessCertification[];
+	website: string | null;
+	addressLine1: string | null;
+	addressLine2: string | null;
+	city: string | null;
+	stateProvince: string | null;
+	postalCode: string | null;
+	country: string | null;
+	primaryContactName: string | null;
+	primaryContactTitle: string | null;
+	primaryContactEmail: string | null;
+	primaryContactPhone: string | null;
+	contractsContactName: string | null;
+	contractsContactEmail: string | null;
+	contractsContactPhone: string | null;
+	coreCapabilities: string[];
+	differentiators: string[];
+	pastPerformanceSummary: string | null;
+	companyBoilerplate: string | null;
+	logoUrl: string | null;
+	primaryColor: string | null;
+	secondaryColor: string | null;
+	defaultBranding: BrandingConfig | null;
+	customFields: Record<string, unknown>;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+/**
+ * Input for creating/updating company settings.
+ */
+export interface CompanySettingsInput {
+	companyName: string;
+	legalName?: string;
+	registrationNumber?: string;
+	taxId?: string;
+	dunsNumber?: string;
+	cageCode?: string;
+	samUei?: string;
+	naicsCodes?: string[];
+	industryDescription?: string;
+	yearFounded?: number;
+	employeeCount?: number;
+	annualRevenue?: string;
+	certifications?: SmallBusinessCertification[];
+	website?: string;
+	addressLine1?: string;
+	addressLine2?: string;
+	city?: string;
+	stateProvince?: string;
+	postalCode?: string;
+	country?: string;
+	primaryContactName?: string;
+	primaryContactTitle?: string;
+	primaryContactEmail?: string;
+	primaryContactPhone?: string;
+	contractsContactName?: string;
+	contractsContactEmail?: string;
+	contractsContactPhone?: string;
+	coreCapabilities?: string[];
+	differentiators?: string[];
+	pastPerformanceSummary?: string;
+	companyBoilerplate?: string;
+	logoUrl?: string;
+	primaryColor?: string;
+	secondaryColor?: string;
+	defaultBranding?: BrandingConfig;
+	customFields?: Record<string, unknown>;
+}
+
+// ============================================================================
+// Calendar ICS Export Types
+// ============================================================================
+
+/**
+ * ICS event for calendar export.
+ */
+export interface ICSEvent {
+	uid: string;
+	summary: string;
+	description: string | null;
+	start: Date;
+	end: Date;
+	location: string | null;
+	url: string | null;
+	categories: string[];
+	alarm?: {
+		trigger: number; // minutes before
+		action: "DISPLAY" | "EMAIL";
+		description: string;
+	};
+}
+
+/**
+ * ICS export options.
+ */
+export interface ICSExportOptions {
+	/** Include alarm/reminder */
+	includeAlarm?: boolean;
+	/** Minutes before deadline for alarm */
+	alarmMinutes?: number;
+	/** Calendar name */
+	calendarName?: string;
+	/** Filter criteria */
+	filters?: DeadlineFilters;
+}

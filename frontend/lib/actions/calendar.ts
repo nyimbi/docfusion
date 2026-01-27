@@ -28,6 +28,8 @@ import type {
 	CalendarMonthSummary,
 	OpportunityMilestone,
 	DeadlineStats,
+	ICSEvent,
+	ICSExportOptions,
 } from "@/lib/types/opportunity";
 
 // ============================================================================
@@ -788,4 +790,279 @@ export async function getDeadlinesForUser(
 		days,
 		filters: { assignedTo: userId },
 	});
+}
+
+// ============================================================================
+// ICS Calendar Export (RFC 5545)
+// ============================================================================
+
+/**
+ * Generate an ICS calendar file for deadlines.
+ * Returns RFC 5545 compliant iCalendar format string.
+ */
+export async function exportToICS(
+	options: ICSExportOptions = {}
+): Promise<string> {
+	const {
+		includeAlarm = true,
+		alarmMinutes = 1440, // 24 hours before by default
+		calendarName = "DocFusion Deadlines",
+		filters,
+	} = options;
+
+	// Get upcoming deadlines (next 90 days)
+	const deadlines = await getUpcomingDeadlines({
+		days: 90,
+		filters,
+	});
+
+	// Also get overdue items
+	const overdueItems = await getOverdueItems(filters);
+
+	// Combine and dedupe
+	const allItems = [...overdueItems, ...deadlines];
+	const uniqueItems = Array.from(
+		new Map(allItems.map((item) => [item.id, item])).values()
+	);
+
+	// Convert to ICS events
+	const events = uniqueItems.map((item) =>
+		deadlineToICSEvent(item, includeAlarm, alarmMinutes)
+	);
+
+	// Generate ICS content
+	return generateICSContent(events, calendarName);
+}
+
+/**
+ * Export a single deadline to ICS.
+ */
+export async function exportDeadlineToICS(
+	deadlineId: string,
+	options: Omit<ICSExportOptions, "filters"> = {}
+): Promise<string | null> {
+	const { includeAlarm = true, alarmMinutes = 1440 } = options;
+
+	// Get all deadlines in a wide range to find the specific one
+	const allDeadlines = await getDeadlinesByDateRange({
+		startDate: new Date("2000-01-01"),
+		endDate: new Date("2100-01-01"),
+	});
+
+	const deadline = allDeadlines.find((d) => d.id === deadlineId);
+	if (!deadline) {
+		return null;
+	}
+
+	const event = deadlineToICSEvent(deadline, includeAlarm, alarmMinutes);
+	return generateICSContent([event], "DocFusion Deadline");
+}
+
+/**
+ * Export milestones for an opportunity to ICS.
+ */
+export async function exportOpportunityMilestonesToICS(
+	opportunityId: string,
+	options: Omit<ICSExportOptions, "filters"> = {}
+): Promise<string> {
+	const { includeAlarm = true, alarmMinutes = 1440 } = options;
+
+	const milestones = await getMilestones(opportunityId);
+
+	const events: ICSEvent[] = milestones.map((milestone) => ({
+		uid: `${milestone.id}@docfusion`,
+		summary: milestone.title,
+		description: milestone.description,
+		start: milestone.date,
+		end: new Date(milestone.date.getTime() + 60 * 60 * 1000), // 1 hour duration
+		location: null,
+		url: `/opportunities/${opportunityId}`,
+		categories: [milestone.type],
+		alarm: includeAlarm
+			? {
+					trigger: alarmMinutes,
+					action: "DISPLAY",
+					description: `Reminder: ${milestone.title}`,
+				}
+			: undefined,
+	}));
+
+	return generateICSContent(events, "DocFusion Opportunity Milestones");
+}
+
+/**
+ * Convert a deadline item to an ICS event.
+ */
+function deadlineToICSEvent(
+	deadline: DeadlineItem,
+	includeAlarm: boolean,
+	alarmMinutes: number
+): ICSEvent {
+	// End time is 1 hour after start (for all-day events we could use DATE instead)
+	const endTime = new Date(deadline.deadline.getTime() + 60 * 60 * 1000);
+
+	return {
+		uid: `${deadline.id}@docfusion`,
+		summary: `[${formatDeadlineType(deadline.type)}] ${deadline.title}`,
+		description: formatEventDescription(deadline),
+		start: deadline.deadline,
+		end: endTime,
+		location: null,
+		url: getDeadlineUrl(deadline),
+		categories: [deadline.type, deadline.urgency],
+		alarm: includeAlarm
+			? {
+					trigger: alarmMinutes,
+					action: "DISPLAY",
+					description: `Deadline approaching: ${deadline.title}`,
+				}
+			: undefined,
+	};
+}
+
+/**
+ * Format deadline type for display.
+ */
+function formatDeadlineType(type: DeadlineType): string {
+	const labels: Record<DeadlineType, string> = {
+		opportunity: "RFP",
+		requirement: "REQ",
+		proposal_document: "DOC",
+		document_section: "SEC",
+		review: "REV",
+		submission: "SUB",
+	};
+	return labels[type] || type;
+}
+
+/**
+ * Format event description with deadline details.
+ */
+function formatEventDescription(deadline: DeadlineItem): string {
+	const lines: string[] = [];
+
+	lines.push(`Opportunity: ${deadline.opportunityTitle}`);
+
+	if (deadline.description) {
+		lines.push(`Description: ${deadline.description}`);
+	}
+
+	if (deadline.assignedTo) {
+		lines.push(`Assigned to: ${deadline.assignedTo}`);
+	}
+
+	if (deadline.status) {
+		lines.push(`Status: ${deadline.status}`);
+	}
+
+	lines.push(`Type: ${formatDocumentType(deadline.type)}`);
+	lines.push(`Urgency: ${deadline.urgency}`);
+
+	return lines.join("\n");
+}
+
+/**
+ * Get URL for a deadline item.
+ */
+function getDeadlineUrl(deadline: DeadlineItem): string {
+	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
+
+	switch (deadline.type) {
+		case "opportunity":
+			return `${baseUrl}/opportunities/${deadline.opportunityId}`;
+		case "requirement":
+			return `${baseUrl}/opportunities/${deadline.opportunityId}/requirements`;
+		case "proposal_document":
+		case "document_section":
+			return `${baseUrl}/opportunities/${deadline.opportunityId}/documents`;
+		case "submission":
+			return `${baseUrl}/opportunities/${deadline.opportunityId}/submission`;
+		default:
+			return `${baseUrl}/opportunities/${deadline.opportunityId}`;
+	}
+}
+
+/**
+ * Generate RFC 5545 compliant ICS content.
+ */
+function generateICSContent(events: ICSEvent[], calendarName: string): string {
+	const lines: string[] = [];
+
+	// Calendar header
+	lines.push("BEGIN:VCALENDAR");
+	lines.push("VERSION:2.0");
+	lines.push("PRODID:-//DocFusion//Deadline Calendar//EN");
+	lines.push("CALSCALE:GREGORIAN");
+	lines.push("METHOD:PUBLISH");
+	lines.push(`X-WR-CALNAME:${escapeICSText(calendarName)}`);
+	lines.push("X-WR-TIMEZONE:UTC");
+
+	// Events
+	for (const event of events) {
+		lines.push("BEGIN:VEVENT");
+		lines.push(`UID:${event.uid}`);
+		lines.push(`DTSTAMP:${formatICSDateTime(new Date())}`);
+		lines.push(`DTSTART:${formatICSDateTime(event.start)}`);
+		lines.push(`DTEND:${formatICSDateTime(event.end)}`);
+		lines.push(`SUMMARY:${escapeICSText(event.summary)}`);
+
+		if (event.description) {
+			lines.push(`DESCRIPTION:${escapeICSText(event.description)}`);
+		}
+
+		if (event.location) {
+			lines.push(`LOCATION:${escapeICSText(event.location)}`);
+		}
+
+		if (event.url) {
+			lines.push(`URL:${event.url}`);
+		}
+
+		if (event.categories.length > 0) {
+			lines.push(`CATEGORIES:${event.categories.join(",")}`);
+		}
+
+		// Alarm
+		if (event.alarm) {
+			lines.push("BEGIN:VALARM");
+			lines.push(`TRIGGER:-PT${event.alarm.trigger}M`);
+			lines.push(`ACTION:${event.alarm.action}`);
+			lines.push(`DESCRIPTION:${escapeICSText(event.alarm.description)}`);
+			lines.push("END:VALARM");
+		}
+
+		lines.push("END:VEVENT");
+	}
+
+	// Calendar footer
+	lines.push("END:VCALENDAR");
+
+	return lines.join("\r\n");
+}
+
+/**
+ * Format a Date to ICS datetime format (UTC).
+ */
+function formatICSDateTime(date: Date): string {
+	const year = date.getUTCFullYear();
+	const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+	const day = String(date.getUTCDate()).padStart(2, "0");
+	const hours = String(date.getUTCHours()).padStart(2, "0");
+	const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+	const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+
+	return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+}
+
+/**
+ * Escape text for ICS format.
+ * Handles special characters and line folding.
+ */
+function escapeICSText(text: string): string {
+	return text
+		.replace(/\\/g, "\\\\")
+		.replace(/;/g, "\\;")
+		.replace(/,/g, "\\,")
+		.replace(/\n/g, "\\n")
+		.replace(/\r/g, "");
 }
