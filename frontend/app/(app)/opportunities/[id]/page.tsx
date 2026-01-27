@@ -37,20 +37,20 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 	}
 
 	return (
-		<div className="min-h-screen bg-[var(--background)]">
+		<div className="min-h-screen bg-background">
 			{/* Header */}
-			<header className="border-b border-[var(--border)] bg-[var(--background)]">
+			<header className="border-b bg-background">
 				<div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
 					{/* Breadcrumb */}
-					<nav className="flex items-center gap-2 text-sm text-[var(--foreground-muted)] mb-3">
+					<nav className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
 						<Link
 							href="/opportunities"
-							className="hover:text-[var(--foreground)] transition-colors"
+							className="hover:text-foreground transition-colors"
 						>
 							Opportunities
 						</Link>
 						<span>/</span>
-						<span className="text-[var(--foreground)] font-medium truncate max-w-[300px]">
+						<span className="text-foreground font-medium truncate max-w-[300px]">
 							{opportunity.sourceId || opportunity.title.slice(0, 30)}
 						</span>
 					</nav>
@@ -58,7 +58,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 					{/* Title and status */}
 					<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 						<div className="min-w-0 flex-1">
-							<h1 className="text-2xl font-semibold text-[var(--foreground)] leading-tight">
+							<h1 className="text-2xl font-semibold text-foreground leading-tight">
 								{opportunity.title}
 							</h1>
 							<div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-[var(--foreground-muted)]">
@@ -80,13 +80,12 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 										{formatDate(opportunity.deadline)}
 										{opportunity.daysLeft !== null && (
 											<span
-												className={`ml-1 ${
-													opportunity.daysLeft < 7
-														? "text-[var(--error-500)]"
+												className={`ml-1 ${opportunity.daysLeft < 7
+														? "text-destructive"
 														: opportunity.daysLeft < 14
-														? "text-[var(--warning-500)]"
-														: "text-[var(--success-500)]"
-												}`}
+															? "text-amber-500"
+															: "text-green-500"
+													}`}
 											>
 												({opportunity.daysLeft}d)
 											</span>
@@ -185,7 +184,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 											href={opportunity.rfpLink}
 											target="_blank"
 											rel="noopener noreferrer"
-											className="text-[var(--accent-500)] hover:underline flex items-center gap-1"
+											className="text-primary hover:underline flex items-center gap-1"
 										>
 											<ExternalLinkIcon className="h-4 w-4" />
 											View RFP Document
@@ -209,7 +208,7 @@ function StatusBadge({ status }: { status: string }) {
 	const statusConfig: Record<string, { label: string; className: string }> = {
 		pending: {
 			label: "Pending Review",
-			className: "bg-[var(--ink-100)] text-[var(--ink-600)]",
+			className: "bg-muted text-muted-foreground",
 		},
 		interested: {
 			label: "Interested",
@@ -233,11 +232,11 @@ function StatusBadge({ status }: { status: string }) {
 		},
 		declined: {
 			label: "Declined",
-			className: "bg-[var(--ink-100)] text-[var(--ink-500)]",
+			className: "bg-muted text-muted-foreground",
 		},
 		expired: {
 			label: "Expired",
-			className: "bg-[var(--ink-100)] text-[var(--ink-400)]",
+			className: "bg-muted text-muted-foreground",
 		},
 	};
 

@@ -87,14 +87,14 @@ export default function TemplatesPage() {
 			{/* Page Header */}
 			<div className="flex items-center justify-between mb-6">
 				<div>
-					<h1 className="heading-display text-2xl text-[var(--ink-100)] mb-1">
+					<h1 className="text-2xl font-bold text-foreground mb-1">
 						Templates
 					</h1>
-					<p className="text-sm text-[var(--ink-500)]">
+					<p className="text-sm text-muted-foreground">
 						Reusable document templates for faster proposal development
 					</p>
 				</div>
-				<Button className="bg-[var(--accent-500)] hover:bg-[var(--accent-400)] text-[var(--ink-950)] font-semibold">
+				<Button>
 					<Plus className="h-4 w-4" />
 					<span className="hidden sm:inline">New Template</span>
 				</Button>
@@ -102,7 +102,7 @@ export default function TemplatesPage() {
 
 			{/* Search */}
 			<div className="relative mb-6">
-				<Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ink-500)]" />
+				<Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 				<input
 					type="text"
 					placeholder="Search templates..."
@@ -110,9 +110,9 @@ export default function TemplatesPage() {
 					onChange={(e) => setSearchQuery(e.target.value)}
 					className={cn(
 						"w-full h-10 pl-11 pr-4 rounded-xl",
-						"bg-[var(--ink-900)]/50 border border-[var(--ink-800)]",
-						"text-[var(--ink-100)] placeholder-[var(--ink-500)]",
-						"focus:outline-none focus:border-[var(--accent-500)]/50 focus:ring-1 focus:ring-[var(--accent-500)]/20",
+						"bg-background border border-input",
+						"text-foreground placeholder:text-muted-foreground",
+						"focus:outline-none focus:ring-2 focus:ring-ring focus:border-input",
 						"transition-all duration-200"
 					)}
 				/>
@@ -124,11 +124,11 @@ export default function TemplatesPage() {
 					<div
 						key={template.id}
 						className={cn(
-							"group relative flex flex-col p-5 rounded-2xl",
-							"bg-gradient-to-br from-[var(--ink-900)]/80 to-[var(--ink-900)]/40",
-							"border border-[var(--ink-800)]/50 hover:border-[var(--ink-700)]",
+							"group relative flex flex-col p-5 rounded-xl",
+							"bg-card border border-border shadow-sm",
+							"hover:shadow-md hover:border-primary/50",
 							"transition-all duration-300 ease-out",
-							"opacity-0 animate-fade-up"
+							"animate-fade-up"
 						)}
 						style={{
 							animationDelay: `${index * 50}ms`,
@@ -136,20 +136,20 @@ export default function TemplatesPage() {
 						}}
 					>
 						{/* Icon */}
-						<div className="w-10 h-10 rounded-xl bg-[var(--accent-500)]/10 flex items-center justify-center mb-4">
-							<template.icon className="h-5 w-5 text-[var(--accent-400)]" />
+						<div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+							<template.icon className="h-5 w-5 text-primary" />
 						</div>
 
 						{/* Content */}
-						<h3 className="text-[var(--ink-100)] font-semibold text-base mb-2 group-hover:text-[var(--accent-300)] transition-colors">
+						<h3 className="text-foreground font-semibold text-base mb-2 group-hover:text-primary transition-colors">
 							{template.name}
 						</h3>
-						<p className="text-sm text-[var(--ink-500)] mb-4 line-clamp-2 flex-1">
+						<p className="text-sm text-muted-foreground mb-4 line-clamp-2 flex-1">
 							{template.description}
 						</p>
 
 						{/* Meta */}
-						<div className="flex items-center justify-between pt-3 border-t border-[var(--ink-800)]/50 text-xs text-[var(--ink-500)]">
+						<div className="flex items-center justify-between pt-3 border-t border-border text-xs text-muted-foreground">
 							<div className="flex items-center gap-3">
 								<span className="flex items-center gap-1">
 									<Star className="w-3 h-3" />
@@ -160,21 +160,21 @@ export default function TemplatesPage() {
 
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
-									<button className="p-1.5 rounded-lg text-[var(--ink-500)] hover:text-[var(--ink-300)] hover:bg-[var(--ink-800)]/50 transition-all">
+									<button className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-all">
 										<MoreVertical className="w-4 h-4" />
 									</button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end" className="bg-[var(--ink-900)] border-[var(--ink-700)]">
-									<DropdownMenuItem className="text-[var(--ink-300)]">
+								<DropdownMenuContent align="end">
+									<DropdownMenuItem>
 										<Copy className="w-4 h-4 mr-2" />
 										Duplicate
 									</DropdownMenuItem>
-									<DropdownMenuItem className="text-[var(--ink-300)]">
+									<DropdownMenuItem>
 										<Edit3 className="w-4 h-4 mr-2" />
 										Edit
 									</DropdownMenuItem>
-									<DropdownMenuSeparator className="bg-[var(--ink-800)]" />
-									<DropdownMenuItem className="text-[var(--error-400)]">
+									<DropdownMenuSeparator />
+									<DropdownMenuItem className="text-destructive focus:text-destructive">
 										<Trash2 className="w-4 h-4 mr-2" />
 										Delete
 									</DropdownMenuItem>
@@ -189,16 +189,16 @@ export default function TemplatesPage() {
 			{filteredTemplates.length === 0 && (
 				<div className="flex flex-col items-center justify-center py-24 animate-fade-up">
 					<div className="relative mb-8">
-						<div className="absolute inset-0 bg-[var(--accent-500)]/20 rounded-3xl blur-2xl" />
-						<div className="relative w-24 h-24 rounded-2xl bg-gradient-to-br from-[var(--accent-500)] to-[var(--accent-700)] flex items-center justify-center">
-							<LayoutTemplate className="w-12 h-12 text-white" />
+						<div className="absolute inset-0 bg-primary/20 rounded-3xl blur-2xl" />
+						<div className="relative w-24 h-24 rounded-2xl bg-primary flex items-center justify-center">
+							<LayoutTemplate className="w-12 h-12 text-primary-foreground" />
 						</div>
 					</div>
 
-					<h3 className="heading-display text-2xl text-[var(--ink-100)] mb-3">
+					<h3 className="text-2xl font-bold text-foreground mb-3">
 						{searchQuery ? "No matching templates" : "No templates yet"}
 					</h3>
-					<p className="text-[var(--ink-500)] text-center max-w-md mb-8 leading-relaxed">
+					<p className="text-muted-foreground text-center max-w-md mb-8 leading-relaxed">
 						{searchQuery
 							? "Try adjusting your search query."
 							: "Create your first template to speed up proposal development."}

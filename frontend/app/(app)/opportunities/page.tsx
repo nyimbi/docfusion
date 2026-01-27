@@ -241,10 +241,10 @@ function OpportunitiesContent() {
 			{/* Page Header */}
 			<div className="flex items-center justify-between mb-6">
 				<div>
-					<h1 className="heading-display text-2xl text-[var(--ink-100)] mb-1">
+					<h1 className="text-2xl font-bold text-foreground mb-1">
 						Opportunities
 					</h1>
-					<p className="text-sm text-[var(--ink-500)]">
+					<p className="text-sm text-muted-foreground">
 						Track and manage RFPs, tenders, and procurement opportunities
 					</p>
 				</div>
@@ -252,12 +252,12 @@ function OpportunitiesContent() {
 					<Button
 						variant="ghost"
 						onClick={() => loadData()}
-						className="text-[var(--ink-400)] hover:text-[var(--ink-200)]"
+						className="text-muted-foreground hover:text-foreground"
 					>
 						<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
 					</Button>
 					<Link href="/opportunities/import">
-						<Button className="bg-[var(--accent-500)] hover:bg-[var(--accent-400)] text-[var(--ink-950)] font-semibold">
+						<Button>
 							<Upload className="h-4 w-4" />
 							<span className="hidden sm:inline">Import</span>
 						</Button>
@@ -269,12 +269,12 @@ function OpportunitiesContent() {
 			{stats && <StatsBanner stats={stats} />}
 
 			{/* Toolbar */}
-			<div className="sticky top-0 z-30 -mx-6 px-6 py-3 bg-[var(--ink-950)]/90 backdrop-blur-lg border-b border-[var(--ink-800)]/30 mb-6">
+			<div className="sticky top-0 z-30 -mx-6 px-6 py-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b mb-6">
 				<div className="flex items-center gap-4">
 					{/* Search */}
 					<form onSubmit={handleSearch} className="relative group flex-1 max-w-md">
 						<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-							<Search className="h-4 w-4 text-[var(--ink-500)] group-focus-within:text-[var(--accent-400)] transition-colors" />
+							<Search className="h-4 w-4 text-muted-foreground group-focus-within:text-foreground transition-colors" />
 						</div>
 						<input
 							type="search"
@@ -283,9 +283,9 @@ function OpportunitiesContent() {
 							onChange={(e) => setSearchQuery(e.target.value)}
 							className={cn(
 								"w-full h-10 pl-10 pr-4 rounded-xl",
-								"bg-[var(--ink-900)]/50 border border-[var(--ink-800)]",
-								"text-[var(--ink-100)] placeholder-[var(--ink-500)]",
-								"focus:outline-none focus:border-[var(--accent-500)]/50 focus:ring-1 focus:ring-[var(--accent-500)]/20",
+								"bg-background border border-input",
+								"text-foreground placeholder:text-muted-foreground",
+								"focus:outline-none focus:ring-2 focus:ring-ring focus:border-input",
 								"transition-all duration-200"
 							)}
 						/>
@@ -332,8 +332,8 @@ function OpportunitiesContent() {
 						className={cn(
 							"flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150",
 							filters.isExpired === false
-								? "bg-[var(--success-500)]/20 text-[var(--success-500)] border border-[var(--success-500)]/30"
-								: "bg-[var(--ink-800)]/50 text-[var(--ink-400)] border border-[var(--ink-700)]/50 hover:text-[var(--ink-200)]"
+								? "bg-green-500/10 text-green-600 border border-green-500/20"
+								: "bg-muted text-muted-foreground border border-transparent hover:text-foreground"
 						)}
 					>
 						<Clock className="w-4 h-4" />
@@ -348,8 +348,8 @@ function OpportunitiesContent() {
 						className={cn(
 							"flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150",
 							filters.continent === "africa"
-								? "bg-[var(--accent-500)]/20 text-[var(--accent-400)] border border-[var(--accent-500)]/30"
-								: "bg-[var(--ink-800)]/50 text-[var(--ink-400)] border border-[var(--ink-700)]/50 hover:text-[var(--ink-200)]"
+								? "bg-primary/10 text-primary border border-primary/20"
+								: "bg-muted text-muted-foreground border border-transparent hover:text-foreground"
 						)}
 					>
 						<Globe className="w-4 h-4" />
@@ -417,7 +417,7 @@ function OpportunitiesContent() {
 
 function StatsBanner({ stats }: { stats: OpportunityStats }) {
 	return (
-		<div className="rounded-xl border border-[var(--ink-800)]/30 bg-[var(--ink-900)]/30 p-4 mb-6">
+		<div className="rounded-xl border bg-muted/20 p-4 mb-6">
 			<div className="flex items-center gap-8 overflow-x-auto scrollbar-none">
 				<StatPill
 					icon={<Briefcase className="w-4 h-4" />}
@@ -449,7 +449,7 @@ function StatsBanner({ stats }: { stats: OpportunityStats }) {
 					value={stats.byStatus.won || 0}
 					color="green"
 				/>
-				<div className="h-6 w-px bg-[var(--ink-800)]" />
+				<div className="h-6 w-px bg-border" />
 				<StatPill
 					icon={<BarChart3 className="w-4 h-4" />}
 					label="Avg Fit"
@@ -473,23 +473,23 @@ function StatPill({
 	color: "default" | "amber" | "blue" | "green" | "red";
 }) {
 	const colorClasses = {
-		default: "text-[var(--ink-400)]",
-		amber: "text-[var(--accent-400)]",
-		blue: "text-[var(--info-500)]",
-		green: "text-[var(--success-500)]",
-		red: "text-[var(--error-500)]",
+		default: "text-muted-foreground",
+		amber: "text-amber-500",
+		blue: "text-blue-500",
+		green: "text-green-500",
+		red: "text-destructive",
 	};
 
 	return (
 		<div className="flex items-center gap-3 shrink-0">
-			<div className={cn("p-2 rounded-lg bg-[var(--ink-800)]/50", colorClasses[color])}>
+			<div className="p-2 rounded-lg bg-muted text-foreground">
 				{icon}
 			</div>
 			<div>
 				<div className={cn("text-lg font-semibold tabular-nums", colorClasses[color])}>
 					{value}
 				</div>
-				<div className="text-xs text-[var(--ink-500)] uppercase tracking-wider">
+				<div className="text-xs text-muted-foreground uppercase tracking-wider">
 					{label}
 				</div>
 			</div>
@@ -529,8 +529,8 @@ function FilterDropdown({
 					className={cn(
 						"flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150",
 						selected.length > 0
-							? "bg-[var(--accent-500)]/20 text-[var(--accent-400)] border border-[var(--accent-500)]/30"
-							: "bg-[var(--ink-800)]/50 text-[var(--ink-400)] border border-[var(--ink-700)]/50 hover:text-[var(--ink-200)]"
+							? "bg-primary/10 text-primary border border-primary/20"
+							: "bg-muted text-muted-foreground border border-transparent hover:text-foreground"
 					)}
 				>
 					{icon}
@@ -545,7 +545,7 @@ function FilterDropdown({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				className="max-h-64 overflow-y-auto bg-[var(--ink-900)] border-[var(--ink-700)]"
+				className="max-h-64 overflow-y-auto"
 			>
 				{options.length === 0 ? (
 					<div className="px-3 py-2 text-sm text-[var(--ink-500)]">
@@ -557,7 +557,6 @@ function FilterDropdown({
 							key={option.value}
 							checked={selected.includes(option.value)}
 							onCheckedChange={() => handleToggle(option.value)}
-							className="text-[var(--ink-300)]"
 						>
 							{option.label}
 						</DropdownMenuCheckboxItem>
@@ -580,15 +579,15 @@ function ViewToggle({
 	onChange: (mode: "grid" | "list") => void;
 }) {
 	return (
-		<div className="flex items-center p-1 rounded-lg bg-[var(--ink-800)]/50 border border-[var(--ink-700)]/50">
+		<div className="flex items-center p-1 rounded-lg bg-muted border border-border">
 			<button
 				type="button"
 				onClick={() => onChange("grid")}
 				className={cn(
 					"p-2 rounded-md transition-all duration-150",
 					mode === "grid"
-						? "bg-[var(--ink-700)] text-[var(--ink-100)] shadow-sm"
-						: "text-[var(--ink-500)] hover:text-[var(--ink-300)]"
+						? "bg-background text-foreground shadow-sm"
+						: "text-muted-foreground hover:text-foreground"
 				)}
 				aria-label="Grid view"
 			>
@@ -600,8 +599,8 @@ function ViewToggle({
 				className={cn(
 					"p-2 rounded-md transition-all duration-150",
 					mode === "list"
-						? "bg-[var(--ink-700)] text-[var(--ink-100)] shadow-sm"
-						: "text-[var(--ink-500)] hover:text-[var(--ink-300)]"
+						? "bg-background text-foreground shadow-sm"
+						: "text-muted-foreground hover:text-foreground"
 				)}
 				aria-label="List view"
 			>
@@ -639,27 +638,26 @@ function SortDropdown({
 				<button
 					className={cn(
 						"flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium",
-						"bg-[var(--ink-800)]/50 text-[var(--ink-400)] border border-[var(--ink-700)]/50",
-						"hover:text-[var(--ink-200)] transition-all duration-150"
+						"bg-background border border-input",
+						"hover:bg-accent hover:text-accent-foreground transition-all duration-150"
 					)}
 				>
 					<ArrowUpDown className="w-4 h-4" />
 					{currentLabel}
-					<span className="text-[var(--ink-500)]">
+					<span className="text-muted-foreground">
 						{sort.direction === "asc" ? "↑" : "↓"}
 					</span>
 				</button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="bg-[var(--ink-900)] border-[var(--ink-700)]">
-				<DropdownMenuLabel className="text-[var(--ink-500)]">Sort by</DropdownMenuLabel>
-				<DropdownMenuSeparator className="bg-[var(--ink-800)]" />
+			<DropdownMenuContent align="end">
+				<DropdownMenuLabel>Sort by</DropdownMenuLabel>
+				<DropdownMenuSeparator />
 				{sortOptions.map(({ field, label }) => (
 					<DropdownMenuItem
 						key={field}
 						onClick={() => onSort(field)}
 						className={cn(
-							"text-[var(--ink-300)]",
-							sort.field === field && "text-[var(--accent-400)]"
+							sort.field === field && "text-primary"
 						)}
 					>
 						{label}
@@ -687,8 +685,8 @@ function BulkActionBar({
 	onClear: () => void;
 }) {
 	return (
-		<div className="flex items-center gap-3 mt-3 pt-3 border-t border-[var(--ink-800)]/50 animate-fade-up">
-			<span className="text-sm text-[var(--accent-400)] font-medium">
+		<div className="flex items-center gap-3 mt-3 pt-3 border-t border-border animate-fade-up">
+			<span className="text-sm text-primary font-medium">
 				{count} selected
 			</span>
 
@@ -711,7 +709,7 @@ function BulkActionBar({
 
 			<button
 				onClick={onClear}
-				className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-300)] transition-colors"
+				className="text-sm text-muted-foreground hover:text-foreground transition-colors"
 			>
 				Clear selection
 			</button>
@@ -733,7 +731,7 @@ function ActionButton({
 			onClick={onClick}
 			className={cn(
 				"flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm",
-				"text-[var(--ink-400)] hover:text-[var(--ink-200)] hover:bg-[var(--ink-800)]/50",
+				"text-muted-foreground hover:text-foreground hover:bg-accent",
 				"transition-all duration-150"
 			)}
 		>
@@ -776,14 +774,14 @@ function OpportunityGrid({
 // ============================================================================
 
 const statusColors: Record<DecisionStatus, { bg: string; text: string; dot: string }> = {
-	pending: { bg: "bg-[var(--ink-700)]/50", text: "text-[var(--ink-400)]", dot: "bg-[var(--ink-500)]" },
-	interested: { bg: "bg-[var(--accent-500)]/10", text: "text-[var(--accent-400)]", dot: "bg-[var(--accent-400)]" },
-	pursuing: { bg: "bg-[var(--accent-500)]/20", text: "text-[var(--accent-300)]", dot: "bg-[var(--accent-300)]" },
-	submitted: { bg: "bg-[var(--info-500)]/10", text: "text-[var(--info-500)]", dot: "bg-[var(--info-500)]" },
-	won: { bg: "bg-[var(--success-500)]/10", text: "text-[var(--success-500)]", dot: "bg-[var(--success-500)]" },
-	lost: { bg: "bg-[var(--error-500)]/10", text: "text-[var(--error-500)]", dot: "bg-[var(--error-500)]" },
-	declined: { bg: "bg-[var(--ink-700)]/50", text: "text-[var(--ink-500)]", dot: "bg-[var(--ink-500)]" },
-	expired: { bg: "bg-[var(--error-500)]/10", text: "text-[var(--error-400)]", dot: "bg-[var(--error-400)]" },
+	pending: { bg: "bg-muted", text: "text-muted-foreground", dot: "bg-muted-foreground" },
+	interested: { bg: "bg-blue-500/10", text: "text-blue-500", dot: "bg-blue-500" },
+	pursuing: { bg: "bg-purple-500/10", text: "text-purple-500", dot: "bg-purple-500" },
+	submitted: { bg: "bg-amber-500/10", text: "text-amber-500", dot: "bg-amber-500" },
+	won: { bg: "bg-green-500/10", text: "text-green-500", dot: "bg-green-500" },
+	lost: { bg: "bg-red-500/10", text: "text-red-500", dot: "bg-red-500" },
+	declined: { bg: "bg-muted", text: "text-muted-foreground", dot: "bg-muted-foreground" },
+	expired: { bg: "bg-destructive/10", text: "text-destructive", dot: "bg-destructive" },
 };
 
 function OpportunityCard({

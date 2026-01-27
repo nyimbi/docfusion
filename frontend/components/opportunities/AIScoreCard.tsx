@@ -173,15 +173,15 @@ function ScoreGauge({
 							cy="18"
 							r="15"
 							fill="none"
-							stroke="var(--border)"
+							className="stroke-border"
 							strokeWidth="3"
 						/>
 					</svg>
-					<span className="absolute inset-0 flex items-center justify-center text-xs text-[var(--foreground-muted)]">
+					<span className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
 						--
 					</span>
 				</div>
-				<p className="text-xs text-[var(--foreground-muted)] mt-1">{label}</p>
+				<p className="text-xs text-muted-foreground mt-1">{label}</p>
 			</div>
 		);
 	}
@@ -221,7 +221,7 @@ function ScoreGauge({
 						cy="18"
 						r="15"
 						fill="none"
-						stroke="var(--border)"
+						className="stroke-border"
 						strokeWidth="3"
 					/>
 					{/* Progress circle */}
@@ -246,7 +246,7 @@ function ScoreGauge({
 					{Math.round(displayScore)}
 				</span>
 			</div>
-			<p className="text-xs text-[var(--foreground-muted)] mt-1">{label}</p>
+			<p className="text-xs text-muted-foreground mt-1">{label}</p>
 		</button>
 	);
 }
@@ -266,12 +266,12 @@ function ScoreDetails({
 	}[type];
 
 	return (
-		<div className="pt-3 border-t border-[var(--border)] animate-in fade-in slide-in-from-top-2 duration-200">
-			<h4 className="text-sm font-medium text-[var(--foreground)] mb-2">{title}</h4>
+		<div className="pt-3 border-t border-border animate-in fade-in slide-in-from-top-2 duration-200">
+			<h4 className="text-sm font-medium text-foreground mb-2">{title}</h4>
 
 			{/* Reasoning */}
 			{score.reasoning && (
-				<p className="text-xs text-[var(--foreground-muted)] mb-3">{score.reasoning}</p>
+				<p className="text-xs text-muted-foreground mb-3">{score.reasoning}</p>
 			)}
 
 			{/* Factor Breakdown */}
@@ -284,7 +284,7 @@ function ScoreDetails({
 			)}
 
 			{/* Timestamp */}
-			<p className="text-[10px] text-[var(--foreground-muted)] mt-3">
+			<p className="text-[10px] text-muted-foreground mt-3">
 				Calculated {formatDateTime(score.createdAt)}
 				{score.modelVersion && ` • Model: ${score.modelVersion}`}
 			</p>
@@ -316,12 +316,12 @@ function FactorRow({
 	return (
 		<div className="group">
 			<div className="flex items-center justify-between text-xs mb-1">
-				<span className="text-[var(--foreground)]">{factor.factor}</span>
-				<span className="text-[var(--foreground-muted)] font-medium">
+				<span className="text-foreground">{factor.factor}</span>
+				<span className="text-muted-foreground font-medium">
 					{Math.round(factor.score)}
 				</span>
 			</div>
-			<div className="h-1.5 bg-[var(--background-muted)] rounded-full overflow-hidden">
+			<div className="h-1.5 bg-muted rounded-full overflow-hidden">
 				<div
 					className={cn(
 						"h-full rounded-full transition-all duration-300",
@@ -331,7 +331,7 @@ function FactorRow({
 				/>
 			</div>
 			{/* Tooltip-style reasoning on hover */}
-			<p className="text-[10px] text-[var(--foreground-muted)] mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity line-clamp-2">
+			<p className="text-[10px] text-muted-foreground mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity line-clamp-2">
 				{factor.reasoning}
 			</p>
 		</div>
@@ -347,13 +347,13 @@ function EmptyState({
 }) {
 	return (
 		<div className="text-center py-6">
-			<div className="rounded-full bg-[var(--background-muted)] p-3 w-12 h-12 mx-auto mb-3 flex items-center justify-center">
-				<SparklesIcon className="h-5 w-5 text-[var(--foreground-muted)]" />
+			<div className="rounded-full bg-muted p-3 w-12 h-12 mx-auto mb-3 flex items-center justify-center">
+				<SparklesIcon className="h-5 w-5 text-muted-foreground" />
 			</div>
-			<h4 className="text-sm font-medium text-[var(--foreground)] mb-1">
+			<h4 className="text-sm font-medium text-foreground mb-1">
 				No Analysis Yet
 			</h4>
-			<p className="text-xs text-[var(--foreground-muted)] mb-3">
+			<p className="text-xs text-muted-foreground mb-3">
 				Run AI analysis to get fit scores, win probability, and risk assessment.
 			</p>
 			<Button variant="primary" size="sm" onClick={onAnalyze} isLoading={isLoading}>

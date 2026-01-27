@@ -77,17 +77,17 @@ export default function HelpPage() {
 		<div className="relative max-w-4xl mx-auto">
 			{/* Page Header */}
 			<div className="text-center mb-8">
-				<h1 className="heading-display text-2xl text-[var(--ink-100)] mb-2">
+				<h1 className="text-2xl font-bold text-foreground mb-2">
 					How can we help?
 				</h1>
-				<p className="text-sm text-[var(--ink-500)]">
+				<p className="text-sm text-muted-foreground">
 					Search our knowledge base or browse topics below
 				</p>
 			</div>
 
 			{/* Search */}
 			<div className="relative mb-8">
-				<Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--ink-500)]" />
+				<Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
 				<input
 					type="text"
 					placeholder="Search for help articles..."
@@ -95,9 +95,9 @@ export default function HelpPage() {
 					onChange={(e) => setSearchQuery(e.target.value)}
 					className={cn(
 						"w-full h-12 pl-12 pr-4 rounded-xl",
-						"bg-[var(--ink-900)]/50 border border-[var(--ink-800)]",
-						"text-[var(--ink-100)] placeholder-[var(--ink-500)] text-base",
-						"focus:outline-none focus:border-[var(--accent-500)]/50 focus:ring-1 focus:ring-[var(--accent-500)]/20",
+						"bg-background border border-input",
+						"text-foreground placeholder:text-muted-foreground text-base",
+						"focus:outline-none focus:ring-2 focus:ring-ring focus:border-input",
 						"transition-all duration-200"
 					)}
 				/>
@@ -111,8 +111,8 @@ export default function HelpPage() {
 						href={link.href}
 						className={cn(
 							"flex items-center gap-2 px-4 py-2 rounded-xl",
-							"bg-[var(--ink-800)]/50 text-[var(--ink-400)]",
-							"hover:bg-[var(--ink-800)] hover:text-[var(--ink-200)]",
+							"bg-muted/50 text-muted-foreground",
+							"hover:bg-muted hover:text-foreground",
 							"transition-all duration-200"
 						)}
 					>
@@ -129,10 +129,10 @@ export default function HelpPage() {
 						key={category.title}
 						className={cn(
 							"group p-5 rounded-2xl",
-							"bg-gradient-to-br from-[var(--ink-900)]/80 to-[var(--ink-900)]/40",
-							"border border-[var(--ink-800)]/50 hover:border-[var(--ink-700)]",
+							"bg-card",
+							"border border-border shadow-sm hover:shadow-md",
 							"transition-all duration-300 ease-out",
-							"opacity-0 animate-fade-up"
+							"animate-fade-up"
 						)}
 						style={{
 							animationDelay: `${index * 50}ms`,
@@ -140,14 +140,14 @@ export default function HelpPage() {
 						}}
 					>
 						<div className="flex items-start gap-4">
-							<div className="w-10 h-10 rounded-xl bg-[var(--accent-500)]/10 flex items-center justify-center flex-shrink-0">
-								<category.icon className="h-5 w-5 text-[var(--accent-400)]" />
+							<div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+								<category.icon className="h-5 w-5 text-primary" />
 							</div>
 							<div className="flex-1 min-w-0">
-								<h3 className="text-[var(--ink-100)] font-semibold text-base mb-1 group-hover:text-[var(--accent-300)] transition-colors">
+								<h3 className="text-foreground font-semibold text-base mb-1 group-hover:text-primary transition-colors">
 									{category.title}
 								</h3>
-								<p className="text-sm text-[var(--ink-500)] mb-3">
+								<p className="text-sm text-muted-foreground mb-3">
 									{category.description}
 								</p>
 								<ul className="space-y-1">
@@ -155,7 +155,7 @@ export default function HelpPage() {
 										<li key={article}>
 											<a
 												href="#"
-												className="flex items-center gap-2 text-sm text-[var(--ink-400)] hover:text-[var(--accent-400)] transition-colors"
+												className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
 											>
 												<ChevronRight className="w-3 h-3" />
 												{article}
@@ -170,17 +170,17 @@ export default function HelpPage() {
 			</div>
 
 			{/* Contact Support */}
-			<div className="mt-8 p-6 rounded-2xl border border-[var(--ink-800)]/50 bg-[var(--ink-900)]/30 text-center">
-				<div className="w-12 h-12 rounded-xl bg-[var(--accent-500)]/10 flex items-center justify-center mx-auto mb-4">
-					<MessageCircle className="h-6 w-6 text-[var(--accent-400)]" />
+			<div className="mt-8 p-6 rounded-2xl border border-border bg-card text-center">
+				<div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+					<MessageCircle className="h-6 w-6 text-primary" />
 				</div>
-				<h3 className="text-lg font-semibold text-[var(--ink-100)] mb-2">
+				<h3 className="text-lg font-semibold text-foreground mb-2">
 					Still need help?
 				</h3>
-				<p className="text-sm text-[var(--ink-500)] mb-4">
+				<p className="text-sm text-muted-foreground mb-4">
 					Our support team is here to assist you with any questions.
 				</p>
-				<Button className="bg-[var(--accent-500)] hover:bg-[var(--accent-400)] text-[var(--ink-950)]">
+				<Button>
 					Contact Support
 				</Button>
 			</div>

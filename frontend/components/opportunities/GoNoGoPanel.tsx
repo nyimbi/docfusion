@@ -150,10 +150,10 @@ export function GoNoGoPanel({
 
 				{/* Confidence & Justification */}
 				{showJustification && selectedVote && (
-					<div className="space-y-3 pt-2 border-t border-[var(--border)]">
+					<div className="space-y-3 pt-2 border-t border-border">
 						{/* Confidence Slider */}
 						<div>
-							<label className="text-xs font-medium text-[var(--foreground-muted)] block mb-2">
+							<label className="text-xs font-medium text-muted-foreground block mb-2">
 								Confidence Level: {confidence}/5
 							</label>
 							<input
@@ -164,7 +164,7 @@ export function GoNoGoPanel({
 								onChange={(e) =>
 									setConfidence(Number(e.target.value) as ConfidenceLevel)
 								}
-								className="w-full h-2 bg-[var(--background-muted)] rounded-lg appearance-none cursor-pointer accent-[var(--ink-900)] dark:accent-[var(--ink-100)]"
+								className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
 							/>
 							<div className="flex justify-between text-[10px] text-[var(--foreground-muted)] mt-1">
 								<span>Low</span>
@@ -174,7 +174,7 @@ export function GoNoGoPanel({
 
 						{/* Justification */}
 						<div>
-							<label className="text-xs font-medium text-[var(--foreground-muted)] block mb-2">
+							<label className="text-xs font-medium text-muted-foreground block mb-2">
 								Justification (optional)
 							</label>
 							<textarea
@@ -184,11 +184,11 @@ export function GoNoGoPanel({
 									selectedVote === "go"
 										? "Why should we pursue this?"
 										: selectedVote === "no_go"
-										? "Why should we pass?"
-										: "Any comments?"
+											? "Why should we pass?"
+											: "Any comments?"
 								}
 								rows={2}
-								className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+								className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
 							/>
 						</div>
 
@@ -207,10 +207,10 @@ export function GoNoGoPanel({
 
 				{/* Vote Summary Visualization */}
 				{summary.totalVotes > 0 && (
-					<div className="pt-3 border-t border-[var(--border)]">
+					<div className="pt-3 border-t border-border">
 						{/* Progress Bar */}
 						<div className="mb-3">
-							<div className="flex justify-between text-xs text-[var(--foreground-muted)] mb-1">
+							<div className="flex justify-between text-xs text-muted-foreground mb-1">
 								<span>Go ({summary.goCount})</span>
 								<span>No-Go ({summary.noGoCount})</span>
 							</div>
@@ -225,7 +225,7 @@ export function GoNoGoPanel({
 						</div>
 
 						{summary.averageConfidence !== null && (
-							<p className="text-xs text-[var(--foreground-muted)] text-center mt-2">
+							<p className="text-xs text-muted-foreground text-center mt-2">
 								Avg. Confidence: {summary.averageConfidence.toFixed(1)}/5
 							</p>
 						)}
@@ -234,8 +234,8 @@ export function GoNoGoPanel({
 
 				{/* Team Votes List */}
 				{votes.length > 0 && (
-					<div className="pt-3 border-t border-[var(--border)]">
-						<p className="text-xs font-medium text-[var(--foreground-muted)] mb-2">
+					<div className="pt-3 border-t border-border">
+						<p className="text-xs font-medium text-muted-foreground mb-2">
 							Team Votes
 						</p>
 						<div className="space-y-2 max-h-40 overflow-y-auto">
@@ -281,8 +281,8 @@ function VoteButton({
 			? "bg-red-500 text-white border-red-500"
 			: "hover:bg-red-50 hover:border-red-300 dark:hover:bg-red-950",
 		abstain: selected
-			? "bg-[var(--ink-400)] text-white border-[var(--ink-400)]"
-			: "hover:bg-[var(--background-muted)] hover:border-[var(--border-strong)]",
+			? "bg-secondary text-secondary-foreground border-secondary"
+			: "hover:bg-secondary/50 hover:border-border",
 	};
 
 	return (
@@ -290,7 +290,7 @@ function VoteButton({
 			onClick={onClick}
 			disabled={disabled}
 			className={cn(
-				"flex flex-col items-center justify-center p-3 rounded-lg border border-[var(--border)]",
+				"flex flex-col items-center justify-center p-3 rounded-lg border border-input",
 				"transition-all duration-150",
 				"disabled:opacity-50 disabled:cursor-not-allowed",
 				colorClasses[vote]
@@ -315,7 +315,7 @@ function VoteProgressBar({ summary }: { summary: VoteSummary }) {
 	const abstainPercent = (summary.abstainCount / total) * 100;
 
 	return (
-		<div className="h-2 bg-[var(--background-muted)] rounded-full overflow-hidden flex">
+		<div className="h-2 bg-muted rounded-full overflow-hidden flex">
 			{goPercent > 0 && (
 				<div
 					className="bg-green-500 transition-all duration-300"
@@ -330,7 +330,7 @@ function VoteProgressBar({ summary }: { summary: VoteSummary }) {
 			)}
 			{abstainPercent > 0 && (
 				<div
-					className="bg-[var(--ink-300)] transition-all duration-300"
+					className="bg-secondary transition-all duration-300"
 					style={{ width: `${abstainPercent}%` }}
 				/>
 			)}
@@ -350,13 +350,13 @@ function StatItem({
 	const colorClasses = {
 		green: "text-green-600 dark:text-green-400",
 		red: "text-red-600 dark:text-red-400",
-		gray: "text-[var(--foreground-muted)]",
+		gray: "text-muted-foreground",
 	};
 
 	return (
 		<div>
 			<p className={cn("text-lg font-semibold", colorClasses[color])}>{value}</p>
-			<p className="text-[10px] text-[var(--foreground-muted)]">{label}</p>
+			<p className="text-[10px] text-muted-foreground">{label}</p>
 		</div>
 	);
 }
@@ -371,19 +371,19 @@ function VoteListItem({
 	const voteConfig: Record<VoteDecision, { label: string; color: string }> = {
 		go: { label: "Go", color: "text-green-600 dark:text-green-400" },
 		no_go: { label: "No-Go", color: "text-red-600 dark:text-red-400" },
-		abstain: { label: "Abstain", color: "text-[var(--foreground-muted)]" },
+		abstain: { label: "Abstain", color: "text-muted-foreground" },
 	};
 
 	const config = voteConfig[vote.vote];
 
 	return (
-		<div className="flex items-center justify-between py-1.5 px-2 rounded bg-[var(--background-subtle)] text-sm">
+		<div className="flex items-center justify-between py-1.5 px-2 rounded bg-muted/50 text-sm">
 			<div className="flex items-center gap-2">
-				<span className="font-medium text-[var(--foreground)]">
+				<span className="font-medium text-foreground">
 					{isCurrentUser ? "You" : vote.userName || "Team Member"}
 				</span>
 				{vote.confidence && (
-					<span className="text-xs text-[var(--foreground-muted)]">
+					<span className="text-xs text-muted-foreground">
 						({vote.confidence}/5)
 					</span>
 				)}

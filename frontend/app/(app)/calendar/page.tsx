@@ -98,9 +98,9 @@ export default function CalendarPage() {
 	const isCurrentMonth = currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear();
 
 	const priorityColors = {
-		high: "border-l-[var(--error-500)] bg-[var(--error-500)]/10",
-		medium: "border-l-[var(--accent-500)] bg-[var(--accent-500)]/10",
-		low: "border-l-[var(--info-500)] bg-[var(--info-500)]/10",
+		high: "border-l-destructive bg-destructive/10",
+		medium: "border-l-amber-500 bg-amber-500/10",
+		low: "border-l-blue-500 bg-blue-500/10",
 	};
 
 	const typeIcons = {
@@ -114,14 +114,14 @@ export default function CalendarPage() {
 			{/* Page Header */}
 			<div className="flex items-center justify-between mb-6">
 				<div>
-					<h1 className="heading-display text-2xl text-[var(--ink-100)] mb-1">
+					<h1 className="text-2xl font-bold text-foreground mb-1">
 						Calendar
 					</h1>
-					<p className="text-sm text-[var(--ink-500)]">
+					<p className="text-sm text-muted-foreground">
 						Track deadlines, reviews, and important milestones
 					</p>
 				</div>
-				<Button className="bg-[var(--accent-500)] hover:bg-[var(--accent-400)] text-[var(--ink-950)] font-semibold">
+				<Button>
 					<CalendarIcon className="h-4 w-4" />
 					<span className="hidden sm:inline">Add Event</span>
 				</Button>
@@ -129,28 +129,28 @@ export default function CalendarPage() {
 
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 				{/* Calendar */}
-				<div className="lg:col-span-2 rounded-2xl border border-[var(--ink-800)]/50 bg-[var(--ink-900)]/30 p-6">
+				<div className="lg:col-span-2 rounded-xl border bg-card p-6 shadow-sm">
 					{/* Month Navigation */}
 					<div className="flex items-center justify-between mb-6">
-						<h2 className="text-lg font-semibold text-[var(--ink-100)]">
+						<h2 className="text-lg font-semibold text-foreground">
 							{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
 						</h2>
 						<div className="flex items-center gap-2">
 							<button
 								onClick={() => navigateMonth("prev")}
-								className="p-2 rounded-lg text-[var(--ink-400)] hover:text-[var(--ink-200)] hover:bg-[var(--ink-800)]/50 transition-colors"
+								className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 							>
 								<ChevronLeft className="h-5 w-5" />
 							</button>
 							<button
 								onClick={() => setCurrentDate(new Date())}
-								className="px-3 py-1.5 text-sm font-medium text-[var(--ink-400)] hover:text-[var(--ink-200)] hover:bg-[var(--ink-800)]/50 rounded-lg transition-colors"
+								className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
 							>
 								Today
 							</button>
 							<button
 								onClick={() => navigateMonth("next")}
-								className="p-2 rounded-lg text-[var(--ink-400)] hover:text-[var(--ink-200)] hover:bg-[var(--ink-800)]/50 transition-colors"
+								className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 							>
 								<ChevronRight className="h-5 w-5" />
 							</button>
@@ -160,7 +160,7 @@ export default function CalendarPage() {
 					{/* Day Headers */}
 					<div className="grid grid-cols-7 gap-1 mb-2">
 						{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-							<div key={day} className="text-center text-xs font-medium text-[var(--ink-500)] py-2">
+							<div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
 								{day}
 							</div>
 						))}
@@ -175,9 +175,9 @@ export default function CalendarPage() {
 									key={index}
 									className={cn(
 										"aspect-square flex items-center justify-center rounded-lg text-sm",
-										day !== null && "cursor-pointer hover:bg-[var(--ink-800)]/50 transition-colors",
-										isToday && "bg-[var(--accent-500)] text-[var(--ink-950)] font-semibold",
-										!isToday && day !== null && "text-[var(--ink-300)]",
+										day !== null && "cursor-pointer hover:bg-accent transition-colors",
+										isToday && "bg-primary text-primary-foreground font-semibold",
+										!isToday && day !== null && "text-foreground",
 										day === null && "text-transparent"
 									)}
 								>
@@ -189,8 +189,8 @@ export default function CalendarPage() {
 				</div>
 
 				{/* Upcoming Deadlines */}
-				<div className="rounded-2xl border border-[var(--ink-800)]/50 bg-[var(--ink-900)]/30 p-6">
-					<h2 className="text-lg font-semibold text-[var(--ink-100)] mb-4">
+				<div className="rounded-xl border bg-card p-6 shadow-sm">
+					<h2 className="text-lg font-semibold text-foreground mb-4">
 						Upcoming Deadlines
 					</h2>
 
@@ -204,7 +204,7 @@ export default function CalendarPage() {
 									key={deadline.id}
 									className={cn(
 										"p-4 rounded-xl border-l-4 transition-all duration-300 ease-out",
-										"opacity-0 animate-fade-up",
+										"animate-fade-up",
 										priorityColors[deadline.priority as keyof typeof priorityColors]
 									)}
 									style={{
@@ -213,14 +213,14 @@ export default function CalendarPage() {
 									}}
 								>
 									<div className="flex items-start gap-3">
-										<div className="p-2 rounded-lg bg-[var(--ink-800)]/50">
-											<Icon className="h-4 w-4 text-[var(--ink-400)]" />
+										<div className="p-2 rounded-lg bg-background/50">
+											<Icon className="h-4 w-4 text-muted-foreground" />
 										</div>
 										<div className="flex-1 min-w-0">
-											<h3 className="text-sm font-medium text-[var(--ink-200)] line-clamp-1">
+											<h3 className="text-sm font-medium text-foreground line-clamp-1">
 												{deadline.title}
 											</h3>
-											<p className="text-xs text-[var(--ink-500)] mt-1">
+											<p className="text-xs text-muted-foreground mt-1">
 												{deadline.date.toLocaleDateString("en-US", {
 													weekday: "short",
 													month: "short",
@@ -232,8 +232,8 @@ export default function CalendarPage() {
 											className={cn(
 												"text-xs font-medium px-2 py-1 rounded-full",
 												daysLeft <= 3
-													? "bg-[var(--error-500)]/20 text-[var(--error-400)]"
-													: "bg-[var(--ink-800)] text-[var(--ink-400)]"
+													? "bg-destructive/20 text-destructive"
+													: "bg-muted text-muted-foreground"
 											)}
 										>
 											{daysLeft}d
@@ -245,15 +245,15 @@ export default function CalendarPage() {
 					</div>
 
 					{/* Quick Stats */}
-					<div className="mt-6 pt-6 border-t border-[var(--ink-800)]/50">
+					<div className="mt-6 pt-6 border-t border-border">
 						<div className="grid grid-cols-2 gap-4">
 							<div className="text-center">
-								<div className="text-2xl font-bold text-[var(--error-400)] tabular-nums">2</div>
-								<div className="text-xs text-[var(--ink-500)]">Urgent</div>
+								<div className="text-2xl font-bold text-destructive tabular-nums">2</div>
+								<div className="text-xs text-muted-foreground">Urgent</div>
 							</div>
 							<div className="text-center">
-								<div className="text-2xl font-bold text-[var(--accent-400)] tabular-nums">4</div>
-								<div className="text-xs text-[var(--ink-500)]">This Week</div>
+								<div className="text-2xl font-bold text-primary tabular-nums">4</div>
+								<div className="text-xs text-muted-foreground">This Week</div>
 							</div>
 						</div>
 					</div>

@@ -108,21 +108,21 @@ export default function DocumentsPage() {
 	return (
 		<div className="relative">
 			{/* Page Header */}
-			<div className="border-b border-[var(--ink-800)]/50 bg-[var(--ink-900)]/30">
+			<div className="border-b bg-background/50 backdrop-blur-sm">
 				<div className="max-w-[1800px] mx-auto px-6 lg:px-10 py-6">
 					<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 						<div>
-							<h1 className="text-2xl font-semibold text-[var(--ink-100)]">
+							<h1 className="text-2xl font-semibold text-foreground">
 								Documents
 							</h1>
-							<p className="text-sm text-[var(--ink-500)] mt-1">
+							<p className="text-sm text-muted-foreground mt-1">
 								Manage your proposals, templates, and content library
 							</p>
 						</div>
 						<Button
 							onClick={handleCreateDocument}
 							isLoading={createMutation.isPending}
-							className="bg-[var(--accent-500)] hover:bg-[var(--accent-400)] text-[var(--ink-950)] font-semibold self-start sm:self-auto"
+							className="self-start sm:self-auto"
 						>
 							<Plus className="h-4 w-4" />
 							New Document
@@ -132,7 +132,7 @@ export default function DocumentsPage() {
 			</div>
 
 			{/* Stats Strip */}
-			<div className="border-b border-[var(--ink-800)]/30 bg-[var(--ink-900)]/20">
+			<div className="border-b bg-muted/20">
 				<div className="max-w-[1800px] mx-auto px-6 lg:px-10 py-4">
 					<div className="flex items-center gap-8 overflow-x-auto scrollbar-none">
 						<StatPill
@@ -159,7 +159,7 @@ export default function DocumentsPage() {
 							value={stats.approved}
 							color="green"
 						/>
-						<div className="h-6 w-px bg-[var(--ink-800)]" />
+						<div className="h-6 w-px bg-border" />
 						<StatPill
 							icon={<TrendingUp className="w-4 h-4" />}
 							label="Total Words"
@@ -171,7 +171,7 @@ export default function DocumentsPage() {
 			</div>
 
 			{/* Toolbar */}
-			<div className="sticky top-16 z-30 bg-[var(--ink-950)]/90 backdrop-blur-lg border-b border-[var(--ink-800)]/30">
+			<div className="sticky top-16 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
 				<div className="max-w-[1800px] mx-auto px-6 lg:px-10 py-3">
 					<div className="flex items-center justify-between gap-4">
 						{/* Left: Filters */}
@@ -182,13 +182,13 @@ export default function DocumentsPage() {
 							/>
 							{/* Local search for this page */}
 							<div className="hidden md:block relative">
-								<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ink-500)]" />
+								<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 								<input
 									type="search"
 									placeholder="Filter documents..."
 									value={searchQuery}
 									onChange={(e) => setSearchQuery(e.target.value)}
-									className="w-64 h-9 pl-9 pr-3 rounded-lg bg-[var(--ink-800)]/50 border border-[var(--ink-700)]/50 text-sm text-[var(--ink-100)] placeholder:text-[var(--ink-500)] focus:outline-none focus:border-[var(--accent-500)]/50 transition-colors"
+									className="w-64 h-9 pl-9 pr-3 rounded-lg bg-background border border-input text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
 								/>
 							</div>
 						</div>
@@ -239,22 +239,22 @@ function StatPill({
 	color: "default" | "amber" | "blue" | "green";
 }) {
 	const colorClasses = {
-		default: "text-[var(--ink-400)]",
-		amber: "text-[var(--accent-400)]",
-		blue: "text-[var(--info-500)]",
-		green: "text-[var(--success-500)]",
+		default: "text-muted-foreground",
+		amber: "text-amber-500",
+		blue: "text-blue-500",
+		green: "text-green-500",
 	};
 
 	return (
 		<div className="flex items-center gap-3 shrink-0">
-			<div className={cn("p-2 rounded-lg bg-[var(--ink-800)]/50", colorClasses[color])}>
+			<div className="p-2 rounded-lg bg-muted/50 text-foreground">
 				{icon}
 			</div>
 			<div>
 				<div className={cn("text-lg font-semibold tabular-nums", colorClasses[color])}>
 					{value}
 				</div>
-				<div className="text-xs text-[var(--ink-500)] uppercase tracking-wider">
+				<div className="text-xs text-muted-foreground uppercase tracking-wider">
 					{label}
 				</div>
 			</div>
@@ -289,27 +289,27 @@ function StatusFilterDropdown({
 				<button
 					className={cn(
 						"flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium",
-						"bg-[var(--ink-800)]/50 border border-[var(--ink-700)]/50",
-						"text-[var(--ink-200)] hover:bg-[var(--ink-800)] hover:border-[var(--ink-600)]",
+						"bg-background border border-input",
+						"text-foreground hover:bg-accent hover:text-accent-foreground",
 						"transition-all duration-150"
 					)}
 				>
 					{current.icon}
 					{current.label}
-					<ChevronDown className="w-4 h-4 text-[var(--ink-500)]" />
+					<ChevronDown className="w-4 h-4 text-muted-foreground" />
 				</button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				className="w-48 bg-[var(--ink-900)] border-[var(--ink-700)]"
+				className="w-48"
 			>
 				{options.map((option) => (
 					<DropdownMenuItem
 						key={option.value}
 						onClick={() => onChange(option.value)}
 						className={cn(
-							"flex items-center gap-2 text-[var(--ink-300)] hover:text-[var(--ink-100)]",
-							value === option.value && "bg-[var(--accent-500)]/10 text-[var(--accent-400)]"
+							"flex items-center gap-2",
+							value === option.value && "bg-accent text-accent-foreground"
 						)}
 					>
 						{option.icon}
@@ -333,15 +333,15 @@ function ViewToggle({
 	onChange: (mode: "grid" | "list") => void;
 }) {
 	return (
-		<div className="flex items-center p-1 rounded-lg bg-[var(--ink-800)]/50 border border-[var(--ink-700)]/50">
+		<div className="flex items-center p-1 rounded-lg bg-muted border border-border">
 			<button
 				type="button"
 				onClick={() => onChange("grid")}
 				className={cn(
 					"p-2 rounded-md transition-all duration-150",
 					mode === "grid"
-						? "bg-[var(--ink-700)] text-[var(--ink-100)] shadow-sm"
-						: "text-[var(--ink-500)] hover:text-[var(--ink-300)]"
+						? "bg-background text-foreground shadow-sm"
+						: "text-muted-foreground hover:text-foreground"
 				)}
 				aria-label="Grid view"
 				aria-pressed={mode === "grid"}
@@ -354,8 +354,8 @@ function ViewToggle({
 				className={cn(
 					"p-2 rounded-md transition-all duration-150",
 					mode === "list"
-						? "bg-[var(--ink-700)] text-[var(--ink-100)] shadow-sm"
-						: "text-[var(--ink-500)] hover:text-[var(--ink-300)]"
+						? "bg-background text-foreground shadow-sm"
+						: "text-muted-foreground hover:text-foreground"
 				)}
 				aria-label="List view"
 				aria-pressed={mode === "list"}
@@ -397,23 +397,23 @@ function DocumentCard({
 }) {
 	const statusConfig: Record<DocumentStatus, { color: string; bg: string; icon: React.ReactNode }> = {
 		draft: {
-			color: "text-[var(--accent-400)]",
-			bg: "bg-[var(--accent-500)]/10",
+			color: "text-amber-500",
+			bg: "bg-amber-500/10",
 			icon: <Edit3 className="w-3.5 h-3.5" />,
 		},
 		in_review: {
-			color: "text-[var(--info-500)]",
-			bg: "bg-[var(--info-500)]/10",
+			color: "text-blue-500",
+			bg: "bg-blue-500/10",
 			icon: <AlertCircle className="w-3.5 h-3.5" />,
 		},
 		approved: {
-			color: "text-[var(--success-500)]",
-			bg: "bg-[var(--success-500)]/10",
+			color: "text-green-500",
+			bg: "bg-green-500/10",
 			icon: <CheckCircle2 className="w-3.5 h-3.5" />,
 		},
 		archived: {
-			color: "text-[var(--ink-500)]",
-			bg: "bg-[var(--ink-700)]/50",
+			color: "text-muted-foreground",
+			bg: "bg-muted",
 			icon: <Archive className="w-3.5 h-3.5" />,
 		},
 	};
@@ -425,11 +425,10 @@ function DocumentCard({
 			href={`/documents/${document.id}`}
 			className={cn(
 				"group relative flex flex-col p-5 rounded-2xl",
-				"bg-gradient-to-br from-[var(--ink-900)]/80 to-[var(--ink-900)]/40",
-				"border border-[var(--ink-800)]/50 hover:border-[var(--ink-700)]",
-				"hover:shadow-xl hover:shadow-[var(--ink-950)]/50",
+				"bg-card border border-border shadow-sm",
+				"hover:shadow-md hover:border-primary/50",
 				"transition-all duration-300 ease-out",
-				"opacity-0 animate-fade-up"
+				"animate-fade-up"
 			)}
 			style={{
 				animationDelay: `${Math.min(index * 50, 400)}ms`,
@@ -447,7 +446,7 @@ function DocumentCard({
 						e.preventDefault();
 						e.stopPropagation();
 					}}
-					className="p-1.5 rounded-lg text-[var(--ink-500)] hover:text-[var(--ink-300)] hover:bg-[var(--ink-800)]/50 opacity-0 group-hover:opacity-100 transition-all"
+					className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent opacity-0 group-hover:opacity-100 transition-all"
 				>
 					<MoreVertical className="w-4 h-4" />
 				</button>
@@ -455,36 +454,33 @@ function DocumentCard({
 
 			{/* Content */}
 			<div className="flex-1">
-				<h3 className="text-[var(--ink-100)] font-semibold text-base mb-2 line-clamp-2 group-hover:text-[var(--accent-300)] transition-colors">
+				<h3 className="text-foreground font-semibold text-base mb-2 line-clamp-2 group-hover:text-primary transition-colors">
 					{document.title}
 				</h3>
 				{document.excerpt ? (
-					<p className="text-sm text-[var(--ink-500)] line-clamp-2 leading-relaxed">
+					<p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
 						{document.excerpt}
 					</p>
 				) : (
-					<p className="text-sm text-[var(--ink-600)] italic">
+					<p className="text-sm text-muted-foreground/70 italic">
 						No content yet
 					</p>
 				)}
 			</div>
 
 			{/* Footer */}
-			<div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--ink-800)]/50">
-				<div className="flex items-center gap-3 text-xs text-[var(--ink-500)]">
+			<div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+				<div className="flex items-center gap-3 text-xs text-muted-foreground">
 					<span className="flex items-center gap-1">
 						<Clock className="w-3 h-3" />
 						{formatRelativeTime(document.updatedAt)}
 					</span>
 				</div>
-				<div className="flex items-center gap-1.5 text-xs text-[var(--ink-500)]">
+				<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
 					<FileText className="w-3 h-3" />
 					{document.wordCount.toLocaleString()}
 				</div>
 			</div>
-
-			{/* Hover Indicator */}
-			<div className="absolute inset-x-5 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-[var(--accent-500)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 		</Link>
 	);
 }
@@ -497,7 +493,7 @@ function DocumentListView({ documents }: { documents: DocumentSummary[] }) {
 	return (
 		<div className="space-y-2">
 			{/* Header */}
-			<div className="flex items-center gap-4 px-4 py-2 text-xs text-[var(--ink-500)] uppercase tracking-wider font-medium">
+			<div className="flex items-center gap-4 px-4 py-2 text-xs text-muted-foreground uppercase tracking-wider font-medium">
 				<div className="flex-1">Document</div>
 				<div className="w-24 hidden md:block">Status</div>
 				<div className="w-20 hidden lg:block text-right">Words</div>
@@ -521,10 +517,10 @@ function DocumentRow({
 	index: number;
 }) {
 	const statusConfig: Record<DocumentStatus, { color: string; label: string }> = {
-		draft: { color: "text-[var(--accent-400)]", label: "Draft" },
-		in_review: { color: "text-[var(--info-500)]", label: "Review" },
-		approved: { color: "text-[var(--success-500)]", label: "Approved" },
-		archived: { color: "text-[var(--ink-500)]", label: "Archived" },
+		draft: { color: "text-amber-500", label: "Draft" },
+		in_review: { color: "text-blue-500", label: "Review" },
+		approved: { color: "text-green-500", label: "Approved" },
+		archived: { color: "text-muted-foreground", label: "Archived" },
 	};
 
 	const config = statusConfig[document.status];
@@ -534,10 +530,10 @@ function DocumentRow({
 			href={`/documents/${document.id}`}
 			className={cn(
 				"group flex items-center gap-4 px-4 py-3 rounded-xl",
-				"bg-[var(--ink-900)]/40 border border-transparent",
-				"hover:bg-[var(--ink-800)]/60 hover:border-[var(--ink-700)]/50",
+				"bg-card border border-transparent",
+				"hover:bg-accent/50 hover:border-border",
 				"transition-all duration-200",
-				"opacity-0 animate-fade-up"
+				"animate-fade-up"
 			)}
 			style={{
 				animationDelay: `${Math.min(index * 30, 300)}ms`,
@@ -545,13 +541,13 @@ function DocumentRow({
 			}}
 		>
 			{/* Document Icon */}
-			<div className="w-10 h-10 rounded-lg bg-[var(--ink-800)]/50 flex items-center justify-center flex-shrink-0">
-				<FileText className="w-5 h-5 text-[var(--ink-500)] group-hover:text-[var(--accent-400)] transition-colors" />
+			<div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+				<FileText className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
 			</div>
 
 			{/* Title */}
 			<div className="flex-1 min-w-0">
-				<h3 className="text-[var(--ink-200)] font-medium truncate group-hover:text-[var(--accent-300)] transition-colors">
+				<h3 className="text-foreground font-medium truncate group-hover:text-primary transition-colors">
 					{document.title}
 				</h3>
 				{document.tags.length > 0 && (
@@ -559,7 +555,7 @@ function DocumentRow({
 						{document.tags.slice(0, 3).map((tag) => (
 							<span
 								key={tag}
-								className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--ink-800)]/50 text-[var(--ink-500)]"
+								className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
 							>
 								{tag}
 							</span>
@@ -574,18 +570,18 @@ function DocumentRow({
 			</div>
 
 			{/* Word Count */}
-			<div className="w-20 hidden lg:block text-right text-sm text-[var(--ink-500)] tabular-nums">
+			<div className="w-20 hidden lg:block text-right text-sm text-muted-foreground tabular-nums">
 				{document.wordCount.toLocaleString()}
 			</div>
 
 			{/* Updated */}
-			<div className="w-32 hidden sm:block text-right text-sm text-[var(--ink-500)]">
+			<div className="w-32 hidden sm:block text-right text-sm text-muted-foreground">
 				{formatRelativeTime(document.updatedAt)}
 			</div>
 
 			{/* Arrow */}
 			<div className="w-10 flex justify-end">
-				<ArrowRight className="w-4 h-4 text-[var(--ink-600)] group-hover:text-[var(--accent-400)] group-hover:translate-x-0.5 transition-all" />
+				<ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
 			</div>
 		</Link>
 	);
@@ -605,13 +601,13 @@ function EmptyState({
 	if (searchQuery) {
 		return (
 			<div className="flex flex-col items-center justify-center py-24 animate-fade-up">
-				<div className="w-20 h-20 rounded-2xl bg-[var(--ink-800)]/50 flex items-center justify-center mb-6">
-					<Search className="w-10 h-10 text-[var(--ink-600)]" />
+				<div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-6">
+					<Search className="w-10 h-10 text-muted-foreground" />
 				</div>
-				<h3 className="text-xl font-semibold text-[var(--ink-200)] mb-2">
+				<h3 className="text-xl font-semibold text-foreground mb-2">
 					No results found
 				</h3>
-				<p className="text-[var(--ink-500)] text-center max-w-md">
+				<p className="text-muted-foreground text-center max-w-md">
 					No documents match "{searchQuery}". Try a different search term.
 				</p>
 			</div>
@@ -622,16 +618,16 @@ function EmptyState({
 		<div className="flex flex-col items-center justify-center py-24 animate-fade-up">
 			{/* Decorative Element */}
 			<div className="relative mb-8">
-				<div className="absolute inset-0 bg-[var(--accent-500)]/20 rounded-3xl blur-2xl" />
-				<div className="relative w-24 h-24 rounded-2xl bg-gradient-to-br from-[var(--accent-500)] to-[var(--accent-700)] flex items-center justify-center">
-					<FolderOpen className="w-12 h-12 text-white" />
+				<div className="absolute inset-0 bg-primary/20 rounded-3xl blur-2xl" />
+				<div className="relative w-24 h-24 rounded-2xl bg-primary flex items-center justify-center">
+					<FolderOpen className="w-12 h-12 text-primary-foreground" />
 				</div>
 			</div>
 
-			<h3 className="heading-display text-2xl text-[var(--ink-100)] mb-3">
+			<h3 className="text-2xl font-bold text-foreground mb-3">
 				Create your first document
 			</h3>
-			<p className="text-[var(--ink-500)] text-center max-w-md mb-8 leading-relaxed">
+			<p className="text-muted-foreground text-center max-w-md mb-8 leading-relaxed">
 				Start crafting professional proposals with AI-powered writing assistance
 				and real-time collaboration.
 			</p>
@@ -639,7 +635,7 @@ function EmptyState({
 			<div className="flex items-center gap-4">
 				<Button
 					onClick={onCreateDocument}
-					className="bg-[var(--accent-500)] hover:bg-[var(--accent-400)] text-[var(--ink-950)] font-semibold px-6"
+					className="px-6"
 					size="lg"
 				>
 					<Zap className="w-5 h-5" />
@@ -649,7 +645,7 @@ function EmptyState({
 					variant="outline"
 					size="lg"
 					asChild
-					className="border-[var(--ink-700)] text-[var(--ink-300)] hover:bg-[var(--ink-800)]/50"
+					className="hover:bg-accent"
 				>
 					<Link href="/templates">
 						<Sparkles className="w-5 h-5" />
@@ -668,19 +664,18 @@ function EmptyState({
 function ErrorState({ onRetry }: { onRetry: () => void }) {
 	return (
 		<div className="flex flex-col items-center justify-center py-24 animate-fade-up">
-			<div className="w-20 h-20 rounded-2xl bg-[var(--error-500)]/10 flex items-center justify-center mb-6">
-				<AlertCircle className="w-10 h-10 text-[var(--error-500)]" />
+			<div className="w-20 h-20 rounded-2xl bg-destructive/10 flex items-center justify-center mb-6">
+				<AlertCircle className="w-10 h-10 text-destructive" />
 			</div>
-			<h3 className="text-xl font-semibold text-[var(--ink-200)] mb-2">
+			<h3 className="text-xl font-semibold text-foreground mb-2">
 				Unable to load documents
 			</h3>
-			<p className="text-[var(--ink-500)] text-center max-w-md mb-6">
+			<p className="text-muted-foreground text-center max-w-md mb-6">
 				Something went wrong while fetching your documents. Please try again.
 			</p>
 			<Button
 				variant="outline"
 				onClick={onRetry}
-				className="border-[var(--ink-700)] text-[var(--ink-300)]"
 			>
 				Try Again
 			</Button>
@@ -699,15 +694,15 @@ function LoadingSkeleton({ viewMode }: { viewMode: "grid" | "list" }) {
 				{Array.from({ length: 8 }).map((_, i) => (
 					<div
 						key={i}
-						className="p-5 rounded-2xl bg-[var(--ink-900)]/40 border border-[var(--ink-800)]/30"
+						className="p-5 rounded-2xl bg-card border border-border"
 					>
-						<Skeleton className="h-6 w-20 mb-4 bg-[var(--ink-800)]" />
-						<Skeleton className="h-5 w-3/4 mb-2 bg-[var(--ink-800)]" />
-						<Skeleton className="h-4 w-full mb-1 bg-[var(--ink-800)]" />
-						<Skeleton className="h-4 w-2/3 mb-4 bg-[var(--ink-800)]" />
-						<div className="flex justify-between pt-4 border-t border-[var(--ink-800)]/30">
-							<Skeleton className="h-3 w-16 bg-[var(--ink-800)]" />
-							<Skeleton className="h-3 w-12 bg-[var(--ink-800)]" />
+						<Skeleton className="h-6 w-20 mb-4" />
+						<Skeleton className="h-5 w-3/4 mb-2" />
+						<Skeleton className="h-4 w-full mb-1" />
+						<Skeleton className="h-4 w-2/3 mb-4" />
+						<div className="flex justify-between pt-4 border-t border-border">
+							<Skeleton className="h-3 w-16" />
+							<Skeleton className="h-3 w-12" />
 						</div>
 					</div>
 				))}
@@ -720,14 +715,14 @@ function LoadingSkeleton({ viewMode }: { viewMode: "grid" | "list" }) {
 			{Array.from({ length: 10 }).map((_, i) => (
 				<div
 					key={i}
-					className="flex items-center gap-4 p-4 rounded-xl bg-[var(--ink-900)]/40"
+					className="flex items-center gap-4 p-4 rounded-xl bg-card"
 				>
-					<Skeleton className="w-10 h-10 rounded-lg bg-[var(--ink-800)]" />
+					<Skeleton className="w-10 h-10 rounded-lg" />
 					<div className="flex-1">
-						<Skeleton className="h-4 w-1/3 mb-1 bg-[var(--ink-800)]" />
-						<Skeleton className="h-3 w-1/4 bg-[var(--ink-800)]" />
+						<Skeleton className="h-4 w-1/3 mb-1" />
+						<Skeleton className="h-3 w-1/4" />
 					</div>
-					<Skeleton className="h-4 w-16 bg-[var(--ink-800)]" />
+					<Skeleton className="h-4 w-16" />
 				</div>
 			))}
 		</div>

@@ -180,15 +180,15 @@ export default function ImportOpportunitiesPage() {
 			<div className="flex items-center gap-4 mb-8">
 				<Link
 					href="/opportunities"
-					className="p-2 rounded-xl text-[var(--ink-400)] hover:text-[var(--ink-100)] hover:bg-[var(--ink-800)]/50 transition-all"
+					className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-all"
 				>
 					<ArrowLeft className="h-5 w-5" />
 				</Link>
 				<div>
-					<h1 className="heading-display text-2xl text-[var(--ink-100)]">
+					<h1 className="text-2xl font-bold text-foreground">
 						Import Opportunities
 					</h1>
-					<p className="text-sm text-[var(--ink-500)]">
+					<p className="text-sm text-muted-foreground">
 						Upload Excel spreadsheets to import RFPs, EOIs, and tenders
 					</p>
 				</div>
@@ -199,21 +199,18 @@ export default function ImportOpportunitiesPage() {
 				{(["upload", "preview", "importing", "complete"] as ImportStep[]).map(
 					(step, index) => (
 						<React.Fragment key={step}>
-							{index > 0 && (
-								<ChevronRight className="h-4 w-4 text-[var(--ink-600)]" />
-							)}
 							<div
 								className={cn(
 									"flex items-center gap-2 px-3 py-1.5 rounded-full text-sm",
 									state.step === step
-										? "bg-[var(--accent-500)]/20 text-[var(--accent-400)]"
+										? "bg-primary/20 text-primary"
 										: index < ["upload", "preview", "importing", "complete"].indexOf(state.step)
-										? "text-[var(--success-500)]"
-										: "text-[var(--ink-500)]"
+											? "text-green-500"
+											: "text-muted-foreground"
 								)}
 							>
 								{index <
-								["upload", "preview", "importing", "complete"].indexOf(state.step) ? (
+									["upload", "preview", "importing", "complete"].indexOf(state.step) ? (
 									<Check className="h-4 w-4" />
 								) : (
 									<span className="w-5 h-5 flex items-center justify-center rounded-full border border-current text-xs">
@@ -229,11 +226,11 @@ export default function ImportOpportunitiesPage() {
 
 			{/* Error Display */}
 			{state.error && (
-				<div className="mb-6 p-4 rounded-xl bg-[var(--error-500)]/10 border border-[var(--error-500)]/30 text-[var(--error-400)] flex items-start gap-3">
+				<div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive flex items-start gap-3">
 					<AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
 					<div>
 						<p className="font-medium">Import Error</p>
-						<p className="text-sm mt-1 text-[var(--error-400)]/80">{state.error}</p>
+						<p className="text-sm mt-1 text-destructive/80">{state.error}</p>
 					</div>
 				</div>
 			)}
@@ -250,8 +247,8 @@ export default function ImportOpportunitiesPage() {
 							"relative border-2 border-dashed rounded-2xl p-12",
 							"transition-all duration-300",
 							isDragging
-								? "border-[var(--accent-500)] bg-[var(--accent-500)]/10"
-								: "border-[var(--ink-700)] hover:border-[var(--accent-500)]/50 hover:bg-[var(--ink-800)]/30"
+								? "border-primary bg-primary/10"
+								: "border-border hover:border-primary/50 hover:bg-muted"
 						)}
 					>
 						<input
@@ -268,39 +265,38 @@ export default function ImportOpportunitiesPage() {
 						/>
 
 						<div className="text-center">
-							<div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[var(--accent-500)] to-[var(--accent-700)] flex items-center justify-center">
+							<div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center">
 								{isLoading ? (
-									<Loader2 className="h-8 w-8 text-white animate-spin" />
+									<Loader2 className="h-8 w-8 text-primary animate-spin" />
 								) : (
-									<FileSpreadsheet className="h-8 w-8 text-white" />
+									<FileSpreadsheet className="h-8 w-8 text-primary" />
 								)}
 							</div>
-							<h3 className="heading-display text-lg text-[var(--ink-100)] mb-2">
+							<h3 className="text-lg font-semibold text-foreground mb-2">
 								{isDragging ? "Drop your file here" : "Upload Spreadsheet"}
 							</h3>
-							<p className="text-[var(--ink-500)] mb-4">
+							<p className="text-muted-foreground mb-4">
 								Drag and drop an Excel file, or click to browse
 							</p>
 							<Button
-								variant="secondary"
+								variant="outline"
 								disabled={isLoading}
-								className="bg-[var(--ink-800)] border-[var(--ink-700)] text-[var(--ink-200)] hover:bg-[var(--ink-700)]"
 							>
 								<Upload className="h-4 w-4" />
 								Choose File
 							</Button>
-							<p className="text-xs text-[var(--ink-600)] mt-4">
+							<p className="text-xs text-muted-foreground mt-4">
 								Supports .xlsx, .xls, and .csv files
 							</p>
 						</div>
 					</div>
 
 					{/* Supported Formats */}
-					<div className="rounded-xl border border-[var(--ink-800)]/50 bg-[var(--ink-900)]/30 p-6">
-						<h3 className="text-sm font-semibold text-[var(--ink-200)] mb-1">
+					<div className="rounded-xl border bg-card p-6 shadow-sm">
+						<h3 className="text-sm font-semibold text-foreground mb-1">
 							Supported Formats
 						</h3>
-						<p className="text-sm text-[var(--ink-500)] mb-4">
+						<p className="text-sm text-muted-foreground mb-4">
 							DocFusion automatically detects these spreadsheet formats:
 						</p>
 						<ul className="space-y-2 text-sm">
@@ -311,8 +307,8 @@ export default function ImportOpportunitiesPage() {
 								"Africa Commercial/Corporate RFPs",
 								"Custom formats (auto-detected column mapping)",
 							].map((format) => (
-								<li key={format} className="flex items-center gap-2 text-[var(--ink-400)]">
-									<Check className="h-4 w-4 text-[var(--success-500)]" />
+								<li key={format} className="flex items-center gap-2 text-muted-foreground">
+									<Check className="h-4 w-4 text-green-500" />
 									<span>{format}</span>
 								</li>
 							))}
@@ -324,18 +320,17 @@ export default function ImportOpportunitiesPage() {
 			{/* Preview Step */}
 			{state.step === "preview" && state.file && (
 				<div className="space-y-6">
-					<div className="rounded-xl border border-[var(--ink-800)]/50 bg-[var(--ink-900)]/30 p-6">
-						<h3 className="text-sm font-semibold text-[var(--ink-200)] mb-1">
+					<div className="rounded-xl border bg-card p-6 shadow-sm">
+						<h3 className="text-sm font-semibold text-foreground mb-1">
 							Ready to Import
 						</h3>
-						<p className="text-sm text-[var(--ink-500)] mb-4">
+						<p className="text-sm text-muted-foreground mb-4">
 							File: {state.file.name} ({(state.file.size / 1024).toFixed(1)} KB)
 						</p>
 						<div className="flex items-center gap-4">
 							<Button
 								onClick={handleImport}
 								disabled={isLoading}
-								className="bg-[var(--accent-500)] hover:bg-[var(--accent-400)] text-[var(--ink-950)]"
 							>
 								{isLoading ? (
 									<>
@@ -353,7 +348,7 @@ export default function ImportOpportunitiesPage() {
 								variant="ghost"
 								onClick={handleReset}
 								disabled={isLoading}
-								className="text-[var(--ink-400)] hover:text-[var(--ink-200)]"
+								className="text-muted-foreground hover:text-foreground"
 							>
 								Cancel
 							</Button>
@@ -365,13 +360,13 @@ export default function ImportOpportunitiesPage() {
 			{/* Importing Step */}
 			{state.step === "importing" && (
 				<div className="text-center py-12">
-					<div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-[var(--accent-500)] to-[var(--accent-700)] flex items-center justify-center">
-						<Loader2 className="h-10 w-10 text-white animate-spin" />
+					<div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-primary/10 flex items-center justify-center">
+						<Loader2 className="h-10 w-10 text-primary animate-spin" />
 					</div>
-					<h2 className="heading-display text-xl text-[var(--ink-100)] mb-2">
+					<h2 className="text-xl font-bold text-foreground mb-2">
 						Importing Opportunities
 					</h2>
-					<p className="text-[var(--ink-500)]">
+					<p className="text-muted-foreground">
 						Please wait while we process your spreadsheet...
 					</p>
 				</div>
@@ -380,14 +375,14 @@ export default function ImportOpportunitiesPage() {
 			{/* Complete Step */}
 			{state.step === "complete" && state.results && (
 				<div className="space-y-6">
-					<div className="rounded-xl border border-[var(--ink-800)]/50 bg-[var(--ink-900)]/30 p-6">
-						<div className="w-12 h-12 rounded-full bg-[var(--success-500)]/20 flex items-center justify-center mb-4">
-							<Check className="h-6 w-6 text-[var(--success-500)]" />
+					<div className="rounded-xl border bg-card p-6 shadow-sm">
+						<div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mb-4">
+							<Check className="h-6 w-6 text-green-500" />
 						</div>
-						<h3 className="heading-display text-lg text-[var(--ink-100)] mb-1">
+						<h3 className="text-lg font-bold text-foreground mb-1">
 							Import Complete!
 						</h3>
-						<p className="text-sm text-[var(--ink-500)] mb-6">
+						<p className="text-sm text-muted-foreground mb-6">
 							Your opportunities have been successfully imported.
 						</p>
 
@@ -400,14 +395,14 @@ export default function ImportOpportunitiesPage() {
 
 						<div className="flex items-center gap-4">
 							<Link href="/opportunities">
-								<Button className="bg-[var(--accent-500)] hover:bg-[var(--accent-400)] text-[var(--ink-950)]">
+								<Button>
 									View Opportunities
 								</Button>
 							</Link>
 							<Button
 								variant="ghost"
 								onClick={handleReset}
-								className="text-[var(--ink-400)] hover:text-[var(--ink-200)]"
+								className="text-muted-foreground hover:text-foreground"
 							>
 								<RefreshCw className="h-4 w-4" />
 								Import Another
@@ -419,23 +414,23 @@ export default function ImportOpportunitiesPage() {
 
 			{/* Import History */}
 			{importHistory.length > 0 && state.step === "upload" && (
-				<div className="mt-8 rounded-xl border border-[var(--ink-800)]/50 bg-[var(--ink-900)]/30 p-6">
-					<h3 className="text-sm font-semibold text-[var(--ink-200)] mb-4">
+				<div className="mt-8 rounded-xl border bg-card p-6 shadow-sm">
+					<h3 className="text-sm font-semibold text-foreground mb-4">
 						Recent Imports
 					</h3>
 					<div className="space-y-3">
 						{importHistory.map((imp) => (
 							<div
 								key={imp.id}
-								className="flex items-center justify-between py-2 border-b border-[var(--ink-800)]/50 last:border-0"
+								className="flex items-center justify-between py-2 border-b border-border last:border-0"
 							>
 								<div className="flex items-center gap-3">
-									<FileText className="h-4 w-4 text-[var(--ink-500)]" />
+									<FileText className="h-4 w-4 text-muted-foreground" />
 									<div>
-										<p className="text-sm font-medium text-[var(--ink-200)]">
+										<p className="text-sm font-medium text-foreground">
 											{imp.filename}
 										</p>
-										<p className="text-xs text-[var(--ink-500)]">
+										<p className="text-xs text-muted-foreground">
 											{new Date(imp.startedAt).toLocaleDateString()} ·{" "}
 											{imp.importedRecords} imported, {imp.updatedRecords} updated
 										</p>
@@ -445,10 +440,10 @@ export default function ImportOpportunitiesPage() {
 									className={cn(
 										"px-2 py-0.5 text-xs font-medium rounded-full",
 										imp.status === "completed"
-											? "bg-[var(--success-500)]/20 text-[var(--success-500)]"
+											? "bg-green-500/20 text-green-600"
 											: imp.status === "failed"
-											? "bg-[var(--error-500)]/20 text-[var(--error-500)]"
-											: "bg-[var(--ink-700)] text-[var(--ink-400)]"
+												? "bg-destructive/20 text-destructive"
+												: "bg-muted text-muted-foreground"
 									)}
 								>
 									{imp.status}
@@ -476,22 +471,22 @@ function ResultStat({
 	color?: "success" | "error" | "info";
 }) {
 	const colorClasses = {
-		success: "text-[var(--success-500)]",
-		error: "text-[var(--error-500)]",
-		info: "text-[var(--info-500)]",
+		success: "text-green-500",
+		error: "text-destructive",
+		info: "text-blue-500",
 	};
 
 	return (
-		<div className="text-center p-4 rounded-xl bg-[var(--ink-800)]/30">
+		<div className="text-center p-4 rounded-xl bg-muted/50">
 			<div
 				className={cn(
 					"text-2xl font-bold tabular-nums",
-					color ? colorClasses[color] : "text-[var(--ink-200)]"
+					color ? colorClasses[color] : "text-foreground"
 				)}
 			>
 				{value}
 			</div>
-			<div className="text-xs text-[var(--ink-500)] mt-1">{label}</div>
+			<div className="text-xs text-muted-foreground mt-1">{label}</div>
 		</div>
 	);
 }

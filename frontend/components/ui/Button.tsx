@@ -59,54 +59,37 @@ export function Button({
 		<Comp
 			className={cn(
 				// Base styles
-				"relative inline-flex items-center justify-center font-medium",
-				"transition-all duration-[var(--transition-base)]",
-				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2",
+				"relative inline-flex items-center justify-center font-medium transition-colors",
+				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
 				"disabled:pointer-events-none disabled:opacity-50",
 				// Active state press effect
 				"active:scale-[0.98]",
 
 				// Variant styles
 				variant === "primary" && [
-					"bg-[var(--ink-900)] text-[var(--paper-white)]",
-					"hover:bg-[var(--ink-800)]",
-					"shadow-[var(--shadow-sm)]",
-					"hover:shadow-[var(--shadow-md)]",
-					"dark:bg-[var(--ink-100)] dark:text-[var(--ink-900)]",
-					"dark:hover:bg-[var(--ink-200)]",
+					"bg-primary text-primary-foreground shadow hover:bg-primary/90",
 				],
 				variant === "secondary" && [
-					"bg-[var(--background-muted)] text-[var(--foreground)]",
-					"hover:bg-[var(--ink-100)]",
-					"dark:hover:bg-[var(--ink-700)]",
+					"bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
 				],
 				variant === "ghost" && [
-					"bg-transparent text-[var(--foreground)]",
-					"hover:bg-[var(--background-muted)]",
+					"hover:bg-accent hover:text-accent-foreground",
 				],
 				variant === "outline" && [
-					"bg-transparent text-[var(--foreground)]",
-					"border border-[var(--border-strong)]",
-					"hover:bg-[var(--background-subtle)]",
-					"hover:border-[var(--ink-300)]",
+					"border border-input bg-transparent shadow-sm hover:bg-accent hover:text-accent-foreground",
 				],
 				variant === "danger" && [
-					"bg-[var(--error-500)] text-white",
-					"hover:bg-[#8a3f3f]",
-					"shadow-[var(--shadow-sm)]",
+					"bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
 				],
 				variant === "accent" && [
-					"bg-[var(--accent-500)] text-white",
-					"hover:bg-[var(--accent-600)]",
-					"shadow-[var(--shadow-sm)]",
-					"hover:shadow-[var(--shadow-md)]",
+					"bg-accent text-accent-foreground shadow-sm hover:bg-accent/90",
 				],
 
 				// Size styles
-				size === "sm" && "h-8 px-3 text-sm rounded-[var(--radius-md)] gap-1.5",
-				size === "md" && "h-10 px-4 text-sm rounded-[var(--radius-md)] gap-2",
-				size === "lg" && "h-12 px-6 text-base rounded-[var(--radius-lg)] gap-2.5",
-				size === "icon" && "h-9 w-9 rounded-[var(--radius-md)]",
+				size === "sm" && "h-8 px-3 text-sm rounded-md gap-1.5",
+				size === "md" && "h-9 px-4 py-2 text-sm rounded-md gap-2",
+				size === "lg" && "h-10 px-8 text-base rounded-md gap-2.5",
+				size === "icon" && "h-9 w-9 rounded-md",
 
 				className
 			)}
@@ -160,7 +143,7 @@ export function IconButton({
 			size="icon"
 			variant="ghost"
 			className={cn(
-				"text-[var(--foreground-muted)] hover:text-[var(--foreground)]",
+				"text-muted-foreground hover:text-foreground",
 				className
 			)}
 			{...props}

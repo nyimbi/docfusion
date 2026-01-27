@@ -39,7 +39,7 @@ export function OpportunityDetailView({ opportunity }: OpportunityDetailViewProp
 	return (
 		<div className="space-y-4">
 			{/* Tab Navigation */}
-			<div className="border-b border-[var(--border)]">
+			<div className="border-b border-border">
 				<nav className="flex gap-6" aria-label="Tabs">
 					{tabs.map((tab) => (
 						<button
@@ -48,16 +48,16 @@ export function OpportunityDetailView({ opportunity }: OpportunityDetailViewProp
 							disabled={!tab.available}
 							className={cn(
 								"relative py-3 text-sm font-medium transition-colors",
-								"hover:text-[var(--foreground)]",
+								"hover:text-foreground",
 								"disabled:opacity-40 disabled:cursor-not-allowed",
 								activeTab === tab.id
-									? "text-[var(--foreground)]"
-									: "text-[var(--foreground-muted)]"
+									? "text-foreground"
+									: "text-muted-foreground"
 							)}
 						>
 							{tab.label}
 							{activeTab === tab.id && (
-								<div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--ink-900)] dark:bg-[var(--ink-100)]" />
+								<div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
 							)}
 						</button>
 					))}
@@ -90,7 +90,7 @@ function OverviewTab({ opportunity }: { opportunity: Opportunity }) {
 					</CardHeader>
 					<CardContent>
 						<div className="prose prose-sm dark:prose-invert max-w-none">
-							<p className="text-[var(--foreground)] whitespace-pre-wrap leading-relaxed">
+							<p className="text-foreground whitespace-pre-wrap leading-relaxed">
 								{opportunity.projectSummary}
 							</p>
 						</div>
@@ -168,7 +168,7 @@ function OverviewTab({ opportunity }: { opportunity: Opportunity }) {
 							{opportunity.tags.map((tag) => (
 								<span
 									key={tag}
-									className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-[var(--foreground-muted)]"
+									className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground"
 								>
 									{tag}
 								</span>
@@ -185,7 +185,7 @@ function OverviewTab({ opportunity }: { opportunity: Opportunity }) {
 						<CardTitle className="text-base">Strategic Notes</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<p className="text-[var(--foreground)] whitespace-pre-wrap">
+						<p className="text-foreground whitespace-pre-wrap">
 							{opportunity.strategicNotes}
 						</p>
 					</CardContent>
@@ -209,7 +209,7 @@ function RequirementsTab({ opportunity }: { opportunity: Opportunity }) {
 					</CardHeader>
 					<CardContent>
 						<div className="prose prose-sm dark:prose-invert max-w-none">
-							<pre className="whitespace-pre-wrap font-sans text-[var(--foreground)] bg-transparent p-0 border-none">
+							<pre className="whitespace-pre-wrap font-sans text-foreground bg-transparent p-0 border-none">
 								{opportunity.keyRequirements}
 							</pre>
 						</div>
@@ -228,7 +228,7 @@ function RequirementsTab({ opportunity }: { opportunity: Opportunity }) {
 					</CardHeader>
 					<CardContent>
 						<div className="prose prose-sm dark:prose-invert max-w-none">
-							<pre className="whitespace-pre-wrap font-sans text-[var(--foreground)] bg-transparent p-0 border-none">
+							<pre className="whitespace-pre-wrap font-sans text-foreground bg-transparent p-0 border-none">
 								{opportunity.technicalRequirements}
 							</pre>
 						</div>
@@ -259,7 +259,7 @@ function ScopeTab({ opportunity }: { opportunity: Opportunity }) {
 					</CardHeader>
 					<CardContent>
 						<div className="prose prose-sm dark:prose-invert max-w-none">
-							<pre className="whitespace-pre-wrap font-sans text-[var(--foreground)] bg-transparent p-0 border-none leading-relaxed">
+							<pre className="whitespace-pre-wrap font-sans text-foreground bg-transparent p-0 border-none leading-relaxed">
 								{opportunity.projectScope}
 							</pre>
 						</div>
@@ -285,7 +285,7 @@ function SubmissionTab({ opportunity }: { opportunity: Opportunity }) {
 						<CardTitle className="text-base">Submission Method</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<p className="text-[var(--foreground)]">{opportunity.submissionMethod}</p>
+						<p className="text-foreground">{opportunity.submissionMethod}</p>
 					</CardContent>
 				</Card>
 			)}
@@ -301,7 +301,7 @@ function SubmissionTab({ opportunity }: { opportunity: Opportunity }) {
 					</CardHeader>
 					<CardContent>
 						<div className="prose prose-sm dark:prose-invert max-w-none">
-							<pre className="whitespace-pre-wrap font-sans text-[var(--foreground)] bg-transparent p-0 border-none">
+							<pre className="whitespace-pre-wrap font-sans text-foreground bg-transparent p-0 border-none">
 								{opportunity.submissionRequirements}
 							</pre>
 						</div>
@@ -320,7 +320,7 @@ function SubmissionTab({ opportunity }: { opportunity: Opportunity }) {
 							href={opportunity.rfpLink}
 							target="_blank"
 							rel="noopener noreferrer"
-							className="inline-flex items-center gap-2 text-[var(--accent-500)] hover:underline"
+							className="inline-flex items-center gap-2 text-primary hover:underline"
 						>
 							<ExternalLinkIcon className="h-4 w-4" />
 							View Original RFP Document
@@ -356,11 +356,11 @@ function DetailRow({
 }) {
 	return (
 		<div className="flex justify-between items-start gap-4">
-			<span className="text-sm text-[var(--foreground-muted)] shrink-0">{label}</span>
+			<span className="text-sm text-muted-foreground shrink-0">{label}</span>
 			<span
 				className={cn(
 					"text-sm font-medium text-right",
-					highlight ? "text-[var(--error-500)]" : "text-[var(--foreground)]"
+					highlight ? "text-destructive" : "text-foreground"
 				)}
 			>
 				{value}
@@ -372,11 +372,11 @@ function DetailRow({
 function EmptyState({ title, description }: { title: string; description: string }) {
 	return (
 		<div className="flex flex-col items-center justify-center py-12 text-center">
-			<div className="rounded-full bg-[var(--background-muted)] p-3 mb-4">
-				<DocumentIcon className="h-6 w-6 text-[var(--foreground-muted)]" />
+			<div className="rounded-full bg-muted p-3 mb-4">
+				<DocumentIcon className="h-6 w-6 text-muted-foreground" />
 			</div>
-			<h3 className="text-sm font-medium text-[var(--foreground)]">{title}</h3>
-			<p className="text-sm text-[var(--foreground-muted)] mt-1 max-w-sm">
+			<h3 className="text-sm font-medium text-foreground">{title}</h3>
+			<p className="text-sm text-muted-foreground mt-1 max-w-sm">
 				{description}
 			</p>
 		</div>
