@@ -1,3 +1,10 @@
+/**
+ * Document Editor Page - DocFusion
+ *
+ * A sophisticated, distraction-free writing environment with
+ * split-pane editing, AI commands, and elegant micro-interactions.
+ */
+
 "use client";
 
 import * as React from "react";
@@ -5,22 +12,24 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useDocument } from "@/lib/query/hooks/useDocuments";
-import { useSaveDocumentContent, useUpdateDocument } from "@/lib/query/mutations/useDocumentMutation";
+import {
+	useSaveDocumentContent,
+	useUpdateDocument,
+} from "@/lib/query/mutations/useDocumentMutation";
 import { useAutosave, useUnsavedChangesWarning } from "@/lib/editor/autosave";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { TiptapEditor } from "@/components/editor/TiptapEditor";
 import { MarkdownPane } from "@/components/editor/MarkdownPane";
 import { SplitPane } from "@/components/editor/SplitPane";
 import { EditorStatusBar } from "@/components/editor/EditorStatusBar";
-import { EditorSkeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/Button";
+import { Button, IconButton } from "@/components/ui/Button";
 import { Input } from "@/components/ui/input";
 import type { DocumentContent, Document } from "@/lib/types/document";
 import type { Editor } from "@tiptap/react";
 import {
 	ArrowLeft,
 	Save,
-	Share,
+	Share2,
 	Settings,
 	MoreHorizontal,
 	Download,
@@ -31,6 +40,10 @@ import {
 	Eye,
 	Edit3,
 	Columns,
+	Check,
+	Cloud,
+	CloudOff,
+	Loader2,
 } from "lucide-react";
 import {
 	DropdownMenu,
@@ -47,13 +60,6 @@ import {
 
 /**
  * Document editor page.
- *
- * Features:
- * - Split-pane editing (Tiptap + Markdown preview)
- * - Auto-save with debouncing
- * - Real-time collaboration ready
- * - Document title editing
- * - Export and share options
  */
 export default function DocumentPage() {
 	const params = useParams();
@@ -68,26 +74,73 @@ export default function DocumentPage() {
 	}
 
 	if (error || !document) {
-		return (
-			<div className="min-h-screen flex items-center justify-center">
-				<div className="text-center">
-					<FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-					<h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-						Document not found
-					</h2>
-					<p className="text-gray-500 dark:text-gray-400 mb-4">
-						The document you're looking for doesn't exist or you don't have access to it.
-					</p>
-					<Button onClick={() => router.push("/documents")}>
-						<ArrowLeft className="h-4 w-4 mr-2" />
-						Back to Documents
-					</Button>
-				</div>
-			</div>
-		);
+		return <DocumentNotFound />;
 	}
 
 	return <DocumentEditor document={document} />;
+}
+
+/**
+ * Loading skeleton for the editor.
+ */
+function EditorSkeleton() {
+	return (
+		<div className="h-screen flex flex-col bg-[var(--background)]">
+			{/* Header skeleton */}
+			<header className="flex-shrink-0 h-14 border-b border-[var(--border)] flex items-center px-4 gap-4">
+				<div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--background-muted)] animate-pulse" />
+				<div className="h-6 w-48 rounded bg-[var(--background-muted)] animate-pulse" />
+				<div className="flex-1" />
+				<div className="flex gap-2">
+					<div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--background-muted)] animate-pulse" />
+					<div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--background-muted)] animate-pulse" />
+				</div>
+			</header>
+
+			{/* Editor skeleton */}
+			<main className="flex-1 flex">
+				<div className="flex-1 p-8">
+					<div className="max-w-3xl mx-auto space-y-4">
+						<div className="h-8 w-3/4 rounded bg-[var(--background-muted)] animate-pulse" />
+						<div className="h-4 w-full rounded bg-[var(--background-muted)] animate-pulse" />
+						<div className="h-4 w-full rounded bg-[var(--background-muted)] animate-pulse" />
+						<div className="h-4 w-2/3 rounded bg-[var(--background-muted)] animate-pulse" />
+					</div>
+				</div>
+			</main>
+
+			{/* Status bar skeleton */}
+			<footer className="flex-shrink-0 h-8 border-t border-[var(--border)] bg-[var(--background-subtle)]" />
+		</div>
+	);
+}
+
+/**
+ * Document not found state.
+ */
+function DocumentNotFound() {
+	const router = useRouter();
+
+	return (
+		<div className="h-screen flex items-center justify-center bg-[var(--background)]">
+			<div className="text-center animate-fade-up">
+				<div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-[var(--background-muted)] flex items-center justify-center">
+					<FileText className="h-10 w-10 text-[var(--foreground-subtle)]" />
+				</div>
+				<h2 className="heading-display text-2xl text-[var(--foreground)] mb-3">
+					Document not found
+				</h2>
+				<p className="text-[var(--foreground-muted)] max-w-sm mx-auto mb-8">
+					The document you're looking for doesn't exist or you don't have
+					permission to access it.
+				</p>
+				<Button onClick={() => router.push("/documents")} variant="primary">
+					<ArrowLeft className="h-4 w-4" />
+					Back to Documents
+				</Button>
+			</div>
+		</div>
+	);
 }
 
 /**
@@ -113,10 +166,14 @@ function DocumentEditor({ document }: { document: Document }) {
 	const updateMutation = useUpdateDocument(document.id);
 
 	// Autosave hook
-	const { status: saveStatus, error: saveError, scheduleSave, hasUnsavedChanges } =
-		useAutosave(document.id, async (_id, content) => {
-			await saveMutation.mutateAsync(content);
-		});
+	const {
+		status: saveStatus,
+		error: saveError,
+		scheduleSave,
+		hasUnsavedChanges,
+	} = useAutosave(document.id, async (_id, content) => {
+		await saveMutation.mutateAsync(content);
+	});
 
 	// Warn on navigation with unsaved changes
 	useUnsavedChangesWarning(hasUnsavedChanges());
@@ -136,7 +193,9 @@ function DocumentEditor({ document }: { document: Document }) {
 			setContent(newContent);
 			// Update the Tiptap editor
 			if (editor && !editor.isDestroyed) {
-				editor.commands.setContent(newContent as Parameters<typeof editor.commands.setContent>[0]);
+				editor.commands.setContent(
+					newContent as Parameters<typeof editor.commands.setContent>[0]
+				);
 			}
 			scheduleSave(newContent);
 		},
@@ -179,9 +238,9 @@ function DocumentEditor({ document }: { document: Document }) {
 	const characterCount = text.length;
 
 	return (
-		<div className="h-screen flex flex-col bg-white dark:bg-gray-950">
+		<div className="h-screen flex flex-col bg-[var(--background)] overflow-hidden">
 			{/* Header */}
-			<header className="flex-shrink-0 border-b border-gray-200 dark:border-gray-800">
+			<header className="flex-shrink-0 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur-sm z-10">
 				<div className="flex items-center justify-between px-4 h-14">
 					{/* Left: Back button and title */}
 					<div className="flex items-center gap-3 min-w-0 flex-1">
@@ -189,7 +248,12 @@ function DocumentEditor({ document }: { document: Document }) {
 							<TooltipTrigger asChild>
 								<Link
 									href="/documents"
-									className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+									className={cn(
+										"p-2 rounded-[var(--radius-md)]",
+										"text-[var(--foreground-muted)] hover:text-[var(--foreground)]",
+										"hover:bg-[var(--background-muted)]",
+										"transition-all duration-[var(--transition-fast)]"
+									)}
 								>
 									<ArrowLeft className="h-5 w-5" />
 								</Link>
@@ -198,34 +262,44 @@ function DocumentEditor({ document }: { document: Document }) {
 						</Tooltip>
 
 						{/* Editable title */}
-						{isEditingTitle ? (
-							<Input
-								ref={titleInputRef}
-								value={title}
-								onChange={(e) => setTitle(e.target.value)}
-								onBlur={handleTitleSave}
-								onKeyDown={(e) => {
-									if (e.key === "Enter") handleTitleSave();
-									if (e.key === "Escape") {
-										setTitle(document.title);
-										setIsEditingTitle(false);
-									}
-								}}
-								className="text-lg font-semibold max-w-md"
-							/>
-						) : (
-							<button
-								type="button"
-								onClick={() => setIsEditingTitle(true)}
-								className="text-lg font-semibold text-gray-900 dark:text-white truncate hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-							>
-								{title}
-							</button>
-						)}
+						<div className="flex-1 min-w-0">
+							{isEditingTitle ? (
+								<Input
+									ref={titleInputRef}
+									value={title}
+									onChange={(e) => setTitle(e.target.value)}
+									onBlur={handleTitleSave}
+									onKeyDown={(e) => {
+										if (e.key === "Enter") handleTitleSave();
+										if (e.key === "Escape") {
+											setTitle(document.title);
+											setIsEditingTitle(false);
+										}
+									}}
+									className="text-lg font-semibold max-w-lg border-none bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+								/>
+							) : (
+								<button
+									type="button"
+									onClick={() => setIsEditingTitle(true)}
+									className={cn(
+										"text-lg font-semibold text-[var(--foreground)] truncate max-w-lg",
+										"hover:text-[var(--accent-600)]",
+										"transition-colors duration-[var(--transition-fast)]",
+										"text-left"
+									)}
+								>
+									{title}
+								</button>
+							)}
+						</div>
+
+						{/* Save status indicator */}
+						<SaveIndicator status={saveStatus} />
 					</div>
 
 					{/* Center: View mode toggle */}
-					<div className="flex items-center gap-1 border rounded-lg p-1 bg-gray-50 dark:bg-gray-900">
+					<div className="hidden md:flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--border)] p-1 bg-[var(--background-subtle)]">
 						<ViewModeButton
 							icon={Edit3}
 							label="Editor only"
@@ -247,32 +321,41 @@ function DocumentEditor({ document }: { document: Document }) {
 					</div>
 
 					{/* Right: Actions */}
-					<div className="flex items-center gap-2 flex-shrink-0">
+					<div className="flex items-center gap-1">
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button variant="ghost" size="sm">
-									<Users className="h-4 w-4" />
-								</Button>
+								<IconButton aria-label="Share">
+									<Share2 className="h-4 w-4" />
+								</IconButton>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">Share</TooltipContent>
 						</Tooltip>
 
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button variant="ghost" size="sm">
+								<IconButton aria-label="Collaborators">
+									<Users className="h-4 w-4" />
+								</IconButton>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">Collaborators</TooltipContent>
+						</Tooltip>
+
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<IconButton aria-label="Version history">
 									<History className="h-4 w-4" />
-								</Button>
+								</IconButton>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">Version history</TooltipContent>
 						</Tooltip>
 
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
-								<Button variant="ghost" size="sm">
+								<IconButton aria-label="More options">
 									<MoreHorizontal className="h-4 w-4" />
-								</Button>
+								</IconButton>
 							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
+							<DropdownMenuContent align="end" className="w-48">
 								<DropdownMenuItem>
 									<Download className="h-4 w-4 mr-2" />
 									Export
@@ -284,7 +367,7 @@ function DocumentEditor({ document }: { document: Document }) {
 								<DropdownMenuSeparator />
 								<DropdownMenuItem>
 									<Settings className="h-4 w-4 mr-2" />
-									Settings
+									Document Settings
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>
@@ -326,6 +409,44 @@ function DocumentEditor({ document }: { document: Document }) {
 }
 
 /**
+ * Save status indicator.
+ */
+function SaveIndicator({ status }: { status: string }) {
+	const config = {
+		idle: {
+			icon: Cloud,
+			text: "Saved",
+			className: "text-[var(--success-500)]",
+		},
+		saving: {
+			icon: Loader2,
+			text: "Saving",
+			className: "text-[var(--foreground-muted)] animate-spin",
+		},
+		saved: {
+			icon: Check,
+			text: "Saved",
+			className: "text-[var(--success-500)]",
+		},
+		error: {
+			icon: CloudOff,
+			text: "Error",
+			className: "text-[var(--error-500)]",
+		},
+	};
+
+	const current = config[status as keyof typeof config] || config.idle;
+	const Icon = current.icon;
+
+	return (
+		<div className="hidden sm:flex items-center gap-1.5 text-xs">
+			<Icon className={cn("h-3.5 w-3.5", current.className)} />
+			<span className="text-[var(--foreground-muted)]">{current.text}</span>
+		</div>
+	);
+}
+
+/**
  * View mode toggle button.
  */
 function ViewModeButton({
@@ -346,10 +467,11 @@ function ViewModeButton({
 					type="button"
 					onClick={onClick}
 					className={cn(
-						"p-1.5 rounded transition-colors",
+						"p-1.5 rounded-[var(--radius-sm)]",
+						"transition-all duration-[var(--transition-fast)]",
 						active
-							? "bg-white dark:bg-gray-800 shadow-sm"
-							: "hover:bg-gray-100 dark:hover:bg-gray-800"
+							? "bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-xs)]"
+							: "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background)]/50"
 					)}
 					aria-pressed={active}
 					aria-label={label}

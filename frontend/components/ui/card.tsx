@@ -1,12 +1,26 @@
+/**
+ * Card Component - DocFusion Design System
+ *
+ * An elegant card surface with subtle depth and
+ * refined hover interactions following Neo-Editorial aesthetic.
+ */
+
 import * as React from "react";
 import { cn } from "@/lib/utils";
+
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+	/** Add hover lift effect */
+	interactive?: boolean;
+	/** Padding size preset */
+	padding?: "none" | "sm" | "md" | "lg";
+}
 
 /**
  * Card component providing a contained surface for grouping related content.
  * Follows the compound component pattern for maximum flexibility.
  *
  * @example
- * <Card>
+ * <Card interactive>
  *   <CardHeader>
  *     <CardTitle>Document</CardTitle>
  *     <CardDescription>Last edited 2 hours ago</CardDescription>
@@ -19,21 +33,31 @@ import { cn } from "@/lib/utils";
  *   </CardFooter>
  * </Card>
  */
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+	({ className, interactive = false, padding, ...props }, ref) => (
+		<div
+			ref={ref}
+			className={cn(
+				// Base styles
+				"rounded-[var(--radius-lg)] border border-[var(--border)]",
+				"bg-[var(--background)] text-[var(--foreground)]",
+				"shadow-[var(--shadow-xs)]",
+				"transition-all duration-[var(--transition-base)]",
 
-const Card = React.forwardRef<
-	HTMLDivElement,
-	React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-	<div
-		ref={ref}
-		className={cn(
-			"rounded-xl border border-gray-200 bg-white text-gray-950 shadow-sm",
-			"dark:border-gray-800 dark:bg-gray-950 dark:text-gray-50",
-			className
-		)}
-		{...props}
-	/>
-));
+				// Interactive hover state
+				interactive && [
+					"cursor-pointer",
+					"hover:shadow-[var(--shadow-md)]",
+					"hover:border-[var(--border-strong)]",
+					"hover:-translate-y-0.5",
+				],
+
+				className
+			)}
+			{...props}
+		/>
+	)
+);
 Card.displayName = "Card";
 
 const CardHeader = React.forwardRef<
@@ -42,20 +66,20 @@ const CardHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<div
 		ref={ref}
-		className={cn("flex flex-col space-y-1.5 p-6", className)}
+		className={cn("flex flex-col gap-1.5 p-5 pb-0", className)}
 		{...props}
 	/>
 ));
 CardHeader.displayName = "CardHeader";
 
 const CardTitle = React.forwardRef<
-	HTMLParagraphElement,
+	HTMLHeadingElement,
 	React.HTMLAttributes<HTMLHeadingElement>
 >(({ className, ...props }, ref) => (
 	<h3
 		ref={ref}
 		className={cn(
-			"text-xl font-semibold leading-none tracking-tight",
+			"font-semibold leading-tight tracking-tight text-[var(--foreground)]",
 			className
 		)}
 		{...props}
@@ -69,7 +93,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<p
 		ref={ref}
-		className={cn("text-sm text-gray-500 dark:text-gray-400", className)}
+		className={cn("text-sm text-[var(--foreground-muted)]", className)}
 		{...props}
 	/>
 ));
@@ -79,7 +103,7 @@ const CardContent = React.forwardRef<
 	HTMLDivElement,
 	React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-	<div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+	<div ref={ref} className={cn("p-5 pt-3", className)} {...props} />
 ));
 CardContent.displayName = "CardContent";
 
@@ -89,10 +113,37 @@ const CardFooter = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<div
 		ref={ref}
-		className={cn("flex items-center p-6 pt-0", className)}
+		className={cn(
+			"flex items-center px-5 pb-5 pt-0",
+			"border-t border-[var(--border)] mt-auto",
+			className
+		)}
 		{...props}
 	/>
 ));
 CardFooter.displayName = "CardFooter";
 
-export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent };
+/**
+ * A simple horizontal divider for card content.
+ */
+const CardDivider = React.forwardRef<
+	HTMLHRElement,
+	React.HTMLAttributes<HTMLHRElement>
+>(({ className, ...props }, ref) => (
+	<hr
+		ref={ref}
+		className={cn("border-t border-[var(--border)] mx-5 my-0", className)}
+		{...props}
+	/>
+));
+CardDivider.displayName = "CardDivider";
+
+export {
+	Card,
+	CardHeader,
+	CardFooter,
+	CardTitle,
+	CardDescription,
+	CardContent,
+	CardDivider,
+};

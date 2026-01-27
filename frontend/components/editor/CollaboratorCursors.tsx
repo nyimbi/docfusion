@@ -32,7 +32,7 @@ export interface CollaboratorCursorsProps {
  * Collaborator cursors overlay.
  * Renders cursors and selections for all remote collaborators.
  */
-export function CollaboratorCursors({
+export const CollaboratorCursors = React.memo(function CollaboratorCursors({
 	editorRef,
 	positionToCoords,
 	showLabels = true,
@@ -62,7 +62,9 @@ export function CollaboratorCursors({
 			))}
 		</div>
 	);
-}
+});
+
+CollaboratorCursors.displayName = "CollaboratorCursors";
 
 /**
  * Props for individual cursor.

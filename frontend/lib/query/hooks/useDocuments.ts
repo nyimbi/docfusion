@@ -1,79 +1,39 @@
 /**
- * Document query hooks using TanStack Query.
+ * Document query hooks using TanStack Query with Server Actions.
  *
  * Provides data fetching, caching, and state management
- * for document operations.
+ * for document operations using Next.js Server Actions.
  */
 
 import {
 	useQuery,
 	useInfiniteQuery,
 	useQueryClient,
+	useMutation,
 	type UseQueryOptions,
 	type UseInfiniteQueryOptions,
 } from "@tanstack/react-query";
-import { fetcher } from "@/lib/api/client";
 import { queryKeys } from "../provider";
+import {
+	listDocuments,
+	getDocument,
+	createDocument,
+	updateDocument,
+	deleteDocument,
+	getDocumentYjsState,
+	saveDocumentYjsState,
+	searchDocuments,
+} from "@/app/actions/documents";
 import type {
 	Document,
 	DocumentSummary,
 	DocumentListParams,
 	DocumentListResponse,
 	DocumentYjsState,
-	DocumentVersion,
 	DocumentId,
+	CreateDocumentInput,
+	UpdateDocumentInput,
 } from "@/lib/types/document";
-
-/**
- * Fetch a single document by ID.
- */
-async function fetchDocument(id: DocumentId): Promise<Document> {
-	return fetcher<Document>(`/documents/${id}`);
-}
-
-/**
- * Fetch a paginated list of documents.
- */
-async function fetchDocuments(
-	params: DocumentListParams
-): Promise<DocumentListResponse> {
-	const searchParams = new URLSearchParams();
-
-	if (params.status) searchParams.set("status", params.status);
-	if (params.visibility) searchParams.set("visibility", params.visibility);
-	if (params.ownerId) searchParams.set("owner_id", params.ownerId);
-	if (params.tags?.length) searchParams.set("tags", params.tags.join(","));
-	if (params.search) searchParams.set("search", params.search);
-	if (params.sortBy) searchParams.set("sort_by", params.sortBy);
-	if (params.sortOrder) searchParams.set("sort_order", params.sortOrder);
-	if (params.offset !== undefined)
-		searchParams.set("offset", String(params.offset));
-	if (params.limit !== undefined)
-		searchParams.set("limit", String(params.limit));
-
-	const queryString = searchParams.toString();
-	const endpoint = queryString ? `/documents?${queryString}` : "/documents";
-
-	return fetcher<DocumentListResponse>(endpoint);
-}
-
-/**
- * Fetch Yjs collaboration state for a document.
- */
-async function fetchDocumentYjsState(
-	id: DocumentId
-): Promise<DocumentYjsState> {
-	return fetcher<DocumentYjsState>(`/documents/${id}/state`);
-}
-
-/**
- * Fetch version history for a document.
- */
-async function fetchDocumentVersions(
-	id: DocumentId
-): Promise<DocumentVersion[]> {
-	return fetcher<DocumentVersion[]>(`/documents/${id}/versions`);
-}
 
 /**
  * Hook to fetch a single document.
@@ -84,13 +44,13 @@ async function fetchDocumentVersions(
 export function useDocument(
 	id: DocumentId | null | undefined,
 	options?: Omit<
-		UseQueryOptions<Document, Error>,
+		UseQueryOptions<Document | null, Error>,
 		"queryKey" | "queryFn" | "enabled"
 	>
 ) {
 	return useQuery({
 		queryKey: queryKeys.document(id ?? ""),
-		queryFn: () => fetchDocument(id!),
+		queryFn: () => getDocument(id!),
 		enabled: Boolean(id),
 		...options,
 	});
@@ -111,7 +71,7 @@ export function useDocuments(
 ) {
 	return useQuery({
 		queryKey: [...queryKeys.documents, params] as const,
-		queryFn: () => fetchDocuments(params),
+		queryFn: () => listDocuments(params),
 		...options,
 	});
 }
@@ -134,7 +94,7 @@ export function useInfiniteDocuments(
 	return useInfiniteQuery({
 		queryKey: [...queryKeys.documents, "infinite", params] as const,
 		queryFn: ({ pageParam }) =>
-			fetchDocuments({ ...params, offset: pageParam as number, limit }),
+			listDocuments({ ...params, offset: pageParam as number, limit }),
 		initialPageParam: 0,
 		getNextPageParam: (lastPage: DocumentListResponse): number | undefined =>
 			lastPage.hasMore ? lastPage.offset + lastPage.limit : undefined,
@@ -151,13 +111,13 @@ export function useInfiniteDocuments(
 export function useDocumentYjsState(
 	id: DocumentId | null | undefined,
 	options?: Omit<
-		UseQueryOptions<DocumentYjsState, Error>,
+		UseQueryOptions<DocumentYjsState | null, Error>,
 		"queryKey" | "queryFn" | "enabled"
 	>
 ) {
 	return useQuery({
 		queryKey: queryKeys.documentYjsState(id ?? ""),
-		queryFn: () => fetchDocumentYjsState(id!),
+		queryFn: () => getDocumentYjsState(id!),
 		enabled: Boolean(id),
 		// Yjs state should be fetched fresh each time
 		staleTime: 0,
@@ -166,23 +126,89 @@ export function useDocumentYjsState(
 }
 
 /**
- * Hook to fetch document version history.
+ * Hook to create a new document.
  *
  * @example
- * const { data: versions } = useDocumentVersions(documentId);
+ * const { mutate: create, isPending } = useCreateDocument();
+ * create({ title: "New Doc" });
  */
-export function useDocumentVersions(
-	id: DocumentId | null | undefined,
-	options?: Omit<
-		UseQueryOptions<DocumentVersion[], Error>,
-		"queryKey" | "queryFn" | "enabled"
-	>
-) {
-	return useQuery({
-		queryKey: queryKeys.documentVersions(id ?? ""),
-		queryFn: () => fetchDocumentVersions(id!),
-		enabled: Boolean(id),
-		...options,
+export function useCreateDocument() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (input: CreateDocumentInput) => createDocument(input),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+		},
+	});
+}
+
+/**
+ * Hook to update a document.
+ *
+ * @example
+ * const { mutate: update } = useUpdateDocument();
+ * update({ id: "...", data: { title: "Updated" } });
+ */
+export function useUpdateDocument() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: ({ id, data }: { id: string; data: UpdateDocumentInput }) =>
+			updateDocument(id, data),
+		onSuccess: (result, { id }) => {
+			if (result) {
+				queryClient.setQueryData(queryKeys.document(id), result);
+			}
+			queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+		},
+	});
+}
+
+/**
+ * Hook to delete a document.
+ *
+ * @example
+ * const { mutate: remove } = useDeleteDocument();
+ * remove(documentId);
+ */
+export function useDeleteDocument() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (id: string) => deleteDocument(id),
+		onSuccess: (_, id) => {
+			queryClient.removeQueries({ queryKey: queryKeys.document(id) });
+			queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+		},
+	});
+}
+
+/**
+ * Hook to save Yjs state.
+ *
+ * @example
+ * const { mutate: saveState } = useSaveDocumentYjsState();
+ * saveState({ documentId, state, stateVector });
+ */
+export function useSaveDocumentYjsState() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: ({
+			documentId,
+			state,
+			stateVector,
+		}: {
+			documentId: string;
+			state: string;
+			stateVector: string;
+		}) => saveDocumentYjsState(documentId, state, stateVector),
+		onSuccess: (_, { documentId }) => {
+			queryClient.invalidateQueries({
+				queryKey: queryKeys.documentYjsState(documentId),
+			});
+		},
 	});
 }
 
@@ -199,7 +225,7 @@ export function usePrefetchDocument() {
 	return (id: DocumentId) => {
 		queryClient.prefetchQuery({
 			queryKey: queryKeys.document(id),
-			queryFn: () => fetchDocument(id),
+			queryFn: () => getDocument(id),
 			staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
 		});
 	};
@@ -222,9 +248,6 @@ export function useInvalidateDocuments() {
 			queryClient.invalidateQueries({ queryKey: queryKeys.document(id) });
 			queryClient.invalidateQueries({
 				queryKey: queryKeys.documentYjsState(id),
-			});
-			queryClient.invalidateQueries({
-				queryKey: queryKeys.documentVersions(id),
 			});
 		}
 		// Always invalidate the list to reflect changes
@@ -288,22 +311,20 @@ export function flattenDocumentPages(
 
 /**
  * Hook to search documents with debounced input.
- * Combines with list params for filtering.
  *
  * @example
- * const { data, refetch } = useDocumentSearch(debouncedSearchTerm);
+ * const { data } = useDocumentSearch(debouncedSearchTerm);
  */
 export function useDocumentSearch(
 	query: string,
-	params: Omit<DocumentListParams, "search"> = {},
 	options?: Omit<
-		UseQueryOptions<DocumentListResponse, Error>,
+		UseQueryOptions<DocumentSummary[], Error>,
 		"queryKey" | "queryFn" | "enabled"
 	>
 ) {
 	return useQuery({
-		queryKey: [...queryKeys.documents, "search", query, params] as const,
-		queryFn: () => fetchDocuments({ ...params, search: query }),
+		queryKey: [...queryKeys.documents, "search", query] as const,
+		queryFn: () => searchDocuments(query),
 		enabled: query.length >= 2, // Only search with 2+ characters
 		...options,
 	});

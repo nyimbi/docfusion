@@ -1,0 +1,354 @@
+/**
+ * SubmissionForm Component - DocFusion
+ *
+ * Pre-submission checklist and form for submitting proposals.
+ */
+
+"use client";
+
+import { useState, useTransition } from "react";
+import type {
+	PreSubmissionChecklistItem,
+	SubmissionMethod,
+	ProposalDocumentType,
+} from "@/lib/types/opportunity";
+import {
+	createSubmission,
+	getPreSubmissionChecklist,
+} from "@/lib/actions/submissions";
+import { Button } from "@/components/ui/Button";
+import { cn } from "@/lib/utils";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface SubmissionFormProps {
+	opportunityId: string;
+	opportunityTitle: string;
+	documents: Array<{
+		id: string;
+		documentId: string;
+		title: string;
+		documentType: ProposalDocumentType;
+		status: string;
+	}>;
+	checklist?: PreSubmissionChecklistItem[];
+	onSubmissionComplete?: (submissionId: string) => void;
+}
+
+// ============================================================================
+// Main Component
+// ============================================================================
+
+export function SubmissionForm({
+	opportunityId,
+	opportunityTitle,
+	documents,
+	checklist: initialChecklist,
+	onSubmissionComplete,
+}: SubmissionFormProps) {
+	const [checklist, setChecklist] = useState<PreSubmissionChecklistItem[]>(
+		initialChecklist || []
+	);
+	const [selectedDocuments, setSelectedDocuments] = useState<string[]>(
+		documents.map((d) => d.documentId)
+	);
+	const [submissionMethod, setSubmissionMethod] = useState<SubmissionMethod>("portal");
+	const [confirmationNumber, setConfirmationNumber] = useState("");
+	const [notes, setNotes] = useState("");
+	const [submittedBy, setSubmittedBy] = useState("");
+	const [isPending, startTransition] = useTransition();
+	const [error, setError] = useState<string | null>(null);
+
+	// Load checklist if not provided
+	useState(() => {
+		if (!initialChecklist) {
+			getPreSubmissionChecklist(opportunityId).then(setChecklist);
+		}
+	});
+
+	const toggleChecklistItem = (itemId: string) => {
+		setChecklist((prev) =>
+			prev.map((item) =>
+				item.id === itemId
+					? {
+							...item,
+							isCompleted: !item.isCompleted,
+							completedAt: !item.isCompleted ? new Date() : undefined,
+						}
+					: item
+			)
+		);
+	};
+
+	const toggleDocument = (documentId: string) => {
+		setSelectedDocuments((prev) =>
+			prev.includes(documentId)
+				? prev.filter((id) => id !== documentId)
+				: [...prev, documentId]
+		);
+	};
+
+	const requiredItemsCompleted = checklist
+		.filter((item) => item.isRequired)
+		.every((item) => item.isCompleted);
+
+	const handleSubmit = () => {
+		if (!submittedBy.trim()) {
+			setError("Please enter your name");
+			return;
+		}
+
+		if (selectedDocuments.length === 0) {
+			setError("Please select at least one document to submit");
+			return;
+		}
+
+		setError(null);
+		startTransition(async () => {
+			try {
+				const submission = await createSubmission({
+					opportunityId,
+					submittedBy: submittedBy.trim(),
+					submissionMethod,
+					confirmationNumber: confirmationNumber.trim() || undefined,
+					attachmentIds: selectedDocuments,
+					notes: notes.trim() || undefined,
+				});
+				onSubmissionComplete?.(submission.id);
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "Failed to create submission");
+			}
+		});
+	};
+
+	return (
+		<div className="space-y-6">
+			{/* Header */}
+			<div>
+				<h2 className="text-lg font-semibold text-[var(--foreground)]">
+					Submit Proposal
+				</h2>
+				<p className="text-sm text-[var(--foreground-muted)]">
+					{opportunityTitle}
+				</p>
+			</div>
+
+			{/* Pre-Submission Checklist */}
+			<div className="bg-[var(--background)] border border-[var(--border)] rounded-lg p-4">
+				<h3 className="font-medium text-[var(--foreground)] mb-3">
+					Pre-Submission Checklist
+				</h3>
+				<div className="space-y-2">
+					{checklist.map((item) => (
+						<label
+							key={item.id}
+							className={cn(
+								"flex items-start gap-3 p-2 rounded-lg cursor-pointer hover:bg-[var(--background-muted)]",
+								item.isCompleted && "bg-green-50 dark:bg-green-950/20"
+							)}
+						>
+							<input
+								type="checkbox"
+								checked={item.isCompleted}
+								onChange={() => toggleChecklistItem(item.id)}
+								className="mt-1 h-4 w-4 rounded border-[var(--border)] text-blue-600 focus:ring-blue-500"
+							/>
+							<div className="flex-1">
+								<div className="flex items-center gap-2">
+									<span
+										className={cn(
+											"text-sm font-medium",
+											item.isCompleted
+												? "text-green-700 dark:text-green-400"
+												: "text-[var(--foreground)]"
+										)}
+									>
+										{item.label}
+									</span>
+									{item.isRequired && (
+										<span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
+											Required
+										</span>
+									)}
+								</div>
+								<p className="text-xs text-[var(--foreground-muted)]">
+									{item.description}
+								</p>
+							</div>
+						</label>
+					))}
+				</div>
+
+				{!requiredItemsCompleted && (
+					<p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+						Please complete all required checklist items before submitting.
+					</p>
+				)}
+			</div>
+
+			{/* Documents to Include */}
+			<div className="bg-[var(--background)] border border-[var(--border)] rounded-lg p-4">
+				<h3 className="font-medium text-[var(--foreground)] mb-3">
+					Documents to Include
+				</h3>
+				<div className="space-y-2">
+					{documents.map((doc) => (
+						<label
+							key={doc.id}
+							className="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-[var(--background-muted)]"
+						>
+							<input
+								type="checkbox"
+								checked={selectedDocuments.includes(doc.documentId)}
+								onChange={() => toggleDocument(doc.documentId)}
+								className="h-4 w-4 rounded border-[var(--border)] text-blue-600 focus:ring-blue-500"
+							/>
+							<div className="flex-1">
+								<span className="text-sm font-medium text-[var(--foreground)]">
+									{doc.title}
+								</span>
+								<span className="ml-2 text-xs text-[var(--foreground-muted)]">
+									{formatDocumentType(doc.documentType)}
+								</span>
+							</div>
+							<StatusBadge status={doc.status} />
+						</label>
+					))}
+				</div>
+			</div>
+
+			{/* Submission Details */}
+			<div className="bg-[var(--background)] border border-[var(--border)] rounded-lg p-4 space-y-4">
+				<h3 className="font-medium text-[var(--foreground)]">
+					Submission Details
+				</h3>
+
+				{/* Submitted By */}
+				<div>
+					<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+						Submitted By <span className="text-red-500">*</span>
+					</label>
+					<input
+						type="text"
+						value={submittedBy}
+						onChange={(e) => setSubmittedBy(e.target.value)}
+						placeholder="Your name"
+						className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+					/>
+				</div>
+
+				{/* Submission Method */}
+				<div>
+					<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+						Submission Method
+					</label>
+					<select
+						value={submissionMethod}
+						onChange={(e) => setSubmissionMethod(e.target.value as SubmissionMethod)}
+						className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+					>
+						<option value="portal">Online Portal</option>
+						<option value="email">Email</option>
+						<option value="physical">Physical Mail</option>
+						<option value="ftp">FTP/File Transfer</option>
+						<option value="other">Other</option>
+					</select>
+				</div>
+
+				{/* Confirmation Number */}
+				<div>
+					<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+						Confirmation Number
+					</label>
+					<input
+						type="text"
+						value={confirmationNumber}
+						onChange={(e) => setConfirmationNumber(e.target.value)}
+						placeholder="Portal confirmation or tracking number"
+						className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+					/>
+				</div>
+
+				{/* Notes */}
+				<div>
+					<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+						Notes
+					</label>
+					<textarea
+						value={notes}
+						onChange={(e) => setNotes(e.target.value)}
+						placeholder="Any additional notes about this submission..."
+						rows={3}
+						className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+					/>
+				</div>
+			</div>
+
+			{/* Error Message */}
+			{error && (
+				<div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 text-sm">
+					{error}
+				</div>
+			)}
+
+			{/* Submit Button */}
+			<div className="flex justify-end gap-3">
+				<Button
+					onClick={handleSubmit}
+					disabled={isPending || !requiredItemsCompleted}
+					isLoading={isPending}
+				>
+					Record Submission
+				</Button>
+			</div>
+		</div>
+	);
+}
+
+// ============================================================================
+// Sub-Components
+// ============================================================================
+
+function StatusBadge({ status }: { status: string }) {
+	const styles: Record<string, string> = {
+		final: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+		approved: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+		in_review: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+		drafting: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+		not_started: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+	};
+
+	return (
+		<span
+			className={cn(
+				"text-xs px-2 py-0.5 rounded-full",
+				styles[status] || styles.not_started
+			)}
+		>
+			{status.replace("_", " ")}
+		</span>
+	);
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+function formatDocumentType(type: string): string {
+	const labels: Record<string, string> = {
+		technical_approach: "Technical Approach",
+		management_plan: "Management Plan",
+		past_performance: "Past Performance",
+		cost_proposal: "Cost Proposal",
+		cover_letter: "Cover Letter",
+		executive_summary: "Executive Summary",
+		staffing_plan: "Staffing Plan",
+		quality_assurance: "Quality Assurance",
+		risk_mitigation: "Risk Mitigation",
+		appendix: "Appendix",
+		other: "Other",
+	};
+	return labels[type] || type;
+}

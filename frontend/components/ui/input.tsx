@@ -1,3 +1,10 @@
+/**
+ * Input Components - DocFusion Design System
+ *
+ * Form input elements with refined aesthetics and
+ * thoughtful micro-interactions following Neo-Editorial style.
+ */
+
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +16,8 @@ export interface InputProps
 	startIcon?: React.ReactNode;
 	/** Right-side icon or element */
 	endIcon?: React.ReactNode;
+	/** Size variant */
+	inputSize?: "sm" | "md" | "lg";
 }
 
 /**
@@ -22,33 +31,61 @@ export interface InputProps
  *   placeholder="Search..."
  *   startIcon={<SearchIcon className="h-4 w-4" />}
  * />
- *
- * @example
- * <Input
- *   error={!!errors.email}
- *   placeholder="Email"
- *   aria-invalid={!!errors.email}
- * />
  */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-	({ className, type, error, startIcon, endIcon, ...props }, ref) => {
+	(
+		{
+			className,
+			type,
+			error,
+			startIcon,
+			endIcon,
+			inputSize = "md",
+			...props
+		},
+		ref
+	) => {
 		const hasIcon = startIcon || endIcon;
+
+		const sizeStyles = {
+			sm: "h-8 text-sm px-2.5",
+			md: "h-10 text-sm px-3",
+			lg: "h-12 text-base px-4",
+		};
 
 		const inputElement = (
 			<input
 				type={type}
 				className={cn(
-					"flex h-10 w-full rounded-lg border bg-white px-3 py-2 text-sm",
-					"transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium",
-					"placeholder:text-gray-500",
-					"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-					"disabled:cursor-not-allowed disabled:opacity-50",
-					"dark:bg-gray-950 dark:placeholder:text-gray-400",
+					// Base styles
+					"flex w-full rounded-[var(--radius-md)]",
+					"border bg-[var(--background)]",
+					"text-[var(--foreground)] placeholder:text-[var(--foreground-subtle)]",
+					"transition-all duration-[var(--transition-fast)]",
+
+					// Focus states
+					"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-1",
+					"focus-visible:border-[var(--accent-400)]",
+
+					// Disabled state
+					"disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-[var(--background-muted)]",
+
+					// File input styles
+					"file:border-0 file:bg-transparent file:text-sm file:font-medium",
+					"file:text-[var(--foreground-muted)]",
+
+					// Error state
 					error
-						? "border-red-500 focus-visible:ring-red-500 dark:border-red-500"
-						: "border-gray-200 focus-visible:ring-blue-500 dark:border-gray-800",
+						? "border-[var(--error-500)] focus-visible:ring-[var(--error-500)]"
+						: "border-[var(--border-strong)] hover:border-[var(--ink-300)]",
+
+					// Size
+					sizeStyles[inputSize],
+
+					// Icon padding
 					startIcon && "pl-10",
 					endIcon && "pr-10",
+
 					className
 				)}
 				ref={ref}
@@ -64,13 +101,13 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 		return (
 			<div className="relative">
 				{startIcon && (
-					<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 dark:text-gray-400">
+					<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-[var(--foreground-subtle)]">
 						{startIcon}
 					</div>
 				)}
 				{inputElement}
 				{endIcon && (
-					<div className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 dark:text-gray-400">
+					<div className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--foreground-subtle)]">
 						{endIcon}
 					</div>
 				)}
@@ -93,14 +130,27 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 		return (
 			<textarea
 				className={cn(
-					"flex min-h-[80px] w-full rounded-lg border bg-white px-3 py-2 text-sm",
-					"transition-colors placeholder:text-gray-500",
-					"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-					"disabled:cursor-not-allowed disabled:opacity-50",
-					"dark:bg-gray-950 dark:placeholder:text-gray-400",
+					// Base styles
+					"flex min-h-[120px] w-full rounded-[var(--radius-md)]",
+					"border bg-[var(--background)] px-3 py-2.5 text-sm",
+					"text-[var(--foreground)] placeholder:text-[var(--foreground-subtle)]",
+					"transition-all duration-[var(--transition-fast)]",
+
+					// Focus states
+					"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-1",
+					"focus-visible:border-[var(--accent-400)]",
+
+					// Disabled state
+					"disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-[var(--background-muted)]",
+
+					// Resize behavior
+					"resize-y",
+
+					// Error state
 					error
-						? "border-red-500 focus-visible:ring-red-500 dark:border-red-500"
-						: "border-gray-200 focus-visible:ring-blue-500 dark:border-gray-800",
+						? "border-[var(--error-500)] focus-visible:ring-[var(--error-500)]"
+						: "border-[var(--border-strong)] hover:border-[var(--ink-300)]",
+
 					className
 				)}
 				ref={ref}
@@ -126,7 +176,7 @@ const Label = React.forwardRef<HTMLLabelElement, LabelProps>(
 			<label
 				ref={ref}
 				className={cn(
-					"text-sm font-medium leading-none",
+					"text-sm font-medium text-[var(--foreground)]",
 					"peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
 					className
 				)}
@@ -134,7 +184,7 @@ const Label = React.forwardRef<HTMLLabelElement, LabelProps>(
 			>
 				{children}
 				{required && (
-					<span className="ml-1 text-red-500" aria-hidden="true">
+					<span className="ml-0.5 text-[var(--error-500)]" aria-hidden="true">
 						*
 					</span>
 				)}
@@ -154,10 +204,7 @@ function InputDescription({
 }: React.HTMLAttributes<HTMLParagraphElement>) {
 	return (
 		<p
-			className={cn(
-				"text-xs text-gray-500 dark:text-gray-400",
-				className
-			)}
+			className={cn("text-xs text-[var(--foreground-muted)] mt-1.5", className)}
 			{...props}
 		>
 			{children}
@@ -176,15 +223,49 @@ function InputError({
 	return (
 		<p
 			className={cn(
-				"text-xs text-red-500 dark:text-red-400 mt-1",
+				"text-xs text-[var(--error-500)] mt-1.5",
+				"flex items-center gap-1",
 				className
 			)}
 			role="alert"
 			{...props}
 		>
+			<svg
+				className="h-3 w-3 flex-shrink-0"
+				fill="currentColor"
+				viewBox="0 0 20 20"
+			>
+				<path
+					fillRule="evenodd"
+					d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+					clipRule="evenodd"
+				/>
+			</svg>
 			{children}
 		</p>
 	);
 }
 
-export { Input, Textarea, Label, InputDescription, InputError };
+/**
+ * Field group wrapper for consistent form field layouts.
+ */
+function FormField({
+	className,
+	children,
+	...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+	return (
+		<div className={cn("space-y-2", className)} {...props}>
+			{children}
+		</div>
+	);
+}
+
+export {
+	Input,
+	Textarea,
+	Label,
+	InputDescription,
+	InputError,
+	FormField,
+};

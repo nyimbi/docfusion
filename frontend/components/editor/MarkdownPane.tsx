@@ -56,7 +56,7 @@ interface MarkdownPaneProps {
  *   onContentChange={handleMarkdownChange}
  * />
  */
-export function MarkdownPane({
+export const MarkdownPane = React.memo(function MarkdownPane({
 	content,
 	onContentChange,
 	readOnly = false,
@@ -364,7 +364,9 @@ export function MarkdownPane({
 			)}
 		</div>
 	);
-}
+});
+
+MarkdownPane.displayName = "MarkdownPane";
 
 /**
  * MarkdownPreview component - renders markdown with syntax highlighting.

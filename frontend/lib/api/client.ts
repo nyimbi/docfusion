@@ -3,6 +3,34 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 
 /**
+ * Convenience API client object with standard HTTP methods.
+ */
+export const apiClient = {
+	get: <T>(endpoint: string, options?: RequestInit) =>
+		fetcher<T>(endpoint, { ...options, method: "GET" }),
+	post: <T>(endpoint: string, body?: unknown, options?: RequestInit) =>
+		fetcher<T>(endpoint, {
+			...options,
+			method: "POST",
+			body: body ? JSON.stringify(body) : undefined,
+		}),
+	put: <T>(endpoint: string, body?: unknown, options?: RequestInit) =>
+		fetcher<T>(endpoint, {
+			...options,
+			method: "PUT",
+			body: body ? JSON.stringify(body) : undefined,
+		}),
+	patch: <T>(endpoint: string, body?: unknown, options?: RequestInit) =>
+		fetcher<T>(endpoint, {
+			...options,
+			method: "PATCH",
+			body: body ? JSON.stringify(body) : undefined,
+		}),
+	delete: <T>(endpoint: string, options?: RequestInit) =>
+		fetcher<T>(endpoint, { ...options, method: "DELETE" }),
+};
+
+/**
  * Standard JSON fetcher for API requests.
  */
 export async function fetcher<T>(endpoint: string, options?: RequestInit): Promise<T> {

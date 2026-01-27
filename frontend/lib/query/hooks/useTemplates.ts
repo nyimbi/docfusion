@@ -1,19 +1,29 @@
 /**
- * Template query hooks using TanStack Query.
+ * Template query hooks using TanStack Query with Server Actions.
  *
  * Provides data fetching, caching, and state management
- * for template operations.
+ * for template operations using Next.js Server Actions.
  */
 
 import {
 	useQuery,
 	useInfiniteQuery,
 	useQueryClient,
+	useMutation,
 	type UseQueryOptions,
 	type UseInfiniteQueryOptions,
 } from "@tanstack/react-query";
-import { fetcher } from "@/lib/api/client";
 import { queryKeys } from "../provider";
+import {
+	listTemplates,
+	getTemplate,
+	createTemplate,
+	updateTemplate,
+	deleteTemplate,
+	listTemplateCategories,
+	useTemplate as useTemplateAction,
+	searchTemplates,
+} from "@/app/actions/templates";
 import type {
 	Template,
 	TemplateSummary,
@@ -21,58 +31,11 @@ import type {
 	TemplateListResponse,
 	TemplateCategory,
 	TemplateId,
-	TemplateWithCategories,
+	CreateTemplateInput,
+	UpdateTemplateInput,
+	UseTemplateInput,
 } from "@/lib/types/template";
-
-/**
- * Fetch a single template by ID.
- */
-async function fetchTemplate(id: TemplateId): Promise<Template> {
-	return fetcher<Template>(`/templates/${id}`);
-}
-
-/**
- * Fetch a template with resolved categories.
- */
-async function fetchTemplateWithCategories(
-	id: TemplateId
-): Promise<TemplateWithCategories> {
-	return fetcher<TemplateWithCategories>(`/templates/${id}?include=categories`);
-}
-
-/**
- * Fetch a paginated list of templates.
- */
-async function fetchTemplates(
-	params: TemplateListParams
-): Promise<TemplateListResponse> {
-	const searchParams = new URLSearchParams();
-
-	if (params.status) searchParams.set("status", params.status);
-	if (params.visibility) searchParams.set("visibility", params.visibility);
-	if (params.categoryId) searchParams.set("category_id", params.categoryId);
-	if (params.tags?.length) searchParams.set("tags", params.tags.join(","));
-	if (params.difficulty) searchParams.set("difficulty", params.difficulty);
-	if (params.search) searchParams.set("search", params.search);
-	if (params.sortBy) searchParams.set("sort_by", params.sortBy);
-	if (params.sortOrder) searchParams.set("sort_order", params.sortOrder);
-	if (params.offset !== undefined)
-		searchParams.set("offset", String(params.offset));
-	if (params.limit !== undefined)
-		searchParams.set("limit", String(params.limit));
-
-	const queryString = searchParams.toString();
-	const endpoint = queryString ? `/templates?${queryString}` : "/templates";
-
-	return fetcher<TemplateListResponse>(endpoint);
-}
-
-/**
- * Fetch all template categories.
- */
-async function fetchTemplateCategories(): Promise<TemplateCategory[]> {
-	return fetcher<TemplateCategory[]>("/templates/categories");
-}
+import type { Document } from "@/lib/types/document";
 
 /**
  * Hook to fetch a single template.
@@ -83,35 +46,13 @@ async function fetchTemplateCategories(): Promise<TemplateCategory[]> {
 export function useTemplate(
 	id: TemplateId | null | undefined,
 	options?: Omit<
-		UseQueryOptions<Template, Error>,
+		UseQueryOptions<Template | null, Error>,
 		"queryKey" | "queryFn" | "enabled"
 	>
 ) {
 	return useQuery({
 		queryKey: queryKeys.template(id ?? ""),
-		queryFn: () => fetchTemplate(id!),
-		enabled: Boolean(id),
-		...options,
-	});
-}
-
-/**
- * Hook to fetch a template with resolved categories.
- *
- * @example
- * const { data: template } = useTemplateWithCategories(templateId);
- * // template.categories is resolved
- */
-export function useTemplateWithCategories(
-	id: TemplateId | null | undefined,
-	options?: Omit<
-		UseQueryOptions<TemplateWithCategories, Error>,
-		"queryKey" | "queryFn" | "enabled"
-	>
-) {
-	return useQuery({
-		queryKey: [...queryKeys.template(id ?? ""), "with-categories"] as const,
-		queryFn: () => fetchTemplateWithCategories(id!),
+		queryFn: () => getTemplate(id!),
 		enabled: Boolean(id),
 		...options,
 	});
@@ -132,7 +73,7 @@ export function useTemplates(
 ) {
 	return useQuery({
 		queryKey: [...queryKeys.templates, params] as const,
-		queryFn: () => fetchTemplates(params),
+		queryFn: () => listTemplates(params),
 		...options,
 	});
 }
@@ -155,7 +96,7 @@ export function useInfiniteTemplates(
 	return useInfiniteQuery({
 		queryKey: [...queryKeys.templates, "infinite", params] as const,
 		queryFn: ({ pageParam }) =>
-			fetchTemplates({ ...params, offset: pageParam as number, limit }),
+			listTemplates({ ...params, offset: pageParam as number, limit }),
 		initialPageParam: 0,
 		getNextPageParam: (lastPage: TemplateListResponse): number | undefined =>
 			lastPage.hasMore ? lastPage.offset + lastPage.limit : undefined,
@@ -177,7 +118,7 @@ export function useTemplateCategories(
 ) {
 	return useQuery({
 		queryKey: queryKeys.templateCategories,
-		queryFn: fetchTemplateCategories,
+		queryFn: listTemplateCategories,
 		// Categories change infrequently, cache for longer
 		staleTime: 30 * 60 * 1000, // 30 minutes
 		...options,
@@ -200,9 +141,87 @@ export function useTemplatesByCategory(
 ) {
 	return useQuery({
 		queryKey: [...queryKeys.templates, "category", categoryId, params] as const,
-		queryFn: () => fetchTemplates({ ...params, categoryId: categoryId! }),
+		queryFn: () => listTemplates({ ...params, categoryId: categoryId! }),
 		enabled: Boolean(categoryId),
 		...options,
+	});
+}
+
+/**
+ * Hook to create a new template.
+ *
+ * @example
+ * const { mutate: create, isPending } = useCreateTemplate();
+ * create({ name: "New Template", content: {...} });
+ */
+export function useCreateTemplate() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (input: CreateTemplateInput) => createTemplate(input),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: queryKeys.templates });
+		},
+	});
+}
+
+/**
+ * Hook to update a template.
+ *
+ * @example
+ * const { mutate: update } = useUpdateTemplate();
+ * update({ id: "...", data: { name: "Updated" } });
+ */
+export function useUpdateTemplate() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: ({ id, data }: { id: string; data: UpdateTemplateInput }) =>
+			updateTemplate(id, data),
+		onSuccess: (result, { id }) => {
+			if (result) {
+				queryClient.setQueryData(queryKeys.template(id), result);
+			}
+			queryClient.invalidateQueries({ queryKey: queryKeys.templates });
+		},
+	});
+}
+
+/**
+ * Hook to delete a template.
+ *
+ * @example
+ * const { mutate: remove } = useDeleteTemplate();
+ * remove(templateId);
+ */
+export function useDeleteTemplate() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (id: string) => deleteTemplate(id),
+		onSuccess: (_, id) => {
+			queryClient.removeQueries({ queryKey: queryKeys.template(id) });
+			queryClient.invalidateQueries({ queryKey: queryKeys.templates });
+		},
+	});
+}
+
+/**
+ * Hook to create a document from a template.
+ *
+ * @example
+ * const { mutate: createFromTemplate, isPending } = useCreateFromTemplate();
+ * createFromTemplate({ templateId: "...", title: "New Doc", placeholderValues: {} });
+ */
+export function useCreateFromTemplate() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (input: UseTemplateInput) => useTemplateAction(input),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+			queryClient.invalidateQueries({ queryKey: queryKeys.templates });
+		},
 	});
 }
 
@@ -219,7 +238,7 @@ export function usePrefetchTemplate() {
 	return (id: TemplateId) => {
 		queryClient.prefetchQuery({
 			queryKey: queryKeys.template(id),
-			queryFn: () => fetchTemplate(id),
+			queryFn: () => getTemplate(id),
 			staleTime: 10 * 60 * 1000, // Consider fresh for 10 minutes
 		});
 	};
@@ -257,22 +276,20 @@ export function useGetCachedTemplate() {
 
 /**
  * Hook to search templates with debounced input.
- * Combines with list params for filtering.
  *
  * @example
- * const { data, refetch } = useTemplateSearch(debouncedSearchTerm);
+ * const { data } = useTemplateSearch(debouncedSearchTerm);
  */
 export function useTemplateSearch(
 	query: string,
-	params: Omit<TemplateListParams, "search"> = {},
 	options?: Omit<
-		UseQueryOptions<TemplateListResponse, Error>,
+		UseQueryOptions<TemplateSummary[], Error>,
 		"queryKey" | "queryFn" | "enabled"
 	>
 ) {
 	return useQuery({
-		queryKey: [...queryKeys.templates, "search", query, params] as const,
-		queryFn: () => fetchTemplates({ ...params, search: query }),
+		queryKey: [...queryKeys.templates, "search", query] as const,
+		queryFn: () => searchTemplates(query),
 		enabled: query.length >= 2, // Only search with 2+ characters
 		...options,
 	});

@@ -55,7 +55,7 @@ export interface SlashCommandMenuProps {
 /**
  * Slash command menu component.
  */
-export function SlashCommandMenu({
+export const SlashCommandMenu = React.memo(function SlashCommandMenu({
 	state,
 	hasSelection,
 	onSelect,
@@ -157,6 +157,9 @@ export function SlashCommandMenu({
 	return (
 		<div
 			ref={menuRef}
+			role="listbox"
+			aria-label="AI command suggestions"
+			aria-activedescendant={commands[selectedIndex] ? `slash-cmd-${commands[selectedIndex].id}` : undefined}
 			className="absolute z-50 w-72 max-h-80 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
 			style={{
 				top: position.top,
@@ -244,7 +247,9 @@ export function SlashCommandMenu({
 			</div>
 		</div>
 	);
-}
+});
+
+SlashCommandMenu.displayName = "SlashCommandMenu";
 
 /**
  * Individual command item.
@@ -255,18 +260,23 @@ function CommandItem({
 	dataIndex,
 	onSelect,
 	onHover,
+	idPrefix = "slash-cmd",
 }: {
 	command: AICommand;
 	isSelected: boolean;
 	dataIndex: number;
 	onSelect: () => void;
 	onHover: () => void;
+	idPrefix?: string;
 }) {
 	const Icon = iconMap[command.icon] ?? Sparkles;
 
 	return (
 		<button
 			type="button"
+			id={`${idPrefix}-${command.id}`}
+			role="option"
+			aria-selected={isSelected}
 			data-index={dataIndex}
 			className={cn(
 				"flex w-full items-center gap-3 px-3 py-2 text-left transition-colors",
@@ -404,21 +414,31 @@ export function CommandPalette({
 	if (!isOpen) return null;
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
+		<div
+			className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]"
+			role="dialog"
+			aria-modal="true"
+			aria-label="AI command palette"
+		>
 			{/* Backdrop */}
 			<div
 				className="absolute inset-0 bg-black/50"
 				onClick={onClose}
+				aria-hidden="true"
 			/>
 
 			{/* Modal */}
 			<div className="relative w-full max-w-lg mx-4 rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
 				{/* Search input */}
 				<div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-					<Sparkles className="h-5 w-5 text-gray-400" />
+					<Sparkles className="h-5 w-5 text-gray-400" aria-hidden="true" />
 					<input
 						ref={inputRef}
 						type="text"
+						role="combobox"
+						aria-expanded="true"
+						aria-controls="command-palette-list"
+						aria-activedescendant={commands[selectedIndex] ? `palette-cmd-${commands[selectedIndex].id}` : undefined}
 						value={query}
 						onChange={(e) => {
 							setQuery(e.target.value);
@@ -434,9 +454,14 @@ export function CommandPalette({
 				</div>
 
 				{/* Command list */}
-				<div className="max-h-80 overflow-y-auto py-2">
+				<div
+					id="command-palette-list"
+					role="listbox"
+					aria-label="Available AI commands"
+					className="max-h-80 overflow-y-auto py-2"
+				>
 					{commands.length === 0 ? (
-						<div className="px-4 py-8 text-center text-sm text-gray-500">
+						<div className="px-4 py-8 text-center text-sm text-gray-500" role="status">
 							No commands found
 						</div>
 					) : (
@@ -448,6 +473,7 @@ export function CommandPalette({
 								dataIndex={index}
 								onSelect={() => onSelect(command)}
 								onHover={() => setSelectedIndex(index)}
+								idPrefix="palette-cmd"
 							/>
 						))
 					)}

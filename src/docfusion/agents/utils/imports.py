@@ -29,9 +29,9 @@ def get_voice_integrator():
 		return VoiceIntegrator
 	except ImportError:
 		class MockVoiceIntegrator:
-			def __init__(self, config=None): 
+			def __init__(self, config=None):
 				self.config = config
-			async def analyze(self, request): 
+			async def analyze(self, request):
 				return None
 		return MockVoiceIntegrator
 

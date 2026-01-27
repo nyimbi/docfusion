@@ -132,7 +132,7 @@ Write comprehensive, detailed, fully commented code. It should exhaustively addr
 - Pydantic models in `views.py` files
 - Separate logging methods prefixed with `_log_...`
 - Runtime assertions at function start/end for constraint enforcement
-- UUID generation: `from uuid_extensions import uuid7str` + `id: str = Field(default_factory=uuid7str)`
+- UUID generation: `from uuid_extension import uuid7str` + `id: str = Field(default_factory=uuid7str)`
 
 ### Testing Standards
 - Tests in `tests/ci/` are the canonical test suite (auto-discovered by CI)

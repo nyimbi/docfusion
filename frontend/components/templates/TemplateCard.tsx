@@ -91,7 +91,7 @@ function formatEstimatedTime(minutes?: number): string {
 /**
  * Template card component.
  */
-export function TemplateCard({
+export const TemplateCard = React.memo(function TemplateCard({
 	template,
 	categories,
 	variant = "default",
@@ -303,7 +303,9 @@ export function TemplateCard({
 			</Card>
 		</Link>
 	);
-}
+});
+
+TemplateCard.displayName = "TemplateCard";
 
 /**
  * Compact template card for sidebars and lists.

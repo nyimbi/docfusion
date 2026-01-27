@@ -3,6 +3,7 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFocusTrap } from "@/lib/hooks/useFocusTrap";
 
 /**
  * Dialog context for managing open state.
@@ -20,6 +21,20 @@ function useDialogContext() {
 		throw new Error("Dialog components must be used within a Dialog");
 	}
 	return context;
+}
+
+/**
+ * Dialog ARIA context for title/description IDs.
+ */
+interface DialogAriaContextValue {
+	titleId: string;
+	descriptionId: string;
+}
+
+const DialogAriaContext = React.createContext<DialogAriaContextValue | null>(null);
+
+function useDialogAriaContext() {
+	return React.useContext(DialogAriaContext);
 }
 
 /**
@@ -181,6 +196,15 @@ interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
 const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
 	({ className, children, showClose = true, ...props }, ref) => {
 		const { setOpen } = useDialogContext();
+		const containerRef = React.useRef<HTMLDivElement>(null);
+		const titleId = React.useId();
+		const descriptionId = React.useId();
+
+		// Combine refs
+		React.useImperativeHandle(ref, () => containerRef.current!);
+
+		// Focus trap
+		useFocusTrap(containerRef, { enabled: true, returnFocus: true });
 
 		// Handle escape key
 		React.useEffect(() => {
@@ -206,11 +230,15 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
 		return (
 			<DialogPortal>
 				<DialogOverlay />
-				<div
-					ref={ref}
-					role="dialog"
-					aria-modal="true"
-					className={cn(
+				<DialogAriaContext.Provider value={{ titleId, descriptionId }}>
+					<div
+						ref={containerRef}
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby={titleId}
+						aria-describedby={descriptionId}
+						tabIndex={-1}
+						className={cn(
 						"fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2",
 						"gap-4 border border-gray-200 bg-white p-6 shadow-lg duration-200",
 						"animate-in fade-in-0 zoom-in-95 slide-in-from-left-1/2 slide-in-from-top-[48%]",
@@ -220,10 +248,11 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
 					)}
 					onClick={(e) => e.stopPropagation()}
 					{...props}
-				>
-					{children}
-					{showClose && <DialogClose />}
-				</div>
+					>
+						{children}
+						{showClose && <DialogClose />}
+					</div>
+				</DialogAriaContext.Provider>
 			</DialogPortal>
 		);
 	}
@@ -270,16 +299,20 @@ DialogFooter.displayName = "DialogFooter";
 const DialogTitle = React.forwardRef<
 	HTMLHeadingElement,
 	React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-	<h2
-		ref={ref}
-		className={cn(
-			"text-lg font-semibold leading-none tracking-tight",
-			className
-		)}
-		{...props}
-	/>
-));
+>(({ className, ...props }, ref) => {
+	const ariaContext = useDialogAriaContext();
+	return (
+		<h2
+			ref={ref}
+			id={ariaContext?.titleId}
+			className={cn(
+				"text-lg font-semibold leading-none tracking-tight",
+				className
+			)}
+			{...props}
+		/>
+	);
+});
 DialogTitle.displayName = "DialogTitle";
 
 /**
@@ -288,13 +321,17 @@ DialogTitle.displayName = "DialogTitle";
 const DialogDescription = React.forwardRef<
 	HTMLParagraphElement,
 	React.HTMLAttributes<HTMLParagraphElement>
->(({ className, ...props }, ref) => (
-	<p
-		ref={ref}
-		className={cn("text-sm text-gray-500 dark:text-gray-400", className)}
-		{...props}
-	/>
-));
+>(({ className, ...props }, ref) => {
+	const ariaContext = useDialogAriaContext();
+	return (
+		<p
+			ref={ref}
+			id={ariaContext?.descriptionId}
+			className={cn("text-sm text-gray-500 dark:text-gray-400", className)}
+			{...props}
+		/>
+	);
+});
 DialogDescription.displayName = "DialogDescription";
 
 export {

@@ -54,7 +54,7 @@ export interface AISuggestionPopoverProps {
 /**
  * AI suggestion popover component.
  */
-export function AISuggestionPopover({
+export const AISuggestionPopover = React.memo(function AISuggestionPopover({
 	editor,
 	containerRef,
 	className,
@@ -269,7 +269,9 @@ export function AISuggestionPopover({
 			</div>
 		</div>
 	);
-}
+});
+
+AISuggestionPopover.displayName = "AISuggestionPopover";
 
 /**
  * Compact inline suggestion preview.

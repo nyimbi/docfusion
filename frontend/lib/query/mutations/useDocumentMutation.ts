@@ -1,95 +1,25 @@
 /**
- * Document mutation hooks using TanStack Query.
+ * Document mutation hooks using TanStack Query with Server Actions.
  *
  * Provides optimistic updates, cache invalidation, and error handling
- * for document CRUD operations.
+ * for document CRUD operations using Next.js Server Actions.
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetcher } from "@/lib/api/client";
 import { queryKeys } from "../provider";
+import {
+	createDocument,
+	updateDocument,
+	deleteDocument,
+} from "@/app/actions/documents";
 import type {
 	Document,
 	DocumentId,
 	CreateDocumentInput,
 	UpdateDocumentInput,
 	DocumentContent,
-	DocumentSummary,
 	DocumentListResponse,
 } from "@/lib/types/document";
-
-/**
- * Create a new document.
- */
-async function createDocument(input: CreateDocumentInput): Promise<Document> {
-	return fetcher<Document>("/documents", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(input),
-	});
-}
-
-/**
- * Update an existing document.
- */
-async function updateDocument(
-	id: DocumentId,
-	input: UpdateDocumentInput
-): Promise<Document> {
-	return fetcher<Document>(`/documents/${id}`, {
-		method: "PUT",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(input),
-	});
-}
-
-/**
- * Delete a document.
- */
-async function deleteDocument(id: DocumentId): Promise<void> {
-	return fetcher<void>(`/documents/${id}`, { method: "DELETE" });
-}
-
-/**
- * Save document content (partial update for autosave).
- */
-async function saveDocumentContent(
-	id: DocumentId,
-	content: DocumentContent
-): Promise<Document> {
-	return fetcher<Document>(`/documents/${id}/content`, {
-		method: "PATCH",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ content }),
-	});
-}
-
-/**
- * Duplicate a document.
- */
-async function duplicateDocument(id: DocumentId): Promise<Document> {
-	return fetcher<Document>(`/documents/${id}/duplicate`, {
-		method: "POST",
-	});
-}
-
-/**
- * Archive a document (soft delete).
- */
-async function archiveDocument(id: DocumentId): Promise<Document> {
-	return fetcher<Document>(`/documents/${id}/archive`, {
-		method: "POST",
-	});
-}
-
-/**
- * Restore an archived document.
- */
-async function restoreDocument(id: DocumentId): Promise<Document> {
-	return fetcher<Document>(`/documents/${id}/restore`, {
-		method: "POST",
-	});
-}
 
 /**
  * Hook for creating a new document.
@@ -229,7 +159,8 @@ export function useSaveDocumentContent(id: DocumentId) {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: (content: DocumentContent) => saveDocumentContent(id, content),
+		mutationFn: (content: DocumentContent) =>
+			updateDocument(id, { content }),
 		onMutate: async (content) => {
 			await queryClient.cancelQueries({ queryKey: queryKeys.document(id) });
 
@@ -271,7 +202,23 @@ export function useDuplicateDocument() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: duplicateDocument,
+		mutationFn: async (sourceId: DocumentId) => {
+			// Get the source document
+			const source = queryClient.getQueryData<Document>(
+				queryKeys.document(sourceId)
+			);
+			if (!source) {
+				throw new Error("Source document not found");
+			}
+			// Create a copy
+			return createDocument({
+				title: `${source.title} (Copy)`,
+				content: source.content,
+				visibility: source.visibility,
+				tags: source.tags,
+				metadata: source.metadata,
+			});
+		},
 		onSuccess: (newDocument) => {
 			queryClient.invalidateQueries({ queryKey: queryKeys.documents });
 			queryClient.setQueryData(queryKeys.document(newDocument.id), newDocument);
@@ -290,9 +237,11 @@ export function useArchiveDocument() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: archiveDocument,
+		mutationFn: (id: DocumentId) => updateDocument(id, { status: "archived" }),
 		onSuccess: (document) => {
-			queryClient.setQueryData(queryKeys.document(document.id), document);
+			if (document) {
+				queryClient.setQueryData(queryKeys.document(document.id), document);
+			}
 			queryClient.invalidateQueries({ queryKey: queryKeys.documents });
 		},
 	});
@@ -309,24 +258,13 @@ export function useRestoreDocument() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: restoreDocument,
+		mutationFn: (id: DocumentId) => updateDocument(id, { status: "draft" }),
 		onSuccess: (document) => {
-			queryClient.setQueryData(queryKeys.document(document.id), document);
+			if (document) {
+				queryClient.setQueryData(queryKeys.document(document.id), document);
+			}
 			queryClient.invalidateQueries({ queryKey: queryKeys.documents });
 		},
-	});
-}
-
-/**
- * Batch update multiple documents (for bulk operations).
- */
-async function batchUpdateDocuments(
-	updates: { id: DocumentId; input: UpdateDocumentInput }[]
-): Promise<Document[]> {
-	return fetcher<Document[]>("/documents/batch", {
-		method: "PUT",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ updates }),
 	});
 }
 
@@ -344,7 +282,13 @@ export function useBatchUpdateDocuments() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: batchUpdateDocuments,
+		mutationFn: async (updates: { id: DocumentId; input: UpdateDocumentInput }[]) => {
+			// Execute all updates in parallel
+			const results = await Promise.all(
+				updates.map(({ id, input }) => updateDocument(id, input))
+			);
+			return results.filter((doc): doc is Document => doc !== null);
+		},
 		onSuccess: (documents) => {
 			// Update individual caches
 			documents.forEach((doc) => {

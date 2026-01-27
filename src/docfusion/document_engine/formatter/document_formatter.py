@@ -122,7 +122,7 @@ class ComputedStyle:
 	display: str = "block"  # block, inline, inline-block, none
 	width: str = "auto"
 	height: str = "auto"
-	float: str = "none"  # none, left, right
+	float_position: str = "none"  # none, left, right
 	clear: str = "none"  # none, left, right, both
 	position: str = "static"  # static, relative, absolute, fixed
 	

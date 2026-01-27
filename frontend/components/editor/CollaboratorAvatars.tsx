@@ -41,7 +41,7 @@ export interface CollaboratorAvatarsProps {
  * Collaborator avatars stack.
  * Shows active collaborators with overlapping avatars.
  */
-export function CollaboratorAvatars({
+export const CollaboratorAvatars = React.memo(function CollaboratorAvatars({
 	maxVisible = 5,
 	size = "md",
 	showStatus = true,
@@ -91,7 +91,9 @@ export function CollaboratorAvatars({
 			</div>
 		</TooltipProvider>
 	);
-}
+});
+
+CollaboratorAvatars.displayName = "CollaboratorAvatars";
 
 /** Size classes for avatars */
 const sizeClasses = {

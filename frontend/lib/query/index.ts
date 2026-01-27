@@ -17,7 +17,6 @@ export {
 	useDocuments,
 	useInfiniteDocuments,
 	useDocumentYjsState,
-	useDocumentVersions,
 	usePrefetchDocument,
 	useInvalidateDocuments,
 	useGetCachedDocument,
@@ -29,7 +28,6 @@ export {
 // Template hooks
 export {
 	useTemplate,
-	useTemplateWithCategories,
 	useTemplates,
 	useInfiniteTemplates,
 	useTemplateCategories,
@@ -41,4 +39,66 @@ export {
 	flattenTemplatePages,
 	buildCategoryTree,
 	type FlattenedTemplateList,
+	type CategoryTreeNode,
 } from "./hooks/useTemplates";
+
+// Template category hooks
+export {
+	templateCategoryKeys,
+	useTemplateCategory,
+	useCreateCategoryMutation,
+	useUpdateCategoryMutation,
+	useDeleteCategoryMutation,
+	useCategoryName,
+} from "./hooks/useTemplateCategories";
+
+// Search hooks
+export {
+	searchKeys,
+	useGlobalSearch,
+	useInfiniteSearch,
+	useSearchSuggestions,
+	useDocumentSearch,
+	searchResultsToDocuments,
+	searchResultsToTemplates,
+	type SearchResult,
+	type SearchResultType,
+	type GlobalSearchResponse,
+	type SearchParams,
+	type SearchSuggestionsResponse,
+} from "./hooks/useSearch";
+
+// Document mutations
+export {
+	useCreateDocument,
+	useUpdateDocument,
+	useDeleteDocument,
+	useSaveDocumentContent,
+	useDuplicateDocument,
+	useArchiveDocument,
+	useRestoreDocument,
+	useBatchUpdateDocuments,
+	useDocumentMutationState,
+} from "./mutations/useDocumentMutation";
+
+// Template mutations
+export {
+	useCreateTemplate,
+	useUpdateTemplate,
+	useDeleteTemplate,
+	useCreateFromTemplate,
+} from "./hooks/useTemplates";
+
+// AI mutations
+export {
+	useAICompletion,
+	useStreamingAICompletion,
+	useSlashCommand,
+	useAIFeedback,
+	useComplianceCheck,
+	useWritingSuggestions,
+	useCancelAIOperation,
+	useApplyAISuggestion,
+	useRejectAISuggestion,
+	aiQueryKeys,
+} from "./mutations/useAIMutation";

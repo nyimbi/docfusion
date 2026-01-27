@@ -49,7 +49,7 @@ interface TiptapEditorProps {
  *   showToolbar
  * />
  */
-export function TiptapEditor({
+export const TiptapEditor = React.memo(function TiptapEditor({
 	content,
 	onContentChange,
 	onTextChange,
@@ -155,7 +155,9 @@ export function TiptapEditor({
 			</div>
 		</div>
 	);
-}
+});
+
+TiptapEditor.displayName = "TiptapEditor";
 
 /**
  * Hook to access the editor instance from context.

@@ -104,7 +104,7 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
 	const {
 		data: documentResults,
 		isLoading: isLoadingDocuments,
-	} = useDocumentSearch(debouncedQuery, { limit: 5 });
+	} = useDocumentSearch(debouncedQuery);
 
 	const {
 		data: templateResults,
@@ -115,9 +115,9 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
 	const results = React.useMemo((): SearchResult[] => {
 		const items: SearchResult[] = [];
 
-		// Add documents
-		if (documentResults?.documents) {
-			for (const doc of documentResults.documents) {
+		// Add documents (documentResults is an array of DocumentSummary)
+		if (documentResults) {
+			for (const doc of documentResults.slice(0, 5)) {
 				items.push({
 					id: doc.id,
 					title: doc.title,
@@ -129,9 +129,9 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
 			}
 		}
 
-		// Add templates
-		if (templateResults?.templates) {
-			for (const template of templateResults.templates) {
+		// Add templates (templateResults is an array of TemplateSummary)
+		if (templateResults) {
+			for (const template of templateResults.slice(0, 5)) {
 				items.push({
 					id: template.id,
 					title: template.name,
@@ -197,13 +197,18 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden">
+			<DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden" aria-label="Search documents and templates">
 				{/* Search input */}
 				<div className="flex items-center border-b px-4">
-					<Search className="h-5 w-5 text-gray-400 mr-3" />
+					<Search className="h-5 w-5 text-gray-400 mr-3" aria-hidden="true" />
 					<Input
 						ref={inputRef}
 						type="search"
+						role="combobox"
+						aria-expanded={hasResults}
+						aria-controls="search-results-list"
+						aria-activedescendant={results[selectedIndex] ? `search-result-${results[selectedIndex].id}` : undefined}
+						aria-label="Search documents and templates"
 						placeholder="Search documents and templates..."
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
@@ -218,13 +223,16 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
 				{/* Results */}
 				<div
 					ref={listRef}
+					id="search-results-list"
+					role="listbox"
+					aria-label="Search results"
 					className="max-h-[400px] overflow-y-auto"
 				>
 					{!hasQuery ? (
 						<SearchPlaceholder />
 					) : isLoading && !hasResults ? (
-						<div className="flex items-center justify-center py-12 text-gray-500">
-							<Loader2 className="h-5 w-5 animate-spin mr-2" />
+						<div className="flex items-center justify-center py-12 text-gray-500" role="status" aria-live="polite">
+							<Loader2 className="h-5 w-5 animate-spin mr-2" aria-hidden="true" />
 							Searching...
 						</div>
 					) : hasResults ? (
@@ -240,8 +248,8 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
 							))}
 						</div>
 					) : (
-						<div className="flex flex-col items-center justify-center py-12 text-gray-500">
-							<Search className="h-8 w-8 mb-3 text-gray-400" />
+						<div className="flex flex-col items-center justify-center py-12 text-gray-500" role="status" aria-live="polite">
+							<Search className="h-8 w-8 mb-3 text-gray-400" aria-hidden="true" />
 							<p>No results found for "{debouncedQuery}"</p>
 							<p className="text-sm mt-1">
 								Try a different search term
@@ -276,6 +284,9 @@ function SearchResultItem({
 	return (
 		<button
 			type="button"
+			id={`search-result-${result.id}`}
+			role="option"
+			aria-selected={isSelected}
 			className={cn(
 				"w-full flex items-center gap-3 px-4 py-3 text-left transition-colors",
 				isSelected
@@ -292,6 +303,7 @@ function SearchResultItem({
 						? "bg-blue-100 dark:bg-blue-900/30"
 						: "bg-purple-100 dark:bg-purple-900/30"
 				)}
+				aria-hidden="true"
 			>
 				<Icon
 					className={cn(
@@ -508,12 +520,13 @@ export function GlobalSearchTrigger({
 		<button
 			type="button"
 			onClick={() => setOpen(true)}
+			aria-label={`Search. Press ${isMac ? "Command" : "Control"} K to open search`}
 			className={cn(
 				"flex items-center gap-3 px-3 py-2 rounded-lg border bg-white dark:bg-gray-950 text-gray-500 hover:border-gray-300 dark:hover:border-gray-600 transition-colors",
 				className
 			)}
 		>
-			<Search className="h-4 w-4" />
+			<Search className="h-4 w-4" aria-hidden="true" />
 			<span className="text-sm">Search...</span>
 			<div className="flex-1" />
 			<kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded border text-xs text-gray-600 dark:text-gray-400">
