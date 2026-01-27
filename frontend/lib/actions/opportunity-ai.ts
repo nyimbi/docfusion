@@ -3,6 +3,9 @@
  *
  * Server-side actions for AI-powered opportunity analysis,
  * including fit scoring, win probability, and risk assessment.
+ *
+ * Supports both heuristic-based scoring (fast, offline) and
+ * LLM-powered scoring (intelligent, requires AI provider).
  */
 
 "use server";
@@ -10,6 +13,8 @@
 import { db } from "@/lib/db";
 import { opportunityAIScores, opportunities } from "@/lib/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
+import { prompt, aiProviderManager } from "@/lib/ai/providers";
+import { getCompanyCapabilities } from "./company-settings";
 import type {
 	OpportunityAIScore,
 	OpportunityAIScoreSummary,
@@ -673,4 +678,398 @@ function mapToAIScore(row: typeof opportunityAIScores.$inferSelect): Opportunity
 		reasoning: row.reasoning,
 		createdAt: row.createdAt,
 	};
+}
+
+// ============================================================================
+// LLM-Powered Scoring (when AI provider is available)
+// ============================================================================
+
+/**
+ * Calculate fit score using LLM analysis.
+ * Falls back to heuristic scoring if no AI provider is available.
+ */
+export async function calculateFitScoreWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
+	// Check if AI is available
+	await aiProviderManager.initialize();
+	if (!aiProviderManager.isAvailable()) {
+		console.log("[AI] No provider available, using heuristic scoring");
+		return calculateFitScore(opportunityId);
+	}
+
+	const [opp] = await db
+		.select()
+		.from(opportunities)
+		.where(eq(opportunities.id, opportunityId))
+		.limit(1);
+
+	if (!opp) {
+		throw new Error(`Opportunity not found: ${opportunityId}`);
+	}
+
+	// Get company capabilities for context
+	const companyInfo = await getCompanyCapabilities();
+
+	const systemPrompt = `You are an expert government/enterprise proposal evaluator. Analyze opportunities for strategic fit with a company's capabilities.
+
+Output your analysis as JSON with this exact structure:
+{
+  "score": <number 0-100>,
+  "factors": [
+    {"factor": "<factor name>", "weight": <0.0-1.0>, "score": <0-100>, "reasoning": "<explanation>"}
+  ],
+  "reasoning": "<overall assessment in 2-3 sentences>"
+}
+
+Evaluate these factors:
+1. Budget Alignment (weight 0.2) - Does the budget match our typical project size?
+2. Timeline Feasibility (weight 0.15) - Is the deadline achievable?
+3. Category Relevance (weight 0.25) - Do our capabilities align with the work?
+4. Geographic Fit (weight 0.15) - Is the location within our operational footprint?
+5. Requirements Clarity (weight 0.15) - Are requirements well-defined?
+6. Strategic Alignment (weight 0.1) - Does this support our strategic goals?
+
+Be concise and direct. Only output valid JSON.`;
+
+	const userPrompt = `Evaluate this opportunity for strategic fit:
+
+**Opportunity Details:**
+- Title: ${opp.title}
+- Organization: ${opp.organization || "Not specified"}
+- Budget: ${opp.budgetValue || "Not specified"}
+- Deadline: ${opp.daysLeft !== null ? `${opp.daysLeft} days remaining` : "Not specified"}
+- Category: ${opp.category || "Not specified"}
+- Sector: ${opp.sector || "Not specified"}
+- Location: ${opp.countryRegion || "Not specified"}
+
+**Project Summary:**
+${opp.projectSummary || "Not provided"}
+
+**Key Requirements:**
+${opp.keyRequirements || "Not provided"}
+
+**Our Company Capabilities:**
+- Core Capabilities: ${companyInfo.capabilities.join(", ") || "General consulting"}
+- Differentiators: ${companyInfo.differentiators.join(", ") || "Not specified"}
+- Certifications: ${companyInfo.certifications.join(", ") || "None"}
+
+Provide your fit analysis as JSON.`;
+
+	try {
+		const response = await prompt(userPrompt, systemPrompt, {
+			temperature: 0.3,
+			maxTokens: 1024,
+		});
+
+		// Parse the JSON response
+		const jsonMatch = response.match(/\{[\s\S]*\}/);
+		if (!jsonMatch) {
+			throw new Error("Invalid JSON response from LLM");
+		}
+
+		const analysis = JSON.parse(jsonMatch[0]) as {
+			score: number;
+			factors: AIScoreFactor[];
+			reasoning: string;
+		};
+
+		// Validate and clamp score
+		const finalScore = Math.max(0, Math.min(100, analysis.score));
+
+		// Store the score
+		const [score] = await db
+			.insert(opportunityAIScores)
+			.values({
+				opportunityId,
+				scoreType: "fit",
+				score: Math.round(finalScore * 10) / 10,
+				factors: analysis.factors || [],
+				modelVersion: "v2.0-llm",
+				reasoning: analysis.reasoning || `Fit score: ${finalScore}%`,
+				createdAt: new Date(),
+			})
+			.returning();
+
+		// Update the opportunity's fitScore field
+		await db
+			.update(opportunities)
+			.set({
+				fitScore: Math.round(finalScore * 10) / 10,
+				updatedAt: new Date(),
+			})
+			.where(eq(opportunities.id, opportunityId));
+
+		return mapToAIScore(score);
+	} catch (error) {
+		console.error("[AI Fit Score Error]", error);
+		// Fall back to heuristic scoring
+		return calculateFitScore(opportunityId);
+	}
+}
+
+/**
+ * Calculate win probability using LLM analysis.
+ */
+export async function calculateWinProbabilityWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
+	await aiProviderManager.initialize();
+	if (!aiProviderManager.isAvailable()) {
+		return calculateWinProbability(opportunityId);
+	}
+
+	const [opp] = await db
+		.select()
+		.from(opportunities)
+		.where(eq(opportunities.id, opportunityId))
+		.limit(1);
+
+	if (!opp) {
+		throw new Error(`Opportunity not found: ${opportunityId}`);
+	}
+
+	const companyInfo = await getCompanyCapabilities();
+
+	const systemPrompt = `You are an expert proposal strategist who estimates win probability for government/enterprise opportunities.
+
+Output your analysis as JSON with this exact structure:
+{
+  "score": <number 0-100 representing win probability percentage>,
+  "factors": [
+    {"factor": "<factor name>", "weight": <0.0-1.0>, "score": <0-100>, "reasoning": "<explanation>"}
+  ],
+  "reasoning": "<overall assessment in 2-3 sentences>"
+}
+
+Evaluate these factors:
+1. Competition Level (weight 0.25) - How competitive is this opportunity?
+2. Client Relationship (weight 0.2) - Any prior relationship with the organization?
+3. Technical Capability (weight 0.25) - How well do our skills match?
+4. Pricing Position (weight 0.15) - Can we be competitive on price?
+5. Submission Complexity (weight 0.15) - How complex is the proposal process?
+
+Be realistic and conservative in your estimates. Only output valid JSON.`;
+
+	const userPrompt = `Estimate win probability for this opportunity:
+
+**Opportunity:**
+- Title: ${opp.title}
+- Organization: ${opp.organization || "Not specified"}
+- Budget: ${opp.budgetValue || "Not specified"}
+- Category: ${opp.category || "Not specified"}
+- Sector: ${opp.sector || "Not specified"}
+
+**Technical Requirements:**
+${opp.technicalRequirements || "Not provided"}
+
+**Submission Requirements:**
+${opp.submissionRequirements || "Not provided"}
+
+**Our Capabilities:**
+- Core: ${companyInfo.capabilities.join(", ") || "General consulting"}
+- Certifications: ${companyInfo.certifications.join(", ") || "None"}
+
+Provide your win probability analysis as JSON.`;
+
+	try {
+		const response = await prompt(userPrompt, systemPrompt, {
+			temperature: 0.3,
+			maxTokens: 1024,
+		});
+
+		const jsonMatch = response.match(/\{[\s\S]*\}/);
+		if (!jsonMatch) {
+			throw new Error("Invalid JSON response");
+		}
+
+		const analysis = JSON.parse(jsonMatch[0]) as {
+			score: number;
+			factors: AIScoreFactor[];
+			reasoning: string;
+		};
+
+		const finalScore = Math.max(0, Math.min(100, analysis.score));
+
+		const [score] = await db
+			.insert(opportunityAIScores)
+			.values({
+				opportunityId,
+				scoreType: "win_probability",
+				score: Math.round(finalScore * 10) / 10,
+				factors: analysis.factors || [],
+				modelVersion: "v2.0-llm",
+				reasoning: analysis.reasoning || `Win probability: ${finalScore}%`,
+				createdAt: new Date(),
+			})
+			.returning();
+
+		await db
+			.update(opportunities)
+			.set({
+				winProbability: Math.round(finalScore * 10) / 10,
+				updatedAt: new Date(),
+			})
+			.where(eq(opportunities.id, opportunityId));
+
+		return mapToAIScore(score);
+	} catch (error) {
+		console.error("[AI Win Probability Error]", error);
+		return calculateWinProbability(opportunityId);
+	}
+}
+
+/**
+ * Calculate risk score using LLM analysis.
+ */
+export async function calculateRiskScoreWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
+	await aiProviderManager.initialize();
+	if (!aiProviderManager.isAvailable()) {
+		return calculateRiskScore(opportunityId);
+	}
+
+	const [opp] = await db
+		.select()
+		.from(opportunities)
+		.where(eq(opportunities.id, opportunityId))
+		.limit(1);
+
+	if (!opp) {
+		throw new Error(`Opportunity not found: ${opportunityId}`);
+	}
+
+	const systemPrompt = `You are an expert risk analyst for government/enterprise proposals.
+
+Output your analysis as JSON with this exact structure:
+{
+  "score": <number 0-100, higher = higher risk>,
+  "factors": [
+    {"factor": "<risk factor>", "weight": <0.0-1.0>, "score": <0-100>, "reasoning": "<explanation>"}
+  ],
+  "reasoning": "<overall risk assessment in 2-3 sentences>"
+}
+
+Evaluate these risk factors:
+1. Timeline Risk (weight 0.25) - Is the deadline realistic?
+2. Scope Uncertainty (weight 0.25) - How well-defined is the scope?
+3. Financial Risk (weight 0.2) - Budget adequacy and payment terms
+4. Geographic Risk (weight 0.15) - Location-related challenges
+5. Execution Complexity (weight 0.15) - Technical/operational complexity
+
+Be thorough in identifying risks. Only output valid JSON.`;
+
+	const userPrompt = `Analyze risks for this opportunity:
+
+**Opportunity:**
+- Title: ${opp.title}
+- Organization: ${opp.organization || "Not specified"}
+- Budget: ${opp.budgetValue || "Not specified"}
+- Deadline: ${opp.daysLeft !== null ? `${opp.daysLeft} days remaining` : "Not specified"}
+- Location: ${opp.countryRegion || "Not specified"}
+
+**Project Scope:**
+${opp.projectScope || opp.projectSummary || "Not provided"}
+
+**Technical Requirements:**
+${opp.technicalRequirements || "Not provided"}
+
+Provide your risk analysis as JSON.`;
+
+	try {
+		const response = await prompt(userPrompt, systemPrompt, {
+			temperature: 0.3,
+			maxTokens: 1024,
+		});
+
+		const jsonMatch = response.match(/\{[\s\S]*\}/);
+		if (!jsonMatch) {
+			throw new Error("Invalid JSON response");
+		}
+
+		const analysis = JSON.parse(jsonMatch[0]) as {
+			score: number;
+			factors: AIScoreFactor[];
+			reasoning: string;
+		};
+
+		const finalScore = Math.max(0, Math.min(100, analysis.score));
+
+		const [score] = await db
+			.insert(opportunityAIScores)
+			.values({
+				opportunityId,
+				scoreType: "risk",
+				score: Math.round(finalScore * 10) / 10,
+				factors: analysis.factors || [],
+				modelVersion: "v2.0-llm",
+				reasoning: analysis.reasoning || `Risk level: ${finalScore}%`,
+				createdAt: new Date(),
+			})
+			.returning();
+
+		return mapToAIScore(score);
+	} catch (error) {
+		console.error("[AI Risk Score Error]", error);
+		return calculateRiskScore(opportunityId);
+	}
+}
+
+/**
+ * Calculate all scores using LLM when available.
+ */
+export async function calculateAllScoresWithLLM(opportunityId: string): Promise<{
+	fit: OpportunityAIScore;
+	winProbability: OpportunityAIScore;
+	risk: OpportunityAIScore;
+}> {
+	const [fit, winProbability, risk] = await Promise.all([
+		calculateFitScoreWithLLM(opportunityId),
+		calculateWinProbabilityWithLLM(opportunityId),
+		calculateRiskScoreWithLLM(opportunityId),
+	]);
+
+	return { fit, winProbability, risk };
+}
+
+/**
+ * Generate AI-powered executive summary for an opportunity.
+ */
+export async function generateOpportunitySummary(opportunityId: string): Promise<string> {
+	await aiProviderManager.initialize();
+	if (!aiProviderManager.isAvailable()) {
+		return "AI summary not available. Configure an AI provider to enable this feature.";
+	}
+
+	const [opp] = await db
+		.select()
+		.from(opportunities)
+		.where(eq(opportunities.id, opportunityId))
+		.limit(1);
+
+	if (!opp) {
+		throw new Error(`Opportunity not found: ${opportunityId}`);
+	}
+
+	const systemPrompt = `You are a business development analyst. Write a brief executive summary (3-4 sentences) highlighting the key aspects of this opportunity and why it might be worth pursuing. Be direct and actionable.`;
+
+	const userPrompt = `Summarize this opportunity:
+
+Title: ${opp.title}
+Organization: ${opp.organization || "Unknown"}
+Budget: ${opp.budgetValue || "Not specified"}
+Deadline: ${opp.daysLeft !== null ? `${opp.daysLeft} days` : "Not specified"}
+Category: ${opp.category || "Not specified"}
+Sector: ${opp.sector || "Not specified"}
+
+Description:
+${opp.projectSummary || "No description provided"}
+
+Key Requirements:
+${opp.keyRequirements || "Not specified"}`;
+
+	try {
+		return await prompt(userPrompt, systemPrompt, {
+			temperature: 0.5,
+			maxTokens: 300,
+		});
+	} catch (error) {
+		console.error("[AI Summary Error]", error);
+		return "Unable to generate summary. Please try again later.";
+	}
 }
