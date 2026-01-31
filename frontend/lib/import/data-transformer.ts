@@ -413,19 +413,59 @@ export function generateValidationResult(previewRows: PreviewRow[]): ValidationR
 // ============================================================================
 
 /**
+ * Convert date/datetime string values to actual Date objects for Drizzle ORM.
+ * Drizzle expects Date objects for timestamp columns, not ISO strings.
+ */
+export function convertDatesToObjects(
+	record: Record<string, unknown>,
+	targetTable: ImportTargetTable
+): Record<string, unknown> {
+	const schema = getTableSchema(targetTable);
+	const result = { ...record };
+
+	for (const column of schema.columns) {
+		if ((column.type === "date" || column.type === "datetime") && result[column.name]) {
+			const value = result[column.name];
+			if (typeof value === "string") {
+				const date = parseDate(value);
+				if (date) {
+					result[column.name] = date;
+				} else {
+					// If we can't parse it, set to null to avoid Drizzle errors
+					result[column.name] = null;
+				}
+			} else if (typeof value === "number") {
+				// Excel serial date number
+				const excelEpoch = new Date(1899, 11, 30);
+				result[column.name] = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+			}
+			// If it's already a Date object, leave it as-is
+		}
+	}
+
+	return result;
+}
+
+/**
  * Prepare transformed rows for database insertion.
  * Returns clean objects ready for Drizzle insert.
+ * Converts date strings to Date objects automatically.
  */
 export function prepareForInsert(
 	previewRows: PreviewRow[],
+	targetTable: ImportTargetTable,
 	additionalFields?: Record<string, unknown>
 ): Record<string, unknown>[] {
 	return previewRows
 		.filter((row) => !row.hasError)
-		.map((row) => ({
-			...row.targetValues,
-			...additionalFields,
-		}));
+		.map((row) => {
+			const baseRecord = {
+				...row.targetValues,
+				...additionalFields,
+			};
+			// Convert date strings to Date objects for Drizzle
+			return convertDatesToObjects(baseRecord, targetTable);
+		});
 }
 
 /**

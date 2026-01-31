@@ -34,7 +34,7 @@ import type {
 	ImportTemplateDetail,
 	PreviewRow,
 } from "@/lib/types/import";
-import { transformRows, generateValidationResult, createUniqueKey } from "@/lib/import/data-transformer";
+import { transformRows, generateValidationResult, createUniqueKey, convertDatesToObjects } from "@/lib/import/data-transformer";
 import { getTableSchema } from "@/lib/import/table-schemas";
 import type { ColumnMappingConfig } from "@/lib/db/schema-import";
 
@@ -402,7 +402,8 @@ export async function executeImport(
 						skippedRows++;
 						continue;
 					case "update":
-						toUpdate.push({ key: uniqueKey, values: row.targetValues });
+						// Convert date strings to Date objects for Drizzle ORM
+						toUpdate.push({ key: uniqueKey, values: convertDatesToObjects(row.targetValues, targetTable) });
 						updatedRows++;
 						existingKeys.add(uniqueKey); // Prevent processing same key twice
 						continue;
@@ -414,7 +415,8 @@ export async function executeImport(
 
 			// Track key to prevent duplicates within batch
 			existingKeys.add(uniqueKey);
-			toInsert.push(row.targetValues);
+			// Convert date strings to Date objects for Drizzle ORM
+			toInsert.push(convertDatesToObjects(row.targetValues, targetTable));
 		}
 
 		// Insert new records in batches
