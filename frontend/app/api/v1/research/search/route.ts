@@ -2,10 +2,16 @@
  * Research Search API
  *
  * Performs web searches to gather information about accounts.
- * Uses various search strategies based on the category.
+ * Uses Firecrawl for web scraping and search.
  */
 
 import { NextRequest, NextResponse } from "next/server";
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+const FIRECRAWL_URL = process.env.FIRECRAWL_URL || "http://20.84.71.33:3002";
 
 // ============================================================================
 // Types
@@ -14,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 interface SearchRequest {
 	query: string;
 	category: string;
+	url?: string; // Optional URL to scrape directly
 }
 
 interface SearchResult {
@@ -21,6 +28,7 @@ interface SearchResult {
 	snippet: string;
 	url?: string;
 	source?: string;
+	metadata?: Record<string, unknown>;
 }
 
 interface SearchResponse {
@@ -29,128 +37,177 @@ interface SearchResponse {
 	error?: string;
 }
 
+interface FirecrawlSearchResult {
+	url: string;
+	title: string;
+	description?: string;
+	markdown?: string;
+	content?: string;
+}
+
+interface FirecrawlScrapeResult {
+	success: boolean;
+	data?: {
+		markdown?: string;
+		content?: string;
+		metadata?: {
+			title?: string;
+			description?: string;
+			ogTitle?: string;
+			ogDescription?: string;
+			[key: string]: unknown;
+		};
+		links?: string[];
+	};
+	error?: string;
+}
+
 // ============================================================================
-// Search Implementation
+// Firecrawl Integration
 // ============================================================================
 
 /**
- * Perform a web search using DuckDuckGo Instant Answer API
- * This is a free API that doesn't require authentication
+ * Search the web using Firecrawl's search endpoint
  */
-async function searchDuckDuckGo(query: string): Promise<SearchResult[]> {
+async function firecrawlSearch(query: string, limit = 10): Promise<SearchResult[]> {
 	try {
-		const encodedQuery = encodeURIComponent(query);
-		const response = await fetch(
-			`https://api.duckduckgo.com/?q=${encodedQuery}&format=json&no_redirect=1&skip_disambig=1`,
-			{
-				headers: {
-					"User-Agent": "DocuFusion/1.0 (Account Research)",
+		const response = await fetch(`${FIRECRAWL_URL}/v1/search`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				query,
+				limit,
+				scrapeOptions: {
+					formats: ["markdown"],
 				},
-			}
-		);
+			}),
+		});
 
 		if (!response.ok) {
-			console.error("DuckDuckGo API error:", response.status);
+			console.error("Firecrawl search error:", response.status, await response.text());
 			return [];
 		}
 
 		const data = await response.json();
 		const results: SearchResult[] = [];
 
-		// Abstract (main result)
-		if (data.Abstract) {
-			results.push({
-				title: data.Heading || "Summary",
-				snippet: data.Abstract,
-				url: data.AbstractURL,
-				source: data.AbstractSource,
-			});
-		}
-
-		// Related topics
-		if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
-			for (const topic of data.RelatedTopics.slice(0, 5)) {
-				if (topic.Text && !topic.Topics) {
-					results.push({
-						title: topic.FirstURL?.split("/").pop()?.replace(/_/g, " ") || "Related",
-						snippet: topic.Text,
-						url: topic.FirstURL,
-						source: "DuckDuckGo",
-					});
-				}
-			}
-		}
-
-		// Infobox data
-		if (data.Infobox && data.Infobox.content) {
-			for (const item of data.Infobox.content.slice(0, 3)) {
-				if (item.label && item.value) {
-					results.push({
-						title: item.label,
-						snippet: String(item.value),
-						source: "Infobox",
-					});
-				}
+		if (data.data && Array.isArray(data.data)) {
+			for (const item of data.data as FirecrawlSearchResult[]) {
+				results.push({
+					title: item.title || "Untitled",
+					snippet: item.description || item.markdown?.slice(0, 300) || item.content?.slice(0, 300) || "",
+					url: item.url,
+					source: new URL(item.url).hostname,
+				});
 			}
 		}
 
 		return results;
 	} catch (error) {
-		console.error("DuckDuckGo search error:", error);
+		console.error("Firecrawl search error:", error);
 		return [];
 	}
 }
 
 /**
- * Perform a search using SerpAPI-style scraping (backup method)
- * This simulates what a proper search API would return
+ * Scrape a specific URL using Firecrawl
  */
-async function searchFallback(query: string, category: string): Promise<SearchResult[]> {
-	// For production, you would integrate with:
-	// - Google Custom Search API
-	// - Bing Web Search API
-	// - SerpAPI
-	// - Brave Search API
+async function firecrawlScrape(url: string): Promise<SearchResult | null> {
+	try {
+		const response = await fetch(`${FIRECRAWL_URL}/v1/scrape`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				url,
+				formats: ["markdown"],
+				onlyMainContent: true,
+			}),
+		});
 
-	// For now, return helpful guidance
-	const results: SearchResult[] = [
-		{
-			title: `Search for: ${query}`,
-			snippet: `To get real results, configure a search API. Try searching manually on Google, Bing, or DuckDuckGo with this query.`,
-			url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
-			source: "Manual Search Link",
-		},
-	];
+		if (!response.ok) {
+			console.error("Firecrawl scrape error:", response.status);
+			return null;
+		}
 
-	// Add category-specific suggestions
-	switch (category) {
-		case "linkedin":
-			results.push({
-				title: "LinkedIn Company Search",
-				snippet: "Search directly on LinkedIn for company profiles and employee information.",
-				url: `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(query.replace("site:linkedin.com/company ", ""))}`,
-				source: "LinkedIn",
-			});
-			break;
-		case "twitter":
-			results.push({
-				title: "Twitter/X Search",
-				snippet: "Search for mentions and profiles on Twitter/X.",
-				url: `https://twitter.com/search?q=${encodeURIComponent(query.replace(/site:twitter\.com OR site:x\.com /g, ""))}`,
-				source: "Twitter",
-			});
-			break;
-		case "news":
-			results.push({
-				title: "Google News Search",
-				snippet: "Search Google News for recent articles and press releases.",
-				url: `https://news.google.com/search?q=${encodeURIComponent(query)}`,
-				source: "Google News",
-			});
-			break;
+		const data: FirecrawlScrapeResult = await response.json();
+
+		if (data.success && data.data) {
+			const content = data.data.markdown || data.data.content || "";
+			return {
+				title: data.data.metadata?.title || data.data.metadata?.ogTitle || url,
+				snippet: data.data.metadata?.description || data.data.metadata?.ogDescription || content.slice(0, 500),
+				url,
+				source: new URL(url).hostname,
+				metadata: data.data.metadata,
+			};
+		}
+
+		return null;
+	} catch (error) {
+		console.error("Firecrawl scrape error:", error);
+		return null;
+	}
+}
+
+/**
+ * Extract specific information from a company website
+ */
+async function scrapeCompanyWebsite(websiteUrl: string): Promise<SearchResult[]> {
+	const results: SearchResult[] = [];
+
+	// Scrape main page
+	const mainPage = await firecrawlScrape(websiteUrl);
+	if (mainPage) {
+		results.push({
+			...mainPage,
+			title: `${mainPage.title} (Homepage)`,
+		});
+	}
+
+	// Try to scrape common pages
+	const commonPages = ["/about", "/contact", "/team", "/leadership", "/about-us", "/contact-us"];
+
+	for (const page of commonPages.slice(0, 3)) {
+		try {
+			const pageUrl = new URL(page, websiteUrl).toString();
+			const pageResult = await firecrawlScrape(pageUrl);
+			if (pageResult && pageResult.snippet.length > 50) {
+				results.push(pageResult);
+			}
+		} catch {
+			// Skip invalid URLs
+		}
 	}
 
 	return results;
+}
+
+/**
+ * Build optimized search queries based on category
+ */
+function buildSearchQuery(baseQuery: string, category: string): string {
+	switch (category) {
+		case "company_info":
+			return `${baseQuery} company profile about overview`;
+		case "contacts":
+			return `${baseQuery} contact email phone address`;
+		case "management":
+			return `${baseQuery} CEO founder leadership team executives`;
+		case "clients":
+			return `${baseQuery} clients customers case studies portfolio`;
+		case "linkedin":
+			return `site:linkedin.com ${baseQuery}`;
+		case "twitter":
+			return `site:twitter.com OR site:x.com ${baseQuery}`;
+		case "news":
+			return `${baseQuery} news announcement press release`;
+		default:
+			return baseQuery;
+	}
 }
 
 // ============================================================================
@@ -160,22 +217,46 @@ async function searchFallback(query: string, category: string): Promise<SearchRe
 export async function POST(request: NextRequest): Promise<NextResponse<SearchResponse>> {
 	try {
 		const body: SearchRequest = await request.json();
-		const { query, category } = body;
+		const { query, category, url } = body;
 
-		if (!query) {
+		if (!query && !url) {
 			return NextResponse.json(
-				{ success: false, results: [], error: "Query is required" },
+				{ success: false, results: [], error: "Query or URL is required" },
 				{ status: 400 }
 			);
 		}
 
-		// Try DuckDuckGo first
-		let results = await searchDuckDuckGo(query);
+		let results: SearchResult[] = [];
 
-		// If no results, use fallback
-		if (results.length === 0) {
-			results = await searchFallback(query, category);
+		// If a specific URL is provided, scrape it directly
+		if (url) {
+			if (category === "company_info") {
+				// Scrape the company website thoroughly
+				results = await scrapeCompanyWebsite(url);
+			} else {
+				// Scrape the specific URL
+				const scraped = await firecrawlScrape(url);
+				if (scraped) {
+					results.push(scraped);
+				}
+			}
 		}
+
+		// Perform web search with optimized query
+		if (query) {
+			const optimizedQuery = buildSearchQuery(query, category);
+			const searchResults = await firecrawlSearch(optimizedQuery, 8);
+			results = [...results, ...searchResults];
+		}
+
+		// Deduplicate by URL
+		const seen = new Set<string>();
+		results = results.filter((r) => {
+			if (!r.url) return true;
+			if (seen.has(r.url)) return false;
+			seen.add(r.url);
+			return true;
+		});
 
 		return NextResponse.json({
 			success: true,
@@ -194,10 +275,56 @@ export async function POST(request: NextRequest): Promise<NextResponse<SearchRes
 	}
 }
 
+/**
+ * Scrape a single URL endpoint
+ */
+export async function PUT(request: NextRequest): Promise<NextResponse<SearchResponse>> {
+	try {
+		const body = await request.json();
+		const { url } = body;
+
+		if (!url) {
+			return NextResponse.json(
+				{ success: false, results: [], error: "URL is required" },
+				{ status: 400 }
+			);
+		}
+
+		const result = await firecrawlScrape(url);
+
+		if (result) {
+			return NextResponse.json({
+				success: true,
+				results: [result],
+			});
+		}
+
+		return NextResponse.json({
+			success: false,
+			results: [],
+			error: "Failed to scrape URL",
+		});
+	} catch (error) {
+		console.error("Scrape API error:", error);
+		return NextResponse.json(
+			{
+				success: false,
+				results: [],
+				error: error instanceof Error ? error.message : "Scrape failed",
+			},
+			{ status: 500 }
+		);
+	}
+}
+
 export async function GET(): Promise<NextResponse> {
 	return NextResponse.json({
-		message: "Research Search API",
-		usage: "POST with { query: string, category: string }",
+		message: "Research Search API (Powered by Firecrawl)",
+		firecrawlUrl: FIRECRAWL_URL,
+		endpoints: {
+			"POST /api/v1/research/search": "Search web with { query, category, url? }",
+			"PUT /api/v1/research/search": "Scrape specific URL with { url }",
+		},
 		categories: [
 			"company_info",
 			"contacts",

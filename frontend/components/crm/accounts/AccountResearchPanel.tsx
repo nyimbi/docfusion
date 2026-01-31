@@ -202,10 +202,15 @@ export function AccountResearchPanel({
 		for (const { category, query, title } of queryResult.queries) {
 			try {
 				// Use window.fetch to call a search API endpoint
+				// Include account website for direct scraping when available
 				const response = await fetch("/api/v1/research/search", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ query, category }),
+					body: JSON.stringify({
+						query,
+						category,
+						url: category === "company_info" && account.website ? account.website : undefined,
+					}),
 				});
 
 				if (response.ok) {
