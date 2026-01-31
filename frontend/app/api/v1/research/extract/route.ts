@@ -2,11 +2,25 @@
  * Research Extract API
  *
  * Searches the web, scrapes results, and uses AI to extract
- * structured account information.
+ * structured account information with commercial insights and value propositions.
+ *
+ * Key Features:
+ * - Multi-strategy web search and scraping
+ * - AI-powered data extraction
+ * - Commercial opportunity identification
+ * - Value proposition generation combining our offerings with their needs
+ * - AI thinking traces for human review
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 import { getAIClient } from "@/lib/ai/client";
+import { db } from "@/lib/db";
+import { companySettings } from "@/lib/db/schema";
+import { products, services } from "@/lib/db/schema-company";
+import { eq } from "drizzle-orm";
+import type { CommercialInsights } from "@/lib/db/schema-crm";
 
 // ============================================================================
 // Configuration
@@ -14,7 +28,8 @@ import { getAIClient } from "@/lib/ai/client";
 
 const FIRECRAWL_URL = process.env.FIRECRAWL_URL || "http://20.84.71.33:3002";
 const MAX_SCRAPE_URLS = 8;
-const MAX_CONTENT_LENGTH = 12000; // Limit content sent to AI
+const MAX_CONTENT_LENGTH = 12000;
+const ORGANIZATION_ID = "datacraft";
 
 // ============================================================================
 // Types
@@ -49,11 +64,93 @@ interface ExtractedInfo {
 	coreCapabilities?: string;
 }
 
+interface ResearchFindings {
+	summary: string;
+	keyInsights: string[];
+	opportunities: string[];
+	risks: string[];
+	nextSteps: string[];
+	confidenceScore: number;
+}
+
+interface OurCompanyData {
+	name: string;
+	description?: string;
+	areaOfBusiness?: string;
+	coreCapabilities: string[];
+	differentiators: string[];
+	products: Array<{
+		name: string;
+		category?: string;
+		description?: string;
+		features: string[];
+	}>;
+	services: Array<{
+		name: string;
+		category?: string;
+		description?: string;
+		capabilities: string[];
+	}>;
+}
+
 interface ExtractResponse {
 	success: boolean;
 	extracted: ExtractedInfo;
+	findings: ResearchFindings | null;
+	commercialInsights: CommercialInsights | null;
+	valueProposition: string | null;
+	thinkingTrace: string | null;
 	sources: Array<{ url: string; title: string }>;
 	error?: string;
+}
+
+// ============================================================================
+// Company Data Fetching
+// ============================================================================
+
+/**
+ * Fetch our company's settings, products, and services for value proposition generation
+ */
+async function fetchOurCompanyData(): Promise<OurCompanyData | null> {
+	try {
+		// Fetch company settings
+		const settings = await db.query.companySettings.findFirst();
+
+		// Fetch active products
+		const productList = await db
+			.select()
+			.from(products)
+			.where(eq(products.organizationId, ORGANIZATION_ID));
+
+		// Fetch active services
+		const serviceList = await db
+			.select()
+			.from(services)
+			.where(eq(services.organizationId, ORGANIZATION_ID));
+
+		return {
+			name: settings?.companyName || "Our Company",
+			description: settings?.industryDescription || undefined,
+			areaOfBusiness: settings?.areaOfBusiness || undefined,
+			coreCapabilities: (settings?.coreCapabilities as string[]) || [],
+			differentiators: (settings?.differentiators as string[]) || [],
+			products: productList.map((p) => ({
+				name: p.name,
+				category: p.category || undefined,
+				description: p.description || p.shortDescription || undefined,
+				features: (p.features as string[]) || [],
+			})),
+			services: serviceList.map((s) => ({
+				name: s.name,
+				category: s.category || undefined,
+				description: s.description || undefined,
+				capabilities: (s.capabilities as string[]) || [],
+			})),
+		};
+	} catch (error) {
+		console.error("Error fetching company data:", error);
+		return null;
+	}
 }
 
 // ============================================================================
@@ -163,7 +260,6 @@ async function extractWithAI(
 	scrapedContent: Array<{ content: string; title: string; url: string }>,
 	currentData?: ExtractRequest["currentData"]
 ): Promise<ExtractedInfo> {
-	// Combine and truncate content
 	let combinedContent = scrapedContent
 		.map((s) => `=== Source: ${s.title} (${s.url}) ===\n${s.content}`)
 		.join("\n\n---\n\n");
@@ -190,15 +286,13 @@ async function extractWithAI(
 			},
 			{ role: "user", content: prompt },
 		], {
-			temperature: 0.1, // Low temperature for consistent extraction
+			temperature: 0.1,
 			maxTokens: 2000,
 		});
 
-		// Parse the JSON response
 		const jsonMatch = result.content.match(/\{[\s\S]*\}/);
 		if (jsonMatch) {
 			const parsed = JSON.parse(jsonMatch[0]);
-			// Clean up the result - remove empty strings and nulls
 			const cleaned: ExtractedInfo = {};
 			for (const [key, value] of Object.entries(parsed)) {
 				if (value && typeof value === "string" && value.trim()) {
@@ -216,12 +310,339 @@ async function extractWithAI(
 }
 
 // ============================================================================
+// Commercial Insights & Value Proposition Generation
+// ============================================================================
+
+const COMMERCIAL_INSIGHTS_PROMPT = `You are a senior business development strategist analyzing a potential account.
+
+## YOUR MISSION
+Generate ACTIONABLE commercial insights by matching OUR capabilities to THEIR needs.
+Think deeply about synergies, partnership opportunities, and how we can create value for them.
+
+## OUR COMPANY
+{ourCompanyData}
+
+## TARGET ACCOUNT: {accountName}
+{accountData}
+
+## WEB RESEARCH CONTENT
+{contentSnippets}
+
+## ANALYSIS REQUIRED
+
+Think through these questions carefully (your thinking will be saved for human review):
+
+1. **NEEDS ANALYSIS**: What challenges, pain points, or goals does this account have?
+   - What problems are they trying to solve?
+   - What are they currently investing in?
+   - Where might they be underserved?
+
+2. **CAPABILITY MATCHING**: Which of our products/services address their needs?
+   - Direct matches (obvious fits)
+   - Indirect matches (could be adapted)
+   - Novel applications (creative solutions)
+
+3. **VALUE CREATION**: What unique value can WE specifically provide?
+   - How do our differentiators matter to them?
+   - What would success look like for them?
+   - What ROI could we demonstrate?
+
+4. **PARTNERSHIP POTENTIAL**: Are there mutual benefit opportunities?
+   - Joint ventures or collaborations
+   - Referral relationships
+   - Technology partnerships
+   - Channel partnerships
+
+5. **ENGAGEMENT STRATEGY**: How should we approach them?
+   - Who to contact and why
+   - What message resonates
+   - What proof points matter
+
+## OUTPUT FORMAT (JSON)
+
+Return a JSON object with this structure:
+{
+  "opportunities": [
+    {
+      "title": "Clear opportunity name",
+      "description": "What we can offer and why it matters to them",
+      "potentialValue": "Estimated value or impact (e.g., '$50K-100K', 'High strategic value')",
+      "timeframe": "Near-term, Medium-term, or Long-term",
+      "confidence": "high" | "medium" | "low"
+    }
+  ],
+  "partnerships": [
+    {
+      "type": "Type of partnership (Reseller, Technology, Joint Venture, etc.)",
+      "description": "What the partnership could look like",
+      "synergies": ["Synergy 1", "Synergy 2"],
+      "nextSteps": "Concrete next step to explore"
+    }
+  ],
+  "productsToOffer": [
+    {
+      "productName": "Our product/service name",
+      "relevance": "Why this is relevant to them",
+      "painPointAddressed": "What problem it solves",
+      "suggestedApproach": "How to position this offering"
+    }
+  ],
+  "valuePropositionSummary": "A compelling 2-3 sentence value proposition tailored to this account",
+  "talkingPoints": [
+    "Key talking point 1",
+    "Key talking point 2",
+    "Key talking point 3"
+  ],
+  "competitivePositioning": "How we compare to alternatives they might consider"
+}
+
+CRITICAL RULES:
+- Be SPECIFIC to this account - no generic statements
+- Every opportunity must tie to THEIR documented needs or our research findings
+- Products to offer must be from OUR actual product/service list
+- Value proposition must address THEIR specific situation
+- Include confidence levels based on how much evidence supports each opportunity
+
+Return ONLY the JSON object. No markdown formatting.`;
+
+async function generateCommercialInsights(
+	accountName: string,
+	extracted: ExtractedInfo,
+	scrapedContent: Array<{ content: string; title: string; url: string }>,
+	ourCompany: OurCompanyData | null
+): Promise<{ insights: CommercialInsights | null; valueProposition: string | null; thinkingTrace: string | null }> {
+	try {
+		// Format our company data
+		const ourCompanyText = ourCompany
+			? `
+Company Name: ${ourCompany.name}
+Area of Business: ${ourCompany.areaOfBusiness || "N/A"}
+Description: ${ourCompany.description || "N/A"}
+
+Core Capabilities:
+${ourCompany.coreCapabilities.map((c) => `- ${c}`).join("\n") || "- Not specified"}
+
+Differentiators:
+${ourCompany.differentiators.map((d) => `- ${d}`).join("\n") || "- Not specified"}
+
+Products:
+${ourCompany.products.map((p) => `- ${p.name}: ${p.description || "No description"}`).join("\n") || "- No products listed"}
+
+Services:
+${ourCompany.services.map((s) => `- ${s.name}: ${s.description || "No description"}`).join("\n") || "- No services listed"}
+`
+			: "Company data not available. Focus on general opportunity identification.";
+
+		// Format account data
+		const accountText = Object.entries(extracted)
+			.filter(([, value]) => value)
+			.map(([key, value]) => `${key}: ${value}`)
+			.join("\n") || "Limited data available";
+
+		// Get snippets from content
+		const snippets = scrapedContent
+			.slice(0, 5)
+			.map((s) => `[${s.title}]: ${s.content.slice(0, 400)}...`)
+			.join("\n\n");
+
+		const prompt = COMMERCIAL_INSIGHTS_PROMPT
+			.replace("{ourCompanyData}", ourCompanyText)
+			.replace("{accountName}", accountName)
+			.replace("{accountData}", accountText)
+			.replace("{contentSnippets}", snippets || "No web content available");
+
+		const client = getAIClient();
+
+		// Check if the client supports extended thinking for detailed analysis
+		// For now, use regular completion with a thinking-encouraging prompt
+		const result = await client.chat(
+			[
+				{
+					role: "system",
+					content: `You are an expert business development analyst.
+
+IMPORTANT: Before generating your JSON output, write out your thinking process in detail.
+Start with "## My Analysis:" and think through each aspect of the business opportunity.
+After your analysis, write "## JSON Output:" followed by the JSON.
+
+Your thinking will be saved for human review to understand your reasoning.`,
+				},
+				{ role: "user", content: prompt },
+			],
+			{
+				temperature: 0.4,
+				maxTokens: 4000,
+			}
+		);
+
+		// Extract thinking trace and JSON separately
+		let thinkingTrace: string | null = null;
+		let jsonContent = result.content;
+
+		// Check if there's a thinking section
+		const thinkingMatch = result.content.match(/## My Analysis:([\s\S]*?)## JSON Output:/i);
+		if (thinkingMatch) {
+			thinkingTrace = thinkingMatch[1].trim();
+			jsonContent = result.content.slice(result.content.indexOf("## JSON Output:") + 15);
+		}
+
+		// Parse the JSON
+		const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
+		if (jsonMatch) {
+			const parsed = JSON.parse(jsonMatch[0]);
+
+			const insights: CommercialInsights = {
+				opportunities: parsed.opportunities || [],
+				partnerships: parsed.partnerships || [],
+				productsToOffer: parsed.productsToOffer || [],
+				valuePropositionSummary: parsed.valuePropositionSummary || "",
+				talkingPoints: parsed.talkingPoints || [],
+				competitivePositioning: parsed.competitivePositioning || undefined,
+			};
+
+			return {
+				insights,
+				valueProposition: parsed.valuePropositionSummary || null,
+				thinkingTrace,
+			};
+		}
+
+		return { insights: null, valueProposition: null, thinkingTrace };
+	} catch (error) {
+		console.error("Commercial insights generation error:", error);
+		return { insights: null, valueProposition: null, thinkingTrace: null };
+	}
+}
+
+// ============================================================================
+// Research Findings Generation
+// ============================================================================
+
+const FINDINGS_PROMPT = `You are a senior business development strategist conducting deep account research.
+
+Your goal: Generate HIGH-VALUE, ACTIONABLE insights that help close deals or build partnerships.
+
+COMPANY: {companyName}
+EXTRACTED DATA:
+{extractedData}
+
+WEB CONTENT:
+{contentSnippets}
+
+Generate strategic findings as JSON:
+
+1. "summary": (3-5 sentences)
+   - WHO they are (founding story, mission, market position)
+   - WHAT they do (core business, key products/services)
+   - WHY they matter (market impact, competitive differentiation)
+   - Current trajectory (growing, stable, pivoting, struggling)
+
+2. "keyInsights": (4-6 insights, be SPECIFIC and STRATEGIC)
+   Include insights about:
+   - Decision-making structure (who has budget authority?)
+   - Technology stack or methodology (what do they use/prefer?)
+   - Pain points or challenges mentioned in news/content
+   - Recent changes (new hires, funding, pivots, launches)
+   - Company culture indicators (values, work style)
+   - Competitive positioning (who do they compete with?)
+
+3. "opportunities": (3-5 actionable opportunities)
+   Be specific about:
+   - HOW to engage (through which channel/person)
+   - WHAT to offer (specific value proposition)
+   - WHEN to approach (timing considerations)
+   - WHY it would resonate (based on their needs)
+
+4. "risks": (2-4 realistic concerns)
+   Consider:
+   - Financial stability indicators
+   - Leadership changes or instability
+   - Competitive threats to their business
+   - Market/regulatory challenges
+   - Red flags in news or reviews
+
+5. "nextSteps": (4-6 prioritized actions)
+   Concrete, actionable steps like:
+   - "Research [specific person] on LinkedIn - likely decision maker for [area]"
+   - "Monitor for [specific trigger event] as buying signal"
+   - "Prepare case study relevant to their [industry/challenge]"
+   - "Connect through [mutual connection/event/channel]"
+
+6. "confidenceScore": (0-100)
+   - 80-100: Multiple authoritative sources, recent data, clear picture
+   - 60-79: Good sources but some gaps, moderately recent
+   - 40-59: Limited sources, older data, significant unknowns
+   - 0-39: Very limited info, mostly inferred
+
+CRITICAL: Every insight must be:
+- SPECIFIC (names, numbers, dates when available)
+- ACTIONABLE (can be acted upon)
+- RELEVANT (directly useful for business development)
+
+Return ONLY valid JSON.
+
+JSON:`;
+
+async function generateFindings(
+	companyName: string,
+	extracted: ExtractedInfo,
+	scrapedContent: Array<{ content: string; title: string; url: string }>
+): Promise<ResearchFindings | null> {
+	try {
+		const extractedSummary = Object.entries(extracted)
+			.filter(([, value]) => value)
+			.map(([key, value]) => `${key}: ${value}`)
+			.join("\n");
+
+		const snippets = scrapedContent
+			.slice(0, 5)
+			.map((s) => `[${s.title}]: ${s.content.slice(0, 300)}...`)
+			.join("\n\n");
+
+		const prompt = FINDINGS_PROMPT
+			.replace("{companyName}", companyName)
+			.replace("{extractedData}", extractedSummary || "No structured data extracted")
+			.replace("{contentSnippets}", snippets || "No content available");
+
+		const client = getAIClient();
+		const result = await client.chat(
+			[
+				{
+					role: "system",
+					content: "You are a business analyst. Return only valid JSON.",
+				},
+				{ role: "user", content: prompt },
+			],
+			{
+				temperature: 0.3,
+				maxTokens: 1500,
+			}
+		);
+
+		const jsonMatch = result.content.match(/\{[\s\S]*\}/);
+		if (jsonMatch) {
+			const parsed = JSON.parse(jsonMatch[0]);
+			return {
+				summary: parsed.summary || "",
+				keyInsights: parsed.keyInsights || [],
+				opportunities: parsed.opportunities || [],
+				risks: parsed.risks || [],
+				nextSteps: parsed.nextSteps || [],
+				confidenceScore: Math.min(100, Math.max(0, parsed.confidenceScore || 50)),
+			};
+		}
+
+		return null;
+	} catch (error) {
+		console.error("Findings generation error:", error);
+		return null;
+	}
+}
+
+// ============================================================================
 // Gap Analysis & Targeted Search
 // ============================================================================
 
-/**
- * Identify critical fields that are missing
- */
 function identifyMissingFields(extracted: ExtractedInfo): string[] {
 	const criticalFields: Array<keyof ExtractedInfo> = [
 		"email",
@@ -240,9 +661,6 @@ function identifyMissingFields(extracted: ExtractedInfo): string[] {
 	return missing;
 }
 
-/**
- * Generate targeted search query for a specific missing field
- */
 function getTargetedSearchQuery(
 	companyName: string,
 	field: string,
@@ -264,9 +682,6 @@ function getTargetedSearchQuery(
 	return strategies[field] || null;
 }
 
-/**
- * Merge two extracted data objects (second takes precedence for non-empty values)
- */
 function mergeExtractedData(
 	first: ExtractedInfo,
 	second: ExtractedInfo
@@ -275,7 +690,6 @@ function mergeExtractedData(
 
 	for (const [key, value] of Object.entries(second)) {
 		if (value && typeof value === "string" && value.trim()) {
-			// Take longer/more detailed values for text fields
 			const existingValue = (merged as Record<string, string | undefined>)[key];
 			if (!existingValue || value.length > existingValue.length) {
 				(merged as Record<string, string>)[key] = value;
@@ -291,13 +705,40 @@ function mergeExtractedData(
 // ============================================================================
 
 export async function POST(request: NextRequest): Promise<NextResponse<ExtractResponse>> {
+	// Verify authentication
+	const session = await auth.api.getSession({ headers: await headers() });
+	if (!session?.user) {
+		return NextResponse.json(
+			{
+				success: false,
+				extracted: {},
+				findings: null,
+				commercialInsights: null,
+				valueProposition: null,
+				thinkingTrace: null,
+				sources: [],
+				error: "Authentication required",
+			},
+			{ status: 401 }
+		);
+	}
+
 	try {
 		const body: ExtractRequest = await request.json();
 		const { accountName, website, country, currentData } = body;
 
 		if (!accountName) {
 			return NextResponse.json(
-				{ success: false, extracted: {}, sources: [], error: "Account name is required" },
+				{
+					success: false,
+					extracted: {},
+					findings: null,
+					commercialInsights: null,
+					valueProposition: null,
+					thinkingTrace: null,
+					sources: [],
+					error: "Account name is required",
+				},
 				{ status: 400 }
 			);
 		}
@@ -314,7 +755,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 				scrapedContent.push({ ...mainPage, url: website });
 			}
 
-			// Try about and contact pages
 			for (const page of ["/about", "/about-us", "/contact", "/team", "/leadership"]) {
 				try {
 					const pageUrl = new URL(page, website).toString();
@@ -330,45 +770,23 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 			}
 		}
 
-		// 2. Multi-strategy search for comprehensive information
+		// 2. Multi-strategy search
 		const locationContext = country ? ` ${country}` : "";
 
-		// Strategy 1: General company information
-		const primaryQueries = [
+		const allQueries = [
 			`${accountName}${locationContext} company about profile overview`,
 			`${accountName}${locationContext} CEO founder leadership team executives`,
 			`${accountName} contact email phone address headquarters`,
-		];
-
-		// Strategy 2: Social media and professional networks
-		const socialQueries = [
 			`site:linkedin.com/company ${accountName}`,
 			`site:crunchbase.com ${accountName}`,
 			`site:bloomberg.com/profile/company ${accountName}`,
-		];
-
-		// Strategy 3: News and press for recent info
-		const newsQueries = [
 			`${accountName}${locationContext} news funding announcement 2024 2025 2026`,
 			`${accountName} press release latest`,
-		];
-
-		// Strategy 4: Business directories and databases
-		const directoryQueries = [
 			`${accountName}${locationContext} company profile dnb hoovers`,
 			`${accountName} employees revenue glassdoor`,
 			`${accountName}${locationContext} clients customers portfolio`,
 		];
 
-		// Combine all strategies
-		const allQueries = [
-			...primaryQueries,
-			...socialQueries,
-			...newsQueries,
-			...directoryQueries,
-		];
-
-		// Execute searches with deduplication
 		const seenUrls = new Set(scrapedContent.map((s) => s.url));
 
 		for (const query of allQueries) {
@@ -381,7 +799,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 				if (scrapedContent.length >= MAX_SCRAPE_URLS) break;
 				if (seenUrls.has(result.url)) continue;
 
-				// Skip low-value URLs
 				const urlLower = result.url.toLowerCase();
 				if (
 					urlLower.includes("login") ||
@@ -403,9 +820,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 			}
 		}
 
-		// Strategy 5: If still missing key info, try targeted searches
+		// 3. Fallback searches if needed
 		if (scrapedContent.length < 4) {
-			console.log("Running fallback searches for more information...");
+			console.log("Running fallback searches...");
 			const fallbackQueries = [
 				`"${accountName}" official website`,
 				`${accountName} company information`,
@@ -430,20 +847,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 			}
 		}
 
-		// 3. Extract information using AI
+		// 4. Extract information using AI
 		console.log(`Extracting info from ${scrapedContent.length} sources using AI...`);
 		let extracted = await extractWithAI(accountName, scrapedContent, currentData);
 
-		// 4. Analyze gaps and attempt to fill them
+		// 5. Gap analysis and targeted searches
 		const missingCritical = identifyMissingFields(extracted);
 
 		if (missingCritical.length > 0 && scrapedContent.length < MAX_SCRAPE_URLS) {
-			console.log(`Missing critical fields: ${missingCritical.join(", ")}. Running targeted searches...`);
+			console.log(`Missing fields: ${missingCritical.join(", ")}. Running targeted searches...`);
 
 			const additionalContent: Array<{ content: string; title: string; url: string }> = [];
-			const seenUrls = new Set(sources.map((s) => s.url));
 
-			// Targeted searches for missing info
 			for (const field of missingCritical) {
 				if (additionalContent.length >= 3) break;
 
@@ -466,20 +881,34 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 				}
 			}
 
-			// Re-run extraction with additional content
 			if (additionalContent.length > 0) {
 				console.log(`Re-extracting with ${additionalContent.length} additional sources...`);
 				const allContent = [...scrapedContent, ...additionalContent];
 				const newExtracted = await extractWithAI(accountName, allContent, currentData);
-
-				// Merge results (new data takes precedence for non-empty fields)
 				extracted = mergeExtractedData(extracted, newExtracted);
 			}
 		}
 
+		// 6. Fetch our company data for value proposition generation
+		console.log("Fetching our company data for value proposition...");
+		const ourCompanyData = await fetchOurCompanyData();
+
+		// 7. Generate research findings
+		console.log("Generating research findings...");
+		const findings = await generateFindings(accountName, extracted, scrapedContent);
+
+		// 8. Generate commercial insights and value proposition
+		console.log("Generating commercial insights and value proposition...");
+		const { insights: commercialInsights, valueProposition, thinkingTrace } =
+			await generateCommercialInsights(accountName, extracted, scrapedContent, ourCompanyData);
+
 		return NextResponse.json({
 			success: true,
 			extracted,
+			findings,
+			commercialInsights,
+			valueProposition,
+			thinkingTrace,
 			sources,
 		});
 	} catch (error) {
@@ -488,6 +917,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 			{
 				success: false,
 				extracted: {},
+				findings: null,
+				commercialInsights: null,
+				valueProposition: null,
+				thinkingTrace: null,
 				sources: [],
 				error: error instanceof Error ? error.message : "Extraction failed",
 			},
@@ -497,9 +930,25 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 }
 
 export async function GET(): Promise<NextResponse> {
+	// Verify authentication
+	const session = await auth.api.getSession({ headers: await headers() });
+	if (!session?.user) {
+		return NextResponse.json(
+			{ error: "Authentication required" },
+			{ status: 401 }
+		);
+	}
+
 	return NextResponse.json({
-		message: "Research Extract API - AI-powered information extraction",
+		message: "Research Extract API - AI-powered information extraction with commercial insights",
 		usage: "POST with { accountName, website?, country?, currentData? }",
-		returns: "Extracted company information with source URLs",
+		returns: {
+			extracted: "Company profile data",
+			findings: "Strategic research findings",
+			commercialInsights: "Commercial opportunities, partnerships, products to offer",
+			valueProposition: "Tailored value proposition statement",
+			thinkingTrace: "AI reasoning for human review",
+			sources: "URLs used for research",
+		},
 	});
 }
