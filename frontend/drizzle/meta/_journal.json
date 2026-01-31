@@ -22,6 +22,34 @@
       "when": 1769464346350,
       "tag": "0002_gifted_zeigeist",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1769583186192,
+      "tag": "0003_closed_betty_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1769689133069,
+      "tag": "0004_cooing_korg",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1769876632800,
+      "tag": "0005_loose_dazzler",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1769891911498,
+      "tag": "0006_sturdy_ted_forrester",
+      "breakpoints": true
     }
   ]
 }

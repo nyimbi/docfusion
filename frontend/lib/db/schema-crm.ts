@@ -28,9 +28,49 @@ import {
 	real,
 	index,
 	uniqueIndex,
+	date,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { opportunities } from "./schema";
+
+// ============================================================================
+// Types for JSONB Columns
+// ============================================================================
+
+/**
+ * Commercial insights structure for account research.
+ * Stored as JSONB for flexible, queryable insights.
+ */
+export interface CommercialInsights {
+	/** Commercial opportunities identified for this account */
+	opportunities: Array<{
+		title: string;
+		description: string;
+		potentialValue?: string;
+		timeframe?: string;
+		confidence: "high" | "medium" | "low";
+	}>;
+	/** Partnership opportunities with mutual benefit */
+	partnerships: Array<{
+		type: string;
+		description: string;
+		synergies: string[];
+		nextSteps?: string;
+	}>;
+	/** Our products/services that match their needs */
+	productsToOffer: Array<{
+		productName: string;
+		relevance: string;
+		painPointAddressed?: string;
+		suggestedApproach?: string;
+	}>;
+	/** Generated value proposition statement */
+	valuePropositionSummary: string;
+	/** Key talking points for engagement */
+	talkingPoints: string[];
+	/** Competitive positioning notes */
+	competitivePositioning?: string;
+}
 
 // ============================================================================
 // ACCOUNTS (Unified entity for all relationship types)
@@ -219,6 +259,24 @@ export const accounts = pgTable(
 		source: varchar("source", { length: 100 }),
 		/** Original source file if imported */
 		sourceFile: varchar("source_file", { length: 500 }),
+		/** General notes and unmapped import data */
+		notes: text("notes"),
+
+		// ===== Research =====
+		/** AI-generated research findings, notes, and insights */
+		researchFindings: text("research_findings"),
+		/** Date of last research activity */
+		lastResearchDate: timestamp("last_research_date", { withTimezone: true }),
+		/** Research confidence score (0-100) based on source quality */
+		researchConfidence: integer("research_confidence"),
+		/** URLs of sources used in research */
+		researchSources: jsonb("research_sources").$type<string[]>().default([]),
+		/** AI-generated value proposition tailored to this account */
+		valueProposition: text("value_proposition"),
+		/** Structured commercial insights (opportunities, partnerships, products to offer) */
+		commercialInsights: jsonb("commercial_insights").$type<CommercialInsights>(),
+		/** AI thinking trace/reasoning for human review */
+		aiThinkingTrace: text("ai_thinking_trace"),
 
 		// ===== Audit =====
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -360,6 +418,319 @@ export const contacts = pgTable(
 		/** Tags for categorization */
 		tags: jsonb("tags").$type<string[]>().default([]),
 
+		// ============================================================================
+		// CONTEXT FIELDS - Where/how we know this person
+		// ============================================================================
+
+		/** How we met this person: conference, referral, linkedin, cold_outreach, etc. */
+		howWeMet: varchar("how_we_met", { length: 200 }),
+		/** Details about first meeting/encounter */
+		meetingContext: text("meeting_context"),
+		/** Date when we first met/connected */
+		meetingDate: timestamp("meeting_date", { withTimezone: true }),
+		/** Contact who referred/introduced this person (self-referential, set after creation) */
+		referredBy: uuid("referred_by"),
+
+		// ============================================================================
+		// CURRENT ACTIVITIES/INTERESTS
+		// ============================================================================
+
+		/** What they're currently working on */
+		currentProjects: text("current_projects"),
+		/** Professional interests and focus areas */
+		interests: jsonb("interests").$type<string[]>(),
+		/** Key skills and expertise */
+		skills: jsonb("skills").$type<string[]>(),
+		/** Papers, articles, talks, etc. */
+		publications: jsonb("publications").$type<string[]>(),
+
+		// ============================================================================
+		// RESEARCH ENRICHMENT (parallel to accounts)
+		// ============================================================================
+
+		/** AI-generated research findings and notes */
+		researchFindings: text("research_findings"),
+		/** URLs of sources used in research */
+		researchSources: jsonb("research_sources").$type<string[]>(),
+		/** Date of last research activity */
+		lastResearchDate: timestamp("last_research_date", { withTimezone: true }),
+		/** Research confidence score (0-100) */
+		researchConfidence: integer("research_confidence"),
+
+		// ============================================================================
+		// PROFESSIONAL INSIGHTS
+		// ============================================================================
+
+		/** Career history with companies, titles, dates */
+		careerHistory: jsonb("career_history").$type<Array<{
+			company: string;
+			title: string;
+			startDate?: string;
+			endDate?: string;
+		}>>(),
+		/** Education background */
+		educationHistory: jsonb("education_history").$type<Array<{
+			institution: string;
+			degree?: string;
+			field?: string;
+			year?: number;
+		}>>(),
+		/** Social profile URLs: twitter, github, etc. */
+		socialProfiles: jsonb("social_profiles").$type<Record<string, string>>(),
+
+		// ============================================================================
+		// AI-GENERATED INSIGHTS
+		// ============================================================================
+
+		/** Why maintain this relationship - AI-generated */
+		valueProposition: text("value_proposition"),
+		/** AI thinking trace/reasoning for human review */
+		aiThinkingTrace: text("ai_thinking_trace"),
+
+		// ============================================================================
+		// MULTIPLE PHOTOS
+		// ============================================================================
+
+		/** Array of contact photos with captions */
+		photos: jsonb("photos").$type<Array<{
+			url: string;
+			caption?: string;
+			isPrimary?: boolean;
+			uploadedAt: string;
+		}>>(),
+
+		// ============================================================================
+		// PERSONAL DETAILS (for relationship building)
+		// ============================================================================
+
+		/** Date of birth */
+		birthday: date("birthday"),
+		/** Wedding anniversary or similar */
+		anniversary: date("anniversary"),
+		/** Personal email (non-work) */
+		personalEmail: varchar("personal_email", { length: 200 }),
+		/** Personal phone (non-work) */
+		personalPhone: varchar("personal_phone", { length: 50 }),
+		/** Home address */
+		homeAddress: text("home_address"),
+		/** Nickname or preferred name */
+		preferredName: varchar("preferred_name", { length: 100 }),
+		/** Pronouns: he/him, she/her, they/them, etc. */
+		pronouns: varchar("pronouns", { length: 50 }),
+
+		// ============================================================================
+		// FAMILY TRACKING (for asking about kids, remembering birthdays)
+		// ============================================================================
+
+		/** Family members with relationships and birthdays */
+		family: jsonb("family").$type<Array<{
+			name: string;
+			relationship: string; // spouse, child, parent, sibling
+			birthday?: string;   // YYYY-MM-DD
+			notes?: string;
+		}>>(),
+
+		// ============================================================================
+		// LINKEDIN-LEVEL PROFESSIONAL DETAILS
+		// ============================================================================
+
+		/** Professional certifications */
+		certifications: jsonb("certifications").$type<Array<{
+			name: string;
+			issuer?: string;
+			dateIssued?: string;
+			expirationDate?: string;
+			credentialId?: string;
+		}>>(),
+		/** Languages spoken with proficiency levels */
+		languages: jsonb("languages").$type<Array<{
+			language: string;
+			proficiency: string; // native, fluent, professional, conversational, basic
+		}>>(),
+		/** Professional awards and recognitions */
+		awards: jsonb("awards").$type<Array<{
+			title: string;
+			issuer?: string;
+			date?: string;
+			description?: string;
+		}>>(),
+		/** Volunteer work and causes */
+		volunteerWork: jsonb("volunteer_work").$type<Array<{
+			organization: string;
+			role?: string;
+			cause?: string;
+			startDate?: string;
+			endDate?: string;
+		}>>(),
+		/** Patents held */
+		patents: jsonb("patents").$type<Array<{
+			title: string;
+			patentNumber?: string;
+			dateIssued?: string;
+		}>>(),
+		/** Professional courses completed */
+		courses: jsonb("courses").$type<Array<{
+			name: string;
+			provider?: string;
+			completionDate?: string;
+		}>>(),
+
+		// ============================================================================
+		// COMMUNICATION PREFERENCES (Extended)
+		// ============================================================================
+
+		/** Detailed communication preferences */
+		communicationPreferences: jsonb("communication_preferences").$type<{
+			preferredChannel: string;  // email, phone, linkedin, text
+			bestTimeToContact?: string;
+			timezone?: string;
+			doNotContact?: boolean;
+			assistantName?: string;    // gatekeeper to build rapport with
+			assistantEmail?: string;
+			assistantPhone?: string;
+		}>(),
+
+		// ============================================================================
+		// MASTER SALESMAN RELATIONSHIP INTELLIGENCE
+		// ============================================================================
+
+		// Personal Interests & Lifestyle (for rapport building)
+		/** Hobbies, causes, activities */
+		personalInterests: jsonb("personal_interests").$type<string[]>(),
+		/** Sports teams they follow */
+		favoriteSportsTeams: jsonb("favorite_sports_teams").$type<string[]>(),
+		/** College/university for alumni affinity */
+		almaMater: varchar("alma_mater", { length: 200 }),
+		/** Year of graduation */
+		graduationYear: integer("graduation_year"),
+		/** Military service background */
+		militaryService: varchar("military_service", { length: 200 }),
+		/** Pets with names and types */
+		pets: jsonb("pets").$type<Array<{ name: string; type: string }>>(),
+		/** Favorite vacation destinations */
+		vacationSpots: jsonb("vacation_spots").$type<string[]>(),
+		/** Dietary restrictions for meal planning */
+		dietaryRestrictions: varchar("dietary_restrictions", { length: 200 }),
+		/** Religious observances for scheduling sensitivity */
+		religiousObservances: varchar("religious_observances", { length: 200 }),
+
+		// Relationship Dynamics
+		/** analytical, driver, amiable, expressive */
+		communicationStyle: varchar("communication_style", { length: 50 }),
+		/** data-driven, consensus, intuitive */
+		decisionMakingStyle: varchar("decision_making_style", { length: 50 }),
+		/** What drives them: recognition, achievement, security, etc. */
+		motivators: jsonb("motivators").$type<string[]>(),
+		/** What frustrates them */
+		stressors: jsonb("stressors").$type<string[]>(),
+		/** Topics to avoid: politics, religion, competitors, etc. */
+		topicsToAvoid: jsonb("topics_to_avoid").$type<string[]>(),
+
+		// Gift & Entertainment Preferences
+		/** accepts_gifts, no_gifts, company_policy */
+		giftPolicy: varchar("gift_policy", { length: 100 }),
+		/** wine, books, experiences, etc. */
+		giftPreferences: jsonb("gift_preferences").$type<string[]>(),
+		/** golf, dinners, concerts, sports events */
+		entertainmentPreferences: jsonb("entertainment_preferences").$type<string[]>(),
+
+		// Relationship History & Reciprocity
+		/** Contact who introduced us to this person */
+		introducedBy: uuid("introduced_by"),
+		/** People we've connected them with */
+		introducedTo: jsonb("introduced_to").$type<string[]>(),
+		/** Favors we've done for them */
+		favorsGiven: jsonb("favors_given").$type<Array<{ description: string; date: string }>>(),
+		/** Favors they've done for us */
+		favorsReceived: jsonb("favors_received").$type<Array<{ description: string; date: string }>>(),
+		/** Shared experiences and memories */
+		sharedExperiences: jsonb("shared_experiences").$type<Array<{
+			description: string; // "Dinner at Nobu", "Attended AWS re:Invent together"
+			date: string;
+			notes?: string;
+		}>>(),
+		/** Gifts we've given with reactions */
+		giftsGiven: jsonb("gifts_given").$type<Array<{
+			item: string;
+			occasion?: string;
+			date: string;
+			reaction?: string; // "loved it", "seemed indifferent"
+		}>>(),
+
+		// Organizational Intelligence
+		/** Their manager's name */
+		reportingTo: varchar("reporting_to", { length: 200 }),
+		/** Team size */
+		directReports: integer("direct_reports"),
+		/** Budget authority: <10K, 10K-100K, 100K-1M, >1M */
+		budgetAuthority: varchar("budget_authority", { length: 100 }),
+		/** Budget cycle: Q4 planning, fiscal year, etc. */
+		budgetCycle: varchar("budget_cycle", { length: 100 }),
+		/** Who influences their decisions */
+		keyInfluencers: jsonb("key_influencers").$type<string[]>(),
+		/** Allies in their organization */
+		internalChampions: jsonb("internal_champions").$type<string[]>(),
+		/** People who might block deals */
+		internalBlockers: jsonb("internal_blockers").$type<string[]>(),
+
+		// Professional Goals & Pain Points
+		/** What keeps them up at night */
+		currentChallenges: jsonb("current_challenges").$type<string[]>(),
+		/** Where they want to be */
+		careerGoals: text("career_goals"),
+		/** What they're measured on */
+		kpisTracked: jsonb("kpis_tracked").$type<string[]>(),
+		/** Who they've worked with before */
+		previousVendors: jsonb("previous_vendors").$type<string[]>(),
+		/** Competitors they're considering */
+		competitorsConsidering: jsonb("competitors_considering").$type<string[]>(),
+
+		// Engagement Scoring (note: lastContactDate exists in base schema)
+		/** Typical contact frequency: weekly, monthly, quarterly */
+		contactFrequency: varchar("contact_frequency", { length: 50 }),
+		/** Self-assessed relationship strength: 1-10 */
+		relationshipScore: integer("relationship_score"),
+		/** Scheduled next touchpoint */
+		nextTouchpointDate: timestamp("next_touchpoint_date", { withTimezone: true }),
+		/** Reason for next follow-up */
+		followUpReason: text("follow_up_reason"),
+
+		// Important Dates (beyond birthday/anniversary)
+		/** Work anniversaries, promotions, company founding, etc. */
+		importantDates: jsonb("important_dates").$type<Array<{
+			date: string;
+			occasion: string;
+			recurring: boolean;
+		}>>(),
+
+		// Conversation Starters & Talking Points
+		/** Things to bring up in conversation */
+		talkingPoints: jsonb("talking_points").$type<Array<{
+			topic: string;
+			context: string;
+			lastDiscussed?: string;
+		}>>(),
+		/** Their recent successes to congratulate */
+		recentWins: jsonb("recent_wins").$type<string[]>(),
+
+		// ============================================================================
+		// PRIVACY & SHARING - Contact ownership and visibility controls
+		// ============================================================================
+
+		/** User ID who owns this contact (the uploader/creator) */
+		ownerId: varchar("owner_id", { length: 255 }).notNull(),
+		/**
+		 * Visibility level for this contact:
+		 * - private: Only visible to owner
+		 * - shared: Visible to owner and users in sharedWith array
+		 * - organization: Visible to all users in the organization
+		 */
+		visibility: varchar("visibility", { length: 20 }).notNull().default("private"),
+		/** Array of user IDs this contact is shared with (when visibility = 'shared') */
+		sharedWith: jsonb("shared_with").$type<string[]>().default([]),
+		/** Organization ID for org-level visibility filtering */
+		organizationId: varchar("organization_id", { length: 255 }),
+
 		// ===== Audit =====
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -372,6 +743,11 @@ export const contacts = pgTable(
 		index("contacts_email_idx").on(table.email),
 		index("contacts_name_idx").on(table.lastName, table.firstName),
 
+		// Privacy/ownership indexes
+		index("contacts_owner_idx").on(table.ownerId),
+		index("contacts_visibility_idx").on(table.visibility),
+		index("contacts_org_idx").on(table.organizationId),
+
 		// Relationship indexes
 		index("contacts_primary_idx").on(table.isPrimaryContact),
 		index("contacts_role_idx").on(table.role),
@@ -380,6 +756,12 @@ export const contacts = pgTable(
 		// Engagement indexes
 		index("contacts_last_contact_idx").on(table.lastContactDate),
 		index("contacts_next_followup_idx").on(table.nextFollowUpDate),
+
+		// Research and context indexes
+		index("contacts_referred_by_idx").on(table.referredBy),
+		index("contacts_how_we_met_idx").on(table.howWeMet),
+		index("contacts_birthday_idx").on(table.birthday),
+		index("contacts_next_touchpoint_idx").on(table.nextTouchpointDate),
 
 		// Audit
 		index("contacts_created_idx").on(table.createdAt),
@@ -791,6 +1173,85 @@ export const dealStageHistory = pgTable(
 );
 
 // ============================================================================
+// CONTACT IMPORTS (Import tracking and history)
+// ============================================================================
+
+/**
+ * Contact Imports table for tracking import history.
+ *
+ * Records each import operation with file metadata, statistics,
+ * field mappings, and any errors encountered during processing.
+ */
+export const contactImports = pgTable(
+	"contact_imports",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+
+		// ===== File Information =====
+		/** Original filename uploaded */
+		filename: varchar("filename", { length: 500 }).notNull(),
+		/** File format: vcf, csv, abbu */
+		fileType: varchar("file_type", { length: 20 }).notNull(),
+		/** File size in bytes */
+		fileSize: integer("file_size"),
+
+		// ===== Import Statistics =====
+		/** Total records parsed from file */
+		totalRecords: integer("total_records").default(0),
+		/** Successfully imported new contacts */
+		importedRecords: integer("imported_records").default(0),
+		/** Existing contacts updated */
+		updatedRecords: integer("updated_records").default(0),
+		/** Records skipped (duplicates, invalid) */
+		skippedRecords: integer("skipped_records").default(0),
+		/** Records that failed to import */
+		failedRecords: integer("failed_records").default(0),
+
+		// ===== Status =====
+		/** Import status: pending, processing, completed, failed, cancelled */
+		status: varchar("status", { length: 30 }).default("pending"),
+
+		// ===== Errors and Mapping =====
+		/** Array of error details with row numbers */
+		errors: jsonb("errors").$type<Array<{ row: number; error: string; field?: string }>>().default([]),
+		/** Field mapping used for CSV imports */
+		fieldMapping: jsonb("field_mapping").$type<Record<string, string>>(),
+		/** Import options used */
+		importOptions: jsonb("import_options").$type<{
+			updateExisting: boolean;
+			skipDuplicates: boolean;
+			defaultAccountId?: string;
+			defaultTags?: string[];
+			/** Default visibility for imported contacts */
+			defaultVisibility?: "private" | "shared" | "organization";
+			/** Users to share imported contacts with (when visibility is 'shared') */
+			sharedWith?: string[];
+		}>(),
+
+		// ===== Timestamps =====
+		/** When import was initiated */
+		startedAt: timestamp("started_at", { withTimezone: true }).defaultNow(),
+		/** When import completed (success or failure) */
+		completedAt: timestamp("completed_at", { withTimezone: true }),
+
+		// ===== Ownership & Organization =====
+		/** User who initiated the import (also the owner of imported contacts) */
+		importedBy: varchar("imported_by", { length: 255 }).notNull(),
+		/** Organization ID for the import */
+		organizationId: varchar("organization_id", { length: 255 }),
+
+		// ===== Audit =====
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("contact_imports_status_idx").on(table.status),
+		index("contact_imports_imported_by_idx").on(table.importedBy),
+		index("contact_imports_org_idx").on(table.organizationId),
+		index("contact_imports_created_idx").on(table.createdAt),
+	]
+);
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 
@@ -907,3 +1368,6 @@ export type NewAccountStageHistory = typeof accountStageHistory.$inferInsert;
 
 export type DealStageHistoryRow = typeof dealStageHistory.$inferSelect;
 export type NewDealStageHistory = typeof dealStageHistory.$inferInsert;
+
+export type ContactImportRow = typeof contactImports.$inferSelect;
+export type NewContactImport = typeof contactImports.$inferInsert;

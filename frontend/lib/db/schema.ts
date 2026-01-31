@@ -8,6 +8,21 @@
 // Re-export auth schema so Drizzle sees all tables
 export * from "./auth-schema";
 
+// Re-export company schema
+export * from "./schema-company";
+export * from "./schema-comments-workflow";
+
+// Re-export import schema (universal data import)
+export * from "./schema-import";
+
+// Re-export extended partner schema (replaces basic partners table)
+export * from "./schema-partners";
+
+// Re-export CRM schema (accounts, contacts, activities, deals, documents)
+export * from "./schema-crm";
+
+import { user } from "./auth-schema";
+
 import {
 	pgTable,
 	text,
@@ -188,6 +203,45 @@ export const templateCategoriesRelations = relations(templateCategories, ({ one,
 }));
 
 // ============================================================================
+// Document Collaboration
+// ============================================================================
+
+export const documentCollaborators = pgTable(
+	"document_collaborators",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		documentId: uuid("document_id")
+			.notNull()
+			.references(() => documents.id, { onDelete: "cascade" }),
+		userId: varchar("user_id", { length: 100 }).notNull(),
+		role: varchar("role", { length: 20 }).notNull().default("editor"),
+		isActive: boolean("is_active").notNull().default(true),
+		joinedAt: timestamp("joined_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+		lastActivityAt: timestamp("last_activity_at", { withTimezone: true }),
+	},
+	(table) => [
+		index("collaborators_document_idx").on(table.documentId),
+		index("collaborators_user_idx").on(table.userId),
+		uniqueIndex("collaborators_document_user_idx").on(
+			table.documentId,
+			table.userId,
+		),
+	],
+);
+
+export const documentCollaboratorsRelations = relations(
+	documentCollaborators,
+	({ one }) => ({
+		document: one(documents, {
+			fields: [documentCollaborators.documentId],
+			references: [documents.id],
+		}),
+	}),
+);
+
+// ============================================================================
 // Type exports for TypeScript inference
 // ============================================================================
 
@@ -196,6 +250,9 @@ export type NewDocument = typeof documents.$inferInsert;
 
 export type DocumentVersionRow = typeof documentVersions.$inferSelect;
 export type NewDocumentVersion = typeof documentVersions.$inferInsert;
+
+export type DocumentCollaboratorRow = typeof documentCollaborators.$inferSelect;
+export type NewDocumentCollaborator = typeof documentCollaborators.$inferInsert;
 
 export type TemplateCategoryRow = typeof templateCategories.$inferSelect;
 export type NewTemplateCategory = typeof templateCategories.$inferInsert;
@@ -287,6 +344,8 @@ export const opportunities = pgTable(
 		tags: jsonb("tags").notNull().default([]),
 		/** Extended metadata */
 		metadata: jsonb("metadata"),
+		/** General notes and unmapped import data */
+		notes: text("notes"),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 		importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
@@ -635,42 +694,8 @@ export const submissions = pgTable(
 	]
 );
 
-// ============================================================================
-// Partners (external collaborators)
-// ============================================================================
-
-export const partners = pgTable(
-	"partners",
-	{
-		id: uuid("id").primaryKey().defaultRandom(),
-		/** Partner organization name */
-		name: varchar("name", { length: 500 }).notNull(),
-		/** Partner type: "prime", "sub", "consultant", "vendor" */
-		type: varchar("type", { length: 50 }),
-		/** Primary contact name */
-		contactName: varchar("contact_name", { length: 200 }),
-		/** Contact email */
-		contactEmail: varchar("contact_email", { length: 200 }),
-		/** Contact phone */
-		contactPhone: varchar("contact_phone", { length: 50 }),
-		/** Partner capabilities/services */
-		capabilities: jsonb("capabilities").notNull().default([]),
-		/** Number of past collaborations */
-		pastCollaborations: integer("past_collaborations").notNull().default(0),
-		/** Performance rating (1-5) */
-		performanceRating: real("performance_rating"),
-		/** Internal notes */
-		notes: text("notes"),
-		/** Active/inactive status */
-		status: varchar("status", { length: 20 }).notNull().default("active"),
-		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-	},
-	(table) => [
-		index("partners_status_idx").on(table.status),
-		index("partners_type_idx").on(table.type),
-	]
-);
+// Partners table is now defined in schema-partners.ts (re-exported above)
+import { partners } from "./schema-partners";
 
 // ============================================================================
 // Opportunity Partners (partner assignments)
@@ -785,8 +810,27 @@ export const submissionsRelations = relations(submissions, ({ one }) => ({
 	}),
 }));
 
+// Import partner communication and notes tables for relations
+import { partnerCommunications, partnerNotes } from "./schema-partners";
+
 export const partnersRelations = relations(partners, ({ many }) => ({
 	opportunities: many(opportunityPartners),
+	communications: many(partnerCommunications),
+	notes: many(partnerNotes),
+}));
+
+export const partnerCommunicationsRelations = relations(partnerCommunications, ({ one }) => ({
+	partner: one(partners, {
+		fields: [partnerCommunications.partnerId],
+		references: [partners.id],
+	}),
+}));
+
+export const partnerNotesRelations = relations(partnerNotes, ({ one }) => ({
+	partner: one(partners, {
+		fields: [partnerNotes.partnerId],
+		references: [partners.id],
+	}),
 }));
 
 export const opportunityPartnersRelations = relations(opportunityPartners, ({ one }) => ({
@@ -808,14 +852,28 @@ export const companySettings = pgTable(
 	"company_settings",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-		/** Organization name */
+		/** Organization name (formal/legal name) */
 		companyName: varchar("company_name", { length: 500 }).notNull(),
-		/** Legal entity name (if different) */
+		/** Short name (abbreviated for casual use) */
+		shortName: varchar("short_name", { length: 100 }),
+		/** Colloquial name (informal, how people refer to the company) */
+		colloquialName: varchar("colloquial_name", { length: 200 }),
+		/** Legal entity name (if different from company name) */
 		legalName: varchar("legal_name", { length: 500 }),
+		/** Primary logo image URL (full logo) */
+		logoImageUrl: text("logo_image_url"),
+		/** Icon/favicon URL (small logo mark) */
+		logoIconUrl: text("logo_icon_url"),
+		/** Area of business/industry category */
+		areaOfBusiness: varchar("area_of_business", { length: 200 }),
 		/** Company registration/tax ID */
 		registrationNumber: varchar("registration_number", { length: 100 }),
+		/** Registration country */
+		registrationCountry: varchar("registration_country", { length: 100 }),
 		/** Tax ID / EIN */
 		taxId: varchar("tax_id", { length: 100 }),
+		/** VAT number (for international tax) */
+		vatNumber: varchar("vat_number", { length: 50 }),
 		/** DUNS number (for government contracts) */
 		dunsNumber: varchar("duns_number", { length: 20 }),
 		/** CAGE code (for government contracts) */
@@ -836,13 +894,20 @@ export const companySettings = pgTable(
 		certifications: jsonb("certifications").notNull().default([]),
 		/** Website URL */
 		website: varchar("website", { length: 500 }),
-		/** Primary address */
+		/** Primary address line 1 */
 		addressLine1: varchar("address_line_1", { length: 500 }),
+		/** Primary address line 2 */
 		addressLine2: varchar("address_line_2", { length: 500 }),
+		/** Address suite/unit */
+		addressSuite: varchar("address_suite", { length: 100 }),
 		city: varchar("city", { length: 200 }),
 		stateProvince: varchar("state_province", { length: 100 }),
 		postalCode: varchar("postal_code", { length: 50 }),
 		country: varchar("country", { length: 100 }),
+		/** General contact email */
+		generalEmail: varchar("general_email", { length: 200 }),
+		/** General contact phone */
+		generalPhone: varchar("general_phone", { length: 50 }),
 		/** Primary contact */
 		primaryContactName: varchar("primary_contact_name", { length: 200 }),
 		primaryContactTitle: varchar("primary_contact_title", { length: 200 }),
@@ -850,6 +915,7 @@ export const companySettings = pgTable(
 		primaryContactPhone: varchar("primary_contact_phone", { length: 50 }),
 		/** Contracts/BD contact */
 		contractsContactName: varchar("contracts_contact_name", { length: 200 }),
+		contractsContactTitle: varchar("contracts_contact_title", { length: 200 }),
 		contractsContactEmail: varchar("contracts_contact_email", { length: 200 }),
 		contractsContactPhone: varchar("contracts_contact_phone", { length: 50 }),
 		/** Core capabilities (for proposals) */
@@ -860,7 +926,7 @@ export const companySettings = pgTable(
 		pastPerformanceSummary: text("past_performance_summary"),
 		/** Standard company boilerplate text */
 		companyBoilerplate: text("company_boilerplate"),
-		/** Logo URL or base64 */
+		/** Logo URL or base64 (legacy - use logoImageUrl) */
 		logoUrl: text("logo_url"),
 		/** Primary brand color (hex) */
 		primaryColor: varchar("primary_color", { length: 10 }),
@@ -909,11 +975,540 @@ export type NewParagraphAnalysis = typeof paragraphAnalyses.$inferInsert;
 export type SubmissionRow = typeof submissions.$inferSelect;
 export type NewSubmission = typeof submissions.$inferInsert;
 
-export type PartnerRow = typeof partners.$inferSelect;
-export type NewPartner = typeof partners.$inferInsert;
+// PartnerRow and NewPartner are exported from schema-partners.ts
 
 export type OpportunityPartnerRow = typeof opportunityPartners.$inferSelect;
 export type NewOpportunityPartner = typeof opportunityPartners.$inferInsert;
 
 export type CompanySettingsRow = typeof companySettings.$inferSelect;
 export type NewCompanySettings = typeof companySettings.$inferInsert;
+
+// ============================================================================
+// User Preferences
+// ============================================================================
+
+export const userPreferences = pgTable(
+	"user_preferences",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		userId: varchar("user_id", { length: 100 }).notNull().unique(),
+		/** Theme preference: light, dark, or system */
+		theme: varchar("theme", { length: 20 }).notNull().default("system"),
+		/** Email notifications enabled */
+		emailNotifications: boolean("email_notifications").notNull().default(true),
+		/** Push notifications enabled */
+		pushNotifications: boolean("push_notifications").notNull().default(false),
+		/** In-app notifications enabled */
+		inAppNotifications: boolean("in_app_notifications").notNull().default(true),
+		/** Notification digest frequency: realtime, hourly, daily, weekly */
+		digestFrequency: varchar("digest_frequency", { length: 20 }).notNull().default("daily"),
+		/** User interface language */
+		language: varchar("language", { length: 10 }).notNull().default("en"),
+		/** User timezone */
+		timezone: varchar("timezone", { length: 100 }).notNull().default("UTC"),
+		/** Date format preference */
+		dateFormat: varchar("date_format", { length: 50 }).notNull().default("MMM d, yyyy"),
+		/** Time format: 12h or 24h */
+		timeFormat: varchar("time_format", { length: 10 }).notNull().default("12h"),
+		/** First day of week */
+		weekStart: varchar("week_start", { length: 20 }).notNull().default("monday"),
+		/** UI density: compact, comfortable, spacious */
+		density: varchar("density", { length: 20 }).notNull().default("comfortable"),
+		/** Font size preference: small, medium, large */
+		fontSize: varchar("font_size", { length: 20 }).notNull().default("medium"),
+		/** Accent color */
+		accentColor: varchar("accent_color", { length: 20 }).notNull().default("blue"),
+		/** Reduced motion preference */
+		reducedMotion: boolean("reduced_motion").notNull().default(false),
+		/** AI configuration preferences */
+		aiConfig: jsonb("ai_config"),
+		/** Which notification types are enabled */
+		notificationTypes: jsonb("notification_types").notNull().default({
+			email: true,
+			push: false,
+			documentShared: true,
+			documentComment: true,
+			opportunityAlert: true,
+			deadlineReminder: true,
+			systemUpdate: true,
+			teamActivity: true,
+		}),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [index("preferences_user_idx").on(table.userId)]
+);
+
+// ============================================================================
+// Organization Settings (enhancement)
+// ============================================================================
+
+export const organizationSettings = pgTable(
+	"organization_settings",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }).notNull().unique(),
+		/** Company display name */
+		companyName: varchar("company_name", { length: 500 }).notNull(),
+		/** Tagline/slogan */
+		tagline: varchar("tagline", { length: 500 }),
+		/** Website URL */
+		website: varchar("website", { length: 500 }),
+		/** Primary brand color (hex) */
+		primaryColor: varchar("primary_color", { length: 10 }).notNull().default("#0066CC"),
+		/** Secondary brand color (hex) */
+		secondaryColor: varchar("secondary_color", { length: 10 }).notNull().default("#00A3E0"),
+		/** Logo URL or base64 */
+		logoUrl: text("logo_url"),
+		/** Favicon URL or base64 */
+		faviconUrl: text("favicon_url"),
+		/** Custom CSS for branding */
+		customCss: text("custom_css"),
+		/** Default proposal template */
+		defaultTemplateId: uuid("default_template_id"),
+		/** Default proposal language */
+		defaultLanguage: varchar("default_language", { length: 10 }).notNull().default("en"),
+		/** Default currency */
+		defaultCurrency: varchar("default_currency", { length: 10 }).notNull().default("USD"),
+		/** Date format for proposals */
+		defaultDateFormat: varchar("default_date_format", { length: 50 }).notNull().default("MMM d, yyyy"),
+		/** Proposal expiry days */
+		proposalExpiryDays: integer("proposal_expiry_days").notNull().default(30),
+		/** Auto-archive old documents */
+		autoArchive: boolean("auto_archive").notNull().default(false),
+		/** Archive documents after days */
+		archiveAfterDays: integer("archive_after_days"),
+		/** Require approval for proposals */
+		requireApproval: boolean("require_approval").notNull().default(true),
+		/** Default sharing permissions */
+		defaultSharing: varchar("default_sharing", { length: 50 }).notNull().default("private"),
+		/** Organization metadata */
+		metadata: jsonb("metadata"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [index("org_settings_org_idx").on(table.organizationId)]
+);
+
+// ============================================================================
+// User Workspaces (multiple workspace support)
+// ============================================================================
+
+export const userWorkspaces = pgTable(
+	"user_workspaces",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		userId: varchar("user_id", { length: 100 }).notNull(),
+		organizationId: varchar("organization_id", { length: 100 }).notNull(),
+		/** Workspace name */
+		name: varchar("name", { length: 200 }).notNull(),
+		/** Workspace slug/identifier */
+		slug: varchar("slug", { length: 200 }).notNull(),
+		/** Workspace description */
+		description: text("description"),
+		/** Is this the default workspace */
+		isDefault: boolean("is_default").notNull().default(false),
+		/** User role in this workspace */
+		role: varchar("role", { length: 50 }).notNull().default("member"),
+		/** User permissions in this workspace */
+		permissions: jsonb("permissions").notNull().default({
+			canCreateDocuments: true,
+			canEditTemplates: false,
+			canManageUsers: false,
+			canViewAnalytics: false,
+			canManageSettings: false,
+			canDeleteContent: false,
+		}),
+		/** Workspace theme override */
+		config: jsonb("config"),
+		/** When user joined this workspace */
+		joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+		/** When user last accessed this workspace */
+		lastAccessedAt: timestamp("last_accessed_at", { withTimezone: true }),
+		/** Is user currently active in this workspace */
+		isActive: boolean("is_active").notNull().default(true),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("workspaces_user_idx").on(table.userId),
+		index("workspaces_org_idx").on(table.organizationId),
+		uniqueIndex("workspaces_user_org_slug_idx").on(table.userId, table.slug),
+	]
+);
+
+// ============================================================================
+// Document Defaults
+// ============================================================================
+
+export const documentDefaults = pgTable(
+	"document_defaults",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		userId: varchar("user_id", { length: 100 }).notNull(),
+		organizationId: varchar("organization_id", { length: 100 }),
+		/** Default paper size */
+		defaultPaperSize: varchar("default_paper_size", { length: 20 }).notNull().default("A4"),
+		/** Default orientation: portrait, landscape */
+		defaultOrientation: varchar("default_orientation", { length: 20 }).notNull().default("portrait"),
+		/** Default font family */
+		defaultFont: varchar("default_font", { length: 100 }).notNull().default("Inter"),
+		/** Default font size in points */
+		defaultFontSize: real("default_font_size").notNull().default(11),
+		/** Default line spacing */
+		defaultLineSpacing: varchar("default_line_spacing", { length: 20 }).notNull().default("1.5"),
+		/** Default margins in points */
+		defaultMargins: jsonb("default_margins").notNull().default({
+			top: 72,
+			bottom: 72,
+			left: 72,
+			right: 72,
+		}),
+		/** Default template for new documents */
+		defaultTemplateId: uuid("default_template_id"),
+		/** Default page numbering */
+		pageNumbering: boolean("page_numbering").notNull().default(true),
+		/** Page number position */
+		pageNumberPosition: varchar("page_number_position", { length: 50 }).notNull().default("bottom-center"),
+		/** Default header text */
+		defaultHeader: text("default_header"),
+		/** Default footer text */
+		defaultFooter: text("default_footer"),
+		/** Default cover page enabled */
+		defaultCoverPage: boolean("default_cover_page").notNull().default(false),
+		/** Default cover page template */
+		defaultCoverPageTemplate: varchar("default_cover_page_template", { length: 100 }),
+		/** Watermark text (if any) */
+		watermarkText: varchar("watermark_text", { length: 200 }),
+		/** Export format preferences */
+		exportFormats: jsonb("export_formats").notNull().default({
+			pdf: true,
+			docx: true,
+			xlsx: true,
+			pptx: true,
+		}),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("doc_defaults_user_idx").on(table.userId),
+		index("doc_defaults_org_idx").on(table.organizationId),
+		uniqueIndex("doc_defaults_user_org_idx").on(table.userId, table.organizationId),
+	]
+);
+
+// ============================================================================
+// AI Preferences
+// ============================================================================
+
+export const aiPreferences = pgTable(
+	"ai_preferences",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		userId: varchar("user_id", { length: 100 }).notNull(),
+		organizationId: varchar("organization_id", { length: 100 }),
+		/** Primary AI model */
+		primaryModel: varchar("primary_model", { length: 100 }).notNull().default("gpt-4"),
+		/** Fallback AI model */
+		fallbackModel: varchar("fallback_model", { length: 100 }).notNull().default("gpt-3.5-turbo"),
+		/** Temperature for AI generation (0.0 to 1.0) */
+		temperature: real("temperature").notNull().default(0.7),
+		/** Maximum tokens per request */
+		maxTokens: integer("max_tokens").notNull().default(4096),
+		/** Streaming responses enabled */
+		streamingEnabled: boolean("streaming_enabled").notNull().default(true),
+		/** Auto-suggest completions */
+		autoSuggest: boolean("auto_suggest").notNull().default(true),
+		/** AI suggestion frequency: low, medium, high */
+		suggestionFrequency: varchar("suggestion_frequency", { length: 20 }).notNull().default("medium"),
+		/** Custom AI instructions/persona */
+		customInstructions: text("custom_instructions"),
+		/** Proposal writing style: formal, casual, technical, executive */
+		writingStyle: varchar("writing_style", { length: 50 }).notNull().default("formal"),
+		/** Preferred response format: paragraphs, bullets, mixed */
+		responseFormat: varchar("response_format", { length: 20 }).notNull().default("mixed"),
+		/** AI features enabled/disabled */
+		features: jsonb("features").notNull().default({
+			completion: true,
+			editing: true,
+			summarization: true,
+			analysis: true,
+			generation: true,
+			translation: true,
+			evaluation: true,
+		}),
+		/** AI usage limits (if applicable) */
+		usageLimits: jsonb("usage_limits").notNull().default({
+			dailyRequests: 100,
+			totalBudget: null,
+		}),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("ai_prefs_user_idx").on(table.userId),
+		index("ai_prefs_org_idx").on(table.organizationId),
+		uniqueIndex("ai_prefs_user_org_idx").on(table.userId, table.organizationId),
+	]
+);
+
+// ============================================================================
+// API Keys for Integrations
+// ============================================================================
+
+export const apiKeys = pgTable(
+	"api_keys",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		userId: varchar("user_id", { length: 100 }).notNull(),
+		organizationId: varchar("organization_id", { length: 100 }),
+		/** API key name */
+		name: varchar("name", { length: 200 }).notNull(),
+		/** Hashed key (for identification only) */
+		keyHash: varchar("key_hash", { length: 64 }).notNull(),
+		/** Key prefix (visible to user) */
+		keyPrefix: varchar("key_prefix", { length: 10 }).notNull(),
+		/** Scopes/permissions for this key */
+		scopes: jsonb("scopes").notNull().default(["read", "write"]),
+		/** Rate limit: requests per minute */
+		rateLimit: integer("rate_limit").notNull().default(60),
+		/** Last used timestamp */
+		lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+		/** Expiration date */
+		expiresAt: timestamp("expires_at", { withTimezone: true }),
+		/** Is this key currently active */
+		isActive: boolean("is_active").notNull().default(true),
+		/** IP restrictions if any */
+		ipRestrictions: jsonb("ip_restrictions"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("api_keys_user_idx").on(table.userId),
+		index("api_keys_org_idx").on(table.organizationId),
+	]
+);
+
+// ============================================================================
+// Webhooks
+// ============================================================================
+
+export const webhooks = pgTable(
+	"webhooks",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		userId: varchar("user_id", { length: 100 }).notNull(),
+		organizationId: varchar("organization_id", { length: 100 }),
+		/** Webhook name */
+		name: varchar("name", { length: 200 }).notNull(),
+		/** Callback URL */
+		url: text("url").notNull(),
+		/** Event types to subscribe to */
+		events: jsonb("events").notNull().default([]),
+		/** Secret for HMAC signature */
+		secret: varchar("secret", { length: 500 }),
+		/** Content type */
+		contentType: varchar("content_type", { length: 50 }).notNull().default("application/json"),
+		/** Is webhook active */
+		isActive: boolean("is_active").notNull().default(true),
+		/** SSL verify enabled */
+		sslVerify: boolean("ssl_verify").notNull().default(true),
+		/** Retry count on failure */
+		retryCount: integer("retry_count").notNull().default(3),
+		/** Last delivery attempt timestamp */
+		lastDeliveryAt: timestamp("last_delivery_at", { withTimezone: true }),
+		/** Last delivery status */
+		lastDeliveryStatus: varchar("last_delivery_status", { length: 20 }),
+		/** Delivery statistics */
+		deliveries: jsonb("deliveries").notNull().default({
+			successCount: 0,
+			failureCount: 0,
+		}),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("webhooks_user_idx").on(table.userId),
+		index("webhooks_org_idx").on(table.organizationId),
+		index("webhooks_active_idx").on(table.isActive),
+	]
+);
+
+// ============================================================================
+// User Sessions (active session management)
+// ============================================================================
+
+export const userSessions = pgTable(
+	"user_sessions",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		userId: varchar("user_id", { length: 100 }).notNull(),
+		/** Session token */
+		token: varchar("token", { length: 500 }).notNull().unique(),
+		/** Device name/browser */
+		deviceName: varchar("device_name", { length: 200 }),
+		/** Device type: desktop, mobile, tablet */
+		deviceType: varchar("device_type", { length: 20 }),
+		/** Operating system */
+		os: varchar("os", { length: 100 }),
+		/** Browser */
+		browser: varchar("browser", { length: 100 }),
+		/** IP address */
+		ipAddress: varchar("ip_address", { length: 45 }),
+		/** IP location/region */
+		location: varchar("location", { length: 200 }),
+		/** Is this the current session */
+		isCurrent: boolean("is_current").notNull().default(false),
+		/** Session started at */
+		startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+		/** Last active timestamp */
+		lastActiveAt: timestamp("last_active_at", { withTimezone: true }).notNull().defaultNow(),
+		/** Expires at */
+		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("sessions_user_idx").on(table.userId),
+		index("sessions_token_idx").on(table.token),
+	]
+);
+
+// ============================================================================
+// Data Exports (GDPR/self-service export)
+// ============================================================================
+
+export const dataExports = pgTable(
+	"data_exports",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		userId: varchar("user_id", { length: 100 }).notNull(),
+		/** Export type: full, documents, settings, activity */
+		exportType: varchar("export_type", { length: 50 }).notNull(),
+		/** Data types included */
+		dataTypes: jsonb("data_types").notNull().default([]),
+		/** Export format: json, csv, pdf */
+		format: varchar("format", { length: 20 }).notNull().default("json"),
+		/** Export status: pending, processing, completed, failed */
+		status: varchar("status", { length: 20 }).notNull().default("pending"),
+		/** Download URL (when completed) */
+		downloadUrl: text("download_url"),
+		/** File size in bytes */
+		fileSize: integer("file_size"),
+		/** Expires at (for security) */
+		expiresAt: timestamp("expires_at", { withTimezone: true }),
+		/** Error message if failed */
+		errorMessage: text("error_message"),
+		/** Requested at */
+		requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+		/** Completed at */
+		completedAt: timestamp("completed_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("exports_user_idx").on(table.userId),
+		index("exports_status_idx").on(table.status),
+	]
+);
+
+// ============================================================================
+// New Settings Relations
+// ============================================================================
+
+export const userPreferencesRelations = relations(userPreferences, ({ one }) => ({
+	user: one(user, {
+		fields: [userPreferences.userId],
+		references: [user.id],
+	}),
+}));
+
+export const organizationSettingsRelations = relations(organizationSettings, ({ many }) => ({
+	workspaces: many(userWorkspaces),
+}));
+
+export const userWorkspacesRelations = relations(userWorkspaces, ({ one }) => ({
+	organization: one(organizationSettings, {
+		fields: [userWorkspaces.organizationId],
+		references: [organizationSettings.organizationId],
+	}),
+}));
+
+export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+	user: one(user, {
+		fields: [apiKeys.userId],
+		references: [user.id],
+	}),
+}));
+
+export const webhooksRelations = relations(webhooks, ({ one }) => ({
+	user: one(user, {
+		fields: [webhooks.userId],
+		references: [user.id],
+	}),
+}));
+
+export const dataExportsRelations = relations(dataExports, ({ one }) => ({
+	user: one(user, {
+		fields: [dataExports.userId],
+		references: [user.id],
+	}),
+}));
+
+export const userSessionsRelations = relations(userSessions, ({ one }) => ({
+	user: one(user, {
+		fields: [userSessions.userId],
+		references: [user.id],
+	}),
+}));
+
+// ============================================================================
+// Type Exports for Settings
+// ============================================================================
+
+export type UserPreferencesRow = typeof userPreferences.$inferSelect;
+export type NewUserPreferences = typeof userPreferences.$inferInsert;
+
+export type OrganizationSettingsRow = typeof organizationSettings.$inferSelect;
+export type NewOrganizationSettings = typeof organizationSettings.$inferInsert;
+
+export type UserWorkspacesRow = typeof userWorkspaces.$inferSelect;
+export type NewUserWorkspaces = typeof userWorkspaces.$inferInsert;
+
+export type DocumentDefaultsRow = typeof documentDefaults.$inferSelect;
+export type NewDocumentDefaults = typeof documentDefaults.$inferInsert;
+
+export type AIPreferencesRow = typeof aiPreferences.$inferSelect;
+export type NewAIPreferences = typeof aiPreferences.$inferInsert;
+
+export type ApiKeyRow = typeof apiKeys.$inferSelect;
+export type NewApiKey = typeof apiKeys.$inferInsert;
+
+export type WebhookRow = typeof webhooks.$inferSelect;
+export type NewWebhook = typeof webhooks.$inferInsert;
+
+export type DataExportRow = typeof dataExports.$inferSelect;
+export type NewDataExport = typeof dataExports.$inferInsert;
+
+export type UserSessionRow = typeof userSessions.$inferSelect;
+export type NewUserSession = typeof userSessions.$inferInsert;
+
+// ============================================================================
+// Re-export Template Snippets, Edits, and Partials
+// ============================================================================
+
+export {
+	templateSnippets,
+	templateEdits,
+	templatePartials,
+	templateVersions,
+	templateSnippetsRelations,
+	templateEditsRelations,
+	templatePartialsRelations,
+	templateVersionsRelations,
+	type TemplateSnippetRow,
+	type NewTemplateSnippet,
+	type TemplateEditRow,
+	type NewTemplateEdit,
+	type TemplatePartialRow,
+	type NewTemplatePartial,
+	type TemplateVersionRow,
+	type NewTemplateVersion,
+} from "./schema-additions";
