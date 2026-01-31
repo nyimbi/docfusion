@@ -493,57 +493,27 @@ function OrganizationSection() {
 					</TabsContent>
 
 					<TabsContent value="roles" className="mt-0">
-						<OrganizationTabPlaceholder
-							icon={Users}
-							title="Team Roles"
-							description="Define roles and responsibilities for your team members"
-							buttonText="Add Role"
-						/>
+						<RolesManager />
 					</TabsContent>
 
 					<TabsContent value="cvs" className="mt-0">
-						<OrganizationTabPlaceholder
-							icon={FileText}
-							title="CV Builder"
-							description="Create and manage team member CVs for proposals"
-							buttonText="Create CV"
-						/>
+						<CVBuilder />
 					</TabsContent>
 
 					<TabsContent value="clients" className="mt-0">
-						<OrganizationTabPlaceholder
-							icon={Briefcase}
-							title="Client Portfolio"
-							description="Track your clients and project history"
-							buttonText="Add Client"
-						/>
+						<ClientsList />
 					</TabsContent>
 
 					<TabsContent value="products" className="mt-0">
-						<OrganizationTabPlaceholder
-							icon={Package}
-							title="Products Catalog"
-							description="Define your product offerings for proposals"
-							buttonText="Add Product"
-						/>
+						<ProductsServices type="products" />
 					</TabsContent>
 
 					<TabsContent value="services" className="mt-0">
-						<OrganizationTabPlaceholder
-							icon={Zap}
-							title="Services Catalog"
-							description="Define your service offerings for proposals"
-							buttonText="Add Service"
-						/>
+						<ProductsServices type="services" />
 					</TabsContent>
 
 					<TabsContent value="variables" className="mt-0">
-						<OrganizationTabPlaceholder
-							icon={Variable}
-							title="Custom Variables"
-							description="Create reusable variables for document templates"
-							buttonText="Add Variable"
-						/>
+						<CustomVariables />
 					</TabsContent>
 				</Suspense>
 			</Tabs>
@@ -560,39 +530,6 @@ function OrganizationSkeleton() {
 	);
 }
 
-function OrganizationTabPlaceholder({
-	icon: Icon,
-	title,
-	description,
-	buttonText,
-}: {
-	icon: React.ElementType;
-	title: string;
-	description: string;
-	buttonText: string;
-}) {
-	const [isAdding, setIsAdding] = React.useState(false);
-
-	const handleAdd = async () => {
-		setIsAdding(true);
-		// Simulate action
-		await new Promise((r) => setTimeout(r, 500));
-		setIsAdding(false);
-		// In real implementation, this would open a modal or navigate
-	};
-
-	return (
-		<div className="rounded-lg border p-8 text-center">
-			<Icon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-			<h3 className="text-lg font-semibold mb-2">{title}</h3>
-			<p className="text-sm text-muted-foreground mb-4">{description}</p>
-			<Button variant="outline" onClick={handleAdd} disabled={isAdding}>
-				{isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-				{buttonText}
-			</Button>
-		</div>
-	);
-}
 
 // ============================================================================
 // Notifications Section
