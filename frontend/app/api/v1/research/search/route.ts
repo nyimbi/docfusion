@@ -188,25 +188,29 @@ async function scrapeCompanyWebsite(websiteUrl: string): Promise<SearchResult[]>
 
 /**
  * Build optimized search queries based on category
+ * Note: Avoid quotes - they reduce result count with Firecrawl
  */
 function buildSearchQuery(baseQuery: string, category: string): string {
+	// Remove any existing quotes from the base query
+	const cleanQuery = baseQuery.replace(/["""]/g, "");
+
 	switch (category) {
 		case "company_info":
-			return `${baseQuery} company profile about overview`;
+			return `${cleanQuery} company profile about overview`;
 		case "contacts":
-			return `${baseQuery} contact email phone address`;
+			return `${cleanQuery} contact email phone address`;
 		case "management":
-			return `${baseQuery} CEO founder leadership team executives`;
+			return `${cleanQuery} CEO founder leadership team executives`;
 		case "clients":
-			return `${baseQuery} clients customers case studies portfolio`;
+			return `${cleanQuery} clients customers case studies portfolio`;
 		case "linkedin":
-			return `site:linkedin.com ${baseQuery}`;
+			return `site:linkedin.com/company ${cleanQuery}`;
 		case "twitter":
-			return `site:twitter.com OR site:x.com ${baseQuery}`;
+			return `site:twitter.com ${cleanQuery}`;
 		case "news":
-			return `${baseQuery} news announcement press release`;
+			return `${cleanQuery} news announcement press release 2025 2026`;
 		default:
-			return baseQuery;
+			return cleanQuery;
 	}
 }
 

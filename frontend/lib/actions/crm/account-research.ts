@@ -79,6 +79,7 @@ export interface AccountUpdateSuggestion {
 
 /**
  * Build search queries for different research categories
+ * Note: Avoid quotes in queries as they reduce result count with Firecrawl
  */
 function buildSearchQueries(
 	companyName: string,
@@ -88,51 +89,50 @@ function buildSearchQueries(
 ): Map<ResearchCategory, string> {
 	const queries = new Map<ResearchCategory, string>();
 	const locationContext = country ? ` ${country}` : "";
-	const websiteContext = website ? ` site:${website.replace(/^https?:\/\//, "")}` : "";
 
 	for (const category of categories) {
 		switch (category) {
 			case "company_info":
 				queries.set(
 					category,
-					`"${companyName}"${locationContext} company profile about overview`
+					`${companyName}${locationContext} company profile about overview`
 				);
 				break;
 			case "contacts":
 				queries.set(
 					category,
-					`"${companyName}"${locationContext} contact email phone address`
+					`${companyName}${locationContext} contact email phone address`
 				);
 				break;
 			case "management":
 				queries.set(
 					category,
-					`"${companyName}"${locationContext} CEO founder leadership team executives management`
+					`${companyName}${locationContext} CEO founder leadership team executives`
 				);
 				break;
 			case "clients":
 				queries.set(
 					category,
-					`"${companyName}"${locationContext} clients customers case studies portfolio projects`
+					`${companyName}${locationContext} clients customers case studies portfolio`
 				);
 				break;
 			case "linkedin":
-				queries.set(category, `site:linkedin.com/company "${companyName}"`);
+				queries.set(category, `site:linkedin.com/company ${companyName}`);
 				break;
 			case "twitter":
 				queries.set(
 					category,
-					`site:twitter.com OR site:x.com "${companyName}"${locationContext}`
+					`site:twitter.com ${companyName}${locationContext}`
 				);
 				break;
 			case "news":
 				queries.set(
 					category,
-					`"${companyName}"${locationContext} news announcement press release 2024 2025 2026`
+					`${companyName}${locationContext} news announcement press release 2025 2026`
 				);
 				break;
 			case "general":
-				queries.set(category, `"${companyName}"${locationContext}`);
+				queries.set(category, `${companyName}${locationContext}`);
 				break;
 		}
 	}
