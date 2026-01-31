@@ -10,6 +10,7 @@
 import { db } from "@/lib/db";
 import { documents, documentAnalyses, paragraphAnalyses, proposalDocuments } from "@/lib/db/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { getProviderManager } from "@/lib/ai/providers";
 import type {
 	DocumentAnalysis,
 	ParagraphAnalysis,
@@ -453,11 +454,11 @@ function generateId(): string {
 /**
  * Analyze a single factor and return score and issues.
  */
-function analyzeFactor(
+async function analyzeFactor(
 	factor: FactorDefinition,
 	text: string,
 	paragraphs: string[]
-): AnalysisFactor {
+): Promise<AnalysisFactor> {
 	const issues: AnalysisIssue[] = [];
 	const suggestions: AnalysisSuggestion[] = [];
 	let score = 75; // Default score
@@ -725,8 +726,8 @@ function analyzeFactor(
 		}
 
 		default:
-			// Default scoring for factors without specific analysis
-			score = 70 + Math.random() * 20; // 70-90 range
+			// Use AI analysis for unsupported factors
+			return await analyzeFactorWithAI(factor, text, paragraphs);
 	}
 
 	return {
@@ -739,6 +740,124 @@ function analyzeFactor(
 		issues,
 		suggestions,
 	};
+}
+
+/**
+ * Analyze a factor using AI for factors without specific heuristic analysis.
+ */
+async function analyzeFactorWithAI(
+	factor: FactorDefinition,
+	text: string,
+	paragraphs: string[]
+): Promise<AnalysisFactor> {
+	const manager = getProviderManager();
+	await manager.initialize();
+
+	if (!manager.isAvailable()) {
+		// Return a reasonable default when AI is unavailable
+		return {
+			id: factor.id,
+			name: factor.name,
+			category: factor.category,
+			description: factor.description,
+			score: 75,
+			weight: factor.weight,
+			issues: [],
+			suggestions: [],
+		};
+	}
+
+	const systemPrompt = `You are an expert document analyst. Analyze a document based on a specific quality factor.
+
+Output your analysis as JSON with this structure:
+{
+  "score": <number 0-100>,
+  "issues": [
+    {"severity": "error|warning|info", "message": "<issue description>"}
+  ],
+  "suggestions": [
+    {"type": "rewrite|add|clarify", "text": "<suggestion text>", "impact": "high|medium|low"}
+  ]
+}
+
+Be objective and fair in your scoring. Score 80+ for good quality, 60-79 for adequate, below 60 for issues.
+Only output valid JSON.`;
+
+	const userPrompt = `Analyze this document for the factor: "${factor.name}"
+
+Category: ${factor.category}
+Description: ${factor.description}
+
+Document content (first 3000 chars):
+${text.slice(0, 3000)}
+
+Number of paragraphs: ${paragraphs.length}
+Total word count: ${text.trim().split(/\s+/).filter(Boolean).length}
+
+Provide your JSON analysis.`;
+
+	try {
+		const response = await manager.complete({
+			messages: [
+				{ role: "system", content: systemPrompt },
+				{ role: "user", content: userPrompt },
+			],
+			temperature: 0.3,
+			maxTokens: 1024,
+		});
+
+		// Parse the JSON response
+		const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+		if (!jsonMatch) {
+			throw new Error("Invalid JSON response from AI");
+		}
+
+		const analysis = JSON.parse(jsonMatch[0]) as {
+			score: number;
+			issues?: Array<{ severity: string; message: string }>;
+			suggestions?: Array<{ type: string; text: string; impact: string }>;
+		};
+
+		const score = Math.max(0, Math.min(100, analysis.score ?? 75));
+
+		const issues: AnalysisIssue[] = (analysis.issues || []).map((issue) => ({
+			id: generateId(),
+			severity: (issue.severity as IssueSeverity) || "warning",
+			factorId: factor.id,
+			message: issue.message,
+		}));
+
+		const suggestions: AnalysisSuggestion[] = (analysis.suggestions || []).map((suggestion) => ({
+			id: generateId(),
+			type: (suggestion.type as AnalysisSuggestion["type"]) || "rewrite",
+			text: suggestion.text,
+			impact: (suggestion.impact as SuggestionImpact) || "medium",
+		}));
+
+		return {
+			id: factor.id,
+			name: factor.name,
+			category: factor.category,
+			description: factor.description,
+			score: Math.round(score),
+			weight: factor.weight,
+			issues,
+			suggestions,
+		};
+	} catch (error) {
+		console.warn(`[AI Analysis Error] Factor ${factor.id}:`, error);
+		// Fallback to default score when AI fails
+		return {
+			id: factor.id,
+			name: factor.name,
+			category: factor.category,
+			description: factor.description,
+			score: 75,
+			weight: factor.weight,
+			issues: [],
+			suggestions: [],
+		};
+	}
 }
 
 /**
@@ -838,9 +957,9 @@ export async function analyzeDocument(input: AnalyzeDocumentInput): Promise<Docu
 		? ANALYSIS_FACTORS.filter((f) => input.categories!.includes(f.category))
 		: ANALYSIS_FACTORS;
 
-	// Analyze all factors
-	const analyzedFactors = factorsToAnalyze.map((factor) =>
-		analyzeFactor(factor, text, paragraphs)
+	// Analyze all factors (now async due to AI analysis)
+	const analyzedFactors = await Promise.all(
+		factorsToAnalyze.map((factor) => analyzeFactor(factor, text, paragraphs))
 	);
 
 	// Calculate category scores
@@ -998,71 +1117,18 @@ export async function getAnalysisHistory(
 		overallScore: a.overallScore,
 		analyzedAt: a.analyzedAt,
 		wordCount: a.wordCount,
-		issueCount: (a.issues as unknown[])?.length || 0,
+		issueCount: Array.isArray(a.issues) ? a.issues.length : 0,
 	}));
 }
 
 /**
- * Get paragraph analyses for heatmap.
+ * Delete an analysis.
  */
-export async function getParagraphAnalyses(analysisId: string): Promise<ParagraphAnalysis[]> {
-	const paragraphs = await db
-		.select()
-		.from(paragraphAnalyses)
-		.where(eq(paragraphAnalyses.analysisId, analysisId))
-		.orderBy(paragraphAnalyses.paragraphIndex);
-
-	return paragraphs.map((p) => ({
-		id: p.id,
-		analysisId: p.analysisId,
-		paragraphIndex: p.paragraphIndex,
-		text: p.text,
-		score: p.score,
-		issues: p.issues as AnalysisIssue[],
-		suggestions: p.suggestions as AnalysisSuggestion[],
-	}));
-}
-
-/**
- * Get issues filtered by category.
- */
-export async function getIssuesByCategory(
-	analysisId: string,
-	category?: AnalysisFactorCategory
-): Promise<AnalysisIssue[]> {
-	const [analysis] = await db
-		.select()
-		.from(documentAnalyses)
+export async function deleteAnalysis(analysisId: string): Promise<boolean> {
+	const result = await db
+		.delete(documentAnalyses)
 		.where(eq(documentAnalyses.id, analysisId))
-		.limit(1);
+		.returning({ id: documentAnalyses.id });
 
-	if (!analysis) return [];
-
-	const factors = analysis.factorScores as AnalysisFactor[];
-	const filteredFactors = category
-		? factors.filter((f) => f.category === category)
-		: factors;
-
-	return filteredFactors.flatMap((f) => f.issues);
-}
-
-/**
- * Get suggestions sorted by impact.
- */
-export async function getSuggestionsByImpact(
-	analysisId: string
-): Promise<AnalysisSuggestion[]> {
-	const [analysis] = await db
-		.select()
-		.from(documentAnalyses)
-		.where(eq(documentAnalyses.id, analysisId))
-		.limit(1);
-
-	if (!analysis) return [];
-
-	const suggestions = analysis.suggestions as AnalysisSuggestion[];
-
-	// Sort by impact: high > medium > low
-	const impactOrder: Record<SuggestionImpact, number> = { high: 0, medium: 1, low: 2 };
-	return suggestions.sort((a, b) => impactOrder[a.impact] - impactOrder[b.impact]);
+	return result.length > 0;
 }
