@@ -1,247 +1,195 @@
+"use client";
+
 /**
- * Collaboration state management with Zustand.
+ * Collaboration Store - Real-time collaboration state management.
  *
- * Manages real-time collaboration state including connected users,
- * cursor positions, presence, and sync status.
+ * Manages collaborative editing including:
+ * - Active user presence
+ * - Cursor positions
+ * - Selection states
+ * - Awareness information
  */
 
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import type { DocumentId, UserId } from "@/lib/types/document";
-import type {
-	CollaboratorPresence,
-	CollaboratorUser,
-	ConnectionStatus,
-	SyncStatus,
-	CursorPosition,
-	SelectionRange,
-	UserActivity,
-	OfflineChange,
-} from "@/lib/types/collaboration";
-import { getCollaboratorColor } from "@/lib/types/collaboration";
 
-/** Collaboration state */
-export interface CollaborationState {
-	// Connection state
-	connectionStatus: ConnectionStatus;
-	connectionError: string | null;
-	reconnectAttempts: number;
+export type CollaborationStatus = "connected" | "connecting" | "disconnected";
+export type UserActivity = "idle" | "viewing" | "typing" | "selecting" | "scrolling" | "away";
 
-	// Document state
-	activeDocumentId: DocumentId | null;
-	syncStatus: SyncStatus;
-	lastSyncedAt: string | null;
-	pendingChanges: number;
+export interface Collaborator {
+	userId: string;
+	name: string;
+	email?: string;
+	avatarUrl?: string;
+	color: string;
+	status: "active" | "idle";
+	cursorPosition?: {
+		blockId: string;
+		from: number;
+		to: number;
+	};
+	selection?: {
+		from: number;
+		to: number;
+	};
+	lastSeen: Date;
+}
 
-	// Current user
-	currentUser: CollaboratorUser | null;
-	currentClientId: string | null;
+export interface UserPresence {
+	userId: string;
+	name: string;
+	color: string;
+	status: "active" | "idle";
+}
 
-	// Collaborators
-	collaborators: Map<string, CollaboratorPresence>; // keyed by clientId
+interface SelectionRange {
+	from: number;
+	to: number;
+}
 
-	// Offline support
-	offlineChanges: OfflineChange[];
-	isOffline: boolean;
-
-	// Awareness state
-	localCursor: CursorPosition | null;
+interface CollaborationState {
+	// State
+	status: CollaborationStatus;
+	collaborators: Collaborator[];
+	isCollaborationEnabled: boolean;
+	userPresence: UserPresence | null;
+	syncErrors: string[];
+	isSyncing: boolean;
 	localSelection: SelectionRange | null;
 	localActivity: UserActivity;
-}
+	currentUser: { id: string; name: string; email?: string; avatarUrl?: string } | null;
+	currentClientId: string | null;
+	activeDocumentId: string | null;
 
-/** Collaboration actions */
-export interface CollaborationActions {
-	// Connection actions
-	setConnectionStatus: (status: ConnectionStatus, error?: string) => void;
-	incrementReconnectAttempts: () => void;
-	resetReconnectAttempts: () => void;
-
-	// Document actions
-	setActiveDocument: (documentId: DocumentId | null) => void;
-	setSyncStatus: (status: SyncStatus) => void;
-	setSyncSuccess: () => void;
-	incrementPendingChanges: () => void;
-	decrementPendingChanges: (count?: number) => void;
-
-	// User actions
-	setCurrentUser: (user: CollaboratorUser, clientId: string) => void;
-	clearCurrentUser: () => void;
-
-	// Collaborator actions
-	addCollaborator: (presence: CollaboratorPresence) => void;
-	removeCollaborator: (clientId: string) => void;
-	updateCollaboratorCursor: (clientId: string, cursor: CursorPosition | null) => void;
-	updateCollaboratorSelection: (clientId: string, selection: SelectionRange | null) => void;
-	updateCollaboratorActivity: (clientId: string, activity: UserActivity) => void;
-	clearCollaborators: () => void;
-
-	// Local awareness actions
-	setLocalCursor: (cursor: CursorPosition | null) => void;
+	// Actions
+	setStatus: (status: CollaborationStatus) => void;
+	setCollaborators: (collaborators: Collaborator[]) => void;
+	addCollaborator: (collaborator: Collaborator) => void;
+	updateCollaborator: (userId: string, updates: Partial<Collaborator>) => void;
+	removeCollaborator: (userId: string) => void;
+	setCollaborationEnabled: (enabled: boolean) => void;
+	setUserPresence: (presence: UserPresence | null) => void;
+	addSyncError: (error: string) => void;
+	clearSyncErrors: () => void;
+	setSyncing: (isSyncing: boolean) => void;
 	setLocalSelection: (selection: SelectionRange | null) => void;
 	setLocalActivity: (activity: UserActivity) => void;
-
-	// Offline actions
-	setOffline: (isOffline: boolean) => void;
-	addOfflineChange: (change: OfflineChange) => void;
-	removeOfflineChange: (id: string) => void;
-	clearOfflineChanges: () => void;
-	markOfflineChangeSynced: (id: string) => void;
-
-	// Reset
-	reset: () => void;
+	setCurrentUser: (user: { id: string; name: string; email?: string; avatarUrl?: string }, clientId: string) => void;
+	clearCurrentUser: () => void;
+	setActiveDocument: (documentId: string | null) => void;
 }
 
-const initialState: CollaborationState = {
-	connectionStatus: "disconnected",
-	connectionError: null,
-	reconnectAttempts: 0,
-	activeDocumentId: null,
-	syncStatus: "synced",
-	lastSyncedAt: null,
-	pendingChanges: 0,
-	currentUser: null,
-	currentClientId: null,
-	collaborators: new Map(),
-	offlineChanges: [],
-	isOffline: false,
-	localCursor: null,
-	localSelection: null,
-	localActivity: "idle",
-};
+const COLORS = [
+	"#EF4444", // red
+	"#F97316", // orange
+	"#F59E0B", // amber
+	"#10B981", // emerald
+	"#06B6D4", // cyan
+	"#3B82F6", // blue
+	"#6366F1", // indigo
+	"#8B5CF6", // violet
+	"#EC4899", // pink
+	"#F43F5E", // rose
+];
 
-/**
- * Collaboration store for real-time editing state.
- */
-export const useCollaborationStore = create<
-	CollaborationState & CollaborationActions
->()(
-	immer((set, get) => ({
-		...initialState,
+function getColorForUser(userId: string): string {
+	let hash = 0;
+	for (let i = 0; i < userId.length; i++) {
+		hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+	}
+	return COLORS[Math.abs(hash) % COLORS.length];
+}
 
-		// Connection actions
-		setConnectionStatus: (status, error) =>
+export const useCollaborationStore = create<CollaborationState>()(
+	immer((set) => ({
+		// Initial state - starts with empty collaborators, populated when joining a document
+		status: "disconnected",
+		collaborators: [],
+		isCollaborationEnabled: true,
+		userPresence: {
+			userId: "current-user",
+			name: "You",
+			color: COLORS[5],
+			status: "active",
+		},
+		syncErrors: [],
+		isSyncing: false,
+		localSelection: null,
+		localActivity: "viewing" as UserActivity,
+		currentUser: null,
+		currentClientId: null,
+		activeDocumentId: null,
+
+		// Actions
+		setStatus: (status) =>
 			set((state) => {
-				state.connectionStatus = status;
-				state.connectionError = error ?? null;
-				if (status === "connected") {
-					state.reconnectAttempts = 0;
+				state.status = status;
+			}),
+
+		setCollaborators: (collaborators) =>
+			set((state) => {
+				state.collaborators = collaborators;
+			}),
+
+		addCollaborator: (collaborator) =>
+			set((state) => {
+				// Check if already exists
+				const exists = state.collaborators.some(
+					(c) => c.userId === collaborator.userId
+				);
+				
+				if (!exists) {
+					state.collaborators.push({
+						...collaborator,
+						color: collaborator.color || getColorForUser(collaborator.userId),
+						lastSeen: new Date(),
+					});
 				}
 			}),
 
-		incrementReconnectAttempts: () =>
+		updateCollaborator: (userId, updates) =>
 			set((state) => {
-				state.reconnectAttempts += 1;
-			}),
-
-		resetReconnectAttempts: () =>
-			set((state) => {
-				state.reconnectAttempts = 0;
-			}),
-
-		// Document actions
-		setActiveDocument: (documentId) =>
-			set((state) => {
-				if (state.activeDocumentId !== documentId) {
-					state.activeDocumentId = documentId;
-					state.collaborators.clear();
-					state.syncStatus = "synced";
-					state.pendingChanges = 0;
-					state.lastSyncedAt = null;
-				}
-			}),
-
-		setSyncStatus: (status) =>
-			set((state) => {
-				state.syncStatus = status;
-			}),
-
-		setSyncSuccess: () =>
-			set((state) => {
-				state.syncStatus = "synced";
-				state.lastSyncedAt = new Date().toISOString();
-				state.pendingChanges = 0;
-			}),
-
-		incrementPendingChanges: () =>
-			set((state) => {
-				state.pendingChanges += 1;
-				if (state.syncStatus === "synced") {
-					state.syncStatus = "pending";
-				}
-			}),
-
-		decrementPendingChanges: (count = 1) =>
-			set((state) => {
-				state.pendingChanges = Math.max(0, state.pendingChanges - count);
-				if (state.pendingChanges === 0 && state.syncStatus === "syncing") {
-					state.syncStatus = "synced";
-					state.lastSyncedAt = new Date().toISOString();
-				}
-			}),
-
-		// User actions
-		setCurrentUser: (user, clientId) =>
-			set((state) => {
-				state.currentUser = user;
-				state.currentClientId = clientId;
-			}),
-
-		clearCurrentUser: () =>
-			set((state) => {
-				state.currentUser = null;
-				state.currentClientId = null;
-			}),
-
-		// Collaborator actions
-		addCollaborator: (presence) =>
-			set((state) => {
-				// Don't add ourselves
-				if (presence.clientId === state.currentClientId) return;
-				state.collaborators.set(presence.clientId, presence);
-			}),
-
-		removeCollaborator: (clientId) =>
-			set((state) => {
-				state.collaborators.delete(clientId);
-			}),
-
-		updateCollaboratorCursor: (clientId, cursor) =>
-			set((state) => {
-				const collaborator = state.collaborators.get(clientId);
+				const collaborator = state.collaborators.find(
+					(c) => c.userId === userId
+				);
+				
 				if (collaborator) {
-					collaborator.cursor = cursor;
-					collaborator.lastActiveAt = new Date().toISOString();
+					Object.assign(collaborator, updates, {
+						lastSeen: new Date(),
+					});
 				}
 			}),
 
-		updateCollaboratorSelection: (clientId, selection) =>
+		removeCollaborator: (userId) =>
 			set((state) => {
-				const collaborator = state.collaborators.get(clientId);
-				if (collaborator) {
-					collaborator.selection = selection;
-					collaborator.lastActiveAt = new Date().toISOString();
-				}
+				state.collaborators = state.collaborators.filter(
+					(c) => c.userId !== userId
+				);
 			}),
 
-		updateCollaboratorActivity: (clientId, activity) =>
+		setCollaborationEnabled: (enabled) =>
 			set((state) => {
-				const collaborator = state.collaborators.get(clientId);
-				if (collaborator) {
-					collaborator.activity = activity;
-					collaborator.lastActiveAt = new Date().toISOString();
-				}
+				state.isCollaborationEnabled = enabled;
 			}),
 
-		clearCollaborators: () =>
+		setUserPresence: (presence) =>
 			set((state) => {
-				state.collaborators.clear();
+				state.userPresence = presence;
 			}),
 
-		// Local awareness actions
-		setLocalCursor: (cursor) =>
+		addSyncError: (error) =>
 			set((state) => {
-				state.localCursor = cursor;
+				state.syncErrors.push(error);
+			}),
+
+		clearSyncErrors: () =>
+			set((state) => {
+				state.syncErrors = [];
+			}),
+
+		setSyncing: (isSyncing) =>
+			set((state) => {
+				state.isSyncing = isSyncing;
 			}),
 
 		setLocalSelection: (selection) =>
@@ -254,96 +202,101 @@ export const useCollaborationStore = create<
 				state.localActivity = activity;
 			}),
 
-		// Offline actions
-		setOffline: (isOffline) =>
+		setCurrentUser: (user, clientId) =>
 			set((state) => {
-				state.isOffline = isOffline;
-				if (isOffline) {
-					state.connectionStatus = "disconnected";
-				}
+				state.currentUser = user;
+				state.currentClientId = clientId;
 			}),
 
-		addOfflineChange: (change) =>
+		clearCurrentUser: () =>
 			set((state) => {
-				state.offlineChanges.push(change);
+				state.currentUser = null;
+				state.currentClientId = null;
 			}),
 
-		removeOfflineChange: (id) =>
+		setActiveDocument: (documentId) =>
 			set((state) => {
-				const index = state.offlineChanges.findIndex((c) => c.id === id);
-				if (index !== -1) {
-					state.offlineChanges.splice(index, 1);
-				}
+				state.activeDocumentId = documentId;
 			}),
-
-		clearOfflineChanges: () =>
-			set((state) => {
-				state.offlineChanges = [];
-			}),
-
-		markOfflineChangeSynced: (id) =>
-			set((state) => {
-				const change = state.offlineChanges.find((c) => c.id === id);
-				if (change) {
-					change.synced = true;
-				}
-			}),
-
-		// Reset
-		reset: () => set(initialState),
 	}))
 );
 
 /**
- * Selector hooks for common state slices.
+ * Generate a unique client ID for this session.
  */
-export const useConnectionStatus = () =>
-	useCollaborationStore((s) => s.connectionStatus);
-
-export const useSyncStatus = () =>
-	useCollaborationStore((s) => ({
-		status: s.syncStatus,
-		pendingChanges: s.pendingChanges,
-		lastSyncedAt: s.lastSyncedAt,
-	}));
-
-export const useCollaborators = () => {
-	const collaborators = useCollaborationStore((s) => s.collaborators);
-	return Array.from(collaborators.values());
-};
-
-export const useCollaboratorCount = () =>
-	useCollaborationStore((s) => s.collaborators.size);
-
-export const useIsOffline = () => useCollaborationStore((s) => s.isOffline);
-
-export const useCurrentCollaborator = () =>
-	useCollaborationStore((s) => s.currentUser);
+export function generateClientId(): string {
+	return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
 
 /**
  * Create a collaborator presence object from user data.
  */
 export function createCollaboratorPresence(
-	user: { id: UserId; name: string; email?: string; avatarUrl?: string },
+	user: { id: string; name: string; email?: string; avatarUrl?: string },
 	clientId: string
-): CollaboratorPresence {
+) {
 	return {
 		user: {
-			...user,
-			color: getCollaboratorColor(user.id),
+			id: user.id,
+			name: user.name,
+			email: user.email,
+			avatarUrl: user.avatarUrl,
+			color: getColorForUser(user.id),
 		},
+		clientId,
 		cursor: null,
 		selection: null,
-		activity: "viewing",
+		activity: "viewing" as const,
 		lastActiveAt: new Date().toISOString(),
-		clientId,
 		isFocused: true,
 	};
 }
 
+// ============================================================================
+// CONVENIENCE HOOKS
+// ============================================================================
+
 /**
- * Generate a unique client ID for this browser session.
+ * Hook to get the current connection status.
  */
-export function generateClientId(): string {
-	return `client_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+export function useConnectionStatus(): CollaborationStatus {
+	return useCollaborationStore((state) => state.status);
+}
+
+/**
+ * Hook to get the current sync status.
+ */
+export function useSyncStatus(): boolean {
+	return useCollaborationStore((state) => state.isSyncing);
+}
+
+/**
+ * Hook to get the list of collaborators.
+ */
+export function useCollaborators(): Collaborator[] {
+	return useCollaborationStore((state) => state.collaborators);
+}
+
+/**
+ * Hook to get the count of active collaborators.
+ */
+export function useCollaboratorCount(): number {
+	return useCollaborationStore((state) => state.collaborators.filter((c) => c.status === "active").length);
+}
+
+/**
+ * Hook to check if the user is offline (disconnected).
+ */
+export function useIsOffline(): boolean {
+	return useCollaborationStore((state) => state.status === "disconnected");
+}
+
+/**
+ * Hook to get the current collaborator (current user).
+ */
+export function useCurrentCollaborator(): { user: { id: string; name: string; email?: string; avatarUrl?: string } | null; clientId: string | null } {
+	return useCollaborationStore((state) => ({
+		user: state.currentUser,
+		clientId: state.currentClientId,
+	}));
 }
