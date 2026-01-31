@@ -44,6 +44,7 @@ import {
 	Building2,
 	Briefcase,
 	GitBranch,
+	Upload,
 } from "lucide-react";
 import {
 	DropdownMenu,
@@ -114,10 +115,10 @@ const PRIMARY_NAV_ITEMS: NavItem[] = [
 		description: "Accounts, contacts, deals & partners",
 	},
 	{
-		label: "Company",
-		href: "/company",
-		icon: Building2,
-		description: "Organization settings",
+		label: "Import Data",
+		href: "/import",
+		icon: Upload,
+		description: "Import from Excel or CSV",
 	},
 ];
 
