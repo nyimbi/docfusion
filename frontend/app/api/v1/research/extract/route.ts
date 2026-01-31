@@ -13,8 +13,8 @@ import { getAIClient } from "@/lib/ai/client";
 // ============================================================================
 
 const FIRECRAWL_URL = process.env.FIRECRAWL_URL || "http://20.84.71.33:3002";
-const MAX_SCRAPE_URLS = 5;
-const MAX_CONTENT_LENGTH = 8000; // Limit content sent to AI
+const MAX_SCRAPE_URLS = 8;
+const MAX_CONTENT_LENGTH = 12000; // Limit content sent to AI
 
 // ============================================================================
 // Types
@@ -114,37 +114,47 @@ async function firecrawlScrape(url: string): Promise<{ content: string; title: s
 // AI Extraction
 // ============================================================================
 
-const EXTRACTION_PROMPT = `You are an expert at extracting company information from web content.
+const EXTRACTION_PROMPT = `You are an expert business intelligence analyst extracting company information from multiple web sources.
 
-Given the following web content about a company, extract any relevant business information.
-Return ONLY a valid JSON object with the fields you can confidently extract.
-If you cannot find information for a field, omit it entirely (do not include null or empty values).
+Your task: Synthesize information from ALL provided sources to build a comprehensive company profile.
+Cross-reference data across sources for accuracy. Prefer official company sources over third-party.
 
-Fields to extract:
-- website: Official company website URL
-- email: General contact email address
-- phone: Main phone number
-- headquarters: City and country of headquarters
+EXTRACTION RULES:
+1. Extract ALL available information - be thorough
+2. Combine information from multiple sources (e.g., CEO name from one source, their title from another)
+3. For leadership, extract ALL mentioned executives with their full titles
+4. For contact info, look for patterns like "contact@", "info@", phone numbers with country codes
+5. For clients, extract any mentioned customers, partners, or case studies
+6. Infer industry/sector from the company description if not explicitly stated
+7. Look for founding dates, employee counts, and revenue in company profiles and news
+
+Fields to extract (include ALL you can find):
+- website: Official company website URL (look for canonical URLs)
+- email: General contact email (info@, contact@, hello@)
+- phone: Main phone number with country code
+- headquarters: "City, Country" format
 - address: Full street address if available
-- keyLeadership: Names and titles of key executives (CEO, CTO, Founders, etc.)
-- description: Brief company description (2-3 sentences)
-- industry: Primary industry (e.g., "Technology", "Healthcare", "Finance")
-- sector: More specific sector (e.g., "Enterprise Software", "Biotech")
-- employeeCount: Number of employees or range (e.g., "50-100", "500+")
-- foundedYear: Year the company was founded
-- linkedinUrl: LinkedIn company page URL
-- twitterUrl: Twitter/X profile URL
-- notableClients: List of notable clients or customers
-- annualRevenue: Annual revenue estimate if publicly known
-- coreCapabilities: Key products, services, or capabilities
-
-IMPORTANT: Return ONLY valid JSON, no markdown, no explanation, no text before or after the JSON.
+- keyLeadership: Format as "Name - Title, Name - Title" (extract ALL executives mentioned)
+- description: 2-3 sentence summary of what the company does
+- industry: Primary industry (Technology, Healthcare, Finance, Consulting, etc.)
+- sector: Specific sector (Enterprise Software, Biotech, Investment Banking, etc.)
+- employeeCount: Number or range (e.g., "50-100", "500+", "1000-5000")
+- foundedYear: Year founded (4 digits)
+- linkedinUrl: Full LinkedIn company page URL
+- twitterUrl: Full Twitter/X profile URL
+- notableClients: Comma-separated list of clients/customers mentioned
+- annualRevenue: Revenue if mentioned (e.g., "$10M-50M", "€5 million")
+- coreCapabilities: Key products, services, technologies, or specializations
 
 Company Name: {companyName}
 {additionalContext}
 
-Web Content:
+=== WEB CONTENT FROM MULTIPLE SOURCES ===
 {content}
+=== END OF CONTENT ===
+
+CRITICAL: Return ONLY a valid JSON object. No markdown, no explanation, no text outside the JSON.
+Extract as much as possible - more data is better. Synthesize across all sources.
 
 JSON:`;
 
@@ -206,6 +216,77 @@ async function extractWithAI(
 }
 
 // ============================================================================
+// Gap Analysis & Targeted Search
+// ============================================================================
+
+/**
+ * Identify critical fields that are missing
+ */
+function identifyMissingFields(extracted: ExtractedInfo): string[] {
+	const criticalFields: Array<keyof ExtractedInfo> = [
+		"email",
+		"phone",
+		"keyLeadership",
+		"description",
+		"linkedinUrl",
+	];
+
+	const missing: string[] = [];
+	for (const field of criticalFields) {
+		if (!extracted[field]) {
+			missing.push(field);
+		}
+	}
+	return missing;
+}
+
+/**
+ * Generate targeted search query for a specific missing field
+ */
+function getTargetedSearchQuery(
+	companyName: string,
+	field: string,
+	locationContext: string
+): string | null {
+	const strategies: Record<string, string> = {
+		email: `${companyName} contact email address`,
+		phone: `${companyName} phone number contact`,
+		keyLeadership: `${companyName} CEO founder executives management team`,
+		description: `${companyName} company about what does do`,
+		linkedinUrl: `site:linkedin.com/company ${companyName}`,
+		headquarters: `${companyName}${locationContext} headquarters office location`,
+		employeeCount: `${companyName} employees team size headcount`,
+		foundedYear: `${companyName} founded established year history`,
+		notableClients: `${companyName} customers clients case studies`,
+		industry: `${companyName} industry sector business`,
+	};
+
+	return strategies[field] || null;
+}
+
+/**
+ * Merge two extracted data objects (second takes precedence for non-empty values)
+ */
+function mergeExtractedData(
+	first: ExtractedInfo,
+	second: ExtractedInfo
+): ExtractedInfo {
+	const merged: ExtractedInfo = { ...first };
+
+	for (const [key, value] of Object.entries(second)) {
+		if (value && typeof value === "string" && value.trim()) {
+			// Take longer/more detailed values for text fields
+			const existingValue = (merged as Record<string, string | undefined>)[key];
+			if (!existingValue || value.length > existingValue.length) {
+				(merged as Record<string, string>)[key] = value;
+			}
+		}
+	}
+
+	return merged;
+}
+
+// ============================================================================
 // API Route Handler
 // ============================================================================
 
@@ -249,16 +330,48 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 			}
 		}
 
-		// 2. Search for company info
+		// 2. Multi-strategy search for comprehensive information
 		const locationContext = country ? ` ${country}` : "";
-		const searchQueries = [
-			`${accountName}${locationContext} company about`,
-			`${accountName}${locationContext} CEO founder leadership`,
-			`${accountName} contact email phone`,
-			`site:linkedin.com/company ${accountName}`,
+
+		// Strategy 1: General company information
+		const primaryQueries = [
+			`${accountName}${locationContext} company about profile overview`,
+			`${accountName}${locationContext} CEO founder leadership team executives`,
+			`${accountName} contact email phone address headquarters`,
 		];
 
-		for (const query of searchQueries) {
+		// Strategy 2: Social media and professional networks
+		const socialQueries = [
+			`site:linkedin.com/company ${accountName}`,
+			`site:crunchbase.com ${accountName}`,
+			`site:bloomberg.com/profile/company ${accountName}`,
+		];
+
+		// Strategy 3: News and press for recent info
+		const newsQueries = [
+			`${accountName}${locationContext} news funding announcement 2024 2025 2026`,
+			`${accountName} press release latest`,
+		];
+
+		// Strategy 4: Business directories and databases
+		const directoryQueries = [
+			`${accountName}${locationContext} company profile dnb hoovers`,
+			`${accountName} employees revenue glassdoor`,
+			`${accountName}${locationContext} clients customers portfolio`,
+		];
+
+		// Combine all strategies
+		const allQueries = [
+			...primaryQueries,
+			...socialQueries,
+			...newsQueries,
+			...directoryQueries,
+		];
+
+		// Execute searches with deduplication
+		const seenUrls = new Set(scrapedContent.map((s) => s.url));
+
+		for (const query of allQueries) {
 			if (scrapedContent.length >= MAX_SCRAPE_URLS) break;
 
 			console.log(`Searching: ${query}`);
@@ -266,20 +379,103 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 
 			for (const result of searchResults) {
 				if (scrapedContent.length >= MAX_SCRAPE_URLS) break;
-				if (scrapedContent.some((s) => s.url === result.url)) continue;
+				if (seenUrls.has(result.url)) continue;
+
+				// Skip low-value URLs
+				const urlLower = result.url.toLowerCase();
+				if (
+					urlLower.includes("login") ||
+					urlLower.includes("signin") ||
+					urlLower.includes("signup") ||
+					urlLower.includes("/search?") ||
+					urlLower.includes("google.com/search")
+				) {
+					continue;
+				}
 
 				console.log(`Scraping: ${result.url}`);
 				const content = await firecrawlScrape(result.url);
 				if (content && content.content.length > 100) {
 					sources.push({ url: result.url, title: content.title });
 					scrapedContent.push({ ...content, url: result.url });
+					seenUrls.add(result.url);
+				}
+			}
+		}
+
+		// Strategy 5: If still missing key info, try targeted searches
+		if (scrapedContent.length < 4) {
+			console.log("Running fallback searches for more information...");
+			const fallbackQueries = [
+				`"${accountName}" official website`,
+				`${accountName} company information`,
+				`who is the CEO of ${accountName}`,
+			];
+
+			for (const query of fallbackQueries) {
+				if (scrapedContent.length >= MAX_SCRAPE_URLS) break;
+
+				const results = await firecrawlSearch(query, 2);
+				for (const result of results) {
+					if (scrapedContent.length >= MAX_SCRAPE_URLS) break;
+					if (seenUrls.has(result.url)) continue;
+
+					const content = await firecrawlScrape(result.url);
+					if (content && content.content.length > 100) {
+						sources.push({ url: result.url, title: content.title });
+						scrapedContent.push({ ...content, url: result.url });
+						seenUrls.add(result.url);
+					}
 				}
 			}
 		}
 
 		// 3. Extract information using AI
 		console.log(`Extracting info from ${scrapedContent.length} sources using AI...`);
-		const extracted = await extractWithAI(accountName, scrapedContent, currentData);
+		let extracted = await extractWithAI(accountName, scrapedContent, currentData);
+
+		// 4. Analyze gaps and attempt to fill them
+		const missingCritical = identifyMissingFields(extracted);
+
+		if (missingCritical.length > 0 && scrapedContent.length < MAX_SCRAPE_URLS) {
+			console.log(`Missing critical fields: ${missingCritical.join(", ")}. Running targeted searches...`);
+
+			const additionalContent: Array<{ content: string; title: string; url: string }> = [];
+			const seenUrls = new Set(sources.map((s) => s.url));
+
+			// Targeted searches for missing info
+			for (const field of missingCritical) {
+				if (additionalContent.length >= 3) break;
+
+				const targetedQuery = getTargetedSearchQuery(accountName, field, locationContext);
+				if (!targetedQuery) continue;
+
+				console.log(`Targeted search for ${field}: ${targetedQuery}`);
+				const results = await firecrawlSearch(targetedQuery, 2);
+
+				for (const result of results) {
+					if (additionalContent.length >= 3) break;
+					if (seenUrls.has(result.url)) continue;
+
+					const content = await firecrawlScrape(result.url);
+					if (content && content.content.length > 100) {
+						sources.push({ url: result.url, title: content.title });
+						additionalContent.push({ ...content, url: result.url });
+						seenUrls.add(result.url);
+					}
+				}
+			}
+
+			// Re-run extraction with additional content
+			if (additionalContent.length > 0) {
+				console.log(`Re-extracting with ${additionalContent.length} additional sources...`);
+				const allContent = [...scrapedContent, ...additionalContent];
+				const newExtracted = await extractWithAI(accountName, allContent, currentData);
+
+				// Merge results (new data takes precedence for non-empty fields)
+				extracted = mergeExtractedData(extracted, newExtracted);
+			}
+		}
 
 		return NextResponse.json({
 			success: true,
