@@ -120,3 +120,16 @@ export {
 	moveDocument,
 	copyDocument,
 } from "./documents";
+
+// Account research operations
+export {
+	researchAccount,
+	saveResearchFindings,
+	getResearchQueries,
+	type ResearchCategory,
+	type ResearchRequest,
+	type ResearchResult,
+	type ResearchItem,
+	type AccountResearchResponse,
+	type AccountUpdateSuggestion,
+} from "./account-research";

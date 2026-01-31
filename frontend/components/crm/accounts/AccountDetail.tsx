@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import type { AccountRow, ContactRow, ActivityRow, DealRow } from "@/lib/db/schema-crm";
 import type { AccountType } from "@/lib/types/crm";
+import { AccountResearchPanel } from "./AccountResearchPanel";
 
 interface AccountDetailProps {
 	account: AccountRow;
@@ -207,6 +208,15 @@ export function AccountDetail({
 				</div>
 
 				<div className="flex items-center gap-2">
+					<AccountResearchPanel
+						account={account}
+						onResearchComplete={(updates) => {
+							// Refresh the page or update local state with new data
+							console.log("Research complete:", updates);
+							window.location.reload();
+						}}
+					/>
+
 					<QuickActions
 						entityType="account"
 						entityId={account.id}

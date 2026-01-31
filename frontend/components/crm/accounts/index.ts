@@ -10,3 +10,4 @@ export { AccountForm } from "./AccountForm";
 export { AccountDetail } from "./AccountDetail";
 export { AccountKanban } from "./AccountKanban";
 export { AccountFilters } from "./AccountFilters";
+export { AccountResearchPanel } from "./AccountResearchPanel";
