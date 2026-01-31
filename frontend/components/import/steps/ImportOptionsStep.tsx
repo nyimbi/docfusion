@@ -98,8 +98,10 @@ const DUPLICATE_OPTIONS = [
  * Batch size options
  */
 const BATCH_SIZE_OPTIONS = [
+	{ value: 10, label: "10 rows (slow, detailed errors)" },
+	{ value: 25, label: "25 rows" },
 	{ value: 50, label: "50 rows" },
-	{ value: 100, label: "100 rows" },
+	{ value: 100, label: "100 rows (recommended)" },
 	{ value: 250, label: "250 rows" },
 	{ value: 500, label: "500 rows (faster)" },
 	{ value: 1000, label: "1000 rows (fastest)" },

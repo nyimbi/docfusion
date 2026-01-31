@@ -893,12 +893,45 @@ export function validateColumnValue(
 			break;
 		case "integer":
 			if (!/^-?\d+$/.test(strValue)) {
-				return { valid: false, error: `${column.label} must be a whole number` };
+				return { valid: false, error: `${column.label} must be a whole number (got: "${strValue.slice(0, 20)}${strValue.length > 20 ? "..." : ""}")` };
 			}
 			break;
 		case "number":
 			if (isNaN(Number(strValue.replace(/,/g, "")))) {
-				return { valid: false, error: `${column.label} must be a number` };
+				return { valid: false, error: `${column.label} must be a number (got: "${strValue.slice(0, 20)}${strValue.length > 20 ? "..." : ""}")` };
+			}
+			break;
+		case "date":
+		case "datetime": {
+			// Check if it's a valid date
+			const parsed = new Date(strValue);
+			// Also try Excel serial date
+			const asNum = Number(strValue);
+			const isExcelSerial = !isNaN(asNum) && asNum > 0 && asNum < 100000;
+
+			if (isNaN(parsed.getTime()) && !isExcelSerial) {
+				return {
+					valid: false,
+					error: `${column.label} is not a valid date format (got: "${strValue.slice(0, 30)}${strValue.length > 30 ? "..." : ""}")`,
+				};
+			}
+			break;
+		}
+		case "boolean": {
+			const lower = strValue.toLowerCase().trim();
+			const validBooleans = ["true", "false", "yes", "no", "1", "0", "y", "n"];
+			if (!validBooleans.includes(lower)) {
+				return {
+					valid: false,
+					error: `${column.label} must be a boolean value (true/false, yes/no, 1/0)`,
+				};
+			}
+			break;
+		}
+		case "phone":
+			// Basic phone validation - at least some digits
+			if (!/\d{3,}/.test(strValue)) {
+				return { valid: false, error: `${column.label} doesn't appear to be a valid phone number` };
 			}
 			break;
 	}
