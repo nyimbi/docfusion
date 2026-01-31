@@ -10,6 +10,7 @@
 import { db } from "@/lib/db";
 import { opportunities, opportunityImports } from "@/lib/db/schema";
 import { eq, and, or, gte, lte, like, inArray, isNull, desc, asc, sql, count } from "drizzle-orm";
+import { AFRICAN_COUNTRIES } from "@/lib/constants/continents";
 import type {
 	Opportunity,
 	OpportunityInput,
@@ -79,8 +80,27 @@ export async function getOpportunities(
 		conditions.push(inArray(opportunities.priorityRank, filters.priorityRanks));
 	}
 
+	// Dynamic expiration check based on deadline date (not static isExpired column)
 	if (filters?.isExpired !== undefined) {
-		conditions.push(eq(opportunities.isExpired, filters.isExpired));
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		if (filters.isExpired === false) {
+			// Show non-expired: deadline >= today OR deadline is null (no deadline set)
+			conditions.push(
+				or(
+					gte(opportunities.deadline, today),
+					isNull(opportunities.deadline)
+				)!
+			);
+		} else {
+			// Show expired: deadline < today AND deadline is not null
+			conditions.push(
+				and(
+					lte(opportunities.deadline, today),
+					sql`${opportunities.deadline} IS NOT NULL`
+				)!
+			);
+		}
 	}
 
 	if (filters?.isReviewed !== undefined) {
@@ -117,6 +137,30 @@ export async function getOpportunities(
 
 	if (filters?.assignedTo) {
 		conditions.push(eq(opportunities.assignedTo, filters.assignedTo));
+	}
+
+	// Continent filter - match countryRegion against continent's country list
+	if (filters?.continent === "africa") {
+		// Build an OR condition that matches any African country in countryRegion
+		// This handles: single country ("Kenya"), multi-country ("Kenya/Uganda"),
+		// regional ("Africa Regional", "EAC Region"), and numbered ("11 African Countries")
+		const africaPatterns = [
+			// Match "Africa" anywhere in the string
+			sql`${opportunities.countryRegion} ILIKE '%Africa%'`,
+			// Match regional blocs
+			sql`${opportunities.countryRegion} ILIKE '%EAC%'`,
+			sql`${opportunities.countryRegion} ILIKE '%COMESA%'`,
+			sql`${opportunities.countryRegion} ILIKE '%ECOWAS%'`,
+			sql`${opportunities.countryRegion} ILIKE '%SADC%'`,
+			// Match specific African countries (top 20 most common)
+			...["Kenya", "Nigeria", "South Africa", "Ghana", "Tanzania", "Uganda",
+				"Rwanda", "Ethiopia", "Egypt", "Morocco", "Botswana", "Zambia",
+				"Zimbabwe", "Malawi", "Cameroon", "Senegal", "DRC", "Angola",
+				"Mozambique", "Namibia"].map(country =>
+				sql`${opportunities.countryRegion} ILIKE ${'%' + country + '%'}`
+			),
+		];
+		conditions.push(or(...africaPatterns)!);
 	}
 
 	// Build ORDER BY
@@ -159,6 +203,7 @@ export async function getOpportunities(
 				decisionStatus: opportunities.decisionStatus,
 				assignedTo: opportunities.assignedTo,
 				tags: opportunities.tags,
+				rfpLink: opportunities.rfpLink,
 			})
 			.from(opportunities)
 			.where(whereClause)
@@ -172,14 +217,26 @@ export async function getOpportunities(
 	]);
 
 	const total = totalResult[0]?.count ?? 0;
+	const now = new Date();
 
 	return {
-		data: rows.map((row) => ({
-			...row,
-			tags: (row.tags as string[]) ?? [],
-			priorityRank: (row.priorityRank ?? 3) as PriorityRank,
-			decisionStatus: (row.decisionStatus ?? "pending") as DecisionStatus,
-		})),
+		data: rows.map((row) => {
+			// Compute daysLeft and isExpired dynamically based on current date
+			const deadline = row.deadline ? new Date(row.deadline) : null;
+			const daysLeft = deadline
+				? Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+				: null;
+			const isExpired = deadline ? deadline < now : false;
+
+			return {
+				...row,
+				daysLeft,
+				isExpired,
+				tags: (row.tags as string[]) ?? [],
+				priorityRank: (row.priorityRank ?? 3) as PriorityRank,
+				decisionStatus: (row.decisionStatus ?? "pending") as DecisionStatus,
+			};
+		}),
 		total,
 		page,
 		pageSize,
@@ -394,8 +451,27 @@ export async function getOpportunityStats(filters?: OpportunityFilters): Promise
 		conditions.push(inArray(opportunities.sourceFile, filters.sourceFiles));
 	}
 
+	// Dynamic expiration check based on deadline date (not static isExpired column)
 	if (filters?.isExpired !== undefined) {
-		conditions.push(eq(opportunities.isExpired, filters.isExpired));
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		if (filters.isExpired === false) {
+			// Show non-expired: deadline >= today OR deadline is null
+			conditions.push(
+				or(
+					gte(opportunities.deadline, today),
+					isNull(opportunities.deadline)
+				)!
+			);
+		} else {
+			// Show expired: deadline < today AND deadline is not null
+			conditions.push(
+				and(
+					lte(opportunities.deadline, today),
+					sql`${opportunities.deadline} IS NOT NULL`
+				)!
+			);
+		}
 	}
 
 	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -444,16 +520,29 @@ export async function getOpportunityStats(filters?: OpportunityFilters): Promise
 		.orderBy(desc(count()))
 		.limit(10);
 
-	// Get expired and active counts
+	// Get expired and active counts (dynamic based on deadline)
+	const today = new Date();
+	today.setHours(0, 0, 0, 0);
+
 	const [expiredResult] = await db
 		.select({ count: count() })
 		.from(opportunities)
-		.where(and(whereClause, eq(opportunities.isExpired, true)));
+		.where(and(
+			whereClause,
+			lte(opportunities.deadline, today),
+			sql`${opportunities.deadline} IS NOT NULL`
+		));
 
 	const [activeResult] = await db
 		.select({ count: count() })
 		.from(opportunities)
-		.where(and(whereClause, eq(opportunities.isExpired, false)));
+		.where(and(
+			whereClause,
+			or(
+				gte(opportunities.deadline, today),
+				isNull(opportunities.deadline)
+			)
+		));
 
 	// Get total count
 	const [totalResult] = await db
