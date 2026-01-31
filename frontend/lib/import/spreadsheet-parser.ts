@@ -22,6 +22,40 @@ import type {
  * Known spreadsheet formats and their column mappings.
  */
 const KNOWN_FORMATS: Record<string, { columns: string[]; mappings: ColumnMapping[] }> = {
+	// Africa Software RFPs Jan 2026 format
+	africa_software_rfps_2026: {
+		columns: [
+			"No.",
+			"Project Title",
+			"Category",
+			"Country",
+			"Organization",
+			"Deadline",
+			"Days Left",
+			"Budget Range",
+			"Scope Summary",
+			"Technical Requirements",
+			"Submission Method",
+			"RFP Document Link",
+			"Tender Portal",
+			"Reference No.",
+			"Status",
+		],
+		mappings: [
+			{ field: "sourceId", sourceColumns: ["Reference No.", "No."] },
+			{ field: "title", sourceColumns: ["Project Title"], required: true },
+			{ field: "category", sourceColumns: ["Category"] },
+			{ field: "countryRegion", sourceColumns: ["Country"] },
+			{ field: "organization", sourceColumns: ["Organization"] },
+			{ field: "deadline", sourceColumns: ["Deadline"], transform: "date" },
+			{ field: "budgetValue", sourceColumns: ["Budget Range"] },
+			{ field: "projectSummary", sourceColumns: ["Scope Summary"] },
+			{ field: "technicalRequirements", sourceColumns: ["Technical Requirements"] },
+			{ field: "submissionMethod", sourceColumns: ["Submission Method"] },
+			{ field: "rfpLink", sourceColumns: ["RFP Document Link"] },
+			{ field: "sourcePlatform", sourceColumns: ["Tender Portal"] },
+		],
+	},
 	software_dev_rfps: {
 		columns: [
 			"ID",
