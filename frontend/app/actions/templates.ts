@@ -21,6 +21,7 @@ import type {
 	UseTemplateInput,
 } from "@/lib/types/template";
 import type { Document, DocumentContent } from "@/lib/types/document";
+import { getCurrentUserId } from "@/lib/auth-utils";
 
 // ============================================================================
 // Helper Functions
@@ -202,6 +203,9 @@ export async function getTemplate(id: string): Promise<Template | null> {
 export async function createTemplate(
 	input: CreateTemplateInput
 ): Promise<Template> {
+	// Get authenticated user
+	const userId = await getCurrentUserId() || "anonymous";
+
 	const [row] = await db
 		.insert(templates)
 		.values({
@@ -218,7 +222,7 @@ export async function createTemplate(
 			estimatedTime: input.estimatedTime,
 			difficulty: input.difficulty,
 			defaultMetadata: input.defaultMetadata,
-			createdBy: "system", // TODO: Get from auth context
+			createdBy: userId,
 		})
 		.returning();
 
@@ -382,6 +386,9 @@ export async function useTemplate(
 	};
 	const plainText = extractPlainText(content).trim();
 
+	// Get authenticated user
+	const userId = await getCurrentUserId() || "anonymous";
+
 	// Create the document
 	const [row] = await db
 		.insert(documents)
@@ -393,7 +400,7 @@ export async function useTemplate(
 			characterCount: plainText.length,
 			templateId: template.id,
 			metadata: template.defaultMetadata,
-			ownerId: "system", // TODO: Get from auth context
+			ownerId: userId,
 		})
 		.returning();
 

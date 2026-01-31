@@ -20,6 +20,7 @@ import type {
 	DocumentContent,
 	DocumentYjsState,
 } from "@/lib/types/document";
+import { getCurrentUserId } from "@/lib/auth-utils";
 
 // ============================================================================
 // Helper Functions
@@ -212,6 +213,9 @@ export async function createDocument(
 	const wordCount = countWords(plainText);
 	const characterCount = plainText.length;
 
+	// Get authenticated user
+	const userId = await getCurrentUserId() || "anonymous";
+
 	const [row] = await db
 		.insert(documents)
 		.values({
@@ -224,7 +228,7 @@ export async function createDocument(
 			templateId: input.templateId,
 			tags: input.tags || [],
 			metadata: input.metadata,
-			ownerId: "system", // TODO: Get from auth context
+			ownerId: userId,
 		})
 		.returning();
 
@@ -234,7 +238,7 @@ export async function createDocument(
 		versionNumber: 1,
 		content,
 		changeDescription: "Initial version",
-		createdBy: "system",
+		createdBy: userId,
 	});
 
 	revalidatePath("/documents");
@@ -280,12 +284,13 @@ export async function updateDocument(
 		updateData.currentVersion = current.currentVersion + 1;
 
 		// Create new version
+		const userId = await getCurrentUserId() || "anonymous";
 		await db.insert(documentVersions).values({
 			documentId: id,
 			versionNumber: current.currentVersion + 1,
 			content: input.content,
 			changeDescription: input.changeDescription,
-			createdBy: "system",
+			createdBy: userId,
 		});
 	}
 

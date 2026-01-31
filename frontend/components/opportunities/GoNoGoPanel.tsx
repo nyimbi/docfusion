@@ -19,23 +19,22 @@ import { castVoteAndUpdateStatus } from "@/lib/actions/opportunity-votes";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { useSession } from "@/lib/auth-client";
 
 interface GoNoGoPanelProps {
 	opportunityId: string;
 	initialSummary: VoteSummary;
 	initialVotes: OpportunityVote[];
-	/** Current user ID - in production, get from auth context */
-	currentUserId?: string;
-	currentUserName?: string;
 }
 
 export function GoNoGoPanel({
 	opportunityId,
 	initialSummary,
 	initialVotes,
-	currentUserId = "current-user", // TODO: Get from auth
-	currentUserName = "You",
 }: GoNoGoPanelProps) {
+	const { data: session } = useSession();
+	const currentUserId = session?.user?.id || "anonymous";
+	const currentUserName = session?.user?.name || "You";
 	const [summary, setSummary] = useState(initialSummary);
 	const [votes, setVotes] = useState(initialVotes);
 	const [selectedVote, setSelectedVote] = useState<VoteDecision | null>(() => {
