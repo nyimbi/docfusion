@@ -44,7 +44,6 @@ import {
 	Sparkles,
 } from "lucide-react";
 import {
-	getResearchQueries,
 	saveResearchFindings,
 	type ResearchCategory,
 	type AccountUpdateSuggestion,
@@ -158,6 +157,8 @@ export function AccountResearchPanel({
 	const [activeTab, setActiveTab] = useState<"search" | "results" | "save">("search");
 	const [suggestedUpdates, setSuggestedUpdates] = useState<Partial<AccountUpdateSuggestion>>({});
 	const [isSaving, setIsSaving] = useState(false);
+	const [extractionSources, setExtractionSources] = useState<Array<{ url: string; title: string }>>([]);
+	const [extractionStatus, setExtractionStatus] = useState<string>("");
 
 	// Toggle category selection
 	const toggleCategory = useCallback((categoryId: ResearchCategory) => {
@@ -168,100 +169,76 @@ export function AccountResearchPanel({
 		);
 	}, []);
 
-	// Start research
+	// Start research with AI extraction
 	const startResearch = useCallback(async () => {
 		if (selectedCategories.length === 0) return;
 
 		setIsSearching(true);
 		setActiveTab("results");
+		setExtractionStatus("Searching the web and scraping sources...");
+		setCategoryResults(new Map());
+		setExtractionSources([]);
 
-		// Get search queries from server
-		const queryResult = await getResearchQueries(account.id, selectedCategories);
-
-		if (!queryResult.success) {
-			console.error("Failed to get research queries:", queryResult.error);
-			setIsSearching(false);
-			return;
-		}
-
-		// Initialize results map
-		const initialResults = new Map<ResearchCategory, CategoryResult>();
-		for (const { category, query, title } of queryResult.queries) {
-			initialResults.set(category, {
-				category,
-				title,
-				query,
-				results: [],
-				isLoading: true,
-				isComplete: false,
+		try {
+			// Call the AI extraction endpoint
+			const response = await fetch("/api/v1/research/extract", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					accountName: account.name,
+					website: account.website,
+					country: account.country,
+					currentData: {
+						industry: account.industry,
+						description: account.description,
+					},
+				}),
 			});
-		}
-		setCategoryResults(initialResults);
 
-		// Perform searches sequentially (to avoid rate limiting)
-		for (const { category, query, title } of queryResult.queries) {
-			try {
-				// Use window.fetch to call a search API endpoint
-				// Include account website for direct scraping when available
-				const response = await fetch("/api/v1/research/search", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						query,
-						category,
-						url: category === "company_info" && account.website ? account.website : undefined,
-					}),
-				});
+			if (response.ok) {
+				const data = await response.json();
 
-				if (response.ok) {
-					const data = await response.json();
-					setCategoryResults((prev) => {
-						const newMap = new Map(prev);
-						newMap.set(category, {
-							category,
-							title,
-							query,
-							results: data.results || [],
-							isLoading: false,
-							isComplete: true,
-						});
-						return newMap;
-					});
-				} else {
-					// If API fails, mark as complete with empty results
-					setCategoryResults((prev) => {
-						const newMap = new Map(prev);
-						newMap.set(category, {
-							category,
-							title,
-							query,
-							results: [],
-							isLoading: false,
-							isComplete: true,
-							error: "Search failed - API not available",
-						});
-						return newMap;
-					});
-				}
-			} catch {
-				setCategoryResults((prev) => {
-					const newMap = new Map(prev);
-					newMap.set(category, {
-						category,
-						title,
-						query,
-						results: [],
+				if (data.success) {
+					setExtractionStatus(`AI extracted information from ${data.sources.length} sources`);
+					setExtractionSources(data.sources || []);
+
+					// Pre-populate suggested updates with extracted data
+					setSuggestedUpdates(data.extracted || {});
+
+					// Create a summary result for display
+					const summaryResults = new Map<ResearchCategory, CategoryResult>();
+					summaryResults.set("company_info", {
+						category: "company_info",
+						title: "AI Extracted Information",
+						query: `Searched and scraped ${data.sources.length} pages`,
+						results: data.sources.map((s: { url: string; title: string }) => ({
+							title: s.title,
+							snippet: `Source page scraped and analyzed`,
+							url: s.url,
+							source: new URL(s.url).hostname,
+						})),
 						isLoading: false,
 						isComplete: true,
-						error: "Search failed - please try again",
 					});
-					return newMap;
-				});
+					setCategoryResults(summaryResults);
+
+					// Auto-switch to save tab if we have results
+					if (Object.keys(data.extracted || {}).length > 0) {
+						setTimeout(() => setActiveTab("save"), 500);
+					}
+				} else {
+					setExtractionStatus("Extraction failed: " + (data.error || "Unknown error"));
+				}
+			} else {
+				setExtractionStatus("API request failed");
 			}
+		} catch (error) {
+			console.error("Research error:", error);
+			setExtractionStatus("Research failed - please try again");
 		}
 
 		setIsSearching(false);
-	}, [account.id, selectedCategories]);
+	}, [account.name, account.website, account.country, account.industry, account.description, selectedCategories.length]);
 
 	// Save findings
 	const handleSaveFindings = useCallback(async () => {
@@ -425,7 +402,95 @@ export function AccountResearchPanel({
 
 					{/* Results Tab */}
 					<TabsContent value="results" className="space-y-4 mt-4">
-						{Array.from(categoryResults.values()).map((result) => {
+						{/* Extraction Status */}
+						{extractionStatus && (
+							<div className={`p-4 rounded-lg ${isSearching ? "bg-blue-50 dark:bg-blue-950/20" : "bg-green-50 dark:bg-green-950/20"}`}>
+								<div className="flex items-center gap-2">
+									{isSearching ? (
+										<Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+									) : (
+										<CheckCircle className="h-5 w-5 text-green-600" />
+									)}
+									<span className={`font-medium ${isSearching ? "text-blue-700" : "text-green-700"}`}>
+										{extractionStatus}
+									</span>
+								</div>
+							</div>
+						)}
+
+						{/* Scraped Sources */}
+						{extractionSources.length > 0 && (
+							<Card>
+								<CardHeader className="pb-3">
+									<CardTitle className="flex items-center gap-2 text-base">
+										<Globe className="h-4 w-4" />
+										Sources Analyzed ({extractionSources.length})
+									</CardTitle>
+									<CardDescription>
+										AI extracted information from these web pages
+									</CardDescription>
+								</CardHeader>
+								<CardContent>
+									<div className="space-y-2">
+										{extractionSources.map((source, idx) => (
+											<div key={idx} className="flex items-center justify-between gap-2 p-2 bg-muted/50 rounded">
+												<div className="flex-1 min-w-0">
+													<div className="font-medium text-sm truncate">{source.title}</div>
+													<div className="text-xs text-muted-foreground truncate">{source.url}</div>
+												</div>
+												<a
+													href={source.url}
+													target="_blank"
+													rel="noopener noreferrer"
+													className="text-primary hover:underline flex-shrink-0"
+												>
+													<ExternalLink className="h-4 w-4" />
+												</a>
+											</div>
+										))}
+									</div>
+								</CardContent>
+							</Card>
+						)}
+
+						{/* Extracted Fields Preview */}
+						{Object.keys(suggestedUpdates).length > 0 && (
+							<Card>
+								<CardHeader className="pb-3">
+									<CardTitle className="flex items-center gap-2 text-base">
+										<Sparkles className="h-4 w-4 text-primary" />
+										AI Extracted Data
+									</CardTitle>
+									<CardDescription>
+										Review and edit before saving
+									</CardDescription>
+								</CardHeader>
+								<CardContent>
+									<div className="grid grid-cols-2 gap-3">
+										{Object.entries(suggestedUpdates).map(([key, value]) => (
+											<div key={key} className="space-y-1">
+												<div className="text-xs text-muted-foreground capitalize">
+													{key.replace(/([A-Z])/g, " $1").trim()}
+												</div>
+												<div className="text-sm font-medium truncate" title={value}>
+													{value}
+												</div>
+											</div>
+										))}
+									</div>
+									<Button
+										className="w-full mt-4"
+										onClick={() => setActiveTab("save")}
+									>
+										<Save className="h-4 w-4 mr-2" />
+										Review & Save Extracted Data
+									</Button>
+								</CardContent>
+							</Card>
+						)}
+
+						{/* Legacy category results */}
+						{Array.from(categoryResults.values()).filter(r => r.results.length > 0 && r.category !== "company_info").map((result) => {
 							const categoryConfig = RESEARCH_CATEGORIES.find(
 								(c) => c.id === result.category
 							);
@@ -439,73 +504,45 @@ export function AccountResearchPanel({
 												<Icon className="h-4 w-4" />
 												{result.title}
 											</CardTitle>
-											{result.isLoading ? (
-												<Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-											) : result.isComplete ? (
+											{result.isComplete && (
 												<CheckCircle className="h-4 w-4 text-green-500" />
-											) : null}
+											)}
 										</div>
-										<CardDescription className="text-xs font-mono bg-muted/50 p-2 rounded">
-											{result.query}
-										</CardDescription>
 									</CardHeader>
 									<CardContent>
-										{result.isLoading ? (
-											<div className="flex items-center justify-center py-4 text-muted-foreground">
-												<Loader2 className="h-4 w-4 animate-spin mr-2" />
-												Searching...
-											</div>
-										) : result.error ? (
-											<div className="text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-md">
-												{result.error}
-												<p className="text-xs mt-1 text-muted-foreground">
-													You can manually search using the query above
-												</p>
-											</div>
-										) : result.results.length === 0 ? (
-											<div className="text-sm text-muted-foreground py-4 text-center">
-												No results found. Try a different search.
-											</div>
-										) : (
-											<div className="space-y-3">
-												{result.results.slice(0, 5).map((item, idx) => (
-													<div key={idx} className="space-y-1">
-														<div className="flex items-start justify-between gap-2">
-															<h5 className="font-medium text-sm line-clamp-1">
-																{item.title}
-															</h5>
-															{item.url && (
-																<a
-																	href={item.url}
-																	target="_blank"
-																	rel="noopener noreferrer"
-																	className="text-primary hover:underline flex-shrink-0"
-																>
-																	<ExternalLink className="h-3.5 w-3.5" />
-																</a>
-															)}
-														</div>
-														<p className="text-xs text-muted-foreground line-clamp-2">
-															{item.snippet}
-														</p>
-														{item.source && (
-															<span className="text-xs text-muted-foreground">
-																Source: {item.source}
-															</span>
+										<div className="space-y-3">
+											{result.results.slice(0, 5).map((item, idx) => (
+												<div key={idx} className="space-y-1">
+													<div className="flex items-start justify-between gap-2">
+														<h5 className="font-medium text-sm line-clamp-1">
+															{item.title}
+														</h5>
+														{item.url && (
+															<a
+																href={item.url}
+																target="_blank"
+																rel="noopener noreferrer"
+																className="text-primary hover:underline flex-shrink-0"
+															>
+																<ExternalLink className="h-3.5 w-3.5" />
+															</a>
 														)}
 													</div>
-												))}
-											</div>
-										)}
+													<p className="text-xs text-muted-foreground line-clamp-2">
+														{item.snippet}
+													</p>
+												</div>
+											))}
+										</div>
 									</CardContent>
 								</Card>
 							);
 						})}
 
-						{!isSearching && categoryResults.size > 0 && (
+						{!isSearching && (
 							<Button variant="outline" className="w-full" onClick={startResearch}>
 								<RefreshCw className="h-4 w-4 mr-2" />
-								Refresh Results
+								Research Again
 							</Button>
 						)}
 					</TabsContent>
