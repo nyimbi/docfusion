@@ -788,23 +788,42 @@ export async function exportAccountsCSV(): Promise<{ success: boolean; data?: st
  * Delete all user data (documents, opportunities, etc.)
  * DANGER: This is irreversible!
  */
-export async function deleteAllUserData(): Promise<{ success: boolean; error?: string }> {
+export async function deleteAllUserData(): Promise<{ success: boolean; deletedCounts?: Record<string, number>; error?: string }> {
 	try {
 		const sessionData = await requireServerSession();
+		const userId = sessionData.user.id;
 
-		// In a real implementation, you would delete all user-owned data
-		// For safety, we'll just log and return success
-		console.log(`[DANGER] Delete all data requested by user: ${sessionData.user.id}`);
+		console.log(`[DANGER] Delete all data requested by user: ${userId}`);
 
-		// TODO: Implement actual deletion when ready
-		// await db.delete(documents).where(eq(documents.createdBy, sessionData.user.id));
-		// await db.delete(opportunities).where(eq(opportunities.createdBy, sessionData.user.id));
-		// etc.
+		// Delete user-owned data in correct order (respecting foreign keys)
+		const deletedCounts: Record<string, number> = {};
 
-		return { success: true };
+		// Delete documents owned by user
+		const docsResult = await db.delete(documents).where(eq(documents.ownerId, userId));
+		deletedCounts.documents = docsResult.rowCount || 0;
+
+		// Unassign opportunities from user (opportunities are shared business data, not deleted)
+		const oppsResult = await db
+			.update(opportunities)
+			.set({ assignedTo: null })
+			.where(eq(opportunities.assignedTo, userId));
+		deletedCounts.opportunitiesUnassigned = oppsResult.rowCount || 0;
+
+		// Delete contacts owned by user
+		const contactsResult = await db.delete(contacts).where(eq(contacts.ownerId, userId));
+		deletedCounts.contacts = contactsResult.rowCount || 0;
+
+		// Delete accounts owned by user
+		const accountsResult = await db.delete(accounts).where(eq(accounts.ownerId, userId));
+		deletedCounts.accounts = accountsResult.rowCount || 0;
+
+		console.log(`[DANGER] Deleted data for user ${userId}:`, deletedCounts);
+
+		revalidatePath("/");
+		return { success: true, deletedCounts };
 	} catch (error) {
 		console.error("Failed to delete user data:", error);
-		return { success: false, error: "Failed to delete data" };
+		return { success: false, error: error instanceof Error ? error.message : "Failed to delete data" };
 	}
 }
 
@@ -815,22 +834,28 @@ export async function deleteAllUserData(): Promise<{ success: boolean; error?: s
 export async function deleteUserAccount(): Promise<{ success: boolean; error?: string }> {
 	try {
 		const sessionData = await requireServerSession();
+		const userId = sessionData.user.id;
 
-		// In a real implementation, you would:
-		// 1. Delete all user data
-		// 2. Delete all sessions
+		console.log(`[DANGER] Delete account requested by user: ${userId}`);
+
+		// 1. Delete all user data first
+		const dataResult = await deleteAllUserData();
+		if (!dataResult.success) {
+			return { success: false, error: dataResult.error || "Failed to delete user data" };
+		}
+
+		// 2. Delete all sessions for this user
+		await db.delete(session).where(eq(session.userId, userId));
+
 		// 3. Delete the user account
-		console.log(`[DANGER] Delete account requested by user: ${sessionData.user.id}`);
+		await db.delete(user).where(eq(user.id, userId));
 
-		// TODO: Implement actual account deletion when ready
-		// await deleteAllUserData();
-		// await db.delete(session).where(eq(session.userId, sessionData.user.id));
-		// await db.delete(user).where(eq(user.id, sessionData.user.id));
+		console.log(`[DANGER] Account deleted for user: ${userId}`);
 
 		return { success: true };
 	} catch (error) {
 		console.error("Failed to delete account:", error);
-		return { success: false, error: "Failed to delete account" };
+		return { success: false, error: error instanceof Error ? error.message : "Failed to delete account" };
 	}
 }
 

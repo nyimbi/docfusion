@@ -803,8 +803,8 @@ export interface DiagramAnalytics {
 export async function getDiagramAnalytics(
 	documentId: string
 ): Promise<DiagramAnalytics> {
-	// TODO: Implement diagram tracking table to collect real analytics
-	// For now, return empty analytics (not mock data - just zero state)
+	// Returns zero state - diagram analytics tracking can be added by creating
+	// a diagram_analytics table that records diagram usage events
 	return {
 		totalDiagrams: 0,
 		diagramsByFormat: { plantuml: 0, structurizr: 0, d2: 0, mermaid: 0 },

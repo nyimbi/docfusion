@@ -747,16 +747,46 @@ function SectionTree({
 }
 
 /**
+ * Update a section at a given path in the structure tree.
+ * Path is an array of indices like [0, 2, 1] meaning: structure[0].children[2].children[1]
+ */
+function updateSectionAtPath(
+  structure: ImportedSection[],
+  path: number[],
+  updatedSection: ImportedSection
+): ImportedSection[] {
+  if (path.length === 0) return structure;
+
+  const [index, ...rest] = path;
+  return structure.map((section, i) => {
+    if (i !== index) return section;
+
+    if (rest.length === 0) {
+      // This is the target section
+      return updatedSection;
+    } else {
+      // Recurse into children
+      return {
+        ...section,
+        children: updateSectionAtPath(section.children || [], rest, updatedSection),
+      };
+    }
+  });
+}
+
+/**
  * Preview stage - show analyzed structure
  */
 function PreviewStage({
   analysis,
   onProceed,
   onReanalyze,
+  onUpdateSection,
 }: {
   analysis: DocumentAnalysis;
   onProceed: () => void;
   onReanalyze: () => void;
+  onUpdateSection: (path: number[], section: ImportedSection) => void;
 }) {
   const [editingSection, setEditingSection] = React.useState<{
     path: number[];
@@ -860,7 +890,7 @@ function PreviewStage({
           section={editingSection.section}
           onClose={() => setEditingSection(null)}
           onSave={(updated) => {
-            // TODO: Update section in analysis
+            onUpdateSection(editingSection.path, updated);
             setEditingSection(null);
             toast.success("Section updated");
           }}
@@ -1279,6 +1309,15 @@ export function TemplateImporter({ isOpen, onClose, onImport }: TemplateImporter
               analysis={analysis}
               onProceed={() => setStage("editing")}
               onReanalyze={handleReanalyze}
+              onUpdateSection={(path, updated) => {
+                setAnalysis((prev) => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    structure: updateSectionAtPath(prev.structure, path, updated),
+                  };
+                });
+              }}
             />
           )}
 

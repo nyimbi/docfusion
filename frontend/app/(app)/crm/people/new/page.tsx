@@ -1,0 +1,37 @@
+/**
+ * New Person Page
+ *
+ * Create a new standalone contact (not linked to any account).
+ */
+
+import { Suspense } from "react";
+import { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { requireUserContext } from "@/lib/auth-utils";
+import NewPersonContent from "./new-person-content";
+
+export const metadata: Metadata = {
+	title: "New Person | CRM",
+	description: "Create a new standalone contact",
+};
+
+export default async function NewPersonPage() {
+	let userContext;
+	try {
+		userContext = await requireUserContext();
+	} catch {
+		redirect("/auth/sign-in");
+	}
+
+	return (
+		<Suspense
+			fallback={
+				<div className="h-full flex items-center justify-center">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+				</div>
+			}
+		>
+			<NewPersonContent userContext={userContext} />
+		</Suspense>
+	);
+}
