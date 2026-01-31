@@ -6,6 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 
 // ============================================================================
 // Configuration
@@ -219,6 +221,15 @@ function buildSearchQuery(baseQuery: string, category: string): string {
 // ============================================================================
 
 export async function POST(request: NextRequest): Promise<NextResponse<SearchResponse>> {
+	// Verify authentication
+	const session = await auth.api.getSession({ headers: await headers() });
+	if (!session?.user) {
+		return NextResponse.json(
+			{ success: false, results: [], error: "Authentication required" },
+			{ status: 401 }
+		);
+	}
+
 	try {
 		const body: SearchRequest = await request.json();
 		const { query, category, url } = body;
@@ -283,6 +294,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<SearchRes
  * Scrape a single URL endpoint
  */
 export async function PUT(request: NextRequest): Promise<NextResponse<SearchResponse>> {
+	// Verify authentication
+	const session = await auth.api.getSession({ headers: await headers() });
+	if (!session?.user) {
+		return NextResponse.json(
+			{ success: false, results: [], error: "Authentication required" },
+			{ status: 401 }
+		);
+	}
+
 	try {
 		const body = await request.json();
 		const { url } = body;
@@ -322,6 +342,15 @@ export async function PUT(request: NextRequest): Promise<NextResponse<SearchResp
 }
 
 export async function GET(): Promise<NextResponse> {
+	// Verify authentication
+	const session = await auth.api.getSession({ headers: await headers() });
+	if (!session?.user) {
+		return NextResponse.json(
+			{ error: "Authentication required" },
+			{ status: 401 }
+		);
+	}
+
 	return NextResponse.json({
 		message: "Research Search API (Powered by Firecrawl)",
 		firecrawlUrl: FIRECRAWL_URL,

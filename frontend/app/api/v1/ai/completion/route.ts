@@ -1,17 +1,17 @@
 /**
  * AI Completion API Route - DocFusion
  *
- * Handles AI completion requests with support for multiple providers
- * and streaming responses.
+ * Handles AI completion requests for document editing.
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 import {
-	aiProviderManager,
+	getProviderManager,
 	type ChatMessage,
-	type AIProviderType,
 } from "@/lib/ai/providers";
-import type { AICompletionRequest, AICompletionResponse } from "@/lib/types/ai";
+import type { AICompletionRequest } from "@/lib/types/ai";
 
 /**
  * System prompts for different commands.
@@ -31,56 +31,108 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 
 	explain: `You are an educator. Explain the given text in simpler terms that anyone can understand. Be clear and concise.`,
 
-	compliance: `You are a compliance expert. Analyze the given text for regulatory compliance issues and provide specific, actionable feedback. Format your response as JSON with fields: score (0-100), issues (array of {severity, framework, description, suggestedFix}), suggestions (array of improvements).`,
+	compliance: `You are a compliance expert. Analyze the given text for regulatory compliance issues and provide specific, actionable feedback.`,
 
 	default: `You are a helpful AI assistant for a document editing application. Be concise and helpful.`,
 };
 
 /**
+ * Simple message-based request (from HDSI, ai-client, etc.)
+ */
+interface SimpleCompletionRequest {
+	messages: ChatMessage[];
+	temperature?: number;
+	maxTokens?: number;
+	model?: string;
+	stream?: boolean;
+}
+
+/**
+ * Check if request is simple message format vs full AICompletionRequest
+ */
+function isSimpleRequest(body: unknown): body is SimpleCompletionRequest {
+	return (
+		typeof body === "object" &&
+		body !== null &&
+		"messages" in body &&
+		Array.isArray((body as SimpleCompletionRequest).messages)
+	);
+}
+
+/**
  * POST /api/v1/ai/completion
  * Execute an AI completion request.
+ * Supports two formats:
+ * 1. Simple: { messages, temperature?, maxTokens? }
+ * 2. Full: AICompletionRequest with command, context, arguments
  */
 export async function POST(request: NextRequest) {
+	// Verify authentication
+	const session = await auth.api.getSession({ headers: await headers() });
+	if (!session?.user) {
+		return NextResponse.json(
+			{ error: "Authentication required" },
+			{ status: 401 }
+		);
+	}
+
 	try {
-		const body = (await request.json()) as AICompletionRequest;
-		const startTime = Date.now();
+		const body = await request.json();
 
-		// Initialize provider manager
-		await aiProviderManager.initialize();
+		const manager = getProviderManager();
+		await manager.initialize();
 
-		if (!aiProviderManager.isAvailable()) {
+		if (!await manager.isAvailable()) {
+			console.error("[AI Completion] No provider available");
 			return NextResponse.json(
-				{ error: "No AI provider available. Check your configuration." },
+				{
+					error: "No AI provider available. Configure Azure OpenAI or Ollama, or use development mock mode.",
+				},
 				{ status: 503 }
 			);
 		}
 
+		// Handle simple message-based requests (from HDSI ai-client, etc.)
+		if (isSimpleRequest(body)) {
+			const response = await manager.complete({
+				messages: body.messages,
+				temperature: body.temperature ?? 0.7,
+				maxTokens: body.maxTokens ?? 2048,
+				model: body.model,
+				stream: false,
+			});
+
+			return NextResponse.json({
+				content: response.content,
+				usage: response.usage,
+				model: response.model,
+			});
+		}
+
+		// Handle full AICompletionRequest (from editor commands)
+		const fullRequest = body as AICompletionRequest;
+
 		// Build messages for the AI
-		const messages = buildMessages(body);
+		const messages = buildMessages(fullRequest);
 
 		// Execute completion
-		const response = await aiProviderManager.complete({
+		const response = await manager.complete({
 			messages,
-			temperature: body.temperature ?? 0.7,
-			maxTokens: body.maxTokens ?? 2048,
+			temperature: fullRequest.temperature ?? 0.7,
+			maxTokens: fullRequest.maxTokens ?? 2048,
+			stream: false,
 		});
 
-		const processingTime = Date.now() - startTime;
-
-		const result: AICompletionResponse = {
-			requestId: body.requestId,
-			result: response.content,
-			confidence: 0.95, // Could be calculated from model confidence
+		return NextResponse.json({
+			content: response.content,
 			usage: response.usage,
-			processingTime,
-		};
-
-		return NextResponse.json(result);
+			model: response.model,
+		});
 	} catch (error) {
 		console.error("[AI Completion Error]", error);
 		return NextResponse.json(
 			{
-				error: error instanceof Error ? error.message : "AI completion failed",
+				error: error instanceof Error ? error.message : "Completion failed",
 			},
 			{ status: 500 }
 		);
@@ -95,24 +147,26 @@ function buildMessages(request: AICompletionRequest): ChatMessage[] {
 
 	// Get system prompt for the command
 	const systemPrompt =
-		SYSTEM_PROMPTS[request.command] || SYSTEM_PROMPTS.default;
+		SYSTEM_PROMPTS[request.command || "default"] || SYSTEM_PROMPTS.default;
 	messages.push({ role: "system", content: systemPrompt });
 
 	// Build user message with context
 	let userContent = "";
 
 	// Include document context if available
-	if (request.context.textBefore) {
-		userContent += `[Context before cursor]:\n${request.context.textBefore.slice(-500)}\n\n`;
+	const context = request.context || {};
+
+	if (context.textBefore) {
+		userContent += `[Context before cursor]:\n${context.textBefore.slice(-500)}\n\n`;
 	}
 
 	// Include selected text or position
-	if (request.context.selectedText) {
-		userContent += `[Selected text to process]:\n${request.context.selectedText}\n\n`;
+	if (context.selectedText) {
+		userContent += `[Selected text to process]:\n${context.selectedText}\n\n`;
 	}
 
-	if (request.context.textAfter) {
-		userContent += `[Context after cursor]:\n${request.context.textAfter.slice(0, 500)}\n\n`;
+	if (context.textAfter) {
+		userContent += `[Context after cursor]:\n${context.textAfter.slice(0, 500)}\n\n`;
 	}
 
 	// Add command-specific instructions

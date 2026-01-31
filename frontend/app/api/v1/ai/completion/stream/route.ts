@@ -5,8 +5,10 @@
  */
 
 import { NextRequest } from "next/server";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 import {
-	aiProviderManager,
+	getProviderManager,
 	type ChatMessage,
 } from "@/lib/ai/providers";
 import type { AICompletionRequest } from "@/lib/types/ai";
@@ -39,13 +41,22 @@ const SYSTEM_PROMPTS: Record<string, string> = {
  * Execute a streaming AI completion request.
  */
 export async function POST(request: NextRequest) {
+	// Verify authentication
+	const session = await auth.api.getSession({ headers: await headers() });
+	if (!session?.user) {
+		return new Response(
+			JSON.stringify({ error: "Authentication required" }),
+			{ status: 401, headers: { "Content-Type": "application/json" } }
+		);
+	}
+
 	try {
 		const body = (await request.json()) as AICompletionRequest;
 
-		// Initialize provider manager
-		await aiProviderManager.initialize();
+		const manager = getProviderManager();
+		await manager.initialize();
 
-		if (!aiProviderManager.isAvailable()) {
+		if (!manager.isAvailable()) {
 			return new Response(
 				JSON.stringify({
 					error: "No AI provider available. Check your configuration.",
@@ -65,7 +76,7 @@ export async function POST(request: NextRequest) {
 		const stream = new ReadableStream({
 			async start(controller) {
 				try {
-					const generator = aiProviderManager.stream({
+					const generator = manager.stream({
 						messages,
 						temperature: body.temperature ?? 0.7,
 						maxTokens: body.maxTokens ?? 2048,
