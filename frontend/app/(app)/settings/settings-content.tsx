@@ -16,17 +16,33 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useTheme } from "@/lib/theme-provider";
 import { useToast } from "@/lib/hooks/use-toast";
 import {
 	getUserProfile,
 	updateUserProfile,
+	updateUserAvatar,
 	getUserPreferences,
 	updateNotificationPreferences,
 	updateAppearancePreferences,
 	getUserSessions,
 	revokeSession,
 	revokeAllOtherSessions,
+	changePassword,
 	getApiKeys,
 	generateApiKey,
 	deleteApiKey,
@@ -318,9 +334,53 @@ function ProfileSection({ showToast }: { showToast: (msg: string, type: "success
 		}
 	};
 
+	const avatarInputRef = React.useRef<HTMLInputElement>(null);
+	const [isUploadingAvatar, setIsUploadingAvatar] = React.useState(false);
+
 	const handleAvatarClick = () => {
-		// In a real implementation, this would open a file picker
-		showToast("Avatar upload coming soon", "success");
+		avatarInputRef.current?.click();
+	};
+
+	const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+
+		// Validate file type
+		if (!file.type.startsWith("image/")) {
+			showToast("Please select an image file", "error");
+			return;
+		}
+
+		// Validate file size (max 2MB)
+		if (file.size > 2 * 1024 * 1024) {
+			showToast("Image must be less than 2MB", "error");
+			return;
+		}
+
+		setIsUploadingAvatar(true);
+		try {
+			// Convert to base64 data URL for storage
+			const reader = new FileReader();
+			reader.onload = async (event) => {
+				const dataUrl = event.target?.result as string;
+				const result = await updateUserAvatar(dataUrl);
+				if (result.success) {
+					setProfile((prev) => prev ? { ...prev, image: dataUrl } : null);
+					showToast("Avatar updated successfully", "success");
+				} else {
+					showToast(result.error ?? "Failed to update avatar", "error");
+				}
+				setIsUploadingAvatar(false);
+			};
+			reader.onerror = () => {
+				showToast("Failed to read image file", "error");
+				setIsUploadingAvatar(false);
+			};
+			reader.readAsDataURL(file);
+		} catch (error) {
+			showToast("Failed to upload avatar", "error");
+			setIsUploadingAvatar(false);
+		}
 	};
 
 	if (isLoading) {
@@ -360,8 +420,22 @@ function ProfileSection({ showToast }: { showToast: (msg: string, type: "success
 					)}
 				</div>
 				<div className="space-y-2">
-					<Button variant="outline" size="sm" onClick={handleAvatarClick}>
-						Change Avatar
+					<input
+						ref={avatarInputRef}
+						type="file"
+						accept="image/*"
+						className="hidden"
+						onChange={handleAvatarChange}
+					/>
+					<Button variant="outline" size="sm" onClick={handleAvatarClick} disabled={isUploadingAvatar}>
+						{isUploadingAvatar ? (
+							<>
+								<Loader2 className="h-4 w-4 animate-spin mr-2" />
+								Uploading...
+							</>
+						) : (
+							"Change Avatar"
+						)}
 					</Button>
 					<p className="text-xs text-muted-foreground">JPG, PNG or GIF. Max 2MB.</p>
 				</div>
@@ -577,8 +651,38 @@ function NotificationsSection({ showToast }: { showToast: (msg: string, type: "s
 		}
 	};
 
+	const [showQuietHoursDialog, setShowQuietHoursDialog] = React.useState(false);
+	const [quietHoursStart, setQuietHoursStart] = React.useState(prefs?.quietHours?.start ?? "22:00");
+	const [quietHoursEnd, setQuietHoursEnd] = React.useState(prefs?.quietHours?.end ?? "08:00");
+	const [quietHoursEnabled, setQuietHoursEnabled] = React.useState(prefs?.quietHours?.enabled ?? false);
+
 	const handleQuietHoursClick = () => {
-		showToast("Quiet hours configuration coming soon", "success");
+		setShowQuietHoursDialog(true);
+	};
+
+	const handleSaveQuietHours = async () => {
+		if (!prefs) return;
+		const updated = {
+			email: prefs.email,
+			push: prefs.push,
+			quietHours: {
+				enabled: quietHoursEnabled,
+				start: quietHoursStart,
+				end: quietHoursEnd,
+			},
+		};
+		setPrefs(updated);
+		setShowQuietHoursDialog(false);
+
+		setIsSaving(true);
+		const result = await updateNotificationPreferences(updated);
+		setIsSaving(false);
+
+		if (result.success) {
+			showToast("Quiet hours updated", "success");
+		} else {
+			showToast(result.error ?? "Failed to save quiet hours", "error");
+		}
 	};
 
 	if (isLoading || !prefs) {
@@ -688,7 +792,9 @@ function NotificationsSection({ showToast }: { showToast: (msg: string, type: "s
 						<div>
 							<h3 className="font-medium text-foreground">Quiet Hours</h3>
 							<p className="text-sm text-muted-foreground">
-								Pause notifications during set hours
+								{prefs.quietHours?.enabled
+									? `Active: ${prefs.quietHours.start} - ${prefs.quietHours.end}`
+									: "Pause notifications during set hours"}
 							</p>
 						</div>
 					</div>
@@ -697,6 +803,58 @@ function NotificationsSection({ showToast }: { showToast: (msg: string, type: "s
 					</Button>
 				</div>
 			</div>
+
+			{/* Quiet Hours Dialog */}
+			<Dialog open={showQuietHoursDialog} onOpenChange={setShowQuietHoursDialog}>
+				<DialogContent className="sm:max-w-[425px]">
+					<DialogHeader>
+						<DialogTitle>Quiet Hours</DialogTitle>
+						<DialogDescription>
+							Configure when to pause notifications
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4 py-4">
+						<div className="flex items-center justify-between">
+							<div>
+								<p className="font-medium">Enable Quiet Hours</p>
+								<p className="text-sm text-muted-foreground">
+									Pause notifications during these hours
+								</p>
+							</div>
+							<Switch
+								checked={quietHoursEnabled}
+								onCheckedChange={setQuietHoursEnabled}
+							/>
+						</div>
+						{quietHoursEnabled && (
+							<div className="grid grid-cols-2 gap-4">
+								<div>
+									<label className="block text-sm font-medium mb-2">Start Time</label>
+									<Input
+										type="time"
+										value={quietHoursStart}
+										onChange={(e) => setQuietHoursStart(e.target.value)}
+									/>
+								</div>
+								<div>
+									<label className="block text-sm font-medium mb-2">End Time</label>
+									<Input
+										type="time"
+										value={quietHoursEnd}
+										onChange={(e) => setQuietHoursEnd(e.target.value)}
+									/>
+								</div>
+							</div>
+						)}
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setShowQuietHoursDialog(false)}>
+							Cancel
+						</Button>
+						<Button onClick={handleSaveQuietHours}>Save Changes</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }
@@ -758,17 +916,20 @@ function SecuritySection({ showToast }: { showToast: (msg: string, type: "succes
 		}
 
 		setIsUpdatingPassword(true);
-		// In real implementation, call auth API to change password
-		await new Promise((r) => setTimeout(r, 1000));
+		const result = await changePassword(currentPassword, newPassword);
 		setIsUpdatingPassword(false);
-		setCurrentPassword("");
-		setNewPassword("");
-		showToast("Password updated successfully", "success");
+
+		if (result.success) {
+			setCurrentPassword("");
+			setNewPassword("");
+			showToast("Password updated successfully", "success");
+		} else {
+			showToast(result.error ?? "Failed to update password", "error");
+		}
 	};
 
-	const handleEnable2FA = () => {
-		showToast("Two-factor authentication setup coming soon", "success");
-	};
+	// 2FA requires TOTP library and QR code generation - disabled until backend is configured
+	const is2FASupported = false; // Set to true when TOTP is configured
 
 	const handleRevokeSession = async (sessionId: string) => {
 		setRevokingSession(sessionId);
@@ -894,9 +1055,22 @@ function SecuritySection({ showToast }: { showToast: (msg: string, type: "succes
 							</p>
 						</div>
 					</div>
-					<Button variant="outline" size="sm" onClick={handleEnable2FA}>
-						Enable 2FA
-					</Button>
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span>
+									<Button variant="outline" size="sm" disabled={!is2FASupported}>
+										Enable 2FA
+									</Button>
+								</span>
+							</TooltipTrigger>
+							{!is2FASupported && (
+								<TooltipContent>
+									<p>2FA requires TOTP configuration. Contact your administrator.</p>
+								</TooltipContent>
+							)}
+						</Tooltip>
+					</TooltipProvider>
 				</div>
 			</div>
 
@@ -1173,12 +1347,15 @@ function IntegrationsSection({ showToast }: { showToast: (msg: string, type: "su
 		}
 	};
 
-	const handleAddWebhook = () => {
-		showToast("Webhook configuration coming soon", "success");
-	};
+	// Webhooks require webhook infrastructure setup
+	const isWebhooksSupported = false; // Set to true when webhook service is configured
 
-	const handleConnectService = (name: string) => {
-		showToast(`${name} integration coming soon`, "success");
+	// Service integrations require OAuth credentials for each service
+	const supportedIntegrations: Record<string, boolean> = {
+		"Google Workspace": false, // Requires GOOGLE_CLIENT_ID/SECRET
+		"Microsoft 365": false,    // Requires MS_CLIENT_ID/SECRET
+		"Slack": false,            // Requires SLACK_CLIENT_ID/SECRET
+		"Salesforce": false,       // Requires SF_CLIENT_ID/SECRET
 	};
 
 	const integrations = [
@@ -1319,14 +1496,29 @@ function IntegrationsSection({ showToast }: { showToast: (msg: string, type: "su
 							</p>
 						</div>
 					</div>
-					<Button variant="outline" size="sm" onClick={handleAddWebhook}>
-						<Plus className="h-4 w-4" />
-						Add Webhook
-					</Button>
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span>
+									<Button variant="outline" size="sm" disabled={!isWebhooksSupported}>
+										<Plus className="h-4 w-4" />
+										Add Webhook
+									</Button>
+								</span>
+							</TooltipTrigger>
+							{!isWebhooksSupported && (
+								<TooltipContent>
+									<p>Webhook service requires infrastructure setup</p>
+								</TooltipContent>
+							)}
+						</Tooltip>
+					</TooltipProvider>
 				</div>
 
 				<div className="pl-2 text-sm text-muted-foreground">
-					No webhooks configured. Add one to receive notifications when events occur.
+					{isWebhooksSupported
+						? "No webhooks configured. Add one to receive notifications when events occur."
+						: "Webhooks are not available. Contact your administrator to enable this feature."}
 				</div>
 			</div>
 
@@ -1345,27 +1537,43 @@ function IntegrationsSection({ showToast }: { showToast: (msg: string, type: "su
 				</div>
 
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-2">
-					{integrations.map((integration) => (
-						<div
-							key={integration.name}
-							className="flex items-center justify-between p-4 rounded-lg border"
-						>
-							<div className="flex items-center gap-3">
-								<span className="text-2xl">{integration.icon}</span>
-								<div>
-									<p className="text-sm font-medium">{integration.name}</p>
-									<p className="text-xs text-muted-foreground">{integration.description}</p>
-								</div>
-							</div>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={() => handleConnectService(integration.name)}
+					{integrations.map((integration) => {
+						const isSupported = supportedIntegrations[integration.name] ?? false;
+						return (
+							<div
+								key={integration.name}
+								className="flex items-center justify-between p-4 rounded-lg border"
 							>
-								Connect
-							</Button>
-						</div>
-					))}
+								<div className="flex items-center gap-3">
+									<span className="text-2xl">{integration.icon}</span>
+									<div>
+										<p className="text-sm font-medium">{integration.name}</p>
+										<p className="text-xs text-muted-foreground">{integration.description}</p>
+									</div>
+								</div>
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<span>
+												<Button
+													variant="ghost"
+													size="sm"
+													disabled={!isSupported}
+												>
+													Connect
+												</Button>
+											</span>
+										</TooltipTrigger>
+										{!isSupported && (
+											<TooltipContent>
+												<p>Requires OAuth credentials configuration</p>
+											</TooltipContent>
+										)}
+									</Tooltip>
+								</TooltipProvider>
+							</div>
+						);
+					})}
 				</div>
 			</div>
 		</div>

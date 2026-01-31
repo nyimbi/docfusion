@@ -392,6 +392,63 @@ export async function revokeSession(sessionId: string): Promise<{ success: boole
 }
 
 /**
+ * Change user password
+ */
+export async function changePassword(
+	currentPassword: string,
+	newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+	try {
+		const sessionData = await requireServerSession();
+
+		// Validate new password requirements
+		if (newPassword.length < 8) {
+			return { success: false, error: "New password must be at least 8 characters" };
+		}
+
+		// Get user's current password hash
+		const [userData] = await db
+			.select({ id: user.id, password: sql<string>`password` })
+			.from(sql`"user"`)
+			.where(eq(user.id, sessionData.user.id));
+
+		if (!userData) {
+			return { success: false, error: "User not found" };
+		}
+
+		// Verify current password using bcryptjs comparison (pure JS, works in serverless)
+		const bcrypt = await import("bcryptjs");
+		const isValidPassword = await bcrypt.compare(currentPassword, userData.password || "");
+
+		if (!isValidPassword) {
+			return { success: false, error: "Current password is incorrect" };
+		}
+
+		// Hash new password
+		const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+		// Update password in database
+		await db
+			.update(user)
+			.set({
+				updatedAt: new Date(),
+			})
+			.where(eq(user.id, sessionData.user.id));
+
+		// Update the password hash directly (Better Auth stores it in user table)
+		await db.execute(
+			sql`UPDATE "user" SET password = ${hashedPassword} WHERE id = ${sessionData.user.id}`
+		);
+
+		revalidatePath("/settings");
+		return { success: true };
+	} catch (error) {
+		console.error("Failed to change password:", error);
+		return { success: false, error: "Failed to change password" };
+	}
+}
+
+/**
  * Revoke all sessions except current
  */
 export async function revokeAllOtherSessions(): Promise<{ success: boolean; error?: string }> {

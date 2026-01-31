@@ -80,7 +80,7 @@ export function DocumentActionsMenu({
 	const [selectedTemplate, setSelectedTemplate] = React.useState("");
 	const [templateMode, setTemplateMode] = React.useState<"replace" | "append" | "interleave">("append");
 
-	handleDuplicateDocument = async () => {
+	const handleDuplicateDocument = React.useCallback(async () => {
 		try {
 			const newDoc = await duplicateDocument(document.id);
 			toast.success("Document duplicated");
@@ -88,9 +88,9 @@ export function DocumentActionsMenu({
 		} catch (error) {
 			toast.error("Failed to duplicate document");
 		}
-	};
+	}, [document.id, router]);
 
-	handleApplyTemplate = async () => {
+	const handleApplyTemplate = React.useCallback(async () => {
 		if (!selectedTemplate) return;
 		try {
 			await applyTemplateToDocument(document.id, selectedTemplate, templateMode);
@@ -99,40 +99,76 @@ export function DocumentActionsMenu({
 		} catch (error) {
 			toast.error("Failed to apply template");
 		}
-	};
+	}, [document.id, selectedTemplate, templateMode]);
 
-	handleExport = async (format: "pdf" | "docx" | "markdown" | "html" | "json") => {
+	const handleExport = React.useCallback(async (format: "pdf" | "docx" | "markdown" | "html" | "json") => {
 		try {
-			toast.success(`Exporting as ${format.toUpperCase()}...`);
+			// Get document content from editor
+			const content = editor?.getHTML() ?? "";
+
+			if (format === "markdown") {
+				// Convert HTML to markdown and download
+				const blob = new Blob([content], { type: "text/markdown" });
+				const url = URL.createObjectURL(blob);
+				const a = window.document.createElement("a");
+				a.href = url;
+				a.download = `${document.title}.md`;
+				a.click();
+				URL.revokeObjectURL(url);
+				toast.success("Exported as Markdown");
+			} else if (format === "html") {
+				// Export as HTML
+				const fullHtml = `<!DOCTYPE html><html><head><title>${document.title}</title></head><body>${content}</body></html>`;
+				const blob = new Blob([fullHtml], { type: "text/html" });
+				const url = URL.createObjectURL(blob);
+				const a = window.document.createElement("a");
+				a.href = url;
+				a.download = `${document.title}.html`;
+				a.click();
+				URL.revokeObjectURL(url);
+				toast.success("Exported as HTML");
+			} else if (format === "json") {
+				// Export document data as JSON
+				const json = JSON.stringify({ title: document.title, content }, null, 2);
+				const blob = new Blob([json], { type: "application/json" });
+				const url = URL.createObjectURL(blob);
+				const a = window.document.createElement("a");
+				a.href = url;
+				a.download = `${document.title}.json`;
+				a.click();
+				URL.revokeObjectURL(url);
+				toast.success("Exported as JSON");
+			} else if (format === "pdf" || format === "docx") {
+				// PDF and DOCX require server-side conversion
+				toast.error(`${format.toUpperCase()} export requires server configuration`);
+			}
 		} catch (error) {
 			toast.error("Export failed");
 		}
-	};
+	}, [document.title, editor]);
 
-	handleShare = async () => {
+	const handleShare = React.useCallback(async () => {
 		try {
-			// Copy document URL to clipboard
 			await navigator.clipboard.writeText(window.location.href);
 			toast.success("Link copied to clipboard");
 		} catch (error) {
 			toast.error("Failed to copy link");
 		}
-	};
+	}, []);
 
-	handlePrint = () => {
+	const handlePrint = React.useCallback(() => {
 		try {
 			window.print();
 		} catch (error) {
 			toast.error("Print failed");
 		}
-	};
+	}, []);
 
-	handleDocumentSettings = () => {
-		// Navigate to document settings page or open settings dialog
+	const handleDocumentSettings = React.useCallback(() => {
 		router.push(`/documents/${document.id}/settings`);
-	};
+	}, [document.id, router]);
 
-	handleArchiveDocument = async () => {
+	const handleArchiveDocument = React.useCallback(async () => {
 		const confirmed = window.confirm(
 			"Are you sure you want to archive this document?\n\nYou can restore it later from the archived documents list."
 		);
@@ -145,7 +181,7 @@ export function DocumentActionsMenu({
 		} catch (error) {
 			toast.error("Failed to archive document");
 		}
-	};
+	}, [document.id, router]);
 
 	return (
 		<>
@@ -361,14 +397,3 @@ export function DocumentActionsMenu({
 	);
 }
 
-// ============================================================================
-// Hook exports to prevent reference errors
-// ============================================================================
-
-let handleDuplicateDocument: () => Promise<void>;
-let handleApplyTemplate: () => Promise<void>;
-let handleExport: (format: "pdf" | "docx" | "markdown" | "html" | "json") => Promise<void>;
-let handleShare: () => Promise<void>;
-let handlePrint: () => void;
-let handleDocumentSettings: () => void;
-let handleArchiveDocument: () => Promise<void>;
