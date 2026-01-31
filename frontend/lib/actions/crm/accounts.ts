@@ -1,0 +1,925 @@
+"use server";
+
+/**
+ * CRM Account Server Actions
+ *
+ * CRUD operations and business logic for managing accounts (partners, prospects,
+ * leads, customers, vendors). Includes pipeline management, type conversion,
+ * and analytics.
+ */
+
+import { db } from "@/lib/db";
+import {
+	accounts,
+	accountStageHistory,
+	contacts,
+	activities,
+	deals,
+	crmDocuments,
+} from "@/lib/db/schema-crm";
+import { eq, and, or, gte, lte, like, ilike, inArray, desc, asc, sql, count, type SQL } from "drizzle-orm";
+import type {
+	AccountType,
+	AccountStatus,
+	AccountFilters,
+	AccountSortField,
+	SortConfig,
+	Pagination,
+	PaginatedResponse,
+	CreateAccountInput,
+	UpdateAccountInput,
+	AccountStats,
+	PipelineMetrics,
+	AccountWithRelations,
+	ACCOUNT_STAGES,
+} from "@/lib/types/crm";
+import type { AccountRow, NewAccount } from "@/lib/db/schema-crm";
+
+// ============================================================================
+// CRUD OPERATIONS
+// ============================================================================
+
+/**
+ * Create a new account.
+ */
+export async function createAccount(
+	input: CreateAccountInput,
+	userId?: string
+): Promise<AccountRow> {
+	const now = new Date();
+
+	// Set default stage based on type if not provided
+	const defaultStage = getDefaultStageForType(input.type);
+
+	const newAccount: NewAccount = {
+		name: input.name,
+		type: input.type,
+		industry: input.industry,
+		sector: input.sector,
+		subSector: input.subSector,
+		companySize: input.companySize,
+		country: input.country,
+		region: input.region,
+		city: input.city,
+		address: input.address,
+		timezone: input.timezone,
+		primaryLanguage: input.primaryLanguage ?? "en",
+		additionalLanguages: input.additionalLanguages ?? [],
+		preferredContactMethod: input.preferredContactMethod,
+		description: input.description,
+		website: input.website,
+		linkedinUrl: input.linkedinUrl,
+		foundedYear: input.foundedYear,
+		employeeCount: input.employeeCount,
+		annualRevenue: input.annualRevenue,
+		fiscalYearEnd: input.fiscalYearEnd,
+		partnerTier: input.partnerTier,
+		coreCapabilities: input.coreCapabilities,
+		capabilities: input.capabilities ?? [],
+		corporateStatus: input.corporateStatus,
+		stage: input.stage ?? defaultStage,
+		status: input.status ?? "active",
+		ownerId: input.ownerId,
+		ownerName: input.ownerName,
+		teamId: input.teamId,
+		leadScore: input.leadScore,
+		leadSource: input.leadSource,
+		leadSourceDetail: input.leadSourceDetail,
+		qualificationStatus: input.qualificationStatus,
+		tags: input.tags ?? [],
+		customFields: input.customFields,
+		source: input.source ?? "manual",
+		sourceFile: input.sourceFile,
+		createdBy: userId,
+		updatedBy: userId,
+		createdAt: now,
+		updatedAt: now,
+	};
+
+	const [created] = await db.insert(accounts).values(newAccount).returning();
+
+	// Record initial stage in history
+	await db.insert(accountStageHistory).values({
+		accountId: created.id,
+		previousStage: null,
+		newStage: created.stage ?? defaultStage,
+		newType: created.type,
+		changedBy: userId,
+		reason: "Account created",
+	});
+
+	return created;
+}
+
+/**
+ * Update an existing account.
+ */
+export async function updateAccount(
+	id: string,
+	input: UpdateAccountInput,
+	userId?: string
+): Promise<AccountRow | null> {
+	const existing = await db.query.accounts.findFirst({
+		where: eq(accounts.id, id),
+	});
+
+	if (!existing) {
+		return null;
+	}
+
+	const [updated] = await db
+		.update(accounts)
+		.set({
+			...input,
+			updatedAt: new Date(),
+			updatedBy: userId,
+		})
+		.where(eq(accounts.id, id))
+		.returning();
+
+	return updated;
+}
+
+/**
+ * Delete an account (soft delete by setting status to archived).
+ */
+export async function deleteAccount(
+	id: string,
+	userId?: string,
+	hard = false
+): Promise<boolean> {
+	if (hard) {
+		const result = await db.delete(accounts).where(eq(accounts.id, id));
+		return (result.rowCount ?? 0) > 0;
+	}
+
+	const [updated] = await db
+		.update(accounts)
+		.set({
+			status: "archived",
+			updatedAt: new Date(),
+			updatedBy: userId,
+		})
+		.where(eq(accounts.id, id))
+		.returning();
+
+	return !!updated;
+}
+
+/**
+ * Get a single account by ID.
+ */
+export async function getAccount(id: string): Promise<AccountRow | null> {
+	const account = await db.query.accounts.findFirst({
+		where: eq(accounts.id, id),
+	});
+	return account ?? null;
+}
+
+/**
+ * Get account with all related entities.
+ */
+export async function getAccountWithRelations(
+	id: string
+): Promise<AccountWithRelations | null> {
+	const account = await db.query.accounts.findFirst({
+		where: eq(accounts.id, id),
+		with: {
+			contacts: {
+				limit: 100,
+				orderBy: [desc(contacts.isPrimaryContact), asc(contacts.lastName)],
+			},
+			deals: {
+				limit: 50,
+				orderBy: desc(deals.createdAt),
+			},
+			documents: {
+				limit: 50,
+				orderBy: desc(crmDocuments.createdAt),
+			},
+			stageHistory: {
+				limit: 20,
+				orderBy: desc(accountStageHistory.createdAt),
+			},
+		},
+	});
+
+	if (!account) return null;
+
+	// Get recent activities separately (includes all polymorphic relations)
+	const recentActivities = await db.query.activities.findMany({
+		where: eq(activities.accountId, id),
+		limit: 20,
+		orderBy: desc(activities.createdAt),
+	});
+
+	return {
+		...account,
+		recentActivities,
+	};
+}
+
+/**
+ * Get accounts with filters, sorting, and pagination.
+ */
+export async function getAccounts(
+	filters?: AccountFilters,
+	sort?: SortConfig<AccountSortField>,
+	pagination?: Pagination
+): Promise<PaginatedResponse<AccountRow>> {
+	const conditions = buildAccountFilterConditions(filters);
+
+	// Build order by clause
+	const orderByClause = sort
+		? sort.direction === "asc"
+			? asc(accounts[sort.field as keyof typeof accounts] as any)
+			: desc(accounts[sort.field as keyof typeof accounts] as any)
+		: desc(accounts.updatedAt);
+
+	// Get total count
+	const [{ total }] = await db
+		.select({ total: count() })
+		.from(accounts)
+		.where(conditions.length > 0 ? and(...conditions) : undefined);
+
+	// Get paginated results
+	const page = pagination?.page ?? 1;
+	const pageSize = pagination?.pageSize ?? 25;
+	const offset = (page - 1) * pageSize;
+
+	const results = await db
+		.select()
+		.from(accounts)
+		.where(conditions.length > 0 ? and(...conditions) : undefined)
+		.orderBy(orderByClause)
+		.limit(pageSize)
+		.offset(offset);
+
+	const totalPages = Math.ceil(total / pageSize);
+
+	return {
+		data: results,
+		total,
+		page,
+		pageSize,
+		totalPages,
+		hasNext: page < totalPages,
+		hasPrevious: page > 1,
+	};
+}
+
+// ============================================================================
+// TYPE-SPECIFIC QUERIES
+// ============================================================================
+
+/**
+ * Get all partners.
+ */
+export async function getPartners(
+	filters?: Omit<AccountFilters, "type">,
+	sort?: SortConfig<AccountSortField>,
+	pagination?: Pagination
+): Promise<PaginatedResponse<AccountRow>> {
+	return getAccounts({ ...filters, type: "partner" }, sort, pagination);
+}
+
+/**
+ * Get all prospects.
+ */
+export async function getProspects(
+	filters?: Omit<AccountFilters, "type">,
+	sort?: SortConfig<AccountSortField>,
+	pagination?: Pagination
+): Promise<PaginatedResponse<AccountRow>> {
+	return getAccounts({ ...filters, type: "prospect" }, sort, pagination);
+}
+
+/**
+ * Get all leads.
+ */
+export async function getLeads(
+	filters?: Omit<AccountFilters, "type">,
+	sort?: SortConfig<AccountSortField>,
+	pagination?: Pagination
+): Promise<PaginatedResponse<AccountRow>> {
+	return getAccounts({ ...filters, type: "lead" }, sort, pagination);
+}
+
+/**
+ * Get all customers.
+ */
+export async function getCustomers(
+	filters?: Omit<AccountFilters, "type">,
+	sort?: SortConfig<AccountSortField>,
+	pagination?: Pagination
+): Promise<PaginatedResponse<AccountRow>> {
+	return getAccounts({ ...filters, type: "customer" }, sort, pagination);
+}
+
+/**
+ * Get all vendors.
+ */
+export async function getVendors(
+	filters?: Omit<AccountFilters, "type">,
+	sort?: SortConfig<AccountSortField>,
+	pagination?: Pagination
+): Promise<PaginatedResponse<AccountRow>> {
+	return getAccounts({ ...filters, type: "vendor" }, sort, pagination);
+}
+
+// ============================================================================
+// PIPELINE MANAGEMENT
+// ============================================================================
+
+/**
+ * Update account stage with history tracking.
+ */
+export async function updateAccountStage(
+	id: string,
+	newStage: string,
+	reason?: string,
+	userId?: string
+): Promise<AccountRow | null> {
+	const existing = await db.query.accounts.findFirst({
+		where: eq(accounts.id, id),
+	});
+
+	if (!existing) {
+		return null;
+	}
+
+	const previousStage = existing.stage;
+
+	// Update the account
+	const [updated] = await db
+		.update(accounts)
+		.set({
+			stage: newStage,
+			updatedAt: new Date(),
+			updatedBy: userId,
+		})
+		.where(eq(accounts.id, id))
+		.returning();
+
+	// Record stage change in history
+	await db.insert(accountStageHistory).values({
+		accountId: id,
+		previousStage,
+		newStage,
+		changedBy: userId,
+		reason,
+	});
+
+	return updated;
+}
+
+/**
+ * Convert a lead to a customer.
+ */
+export async function convertLeadToCustomer(
+	id: string,
+	reason?: string,
+	userId?: string
+): Promise<AccountRow | null> {
+	const existing = await db.query.accounts.findFirst({
+		where: eq(accounts.id, id),
+	});
+
+	if (!existing || !["lead", "prospect"].includes(existing.type)) {
+		return null;
+	}
+
+	const [updated] = await db
+		.update(accounts)
+		.set({
+			type: "customer",
+			stage: "onboarding",
+			customerSince: new Date(),
+			updatedAt: new Date(),
+			updatedBy: userId,
+		})
+		.where(eq(accounts.id, id))
+		.returning();
+
+	// Record type and stage change in history
+	await db.insert(accountStageHistory).values({
+		accountId: id,
+		previousStage: existing.stage,
+		newStage: "onboarding",
+		previousType: existing.type,
+		newType: "customer",
+		changedBy: userId,
+		reason: reason ?? "Converted to customer",
+	});
+
+	return updated;
+}
+
+/**
+ * Convert a prospect to a lead.
+ */
+export async function convertProspectToLead(
+	id: string,
+	reason?: string,
+	userId?: string
+): Promise<AccountRow | null> {
+	const existing = await db.query.accounts.findFirst({
+		where: eq(accounts.id, id),
+	});
+
+	if (!existing || existing.type !== "prospect") {
+		return null;
+	}
+
+	const [updated] = await db
+		.update(accounts)
+		.set({
+			type: "lead",
+			stage: "qualified",
+			qualificationStatus: "sql",
+			updatedAt: new Date(),
+			updatedBy: userId,
+		})
+		.where(eq(accounts.id, id))
+		.returning();
+
+	// Record type and stage change in history
+	await db.insert(accountStageHistory).values({
+		accountId: id,
+		previousStage: existing.stage,
+		newStage: "qualified",
+		previousType: "prospect",
+		newType: "lead",
+		changedBy: userId,
+		reason: reason ?? "Qualified as lead",
+	});
+
+	return updated;
+}
+
+// ============================================================================
+// ANALYTICS
+// ============================================================================
+
+/**
+ * Get account statistics by type.
+ */
+export async function getAccountStats(
+	type?: AccountType
+): Promise<AccountStats[]> {
+	const types: AccountType[] = type
+		? [type]
+		: ["partner", "prospect", "lead", "customer", "vendor", "other"];
+
+	const stats: AccountStats[] = [];
+
+	for (const accountType of types) {
+		// Get total count
+		const [{ total }] = await db
+			.select({ total: count() })
+			.from(accounts)
+			.where(eq(accounts.type, accountType));
+
+		// Get counts by status
+		const statusCounts = await db
+			.select({
+				status: accounts.status,
+				count: count(),
+			})
+			.from(accounts)
+			.where(eq(accounts.type, accountType))
+			.groupBy(accounts.status);
+
+		const byStatus: Record<string, number> = {};
+		for (const row of statusCounts) {
+			if (row.status) byStatus[row.status] = row.count;
+		}
+
+		// Get counts by stage
+		const stageCounts = await db
+			.select({
+				stage: accounts.stage,
+				count: count(),
+			})
+			.from(accounts)
+			.where(eq(accounts.type, accountType))
+			.groupBy(accounts.stage);
+
+		const byStage: Record<string, number> = {};
+		for (const row of stageCounts) {
+			if (row.stage) byStage[row.stage] = row.count;
+		}
+
+		// Get counts by region
+		const regionCounts = await db
+			.select({
+				region: accounts.region,
+				count: count(),
+			})
+			.from(accounts)
+			.where(and(eq(accounts.type, accountType), sql`${accounts.region} IS NOT NULL`))
+			.groupBy(accounts.region);
+
+		const byRegion: Record<string, number> = {};
+		for (const row of regionCounts) {
+			if (row.region) byRegion[row.region] = row.count;
+		}
+
+		// Get average scores based on type
+		let avgLeadScore: number | undefined;
+		let avgHealthScore: number | undefined;
+		let avgFitScore: number | undefined;
+
+		if (["prospect", "lead"].includes(accountType)) {
+			const [scores] = await db
+				.select({
+					avgLeadScore: sql<number>`AVG(${accounts.leadScore})`,
+				})
+				.from(accounts)
+				.where(eq(accounts.type, accountType));
+			avgLeadScore = scores.avgLeadScore;
+		}
+
+		if (accountType === "customer") {
+			const [scores] = await db
+				.select({
+					avgHealthScore: sql<number>`AVG(${accounts.customerHealthScore})`,
+				})
+				.from(accounts)
+				.where(eq(accounts.type, accountType));
+			avgHealthScore = scores.avgHealthScore;
+		}
+
+		if (accountType === "partner") {
+			const [scores] = await db
+				.select({
+					avgFitScore: sql<number>`AVG(${accounts.partnershipFitScore})`,
+				})
+				.from(accounts)
+				.where(eq(accounts.type, accountType));
+			avgFitScore = scores.avgFitScore;
+		}
+
+		stats.push({
+			type: accountType,
+			total,
+			byStatus,
+			byStage,
+			byRegion,
+			avgLeadScore,
+			avgHealthScore,
+			avgFitScore,
+		});
+	}
+
+	return stats;
+}
+
+/**
+ * Get accounts grouped by region.
+ */
+export async function getAccountsByRegion(
+	type?: AccountType
+): Promise<{ region: string; count: number; types: Record<string, number> }[]> {
+	const whereClause = type ? eq(accounts.type, type) : undefined;
+
+	const results = await db
+		.select({
+			region: accounts.region,
+			type: accounts.type,
+			count: count(),
+		})
+		.from(accounts)
+		.where(whereClause)
+		.groupBy(accounts.region, accounts.type)
+		.orderBy(accounts.region);
+
+	// Group by region
+	const regionMap = new Map<string, { count: number; types: Record<string, number> }>();
+
+	for (const row of results) {
+		const region = row.region ?? "Unknown";
+		if (!regionMap.has(region)) {
+			regionMap.set(region, { count: 0, types: {} });
+		}
+		const entry = regionMap.get(region)!;
+		entry.count += row.count;
+		entry.types[row.type] = (entry.types[row.type] ?? 0) + row.count;
+	}
+
+	return Array.from(regionMap.entries()).map(([region, data]) => ({
+		region,
+		...data,
+	}));
+}
+
+/**
+ * Get pipeline metrics for a specific account type.
+ */
+export async function getPipelineMetrics(
+	type: AccountType
+): Promise<PipelineMetrics> {
+	// Get counts by stage
+	const stageCounts = await db
+		.select({
+			stage: accounts.stage,
+			count: count(),
+		})
+		.from(accounts)
+		.where(eq(accounts.type, type))
+		.groupBy(accounts.stage);
+
+	const total = stageCounts.reduce((sum, row) => sum + row.count, 0);
+
+	const stages = stageCounts.map((row) => ({
+		stage: row.stage ?? "unknown",
+		count: row.count,
+		percentage: total > 0 ? (row.count / total) * 100 : 0,
+	}));
+
+	// Calculate conversion rates from stage history
+	// This is a simplified version - in production you'd want more sophisticated analysis
+	const conversionRates: { fromStage: string; toStage: string; rate: number }[] = [];
+
+	// Calculate average time in stage from history
+	const avgTimeInStage: Record<string, number> = {};
+
+	return {
+		type,
+		stages,
+		conversionRates,
+		avgTimeInStage,
+	};
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Get default stage for account type.
+ */
+function getDefaultStageForType(type: AccountType): string {
+	switch (type) {
+		case "partner":
+			return "identified";
+		case "prospect":
+		case "lead":
+			return "new";
+		case "customer":
+			return "onboarding";
+		case "vendor":
+			return "new";
+		default:
+			return "new";
+	}
+}
+
+/**
+ * Build filter conditions for account queries.
+ */
+function buildAccountFilterConditions(filters?: AccountFilters) {
+	const conditions: SQL<unknown>[] = [];
+
+	if (!filters) return conditions;
+
+	// Type filter
+	if (filters.type) {
+		if (Array.isArray(filters.type)) {
+			conditions.push(inArray(accounts.type, filters.type));
+		} else {
+			conditions.push(eq(accounts.type, filters.type));
+		}
+	}
+
+	// Status filter
+	if (filters.status) {
+		if (Array.isArray(filters.status)) {
+			conditions.push(inArray(accounts.status, filters.status));
+		} else {
+			conditions.push(eq(accounts.status, filters.status));
+		}
+	}
+
+	// Stage filter
+	if (filters.stage) {
+		if (Array.isArray(filters.stage)) {
+			conditions.push(inArray(accounts.stage, filters.stage));
+		} else {
+			conditions.push(eq(accounts.stage, filters.stage));
+		}
+	}
+
+	// Location filters
+	if (filters.country) {
+		if (Array.isArray(filters.country)) {
+			conditions.push(inArray(accounts.country, filters.country));
+		} else {
+			conditions.push(eq(accounts.country, filters.country));
+		}
+	}
+
+	if (filters.region) {
+		if (Array.isArray(filters.region)) {
+			conditions.push(inArray(accounts.region, filters.region));
+		} else {
+			conditions.push(eq(accounts.region, filters.region));
+		}
+	}
+
+	// Industry filter
+	if (filters.industry) {
+		if (Array.isArray(filters.industry)) {
+			conditions.push(inArray(accounts.industry, filters.industry));
+		} else {
+			conditions.push(eq(accounts.industry, filters.industry));
+		}
+	}
+
+	// Owner filter
+	if (filters.ownerId) {
+		conditions.push(eq(accounts.ownerId, filters.ownerId));
+	}
+
+	if (filters.teamId) {
+		conditions.push(eq(accounts.teamId, filters.teamId));
+	}
+
+	// Partner tier filter
+	if (filters.partnerTier) {
+		if (Array.isArray(filters.partnerTier)) {
+			conditions.push(inArray(accounts.partnerTier, filters.partnerTier));
+		} else {
+			conditions.push(eq(accounts.partnerTier, filters.partnerTier));
+		}
+	}
+
+	// Score range filters
+	if (filters.leadScoreMin !== undefined) {
+		conditions.push(gte(accounts.leadScore, filters.leadScoreMin));
+	}
+	if (filters.leadScoreMax !== undefined) {
+		conditions.push(lte(accounts.leadScore, filters.leadScoreMax));
+	}
+
+	if (filters.healthScoreMin !== undefined) {
+		conditions.push(gte(accounts.customerHealthScore, filters.healthScoreMin));
+	}
+	if (filters.healthScoreMax !== undefined) {
+		conditions.push(lte(accounts.customerHealthScore, filters.healthScoreMax));
+	}
+
+	if (filters.fitScoreMin !== undefined) {
+		conditions.push(gte(accounts.partnershipFitScore, filters.fitScoreMin));
+	}
+	if (filters.fitScoreMax !== undefined) {
+		conditions.push(lte(accounts.partnershipFitScore, filters.fitScoreMax));
+	}
+
+	// Date filters
+	if (filters.lastContactBefore) {
+		conditions.push(lte(accounts.lastContactDate, filters.lastContactBefore));
+	}
+	if (filters.lastContactAfter) {
+		conditions.push(gte(accounts.lastContactDate, filters.lastContactAfter));
+	}
+
+	if (filters.createdBefore) {
+		conditions.push(lte(accounts.createdAt, filters.createdBefore));
+	}
+	if (filters.createdAfter) {
+		conditions.push(gte(accounts.createdAt, filters.createdAfter));
+	}
+
+	// Search filter (name, description, website)
+	if (filters.search) {
+		const searchTerm = `%${filters.search}%`;
+		const searchCondition = or(
+			ilike(accounts.name, searchTerm),
+			ilike(accounts.description, searchTerm),
+			ilike(accounts.website, searchTerm)
+		);
+		if (searchCondition) {
+			conditions.push(searchCondition);
+		}
+	}
+
+	return conditions;
+}
+
+/**
+ * Search accounts by name (for autocomplete).
+ */
+export async function searchAccounts(
+	query: string,
+	type?: AccountType,
+	limit = 10
+): Promise<Pick<AccountRow, "id" | "name" | "type" | "country" | "industry">[]> {
+	const conditions = [ilike(accounts.name, `%${query}%`)];
+
+	if (type) {
+		conditions.push(eq(accounts.type, type));
+	}
+
+	return db
+		.select({
+			id: accounts.id,
+			name: accounts.name,
+			type: accounts.type,
+			country: accounts.country,
+			industry: accounts.industry,
+		})
+		.from(accounts)
+		.where(and(...conditions))
+		.limit(limit)
+		.orderBy(accounts.name);
+}
+
+/**
+ * Get accounts needing follow-up.
+ */
+export async function getAccountsNeedingFollowup(
+	daysOverdue = 0,
+	type?: AccountType,
+	userId?: string
+): Promise<AccountRow[]> {
+	const cutoffDate = new Date();
+	cutoffDate.setDate(cutoffDate.getDate() - daysOverdue);
+
+	const conditions = [
+		lte(accounts.nextFollowUpDate, cutoffDate),
+		eq(accounts.status, "active"),
+	];
+
+	if (type) {
+		conditions.push(eq(accounts.type, type));
+	}
+
+	if (userId) {
+		conditions.push(eq(accounts.ownerId, userId));
+	}
+
+	return db.query.accounts.findMany({
+		where: and(...conditions),
+		orderBy: asc(accounts.nextFollowUpDate),
+		limit: 50,
+	});
+}
+
+/**
+ * Bulk update account owner.
+ */
+export async function bulkUpdateAccountOwner(
+	accountIds: string[],
+	ownerId: string,
+	ownerName: string,
+	userId?: string
+): Promise<number> {
+	const result = await db
+		.update(accounts)
+		.set({
+			ownerId,
+			ownerName,
+			updatedAt: new Date(),
+			updatedBy: userId,
+		})
+		.where(inArray(accounts.id, accountIds));
+
+	return result.rowCount ?? 0;
+}
+
+/**
+ * Bulk update account tags.
+ */
+export async function bulkAddAccountTags(
+	accountIds: string[],
+	tagsToAdd: string[],
+	userId?: string
+): Promise<number> {
+	let count = 0;
+
+	for (const id of accountIds) {
+		const account = await db.query.accounts.findFirst({
+			where: eq(accounts.id, id),
+			columns: { tags: true },
+		});
+
+		if (account) {
+			const existingTags = (account.tags as string[]) ?? [];
+			const newTags = [...new Set([...existingTags, ...tagsToAdd])];
+
+			await db
+				.update(accounts)
+				.set({
+					tags: newTags,
+					updatedAt: new Date(),
+					updatedBy: userId,
+				})
+				.where(eq(accounts.id, id));
+
+			count++;
+		}
+	}
+
+	return count;
+}
