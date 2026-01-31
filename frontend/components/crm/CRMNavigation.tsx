@@ -8,6 +8,7 @@
  * entity-specific color coding and visual feedback.
  */
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -15,10 +16,12 @@ import {
 	Plus,
 	Building2,
 	Users,
+	UserCircle,
 	Handshake,
 	Calendar,
 	LayoutDashboard,
 	ChevronRight,
+	Globe,
 } from "lucide-react";
 
 // CRM Entity Navigation configuration
@@ -57,6 +60,17 @@ export const CRM_ENTITIES = [
 		description: "People & relationships",
 	},
 	{
+		key: "people",
+		label: "People",
+		href: "/crm/people",
+		icon: UserCircle,
+		color: "text-teal-600 dark:text-teal-400",
+		bgColor: "bg-teal-50 dark:bg-teal-950/50",
+		borderColor: "border-teal-200 dark:border-teal-800",
+		hoverBg: "hover:bg-teal-100 dark:hover:bg-teal-900/50",
+		description: "Standalone contacts",
+	},
+	{
 		key: "deals",
 		label: "Deals",
 		href: "/crm/deals",
@@ -78,12 +92,24 @@ export const CRM_ENTITIES = [
 		hoverBg: "hover:bg-amber-100 dark:hover:bg-amber-900/50",
 		description: "Tasks & timeline",
 	},
+	{
+		key: "partners",
+		label: "Partners",
+		href: "/crm/partners",
+		icon: Globe,
+		color: "text-rose-600 dark:text-rose-400",
+		bgColor: "bg-rose-50 dark:bg-rose-950/50",
+		borderColor: "border-rose-200 dark:border-rose-800",
+		hoverBg: "hover:bg-rose-100 dark:hover:bg-rose-900/50",
+		description: "Partner organizations",
+	},
 ] as const;
 
 // Quick actions for creating new entities
 export const QUICK_ACTIONS = [
 	{ label: "Account", href: "/crm/accounts/new", icon: Building2, color: "text-blue-600" },
 	{ label: "Contact", href: "/crm/contacts/new", icon: Users, color: "text-emerald-600" },
+	{ label: "Person", href: "/crm/people/new", icon: UserCircle, color: "text-teal-600" },
 	{ label: "Deal", href: "/crm/deals/new", icon: Handshake, color: "text-violet-600" },
 	{ label: "Activity", href: "/crm/activities/new", icon: Calendar, color: "text-amber-600" },
 ];
@@ -114,9 +140,11 @@ export function CRMNavigation({
 	const getActiveEntity = () => {
 		if (pathname === "/crm") return "dashboard";
 		if (pathname.startsWith("/crm/accounts")) return "accounts";
+		if (pathname.startsWith("/crm/people")) return "people";
 		if (pathname.startsWith("/crm/contacts")) return "contacts";
 		if (pathname.startsWith("/crm/deals")) return "deals";
 		if (pathname.startsWith("/crm/activities")) return "activities";
+		if (pathname.startsWith("/crm/partners")) return "partners";
 		return "dashboard";
 	};
 
@@ -209,35 +237,50 @@ export function CRMNavigation({
 					})}
 
 					{/* Quick Add dropdown */}
-					{showQuickActions && (
-						<div className="flex-shrink-0 flex items-center pl-2 border-l border-border/50">
-							<div className="relative group">
-								<Button
-									variant="outline"
-									size="sm"
-									className="h-10 px-3 gap-2 bg-background hover:bg-muted"
-								>
-									<Plus className="h-4 w-4" />
-									<span className="hidden sm:inline">New</span>
-								</Button>
-
-								{/* Quick actions dropdown on hover */}
-								<div className="absolute top-full right-0 mt-2 p-2 bg-popover border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 min-w-[160px]">
-									{QUICK_ACTIONS.map((action) => (
-										<Link
-											key={action.href}
-											href={action.href}
-											className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted transition-colors"
-										>
-											<action.icon className={`h-4 w-4 ${action.color}`} />
-											<span className="text-sm">{action.label}</span>
-										</Link>
-									))}
-								</div>
-							</div>
-						</div>
-					)}
+					{showQuickActions && <QuickAddDropdown />}
 				</div>
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Quick Add Dropdown Component
+ * Click-to-toggle dropdown for creating new CRM entities.
+ */
+function QuickAddDropdown() {
+	const [isOpen, setIsOpen] = useState(false);
+
+	return (
+		<div className="flex-shrink-0 flex items-center pl-2 border-l border-border/50">
+			<div className="relative">
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-10 px-3 gap-2 bg-background hover:bg-muted"
+					onClick={() => setIsOpen(!isOpen)}
+					onBlur={() => setTimeout(() => setIsOpen(false), 150)}
+				>
+					<Plus className="h-4 w-4" />
+					<span className="hidden sm:inline">New</span>
+				</Button>
+
+				{/* Quick actions dropdown */}
+				{isOpen && (
+					<div className="absolute top-full right-0 mt-2 p-2 bg-popover border rounded-lg shadow-lg z-50 min-w-[160px]">
+						{QUICK_ACTIONS.map((action) => (
+							<Link
+								key={action.href}
+								href={action.href}
+								className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted transition-colors"
+								onClick={() => setIsOpen(false)}
+							>
+								<action.icon className={`h-4 w-4 ${action.color}`} />
+								<span className="text-sm">{action.label}</span>
+							</Link>
+						))}
+					</div>
+				)}
 			</div>
 		</div>
 	);
