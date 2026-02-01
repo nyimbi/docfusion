@@ -16,6 +16,9 @@ export const metadata: Metadata = {
 	description: "Manage partner organizations and relationships",
 };
 
+// Force dynamic rendering - this page fetches data that changes frequently
+export const dynamic = "force-dynamic";
+
 export default async function PartnersPage() {
 	return (
 		<div className="h-full flex flex-col overflow-hidden">

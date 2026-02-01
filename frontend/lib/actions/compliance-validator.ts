@@ -552,11 +552,113 @@ export async function detectOverReferences(documentId: string): Promise<OverRefe
 export async function exportComplianceReport(
 	matrixId: string,
 	format: "pdf" | "xlsx"
-): Promise<string> {
+): Promise<{ downloadUrl: string; reportData: ComplianceReportData }> {
 	await requireUserContext();
 
-	// In production, would generate and upload the report
-	// Return a download URL
+	// Fetch compliance matrix
+	const matrix = await db.query.complianceMatrices.findFirst({
+		where: eq(complianceMatrices.id, matrixId),
+	});
 
-	throw new Error("Export functionality not yet implemented");
+	if (!matrix) {
+		throw new Error("Compliance matrix not found");
+	}
+
+	// Fetch all entries with requirements
+	const entries = await db
+		.select({
+			entry: complianceEntries,
+			requirement: rfpRequirements,
+		})
+		.from(complianceEntries)
+		.leftJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
+		.where(eq(complianceEntries.matrixId, matrixId));
+
+	// Calculate scores
+	const totalRequirements = entries.length;
+	const mandatoryEntries = entries.filter(e => e.requirement?.priority === "mandatory");
+	const addressedEntries = entries.filter(e =>
+		e.entry.complianceStatus === "compliant" || e.entry.complianceStatus === "partial"
+	);
+	const mandatoryAddressed = mandatoryEntries.filter(e =>
+		e.entry.complianceStatus === "compliant" || e.entry.complianceStatus === "partial"
+	);
+
+	const coverageScore = totalRequirements > 0
+		? Math.round((addressedEntries.length / totalRequirements) * 100)
+		: 0;
+	const mandatoryCoverage = mandatoryEntries.length > 0
+		? Math.round((mandatoryAddressed.length / mandatoryEntries.length) * 100)
+		: 100;
+
+	// Group entries by category
+	const entriesBySection = entries.reduce((acc, e) => {
+		const section = e.requirement?.category || "Uncategorized";
+		if (!acc[section]) acc[section] = [];
+		acc[section].push(e);
+		return acc;
+	}, {} as Record<string, typeof entries>);
+
+	// Build report data structure
+	const reportData: ComplianceReportData = {
+		matrixId,
+		generatedAt: new Date().toISOString(),
+		summary: {
+			totalRequirements,
+			mandatoryRequirements: mandatoryEntries.length,
+			addressedRequirements: addressedEntries.length,
+			coverageScore,
+			mandatoryCoverage,
+			status: coverageScore >= 90 ? "excellent" : coverageScore >= 70 ? "good" : coverageScore >= 50 ? "needs_work" : "critical",
+		},
+		sections: Object.entries(entriesBySection).map(([sectionName, sectionEntries]) => ({
+			name: sectionName,
+			entries: sectionEntries.map(e => ({
+				requirementNumber: e.requirement?.requirementNumber || "N/A",
+				requirementText: e.requirement?.requirementText || "",
+				priority: e.requirement?.priority || "optional",
+				complianceStatus: e.entry.complianceStatus || "not_addressed",
+				responseReference: e.entry.responseReference || "",
+				notes: e.entry.notes || "",
+				// Compute score from strengthAssessment: strong=100, adequate=75, weak=50, gap=0
+				score: e.entry.strengthAssessment === "strong" ? 100
+					: e.entry.strengthAssessment === "adequate" ? 75
+					: e.entry.strengthAssessment === "weak" ? 50
+					: 0,
+			})),
+		})),
+	};
+
+	// Generate download URL for document generation API
+	const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+	const filename = `compliance-report-${matrixId.substring(0, 8)}-${timestamp}.${format}`;
+	const downloadUrl = `/api/documents/generate?type=compliance-report&matrixId=${matrixId}&format=${format}&filename=${encodeURIComponent(filename)}`;
+
+	return { downloadUrl, reportData };
+}
+
+// Type for compliance report export
+interface ComplianceReportData {
+	matrixId: string;
+	generatedAt: string;
+	summary: {
+		totalRequirements: number;
+		mandatoryRequirements: number;
+		addressedRequirements: number;
+		coverageScore: number;
+		mandatoryCoverage: number;
+		status: "excellent" | "good" | "needs_work" | "critical";
+	};
+	sections: {
+		name: string;
+		entries: {
+			requirementNumber: string;
+			requirementText: string;
+			priority: string;
+			complianceStatus: string;
+			responseReference: string;
+			notes: string;
+			score: number;
+		}[];
+	}[];
 }

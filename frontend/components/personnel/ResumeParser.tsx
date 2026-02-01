@@ -48,6 +48,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { parseResume } from "@/lib/actions/personnel";
 import { cn } from "@/lib/utils";
 import type { NewPersonnel } from "@/lib/db/schema-personnel";
 
@@ -126,59 +127,141 @@ function formatFileSize(bytes: number): string {
 }
 
 // ============================================================================
-// Mock parsing function (would connect to AI service)
+// AI-Powered Resume Parsing
 // ============================================================================
 
 async function parseResumeFile(file: File): Promise<ParseResult> {
-	// Simulate API call delay
-	await new Promise(resolve => setTimeout(resolve, 2000));
+	try {
+		// Read file content
+		const fileContent = await readFileAsText(file);
 
-	// Mock parsed data - in production, this would call the AI parsing service
-	return {
-		status: "success",
-		fields: [
-			{ field: "firstName", value: "John", confidence: 0.95, source: "Header", needsReview: false },
-			{ field: "lastName", value: "Smith", confidence: 0.95, source: "Header", needsReview: false },
-			{ field: "email", value: "john.smith@email.com", confidence: 0.98, source: "Contact Info", needsReview: false },
-			{ field: "phone", value: "+1 (555) 123-4567", confidence: 0.92, source: "Contact Info", needsReview: false },
-			{ field: "currentTitle", value: "Senior Software Engineer", confidence: 0.88, source: "Title", needsReview: false },
-			{ field: "location", value: "Washington, DC", confidence: 0.85, source: "Contact Info", needsReview: false },
-			{ field: "yearsOfExperience", value: 12, confidence: 0.75, source: "Calculated", needsReview: true },
-			{
-				field: "professionalSummary",
-				value: "Experienced software engineer with 12+ years in enterprise systems development...",
-				confidence: 0.9,
-				source: "Summary Section",
-				needsReview: false
-			},
-			{
+		// Call AI parsing service
+		const result = await parseResume(fileContent, file.name);
+
+		if (!result.success || !result.data) {
+			return {
+				status: "error",
+				fields: [],
+				rawText: fileContent,
+				warnings: [],
+				errors: [result.error || "Failed to parse resume"],
+			};
+		}
+
+		const parsed = result.data;
+		const fields: ParsedField[] = [];
+		const warnings: string[] = [];
+
+		// Map parsed data to fields with confidence levels
+		if (parsed.firstName) {
+			fields.push({ field: "firstName", value: parsed.firstName, confidence: 0.95, source: "Header", needsReview: false });
+		}
+		if (parsed.lastName) {
+			fields.push({ field: "lastName", value: parsed.lastName, confidence: 0.95, source: "Header", needsReview: false });
+		}
+		if (parsed.email) {
+			fields.push({ field: "email", value: parsed.email, confidence: 0.98, source: "Contact Info", needsReview: false });
+		}
+		if (parsed.phone) {
+			fields.push({ field: "phone", value: parsed.phone, confidence: 0.92, source: "Contact Info", needsReview: false });
+		}
+		if (parsed.currentTitle) {
+			fields.push({ field: "currentTitle", value: parsed.currentTitle, confidence: 0.88, source: "Title", needsReview: false });
+		}
+		if (parsed.professionalSummary) {
+			fields.push({ field: "professionalSummary", value: parsed.professionalSummary, confidence: 0.9, source: "Summary Section", needsReview: false });
+		}
+
+		// Calculate years of experience from work history
+		if (parsed.experience && parsed.experience.length > 0) {
+			const earliestYear = Math.min(
+				...parsed.experience
+					.map(exp => exp.startDate ? new Date(exp.startDate).getFullYear() : Infinity)
+					.filter(y => y !== Infinity)
+			);
+			if (earliestYear < Infinity) {
+				const yearsOfExperience = new Date().getFullYear() - earliestYear;
+				fields.push({
+					field: "yearsOfExperience",
+					value: yearsOfExperience,
+					confidence: 0.75,
+					source: "Calculated",
+					needsReview: true
+				});
+				warnings.push("Years of experience calculated from work history");
+			}
+		}
+
+		// Map skills
+		if (parsed.skills && parsed.skills.length > 0) {
+			fields.push({
 				field: "skills",
-				value: [
-					{ skillName: "Python", proficiency: "expert", yearsExperience: 10 },
-					{ skillName: "Java", proficiency: "advanced", yearsExperience: 8 },
-					{ skillName: "AWS", proficiency: "advanced", yearsExperience: 5 },
-					{ skillName: "PostgreSQL", proficiency: "intermediate", yearsExperience: 6 },
-				],
+				value: parsed.skills.map(skill => ({
+					skillName: skill.skillName,
+					proficiency: skill.proficiency || "intermediate",
+					yearsExperience: skill.yearsExperience || 0,
+				})),
 				confidence: 0.82,
 				source: "Skills Section",
 				needsReview: true
-			},
-			{
+			});
+		}
+
+		// Map education
+		if (parsed.education && parsed.education.length > 0) {
+			fields.push({
 				field: "education",
-				value: [
-					{ degree: "Master of Science", field: "Computer Science", institution: "MIT", year: 2012 },
-					{ degree: "Bachelor of Science", field: "Computer Engineering", institution: "Stanford", year: 2010 },
-				],
+				value: parsed.education.map(edu => ({
+					degree: edu.degree || "",
+					field: edu.field || "",
+					institution: edu.institution || "",
+					year: edu.year,
+				})),
 				confidence: 0.9,
 				source: "Education Section",
 				needsReview: false
-			},
-			{ field: "clearanceLevel", value: "Secret", confidence: 0.65, source: "Inferred", needsReview: true },
-		],
-		rawText: "Resume text content would be here...",
-		warnings: ["Years of experience calculated from work history", "Clearance level inferred from job descriptions"],
-		errors: [],
-	};
+			});
+		}
+
+		// Map clearance if found
+		if (parsed.clearance?.level) {
+			fields.push({
+				field: "clearanceLevel",
+				value: parsed.clearance.level,
+				confidence: 0.65,
+				source: "Inferred",
+				needsReview: true
+			});
+			warnings.push("Clearance level inferred from resume content");
+		}
+
+		return {
+			status: "success",
+			fields,
+			rawText: fileContent,
+			warnings,
+			errors: [],
+		};
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Unknown error parsing resume";
+		return {
+			status: "error",
+			fields: [],
+			rawText: "",
+			warnings: [],
+			errors: [message],
+		};
+	}
+}
+
+// Helper to read file content as text
+async function readFileAsText(file: File): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(reader.result as string);
+		reader.onerror = () => reject(new Error("Failed to read file"));
+		reader.readAsText(file);
+	});
 }
 
 // ============================================================================

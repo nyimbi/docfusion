@@ -18,42 +18,29 @@ import {
 	Target,
 	FileText,
 	AlertCircle,
+	Loader2,
 } from "lucide-react";
-
-// Placeholder calendar data
-const upcomingDeadlines = [
-	{
-		id: "1",
-		title: "USAID Technical Proposal",
-		type: "submission",
-		date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-		priority: "high",
-	},
-	{
-		id: "2",
-		title: "WHO EOI Response",
-		type: "submission",
-		date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-		priority: "medium",
-	},
-	{
-		id: "3",
-		title: "Draft Review - NGO Proposal",
-		type: "review",
-		date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-		priority: "high",
-	},
-	{
-		id: "4",
-		title: "Partner Meeting - AfDB Project",
-		type: "meeting",
-		date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-		priority: "low",
-	},
-];
+import { getUpcomingDeadlines, type CalendarDeadline } from "@/lib/actions/opportunities-crud";
 
 export default function CalendarPage() {
 	const [currentDate, setCurrentDate] = React.useState(new Date());
+	const [upcomingDeadlines, setUpcomingDeadlines] = React.useState<CalendarDeadline[]>([]);
+	const [isLoading, setIsLoading] = React.useState(true);
+
+	// Fetch deadlines on mount
+	React.useEffect(() => {
+		async function loadDeadlines() {
+			try {
+				const deadlines = await getUpcomingDeadlines(60); // 60 days ahead
+				setUpcomingDeadlines(deadlines);
+			} catch (error) {
+				console.error("Failed to load deadlines:", error);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		loadDeadlines();
+	}, []);
 
 	const monthNames = [
 		"January", "February", "March", "April", "May", "June",
@@ -110,7 +97,7 @@ export default function CalendarPage() {
 	};
 
 	return (
-		<div className="relative">
+		<div className="h-full overflow-y-auto p-6 relative">
 			{/* Page Header */}
 			<div className="flex items-center justify-between mb-6">
 				<div>
@@ -194,65 +181,81 @@ export default function CalendarPage() {
 						Upcoming Deadlines
 					</h2>
 
-					<div className="space-y-3">
-						{upcomingDeadlines.map((deadline, index) => {
-							const Icon = typeIcons[deadline.type as keyof typeof typeIcons];
-							const daysLeft = Math.ceil((deadline.date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+					{isLoading ? (
+						<div className="flex items-center justify-center py-8">
+							<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+						</div>
+					) : upcomingDeadlines.length === 0 ? (
+						<div className="text-center py-8 text-muted-foreground">
+							<AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+							<p className="text-sm">No upcoming deadlines</p>
+						</div>
+					) : (
+						<div className="space-y-3">
+							{upcomingDeadlines.map((deadline, index) => {
+								const Icon = typeIcons[deadline.type as keyof typeof typeIcons] || Target;
+								const deadlineDate = new Date(deadline.date);
+								const daysLeft = deadline.daysLeft ?? Math.ceil((deadlineDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
-							return (
-								<div
-									key={deadline.id}
-									className={cn(
-										"p-4 rounded-xl border-l-4 transition-all duration-300 ease-out",
-										"animate-fade-up",
-										priorityColors[deadline.priority as keyof typeof priorityColors]
-									)}
-									style={{
-										animationDelay: `${index * 50}ms`,
-										animationFillMode: "forwards",
-									}}
-								>
-									<div className="flex items-start gap-3">
-										<div className="p-2 rounded-lg bg-background/50">
-											<Icon className="h-4 w-4 text-muted-foreground" />
+								return (
+									<div
+										key={deadline.id}
+										className={cn(
+											"p-4 rounded-xl border-l-4 transition-all duration-300 ease-out",
+											"animate-fade-up",
+											priorityColors[deadline.priority as keyof typeof priorityColors]
+										)}
+										style={{
+											animationDelay: `${index * 50}ms`,
+											animationFillMode: "forwards",
+										}}
+									>
+										<div className="flex items-start gap-3">
+											<div className="p-2 rounded-lg bg-background/50">
+												<Icon className="h-4 w-4 text-muted-foreground" />
+											</div>
+											<div className="flex-1 min-w-0">
+												<h3 className="text-sm font-medium text-foreground line-clamp-1">
+													{deadline.title}
+												</h3>
+												<p className="text-xs text-muted-foreground mt-1">
+													{deadlineDate.toLocaleDateString("en-US", {
+														weekday: "short",
+														month: "short",
+														day: "numeric",
+													})}
+												</p>
+											</div>
+											<span
+												className={cn(
+													"text-xs font-medium px-2 py-1 rounded-full",
+													daysLeft <= 3
+														? "bg-destructive/20 text-destructive"
+														: "bg-muted text-muted-foreground"
+												)}
+											>
+												{daysLeft}d
+											</span>
 										</div>
-										<div className="flex-1 min-w-0">
-											<h3 className="text-sm font-medium text-foreground line-clamp-1">
-												{deadline.title}
-											</h3>
-											<p className="text-xs text-muted-foreground mt-1">
-												{deadline.date.toLocaleDateString("en-US", {
-													weekday: "short",
-													month: "short",
-													day: "numeric",
-												})}
-											</p>
-										</div>
-										<span
-											className={cn(
-												"text-xs font-medium px-2 py-1 rounded-full",
-												daysLeft <= 3
-													? "bg-destructive/20 text-destructive"
-													: "bg-muted text-muted-foreground"
-											)}
-										>
-											{daysLeft}d
-										</span>
 									</div>
-								</div>
-							);
-						})}
-					</div>
+								);
+							})}
+						</div>
+					)}
 
 					{/* Quick Stats */}
 					<div className="mt-6 pt-6 border-t border-border">
 						<div className="grid grid-cols-2 gap-4">
 							<div className="text-center">
-								<div className="text-2xl font-bold text-destructive tabular-nums">2</div>
+								<div className="text-2xl font-bold text-destructive tabular-nums">
+									{upcomingDeadlines.filter(d => (d.daysLeft ?? 0) <= 3).length}
+								</div>
 								<div className="text-xs text-muted-foreground">Urgent</div>
 							</div>
 							<div className="text-center">
-								<div className="text-2xl font-bold text-primary tabular-nums">4</div>
+								<div className="text-2xl font-bold text-primary tabular-nums">
+									{upcomingDeadlines.filter(d => (d.daysLeft ?? 0) <= 7).length}
+								</div>
 								<div className="text-xs text-muted-foreground">This Week</div>
 							</div>
 						</div>

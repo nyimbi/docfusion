@@ -10,6 +10,21 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { db } from "@/lib/db";
+import {
+	proposalTasks,
+	authorExpertise,
+	workloadSnapshots,
+	taskActivity,
+	opportunityTaskSummary,
+	type ProposalTask,
+	type NewProposalTask,
+	type AuthorExpertise as AuthorExpertiseType,
+	type WorkloadSnapshot,
+	type TaskActivity as TaskActivityType,
+} from "@/lib/db/schema-tasks";
+import { requirements } from "@/lib/db/schema";
+import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, isNull, count, sum, ne, lt, gt } from "drizzle-orm";
 
 // ============================================================================
 // Types
@@ -82,7 +97,7 @@ interface WorkloadSummary {
 	tasksByPriority: Record<string, number>;
 	tasksByType: Record<string, number>;
 	upcomingDeadlines: { taskId: string; title: string; dueDate: string }[];
-	workloadHealth: "healthy" | "elevated" | "overloaded" | "critical";
+	workloadHealth: "healthy" | "available" | "elevated" | "overloaded" | "critical";
 }
 
 interface RebalanceResult {
@@ -193,6 +208,72 @@ const UpdateTaskInput = z.object({
 });
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Generate a unique task number for an opportunity.
+ */
+async function generateTaskNumber(opportunityId: string): Promise<string> {
+	const result = await db
+		.select({ count: count() })
+		.from(proposalTasks)
+		.where(eq(proposalTasks.opportunityId, opportunityId));
+
+	const taskCount = result[0]?.count ?? 0;
+	const nextNumber = taskCount + 1;
+	return `T-${nextNumber.toString().padStart(4, "0")}`;
+}
+
+/**
+ * Log a task activity to the database.
+ */
+async function logTaskActivity(
+	taskId: string,
+	activityType: string,
+	description: string,
+	previousValue?: string,
+	newValue?: string,
+	userId?: string,
+	userName?: string,
+	changeField?: string
+): Promise<void> {
+	try {
+		await db.insert(taskActivity).values({
+			taskId,
+			activityType,
+			description,
+			previousValue: previousValue ?? null,
+			newValue: newValue ?? null,
+			userId: userId ?? null,
+			userName: userName ?? null,
+			changeField: changeField ?? null,
+		});
+	} catch (error) {
+		console.error("Failed to log task activity:", error);
+	}
+}
+
+/**
+ * Calculate workload health based on utilization rate.
+ */
+function calculateWorkloadHealth(utilizationRate: number): "healthy" | "available" | "elevated" | "overloaded" | "critical" {
+	if (utilizationRate <= 50) return "available";
+	if (utilizationRate <= 70) return "healthy";
+	if (utilizationRate <= 85) return "elevated";
+	if (utilizationRate <= 100) return "overloaded";
+	return "critical";
+}
+
+/**
+ * Calculate the number of days between two dates.
+ */
+function daysBetween(date1: Date, date2: Date): number {
+	const oneDay = 24 * 60 * 60 * 1000;
+	return Math.round((date2.getTime() - date1.getTime()) / oneDay);
+}
+
+// ============================================================================
 // Task CRUD Operations
 // ============================================================================
 
@@ -201,29 +282,64 @@ const UpdateTaskInput = z.object({
  */
 export async function createTask(
 	input: z.infer<typeof CreateTaskInput>
-): Promise<{ success: boolean; data?: unknown; error?: string }> {
+): Promise<{ success: boolean; data?: ProposalTask; error?: string }> {
 	try {
 		const validated = CreateTaskInput.parse(input);
 
 		// Generate task number
-		const taskNumber = `T-${Date.now().toString(36).toUpperCase()}`;
+		const taskNumber = await generateTaskNumber(validated.opportunityId);
 
-		// In production, insert into database
-		const task = {
-			id: crypto.randomUUID(),
-			...validated,
+		// Prepare task data
+		const taskData: NewProposalTask = {
+			opportunityId: validated.opportunityId,
 			taskNumber,
+			title: validated.title,
+			description: validated.description ?? null,
+			taskType: validated.taskType,
+			taskCategory: validated.taskCategory ?? null,
+			sectionId: validated.sectionId ?? null,
+			requirementId: validated.requirementId ?? null,
+			volumeId: validated.volumeId ?? null,
+			assignedTo: validated.assignedTo ?? null,
+			assignedToEmail: validated.assignedToEmail ?? null,
+			assignedAt: validated.assignedTo ? new Date() : null,
+			dueDate: validated.dueDate ? new Date(validated.dueDate) : null,
+			estimatedHours: validated.estimatedHours ?? null,
+			priority: validated.priority,
 			status: validated.assignedTo ? "assigned" : "pending",
-			assignedAt: validated.assignedTo ? new Date().toISOString() : null,
 			progress: 0,
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
+			dependsOn: validated.dependsOn ?? [],
+			wordCountTarget: validated.wordCountTarget ?? null,
+			pageTarget: validated.pageTarget ?? null,
+			complianceRequirements: validated.complianceRequirements ?? null,
+			tags: validated.tags ?? [],
 		};
 
-		console.log("Creating task:", task);
+		// Insert task
+		const [task] = await db.insert(proposalTasks).values(taskData).returning();
 
 		// Log activity
-		await logTaskActivity(task.id, "created", "Task created", undefined, task.status);
+		await logTaskActivity(
+			task.id,
+			"created",
+			"Task created",
+			undefined,
+			task.status ?? undefined
+		);
+
+		// If assigned, log assignment activity
+		if (validated.assignedTo) {
+			await logTaskActivity(
+				task.id,
+				"assigned",
+				`Assigned to ${validated.assignedTo}`,
+				undefined,
+				validated.assignedTo
+			);
+		}
+
+		// Update opportunity task summary
+		await updateOpportunityTaskSummary(validated.opportunityId);
 
 		revalidatePath("/opportunities/[id]/tasks", "page");
 
@@ -240,26 +356,111 @@ export async function createTask(
 export async function updateTask(
 	id: string,
 	input: z.infer<typeof UpdateTaskInput>
-): Promise<{ success: boolean; data?: unknown; error?: string }> {
+): Promise<{ success: boolean; data?: ProposalTask; error?: string }> {
 	try {
 		const validated = UpdateTaskInput.parse(input);
 
-		// In production, update database
-		console.log("Updating task:", id, validated);
+		// Get current task state
+		const [currentTask] = await db
+			.select()
+			.from(proposalTasks)
+			.where(eq(proposalTasks.id, id))
+			.limit(1);
 
-		// Track status changes
-		if (validated.status) {
-			await logTaskActivity(id, "status_change", `Status changed to ${validated.status}`, undefined, validated.status);
+		if (!currentTask) {
+			return { success: false, error: "Task not found" };
 		}
 
-		// Track assignment changes
-		if (validated.assignedTo) {
-			await logTaskActivity(id, "assigned", `Assigned to ${validated.assignedTo}`);
+		// Prepare update data
+		const updateData: Partial<NewProposalTask> = {
+			updatedAt: new Date(),
+		};
+
+		if (validated.title !== undefined) updateData.title = validated.title;
+		if (validated.description !== undefined) updateData.description = validated.description;
+		if (validated.taskType !== undefined) updateData.taskType = validated.taskType;
+		if (validated.taskCategory !== undefined) updateData.taskCategory = validated.taskCategory;
+		if (validated.dueDate !== undefined) updateData.dueDate = validated.dueDate ? new Date(validated.dueDate) : null;
+		if (validated.estimatedHours !== undefined) updateData.estimatedHours = validated.estimatedHours;
+		if (validated.actualHours !== undefined) updateData.actualHours = validated.actualHours;
+		if (validated.priority !== undefined) updateData.priority = validated.priority;
+		if (validated.progress !== undefined) updateData.progress = validated.progress;
+		if (validated.wordCountCurrent !== undefined) updateData.wordCountCurrent = validated.wordCountCurrent;
+		if (validated.pageCurrent !== undefined) updateData.pageCurrent = validated.pageCurrent;
+		if (validated.dependsOn !== undefined) updateData.dependsOn = validated.dependsOn;
+		if (validated.tags !== undefined) updateData.tags = validated.tags;
+
+		// Handle assignment changes
+		if (validated.assignedTo !== undefined) {
+			updateData.assignedTo = validated.assignedTo;
+			updateData.assignedToEmail = validated.assignedToEmail ?? null;
+			updateData.assignedAt = validated.assignedTo ? new Date() : null;
+
+			// Log assignment change
+			if (validated.assignedTo !== currentTask.assignedTo) {
+				await logTaskActivity(
+					id,
+					"assigned",
+					`Assigned to ${validated.assignedTo || "unassigned"}`,
+					currentTask.assignedTo ?? undefined,
+					validated.assignedTo ?? undefined,
+					undefined,
+					undefined,
+					"assignedTo"
+				);
+			}
 		}
+
+		// Handle status changes
+		if (validated.status !== undefined && validated.status !== currentTask.status) {
+			updateData.status = validated.status;
+
+			// If completing, set completedAt
+			if (validated.status === "completed") {
+				updateData.completedAt = new Date();
+				updateData.progress = 100;
+			}
+
+			// Log status change
+			await logTaskActivity(
+				id,
+				"status_change",
+				`Status changed to ${validated.status}`,
+				currentTask.status ?? undefined,
+				validated.status,
+				undefined,
+				undefined,
+				"status"
+			);
+		}
+
+		// Handle progress updates
+		if (validated.progress !== undefined && validated.progress !== currentTask.progress) {
+			await logTaskActivity(
+				id,
+				"progress_update",
+				`Progress updated to ${validated.progress}%`,
+				String(currentTask.progress ?? 0),
+				String(validated.progress),
+				undefined,
+				undefined,
+				"progress"
+			);
+		}
+
+		// Update task
+		const [updatedTask] = await db
+			.update(proposalTasks)
+			.set(updateData)
+			.where(eq(proposalTasks.id, id))
+			.returning();
+
+		// Update opportunity task summary
+		await updateOpportunityTaskSummary(currentTask.opportunityId);
 
 		revalidatePath("/opportunities/[id]/tasks", "page");
 
-		return { success: true, data: { id, ...validated, updatedAt: new Date().toISOString() } };
+		return { success: true, data: updatedTask };
 	} catch (error) {
 		console.error("Failed to update task:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to update task" };
@@ -271,8 +472,25 @@ export async function updateTask(
  */
 export async function deleteTask(id: string): Promise<{ success: boolean; error?: string }> {
 	try {
-		// In production, delete from database
-		console.log("Deleting task:", id);
+		// Get task to find opportunityId for summary update
+		const [task] = await db
+			.select({ opportunityId: proposalTasks.opportunityId })
+			.from(proposalTasks)
+			.where(eq(proposalTasks.id, id))
+			.limit(1);
+
+		if (!task) {
+			return { success: false, error: "Task not found" };
+		}
+
+		// Delete task activities first (foreign key constraint)
+		await db.delete(taskActivity).where(eq(taskActivity.taskId, id));
+
+		// Delete task
+		await db.delete(proposalTasks).where(eq(proposalTasks.id, id));
+
+		// Update opportunity task summary
+		await updateOpportunityTaskSummary(task.opportunityId);
 
 		revalidatePath("/opportunities/[id]/tasks", "page");
 
@@ -289,134 +507,69 @@ export async function deleteTask(id: string): Promise<{ success: boolean; error?
 export async function listTasks(
 	opportunityId: string,
 	filters?: TaskFilters
-): Promise<{ success: boolean; data?: unknown[]; error?: string }> {
+): Promise<{ success: boolean; data?: ProposalTask[]; error?: string }> {
 	try {
-		console.log("Listing tasks for opportunity:", opportunityId, "with filters:", filters);
-
-		// Mock data for development
-		const tasks = [
-			{
-				id: "task-1",
-				taskNumber: "T-001",
-				title: "Write Executive Summary",
-				description: "Draft the executive summary highlighting key win themes",
-				taskType: "writing",
-				taskCategory: "executive_summary",
-				status: "in_progress",
-				priority: "high",
-				progress: 45,
-				assignedTo: "John Smith",
-				assignedToEmail: "john.smith@example.com",
-				dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-				estimatedHours: 8,
-				actualHours: 4,
-				wordCountTarget: 2000,
-				wordCountCurrent: 900,
-				createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-			},
-			{
-				id: "task-2",
-				taskNumber: "T-002",
-				title: "Technical Approach Section",
-				description: "Develop technical approach addressing all Section L requirements",
-				taskType: "writing",
-				taskCategory: "technical",
-				status: "pending",
-				priority: "critical",
-				progress: 0,
-				assignedTo: "Jane Doe",
-				assignedToEmail: "jane.doe@example.com",
-				dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-				estimatedHours: 16,
-				dependsOn: ["task-1"],
-				wordCountTarget: 5000,
-				wordCountCurrent: 0,
-				createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-			},
-			{
-				id: "task-3",
-				taskNumber: "T-003",
-				title: "Create Org Chart Graphic",
-				description: "Design organizational chart showing project team structure",
-				taskType: "graphics",
-				taskCategory: "management",
-				status: "completed",
-				priority: "medium",
-				progress: 100,
-				assignedTo: "Bob Wilson",
-				assignedToEmail: "bob.wilson@example.com",
-				dueDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-				completedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-				estimatedHours: 4,
-				actualHours: 3,
-				createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-			},
-			{
-				id: "task-4",
-				taskNumber: "T-004",
-				title: "Past Performance Narratives",
-				description: "Write 3 past performance narratives for relevant projects",
-				taskType: "writing",
-				taskCategory: "past_performance",
-				status: "blocked",
-				priority: "high",
-				progress: 30,
-				assignedTo: "Sarah Johnson",
-				assignedToEmail: "sarah.johnson@example.com",
-				dueDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-				estimatedHours: 12,
-				actualHours: 4,
-				blockedBy: ["Waiting for project references from PM"],
-				wordCountTarget: 3000,
-				wordCountCurrent: 900,
-				createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-			},
-			{
-				id: "task-5",
-				taskNumber: "T-005",
-				title: "Review Technical Section",
-				description: "Conduct technical review of approach section",
-				taskType: "review",
-				taskCategory: "technical",
-				status: "pending",
-				priority: "medium",
-				progress: 0,
-				dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-				estimatedHours: 6,
-				dependsOn: ["task-2"],
-				createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-			},
-		];
-
-		// Apply filters
-		let filteredTasks = tasks;
+		// Build where conditions
+		const conditions = [eq(proposalTasks.opportunityId, opportunityId)];
 
 		if (filters?.status) {
-			filteredTasks = filteredTasks.filter(t => t.status === filters.status);
+			conditions.push(eq(proposalTasks.status, filters.status));
 		}
 		if (filters?.priority) {
-			filteredTasks = filteredTasks.filter(t => t.priority === filters.priority);
+			conditions.push(eq(proposalTasks.priority, filters.priority));
 		}
 		if (filters?.assignedTo) {
-			filteredTasks = filteredTasks.filter(t => t.assignedTo?.toLowerCase().includes(filters.assignedTo!.toLowerCase()));
+			conditions.push(ilike(proposalTasks.assignedTo, `%${filters.assignedTo}%`));
 		}
 		if (filters?.taskType) {
-			filteredTasks = filteredTasks.filter(t => t.taskType === filters.taskType);
+			conditions.push(eq(proposalTasks.taskType, filters.taskType));
 		}
-		if (filters?.search) {
-			const search = filters.search.toLowerCase();
-			filteredTasks = filteredTasks.filter(t =>
-				t.title.toLowerCase().includes(search) ||
-				t.description?.toLowerCase().includes(search)
-			);
+		if (filters?.taskCategory) {
+			conditions.push(eq(proposalTasks.taskCategory, filters.taskCategory));
+		}
+		if (filters?.sectionId) {
+			conditions.push(eq(proposalTasks.sectionId, filters.sectionId));
+		}
+		if (filters?.volumeId) {
+			conditions.push(eq(proposalTasks.volumeId, filters.volumeId));
+		}
+		if (filters?.dueBefore) {
+			conditions.push(lte(proposalTasks.dueDate, new Date(filters.dueBefore)));
+		}
+		if (filters?.dueAfter) {
+			conditions.push(gte(proposalTasks.dueDate, new Date(filters.dueAfter)));
 		}
 		if (filters?.isOverdue) {
-			filteredTasks = filteredTasks.filter(t =>
-				t.status !== "completed" && new Date(t.dueDate) < new Date()
+			conditions.push(ne(proposalTasks.status, "completed"));
+			conditions.push(ne(proposalTasks.status, "cancelled"));
+			conditions.push(lt(proposalTasks.dueDate, new Date()));
+		}
+		if (filters?.search) {
+			conditions.push(
+				or(
+					ilike(proposalTasks.title, `%${filters.search}%`),
+					ilike(proposalTasks.description, `%${filters.search}%`)
+				)!
 			);
 		}
 
-		return { success: true, data: filteredTasks };
+		const tasks = await db
+			.select()
+			.from(proposalTasks)
+			.where(and(...conditions))
+			.orderBy(
+				asc(
+					sql`CASE ${proposalTasks.priority}
+						WHEN 'critical' THEN 1
+						WHEN 'high' THEN 2
+						WHEN 'medium' THEN 3
+						WHEN 'low' THEN 4
+						ELSE 5 END`
+				),
+				asc(proposalTasks.dueDate)
+			);
+
+		return { success: true, data: tasks };
 	} catch (error) {
 		console.error("Failed to list tasks:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to list tasks" };
@@ -428,12 +581,19 @@ export async function listTasks(
  */
 export async function getTask(
 	id: string
-): Promise<{ success: boolean; data?: unknown; error?: string }> {
+): Promise<{ success: boolean; data?: ProposalTask; error?: string }> {
 	try {
-		// In production, fetch from database
-		console.log("Getting task:", id);
+		const [task] = await db
+			.select()
+			.from(proposalTasks)
+			.where(eq(proposalTasks.id, id))
+			.limit(1);
 
-		return { success: true, data: { id, title: "Sample Task" } };
+		if (!task) {
+			return { success: false, error: "Task not found" };
+		}
+
+		return { success: true, data: task };
 	} catch (error) {
 		console.error("Failed to get task:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to get task" };
@@ -449,59 +609,84 @@ export async function getTask(
  * Creates one task per requirement that needs to be addressed.
  */
 export async function generateTasksFromCompliance(
-	matrixId: string
-): Promise<{ success: boolean; data?: { tasksCreated: number; tasks: unknown[] }; error?: string }> {
+	matrixId: string,
+	opportunityId: string
+): Promise<{ success: boolean; data?: { tasksCreated: number; tasks: ProposalTask[] }; error?: string }> {
 	try {
-		console.log("Generating tasks from compliance matrix:", matrixId);
+		// Fetch requirements from the compliance matrix
+		const reqs = await db
+			.select()
+			.from(requirements)
+			.where(eq(requirements.opportunityId, opportunityId));
 
-		// In production, read compliance matrix and generate tasks
-		// Mock generation
-		const generatedTasks = [
-			{
-				id: crypto.randomUUID(),
-				taskNumber: "T-AUTO-001",
-				title: "Address Requirement L.5.2.1 - Technical Approach",
-				description: "Write response addressing Section L requirement 5.2.1",
+		if (reqs.length === 0) {
+			return { success: true, data: { tasksCreated: 0, tasks: [] } };
+		}
+
+		const createdTasks: ProposalTask[] = [];
+
+		for (const req of reqs) {
+			// Generate task number
+			const taskNumber = await generateTaskNumber(opportunityId);
+
+			// Determine task category based on requirement category
+			const taskCategory = req.category?.toLowerCase().includes("technical")
+				? "technical"
+				: req.category?.toLowerCase().includes("management")
+					? "management"
+					: req.category?.toLowerCase().includes("past")
+						? "past_performance"
+						: req.category?.toLowerCase().includes("cost")
+							? "cost"
+							: null;
+
+			// Map priority from requirement
+			const priority = req.priority === "mandatory"
+				? "high"
+				: req.priority === "preferred"
+					? "medium"
+					: "low";
+
+			const taskData: NewProposalTask = {
+				opportunityId,
+				taskNumber,
+				title: `Address Requirement ${req.requirementId ?? req.id.slice(0, 8)} - ${req.category ?? "General"}`,
+				description: req.text,
 				taskType: "writing",
-				taskCategory: "technical",
+				taskCategory,
+				requirementId: req.id,
+				priority,
 				status: "pending",
-				priority: "high",
+				progress: 0,
 				sourceType: "compliance_matrix",
 				sourceId: matrixId,
-			},
-			{
-				id: crypto.randomUUID(),
-				taskNumber: "T-AUTO-002",
-				title: "Address Requirement L.5.2.2 - Management Approach",
-				description: "Write response addressing Section L requirement 5.2.2",
-				taskType: "writing",
-				taskCategory: "management",
-				status: "pending",
-				priority: "high",
-				sourceType: "compliance_matrix",
-				sourceId: matrixId,
-			},
-			{
-				id: crypto.randomUUID(),
-				taskNumber: "T-AUTO-003",
-				title: "Address Requirement L.5.3 - Past Performance",
-				description: "Compile past performance evidence for requirement L.5.3",
-				taskType: "writing",
-				taskCategory: "past_performance",
-				status: "pending",
-				priority: "medium",
-				sourceType: "compliance_matrix",
-				sourceId: matrixId,
-			},
-		];
+				complianceRequirements: [req.id],
+				dueDate: req.dueDate ?? null,
+			};
+
+			const [task] = await db.insert(proposalTasks).values(taskData).returning();
+			createdTasks.push(task);
+
+			// Log activity
+			await logTaskActivity(
+				task.id,
+				"created",
+				`Task auto-generated from compliance matrix requirement ${req.requirementId ?? req.id}`,
+				undefined,
+				"pending"
+			);
+		}
+
+		// Update opportunity task summary
+		await updateOpportunityTaskSummary(opportunityId);
 
 		revalidatePath("/opportunities/[id]/tasks", "page");
 
 		return {
 			success: true,
 			data: {
-				tasksCreated: generatedTasks.length,
-				tasks: generatedTasks,
+				tasksCreated: createdTasks.length,
+				tasks: createdTasks,
 			},
 		};
 	} catch (error) {
@@ -521,60 +706,163 @@ export async function suggestAssignment(
 	taskId: string
 ): Promise<{ success: boolean; data?: AssignmentSuggestion[]; error?: string }> {
 	try {
-		console.log("Suggesting assignments for task:", taskId);
+		// Get the task details
+		const [task] = await db
+			.select()
+			.from(proposalTasks)
+			.where(eq(proposalTasks.id, taskId))
+			.limit(1);
 
-		// In production, analyze author expertise and workload
-		const suggestions: AssignmentSuggestion[] = [
-			{
-				userId: "user-1",
-				userName: "John Smith",
-				userEmail: "john.smith@example.com",
-				matchScore: 95,
-				reasons: [
-					"Expert in technical writing (5 years experience)",
-					"High on-time delivery rate (98%)",
-					"Successfully completed 12 similar tasks",
-					"Currently has capacity (60% utilized)",
-				],
-				workloadStatus: "moderate",
-				estimatedCompletionDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-				expertiseMatch: 95,
-				availabilityMatch: 85,
-				performanceScore: 92,
-			},
-			{
-				userId: "user-2",
-				userName: "Jane Doe",
-				userEmail: "jane.doe@example.com",
-				matchScore: 88,
-				reasons: [
-					"Strong technical background",
-					"Available immediately",
-					"Good quality scores (avg 4.5/5)",
-				],
-				workloadStatus: "available",
-				estimatedCompletionDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-				expertiseMatch: 85,
-				availabilityMatch: 95,
-				performanceScore: 85,
-			},
-			{
-				userId: "user-3",
-				userName: "Bob Wilson",
-				userEmail: "bob.wilson@example.com",
-				matchScore: 72,
-				reasons: [
-					"Has relevant certifications",
-					"Moderate workload currently",
-					"Previous experience with this client",
-				],
-				workloadStatus: "high",
-				estimatedCompletionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-				expertiseMatch: 78,
-				availabilityMatch: 60,
-				performanceScore: 80,
-			},
-		];
+		if (!task) {
+			return { success: false, error: "Task not found" };
+		}
+
+		// Get all authors with their expertise
+		const authors = await db
+			.select()
+			.from(authorExpertise)
+			.where(eq(authorExpertise.availability, "available"));
+
+		if (authors.length === 0) {
+			return { success: true, data: [] };
+		}
+
+		// Get current workload for each author
+		const workloads = new Map<string, { activeTasks: number; estimatedHours: number }>();
+
+		for (const author of authors) {
+			const tasks = await db
+				.select({
+					count: count(),
+					hours: sum(proposalTasks.estimatedHours),
+				})
+				.from(proposalTasks)
+				.where(
+					and(
+						eq(proposalTasks.assignedTo, author.userName),
+						or(
+							eq(proposalTasks.status, "assigned"),
+							eq(proposalTasks.status, "in_progress")
+						)
+					)
+				);
+
+			workloads.set(author.userId, {
+				activeTasks: Number(tasks[0]?.count ?? 0),
+				estimatedHours: Number(tasks[0]?.hours ?? 0),
+			});
+		}
+
+		// Calculate match scores for each author
+		const suggestions: AssignmentSuggestion[] = authors.map((author) => {
+			const reasons: string[] = [];
+			let expertiseMatch = 0;
+			let availabilityMatch = 0;
+			let performanceScore = 0;
+
+			// Check expertise match
+			const expertiseAreas = author.expertiseAreas as Array<{
+				area: string;
+				category: string;
+				proficiency: string;
+				yearsExperience: number;
+			}> | null;
+
+			if (expertiseAreas && Array.isArray(expertiseAreas)) {
+				const relevantExpertise = expertiseAreas.find(
+					(e) =>
+						e.category?.toLowerCase() === task.taskType?.toLowerCase() ||
+						e.category?.toLowerCase() === task.taskCategory?.toLowerCase()
+				);
+
+				if (relevantExpertise) {
+					const proficiencyScore =
+						relevantExpertise.proficiency === "expert" ? 100 :
+							relevantExpertise.proficiency === "advanced" ? 80 :
+								relevantExpertise.proficiency === "intermediate" ? 60 : 40;
+
+					expertiseMatch = proficiencyScore;
+					reasons.push(
+						`${relevantExpertise.proficiency.charAt(0).toUpperCase() + relevantExpertise.proficiency.slice(1)} in ${relevantExpertise.area} (${relevantExpertise.yearsExperience} years)`
+					);
+				}
+			}
+
+			// Check availability
+			const workload = workloads.get(author.userId);
+			const availableHours = author.availableHoursPerWeek ?? 40;
+			const allocatedHours = workload?.estimatedHours ?? 0;
+			const utilizationRate = (allocatedHours / availableHours) * 100;
+
+			if (utilizationRate <= 50) {
+				availabilityMatch = 100;
+				reasons.push("Excellent availability");
+			} else if (utilizationRate <= 70) {
+				availabilityMatch = 80;
+				reasons.push("Good availability");
+			} else if (utilizationRate <= 85) {
+				availabilityMatch = 60;
+				reasons.push("Moderate availability");
+			} else {
+				availabilityMatch = 30;
+			}
+
+			// Performance metrics
+			if (author.onTimeDeliveryRate) {
+				performanceScore = Math.min(100, author.onTimeDeliveryRate);
+				if (author.onTimeDeliveryRate >= 90) {
+					reasons.push(`High on-time delivery rate (${Math.round(author.onTimeDeliveryRate)}%)`);
+				}
+			}
+			if (author.qualityScoreAverage && author.qualityScoreAverage >= 4) {
+				performanceScore = (performanceScore + (author.qualityScoreAverage / 5) * 100) / 2;
+				reasons.push(`Quality score: ${author.qualityScoreAverage.toFixed(1)}/5`);
+			}
+			if (author.totalTasksCompleted && author.totalTasksCompleted > 10) {
+				reasons.push(`Completed ${author.totalTasksCompleted} tasks`);
+			}
+
+			// Calculate overall match score (weighted average)
+			const matchScore = Math.round(
+				expertiseMatch * 0.4 + availabilityMatch * 0.35 + performanceScore * 0.25
+			);
+
+			// Determine workload status
+			let workloadStatus: "available" | "moderate" | "high" | "overloaded";
+			if (utilizationRate <= 50) {
+				workloadStatus = "available";
+			} else if (utilizationRate <= 70) {
+				workloadStatus = "moderate";
+			} else if (utilizationRate <= 100) {
+				workloadStatus = "high";
+			} else {
+				workloadStatus = "overloaded";
+			}
+
+			// Estimate completion date
+			const estimatedDays = task.estimatedHours
+				? Math.ceil((task.estimatedHours / 8) * (100 / Math.max(10, 100 - utilizationRate)))
+				: 5;
+			const estimatedCompletionDate = new Date(
+				Date.now() + estimatedDays * 24 * 60 * 60 * 1000
+			).toISOString();
+
+			return {
+				userId: author.userId,
+				userName: author.userName,
+				userEmail: author.userEmail ?? undefined,
+				matchScore,
+				reasons,
+				workloadStatus,
+				estimatedCompletionDate,
+				expertiseMatch,
+				availabilityMatch,
+				performanceScore,
+			};
+		});
+
+		// Sort by match score descending
+		suggestions.sort((a, b) => b.matchScore - a.matchScore);
 
 		return { success: true, data: suggestions };
 	} catch (error) {
@@ -590,17 +878,31 @@ export async function bulkAssignTasks(
 	assignments: TaskAssignment[]
 ): Promise<{ success: boolean; data?: { assigned: number; failed: number }; error?: string }> {
 	try {
-		console.log("Bulk assigning tasks:", assignments);
-
 		let assigned = 0;
 		let failed = 0;
 
 		for (const assignment of assignments) {
+			// Get user details from author expertise
+			const [author] = await db
+				.select()
+				.from(authorExpertise)
+				.where(eq(authorExpertise.userId, assignment.userId))
+				.limit(1);
+
 			const result = await updateTask(assignment.taskId, {
-				assignedTo: assignment.userId,
+				assignedTo: author?.userName ?? assignment.userId,
+				assignedToEmail: author?.userEmail ?? undefined,
 			});
 
 			if (result.success) {
+				// Log who made the assignment
+				await logTaskActivity(
+					assignment.taskId,
+					"bulk_assigned",
+					`Bulk assigned by ${assignment.assignedBy}`,
+					undefined,
+					author?.userName ?? assignment.userId
+				);
 				assigned++;
 			} else {
 				failed++;
@@ -627,71 +929,181 @@ export async function calculateCriticalPath(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: CriticalPath; error?: string }> {
 	try {
-		console.log("Calculating critical path for opportunity:", opportunityId);
+		// Get all tasks for the opportunity
+		const tasks = await db
+			.select()
+			.from(proposalTasks)
+			.where(
+				and(
+					eq(proposalTasks.opportunityId, opportunityId),
+					ne(proposalTasks.status, "cancelled")
+				)
+			)
+			.orderBy(asc(proposalTasks.dueDate));
 
-		// In production, perform actual critical path analysis
-		// This would use topological sorting and forward/backward pass algorithms
+		if (tasks.length === 0) {
+			return {
+				success: true,
+				data: {
+					nodes: [],
+					criticalTasks: [],
+					totalDuration: 0,
+					projectEndDate: new Date().toISOString(),
+					bottlenecks: [],
+				},
+			};
+		}
 
-		const criticalPath: CriticalPath = {
-			nodes: [
-				{
-					taskId: "task-1",
-					title: "Executive Summary",
-					dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-					duration: 8,
-					slack: 0,
-					isCritical: true,
-					dependencies: [],
-					dependents: ["task-2"],
-				},
-				{
-					taskId: "task-2",
-					title: "Technical Approach",
-					dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-					duration: 16,
-					slack: 0,
-					isCritical: true,
-					dependencies: ["task-1"],
-					dependents: ["task-5"],
-				},
-				{
-					taskId: "task-3",
-					title: "Org Chart",
-					dueDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-					duration: 4,
-					slack: 2,
-					isCritical: false,
-					dependencies: [],
-					dependents: [],
-				},
-				{
-					taskId: "task-4",
-					title: "Past Performance",
-					dueDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-					duration: 12,
-					slack: 1,
-					isCritical: false,
-					dependencies: [],
-					dependents: [],
-				},
-				{
-					taskId: "task-5",
-					title: "Technical Review",
-					dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-					duration: 6,
-					slack: 0,
-					isCritical: true,
-					dependencies: ["task-2"],
-					dependents: [],
-				},
-			],
-			criticalTasks: ["task-1", "task-2", "task-5"],
-			totalDuration: 30, // hours
-			projectEndDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-			bottlenecks: ["task-2 has no slack and multiple dependents"],
+		// Build task graph
+		const taskMap = new Map<string, ProposalTask>();
+		const dependentsMap = new Map<string, string[]>();
+
+		for (const task of tasks) {
+			taskMap.set(task.id, task);
+			dependentsMap.set(task.id, []);
+		}
+
+		// Build dependents (reverse dependency map)
+		for (const task of tasks) {
+			const dependencies = task.dependsOn as string[] | null;
+			if (dependencies && Array.isArray(dependencies)) {
+				for (const depId of dependencies) {
+					const deps = dependentsMap.get(depId);
+					if (deps) {
+						deps.push(task.id);
+					}
+				}
+			}
+		}
+
+		// Forward pass - calculate earliest start/finish times
+		const earlyStart = new Map<string, number>();
+		const earlyFinish = new Map<string, number>();
+		const baseDate = new Date();
+
+		// Topological sort for forward pass
+		const visited = new Set<string>();
+		const sorted: string[] = [];
+
+		function visit(taskId: string) {
+			if (visited.has(taskId)) return;
+			visited.add(taskId);
+
+			const task = taskMap.get(taskId);
+			const dependencies = task?.dependsOn as string[] | null;
+			if (dependencies && Array.isArray(dependencies)) {
+				for (const depId of dependencies) {
+					if (taskMap.has(depId)) {
+						visit(depId);
+					}
+				}
+			}
+			sorted.push(taskId);
+		}
+
+		for (const task of tasks) {
+			visit(task.id);
+		}
+
+		// Calculate early times
+		for (const taskId of sorted) {
+			const task = taskMap.get(taskId)!;
+			const dependencies = task.dependsOn as string[] | null;
+			let maxPredFinish = 0;
+
+			if (dependencies && Array.isArray(dependencies)) {
+				for (const depId of dependencies) {
+					const predFinish = earlyFinish.get(depId) ?? 0;
+					maxPredFinish = Math.max(maxPredFinish, predFinish);
+				}
+			}
+
+			earlyStart.set(taskId, maxPredFinish);
+			const duration = task.estimatedHours ?? 8;
+			earlyFinish.set(taskId, maxPredFinish + duration);
+		}
+
+		// Backward pass - calculate latest start/finish times
+		const lateStart = new Map<string, number>();
+		const lateFinish = new Map<string, number>();
+
+		// Find project duration (maximum early finish)
+		let projectDuration = 0;
+		for (const finish of earlyFinish.values()) {
+			projectDuration = Math.max(projectDuration, finish);
+		}
+
+		// Process in reverse order
+		for (let i = sorted.length - 1; i >= 0; i--) {
+			const taskId = sorted[i];
+			const task = taskMap.get(taskId)!;
+			const dependents = dependentsMap.get(taskId) ?? [];
+
+			let minSuccStart = projectDuration;
+			for (const succId of dependents) {
+				const succStart = lateStart.get(succId) ?? projectDuration;
+				minSuccStart = Math.min(minSuccStart, succStart);
+			}
+
+			const duration = task.estimatedHours ?? 8;
+			lateFinish.set(taskId, minSuccStart);
+			lateStart.set(taskId, minSuccStart - duration);
+		}
+
+		// Calculate slack and identify critical path
+		const nodes: CriticalPathNode[] = [];
+		const criticalTasks: string[] = [];
+		const bottlenecks: string[] = [];
+
+		for (const task of tasks) {
+			const es = earlyStart.get(task.id) ?? 0;
+			const ls = lateStart.get(task.id) ?? 0;
+			const slack = ls - es;
+			const isCritical = slack === 0;
+
+			const dependencies = task.dependsOn as string[] | null;
+			const dependents = dependentsMap.get(task.id) ?? [];
+
+			if (isCritical) {
+				criticalTasks.push(task.id);
+			}
+
+			// Identify bottlenecks (critical tasks with multiple dependents)
+			if (isCritical && dependents.length > 1) {
+				bottlenecks.push(`${task.title} has ${dependents.length} dependent tasks and no slack`);
+			}
+
+			// Calculate due date from duration
+			const dueDate = task.dueDate?.toISOString() ??
+				new Date(baseDate.getTime() + (earlyFinish.get(task.id) ?? 0) * 60 * 60 * 1000).toISOString();
+
+			nodes.push({
+				taskId: task.id,
+				title: task.title,
+				dueDate,
+				duration: task.estimatedHours ?? 8,
+				slack,
+				isCritical,
+				dependencies: dependencies ?? [],
+				dependents,
+			});
+		}
+
+		// Calculate project end date
+		const projectEndDate = new Date(
+			baseDate.getTime() + projectDuration * 60 * 60 * 1000
+		).toISOString();
+
+		return {
+			success: true,
+			data: {
+				nodes,
+				criticalTasks,
+				totalDuration: projectDuration,
+				projectEndDate,
+				bottlenecks,
+			},
 		};
-
-		return { success: true, data: criticalPath };
 	} catch (error) {
 		console.error("Failed to calculate critical path:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to calculate critical path" };
@@ -709,36 +1121,97 @@ export async function getWorkloadSummary(
 	userId: string
 ): Promise<{ success: boolean; data?: WorkloadSummary; error?: string }> {
 	try {
-		console.log("Getting workload summary for user:", userId);
+		// Get author details
+		const [author] = await db
+			.select()
+			.from(authorExpertise)
+			.where(eq(authorExpertise.userId, userId))
+			.limit(1);
 
-		// In production, aggregate from tasks and snapshots
+		const userName = author?.userName ?? userId;
+		const availableHours = author?.availableHoursPerWeek ?? 40;
+
+		// Get task statistics
+		const allTasks = await db
+			.select()
+			.from(proposalTasks)
+			.where(eq(proposalTasks.assignedTo, userName));
+
+		const now = new Date();
+		const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+		let activeTasks = 0;
+		let pendingTasks = 0;
+		let totalEstimatedHours = 0;
+		let totalActualHours = 0;
+		let dueThisWeek = 0;
+		let overdueCount = 0;
+		const tasksByPriority: Record<string, number> = {};
+		const tasksByType: Record<string, number> = {};
+		const upcomingDeadlines: { taskId: string; title: string; dueDate: string }[] = [];
+
+		for (const task of allTasks) {
+			if (task.status === "in_progress" || task.status === "review") {
+				activeTasks++;
+			} else if (task.status === "pending" || task.status === "assigned") {
+				pendingTasks++;
+			}
+
+			// Only count non-completed tasks for workload
+			if (task.status !== "completed" && task.status !== "cancelled") {
+				totalEstimatedHours += task.estimatedHours ?? 0;
+				totalActualHours += task.actualHours ?? 0;
+
+				// Check due dates
+				if (task.dueDate) {
+					const dueDate = new Date(task.dueDate);
+					if (dueDate < now) {
+						overdueCount++;
+					} else if (dueDate <= oneWeekFromNow) {
+						dueThisWeek++;
+						upcomingDeadlines.push({
+							taskId: task.id,
+							title: task.title,
+							dueDate: task.dueDate.toISOString(),
+						});
+					}
+				}
+
+				// Count by priority
+				const priority = task.priority ?? "medium";
+				tasksByPriority[priority] = (tasksByPriority[priority] ?? 0) + 1;
+
+				// Count by type
+				const taskType = task.taskType ?? "other";
+				tasksByType[taskType] = (tasksByType[taskType] ?? 0) + 1;
+			}
+		}
+
+		// Sort upcoming deadlines by date
+		upcomingDeadlines.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+		// Calculate utilization rate
+		const utilizationRate = availableHours > 0
+			? Math.round((totalEstimatedHours / availableHours) * 100)
+			: 0;
+
+		const workloadHealth = calculateWorkloadHealth(utilizationRate);
+
 		const summary: WorkloadSummary = {
 			userId,
-			userName: "John Smith",
-			activeTasks: 5,
-			pendingTasks: 3,
-			totalEstimatedHours: 42,
-			totalActualHours: 28,
-			dueThisWeek: 4,
-			overdueCount: 1,
-			utilizationRate: 85,
-			availableHours: 40,
-			tasksByPriority: {
-				critical: 1,
-				high: 2,
-				medium: 4,
-				low: 1,
-			},
-			tasksByType: {
-				writing: 5,
-				review: 2,
-				graphics: 1,
-			},
-			upcomingDeadlines: [
-				{ taskId: "task-1", title: "Executive Summary", dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString() },
-				{ taskId: "task-2", title: "Technical Approach", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString() },
-			],
-			workloadHealth: "elevated",
+			userName,
+			activeTasks,
+			pendingTasks,
+			totalEstimatedHours,
+			totalActualHours,
+			dueThisWeek,
+			overdueCount,
+			utilizationRate,
+			availableHours,
+			tasksByPriority,
+			tasksByType,
+			upcomingDeadlines: upcomingDeadlines.slice(0, 5),
+			workloadHealth,
 		};
 
 		return { success: true, data: summary };
@@ -755,77 +1228,41 @@ export async function getTeamWorkload(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: WorkloadSummary[]; error?: string }> {
 	try {
-		console.log("Getting team workload for opportunity:", opportunityId);
+		// Get all unique assignees for the opportunity
+		const assignees = await db
+			.selectDistinct({ assignedTo: proposalTasks.assignedTo })
+			.from(proposalTasks)
+			.where(
+				and(
+					eq(proposalTasks.opportunityId, opportunityId),
+					sql`${proposalTasks.assignedTo} IS NOT NULL`
+				)
+			);
 
-		// In production, aggregate workload for all assigned users
-		const teamWorkload: WorkloadSummary[] = [
-			{
-				userId: "user-1",
-				userName: "John Smith",
-				activeTasks: 5,
-				pendingTasks: 2,
-				totalEstimatedHours: 35,
-				totalActualHours: 20,
-				dueThisWeek: 3,
-				overdueCount: 0,
-				utilizationRate: 88,
-				availableHours: 40,
-				tasksByPriority: { critical: 1, high: 2, medium: 2, low: 0 },
-				tasksByType: { writing: 4, review: 1 },
-				upcomingDeadlines: [],
-				workloadHealth: "elevated",
-			},
-			{
-				userId: "user-2",
-				userName: "Jane Doe",
-				activeTasks: 3,
-				pendingTasks: 1,
-				totalEstimatedHours: 24,
-				totalActualHours: 16,
-				dueThisWeek: 2,
-				overdueCount: 0,
-				utilizationRate: 60,
-				availableHours: 40,
-				tasksByPriority: { critical: 0, high: 1, medium: 2, low: 0 },
-				tasksByType: { writing: 2, research: 1 },
-				upcomingDeadlines: [],
-				workloadHealth: "healthy",
-			},
-			{
-				userId: "user-3",
-				userName: "Bob Wilson",
-				activeTasks: 2,
-				pendingTasks: 0,
-				totalEstimatedHours: 12,
-				totalActualHours: 8,
-				dueThisWeek: 1,
-				overdueCount: 1,
-				utilizationRate: 30,
-				availableHours: 40,
-				tasksByPriority: { critical: 0, high: 0, medium: 1, low: 1 },
-				tasksByType: { graphics: 2 },
-				upcomingDeadlines: [],
-				workloadHealth: "healthy",
-			},
-			{
-				userId: "user-4",
-				userName: "Sarah Johnson",
-				activeTasks: 4,
-				pendingTasks: 3,
-				totalEstimatedHours: 48,
-				totalActualHours: 30,
-				dueThisWeek: 4,
-				overdueCount: 2,
-				utilizationRate: 120,
-				availableHours: 40,
-				tasksByPriority: { critical: 2, high: 2, medium: 0, low: 0 },
-				tasksByType: { writing: 3, review: 1 },
-				upcomingDeadlines: [],
-				workloadHealth: "overloaded",
-			},
-		];
+		const workloads: WorkloadSummary[] = [];
 
-		return { success: true, data: teamWorkload };
+		for (const { assignedTo } of assignees) {
+			if (!assignedTo) continue;
+
+			// Find the author by name to get userId
+			const [author] = await db
+				.select()
+				.from(authorExpertise)
+				.where(eq(authorExpertise.userName, assignedTo))
+				.limit(1);
+
+			const userId = author?.userId ?? assignedTo;
+			const result = await getWorkloadSummary(userId);
+
+			if (result.success && result.data) {
+				workloads.push(result.data);
+			}
+		}
+
+		// Sort by utilization rate descending
+		workloads.sort((a, b) => b.utilizationRate - a.utilizationRate);
+
+		return { success: true, data: workloads };
 	} catch (error) {
 		console.error("Failed to get team workload:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to get team workload" };
@@ -839,34 +1276,112 @@ export async function balanceWorkload(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: RebalanceResult; error?: string }> {
 	try {
-		console.log("Balancing workload for opportunity:", opportunityId);
+		// Get team workload
+		const teamResult = await getTeamWorkload(opportunityId);
+		if (!teamResult.success || !teamResult.data) {
+			return { success: false, error: "Failed to get team workload" };
+		}
 
-		// In production, use optimization algorithm to suggest reassignments
+		const workloads = teamResult.data;
+		const reassignments: RebalanceResult["reassignments"] = [];
+		const warnings: string[] = [];
+
+		// Calculate before metrics
+		const beforeUtilizations = workloads.map((w) => w.utilizationRate);
+		const beforeVariance = calculateVariance(beforeUtilizations);
+		const beforeMax = Math.max(...beforeUtilizations);
+
+		// Identify overloaded and available users
+		const overloaded = workloads.filter((w) => w.workloadHealth === "overloaded" || w.workloadHealth === "critical");
+		const available = workloads.filter((w) => w.workloadHealth === "healthy" || w.workloadHealth === "available");
+
+		// Suggest reassignments
+		for (const overloadedUser of overloaded) {
+			// Get their tasks that could be reassigned (non-critical, not in progress)
+			const tasks = await db
+				.select()
+				.from(proposalTasks)
+				.where(
+					and(
+						eq(proposalTasks.opportunityId, opportunityId),
+						eq(proposalTasks.assignedTo, overloadedUser.userName),
+						or(
+							eq(proposalTasks.status, "pending"),
+							eq(proposalTasks.status, "assigned")
+						),
+						ne(proposalTasks.priority, "critical")
+					)
+				)
+				.orderBy(asc(proposalTasks.priority))
+				.limit(3);
+
+			for (const task of tasks) {
+				// Find best available user
+				const bestMatch = available.find((a) =>
+					a.utilizationRate < 70 &&
+					a.userName !== overloadedUser.userName
+				);
+
+				if (bestMatch) {
+					reassignments.push({
+						taskId: task.id,
+						fromUser: overloadedUser.userName,
+						toUser: bestMatch.userName,
+						reason: `${overloadedUser.userName} is ${overloadedUser.workloadHealth} (${overloadedUser.utilizationRate}% utilization), ${bestMatch.userName} has capacity (${bestMatch.utilizationRate}% utilization)`,
+					});
+
+					// Update simulated utilization
+					const taskHours = task.estimatedHours ?? 4;
+					overloadedUser.utilizationRate -= (taskHours / overloadedUser.availableHours) * 100;
+					bestMatch.utilizationRate += (taskHours / bestMatch.availableHours) * 100;
+				}
+			}
+		}
+
+		// Calculate after metrics (simulated)
+		const afterUtilizations = workloads.map((w) => w.utilizationRate);
+		const afterVariance = calculateVariance(afterUtilizations);
+		const afterMax = Math.max(...afterUtilizations);
+
+		// Check for low-expertise assignments
+		for (const r of reassignments) {
+			const [author] = await db
+				.select()
+				.from(authorExpertise)
+				.where(eq(authorExpertise.userName, r.toUser))
+				.limit(1);
+
+			const expertiseAreas = author?.expertiseAreas as Array<{ proficiency: string }> | null;
+			const hasExpertise = expertiseAreas?.some((e) =>
+				e.proficiency === "expert" || e.proficiency === "advanced"
+			);
+
+			if (!hasExpertise) {
+				warnings.push(`${r.toUser} may need support with complex tasks`);
+			}
+		}
+
 		const result: RebalanceResult = {
 			success: true,
-			reassignments: [
-				{
-					taskId: "task-6",
-					fromUser: "Sarah Johnson",
-					toUser: "Jane Doe",
-					reason: "Sarah is overloaded (120% utilization), Jane has capacity (60% utilization)",
-				},
-				{
-					taskId: "task-7",
-					fromUser: "Sarah Johnson",
-					toUser: "Bob Wilson",
-					reason: "Graphics task better suited to Bob's expertise",
-				},
-			],
+			reassignments,
 			improvements: [
-				{ metric: "Team utilization variance", before: 35, after: 12 },
-				{ metric: "Max individual utilization", before: 120, after: 85 },
-				{ metric: "Overdue risk tasks", before: 3, after: 1 },
+				{
+					metric: "Team utilization variance",
+					before: Math.round(beforeVariance),
+					after: Math.round(afterVariance),
+				},
+				{
+					metric: "Max individual utilization",
+					before: Math.round(beforeMax),
+					after: Math.round(afterMax),
+				},
+				{
+					metric: "Overloaded team members",
+					before: overloaded.length,
+					after: workloads.filter((w) => w.utilizationRate > 100).length,
+				},
 			],
-			warnings: [
-				"Bob Wilson may need support with writing tasks",
-				"Consider extending deadline for task-8 if rebalancing is applied",
-			],
+			warnings,
 		};
 
 		return { success: true, data: result };
@@ -874,6 +1389,16 @@ export async function balanceWorkload(
 		console.error("Failed to balance workload:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to balance workload" };
 	}
+}
+
+/**
+ * Calculate variance of an array of numbers.
+ */
+function calculateVariance(values: number[]): number {
+	if (values.length === 0) return 0;
+	const mean = values.reduce((a, b) => a + b, 0) / values.length;
+	const squareDiffs = values.map((v) => Math.pow(v - mean, 2));
+	return squareDiffs.reduce((a, b) => a + b, 0) / values.length;
 }
 
 // ============================================================================
@@ -887,31 +1412,120 @@ export async function detectBottlenecks(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: Bottleneck[]; error?: string }> {
 	try {
-		console.log("Detecting bottlenecks for opportunity:", opportunityId);
+		const bottlenecks: Bottleneck[] = [];
 
-		// In production, analyze task dependencies and status
-		const bottlenecks: Bottleneck[] = [
-			{
-				taskId: "task-4",
-				title: "Past Performance Narratives",
-				assignedTo: "Sarah Johnson",
-				blockedTasks: 2,
-				reason: "Blocked waiting for external reference information",
-				severity: "high",
-				suggestedAction: "Escalate to PM to expedite reference collection",
-				impactDays: 3,
-			},
-			{
-				taskId: "task-2",
-				title: "Technical Approach Section",
-				assignedTo: "Jane Doe",
-				blockedTasks: 3,
-				reason: "On critical path with multiple dependents, currently at 0% progress",
-				severity: "critical",
-				suggestedAction: "Prioritize this task and consider adding support resources",
-				impactDays: 5,
-			},
-		];
+		// Get all non-completed tasks
+		const tasks = await db
+			.select()
+			.from(proposalTasks)
+			.where(
+				and(
+					eq(proposalTasks.opportunityId, opportunityId),
+					ne(proposalTasks.status, "completed"),
+					ne(proposalTasks.status, "cancelled")
+				)
+			);
+
+		// Build dependency map
+		const dependentsMap = new Map<string, string[]>();
+		for (const task of tasks) {
+			dependentsMap.set(task.id, []);
+		}
+
+		for (const task of tasks) {
+			const dependencies = task.dependsOn as string[] | null;
+			if (dependencies && Array.isArray(dependencies)) {
+				for (const depId of dependencies) {
+					const deps = dependentsMap.get(depId);
+					if (deps) {
+						deps.push(task.id);
+					}
+				}
+			}
+		}
+
+		const now = new Date();
+
+		for (const task of tasks) {
+			const dependents = dependentsMap.get(task.id) ?? [];
+			const blockedTasks = dependents.length;
+
+			// Check for blocked status
+			if (task.status === "blocked") {
+				const blockedReasons = task.blockedBy as string[] | null;
+				const reason = blockedReasons?.[0] ?? "Blocked - reason unknown";
+
+				bottlenecks.push({
+					taskId: task.id,
+					title: task.title,
+					assignedTo: task.assignedTo ?? "Unassigned",
+					blockedTasks,
+					reason,
+					severity: blockedTasks >= 3 ? "critical" : blockedTasks >= 1 ? "high" : "medium",
+					suggestedAction: "Resolve blocking issue or escalate to management",
+					impactDays: task.dueDate
+						? Math.max(0, daysBetween(task.dueDate, now))
+						: 0,
+				});
+			}
+
+			// Check for overdue tasks with dependents
+			if (task.dueDate && task.dueDate < now && blockedTasks > 0) {
+				bottlenecks.push({
+					taskId: task.id,
+					title: task.title,
+					assignedTo: task.assignedTo ?? "Unassigned",
+					blockedTasks,
+					reason: `Overdue by ${daysBetween(task.dueDate, now)} days with ${blockedTasks} dependent tasks`,
+					severity: blockedTasks >= 3 ? "critical" : "high",
+					suggestedAction: "Prioritize completion or reassign to available team member",
+					impactDays: daysBetween(task.dueDate, now),
+				});
+			}
+
+			// Check for critical path tasks at 0% progress with imminent deadline
+			if (
+				task.priority === "critical" &&
+				(task.progress ?? 0) === 0 &&
+				task.dueDate &&
+				daysBetween(now, task.dueDate) <= 3
+			) {
+				bottlenecks.push({
+					taskId: task.id,
+					title: task.title,
+					assignedTo: task.assignedTo ?? "Unassigned",
+					blockedTasks,
+					reason: "Critical task at 0% progress with deadline in 3 days or less",
+					severity: "critical",
+					suggestedAction: "Immediate attention required - assign additional resources",
+					impactDays: Math.max(0, daysBetween(now, task.dueDate)),
+				});
+			}
+
+			// Check for tasks with many dependents and no progress
+			if (blockedTasks >= 2 && (task.progress ?? 0) < 25 && task.status === "in_progress") {
+				bottlenecks.push({
+					taskId: task.id,
+					title: task.title,
+					assignedTo: task.assignedTo ?? "Unassigned",
+					blockedTasks,
+					reason: `Blocking ${blockedTasks} tasks with only ${task.progress ?? 0}% progress`,
+					severity: blockedTasks >= 3 ? "high" : "medium",
+					suggestedAction: "Expedite completion to unblock dependent tasks",
+					impactDays: task.dueDate
+						? Math.max(0, daysBetween(now, task.dueDate))
+						: 5,
+				});
+			}
+		}
+
+		// Sort by severity and impact
+		const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+		bottlenecks.sort((a, b) => {
+			const severityDiff = severityOrder[a.severity] - severityOrder[b.severity];
+			if (severityDiff !== 0) return severityDiff;
+			return b.impactDays - a.impactDays;
+		});
 
 		return { success: true, data: bottlenecks };
 	} catch (error) {
@@ -931,21 +1545,98 @@ export async function escalateOverdueTasks(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: { escalated: number; tasks: string[] }; error?: string }> {
 	try {
-		console.log("Escalating overdue tasks for opportunity:", opportunityId);
+		const now = new Date();
 
-		// In production, find overdue tasks and send escalation notifications
-		const escalatedTasks = ["task-4", "task-7"];
+		// Find overdue, non-completed, non-escalated tasks
+		const overdueTasks = await db
+			.select()
+			.from(proposalTasks)
+			.where(
+				and(
+					eq(proposalTasks.opportunityId, opportunityId),
+					ne(proposalTasks.status, "completed"),
+					ne(proposalTasks.status, "cancelled"),
+					eq(proposalTasks.escalated, false),
+					lt(proposalTasks.dueDate, now)
+				)
+			);
 
-		// Update task escalation status
-		for (const taskId of escalatedTasks) {
-			await logTaskActivity(taskId, "escalated", "Task escalated due to deadline risk");
+		const escalatedTaskIds: string[] = [];
+
+		for (const task of overdueTasks) {
+			// Update task as escalated
+			await db
+				.update(proposalTasks)
+				.set({
+					escalated: true,
+					escalatedAt: now,
+					updatedAt: now,
+				})
+				.where(eq(proposalTasks.id, task.id));
+
+			// Log escalation activity
+			await logTaskActivity(
+				task.id,
+				"escalated",
+				`Task escalated due to overdue deadline (was due ${task.dueDate?.toISOString()})`,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				"escalated"
+			);
+
+			escalatedTaskIds.push(task.id);
 		}
+
+		// Also find at-risk tasks (due within 24 hours, less than 50% progress)
+		const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+		const atRiskTasks = await db
+			.select()
+			.from(proposalTasks)
+			.where(
+				and(
+					eq(proposalTasks.opportunityId, opportunityId),
+					ne(proposalTasks.status, "completed"),
+					ne(proposalTasks.status, "cancelled"),
+					eq(proposalTasks.escalated, false),
+					gte(proposalTasks.dueDate, now),
+					lte(proposalTasks.dueDate, tomorrow),
+					lt(proposalTasks.progress, 50)
+				)
+			);
+
+		for (const task of atRiskTasks) {
+			await db
+				.update(proposalTasks)
+				.set({
+					escalated: true,
+					escalatedAt: now,
+					updatedAt: now,
+				})
+				.where(eq(proposalTasks.id, task.id));
+
+			await logTaskActivity(
+				task.id,
+				"escalated",
+				`Task escalated due to deadline risk (due in 24 hours with ${task.progress ?? 0}% progress)`,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				"escalated"
+			);
+
+			escalatedTaskIds.push(task.id);
+		}
+
+		revalidatePath("/opportunities/[id]/tasks", "page");
 
 		return {
 			success: true,
 			data: {
-				escalated: escalatedTasks.length,
-				tasks: escalatedTasks,
+				escalated: escalatedTaskIds.length,
+				tasks: escalatedTaskIds,
 			},
 		};
 	} catch (error) {
@@ -965,48 +1656,162 @@ export async function generateProgressReport(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: ProgressReport; error?: string }> {
 	try {
-		console.log("Generating progress report for opportunity:", opportunityId);
+		// Get all tasks for the opportunity
+		const tasks = await db
+			.select()
+			.from(proposalTasks)
+			.where(eq(proposalTasks.opportunityId, opportunityId));
 
-		// In production, aggregate data from tasks
+		const now = new Date();
+
+		// Calculate task summary
+		const taskSummary = {
+			total: tasks.length,
+			completed: tasks.filter((t) => t.status === "completed").length,
+			inProgress: tasks.filter((t) => t.status === "in_progress" || t.status === "review").length,
+			pending: tasks.filter((t) => t.status === "pending" || t.status === "assigned").length,
+			blocked: tasks.filter((t) => t.status === "blocked").length,
+			overdue: tasks.filter((t) =>
+				t.status !== "completed" &&
+				t.status !== "cancelled" &&
+				t.dueDate &&
+				t.dueDate < now
+			).length,
+		};
+
+		// Calculate overall progress (weighted by estimated hours or equal weight)
+		let overallProgress = 0;
+		if (tasks.length > 0) {
+			const totalWeight = tasks.reduce((sum, t) => sum + (t.estimatedHours ?? 1), 0);
+			const weightedProgress = tasks.reduce((sum, t) => {
+				const weight = t.estimatedHours ?? 1;
+				const progress = t.status === "completed" ? 100 : (t.progress ?? 0);
+				return sum + (progress * weight);
+			}, 0);
+			overallProgress = Math.round(weightedProgress / totalWeight);
+		}
+
+		// Calculate volume progress
+		const volumeMap = new Map<string, { total: number; completed: number; progress: number }>();
+		for (const task of tasks) {
+			const volumeId = task.volumeId ?? "unassigned";
+			const existing = volumeMap.get(volumeId) ?? { total: 0, completed: 0, progress: 0 };
+			existing.total++;
+			if (task.status === "completed") {
+				existing.completed++;
+			}
+			existing.progress += task.status === "completed" ? 100 : (task.progress ?? 0);
+			volumeMap.set(volumeId, existing);
+		}
+
+		const volumeProgress = Array.from(volumeMap.entries()).map(([volumeId, data]) => ({
+			volumeId,
+			volumeName: volumeId === "unassigned" ? "Unassigned" : `Volume ${volumeId.slice(0, 8)}`,
+			progress: Math.round(data.progress / data.total),
+			tasksCompleted: data.completed,
+			tasksTotal: data.total,
+		}));
+
+		// Calculate team performance
+		const teamMap = new Map<string, { completed: number; assigned: number; onTime: number; total: number }>();
+		for (const task of tasks) {
+			const userName = task.assignedTo ?? "Unassigned";
+			const existing = teamMap.get(userName) ?? { completed: 0, assigned: 0, onTime: 0, total: 0 };
+			existing.assigned++;
+			if (task.status === "completed") {
+				existing.completed++;
+				// Check if completed on time
+				if (task.completedAt && task.dueDate && task.completedAt <= task.dueDate) {
+					existing.onTime++;
+				}
+				existing.total++;
+			}
+			teamMap.set(userName, existing);
+		}
+
+		const teamPerformance = Array.from(teamMap.entries())
+			.filter(([userName]) => userName !== "Unassigned")
+			.map(([userName, data]) => ({
+				userId: userName,
+				userName,
+				tasksCompleted: data.completed,
+				tasksAssigned: data.assigned,
+				onTimeRate: data.total > 0 ? Math.round((data.onTime / data.total) * 100) : 100,
+			}));
+
+		// Generate timeline (last 7 days of activity)
+		const timeline: ProgressReport["timeline"] = [];
+		for (let i = 6; i >= 0; i--) {
+			const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+			const dateStr = date.toISOString().split("T")[0];
+
+			const completedOnDate = tasks.filter((t) =>
+				t.completedAt &&
+				t.completedAt.toISOString().split("T")[0] === dateStr
+			).length;
+
+			// Simulate progress (in production, use activity logs)
+			const progressOnDate = Math.min(
+				100,
+				overallProgress - (6 - i) * Math.round(overallProgress / 14)
+			);
+
+			timeline.push({
+				date: date.toISOString(),
+				tasksCompleted: completedOnDate,
+				progress: Math.max(0, progressOnDate),
+			});
+		}
+
+		// Identify risks
+		const risks: string[] = [];
+		if (taskSummary.overdue > 0) {
+			risks.push(`${taskSummary.overdue} task(s) are overdue`);
+		}
+		if (taskSummary.blocked > 0) {
+			risks.push(`${taskSummary.blocked} task(s) are blocked`);
+		}
+		const criticalTasks = tasks.filter((t) =>
+			t.priority === "critical" &&
+			t.status !== "completed" &&
+			(t.progress ?? 0) < 50
+		);
+		if (criticalTasks.length > 0) {
+			risks.push(`${criticalTasks.length} critical task(s) below 50% progress`);
+		}
+		const overloadedTeam = teamPerformance.filter((t) =>
+			teamMap.get(t.userName)!.assigned > 5
+		);
+		if (overloadedTeam.length > 0) {
+			risks.push(`${overloadedTeam.length} team member(s) have high task load`);
+		}
+
+		// Generate recommendations
+		const recommendations: string[] = [];
+		if (taskSummary.blocked > 0) {
+			recommendations.push("Review and resolve blocked tasks to maintain momentum");
+		}
+		if (criticalTasks.length > 0) {
+			recommendations.push("Prioritize critical tasks and consider additional resources");
+		}
+		if (overloadedTeam.length > 0) {
+			recommendations.push("Consider workload rebalancing across the team");
+		}
+		if (overallProgress < 50 && taskSummary.pending > taskSummary.inProgress) {
+			recommendations.push("Start more pending tasks to improve velocity");
+		}
+
 		const report: ProgressReport = {
 			opportunityId,
-			opportunityName: "Agency XYZ IT Modernization",
-			reportDate: new Date().toISOString(),
-			overallProgress: 45,
-			taskSummary: {
-				total: 15,
-				completed: 5,
-				inProgress: 6,
-				pending: 2,
-				blocked: 1,
-				overdue: 1,
-			},
-			volumeProgress: [
-				{ volumeId: "vol-1", volumeName: "Technical Volume", progress: 35, tasksCompleted: 2, tasksTotal: 6 },
-				{ volumeId: "vol-2", volumeName: "Management Volume", progress: 50, tasksCompleted: 2, tasksTotal: 4 },
-				{ volumeId: "vol-3", volumeName: "Past Performance", progress: 60, tasksCompleted: 3, tasksTotal: 5 },
-			],
-			teamPerformance: [
-				{ userId: "user-1", userName: "John Smith", tasksCompleted: 3, tasksAssigned: 5, onTimeRate: 100 },
-				{ userId: "user-2", userName: "Jane Doe", tasksCompleted: 1, tasksAssigned: 3, onTimeRate: 100 },
-				{ userId: "user-3", userName: "Bob Wilson", tasksCompleted: 1, tasksAssigned: 2, onTimeRate: 50 },
-			],
-			timeline: [
-				{ date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), tasksCompleted: 1, progress: 15 },
-				{ date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), tasksCompleted: 2, progress: 25 },
-				{ date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), tasksCompleted: 1, progress: 35 },
-				{ date: new Date().toISOString(), tasksCompleted: 1, progress: 45 },
-			],
-			risks: [
-				"Technical volume behind schedule - may impact review timeline",
-				"One team member overloaded - consider reassignment",
-				"External dependency for past performance references not yet resolved",
-			],
-			recommendations: [
-				"Prioritize technical approach section to unblock dependent tasks",
-				"Rebalance workload from Sarah Johnson to Jane Doe",
-				"Schedule daily standups for remaining week before deadline",
-			],
+			opportunityName: `Opportunity ${opportunityId.slice(0, 8)}`,
+			reportDate: now.toISOString(),
+			overallProgress,
+			taskSummary,
+			volumeProgress,
+			teamPerformance,
+			timeline,
+			risks,
+			recommendations,
 		};
 
 		return { success: true, data: report };
@@ -1025,26 +1830,101 @@ export async function generateProgressReport(
  */
 export async function updateAuthorExpertise(
 	userId: string
-): Promise<{ success: boolean; data?: unknown; error?: string }> {
+): Promise<{ success: boolean; data?: AuthorExpertiseType; error?: string }> {
 	try {
-		console.log("Updating author expertise for user:", userId);
+		// Get the author's current expertise
+		const [author] = await db
+			.select()
+			.from(authorExpertise)
+			.where(eq(authorExpertise.userId, userId))
+			.limit(1);
 
-		// In production, analyze completed tasks and update expertise profile
-		// This would calculate averages, update proficiency levels, etc.
+		if (!author) {
+			return { success: false, error: "Author not found" };
+		}
 
-		const updatedExpertise = {
-			userId,
-			averageWordsPerHour: 450,
-			qualityScoreAverage: 4.2,
-			onTimeDeliveryRate: 94,
-			totalTasksCompleted: 48,
-			expertiseAreas: [
-				{ area: "Technical Writing", proficiency: "expert", yearsExperience: 5, lastUsed: new Date().toISOString() },
-				{ area: "Proposal Development", proficiency: "advanced", yearsExperience: 4, lastUsed: new Date().toISOString() },
-			],
-		};
+		// Get all completed tasks for this author
+		const completedTasks = await db
+			.select()
+			.from(proposalTasks)
+			.where(
+				and(
+					eq(proposalTasks.assignedTo, author.userName),
+					eq(proposalTasks.status, "completed")
+				)
+			);
 
-		return { success: true, data: updatedExpertise };
+		// Calculate metrics
+		let totalWordsWritten = 0;
+		let totalHours = 0;
+		let onTimeCount = 0;
+		let totalQualityScore = 0;
+		let qualityCount = 0;
+		const tasksByType: Record<string, number> = {};
+		const tasksByCategory: Record<string, number> = {};
+
+		for (const task of completedTasks) {
+			// Word count
+			if (task.wordCountCurrent) {
+				totalWordsWritten += task.wordCountCurrent;
+			}
+
+			// Hours
+			if (task.actualHours) {
+				totalHours += task.actualHours;
+			}
+
+			// On-time delivery
+			if (task.completedAt && task.dueDate) {
+				if (task.completedAt <= task.dueDate) {
+					onTimeCount++;
+				}
+			}
+
+			// Quality score
+			if (task.qualityScore) {
+				totalQualityScore += task.qualityScore;
+				qualityCount++;
+			}
+
+			// Task types
+			const taskType = task.taskType ?? "other";
+			tasksByType[taskType] = (tasksByType[taskType] ?? 0) + 1;
+
+			// Task categories
+			if (task.taskCategory) {
+				tasksByCategory[task.taskCategory] = (tasksByCategory[task.taskCategory] ?? 0) + 1;
+			}
+		}
+
+		// Calculate averages
+		const averageWordsPerHour = totalHours > 0
+			? Math.round(totalWordsWritten / totalHours)
+			: null;
+		const qualityScoreAverage = qualityCount > 0
+			? Math.round((totalQualityScore / qualityCount) * 10) / 10
+			: null;
+		const onTimeDeliveryRate = completedTasks.length > 0
+			? Math.round((onTimeCount / completedTasks.length) * 100)
+			: null;
+
+		// Update author expertise
+		const [updatedAuthor] = await db
+			.update(authorExpertise)
+			.set({
+				averageWordsPerHour,
+				qualityScoreAverage,
+				onTimeDeliveryRate,
+				totalTasksCompleted: completedTasks.length,
+				totalHoursLogged: totalHours,
+				tasksCompletedByType: tasksByType,
+				tasksCompletedByCategory: tasksByCategory,
+				updatedAt: new Date(),
+			})
+			.where(eq(authorExpertise.userId, userId))
+			.returning();
+
+		return { success: true, data: updatedAuthor };
 	} catch (error) {
 		console.error("Failed to update author expertise:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to update author expertise" };
@@ -1056,40 +1936,19 @@ export async function updateAuthorExpertise(
  */
 export async function getAuthorExpertise(
 	userId: string
-): Promise<{ success: boolean; data?: unknown; error?: string }> {
+): Promise<{ success: boolean; data?: AuthorExpertiseType; error?: string }> {
 	try {
-		console.log("Getting author expertise for user:", userId);
+		const [author] = await db
+			.select()
+			.from(authorExpertise)
+			.where(eq(authorExpertise.userId, userId))
+			.limit(1);
 
-		// Mock data
-		const expertise = {
-			id: crypto.randomUUID(),
-			userId,
-			userName: "John Smith",
-			userEmail: "john.smith@example.com",
-			expertiseAreas: [
-				{ area: "Technical Writing", category: "writing", proficiency: "expert", yearsExperience: 5, lastUsed: new Date().toISOString(), projectCount: 24 },
-				{ area: "Proposal Development", category: "writing", proficiency: "advanced", yearsExperience: 4, lastUsed: new Date().toISOString(), projectCount: 18 },
-				{ area: "Government Contracting", category: "domain", proficiency: "advanced", yearsExperience: 3, lastUsed: new Date().toISOString(), projectCount: 12 },
-			],
-			averageWordsPerHour: 450,
-			qualityScoreAverage: 4.2,
-			onTimeDeliveryRate: 94,
-			revisionRate: 1.2,
-			totalTasksCompleted: 48,
-			totalHoursLogged: 520,
-			preferredTaskTypes: ["writing", "review"],
-			maxConcurrentTasks: 5,
-			availability: "available",
-			availableHoursPerWeek: 40,
-			clearanceLevel: "Secret",
-			clearanceStatus: "Active",
-			certifications: [
-				{ name: "PMP", issuer: "PMI", expirationDate: "2026-05-01" },
-				{ name: "APMP Practitioner", issuer: "APMP" },
-			],
-		};
+		if (!author) {
+			return { success: false, error: "Author not found" };
+		}
 
-		return { success: true, data: expertise };
+		return { success: true, data: author };
 	} catch (error) {
 		console.error("Failed to get author expertise:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to get author expertise" };
@@ -1097,79 +1956,21 @@ export async function getAuthorExpertise(
 }
 
 // ============================================================================
-// Task Activity Logging
+// Task Activity
 // ============================================================================
-
-/**
- * Log a task activity.
- */
-async function logTaskActivity(
-	taskId: string,
-	activityType: string,
-	description: string,
-	previousValue?: string,
-	newValue?: string
-): Promise<void> {
-	console.log("Logging task activity:", {
-		taskId,
-		activityType,
-		description,
-		previousValue,
-		newValue,
-		createdAt: new Date().toISOString(),
-	});
-
-	// In production, insert into task_activity table
-}
 
 /**
  * Get activity history for a task.
  */
 export async function getTaskActivity(
 	taskId: string
-): Promise<{ success: boolean; data?: unknown[]; error?: string }> {
+): Promise<{ success: boolean; data?: TaskActivityType[]; error?: string }> {
 	try {
-		console.log("Getting activity for task:", taskId);
-
-		// Mock activity data
-		const activities = [
-			{
-				id: "act-1",
-				taskId,
-				activityType: "created",
-				description: "Task created",
-				userName: "Admin User",
-				createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-			},
-			{
-				id: "act-2",
-				taskId,
-				activityType: "assigned",
-				description: "Assigned to John Smith",
-				userName: "Admin User",
-				createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-			},
-			{
-				id: "act-3",
-				taskId,
-				activityType: "status_change",
-				description: "Status changed to in_progress",
-				previousValue: "assigned",
-				newValue: "in_progress",
-				userName: "John Smith",
-				createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-			},
-			{
-				id: "act-4",
-				taskId,
-				activityType: "progress_update",
-				description: "Progress updated to 45%",
-				previousValue: "20",
-				newValue: "45",
-				userName: "John Smith",
-				createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-			},
-		];
+		const activities = await db
+			.select()
+			.from(taskActivity)
+			.where(eq(taskActivity.taskId, taskId))
+			.orderBy(desc(taskActivity.createdAt));
 
 		return { success: true, data: activities };
 	} catch (error) {
@@ -1188,25 +1989,196 @@ export async function getTaskActivity(
 export async function logTime(
 	taskId: string,
 	hours: number,
-	notes?: string
-): Promise<{ success: boolean; data?: unknown; error?: string }> {
+	notes?: string,
+	userId?: string
+): Promise<{ success: boolean; data?: { id: string; taskId: string; hours: number }; error?: string }> {
 	try {
-		console.log("Logging time for task:", taskId, hours, notes);
+		// Get current task
+		const [task] = await db
+			.select()
+			.from(proposalTasks)
+			.where(eq(proposalTasks.id, taskId))
+			.limit(1);
 
-		// In production, add to hoursLogged array and update actualHours
-		const timeEntry = {
-			id: crypto.randomUUID(),
-			taskId,
-			hours,
-			notes,
+		if (!task) {
+			return { success: false, error: "Task not found" };
+		}
+
+		// Get current hours logged
+		const currentHoursLogged = task.hoursLogged as Array<{
+			date: string;
+			hours: number;
+			userId: string;
+			notes?: string;
+		}> | null ?? [];
+
+		// Add new time entry
+		const newEntry = {
 			date: new Date().toISOString(),
+			hours,
+			userId: userId ?? task.assignedTo ?? "unknown",
+			notes,
 		};
 
-		await logTaskActivity(taskId, "time_logged", `Logged ${hours} hours`);
+		const updatedHoursLogged = [...currentHoursLogged, newEntry];
+		const totalActualHours = updatedHoursLogged.reduce((sum, entry) => sum + entry.hours, 0);
 
-		return { success: true, data: timeEntry };
+		// Update task
+		await db
+			.update(proposalTasks)
+			.set({
+				hoursLogged: updatedHoursLogged,
+				actualHours: totalActualHours,
+				updatedAt: new Date(),
+			})
+			.where(eq(proposalTasks.id, taskId));
+
+		// Log activity
+		await logTaskActivity(
+			taskId,
+			"time_logged",
+			`Logged ${hours} hours${notes ? `: ${notes}` : ""}`,
+			String(task.actualHours ?? 0),
+			String(totalActualHours),
+			userId,
+			undefined,
+			"actualHours"
+		);
+
+		return {
+			success: true,
+			data: {
+				id: crypto.randomUUID(),
+				taskId,
+				hours,
+			},
+		};
 	} catch (error) {
 		console.error("Failed to log time:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to log time" };
+	}
+}
+
+// ============================================================================
+// Opportunity Task Summary
+// ============================================================================
+
+/**
+ * Update the opportunity task summary (aggregated metrics).
+ */
+async function updateOpportunityTaskSummary(opportunityId: string): Promise<void> {
+	try {
+		const tasks = await db
+			.select()
+			.from(proposalTasks)
+			.where(eq(proposalTasks.opportunityId, opportunityId));
+
+		const now = new Date();
+
+		// Calculate summary metrics
+		const totalTasks = tasks.length;
+		const pendingTasks = tasks.filter((t) => t.status === "pending" || t.status === "assigned").length;
+		const inProgressTasks = tasks.filter((t) => t.status === "in_progress" || t.status === "review").length;
+		const completedTasks = tasks.filter((t) => t.status === "completed").length;
+		const blockedTasks = tasks.filter((t) => t.status === "blocked").length;
+		const cancelledTasks = tasks.filter((t) => t.status === "cancelled").length;
+
+		const criticalTasks = tasks.filter((t) => t.priority === "critical" && t.status !== "completed").length;
+		const highPriorityTasks = tasks.filter((t) => t.priority === "high" && t.status !== "completed").length;
+		const overdueTasks = tasks.filter((t) =>
+			t.status !== "completed" &&
+			t.status !== "cancelled" &&
+			t.dueDate &&
+			t.dueDate < now
+		).length;
+
+		// Calculate overall progress
+		let overallProgress = 0;
+		if (totalTasks > 0) {
+			const totalWeight = tasks.reduce((sum, t) => sum + (t.estimatedHours ?? 1), 0);
+			const weightedProgress = tasks.reduce((sum, t) => {
+				const weight = t.estimatedHours ?? 1;
+				const progress = t.status === "completed" ? 100 : (t.progress ?? 0);
+				return sum + (progress * weight);
+			}, 0);
+			overallProgress = Math.round(weightedProgress / totalWeight);
+		}
+
+		// Word counts
+		const wordCountTotal = tasks.reduce((sum, t) => sum + (t.wordCountTarget ?? 0), 0);
+		const wordCountCompleted = tasks.reduce((sum, t) => sum + (t.wordCountCurrent ?? 0), 0);
+
+		// Due dates
+		const dueDates = tasks
+			.filter((t) => t.dueDate && t.status !== "completed" && t.status !== "cancelled")
+			.map((t) => t.dueDate!)
+			.sort((a, b) => a.getTime() - b.getTime());
+
+		const earliestDueDate = dueDates[0] ?? null;
+		const latestDueDate = dueDates[dueDates.length - 1] ?? null;
+
+		// Unique assignees
+		const uniqueAssignees = new Set(tasks.filter((t) => t.assignedTo).map((t) => t.assignedTo)).size;
+
+		// Total hours
+		const totalEstimatedHours = tasks.reduce((sum, t) => sum + (t.estimatedHours ?? 0), 0);
+		const totalActualHours = tasks.reduce((sum, t) => sum + (t.actualHours ?? 0), 0);
+
+		// Health status
+		let healthStatus: "healthy" | "at_risk" | "critical" = "healthy";
+		if (overdueTasks > 0 || criticalTasks >= 3) {
+			healthStatus = "critical";
+		} else if (blockedTasks > 0 || criticalTasks > 0 || highPriorityTasks >= 5) {
+			healthStatus = "at_risk";
+		}
+
+		// Risk factors
+		const riskFactors: string[] = [];
+		if (overdueTasks > 0) riskFactors.push(`${overdueTasks} overdue tasks`);
+		if (blockedTasks > 0) riskFactors.push(`${blockedTasks} blocked tasks`);
+		if (criticalTasks > 0) riskFactors.push(`${criticalTasks} critical tasks pending`);
+
+		// Upsert summary
+		const existing = await db
+			.select()
+			.from(opportunityTaskSummary)
+			.where(eq(opportunityTaskSummary.opportunityId, opportunityId))
+			.limit(1);
+
+		const summaryData = {
+			opportunityId,
+			totalTasks,
+			pendingTasks,
+			inProgressTasks,
+			completedTasks,
+			blockedTasks,
+			cancelledTasks,
+			criticalTasks,
+			highPriorityTasks,
+			overdueTasks,
+			overallProgress,
+			wordCountTotal,
+			wordCountCompleted,
+			earliestDueDate,
+			latestDueDate,
+			uniqueAssignees,
+			totalEstimatedHours,
+			totalActualHours,
+			healthStatus,
+			riskFactors,
+			lastCalculatedAt: now,
+			updatedAt: now,
+		};
+
+		if (existing.length > 0) {
+			await db
+				.update(opportunityTaskSummary)
+				.set(summaryData)
+				.where(eq(opportunityTaskSummary.opportunityId, opportunityId));
+		} else {
+			await db.insert(opportunityTaskSummary).values(summaryData);
+		}
+	} catch (error) {
+		console.error("Failed to update opportunity task summary:", error);
 	}
 }

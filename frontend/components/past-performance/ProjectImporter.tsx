@@ -63,6 +63,8 @@ import {
 	Settings,
 } from "lucide-react";
 import type { NewProject } from "@/lib/db/schema-past-performance";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
 
 // ============================================================================
 // Types
@@ -121,6 +123,47 @@ const DEFAULT_FIELD_MAPPINGS: ImportField[] = [
 	{ sourceField: "POC Phone", targetField: "customerPOCPhone", required: false },
 	{ sourceField: "Peak Staffing", targetField: "peakStaffing", transform: "number", required: false },
 ];
+
+// ============================================================================
+// CPAR Rating Parser
+// ============================================================================
+
+/**
+ * Parse CPAR rating from string to numeric value (1-5 scale)
+ * Handles text ratings (Exceptional, Very Good, etc.) and numeric values
+ */
+function parseCparRating(value: string): number {
+	const normalized = value.trim().toLowerCase();
+
+	// Direct numeric value
+	const numVal = parseFloat(normalized);
+	if (!isNaN(numVal)) {
+		return Math.min(5, Math.max(1, numVal));
+	}
+
+	// Text rating mappings (CPARS standard ratings)
+	const ratingMap: Record<string, number> = {
+		"exceptional": 5,
+		"very good": 4,
+		"satisfactory": 3,
+		"marginal": 2,
+		"unsatisfactory": 1,
+		// Common abbreviations
+		"e": 5,
+		"vg": 4,
+		"s": 3,
+		"m": 2,
+		"u": 1,
+		// Alternative text values
+		"excellent": 5,
+		"good": 4,
+		"average": 3,
+		"fair": 2,
+		"poor": 1,
+	};
+
+	return ratingMap[normalized] || 0;
+}
 
 // ============================================================================
 // Helper Components
@@ -341,46 +384,110 @@ export function ProjectImporter({
 	});
 	const [importResult, setImportResult] = useState<{ success: number; errors: number } | null>(null);
 	const [isProcessing, setIsProcessing] = useState(false);
+	const [rawParsedRows, setRawParsedRows] = useState<Record<string, unknown>[]>([]);
+
+	// Parse file content based on type
+	const parseFileContent = useCallback(async (fileToProcess: File): Promise<{ columns: string[]; rows: Record<string, unknown>[] }> => {
+		const fileType = fileToProcess.name.toLowerCase();
+
+		if (fileType.endsWith(".csv")) {
+			// Parse CSV with papaparse
+			return new Promise((resolve, reject) => {
+				Papa.parse(fileToProcess, {
+					header: true,
+					skipEmptyLines: true,
+					complete: (results) => {
+						const columns = results.meta.fields || [];
+						const rows = results.data as Record<string, unknown>[];
+						resolve({ columns, rows });
+					},
+					error: (error: Error) => reject(error),
+				});
+			});
+		} else if (fileType.endsWith(".xlsx") || fileType.endsWith(".xls")) {
+			// Parse Excel with xlsx
+			return new Promise((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = (e) => {
+					try {
+						const data = new Uint8Array(e.target?.result as ArrayBuffer);
+						const workbook = XLSX.read(data, { type: "array" });
+						const firstSheetName = workbook.SheetNames[0];
+						const worksheet = workbook.Sheets[firstSheetName];
+						const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][];
+
+						if (jsonData.length < 2) {
+							resolve({ columns: [], rows: [] });
+							return;
+						}
+
+						// First row is headers
+						const columns = (jsonData[0] as string[]).map(c => String(c || "").trim());
+						// Rest is data
+						const rows = jsonData.slice(1).map((row) => {
+							const rowArr = row as unknown[];
+							const obj: Record<string, unknown> = {};
+							columns.forEach((col, i) => {
+								obj[col] = rowArr[i] ?? "";
+							});
+							return obj;
+						});
+
+						resolve({ columns, rows });
+					} catch (err) {
+						reject(err);
+					}
+				};
+				reader.onerror = () => reject(new Error("Failed to read file"));
+				reader.readAsArrayBuffer(fileToProcess);
+			});
+		} else {
+			throw new Error("Unsupported file type. Please use .csv, .xlsx, or .xls files.");
+		}
+	}, []);
 
 	// Handle file selection
 	const handleFileSelect = useCallback(async (selectedFile: File) => {
 		setFile(selectedFile);
 		setIsProcessing(true);
 
-		// Simulate parsing (in real implementation, use papaparse or xlsx)
-		await new Promise((resolve) => setTimeout(resolve, 1000));
+		try {
+			// Parse file content
+			const { columns, rows } = await parseFileContent(selectedFile);
 
-		// Mock parsed columns
-		const mockColumns = [
-			"Project Name",
-			"Contract Number",
-			"Customer",
-			"Agency",
-			"Contract Value",
-			"Start Date",
-			"End Date",
-			"Description",
-			"CPAR Quality",
-			"CPAR Schedule",
-			"CPAR Cost",
-			"CPAR Management",
-			"POC Name",
-			"POC Email",
-		];
-		setSourceColumns(mockColumns);
+			if (columns.length === 0) {
+				throw new Error("No columns found in file. Ensure the file has a header row.");
+			}
 
-		// Auto-map fields
-		const autoMapped = fieldMappings.map((mapping) => {
-			const match = mockColumns.find(
-				(col) => col.toLowerCase() === mapping.sourceField.toLowerCase()
-			);
-			return match ? { ...mapping, sourceField: match } : mapping;
-		});
-		setFieldMappings(autoMapped);
+			setSourceColumns(columns);
+			setRawParsedRows(rows);
 
-		setIsProcessing(false);
-		setStep("mapping");
-	}, [fieldMappings]);
+			// Auto-map fields based on column names
+			const autoMapped = fieldMappings.map((mapping) => {
+				// Try exact match first
+				let match = columns.find(
+					(col) => col.toLowerCase() === mapping.sourceField.toLowerCase()
+				);
+				// Try partial match if no exact match
+				if (!match) {
+					match = columns.find(
+						(col) =>
+							col.toLowerCase().includes(mapping.targetField.toLowerCase()) ||
+							mapping.targetField.toLowerCase().includes(col.toLowerCase().replace(/[\s_-]/g, ""))
+					);
+				}
+				return match ? { ...mapping, sourceField: match } : mapping;
+			});
+			setFieldMappings(autoMapped);
+
+			setStep("mapping");
+		} catch (err) {
+			console.error("File parsing error:", err);
+			alert(err instanceof Error ? err.message : "Failed to parse file");
+		} finally {
+			setIsProcessing(false);
+		}
+	}, [fieldMappings, parseFileContent]);
 
 	// Handle mapping change
 	const handleMappingChange = useCallback((index: number, sourceField: string) => {
@@ -391,73 +498,111 @@ export function ProjectImporter({
 		});
 	}, []);
 
-	// Process and preview
+	// Process and preview - validates and transforms actual parsed data
 	const handlePreview = useCallback(async () => {
 		setIsProcessing(true);
 		setStep("preview");
 
-		// Simulate validation
-		await new Promise((resolve) => setTimeout(resolve, 500));
+		// Transform raw parsed rows using field mappings
+		const transformedData: ImportedProject[] = rawParsedRows.map((row, index) => {
+			const project: ImportedProject = {
+				_rowNumber: index + 1,
+				_status: "pending",
+				_errors: [],
+				_warnings: [],
+			};
 
-		// Mock validated data
-		const mockData: ImportedProject[] = [
-			{
-				_rowNumber: 1,
-				_status: "valid",
-				name: "Enterprise Cloud Migration",
-				contractNumber: "GS-35F-0001X",
-				customerName: "Department of Defense",
-				customerAgency: "U.S. Army",
-				contractValue: 15000000,
-				_errors: [],
-				_warnings: [],
-			},
-			{
-				_rowNumber: 2,
-				_status: "warning",
-				name: "Cybersecurity Operations Center",
-				contractNumber: "W15QKN-20-C-0001",
-				customerName: "Department of Homeland Security",
-				contractValue: 8500000,
-				_errors: [],
-				_warnings: ["Similar project already exists: 'Cyber Operations Support'"],
-			},
-			{
-				_rowNumber: 3,
-				_status: "error",
-				name: "",
-				customerName: "Department of Veterans Affairs",
-				contractValue: 3200000,
-				_errors: ["Project name is required"],
-				_warnings: [],
-			},
-			{
-				_rowNumber: 4,
-				_status: "valid",
-				name: "Healthcare IT Modernization",
-				contractNumber: "VA-123-45-D-0001",
-				customerName: "Department of Veterans Affairs",
-				customerAgency: "VHA",
-				contractValue: 12000000,
-				_errors: [],
-				_warnings: [],
-			},
-		];
+			// Apply field mappings
+			fieldMappings.forEach((mapping) => {
+				const sourceValue = row[mapping.sourceField];
+				if (sourceValue === undefined || sourceValue === null || sourceValue === "") return;
 
-		setParsedData(mockData);
+				let value: unknown = sourceValue;
+
+				// Apply transformations
+				if (mapping.transform) {
+					switch (mapping.transform) {
+						case "number":
+							const numVal = parseFloat(String(sourceValue).replace(/[,$]/g, ""));
+							value = isNaN(numVal) ? undefined : numVal;
+							break;
+						case "date-start":
+						case "date-end":
+							// Handle date fields (would need proper date parsing)
+							value = String(sourceValue);
+							break;
+						case "cpar-quality":
+						case "cpar-schedule":
+						case "cpar-cost":
+						case "cpar-management": {
+							// Build CPAR ratings object with proper numeric types
+							const cparType = mapping.transform.replace("cpar-", "") as "quality" | "schedule" | "cost" | "management";
+							const ratingValue = parseCparRating(String(sourceValue));
+							const existingCpar = project.cparRatings || {
+								quality: 0,
+								schedule: 0,
+								cost: 0,
+								management: 0,
+								overall: 0,
+							};
+							existingCpar[cparType] = ratingValue;
+							// Recalculate overall as average of provided ratings
+							const ratings = [existingCpar.quality, existingCpar.schedule, existingCpar.cost, existingCpar.management].filter(r => r > 0);
+							existingCpar.overall = ratings.length > 0 ? Math.round(ratings.reduce((a, b) => a + b, 0) / ratings.length) : 0;
+							project.cparRatings = existingCpar;
+							return; // Don't set directly
+						}
+						default:
+							value = sourceValue;
+					}
+				}
+
+				// Set the field value
+				(project as Record<string, unknown>)[mapping.targetField] = value;
+			});
+
+			// Validate required fields and check for errors/warnings
+			const errors: string[] = [];
+			const warnings: string[] = [];
+
+			// Check required fields
+			if (!project.name || String(project.name).trim() === "") {
+				errors.push("Project name is required");
+			}
+			if (!project.customerName || String(project.customerName).trim() === "") {
+				errors.push("Customer name is required");
+			}
+
+			// Check for duplicates in existing projects
+			if (project.name && existingProjects.some(ep =>
+				ep.name.toLowerCase() === String(project.name).toLowerCase() ||
+				(ep.contractNumber && project.contractNumber && ep.contractNumber === project.contractNumber)
+			)) {
+				warnings.push(`Similar project already exists: '${project.name}'`);
+			}
+
+			// Set status based on errors/warnings
+			project._errors = errors;
+			project._warnings = warnings;
+			project._status = errors.length > 0 ? "error" : warnings.length > 0 ? "warning" : "valid";
+
+			return project;
+		});
+
+		setParsedData(transformedData);
 		setSelectedRows(
-			new Set(mockData.filter((d) => d._status !== "error").map((d) => d._rowNumber!))
+			new Set(transformedData.filter((d) => d._status !== "error").map((d) => d._rowNumber!))
 		);
 		setProgress({
 			stage: "preview",
-			current: mockData.length,
-			total: mockData.length,
-			errors: mockData.filter((d) => d._status === "error").length,
-			warnings: mockData.filter((d) => d._status === "warning").length,
+			current: transformedData.length,
+			total: transformedData.length,
+			errors: transformedData.filter((d) => d._status === "error").length,
+			warnings: transformedData.filter((d) => d._status === "warning").length,
 		});
 
 		setIsProcessing(false);
-	}, []);
+	}, [rawParsedRows, fieldMappings, existingProjects]);
 
 	// Execute import
 	const handleImport = useCallback(async () => {
