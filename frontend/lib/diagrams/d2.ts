@@ -813,22 +813,93 @@ export function formatD2(code: string): string {
 // =============================================================================
 
 /**
- * Render D2 diagram using D2 CLI or service
+ * Render D2 diagram using Kroki.io service or Mermaid fallback
+ *
+ * Rendering strategy:
+ * 1. Try Kroki.io D2 rendering service (free, no install required)
+ * 2. Fall back to Mermaid conversion if Kroki fails
  */
 export async function renderD2(
 	code: string,
 	options: D2RenderOptions
 ): Promise<RenderResult> {
-	// D2 can be rendered using:
-	// 1. D2 CLI (d2 -) for local rendering
-	// 2. D2 Playground API
-	// 3. Converting to SVG programmatically
-	
-	// For now, return error since we need CLI
+	const format = options.format || "svg";
+
+	// Strategy 1: Try Kroki.io D2 rendering service
+	try {
+		const kroikiResult = await renderD2ViaKroki(code, format);
+		if (kroikiResult.success) {
+			return kroikiResult;
+		}
+	} catch (e) {
+		console.warn("D2 Kroki rendering failed, trying Mermaid fallback:", e);
+	}
+
+	// Strategy 2: Convert to Mermaid and use mermaid library
+	// This is a fallback that works client-side
+	const mermaidCode = d2ToMermaid(code);
+	if (!mermaidCode) {
+		return {
+			success: false,
+			error: "Failed to convert D2 to Mermaid format",
+		};
+	}
+
+	// Return the Mermaid code - caller should render with mermaid library
 	return {
-		success: false,
-		error: "D2 rendering requires D2 CLI to be installed locally",
+		success: true,
+		data: mermaidCode,
+		warnings: ["Rendered via Mermaid conversion - some D2 features may not be supported"],
 	};
+}
+
+/**
+ * Render D2 via Kroki.io service
+ * Kroki provides free diagram rendering including D2 support
+ */
+async function renderD2ViaKroki(
+	code: string,
+	format: "svg" | "png"
+): Promise<RenderResult> {
+	const KROKI_URL = "https://kroki.io/d2";
+
+	try {
+		// Kroki accepts base64url-encoded diagram source
+		const encoded = btoa(unescape(encodeURIComponent(code)))
+			.replace(/\+/g, "-")
+			.replace(/\//g, "_")
+			.replace(/=+$/, "");
+
+		const url = `${KROKI_URL}/${format}/${encoded}`;
+
+		const response = await fetch(url, {
+			method: "GET",
+			headers: {
+				Accept: format === "png" ? "image/png" : "image/svg+xml",
+			},
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text().catch(() => "Unknown error");
+			return {
+				success: false,
+				error: `Kroki D2 rendering failed (${response.status}): ${errorText}`,
+			};
+		}
+
+		if (format === "png") {
+			const blob = await response.blob();
+			return { success: true, data: blob };
+		}
+
+		const svg = await response.text();
+		return { success: true, data: svg };
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : "Kroki D2 rendering failed",
+		};
+	}
 }
 
 // =============================================================================

@@ -1012,21 +1012,96 @@ export function formatStructurizr(code: string): string {
 // =============================================================================
 
 /**
- * Structurizr rendering is typically done via:
- * 1. Structurizr CLI (local)
- * 2. Structurizr Lite (Docker)
- * 3. Structurizr.com (cloud service)
+ * Render Structurizr DSL diagrams
+ *
+ * Rendering strategy:
+ * 1. Try Kroki.io Structurizr rendering service
+ * 2. Fall back to Mermaid conversion for client-side rendering
+ *
+ * Note: Structurizr DSL can also be rendered via:
+ * - Structurizr CLI (local)
+ * - Structurizr Lite (Docker)
+ * - Structurizr.com (cloud service)
  */
 export async function renderStructurizr(
 	code: string,
 	options: StructurizrRenderOptions
 ): Promise<RenderResult> {
-	// This is a placeholder - actual rendering requires Structurizr CLI
-	// or conversion to Mermaid/PlantUML for client-side rendering
+	const format = options.format || "svg";
+
+	// Strategy 1: Try Kroki.io Structurizr rendering
+	try {
+		const kroikiResult = await renderStructurizrViaKroki(code, format as "svg" | "png");
+		if (kroikiResult.success) {
+			return kroikiResult;
+		}
+	} catch (e) {
+		console.warn("Structurizr Kroki rendering failed, trying Mermaid fallback:", e);
+	}
+
+	// Strategy 2: Convert to Mermaid for client-side rendering
+	const mermaidCode = structurizrToMermaid(code);
+	if (!mermaidCode) {
+		return {
+			success: false,
+			error: "Failed to convert Structurizr to Mermaid format",
+		};
+	}
+
+	// Return the Mermaid code - caller should render with mermaid library
 	return {
-		success: false,
-		error: "Structurizr rendering requires CLI tool or cloud service",
+		success: true,
+		data: mermaidCode,
+		warnings: ["Rendered via Mermaid conversion - some C4 styling may differ"],
 	};
+}
+
+/**
+ * Render Structurizr via Kroki.io service
+ */
+async function renderStructurizrViaKroki(
+	code: string,
+	format: "svg" | "png"
+): Promise<RenderResult> {
+	const KROKI_URL = "https://kroki.io/structurizr";
+
+	try {
+		// Kroki accepts base64url-encoded diagram source
+		const encoded = btoa(unescape(encodeURIComponent(code)))
+			.replace(/\+/g, "-")
+			.replace(/\//g, "_")
+			.replace(/=+$/, "");
+
+		const url = `${KROKI_URL}/${format}/${encoded}`;
+
+		const response = await fetch(url, {
+			method: "GET",
+			headers: {
+				Accept: format === "png" ? "image/png" : "image/svg+xml",
+			},
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text().catch(() => "Unknown error");
+			return {
+				success: false,
+				error: `Kroki Structurizr rendering failed (${response.status}): ${errorText}`,
+			};
+		}
+
+		if (format === "png") {
+			const blob = await response.blob();
+			return { success: true, data: blob };
+		}
+
+		const svg = await response.text();
+		return { success: true, data: svg };
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : "Kroki Structurizr rendering failed",
+		};
+	}
 }
 
 // =============================================================================
