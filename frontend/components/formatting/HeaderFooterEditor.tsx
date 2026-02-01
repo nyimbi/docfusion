@@ -619,14 +619,14 @@ export function HeaderFooterEditor({
 						{settings.differentFirstPage && (
 							<div className="flex items-center gap-2">
 								<Button
-									variant={showFirstPage ? "default" : "outline"}
+									variant={showFirstPage ? "primary" : "outline"}
 									size="sm"
 									onClick={() => setShowFirstPage(true)}
 								>
 									First Page
 								</Button>
 								<Button
-									variant={!showFirstPage ? "default" : "outline"}
+									variant={!showFirstPage ? "primary" : "outline"}
 									size="sm"
 									onClick={() => setShowFirstPage(false)}
 								>

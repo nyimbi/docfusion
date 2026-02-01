@@ -42,7 +42,7 @@ import {
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
-import type { FormatIssue, FormatFormatIssueSeverity, IssueCategory } from "@/lib/types/formatting";
+import type { FormatIssue, FormatIssueSeverity, IssueCategory } from "@/lib/types/formatting";
 
 // =============================================================================
 // Types

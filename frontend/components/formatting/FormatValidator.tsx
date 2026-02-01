@@ -48,7 +48,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type {
 	FormatValidationResult,
 	FormatIssue,
-	FormatFormatIssueSeverity,
+	FormatIssueSeverity,
 	IssueCategory,
 } from "@/lib/types/formatting";
 import { useFormatValidation } from "@/lib/hooks/useFormatting";

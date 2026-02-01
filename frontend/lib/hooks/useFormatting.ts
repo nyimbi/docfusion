@@ -13,13 +13,10 @@ import type {
 	FormatValidationResult,
 	AccessibilityResult,
 	PageCountInfo,
-	TOCResult,
-	ListsResult,
+	TOCEntry,
 	HeaderFooterSettings,
-	FormatPreviewResult,
 	FormatIssue,
 	TOCConfig,
-	TOCEntry,
 	WCAGLevel,
 	FigureEntry,
 	TableEntry,
@@ -43,6 +40,7 @@ import {
 	type FormatValidationResult as ServerValidationResult,
 	type TOCEntry as ServerTOCEntry,
 	type HeaderFooterSettings as ServerHeaderFooterSettings,
+	type AccessibilityIssue as ServerAccessibilityIssue,
 } from "@/lib/actions/formatting";
 
 // =============================================================================
@@ -53,37 +51,40 @@ import {
  * Converts server format template to client format template type.
  */
 function adaptFormatTemplate(template: ServerFormatTemplate): FormatTemplate {
+	const agencyCode = (template.agencyCode || "other").toLowerCase();
+
 	return {
 		id: template.id,
 		name: template.name,
 		description: template.description || "",
-		agency: template.agencyCode.toLowerCase() as FormatTemplate["agency"],
-		agencySubtype: undefined,
+		agency: agencyCode as FormatTemplate["agency"],
+		agencySubtype: template.subAgency || undefined,
 		regulationReference: undefined,
-		pageSize: "letter",
-		margins: {
-			top: template.marginSpecifications.top / 72,
-			bottom: template.marginSpecifications.bottom / 72,
-			left: template.marginSpecifications.left / 72,
-			right: template.marginSpecifications.right / 72,
-		},
+		pageSize: (template.pageSize as FormatTemplate["pageSize"]) || "letter",
+		margins: template.margins ? {
+			top: template.margins.top,
+			bottom: template.margins.bottom,
+			left: template.margins.left,
+			right: template.margins.right,
+			gutter: template.margins.gutter,
+		} : { top: 1, bottom: 1, left: 1, right: 1 },
 		font: {
-			family: template.fontSpecifications.primaryFont.toLowerCase().replace(/\s+/g, "-") as FormatTemplate["font"]["family"],
-			size: template.fontSpecifications.baseFontSize,
+			family: (template.bodyFont?.toLowerCase().replace(/\s+/g, "-") || "times-new-roman") as FormatTemplate["font"]["family"],
+			size: template.bodyFontSize || 12,
 		},
-		lineSpacing: template.spacingSpecifications.lineSpacing === 1 ? "single" :
-			template.spacingSpecifications.lineSpacing === 1.5 ? "1.5" :
-			template.spacingSpecifications.lineSpacing === 2 ? "double" : "1.15",
-		maxPages: template.pageLimits.totalPageLimit || undefined,
+		lineSpacing: template.lineSpacing === 1 ? "single" :
+			template.lineSpacing === 1.5 ? "1.5" :
+			template.lineSpacing === 2 ? "double" : "1.15",
+		maxPages: template.pageLimits?.[0]?.limit || undefined,
 		requiresPageNumbers: true,
 		requiresTOC: true,
 		requiresListOfFigures: true,
 		requiresListOfTables: true,
 		requiresAcronymList: true,
 		requiresCrossReferences: true,
-		section508Required: template.accessibilityRequirements.section508Required,
-		targetWCAGLevel: template.accessibilityRequirements.wcagLevel || undefined,
-		isBuiltIn: true,
+		section508Required: template.requiresAccessibility || false,
+		targetWCAGLevel: (template.accessibilityLevel as WCAGLevel) || undefined,
+		isBuiltIn: template.isSystem || false,
 		createdAt: template.createdAt,
 		updatedAt: template.updatedAt,
 	};
@@ -92,10 +93,10 @@ function adaptFormatTemplate(template: ServerFormatTemplate): FormatTemplate {
 /**
  * Converts server validation result to client validation result type.
  */
-function adaptValidationResult(result: ServerValidationResult): FormatValidationResult {
+function adaptValidationResult(result: ServerValidationResult, documentId: string): FormatValidationResult {
 	return {
 		id: `val-${Date.now()}`,
-		documentId: "", // Will be set by caller
+		documentId,
 		templateId: "",
 		score: result.overallScore,
 		categoryScores: {
@@ -103,10 +104,10 @@ function adaptValidationResult(result: ServerValidationResult): FormatValidation
 			margins: result.marginCompliance ? 100 : 50,
 			font: result.fontCompliance ? 100 : 50,
 			spacing: result.spacingCompliance ? 100 : 50,
-			headers: 100,
+			headers: result.headerCompliance ? 100 : 50,
 			"page-numbers": 100,
 			accessibility: result.accessibilityScore,
-			structure: result.structureCompliance ? 100 : 50,
+			structure: 100,
 			figures: 100,
 			tables: 100,
 			"cross-references": 100,
@@ -115,18 +116,19 @@ function adaptValidationResult(result: ServerValidationResult): FormatValidation
 		},
 		issues: result.issues.map((issue, idx) => ({
 			id: `iss-${idx}`,
-			severity: issue.severity === "error" ? "critical" : issue.severity === "warning" ? "major" : "minor",
+			severity: issue.severity === "critical" ? "critical" :
+				issue.severity === "major" ? "major" : "minor",
 			category: issue.type as FormatIssue["category"],
 			title: issue.message.split(":")[0] || issue.message,
 			description: issue.message,
 			location: issue.location ? { section: issue.location } : undefined,
 			suggestion: issue.suggestion,
-			autoFixable: issue.autoFixable,
+			autoFixable: issue.autoFixable || false,
 		})),
 		issueCounts: {
-			critical: result.issues.filter(i => i.severity === "error").length,
-			major: result.issues.filter(i => i.severity === "warning").length,
-			minor: result.issues.filter(i => i.severity === "info").length,
+			critical: result.issues.filter(i => i.severity === "critical").length,
+			major: result.issues.filter(i => i.severity === "major").length,
+			minor: result.issues.filter(i => i.severity === "minor" || i.severity === "info").length,
 		},
 		validatedAt: result.validatedAt,
 	};
@@ -136,14 +138,27 @@ function adaptValidationResult(result: ServerValidationResult): FormatValidation
  * Converts server TOC entry to client TOC entry type.
  */
 function adaptTOCEntry(entry: ServerTOCEntry): TOCEntry {
+	// Map server entry types to client types
+	const typeMap: Record<string, TOCEntry["type"]> = {
+		chapter: "heading",
+		section: "heading",
+		subsection: "heading",
+		figure: "figure",
+		table: "table",
+		acronym: "heading",
+		appendix: "heading",
+		attachment: "heading",
+		exhibit: "heading",
+	};
+
 	return {
 		id: entry.id,
-		type: "heading",
+		type: typeMap[entry.entryType] || "heading",
 		text: entry.title,
-		page: entry.pageNumber,
+		page: entry.pageNumber || 0,
 		level: entry.level as TOCEntry["level"],
-		sectionNumber: undefined,
-		targetId: entry.id,
+		sectionNumber: entry.sectionNumber || undefined,
+		targetId: entry.anchorId || entry.id,
 		children: entry.children?.map(adaptTOCEntry),
 	};
 }
@@ -220,9 +235,7 @@ export function useFormatValidation(documentId: string) {
 
 		try {
 			const serverResult = await validateFormatCompliance(documentId);
-			const clientResult = adaptValidationResult(serverResult);
-			clientResult.documentId = documentId;
-			setResult(clientResult);
+			setResult(adaptValidationResult(serverResult, documentId));
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Validation failed");
 		}
@@ -271,10 +284,10 @@ export function useAccessibilityCheck(documentId: string, targetLevel: WCAGLevel
 					timing: [],
 				},
 				issueCounts: {
-					critical: serverResult.issues.filter(i => i.severity === "critical").length,
-					serious: serverResult.issues.filter(i => i.severity === "serious").length,
-					moderate: serverResult.issues.filter(i => i.severity === "moderate").length,
-					minor: serverResult.issues.filter(i => i.severity === "minor").length,
+					critical: serverResult.issues.filter(i => i.impact === "critical").length,
+					serious: serverResult.issues.filter(i => i.impact === "serious").length,
+					moderate: serverResult.issues.filter(i => i.impact === "moderate").length,
+					minor: serverResult.issues.filter(i => i.impact === "minor").length,
 				},
 				categoryScores: {
 					images: 100,
@@ -291,22 +304,24 @@ export function useAccessibilityCheck(documentId: string, targetLevel: WCAGLevel
 			};
 
 			// Populate issues by category
-			serverResult.issues.forEach((issue, idx) => {
-				const category = issue.wcagCriterion?.startsWith("1.1") ? "images" :
-					issue.wcagCriterion?.startsWith("1.4") ? "color" :
-					issue.wcagCriterion?.startsWith("2.4") ? "navigation" :
-					issue.wcagCriterion?.startsWith("1.3") ? "documents" : "documents";
+			serverResult.issues.forEach((issue: ServerAccessibilityIssue, idx: number) => {
+				const criterion = issue.criterion || "";
+				const category = criterion.startsWith("1.1") ? "images" :
+					criterion.startsWith("1.4") ? "color" :
+					criterion.startsWith("2.4") ? "navigation" :
+					criterion.startsWith("1.3") ? "documents" : "documents";
 
-				if (clientResult.issuesByCategory[category as keyof typeof clientResult.issuesByCategory]) {
-					clientResult.issuesByCategory[category as keyof typeof clientResult.issuesByCategory].push({
+				const categoryKey = category as keyof typeof clientResult.issuesByCategory;
+				if (clientResult.issuesByCategory[categoryKey]) {
+					clientResult.issuesByCategory[categoryKey].push({
 						id: `a11y-${idx}`,
-						category: category as AccessibilityResult["issuesByCategory"]["images"][0]["category"],
-						wcagCriterion: issue.wcagCriterion || "",
+						category: categoryKey,
+						wcagCriterion: criterion,
 						wcagLevel: "A",
-						title: issue.message,
-						description: issue.message,
-						remediation: issue.recommendation,
-						impact: issue.severity,
+						title: issue.description,
+						description: issue.description,
+						remediation: issue.remediation || "",
+						impact: issue.impact as AccessibilityResult["issuesByCategory"]["images"][0]["impact"],
 					});
 				}
 			});
@@ -423,7 +438,7 @@ export function useListGenerator(documentId: string) {
 					id: f.id,
 					number: String(idx + 1),
 					title: f.title,
-					page: f.pageNumber,
+					page: f.pageNumber || 0,
 					targetId: f.id,
 				})));
 			}
@@ -434,7 +449,7 @@ export function useListGenerator(documentId: string) {
 					id: t.id,
 					number: String(idx + 1),
 					title: t.title,
-					page: t.pageNumber,
+					page: t.pageNumber || 0,
 					targetId: t.id,
 				})));
 			}
@@ -476,20 +491,26 @@ export function useHeaderFooter(documentId: string) {
 
 			if (serverSettings) {
 				// Adapt server settings to client type
+				const headerFormat = serverSettings.headerFormat;
+				const footerFormat = serverSettings.footerFormat;
+
 				const clientSettings: HeaderFooterSettings = {
 					header: [
-						{ position: "left", content: serverSettings.header?.left || "" },
-						{ position: "center", content: serverSettings.header?.center || "" },
-						{ position: "right", content: serverSettings.header?.right || "" },
+						{ position: "left", content: headerFormat?.leftContent || "" },
+						{ position: "center", content: headerFormat?.centerContent || "" },
+						{ position: "right", content: headerFormat?.rightContent || "" },
 					],
 					footer: [
-						{ position: "left", content: serverSettings.footer?.left || "" },
-						{ position: "center", content: serverSettings.footer?.center || "" },
-						{ position: "right", content: serverSettings.footer?.right || "" },
+						{ position: "left", content: footerFormat?.leftContent || "" },
+						{ position: "center", content: footerFormat?.centerContent || "" },
+						{ position: "right", content: footerFormat?.rightContent || "" },
 					],
-					pageNumberFormat: (serverSettings.footer?.pageNumberFormat as HeaderFooterSettings["pageNumberFormat"]) || "arabic",
-					startPageNumber: 1,
-					differentFirstPage: !(serverSettings.header?.showOnFirstPage ?? true) || !(serverSettings.footer?.showOnFirstPage ?? true),
+					pageNumberFormat: serverSettings.pageNumberFormat?.style === "roman_lower" ? "roman-lower" :
+						serverSettings.pageNumberFormat?.style === "roman_upper" ? "roman-upper" :
+						serverSettings.pageNumberFormat?.style === "alpha_lower" ? "alpha-lower" :
+						serverSettings.pageNumberFormat?.style === "alpha_upper" ? "alpha-upper" : "arabic",
+					startPageNumber: serverSettings.pageNumberFormat?.startAt || 1,
+					differentFirstPage: headerFormat?.differentFirstPage || footerFormat?.differentFirstPage || false,
 				};
 				setSettings(clientSettings);
 			}
@@ -507,20 +528,28 @@ export function useHeaderFooter(documentId: string) {
 		try {
 			// Adapt client settings to server type
 			const serverSettings: ServerHeaderFooterSettings = {
-				header: {
-					left: newSettings.header.find(h => h.position === "left")?.content,
-					center: newSettings.header.find(h => h.position === "center")?.content,
-					right: newSettings.header.find(h => h.position === "right")?.content,
-					showOnFirstPage: !newSettings.differentFirstPage,
+				headerFormat: {
+					enabled: true,
+					leftContent: newSettings.header.find(h => h.position === "left")?.content,
+					centerContent: newSettings.header.find(h => h.position === "center")?.content,
+					rightContent: newSettings.header.find(h => h.position === "right")?.content,
+					differentFirstPage: newSettings.differentFirstPage,
 				},
-				footer: {
-					left: newSettings.footer.find(f => f.position === "left")?.content,
-					center: newSettings.footer.find(f => f.position === "center")?.content,
-					right: newSettings.footer.find(f => f.position === "right")?.content,
-					pageNumberPosition: "center",
-					pageNumberFormat: newSettings.pageNumberFormat === "roman-lower" || newSettings.pageNumberFormat === "roman-upper" ? "roman" :
-						newSettings.pageNumberFormat === "alpha-lower" || newSettings.pageNumberFormat === "alpha-upper" ? "alpha" : "arabic",
-					showOnFirstPage: !newSettings.differentFirstPage,
+				footerFormat: {
+					enabled: true,
+					leftContent: newSettings.footer.find(f => f.position === "left")?.content,
+					centerContent: newSettings.footer.find(f => f.position === "center")?.content,
+					rightContent: newSettings.footer.find(f => f.position === "right")?.content,
+					differentFirstPage: newSettings.differentFirstPage,
+				},
+				pageNumberFormat: {
+					style: newSettings.pageNumberFormat === "roman-lower" ? "roman_lower" :
+						newSettings.pageNumberFormat === "roman-upper" ? "roman_upper" :
+						newSettings.pageNumberFormat === "alpha-lower" ? "alpha_lower" :
+						newSettings.pageNumberFormat === "alpha-upper" ? "alpha_upper" : "arabic",
+					startAt: newSettings.startPageNumber || 1,
+					position: "footer",
+					alignment: "center",
 				},
 			};
 

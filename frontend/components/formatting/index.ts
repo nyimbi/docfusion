@@ -229,7 +229,7 @@ export type {
 	FormatValidationResult,
 	FormatIssue,
 	FormatIssueId,
-	IssueSeverity,
+	FormatIssueSeverity,
 	IssueCategory,
 	IssueLocation,
 

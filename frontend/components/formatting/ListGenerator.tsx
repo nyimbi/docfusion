@@ -410,7 +410,7 @@ export function ListGenerator({
 		if (figures.length === 0 && tables.length === 0 && acronyms.length === 0) {
 			return null;
 		}
-		return { figures, tables, acronyms };
+		return { figures, tables, acronyms, generatedAt: new Date().toISOString() };
 	}, [figures, tables, acronyms]);
 
 	// Single type mode
@@ -433,7 +433,7 @@ export function ListGenerator({
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={generate}
+						onClick={() => handleGenerate()}
 						disabled={isGenerating}
 					>
 						<RefreshCw
