@@ -77,6 +77,33 @@ export interface AIProviderStreamChunk {
 }
 
 /**
+ * Request for embedding generation.
+ */
+export interface AIEmbeddingRequest {
+	/** Text or texts to embed */
+	input: string | string[];
+	/** Optional model override (uses deployment default if not specified) */
+	model?: string;
+	/** Embedding dimensions (for models that support it) */
+	dimensions?: number;
+}
+
+/**
+ * Response from embedding generation.
+ */
+export interface AIEmbeddingResponse {
+	/** Embedding vectors */
+	embeddings: number[][];
+	/** Model used */
+	model: string;
+	/** Token usage */
+	usage: {
+		promptTokens: number;
+		totalTokens: number;
+	};
+}
+
+/**
  * AI Provider interface.
  */
 export interface AIProvider {
@@ -85,6 +112,8 @@ export interface AIProvider {
 	complete(request: AIProviderRequest): Promise<AIProviderResponse>;
 	stream(request: AIProviderRequest): AsyncGenerator<AIProviderStreamChunk, void, undefined>;
 	listModels(): Promise<AIModelConfig[]>;
+	/** Optional embedding support */
+	createEmbedding?(request: AIEmbeddingRequest): Promise<AIEmbeddingResponse>;
 }
 
 /**
