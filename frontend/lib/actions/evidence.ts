@@ -2555,14 +2555,19 @@ export async function exportEvidenceLibrary(format: "csv" | "json"): Promise<Act
 		// Generate export timestamp for unique filename
 		const timestamp = Date.now();
 
-		if (format === "json") {
-			// In a real implementation, would upload to blob storage and return URL
-			// For now, return a placeholder endpoint
-			return { success: true, data: { url: `/api/exports/evidence-${timestamp}.json` } };
-		} else {
-			// CSV format - would be generated and stored similarly
-			return { success: true, data: { url: `/api/exports/evidence-${timestamp}.csv` } };
-		}
+		// Generate export through API endpoint which handles file creation
+		// The API endpoint creates the file in /tmp or blob storage and returns download URL
+		const filename = `evidence-library-${timestamp}.${format}`;
+		const downloadUrl = `/api/evidence/export?format=${format}&filename=${encodeURIComponent(filename)}`;
+
+		// Log export for audit
+		console.info("Evidence library export initiated:", {
+			format,
+			filename,
+			evidenceCount: allEvidenceResult.data?.length || 0,
+		});
+
+		return { success: true, data: { url: downloadUrl } };
 	} catch (error) {
 		return { success: false, error: `Failed to export evidence: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}

@@ -1206,13 +1206,80 @@ export async function scanForOccurrences(
 			return { success: true, count: 0 };
 		}
 
-		// In a full implementation, we would:
-		// 1. Get document content (from documents table or file storage)
-		// 2. Use AI to identify theme occurrences
-		// 3. Store occurrences in database
+		// Get documents for this opportunity via proposalDocuments join table
+		const { proposalDocuments, documents } = await import("@/lib/db/schema");
+		const opportunityDocs = await db
+			.select({
+				id: documents.id,
+				content: documents.content,
+				title: documents.title,
+				proposalDocId: proposalDocuments.id,
+			})
+			.from(proposalDocuments)
+			.innerJoin(documents, eq(proposalDocuments.documentId, documents.id))
+			.where(eq(proposalDocuments.opportunityId, opportunityId));
 
-		// For now, return placeholder
-		return { success: true, count: 0 };
+		if (opportunityDocs.length === 0) {
+			return { success: true, count: 0 };
+		}
+
+		let totalOccurrences = 0;
+
+		// Process each document
+		for (const doc of opportunityDocs) {
+			if (!doc.content) continue;
+
+			// Use AI to identify theme occurrences in document content
+			const prompt = `Analyze this document content and identify occurrences of the following win themes. For each occurrence found, provide the theme ID, the exact text excerpt (max 200 chars), and the strength of the occurrence (strong, moderate, weak, or implicit).
+
+Win Themes:
+${themes.map(t => `- ID: ${t.id}, Statement: "${t.themeStatement}", Short: "${t.shortVersion || ""}"`).join("\n")}
+
+Document Content (excerpt, first 15000 chars):
+${typeof doc.content === "string" ? doc.content.slice(0, 15000) : JSON.stringify(doc.content).slice(0, 15000)}
+
+Return a JSON array of occurrences: [{ "themeId": "...", "excerpt": "...", "strength": "strong|moderate|weak|implicit", "paragraphIndex": number }]
+Return empty array [] if no occurrences found.`;
+
+			try {
+				const response = await aiClient.complete(prompt, { maxTokens: 4000 });
+
+				const responseText = response.content;
+				const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
+
+				if (jsonMatch) {
+					const occurrences = JSON.parse(jsonMatch[0]) as {
+						themeId: string;
+						excerpt: string;
+						strength: string;
+						paragraphIndex?: number;
+					}[];
+
+					// Store occurrences in database
+					for (const occ of occurrences) {
+						await db.insert(themeOccurrences).values({
+							themeId: occ.themeId,
+							documentId: doc.id,
+							sectionName: doc.title || "Document",
+							textExcerpt: occ.excerpt,
+							strength: occ.strength as "strong" | "moderate" | "weak" | "implicit",
+							paragraphIndex: occ.paragraphIndex || 0,
+							occurrenceType: "explicit",
+							confidence: occ.strength === "strong" ? 0.95 : occ.strength === "moderate" ? 0.8 : 0.6,
+							aiSuggested: true,
+							userVerified: false,
+							detectedAt: new Date(),
+						});
+						totalOccurrences++;
+					}
+				}
+			} catch (aiError) {
+				console.warn(`AI analysis failed for document ${doc.id}:`, aiError);
+				// Continue processing other documents
+			}
+		}
+
+		return { success: true, count: totalOccurrences };
 	} catch (error) {
 		console.error("Error scanning for occurrences:", error);
 		return { success: false, error: `Failed to scan for occurrences: ${error instanceof Error ? error.message : "Unknown error"}` };
