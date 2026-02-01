@@ -8,3 +8,5 @@ export { ContactList } from "./ContactList";
 export { ContactCard } from "./ContactCard";
 export { ContactForm } from "./ContactForm";
 export { ContactDetail } from "./ContactDetail";
+export { ContactImporter } from "./ContactImporter";
+export { ContactResearchPanel } from "./ContactResearchPanel";

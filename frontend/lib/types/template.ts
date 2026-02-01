@@ -221,9 +221,9 @@ export interface UpdateTemplateInput {
 }
 
 /**
- * Template list query parameters.
+ * Template filtering options.
  */
-export interface TemplateListParams {
+export interface TemplateFilters {
 	/** Filter by status */
 	status?: TemplateStatus;
 	/** Filter by visibility */
@@ -236,6 +236,12 @@ export interface TemplateListParams {
 	difficulty?: "beginner" | "intermediate" | "advanced";
 	/** Full-text search query */
 	search?: string;
+}
+
+/**
+ * Template list query parameters.
+ */
+export interface TemplateListParams extends TemplateFilters {
 	/** Sort field */
 	sortBy?: "createdAt" | "updatedAt" | "name" | "useCount" | "rating";
 	/** Sort direction */

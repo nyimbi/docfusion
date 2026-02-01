@@ -80,16 +80,17 @@ export function EditorStatusBar({
 	const isVisible = useEditorStore((s) => s.statusBar.isVisible);
 	const preferences = useEditorStore((s) => s.preferences);
 	const collaborators = useCollaborationStore((s) => s.collaborators);
-	const connectionStatusRaw = useCollaborationStore((s) => s.connectionStatus);
+	const connectionStatusRaw = useCollaborationStore((s) => s.status);
 
-	// Convert Map to array and filter active users (users who are focused on the document)
-	const activeUsers = Array.from(collaborators.values()).filter(
-		(c) => c.isFocused || c.activity !== "idle"
+	// Filter active users
+	const activeUsers = collaborators.filter(
+		(c) => c.status === "active"
 	);
 
-	// Map reconnecting to connecting for the indicator component
+	// Map status to connection indicator types
 	const connectionStatus: "connected" | "connecting" | "disconnected" | "error" =
-		connectionStatusRaw === "reconnecting" ? "connecting" : connectionStatusRaw;
+		connectionStatusRaw === "connecting" ? "connecting" :
+		connectionStatusRaw === "disconnected" ? "disconnected" : "connected";
 
 	if (!isVisible) return null;
 
@@ -145,7 +146,7 @@ export function EditorStatusBar({
 				{activeUsers.length > 0 && (
 					<CollaboratorsIndicator
 						count={activeUsers.length}
-						users={activeUsers.map((c) => c.user.name)}
+						users={activeUsers.map((c) => c.name)}
 						onClick={onCollaboratorsClick}
 					/>
 				)}

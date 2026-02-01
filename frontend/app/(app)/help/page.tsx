@@ -74,7 +74,8 @@ export default function HelpPage() {
 	const [searchQuery, setSearchQuery] = React.useState("");
 
 	return (
-		<div className="relative max-w-4xl mx-auto">
+		<div className="h-full overflow-y-auto p-6">
+			<div className="relative max-w-4xl mx-auto">
 			{/* Page Header */}
 			<div className="text-center mb-8">
 				<h1 className="text-2xl font-bold text-foreground mb-2">
@@ -183,6 +184,7 @@ export default function HelpPage() {
 				<Button>
 					Contact Support
 				</Button>
+			</div>
 			</div>
 		</div>
 	);

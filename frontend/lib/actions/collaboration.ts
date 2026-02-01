@@ -14,7 +14,7 @@ import type {
 	DocumentCollaborators,
 	YjsDocumentState,
 	UpdatePresenceInput,
-	CollaborationSession,
+	DocumentCollaborationSummary,
 } from "@/lib/types/opportunity";
 
 // ============================================================================
@@ -209,9 +209,9 @@ export async function getActiveCollaborators(
  * Get all active collaboration sessions.
  */
 export async function getActiveCollaborationSessions(): Promise<
-	CollaborationSession[]
+	DocumentCollaborationSummary[]
 > {
-	const sessions: CollaborationSession[] = [];
+	const sessions: DocumentCollaborationSummary[] = [];
 	const documentIds = Array.from(presenceStore.keys());
 
 	if (documentIds.length === 0) return sessions;

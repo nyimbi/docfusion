@@ -178,45 +178,102 @@ export async function getAccount(id: string): Promise<AccountRow | null> {
 
 /**
  * Get account with all related entities.
+ * Uses separate queries to avoid PostgreSQL's 100-argument limit.
  */
 export async function getAccountWithRelations(
 	id: string
 ): Promise<AccountWithRelations | null> {
-	const account = await db.query.accounts.findFirst({
-		where: eq(accounts.id, id),
-		with: {
-			contacts: {
-				limit: 100,
-				orderBy: [desc(contacts.isPrimaryContact), asc(contacts.lastName)],
-			},
-			deals: {
-				limit: 50,
-				orderBy: desc(deals.createdAt),
-			},
-			documents: {
-				limit: 50,
-				orderBy: desc(crmDocuments.createdAt),
-			},
-			stageHistory: {
-				limit: 20,
-				orderBy: desc(accountStageHistory.createdAt),
-			},
-		},
-	});
+	// Fetch account first
+	const [account] = await db
+		.select()
+		.from(accounts)
+		.where(eq(accounts.id, id))
+		.limit(1);
 
 	if (!account) return null;
 
-	// Get recent activities separately (includes all polymorphic relations)
-	const recentActivities = await db.query.activities.findMany({
-		where: eq(activities.accountId, id),
-		limit: 20,
-		orderBy: desc(activities.createdAt),
-	});
+	// Fetch related entities separately with essential columns only
+	const [accountContacts, accountDeals, accountDocuments, stageHistory, recentActivities] =
+		await Promise.all([
+			db
+				.select({
+					id: contacts.id,
+					firstName: contacts.firstName,
+					lastName: contacts.lastName,
+					fullName: contacts.fullName,
+					email: contacts.email,
+					phone: contacts.phone,
+					title: contacts.title,
+					isPrimaryContact: contacts.isPrimaryContact,
+					accountId: contacts.accountId,
+				})
+				.from(contacts)
+				.where(eq(contacts.accountId, id))
+				.orderBy(desc(contacts.isPrimaryContact), asc(contacts.lastName))
+				.limit(100),
+
+			db
+				.select({
+					id: deals.id,
+					name: deals.name,
+					value: deals.value,
+					currency: deals.currency,
+					stage: deals.stage,
+					status: deals.status,
+					stageProbability: deals.stageProbability,
+					expectedCloseDate: deals.expectedCloseDate,
+					createdAt: deals.createdAt,
+				})
+				.from(deals)
+				.where(eq(deals.accountId, id))
+				.orderBy(desc(deals.createdAt))
+				.limit(50),
+
+			db
+				.select({
+					id: crmDocuments.id,
+					name: crmDocuments.name,
+					type: crmDocuments.type,
+					createdAt: crmDocuments.createdAt,
+				})
+				.from(crmDocuments)
+				.where(eq(crmDocuments.accountId, id))
+				.orderBy(desc(crmDocuments.createdAt))
+				.limit(50),
+
+			db
+				.select()
+				.from(accountStageHistory)
+				.where(eq(accountStageHistory.accountId, id))
+				.orderBy(desc(accountStageHistory.createdAt))
+				.limit(20),
+
+			db
+				.select({
+					id: activities.id,
+					type: activities.type,
+					subject: activities.subject,
+					description: activities.description,
+					status: activities.status,
+					scheduledAt: activities.scheduledAt,
+					completedAt: activities.completedAt,
+					createdAt: activities.createdAt,
+					createdBy: activities.createdBy,
+				})
+				.from(activities)
+				.where(eq(activities.accountId, id))
+				.orderBy(desc(activities.createdAt))
+				.limit(20),
+		]);
 
 	return {
 		...account,
+		contacts: accountContacts,
+		deals: accountDeals,
+		documents: accountDocuments,
+		stageHistory,
 		recentActivities,
-	};
+	} as AccountWithRelations;
 }
 
 /**
@@ -922,4 +979,123 @@ export async function bulkAddAccountTags(
 	}
 
 	return count;
+}
+
+// ============================================================================
+// DASHBOARD STATS
+// ============================================================================
+
+/**
+ * Dashboard statistics for the CRM overview.
+ */
+export interface CRMDashboardStats {
+	totalAccounts: number;
+	totalContacts: number;
+	openDeals: number;
+	pipelineValue: number;
+	overdueTasks: number;
+	dueToday: number;
+	upcoming: number;
+	completedTasks: number;
+}
+
+/**
+ * Get aggregated statistics for the CRM dashboard.
+ */
+export async function getCRMDashboardStats(): Promise<CRMDashboardStats> {
+	// Run all counts in parallel
+	const [
+		accountCount,
+		contactCount,
+		dealStats,
+		taskStats,
+	] = await Promise.all([
+		// Total accounts
+		db.select({ count: count() }).from(accounts),
+
+		// Total contacts
+		db.select({ count: count() }).from(contacts),
+
+		// Open deals and pipeline value
+		db
+			.select({
+				count: count(),
+				totalValue: sql<number>`COALESCE(SUM(${deals.value}), 0)`,
+			})
+			.from(deals)
+			.where(inArray(deals.status, ["active", "negotiation", "pending"])),
+
+		// Task stats
+		db
+			.select({
+				status: activities.status,
+				count: count(),
+			})
+			.from(activities)
+			.where(eq(activities.type, "task"))
+			.groupBy(activities.status),
+	]);
+
+	// Get today's date for due date comparisons
+	const now = new Date();
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	const tomorrow = new Date(today);
+	tomorrow.setDate(tomorrow.getDate() + 1);
+	const nextWeek = new Date(today);
+	nextWeek.setDate(nextWeek.getDate() + 7);
+
+	// Get task counts by due date
+	const [overdueTasks, dueTodayTasks, upcomingTasks] = await Promise.all([
+		// Overdue
+		db
+			.select({ count: count() })
+			.from(activities)
+			.where(
+				and(
+					eq(activities.type, "task"),
+					eq(activities.status, "scheduled"),
+					sql`${activities.scheduledAt} < ${today}`
+				)
+			),
+
+		// Due today
+		db
+			.select({ count: count() })
+			.from(activities)
+			.where(
+				and(
+					eq(activities.type, "task"),
+					eq(activities.status, "scheduled"),
+					sql`${activities.scheduledAt} >= ${today}`,
+					sql`${activities.scheduledAt} < ${tomorrow}`
+				)
+			),
+
+		// Upcoming (next 7 days)
+		db
+			.select({ count: count() })
+			.from(activities)
+			.where(
+				and(
+					eq(activities.type, "task"),
+					eq(activities.status, "scheduled"),
+					sql`${activities.scheduledAt} >= ${tomorrow}`,
+					sql`${activities.scheduledAt} < ${nextWeek}`
+				)
+			),
+	]);
+
+	// Count completed tasks
+	const completedCount = taskStats.find((t) => t.status === "completed")?.count ?? 0;
+
+	return {
+		totalAccounts: accountCount[0]?.count ?? 0,
+		totalContacts: contactCount[0]?.count ?? 0,
+		openDeals: dealStats[0]?.count ?? 0,
+		pipelineValue: dealStats[0]?.totalValue ?? 0,
+		overdueTasks: overdueTasks[0]?.count ?? 0,
+		dueToday: dueTodayTasks[0]?.count ?? 0,
+		upcoming: upcomingTasks[0]?.count ?? 0,
+		completedTasks: completedCount,
+	};
 }

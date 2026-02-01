@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <defs>
+    <!-- Main gradient - vibrant purple to cyan -->
+    <linearGradient id="main-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6"/>
+      <stop offset="50%" style="stop-color:#6366f1"/>
+      <stop offset="100%" style="stop-color:#06b6d4"/>
+    </linearGradient>
+
+    <!-- Accent gradient - warm orange to pink -->
+    <linearGradient id="accent-gradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f97316"/>
+      <stop offset="100%" style="stop-color:#ec4899"/>
+    </linearGradient>
+
+    <!-- Document 1 gradient -->
+    <linearGradient id="doc1-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#f1f5f9"/>
+    </linearGradient>
+
+    <!-- Document 2 gradient -->
+    <linearGradient id="doc2-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fef3c7"/>
+      <stop offset="100%" style="stop-color:#fde68a"/>
+    </linearGradient>
+
+    <!-- Glow effect -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="#1e1b4b" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect x="0" y="0" width="180" height="180" rx="40" fill="url(#main-gradient)"/>
+
+  <!-- Inner glow ring -->
+  <rect x="8" y="8" width="164" height="164" rx="34" fill="none" stroke="white" stroke-width="2" opacity="0.3"/>
+
+  <!-- Back document (slightly tilted left) -->
+  <g transform="translate(90, 90) rotate(-8) translate(-90, -90)" filter="url(#shadow)">
+    <rect x="40" y="32" width="72" height="94" rx="7" fill="url(#doc2-gradient)"/>
+    <!-- Folded corner -->
+    <path d="M94 32 L112 32 L112 50 Z" fill="#fcd34d"/>
+    <!-- Text lines -->
+    <rect x="50" y="50" width="44" height="4.5" rx="2" fill="#d97706" opacity="0.5"/>
+    <rect x="50" y="61" width="36" height="4.5" rx="2" fill="#d97706" opacity="0.4"/>
+    <rect x="50" y="72" width="40" height="4.5" rx="2" fill="#d97706" opacity="0.4"/>
+  </g>
+
+  <!-- Front document (slightly tilted right) -->
+  <g transform="translate(90, 90) rotate(6) translate(-90, -90)" filter="url(#shadow)">
+    <rect x="58" y="47" width="76" height="97" rx="7" fill="url(#doc1-gradient)"/>
+    <!-- Folded corner -->
+    <path d="M116 47 L134 47 L134 65 Z" fill="#e2e8f0"/>
+    <!-- Text lines -->
+    <rect x="68" y="68" width="50" height="5" rx="2" fill="#475569" opacity="0.6"/>
+    <rect x="68" y="82" width="44" height="5" rx="2" fill="#64748b" opacity="0.4"/>
+    <rect x="68" y="96" width="47" height="5" rx="2" fill="#64748b" opacity="0.4"/>
+    <rect x="68" y="110" width="36" height="5" rx="2" fill="#64748b" opacity="0.4"/>
+  </g>
+
+  <!-- Fusion spark/energy burst in the center -->
+  <g filter="url(#glow)">
+    <!-- Central fusion point -->
+    <circle cx="90" cy="94" r="14" fill="url(#accent-gradient)"/>
+    <circle cx="90" cy="94" r="9" fill="white" opacity="0.9"/>
+
+    <!-- Energy rays -->
+    <g stroke="url(#accent-gradient)" stroke-width="4" stroke-linecap="round" opacity="0.9">
+      <line x1="90" y1="72" x2="90" y2="62"/>
+      <line x1="90" y1="116" x2="90" y2="126"/>
+      <line x1="68" y1="94" x2="58" y2="94"/>
+      <line x1="112" y1="94" x2="122" y2="94"/>
+    </g>
+
+    <!-- Diagonal sparks -->
+    <g stroke="#fbbf24" stroke-width="3.5" stroke-linecap="round" opacity="0.8">
+      <line x1="76" y1="80" x2="68" y2="72"/>
+      <line x1="104" y1="80" x2="112" y2="72"/>
+      <line x1="76" y1="108" x2="68" y2="116"/>
+      <line x1="104" y1="108" x2="112" y2="116"/>
+    </g>
+  </g>
+
+  <!-- Corner sparkles -->
+  <circle cx="32" cy="32" r="5" fill="#fbbf24" opacity="0.9"/>
+  <circle cx="148" cy="148" r="4.5" fill="#34d399" opacity="0.9"/>
+  <circle cx="152" cy="36" r="3.5" fill="#f472b6" opacity="0.8"/>
+  <circle cx="28" cy="144" r="3.5" fill="#60a5fa" opacity="0.8"/>
+</svg>

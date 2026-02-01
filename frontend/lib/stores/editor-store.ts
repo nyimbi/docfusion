@@ -144,6 +144,7 @@ export interface EditorActions {
 	// Preference actions
 	updatePreferences: (updates: Partial<EditorPreferences>) => void;
 	resetPreferences: () => void;
+	toggleFocusMode: () => void;
 }
 
 const DEFAULT_PREFERENCES: EditorPreferences = {
@@ -377,6 +378,11 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 			resetPreferences: () =>
 				set((state) => {
 					state.preferences = DEFAULT_PREFERENCES;
+				}),
+
+			toggleFocusMode: () =>
+				set((state) => {
+					state.preferences.focusMode = !state.preferences.focusMode;
 				}),
 		})),
 		{

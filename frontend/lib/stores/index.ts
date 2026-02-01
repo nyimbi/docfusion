@@ -37,3 +37,20 @@ export {
 	useRecentCommands,
 	createAIOperation,
 } from "./ai-store";
+
+// Import wizard store
+export {
+	useImportStore,
+	useCurrentStep,
+	useCompletedSteps,
+	useFileData,
+	useTargetConfig,
+	useMappings,
+	useImportOptions,
+	useImportProgress,
+	useImportResult,
+	useImportStatus,
+	useCanProceed,
+	type ImportWizardState,
+	type ImportWizardActions,
+} from "./import-store";

@@ -5,6 +5,11 @@
  *
  * Client component for contacts list with search and filtering.
  * Features the shared CRM navigation bar at the top.
+ *
+ * Supports relationship filtering:
+ * - All: Shows all accessible contacts
+ * - Company: Contacts linked to an account (accountId IS NOT NULL)
+ * - People: Standalone contacts (accountId IS NULL)
  */
 
 import { useState, useEffect, useMemo } from "react";
@@ -19,7 +24,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { ContactList, ContactCard } from "@/components/crm/contacts";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ContactList, ContactCard, ContactImporter } from "@/components/crm/contacts";
 import { CRMNavigation } from "@/components/crm/CRMNavigation";
 import {
 	Plus,
@@ -28,8 +34,16 @@ import {
 	LayoutGrid,
 	Download,
 	Upload,
+	Users,
+	Building2,
+	UserCircle,
 } from "lucide-react";
 import type { ContactRow, AccountRow } from "@/lib/db/schema-crm";
+import { getContacts, type UserContext } from "@/lib/actions/crm/contacts";
+import { getAccounts } from "@/lib/actions/crm/accounts";
+
+/** Relationship filter values */
+type RelationshipFilter = "all" | "company" | "people";
 
 interface ContactsContentProps {
 	searchParams: {
@@ -37,61 +51,70 @@ interface ContactsContentProps {
 		view?: string;
 		search?: string;
 		page?: string;
+		relationship?: string;
 	};
+	userContext: UserContext;
 }
 
-export default function ContactsContent({ searchParams }: ContactsContentProps) {
+export default function ContactsContent({ searchParams, userContext }: ContactsContentProps) {
 	const router = useRouter();
 	const [contacts, setContacts] = useState<ContactRow[]>([]);
 	const [accounts, setAccounts] = useState<AccountRow[]>([]);
+	const [totalCount, setTotalCount] = useState(0);
 	const [isLoading, setIsLoading] = useState(true);
 	const [searchQuery, setSearchQuery] = useState(searchParams.search ?? "");
 	const [accountFilter, setAccountFilter] = useState(searchParams.account ?? "all");
+	const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>(
+		(searchParams.relationship as RelationshipFilter) ?? "all"
+	);
 	const [viewMode, setViewMode] = useState<"list" | "grid">(
 		(searchParams.view as "list" | "grid") ?? "list"
 	);
+	const [importerOpen, setImporterOpen] = useState(false);
 
-	// Fetch contacts
+	// Fetch contacts with filters
 	useEffect(() => {
 		async function fetchData() {
 			setIsLoading(true);
 			try {
-				// In production:
-				// const contactsData = await getContacts({ accountId: accountFilter !== "all" ? accountFilter : undefined });
-				// const accountsData = await getAccounts();
-				setContacts([]);
-				setAccounts([]);
+				const page = parseInt(searchParams.page || "1");
+
+				// Build filters based on relationship and account selection
+				const filters: { accountId?: string | null; search?: string } = {};
+
+				if (searchQuery) filters.search = searchQuery;
+
+				// Relationship filter: null means standalone (people), specific ID or undefined for all
+				if (relationshipFilter === "people") {
+					filters.accountId = null; // Standalone contacts only
+				} else if (accountFilter !== "all") {
+					filters.accountId = accountFilter;
+				}
+				// For "company" filter, the UI will just filter out null accountId results client-side
+				// since we don't have a "hasAccount" server filter yet
+
+				const result = await getContacts(
+					userContext,
+					filters,
+					{ page, pageSize: 25 }
+				);
+				setContacts(result.data);
+				setTotalCount(result.total);
+
+				// Also fetch accounts for the filter dropdown
+				const accountsResult = await getAccounts();
+				setAccounts(accountsResult.data);
 			} catch (error) {
 				console.error("Failed to fetch contacts:", error);
+				setContacts([]);
+				setTotalCount(0);
 			} finally {
 				setIsLoading(false);
 			}
 		}
 
 		fetchData();
-	}, [accountFilter]);
-
-	// Filter contacts locally
-	const filteredContacts = useMemo(() => {
-		let result = [...contacts];
-
-		if (searchQuery) {
-			const query = searchQuery.toLowerCase();
-			result = result.filter(
-				(c) =>
-					c.firstName.toLowerCase().includes(query) ||
-					c.lastName.toLowerCase().includes(query) ||
-					c.email?.toLowerCase().includes(query) ||
-					c.title?.toLowerCase().includes(query)
-			);
-		}
-
-		if (accountFilter !== "all") {
-			result = result.filter((c) => c.accountId === accountFilter);
-		}
-
-		return result;
-	}, [contacts, searchQuery, accountFilter]);
+	}, [searchQuery, accountFilter, relationshipFilter, searchParams.page, userContext]);
 
 	// Update URL when filters change
 	const updateFilters = (updates: Record<string, string>) => {
@@ -100,10 +123,12 @@ export default function ContactsContent({ searchParams }: ContactsContentProps) 
 			account: accountFilter,
 			view: viewMode,
 			search: searchQuery,
+			relationship: relationshipFilter,
 			...updates,
 		};
 
 		Object.entries(current).forEach(([key, value]) => {
+			// Don't include default values in URL
 			if (value && value !== "all" && value !== "list" && value !== "") {
 				params.set(key, value);
 			}
@@ -111,6 +136,10 @@ export default function ContactsContent({ searchParams }: ContactsContentProps) 
 
 		const query = params.toString();
 		router.push(`/crm/contacts${query ? `?${query}` : ""}`);
+	};
+
+	const handleImportComplete = () => {
+		router.refresh();
 	};
 
 	const handleContactClick = (contact: ContactRow) => {
@@ -125,7 +154,7 @@ export default function ContactsContent({ searchParams }: ContactsContentProps) 
 				description="Manage people and relationships across your accounts"
 				actions={
 					<div className="flex items-center gap-2">
-						<Button variant="outline" size="sm">
+						<Button variant="outline" size="sm" onClick={() => setImporterOpen(true)}>
 							<Upload className="h-4 w-4 mr-2" />
 							Import
 						</Button>
@@ -144,40 +173,73 @@ export default function ContactsContent({ searchParams }: ContactsContentProps) 
 			/>
 
 			<div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
-				{/* Filters Bar */}
-			<div className="flex items-center gap-4">
-				<div className="relative flex-1 max-w-md">
-					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-					<Input
-						placeholder="Search contacts..."
-						value={searchQuery}
-						onChange={(e) => {
-							setSearchQuery(e.target.value);
-							updateFilters({ search: e.target.value });
-						}}
-						className="pl-9"
-					/>
-				</div>
-
-				<Select
-					value={accountFilter}
+				{/* Relationship Filter Tabs */}
+				<Tabs
+					value={relationshipFilter}
 					onValueChange={(value) => {
-						setAccountFilter(value);
-						updateFilters({ account: value });
+						setRelationshipFilter(value as RelationshipFilter);
+						// Reset account filter when switching to "people"
+						if (value === "people") {
+							setAccountFilter("all");
+							updateFilters({ relationship: value, account: "all" });
+						} else {
+							updateFilters({ relationship: value });
+						}
 					}}
 				>
-					<SelectTrigger className="w-[200px]">
-						<SelectValue placeholder="Filter by account" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All Accounts</SelectItem>
-						{accounts.map((account) => (
-							<SelectItem key={account.id} value={account.id}>
-								{account.name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+					<TabsList>
+						<TabsTrigger value="all" className="gap-2">
+							<Users className="h-4 w-4" />
+							All Contacts
+						</TabsTrigger>
+						<TabsTrigger value="company" className="gap-2">
+							<Building2 className="h-4 w-4" />
+							Company Contacts
+						</TabsTrigger>
+						<TabsTrigger value="people" className="gap-2">
+							<UserCircle className="h-4 w-4" />
+							People
+						</TabsTrigger>
+					</TabsList>
+				</Tabs>
+
+				{/* Filters Bar */}
+				<div className="flex items-center gap-4">
+					<div className="relative flex-1 max-w-md">
+						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+						<Input
+							placeholder="Search contacts..."
+							value={searchQuery}
+							onChange={(e) => {
+								setSearchQuery(e.target.value);
+								updateFilters({ search: e.target.value });
+							}}
+							className="pl-9"
+						/>
+					</div>
+
+					{/* Account filter - hidden when "people" relationship is selected */}
+					{relationshipFilter !== "people" && (
+						<Select
+							value={accountFilter}
+							onValueChange={(value) => {
+								setAccountFilter(value);
+								updateFilters({ account: value });
+							}}
+						>
+							<SelectTrigger className="w-[200px]">
+								<SelectValue placeholder="Filter by account" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Accounts</SelectItem>
+								{accounts.map((account) => (
+									<SelectItem key={account.id} value={account.id}>
+										{account.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
 
 				{/* View Mode Toggle */}
 				<div className="flex items-center border rounded-md">
@@ -208,8 +270,10 @@ export default function ContactsContent({ searchParams }: ContactsContentProps) 
 
 			{/* Results Count */}
 			<div className="text-sm text-muted-foreground">
-				{filteredContacts.length} contacts
-				{accountFilter !== "all" && " in selected account"}
+				{totalCount} {totalCount === 1 ? "contact" : "contacts"}
+				{relationshipFilter === "company" && " linked to accounts"}
+				{relationshipFilter === "people" && " (standalone)"}
+				{accountFilter !== "all" && ` in ${accounts.find(a => a.id === accountFilter)?.name || "selected account"}`}
 			</div>
 
 			{/* Content */}
@@ -219,7 +283,7 @@ export default function ContactsContent({ searchParams }: ContactsContentProps) 
 						<div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />
 					))}
 				</div>
-			) : filteredContacts.length === 0 ? (
+			) : contacts.length === 0 ? (
 				<div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
 					<p className="text-lg">No contacts found</p>
 					<p className="text-sm">
@@ -236,12 +300,12 @@ export default function ContactsContent({ searchParams }: ContactsContentProps) 
 				</div>
 				) : viewMode === "list" ? (
 				<ContactList
-					contacts={filteredContacts}
+					contacts={contacts}
 					onContactClick={handleContactClick}
 				/>
 			) : (
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-					{filteredContacts.map((contact) => (
+					{contacts.map((contact) => (
 						<ContactCard
 							key={contact.id}
 							contact={contact}
@@ -251,6 +315,13 @@ export default function ContactsContent({ searchParams }: ContactsContentProps) 
 				</div>
 			)}
 			</div>
+
+			{/* Contact Importer Dialog */}
+			<ContactImporter
+				open={importerOpen}
+				onOpenChange={setImporterOpen}
+				onComplete={handleImportComplete}
+			/>
 		</div>
 	);
 }

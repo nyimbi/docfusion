@@ -85,6 +85,16 @@ const contactFormSchema = z.object({
 	influence: z.enum(["low", "medium", "high"]).optional(),
 	sentiment: z.enum(["negative", "neutral", "positive", "champion"]).optional(),
 
+	// Context - How we met
+	howWeMet: z.string().max(200).optional(),
+	meetingContext: z.string().optional(),
+	meetingDate: z.string().optional(), // ISO date string
+
+	// Personal details
+	birthday: z.string().optional(), // ISO date string
+	preferredName: z.string().max(100).optional(),
+	pronouns: z.string().max(50).optional(),
+
 	// Notes
 	notes: z.string().optional(),
 	tags: z.array(z.string()).optional(),
@@ -154,6 +164,14 @@ export function ContactForm({
 			relationshipStrength: contact?.relationshipStrength as ContactFormValues["relationshipStrength"],
 			influence: contact?.influence as ContactFormValues["influence"],
 			sentiment: contact?.sentiment as ContactFormValues["sentiment"],
+			// Context fields
+			howWeMet: contact?.howWeMet ?? "",
+			meetingContext: contact?.meetingContext ?? "",
+			meetingDate: contact?.meetingDate ? new Date(contact.meetingDate).toISOString().split("T")[0] : "",
+			// Personal details
+			birthday: contact?.birthday ? new Date(contact.birthday).toISOString().split("T")[0] : "",
+			preferredName: contact?.preferredName ?? "",
+			pronouns: contact?.pronouns ?? "",
 			notes: contact?.notes ?? "",
 			tags: (contact?.tags as string[]) ?? [],
 		},
@@ -178,9 +196,10 @@ export function ContactForm({
 				className={cn("space-y-6", className)}
 			>
 				<Tabs value={activeTab} onValueChange={setActiveTab}>
-					<TabsList className="grid w-full grid-cols-4">
+					<TabsList className="grid w-full grid-cols-5">
 						<TabsTrigger value="basic">Basic Info</TabsTrigger>
 						<TabsTrigger value="contact">Contact Details</TabsTrigger>
+						<TabsTrigger value="context">Context</TabsTrigger>
 						<TabsTrigger value="relationship">Relationship</TabsTrigger>
 						<TabsTrigger value="preferences">Preferences</TabsTrigger>
 					</TabsList>
@@ -535,6 +554,149 @@ export function ContactForm({
 											<FormControl>
 												<Input placeholder="e.g., America/New_York" {...field} />
 											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+							</CardContent>
+						</Card>
+					</TabsContent>
+
+					{/* Context Tab - How We Met & Personal Details */}
+					<TabsContent value="context" className="space-y-4 mt-4">
+						<Card>
+							<CardHeader>
+								<CardTitle>How We Met</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<FormField
+									control={form.control}
+									name="howWeMet"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Meeting Type</FormLabel>
+											<Select
+												onValueChange={field.onChange}
+												value={field.value}
+											>
+												<FormControl>
+													<SelectTrigger>
+														<SelectValue placeholder="How did you meet?" />
+													</SelectTrigger>
+												</FormControl>
+												<SelectContent>
+													<SelectItem value="conference">Conference/Event</SelectItem>
+													<SelectItem value="referral">Referral</SelectItem>
+													<SelectItem value="linkedin">LinkedIn</SelectItem>
+													<SelectItem value="cold_outreach">Cold Outreach</SelectItem>
+													<SelectItem value="colleague">Previous Colleague</SelectItem>
+													<SelectItem value="client">Client Relationship</SelectItem>
+													<SelectItem value="university">University/Alumni</SelectItem>
+													<SelectItem value="association">Industry Association</SelectItem>
+													<SelectItem value="webinar">Webinar/Online Event</SelectItem>
+													<SelectItem value="social">Social Media</SelectItem>
+													<SelectItem value="other">Other</SelectItem>
+												</SelectContent>
+											</Select>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								<FormField
+									control={form.control}
+									name="meetingContext"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Meeting Context</FormLabel>
+											<FormControl>
+												<Textarea
+													placeholder="Details about how/where you met..."
+													className="min-h-[80px]"
+													{...field}
+												/>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								<FormField
+									control={form.control}
+									name="meetingDate"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Meeting Date</FormLabel>
+											<FormControl>
+												<Input type="date" {...field} />
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+							</CardContent>
+						</Card>
+
+						<Card>
+							<CardHeader>
+								<CardTitle>Personal Details</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="grid grid-cols-2 gap-4">
+									<FormField
+										control={form.control}
+										name="preferredName"
+										render={({ field }) => (
+											<FormItem>
+												<FormLabel>Preferred Name / Nickname</FormLabel>
+												<FormControl>
+													<Input placeholder="How they prefer to be called" {...field} />
+												</FormControl>
+												<FormMessage />
+											</FormItem>
+										)}
+									/>
+
+									<FormField
+										control={form.control}
+										name="pronouns"
+										render={({ field }) => (
+											<FormItem>
+												<FormLabel>Pronouns</FormLabel>
+												<Select
+													onValueChange={field.onChange}
+													value={field.value}
+												>
+													<FormControl>
+														<SelectTrigger>
+															<SelectValue placeholder="Select pronouns" />
+														</SelectTrigger>
+													</FormControl>
+													<SelectContent>
+														<SelectItem value="he/him">He/Him</SelectItem>
+														<SelectItem value="she/her">She/Her</SelectItem>
+														<SelectItem value="they/them">They/Them</SelectItem>
+														<SelectItem value="other">Other</SelectItem>
+													</SelectContent>
+												</Select>
+												<FormMessage />
+											</FormItem>
+										)}
+									/>
+								</div>
+
+								<FormField
+									control={form.control}
+									name="birthday"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Birthday</FormLabel>
+											<FormControl>
+												<Input type="date" {...field} />
+											</FormControl>
+											<FormDescription>
+												For remembering to send birthday wishes
+											</FormDescription>
 											<FormMessage />
 										</FormItem>
 									)}

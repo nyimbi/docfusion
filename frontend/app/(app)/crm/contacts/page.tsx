@@ -3,11 +3,14 @@
  *
  * Lists all CRM contacts with filtering and management.
  * Updated for Next.js 15 async searchParams.
+ * Includes relationship filtering (All / Company / People).
  */
 
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { Metadata } from "next";
 import ContactsContent from "./contacts-content";
+import { requireUserContext } from "@/lib/auth-utils";
 
 export const metadata: Metadata = {
 	title: "Contacts",
@@ -20,15 +23,24 @@ interface ContactsPageProps {
 		view?: string;
 		search?: string;
 		page?: string;
+		relationship?: string;
 	}>;
 }
 
 export default async function ContactsPage({ searchParams }: ContactsPageProps) {
 	const params = await searchParams;
 
+	// Get authenticated user context
+	let userContext;
+	try {
+		userContext = await requireUserContext();
+	} catch {
+		redirect("/auth/sign-in");
+	}
+
 	return (
 		<Suspense fallback={<ContactsListSkeleton />}>
-			<ContactsContent searchParams={params} />
+			<ContactsContent searchParams={params} userContext={userContext} />
 		</Suspense>
 	);
 }

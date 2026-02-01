@@ -8,7 +8,7 @@
  */
 
 import { db } from "@/lib/db";
-import { accounts } from "@/lib/db/schema-crm";
+import { accounts, type CommercialInsights } from "@/lib/db/schema-crm";
 import { eq } from "drizzle-orm";
 
 // ============================================================================
@@ -71,6 +71,15 @@ export interface AccountUpdateSuggestion {
 	employeeCount: string;
 	headquarters: string;
 	notableClients: string;
+}
+
+export interface ResearchFindingsData {
+	summary: string;
+	keyInsights: string[];
+	opportunities: string[];
+	risks: string[];
+	nextSteps: string[];
+	confidenceScore: number;
 }
 
 // ============================================================================
@@ -225,14 +234,28 @@ export async function researchAccount(
 
 /**
  * Save research findings to an account
+ *
+ * @param accountId - The account ID to save to
+ * @param updates - Basic field updates (website, email, etc.)
+ * @param findings - AI-generated research findings
+ * @param sources - URLs of sources used
+ * @param commercialInsights - Structured commercial opportunities and partnerships
+ * @param valueProposition - AI-generated value proposition
+ * @param thinkingTrace - AI reasoning trace for human review
  */
 export async function saveResearchFindings(
 	accountId: string,
-	updates: Partial<AccountUpdateSuggestion>
+	updates: Partial<AccountUpdateSuggestion>,
+	findings?: ResearchFindingsData | null,
+	sources?: string[],
+	commercialInsights?: CommercialInsights | null,
+	valueProposition?: string | null,
+	thinkingTrace?: string | null
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		const updateData: Record<string, string | null> = {};
+		const updateData: Record<string, unknown> = {};
 
+		// Field updates
 		if (updates.website) updateData.website = updates.website;
 		if (updates.email) updateData.email = updates.email;
 		if (updates.phone) updateData.phone = updates.phone;
@@ -243,6 +266,35 @@ export async function saveResearchFindings(
 		if (updates.employeeCount) updateData.employeeCount = updates.employeeCount;
 		if (updates.headquarters) updateData.headquarters = updates.headquarters;
 		if (updates.notableClients) updateData.notableClients = updates.notableClients;
+
+		// Research findings
+		if (findings) {
+			// Format findings as readable text
+			const findingsText = formatFindingsAsText(findings);
+			updateData.researchFindings = findingsText;
+			updateData.researchConfidence = findings.confidenceScore;
+			updateData.lastResearchDate = new Date();
+		}
+
+		// Research sources
+		if (sources && sources.length > 0) {
+			updateData.researchSources = sources;
+		}
+
+		// Commercial insights (structured JSON)
+		if (commercialInsights) {
+			updateData.commercialInsights = commercialInsights;
+		}
+
+		// Value proposition
+		if (valueProposition) {
+			updateData.valueProposition = valueProposition;
+		}
+
+		// AI thinking trace for human review
+		if (thinkingTrace) {
+			updateData.aiThinkingTrace = thinkingTrace;
+		}
 
 		if (Object.keys(updateData).length === 0) {
 			return { success: true };
@@ -264,6 +316,37 @@ export async function saveResearchFindings(
 			error: error instanceof Error ? error.message : "Failed to save findings",
 		};
 	}
+}
+
+/**
+ * Format findings object as readable text
+ */
+function formatFindingsAsText(findings: ResearchFindingsData): string {
+	const sections: string[] = [];
+
+	if (findings.summary) {
+		sections.push(`## Summary\n${findings.summary}`);
+	}
+
+	if (findings.keyInsights.length > 0) {
+		sections.push(`## Key Insights\n${findings.keyInsights.map((i) => `- ${i}`).join("\n")}`);
+	}
+
+	if (findings.opportunities.length > 0) {
+		sections.push(`## Opportunities\n${findings.opportunities.map((o) => `- ${o}`).join("\n")}`);
+	}
+
+	if (findings.risks.length > 0) {
+		sections.push(`## Risks & Concerns\n${findings.risks.map((r) => `- ${r}`).join("\n")}`);
+	}
+
+	if (findings.nextSteps.length > 0) {
+		sections.push(`## Recommended Next Steps\n${findings.nextSteps.map((s) => `- ${s}`).join("\n")}`);
+	}
+
+	sections.push(`\n---\nResearch Confidence: ${findings.confidenceScore}%\nGenerated: ${new Date().toLocaleDateString()}`);
+
+	return sections.join("\n\n");
 }
 
 /**

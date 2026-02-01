@@ -443,7 +443,8 @@ export interface AccountFilters {
  * Contact filter options.
  */
 export interface ContactFilters {
-	accountId?: string;
+	/** Filter by account ID. Use null for standalone contacts (People) */
+	accountId?: string | null;
 	role?: ContactRole | ContactRole[];
 	seniority?: ContactSeniority | ContactSeniority[];
 	isPrimaryContact?: boolean;

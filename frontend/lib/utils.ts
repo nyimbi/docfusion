@@ -114,6 +114,12 @@ export function generateClientId(prefix = "id"): string {
 }
 
 /**
+ * Deprecated alias for generateClientId.
+ * Use generateClientId for new code.
+ */
+export const generateId = generateClientId;
+
+/**
  * Safely parses JSON with a fallback value.
  */
 export function safeParseJson<T>(json: string, fallback: T): T {

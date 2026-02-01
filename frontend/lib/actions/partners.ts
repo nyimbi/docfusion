@@ -528,3 +528,319 @@ export async function getUniqueCapabilities(): Promise<string[]> {
 
 	return Array.from(allCapabilities).sort();
 }
+
+// ============================================================================
+// Extended Partner Fields (Country/Region Organization)
+// ============================================================================
+
+/**
+ * Extended partner info for the partners page with country/region data.
+ */
+export interface ExtendedPartnerListItem {
+	id: string;
+	name: string;
+	country: string | null;
+	region: string | null;
+	corporateStatus: string | null;
+	foundingDate: string | null;
+	description: string | null;
+	contactName: string | null;
+	contactEmail: string | null;
+	contactPhone: string | null;
+	website: string | null;
+	leadership: string | null;
+	notableClients: string | null;
+	revenueEstimate: string | null;
+	employeeCount: string | null;
+	fundingStatus: string | null;
+	coreCapabilities: string | null;
+	capabilities: string[];
+	competitorRelationships: string | null;
+	riskAssessment: string | null;
+	partnershipFitScore: number | null;
+	fitJustification: string | null;
+	tier: number | null;
+	type: string;
+	status: string;
+	pastCollaborations: number;
+	performanceRating: number | null;
+}
+
+/**
+ * Get all partners grouped by region and country.
+ */
+export async function getPartnersGroupedByRegion(): Promise<{
+	regions: Array<{
+		region: string;
+		partnerCount: number;
+		countries: Array<{
+			country: string;
+			partners: ExtendedPartnerListItem[];
+		}>;
+	}>;
+	ungrouped: ExtendedPartnerListItem[];
+}> {
+	const rows = await db
+		.select()
+		.from(partners)
+		.orderBy(partners.region, partners.country, partners.name);
+
+	// Transform rows
+	const transformedRows: ExtendedPartnerListItem[] = rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		country: row.country,
+		region: row.region,
+		corporateStatus: row.corporateStatus,
+		foundingDate: row.foundingDate,
+		description: row.description,
+		contactName: row.contactName,
+		contactEmail: row.contactEmail,
+		contactPhone: row.contactPhone,
+		website: row.website,
+		leadership: row.leadership,
+		notableClients: row.notableClients,
+		revenueEstimate: row.revenueEstimate,
+		employeeCount: row.employeeCount,
+		fundingStatus: row.fundingStatus,
+		coreCapabilities: row.coreCapabilities,
+		capabilities: (row.capabilities || []) as string[],
+		competitorRelationships: row.competitorRelationships,
+		riskAssessment: row.riskAssessment,
+		partnershipFitScore: row.partnershipFitScore,
+		fitJustification: row.fitJustification,
+		tier: row.tier,
+		type: row.type,
+		status: row.status,
+		pastCollaborations: row.pastCollaborations,
+		performanceRating: row.performanceRating,
+	}));
+
+	// Group by region and country
+	const regionMap = new Map<string, Map<string, ExtendedPartnerListItem[]>>();
+	const ungrouped: ExtendedPartnerListItem[] = [];
+
+	for (const partner of transformedRows) {
+		if (!partner.region) {
+			ungrouped.push(partner);
+			continue;
+		}
+
+		if (!regionMap.has(partner.region)) {
+			regionMap.set(partner.region, new Map());
+		}
+
+		const countryMap = regionMap.get(partner.region)!;
+		const country = partner.country || "Unknown";
+
+		if (!countryMap.has(country)) {
+			countryMap.set(country, []);
+		}
+
+		countryMap.get(country)!.push(partner);
+	}
+
+	// Convert to result structure
+	const regions = Array.from(regionMap.entries())
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([region, countryMap]) => {
+			const countries = Array.from(countryMap.entries())
+				.sort(([a], [b]) => a.localeCompare(b))
+				.map(([country, partners]) => ({
+					country,
+					partners: partners.sort((a, b) => (b.partnershipFitScore ?? 0) - (a.partnershipFitScore ?? 0)),
+				}));
+
+			return {
+				region,
+				partnerCount: countries.reduce((sum, c) => sum + c.partners.length, 0),
+				countries,
+			};
+		});
+
+	return { regions, ungrouped };
+}
+
+/**
+ * Get all unique regions.
+ */
+export async function getUniqueRegions(): Promise<string[]> {
+	const rows = await db
+		.selectDistinct({ region: partners.region })
+		.from(partners)
+		.where(sql`${partners.region} IS NOT NULL AND ${partners.region} != ''`)
+		.orderBy(partners.region);
+
+	return rows.map((r) => r.region).filter((r): r is string => r !== null);
+}
+
+/**
+ * Get all unique countries.
+ */
+export async function getUniqueCountries(): Promise<string[]> {
+	const rows = await db
+		.selectDistinct({ country: partners.country })
+		.from(partners)
+		.where(sql`${partners.country} IS NOT NULL AND ${partners.country} != ''`)
+		.orderBy(partners.country);
+
+	return rows.map((r) => r.country).filter((r): r is string => r !== null);
+}
+
+/**
+ * Get partners filtered by region.
+ */
+export async function getPartnersByRegion(region: string): Promise<ExtendedPartnerListItem[]> {
+	const rows = await db
+		.select()
+		.from(partners)
+		.where(eq(partners.region, region))
+		.orderBy(partners.country, partners.name);
+
+	return rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		country: row.country,
+		region: row.region,
+		corporateStatus: row.corporateStatus,
+		foundingDate: row.foundingDate,
+		description: row.description,
+		contactName: row.contactName,
+		contactEmail: row.contactEmail,
+		contactPhone: row.contactPhone,
+		website: row.website,
+		leadership: row.leadership,
+		notableClients: row.notableClients,
+		revenueEstimate: row.revenueEstimate,
+		employeeCount: row.employeeCount,
+		fundingStatus: row.fundingStatus,
+		coreCapabilities: row.coreCapabilities,
+		capabilities: (row.capabilities || []) as string[],
+		competitorRelationships: row.competitorRelationships,
+		riskAssessment: row.riskAssessment,
+		partnershipFitScore: row.partnershipFitScore,
+		fitJustification: row.fitJustification,
+		tier: row.tier,
+		type: row.type,
+		status: row.status,
+		pastCollaborations: row.pastCollaborations,
+		performanceRating: row.performanceRating,
+	}));
+}
+
+/**
+ * Get partners filtered by country.
+ */
+export async function getPartnersByCountry(country: string): Promise<ExtendedPartnerListItem[]> {
+	const rows = await db
+		.select()
+		.from(partners)
+		.where(eq(partners.country, country))
+		.orderBy(desc(partners.partnershipFitScore), partners.name);
+
+	return rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		country: row.country,
+		region: row.region,
+		corporateStatus: row.corporateStatus,
+		foundingDate: row.foundingDate,
+		description: row.description,
+		contactName: row.contactName,
+		contactEmail: row.contactEmail,
+		contactPhone: row.contactPhone,
+		website: row.website,
+		leadership: row.leadership,
+		notableClients: row.notableClients,
+		revenueEstimate: row.revenueEstimate,
+		employeeCount: row.employeeCount,
+		fundingStatus: row.fundingStatus,
+		coreCapabilities: row.coreCapabilities,
+		capabilities: (row.capabilities || []) as string[],
+		competitorRelationships: row.competitorRelationships,
+		riskAssessment: row.riskAssessment,
+		partnershipFitScore: row.partnershipFitScore,
+		fitJustification: row.fitJustification,
+		tier: row.tier,
+		type: row.type,
+		status: row.status,
+		pastCollaborations: row.pastCollaborations,
+		performanceRating: row.performanceRating,
+	}));
+}
+
+/**
+ * Get tier 1 partners (fit score 8+).
+ */
+export async function getTier1Partners(): Promise<ExtendedPartnerListItem[]> {
+	const rows = await db
+		.select()
+		.from(partners)
+		.where(eq(partners.tier, 1))
+		.orderBy(desc(partners.partnershipFitScore), partners.region, partners.country);
+
+	return rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		country: row.country,
+		region: row.region,
+		corporateStatus: row.corporateStatus,
+		foundingDate: row.foundingDate,
+		description: row.description,
+		contactName: row.contactName,
+		contactEmail: row.contactEmail,
+		contactPhone: row.contactPhone,
+		website: row.website,
+		leadership: row.leadership,
+		notableClients: row.notableClients,
+		revenueEstimate: row.revenueEstimate,
+		employeeCount: row.employeeCount,
+		fundingStatus: row.fundingStatus,
+		coreCapabilities: row.coreCapabilities,
+		capabilities: (row.capabilities || []) as string[],
+		competitorRelationships: row.competitorRelationships,
+		riskAssessment: row.riskAssessment,
+		partnershipFitScore: row.partnershipFitScore,
+		fitJustification: row.fitJustification,
+		tier: row.tier,
+		type: row.type,
+		status: row.status,
+		pastCollaborations: row.pastCollaborations,
+		performanceRating: row.performanceRating,
+	}));
+}
+
+/**
+ * Get partner statistics summary.
+ */
+export async function getPartnerStats(): Promise<{
+	totalPartners: number;
+	tier1Count: number;
+	tier2Count: number;
+	tier3Count: number;
+	regionCount: number;
+	countryCount: number;
+	averageFitScore: number;
+}> {
+	const [stats] = await db
+		.select({
+			totalPartners: sql<number>`count(*)::int`,
+			tier1Count: sql<number>`count(*) filter (where ${partners.tier} = 1)::int`,
+			tier2Count: sql<number>`count(*) filter (where ${partners.tier} = 2)::int`,
+			tier3Count: sql<number>`count(*) filter (where ${partners.tier} = 3)::int`,
+			regionCount: sql<number>`count(distinct ${partners.region})::int`,
+			countryCount: sql<number>`count(distinct ${partners.country})::int`,
+			averageFitScore: sql<number>`coalesce(avg(${partners.partnershipFitScore}), 0)::real`,
+		})
+		.from(partners);
+
+	return {
+		totalPartners: stats.totalPartners || 0,
+		tier1Count: stats.tier1Count || 0,
+		tier2Count: stats.tier2Count || 0,
+		tier3Count: stats.tier3Count || 0,
+		regionCount: stats.regionCount || 0,
+		countryCount: stats.countryCount || 0,
+		averageFitScore: Math.round((stats.averageFitScore || 0) * 10) / 10,
+	};
+}

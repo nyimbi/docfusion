@@ -1,26 +1,40 @@
 /**
  * Card Component - DocFusion Design System
+ * "Ink & Paper" Editorial Elegance
  *
- * An elegant card surface with subtle depth and
- * refined hover interactions following Neo-Editorial aesthetic.
+ * An elegant card surface with warm paper tones, subtle depth,
+ * and refined hover interactions. Follows compound component pattern
+ * for maximum flexibility.
  */
+
+"use client";
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-	/** Add hover lift effect */
+	/** Visual variant style */
+	variant?: "default" | "elevated" | "outlined" | "ghost";
+	/** Enable hover lift effect and cursor pointer */
 	interactive?: boolean;
-	/** Padding size preset */
-	padding?: "none" | "sm" | "md" | "lg";
+	/** Disable hover effects */
+	noHover?: boolean;
 }
 
 /**
  * Card component providing a contained surface for grouping related content.
- * Follows the compound component pattern for maximum flexibility.
+ * 
+ * Uses compound component pattern:
+ * - Card (container)
+ * - CardHeader (header section)
+ * - CardTitle (title text)
+ * - CardDescription (subtitle/description)
+ * - CardContent (main content)
+ * - CardFooter (footer section)
+ * - CardDivider (horizontal divider)
  *
  * @example
- * <Card interactive>
+ * <Card interactive variant="elevated">
  *   <CardHeader>
  *     <CardTitle>Document</CardTitle>
  *     <CardDescription>Last edited 2 hours ago</CardDescription>
@@ -33,117 +47,181 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
  *   </CardFooter>
  * </Card>
  */
-const Card = React.forwardRef<HTMLDivElement, CardProps>(
-	({ className, interactive = false, padding, ...props }, ref) => (
-		<div
-			ref={ref}
-			className={cn(
-				// Base styles
-				"rounded-[var(--radius-lg)] border border-[var(--border)]",
-				"bg-[var(--background)] text-[var(--foreground)]",
-				"shadow-[var(--shadow-xs)]",
-				"transition-all duration-[var(--transition-base)]",
+export const Card = React.forwardRef<HTMLDivElement, CardProps>(
+	function Card(
+		{ className, interactive = false, variant = "default", noHover = false, ...props },
+		ref
+	) {
+	// Memoize classes to prevent re-computation
+	const cardClasses = React.useMemo(
+		() =>
+			cn(
+				// Base styles - consistent with .card-base
+				"rounded-xl text-card-foreground",
+				"transition-all duration-200 ease-out",
+				"border",
 
-				// Interactive hover state
-				interactive && [
+				// Variant styles
+				variant === "default" && [
+					"bg-card border-border shadow-sm",
+					!noHover && "hover:shadow-md",
+				],
+				variant === "elevated" && [
+					"bg-card border-border shadow-md",
+					!noHover && "hover:shadow-lg",
+				],
+				variant === "outlined" && [
+					"bg-transparent border-border",
+				],
+				variant === "ghost" && [
+					"bg-transparent border-transparent",
+				],
+
+				// Interactive hover effects
+				interactive && !noHover && [
 					"cursor-pointer",
-					"hover:shadow-[var(--shadow-md)]",
-					"hover:border-[var(--border-strong)]",
+					"hover:border-border-strong",
 					"hover:-translate-y-0.5",
+					"active:translate-y-0",
+					"active:shadow-md",
 				],
 
 				className
-			)}
-			{...props}
-		/>
-	)
+			),
+		[variant, interactive, noHover, className]
+	);
+
+	return <div ref={ref} className={cardClasses} {...props} />;
+}
 );
+
 Card.displayName = "Card";
 
-const CardHeader = React.forwardRef<
+/**
+ * Card header section containing title and description.
+ * Typically the first child of a Card.
+ */
+export const CardHeader = React.forwardRef<
 	HTMLDivElement,
 	React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-	<div
-		ref={ref}
-		className={cn("flex flex-col gap-1.5 p-5 pb-0", className)}
-		{...props}
-	/>
-));
+>(function CardHeader({ className, ...props }, ref) {
+	return (
+		<div
+			ref={ref}
+			className={cn("flex flex-col gap-1.5 p-6 pb-0", className)}
+			{...props}
+		/>
+	);
+});
+
 CardHeader.displayName = "CardHeader";
 
-const CardTitle = React.forwardRef<
+/**
+ * Card title - displays the main heading.
+ * Typically placed inside CardHeader.
+ */
+export const CardTitle = React.forwardRef<
 	HTMLHeadingElement,
 	React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-	<h3
-		ref={ref}
-		className={cn(
-			"font-semibold leading-tight tracking-tight text-[var(--foreground)]",
-			className
-		)}
-		{...props}
-	/>
-));
+>(function CardTitle({ className, children, ...props }, ref) {
+	return (
+		<h3
+			ref={ref}
+			className={cn(
+				"font-display font-semibold leading-tight tracking-tight",
+				"text-foreground text-lg",
+				className
+			)}
+			{...props}
+		>
+			{children}
+		</h3>
+	);
+});
+
 CardTitle.displayName = "CardTitle";
 
-const CardDescription = React.forwardRef<
+/**
+ * Card description - displays subtitle or metadata.
+ * Typically placed inside CardHeader below CardTitle.
+ */
+export const CardDescription = React.forwardRef<
 	HTMLParagraphElement,
 	React.HTMLAttributes<HTMLParagraphElement>
->(({ className, ...props }, ref) => (
-	<p
-		ref={ref}
-		className={cn("text-sm text-[var(--foreground-muted)]", className)}
-		{...props}
-	/>
-));
+>(function CardDescription({ className, children, ...props }, ref) {
+	return (
+		<p
+			ref={ref}
+			className={cn("text-sm text-muted-foreground", className)}
+			{...props}
+		>
+			{children}
+		</p>
+	);
+});
+
 CardDescription.displayName = "CardDescription";
 
-const CardContent = React.forwardRef<
+/**
+ * Card content - main content area.
+ * Typically placed after CardHeader.
+ */
+export const CardContent = React.forwardRef<
 	HTMLDivElement,
 	React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-	<div ref={ref} className={cn("p-5 pt-3", className)} {...props} />
-));
+>(function CardContent({ className, children, ...props }, ref) {
+	return (
+		<div
+			ref={ref}
+			className={cn("p-6 pt-4", className)}
+			{...props}
+		>
+			{children}
+		</div>
+	);
+});
+
 CardContent.displayName = "CardContent";
 
-const CardFooter = React.forwardRef<
+/**
+ * Card footer - contains actions or supplementary content.
+ * Typically placed at the end of a Card.
+ */
+export const CardFooter = React.forwardRef<
 	HTMLDivElement,
 	React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-	<div
-		ref={ref}
-		className={cn(
-			"flex items-center px-5 pb-5 pt-0",
-			"border-t border-[var(--border)] mt-auto",
-			className
-		)}
-		{...props}
-	/>
-));
+>(function CardFooter({ className, children, ...props }, ref) {
+	return (
+		<div
+			ref={ref}
+			className={cn(
+				"flex items-center gap-3 px-6 pb-6",
+				className
+			)}
+			{...props}
+		>
+			{children}
+		</div>
+	);
+});
+
 CardFooter.displayName = "CardFooter";
 
 /**
- * A simple horizontal divider for card content.
+ * Horizontal divider for separating card content sections.
+ * Typically placed between CardContent and CardFooter.
  */
-const CardDivider = React.forwardRef<
+export const CardDivider = React.forwardRef<
 	HTMLHRElement,
 	React.HTMLAttributes<HTMLHRElement>
->(({ className, ...props }, ref) => (
-	<hr
-		ref={ref}
-		className={cn("border-t border-[var(--border)] mx-5 my-0", className)}
-		{...props}
-	/>
-));
-CardDivider.displayName = "CardDivider";
+>(function CardDivider({ className, ...props }, ref) {
+	return (
+		<hr
+			ref={ref}
+			className={cn("border-t border-border mx-6 my-0", className)}
+			{...props}
+		/>
+	);
+});
 
-export {
-	Card,
-	CardHeader,
-	CardFooter,
-	CardTitle,
-	CardDescription,
-	CardContent,
-	CardDivider,
-};
+CardDivider.displayName = "CardDivider";

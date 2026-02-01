@@ -1,46 +1,146 @@
 /**
- * Server-side Better Auth Configuration
+ * DocFusion Authentication System
  *
- * Configures authentication with email/password, session management,
- * and cookie caching for optimal performance.
+ * Better Auth configuration with Datacraft organization enforcement.
+ * All users are members of the Datacraft organization.
  */
 
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { db } from "@/lib/db";
+import { user, session, account, verification, organization } from "@/lib/db/auth-schema";
+import { eq } from "drizzle-orm";
 
-// Secret for signing sessions
-// For production, MUST set BETTER_AUTH_SECRET environment variable
-// For development/build, uses a fallback secret
-const authSecret = process.env.BETTER_AUTH_SECRET ||
-	"docfusion-dev-secret-change-in-production-12345678901234567890";
+// Get database connection
+import { Pool } from "pg";
+
+// PostgreSQL pool for Better Auth
+const pgPool = new Pool({
+	connectionString: process.env.DATABASE_URL,
+});
+
+// ============================================================================
+// Better Auth Configuration
+// ============================================================================
 
 export const auth = betterAuth({
-	secret: authSecret,
-	database: drizzleAdapter(db, {
-		provider: "pg",
-	}),
-	emailAndPassword: {
-		enabled: true,
-		requireEmailVerification: false, // Can enable later with email provider
-	},
-	session: {
-		expiresIn: 60 * 60 * 24 * 7, // 7 days
-		updateAge: 60 * 60 * 24, // Update session every 24 hours
-		cookieCache: {
-			enabled: true,
-			maxAge: 5 * 60, // 5 minutes
+	// Database adapter using Drizzle
+	database: drizzleAdapter(db, { 
+			provider: "pg", 
+			schema: { user, session, account, verification, organization }
+		}),
+	
+	// User schema with organization fields
+	user: {
+		modelName: "user",
+		additionalFields: {
+			organizationId: {
+				type: "string",
+				required: false,
+			},
+			role: {
+				type: "string",
+				required: false,
+			},
+			department: {
+				type: "string",
+				required: false,
+			},
+			jobTitle: {
+				type: "string",
+				required: false,
+			},
+			skills: {
+				type: "string",
+				required: false,
+			},
+			bio: {
+				type: "string",
+				required: false,
+			},
 		},
 	},
-	trustedOrigins: [
-		process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-	],
+	
+	// Email and password authentication
+	emailAndPassword: {
+		enabled: true,
+		autoSignIn: true, // Auto sign in after registration
+	},
+	
+	// Session configuration
+	session: {
+		expiresIn: 60 * 60 * 24, // 24 hours
+		updateAge: 60 * 60, // 1 hour
+	},
+	
+	// Cookie configuration
+	cookies: {
+		sessionToken: {
+			httpOnly: true,
+			secure: process.env.NODE_ENV === "production",
+			sameSite: "lax",
+			maxAge: 60 * 60 * 24 * 7, // 7 days
+		},
+	},
+
+	// Plugins
 	plugins: [
-		nextCookies(), // Must be last plugin - handles Set-Cookie in server actions
+		// nextCookies plugin for proper cookie handling in Next.js
+		// Automatically sets cookies when Set-Cookie headers are present
+		nextCookies(),
 	],
 });
 
-// Type exports for use throughout the application
-export type Session = typeof auth.$Infer.Session;
-export type User = typeof auth.$Infer.Session.user;
+// ============================================================================
+// Type Exports
+// ============================================================================
+
+export type AuthUser = typeof auth.$Infer.Session.user;
+export type AuthSession = typeof auth.$Infer.Session;
+
+// ============================================================================
+// Organization Helper Functions
+// ============================================================================
+
+/**
+ * Get the Datacraft organization
+ */
+export async function getDatacraftOrganization() {
+	return db.query.organization.findFirst({
+		where: eq(organization.slug, "datacraft"),
+	});
+}
+
+/**
+ * Check if user belongs to Datacraft
+ */
+export async function isDatacraftMember(userId: string): Promise<boolean> {
+	const userRecord = await db.query.user.findFirst({
+		where: eq(user.id, userId),
+		with: {
+			organization: true,
+		},
+	});
+	
+	return userRecord?.organization?.slug === "datacraft";
+}
+
+/**
+ * Get user's role within Datacraft
+ */
+export async function getUserRole(userId: string): Promise<string | null> {
+	const userRecord = await db.query.user.findFirst({
+		where: eq(user.id, userId),
+	});
+	
+	return userRecord?.role ?? null;
+}
+
+/**
+ * Check if user has admin privileges
+ */
+export async function isAdmin(userId: string): Promise<boolean> {
+	const role = await getUserRole(userId);
+	return role === "admin";
+}

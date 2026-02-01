@@ -17,7 +17,7 @@ import { useCollaboratorPresence, getActivityText } from "@/lib/collaboration/pr
  */
 export interface CollaboratorCursorsProps {
 	/** Reference to the editor container for positioning */
-	editorRef: React.RefObject<HTMLElement>;
+	editorRef: React.RefObject<HTMLElement | null>;
 	/** Function to convert document position to DOM coordinates */
 	positionToCoords?: (pos: number) => { top: number; left: number } | null;
 	/** Whether to show cursor labels */
@@ -51,9 +51,9 @@ export const CollaboratorCursors = React.memo(function CollaboratorCursors({
 			className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)}
 			aria-hidden="true"
 		>
-			{collaborators.map((collaborator) => (
+			{collaborators.filter((c): c is NonNullable<typeof c> => c != null).map((collaborator, index) => (
 				<CollaboratorCursor
-					key={collaborator.clientId}
+					key={collaborator?.clientId || collaborator?.user?.id || `cursor-${index}`}
 					collaborator={collaborator}
 					positionToCoords={positionToCoords}
 					showLabel={showLabels}
@@ -206,7 +206,7 @@ function SelectionHighlight({
  */
 export function useEditorCoords(
 	editor: { view: { coordsAtPos: (pos: number) => { top: number; left: number } } } | null,
-	containerRef: React.RefObject<HTMLElement>
+	containerRef: React.RefObject<HTMLElement | null>
 ): ((pos: number) => { top: number; left: number } | null) | undefined {
 	return React.useCallback(
 		(pos: number) => {
@@ -241,7 +241,7 @@ export function TypingIndicator({
 	collaborators: CollaboratorPresence[];
 	className?: string;
 }) {
-	const typingUsers = collaborators.filter((c) => c.activity === "typing");
+	const typingUsers = collaborators.filter((c) => c?.activity === "typing");
 
 	if (typingUsers.length === 0) {
 		return null;
@@ -249,7 +249,7 @@ export function TypingIndicator({
 
 	const text =
 		typingUsers.length === 1
-			? `${typingUsers[0].user.name} is typing...`
+			? `${typingUsers[0].user?.name ?? "Someone"} is typing...`
 			: typingUsers.length === 2
 				? `${typingUsers[0].user.name} and ${typingUsers[1].user.name} are typing...`
 				: `${typingUsers.length} people are typing...`;

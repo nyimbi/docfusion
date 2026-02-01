@@ -21,3 +21,6 @@ export type { UseTemplateButtonProps } from "./UseTemplateButton";
 
 export { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
 export type { SaveAsTemplateDialogProps } from "./SaveAsTemplateDialog";
+
+export { TemplateGallery } from "./TemplateGallery";
+export type { TemplateGalleryProps } from "./TemplateGallery";

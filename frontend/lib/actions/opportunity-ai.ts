@@ -12,8 +12,8 @@
 
 import { db } from "@/lib/db";
 import { opportunityAIScores, opportunities } from "@/lib/db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
-import { prompt, aiProviderManager } from "@/lib/ai/providers";
+import { eq, desc, and, sql, count } from "drizzle-orm";
+import { prompt, getProviderManager } from "@/lib/ai/providers";
 import { getCompanyCapabilities } from "./company-settings";
 import type {
 	OpportunityAIScore,
@@ -44,8 +44,8 @@ export async function calculateFitScore(opportunityId: string): Promise<Opportun
 	}
 
 	// Calculate fit score based on available data
-	// This is a simplified scoring model - in production, this would call an LLM
-	const factors = calculateFitFactors(opp);
+	// Uses AI when available, falls back to heuristics
+	const factors = await calculateFitFactors(opp);
 	const weightedScore = factors.reduce((sum, f) => sum + f.score * f.weight, 0);
 	const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
 	const finalScore = totalWeight > 0 ? weightedScore / totalWeight : 50;
@@ -91,7 +91,7 @@ export async function calculateWinProbability(opportunityId: string): Promise<Op
 		throw new Error(`Opportunity not found: ${opportunityId}`);
 	}
 
-	const factors = calculateWinFactors(opp);
+	const factors = await calculateWinFactors(opp);
 	const weightedScore = factors.reduce((sum, f) => sum + f.score * f.weight, 0);
 	const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
 	const finalScore = totalWeight > 0 ? weightedScore / totalWeight : 50;
@@ -136,7 +136,7 @@ export async function calculateRiskScore(opportunityId: string): Promise<Opportu
 		throw new Error(`Opportunity not found: ${opportunityId}`);
 	}
 
-	const factors = calculateRiskFactors(opp);
+	const factors = await calculateRiskFactors(opp);
 	const weightedScore = factors.reduce((sum, f) => sum + f.score * f.weight, 0);
 	const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
 	const finalScore = totalWeight > 0 ? weightedScore / totalWeight : 50;
@@ -283,9 +283,105 @@ export async function getAIScore(scoreId: string): Promise<OpportunityAIScore | 
 // ============================================================================
 
 /**
- * Calculate fit factors based on opportunity data.
+ * Calculate fit factors using AI-powered analysis where available.
  */
-function calculateFitFactors(opp: typeof opportunities.$inferSelect): AIScoreFactor[] {
+async function calculateFitFactors(opp: typeof opportunities.$inferSelect): Promise<AIScoreFactor[]> {
+	const manager = getProviderManager();
+	await manager.initialize();
+	
+	// If AI is available, use it for sophisticated analysis
+	if (await manager.isAvailable()) {
+		try {
+			return await calculateFitFactorsWithAI(opp);
+		} catch (error) {
+			console.warn("[AI Fit Factors Error] Falling back to heuristic:", error);
+		}
+	}
+	
+	// Fallback to heuristic calculations
+	return calculateFitFactorsHeuristic(opp);
+}
+
+/**
+ * Calculate fit factors using AI analysis.
+ */
+async function calculateFitFactorsWithAI(opp: typeof opportunities.$inferSelect): Promise<AIScoreFactor[]> {
+	const manager = getProviderManager();
+	const companyInfo = await getCompanyCapabilities();
+	
+	const systemPrompt = `You are an expert business development analyst. Analyze an opportunity for strategic fit with a company's capabilities.
+
+Output your analysis as JSON with this exact structure:
+{
+  "factors": [
+    {"factor": "<factor name>", "weight": <0.0-1.0>, "score": <0-100>, "reasoning": "<explanation>"}
+  ]
+}
+
+Evaluate these factors:
+1. Budget Alignment (weight 0.2) - Does the budget match our typical project size?
+2. Timeline Feasibility (weight 0.15) - Is the deadline achievable?
+3. Category Relevance (weight 0.25) - Do our capabilities align with the work?
+4. Geographic Fit (weight 0.15) - Is the location within our operational footprint?
+5. Requirements Clarity (weight 0.15) - Are requirements well-defined?
+6. Strategic Alignment (weight 0.1) - Does this support our strategic goals?
+
+Be objective and fair. Score 70+ for good fit, below 50 for poor fit.
+Only output valid JSON.`;
+
+	const userPrompt = `Evaluate this opportunity for strategic fit:
+
+**Opportunity:**
+- Title: ${opp.title}
+- Organization: ${opp.organization || "Not specified"}
+- Budget: ${opp.budgetValue || "Not specified"} (${opp.budgetNumeric ? `$${opp.budgetNumeric}` : "unknown"})
+- Deadline: ${opp.daysLeft !== null ? `${opp.daysLeft} days remaining` : "Not specified"}
+- Category: ${opp.category || "Not specified"}
+- Sector: ${opp.sector || "Not specified"}
+- Location: ${opp.countryRegion || "Not specified"}
+
+**Project Summary:**
+${opp.projectSummary || "Not provided"}
+
+**Key Requirements:**
+${opp.keyRequirements || "Not provided"}
+
+**Technical Requirements:**
+${opp.technicalRequirements || "Not provided"}
+
+**Our Company Capabilities:**
+- Core Capabilities: ${companyInfo.capabilities.join(", ") || "General consulting"}
+- Differentiators: ${companyInfo.differentiators.join(", ") || "Not specified"}
+- Certifications: ${companyInfo.certifications.join(", ") || "None"}
+
+Provide your fit analysis as JSON.`;
+
+	const response = await manager.complete({
+		messages: [
+			{ role: "system", content: systemPrompt },
+			{ role: "user", content: userPrompt },
+		],
+		temperature: 0.3,
+		maxTokens: 1200,
+	});
+
+	// Parse the JSON response
+	const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+	if (!jsonMatch) {
+		throw new Error("Invalid JSON response from AI");
+	}
+
+	const analysis = JSON.parse(jsonMatch[0]) as {
+		factors?: AIScoreFactor[];
+	};
+
+	return analysis.factors || calculateFitFactorsHeuristic(opp);
+}
+
+/**
+ * Calculate fit factors using heuristic-based analysis (fallback).
+ */
+function calculateFitFactorsHeuristic(opp: typeof opportunities.$inferSelect): AIScoreFactor[] {
 	const factors: AIScoreFactor[] = [];
 
 	// Budget alignment (favor medium-large budgets)
@@ -357,9 +453,208 @@ function calculateFitFactors(opp: typeof opportunities.$inferSelect): AIScoreFac
 }
 
 /**
- * Calculate win probability factors.
+ * Calculate win probability factors with AI-enhanced analysis.
  */
-function calculateWinFactors(opp: typeof opportunities.$inferSelect): AIScoreFactor[] {
+async function calculateWinFactors(opp: typeof opportunities.$inferSelect): Promise<AIScoreFactor[]> {
+	const manager = getProviderManager();
+	await manager.initialize();
+	
+	// If AI is available, use it for sophisticated analysis
+	if (await manager.isAvailable()) {
+		try {
+			// Get relationship score from CRM/historical data
+			const relationshipScore = await estimateRelationshipScoreFromCRM(opp.organization);
+			
+			// Use AI for other factors
+			const aiFactors = await calculateWinFactorsWithAI(opp, relationshipScore);
+			return aiFactors;
+		} catch (error) {
+			console.warn("[AI Win Factors Error] Falling back to heuristic:", error);
+		}
+	}
+	
+	// Fallback to heuristic calculations
+	return await calculateWinFactorsHeuristic(opp);
+}
+
+/**
+ * Calculate win factors using AI analysis.
+ */
+async function calculateWinFactorsWithAI(
+	opp: typeof opportunities.$inferSelect,
+	relationshipScore: number
+): Promise<AIScoreFactor[]> {
+	const manager = getProviderManager();
+	const companyInfo = await getCompanyCapabilities();
+	
+	const systemPrompt = `You are an expert proposal strategist. Estimate win probability factors for a government/enterprise opportunity.
+
+Output your analysis as JSON with this exact structure:
+{
+  "factors": [
+    {"factor": "<factor name>", "weight": <0.0-1.0>, "score": <0-100>, "reasoning": "<explanation>"}
+  ]
+}
+
+Evaluate these factors:
+1. Competition Level (weight 0.25) - How competitive is this opportunity?
+2. Technical Capability (weight 0.25) - How well do our skills match?
+3. Pricing Position (weight 0.15) - Can we be competitive on price?
+4. Submission Complexity (weight 0.15) - How complex is the proposal process?
+5. Client Relationship (weight 0.2) - Existing relationship score provided
+
+Be realistic and conservative. Score 60+ for favorable conditions, below 40 for challenging.
+Only output valid JSON.`;
+
+	const userPrompt = `Estimate win probability factors for this opportunity:
+
+**Opportunity:**
+- Title: ${opp.title}
+- Organization: ${opp.organization || "Not specified"}
+- Budget: ${opp.budgetValue || "Not specified"}
+- Category: ${opp.category || "Not specified"}
+- Sector: ${opp.sector || "Not specified"}
+- Deadline: ${opp.daysLeft !== null ? `${opp.daysLeft} days remaining` : "Not specified"}
+
+**Technical Requirements:**
+${opp.technicalRequirements || "Not provided"}
+
+**Submission Requirements:**
+${opp.submissionRequirements || "Not provided"}
+
+**Our Capabilities:**
+- Core: ${companyInfo.capabilities.join(", ") || "General consulting"}
+- Certifications: ${companyInfo.certifications.join(", ") || "None"}
+
+**Historical Data:**
+- Client Relationship Score: ${relationshipScore}/100 (${relationshipScore >= 70 ? "Existing relationship" : relationshipScore >= 40 ? "Some history" : "New client"})
+
+Provide your win factor analysis as JSON.`;
+
+	const response = await manager.complete({
+		messages: [
+			{ role: "system", content: systemPrompt },
+			{ role: "user", content: userPrompt },
+		],
+		temperature: 0.3,
+		maxTokens: 1200,
+	});
+
+	// Parse the JSON response
+	const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+	if (!jsonMatch) {
+		throw new Error("Invalid JSON response from AI");
+	}
+
+	const analysis = JSON.parse(jsonMatch[0]) as {
+		factors?: AIScoreFactor[];
+	};
+
+	// Merge AI factors with relationship score if not included
+	let factors = analysis.factors || [];
+	const hasRelationshipFactor = factors.some(f => f.factor.toLowerCase().includes("relationship"));
+	
+	if (!hasRelationshipFactor) {
+		const relationshipInfo = await getClientRelationshipInfo(opp.organization);
+		factors.push({
+			factor: "Client Relationship",
+			weight: 0.2,
+			score: relationshipScore,
+			reasoning: relationshipInfo.reasoning,
+		});
+	}
+
+	return factors.length > 0 ? factors : await calculateWinFactorsHeuristic(opp);
+}
+
+/**
+ * Estimate relationship score from CRM/historical data.
+ */
+async function estimateRelationshipScoreFromCRM(organization: string | null): Promise<number> {
+	if (!organization) return 40;
+	
+	try {
+		// Query database for past opportunities with this organization
+		const pastOpportunities = await db
+			.select({
+				decisionStatus: opportunities.decisionStatus,
+				count: count(),
+			})
+			.from(opportunities)
+			.where(eq(opportunities.organization, organization))
+			.groupBy(opportunities.decisionStatus);
+		
+		const wonCount = pastOpportunities.find(o => o.decisionStatus === "won")?.count ?? 0;
+		const lostCount = pastOpportunities.find(o => o.decisionStatus === "lost")?.count ?? 0;
+		const totalCount = pastOpportunities.reduce((sum, o) => sum + Number(o.count), 0);
+		
+		if (totalCount === 0) {
+			// New client - check if we've submitted before
+			const submittedCount = await db
+				.select({ count: count() })
+				.from(opportunities)
+				.where(
+					and(
+						eq(opportunities.organization, organization),
+						sql`${opportunities.decisionStatus} != 'pending'`
+					)
+				);
+			
+			return Number(submittedCount[0]?.count) > 0 ? 50 : 40;
+		}
+		
+		// Calculate win rate
+		const winRate = wonCount / totalCount;
+		
+		if (winRate >= 0.5) return 85; // Strong relationship
+		if (winRate >= 0.3) return 70; // Good relationship
+		if (winRate >= 0.1) return 55; // Some history
+		return 45; // Poor track record
+	} catch (error) {
+		console.warn("[CRM Query Error] Using default relationship score:", error);
+		return 50;
+	}
+}
+
+/**
+ * Get client relationship information.
+ */
+async function getClientRelationshipInfo(organization: string | null): Promise<{ reasoning: string }> {
+	if (!organization) {
+		return { reasoning: "Organization not specified - no relationship history available." };
+	}
+	
+	try {
+		const pastOpportunities = await db
+			.select({
+				decisionStatus: opportunities.decisionStatus,
+				count: count(),
+			})
+			.from(opportunities)
+			.where(eq(opportunities.organization, organization))
+			.groupBy(opportunities.decisionStatus);
+		
+		const wonCount = pastOpportunities.find(o => o.decisionStatus === "won")?.count ?? 0;
+		const lostCount = pastOpportunities.find(o => o.decisionStatus === "lost")?.count ?? 0;
+		const totalCount = pastOpportunities.reduce((sum, o) => sum + Number(o.count), 0);
+		
+		if (totalCount === 0) {
+			return { reasoning: `New client ${organization} - no prior relationship.` };
+		}
+		
+		const winRate = Math.round((Number(wonCount) / Number(totalCount)) * 100);
+		return { 
+			reasoning: `${winRate}% win rate with ${organization} (${wonCount} won, ${lostCount} lost out of ${totalCount} opportunities).` 
+		};
+	} catch (error) {
+		return { reasoning: `Relationship with ${organization} - historical data unavailable.` };
+	}
+}
+
+/**
+ * Calculate win factors using heuristic-based analysis (fallback).
+ */
+async function calculateWinFactorsHeuristic(opp: typeof opportunities.$inferSelect): Promise<AIScoreFactor[]> {
 	const factors: AIScoreFactor[] = [];
 
 	// Competition level (estimated based on budget and visibility)
@@ -372,7 +667,7 @@ function calculateWinFactors(opp: typeof opportunities.$inferSelect): AIScoreFac
 	});
 
 	// Past relationship
-	const relationshipScore = estimateRelationshipScore(opp.organization);
+	const relationshipScore = await estimateRelationshipScore(opp.organization);
 	factors.push({
 		factor: "Client Relationship",
 		weight: 0.2,
@@ -413,9 +708,101 @@ function calculateWinFactors(opp: typeof opportunities.$inferSelect): AIScoreFac
 }
 
 /**
- * Calculate risk factors.
+ * Calculate risk factors with AI-enhanced analysis.
  */
-function calculateRiskFactors(opp: typeof opportunities.$inferSelect): AIScoreFactor[] {
+async function calculateRiskFactors(opp: typeof opportunities.$inferSelect): Promise<AIScoreFactor[]> {
+	const manager = getProviderManager();
+	await manager.initialize();
+	
+	// If AI is available, use it for sophisticated analysis
+	if (await manager.isAvailable()) {
+		try {
+			return await calculateRiskFactorsWithAI(opp);
+		} catch (error) {
+			console.warn("[AI Risk Factors Error] Falling back to heuristic:", error);
+		}
+	}
+	
+	// Fallback to heuristic calculations
+	return calculateRiskFactorsHeuristic(opp);
+}
+
+/**
+ * Calculate risk factors using AI analysis.
+ */
+async function calculateRiskFactorsWithAI(opp: typeof opportunities.$inferSelect): Promise<AIScoreFactor[]> {
+	const manager = getProviderManager();
+	const companyInfo = await getCompanyCapabilities();
+	
+	const systemPrompt = `You are an expert risk analyst for government/enterprise proposals.
+
+Output your analysis as JSON with this exact structure:
+{
+  "factors": [
+    {"factor": "<risk factor>", "weight": <0.0-1.0>, "score": <0-100>, "reasoning": "<explanation>"}
+  ]
+}
+
+Evaluate these risk factors (higher score = higher risk):
+1. Timeline Risk (weight 0.25) - Is the deadline realistic?
+2. Scope Uncertainty (weight 0.25) - How well-defined is the scope?
+3. Financial Risk (weight 0.2) - Budget adequacy and payment terms
+4. Geographic Risk (weight 0.15) - Location-related challenges
+5. Execution Complexity (weight 0.15) - Technical/operational complexity
+
+Be thorough in identifying risks. Score 60+ for high risk, below 40 for low risk.
+Only output valid JSON.`;
+
+	const userPrompt = `Analyze risks for this opportunity:
+
+**Opportunity:**
+- Title: ${opp.title}
+- Organization: ${opp.organization || "Not specified"}
+- Budget: ${opp.budgetValue || "Not specified"} (${opp.budgetNumeric ? `$${opp.budgetNumeric}` : "unknown"})
+- Deadline: ${opp.daysLeft !== null ? `${opp.daysLeft} days remaining` : "Not specified"}
+- Location: ${opp.countryRegion || "Not specified"}
+
+**Project Scope:**
+${opp.projectScope || opp.projectSummary || "Not provided"}
+
+**Technical Requirements:**
+${opp.technicalRequirements || "Not provided"}
+
+**Key Requirements:**
+${opp.keyRequirements || "Not provided"}
+
+**Our Experience:**
+- Core Capabilities: ${companyInfo.capabilities.join(", ") || "General consulting"}
+- Past Projects: ${companyInfo.differentiators.join(", ") || "Not specified"}
+
+Provide your risk analysis as JSON.`;
+
+	const response = await manager.complete({
+		messages: [
+			{ role: "system", content: systemPrompt },
+			{ role: "user", content: userPrompt },
+		],
+		temperature: 0.3,
+		maxTokens: 1200,
+	});
+
+	// Parse the JSON response
+	const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+	if (!jsonMatch) {
+		throw new Error("Invalid JSON response from AI");
+	}
+
+	const analysis = JSON.parse(jsonMatch[0]) as {
+		factors?: AIScoreFactor[];
+	};
+
+	return analysis.factors || calculateRiskFactorsHeuristic(opp);
+}
+
+/**
+ * Calculate risk factors using heuristic-based analysis (fallback).
+ */
+function calculateRiskFactorsHeuristic(opp: typeof opportunities.$inferSelect): AIScoreFactor[] {
 	const factors: AIScoreFactor[] = [];
 
 	// Timeline risk
@@ -567,10 +954,10 @@ function estimateCompetitionScore(opp: typeof opportunities.$inferSelect): numbe
 	return Math.max(20, Math.min(80, score));
 }
 
-function estimateRelationshipScore(organization: string | null): number {
-	// In production, this would check against a CRM
-	if (!organization) return 40;
-	return 50; // Default to neutral for unknown clients
+async function estimateRelationshipScore(organization: string | null): Promise<number> {
+	// This function is now replaced by estimateRelationshipScoreFromCRM
+	// Kept for backward compatibility
+	return await estimateRelationshipScoreFromCRM(organization);
 }
 
 function calculateTechnicalFitScore(techRequirements: string | null): number {
@@ -690,8 +1077,9 @@ function mapToAIScore(row: typeof opportunityAIScores.$inferSelect): Opportunity
  */
 export async function calculateFitScoreWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
 	// Check if AI is available
-	await aiProviderManager.initialize();
-	if (!aiProviderManager.isAvailable()) {
+	const manager = getProviderManager();
+	await manager.initialize();
+	if (!manager.isAvailable()) {
 		console.log("[AI] No provider available, using heuristic scoring");
 		return calculateFitScore(opportunityId);
 	}
@@ -810,8 +1198,9 @@ Provide your fit analysis as JSON.`;
  * Calculate win probability using LLM analysis.
  */
 export async function calculateWinProbabilityWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
-	await aiProviderManager.initialize();
-	if (!aiProviderManager.isAvailable()) {
+	const manager = getProviderManager();
+	await manager.initialize();
+	if (!manager.isAvailable()) {
 		return calculateWinProbability(opportunityId);
 	}
 
@@ -919,8 +1308,9 @@ Provide your win probability analysis as JSON.`;
  * Calculate risk score using LLM analysis.
  */
 export async function calculateRiskScoreWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
-	await aiProviderManager.initialize();
-	if (!aiProviderManager.isAvailable()) {
+	const manager = getProviderManager();
+	await manager.initialize();
+	if (!manager.isAvailable()) {
 		return calculateRiskScore(opportunityId);
 	}
 
@@ -1031,8 +1421,9 @@ export async function calculateAllScoresWithLLM(opportunityId: string): Promise<
  * Generate AI-powered executive summary for an opportunity.
  */
 export async function generateOpportunitySummary(opportunityId: string): Promise<string> {
-	await aiProviderManager.initialize();
-	if (!aiProviderManager.isAvailable()) {
+	const manager = getProviderManager();
+	await manager.initialize();
+	if (!manager.isAvailable()) {
 		return "AI summary not available. Configure an AI provider to enable this feature.";
 	}
 

@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * AI state management with Zustand.
  *
@@ -14,7 +16,10 @@ import type {
 	AICompletionResponse,
 	AIAlternative,
 	AIFeedback,
-	AI_COMMANDS,
+	AICompletionRequest,
+	AIContext,
+	AIRequestId,
+	AIStreamChunk,
 } from "@/lib/types/ai";
 
 /** AI store state */
@@ -23,6 +28,7 @@ export interface AIState {
 	isCommandPaletteOpen: boolean;
 	commandFilter: string;
 	filteredCommands: AICommand[];
+	pendingCommand: AICommand | null;
 
 	// Active operations
 	activeOperations: Map<string, AIOperation>;
@@ -45,14 +51,17 @@ export interface AIState {
 	// Settings
 	streamingEnabled: boolean;
 	autoAcceptThreshold: number; // 0-1, auto-accept if confidence > threshold
+	// API endpoint
+	apiEndpoint: string;
 }
 
 /** AI store actions */
 export interface AIActions {
 	// Command palette actions
-	openCommandPalette: () => void;
+	openCommandPalette: (initialCommand?: string) => void;
 	closeCommandPalette: () => void;
 	setCommandFilter: (filter: string) => void;
+	setPendingCommand: (command: AICommand | null) => void;
 
 	// Operation actions
 	startOperation: (operation: AIOperation) => void;
@@ -63,6 +72,16 @@ export interface AIActions {
 	failOperation: (id: string, error: string) => void;
 	cancelOperation: (id: string) => void;
 	clearOperation: (id: string) => void;
+
+	// AI API actions
+	generateCompletion: (
+		request: Omit<AICompletionRequest, "requestId">,
+		options?: { onChunk?: (chunk: AIStreamChunk) => void; onComplete?: (response: AICompletionResponse) => void; onError?: (error: string) => void }
+	) => Promise<void>;
+	streamCompletion: (
+		request: AICompletionRequest,
+		onChunk: (chunk: AIStreamChunk) => void
+	) => Promise<AICompletionResponse>;
 
 	// Suggestion actions
 	showSuggestionUI: (
@@ -85,6 +104,7 @@ export interface AIActions {
 	// Settings actions
 	setStreamingEnabled: (enabled: boolean) => void;
 	setAutoAcceptThreshold: (threshold: number) => void;
+	setApiEndpoint: (endpoint: string) => void;
 
 	// Reset
 	reset: () => void;
@@ -94,6 +114,7 @@ const initialState: AIState = {
 	isCommandPaletteOpen: false,
 	commandFilter: "",
 	filteredCommands: [],
+	pendingCommand: null,
 	activeOperations: new Map(),
 	currentOperationId: null,
 	showSuggestion: false,
@@ -103,15 +124,26 @@ const initialState: AIState = {
 	operationHistory: [],
 	streamingEnabled: true,
 	autoAcceptThreshold: 0.95,
+	apiEndpoint: "/api/ai/completion",
 };
 
 // Import the commands constant at runtime to avoid circular dependency
 let AI_COMMANDS_CACHE: AICommand[] | null = null;
 async function getAICommands(): Promise<AICommand[]> {
 	if (AI_COMMANDS_CACHE) return AI_COMMANDS_CACHE;
-	const { AI_COMMANDS } = await import("@/lib/types/ai");
-	AI_COMMANDS_CACHE = AI_COMMANDS;
-	return AI_COMMANDS;
+	try {
+		const aiModule = await import("@/lib/types/ai");
+		const commands = aiModule.AI_COMMANDS;
+		if (!commands || !Array.isArray(commands)) {
+			console.error("AI_COMMANDS not found or invalid in ai module");
+			return [];
+		}
+		AI_COMMANDS_CACHE = commands;
+		return commands;
+	} catch (error) {
+		console.error("Failed to load AI commands:", error);
+		return [];
+	}
 }
 
 /**
@@ -130,6 +162,13 @@ function filterCommands(commands: AICommand[], query: string): AICommand[] {
 }
 
 /**
+ * Generate a unique request ID.
+ */
+function generateRequestId(): AIRequestId {
+	return `ai-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+/**
  * AI store for managing AI-related state.
  */
 export const useAIStore = create<AIState & AIActions>()(
@@ -137,12 +176,22 @@ export const useAIStore = create<AIState & AIActions>()(
 		...initialState,
 
 		// Command palette actions
-		openCommandPalette: () => {
+		openCommandPalette: (initialCommand?: string) => {
 			getAICommands().then((commands) => {
 				set((state) => {
 					state.isCommandPaletteOpen = true;
-					state.commandFilter = "";
-					state.filteredCommands = commands;
+					if (initialCommand) {
+						state.commandFilter = initialCommand;
+						state.filteredCommands = filterCommands(commands, initialCommand);
+						// Set pending command if exact match
+						const exactMatch = commands.find((cmd) => cmd.name === initialCommand);
+						if (exactMatch) {
+							state.pendingCommand = exactMatch;
+						}
+					} else {
+						state.commandFilter = "";
+						state.filteredCommands = commands;
+					}
 				});
 			});
 		},
@@ -162,6 +211,11 @@ export const useAIStore = create<AIState & AIActions>()(
 				});
 			});
 		},
+
+		setPendingCommand: (command) =>
+			set((state) => {
+				state.pendingCommand = command;
+			}),
 
 		// Operation actions
 		startOperation: (operation) =>
@@ -239,6 +293,149 @@ export const useAIStore = create<AIState & AIActions>()(
 					state.currentOperationId = null;
 				}
 			}),
+
+		// AI API actions
+		generateCompletion: async (request, options = {}) => {
+			const { onChunk, onComplete, onError } = options;
+			const requestId = generateRequestId();
+			
+			// Build the complete request
+			const fullRequest: AICompletionRequest = {
+				...request,
+				requestId,
+			};
+
+			// Start operation tracking
+			const operation: AIOperation = {
+				id: requestId,
+				command: request.command,
+				status: "pending",
+				result: "",
+				startedAt: new Date().toISOString(),
+				insertPosition: undefined,
+			};
+
+			get().startOperation(operation);
+
+			try {
+				if (get().streamingEnabled && request.stream !== false) {
+					// Streaming completion
+					await get().streamCompletion(
+						fullRequest,
+						(chunk) => {
+							if (chunk.delta) {
+								get().appendOperationResult(requestId, chunk.delta);
+							}
+							onChunk?.(chunk);
+						}
+					);
+				} else {
+					// Non-streaming completion
+					const response = await fetch(get().apiEndpoint, {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify(fullRequest),
+					});
+
+					if (!response.ok) {
+						const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+						throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+					}
+
+					const result: AICompletionResponse = await response.json();
+					get().completeOperation(requestId, result);
+					onComplete?.(result);
+				}
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				get().failOperation(requestId, errorMessage);
+				onError?.(errorMessage);
+				throw error;
+			}
+		},
+
+		streamCompletion: async (request, onChunk) => {
+			const response = await fetch(get().apiEndpoint, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Accept: "text/event-stream",
+				},
+				body: JSON.stringify({ ...request, stream: true }),
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+				throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+			}
+
+			const reader = response.body?.getReader();
+			if (!reader) {
+				throw new Error("No response body");
+			}
+
+			const decoder = new TextDecoder();
+			let accumulatedText = "";
+			let buffer = "";
+
+			try {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split("\n");
+					buffer = lines.pop() || "";
+
+					for (const line of lines) {
+						const trimmed = line.trim();
+						if (!trimmed || !trimmed.startsWith("data: ")) continue;
+
+						const data = trimmed.slice(6);
+						if (data === "[DONE]") continue;
+
+						try {
+							const chunk: AIStreamChunk = JSON.parse(data);
+							accumulatedText += chunk.delta || "";
+							onChunk({
+								...chunk,
+								accumulated: accumulatedText,
+							});
+						} catch {
+							// Ignore parsing errors for non-JSON lines
+						}
+					}
+				}
+
+				// Process any remaining buffer
+				if (buffer.trim()) {
+					const trimmed = buffer.trim();
+					if (trimmed.startsWith("data: ")) {
+						const data = trimmed.slice(6);
+						if (data !== "[DONE]") {
+							try {
+								const chunk: AIStreamChunk = JSON.parse(data);
+								accumulatedText += chunk.delta || "";
+							} catch {
+								// Ignore
+							}
+						}
+					}
+				}
+			} finally {
+				reader.releaseLock();
+			}
+
+			// Return final response
+			return {
+				requestId: request.requestId,
+				result: accumulatedText,
+				confidence: 0.9,
+				processingTime: Date.now() - new Date(get().activeOperations.get(request.requestId)?.startedAt || Date.now()).getTime(),
+			};
+		},
 
 		// Suggestion actions
 		showSuggestionUI: (requestId, result, alternatives, insertPosition, position) =>
@@ -338,6 +535,11 @@ export const useAIStore = create<AIState & AIActions>()(
 		setAutoAcceptThreshold: (threshold) =>
 			set((state) => {
 				state.autoAcceptThreshold = Math.max(0, Math.min(1, threshold));
+			}),
+
+		setApiEndpoint: (endpoint) =>
+			set((state) => {
+				state.apiEndpoint = endpoint;
 			}),
 
 		// Reset

@@ -19,6 +19,7 @@ import {
 	useCollaborationStore,
 	generateClientId,
 	createCollaboratorPresence,
+	type Collaborator,
 } from "@/lib/stores/collaboration-store";
 import { PusherYjsProvider } from "./pusher-provider";
 
@@ -288,17 +289,17 @@ export function usePresence(
  */
 export function useCollaboratorPresence() {
 	const collaborators = useCollaborationStore((s) => s.collaborators);
-	const connectionStatus = useCollaborationStore((s) => s.connectionStatus);
+	const connectionStatus = useCollaborationStore((s) => s.status);
 
 	// Convert Map to array with active status
 	const activeCollaborators: CollaboratorPresence[] = [];
 	collaborators.forEach((presence) => {
 		// Consider a collaborator active if they were active in the last 5 minutes
-		const lastActive = new Date(presence.lastActiveAt).getTime();
+		const lastActive = presence.lastSeen?.getTime() ?? 0;
 		const isActive = Date.now() - lastActive < AWAY_TIMEOUT;
 
-		if (isActive || presence.activity !== "away") {
-			activeCollaborators.push(presence);
+		if (isActive || presence.status !== "idle") {
+			activeCollaborators.push(presence as unknown as CollaboratorPresence);
 		}
 	});
 
@@ -312,11 +313,11 @@ export function useCollaboratorPresence() {
 /**
  * React hook for getting a collaborator by client ID.
  */
-export function useCollaborator(clientId: string | null): CollaboratorPresence | null {
+export function useCollaborator(clientId: string | null): Collaborator | null {
 	const collaborators = useCollaborationStore((s) => s.collaborators);
 
 	if (!clientId) return null;
-	return collaborators.get(clientId) ?? null;
+	return collaborators.find((c) => c.userId === clientId) ?? null;
 }
 
 /**

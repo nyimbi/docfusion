@@ -35,6 +35,15 @@ export interface CollaboratorUser {
 }
 
 /**
+ * Collaborator with status for display in sidebars/panels.
+ */
+export interface Collaborator extends CollaboratorUser {
+	status: "active" | "idle" | "offline";
+	role?: "owner" | "editor" | "viewer";
+	lastSeenAt?: string;
+}
+
+/**
  * Cursor position in the document.
  * Uses ProseMirror position format.
  */

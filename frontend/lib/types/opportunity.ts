@@ -5,6 +5,11 @@
  * import processing, and ranking/analysis features.
  */
 
+import type { DeadlineUrgency } from "./comments-workflow";
+
+// Re-export for convenience
+export type { DeadlineUrgency };
+
 // ============================================================================
 // Core Opportunity Types
 // ============================================================================
@@ -97,6 +102,7 @@ export interface OpportunityListItem {
 	decisionStatus: DecisionStatus;
 	assignedTo: string | null;
 	tags: string[];
+	rfpLink: string | null;
 }
 
 /**
@@ -1010,13 +1016,7 @@ export type DeadlineType =
 	| "review"
 	| "submission";
 
-/** Deadline urgency based on days remaining */
-export type DeadlineUrgency =
-	| "overdue"
-	| "critical" // <= 3 days
-	| "urgent" // <= 7 days
-	| "upcoming" // <= 14 days
-	| "normal"; // > 14 days
+// DeadlineUrgency imported from comments-workflow.ts
 
 /**
  * A unified deadline item from any source.
@@ -1621,7 +1621,7 @@ export interface UpdatePresenceInput {
 /**
  * Collaboration session info.
  */
-export interface CollaborationSession {
+export interface DocumentCollaborationSummary {
 	documentId: string;
 	documentTitle: string;
 	activeUsers: number;

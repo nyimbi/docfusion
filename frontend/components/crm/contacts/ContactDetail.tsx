@@ -231,6 +231,7 @@ export function ContactDetail({
 					<Tabs value={activeTab} onValueChange={setActiveTab}>
 						<TabsList>
 							<TabsTrigger value="overview">Overview</TabsTrigger>
+							<TabsTrigger value="context">Context</TabsTrigger>
 							<TabsTrigger value="activities">
 								Activities ({activities.length})
 							</TabsTrigger>
@@ -412,6 +413,83 @@ export function ContactDetail({
 											<div>
 												<dt className="text-sm text-muted-foreground">Timezone</dt>
 												<dd className="font-medium">{contact.timezone}</dd>
+											</div>
+										)}
+									</dl>
+								</CardContent>
+							</Card>
+						</TabsContent>
+
+						{/* Context Tab - How We Met & Personal Details */}
+						<TabsContent value="context" className="space-y-4 mt-4">
+							{/* How We Met */}
+							<Card>
+								<CardHeader>
+									<CardTitle className="flex items-center gap-2">
+										<Calendar className="h-5 w-5" />
+										How We Met
+									</CardTitle>
+								</CardHeader>
+								<CardContent>
+									<dl className="grid grid-cols-2 gap-4">
+										{contact.howWeMet && (
+											<div>
+												<dt className="text-sm text-muted-foreground">Meeting Type</dt>
+												<dd className="capitalize">{contact.howWeMet.replace(/_/g, " ")}</dd>
+											</div>
+										)}
+										{contact.meetingDate && (
+											<div>
+												<dt className="text-sm text-muted-foreground">Meeting Date</dt>
+												<dd>{formatDate(contact.meetingDate)}</dd>
+											</div>
+										)}
+										{contact.meetingContext && (
+											<div className="col-span-2">
+												<dt className="text-sm text-muted-foreground">Context</dt>
+												<dd className="whitespace-pre-wrap">{contact.meetingContext}</dd>
+											</div>
+										)}
+										{!contact.howWeMet && !contact.meetingDate && !contact.meetingContext && (
+											<div className="col-span-2 text-muted-foreground text-sm py-4 text-center">
+												No meeting context recorded. Edit the contact to add details.
+											</div>
+										)}
+									</dl>
+								</CardContent>
+							</Card>
+
+							{/* Personal Details */}
+							<Card>
+								<CardHeader>
+									<CardTitle className="flex items-center gap-2">
+										<User className="h-5 w-5" />
+										Personal Details
+									</CardTitle>
+								</CardHeader>
+								<CardContent>
+									<dl className="grid grid-cols-2 gap-4">
+										{contact.preferredName && (
+											<div>
+												<dt className="text-sm text-muted-foreground">Preferred Name</dt>
+												<dd>{contact.preferredName}</dd>
+											</div>
+										)}
+										{contact.pronouns && (
+											<div>
+												<dt className="text-sm text-muted-foreground">Pronouns</dt>
+												<dd>{contact.pronouns}</dd>
+											</div>
+										)}
+										{contact.birthday && (
+											<div>
+												<dt className="text-sm text-muted-foreground">Birthday</dt>
+												<dd>{formatDate(contact.birthday)}</dd>
+											</div>
+										)}
+										{!contact.preferredName && !contact.pronouns && !contact.birthday && (
+											<div className="col-span-2 text-muted-foreground text-sm py-4 text-center">
+												No personal details recorded. Edit the contact to add details.
 											</div>
 										)}
 									</dl>

@@ -28,7 +28,7 @@ import type {
 	ActivityWithRelations,
 } from "@/lib/types/crm";
 import type { ActivityRow, NewActivity } from "@/lib/db/schema-crm";
-import { recordContactInteraction } from "./contacts";
+import { recordContactInteractionInternal } from "./contacts";
 
 // ============================================================================
 // CRUD OPERATIONS
@@ -87,7 +87,7 @@ export async function createActivity(
 		}
 
 		if (input.contactId) {
-			await recordContactInteraction(input.contactId, contactDate);
+			await recordContactInteractionInternal(input.contactId, contactDate);
 		}
 	}
 
@@ -140,7 +140,7 @@ export async function updateActivity(
 		}
 
 		if (updated.contactId) {
-			await recordContactInteraction(updated.contactId, contactDate);
+			await recordContactInteractionInternal(updated.contactId, contactDate);
 		}
 	}
 
@@ -449,7 +449,7 @@ export async function completeActivity(
 	}
 
 	if (updated.contactId) {
-		await recordContactInteraction(updated.contactId, now);
+		await recordContactInteractionInternal(updated.contactId, now);
 	}
 
 	return updated;

@@ -10,6 +10,7 @@
 import { db } from "@/lib/db";
 import { requirements } from "@/lib/db/schema";
 import { eq, and, or, ilike, inArray, isNull, isNotNull, lt, sql, desc, asc } from "drizzle-orm";
+import { getProviderManager } from "@/lib/ai/providers";
 import type {
 	Requirement,
 	RequirementInput,
@@ -525,22 +526,162 @@ export async function analyzeRequirementGaps(
 }
 
 // ============================================================================
-// AI Extraction (Heuristic-based placeholder)
+// AI Extraction
 // ============================================================================
 
 /**
- * Extract requirements from document content.
- * In production, this would call an AI service to parse the document.
- * This is a placeholder that demonstrates the interface.
+ * Extract requirements from document content using AI-powered analysis.
+ * Uses Azure OpenAI to parse and identify requirements from document text.
+ * Returns proper confidence scores based on AI certainty.
  */
 export async function extractRequirements(
-	_opportunityId: string,
+	opportunityId: string,
 	documentContent: string
 ): Promise<ExtractionResult> {
 	const startTime = Date.now();
 
+	const manager = getProviderManager();
+	await manager.initialize();
+
+	// If AI is available, use intelligent extraction
+	if (await manager.isAvailable()) {
+		try {
+			return await extractRequirementsWithAI(opportunityId, documentContent);
+		} catch (error) {
+			console.warn("[AI Extraction Error] Falling back to heuristic:", error);
+		}
+	}
+
+	// Fallback to heuristic extraction
+	return extractRequirementsHeuristic(opportunityId, documentContent, startTime);
+}
+
+/**
+ * Extract requirements using AI-powered analysis.
+ */
+async function extractRequirementsWithAI(
+	opportunityId: string,
+	documentContent: string
+): Promise<ExtractionResult> {
+	const startTime = Date.now();
+	const manager = getProviderManager();
+
+	const systemPrompt = `You are an expert RFP/contract analyst. Extract requirements from a document.
+
+Output your analysis as JSON with this exact structure:
+{
+  "requirements": [
+    {
+      "text": "<the requirement text>",
+      "category": "technical|legal|compliance|financial|experience|personnel|security|administrative",
+      "subcategory": "<optional subcategory>",
+      "priority": "mandatory|preferred|optional",
+      "riskLevel": "low|medium|high|critical",
+      "source": "<optional source reference>"
+    }
+  ],
+  "documentInfo": {
+    "title": "<document title or null>",
+    "organization": "<issuing organization or null>",
+    "deadline": "<deadline if found or null>"
+  },
+  "confidence": <0.0-1.0>,
+  "reasoning": "<brief explanation of confidence level>"
+}
+
+Guidelines:
+- Extract ALL requirements - must, shall, should, recommended, etc.
+- Categorize each requirement accurately
+- Identify priority based on language (mandatory=must/shall, preferred=should, optional=may/could)
+- Assess risk based on business impact and complexity
+- Provide confidence score based on clarity and completeness of extraction
+
+Only output valid JSON.`;
+
+	const userPrompt = `Extract all requirements from this RFP/contract document:
+
+${documentContent.slice(0, 12000)}
+
+Provide your extraction as JSON.`;
+
+	try {
+		const response = await manager.complete({
+			messages: [
+				{ role: "system", content: systemPrompt },
+				{ role: "user", content: userPrompt },
+			],
+			temperature: 0.3,
+			maxTokens: 4096,
+		});
+
+		// Parse the JSON response
+		const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+		if (!jsonMatch) {
+			throw new Error("Invalid JSON response from AI");
+		}
+
+		const analysis = JSON.parse(jsonMatch[0]) as {
+			requirements?: Array<{
+				text: string;
+				category?: string;
+				subcategory?: string;
+				priority?: string;
+				riskLevel?: string;
+				source?: string;
+			}>;
+			documentInfo?: {
+				title: string | null;
+				organization: string | null;
+				deadline: string | null;
+			};
+			confidence?: number;
+			reasoning?: string;
+		};
+
+		const extractedRequirements: ExtractedRequirement[] = (analysis.requirements || []).map(
+			(req) => ({
+				text: req.text,
+				category: (req.category as RequirementCategory) ?? null,
+				subcategory: req.subcategory ?? null,
+				source: req.source ?? documentContent.slice(0, 200),
+				sourcePageRef: null,
+				priority: (req.priority as RequirementPriority) ?? "optional",
+				suggestedRiskLevel: (req.riskLevel as RiskLevel) ?? "medium",
+			})
+		);
+
+		const confidence = Math.max(0.3, Math.min(1.0, analysis.confidence ?? 0.85));
+
+		const processingTime = Date.now() - startTime;
+
+		return {
+			requirements: extractedRequirements,
+			documentInfo: {
+				title: analysis.documentInfo?.title ?? null,
+				organization: analysis.documentInfo?.organization ?? null,
+				deadline: analysis.documentInfo?.deadline ?? null,
+				totalPages: null,
+			},
+			confidence,
+			processingTime,
+		};
+	} catch (error) {
+		console.warn("[AI Extraction Parse Error]:", error);
+		// Fallback to heuristic extraction on parse error
+		return extractRequirementsHeuristic(opportunityId, documentContent, startTime);
+	}
+}
+
+/**
+ * Extract requirements using heuristic-based analysis (fallback).
+ */
+function extractRequirementsHeuristic(
+	opportunityId: string,
+	documentContent: string,
+	startTime: number
+): ExtractionResult {
 	// Heuristic extraction: look for common requirement patterns
-	const requirements: ExtractedRequirement[] = [];
+	const extractedRequirements: ExtractedRequirement[] = [];
 
 	// Split by common delimiters
 	const lines = documentContent.split(/\n/);
@@ -613,7 +754,7 @@ export async function extractRequirements(
 				riskLevel = "low";
 			}
 
-			requirements.push({
+			extractedRequirements.push({
 				text: line.replace(/^[\d]+[.)]\s|^[a-z][.)]\s|^[-•*]\s/i, "").trim(),
 				category: currentCategory,
 				subcategory: null,
@@ -627,15 +768,18 @@ export async function extractRequirements(
 
 	const processingTime = Date.now() - startTime;
 
+	// Lower confidence for heuristic extraction
+	const confidence = extractedRequirements.length > 0 ? 0.6 : 0.1;
+
 	return {
-		requirements,
+		requirements: extractedRequirements,
 		documentInfo: {
 			title: null,
 			organization: null,
 			deadline: null,
 			totalPages: null,
 		},
-		confidence: requirements.length > 0 ? 0.6 : 0.1, // Low confidence for heuristic extraction
+		confidence,
 		processingTime,
 	};
 }

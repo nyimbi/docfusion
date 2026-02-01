@@ -1,16 +1,17 @@
 /**
  * Documents Page - DocFusion
  *
- * A command-center style document gallery with sophisticated
- * information density, status visualization, and fluid interactions.
+ * Enhanced document gallery with AI-powered creation wizard,
+ * template selection modal, and sophisticated information density.
  *
  * Design: "Command Center Elegance" - Dense, scannable, professional
- * Uses the shared app layout for navigation.
  */
 
 "use client";
 
 import * as React from "react";
+import type { ComponentType } from "react";
+import type { JSONContent } from "@tiptap/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn, formatRelativeTime } from "@/lib/utils";
@@ -18,10 +19,14 @@ import {
 	useDocuments,
 	useDocumentSearch,
 } from "@/lib/query/hooks/useDocuments";
-import { useCreateDocument } from "@/lib/query/mutations/useDocumentMutation";
+import { useCreateDocument, useDeleteDocument } from "@/lib/query/mutations/useDocumentMutation";
+import { useCreateFromTemplate } from "@/lib/query/hooks/useTemplates";
+import { useTemplateCategories, useTemplates } from "@/lib/query/hooks/useTemplates";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DocumentSummary, DocumentStatus } from "@/lib/types/document";
+import type { TemplateSummary, TemplateCategory } from "@/lib/types/template";
+import { AIStructureGenerator } from "@/components/document/AIStructureGenerator";
 import {
 	Plus,
 	Search,
@@ -41,13 +46,42 @@ import {
 	ArrowRight,
 	Layers,
 	TrendingUp,
+	Wand2,
+	Copy,
+	LayoutTemplate,
+	X,
+	Filter,
+	Grid3X3,
+	FileCheck,
+	Building2,
+	Briefcase,
+	Loader2,
 } from "lucide-react";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogDescription,
+	DialogFooter,
+	DialogTrigger,
+} from "@/components/ui/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+
+// ============================================================================
+// Types & Interfaces
+// ============================================================================
+
+type CreationMethod = "template" | "ai" | "blank";
+
+
 
 // ============================================================================
 // Main Page Component
@@ -59,6 +93,9 @@ export default function DocumentsPage() {
 	const [searchQuery, setSearchQuery] = React.useState("");
 	const [debouncedQuery, setDebouncedQuery] = React.useState("");
 	const [statusFilter, setStatusFilter] = React.useState<DocumentStatus | "all">("all");
+	const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
+	const [createMethod, setCreateMethod] = React.useState<CreationMethod>("template");
+	const [blankDocTitle, setBlankDocTitle] = React.useState("");
 
 	// Debounce search
 	React.useEffect(() => {
@@ -84,12 +121,64 @@ export default function DocumentsPage() {
 
 	// Create document
 	const createMutation = useCreateDocument();
-	const handleCreateDocument = async () => {
+	const createFromTemplateMutation = useCreateFromTemplate();
+
+	// Delete document
+	const deleteMutation = useDeleteDocument();
+
+	const handleDeleteDocument = async (id: string, title: string) => {
+		if (confirm(`Are you sure you want to delete "${title}"? This action cannot be undone.`)) {
+			try {
+				await deleteMutation.mutateAsync(id);
+			} catch (err) {
+				console.error("Failed to delete document:", err);
+				alert("Failed to delete document. Check console for details.");
+			}
+		}
+	};
+
+	const handleCreateBlank = async () => {
+		console.log("[Create Document] Starting blank document creation");
 		try {
-			const newDoc = await createMutation.mutateAsync({ title: "Untitled Document" });
+			const newDoc = await createMutation.mutateAsync({ title: blankDocTitle || "Untitled Document" });
+			console.log("[Create Document] Document created:", newDoc.id);
+			setIsCreateDialogOpen(false);
+			setBlankDocTitle("");
 			router.push(`/documents/${newDoc.id}`);
 		} catch (err) {
-			console.error("Failed to create document:", err);
+			console.error("[Create Document] Failed to create document:", err);
+			alert("Failed to create document. Check console for details.");
+		}
+	};
+
+	const handleCreateFromTemplate = async (templateId: string, title: string) => {
+		try {
+			const newDoc = await createFromTemplateMutation.mutateAsync({
+				templateId,
+				title,
+				placeholderValues: {},
+				useAIFill: false,
+			});
+			setIsCreateDialogOpen(false);
+			router.push(`/documents/${newDoc.id}`);
+		} catch (err) {
+			console.error("Failed to create from template:", err);
+		}
+	};
+
+	const handleCreateFromAIStructure = async (structure: DocumentStructure) => {
+		try {
+			const newDoc = await createMutation.mutateAsync({
+				title: structure.title,
+				content: {
+					type: "doc",
+					content: structureToContent(structure.sections),
+				},
+			});
+			setIsCreateDialogOpen(false);
+			router.push(`/documents/${newDoc.id}`);
+		} catch (err) {
+			console.error("Failed to create from AI structure:", err);
 		}
 	};
 
@@ -106,7 +195,7 @@ export default function DocumentsPage() {
 	}, [listQuery.data]);
 
 	return (
-		<div className="relative">
+		<div className="h-full overflow-y-auto relative">
 			{/* Page Header */}
 			<div className="border-b bg-background/50 backdrop-blur-sm">
 				<div className="max-w-[1800px] mx-auto px-6 lg:px-10 py-6">
@@ -120,8 +209,7 @@ export default function DocumentsPage() {
 							</p>
 						</div>
 						<Button
-							onClick={handleCreateDocument}
-							isLoading={createMutation.isPending}
+							onClick={() => setIsCreateDialogOpen(true)}
 							className="self-start sm:self-auto"
 						>
 							<Plus className="h-4 w-4" />
@@ -211,16 +299,327 @@ export default function DocumentsPage() {
 				) : documents.length === 0 ? (
 					<EmptyState
 						searchQuery={debouncedQuery}
-						onCreateDocument={handleCreateDocument}
+						onCreateDocument={() => setIsCreateDialogOpen(true)}
 					/>
 				) : viewMode === "grid" ? (
-					<DocumentGrid documents={documents} />
+					<DocumentGrid documents={documents} onDelete={handleDeleteDocument} />
 				) : (
-					<DocumentListView documents={documents} />
+					<DocumentListView documents={documents} onDelete={handleDeleteDocument} />
 				)}
 			</main>
+
+			{/* Create Document Dialog */}
+			<Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+				<DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden p-0">
+					<DialogHeader className="px-6 pt-6 pb-4 border-b">
+						<DialogTitle className="text-xl flex items-center gap-2">
+							<Wand2 className="h-5 w-5 text-primary" />
+							Create New Document
+						</DialogTitle>
+						<DialogDescription>
+							Choose how you'd like to start your document
+						</DialogDescription>
+					</DialogHeader>
+
+					<Tabs
+						value={createMethod}
+						onValueChange={(v) => setCreateMethod(v as CreationMethod)}
+						className="flex flex-col h-full"
+					>
+						<div className="px-6 py-4 border-b bg-muted/30">
+							<TabsList className="grid w-full max-w-2xl grid-cols-3">
+								<TabsTrigger value="template" className="gap-2">
+									<LayoutTemplate className="h-4 w-4" />
+									From Template
+								</TabsTrigger>
+								<TabsTrigger value="ai" className="gap-2">
+									<Sparkles className="h-4 w-4" />
+									AI Generated
+								</TabsTrigger>
+								<TabsTrigger value="blank" className="gap-2">
+									<FileText className="h-4 w-4" />
+									Blank Document
+								</TabsTrigger>
+							</TabsList>
+						</div>
+
+						<div className="flex-1 overflow-y-auto max-h-[calc(90vh-280px)]">
+							<TabsContent value="template" className="m-0 p-6">
+								<TemplateSelector onSelect={handleCreateFromTemplate} />
+							</TabsContent>
+
+							<TabsContent value="ai" className="m-0 p-6">
+								<AIStructureGenerator onSuccess={(id) => { setIsCreateDialogOpen(false); router.push(`/documents/${id}`); }} />
+							</TabsContent>
+
+							<TabsContent value="blank" className="m-0 p-6">
+								<BlankDocumentCreator title={blankDocTitle} onTitleChange={setBlankDocTitle} isCreating={createMutation.isPending} onCreate={handleCreateBlank} />
+							</TabsContent>
+						</div>
+					</Tabs>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
+}
+
+// ============================================================================
+// Template Selector Component
+// ============================================================================
+
+function TemplateSelector({
+	onSelect,
+}: {
+	onSelect: (templateId: string, title: string) => void;
+}) {
+	const [selectedCategory, setSelectedCategory] = React.useState<string | null>(null);
+	const [searchQuery, setSearchQuery] = React.useState("");
+	const { data: categories = [] } = useTemplateCategories();
+	const { data: templatesData } = useTemplates({
+		categoryId: selectedCategory ?? undefined,
+		search: searchQuery || undefined,
+		limit: 50,
+	});
+	const templates = templatesData?.templates ?? [];
+
+	const categoryIcons: Record<string, React.ReactNode> = {
+		proposals: <FileCheck className="h-4 w-4" />,
+		contracts: <Briefcase className="h-4 w-4" />,
+		compliance: <Building2 className="h-4 w-4" />,
+		general: <FileText className="h-4 w-4" />,
+	};
+
+	return (
+		<div className="space-y-4">
+			{/* Search and Filter */}
+			<div className="flex items-center gap-4">
+				<div className="relative flex-1">
+					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+					<Input
+						placeholder="Search templates..."
+						value={searchQuery}
+						onChange={(e) => setSearchQuery(e.target.value)}
+						className="pl-9"
+					/>
+				</div>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="outline" className="gap-2">
+							<Filter className="h-4 w-4" />
+							{selectedCategory
+								? categories.find((c) => c.id === selectedCategory)?.name
+								: "All Categories"}
+							<ChevronDown className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" className="w-48">
+						<DropdownMenuItem onClick={() => setSelectedCategory(null)}>
+							All Categories
+						</DropdownMenuItem>
+						{categories.map((category) => (
+							<DropdownMenuItem
+								key={category.id}
+								onClick={() => setSelectedCategory(category.id)}
+							>
+								{categoryIcons[category.slug] || <Grid3X3 className="h-4 w-4 mr-2" />}
+								{category.name}
+							</DropdownMenuItem>
+						))}
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</div>
+
+			{/* Categories Quick Select */}
+			<div className="flex flex-wrap gap-2">
+				<Button
+					variant={selectedCategory === null ? "primary" : "outline"}
+					size="sm"
+					onClick={() => setSelectedCategory(null)}
+				>
+					All
+				</Button>
+				{categories.map((category) => (
+					<Button
+						key={category.id}
+						variant={selectedCategory === category.id ? "primary" : "outline"}
+						size="sm"
+						onClick={() => setSelectedCategory(category.id)}
+						className="gap-2"
+					>
+						{categoryIcons[category.slug] || <Grid3X3 className="h-3 w-3" />}
+						{category.name}
+					</Button>
+				))}
+			</div>
+
+			{/* Templates Grid */}
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+				{templates.map((template) => (
+					<TemplateCard
+						key={template.id}
+						template={template}
+						onSelect={onSelect}
+					/>
+				))}
+			</div>
+
+			{templates.length === 0 && (
+				<div className="text-center py-12 text-muted-foreground">
+					<LayoutTemplate className="h-12 w-12 mx-auto mb-4 opacity-50" />
+					<p>No templates found</p>
+					<p className="text-sm">Try adjusting your search or filters</p>
+				</div>
+			)}
+		</div>
+	);
+}
+
+function TemplateCard({
+	template,
+	onSelect,
+}: {
+	template: TemplateSummary;
+	onSelect: (templateId: string, title: string) => void;
+}) {
+	return (
+		<button
+			onClick={() => onSelect(template.id, template.name)}
+			className={cn(
+				"text-left p-4 rounded-xl border bg-card",
+				"hover:border-primary/50 hover:shadow-md",
+				"transition-all duration-200",
+				"group"
+			)}
+		>
+			<div className="flex items-start justify-between mb-3">
+				<div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+					<LayoutTemplate className="h-5 w-5 text-primary" />
+				</div>
+				{template.difficulty && (
+					<span
+						className={cn(
+							"text-xs px-2 py-1 rounded-full",
+							template.difficulty === "beginner" && "bg-green-100 text-green-700",
+							template.difficulty === "intermediate" && "bg-blue-100 text-blue-700",
+							template.difficulty === "advanced" && "bg-purple-100 text-purple-700"
+						)}
+					>
+						{template.difficulty}
+					</span>
+				)}
+			</div>
+			<h3 className="font-semibold text-foreground mb-1 group-hover:text-primary transition-colors">
+				{template.name}
+			</h3>
+			<p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+				{template.description}
+			</p>
+			<div className="flex items-center gap-4 text-xs text-muted-foreground">
+				{template.estimatedTime && (
+					<span className="flex items-center gap-1">
+						<Clock className="h-3 w-3" />
+						{template.estimatedTime} min
+					</span>
+				)}
+				{template.useCount > 0 && (
+					<span className="flex items-center gap-1">
+						<Copy className="h-3 w-3" />
+						{template.useCount} uses
+					</span>
+				)}
+			</div>
+		</button>
+	);
+}
+
+// ============================================================================
+// Blank Document Creator
+// ============================================================================
+
+interface BlankDocumentCreatorProps {
+	title: string;
+	onTitleChange: (title: string) => void;
+	onCreate: () => void;
+	isCreating?: boolean;
+}
+
+function BlankDocumentCreator({ title, onTitleChange, onCreate, isCreating }: BlankDocumentCreatorProps) {
+	const [localTitle, setLocalTitle] = React.useState(title);
+	
+	// Sync with parent title
+	React.useEffect(() => {
+		setLocalTitle(title);
+	}, [title]);
+	
+	const handleChange = (value: string) => {
+		setLocalTitle(value);
+		onTitleChange(value);
+	};
+	
+	const handleCreate = () => {
+		console.log("[BlankDocumentCreator] Creating document with title:", localTitle);
+		onCreate();
+	};
+
+	return (
+		<div className="space-y-6">
+			<div className="text-center py-8">
+				<div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center">
+					<FileText className="h-10 w-10 text-primary" />
+				</div>
+				<h3 className="text-lg font-semibold mb-2">Start with a Blank Document</h3>
+				<p className="text-muted-foreground">
+					Create a new document from scratch and build your content as you go.
+				</p>
+			</div>
+
+			<div className="space-y-2">
+				<label className="text-sm font-medium">Document Title</label>
+				<Input
+					placeholder="Enter document title..."
+					value={localTitle}
+					onChange={(e) => handleChange(e.target.value)}
+					disabled={isCreating}
+				/>
+			</div>
+
+			<div className="flex justify-end">
+				<Button onClick={handleCreate} size="lg" className="gap-2" disabled={isCreating}>
+					{isCreating ? (
+						<Loader2 className="h-4 w-4 animate-spin" />
+					) : (
+						<Zap className="h-4 w-4" />
+					)}
+					{isCreating ? "Creating..." : "Create Document"}
+				</Button>
+			</div>
+		</div>
+	);
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+interface DocumentStructure {
+	title: string;
+	sections: DocumentSection[];
+}
+
+interface DocumentSection {
+	id: string;
+	title: string;
+	level: number;
+	length: "brief" | "medium" | "comprehensive";
+	children?: DocumentSection[];
+}
+
+function structureToContent(sections: DocumentSection[]): JSONContent[] {
+	return sections.map((section) => ({
+		type: "heading",
+		attrs: { level: section.level },
+		content: [{ type: "text", text: section.title }],
+	}));
 }
 
 // ============================================================================
@@ -247,16 +646,12 @@ function StatPill({
 
 	return (
 		<div className="flex items-center gap-3 shrink-0">
-			<div className="p-2 rounded-lg bg-muted/50 text-foreground">
-				{icon}
-			</div>
+			<div className="p-2 rounded-lg bg-muted/50 text-foreground">{icon}</div>
 			<div>
 				<div className={cn("text-lg font-semibold tabular-nums", colorClasses[color])}>
 					{value}
 				</div>
-				<div className="text-xs text-muted-foreground uppercase tracking-wider">
-					{label}
-				</div>
+				<div className="text-xs text-muted-foreground uppercase tracking-wider">{label}</div>
 			</div>
 		</div>
 	);
@@ -299,10 +694,7 @@ function StatusFilterDropdown({
 					<ChevronDown className="w-4 h-4 text-muted-foreground" />
 				</button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent
-				align="start"
-				className="w-48"
-			>
+			<DropdownMenuContent align="start" className="w-48">
 				{options.map((option) => (
 					<DropdownMenuItem
 						key={option.value}
@@ -370,15 +762,17 @@ function ViewToggle({
 // Document Grid
 // ============================================================================
 
-function DocumentGrid({ documents }: { documents: DocumentSummary[] }) {
+function DocumentGrid({
+	documents,
+	onDelete,
+}: {
+	documents: DocumentSummary[];
+	onDelete: (id: string, title: string) => void;
+}) {
 	return (
 		<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 			{documents.map((doc, index) => (
-				<DocumentCard
-					key={doc.id}
-					document={doc}
-					index={index}
-				/>
+				<DocumentCard key={doc.id} document={doc} index={index} onDelete={onDelete} />
 			))}
 		</div>
 	);
@@ -391,11 +785,16 @@ function DocumentGrid({ documents }: { documents: DocumentSummary[] }) {
 function DocumentCard({
 	document,
 	index,
+	onDelete,
 }: {
 	document: DocumentSummary;
 	index: number;
+	onDelete: (id: string, title: string) => void;
 }) {
-	const statusConfig: Record<DocumentStatus, { color: string; bg: string; icon: React.ReactNode }> = {
+	const statusConfig: Record<
+		DocumentStatus,
+		{ color: string; bg: string; icon: React.ReactNode }
+	> = {
 		draft: {
 			color: "text-amber-500",
 			bg: "bg-amber-500/10",
@@ -437,19 +836,52 @@ function DocumentCard({
 		>
 			{/* Status Badge */}
 			<div className="flex items-center justify-between mb-4">
-				<div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium", config.bg, config.color)}>
+				<div
+					className={cn(
+						"flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
+						config.bg,
+						config.color
+					)}
+				>
 					{config.icon}
 					<span className="capitalize">{document.status.replace("_", " ")}</span>
 				</div>
-				<button
-					onClick={(e) => {
-						e.preventDefault();
-						e.stopPropagation();
-					}}
-					className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent opacity-0 group-hover:opacity-100 transition-all"
-				>
-					<MoreVertical className="w-4 h-4" />
-				</button>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<button
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+							}}
+							className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent opacity-0 group-hover:opacity-100 transition-all"
+						>
+							<MoreVertical className="w-4 h-4" />
+						</button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								window.open(`/documents/${document.id}`, "_blank");
+							}}
+						>
+							<FolderOpen className="w-4 h-4 mr-2" />
+							Open in new tab
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							className="text-destructive focus:text-destructive"
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								onDelete(document.id, document.title);
+							}}
+						>
+							<Archive className="w-4 h-4 mr-2" />
+							Delete
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</div>
 
 			{/* Content */}
@@ -462,9 +894,7 @@ function DocumentCard({
 						{document.excerpt}
 					</p>
 				) : (
-					<p className="text-sm text-muted-foreground/70 italic">
-						No content yet
-					</p>
+					<p className="text-sm text-muted-foreground/70 italic">No content yet</p>
 				)}
 			</div>
 
@@ -489,7 +919,13 @@ function DocumentCard({
 // Document List View
 // ============================================================================
 
-function DocumentListView({ documents }: { documents: DocumentSummary[] }) {
+function DocumentListView({
+	documents,
+	onDelete,
+}: {
+	documents: DocumentSummary[];
+	onDelete: (id: string, title: string) => void;
+}) {
 	return (
 		<div className="space-y-2">
 			{/* Header */}
@@ -503,7 +939,7 @@ function DocumentListView({ documents }: { documents: DocumentSummary[] }) {
 
 			{/* Rows */}
 			{documents.map((doc, index) => (
-				<DocumentRow key={doc.id} document={doc} index={index} />
+				<DocumentRow key={doc.id} document={doc} index={index} onDelete={onDelete} />
 			))}
 		</div>
 	);
@@ -512,9 +948,11 @@ function DocumentListView({ documents }: { documents: DocumentSummary[] }) {
 function DocumentRow({
 	document,
 	index,
+	onDelete,
 }: {
 	document: DocumentSummary;
 	index: number;
+	onDelete: (id: string, title: string) => void;
 }) {
 	const statusConfig: Record<DocumentStatus, { color: string; label: string }> = {
 		draft: { color: "text-amber-500", label: "Draft" },
@@ -559,9 +997,9 @@ function DocumentRow({
 							>
 								{tag}
 							</span>
-						))}
-					</div>
-				)}
+							))}
+						</div>
+					)}
 			</div>
 
 			{/* Status */}
@@ -579,9 +1017,44 @@ function DocumentRow({
 				{formatRelativeTime(document.updatedAt)}
 			</div>
 
-			{/* Arrow */}
+			{/* Actions */}
 			<div className="w-10 flex justify-end">
-				<ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<button
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+							}}
+							className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent opacity-0 group-hover:opacity-100 transition-all"
+						>
+							<MoreVertical className="w-4 h-4" />
+						</button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								window.open(`/documents/${document.id}`, "_blank");
+							}}
+						>
+							<FolderOpen className="w-4 h-4 mr-2" />
+							Open in new tab
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							className="text-destructive focus:text-destructive"
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								onDelete(document.id, document.title);
+							}}
+						>
+							<Archive className="w-4 h-4 mr-2" />
+							Delete
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</div>
 		</Link>
 	);
@@ -604,11 +1077,9 @@ function EmptyState({
 				<div className="w-20 h-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-6">
 					<Search className="w-10 h-10 text-muted-foreground" />
 				</div>
-				<h3 className="text-xl font-semibold text-foreground mb-2">
-					No results found
-				</h3>
+				<h3 className="text-xl font-semibold text-foreground mb-2">No results found</h3>
 				<p className="text-muted-foreground text-center max-w-md">
-					No documents match "{searchQuery}". Try a different search term.
+					No documents match &quot;{searchQuery}&quot;. Try a different search term.
 				</p>
 			</div>
 		);
@@ -624,29 +1095,18 @@ function EmptyState({
 				</div>
 			</div>
 
-			<h3 className="text-2xl font-bold text-foreground mb-3">
-				Create your first document
-			</h3>
+			<h3 className="text-2xl font-bold text-foreground mb-3">Create your first document</h3>
 			<p className="text-muted-foreground text-center max-w-md mb-8 leading-relaxed">
-				Start crafting professional proposals with AI-powered writing assistance
-				and real-time collaboration.
+				Start crafting professional proposals with AI-powered writing assistance and
+				real-time collaboration.
 			</p>
 
 			<div className="flex items-center gap-4">
-				<Button
-					onClick={onCreateDocument}
-					className="px-6"
-					size="lg"
-				>
+				<Button onClick={onCreateDocument} className="px-6" size="lg">
 					<Zap className="w-5 h-5" />
 					Create Document
 				</Button>
-				<Button
-					variant="outline"
-					size="lg"
-					asChild
-					className="hover:bg-accent"
-				>
+				<Button variant="outline" size="lg" asChild className="hover:bg-accent">
 					<Link href="/templates">
 						<Sparkles className="w-5 h-5" />
 						Browse Templates
@@ -667,16 +1127,11 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 			<div className="w-20 h-20 rounded-2xl bg-destructive/10 flex items-center justify-center mb-6">
 				<AlertCircle className="w-10 h-10 text-destructive" />
 			</div>
-			<h3 className="text-xl font-semibold text-foreground mb-2">
-				Unable to load documents
-			</h3>
+			<h3 className="text-xl font-semibold text-foreground mb-2">Unable to load documents</h3>
 			<p className="text-muted-foreground text-center max-w-md mb-6">
 				Something went wrong while fetching your documents. Please try again.
 			</p>
-			<Button
-				variant="outline"
-				onClick={onRetry}
-			>
+			<Button variant="outline" onClick={onRetry}>
 				Try Again
 			</Button>
 		</div>
@@ -692,10 +1147,7 @@ function LoadingSkeleton({ viewMode }: { viewMode: "grid" | "list" }) {
 		return (
 			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 				{Array.from({ length: 8 }).map((_, i) => (
-					<div
-						key={i}
-						className="p-5 rounded-2xl bg-card border border-border"
-					>
+					<div key={i} className="p-5 rounded-2xl bg-card border border-border">
 						<Skeleton className="h-6 w-20 mb-4" />
 						<Skeleton className="h-5 w-3/4 mb-2" />
 						<Skeleton className="h-4 w-full mb-1" />
@@ -713,10 +1165,7 @@ function LoadingSkeleton({ viewMode }: { viewMode: "grid" | "list" }) {
 	return (
 		<div className="space-y-2">
 			{Array.from({ length: 10 }).map((_, i) => (
-				<div
-					key={i}
-					className="flex items-center gap-4 p-4 rounded-xl bg-card"
-				>
+				<div key={i} className="flex items-center gap-4 p-4 rounded-xl bg-card">
 					<Skeleton className="w-10 h-10 rounded-lg" />
 					<div className="flex-1">
 						<Skeleton className="h-4 w-1/3 mb-1" />

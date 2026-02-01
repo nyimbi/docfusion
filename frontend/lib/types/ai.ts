@@ -313,6 +313,17 @@ export const AI_COMMANDS: AICommand[] = [
 		examples: ["/expand"],
 	},
 	{
+		id: "condense",
+		name: "condense",
+		label: "Condense",
+		description: "Make the selected text more concise and brief",
+		category: "editing",
+		icon: "Minimize2",
+		requiresSelection: true,
+		acceptsArguments: false,
+		examples: ["/condense"],
+	},
+	{
 		id: "summarize",
 		name: "summarize",
 		label: "Summarize",

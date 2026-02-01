@@ -27,6 +27,7 @@ import {
 	AccountFilters,
 } from "@/components/crm/accounts";
 import { CRMNavigation } from "@/components/crm/CRMNavigation";
+import { toast } from "sonner";
 import {
 	Plus,
 	Search,
@@ -42,7 +43,7 @@ import {
 } from "lucide-react";
 import type { AccountRow } from "@/lib/db/schema-crm";
 import type { AccountType } from "@/lib/types/crm";
-import { getAccounts } from "@/lib/actions/crm";
+import { getAccounts, updateAccountStage } from "@/lib/actions/crm";
 
 interface AccountsContentProps {
 	searchParams: {
@@ -146,8 +147,58 @@ export default function AccountsContent({ searchParams }: AccountsContentProps) 
 	};
 
 	const handleStageChange = async (accountId: string, newStage: string) => {
-		// In production: await updateAccountStage(accountId, newStage);
-		console.log("Stage changed:", accountId, newStage);
+		try {
+			const updated = await updateAccountStage(accountId, newStage);
+			if (updated) {
+				// Update the account in our local state
+				setAccounts((prev) =>
+					prev.map((a) => (a.id === accountId ? { ...a, stage: newStage } : a))
+				);
+				toast.success(`Stage updated to ${newStage}`);
+			}
+		} catch (error) {
+			console.error("Failed to update stage:", error);
+			toast.error("Failed to update stage");
+		}
+	};
+
+	const handleImport = () => {
+		toast.info("Import feature", {
+			description: "Use the command-line scripts in /scripts to import accounts from Excel files.",
+		});
+	};
+
+	const handleExport = () => {
+		// Create CSV of current filtered accounts
+		if (filteredAccounts.length === 0) {
+			toast.error("No accounts to export");
+			return;
+		}
+
+		const headers = ["Name", "Type", "Industry", "Website", "Email", "Phone", "Country", "City", "Stage"];
+		const rows = filteredAccounts.map((a) => [
+			a.name,
+			a.type,
+			a.industry ?? "",
+			a.website ?? "",
+			a.email ?? "",
+			a.phone ?? "",
+			a.country ?? "",
+			a.city ?? "",
+			a.stage ?? "",
+		]);
+
+		const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${c}"`).join(","))].join("\n");
+
+		const blob = new Blob([csv], { type: "text/csv" });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = `accounts-export-${new Date().toISOString().split("T")[0]}.csv`;
+		link.click();
+		URL.revokeObjectURL(url);
+
+		toast.success(`Exported ${filteredAccounts.length} accounts`);
 	};
 
 	return (
@@ -158,11 +209,11 @@ export default function AccountsContent({ searchParams }: AccountsContentProps) 
 				description="Manage partners, prospects, customers, and vendors"
 				actions={
 					<div className="flex items-center gap-2">
-						<Button variant="outline" size="sm">
+						<Button variant="outline" size="sm" onClick={handleImport}>
 							<Upload className="h-4 w-4 mr-2" />
 							Import
 						</Button>
-						<Button variant="outline" size="sm">
+						<Button variant="outline" size="sm" onClick={handleExport}>
 							<Download className="h-4 w-4 mr-2" />
 							Export
 						</Button>

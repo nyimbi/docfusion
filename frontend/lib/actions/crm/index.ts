@@ -27,6 +27,8 @@ export {
 	getAccountsNeedingFollowup,
 	bulkUpdateAccountOwner,
 	bulkAddAccountTags,
+	getCRMDashboardStats,
+	type CRMDashboardStats,
 } from "./accounts";
 
 // Contact operations

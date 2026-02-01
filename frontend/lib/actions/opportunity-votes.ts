@@ -10,7 +10,7 @@
 
 import { db } from "@/lib/db";
 import { opportunityVotes, opportunities } from "@/lib/db/schema";
-import { eq, and, count, avg, sql } from "drizzle-orm";
+import { eq, and, count, avg, sql, inArray } from "drizzle-orm";
 import type {
 	OpportunityVote,
 	CastVoteInput,
@@ -318,7 +318,7 @@ export async function getVoteSummariesBulk(
 			count: count(),
 		})
 		.from(opportunityVotes)
-		.where(sql`${opportunityVotes.opportunityId} = ANY(${opportunityIds})`)
+		.where(inArray(opportunityVotes.opportunityId, opportunityIds))
 		.groupBy(opportunityVotes.opportunityId, opportunityVotes.vote);
 
 	// Get average confidences
@@ -330,7 +330,7 @@ export async function getVoteSummariesBulk(
 		.from(opportunityVotes)
 		.where(
 			and(
-				sql`${opportunityVotes.opportunityId} = ANY(${opportunityIds})`,
+				inArray(opportunityVotes.opportunityId, opportunityIds),
 				sql`${opportunityVotes.confidence} IS NOT NULL`
 			)
 		)

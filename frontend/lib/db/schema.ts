@@ -27,6 +27,9 @@ export * from "./schema-rfp";
 // Re-export content library extensions (embeddings, analytics, usage tracking)
 export * from "./schema-content-library";
 
+// Re-export review schema (Pink/Red/Gold team reviews)
+export * from "./schema-reviews";
+
 import { user } from "./auth-schema";
 
 import {

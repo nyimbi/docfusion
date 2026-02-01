@@ -19,8 +19,8 @@ interface ThemeContextValue {
 const ThemeContext = React.createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-	const [theme, setThemeState] = React.useState<Theme>("dark");
-	const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark">("dark");
+	const [theme, setThemeState] = React.useState<Theme>("system");
+	const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark">("light");
 
 	// Initialize from localStorage and system preference
 	React.useEffect(() => {

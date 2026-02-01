@@ -39,6 +39,7 @@ import {
 	ArrowUpRight,
 } from "lucide-react";
 import type { AccountRow, ContactRow, DealRow, ActivityRow } from "@/lib/db/schema-crm";
+import { getCRMDashboardStats } from "@/lib/actions/crm";
 
 // CRM Entity Navigation - Primary navigation items with entity-specific colors
 const CRM_ENTITIES = [
@@ -136,16 +137,16 @@ export default function CRMDashboard() {
 		async function fetchData() {
 			setIsLoading(true);
 			try {
-				// Placeholder - replace with actual data fetching
+				const dashboardStats = await getCRMDashboardStats();
 				setStats({
-					totalAccounts: 42,
-					totalContacts: 156,
-					openDeals: 18,
-					pipelineValue: 2450000,
-					overdueTasks: 3,
-					dueToday: 5,
-					upcoming: 12,
-					completed: 47,
+					totalAccounts: dashboardStats.totalAccounts,
+					totalContacts: dashboardStats.totalContacts,
+					openDeals: dashboardStats.openDeals,
+					pipelineValue: dashboardStats.pipelineValue,
+					overdueTasks: dashboardStats.overdueTasks,
+					dueToday: dashboardStats.dueToday,
+					upcoming: dashboardStats.upcoming,
+					completed: dashboardStats.completedTasks,
 				});
 			} catch (error) {
 				console.error("Failed to fetch dashboard data:", error);
@@ -280,32 +281,7 @@ export default function CRMDashboard() {
 						})}
 
 						{/* Quick Add dropdown */}
-						<div className="flex-shrink-0 flex items-center pl-2 border-l border-border/50">
-							<div className="relative group">
-								<Button
-									variant="outline"
-									size="sm"
-									className="h-10 px-3 gap-2 bg-background hover:bg-muted"
-								>
-									<Plus className="h-4 w-4" />
-									<span className="hidden sm:inline">New</span>
-								</Button>
-
-								{/* Quick actions dropdown on hover */}
-								<div className="absolute top-full right-0 mt-2 p-2 bg-popover border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 min-w-[160px]">
-									{QUICK_ACTIONS.map((action) => (
-										<Link
-											key={action.href}
-											href={action.href}
-											className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted transition-colors"
-										>
-											<action.icon className={`h-4 w-4 ${action.color}`} />
-											<span className="text-sm">{action.label}</span>
-										</Link>
-									))}
-								</div>
-							</div>
-						</div>
+						<QuickAddDropdown />
 					</div>
 				</div>
 			</div>
@@ -449,6 +425,48 @@ export default function CRMDashboard() {
 						</TabsContent>
 					</Tabs>
 				</div>
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Quick Add Dropdown Component
+ * Provides click-to-toggle dropdown for creating new CRM entities.
+ */
+function QuickAddDropdown() {
+	const [isOpen, setIsOpen] = useState(false);
+
+	return (
+		<div className="flex-shrink-0 flex items-center pl-2 border-l border-border/50">
+			<div className="relative">
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-10 px-3 gap-2 bg-background hover:bg-muted"
+					onClick={() => setIsOpen(!isOpen)}
+					onBlur={() => setTimeout(() => setIsOpen(false), 150)}
+				>
+					<Plus className="h-4 w-4" />
+					<span className="hidden sm:inline">New</span>
+				</Button>
+
+				{/* Quick actions dropdown */}
+				{isOpen && (
+					<div className="absolute top-full right-0 mt-2 p-2 bg-popover border rounded-lg shadow-lg z-50 min-w-[160px]">
+						{QUICK_ACTIONS.map((action) => (
+							<Link
+								key={action.href}
+								href={action.href}
+								className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted transition-colors"
+								onClick={() => setIsOpen(false)}
+							>
+								<action.icon className={`h-4 w-4 ${action.color}`} />
+								<span className="text-sm">{action.label}</span>
+							</Link>
+						))}
+					</div>
+				)}
 			</div>
 		</div>
 	);

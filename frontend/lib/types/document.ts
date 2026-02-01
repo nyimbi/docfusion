@@ -143,6 +143,10 @@ export interface DocumentMetadata {
 	aiSummary?: string;
 	keyTopics?: string[];
 	suggestedImprovements?: string[];
+	/** HDSI editor integration */
+	hdsiDocumentId?: string;
+	type?: string;
+	generationVersion?: string;
 }
 
 /**

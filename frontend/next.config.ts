@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import withPWAInit from "next-pwa";
+import webpack from "webpack";
 
 const withPWA = withPWAInit({
 	dest: "public",
@@ -83,6 +84,45 @@ const nextConfig: NextConfig = {
 		"@better-auth/passkey",
 		"@daveyplate/better-auth-tanstack",
 	],
+	// Webpack configuration to handle Node.js modules
+	webpack: (config, { isServer }) => {
+		// Handle node: prefixed modules - only for client builds
+		if (!isServer) {
+			config.resolve.fallback = {
+				...config.resolve.fallback,
+				fs: false,
+				https: false,
+				http: false,
+				path: false,
+				stream: false,
+				crypto: false,
+				zlib: false,
+				url: false,
+				assert: false,
+				util: false,
+				tls: false,
+				net: false,
+				dns: false,
+				child_process: false,
+				cluster: false,
+				module: false,
+				os: false,
+				querystring: false,
+				readline: false,
+				string_decoder: false,
+				timers: false,
+			};
+			
+			// Add plugin to ignore node: prefixed modules
+			config.plugins.push(
+				new webpack.NormalModuleReplacementPlugin(
+					/^node:/,
+					"data:text/javascript,export default {};"
+				)
+			);
+		}
+		return config;
+	},
 	// API proxy to backend
 	async rewrites() {
 		return [

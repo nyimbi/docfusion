@@ -413,6 +413,58 @@ function DropdownMenuRadioGroup({
 }
 
 /**
+ * Submenu wrapper component.
+ */
+interface DropdownMenuSubProps {
+  children: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+function DropdownMenuSub({
+  children,
+  open: controlledOpen,
+  onOpenChange,
+}: DropdownMenuSubProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+
+  const setOpen = React.useCallback(
+    (newOpen: boolean) => {
+      if (isControlled) {
+        onOpenChange?.(newOpen);
+      } else {
+        setUncontrolledOpen(newOpen);
+      }
+    },
+    [isControlled, onOpenChange]
+  );
+
+  return (
+    <DropdownSubContext.Provider value={{ open, setOpen }}>
+      {children}
+    </DropdownSubContext.Provider>
+  );
+}
+
+interface DropdownSubContextValue {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}
+
+const DropdownSubContext = React.createContext<DropdownSubContextValue | null>(null);
+
+function useDropdownSubContext() {
+  const context = React.useContext(DropdownSubContext);
+  if (!context) {
+    throw new Error("DropdownMenuSub components must be used within a DropdownMenuSub");
+  }
+  return context;
+}
+
+/**
  * Submenu trigger with arrow indicator.
  */
 const DropdownMenuSubTrigger = React.forwardRef<
@@ -477,6 +529,7 @@ export {
 	DropdownMenuShortcut,
 	DropdownMenuGroup,
 	DropdownMenuRadioGroup,
+	DropdownMenuSub,
 	DropdownMenuSubTrigger,
 	DropdownMenuSubContent,
 };

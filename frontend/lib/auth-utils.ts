@@ -46,3 +46,33 @@ export async function getCurrentUserEmail(): Promise<string | null> {
 	const session = await getServerSession();
 	return session?.user?.email ?? null;
 }
+
+/**
+ * User context for privacy-aware operations.
+ */
+export interface UserContext {
+	userId: string;
+	organizationId?: string;
+}
+
+/**
+ * Get user context for privacy-aware operations.
+ * Returns null if not authenticated.
+ */
+export async function getUserContext(): Promise<UserContext | null> {
+	const session = await getServerSession();
+	if (!session?.user?.id) return null;
+	return {
+		userId: session.user.id,
+		organizationId: (session.user as { organizationId?: string }).organizationId ?? undefined,
+	};
+}
+
+/**
+ * Get user context or throw if not authenticated.
+ */
+export async function requireUserContext(): Promise<UserContext> {
+	const ctx = await getUserContext();
+	if (!ctx) throw new Error("Unauthorized");
+	return ctx;
+}

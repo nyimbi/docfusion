@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
 // Routes that don't require authentication
-const PUBLIC_PATHS = ["/auth", "/api/auth", "/"];
+const PUBLIC_PATHS = ["/auth", "/api/auth", "/", "/hdsi"];
 
 // Auth pages that authenticated users should be redirected away from
 const AUTH_PATHS = ["/auth/sign-in", "/auth/sign-up", "/auth/forgot-password"];

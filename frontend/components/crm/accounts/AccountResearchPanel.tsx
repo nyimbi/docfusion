@@ -5,6 +5,12 @@
  *
  * Component for researching and enriching account data using web search.
  * Provides a dialog interface to search multiple sources and save findings.
+ *
+ * Features:
+ * - Multi-source web scraping via Firecrawl
+ * - AI-powered data extraction
+ * - Commercial insights and value proposition generation
+ * - AI thinking trace for human review
  */
 
 import { useState, useCallback } from "react";
@@ -17,6 +23,11 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
 	Sheet,
 	SheetContent,
@@ -42,13 +53,22 @@ import {
 	Save,
 	RefreshCw,
 	Sparkles,
+	Target,
+	Handshake,
+	Package,
+	MessageSquare,
+	Brain,
+	ChevronDown,
+	TrendingUp,
+	AlertTriangle,
 } from "lucide-react";
 import {
 	saveResearchFindings,
 	type ResearchCategory,
 	type AccountUpdateSuggestion,
+	type ResearchFindingsData,
 } from "@/lib/actions/crm/account-research";
-import type { AccountRow } from "@/lib/db/schema-crm";
+import type { AccountRow, CommercialInsights } from "@/lib/db/schema-crm";
 
 // ============================================================================
 // Types
@@ -154,11 +174,16 @@ export function AccountResearchPanel({
 		new Map()
 	);
 	const [isSearching, setIsSearching] = useState(false);
-	const [activeTab, setActiveTab] = useState<"search" | "results" | "save">("search");
+	const [activeTab, setActiveTab] = useState<"search" | "results" | "commercial" | "save">("search");
 	const [suggestedUpdates, setSuggestedUpdates] = useState<Partial<AccountUpdateSuggestion>>({});
 	const [isSaving, setIsSaving] = useState(false);
 	const [extractionSources, setExtractionSources] = useState<Array<{ url: string; title: string }>>([]);
 	const [extractionStatus, setExtractionStatus] = useState<string>("");
+	const [findings, setFindings] = useState<ResearchFindingsData | null>(null);
+	const [commercialInsights, setCommercialInsights] = useState<CommercialInsights | null>(null);
+	const [valueProposition, setValueProposition] = useState<string | null>(null);
+	const [thinkingTrace, setThinkingTrace] = useState<string | null>(null);
+	const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
 
 	// Toggle category selection
 	const toggleCategory = useCallback((categoryId: ResearchCategory) => {
@@ -178,6 +203,9 @@ export function AccountResearchPanel({
 		setExtractionStatus("Searching the web and scraping sources...");
 		setCategoryResults(new Map());
 		setExtractionSources([]);
+		setCommercialInsights(null);
+		setValueProposition(null);
+		setThinkingTrace(null);
 
 		try {
 			// Call the AI extraction endpoint
@@ -205,6 +233,26 @@ export function AccountResearchPanel({
 					// Pre-populate suggested updates with extracted data
 					setSuggestedUpdates(data.extracted || {});
 
+					// Store findings
+					if (data.findings) {
+						setFindings(data.findings);
+					}
+
+					// Store commercial insights
+					if (data.commercialInsights) {
+						setCommercialInsights(data.commercialInsights);
+					}
+
+					// Store value proposition
+					if (data.valueProposition) {
+						setValueProposition(data.valueProposition);
+					}
+
+					// Store thinking trace
+					if (data.thinkingTrace) {
+						setThinkingTrace(data.thinkingTrace);
+					}
+
 					// Create a summary result for display
 					const summaryResults = new Map<ResearchCategory, CategoryResult>();
 					summaryResults.set("company_info", {
@@ -222,8 +270,10 @@ export function AccountResearchPanel({
 					});
 					setCategoryResults(summaryResults);
 
-					// Auto-switch to save tab if we have results
-					if (Object.keys(data.extracted || {}).length > 0) {
+					// Auto-switch to commercial tab if we have insights
+					if (data.commercialInsights) {
+						setTimeout(() => setActiveTab("commercial"), 500);
+					} else if (Object.keys(data.extracted || {}).length > 0 || data.findings) {
 						setTimeout(() => setActiveTab("save"), 500);
 					}
 				} else {
@@ -243,7 +293,16 @@ export function AccountResearchPanel({
 	// Save findings
 	const handleSaveFindings = useCallback(async () => {
 		setIsSaving(true);
-		const result = await saveResearchFindings(account.id, suggestedUpdates);
+		const sourceUrls = extractionSources.map((s) => s.url);
+		const result = await saveResearchFindings(
+			account.id,
+			suggestedUpdates,
+			findings,
+			sourceUrls,
+			commercialInsights,
+			valueProposition,
+			thinkingTrace
+		);
 
 		if (result.success) {
 			onResearchComplete?.(suggestedUpdates);
@@ -252,7 +311,7 @@ export function AccountResearchPanel({
 			console.error("Failed to save findings:", result.error);
 		}
 		setIsSaving(false);
-	}, [account.id, suggestedUpdates, onResearchComplete]);
+	}, [account.id, suggestedUpdates, findings, extractionSources, commercialInsights, valueProposition, thinkingTrace, onResearchComplete]);
 
 	// Update suggested field
 	const updateSuggestion = useCallback(
@@ -271,6 +330,13 @@ export function AccountResearchPanel({
 	).length;
 	const totalCount = categoryResults.size;
 
+	// Check if we have commercial insights
+	const hasCommercialInsights = commercialInsights && (
+		commercialInsights.opportunities.length > 0 ||
+		commercialInsights.partnerships.length > 0 ||
+		commercialInsights.productsToOffer.length > 0
+	);
+
 	return (
 		<Sheet open={isOpen} onOpenChange={setIsOpen}>
 			<SheetTrigger asChild>
@@ -280,19 +346,19 @@ export function AccountResearchPanel({
 				</Button>
 			</SheetTrigger>
 
-			<SheetContent className="w-[600px] sm:max-w-[600px] overflow-y-auto">
+			<SheetContent className="w-[700px] sm:max-w-[700px] overflow-y-auto">
 				<SheetHeader>
 					<SheetTitle className="flex items-center gap-2">
 						<Sparkles className="h-5 w-5 text-primary" />
 						Research: {account.name}
 					</SheetTitle>
 					<SheetDescription>
-						Search the web to enrich account data with additional information
+						Search the web to enrich account data and identify commercial opportunities
 					</SheetDescription>
 				</SheetHeader>
 
 				<Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="mt-6">
-					<TabsList className="grid w-full grid-cols-3">
+					<TabsList className="grid w-full grid-cols-4">
 						<TabsTrigger value="search">
 							<Search className="h-4 w-4 mr-2" />
 							Search
@@ -300,9 +366,13 @@ export function AccountResearchPanel({
 						<TabsTrigger value="results" disabled={categoryResults.size === 0}>
 							<Globe className="h-4 w-4 mr-2" />
 							Results
-							{totalCount > 0 && (
-								<Badge variant="secondary" className="ml-2">
-									{completedCount}/{totalCount}
+						</TabsTrigger>
+						<TabsTrigger value="commercial" disabled={!hasCommercialInsights}>
+							<Target className="h-4 w-4 mr-2" />
+							Commercial
+							{hasCommercialInsights && (
+								<Badge variant="default" className="ml-2 bg-green-500">
+									New
 								</Badge>
 							)}
 						</TabsTrigger>
@@ -431,7 +501,7 @@ export function AccountResearchPanel({
 									</CardDescription>
 								</CardHeader>
 								<CardContent>
-									<div className="space-y-2">
+									<div className="space-y-2 max-h-64 overflow-y-auto">
 										{extractionSources.map((source, idx) => (
 											<div key={idx} className="flex items-center justify-between gap-2 p-2 bg-muted/50 rounded">
 												<div className="flex-1 min-w-0">
@@ -467,77 +537,44 @@ export function AccountResearchPanel({
 								</CardHeader>
 								<CardContent>
 									<div className="grid grid-cols-2 gap-3">
-										{Object.entries(suggestedUpdates).map(([key, value]) => (
-											<div key={key} className="space-y-1">
-												<div className="text-xs text-muted-foreground capitalize">
-													{key.replace(/([A-Z])/g, " $1").trim()}
+										{Object.entries(suggestedUpdates).map(([key, value]) => {
+											// Skip non-string values (objects, arrays)
+											if (typeof value !== "string") return null;
+											return (
+												<div key={key} className="space-y-1">
+													<div className="text-xs text-muted-foreground capitalize">
+														{key.replace(/([A-Z])/g, " $1").trim()}
+													</div>
+													<div className="text-sm font-medium truncate" title={value}>
+														{value}
+													</div>
 												</div>
-												<div className="text-sm font-medium truncate" title={value}>
-													{value}
-												</div>
-											</div>
-										))}
+											);
+										})}
 									</div>
-									<Button
-										className="w-full mt-4"
-										onClick={() => setActiveTab("save")}
-									>
-										<Save className="h-4 w-4 mr-2" />
-										Review & Save Extracted Data
-									</Button>
+									<div className="flex gap-2 mt-4">
+										{hasCommercialInsights && (
+											<Button
+												variant="primary"
+												className="flex-1"
+												onClick={() => setActiveTab("commercial")}
+											>
+												<Target className="h-4 w-4 mr-2" />
+												View Commercial Insights
+											</Button>
+										)}
+										<Button
+											variant={hasCommercialInsights ? "outline" : "primary"}
+											className="flex-1"
+											onClick={() => setActiveTab("save")}
+										>
+											<Save className="h-4 w-4 mr-2" />
+											Review & Save
+										</Button>
+									</div>
 								</CardContent>
 							</Card>
 						)}
-
-						{/* Legacy category results */}
-						{Array.from(categoryResults.values()).filter(r => r.results.length > 0 && r.category !== "company_info").map((result) => {
-							const categoryConfig = RESEARCH_CATEGORIES.find(
-								(c) => c.id === result.category
-							);
-							const Icon = categoryConfig?.icon || Info;
-
-							return (
-								<Card key={result.category}>
-									<CardHeader className="pb-3">
-										<div className="flex items-center justify-between">
-											<CardTitle className="flex items-center gap-2 text-base">
-												<Icon className="h-4 w-4" />
-												{result.title}
-											</CardTitle>
-											{result.isComplete && (
-												<CheckCircle className="h-4 w-4 text-green-500" />
-											)}
-										</div>
-									</CardHeader>
-									<CardContent>
-										<div className="space-y-3">
-											{result.results.slice(0, 5).map((item, idx) => (
-												<div key={idx} className="space-y-1">
-													<div className="flex items-start justify-between gap-2">
-														<h5 className="font-medium text-sm line-clamp-1">
-															{item.title}
-														</h5>
-														{item.url && (
-															<a
-																href={item.url}
-																target="_blank"
-																rel="noopener noreferrer"
-																className="text-primary hover:underline flex-shrink-0"
-															>
-																<ExternalLink className="h-3.5 w-3.5" />
-															</a>
-														)}
-													</div>
-													<p className="text-xs text-muted-foreground line-clamp-2">
-														{item.snippet}
-													</p>
-												</div>
-											))}
-										</div>
-									</CardContent>
-								</Card>
-							);
-						})}
 
 						{!isSearching && (
 							<Button variant="outline" className="w-full" onClick={startResearch}>
@@ -547,10 +584,328 @@ export function AccountResearchPanel({
 						)}
 					</TabsContent>
 
+					{/* Commercial Insights Tab */}
+					<TabsContent value="commercial" className="space-y-4 mt-4">
+						{/* Value Proposition Banner */}
+						{valueProposition && (
+							<Card className="border-green-500/30 bg-green-50 dark:bg-green-950/20">
+								<CardHeader className="pb-3">
+									<CardTitle className="flex items-center gap-2 text-base text-green-700 dark:text-green-400">
+										<MessageSquare className="h-4 w-4" />
+										Value Proposition
+									</CardTitle>
+								</CardHeader>
+								<CardContent>
+									<p className="text-sm font-medium">{valueProposition}</p>
+								</CardContent>
+							</Card>
+						)}
+
+						{/* Commercial Opportunities */}
+						{commercialInsights?.opportunities && commercialInsights.opportunities.length > 0 && (
+							<Card>
+								<CardHeader className="pb-3">
+									<CardTitle className="flex items-center gap-2 text-base">
+										<TrendingUp className="h-4 w-4 text-blue-500" />
+										Commercial Opportunities ({commercialInsights.opportunities.length})
+									</CardTitle>
+								</CardHeader>
+								<CardContent className="space-y-3">
+									{commercialInsights.opportunities.map((opp, idx) => (
+										<div key={idx} className="p-3 border rounded-lg space-y-2">
+											<div className="flex items-start justify-between gap-2">
+												<h4 className="font-semibold text-sm">{opp.title}</h4>
+												<Badge variant={
+													opp.confidence === "high" ? "default" :
+													opp.confidence === "medium" ? "secondary" : "outline"
+												}>
+													{opp.confidence}
+												</Badge>
+											</div>
+											<p className="text-sm text-muted-foreground">{opp.description}</p>
+											<div className="flex gap-4 text-xs">
+												{opp.potentialValue && (
+													<span className="text-green-600">
+														<strong>Value:</strong> {opp.potentialValue}
+													</span>
+												)}
+												{opp.timeframe && (
+													<span className="text-blue-600">
+														<strong>Timeframe:</strong> {opp.timeframe}
+													</span>
+												)}
+											</div>
+										</div>
+									))}
+								</CardContent>
+							</Card>
+						)}
+
+						{/* Partnership Opportunities */}
+						{commercialInsights?.partnerships && commercialInsights.partnerships.length > 0 && (
+							<Card>
+								<CardHeader className="pb-3">
+									<CardTitle className="flex items-center gap-2 text-base">
+										<Handshake className="h-4 w-4 text-purple-500" />
+										Partnership Opportunities ({commercialInsights.partnerships.length})
+									</CardTitle>
+								</CardHeader>
+								<CardContent className="space-y-3">
+									{commercialInsights.partnerships.map((partnership, idx) => (
+										<div key={idx} className="p-3 border rounded-lg space-y-2">
+											<h4 className="font-semibold text-sm">{partnership.type}</h4>
+											<p className="text-sm text-muted-foreground">{partnership.description}</p>
+											{partnership.synergies.length > 0 && (
+												<div className="space-y-1">
+													<span className="text-xs font-medium">Synergies:</span>
+													<div className="flex flex-wrap gap-1">
+														{partnership.synergies.map((synergy, sIdx) => (
+															<Badge key={sIdx} variant="outline" className="text-xs">
+																{synergy}
+															</Badge>
+														))}
+													</div>
+												</div>
+											)}
+											{partnership.nextSteps && (
+												<p className="text-xs text-primary">
+													<strong>Next Step:</strong> {partnership.nextSteps}
+												</p>
+											)}
+										</div>
+									))}
+								</CardContent>
+							</Card>
+						)}
+
+						{/* Products to Offer */}
+						{commercialInsights?.productsToOffer && commercialInsights.productsToOffer.length > 0 && (
+							<Card>
+								<CardHeader className="pb-3">
+									<CardTitle className="flex items-center gap-2 text-base">
+										<Package className="h-4 w-4 text-orange-500" />
+										Products/Services to Offer ({commercialInsights.productsToOffer.length})
+									</CardTitle>
+								</CardHeader>
+								<CardContent className="space-y-3">
+									{commercialInsights.productsToOffer.map((product, idx) => (
+										<div key={idx} className="p-3 border rounded-lg space-y-2">
+											<h4 className="font-semibold text-sm">{product.productName}</h4>
+											<p className="text-sm text-muted-foreground">{product.relevance}</p>
+											{product.painPointAddressed && (
+												<p className="text-xs">
+													<strong className="text-red-500">Pain Point:</strong> {product.painPointAddressed}
+												</p>
+											)}
+											{product.suggestedApproach && (
+												<p className="text-xs text-blue-600">
+													<strong>Approach:</strong> {product.suggestedApproach}
+												</p>
+											)}
+										</div>
+									))}
+								</CardContent>
+							</Card>
+						)}
+
+						{/* Talking Points */}
+						{commercialInsights?.talkingPoints && commercialInsights.talkingPoints.length > 0 && (
+							<Card>
+								<CardHeader className="pb-3">
+									<CardTitle className="flex items-center gap-2 text-base">
+										<MessageSquare className="h-4 w-4 text-cyan-500" />
+										Key Talking Points
+									</CardTitle>
+								</CardHeader>
+								<CardContent>
+									<ul className="space-y-2">
+										{commercialInsights.talkingPoints.map((point, idx) => (
+											<li key={idx} className="text-sm flex items-start gap-2">
+												<span className="text-cyan-500 mt-1">•</span>
+												<span>{point}</span>
+											</li>
+										))}
+									</ul>
+								</CardContent>
+							</Card>
+						)}
+
+						{/* Competitive Positioning */}
+						{commercialInsights?.competitivePositioning && (
+							<Card>
+								<CardHeader className="pb-3">
+									<CardTitle className="flex items-center gap-2 text-base">
+										<Target className="h-4 w-4 text-rose-500" />
+										Competitive Positioning
+									</CardTitle>
+								</CardHeader>
+								<CardContent>
+									<p className="text-sm">{commercialInsights.competitivePositioning}</p>
+								</CardContent>
+							</Card>
+						)}
+
+						{/* AI Thinking Trace */}
+						{thinkingTrace && (
+							<Collapsible open={isThinkingExpanded} onOpenChange={setIsThinkingExpanded}>
+								<Card className="border-amber-500/30">
+									<CollapsibleTrigger asChild>
+										<CardHeader className="pb-3 cursor-pointer hover:bg-muted/50">
+											<CardTitle className="flex items-center justify-between text-base">
+												<span className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+													<Brain className="h-4 w-4" />
+													AI Reasoning (for review)
+												</span>
+												<ChevronDown className={`h-4 w-4 transition-transform ${isThinkingExpanded ? "rotate-180" : ""}`} />
+											</CardTitle>
+										</CardHeader>
+									</CollapsibleTrigger>
+									<CollapsibleContent>
+										<CardContent>
+											<div className="text-sm whitespace-pre-wrap font-mono bg-muted/50 p-4 rounded-lg max-h-96 overflow-y-auto">
+												{thinkingTrace}
+											</div>
+										</CardContent>
+									</CollapsibleContent>
+								</Card>
+							</Collapsible>
+						)}
+
+						<Button className="w-full" onClick={() => setActiveTab("save")}>
+							<Save className="h-4 w-4 mr-2" />
+							Review & Save All Findings
+						</Button>
+					</TabsContent>
+
 					{/* Save Tab */}
 					<TabsContent value="save" className="space-y-4 mt-4">
-						<div className="text-sm text-muted-foreground mb-4">
-							Based on the research results, update the account with new information:
+						{/* AI-Generated Findings */}
+						{findings && (
+							<Card className="border-primary/20 bg-primary/5">
+								<CardHeader className="pb-3">
+									<div className="flex items-center justify-between">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Sparkles className="h-4 w-4 text-primary" />
+											Research Findings & Insights
+										</CardTitle>
+										<Badge variant={findings.confidenceScore >= 70 ? "default" : "secondary"}>
+											{findings.confidenceScore}% confidence
+										</Badge>
+									</div>
+									<CardDescription>
+										AI-generated analysis based on {extractionSources.length} sources
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-4">
+									{/* Executive Summary */}
+									{findings.summary && (
+										<div>
+											<h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+												<Building2 className="h-4 w-4" />
+												Executive Summary
+											</h4>
+											<p className="text-sm text-muted-foreground bg-background/50 p-3 rounded-md">
+												{findings.summary}
+											</p>
+										</div>
+									)}
+
+									{/* Key Insights */}
+									{findings.keyInsights.length > 0 && (
+										<div>
+											<h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+												<Sparkles className="h-4 w-4 text-amber-500" />
+												Key Insights
+											</h4>
+											<ul className="space-y-1.5">
+												{findings.keyInsights.map((insight, idx) => (
+													<li key={idx} className="text-sm flex items-start gap-2">
+														<span className="text-amber-500 mt-1">•</span>
+														<span>{insight}</span>
+													</li>
+												))}
+											</ul>
+										</div>
+									)}
+
+									{/* Opportunities */}
+									{findings.opportunities.length > 0 && (
+										<div>
+											<h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+												<Briefcase className="h-4 w-4 text-green-500" />
+												Opportunities
+											</h4>
+											<ul className="space-y-1.5">
+												{findings.opportunities.map((opp, idx) => (
+													<li key={idx} className="text-sm flex items-start gap-2">
+														<span className="text-green-500 mt-1">✓</span>
+														<span>{opp}</span>
+													</li>
+												))}
+											</ul>
+										</div>
+									)}
+
+									{/* Risks */}
+									{findings.risks.length > 0 && (
+										<div>
+											<h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+												<AlertTriangle className="h-4 w-4 text-red-500" />
+												Risks & Concerns
+											</h4>
+											<ul className="space-y-1.5">
+												{findings.risks.map((risk, idx) => (
+													<li key={idx} className="text-sm flex items-start gap-2">
+														<span className="text-red-500 mt-1">!</span>
+														<span>{risk}</span>
+													</li>
+												))}
+											</ul>
+										</div>
+									)}
+
+									{/* Next Steps */}
+									{findings.nextSteps.length > 0 && (
+										<div>
+											<h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+												<CheckCircle className="h-4 w-4 text-blue-500" />
+												Recommended Next Steps
+											</h4>
+											<ol className="space-y-1.5">
+												{findings.nextSteps.map((step, idx) => (
+													<li key={idx} className="text-sm flex items-start gap-2">
+														<span className="text-blue-500 font-medium min-w-[1.5rem]">{idx + 1}.</span>
+														<span>{step}</span>
+													</li>
+												))}
+											</ol>
+										</div>
+									)}
+								</CardContent>
+							</Card>
+						)}
+
+						{/* Value Proposition Summary */}
+						{valueProposition && (
+							<Card className="border-green-500/30">
+								<CardHeader className="pb-2">
+									<CardTitle className="flex items-center gap-2 text-sm text-green-700">
+										<MessageSquare className="h-4 w-4" />
+										Value Proposition (will be saved)
+									</CardTitle>
+								</CardHeader>
+								<CardContent>
+									<p className="text-sm">{valueProposition}</p>
+								</CardContent>
+							</Card>
+						)}
+
+						<Separator />
+
+						{/* Data Fields */}
+						<div className="text-sm font-medium">Extracted Data Fields</div>
+						<div className="text-xs text-muted-foreground mb-2">
+							Review and edit the extracted information before saving:
 						</div>
 
 						<div className="space-y-4">
@@ -660,6 +1015,23 @@ export function AccountResearchPanel({
 								/>
 							</div>
 						</div>
+
+						{/* Summary of what will be saved */}
+						<Card className="bg-muted/50">
+							<CardContent className="pt-4">
+								<h4 className="text-sm font-medium mb-2">Will be saved:</h4>
+								<ul className="text-xs text-muted-foreground space-y-1">
+									{Object.keys(suggestedUpdates).length > 0 && (
+										<li>✓ {Object.keys(suggestedUpdates).length} extracted fields</li>
+									)}
+									{findings && <li>✓ Research findings and insights</li>}
+									{commercialInsights && <li>✓ Commercial insights and opportunities</li>}
+									{valueProposition && <li>✓ Value proposition statement</li>}
+									{thinkingTrace && <li>✓ AI reasoning trace</li>}
+									{extractionSources.length > 0 && <li>✓ {extractionSources.length} source URLs</li>}
+								</ul>
+							</CardContent>
+						</Card>
 					</TabsContent>
 				</Tabs>
 
@@ -667,7 +1039,8 @@ export function AccountResearchPanel({
 					{activeTab === "save" && (
 						<Button
 							onClick={handleSaveFindings}
-							disabled={isSaving || Object.keys(suggestedUpdates).length === 0}
+							disabled={isSaving || (Object.keys(suggestedUpdates).length === 0 && !findings && !commercialInsights)}
+							className="w-full"
 						>
 							{isSaving ? (
 								<>
@@ -677,7 +1050,7 @@ export function AccountResearchPanel({
 							) : (
 								<>
 									<Save className="h-4 w-4 mr-2" />
-									Save Updates
+									Save All Research Data
 								</>
 							)}
 						</Button>
