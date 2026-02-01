@@ -210,9 +210,8 @@ export function AccountDetail({
 				<div className="flex items-center gap-2">
 					<AccountResearchPanel
 						account={account}
-						onResearchComplete={(updates) => {
-							// Refresh the page or update local state with new data
-							console.log("Research complete:", updates);
+						onResearchComplete={() => {
+							// Refresh the page to show updated data
 							window.location.reload();
 						}}
 					/>

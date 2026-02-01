@@ -1,7 +1,10 @@
 /**
  * Tiptap extension bundle for DocFusion.
  *
- * Configures and exports all editor extensions.
+ * Configures and exports all editor extensions including:
+ * - Core editing features (StarterKit, tables, images, etc.)
+ * - Document structure features (Outline, DragDrop)
+ * - AI commands (SlashCommand)
  */
 
 import StarterKit from "@tiptap/starter-kit";
@@ -18,7 +21,17 @@ import Highlight from "@tiptap/extension-highlight";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Typography from "@tiptap/extension-typography";
-import { Extension } from "@tiptap/core";
+import Color from "@tiptap/extension-color";
+import { TextStyle } from "@tiptap/extension-text-style";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
+import { Extension, type AnyExtension } from "@tiptap/core";
+
+// Import custom extensions
+import { Outline, type OutlineOptions } from "@/lib/editor/extensions/outline";
+import { DragDrop, type DragDropOptions, type DropPosition } from "@/lib/editor/extensions/drag-drop";
+import { Equation, InlineEquation } from "@/lib/editor/extensions/equation";
+import { ExternalFile, type ExternalFileAttributes } from "@/lib/editor/extensions/external-file";
 
 /**
  * Custom extension to handle slash command trigger.
@@ -63,7 +76,24 @@ export interface EditorExtensionOptions {
 	onSlashCommand?: () => void;
 	/** Enable collaboration features (requires Yjs) */
 	enableCollaboration?: boolean;
+	/** Enable outline tracking */
+	enableOutline?: boolean;
+	/** Outline-specific configuration */
+	outlineOptions?: Partial<OutlineOptions>;
+	/** Enable drag-and-drop reordering */
+	enableDragDrop?: boolean;
+	/** Drag-drop-specific configuration */
+	dragDropOptions?: Partial<DragDropOptions>;
+	/** Callback when outline changes */
+	onOutlineChange?: (outline: ReturnType<typeof Outline["storage"]["getOutline"]> ) => void;
+	/** Callback when a drop is performed */
+	onDrop?: (source: Parameters<NonNullable<DragDropOptions["onDrop"]>>[0], target: DropPosition) => boolean;
+	/** Callback for handling file uploads - receives File, returns URL */
+	onFileUpload?: (file: File) => Promise<string>;
 }
+
+// Re-export for convenience
+export type { DropPosition } from "@/lib/editor/extensions/drag-drop";
 
 /**
  * Create the standard extension bundle.
@@ -72,9 +102,16 @@ export function createExtensions(options: EditorExtensionOptions = {}) {
 	const {
 		placeholder = "Start writing, or type '/' for commands...",
 		onSlashCommand = () => {},
+		enableOutline = true,
+		outlineOptions = {},
+		enableDragDrop = true,
+		dragDropOptions = {},
+		onOutlineChange,
+		onDrop,
+		onFileUpload,
 	} = options;
 
-	return [
+	const extensions: AnyExtension[] = [
 		// Core editing features
 		StarterKit.configure({
 			// Disable history if using collaboration (Yjs handles it)
@@ -170,11 +207,56 @@ export function createExtensions(options: EditorExtensionOptions = {}) {
 		// Typography improvements (smart quotes, etc.)
 		Typography,
 
+		// Text color and styling
+		TextStyle,
+		Color.configure({
+			types: ["textStyle"],
+		}),
+
+		// Subscript/Superscript for equations and citations
+		Subscript,
+		Superscript,
+
+		// Math equations
+		Equation,
+		InlineEquation,
+
+		// External file attachments
+		ExternalFile.configure({
+			onFileUpload: onFileUpload ?? (async (file) => {
+				// Default fallback: create blob URL for local-only operation
+				// Parent component should provide onFileUpload for server storage
+				return URL.createObjectURL(file);
+			}),
+		}),
+
 		// Slash command trigger
 		SlashCommandTrigger.configure({
 			onSlashCommand,
 		}),
 	];
+
+	// Add outline extension if enabled
+	if (enableOutline) {
+		extensions.push(
+			Outline.configure({
+				...outlineOptions,
+				onOutlineChange,
+			})
+		);
+	}
+
+	// Add drag-drop extension if enabled
+	if (enableDragDrop) {
+		extensions.push(
+			DragDrop.configure({
+				...dragDropOptions,
+				onDrop,
+			})
+		);
+	}
+
+	return extensions;
 }
 
 /**
@@ -195,4 +277,15 @@ export {
 	TaskList,
 	TaskItem,
 	Typography,
+	Color,
+	TextStyle,
+	Subscript,
+	Superscript,
+	Equation,
+	InlineEquation,
+	ExternalFile,
+	Outline,
+	DragDrop,
 };
+
+export type { ExternalFileAttributes };
