@@ -31,9 +31,9 @@ import {
 	ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
-import { CommentPanel, type CommentPanelProps } from "./CommentPanel";
-import { ScoringRubric, type ScoringRubricProps } from "./ScoringRubric";
-import type { ReviewCommentData, ResolutionStatus } from "./CommentCard";
+import { CommentPanel } from "./CommentPanel";
+import { ScoringRubric, type EvaluationCriteria, type CriteriaScore } from "./ScoringRubric";
+import type { Comment } from "./CommentCard";
 
 // ============================================================================
 // TYPES
@@ -69,12 +69,13 @@ export interface ReviewInterfaceProps {
 	review: ReviewSession;
 	reviewerProgress: ReviewerProgress;
 	sections: Section[];
-	comments: ReviewCommentData[];
-	evaluationCriteria: ScoringRubricProps["criteria"];
-	existingScores?: ScoringRubricProps["existingScores"];
-	onAddComment?: (comment: Omit<ReviewCommentData, "id" | "createdAt" | "replyCount">) => void;
-	onResolveComment?: (commentId: string, status: ResolutionStatus, notes?: string) => void;
-	onSaveScores?: (scores: ScoringRubricProps["existingScores"]) => Promise<void>;
+	comments: Comment[];
+	evaluationCriteria: EvaluationCriteria[];
+	scores: CriteriaScore[];
+	onUpdateScore?: (criteriaId: string, score: Partial<CriteriaScore>) => void;
+	onSaveScores?: () => Promise<void>;
+	onAddComment?: () => void;
+	onResolveComment?: (commentId: string) => void;
 	onCompleteReview?: () => void;
 	onSaveDraft?: () => void;
 	documentUrl?: string;
@@ -103,10 +104,11 @@ export function ReviewInterface({
 	sections,
 	comments,
 	evaluationCriteria,
-	existingScores,
+	scores,
+	onUpdateScore,
+	onSaveScores,
 	onAddComment,
 	onResolveComment,
-	onSaveScores,
 	onCompleteReview,
 	onSaveDraft,
 	documentUrl,
@@ -114,7 +116,6 @@ export function ReviewInterface({
 }: ReviewInterfaceProps) {
 	const [activeTab, setActiveTab] = useState<"comments" | "scoring" | "checklist">("comments");
 	const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
-	const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 	const [isFullscreen, setIsFullscreen] = useState(false);
 
 	const typeConfig = REVIEW_TYPE_LABELS[review.reviewType] || { label: review.reviewType, color: "bg-gray-500" };
@@ -222,7 +223,7 @@ export function ReviewInterface({
 
 			{/* Main Content */}
 			<div className="flex-1 overflow-hidden">
-				<ResizablePanelGroup direction="horizontal">
+				<ResizablePanelGroup orientation="horizontal">
 					{/* Document Panel */}
 					<ResizablePanel defaultSize={60} minSize={30}>
 						<div className="flex flex-col h-full">
@@ -300,7 +301,7 @@ export function ReviewInterface({
 									{sections.map((section, idx) => (
 										<Button
 											key={section.id}
-											variant={idx === currentSectionIndex ? "default" : "ghost"}
+											variant={idx === currentSectionIndex ? "primary" : "ghost"}
 											size="sm"
 											onClick={() => setCurrentSectionIndex(idx)}
 											className="shrink-0"
@@ -321,8 +322,6 @@ export function ReviewInterface({
 						minSize={20}
 						collapsible
 						collapsedSize={0}
-						onCollapse={() => setIsPanelCollapsed(true)}
-						onExpand={() => setIsPanelCollapsed(false)}
 					>
 						<div className="flex flex-col h-full">
 							<Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="flex flex-col h-full">
@@ -346,7 +345,6 @@ export function ReviewInterface({
 
 								<TabsContent value="comments" className="flex-1 overflow-hidden mt-0">
 									<CommentPanel
-										reviewId={review.id}
 										comments={sectionComments}
 										sections={sections.map((s) => ({ id: s.id, name: s.name }))}
 										onAddComment={onAddComment}
@@ -358,8 +356,9 @@ export function ReviewInterface({
 								<TabsContent value="scoring" className="flex-1 overflow-auto mt-0 p-4">
 									<ScoringRubric
 										criteria={evaluationCriteria}
-										existingScores={existingScores}
-										onSaveScores={onSaveScores}
+										scores={scores}
+										onUpdateScore={onUpdateScore}
+										onSaveAll={onSaveScores}
 									/>
 								</TabsContent>
 

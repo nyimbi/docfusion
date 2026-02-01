@@ -13,44 +13,23 @@
  */
 
 // Dashboard & Management
-export { ReviewDashboard, type ReviewDashboardProps, type ReviewSummary, type DashboardStats } from "./ReviewDashboard";
-export { ReviewScheduler, type ReviewSchedulerProps, type ReviewScheduleConfig } from "./ReviewScheduler";
-export { ReviewerAssignment, type ReviewerAssignmentProps, type ReviewerCandidate, type AssignedReviewer, type ReviewerRole } from "./ReviewerAssignment";
+export { ReviewDashboard, type ReviewDashboardProps, type Review } from "./ReviewDashboard";
+export { ReviewScheduler, type ReviewSchedulerProps, type ReviewScheduleData, type ReviewType, type ReviewTemplate } from "./ReviewScheduler";
+export { ReviewerAssignment, type ReviewerAssignmentProps, type TeamMember, type AssignedReviewer, type ReviewerRole, type ConflictCheckResult } from "./ReviewerAssignment";
 
 // Reviewer Workspace
-export { ReviewInterface, type ReviewInterfaceProps, type ReviewSession, type ReviewerProgress, type Section } from "./ReviewInterface";
-export { ScoringRubric, type ScoringRubricProps, type EvaluationCriterion, type CriteriaScore, type RatingOption } from "./ScoringRubric";
+export { ReviewInterface, type ReviewInterfaceProps, type ReviewSession, type ReviewerProgress } from "./ReviewInterface";
+export { ScoringRubric, type ScoringRubricProps, type EvaluationCriteria, type CriteriaScore, type RatingCategory } from "./ScoringRubric";
 
 // Comments System
-export { CommentCard, type CommentCardProps, type ReviewCommentData, type CommentType, type CommentSeverity, type ResolutionStatus } from "./CommentCard";
+export { CommentCard, type CommentCardProps, type Comment, type CommentType, type CommentSeverity, type ResolutionStatus } from "./CommentCard";
 export { CommentPanel, type CommentPanelProps } from "./CommentPanel";
 
 // Tracking & Progress
-export { ResolutionTracker, type ResolutionTrackerProps, type TrackedIssue, type ResolutionStats } from "./ResolutionTracker";
+export { ResolutionTracker, type ResolutionTrackerProps, type ResolutionItem, type ResolutionStats } from "./ResolutionTracker";
 export { ScoreAggregation, type ScoreAggregationProps, type ReviewerScore, type CriteriaAggregation } from "./ScoreAggregation";
 
 // Reporting & Analytics
-export { ReviewReport, type ReviewReportProps, type ReviewReportData, type ExecutiveSummary, type IssueAnalysis, type ScoringOverview } from "./ReviewReport";
+export { ReviewReport, type ReviewReportProps, type ReviewReportData } from "./ReviewReport";
 export { BeforeAfterView, type BeforeAfterViewProps, type BeforeAfterComparisonData } from "./BeforeAfterView";
 export { ReviewMetrics, type ReviewMetricsProps, type EffectivenessMetricsData, type ReviewTypeEffectiveness, type ReviewerEffectiveness, type WinRateCorrelation, type CommonIssueCategory } from "./ReviewMetrics";
-
-// Re-export common types for convenience
-export type {
-	// From CommentCard
-	ReviewCommentData as ReviewComment,
-	CommentType,
-	CommentSeverity,
-	ResolutionStatus,
-} from "./CommentCard";
-
-export type {
-	// From ReviewInterface
-	ReviewSession,
-	ReviewerProgress,
-} from "./ReviewInterface";
-
-export type {
-	// From ScoringRubric
-	EvaluationCriterion,
-	CriteriaScore,
-} from "./ScoringRubric";
