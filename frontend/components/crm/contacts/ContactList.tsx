@@ -49,6 +49,16 @@ interface ContactListProps {
 	onSelectContact?: (id: string) => void;
 	onContactClick?: (contact: ContactRow) => void;
 	onBulkAction?: (action: string, ids: string[]) => void;
+	/** Handler for logging a call activity */
+	onLogCall?: (contactId: string) => void;
+	/** Handler for sending email to contact */
+	onSendEmail?: (contactId: string) => void;
+	/** Handler for scheduling a meeting */
+	onScheduleMeeting?: (contactId: string) => void;
+	/** Handler for adding a note */
+	onAddNote?: (contactId: string) => void;
+	/** Handler for editing a contact */
+	onEdit?: (contactId: string) => void;
 	isLoading?: boolean;
 	showAccountColumn?: boolean;
 	className?: string;
@@ -64,6 +74,11 @@ export function ContactList({
 	onSelectContact,
 	onContactClick,
 	onBulkAction,
+	onLogCall,
+	onSendEmail,
+	onScheduleMeeting,
+	onAddNote,
+	onEdit,
 	isLoading = false,
 	showAccountColumn = true,
 	className,
@@ -347,14 +362,17 @@ export function ContactList({
 										<QuickActions
 											entityType="contact"
 											entityId={contact.id}
-											onLogCall={() => console.log("Log call", contact.id)}
+											onLogCall={() => onLogCall?.(contact.id)}
 											onSendEmail={() => {
-												if (contact.email) {
+												if (onSendEmail) {
+													onSendEmail(contact.id);
+												} else if (contact.email) {
 													window.location.href = `mailto:${contact.email}`;
 												}
 											}}
-											onScheduleMeeting={() => console.log("Schedule meeting", contact.id)}
-											onAddNote={() => console.log("Add note", contact.id)}
+											onScheduleMeeting={() => onScheduleMeeting?.(contact.id)}
+											onAddNote={() => onAddNote?.(contact.id)}
+											onEdit={() => onEdit?.(contact.id) ?? onSelectContact?.(contact.id)}
 											onViewDetails={() => onSelectContact?.(contact.id)}
 											size="sm"
 										/>

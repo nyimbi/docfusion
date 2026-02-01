@@ -56,6 +56,16 @@ interface AccountListProps {
 	onSelectAccount?: (id: string) => void;
 	onAccountClick?: (account: AccountRow) => void;
 	onBulkAction?: (action: string, ids: string[]) => void;
+	/** Handler for logging a call activity */
+	onLogCall?: (accountId: string) => void;
+	/** Handler for sending email to account */
+	onSendEmail?: (accountId: string) => void;
+	/** Handler for scheduling a meeting */
+	onScheduleMeeting?: (accountId: string) => void;
+	/** Handler for adding a note */
+	onAddNote?: (accountId: string) => void;
+	/** Handler for editing an account */
+	onEdit?: (accountId: string) => void;
 	isLoading?: boolean;
 	showTypeColumn?: boolean;
 	className?: string;
@@ -72,6 +82,11 @@ export function AccountList({
 	onSelectAccount,
 	onAccountClick,
 	onBulkAction,
+	onLogCall,
+	onSendEmail,
+	onScheduleMeeting,
+	onAddNote,
+	onEdit,
 	isLoading = false,
 	showTypeColumn = true,
 	className,
@@ -325,11 +340,11 @@ export function AccountList({
 										<QuickActions
 											entityType="account"
 											entityId={account.id}
-											onLogCall={() => console.log("Log call", account.id)}
-											onSendEmail={() => console.log("Send email", account.id)}
-											onScheduleMeeting={() => console.log("Schedule meeting", account.id)}
-											onAddNote={() => console.log("Add note", account.id)}
-											onEdit={() => console.log("Edit", account.id)}
+											onLogCall={() => onLogCall?.(account.id)}
+											onSendEmail={() => onSendEmail?.(account.id)}
+											onScheduleMeeting={() => onScheduleMeeting?.(account.id)}
+											onAddNote={() => onAddNote?.(account.id)}
+											onEdit={() => onEdit?.(account.id) ?? onSelectAccount?.(account.id)}
 											onViewDetails={() => onSelectAccount?.(account.id)}
 											size="sm"
 										/>
