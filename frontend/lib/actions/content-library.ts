@@ -31,9 +31,14 @@ import {
 	type TemplateUsageLogRow,
 	type ContentSuggestionRow,
 } from "@/lib/db/schema";
-import { eq, and, desc, asc, sql, ilike, or, inArray, gte, lte, isNotNull } from "drizzle-orm";
+import { eq, and, desc, asc, sql, ilike, or, inArray, gte, lte, isNotNull, between } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import {
+	generateEmbedding,
+	cosineSimilarity,
+	getContentSuggestions as getAIContentSuggestions,
+} from "@/lib/ai/content-library";
 import type {
 	ContentType,
 	FreshnessStatus,
@@ -155,6 +160,76 @@ function mapTemplateToInterface(
 }
 
 // ============================================================================
+// Analytics Helper Functions
+// ============================================================================
+
+/**
+ * Aggregate usage data by date for time series display
+ */
+function aggregateUsageByDate(
+	usages: Array<{ createdAt: Date; proposalOutcome?: string | null }>
+): Array<{ date: string; count: number }> {
+	const dateMap = new Map<string, number>();
+
+	for (const usage of usages) {
+		const dateStr = usage.createdAt.toISOString().split('T')[0];
+		dateMap.set(dateStr, (dateMap.get(dateStr) ?? 0) + 1);
+	}
+
+	// Sort by date and return last 30 days
+	const sorted = Array.from(dateMap.entries())
+		.map(([date, count]) => ({ date, count }))
+		.sort((a, b) => a.date.localeCompare(b.date));
+
+	return sorted.slice(-30);
+}
+
+/**
+ * Calculate rolling win rate over time
+ */
+function calculateRollingWinRate(
+	usages: Array<{ createdAt: Date; proposalOutcome?: string | null }>
+): Array<{ date: string; rate: number }> {
+	// Filter to decided usages only
+	const decidedUsages = usages.filter(
+		u => u.proposalOutcome === "won" || u.proposalOutcome === "lost"
+	);
+
+	if (decidedUsages.length === 0) return [];
+
+	// Group by date
+	const dateGroups = new Map<string, { wins: number; total: number }>();
+
+	for (const usage of decidedUsages) {
+		const dateStr = usage.createdAt.toISOString().split('T')[0];
+		const current = dateGroups.get(dateStr) ?? { wins: 0, total: 0 };
+		current.total++;
+		if (usage.proposalOutcome === "won") {
+			current.wins++;
+		}
+		dateGroups.set(dateStr, current);
+	}
+
+	// Calculate cumulative win rate for each date
+	const sortedDates = Array.from(dateGroups.keys()).sort();
+	const result: Array<{ date: string; rate: number }> = [];
+	let cumulativeWins = 0;
+	let cumulativeTotal = 0;
+
+	for (const date of sortedDates) {
+		const dayData = dateGroups.get(date)!;
+		cumulativeWins += dayData.wins;
+		cumulativeTotal += dayData.total;
+		result.push({
+			date,
+			rate: (cumulativeWins / cumulativeTotal) * 100,
+		});
+	}
+
+	return result.slice(-30);
+}
+
+// ============================================================================
 // Semantic Search Actions
 // ============================================================================
 
@@ -166,31 +241,92 @@ export async function semanticSearch(input: SemanticSearchInput): Promise<Semant
 	try {
 		const { query, contentTypes = ["snippet", "template"], limit = 10, filters } = input;
 
-		// TODO: Generate query embedding using AI service
-		// const queryEmbedding = await generateEmbedding(query);
-
-		// For now, fall back to text-based search
 		const results: SemanticSearchResult[] = [];
+		let queryEmbedding: number[] | null = null;
+
+		// Try to generate query embedding for semantic search
+		try {
+			const embeddingResult = await generateEmbedding(query);
+			queryEmbedding = embeddingResult.embedding;
+		} catch (embeddingError) {
+			// Fall back to text-based search if embedding fails
+			console.warn("Embedding generation failed, using text search:", embeddingError);
+		}
 
 		// Search snippets
 		if (contentTypes.includes("snippet")) {
-			const snippetConditions = [];
-			snippetConditions.push(or(
-				ilike(templateSnippets.name, `%${query}%`),
-				ilike(templateSnippets.description, `%${query}%`),
-			));
+			let snippetResults: Array<{snippet: typeof templateSnippets.$inferSelect; score: number}> = [];
 
-			if (filters?.organizationId) {
-				snippetConditions.push(eq(templateSnippets.organizationId, filters.organizationId));
+			// Use semantic search if we have an embedding
+			if (queryEmbedding) {
+				// Get snippets with embeddings for semantic matching
+				const embeddingsWithSnippets = await db
+					.select({
+						snippetId: snippetEmbeddings.snippetId,
+						embedding: snippetEmbeddings.id, // We need to fetch full embedding data
+					})
+					.from(snippetEmbeddings)
+					.limit(100); // Get a reasonable pool to score
+
+				// Fetch full embedding data and calculate similarity
+				for (const item of embeddingsWithSnippets) {
+					const fullEmbedding = await db.query.snippetEmbeddings.findFirst({
+						where: eq(snippetEmbeddings.snippetId, item.snippetId),
+					});
+
+					if (fullEmbedding) {
+						// Parse the stored embedding (stored as JSON array or vector)
+						const storedEmbedding = typeof fullEmbedding.embedding === 'string'
+							? JSON.parse(fullEmbedding.embedding as string) as number[]
+							: fullEmbedding.embedding as unknown as number[];
+
+						if (Array.isArray(storedEmbedding)) {
+							const score = cosineSimilarity(queryEmbedding, storedEmbedding);
+							if (score >= 0.5) { // Only include reasonably similar results
+								const snippet = await db.query.templateSnippets.findFirst({
+									where: eq(templateSnippets.id, item.snippetId),
+								});
+								if (snippet) {
+									snippetResults.push({ snippet, score });
+								}
+							}
+						}
+					}
+				}
+
+				// Sort by score
+				snippetResults.sort((a, b) => b.score - a.score);
+				snippetResults = snippetResults.slice(0, limit);
 			}
 
-			const matchingSnippets = await db.query.templateSnippets.findMany({
-				where: and(...snippetConditions),
-				limit: limit,
-			});
+			// Fall back to or supplement with text search
+			if (snippetResults.length < limit) {
+				const snippetConditions = [];
+				snippetConditions.push(or(
+					ilike(templateSnippets.name, `%${query}%`),
+					ilike(templateSnippets.description, `%${query}%`),
+				));
+
+				if (filters?.organizationId) {
+					snippetConditions.push(eq(templateSnippets.organizationId, filters.organizationId));
+				}
+
+				const textMatchSnippets = await db.query.templateSnippets.findMany({
+					where: and(...snippetConditions),
+					limit: limit - snippetResults.length,
+				});
+
+				// Add text matches with lower base score
+				const existingIds = new Set(snippetResults.map(r => r.snippet.id));
+				for (const snippet of textMatchSnippets) {
+					if (!existingIds.has(snippet.id)) {
+						snippetResults.push({ snippet, score: 0.6 }); // Lower score for text-only match
+					}
+				}
+			}
 
 			// Get analytics for matched snippets
-			const snippetIds = matchingSnippets.map(s => s.id);
+			const snippetIds = snippetResults.map(r => r.snippet.id);
 			const analyticsData = snippetIds.length > 0
 				? await db.query.snippetAnalytics.findMany({
 						where: inArray(snippetAnalytics.snippetId, snippetIds),
@@ -199,7 +335,7 @@ export async function semanticSearch(input: SemanticSearchInput): Promise<Semant
 
 			const analyticsMap = new Map(analyticsData.map(a => [a.snippetId, a]));
 
-			for (const snippet of matchingSnippets) {
+			for (const { snippet, score } of snippetResults) {
 				const analytics = analyticsMap.get(snippet.id);
 
 				// Apply filters
@@ -211,7 +347,7 @@ export async function semanticSearch(input: SemanticSearchInput): Promise<Semant
 				results.push({
 					contentType: "snippet",
 					contentId: snippet.id,
-					score: 0.8, // TODO: Replace with actual semantic similarity
+					score,
 					snippet: mapSnippetToInterface(snippet, analytics),
 				});
 			}
@@ -576,39 +712,104 @@ export async function generateContentSuggestions(input: GenerateSuggestionsInput
 	try {
 		const { documentId, opportunityId, section, contextText, limit = 5 } = input;
 
-		// TODO: Use AI to generate better suggestions based on context
-		// For now, use text-based matching
-
 		if (!contextText) return [];
 
-		// Find matching snippets
-		const searchResults = await semanticSearch({
-			query: contextText.slice(0, 500), // Limit query length
-			contentTypes: ["snippet"],
-			limit,
+		// Get candidate snippets for AI analysis
+		const candidateSnippets = await db.query.templateSnippets.findMany({
+			where: eq(templateSnippets.isPublic, true),
+			limit: 20, // Get a pool of candidates for AI to evaluate
+			orderBy: [desc(templateSnippets.useCount)], // Prefer frequently used snippets
 		});
 
-		// Save suggestions
-		const suggestions: ContentSuggestionRow[] = [];
+		if (candidateSnippets.length === 0) {
+			// Fall back to semantic search
+			const searchResults = await semanticSearch({
+				query: contextText.slice(0, 500),
+				contentTypes: ["snippet"],
+				limit,
+			});
 
-		for (const result of searchResults.results) {
-			if (result.contentType === "snippet" && result.snippet) {
+			const suggestions: ContentSuggestionRow[] = [];
+			for (const result of searchResults.results) {
+				if (result.contentType === "snippet" && result.snippet) {
+					const [suggestion] = await db.insert(contentSuggestions).values({
+						documentId,
+						opportunityId,
+						snippetId: result.contentId,
+						documentSection: section,
+						contextText,
+						relevanceScore: result.score * 100,
+						confidence: result.score > 0.8 ? "high" : result.score > 0.6 ? "medium" : "low",
+						reasoning: "Matched based on semantic similarity",
+					}).returning();
+					suggestions.push(suggestion);
+				}
+			}
+			return suggestions;
+		}
+
+		// Use AI to analyze and rank snippets
+		try {
+			const snippetsForAI = candidateSnippets.map(s => ({
+				id: s.id,
+				name: s.name,
+				content: typeof s.content === 'string'
+					? s.content
+					: JSON.stringify(s.content).slice(0, 1000),
+			}));
+
+			const aiSuggestions = await getAIContentSuggestions(
+				contextText,
+				section ?? "general",
+				snippetsForAI
+			);
+
+			const suggestions: ContentSuggestionRow[] = [];
+
+			for (const aiSuggestion of aiSuggestions.slice(0, limit)) {
 				const [suggestion] = await db.insert(contentSuggestions).values({
 					documentId,
 					opportunityId,
-					snippetId: result.contentId,
+					snippetId: aiSuggestion.snippetId,
 					documentSection: section,
 					contextText,
-					relevanceScore: result.score * 100,
-					confidence: result.score > 0.8 ? "high" : result.score > 0.6 ? "medium" : "low",
-					reasoning: `Matched based on text similarity`,
+					relevanceScore: aiSuggestion.score,
+					confidence: aiSuggestion.confidence as SuggestionConfidence,
+					reasoning: aiSuggestion.reasoning,
 				}).returning();
 
 				suggestions.push(suggestion);
 			}
-		}
 
-		return suggestions;
+			return suggestions;
+		} catch (aiError) {
+			console.warn("AI suggestion generation failed, using semantic search:", aiError);
+
+			// Fall back to semantic search
+			const searchResults = await semanticSearch({
+				query: contextText.slice(0, 500),
+				contentTypes: ["snippet"],
+				limit,
+			});
+
+			const suggestions: ContentSuggestionRow[] = [];
+			for (const result of searchResults.results) {
+				if (result.contentType === "snippet" && result.snippet) {
+					const [suggestion] = await db.insert(contentSuggestions).values({
+						documentId,
+						opportunityId,
+						snippetId: result.contentId,
+						documentSection: section,
+						contextText,
+						relevanceScore: result.score * 100,
+						confidence: result.score > 0.8 ? "high" : result.score > 0.6 ? "medium" : "low",
+						reasoning: "Matched based on semantic similarity",
+					}).returning();
+					suggestions.push(suggestion);
+				}
+			}
+			return suggestions;
+		}
 	} catch (error) {
 		console.error("Error generating content suggestions:", error);
 		return [];
@@ -707,6 +908,11 @@ export async function getContentLibraryStats(organizationId?: string): Promise<C
 				eq(snippetAnalytics.freshnessStatus, "stale"),
 			));
 
+		// Count stale snippets specifically
+		const staleCount = await db.select({ count: sql<number>`count(*)` })
+			.from(snippetAnalytics)
+			.where(eq(snippetAnalytics.freshnessStatus, "stale"));
+
 		// Get top performing content
 		const topSnippets = await getTopPerformingSnippets(5);
 		const topTemplates = await getTopPerformingTemplates(5);
@@ -724,7 +930,7 @@ export async function getContentLibraryStats(organizationId?: string): Promise<C
 			topPerformingSnippets: topSnippets,
 			topPerformingTemplates: topTemplates,
 			snippetsNeedingReview: Number(needingReviewCount[0]?.count ?? 0),
-			staleSnippets: 0, // TODO: Count stale
+			staleSnippets: Number(staleCount[0]?.count ?? 0),
 		};
 	} catch (error) {
 		console.error("Error getting content library stats:", error);
@@ -820,6 +1026,10 @@ export async function getContentEffectivenessReport(
 
 			const modified = usages.filter(u => u.wasModified).length;
 
+			// Aggregate usage by date (last 30 days)
+			const usageByDate = aggregateUsageByDate(usages);
+			const winRateByDate = calculateRollingWinRate(usages);
+
 			return {
 				contentId,
 				contentType,
@@ -832,8 +1042,8 @@ export async function getContentEffectivenessReport(
 				winRate: decided > 0 ? (wins / decided) * 100 : undefined,
 				averageModificationRate: (modified / usages.length) * 100,
 				averageAcceptanceRate: 100, // All usages are acceptances
-				usageOverTime: [], // TODO: Aggregate by date
-				winRateOverTime: [], // TODO: Calculate rolling win rate
+				usageOverTime: usageByDate,
+				winRateOverTime: winRateByDate,
 			};
 		} else {
 			const usages = await db.query.templateUsageLog.findMany({
@@ -851,6 +1061,10 @@ export async function getContentEffectivenessReport(
 			const pending = usages.filter(u => u.proposalOutcome === "pending").length;
 			const decided = wins + losses;
 
+			// Aggregate usage by date
+			const usageByDate = aggregateUsageByDate(usages);
+			const winRateByDate = calculateRollingWinRate(usages);
+
 			return {
 				contentId,
 				contentType,
@@ -863,8 +1077,8 @@ export async function getContentEffectivenessReport(
 				winRate: decided > 0 ? (wins / decided) * 100 : undefined,
 				averageModificationRate: 0,
 				averageAcceptanceRate: 100,
-				usageOverTime: [],
-				winRateOverTime: [],
+				usageOverTime: usageByDate,
+				winRateOverTime: winRateByDate,
 			};
 		}
 	} catch (error) {

@@ -12,9 +12,9 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { documentComments, commentReactions } from "@/lib/db/schema-comments-workflow";
+import { documentComments, commentReactions, commentReads } from "@/lib/db/schema-comments-workflow";
 import { documents } from "@/lib/db/schema";
-import { eq, and, desc, asc, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, asc, isNull, sql, ne, inArray } from "drizzle-orm";
 import type {
 	DocumentComment,
 	CreateCommentInput,
@@ -493,7 +493,46 @@ export async function markCommentsRead(
 	documentId: string,
 	userId: string
 ): Promise<void> {
-	// In a real implementation, you might track which comments each user has read
-	// For now, this is a placeholder that could be extended
-	// with a comment_reads table
+	// Get all unresolved comments on this document that the user didn't create
+	const unresolvedComments = await db.query.documentComments.findMany({
+		where: and(
+			eq(documentComments.documentId, documentId),
+			isNull(documentComments.resolvedAt),
+			ne(documentComments.userId, userId)
+		),
+		columns: { id: true },
+	});
+
+	if (unresolvedComments.length === 0) {
+		return;
+	}
+
+	const commentIds = unresolvedComments.map((c) => c.id);
+
+	// Get existing read records for this user on these comments
+	const existingReads = await db.query.commentReads.findMany({
+		where: and(
+			inArray(commentReads.commentId, commentIds),
+			eq(commentReads.userId, userId)
+		),
+		columns: { commentId: true },
+	});
+
+	const alreadyReadIds = new Set(existingReads.map((r) => r.commentId));
+
+	// Filter to only comments not yet marked as read
+	const unreadCommentIds = commentIds.filter((id) => !alreadyReadIds.has(id));
+
+	if (unreadCommentIds.length === 0) {
+		return;
+	}
+
+	// Insert read records for all unread comments
+	await db.insert(commentReads).values(
+		unreadCommentIds.map((commentId) => ({
+			documentId,
+			commentId,
+			userId,
+		}))
+	);
 }

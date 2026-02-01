@@ -30,6 +30,11 @@ import {
 import { eq, and, desc, asc, sql, ilike, or, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import {
+	parseRFPWithAI,
+	batchExtractRequirements,
+	type ExtractedRequirement,
+} from "@/lib/ai/rfp-parser";
 import type {
 	RfpFormat,
 	RfpRequirementCategory,
@@ -94,8 +99,11 @@ export async function uploadRfpDocument(input: {
 			initiatedBy: userId,
 		}).returning();
 
-		// TODO: Queue the actual parsing job (e.g., via background job system)
-		// await queueParsingJob(job.id);
+		// Start the parsing job asynchronously (fire-and-forget)
+		// This runs after the response is sent to the client
+		processRfpParsingJob(job.id, rfpDoc.id).catch((error) => {
+			console.error("[RFP Parser] Background job failed:", error);
+		});
 
 		revalidatePath("/documents");
 		return { success: true, rfpDocumentId: rfpDoc.id, jobId: job.id };
@@ -770,5 +778,299 @@ export async function exportComplianceMatrix(matrixId: string): Promise<{
 	} catch (error) {
 		console.error("Error exporting compliance matrix:", error);
 		return { success: false, error: "Failed to export matrix" };
+	}
+}
+
+// ============================================================================
+// Background Processing Functions
+// ============================================================================
+
+/**
+ * Process an RFP parsing job asynchronously.
+ * This function handles the actual parsing, extraction, and storage of requirements.
+ */
+async function processRfpParsingJob(jobId: string, rfpDocumentId: string): Promise<void> {
+	console.log(`[RFP Parser] Starting job ${jobId} for document ${rfpDocumentId}`);
+
+	try {
+		// Update job status to processing
+		await db.update(rfpParsingJobs).set({
+			status: "processing",
+			startedAt: new Date(),
+			currentStep: "Initializing",
+			progress: 5,
+			updatedAt: new Date(),
+		}).where(eq(rfpParsingJobs.id, jobId));
+
+		// Update document status
+		await db.update(rfpDocuments).set({
+			parsingStatus: "processing",
+			parsingProgress: 5,
+			parsingStartedAt: new Date(),
+			updatedAt: new Date(),
+		}).where(eq(rfpDocuments.id, rfpDocumentId));
+
+		// Fetch the document record
+		const rfpDoc = await db.query.rfpDocuments.findFirst({
+			where: eq(rfpDocuments.id, rfpDocumentId),
+		});
+
+		if (!rfpDoc) {
+			throw new Error("RFP document not found");
+		}
+
+		// Step 1: Read and extract text from the document (10-30%)
+		await updateJobProgress(jobId, rfpDocumentId, 10, "Extracting text from document");
+
+		// For now, we'll simulate text extraction.
+		// In production, you would read from storage and extract text based on file type
+		let extractedText = rfpDoc.extractedText || "";
+
+		if (!extractedText) {
+			// Simulate text extraction - in production, use pdf-parse, mammoth, etc.
+			// This would be replaced with actual file reading logic
+			extractedText = await extractTextFromDocument(rfpDoc.storagePath, rfpDoc.fileType);
+		}
+
+		await updateJobProgress(jobId, rfpDocumentId, 30, "Parsing RFP structure");
+
+		// Step 2: Parse RFP structure and metadata (30-50%)
+		const parsedRFP = await parseRFPWithAI(extractedText);
+
+		// Update document with parsed metadata
+		await db.update(rfpDocuments).set({
+			extractedText,
+			extractedTitle: parsedRFP.sections[0]?.title,
+			issuingOrganization: parsedRFP.issuingAgency,
+			solicitationNumber: parsedRFP.solicitationNumber,
+			responseDeadline: parsedRFP.responseDeadline ? new Date(parsedRFP.responseDeadline) : undefined,
+			questionsDeadline: parsedRFP.questionDeadline ? new Date(parsedRFP.questionDeadline) : undefined,
+			contractType: parsedRFP.contractType,
+			naicsCodes: parsedRFP.naicsCode ? [parsedRFP.naicsCode] : [],
+			setAsideType: parsedRFP.setAside,
+			estimatedValue: parsedRFP.estimatedValue,
+			detectedSections: parsedRFP.sections.map((s) => s.title),
+			parsingConfidence: parsedRFP.confidence * 100,
+			parsingProgress: 50,
+			updatedAt: new Date(),
+		}).where(eq(rfpDocuments.id, rfpDocumentId));
+
+		await updateJobProgress(jobId, rfpDocumentId, 50, "Extracting requirements");
+
+		// Step 3: Extract requirements (50-80%)
+		// Format sections for batch extraction (with id and text properties)
+		const sectionsForExtraction = parsedRFP.sections.map((s) => ({
+			id: s.sectionId,
+			text: s.content,
+			pageNumber: s.pageStart,
+		}));
+		const extractedRequirementsMap = await batchExtractRequirements(sectionsForExtraction);
+
+		// Flatten the Map into an array of requirements
+		const allExtractedRequirements: ExtractedRequirement[] = [];
+		for (const [_sectionId, requirements] of extractedRequirementsMap) {
+			allExtractedRequirements.push(...requirements);
+		}
+
+		await updateJobProgress(jobId, rfpDocumentId, 70, "Classifying and storing requirements");
+
+		// Step 4: Store extracted requirements (70-90%)
+		if (allExtractedRequirements.length > 0) {
+			const requirementsToInsert = allExtractedRequirements.map((req, index) => ({
+				rfpDocumentId,
+				opportunityId: rfpDoc.opportunityId,
+				requirementNumber: req.requirementNumber || `REQ-${String(index + 1).padStart(3, "0")}`,
+				sectionReference: req.sectionReference || undefined,
+				title: req.title || req.fullText.slice(0, 100),
+				requirementText: req.fullText,
+				summary: req.summary || undefined,
+				category: req.category,
+				subcategory: req.subcategory || undefined,
+				requirementType: req.requirementType,
+				priority: req.priority,
+				evaluationWeight: req.evaluationWeight || undefined,
+				scoringMethod: req.scoringMethod || undefined,
+				confidenceScore: req.confidenceScore,
+				relatedRequirements: req.relatedRequirements || [],
+				pageNumber: req.pageNumber || undefined,
+				complianceStatus: "pending" as const,
+				riskLevel: "medium" as const,
+			}));
+
+			await db.insert(rfpRequirements).values(requirementsToInsert);
+		}
+
+		await updateJobProgress(jobId, rfpDocumentId, 90, "Finalizing");
+
+		// Step 5: Complete the job (90-100%)
+		const now = new Date();
+
+		await db.update(rfpParsingJobs).set({
+			status: "completed",
+			progress: 100,
+			currentStep: "Completed",
+			completedAt: now,
+			requirementsExtracted: allExtractedRequirements.length,
+			updatedAt: now,
+		}).where(eq(rfpParsingJobs.id, jobId));
+
+		await db.update(rfpDocuments).set({
+			parsingStatus: "completed",
+			parsingProgress: 100,
+			parsingCompletedAt: now,
+			updatedAt: now,
+		}).where(eq(rfpDocuments.id, rfpDocumentId));
+
+		console.log(`[RFP Parser] Job ${jobId} completed successfully. Extracted ${allExtractedRequirements.length} requirements.`);
+
+	} catch (error) {
+		console.error(`[RFP Parser] Job ${jobId} failed:`, error);
+
+		const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+		// Update job and document with error status
+		await db.update(rfpParsingJobs).set({
+			status: "failed",
+			errorMessage,
+			completedAt: new Date(),
+			updatedAt: new Date(),
+		}).where(eq(rfpParsingJobs.id, jobId));
+
+		await db.update(rfpDocuments).set({
+			parsingStatus: "failed",
+			parsingError: errorMessage,
+			updatedAt: new Date(),
+		}).where(eq(rfpDocuments.id, rfpDocumentId));
+	}
+}
+
+/**
+ * Helper to update job and document progress
+ */
+async function updateJobProgress(
+	jobId: string,
+	rfpDocumentId: string,
+	progress: number,
+	step: string
+): Promise<void> {
+	await Promise.all([
+		db.update(rfpParsingJobs).set({
+			progress,
+			currentStep: step,
+			updatedAt: new Date(),
+		}).where(eq(rfpParsingJobs.id, jobId)),
+		db.update(rfpDocuments).set({
+			parsingProgress: progress,
+			updatedAt: new Date(),
+		}).where(eq(rfpDocuments.id, rfpDocumentId)),
+	]);
+}
+
+/**
+ * Extract text from a document based on file type.
+ * Supports PDF, DOCX, and HTML file types with appropriate parsing.
+ */
+async function extractTextFromDocument(
+	storagePath: string,
+	fileType: string
+): Promise<string> {
+	try {
+		const fs = await import("fs/promises");
+		const path = await import("path");
+
+		// Determine the actual file path (local or remote)
+		let fileBuffer: Buffer;
+
+		if (storagePath.startsWith("/") || storagePath.startsWith("./")) {
+			// Local file system
+			fileBuffer = await fs.readFile(storagePath);
+		} else if (storagePath.startsWith("http://") || storagePath.startsWith("https://")) {
+			// Remote URL - fetch the file
+			const response = await fetch(storagePath);
+			if (!response.ok) {
+				throw new Error(`Failed to fetch document: ${response.status} ${response.statusText}`);
+			}
+			const arrayBuffer = await response.arrayBuffer();
+			fileBuffer = Buffer.from(arrayBuffer);
+		} else {
+			// Assume it's a storage key - construct URL based on storage configuration
+			const storageBaseUrl = process.env.STORAGE_BASE_URL || "";
+			if (storageBaseUrl) {
+				const fullUrl = `${storageBaseUrl}/${storagePath}`;
+				const response = await fetch(fullUrl);
+				if (!response.ok) {
+					throw new Error(`Failed to fetch from storage: ${response.status}`);
+				}
+				const arrayBuffer = await response.arrayBuffer();
+				fileBuffer = Buffer.from(arrayBuffer);
+			} else {
+				console.warn(`[RFP Parser] No storage URL configured, cannot fetch: ${storagePath}`);
+				return "";
+			}
+		}
+
+		// Parse based on file type
+		switch (fileType.toLowerCase()) {
+			case "pdf": {
+				// Use pdf-parse for PDF extraction
+				try {
+					// Dynamic import with type assertion for optional dependency
+					// eslint-disable-next-line @typescript-eslint/no-require-imports
+					const pdfParse = require("pdf-parse") as (buffer: Buffer) => Promise<{ text: string }>;
+					const data = await pdfParse(fileBuffer);
+					return data.text;
+				} catch (pdfError) {
+					console.error("[RFP Parser] PDF parsing failed, trying fallback:", pdfError);
+					// Fallback: return buffer as string (may contain some readable text)
+					return fileBuffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ");
+				}
+			}
+
+			case "docx": {
+				// Use mammoth for DOCX extraction
+				try {
+					// Dynamic import with type assertion for optional dependency
+					// eslint-disable-next-line @typescript-eslint/no-require-imports
+					const mammoth = require("mammoth") as {
+						extractRawText: (options: { buffer: Buffer }) => Promise<{ value: string }>;
+					};
+					const result = await mammoth.extractRawText({ buffer: fileBuffer });
+					return result.value;
+				} catch (docxError) {
+					console.error("[RFP Parser] DOCX parsing failed:", docxError);
+					return "";
+				}
+			}
+
+			case "html": {
+				// Parse HTML and extract text content
+				const htmlContent = fileBuffer.toString("utf-8");
+				// Simple HTML text extraction (strips tags)
+				return htmlContent
+					.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "") // Remove scripts
+					.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "") // Remove styles
+					.replace(/<[^>]+>/g, " ") // Remove HTML tags
+					.replace(/&nbsp;/g, " ") // Replace &nbsp;
+					.replace(/&amp;/g, "&") // Replace &amp;
+					.replace(/&lt;/g, "<") // Replace &lt;
+					.replace(/&gt;/g, ">") // Replace &gt;
+					.replace(/&quot;/g, '"') // Replace &quot;
+					.replace(/\s+/g, " ") // Normalize whitespace
+					.trim();
+			}
+
+			case "txt":
+			case "text":
+				// Plain text - return as is
+				return fileBuffer.toString("utf-8");
+
+			default:
+				// Unknown file type - attempt to read as UTF-8
+				console.warn(`[RFP Parser] Unknown file type: ${fileType}, attempting UTF-8 decode`);
+				return fileBuffer.toString("utf-8");
+		}
+	} catch (error) {
+		console.error("[RFP Parser] Error extracting text:", error);
+		return "";
 	}
 }

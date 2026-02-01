@@ -6,7 +6,7 @@
  * - Multiple reviewers support
  * - Deadline tracking
  * - Status transitions
- * - Email notification triggers (placeholder)
+ * - Email and webhook notifications
  */
 
 "use server";
@@ -14,6 +14,7 @@
 import { db } from "@/lib/db";
 import { documentApprovals, workflowAssignments } from "@/lib/db/schema-comments-workflow";
 import { documents, proposalDocuments } from "@/lib/db/schema";
+import { user } from "@/lib/db/auth-schema";
 import { eq, and, desc, asc, sql, inArray, gte, lt } from "drizzle-orm";
 import type {
 	DocumentApproval,
@@ -29,6 +30,131 @@ import type {
 	WorkflowStage,
 	ApprovalStatus,
 } from "@/lib/types/comments-workflow";
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+// ============================================================================
+// Notification System
+// ============================================================================
+
+interface WorkflowNotification {
+	type: "approval_assigned" | "approval_submitted" | "deadline_approaching" | "workflow_completed";
+	recipientUserId: string;
+	documentId: string;
+	stage?: string;
+	status?: string;
+	metadata?: Record<string, unknown>;
+}
+
+/**
+ * Send a workflow notification.
+ * This function logs notifications and triggers external delivery via webhook.
+ */
+async function sendWorkflowNotification(notification: WorkflowNotification): Promise<void> {
+	const { type, recipientUserId, documentId, stage, status, metadata } = notification;
+
+	// Log the notification (always do this for debugging/audit)
+	console.log(`[Workflow Notification] ${type}:`, {
+		recipientUserId,
+		documentId,
+		stage,
+		status,
+		timestamp: new Date().toISOString(),
+	});
+
+	// Check for webhook configuration
+	const webhookUrl = process.env.WORKFLOW_NOTIFICATION_WEBHOOK_URL;
+	const emailServiceUrl = process.env.EMAIL_SERVICE_URL;
+
+	try {
+		// Fetch recipient details for email
+		const recipient = await db.query.user.findFirst({
+			where: eq(user.id, recipientUserId),
+			columns: { email: true, name: true },
+		});
+
+		if (!recipient) {
+			console.warn(`[Notification] Recipient not found: ${recipientUserId}`);
+			return;
+		}
+
+		// Fetch document title
+		const doc = await db.query.documents.findFirst({
+			where: eq(documents.id, documentId),
+			columns: { title: true },
+		});
+
+		const notificationPayload = {
+			type,
+			recipient: {
+				email: recipient.email,
+				name: recipient.name,
+				userId: recipientUserId,
+			},
+			document: {
+				id: documentId,
+				title: doc?.title || "Untitled Document",
+			},
+			stage,
+			status,
+			metadata,
+			timestamp: new Date().toISOString(),
+		};
+
+		// Send to webhook if configured (non-blocking)
+		if (webhookUrl) {
+			fetch(webhookUrl, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(notificationPayload),
+			}).catch((err) => {
+				console.error("[Notification] Webhook delivery failed:", err);
+			});
+		}
+
+		// Send email if email service is configured (non-blocking)
+		if (emailServiceUrl) {
+			const emailPayload = buildEmailPayload(type, notificationPayload);
+			fetch(emailServiceUrl, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(emailPayload),
+			}).catch((err) => {
+				console.error("[Notification] Email delivery failed:", err);
+			});
+		}
+	} catch (error) {
+		// Don't throw - notifications should not break the main workflow
+		console.error("[Notification] Failed to send notification:", error);
+	}
+}
+
+/**
+ * Build email payload based on notification type.
+ */
+function buildEmailPayload(
+	type: WorkflowNotification["type"],
+	data: Record<string, unknown>
+): Record<string, unknown> {
+	const recipient = data.recipient as { email: string; name: string };
+	const document = data.document as { title: string };
+
+	const subjectMap: Record<WorkflowNotification["type"], string> = {
+		approval_assigned: `Review Required: ${document.title}`,
+		approval_submitted: `Review Submitted: ${document.title}`,
+		deadline_approaching: `Deadline Approaching: ${document.title}`,
+		workflow_completed: `Workflow Complete: ${document.title}`,
+	};
+
+	return {
+		to: recipient.email,
+		subject: subjectMap[type],
+		template: `workflow_${type}`,
+		data,
+	};
+}
 
 // ============================================================================
 // Helper Functions
@@ -211,8 +337,14 @@ export async function createApproval(input: CreateApprovalInput): Promise<Docume
 		})
 		.returning();
 
-	// Log notification for assignment (email delivery can be added via webhook/queue)
-	console.log(`[Notification] Approval assigned: user=${assignedTo}, document=${documentId}, stage=${stage}`);
+	// Send notification for assignment
+	sendWorkflowNotification({
+		type: "approval_assigned",
+		recipientUserId: assignedTo,
+		documentId,
+		stage,
+		metadata: { dueDate, sequenceOrder },
+	}).catch(() => {}); // Fire and forget
 
 	return mapDocumentApproval(approval);
 }
@@ -263,8 +395,15 @@ export async function submitReview(
 		await advanceWorkflow(existing.documentId);
 	}
 
-	// Log notification for status change (email delivery can be added via webhook/queue)
-	console.log(`[Notification] Approval ${status}: document=${existing.documentId}, reviewer=${userId}`);
+	// Send notification for status change
+	sendWorkflowNotification({
+		type: "approval_submitted",
+		recipientUserId: userId,
+		documentId: existing.documentId,
+		stage: existing.stage,
+		status,
+		metadata: { notes, rejectionReason },
+	}).catch(() => {}); // Fire and forget
 
 	return mapDocumentApproval(updated);
 }

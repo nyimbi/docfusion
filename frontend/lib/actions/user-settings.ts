@@ -9,9 +9,11 @@
 
 import { db } from "@/lib/db";
 import { user, session } from "@/lib/db/auth-schema";
-import { opportunities, documents } from "@/lib/db/schema";
+import { opportunities, documents, templates } from "@/lib/db/schema";
 import { contacts, accounts } from "@/lib/db/schema-crm";
-import { eq, and, ne, count, sql } from "drizzle-orm";
+import { rfpDocuments } from "@/lib/db/schema-rfp";
+import { templateSnippets } from "@/lib/db/schema-additions";
+import { eq, and, ne, count, sql, sum } from "drizzle-orm";
 import { requireServerSession, getServerSession } from "@/lib/auth-utils";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -615,19 +617,49 @@ export async function getStorageStats(): Promise<StorageStats> {
 		};
 	}
 
-	// Get document count as proxy for size (in real impl, track actual file sizes)
-	const [docCount] = await db
-		.select({ count: count() })
+	// Calculate document storage size
+	// Estimate based on document content size (JSONB content typically stored)
+	const [docStats] = await db
+		.select({
+			count: count(),
+			// Estimate document size from word count (~6 bytes per word average)
+			estimatedSize: sql<number>`COALESCE(SUM(COALESCE(${documents.wordCount}, 0) * 6), 0)`,
+		})
 		.from(documents);
 
-	const [oppCount] = await db
-		.select({ count: count() })
-		.from(opportunities);
+	// Calculate RFP document storage (actual file sizes tracked)
+	const [rfpStats] = await db
+		.select({
+			totalSize: sql<number>`COALESCE(SUM(${rfpDocuments.fileSize}), 0)`,
+		})
+		.from(rfpDocuments);
 
-	// Estimate sizes (in a real implementation, you'd track actual file sizes)
-	const documentsSize = (docCount?.count ?? 0) * 50000; // ~50KB per doc
-	const templatesSize = 0.8 * 1024 * 1024 * 1024; // Placeholder
-	const attachmentsSize = 0.4 * 1024 * 1024 * 1024; // Placeholder
+	// Calculate template storage
+	// Templates store JSONB content - estimate ~10KB average per template
+	const [templateStats] = await db
+		.select({
+			count: count(),
+		})
+		.from(templates);
+
+	// Calculate content library storage
+	// Snippets store text content - estimate based on content length
+	const [snippetStats] = await db
+		.select({
+			count: count(),
+			// Estimate: avg snippet is ~2KB of content
+			estimatedSize: sql<number>`COALESCE(COUNT(*) * 2048, 0)`,
+		})
+		.from(templateSnippets);
+
+	// Document size includes regular docs + RFP files
+	const documentsSize = (docStats?.estimatedSize ?? 0) + (rfpStats?.totalSize ?? 0);
+
+	// Template size: template count * estimated 10KB per template
+	const templatesSize = (templateStats?.count ?? 0) * 10240;
+
+	// Attachments include content library snippets
+	const attachmentsSize = snippetStats?.estimatedSize ?? 0;
 
 	return {
 		documentsSize,
