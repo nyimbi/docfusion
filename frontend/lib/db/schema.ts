@@ -21,6 +21,12 @@ export * from "./schema-partners";
 // Re-export CRM schema (accounts, contacts, activities, deals, documents)
 export * from "./schema-crm";
 
+// Re-export RFP intelligence schema (RFP parsing, requirements, compliance)
+export * from "./schema-rfp";
+
+// Re-export content library extensions (embeddings, analytics, usage tracking)
+export * from "./schema-content-library";
+
 import { user } from "./auth-schema";
 
 import {

@@ -1,0 +1,874 @@
+"use server";
+
+/**
+ * Server Actions for Content Library (Template/Snippet Extensions)
+ *
+ * Handles:
+ * - Semantic search across templates and snippets
+ * - Win/loss analytics tracking
+ * - Content freshness management
+ * - AI-powered content suggestions
+ */
+
+import { db } from "@/lib/db";
+import {
+	templateSnippets,
+	templatePartials,
+	templates,
+	documents,
+	opportunities,
+	snippetEmbeddings,
+	snippetAnalytics,
+	snippetUsageLog,
+	templateEmbeddings,
+	templateAnalytics,
+	templateUsageLog,
+	contentSuggestions,
+	partialEmbeddings,
+	type SnippetAnalyticsRow,
+	type SnippetUsageLogRow,
+	type TemplateAnalyticsRow,
+	type TemplateUsageLogRow,
+	type ContentSuggestionRow,
+} from "@/lib/db/schema";
+import { eq, and, desc, asc, sql, ilike, or, inArray, gte, lte, isNotNull } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { getCurrentUserId } from "@/lib/auth-utils";
+import type {
+	ContentType,
+	FreshnessStatus,
+	UsageType,
+	ProposalOutcome,
+	SuggestionAction,
+	SuggestionConfidence,
+	DiscoveryMethod,
+	SemanticSearchInput,
+	ContentFilters,
+	RecordUsageInput,
+	ContentOutcomeInput,
+	GenerateSuggestionsInput,
+	SuggestionFeedbackInput,
+	SemanticSearchResult,
+	SemanticSearchResponse,
+	ContentLibraryStats,
+	ContentEffectivenessReport,
+	SnippetWithAnalytics,
+	TemplateWithAnalytics,
+} from "@/lib/types/content-library";
+
+// ============================================================================
+// Helper Functions for Type Conversion
+// ============================================================================
+
+/**
+ * Convert null to undefined for optional fields
+ */
+function nullToUndefined<T>(value: T | null): T | undefined {
+	return value === null ? undefined : value;
+}
+
+/**
+ * Map database snippet row to SnippetWithAnalytics type
+ */
+function mapSnippetToInterface(
+	snippet: typeof templateSnippets.$inferSelect,
+	analytics?: typeof snippetAnalytics.$inferSelect | null
+): SnippetWithAnalytics {
+	return {
+		id: snippet.id,
+		name: snippet.name,
+		shortcut: snippet.shortcut,
+		content: snippet.content as unknown,
+		description: nullToUndefined(snippet.description),
+		tags: (snippet.tags ?? []) as string[],
+		category: nullToUndefined(snippet.category),
+		createdBy: snippet.createdBy,
+		organizationId: nullToUndefined(snippet.organizationId),
+		useCount: snippet.useCount,
+		isPublic: snippet.isPublic,
+		createdAt: snippet.createdAt.toISOString(),
+		updatedAt: snippet.updatedAt.toISOString(),
+		analytics: analytics ? {
+			id: analytics.id,
+			snippetId: analytics.snippetId,
+			aiTags: (analytics.aiTags ?? []) as string[],
+			keyTerms: (analytics.keyTerms ?? []) as string[],
+			contentType: nullToUndefined(analytics.contentType) as ContentType | undefined,
+			topicCategory: nullToUndefined(analytics.topicCategory),
+			sectors: (analytics.sectors ?? []) as string[],
+			technologies: (analytics.technologies ?? []) as string[],
+			complianceFrameworks: (analytics.complianceFrameworks ?? []) as string[],
+			topicScores: (analytics.topicScores ?? {}) as Record<string, number>,
+			freshnessStatus: analytics.freshnessStatus as FreshnessStatus,
+			reviewDueDate: analytics.reviewDueDate?.toISOString(),
+			lastReviewedAt: analytics.lastReviewedAt?.toISOString(),
+			qualityScore: nullToUndefined(analytics.qualityScore),
+			wordCount: analytics.wordCount,
+			winCount: analytics.winCount,
+			lossCount: analytics.lossCount,
+			winRate: nullToUndefined(analytics.winRate),
+			lastUsedAt: analytics.lastUsedAt?.toISOString(),
+			createdAt: analytics.createdAt.toISOString(),
+			updatedAt: analytics.updatedAt.toISOString(),
+		} : undefined,
+	};
+}
+
+/**
+ * Map database template row to TemplateWithAnalytics type
+ */
+function mapTemplateToInterface(
+	template: typeof templates.$inferSelect,
+	analytics?: typeof templateAnalytics.$inferSelect | null
+): TemplateWithAnalytics {
+	return {
+		id: template.id,
+		name: template.name,
+		description: template.description ?? "",
+		content: template.content as unknown,
+		status: template.status as "draft" | "published" | "deprecated",
+		visibility: template.visibility as "private" | "team" | "organization" | "public",
+		createdBy: template.createdBy,
+		categoryIds: (template.categoryIds ?? []) as string[],
+		tags: (template.tags ?? []) as string[],
+		useCount: template.useCount,
+		rating: nullToUndefined(template.rating),
+		ratingCount: nullToUndefined(template.ratingCount),
+		createdAt: template.createdAt.toISOString(),
+		updatedAt: template.updatedAt.toISOString(),
+		analytics: analytics ? {
+			id: analytics.id,
+			templateId: analytics.templateId,
+			aiTags: (analytics.aiTags ?? []) as string[],
+			industries: (analytics.industries ?? []) as string[],
+			rfpTypes: (analytics.rfpTypes ?? []) as string[],
+			winCount: analytics.winCount,
+			lossCount: analytics.lossCount,
+			winRate: nullToUndefined(analytics.winRate),
+			averageEvaluatorScore: nullToUndefined(analytics.averageEvaluatorScore),
+			averageQualityScore: nullToUndefined(analytics.averageQualityScore),
+			userSatisfaction: nullToUndefined(analytics.userSatisfaction),
+			createdAt: analytics.createdAt.toISOString(),
+			updatedAt: analytics.updatedAt.toISOString(),
+		} : undefined,
+	};
+}
+
+// ============================================================================
+// Semantic Search Actions
+// ============================================================================
+
+/**
+ * Perform semantic search across content library
+ */
+export async function semanticSearch(input: SemanticSearchInput): Promise<SemanticSearchResponse> {
+	const startTime = Date.now();
+	try {
+		const { query, contentTypes = ["snippet", "template"], limit = 10, filters } = input;
+
+		// TODO: Generate query embedding using AI service
+		// const queryEmbedding = await generateEmbedding(query);
+
+		// For now, fall back to text-based search
+		const results: SemanticSearchResult[] = [];
+
+		// Search snippets
+		if (contentTypes.includes("snippet")) {
+			const snippetConditions = [];
+			snippetConditions.push(or(
+				ilike(templateSnippets.name, `%${query}%`),
+				ilike(templateSnippets.description, `%${query}%`),
+			));
+
+			if (filters?.organizationId) {
+				snippetConditions.push(eq(templateSnippets.organizationId, filters.organizationId));
+			}
+
+			const matchingSnippets = await db.query.templateSnippets.findMany({
+				where: and(...snippetConditions),
+				limit: limit,
+			});
+
+			// Get analytics for matched snippets
+			const snippetIds = matchingSnippets.map(s => s.id);
+			const analyticsData = snippetIds.length > 0
+				? await db.query.snippetAnalytics.findMany({
+						where: inArray(snippetAnalytics.snippetId, snippetIds),
+				  })
+				: [];
+
+			const analyticsMap = new Map(analyticsData.map(a => [a.snippetId, a]));
+
+			for (const snippet of matchingSnippets) {
+				const analytics = analyticsMap.get(snippet.id);
+
+				// Apply filters
+				if (filters?.contentType && analytics?.contentType !== filters.contentType) continue;
+				if (filters?.freshnessStatus && analytics?.freshnessStatus !== filters.freshnessStatus) continue;
+				if (filters?.minWinRate && (analytics?.winRate ?? 0) < filters.minWinRate) continue;
+				if (filters?.minQualityScore && (analytics?.qualityScore ?? 0) < filters.minQualityScore) continue;
+
+				results.push({
+					contentType: "snippet",
+					contentId: snippet.id,
+					score: 0.8, // TODO: Replace with actual semantic similarity
+					snippet: mapSnippetToInterface(snippet, analytics),
+				});
+			}
+		}
+
+		// Search templates
+		if (contentTypes.includes("template")) {
+			const templateConditions = [];
+			templateConditions.push(or(
+				ilike(templates.name, `%${query}%`),
+				ilike(templates.description, `%${query}%`),
+			));
+			templateConditions.push(eq(templates.status, "published"));
+
+			const matchingTemplates = await db.query.templates.findMany({
+				where: and(...templateConditions),
+				limit: limit,
+			});
+
+			// Get analytics for matched templates
+			const templateIds = matchingTemplates.map(t => t.id);
+			const templateAnalyticsData = templateIds.length > 0
+				? await db.query.templateAnalytics.findMany({
+						where: inArray(templateAnalytics.templateId, templateIds),
+				  })
+				: [];
+
+			const templateAnalyticsMap = new Map(templateAnalyticsData.map(a => [a.templateId, a]));
+
+			for (const template of matchingTemplates) {
+				const analytics = templateAnalyticsMap.get(template.id);
+
+				if (filters?.minWinRate && (analytics?.winRate ?? 0) < filters.minWinRate) continue;
+
+				results.push({
+					contentType: "template",
+					contentId: template.id,
+					score: 0.75,
+					template: mapTemplateToInterface(template, analytics),
+				});
+			}
+		}
+
+		// Sort by score
+		results.sort((a, b) => b.score - a.score);
+
+		return {
+			results: results.slice(0, limit),
+			total: results.length,
+			query,
+			processingTimeMs: Date.now() - startTime,
+		};
+	} catch (error) {
+		console.error("Error performing semantic search:", error);
+		return {
+			results: [],
+			total: 0,
+			query: input.query,
+			processingTimeMs: Date.now() - startTime,
+		};
+	}
+}
+
+// ============================================================================
+// Usage Tracking Actions
+// ============================================================================
+
+/**
+ * Record content usage in a document
+ */
+export async function recordContentUsage(input: RecordUsageInput): Promise<{ success: boolean; error?: string }> {
+	try {
+		const userId = await getCurrentUserId();
+		if (!userId) {
+			return { success: false, error: "Not authenticated" };
+		}
+
+		if (input.contentType === "snippet") {
+			await db.insert(snippetUsageLog).values({
+				snippetId: input.contentId,
+				documentId: input.documentId,
+				opportunityId: input.opportunityId,
+				usageType: input.usageType ?? "inserted",
+				documentSection: input.documentSection,
+				wasModified: input.wasModified ?? false,
+				usedBy: userId,
+				discoveryMethod: input.discoveryMethod,
+				searchQuery: input.searchQuery,
+			});
+
+			// Update snippet use count
+			await db.update(templateSnippets)
+				.set({
+					useCount: sql`${templateSnippets.useCount} + 1`,
+					updatedAt: new Date(),
+				})
+				.where(eq(templateSnippets.id, input.contentId));
+
+			// Update analytics last used
+			await db.update(snippetAnalytics)
+				.set({ lastUsedAt: new Date(), updatedAt: new Date() })
+				.where(eq(snippetAnalytics.snippetId, input.contentId));
+
+		} else if (input.contentType === "template") {
+			await db.insert(templateUsageLog).values({
+				templateId: input.contentId,
+				documentId: input.documentId,
+				opportunityId: input.opportunityId,
+				usedBy: userId,
+			});
+
+			// Update template use count
+			await db.update(templates)
+				.set({
+					useCount: sql`${templates.useCount} + 1`,
+					updatedAt: new Date(),
+				})
+				.where(eq(templates.id, input.contentId));
+		}
+
+		return { success: true };
+	} catch (error) {
+		console.error("Error recording content usage:", error);
+		return { success: false, error: "Failed to record usage" };
+	}
+}
+
+/**
+ * Record proposal outcome for all content used
+ */
+export async function recordProposalOutcome(input: ContentOutcomeInput): Promise<{
+	success: boolean;
+	snippetsUpdated: number;
+	templatesUpdated: number;
+	error?: string;
+}> {
+	try {
+		const userId = await getCurrentUserId();
+		if (!userId) {
+			return { success: false, snippetsUpdated: 0, templatesUpdated: 0, error: "Not authenticated" };
+		}
+
+		const now = new Date();
+
+		// Update all snippet usages for this opportunity
+		const snippetResult = await db.update(snippetUsageLog)
+			.set({
+				proposalOutcome: input.outcome,
+				outcomeRecordedAt: now,
+			})
+			.where(
+				and(
+					eq(snippetUsageLog.opportunityId, input.opportunityId),
+					eq(snippetUsageLog.proposalOutcome, "pending"),
+				)
+			);
+
+		// Update all template usages for this opportunity
+		const templateResult = await db.update(templateUsageLog)
+			.set({
+				proposalOutcome: input.outcome,
+				outcomeRecordedAt: now,
+				evaluatorFeedback: input.evaluatorFeedback,
+			})
+			.where(
+				and(
+					eq(templateUsageLog.opportunityId, input.opportunityId),
+					eq(templateUsageLog.proposalOutcome, "pending"),
+				)
+			);
+
+		// Recalculate win rates for affected snippets
+		const snippetUsages = await db.query.snippetUsageLog.findMany({
+			where: eq(snippetUsageLog.opportunityId, input.opportunityId),
+			columns: { snippetId: true },
+		});
+
+		const uniqueSnippetIds = [...new Set(snippetUsages.map(u => u.snippetId))];
+		for (const snippetId of uniqueSnippetIds) {
+			await recalculateSnippetWinRate(snippetId);
+		}
+
+		// Recalculate win rates for affected templates
+		const templateUsages = await db.query.templateUsageLog.findMany({
+			where: eq(templateUsageLog.opportunityId, input.opportunityId),
+			columns: { templateId: true },
+		});
+
+		const uniqueTemplateIds = [...new Set(templateUsages.map(u => u.templateId))];
+		for (const templateId of uniqueTemplateIds) {
+			await recalculateTemplateWinRate(templateId);
+		}
+
+		return {
+			success: true,
+			snippetsUpdated: uniqueSnippetIds.length,
+			templatesUpdated: uniqueTemplateIds.length,
+		};
+	} catch (error) {
+		console.error("Error recording proposal outcome:", error);
+		return { success: false, snippetsUpdated: 0, templatesUpdated: 0, error: "Failed to record outcome" };
+	}
+}
+
+/**
+ * Recalculate win rate for a snippet
+ */
+async function recalculateSnippetWinRate(snippetId: string): Promise<void> {
+	const usages = await db.query.snippetUsageLog.findMany({
+		where: eq(snippetUsageLog.snippetId, snippetId),
+		columns: { proposalOutcome: true },
+	});
+
+	const decided = usages.filter(u => u.proposalOutcome === "won" || u.proposalOutcome === "lost");
+	const wins = decided.filter(u => u.proposalOutcome === "won").length;
+	const losses = decided.filter(u => u.proposalOutcome === "lost").length;
+	const winRate = decided.length > 0 ? (wins / decided.length) * 100 : null;
+
+	// Upsert analytics record
+	const existing = await db.query.snippetAnalytics.findFirst({
+		where: eq(snippetAnalytics.snippetId, snippetId),
+	});
+
+	if (existing) {
+		await db.update(snippetAnalytics)
+			.set({ winCount: wins, lossCount: losses, winRate, updatedAt: new Date() })
+			.where(eq(snippetAnalytics.snippetId, snippetId));
+	} else {
+		await db.insert(snippetAnalytics).values({
+			snippetId,
+			winCount: wins,
+			lossCount: losses,
+			winRate,
+		});
+	}
+}
+
+/**
+ * Recalculate win rate for a template
+ */
+async function recalculateTemplateWinRate(templateId: string): Promise<void> {
+	const usages = await db.query.templateUsageLog.findMany({
+		where: eq(templateUsageLog.templateId, templateId),
+		columns: { proposalOutcome: true },
+	});
+
+	const decided = usages.filter(u => u.proposalOutcome === "won" || u.proposalOutcome === "lost");
+	const wins = decided.filter(u => u.proposalOutcome === "won").length;
+	const losses = decided.filter(u => u.proposalOutcome === "lost").length;
+	const winRate = decided.length > 0 ? (wins / decided.length) * 100 : null;
+
+	// Upsert analytics record
+	const existing = await db.query.templateAnalytics.findFirst({
+		where: eq(templateAnalytics.templateId, templateId),
+	});
+
+	if (existing) {
+		await db.update(templateAnalytics)
+			.set({ winCount: wins, lossCount: losses, winRate, updatedAt: new Date() })
+			.where(eq(templateAnalytics.templateId, templateId));
+	} else {
+		await db.insert(templateAnalytics).values({
+			templateId,
+			winCount: wins,
+			lossCount: losses,
+			winRate,
+		});
+	}
+}
+
+// ============================================================================
+// Content Freshness Actions
+// ============================================================================
+
+/**
+ * Update snippet freshness status
+ */
+export async function updateSnippetFreshness(
+	snippetId: string,
+	freshnessStatus: FreshnessStatus,
+	reviewDueDate?: string
+): Promise<{ success: boolean; error?: string }> {
+	try {
+		const userId = await getCurrentUserId();
+		if (!userId) {
+			return { success: false, error: "Not authenticated" };
+		}
+
+		// Upsert analytics record
+		const existing = await db.query.snippetAnalytics.findFirst({
+			where: eq(snippetAnalytics.snippetId, snippetId),
+		});
+
+		const updates = {
+			freshnessStatus,
+			reviewDueDate: reviewDueDate ? new Date(reviewDueDate) : null,
+			lastReviewedAt: freshnessStatus === "current" ? new Date() : undefined,
+			updatedAt: new Date(),
+		};
+
+		if (existing) {
+			await db.update(snippetAnalytics)
+				.set(updates)
+				.where(eq(snippetAnalytics.snippetId, snippetId));
+		} else {
+			await db.insert(snippetAnalytics).values({
+				snippetId,
+				...updates,
+			});
+		}
+
+		revalidatePath("/content-library");
+		return { success: true };
+	} catch (error) {
+		console.error("Error updating snippet freshness:", error);
+		return { success: false, error: "Failed to update freshness" };
+	}
+}
+
+/**
+ * Get snippets that need review
+ */
+export async function getSnippetsNeedingReview(limit = 20): Promise<SnippetWithAnalytics[]> {
+	try {
+		const analytics = await db.query.snippetAnalytics.findMany({
+			where: or(
+				eq(snippetAnalytics.freshnessStatus, "review_needed"),
+				eq(snippetAnalytics.freshnessStatus, "stale"),
+				and(
+					isNotNull(snippetAnalytics.reviewDueDate),
+					lte(snippetAnalytics.reviewDueDate, new Date()),
+				),
+			),
+			limit,
+			orderBy: [asc(snippetAnalytics.reviewDueDate)],
+		});
+
+		const snippetIds = analytics.map(a => a.snippetId);
+		if (snippetIds.length === 0) return [];
+
+		const snippets = await db.query.templateSnippets.findMany({
+			where: inArray(templateSnippets.id, snippetIds),
+		});
+
+		const analyticsMap = new Map(analytics.map(a => [a.snippetId, a]));
+
+		return snippets.map(snippet => mapSnippetToInterface(snippet, analyticsMap.get(snippet.id)));
+	} catch (error) {
+		console.error("Error getting snippets needing review:", error);
+		return [];
+	}
+}
+
+// ============================================================================
+// Content Suggestions Actions
+// ============================================================================
+
+/**
+ * Generate content suggestions for a document section
+ */
+export async function generateContentSuggestions(input: GenerateSuggestionsInput): Promise<ContentSuggestionRow[]> {
+	try {
+		const { documentId, opportunityId, section, contextText, limit = 5 } = input;
+
+		// TODO: Use AI to generate better suggestions based on context
+		// For now, use text-based matching
+
+		if (!contextText) return [];
+
+		// Find matching snippets
+		const searchResults = await semanticSearch({
+			query: contextText.slice(0, 500), // Limit query length
+			contentTypes: ["snippet"],
+			limit,
+		});
+
+		// Save suggestions
+		const suggestions: ContentSuggestionRow[] = [];
+
+		for (const result of searchResults.results) {
+			if (result.contentType === "snippet" && result.snippet) {
+				const [suggestion] = await db.insert(contentSuggestions).values({
+					documentId,
+					opportunityId,
+					snippetId: result.contentId,
+					documentSection: section,
+					contextText,
+					relevanceScore: result.score * 100,
+					confidence: result.score > 0.8 ? "high" : result.score > 0.6 ? "medium" : "low",
+					reasoning: `Matched based on text similarity`,
+				}).returning();
+
+				suggestions.push(suggestion);
+			}
+		}
+
+		return suggestions;
+	} catch (error) {
+		console.error("Error generating content suggestions:", error);
+		return [];
+	}
+}
+
+/**
+ * Provide feedback on a content suggestion
+ */
+export async function provideSuggestionFeedback(input: SuggestionFeedbackInput): Promise<{ success: boolean; error?: string }> {
+	try {
+		const userId = await getCurrentUserId();
+		if (!userId) {
+			return { success: false, error: "Not authenticated" };
+		}
+
+		await db.update(contentSuggestions)
+			.set({
+				userAction: input.action,
+				actionAt: new Date(),
+				actionBy: userId,
+				wasHelpful: input.wasHelpful,
+			})
+			.where(eq(contentSuggestions.id, input.suggestionId));
+
+		return { success: true };
+	} catch (error) {
+		console.error("Error providing suggestion feedback:", error);
+		return { success: false, error: "Failed to save feedback" };
+	}
+}
+
+// ============================================================================
+// Statistics Actions
+// ============================================================================
+
+/**
+ * Get content library statistics for dashboard
+ */
+export async function getContentLibraryStats(organizationId?: string): Promise<ContentLibraryStats> {
+	try {
+		const snippetCondition = organizationId
+			? eq(templateSnippets.organizationId, organizationId)
+			: undefined;
+
+		// Count totals
+		const [snippetCount, templateCount, partialCount] = await Promise.all([
+			db.select({ count: sql<number>`count(*)` })
+				.from(templateSnippets)
+				.where(snippetCondition),
+			db.select({ count: sql<number>`count(*)` }).from(templates),
+			db.select({ count: sql<number>`count(*)` }).from(templatePartials),
+		]);
+
+		// Count embeddings
+		const [snippetEmbeddingCount, templateEmbeddingCount] = await Promise.all([
+			db.select({ count: sql<number>`count(*)` }).from(snippetEmbeddings),
+			db.select({ count: sql<number>`count(*)` }).from(templateEmbeddings),
+		]);
+
+		// Count usages
+		const thirtyDaysAgo = new Date();
+		thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+		const [totalUsages, monthlyUsages] = await Promise.all([
+			db.select({ count: sql<number>`count(*)` }).from(snippetUsageLog),
+			db.select({ count: sql<number>`count(*)` })
+				.from(snippetUsageLog)
+				.where(gte(snippetUsageLog.createdAt, thirtyDaysAgo)),
+		]);
+
+		// Get average win rates
+		const snippetAnalyticsData = await db.query.snippetAnalytics.findMany({
+			where: isNotNull(snippetAnalytics.winRate),
+			columns: { winRate: true },
+		});
+
+		const templateAnalyticsData = await db.query.templateAnalytics.findMany({
+			where: isNotNull(templateAnalytics.winRate),
+			columns: { winRate: true },
+		});
+
+		const avgSnippetWinRate = snippetAnalyticsData.length > 0
+			? snippetAnalyticsData.reduce((sum, a) => sum + (a.winRate ?? 0), 0) / snippetAnalyticsData.length
+			: undefined;
+
+		const avgTemplateWinRate = templateAnalyticsData.length > 0
+			? templateAnalyticsData.reduce((sum, a) => sum + (a.winRate ?? 0), 0) / templateAnalyticsData.length
+			: undefined;
+
+		// Get snippets needing review
+		const needingReviewCount = await db.select({ count: sql<number>`count(*)` })
+			.from(snippetAnalytics)
+			.where(or(
+				eq(snippetAnalytics.freshnessStatus, "review_needed"),
+				eq(snippetAnalytics.freshnessStatus, "stale"),
+			));
+
+		// Get top performing content
+		const topSnippets = await getTopPerformingSnippets(5);
+		const topTemplates = await getTopPerformingTemplates(5);
+
+		return {
+			totalSnippets: Number(snippetCount[0]?.count ?? 0),
+			totalTemplates: Number(templateCount[0]?.count ?? 0),
+			totalPartials: Number(partialCount[0]?.count ?? 0),
+			snippetsWithEmbeddings: Number(snippetEmbeddingCount[0]?.count ?? 0),
+			templatesWithEmbeddings: Number(templateEmbeddingCount[0]?.count ?? 0),
+			totalUsages: Number(totalUsages[0]?.count ?? 0),
+			usagesThisMonth: Number(monthlyUsages[0]?.count ?? 0),
+			averageSnippetWinRate: avgSnippetWinRate,
+			averageTemplateWinRate: avgTemplateWinRate,
+			topPerformingSnippets: topSnippets,
+			topPerformingTemplates: topTemplates,
+			snippetsNeedingReview: Number(needingReviewCount[0]?.count ?? 0),
+			staleSnippets: 0, // TODO: Count stale
+		};
+	} catch (error) {
+		console.error("Error getting content library stats:", error);
+		return {
+			totalSnippets: 0,
+			totalTemplates: 0,
+			totalPartials: 0,
+			snippetsWithEmbeddings: 0,
+			templatesWithEmbeddings: 0,
+			totalUsages: 0,
+			usagesThisMonth: 0,
+			topPerformingSnippets: [],
+			topPerformingTemplates: [],
+			snippetsNeedingReview: 0,
+			staleSnippets: 0,
+		};
+	}
+}
+
+/**
+ * Get top performing snippets by win rate
+ */
+async function getTopPerformingSnippets(limit = 5): Promise<SnippetWithAnalytics[]> {
+	const topAnalytics = await db.query.snippetAnalytics.findMany({
+		where: and(
+			isNotNull(snippetAnalytics.winRate),
+			gte(snippetAnalytics.winCount, 1), // At least 1 win
+		),
+		orderBy: [desc(snippetAnalytics.winRate)],
+		limit,
+	});
+
+	if (topAnalytics.length === 0) return [];
+
+	const snippetIds = topAnalytics.map(a => a.snippetId);
+	const snippets = await db.query.templateSnippets.findMany({
+		where: inArray(templateSnippets.id, snippetIds),
+	});
+
+	const analyticsMap = new Map(topAnalytics.map(a => [a.snippetId, a]));
+
+	return snippets.map(snippet => mapSnippetToInterface(snippet, analyticsMap.get(snippet.id)));
+}
+
+/**
+ * Get top performing templates by win rate
+ */
+async function getTopPerformingTemplates(limit = 5): Promise<TemplateWithAnalytics[]> {
+	const topAnalytics = await db.query.templateAnalytics.findMany({
+		where: and(
+			isNotNull(templateAnalytics.winRate),
+			gte(templateAnalytics.winCount, 1),
+		),
+		orderBy: [desc(templateAnalytics.winRate)],
+		limit,
+	});
+
+	if (topAnalytics.length === 0) return [];
+
+	const templateIds = topAnalytics.map(a => a.templateId);
+	const matchedTemplates = await db.query.templates.findMany({
+		where: inArray(templates.id, templateIds),
+	});
+
+	const analyticsMap = new Map(topAnalytics.map(a => [a.templateId, a]));
+
+	return matchedTemplates.map(template => mapTemplateToInterface(template, analyticsMap.get(template.id)));
+}
+
+/**
+ * Get effectiveness report for a piece of content
+ */
+export async function getContentEffectivenessReport(
+	contentId: string,
+	contentType: "snippet" | "template"
+): Promise<ContentEffectivenessReport | null> {
+	try {
+		if (contentType === "snippet") {
+			const usages = await db.query.snippetUsageLog.findMany({
+				where: eq(snippetUsageLog.snippetId, contentId),
+				orderBy: [asc(snippetUsageLog.createdAt)],
+			});
+
+			if (usages.length === 0) return null;
+
+			const uniqueDocs = new Set(usages.map(u => u.documentId));
+			const uniqueOpps = new Set(usages.filter(u => u.opportunityId).map(u => u.opportunityId!));
+
+			const wins = usages.filter(u => u.proposalOutcome === "won").length;
+			const losses = usages.filter(u => u.proposalOutcome === "lost").length;
+			const pending = usages.filter(u => u.proposalOutcome === "pending").length;
+			const decided = wins + losses;
+
+			const modified = usages.filter(u => u.wasModified).length;
+
+			return {
+				contentId,
+				contentType,
+				totalUses: usages.length,
+				uniqueDocuments: uniqueDocs.size,
+				uniqueOpportunities: uniqueOpps.size,
+				winCount: wins,
+				lossCount: losses,
+				pendingCount: pending,
+				winRate: decided > 0 ? (wins / decided) * 100 : undefined,
+				averageModificationRate: (modified / usages.length) * 100,
+				averageAcceptanceRate: 100, // All usages are acceptances
+				usageOverTime: [], // TODO: Aggregate by date
+				winRateOverTime: [], // TODO: Calculate rolling win rate
+			};
+		} else {
+			const usages = await db.query.templateUsageLog.findMany({
+				where: eq(templateUsageLog.templateId, contentId),
+				orderBy: [asc(templateUsageLog.createdAt)],
+			});
+
+			if (usages.length === 0) return null;
+
+			const uniqueDocs = new Set(usages.map(u => u.documentId));
+			const uniqueOpps = new Set(usages.filter(u => u.opportunityId).map(u => u.opportunityId!));
+
+			const wins = usages.filter(u => u.proposalOutcome === "won").length;
+			const losses = usages.filter(u => u.proposalOutcome === "lost").length;
+			const pending = usages.filter(u => u.proposalOutcome === "pending").length;
+			const decided = wins + losses;
+
+			return {
+				contentId,
+				contentType,
+				totalUses: usages.length,
+				uniqueDocuments: uniqueDocs.size,
+				uniqueOpportunities: uniqueOpps.size,
+				winCount: wins,
+				lossCount: losses,
+				pendingCount: pending,
+				winRate: decided > 0 ? (wins / decided) * 100 : undefined,
+				averageModificationRate: 0,
+				averageAcceptanceRate: 100,
+				usageOverTime: [],
+				winRateOverTime: [],
+			};
+		}
+	} catch (error) {
+		console.error("Error getting content effectiveness report:", error);
+		return null;
+	}
+}
