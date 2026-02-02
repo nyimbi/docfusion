@@ -30,6 +30,9 @@ export * from "./schema-content-library";
 // Re-export review schema (Pink/Red/Gold team reviews)
 export * from "./schema-reviews";
 
+// Re-export presentations schema (oral presentations, slides, Q&A, practice recordings)
+export * from "./schema-presentations";
+
 import { user } from "./auth-schema";
 
 import {
