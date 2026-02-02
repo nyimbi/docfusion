@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "sessionId": "5c93ba77-ebb1-4185-bba1-12a12281f0f8",
+      "fullPath": "/sessions/dreamy-ecstatic-galileo/mnt/.claude/projects/-sessions-dreamy-ecstatic-galileo/5c93ba77-ebb1-4185-bba1-12a12281f0f8.jsonl",
+      "fileMtime": 1769978216499,
+      "firstPrompt": "Develop a comprehensive list of 1000 web locations to find tenders for software, IT and allied ooportunites across Africa and the global south. We want to scrape these sites for tenders, RFQs, EoI, RF…",
+      "messageCount": 31,
+      "created": "2026-02-01T11:43:09.444Z",
+      "modified": "2026-02-01T20:36:56.552Z",
+      "gitBranch": "",
+      "projectPath": "/sessions/dreamy-ecstatic-galileo",
+      "isSidechain": false
+    }
+  ],
+  "originalPath": "/sessions/dreamy-ecstatic-galileo"
+}
