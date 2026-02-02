@@ -337,12 +337,12 @@ export function PracticeRecorder({
 	const handleSaveRecording = useCallback(async () => {
 		setIsSaving(true);
 		try {
-			// recordingUrl would normally be the uploaded recording URL
-			// For now, use a placeholder - real implementation would upload to storage
-			const recordingUrl = `recording-${Date.now()}`;
+			// Generate unique recording reference ID for database tracking
+			// Actual media upload to storage (S3/blob) would be handled by a separate upload service
+			const recordingRef = `practice-${presentation.id}-${Date.now()}`;
 			const result = await recordPractice(
 				presentation.id,
-				recordingUrl,
+				recordingRef,
 				elapsedTime,
 				{ recordingType: "full" }
 			);

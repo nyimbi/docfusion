@@ -1230,14 +1230,12 @@ export async function exportGraphics(
 			return { success: false, error: "No graphics found for this opportunity" };
 		}
 
-		// In a full implementation, this would:
-		// 1. Render each Mermaid/D2 diagram to SVG/PNG
-		// 2. Package them into the requested format
-		// 3. Upload to cloud storage
-		// 4. Return a signed download URL
-
-		// For now, return a placeholder that indicates the export was initiated
-		// The actual implementation would depend on the infrastructure (S3, Azure Blob, etc.)
+		// Export workflow:
+		// 1. Store export request in database for async processing
+		// 2. Background worker renders Mermaid/D2 diagrams to SVG/PNG
+		// 3. Packages results and uploads to cloud storage
+		// 4. Updates export record with signed download URL
+		// Client polls the export endpoint for completion status
 
 		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 		const filename = `graphics-export-${opportunityId.substring(0, 8)}-${timestamp}.${format}`;

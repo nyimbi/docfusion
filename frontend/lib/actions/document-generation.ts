@@ -503,12 +503,27 @@ export async function generateDiagram(
 		throw new Error("AI provider not available. Please check your configuration.");
 	}
 
-	// Handle napkin type separately (it's not a Mermaid type)
+	// Handle napkin type - generate a simple ASCII/text-based conceptual diagram
 	if (type === "napkin") {
+		const cleanDesc = description.slice(0, 200);
 		return {
 			type: "napkin",
-			code: `// Napkin-style sketch based on: ${description}\n// (Sketch rendering not implemented)`,
-			description: `Generated napkin sketch based on: ${description.slice(0, 100)}...`,
+			code: `
+┌─────────────────────────────────────┐
+│         CONCEPT SKETCH              │
+├─────────────────────────────────────┤
+│                                     │
+│  ${cleanDesc.slice(0, 35).padEnd(35)}  │
+│  ${cleanDesc.slice(35, 70).padEnd(35)}  │
+│  ${cleanDesc.slice(70, 105).padEnd(35)}  │
+│                                     │
+│     ┌───────┐      ┌───────┐       │
+│     │ Input │ ───► │ Output│       │
+│     └───────┘      └───────┘       │
+│                                     │
+└─────────────────────────────────────┘
+`.trim(),
+			description: `Napkin sketch concept for: ${cleanDesc}`,
 		};
 	}
 

@@ -2575,12 +2575,12 @@ export async function generateCostRealismNarrative(
  *
  * @param opportunityId - Opportunity ID
  * @param format - Export format (xlsx or pdf)
- * @returns URL and filename of exported file
+ * @returns Base64 encoded file content and filename
  */
 export async function exportCostVolume(
 	opportunityId: string,
 	format: "xlsx" | "pdf"
-): Promise<ActionResult<{ url: string; filename: string }>> {
+): Promise<ActionResult<{ content: string; filename: string; mimeType: string }>> {
 	try {
 		await requireUserContext();
 
@@ -2590,26 +2590,128 @@ export async function exportCostVolume(
 			return { success: false, error: priceResult.error };
 		}
 
-		// Get cost elements
+		// Get cost elements with labor categories
 		const elements = await db
 			.select()
 			.from(costElements)
 			.where(eq(costElements.opportunityId, opportunityId))
 			.orderBy(asc(costElements.wbsCode), asc(costElements.periodNumber));
 
-		// TODO: Implement actual export to XLSX or PDF
-		// This would use a library like exceljs for XLSX or pdfmake for PDF
-		// For now, return a placeholder
+		// Get labor categories for rate lookup based on IDs used in cost elements
+		const laborCategoryIds = [...new Set(elements.map(e => e.laborCategoryId).filter(Boolean))] as string[];
+		const categories = laborCategoryIds.length > 0
+			? await db.select().from(laborCategories).where(inArray(laborCategories.id, laborCategoryIds))
+			: [];
+
+		const categoryMap = new Map(categories.map(c => [c.id, c]));
 
 		const filename = `cost-volume-${opportunityId.substring(0, 8)}.${format}`;
 
-		return {
-			success: true,
-			data: {
-				url: `/api/exports/${filename}`,
-				filename,
-			},
-		};
+		if (format === "xlsx") {
+			// Dynamic import for xlsx to avoid bundling issues
+			const XLSX = await import("xlsx");
+
+			const totals = priceResult.data.grandTotals;
+
+			// Prepare data for Excel
+			const summaryData = [
+				["Cost Volume Summary"],
+				["Generated", new Date().toISOString()],
+				[""],
+				["Total Direct Labor", totals.laborCost],
+				["Total ODC", totals.odcCost],
+				["Total Subcontract", totals.subcontractCost],
+				["Total Material", totals.materialCost],
+				["Total Travel", totals.travelCost],
+				["Overhead", totals.overhead],
+				["G&A", totals.gaAmount],
+				["Fee", totals.fee],
+				["Total Price", totals.totalPrice],
+			];
+
+			const detailHeaders = [
+				"WBS Code", "WBS Title", "Element Type", "Period",
+				"Labor Category", "Hours", "Rate", "Labor Cost",
+				"ODC/Sub/Travel/Material", "Total Cost", "BOE Narrative"
+			];
+
+			const detailData = elements.map(e => {
+				const laborCat = e.laborCategoryId ? categoryMap.get(e.laborCategoryId) : null;
+				// Calculate other direct costs based on element type
+				const otherCost = e.odcAmount ?? e.subcontractorCost ?? e.travelCost ?? e.materialCost ?? 0;
+				return [
+					e.wbsCode ?? "",
+					e.wbsTitle ?? "",
+					e.elementType ?? "labor",
+					e.periodNumber ?? 1,
+					laborCat?.name ?? e.laborCategoryName ?? "",
+					e.hours ?? 0,
+					e.rate ?? laborCat?.directRate ?? 0,
+					e.laborCost ?? 0,
+					otherCost,
+					e.totalCost ?? 0,
+					e.boeNarrative ?? "",
+				];
+			});
+
+			// Create workbook
+			const workbook = XLSX.utils.book_new();
+
+			// Summary sheet
+			const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+			XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+
+			// Detail sheet
+			const detailSheet = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailData]);
+			XLSX.utils.book_append_sheet(workbook, detailSheet, "Cost Elements");
+
+			// Generate buffer
+			const buffer = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
+
+			return {
+				success: true,
+				data: {
+					content: buffer,
+					filename,
+					mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+				},
+			};
+		} else {
+			const totals = priceResult.data.grandTotals;
+
+			// PDF format - generate a simple HTML-based PDF representation
+			const htmlContent = `
+				<!DOCTYPE html>
+				<html>
+				<head><title>Cost Volume - ${opportunityId}</title></head>
+				<body>
+					<h1>Cost Volume Summary</h1>
+					<table border="1" cellpadding="8">
+						<tr><td>Direct Labor</td><td>$${totals.laborCost.toLocaleString()}</td></tr>
+						<tr><td>ODC</td><td>$${totals.odcCost.toLocaleString()}</td></tr>
+						<tr><td>Subcontract</td><td>$${totals.subcontractCost.toLocaleString()}</td></tr>
+						<tr><td>Material</td><td>$${totals.materialCost.toLocaleString()}</td></tr>
+						<tr><td>Travel</td><td>$${totals.travelCost.toLocaleString()}</td></tr>
+						<tr><td>Overhead</td><td>$${totals.overhead.toLocaleString()}</td></tr>
+						<tr><td>G&A</td><td>$${totals.gaAmount.toLocaleString()}</td></tr>
+						<tr><td>Fee</td><td>$${totals.fee.toLocaleString()}</td></tr>
+						<tr><td><strong>Total Price</strong></td><td><strong>$${totals.totalPrice.toLocaleString()}</strong></td></tr>
+					</table>
+					<h2>Cost Elements (${elements.length})</h2>
+					<p>See XLSX export for full detail.</p>
+				</body>
+				</html>
+			`;
+
+			return {
+				success: true,
+				data: {
+					content: Buffer.from(htmlContent).toString("base64"),
+					filename: filename.replace(".pdf", ".html"),
+					mimeType: "text/html",
+				},
+			};
+		}
 	} catch (error) {
 		console.error("Error exporting cost volume:", error);
 		return {
@@ -2623,11 +2725,11 @@ export async function exportCostVolume(
  * Export BOE package for an opportunity.
  *
  * @param opportunityId - Opportunity ID
- * @returns URL and filename of exported package
+ * @returns Base64 encoded file content and filename
  */
 export async function exportBOEPackage(
 	opportunityId: string
-): Promise<ActionResult<{ url: string; filename: string }>> {
+): Promise<ActionResult<{ content: string; filename: string; mimeType: string }>> {
 	try {
 		await requireUserContext();
 
@@ -2635,21 +2737,157 @@ export async function exportBOEPackage(
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId));
+			.where(eq(costElements.opportunityId, opportunityId))
+			.orderBy(asc(costElements.wbsCode));
 
 		// Generate any missing BOEs
 		for (const element of elements.filter(e => !e.boeNarrative)) {
 			await generateBOENarrative(element.id);
 		}
 
-		// TODO: Implement actual BOE package generation
-		const filename = `boe-package-${opportunityId.substring(0, 8)}.pdf`;
+		// Refetch to get updated narratives
+		const updatedElements = await db
+			.select()
+			.from(costElements)
+			.where(eq(costElements.opportunityId, opportunityId))
+			.orderBy(asc(costElements.wbsCode));
+
+		// Get labor categories for context - fetch by IDs referenced in cost elements
+		const laborCategoryIds = [...new Set(updatedElements
+			.filter(e => e.laborCategoryId)
+			.map(e => e.laborCategoryId!)
+		)];
+
+		const categories = laborCategoryIds.length > 0
+			? await db.select().from(laborCategories).where(inArray(laborCategories.id, laborCategoryIds))
+			: [];
+
+		const categoryMap = new Map(categories.map(c => [c.id, c]));
+
+		// Generate comprehensive BOE document as Word document
+		const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } = await import("docx");
+
+		const doc = new Document({
+			sections: [{
+				properties: {},
+				children: [
+					new Paragraph({
+						text: "BASIS OF ESTIMATE (BOE) PACKAGE",
+						heading: HeadingLevel.TITLE,
+					}),
+					new Paragraph({
+						children: [
+							new TextRun({ text: `Opportunity ID: ${opportunityId}`, break: 1 }),
+							new TextRun({ text: `Generated: ${new Date().toISOString()}`, break: 1 }),
+							new TextRun({ text: `Total Elements: ${updatedElements.length}`, break: 1 }),
+						],
+					}),
+					new Paragraph({ text: "" }),
+
+					// Summary table
+					new Paragraph({
+						text: "COST ELEMENT SUMMARY",
+						heading: HeadingLevel.HEADING_1,
+					}),
+					new Table({
+						width: { size: 100, type: WidthType.PERCENTAGE },
+						rows: [
+							new TableRow({
+								children: [
+									new TableCell({ children: [new Paragraph({ text: "WBS" })] }),
+									new TableCell({ children: [new Paragraph({ text: "WBS Title" })] }),
+									new TableCell({ children: [new Paragraph({ text: "Type" })] }),
+									new TableCell({ children: [new Paragraph({ text: "Hours" })] }),
+									new TableCell({ children: [new Paragraph({ text: "Total Cost" })] }),
+								],
+							}),
+							...updatedElements.map(e => new TableRow({
+								children: [
+									new TableCell({ children: [new Paragraph({ text: e.wbsCode ?? "N/A" })] }),
+									new TableCell({ children: [new Paragraph({ text: e.wbsTitle ?? "N/A" })] }),
+									new TableCell({ children: [new Paragraph({ text: e.elementType ?? "N/A" })] }),
+									new TableCell({ children: [new Paragraph({ text: String(e.hours ?? 0) })] }),
+									new TableCell({ children: [new Paragraph({ text: `$${(e.totalCost ?? 0).toLocaleString()}` })] }),
+								],
+							})),
+						],
+					}),
+					new Paragraph({ text: "" }),
+
+					// Individual BOE narratives
+					new Paragraph({
+						text: "DETAILED BASIS OF ESTIMATES",
+						heading: HeadingLevel.HEADING_1,
+					}),
+					...updatedElements.flatMap(element => {
+						const laborCat = element.laborCategoryId ? categoryMap.get(element.laborCategoryId) : null;
+						return [
+							new Paragraph({
+								text: `${element.wbsCode ?? "N/A"} - ${element.wbsTitle ?? "Unnamed Task"}`,
+								heading: HeadingLevel.HEADING_2,
+							}),
+							new Paragraph({
+								children: [
+									new TextRun({ text: "Element Type: ", bold: true }),
+									new TextRun({ text: element.elementType ?? "labor" }),
+								],
+							}),
+							new Paragraph({
+								children: [
+									new TextRun({ text: "Labor Category: ", bold: true }),
+									new TextRun({ text: laborCat?.name ?? "N/A" }),
+								],
+							}),
+							new Paragraph({
+								children: [
+									new TextRun({ text: "Hours: ", bold: true }),
+									new TextRun({ text: String(element.hours ?? 0) }),
+								],
+							}),
+							new Paragraph({
+								children: [
+									new TextRun({ text: "Rate: ", bold: true }),
+									new TextRun({ text: `$${(element.rate ?? laborCat?.directRate ?? 0).toFixed(2)}/hr` }),
+								],
+							}),
+							new Paragraph({
+								children: [
+									new TextRun({ text: "Labor Cost: ", bold: true }),
+									new TextRun({ text: `$${(element.laborCost ?? element.odcAmount ?? element.subcontractorCost ?? element.travelCost ?? element.materialCost ?? 0).toLocaleString()}` }),
+								],
+							}),
+							new Paragraph({
+								children: [
+									new TextRun({ text: "Total Cost: ", bold: true }),
+									new TextRun({ text: `$${(element.totalCost ?? 0).toLocaleString()}` }),
+								],
+							}),
+							new Paragraph({ text: "" }),
+							new Paragraph({
+								text: "Basis of Estimate Narrative:",
+								heading: HeadingLevel.HEADING_3,
+							}),
+							new Paragraph({
+								text: element.boeNarrative ?? "No BOE narrative available. Please generate one.",
+							}),
+							new Paragraph({ text: "" }),
+							new Paragraph({ text: "─".repeat(50) }),
+							new Paragraph({ text: "" }),
+						];
+					}),
+				],
+			}],
+		});
+
+		const buffer = await Packer.toBase64String(doc);
+		const filename = `boe-package-${opportunityId.substring(0, 8)}.docx`;
 
 		return {
 			success: true,
 			data: {
-				url: `/api/exports/${filename}`,
+				content: buffer,
 				filename,
+				mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 			},
 		};
 	} catch (error) {
@@ -3321,22 +3559,42 @@ export async function updateWBSNode(
 
 		const wbsCode = nodeId.replace("wbs-", "");
 
-		// For now, return a placeholder since we're using cost elements to track WBS
-		// A real implementation would update the associated cost element's metadata
+		// Update cost elements with matching WBS code
+		const updateData: Record<string, unknown> = {};
+		if (input.title !== undefined) updateData.wbsTitle = input.title;
+		if (input.description !== undefined) updateData.boeNarrative = input.description;
+
+		if (Object.keys(updateData).length > 0) {
+			await db
+				.update(costElements)
+				.set(updateData)
+				.where(eq(costElements.wbsCode, wbsCode));
+		}
+
+		// Get updated elements to build the node
+		const elements = await db
+			.select()
+			.from(costElements)
+			.where(eq(costElements.wbsCode, wbsCode));
+
+		const firstElement = elements[0];
+		const totalCost = elements.reduce((sum, e) => sum + (e.totalCost ?? 0), 0);
+		const totalHours = elements.reduce((sum, e) => sum + (e.hours ?? 0), 0);
+
 		const node: WBSNodeData = {
 			id: nodeId,
-			opportunityId: input.opportunityId || "",
+			opportunityId: input.opportunityId || firstElement?.opportunityId || "",
 			wbsCode,
-			title: input.title || wbsCode,
-			description: input.description ?? null,
+			title: input.title || firstElement?.wbsTitle || wbsCode,
+			description: input.description ?? firstElement?.boeNarrative ?? null,
 			parentId: input.parentId ?? null,
-			level: 1,
+			level: wbsCode.split(".").length,
 			sortOrder: 0,
 			technicalSectionId: null,
 			clinNumber: null,
 			children: [],
-			totalCost: null,
-			totalHours: null,
+			totalCost: totalCost || null,
+			totalHours: totalHours || null,
 		};
 
 		return { success: true, data: node };

@@ -2011,7 +2011,7 @@ Be specific and strategic. Only output valid JSON array.`;
  */
 export async function exportWinLossReport(
 	format: "pdf" | "xlsx"
-): Promise<ActionResult<{ url: string; filename: string }>> {
+): Promise<ActionResult<{ content: string; filename: string; mimeType: string }>> {
 	try {
 		// Fetch all required data
 		const statisticsResult = await getWinLossStatistics();
@@ -2022,29 +2022,158 @@ export async function exportWinLossReport(
 		const lessonsResult = await generateLessonsLearnedReport();
 		const patternsResult = await analyzeWinLossPatterns();
 
-		// For now, generate a JSON export (actual PDF/XLSX would require additional libraries)
-		const reportData = {
-			generatedAt: new Date().toISOString(),
-			statistics: statisticsResult.data,
-			lessonsLearned: lessonsResult.success ? lessonsResult.data : null,
-			patterns: patternsResult.success ? patternsResult.data : null,
-		};
+		const stats = statisticsResult.data;
+		const lessons = lessonsResult.success ? lessonsResult.data : null;
+		const patterns = patternsResult.success ? patternsResult.data : null;
 
-		// In a real implementation, this would generate actual PDF/XLSX
-		// For now, we return a placeholder
 		const filename = `winloss-report-${new Date().toISOString().split("T")[0]}.${format}`;
 
-		// This would typically upload to storage and return URL
-		// For now, log the data that would be exported
-		console.log("[exportWinLossReport] Report data:", JSON.stringify(reportData).substring(0, 500));
+		if (format === "xlsx") {
+			const XLSX = await import("xlsx");
 
-		return {
-			success: true,
-			data: {
-				url: `/api/reports/winloss/${filename}`,
-				filename,
-			},
-		};
+			// Summary sheet data
+			const summaryData = [
+				["Win/Loss Analysis Report"],
+				["Generated", new Date().toISOString()],
+				[""],
+				["Overall Statistics"],
+				["Total Proposals", stats.totalProposals],
+				["Wins", stats.wins],
+				["Losses", stats.losses],
+				["No Award", stats.noAward],
+				["Cancelled", stats.cancelled],
+				["Win Rate", `${(stats.winRate * 100).toFixed(1)}%`],
+				["Total Contract Value", stats.totalContractValue],
+				["Total Investment", stats.totalInvestment],
+				["ROI", stats.roi.toFixed(2)],
+			];
+
+			// Patterns sheet data
+			const patternsHeaders = ["Pattern Name", "Description", "Type", "Occurrences", "Win Correlation", "Confidence"];
+			const patternsData = patterns?.patterns.map(p => [
+				p.patternName,
+				p.description ?? "",
+				p.patternType,
+				p.occurrenceCount ?? 0,
+				(p.winCorrelation ?? 0).toFixed(3),
+				(p.confidence ?? 0).toFixed(3),
+			]) ?? [];
+
+			// Lessons sheet data
+			const lessonsHeaders = ["Lesson", "Category", "Outcome", "Frequency"];
+			const lessonsData = lessons?.lessonsLearned.map(l => [
+				l.lesson,
+				l.category,
+				l.relatedOutcome,
+				l.frequency,
+			]) ?? [];
+
+			// Create workbook
+			const workbook = XLSX.utils.book_new();
+
+			const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+			XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+
+			if (patternsData.length > 0) {
+				const patternsSheet = XLSX.utils.aoa_to_sheet([patternsHeaders, ...patternsData]);
+				XLSX.utils.book_append_sheet(workbook, patternsSheet, "Patterns");
+			}
+
+			if (lessonsData.length > 0) {
+				const lessonsSheet = XLSX.utils.aoa_to_sheet([lessonsHeaders, ...lessonsData]);
+				XLSX.utils.book_append_sheet(workbook, lessonsSheet, "Lessons Learned");
+			}
+
+			const buffer = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
+
+			return {
+				success: true,
+				data: {
+					content: buffer,
+					filename,
+					mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+				},
+			};
+		} else {
+			// Generate HTML report for PDF-like viewing
+			const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Win/Loss Analysis Report</title>
+	<style>
+		body { font-family: Arial, sans-serif; margin: 40px; }
+		h1 { color: #1a365d; }
+		h2 { color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+		table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+		th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; }
+		th { background: #f7fafc; }
+		.metric { font-size: 24px; font-weight: bold; color: #2d3748; }
+		.metric-label { font-size: 14px; color: #718096; }
+		.metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 20px 0; }
+		.metric-card { background: #f7fafc; padding: 20px; border-radius: 8px; }
+	</style>
+</head>
+<body>
+	<h1>Win/Loss Analysis Report</h1>
+	<p>Generated: ${new Date().toLocaleDateString()}</p>
+
+	<h2>Executive Summary</h2>
+	<div class="metrics-grid">
+		<div class="metric-card">
+			<div class="metric">${stats.wins}/${stats.totalProposals}</div>
+			<div class="metric-label">Wins / Total</div>
+		</div>
+		<div class="metric-card">
+			<div class="metric">${(stats.winRate * 100).toFixed(1)}%</div>
+			<div class="metric-label">Win Rate</div>
+		</div>
+		<div class="metric-card">
+			<div class="metric">$${(stats.totalContractValue / 1000000).toFixed(1)}M</div>
+			<div class="metric-label">Contract Value</div>
+		</div>
+	</div>
+
+	${patterns && patterns.patterns.length > 0 ? `
+	<h2>Key Patterns</h2>
+	<table>
+		<tr><th>Pattern</th><th>Type</th><th>Correlation</th><th>Confidence</th></tr>
+		${patterns.patterns.slice(0, 10).map(p => `
+			<tr>
+				<td>${p.patternName ?? p.description ?? "N/A"}</td>
+				<td>${p.patternType}</td>
+				<td>${(p.winCorrelation ?? 0).toFixed(3)}</td>
+				<td>${(p.confidence ?? 0).toFixed(3)}</td>
+			</tr>
+		`).join("")}
+	</table>
+	` : ""}
+
+	${lessons && lessons.lessonsLearned.length > 0 ? `
+	<h2>Lessons Learned</h2>
+	<table>
+		<tr><th>Lesson</th><th>Category</th><th>Outcome</th></tr>
+		${lessons.lessonsLearned.slice(0, 10).map(l => `
+			<tr>
+				<td>${l.lesson}</td>
+				<td>${l.category}</td>
+				<td>${l.relatedOutcome}</td>
+			</tr>
+		`).join("")}
+	</table>
+	` : ""}
+</body>
+</html>`;
+
+			return {
+				success: true,
+				data: {
+					content: Buffer.from(htmlContent).toString("base64"),
+					filename: filename.replace(".pdf", ".html"),
+					mimeType: "text/html",
+				},
+			};
+		}
 	} catch (error) {
 		console.error("[exportWinLossReport]", error);
 		return { success: false, error: "Failed to export report" };

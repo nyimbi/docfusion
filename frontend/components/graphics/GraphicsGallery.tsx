@@ -49,6 +49,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useSession } from "@/lib/auth-client";
 import {
 	listGraphics,
 	deleteGraphic,
@@ -298,6 +299,10 @@ export function GraphicsGallery({
 	onDelete,
 	showOrphaned = false,
 }: GraphicGalleryProps) {
+	// Auth
+	const { data: session } = useSession();
+	const userId = session?.user?.id ?? "system";
+
 	// State
 	const [graphics, setGraphics] = useState<ProposalGraphic[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -395,7 +400,7 @@ export function GraphicsGallery({
 	// Handle approve
 	const handleApprove = async (graphic: ProposalGraphic) => {
 		startTransition(async () => {
-			const result = await approveGraphic(graphic.id, "current-user"); // TODO: Get actual user ID
+			const result = await approveGraphic(graphic.id, userId);
 
 			if (result.success) {
 				setGraphics((prev) =>

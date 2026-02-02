@@ -204,12 +204,9 @@ export function ModelPerformance({
 		});
 	}, [performance]);
 
-	// Feature importance (mock if not available)
+	// Extract feature importance data from model performance
 	const featureImportance = useMemo((): FeatureImportance[] => {
-		if (performance?.featureImportance) {
-			return performance.featureImportance as FeatureImportance[];
-		}
-		return [];
+		return (performance?.featureImportance as FeatureImportance[]) ?? [];
 	}, [performance]);
 
 	// Loading state
