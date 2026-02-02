@@ -11,46 +11,53 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { DealForm } from "@/components/crm/deals";
+import { createDeal } from "@/lib/actions/crm/deals";
+import { getAccounts } from "@/lib/actions/crm/accounts";
 import { ArrowLeft } from "lucide-react";
-import type { DealRow, AccountRow } from "@/lib/db/schema-crm";
+import type { AccountRow } from "@/lib/db/schema-crm";
+import type { CreateDealInput, UpdateDealInput } from "@/lib/types/crm";
 
 interface NewDealContentProps {
 	accountId?: string;
+	userId?: string;
 }
 
-export default function NewDealContent({ accountId }: NewDealContentProps) {
+export default function NewDealContent({ accountId, userId }: NewDealContentProps) {
 	const router = useRouter();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [accounts, setAccounts] = useState<AccountRow[]>([]);
+	const [error, setError] = useState<string | null>(null);
 
 	// Fetch accounts for the select dropdown
 	useEffect(() => {
 		async function fetchAccounts() {
 			try {
-				// In production: const data = await getAccounts();
-				setAccounts([]);
-			} catch (error) {
-				console.error("Failed to fetch accounts:", error);
+				const result = await getAccounts();
+				setAccounts(result.data);
+			} catch (err) {
+				console.error("Failed to fetch accounts:", err);
 			}
 		}
 
 		fetchAccounts();
 	}, []);
 
-	const handleSubmit = async (data: Partial<DealRow>) => {
+	const handleSubmit = async (data: CreateDealInput | UpdateDealInput) => {
 		setIsSubmitting(true);
+		setError(null);
 		try {
-			// In production: const deal = await createDeal(data);
-			console.log("Creating deal:", data);
+			const dealData = { ...data, accountId: data.accountId || accountId } as CreateDealInput;
+			const created = await createDeal(dealData, userId);
 
 			// Redirect based on whether we came from an account
 			if (accountId) {
 				router.push(`/crm/accounts/${accountId}`);
 			} else {
-				router.push("/crm/deals");
+				router.push(`/crm/deals/${created.id}`);
 			}
-		} catch (error) {
-			console.error("Failed to create deal:", error);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to create deal");
+			console.error("Failed to create deal:", err);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -73,6 +80,13 @@ export default function NewDealContent({ accountId }: NewDealContentProps) {
 						</p>
 					</div>
 				</div>
+
+				{/* Error Display */}
+				{error && (
+					<div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-destructive text-sm">
+						{error}
+					</div>
+				)}
 
 				{/* Form */}
 				<DealForm

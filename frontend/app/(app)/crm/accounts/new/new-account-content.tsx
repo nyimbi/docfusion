@@ -11,22 +11,30 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { AccountForm } from "@/components/crm/accounts";
+import { createAccount } from "@/lib/actions/crm/accounts";
 import { ArrowLeft } from "lucide-react";
-import type { AccountRow } from "@/lib/db/schema-crm";
+import type { CreateAccountInput, UpdateAccountInput } from "@/lib/types/crm";
 
-export default function NewAccountContent() {
+interface NewAccountContentProps {
+	userId?: string;
+}
+
+export default function NewAccountContent({ userId }: NewAccountContentProps) {
 	const router = useRouter();
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
-	const handleSubmit = async (data: Partial<AccountRow>) => {
+	const handleSubmit = async (data: CreateAccountInput | UpdateAccountInput) => {
 		setIsSubmitting(true);
+		setError(null);
 		try {
-			// In production: const account = await createAccount(data);
-			console.log("Creating account:", data);
+			const accountData = data as CreateAccountInput;
+			const created = await createAccount(accountData, userId);
 			// Redirect to the new account
-			router.push("/crm/accounts");
-		} catch (error) {
-			console.error("Failed to create account:", error);
+			router.push(`/crm/accounts/${created.id}`);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to create account");
+			console.error("Failed to create account:", err);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -49,6 +57,13 @@ export default function NewAccountContent() {
 						</p>
 					</div>
 				</div>
+
+				{/* Error Display */}
+				{error && (
+					<div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-destructive text-sm">
+						{error}
+					</div>
+				)}
 
 				{/* Form */}
 				<AccountForm

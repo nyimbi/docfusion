@@ -11,31 +11,37 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { ContactForm } from "@/components/crm/contacts";
+import { createContact, type UserContext } from "@/lib/actions/crm/contacts";
 import { ArrowLeft } from "lucide-react";
-import type { ContactRow } from "@/lib/db/schema-crm";
+import type { CreateContactInput, UpdateContactInput } from "@/lib/types/crm";
 
 interface NewContactContentProps {
 	accountId?: string;
+	userContext: UserContext;
 }
 
-export default function NewContactContent({ accountId }: NewContactContentProps) {
+export default function NewContactContent({ accountId, userContext }: NewContactContentProps) {
 	const router = useRouter();
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
-	const handleSubmit = async (data: Partial<ContactRow>) => {
+	const handleSubmit = async (data: CreateContactInput | UpdateContactInput) => {
 		setIsSubmitting(true);
+		setError(null);
 		try {
-			// In production: const contact = await createContact(data);
-			console.log("Creating contact:", data);
+			// Create contact with account association if provided
+			const contactData = { ...data, accountId } as CreateContactInput;
+			const created = await createContact(contactData, userContext, "private");
 
 			// Redirect based on whether we came from an account
 			if (accountId) {
 				router.push(`/crm/accounts/${accountId}`);
 			} else {
-				router.push("/crm/contacts");
+				router.push(`/crm/contacts/${created.id}`);
 			}
-		} catch (error) {
-			console.error("Failed to create contact:", error);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to create contact");
+			console.error("Failed to create contact:", err);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -58,6 +64,13 @@ export default function NewContactContent({ accountId }: NewContactContentProps)
 						</p>
 					</div>
 				</div>
+
+				{/* Error Display */}
+				{error && (
+					<div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-destructive text-sm">
+						{error}
+					</div>
+				)}
 
 				{/* Form */}
 				<ContactForm
