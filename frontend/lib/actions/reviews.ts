@@ -609,6 +609,80 @@ export async function listReviews(
 }
 
 /**
+ * List all reviews across all opportunities.
+ * Used for the standalone reviews page.
+ */
+export async function listAllReviews(
+	filters?: {
+		status?: string;
+		reviewType?: string;
+		limit?: number;
+	}
+): Promise<{
+	success: boolean;
+	reviews?: {
+		id: string;
+		opportunityId: string;
+		reviewType: string;
+		reviewName: string;
+		status: string;
+		scheduledDate: string | null;
+		completedAt: string | null;
+		totalComments: number;
+		criticalIssues: number;
+		resolvedIssues: number;
+		overallScore: number | null;
+		recommendation: string | null;
+		reviewerCount: number;
+	}[];
+	error?: string;
+}> {
+	try {
+		const conditions: any[] = [];
+
+		if (filters?.status) {
+			conditions.push(eq(proposalReviews.status, filters.status as "draft" | "scheduled" | "in_progress" | "completed" | "cancelled"));
+		}
+		if (filters?.reviewType) {
+			conditions.push(eq(proposalReviews.reviewType, filters.reviewType as "pink" | "red" | "gold" | "compliance" | "final"));
+		}
+
+		const reviewsData = await db.query.proposalReviews.findMany({
+			where: conditions.length > 0 ? and(...conditions) : undefined,
+			with: {
+				reviewers: true,
+			},
+			orderBy: [desc(proposalReviews.scheduledDate), desc(proposalReviews.createdAt)],
+			limit: filters?.limit ?? 50,
+		});
+
+		const reviews = reviewsData.map(review => ({
+			id: review.id,
+			opportunityId: review.opportunityId,
+			reviewType: review.reviewType,
+			reviewName: review.reviewName || `${review.reviewType} Team Review`,
+			status: review.status || "draft",
+			scheduledDate: review.scheduledDate?.toISOString() || null,
+			completedAt: review.completedAt?.toISOString() || null,
+			totalComments: review.totalComments || 0,
+			criticalIssues: review.criticalIssues || 0,
+			resolvedIssues: review.resolvedIssues || 0,
+			overallScore: review.overallScore,
+			recommendation: review.recommendation,
+			reviewerCount: review.reviewers?.length || 0,
+		}));
+
+		return { success: true, reviews };
+	} catch (error) {
+		console.error("Failed to list all reviews:", error);
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : "Failed to list all reviews",
+		};
+	}
+}
+
+/**
  * Get a single review with full details
  */
 export async function getReview(id: string): Promise<{
