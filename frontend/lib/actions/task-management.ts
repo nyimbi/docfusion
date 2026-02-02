@@ -502,6 +502,75 @@ export async function deleteTask(id: string): Promise<{ success: boolean; error?
 }
 
 /**
+ * List all tasks across all opportunities with optional filters.
+ */
+export async function listAllTasks(
+	filters?: TaskFilters & { limit?: number }
+): Promise<{ success: boolean; data?: ProposalTask[]; error?: string }> {
+	try {
+		const conditions = [];
+
+		if (filters?.status) {
+			conditions.push(eq(proposalTasks.status, filters.status));
+		}
+		if (filters?.priority) {
+			conditions.push(eq(proposalTasks.priority, filters.priority));
+		}
+		if (filters?.assignedTo) {
+			conditions.push(ilike(proposalTasks.assignedTo, `%${filters.assignedTo}%`));
+		}
+		if (filters?.taskType) {
+			conditions.push(eq(proposalTasks.taskType, filters.taskType));
+		}
+		if (filters?.dueBefore) {
+			conditions.push(lte(proposalTasks.dueDate, new Date(filters.dueBefore)));
+		}
+		if (filters?.dueAfter) {
+			conditions.push(gte(proposalTasks.dueDate, new Date(filters.dueAfter)));
+		}
+		if (filters?.isOverdue) {
+			conditions.push(ne(proposalTasks.status, "completed"));
+			conditions.push(ne(proposalTasks.status, "cancelled"));
+			conditions.push(lt(proposalTasks.dueDate, new Date()));
+		}
+		if (filters?.search) {
+			conditions.push(
+				or(
+					ilike(proposalTasks.title, `%${filters.search}%`),
+					ilike(proposalTasks.description, `%${filters.search}%`)
+				)!
+			);
+		}
+
+		let query = db
+			.select()
+			.from(proposalTasks)
+			.orderBy(
+				asc(
+					sql`CASE ${proposalTasks.priority}
+						WHEN 'critical' THEN 1
+						WHEN 'high' THEN 2
+						WHEN 'medium' THEN 3
+						WHEN 'low' THEN 4
+						ELSE 5 END`
+				),
+				asc(proposalTasks.dueDate)
+			);
+
+		if (conditions.length > 0) {
+			query = query.where(and(...conditions)) as typeof query;
+		}
+
+		const tasks = await query.limit(filters?.limit ?? 100);
+
+		return { success: true, data: tasks };
+	} catch (error) {
+		console.error("Failed to list all tasks:", error);
+		return { success: false, error: error instanceof Error ? error.message : "Failed to list tasks" };
+	}
+}
+
+/**
  * List tasks with filters.
  */
 export async function listTasks(

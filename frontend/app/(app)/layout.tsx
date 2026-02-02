@@ -45,6 +45,14 @@ import {
 	Briefcase,
 	GitBranch,
 	Upload,
+	Library,
+	Kanban,
+	UserCircle,
+	Award,
+	CheckSquare,
+	ClipboardCheck,
+	Swords,
+	BarChart3,
 } from "lucide-react";
 import {
 	DropdownMenu,
@@ -85,6 +93,12 @@ const PRIMARY_NAV_ITEMS: NavItem[] = [
 		description: "Track RFPs and bids",
 	},
 	{
+		label: "Pipeline",
+		href: "/pipeline",
+		icon: Kanban,
+		description: "Capture-to-proposal management",
+	},
+	{
 		label: "Documents",
 		href: "/documents",
 		icon: FileText,
@@ -101,6 +115,48 @@ const PRIMARY_NAV_ITEMS: NavItem[] = [
 		href: "/hdsi",
 		icon: GitBranch,
 		description: "Hierarchical document synthesis",
+	},
+	{
+		label: "Content Library",
+		href: "/content-library",
+		icon: Library,
+		description: "Reusable content blocks",
+	},
+	{
+		label: "Personnel",
+		href: "/personnel",
+		icon: UserCircle,
+		description: "Resume & staffing database",
+	},
+	{
+		label: "Past Performance",
+		href: "/past-performance",
+		icon: Award,
+		description: "Project history & references",
+	},
+	{
+		label: "Tasks",
+		href: "/tasks",
+		icon: CheckSquare,
+		description: "Proposal task management",
+	},
+	{
+		label: "Reviews",
+		href: "/reviews",
+		icon: ClipboardCheck,
+		description: "Color team reviews",
+	},
+	{
+		label: "Competitive",
+		href: "/competitive",
+		icon: Swords,
+		description: "Competitor intelligence",
+	},
+	{
+		label: "Analytics",
+		href: "/analytics",
+		icon: BarChart3,
+		description: "Win/Loss & Pwin dashboards",
 	},
 	{
 		label: "Calendar",
