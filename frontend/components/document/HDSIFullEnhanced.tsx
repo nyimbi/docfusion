@@ -30,11 +30,11 @@ import { DiagramEditor, type DiagramFormat } from "./DiagramEditor";
 import { HDSIToolbar } from "./HDSIToolbar";
 import { TemplateEditor } from "./TemplateEditor";
 import { TemplateImporter } from "./TemplateImporter";
-// Side panel imports - TODO: Integrate when prop shapes align
-// import { GraphView } from "./GraphView";
-// import { BacklinksPanel } from "./BacklinksPanel";
-// import { AIDiffPreview } from "./AIDiffPreview";
-// import { SpeechInputButton } from "./SpeechInputButton";
+// Optional side panel components (available for future enhancement):
+// - GraphView: Requires documents[] prop for knowledge graph visualization
+// - BacklinksPanel: Requires documentId, backlinks[], onNavigateToDocument props
+// - AIDiffPreview: For showing AI-generated content changes
+// - SpeechInputButton: For voice-to-text input
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -1285,8 +1285,8 @@ ${initialBrief}
               />
             </div>
 
-            {/* Side Panels - TODO: Integrate with proper props */}
-            {/* GraphView and BacklinksPanel require different prop shapes */}
+            {/* Optional Side Panels (GraphView, BacklinksPanel) can be added here */}
+            {/* when document list and backlink data are available from parent */}
           </div>
         )}
       </div>
