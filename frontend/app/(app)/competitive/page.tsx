@@ -8,34 +8,69 @@
 "use client";
 
 import * as React from "react";
+import { useState, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/input";
 import {
 	Swords,
-	Search,
-	Plus,
 	Users,
 	Target,
 	Lightbulb,
 	GitCompare,
 	TrendingUp,
+	X,
 } from "lucide-react";
 
-// Import competitive intelligence components
-// Note: These components exist in components/evidence/ based on the schema
-// We'll create placeholder imports and use what exists
+// Import real competitive intelligence components
+import { CompetitorList } from "@/components/competitive/CompetitorList";
+import { CompetitorForm } from "@/components/competitive/CompetitorForm";
+import { DiscriminatorLibrary } from "@/components/competitive/DiscriminatorLibrary";
+import { GhostThemeGenerator } from "@/components/competitive/GhostThemeGenerator";
+import { WinLossTracker } from "@/components/competitive/WinLossTracker";
+// SWOTAnalysis requires opportunityId - use in opportunity detail instead
+import type { Competitor } from "@/lib/types/competitive";
 
 export default function CompetitivePage() {
-	const [searchQuery, setSearchQuery] = React.useState("");
-	const [activeTab, setActiveTab] = React.useState("competitors");
-	const [selectedCompetitorId, setSelectedCompetitorId] = React.useState<string | null>(null);
+	const [activeTab, setActiveTab] = useState("competitors");
+	const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null);
+	const [showCompetitorForm, setShowCompetitorForm] = useState(false);
+	const [editingCompetitor, setEditingCompetitor] = useState<Competitor | null>(null);
+	const [refreshKey, setRefreshKey] = useState(0);
+
+	const handleCompetitorSelect = useCallback((competitor: Competitor) => {
+		setSelectedCompetitor(competitor);
+	}, []);
+
+	const handleAddCompetitor = useCallback(() => {
+		setEditingCompetitor(null);
+		setShowCompetitorForm(true);
+	}, []);
+
+	const handleEditCompetitor = useCallback((competitor: Competitor) => {
+		setEditingCompetitor(competitor);
+		setShowCompetitorForm(true);
+	}, []);
+
+	const handleCompetitorSaved = useCallback(() => {
+		setShowCompetitorForm(false);
+		setEditingCompetitor(null);
+		setRefreshKey(prev => prev + 1);
+	}, []);
+
+	const handleCloseCompetitorForm = useCallback(() => {
+		setShowCompetitorForm(false);
+		setEditingCompetitor(null);
+	}, []);
+
+	const handleCloseDetail = useCallback(() => {
+		setSelectedCompetitor(null);
+	}, []);
 
 	return (
 		<div className="h-full flex flex-col overflow-hidden">
 			{/* Header */}
 			<div className="flex-shrink-0 border-b bg-background p-6">
-				<div className="flex items-center justify-between mb-4">
+				<div className="flex items-center justify-between">
 					<div>
 						<h1 className="text-2xl font-semibold flex items-center gap-2">
 							<Swords className="h-6 w-6 text-primary" />
@@ -45,23 +80,6 @@ export default function CompetitivePage() {
 							Track competitors, develop discriminators, and identify teaming partners
 						</p>
 					</div>
-					<div className="flex items-center gap-2">
-						<Button onClick={() => setSelectedCompetitorId("new")}>
-							<Plus className="h-4 w-4 mr-2" />
-							Add Competitor
-						</Button>
-					</div>
-				</div>
-
-				{/* Search */}
-				<div className="relative max-w-xl">
-					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-					<Input
-						placeholder="Search competitors by name, capabilities..."
-						value={searchQuery}
-						onChange={(e) => setSearchQuery(e.target.value)}
-						className="pl-10"
-					/>
 				</div>
 			</div>
 
@@ -100,261 +118,191 @@ export default function CompetitivePage() {
 								className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none"
 							>
 								<GitCompare className="h-4 w-4 mr-2" />
-								Teaming Partners
+								SWOT Analysis
 							</TabsTrigger>
 							<TabsTrigger
 								value="analytics"
 								className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none"
 							>
 								<TrendingUp className="h-4 w-4 mr-2" />
-								Win/Loss vs Competitors
+								Win/Loss Tracking
 							</TabsTrigger>
 						</TabsList>
 					</div>
 
 					<div className="flex-1 overflow-auto p-6">
 						<TabsContent value="competitors" className="h-full m-0">
-							<CompetitorDatabase
-								searchQuery={searchQuery}
-								onSelectCompetitor={setSelectedCompetitorId}
+							<CompetitorList
+								key={`competitors-${refreshKey}`}
+								onSelect={handleCompetitorSelect}
+								showAddButton={true}
+								onCompetitorCreated={handleCompetitorSaved}
 							/>
 						</TabsContent>
 						<TabsContent value="discriminators" className="h-full m-0">
-							<DiscriminatorLibrary />
+							<DiscriminatorLibrary
+								showAddButton={true}
+							/>
 						</TabsContent>
 						<TabsContent value="ghost-themes" className="h-full m-0">
-							<GhostThemeGenerator />
+							<GhostThemeGenerator
+								competitorId={selectedCompetitor?.id}
+							/>
 						</TabsContent>
 						<TabsContent value="teaming" className="h-full m-0">
-							<TeamingRecommendations />
+							{/* SWOTAnalysis requires opportunityId - show placeholder when not in opportunity context */}
+							<div className="h-full flex flex-col items-center justify-center text-center p-8">
+								<GitCompare className="h-16 w-16 text-muted-foreground/30 mb-4" />
+								<h3 className="text-lg font-medium mb-2">SWOT Analysis</h3>
+								<p className="text-sm text-muted-foreground max-w-md">
+									SWOT analysis is available in the opportunity detail view where you can analyze
+									strengths, weaknesses, opportunities, and threats relative to a specific pursuit.
+								</p>
+								<Button
+									variant="outline"
+									className="mt-4"
+									onClick={() => window.location.href = "/opportunities"}
+								>
+									Go to Opportunities
+								</Button>
+							</div>
 						</TabsContent>
 						<TabsContent value="analytics" className="h-full m-0">
-							<CompetitiveAnalytics />
+							<WinLossTracker
+								competitorId={selectedCompetitor?.id}
+							/>
 						</TabsContent>
 					</div>
 				</Tabs>
 			</div>
 
-			{/* Competitor Detail Side Panel */}
-			{selectedCompetitorId && (
-				<div className="fixed right-0 top-0 h-full w-[600px] bg-background border-l shadow-xl z-50 overflow-y-auto">
-					<CompetitorEditor
-						competitorId={selectedCompetitorId === "new" ? undefined : selectedCompetitorId}
-						onClose={() => setSelectedCompetitorId(null)}
-					/>
+			{/* Competitor Form Modal */}
+			{showCompetitorForm && (
+				<div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+					<div className="bg-background rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+						<CompetitorForm
+							competitor={editingCompetitor ?? undefined}
+							onSubmit={handleCompetitorSaved}
+							onCancel={handleCloseCompetitorForm}
+						/>
+					</div>
 				</div>
 			)}
-		</div>
-	);
-}
 
-// Placeholder components - these would use the actual components from components/
-function CompetitorDatabase({ searchQuery, onSelectCompetitor }: { searchQuery: string; onSelectCompetitor: (id: string) => void }) {
-	const mockCompetitors = [
-		{ id: "1", name: "Acme Corp", type: "Prime", wins: 12, losses: 5 },
-		{ id: "2", name: "Tech Solutions Inc", type: "Prime", wins: 8, losses: 3 },
-		{ id: "3", name: "Global Services LLC", type: "Sub", wins: 15, losses: 8 },
-	];
-
-	return (
-		<div className="space-y-4">
-			<div className="grid grid-cols-3 gap-4">
-				{mockCompetitors
-					.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
-					.map(competitor => (
-						<div
-							key={competitor.id}
-							className="p-4 bg-card rounded-lg border cursor-pointer hover:border-primary transition-colors"
-							onClick={() => onSelectCompetitor(competitor.id)}
-						>
-							<h3 className="font-medium">{competitor.name}</h3>
-							<p className="text-sm text-muted-foreground">{competitor.type} Contractor</p>
-							<div className="flex gap-4 mt-2 text-sm">
-								<span className="text-green-600">{competitor.wins} wins</span>
-								<span className="text-red-600">{competitor.losses} losses</span>
+			{/* Competitor Detail Side Panel */}
+			{selectedCompetitor && (
+				<div className="fixed right-0 top-0 h-full w-[600px] bg-background border-l shadow-xl z-50 overflow-y-auto">
+					<div className="p-6">
+						<div className="flex items-center justify-between mb-6">
+							<h2 className="text-lg font-semibold">{selectedCompetitor.name}</h2>
+							<div className="flex items-center gap-2">
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => handleEditCompetitor(selectedCompetitor)}
+								>
+									Edit
+								</Button>
+								<Button variant="ghost" size="sm" onClick={handleCloseDetail}>
+									<X className="h-4 w-4" />
+								</Button>
 							</div>
 						</div>
-					))}
-			</div>
-		</div>
-	);
-}
 
-function CompetitorEditor({ competitorId, onClose }: { competitorId?: string; onClose: () => void }) {
-	return (
-		<div className="p-6">
-			<div className="flex items-center justify-between mb-6">
-				<h2 className="text-lg font-semibold">
-					{competitorId ? "Edit Competitor" : "New Competitor"}
-				</h2>
-				<Button variant="ghost" size="sm" onClick={onClose}>×</Button>
-			</div>
-			<div className="space-y-4">
-				<div>
-					<label className="text-sm font-medium">Company Name</label>
-					<Input placeholder="Enter competitor name" className="mt-1" />
-				</div>
-				<div>
-					<label className="text-sm font-medium">Type</label>
-					<Input placeholder="Prime / Subcontractor" className="mt-1" />
-				</div>
-				<div>
-					<label className="text-sm font-medium">Capabilities</label>
-					<textarea
-						className="w-full mt-1 p-2 border rounded-md min-h-[100px]"
-						placeholder="List key capabilities..."
-					/>
-				</div>
-				<div>
-					<label className="text-sm font-medium">Strengths</label>
-					<textarea
-						className="w-full mt-1 p-2 border rounded-md min-h-[80px]"
-						placeholder="Known strengths..."
-					/>
-				</div>
-				<div>
-					<label className="text-sm font-medium">Weaknesses</label>
-					<textarea
-						className="w-full mt-1 p-2 border rounded-md min-h-[80px]"
-						placeholder="Known weaknesses..."
-					/>
-				</div>
-				<Button className="w-full">Save Competitor</Button>
-			</div>
-		</div>
-	);
-}
+						{/* Competitor Details */}
+						<div className="space-y-6">
+							<div>
+								<h3 className="text-sm font-medium text-muted-foreground mb-2">Type</h3>
+								<p>{selectedCompetitor.competitorType || "Not specified"}</p>
+							</div>
 
-function DiscriminatorLibrary() {
-	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<h2 className="text-lg font-medium">Discriminator Library</h2>
-				<Button size="sm">
-					<Plus className="h-4 w-4 mr-2" />
-					Add Discriminator
-				</Button>
-			</div>
-			<div className="grid grid-cols-2 gap-4">
-				<div className="p-4 bg-card rounded-lg border">
-					<h3 className="font-medium">24/7 NOC Support</h3>
-					<p className="text-sm text-muted-foreground mt-1">
-						Unlike competitors with limited support hours, our Network Operations Center provides 24/7/365 monitoring and response.
-					</p>
-					<div className="mt-2">
-						<span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-							85% win rate when used
-						</span>
-					</div>
-				</div>
-				<div className="p-4 bg-card rounded-lg border">
-					<h3 className="font-medium">Cleared Personnel Pool</h3>
-					<p className="text-sm text-muted-foreground mt-1">
-						Immediate access to 200+ TS/SCI cleared professionals, eliminating ramp-up delays.
-					</p>
-					<div className="mt-2">
-						<span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-							78% win rate when used
-						</span>
-					</div>
-				</div>
-			</div>
-		</div>
-	);
-}
+							{selectedCompetitor.naicsCodes && selectedCompetitor.naicsCodes.length > 0 && (
+								<div>
+									<h3 className="text-sm font-medium text-muted-foreground mb-2">NAICS Codes</h3>
+									<div className="flex flex-wrap gap-1">
+										{selectedCompetitor.naicsCodes.map((code, i) => (
+											<span key={i} className="px-2 py-1 bg-muted rounded text-sm">
+												{code}
+											</span>
+										))}
+									</div>
+								</div>
+							)}
 
-function GhostThemeGenerator() {
-	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<h2 className="text-lg font-medium">Ghost Themes</h2>
-				<Button size="sm">
-					<Lightbulb className="h-4 w-4 mr-2" />
-					Generate Ghost Theme
-				</Button>
-			</div>
-			<p className="text-sm text-muted-foreground">
-				Ghost themes highlight competitor weaknesses without naming them directly.
-			</p>
-			<div className="space-y-3">
-				<div className="p-4 bg-card rounded-lg border">
-					<div className="flex items-center gap-2 mb-2">
-						<span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
-							Target: Acme Corp
-						</span>
-					</div>
-					<p className="text-sm font-medium">Weakness: Limited cloud migration experience</p>
-					<div className="mt-2 p-3 bg-muted rounded text-sm">
-						<strong>Ghost Language:</strong> "Our team brings proven AWS and Azure migration expertise from 15+ federal modernization projects, ensuring your agency avoids the costly missteps common in first-time cloud transitions."
-					</div>
-				</div>
-			</div>
-		</div>
-	);
-}
+							{selectedCompetitor.capabilities && selectedCompetitor.capabilities.length > 0 && (
+								<div>
+									<h3 className="text-sm font-medium text-muted-foreground mb-2">Capabilities</h3>
+									<div className="flex flex-wrap gap-1">
+										{(selectedCompetitor.capabilities as Array<{ area: string; strength: string; notes?: string }>).map((cap, i) => (
+											<span
+												key={i}
+												className={`px-2 py-1 rounded text-sm ${
+													cap.strength === "strong"
+														? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+														: cap.strength === "moderate"
+														? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+														: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
+												}`}
+												title={cap.notes || `Strength: ${cap.strength}`}
+											>
+												{cap.area}
+											</span>
+										))}
+									</div>
+								</div>
+							)}
 
-function TeamingRecommendations() {
-	return (
-		<div className="space-y-4">
-			<h2 className="text-lg font-medium">Teaming Partner Recommendations</h2>
-			<p className="text-sm text-muted-foreground">
-				AI-suggested teaming partners based on capability gaps for current opportunities.
-			</p>
-			<div className="grid grid-cols-2 gap-4">
-				<div className="p-4 bg-card rounded-lg border">
-					<h3 className="font-medium">CyberSecure Inc</h3>
-					<p className="text-sm text-muted-foreground">8(a) Certified, CMMC Level 3</p>
-					<div className="mt-2">
-						<span className="text-xs text-primary">Fills gap: Security Assessment</span>
-					</div>
-				</div>
-				<div className="p-4 bg-card rounded-lg border">
-					<h3 className="font-medium">DataViz Solutions</h3>
-					<p className="text-sm text-muted-foreground">SDVOSB, Tableau Partner</p>
-					<div className="mt-2">
-						<span className="text-xs text-primary">Fills gap: Data Visualization</span>
-					</div>
-				</div>
-			</div>
-		</div>
-	);
-}
+							{selectedCompetitor.strengths && selectedCompetitor.strengths.length > 0 && (
+								<div>
+									<h3 className="text-sm font-medium text-muted-foreground mb-2">Strengths</h3>
+									<ul className="list-disc list-inside space-y-1 text-sm">
+										{selectedCompetitor.strengths.map((s, i) => (
+											<li key={i}>{s}</li>
+										))}
+									</ul>
+								</div>
+							)}
 
-function CompetitiveAnalytics() {
-	return (
-		<div className="space-y-4">
-			<h2 className="text-lg font-medium">Competitive Win/Loss Analysis</h2>
-			<div className="grid grid-cols-3 gap-4">
-				<div className="p-4 bg-card rounded-lg border text-center">
-					<div className="text-3xl font-bold text-green-600">67%</div>
-					<div className="text-sm text-muted-foreground">Overall Win Rate</div>
-				</div>
-				<div className="p-4 bg-card rounded-lg border text-center">
-					<div className="text-3xl font-bold text-blue-600">42</div>
-					<div className="text-sm text-muted-foreground">Competitions Tracked</div>
-				</div>
-				<div className="p-4 bg-card rounded-lg border text-center">
-					<div className="text-3xl font-bold text-purple-600">8</div>
-					<div className="text-sm text-muted-foreground">Active Competitors</div>
-				</div>
-			</div>
-			<div className="p-4 bg-card rounded-lg border">
-				<h3 className="font-medium mb-4">Head-to-Head Performance</h3>
-				<div className="space-y-2">
-					<div className="flex items-center justify-between">
-						<span>vs Acme Corp</span>
-						<span className="text-green-600">5-2 (71%)</span>
+							{selectedCompetitor.weaknesses && selectedCompetitor.weaknesses.length > 0 && (
+								<div>
+									<h3 className="text-sm font-medium text-muted-foreground mb-2">Weaknesses</h3>
+									<ul className="list-disc list-inside space-y-1 text-sm">
+										{selectedCompetitor.weaknesses.map((w, i) => (
+											<li key={i}>{w}</li>
+										))}
+									</ul>
+								</div>
+							)}
+
+							<div className="pt-4 border-t">
+								<h3 className="text-sm font-medium text-muted-foreground mb-3">Quick Actions</h3>
+								<div className="flex flex-wrap gap-2">
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => {
+											setActiveTab("ghost-themes");
+										}}
+									>
+										<Lightbulb className="h-4 w-4 mr-2" />
+										Generate Ghost Theme
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => {
+											setActiveTab("teaming");
+										}}
+									>
+										<GitCompare className="h-4 w-4 mr-2" />
+										SWOT Analysis
+									</Button>
+								</div>
+							</div>
+						</div>
 					</div>
-					<div className="flex items-center justify-between">
-						<span>vs Tech Solutions</span>
-						<span className="text-amber-600">3-3 (50%)</span>
-					</div>
-					<div className="flex items-center justify-between">
-						<span>vs Global Services</span>
-						<span className="text-red-600">2-4 (33%)</span>
-					</div>
 				</div>
-			</div>
+			)}
 		</div>
 	);
 }
