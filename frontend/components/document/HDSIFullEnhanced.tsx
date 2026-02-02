@@ -112,6 +112,11 @@ import {
 import { hdsiDB, unflattenNodes, type StoredDiscoveryAnalysis } from "@/lib/hdsi/db";
 import { createDocument as createMainDocument, updateDocument as updateMainDocument } from "@/app/actions/documents";
 import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+import {
   GitGraph,
   Network,
   Link as LinkIcon,
@@ -147,6 +152,8 @@ import {
   ChevronRight,
   Settings2,
   Code2,
+  PanelRightClose,
+  PanelRightOpen,
   Pencil,
   Copy,
   RotateCcw,
@@ -1819,46 +1826,82 @@ ${initialBrief}
             </div>
           </div>
         ) : (
-          /* Document Editor with HDSI Spec Layout */
+          /* Document Editor with HDSI Spec Layout (4-Pane Resizable) */
           <div className="h-full flex flex-col">
-            {/* Main Editor Area */}
-            <div className="flex-1 flex overflow-hidden">
-              {/* HDSIEnhanced already includes tree + editor split */}
-              <div className="flex-1 overflow-hidden">
-                <HDSIEnhanced
-                  documentId={docId}
-                  documentTitle={title}
-                  initialStructure={structure}
-                  onStructureChange={setStructure}
-                  onNodeSelect={setSelectedNodeId}
-                  onGenerateNode={handleNodeGenerate}
-                  onGenerateAll={handleGenerateAllSections}
-                  isGenerating={generatingNodeIds.size > 0}
-                />
-              </div>
+            {/* Main Editor Area with Resizable Panels */}
+            <div className="flex-1 overflow-hidden relative">
+              <ResizablePanelGroup
+                orientation="horizontal"
+                id="hdsi-main-layout"
+                className="h-full"
+              >
+                {/* Main Editor Panel (Tree + Properties via HDSIEnhanced) - 80% default */}
+                <ResizablePanel
+                  defaultSize={isContextBufferCollapsed ? 100 : 80}
+                  minSize={60}
+                >
+                  <HDSIEnhanced
+                    documentId={docId}
+                    documentTitle={title}
+                    initialStructure={structure}
+                    onStructureChange={setStructure}
+                    onNodeSelect={setSelectedNodeId}
+                    onGenerateNode={handleNodeGenerate}
+                    onGenerateAll={handleGenerateAllSections}
+                    isGenerating={generatingNodeIds.size > 0}
+                  />
+                </ResizablePanel>
 
-              {/* Context Buffer Panel - Collapsible sidebar */}
-              {!isContextBufferCollapsed && (
-                <div className="w-72 border-l bg-muted/30 overflow-hidden flex flex-col">
-                  <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Context Buffer
-                    </span>
-                    <button
-                      onClick={() => setIsContextBufferCollapsed(true)}
-                      className="p-1 hover:bg-muted rounded"
+                {/* Context Buffer Panel - Collapsible (20% default) */}
+                {!isContextBufferCollapsed && (
+                  <>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel
+                      defaultSize={20}
+                      minSize={15}
+                      maxSize={35}
+                      collapsible
+                      collapsedSize={0}
+                      className="bg-muted/30"
                     >
-                      <span className="sr-only">Collapse</span>
-                      ×
-                    </button>
-                  </div>
-                  <div className="flex-1 overflow-auto">
-                    <ContextBufferInspector
-                      buffer={contextBuffer}
-                      isLoading={isAssemblingContext}
-                      onRefresh={selectedNodeId ? () => assembleContextBuffer(selectedNodeId) : undefined}
-                    />
-                  </div>
+                      <div className="h-full flex flex-col">
+                        <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+                          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Context Buffer
+                          </span>
+                          <button
+                            onClick={() => setIsContextBufferCollapsed(true)}
+                            className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
+                            title="Collapse panel"
+                          >
+                            <PanelRightClose className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <div className="flex-1 overflow-auto">
+                          <ContextBufferInspector
+                            buffer={contextBuffer}
+                            isLoading={isAssemblingContext}
+                            onRefresh={selectedNodeId ? () => assembleContextBuffer(selectedNodeId) : undefined}
+                          />
+                        </div>
+                      </div>
+                    </ResizablePanel>
+                  </>
+                )}
+              </ResizablePanelGroup>
+
+              {/* Context Buffer Expand Button (when collapsed) */}
+              {isContextBufferCollapsed && (
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-20 w-6 rounded-l-md rounded-r-none border-r-0 shadow-md"
+                    onClick={() => setIsContextBufferCollapsed(false)}
+                    title="Open Context Buffer"
+                  >
+                    <PanelRightOpen className="h-4 w-4" />
+                  </Button>
                 </div>
               )}
             </div>

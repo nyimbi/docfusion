@@ -652,20 +652,60 @@ export function HDSINodeEditor({
               </select>
             </div>
 
-            {/* Token Budget */}
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground">
-                Token Budget: {node.tokenBudget}
-              </label>
-              <input
-                type="range"
-                min="100"
-                max="4000"
-                step="50"
-                value={node.tokenBudget}
-                onChange={(e) => onUpdate({ tokenBudget: parseInt(e.target.value) })}
-                className="w-full mt-1"
-              />
+            {/* Token Budget with Reading Time */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground">
+                  Token Budget
+                </label>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="font-mono bg-muted px-1.5 py-0.5 rounded">
+                    {node.tokenBudget} tokens
+                  </span>
+                  <span className="text-muted-foreground">≈</span>
+                  <span className="text-primary font-medium">
+                    {Math.ceil(node.tokenBudget / 200)} min read
+                  </span>
+                </div>
+              </div>
+              <div className="relative pt-1">
+                <input
+                  type="range"
+                  min="100"
+                  max="3800"
+                  step="50"
+                  value={node.tokenBudget}
+                  onChange={(e) => onUpdate({ tokenBudget: parseInt(e.target.value) })}
+                  className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                />
+                {/* Budget markers */}
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-1 px-0.5">
+                  <span>100</span>
+                  <span>1000</span>
+                  <span>2000</span>
+                  <span>3000</span>
+                  <span className="text-amber-500 font-semibold">3800</span>
+                </div>
+              </div>
+              {/* Visual progress bar */}
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-200",
+                    node.tokenBudget < 1000 && "bg-emerald-500",
+                    node.tokenBudget >= 1000 && node.tokenBudget < 2500 && "bg-blue-500",
+                    node.tokenBudget >= 2500 && node.tokenBudget < 3500 && "bg-amber-500",
+                    node.tokenBudget >= 3500 && "bg-red-500"
+                  )}
+                  style={{ width: `${(node.tokenBudget / 3800) * 100}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {node.tokenBudget < 1000 && "Brief section (~1-5 min read)"}
+                {node.tokenBudget >= 1000 && node.tokenBudget < 2500 && "Standard section (~5-12 min read)"}
+                {node.tokenBudget >= 2500 && node.tokenBudget < 3500 && "Comprehensive section (~12-18 min read)"}
+                {node.tokenBudget >= 3500 && "Maximum length section (18+ min read)"}
+              </p>
             </div>
 
             {/* Density Target */}
