@@ -8,14 +8,18 @@
 
 import * as React from "react";
 import { GripVertical } from "lucide-react";
-import { Group, Panel, Separator } from "react-resizable-panels";
+import {
+	Group,
+	Panel,
+	Separator,
+	type GroupProps,
+	type PanelProps,
+	type SeparatorProps,
+} from "react-resizable-panels";
 
 import { cn } from "@/lib/utils";
 
-const ResizablePanelGroup = ({
-	className,
-	...props
-}: React.ComponentProps<typeof Group>) => (
+const ResizablePanelGroup = ({ className, ...props }: GroupProps) => (
 	<Group
 		className={cn(
 			"flex h-full w-full data-[panel-group-direction=vertical]:flex-col",
@@ -31,7 +35,7 @@ const ResizableHandle = ({
 	withHandle,
 	className,
 	...props
-}: React.ComponentProps<typeof Separator> & {
+}: SeparatorProps & {
 	withHandle?: boolean;
 }) => (
 	<Separator

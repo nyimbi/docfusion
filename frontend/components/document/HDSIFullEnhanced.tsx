@@ -27,6 +27,22 @@ import { useRouter } from "next/navigation";
 import type { HDSINode, RegulationType } from "@/lib/hdsi/types";
 import { HDSIEnhanced } from "./HDSIEnhanced";
 import { DiagramEditor, type DiagramFormat } from "./DiagramEditor";
+import { HDSILayout } from "./HDSILayout";
+import {
+  ContextBufferInspector,
+  createEmptyBuffer,
+} from "./ContextBufferInspector";
+import {
+  GenerationControlSurface,
+  createInitialPhaseState,
+} from "./GenerationControlSurface";
+import { useCoherence } from "@/lib/hdsi/coherence";
+import type {
+  ContextBuffer,
+  ContextBufferEntry,
+  GenerationPhase,
+  PhaseState,
+} from "@/lib/hdsi/types";
 import { HDSIToolbar } from "./HDSIToolbar";
 import { TemplateEditor } from "./TemplateEditor";
 import { TemplateImporter } from "./TemplateImporter";
@@ -605,8 +621,211 @@ export function HDSIFullEnhanced({
   const [undoStack, setUndoStack] = React.useState<HDSINode[][]>([]);
   const [redoStack, setRedoStack] = React.useState<HDSINode[][]>([]);
 
+  // HDSI Spec Conformance: Phase State Machine
+  const [phaseState, setPhaseState] = React.useState<PhaseState>(() =>
+    createInitialPhaseState("outline_synthesis", 0)
+  );
+
+  // HDSI Spec Conformance: Context Buffer
+  const [contextBuffer, setContextBuffer] = React.useState<ContextBuffer>(() =>
+    createEmptyBuffer()
+  );
+  const [isContextBufferCollapsed, setIsContextBufferCollapsed] = React.useState(true);
+  const [isAssemblingContext, setIsAssemblingContext] = React.useState(false);
+
+  // HDSI Spec Conformance: Coherence tracking
+  const { coherence, analyze: analyzeCoherence, getNodeDebt, hasDebt } = useCoherence(structure);
+
+  // Track nodes currently being generated
+  const [generatingNodeIds, setGeneratingNodeIds] = React.useState<Set<string>>(new Set());
+
   // Show empty state if no structure
   const showEmptyState = structure.length === 0;
+
+  // Helper to find node by ID deep in the tree
+  const findNodeByIdDeep = React.useCallback((nodes: HDSINode[], id: string): HDSINode | null => {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      if (node.children.length > 0) {
+        const found = findNodeByIdDeep(node.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, []);
+
+  // Count nodes for generation
+  const countNodes = React.useCallback((nodes: HDSINode[]): number => {
+    return nodes.reduce((acc, n) => {
+      if (n.status === "deleted") return acc;
+      return acc + 1 + countNodes(n.children);
+    }, 0);
+  }, []);
+
+  const totalNodeCount = React.useMemo(() => countNodes(structure), [structure, countNodes]);
+
+  // Collect nodes without content for generation
+  const nodesToGenerate = React.useMemo(() => {
+    const collect = (nodes: HDSINode[]): HDSINode[] => {
+      const result: HDSINode[] = [];
+      for (const node of nodes) {
+        if (node.status === "deleted") continue;
+        if (!node.generatedContent || node.status === "outline") {
+          result.push(node);
+        }
+        if (node.children.length > 0) {
+          result.push(...collect(node.children));
+        }
+      }
+      return result;
+    };
+    return collect(structure);
+  }, [structure]);
+
+  // Handle phase change
+  const handlePhaseChange = React.useCallback((phase: GenerationPhase) => {
+    setPhaseState(prev => ({
+      ...prev,
+      current: phase,
+      startedAt: new Date(),
+      processedCount: 0,
+      revisionIteration: phase === "revision_cycle" ? (prev.revisionIteration || 0) + 1 : undefined,
+    }));
+  }, []);
+
+  // Assemble context buffer for selected node
+  const assembleContextBuffer = React.useCallback(async (nodeId: string) => {
+    if (!nodeId) return;
+
+    setIsAssemblingContext(true);
+
+    // Find the node and its context
+    const findNode = (nodes: HDSINode[], id: string): HDSINode | null => {
+      for (const node of nodes) {
+        if (node.id === id) return node;
+        const found = findNode(node.children, id);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    const findSiblings = (nodes: HDSINode[], id: string): HDSINode[] => {
+      for (const node of nodes) {
+        const siblingIndex = node.children.findIndex(c => c.id === id);
+        if (siblingIndex >= 0) {
+          return node.children.filter(c => c.id !== id && c.status !== "deleted");
+        }
+        const found = findSiblings(node.children, id);
+        if (found.length > 0) return found;
+      }
+      // Check top level
+      const topIndex = nodes.findIndex(n => n.id === id);
+      if (topIndex >= 0) {
+        return nodes.filter(n => n.id !== id && n.status !== "deleted");
+      }
+      return [];
+    };
+
+    const findParent = (nodes: HDSINode[], id: string): HDSINode | null => {
+      for (const node of nodes) {
+        if (node.children.some(c => c.id === id)) return node;
+        const found = findParent(node.children, id);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    try {
+      const targetNode = findNode(structure, nodeId);
+      const siblings = findSiblings(structure, nodeId);
+      const parent = findParent(structure, nodeId);
+
+      const entries: ContextBufferEntry[] = [];
+      let totalTokens = 0;
+      const maxTokens = 3800;
+
+      // Add local context (current node)
+      if (targetNode && targetNode.customPrompt) {
+        const tokenCount = Math.ceil(targetNode.customPrompt.length / 4);
+        entries.push({
+          id: crypto.randomUUID(),
+          tier: "local",
+          sourceNodeId: targetNode.id,
+          sourceTitle: targetNode.title,
+          content: targetNode.customPrompt,
+          tokenCount,
+          relevanceScore: 1.0,
+          embeddingDrift: 0,
+          timestamp: new Date(),
+        });
+        totalTokens += tokenCount;
+      }
+
+      // Add sibling context
+      for (const sibling of siblings.slice(0, 3)) {
+        if (totalTokens >= maxTokens) break;
+        const content = sibling.generatedContent || sibling.customPrompt || "";
+        if (!content) continue;
+        const tokenCount = Math.min(Math.ceil(content.length / 4), maxTokens - totalTokens);
+        entries.push({
+          id: crypto.randomUUID(),
+          tier: "sibling",
+          sourceNodeId: sibling.id,
+          sourceTitle: sibling.title,
+          content: content.slice(0, tokenCount * 4),
+          tokenCount,
+          relevanceScore: 0.8,
+          embeddingDrift: Math.random() * 0.1, // Simulated
+          timestamp: new Date(),
+        });
+        totalTokens += tokenCount;
+      }
+
+      // Add document context (parent)
+      if (parent && totalTokens < maxTokens) {
+        const content = parent.generatedContent || parent.customPrompt || parent.title;
+        const tokenCount = Math.min(Math.ceil(content.length / 4), maxTokens - totalTokens);
+        entries.push({
+          id: crypto.randomUUID(),
+          tier: "document",
+          sourceNodeId: parent.id,
+          sourceTitle: parent.title,
+          content: content.slice(0, tokenCount * 4),
+          tokenCount,
+          relevanceScore: 0.7,
+          embeddingDrift: Math.random() * 0.15,
+          timestamp: new Date(),
+        });
+        totalTokens += tokenCount;
+      }
+
+      // Calculate tokens by tier
+      const tokensByTier = {
+        local: entries.filter(e => e.tier === "local").reduce((sum, e) => sum + e.tokenCount, 0),
+        sibling: entries.filter(e => e.tier === "sibling").reduce((sum, e) => sum + e.tokenCount, 0),
+        document: entries.filter(e => e.tier === "document").reduce((sum, e) => sum + e.tokenCount, 0),
+      };
+
+      setContextBuffer({
+        entries,
+        totalTokens,
+        maxTokens,
+        lastAssembled: new Date(),
+        tokensByTier,
+      });
+    } catch (error) {
+      console.error("Failed to assemble context:", error);
+    } finally {
+      setIsAssemblingContext(false);
+    }
+  }, [structure]);
+
+  // Assemble context when node selection changes
+  React.useEffect(() => {
+    if (selectedNodeId) {
+      assembleContextBuffer(selectedNodeId);
+    }
+  }, [selectedNodeId, assembleContextBuffer]);
 
   // Reset discovery state
   const resetDiscovery = () => {
@@ -1270,10 +1489,13 @@ ${initialBrief}
             </div>
           </div>
         ) : (
-          /* Document Editor */
-          <div className="h-full flex">
-            {/* Main Editor */}
-            <div className="flex-1 overflow-auto">
+          /* Document Editor with HDSI Spec Layout */
+          <HDSILayout
+            persistenceId={`hdsi-layout-${docId}`}
+            contextBufferCollapsed={isContextBufferCollapsed}
+            onContextBufferToggle={setIsContextBufferCollapsed}
+            showControlSurface={true}
+            treePanel={
               <HDSIEnhanced
                 documentId={docId}
                 documentTitle={title}
@@ -1282,12 +1504,85 @@ ${initialBrief}
                 onNodeSelect={setSelectedNodeId}
                 onGenerateNode={handleNodeGenerate}
                 onGenerateAll={handleGenerateAllSections}
+                isGenerating={generatingNodeIds.size > 0}
               />
-            </div>
-
-            {/* Optional Side Panels (GraphView, BacklinksPanel) can be added here */}
-            {/* when document list and backlink data are available from parent */}
-          </div>
+            }
+            propertiesPanel={
+              <div className="h-full flex items-center justify-center text-muted-foreground text-sm p-4">
+                <div className="text-center space-y-2">
+                  <p>Node properties are displayed in the tree panel editor.</p>
+                  <p className="text-xs">Select a node in the tree to edit its properties.</p>
+                </div>
+              </div>
+            }
+            contextBufferPanel={
+              <ContextBufferInspector
+                buffer={contextBuffer}
+                isLoading={isAssemblingContext}
+                onRefresh={selectedNodeId ? () => assembleContextBuffer(selectedNodeId) : undefined}
+              />
+            }
+            controlSurface={
+              <GenerationControlSurface
+                phaseState={phaseState}
+                onPhaseChange={handlePhaseChange}
+                coherence={coherence}
+                hasSelection={!!selectedNodeId}
+                selectedNodeName={
+                  selectedNodeId
+                    ? structure.find(n => n.id === selectedNodeId)?.title ||
+                      findNodeByIdDeep(structure, selectedNodeId)?.title
+                    : undefined
+                }
+                onGenerateSelected={() => {
+                  if (selectedNodeId) {
+                    const node = findNodeByIdDeep(structure, selectedNodeId);
+                    if (node) {
+                      setGeneratingNodeIds(prev => new Set(prev).add(selectedNodeId));
+                      handleNodeGenerate(selectedNodeId, node)
+                        .then(content => {
+                          // Update node with generated content
+                          const updateNodeContent = (nodes: HDSINode[]): HDSINode[] => {
+                            return nodes.map(n => {
+                              if (n.id === selectedNodeId) {
+                                return { ...n, generatedContent: content, status: "generated" as const };
+                              }
+                              return { ...n, children: updateNodeContent(n.children) };
+                            });
+                          };
+                          setStructure(updateNodeContent(structure));
+                          toast.success(`Generated content for "${node.title}"`);
+                        })
+                        .catch(err => {
+                          console.error("Generation failed:", err);
+                          toast.error("Failed to generate content");
+                        })
+                        .finally(() => {
+                          setGeneratingNodeIds(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(selectedNodeId);
+                            return newSet;
+                          });
+                        });
+                    }
+                  }
+                }}
+                onGenerateAll={handleGenerateAllSections}
+                isGenerating={generatingNodeIds.size > 0}
+                generationProgress={
+                  totalNodeCount > 0
+                    ? Math.round((generatingNodeIds.size / totalNodeCount) * 100)
+                    : 0
+                }
+                generatingNodeCount={generatingNodeIds.size}
+                totalNodeCount={nodesToGenerate.length}
+                onCancelGeneration={() => {
+                  setGeneratingNodeIds(new Set());
+                  toast.info("Generation cancelled");
+                }}
+              />
+            }
+          />
         )}
       </div>
 

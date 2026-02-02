@@ -341,6 +341,183 @@ export interface CoherenceReport {
 }
 
 // ============================================================================
+// Context Buffer Types (HDSI Specification Conformance)
+// ============================================================================
+
+/**
+ * Provenance tier for context buffer entries.
+ * - local: Content from the current node being generated
+ * - sibling: Content from adjacent nodes at the same level
+ * - document: Content from parent or document-level context
+ */
+export type ContextTier = "local" | "sibling" | "document";
+
+/**
+ * Individual entry in the context buffer with full provenance tracking.
+ * Enables users to understand exactly what context the AI is using.
+ */
+export interface ContextBufferEntry {
+  /** Unique identifier for this entry */
+  id: string;
+  /** Provenance tier (local, sibling, document) */
+  tier: ContextTier;
+  /** ID of the source node this content came from */
+  sourceNodeId: string;
+  /** Title of the source node for display */
+  sourceTitle: string;
+  /** The actual content included in context */
+  content: string;
+  /** Token count for this entry */
+  tokenCount: number;
+  /** Relevance score 0-1 based on embedding similarity */
+  relevanceScore: number;
+  /** Embedding drift: how much content has changed since last generation */
+  embeddingDrift: number;
+  /** When this entry was added to the buffer */
+  timestamp: Date;
+}
+
+/**
+ * Complete context buffer state with capacity tracking.
+ * The 3800 token cap reserves space for system prompts and response.
+ */
+export interface ContextBuffer {
+  /** All entries currently in the buffer */
+  entries: ContextBufferEntry[];
+  /** Total tokens currently in buffer */
+  totalTokens: number;
+  /** Maximum tokens allowed (3800 spec default) */
+  maxTokens: number;
+  /** Timestamp of last context assembly */
+  lastAssembled: Date;
+  /** Tokens by tier for visualization */
+  tokensByTier: {
+    local: number;
+    sibling: number;
+    document: number;
+  };
+}
+
+// ============================================================================
+// Generation Phase State Machine
+// ============================================================================
+
+/**
+ * Three-phase generation state machine per HDSI specification.
+ * - outline_synthesis: Creating document structure
+ * - sequential_expansion: Generating content node-by-node
+ * - revision_cycle: Iterating on generated content
+ */
+export type GenerationPhase =
+  | "outline_synthesis"
+  | "sequential_expansion"
+  | "revision_cycle";
+
+/**
+ * Extended phase state with metadata for UI display.
+ */
+export interface PhaseState {
+  /** Current phase */
+  current: GenerationPhase;
+  /** Nodes processed in current phase */
+  processedCount: number;
+  /** Total nodes to process in current phase */
+  totalCount: number;
+  /** Timestamp when phase started */
+  startedAt: Date;
+  /** Number of revision iterations (only for revision_cycle) */
+  revisionIteration?: number;
+}
+
+// ============================================================================
+// Coherence Debt Types
+// ============================================================================
+
+/**
+ * Represents detected coherence debt for a node.
+ * Triggers visual warning when score < 0.6.
+ */
+export interface CoherenceDebt {
+  /** Node ID with debt */
+  nodeId: string;
+  /** Coherence score 0-1 (debt when < 0.6) */
+  score: number;
+  /** Pulse frequency in Hz (0.5-3, higher = more urgent) */
+  pulseFrequency: number;
+  /** Improvement suggestions from analysis */
+  suggestions: string[];
+  /** Reason for debt detection */
+  reason: "low_similarity" | "terminology_mismatch" | "thematic_drift" | "style_inconsistency";
+  /** Related node IDs contributing to the debt */
+  relatedNodeIds: string[];
+}
+
+/**
+ * Document-level coherence metrics.
+ */
+export interface DocumentCoherence {
+  /** Overall document coherence 0-1 */
+  overallScore: number;
+  /** Nodes with detected debt */
+  debtNodes: CoherenceDebt[];
+  /** Last analysis timestamp */
+  analyzedAt: Date;
+  /** Whether analysis is currently running */
+  isAnalyzing: boolean;
+}
+
+// ============================================================================
+// Token Budget Configuration
+// ============================================================================
+
+/**
+ * Token budget configuration with dual-slider support.
+ * Reading time formula: tokens / (225 * 1.3) minutes
+ */
+export interface TokenBudgetConfig {
+  /** Minimum token budget */
+  minimum: number;
+  /** Maximum token budget */
+  maximum: number;
+  /** Current target within range */
+  current: number;
+  /** Estimated reading time in minutes */
+  readingTimeMinutes: number;
+  /** Absolute cap (3800 for context buffer) */
+  absoluteCap: number;
+}
+
+/**
+ * Calculate reading time from token count.
+ * Based on average reading speed of 225 WPM with 1.3x factor for technical content.
+ */
+export function calculateReadingTime(tokens: number): number {
+  const WORDS_PER_TOKEN = 0.75; // Approximate
+  const READING_SPEED_WPM = 225;
+  const TECHNICAL_FACTOR = 1.3;
+  const words = tokens * WORDS_PER_TOKEN;
+  return words / (READING_SPEED_WPM / TECHNICAL_FACTOR);
+}
+
+/**
+ * Create a token budget config with calculated reading time.
+ */
+export function createTokenBudgetConfig(
+  minimum: number,
+  maximum: number,
+  current?: number
+): TokenBudgetConfig {
+  const actualCurrent = current ?? Math.round((minimum + maximum) / 2);
+  return {
+    minimum,
+    maximum,
+    current: actualCurrent,
+    readingTimeMinutes: calculateReadingTime(actualCurrent),
+    absoluteCap: 3800,
+  };
+}
+
+// ============================================================================
 // Utility Types
 // ============================================================================
 

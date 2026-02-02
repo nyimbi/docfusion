@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 
 import type { HDSINode } from "@/lib/hdsi/types";
+import { NodeGlyph } from "./NodeGlyph";
 
 // Extended interface for component-local use
 
@@ -769,7 +770,50 @@ export function HDSIEnhanced({
   );
 }
 
-// Tree View Component
+// ============================================================================
+// Tree View Component with Keyboard Navigation and ARIA Support
+// ============================================================================
+
+interface TreeViewProps {
+  nodes: HDSINode[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+  onGenerate?: (id: string) => void;
+  onMove: (id: string, dir: "up" | "down") => void;
+  onIndent: (id: string) => void;
+  onOutdent: (id: string) => void;
+  onDragStart: (e: React.DragEvent, id: string) => void;
+  onDragOver: (e: React.DragEvent, id: string) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent, id: string) => void;
+  draggedId: string | null;
+  dragOverId: string | null;
+  generatingIds: Set<string>;
+  depth?: number;
+  /** Flat list of visible node IDs for keyboard navigation */
+  flatNodeIds?: string[];
+  /** Root element ref for keyboard event handling */
+  isRoot?: boolean;
+}
+
+/**
+ * Flatten visible nodes for keyboard navigation.
+ * Only includes expanded nodes' children.
+ */
+function flattenVisibleNodes(nodes: HDSINode[]): string[] {
+  const result: string[] = [];
+  for (const node of nodes) {
+    if (node.status === "deleted") continue;
+    result.push(node.id);
+    if (node.expanded && node.children.length > 0) {
+      result.push(...flattenVisibleNodes(node.children));
+    }
+  }
+  return result;
+}
+
 function TreeView({
   nodes,
   selectedId,
@@ -788,187 +832,373 @@ function TreeView({
   dragOverId,
   generatingIds,
   depth = 0,
-}: {
-  nodes: HDSINode[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  onToggle: (id: string) => void;
-  onDelete: (id: string) => void;
-  onGenerate?: (id: string) => void;
-  onMove: (id: string, dir: "up" | "down") => void;
-  onIndent: (id: string) => void;
-  onOutdent: (id: string) => void;
-  onDragStart: (e: React.DragEvent, id: string) => void;
-  onDragOver: (e: React.DragEvent, id: string) => void;
-  onDragLeave: () => void;
-  onDrop: (e: React.DragEvent, id: string) => void;
-  draggedId: string | null;
-  dragOverId: string | null;
-  generatingIds: Set<string>;
-  depth?: number;
-}) {
+  flatNodeIds,
+  isRoot = false,
+}: TreeViewProps) {
+  const treeRef = React.useRef<HTMLDivElement>(null);
+
+  // Build flat list at root level
+  const visibleNodeIds = React.useMemo(() => {
+    if (flatNodeIds) return flatNodeIds;
+    if (isRoot || depth === 0) return flattenVisibleNodes(nodes);
+    return [];
+  }, [nodes, flatNodeIds, isRoot, depth]);
+
+  // Find a node by ID in the tree
+  const findNodeById = React.useCallback((id: string, searchNodes: HDSINode[] = nodes): HDSINode | null => {
+    for (const node of searchNodes) {
+      if (node.id === id) return node;
+      if (node.children.length > 0) {
+        const found = findNodeById(id, node.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, [nodes]);
+
+  // Keyboard navigation handler
+  const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
+    if (!selectedId || visibleNodeIds.length === 0) return;
+
+    const currentIndex = visibleNodeIds.indexOf(selectedId);
+    if (currentIndex === -1) return;
+
+    const selectedNode = findNodeById(selectedId);
+    const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+    const modKey = isMac ? e.metaKey : e.ctrlKey;
+
+    switch (e.key) {
+      case "ArrowUp":
+        e.preventDefault();
+        if (currentIndex > 0) {
+          onSelect(visibleNodeIds[currentIndex - 1]);
+        }
+        break;
+
+      case "ArrowDown":
+        e.preventDefault();
+        if (currentIndex < visibleNodeIds.length - 1) {
+          onSelect(visibleNodeIds[currentIndex + 1]);
+        }
+        break;
+
+      case "ArrowRight":
+        e.preventDefault();
+        if (selectedNode) {
+          if (selectedNode.children.length > 0 && !selectedNode.expanded) {
+            // Expand if collapsed and has children
+            onToggle(selectedId);
+          } else if (selectedNode.expanded && selectedNode.children.length > 0) {
+            // Move to first child
+            onSelect(selectedNode.children[0].id);
+          }
+        }
+        break;
+
+      case "ArrowLeft":
+        e.preventDefault();
+        if (selectedNode) {
+          if (selectedNode.expanded && selectedNode.children.length > 0) {
+            // Collapse if expanded
+            onToggle(selectedId);
+          } else {
+            // Move to parent (find parent in flat list)
+            // Parent is the previous node with lower depth
+            for (let i = currentIndex - 1; i >= 0; i--) {
+              const prevNode = findNodeById(visibleNodeIds[i]);
+              if (prevNode && prevNode.depth < selectedNode.depth) {
+                onSelect(visibleNodeIds[i]);
+                break;
+              }
+            }
+          }
+        }
+        break;
+
+      case "Enter":
+        e.preventDefault();
+        if (selectedNode && selectedNode.children.length > 0) {
+          onToggle(selectedId);
+        }
+        break;
+
+      case "Tab":
+        // Navigate to next/prev sibling
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Previous sibling - find previous node at same depth
+          for (let i = currentIndex - 1; i >= 0; i--) {
+            const prevNode = findNodeById(visibleNodeIds[i]);
+            if (prevNode && prevNode.depth === selectedNode?.depth) {
+              onSelect(visibleNodeIds[i]);
+              break;
+            }
+          }
+        } else {
+          // Next sibling - find next node at same depth
+          for (let i = currentIndex + 1; i < visibleNodeIds.length; i++) {
+            const nextNode = findNodeById(visibleNodeIds[i]);
+            if (nextNode && nextNode.depth === selectedNode?.depth) {
+              onSelect(visibleNodeIds[i]);
+              break;
+            }
+            // Stop if we hit a node with lower depth (left parent's subtree)
+            if (nextNode && nextNode.depth < (selectedNode?.depth ?? 0)) {
+              break;
+            }
+          }
+        }
+        break;
+
+      case "g":
+        if (modKey && onGenerate) {
+          e.preventDefault();
+          onGenerate(selectedId);
+        }
+        break;
+
+      case "Delete":
+      case "Backspace":
+        if (modKey) {
+          e.preventDefault();
+          onDelete(selectedId);
+        }
+        break;
+
+      case "Escape":
+        e.preventDefault();
+        onSelect(""); // Deselect
+        break;
+
+      case "Home":
+        e.preventDefault();
+        if (visibleNodeIds.length > 0) {
+          onSelect(visibleNodeIds[0]);
+        }
+        break;
+
+      case "End":
+        e.preventDefault();
+        if (visibleNodeIds.length > 0) {
+          onSelect(visibleNodeIds[visibleNodeIds.length - 1]);
+        }
+        break;
+    }
+  }, [selectedId, visibleNodeIds, findNodeById, onSelect, onToggle, onGenerate, onDelete]);
+
+  // Only attach keyboard handler at root level
+  const keyboardProps = (depth === 0 || isRoot) ? {
+    onKeyDown: handleKeyDown,
+    tabIndex: 0,
+  } : {};
+
   return (
-    <div className="space-y-1">
-      {nodes.map((node, index) => (
-        <div key={node.id}>
-          <div
-            draggable
-            onDragStart={(e) => onDragStart(e, node.id)}
-            onDragOver={(e) => onDragOver(e, node.id)}
-            onDragLeave={onDragLeave}
-            onDrop={(e) => onDrop(e, node.id)}
-            className={cn(
-              "group flex items-center gap-1 p-2 rounded cursor-pointer text-sm select-none",
-              selectedId === node.id
-                ? "bg-primary/10 border border-primary/30"
-                : "hover:bg-muted border border-transparent",
-              dragOverId === node.id && "bg-accent/50 border-accent",
-              draggedId === node.id && "opacity-50"
-            )}
-            style={{ marginLeft: depth * 16 }}
-          >
-            {/* Expand/Collapse */}
-            {node.children.length > 0 ? (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggle(node.id);
-                }}
-                className="p-0.5 hover:bg-muted rounded"
-              >
-                {node.expanded ? (
-                  <ChevronDown className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronRight className="h-3.5 w-3.5" />
-                )}
-              </button>
-            ) : (
-              <span className="w-5" />
-            )}
+    <div
+      ref={depth === 0 ? treeRef : undefined}
+      role={depth === 0 ? "tree" : "group"}
+      aria-label={depth === 0 ? "Document structure" : undefined}
+      className={cn(
+        "space-y-1 outline-none",
+        depth === 0 && "focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md"
+      )}
+      {...keyboardProps}
+    >
+      {nodes.map((node, index) => {
+        if (node.status === "deleted") return null;
 
-            {/* Drag Handle */}
-            <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
+        const isSelected = selectedId === node.id;
+        const isGenerating = generatingIds.has(node.id);
+        const hasDebt = node.coherenceScore < 0.6 && node.status === "generated";
 
-            {/* Content */}
+        return (
+          <div key={node.id}>
             <div
-              className="flex-1 min-w-0"
+              role="treeitem"
+              aria-selected={isSelected}
+              aria-expanded={node.children.length > 0 ? node.expanded : undefined}
+              aria-level={depth + 1}
+              aria-setsize={nodes.length}
+              aria-posinset={index + 1}
+              tabIndex={isSelected ? 0 : -1}
+              draggable
+              onDragStart={(e) => onDragStart(e, node.id)}
+              onDragOver={(e) => onDragOver(e, node.id)}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, node.id)}
               onClick={() => onSelect(node.id)}
+              className={cn(
+                "group flex items-center gap-1.5 p-2 rounded cursor-pointer text-sm select-none transition-colors",
+                isSelected
+                  ? "bg-primary/10 border border-primary/30"
+                  : "hover:bg-muted border border-transparent",
+                dragOverId === node.id && "bg-accent/50 border-accent",
+                draggedId === node.id && "opacity-50",
+                hasDebt && "coherence-debt"
+              )}
+              style={{
+                marginLeft: depth * 16,
+                ...(hasDebt ? { "--pulse-duration": `${Math.round(1000 / (0.5 + (0.6 - node.coherenceScore) * 5))}ms` } as React.CSSProperties : {}),
+              }}
             >
-              <div className="flex items-center gap-2">
-                <span className="font-medium truncate">{node.title}</span>
-                {generatingIds.has(node.id) && (
-                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                )}
-                {node.status === "generated" && !generatingIds.has(node.id) && (
-                  <CheckCircle className="h-3 w-3 text-green-500" />
-                )}
-                {node.status === "error" && (
-                  <AlertCircle className="h-3 w-3 text-red-500" />
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {node.type} • {node.tokenBudget} tokens
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMove(node.id, "up");
-                }}
-                disabled={index === 0}
-                className="p-1 hover:bg-muted rounded disabled:opacity-30"
-                title="Move up"
-              >
-                <MoveUp className="h-3 w-3" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMove(node.id, "down");
-                }}
-                disabled={index === nodes.length - 1}
-                className="p-1 hover:bg-muted rounded disabled:opacity-30"
-                title="Move down"
-              >
-                <MoveDown className="h-3 w-3" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onIndent(node.id);
-                }}
-                disabled={index === 0}
-                className="p-1 hover:bg-muted rounded disabled:opacity-30"
-                title="Indent (make subsection)"
-              >
-                <Indent className="h-3 w-3" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOutdent(node.id);
-                }}
-                disabled={depth === 0}
-                className="p-1 hover:bg-muted rounded disabled:opacity-30"
-                title="Outdent (move up level)"
-              >
-                <Outdent className="h-3 w-3" />
-              </button>
-              {onGenerate && (
+              {/* Expand/Collapse Toggle */}
+              {node.children.length > 0 ? (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onGenerate(node.id);
+                    onToggle(node.id);
                   }}
-                  disabled={generatingIds.has(node.id)}
-                  className="p-1 hover:bg-primary/10 hover:text-primary rounded disabled:opacity-30"
-                  title="Generate content with AI"
+                  className="p-0.5 hover:bg-muted rounded"
+                  aria-label={node.expanded ? "Collapse" : "Expand"}
                 >
-                  <Sparkles className="h-3 w-3" />
+                  {node.expanded ? (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  )}
                 </button>
+              ) : (
+                <span className="w-5" />
               )}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(node.id);
-                }}
-                className="p-1 hover:bg-destructive hover:text-destructive-foreground rounded"
-                title="Delete"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
 
-          {/* Children */}
-          {node.expanded && node.children.length > 0 && (
-            <div className="mt-1">
-              <TreeView
-                nodes={node.children}
-                selectedId={selectedId}
-                onSelect={onSelect}
-                onToggle={onToggle}
-                onDelete={onDelete}
-                onGenerate={onGenerate}
-                onMove={onMove}
-                onIndent={onIndent}
-                onOutdent={onOutdent}
-                onDragStart={onDragStart}
-                onDragOver={onDragOver}
-                onDragLeave={onDragLeave}
-                onDrop={onDrop}
-                draggedId={draggedId}
-                dragOverId={dragOverId}
-                generatingIds={generatingIds}
-                depth={depth + 1}
+              {/* Node Glyph Status Indicator */}
+              <NodeGlyph
+                status={node.status}
+                isGenerating={isGenerating}
+                coherenceScore={node.coherenceScore}
+                size="sm"
+                showTooltip
               />
+
+              {/* Drag Handle */}
+              <GripVertical
+                className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing flex-shrink-0"
+                aria-hidden="true"
+              />
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium truncate">{node.title}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {node.type} • {node.tokenBudget} tokens
+                  {node.coherenceScore < 1.0 && node.status === "generated" && (
+                    <span className={cn(
+                      "ml-2",
+                      node.coherenceScore < 0.6 ? "text-amber-500" : "text-muted-foreground"
+                    )}>
+                      {Math.round(node.coherenceScore * 100)}% coherence
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMove(node.id, "up");
+                  }}
+                  disabled={index === 0}
+                  className="p-1 hover:bg-muted rounded disabled:opacity-30"
+                  title="Move up"
+                  aria-label="Move up"
+                >
+                  <MoveUp className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMove(node.id, "down");
+                  }}
+                  disabled={index === nodes.length - 1}
+                  className="p-1 hover:bg-muted rounded disabled:opacity-30"
+                  title="Move down"
+                  aria-label="Move down"
+                >
+                  <MoveDown className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onIndent(node.id);
+                  }}
+                  disabled={index === 0}
+                  className="p-1 hover:bg-muted rounded disabled:opacity-30"
+                  title="Indent (make subsection)"
+                  aria-label="Indent"
+                >
+                  <Indent className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOutdent(node.id);
+                  }}
+                  disabled={depth === 0}
+                  className="p-1 hover:bg-muted rounded disabled:opacity-30"
+                  title="Outdent (move up level)"
+                  aria-label="Outdent"
+                >
+                  <Outdent className="h-3 w-3" />
+                </button>
+                {onGenerate && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onGenerate(node.id);
+                    }}
+                    disabled={isGenerating}
+                    className="p-1 hover:bg-primary/10 hover:text-primary rounded disabled:opacity-30"
+                    title="Generate content with AI (⌘G)"
+                    aria-label="Generate content"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                  </button>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(node.id);
+                  }}
+                  className="p-1 hover:bg-destructive hover:text-destructive-foreground rounded"
+                  title="Delete (⌘⌫)"
+                  aria-label="Delete"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
             </div>
-          )}
-        </div>
-      ))}
+
+            {/* Children */}
+            {node.expanded && node.children.length > 0 && (
+              <div className="mt-1">
+                <TreeView
+                  nodes={node.children}
+                  selectedId={selectedId}
+                  onSelect={onSelect}
+                  onToggle={onToggle}
+                  onDelete={onDelete}
+                  onGenerate={onGenerate}
+                  onMove={onMove}
+                  onIndent={onIndent}
+                  onOutdent={onOutdent}
+                  onDragStart={onDragStart}
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop}
+                  draggedId={draggedId}
+                  dragOverId={dragOverId}
+                  generatingIds={generatingIds}
+                  depth={depth + 1}
+                  flatNodeIds={visibleNodeIds}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

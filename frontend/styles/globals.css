@@ -395,6 +395,96 @@
 	.stagger-6 { animation-delay: 0.3s; }
 	.stagger-7 { animation-delay: 0.35s; }
 	.stagger-8 { animation-delay: 0.4s; }
+
+	/* ============================================
+	   HDSI Coherence Debt Animations
+	   Variable --pulse-duration controls frequency (0.5-3 Hz)
+	   ============================================ */
+
+	@keyframes coherence-pulse {
+		0%, 100% {
+			border-color: hsl(var(--warning) / 0.3);
+			box-shadow: 0 0 0 0 hsl(var(--warning) / 0.1);
+		}
+		50% {
+			border-color: hsl(var(--destructive) / 0.7);
+			box-shadow: 0 0 8px 2px hsl(var(--warning) / 0.2);
+		}
+	}
+
+	@keyframes glyph-pulse {
+		0%, 100% {
+			opacity: 1;
+			transform: scale(1);
+		}
+		50% {
+			opacity: 0.6;
+			transform: scale(0.95);
+		}
+	}
+
+	@keyframes glyph-active {
+		0% {
+			opacity: 0.4;
+		}
+		50% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0.4;
+		}
+	}
+
+	/* Coherence debt border animation for tree nodes */
+	.coherence-debt {
+		--pulse-duration: 1500ms;
+		animation: coherence-pulse var(--pulse-duration) ease-in-out infinite;
+		border-width: 2px;
+		border-style: solid;
+	}
+
+	/* Coherence debt with customizable pulse rate */
+	.coherence-debt-urgent {
+		--pulse-duration: 333ms; /* 3 Hz - most urgent */
+	}
+
+	.coherence-debt-moderate {
+		--pulse-duration: 1000ms; /* 1 Hz - moderate */
+	}
+
+	.coherence-debt-mild {
+		--pulse-duration: 2000ms; /* 0.5 Hz - threshold */
+	}
+
+	/* Glyph pulse animation for generating state */
+	.animate-glyph-pulse {
+		--pulse-duration: 1000ms;
+		animation: glyph-pulse var(--pulse-duration) ease-in-out infinite;
+	}
+
+	/* Glyph active animation for generation in progress */
+	.animate-glyph-active {
+		animation: glyph-active 1.5s ease-in-out infinite;
+	}
+
+	/* Coherence pulse for glyph (warning state) */
+	.animate-coherence-pulse {
+		--pulse-duration: 1500ms;
+		animation: coherence-pulse var(--pulse-duration) ease-in-out infinite;
+	}
+
+	/* Reduced motion preference */
+	@media (prefers-reduced-motion: reduce) {
+		.coherence-debt,
+		.animate-glyph-pulse,
+		.animate-glyph-active,
+		.animate-coherence-pulse {
+			animation: none;
+		}
+		.coherence-debt {
+			border-color: hsl(var(--warning));
+		}
+	}
 }
 
 /* ============================================
