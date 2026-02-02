@@ -125,6 +125,7 @@ export function HDSIEnhanced({
   const [dragOverNodeId, setDragOverNodeId] = React.useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = React.useState<DeleteConfirmation | null>(null);
   const [isGeneratingAll, setIsGeneratingAll] = React.useState(false);
+  const [contextMenu, setContextMenu] = React.useState<ContextMenuState | null>(null);
 
   // Store callbacks in refs to avoid infinite loops from unstable references
   const onStructureChangeRef = React.useRef(onStructureChange);
@@ -298,30 +299,69 @@ export function HDSIEnhanced({
     toast.success("Section restored");
   };
 
-  // Generate content for a single node
-  const handleGenerateNode = async (id: string) => {
+  // Generate content for a single node and optionally its offspring
+  const handleGenerateNode = async (id: string, includeOffspring: boolean = true) => {
     const node = findNode(structure, id);
     if (!node || !onGenerateNode) return;
 
-    setGeneratingNodes(prev => new Set(prev).add(id));
-    try {
-      const content = await onGenerateNode(id, node);
-      // Update the node with generated content
-      setStructure(prev =>
-        updateNode(prev, id, {
+    // Collect all nodes to generate (parent first, then children depth-first)
+    const collectNodesToGenerate = (n: HDSINode): HDSINode[] => {
+      const result: HDSINode[] = [n];
+      if (includeOffspring && n.children.length > 0) {
+        for (const child of n.children) {
+          if (child.status !== "deleted") {
+            result.push(...collectNodesToGenerate(child));
+          }
+        }
+      }
+      return result;
+    };
+
+    const nodesToGenerate = collectNodesToGenerate(node);
+    const hasOffspring = nodesToGenerate.length > 1;
+
+    if (hasOffspring) {
+      toast.info(`Generating "${node.title}" and ${nodesToGenerate.length - 1} child section(s)...`);
+    }
+
+    // Track current structure for sequential updates (avoid stale closure)
+    let currentStructure = structure;
+    let generatedCount = 0;
+
+    for (const nodeToGen of nodesToGenerate) {
+      // Get fresh node reference from current structure
+      const freshNode = findNode(currentStructure, nodeToGen.id);
+      if (!freshNode) continue;
+
+      setGeneratingNodes(prev => new Set(prev).add(nodeToGen.id));
+      try {
+        const content = await onGenerateNode(nodeToGen.id, freshNode);
+        // Update structure and track current state
+        currentStructure = updateNode(currentStructure, nodeToGen.id, {
           generatedContent: content,
           status: "generated",
-        })
-      );
+        });
+        setStructure(currentStructure);
+        generatedCount++;
+
+        if (hasOffspring) {
+          toast.info(`Progress: ${generatedCount}/${nodesToGenerate.length}`, { id: "generate-offspring-progress" });
+        }
+      } catch (error) {
+        toast.error(`Failed to generate "${freshNode.title}": ${error instanceof Error ? error.message : "Unknown error"}`);
+      } finally {
+        setGeneratingNodes(prev => {
+          const next = new Set(prev);
+          next.delete(nodeToGen.id);
+          return next;
+        });
+      }
+    }
+
+    if (hasOffspring) {
+      toast.success(`Generated ${generatedCount} section(s) for "${node.title}" and offspring`);
+    } else {
       toast.success(`Generated content for "${node.title}"`);
-    } catch (error) {
-      toast.error(`Failed to generate: ${error instanceof Error ? error.message : "Unknown error"}`);
-    } finally {
-      setGeneratingNodes(prev => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
     }
   };
 
@@ -686,6 +726,10 @@ export function HDSIEnhanced({
               draggedId={draggedNodeId}
               dragOverId={dragOverNodeId}
               generatingIds={generatingNodes}
+              isRoot
+              contextMenu={contextMenu}
+              onContextMenu={setContextMenu}
+              onCloseContextMenu={() => setContextMenu(null)}
             />
           </div>
         </ResizablePanel>
@@ -785,6 +829,18 @@ export function HDSIEnhanced({
 // Tree View Component with Keyboard Navigation and ARIA Support
 // ============================================================================
 
+/** Context menu state for right-click actions */
+interface ContextMenuState {
+  isOpen: boolean;
+  x: number;
+  y: number;
+  nodeId: string;
+  nodeIndex: number;
+  nodeDepth: number;
+  siblingsCount: number;
+  hasChildren: boolean;
+}
+
 interface TreeViewProps {
   nodes: HDSINode[];
   selectedId: string | null;
@@ -807,6 +863,12 @@ interface TreeViewProps {
   flatNodeIds?: string[];
   /** Root element ref for keyboard event handling */
   isRoot?: boolean;
+  /** Context menu state (managed at root level) */
+  contextMenu?: ContextMenuState | null;
+  /** Handler to open context menu */
+  onContextMenu?: (state: ContextMenuState) => void;
+  /** Handler to close context menu */
+  onCloseContextMenu?: () => void;
 }
 
 /**
@@ -845,6 +907,9 @@ function TreeView({
   depth = 0,
   flatNodeIds,
   isRoot = false,
+  contextMenu,
+  onContextMenu,
+  onCloseContextMenu,
 }: TreeViewProps) {
   const treeRef = React.useRef<HTMLDivElement>(null);
 
@@ -1037,6 +1102,21 @@ function TreeView({
               onDragLeave={onDragLeave}
               onDrop={(e) => onDrop(e, node.id)}
               onClick={() => onSelect(node.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelect(node.id); // Select node on right-click
+                onContextMenu?.({
+                  isOpen: true,
+                  x: e.clientX,
+                  y: e.clientY,
+                  nodeId: node.id,
+                  nodeIndex: index,
+                  nodeDepth: depth,
+                  siblingsCount: nodes.length,
+                  hasChildren: node.children.length > 0,
+                });
+              }}
               className={cn(
                 "group flex items-center gap-1.5 p-2 rounded cursor-pointer text-sm select-none transition-colors",
                 isSelected
@@ -1204,12 +1284,147 @@ function TreeView({
                   generatingIds={generatingIds}
                   depth={depth + 1}
                   flatNodeIds={visibleNodeIds}
+                  contextMenu={contextMenu}
+                  onContextMenu={onContextMenu}
+                  onCloseContextMenu={onCloseContextMenu}
                 />
               </div>
             )}
           </div>
         );
       })}
+
+      {/* Context Menu - only rendered at root level */}
+      {depth === 0 && contextMenu?.isOpen && (
+        <>
+          {/* Backdrop to close menu on click outside */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => onCloseContextMenu?.()}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              onCloseContextMenu?.();
+            }}
+          />
+          {/* Context Menu */}
+          <div
+            className="fixed z-50 min-w-[180px] bg-popover border rounded-md shadow-lg p-1 animate-in fade-in-0 zoom-in-95"
+            style={{
+              left: contextMenu.x,
+              top: contextMenu.y,
+            }}
+            role="menu"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Generate */}
+            {onGenerate && (
+              <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted"
+                onClick={() => {
+                  onGenerate(contextMenu.nodeId);
+                  onCloseContextMenu?.();
+                }}
+              >
+                <Sparkles className="h-4 w-4" />
+                Generate Content
+              </button>
+            )}
+
+            <div className="h-px bg-border my-1" />
+
+            {/* Move Up */}
+            <button
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                onMove(contextMenu.nodeId, "up");
+                onCloseContextMenu?.();
+              }}
+              disabled={contextMenu.nodeIndex === 0}
+            >
+              <MoveUp className="h-4 w-4" />
+              Move Up
+            </button>
+
+            {/* Move Down */}
+            <button
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                onMove(contextMenu.nodeId, "down");
+                onCloseContextMenu?.();
+              }}
+              disabled={contextMenu.nodeIndex === contextMenu.siblingsCount - 1}
+            >
+              <MoveDown className="h-4 w-4" />
+              Move Down
+            </button>
+
+            <div className="h-px bg-border my-1" />
+
+            {/* Promote (Outdent) - decrease depth */}
+            <button
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                onOutdent(contextMenu.nodeId);
+                onCloseContextMenu?.();
+              }}
+              disabled={contextMenu.nodeDepth === 0}
+              title="Move up one level in the hierarchy"
+            >
+              <Outdent className="h-4 w-4" />
+              Promote (Outdent)
+            </button>
+
+            {/* Demote (Indent) - increase depth */}
+            <button
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => {
+                onIndent(contextMenu.nodeId);
+                onCloseContextMenu?.();
+              }}
+              disabled={contextMenu.nodeIndex === 0}
+              title="Make this a subsection of the previous sibling"
+            >
+              <Indent className="h-4 w-4" />
+              Demote (Indent)
+            </button>
+
+            <div className="h-px bg-border my-1" />
+
+            {/* Expand/Collapse (if has children) */}
+            {contextMenu.hasChildren && (
+              <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted"
+                onClick={() => {
+                  onToggle(contextMenu.nodeId);
+                  onCloseContextMenu?.();
+                }}
+              >
+                <ChevronRight className="h-4 w-4" />
+                Expand/Collapse
+              </button>
+            )}
+
+            {/* Delete */}
+            <button
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-destructive hover:text-destructive-foreground"
+              onClick={() => {
+                onDelete(contextMenu.nodeId);
+                onCloseContextMenu?.();
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

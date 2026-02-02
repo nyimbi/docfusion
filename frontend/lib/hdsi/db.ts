@@ -599,7 +599,7 @@ function flattenStructure(nodes: DS[], result: StoredNode[] = [], parentId?: str
   return result;
 }
 
-function unflattenNodes(flatNodes: StoredNode[]): DS[] {
+export function unflattenNodes(flatNodes: StoredNode[]): DS[] {
   const nodeMap = new Map<string, DS & { _childrenIds: string[] }>();
   const roots: DS[] = [];
   

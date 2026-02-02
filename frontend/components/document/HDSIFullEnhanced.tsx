@@ -103,7 +103,13 @@ import {
   generateOutlineFromDescription,
   type OutlineSection,
 } from "@/lib/hdsi/ai-client";
-import { hdsiDB, type StoredDiscoveryAnalysis } from "@/lib/hdsi/db";
+import {
+  parseContentToStructure,
+  parseWithAI,
+  assessParseQuality,
+  type ParseResult,
+} from "@/lib/hdsi/content-parser";
+import { hdsiDB, unflattenNodes, type StoredDiscoveryAnalysis } from "@/lib/hdsi/db";
 import { createDocument as createMainDocument, updateDocument as updateMainDocument } from "@/app/actions/documents";
 import {
   GitGraph,
@@ -540,6 +546,8 @@ function StepIndicator({ currentStep, totalSteps, labels }: StepIndicatorProps) 
 interface HDSIFullEnhancedProps {
   initialDocumentId?: string;
   documentTitle?: string;
+  /** Existing document content to parse into structure */
+  existingContent?: unknown;
   userId?: string;
   userName?: string;
   userAvatar?: string;
@@ -552,6 +560,7 @@ interface HDSIFullEnhancedProps {
 export function HDSIFullEnhanced({
   initialDocumentId,
   documentTitle = "Untitled Document",
+  existingContent,
   userId = "user-1",
   userName = "Anonymous",
   userAvatar,
@@ -638,6 +647,24 @@ export function HDSIFullEnhanced({
 
   // Track nodes currently being generated
   const [generatingNodeIds, setGeneratingNodeIds] = React.useState<Set<string>>(new Set());
+
+  // Content parsing state
+  const [isParsing, setIsParsing] = React.useState(false);
+  const [parseResult, setParseResult] = React.useState<ParseResult | null>(null);
+  const [showParsePreview, setShowParsePreview] = React.useState(false);
+
+  // Detect if there's existing content that could be parsed
+  const hasExistingContent = React.useMemo(() => {
+    if (!existingContent) return false;
+    if (typeof existingContent === "string") return existingContent.trim().length > 50;
+    if (typeof existingContent === "object") {
+      const obj = existingContent as Record<string, unknown>;
+      if (obj.type === "doc" && Array.isArray(obj.content)) {
+        return obj.content.length > 0;
+      }
+    }
+    return false;
+  }, [existingContent]);
 
   // Show empty state if no structure
   const showEmptyState = structure.length === 0;
@@ -826,6 +853,97 @@ export function HDSIFullEnhanced({
       assembleContextBuffer(selectedNodeId);
     }
   }, [selectedNodeId, assembleContextBuffer]);
+
+  // Load document from IndexedDB on mount
+  React.useEffect(() => {
+    const loadDocument = async () => {
+      if (!docId) return;
+
+      try {
+        const doc = await hdsiDB.getDocument(docId);
+        if (doc && doc.structure && doc.structure.length > 0) {
+          // Convert flat structure back to tree using unflattenNodes
+          const treeNodes = unflattenNodes(doc.structure);
+
+          // Ensure nodes have all required HDSI properties
+          const normalizeNodes = (nodes: any[]): HDSINode[] => {
+            return nodes.map((n, i) => ({
+              ...n,
+              children: normalizeNodes(n.children || []),
+              expanded: n.expanded ?? true,
+              order: n.order ?? i,
+              status: n.status ?? "outline",
+              tokenBudget: n.tokenBudget ?? 500,
+              customPrompt: n.customPrompt ?? "",
+              densityTarget: n.densityTarget ?? 2.5,
+              coherenceScore: n.coherenceScore ?? 1.0,
+              depth: n.depth ?? 0,
+            }));
+          };
+
+          const normalizedNodes = normalizeNodes(treeNodes);
+          if (normalizedNodes.length > 0) {
+            setStructure(normalizedNodes);
+            setTitle(doc.title);
+            console.log("[HDSI] Loaded document from IndexedDB:", doc.title, "with", normalizedNodes.length, "root nodes");
+          }
+        }
+      } catch (error) {
+        console.error("[HDSI] Failed to load document:", error);
+      }
+    };
+
+    loadDocument();
+  }, [docId]);
+
+  // Auto-save structure changes to IndexedDB
+  const autoSaveRef = React.useRef<{ triggerSave: () => void; dispose: () => void } | null>(null);
+  const structureRef = React.useRef(structure);
+  structureRef.current = structure;
+
+  React.useEffect(() => {
+    // Only set up auto-save if we have a document and structure
+    if (!docId || structure.length === 0) return;
+
+    // Create auto-save handler
+    autoSaveRef.current = hdsiDB.createAutoSave(
+      docId,
+      () => structureRef.current,
+      30000 // Auto-save every 30 seconds
+    );
+
+    return () => {
+      // Cleanup and final save on unmount
+      autoSaveRef.current?.dispose();
+    };
+  }, [docId, structure.length > 0]); // Only re-create when docId changes or structure becomes non-empty
+
+  // Trigger save on structure changes
+  React.useEffect(() => {
+    if (structure.length > 0 && autoSaveRef.current) {
+      autoSaveRef.current.triggerSave();
+    }
+  }, [structure]);
+
+  // Manual save function for explicit saves
+  const handleSaveDocument = React.useCallback(async () => {
+    if (!docId || structure.length === 0) {
+      toast.error("No document to save");
+      return;
+    }
+
+    try {
+      const savedDoc = await hdsiDB.saveDocument(docId, structure, title, {
+        incrementVersion: true,
+        author: userName || "user",
+        description: "Manual save",
+      });
+      toast.success(`Document saved (v${savedDoc.version})`);
+    } catch (error) {
+      console.error("Failed to save document:", error);
+      toast.error("Failed to save document");
+    }
+  }, [docId, structure, title, userName]);
 
   // Reset discovery state
   const resetDiscovery = () => {
@@ -1354,6 +1472,57 @@ ${initialBrief}
     toast.success("Document generation complete!");
   }, [structure, title, findNodeContext, setStructure]);
 
+  // Parse existing content into structure
+  const handleParseContent = React.useCallback(async (useAI: boolean = false) => {
+    if (!existingContent) {
+      toast.error("No content to parse");
+      return;
+    }
+
+    setIsParsing(true);
+    try {
+      let result: ParseResult;
+      if (useAI) {
+        result = await parseWithAI(
+          typeof existingContent === "string" ? existingContent : JSON.stringify(existingContent),
+          { documentTitle: title }
+        );
+      } else {
+        result = parseContentToStructure(existingContent, { documentTitle: title });
+      }
+
+      if (result.nodes.length === 0) {
+        toast.error("Could not detect structure in the content");
+        return;
+      }
+
+      const quality = assessParseQuality(result);
+      setParseResult(result);
+      setShowParsePreview(true);
+
+      if (quality.issues.length > 0) {
+        toast.info(`Structure detected with notes: ${quality.issues.join(", ")}`);
+      } else {
+        toast.success(`Detected ${result.nodes.length} sections (${Math.round(result.confidence * 100)}% confidence)`);
+      }
+    } catch (error) {
+      console.error("Parse error:", error);
+      toast.error("Failed to parse content");
+    } finally {
+      setIsParsing(false);
+    }
+  }, [existingContent, title]);
+
+  // Apply parsed structure
+  const applyParsedStructure = React.useCallback(() => {
+    if (!parseResult) return;
+    setStructure(parseResult.nodes);
+    setShowParsePreview(false);
+    setParseResult(null);
+    setShowOutlineModal(false);
+    toast.success("Structure applied! You can now edit and regenerate sections.");
+  }, [parseResult]);
+
   // Start blank document
   const startBlankDocument = () => {
     const rootNode: HDSINode = {
@@ -1580,6 +1749,72 @@ ${initialBrief}
                     </p>
                   </CardContent>
                 </Card>
+
+                {/* Parse Existing Content Card - Only shown when content exists */}
+                {hasExistingContent && (
+                  <Card
+                    className={cn(
+                      "cursor-pointer transition-all group relative overflow-hidden md:col-span-3",
+                      "hover:shadow-lg hover:border-green-500/30 hover:-translate-y-0.5",
+                      "border-green-500/20 bg-green-500/5"
+                    )}
+                    onClick={() => handleParseContent(false)}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <CardHeader className="pb-2 relative">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-green-500/20 text-green-600 dark:text-green-400">
+                            <FileText className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              Parse Existing Content
+                              <Badge className="bg-green-500/20 text-green-600 border-0 text-[10px]">
+                                Content Detected
+                              </Badge>
+                            </CardTitle>
+                            <CardDescription className="text-xs">Convert content to editable structure</CardDescription>
+                          </div>
+                        </div>
+                        {isParsing && <Loader2 className="h-5 w-5 animate-spin text-green-600" />}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="relative">
+                      <p className="text-sm text-muted-foreground">
+                        This document has existing content. Parse it into sections for structured editing and AI enhancement.
+                      </p>
+                      <div className="flex gap-2 mt-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-green-500/30 hover:bg-green-500/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleParseContent(false);
+                          }}
+                          disabled={isParsing}
+                        >
+                          {isParsing ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <FileText className="h-3 w-3 mr-1" />}
+                          Quick Parse
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-primary/30 hover:bg-primary/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleParseContent(true);
+                          }}
+                          disabled={isParsing}
+                        >
+                          {isParsing ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Wand2 className="h-3 w-3 mr-1" />}
+                          AI-Enhanced Parse
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
           </div>
