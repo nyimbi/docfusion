@@ -39,8 +39,21 @@ import {
 } from "@/components/ui/select";
 import { TaskBoard } from "@/components/task-management/TaskBoard";
 import { TaskList } from "@/components/task-management/TaskList";
-import { listAllTasks, listTasks } from "@/lib/actions/task-management";
-import type { ProposalTask } from "@/lib/db/schema-tasks";
+import { TaskEditor } from "@/components/task-management/TaskEditor";
+import { BottleneckAlerts } from "@/components/task-management/BottleneckAlerts";
+import { WorkloadDashboard } from "@/components/task-management/WorkloadDashboard";
+import { WorkloadHeatMap } from "@/components/task-management/WorkloadHeatMap";
+import { CriticalPathView } from "@/components/task-management/CriticalPathView";
+import { TaskGenerator } from "@/components/task-management/TaskGenerator";
+import {
+	listAllTasks,
+	listTasks,
+	listTeamMembers,
+	updateTask,
+	createTask,
+	deleteTask,
+} from "@/lib/actions/task-management";
+import type { ProposalTask, AuthorExpertise } from "@/lib/db/schema-tasks";
 
 export default function TasksPage() {
 	const [activeTab, setActiveTab] = useState("board");
@@ -49,7 +62,21 @@ export default function TasksPage() {
 	const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 	const [showTaskGenerator, setShowTaskGenerator] = useState(false);
 	const [tasks, setTasks] = useState<ProposalTask[]>([]);
+	const [teamMembers, setTeamMembers] = useState<AuthorExpertise[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
+	const [selectedTask, setSelectedTask] = useState<ProposalTask | null>(null);
+
+	// Fetch team members
+	const fetchTeamMembers = useCallback(async () => {
+		try {
+			const result = await listTeamMembers();
+			if (result.success && result.data) {
+				setTeamMembers(result.data);
+			}
+		} catch (error) {
+			console.error("Failed to fetch team members:", error);
+		}
+	}, []);
 
 	// Fetch tasks
 	const fetchTasks = useCallback(async () => {
@@ -73,7 +100,67 @@ export default function TasksPage() {
 
 	useEffect(() => {
 		fetchTasks();
-	}, [fetchTasks]);
+		fetchTeamMembers();
+	}, [fetchTasks, fetchTeamMembers]);
+
+	// Update selected task when selectedTaskId changes
+	useEffect(() => {
+		if (selectedTaskId && selectedTaskId !== "new") {
+			const task = tasks.find(t => t.id === selectedTaskId);
+			setSelectedTask(task || null);
+		} else {
+			setSelectedTask(null);
+		}
+	}, [selectedTaskId, tasks]);
+
+	// Task handlers
+	const handleSaveTask = async (taskData: Partial<ProposalTask>) => {
+		if (selectedTaskId === "new") {
+			const result = await createTask({
+				...taskData,
+				opportunityId: selectedOpportunityId || "default",
+			} as any);
+			if (result.success) {
+				fetchTasks();
+				setSelectedTaskId(null);
+			}
+		} else if (selectedTaskId) {
+			// Extract only the fields that UpdateTaskInput accepts
+			const updateData = {
+				title: taskData.title,
+				description: taskData.description,
+				taskType: taskData.taskType,
+				taskCategory: taskData.taskCategory,
+				assignedTo: taskData.assignedTo,
+				assignedToEmail: taskData.assignedToEmail,
+				dueDate: taskData.dueDate ? new Date(taskData.dueDate).toISOString() : undefined,
+				estimatedHours: taskData.estimatedHours,
+				actualHours: taskData.actualHours,
+				priority: taskData.priority as "critical" | "high" | "medium" | "low" | undefined,
+				status: taskData.status as "pending" | "assigned" | "in_progress" | "review" | "blocked" | "completed" | "cancelled" | undefined,
+				progress: taskData.progress,
+				wordCountCurrent: taskData.wordCountCurrent,
+				pageCurrent: taskData.pageCurrent,
+				tags: taskData.tags,
+			};
+			// Remove undefined values
+			const cleanedData = Object.fromEntries(
+				Object.entries(updateData).filter(([_, v]) => v !== undefined)
+			);
+			const result = await updateTask(selectedTaskId, cleanedData);
+			if (result.success) {
+				fetchTasks();
+			}
+		}
+	};
+
+	const handleDeleteTask = async (taskId: string) => {
+		const result = await deleteTask(taskId);
+		if (result.success) {
+			fetchTasks();
+			setSelectedTaskId(null);
+		}
+	};
 
 	return (
 		<div className="h-full flex flex-col overflow-hidden">
@@ -115,7 +202,14 @@ export default function TasksPage() {
 				</div>
 
 				{/* Bottleneck Alerts Banner */}
-				<BottleneckAlertsPlaceholder compact />
+				{tasks.length > 0 && teamMembers.length > 0 && (
+					<BottleneckAlerts
+						tasks={tasks}
+						teamMembers={teamMembers}
+						onTaskClick={(task) => setSelectedTaskId(task.id)}
+						className="mt-4"
+					/>
+				)}
 			</div>
 
 			{/* Main Content */}
@@ -225,12 +319,24 @@ export default function TasksPage() {
 						</TabsContent>
 						<TabsContent value="workload" className="h-full m-0 p-6">
 							<div className="grid grid-cols-2 gap-6 h-full">
-								<WorkloadDashboardPlaceholder />
-								<WorkloadHeatMapPlaceholder />
+								<WorkloadDashboard
+									tasks={tasks}
+									teamMembers={teamMembers}
+									loading={isLoading}
+									onRefresh={fetchTasks}
+								/>
+								<WorkloadHeatMap
+									tasks={tasks}
+									teamMembers={teamMembers}
+								/>
 							</div>
 						</TabsContent>
 						<TabsContent value="critical-path" className="h-full m-0 p-6">
-							<CriticalPathViewPlaceholder opportunityId={selectedOpportunityId} />
+							<CriticalPathView
+								tasks={tasks}
+								criticalPath={[]} // TODO: Calculate from server action
+								onTaskClick={(task) => setSelectedTaskId(task.id)}
+							/>
 						</TabsContent>
 						<TabsContent value="analytics" className="h-full m-0 p-6">
 							<WorkloadAnalyticsPlaceholder />
@@ -240,18 +346,43 @@ export default function TasksPage() {
 			</div>
 
 			{/* Task Generator Modal */}
-			{showTaskGenerator && (
+			{showTaskGenerator && selectedOpportunityId && (
+				<TaskGenerator
+					opportunityId={selectedOpportunityId}
+					existingTasks={tasks}
+					isOpen={showTaskGenerator}
+					onClose={() => setShowTaskGenerator(false)}
+					onGenerateTasks={async (newTasks) => {
+						// Create each generated task
+						for (const task of newTasks) {
+							await createTask(task as any);
+						}
+						fetchTasks();
+						setShowTaskGenerator(false);
+					}}
+				/>
+			)}
+			{showTaskGenerator && !selectedOpportunityId && (
 				<TaskGeneratorPlaceholder onClose={() => setShowTaskGenerator(false)} />
 			)}
 
 			{/* Task Editor Side Panel */}
 			{selectedTaskId && (
 				<div className="fixed right-0 top-0 h-full w-[500px] bg-background border-l shadow-xl z-50 overflow-y-auto">
-					<TaskEditorPlaceholder
-						taskId={selectedTaskId === "new" ? undefined : selectedTaskId}
+					<TaskEditor
+						task={selectedTaskId === "new" ? null : selectedTask}
+						isOpen={true}
 						onClose={() => setSelectedTaskId(null)}
+						onSave={handleSaveTask}
+						onDelete={handleDeleteTask}
+						availableAssignees={teamMembers.map(m => ({
+							id: m.userId,
+							name: m.userName,
+							email: m.userEmail || undefined,
+						}))}
+						availableTasks={tasks}
 					/>
-					{selectedTaskId !== "new" && (
+					{selectedTaskId !== "new" && selectedTask && (
 						<div className="p-6 border-t">
 							<AssignmentSuggesterPlaceholder taskId={selectedTaskId} />
 						</div>

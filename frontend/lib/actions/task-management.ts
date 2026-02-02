@@ -2024,6 +2024,49 @@ export async function getAuthorExpertise(
 	}
 }
 
+/**
+ * List all team members with expertise profiles.
+ * Used for workload dashboards, assignment suggestions, and resource planning.
+ */
+export async function listTeamMembers(
+	filters?: {
+		availability?: string;
+		expertiseArea?: string;
+		limit?: number;
+	}
+): Promise<{ success: boolean; data?: AuthorExpertiseType[]; error?: string }> {
+	try {
+		const conditions: any[] = [];
+
+		if (filters?.availability) {
+			conditions.push(eq(authorExpertise.availability, filters.availability));
+		}
+
+		const members = await db
+			.select()
+			.from(authorExpertise)
+			.where(conditions.length > 0 ? and(...conditions) : undefined)
+			.orderBy(desc(authorExpertise.totalTasksCompleted))
+			.limit(filters?.limit ?? 100);
+
+		// If expertiseArea filter is specified, filter in memory (JSONB field)
+		if (filters?.expertiseArea) {
+			const filtered = members.filter(m =>
+				m.expertiseAreas?.some(e =>
+					e.area.toLowerCase().includes(filters.expertiseArea!.toLowerCase()) ||
+					e.category.toLowerCase().includes(filters.expertiseArea!.toLowerCase())
+				)
+			);
+			return { success: true, data: filtered };
+		}
+
+		return { success: true, data: members };
+	} catch (error) {
+		console.error("Failed to list team members:", error);
+		return { success: false, error: error instanceof Error ? error.message : "Failed to list team members" };
+	}
+}
+
 // ============================================================================
 // Task Activity
 // ============================================================================
