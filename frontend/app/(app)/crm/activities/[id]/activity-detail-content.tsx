@@ -39,9 +39,14 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { ActivityRow, AccountRow, ContactRow, DealRow } from "@/lib/db/schema-crm";
+import { getActivity, deleteActivity, completeActivity } from "@/lib/actions/crm/activities";
+import { getAccount } from "@/lib/actions/crm/accounts";
+import { getContactInternal } from "@/lib/actions/crm/contacts";
+import { getDeal } from "@/lib/actions/crm/deals";
 
 interface ActivityDetailContentProps {
 	activityId: string;
+	userId?: string;
 }
 
 // Activity type icons
@@ -76,7 +81,7 @@ const formatDuration = (minutes: number | null | undefined) => {
 	return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 };
 
-export default function ActivityDetailContent({ activityId }: ActivityDetailContentProps) {
+export default function ActivityDetailContent({ activityId, userId }: ActivityDetailContentProps) {
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(true);
 	const [activity, setActivity] = useState<ActivityRow | null>(null);
@@ -90,18 +95,30 @@ export default function ActivityDetailContent({ activityId }: ActivityDetailCont
 		async function fetchData() {
 			setIsLoading(true);
 			try {
-				// In production:
-				// const activityData = await getActivity(activityId);
-				// if (activityData.accountId) setAccount(await getAccount(activityData.accountId));
-				// if (activityData.contactId) setContact(await getContact(activityData.contactId));
-				// if (activityData.dealId) setDeal(await getDeal(activityData.dealId));
-
-				setActivity(null);
-				setAccount(null);
-				setContact(null);
-				setDeal(null);
+				const activityData = await getActivity(activityId);
+				if (activityData) {
+					setActivity(activityData);
+					if (activityData.accountId) {
+						const accountData = await getAccount(activityData.accountId);
+						setAccount(accountData);
+					}
+					if (activityData.contactId) {
+						const contactData = await getContactInternal(activityData.contactId);
+						setContact(contactData);
+					}
+					if (activityData.dealId) {
+						const dealData = await getDeal(activityData.dealId);
+						setDeal(dealData);
+					}
+				} else {
+					setActivity(null);
+					setAccount(null);
+					setContact(null);
+					setDeal(null);
+				}
 			} catch (error) {
 				console.error("Failed to fetch activity:", error);
+				setActivity(null);
 			} finally {
 				setIsLoading(false);
 			}
@@ -116,7 +133,7 @@ export default function ActivityDetailContent({ activityId }: ActivityDetailCont
 
 	const handleDelete = async () => {
 		try {
-			// In production: await deleteActivity(activityId);
+			await deleteActivity(activityId);
 			router.push("/crm/activities");
 		} catch (error) {
 			console.error("Failed to delete activity:", error);
@@ -125,11 +142,10 @@ export default function ActivityDetailContent({ activityId }: ActivityDetailCont
 
 	const handleComplete = async () => {
 		try {
-			// In production: await updateActivity(activityId, { status: "completed", completedAt: new Date() });
-			console.log("Completing activity");
-			setActivity((prev) =>
-				prev ? { ...prev, status: "completed", completedAt: new Date() } : null
-			);
+			const updatedActivity = await completeActivity(activityId);
+			if (updatedActivity) {
+				setActivity(updatedActivity);
+			}
 		} catch (error) {
 			console.error("Failed to complete activity:", error);
 		}

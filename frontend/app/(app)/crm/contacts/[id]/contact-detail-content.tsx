@@ -23,12 +23,16 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { ContactRow, AccountRow, ActivityRow } from "@/lib/db/schema-crm";
+import { getContactInternal, deleteContact } from "@/lib/actions/crm/contacts";
+import { getAccount } from "@/lib/actions/crm/accounts";
+import { getContactTimeline } from "@/lib/actions/crm/activities";
 
 interface ContactDetailContentProps {
 	contactId: string;
+	userId?: string;
 }
 
-export default function ContactDetailContent({ contactId }: ContactDetailContentProps) {
+export default function ContactDetailContent({ contactId, userId }: ContactDetailContentProps) {
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(true);
 	const [contact, setContact] = useState<ContactRow | null>(null);
@@ -41,19 +45,23 @@ export default function ContactDetailContent({ contactId }: ContactDetailContent
 		async function fetchData() {
 			setIsLoading(true);
 			try {
-				// In production:
-				// const contactData = await getContact(contactId);
-				// if (contactData.accountId) {
-				//   const accountData = await getAccount(contactData.accountId);
-				//   setAccount(accountData);
-				// }
-				// const activitiesData = await getContactTimeline(contactId);
-
-				setContact(null);
-				setAccount(null);
-				setActivities([]);
+				const contactData = await getContactInternal(contactId);
+				if (contactData) {
+					setContact(contactData);
+					if (contactData.accountId) {
+						const accountData = await getAccount(contactData.accountId);
+						setAccount(accountData);
+					}
+					const activitiesResponse = await getContactTimeline(contactId);
+					setActivities(activitiesResponse.data);
+				} else {
+					setContact(null);
+					setAccount(null);
+					setActivities([]);
+				}
 			} catch (error) {
 				console.error("Failed to fetch contact:", error);
+				setContact(null);
 			} finally {
 				setIsLoading(false);
 			}
@@ -68,7 +76,9 @@ export default function ContactDetailContent({ contactId }: ContactDetailContent
 
 	const handleDelete = async () => {
 		try {
-			// In production: await deleteContact(contactId);
+			if (userId) {
+				await deleteContact(contactId, { userId });
+			}
 			router.push("/crm/contacts");
 		} catch (error) {
 			console.error("Failed to delete contact:", error);

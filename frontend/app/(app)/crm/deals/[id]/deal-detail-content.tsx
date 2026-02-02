@@ -37,9 +37,14 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { DealRow, AccountRow, ContactRow, ActivityRow } from "@/lib/db/schema-crm";
+import { getDeal, deleteDeal, markDealWon, markDealLost } from "@/lib/actions/crm/deals";
+import { getAccount } from "@/lib/actions/crm/accounts";
+import { getContactInternal } from "@/lib/actions/crm/contacts";
+import { getDealTimeline } from "@/lib/actions/crm/activities";
 
 interface DealDetailContentProps {
 	dealId: string;
+	userId?: string;
 }
 
 // Deal stages configuration
@@ -72,7 +77,7 @@ const formatDate = (date: Date | string | null | undefined) => {
 	});
 };
 
-export default function DealDetailContent({ dealId }: DealDetailContentProps) {
+export default function DealDetailContent({ dealId, userId }: DealDetailContentProps) {
 	const router = useRouter();
 	const [isLoading, setIsLoading] = useState(true);
 	const [deal, setDeal] = useState<DealRow | null>(null);
@@ -88,18 +93,26 @@ export default function DealDetailContent({ dealId }: DealDetailContentProps) {
 		async function fetchData() {
 			setIsLoading(true);
 			try {
-				// In production:
-				// const dealData = await getDeal(dealId);
-				// const accountData = await getAccount(dealData.accountId);
-				// const contactData = dealData.primaryContactId ? await getContact(dealData.primaryContactId) : null;
-				// const activitiesData = await getDealTimeline(dealId);
-
-				setDeal(null);
-				setAccount(null);
-				setContact(null);
-				setActivities([]);
+				const dealData = await getDeal(dealId);
+				if (dealData) {
+					setDeal(dealData);
+					const accountData = await getAccount(dealData.accountId);
+					setAccount(accountData);
+					if (dealData.primaryContactId) {
+						const contactData = await getContactInternal(dealData.primaryContactId);
+						setContact(contactData);
+					}
+					const activitiesResponse = await getDealTimeline(dealId);
+					setActivities(activitiesResponse.data);
+				} else {
+					setDeal(null);
+					setAccount(null);
+					setContact(null);
+					setActivities([]);
+				}
 			} catch (error) {
 				console.error("Failed to fetch deal:", error);
+				setDeal(null);
 			} finally {
 				setIsLoading(false);
 			}
@@ -114,7 +127,7 @@ export default function DealDetailContent({ dealId }: DealDetailContentProps) {
 
 	const handleDelete = async () => {
 		try {
-			// In production: await deleteDeal(dealId);
+			await deleteDeal(dealId);
 			router.push("/crm/deals");
 		} catch (error) {
 			console.error("Failed to delete deal:", error);
@@ -123,8 +136,10 @@ export default function DealDetailContent({ dealId }: DealDetailContentProps) {
 
 	const handleWin = async () => {
 		try {
-			// In production: await markDealWon(dealId);
-			console.log("Marking deal as won");
+			const updatedDeal = await markDealWon(dealId, undefined, userId);
+			if (updatedDeal) {
+				setDeal(updatedDeal);
+			}
 			setShowWinDialog(false);
 		} catch (error) {
 			console.error("Failed to mark deal as won:", error);
@@ -133,8 +148,11 @@ export default function DealDetailContent({ dealId }: DealDetailContentProps) {
 
 	const handleLose = async () => {
 		try {
-			// In production: await markDealLost(dealId, reason);
-			console.log("Marking deal as lost");
+			// Default reason - could be enhanced with a form input in the dialog
+			const updatedDeal = await markDealLost(dealId, "Marked as lost by user", undefined, userId);
+			if (updatedDeal) {
+				setDeal(updatedDeal);
+			}
 			setShowLoseDialog(false);
 		} catch (error) {
 			console.error("Failed to mark deal as lost:", error);

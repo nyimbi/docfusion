@@ -32,6 +32,8 @@ import {
 	Filter,
 } from "lucide-react";
 import type { ActivityRow, AccountRow } from "@/lib/db/schema-crm";
+import { getActivities, completeActivity } from "@/lib/actions/crm/activities";
+import { getAccounts } from "@/lib/actions/crm/accounts";
 
 interface ActivitiesContentProps {
 	searchParams: {
@@ -72,11 +74,10 @@ export default function ActivitiesContent({ searchParams }: ActivitiesContentPro
 		async function fetchData() {
 			setIsLoading(true);
 			try {
-				// In production:
-				// const activitiesData = await getActivities();
-				// const accountsData = await getAccounts();
-				setActivities([]);
-				setAccounts([]);
+				const activitiesResponse = await getActivities(undefined, { page: 1, pageSize: 100 });
+				const accountsResponse = await getAccounts();
+				setActivities(activitiesResponse.data);
+				setAccounts(accountsResponse.data);
 			} catch (error) {
 				console.error("Failed to fetch activities:", error);
 			} finally {
@@ -177,15 +178,16 @@ export default function ActivitiesContent({ searchParams }: ActivitiesContentPro
 	};
 
 	const handleTaskComplete = async (activityId: string) => {
-		// In production: await updateActivity(activityId, { status: "completed", completedAt: new Date() });
-		console.log("Completing task:", activityId);
-		setActivities((prev) =>
-			prev.map((a) =>
-				a.id === activityId
-					? { ...a, status: "completed", completedAt: new Date() }
-					: a
-			)
-		);
+		try {
+			const updatedActivity = await completeActivity(activityId);
+			if (updatedActivity) {
+				setActivities((prev) =>
+					prev.map((a) => (a.id === activityId ? updatedActivity : a))
+				);
+			}
+		} catch (error) {
+			console.error("Failed to complete task:", error);
+		}
 	};
 
 	return (

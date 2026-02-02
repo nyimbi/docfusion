@@ -7,7 +7,8 @@
 
 import { Suspense } from "react";
 import { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { requireUserContext } from "@/lib/auth-utils";
 import ActivityDetailContent from "./activity-detail-content";
 
 interface ActivityDetailPageProps {
@@ -33,9 +34,16 @@ export default async function ActivityDetailPage({ params }: ActivityDetailPageP
 		notFound();
 	}
 
+	let userContext;
+	try {
+		userContext = await requireUserContext();
+	} catch {
+		redirect("/auth/sign-in");
+	}
+
 	return (
 		<Suspense fallback={<ActivityDetailSkeleton />}>
-			<ActivityDetailContent activityId={id} />
+			<ActivityDetailContent activityId={id} userId={userContext.userId} />
 		</Suspense>
 	);
 }

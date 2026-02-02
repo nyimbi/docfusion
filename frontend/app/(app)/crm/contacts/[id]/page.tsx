@@ -7,7 +7,8 @@
 
 import { Suspense } from "react";
 import { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { requireUserContext } from "@/lib/auth-utils";
 import ContactDetailContent from "./contact-detail-content";
 
 interface ContactDetailPageProps {
@@ -33,9 +34,16 @@ export default async function ContactDetailPage({ params }: ContactDetailPagePro
 		notFound();
 	}
 
+	let userContext;
+	try {
+		userContext = await requireUserContext();
+	} catch {
+		redirect("/auth/sign-in");
+	}
+
 	return (
 		<Suspense fallback={<ContactDetailSkeleton />}>
-			<ContactDetailContent contactId={id} />
+			<ContactDetailContent contactId={id} userId={userContext.userId} />
 		</Suspense>
 	);
 }

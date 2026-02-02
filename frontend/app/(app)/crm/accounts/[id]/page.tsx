@@ -20,7 +20,9 @@ export async function generateMetadata({
 	params,
 }: AccountDetailPageProps): Promise<Metadata> {
 	const { id } = await params;
-	// In production: fetch account and use name
+	// Optional enhancement: fetch account name for dynamic SEO title
+	// const account = await getAccount(id);
+	// return { title: `${account?.name ?? 'Account'} | CRM`, ... };
 	return {
 		title: "Account Details",
 		description: "View and manage account information",

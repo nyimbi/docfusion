@@ -31,6 +31,9 @@ import {
 	Target,
 } from "lucide-react";
 import type { DealRow, AccountRow } from "@/lib/db/schema-crm";
+import type { DealStage } from "@/lib/types/crm";
+import { getDeals, updateDealStage } from "@/lib/actions/crm/deals";
+import { getAccounts } from "@/lib/actions/crm/accounts";
 
 interface DealsContentProps {
 	searchParams: {
@@ -69,11 +72,10 @@ export default function DealsContent({ searchParams }: DealsContentProps) {
 		async function fetchData() {
 			setIsLoading(true);
 			try {
-				// In production:
-				// const dealsData = await getDeals({ status: "open" });
-				// const accountsData = await getAccounts();
-				setDeals([]);
-				setAccounts([]);
+				const dealsResponse = await getDeals({ status: "open" });
+				const accountsResponse = await getAccounts();
+				setDeals(dealsResponse.data);
+				setAccounts(accountsResponse.data);
 			} catch (error) {
 				console.error("Failed to fetch deals:", error);
 			} finally {
@@ -142,12 +144,18 @@ export default function DealsContent({ searchParams }: DealsContentProps) {
 	};
 
 	const handleStageChange = async (dealId: string, newStage: string) => {
-		// In production: await updateDealStage(dealId, newStage);
-		console.log("Deal stage changed:", dealId, newStage);
 		// Optimistically update local state
 		setDeals((prev) =>
 			prev.map((d) => (d.id === dealId ? { ...d, stage: newStage } : d))
 		);
+		try {
+			await updateDealStage(dealId, newStage as DealStage);
+		} catch (error) {
+			console.error("Failed to update deal stage:", error);
+			// Revert on error - refetch data
+			const dealsResponse = await getDeals({ status: "open" });
+			setDeals(dealsResponse.data);
+		}
 	};
 
 	return (

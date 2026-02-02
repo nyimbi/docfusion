@@ -187,6 +187,46 @@ export async function getActivityWithRelations(
 	return activity ?? null;
 }
 
+/**
+ * Get all activities with optional filtering and pagination.
+ */
+export async function getActivities(
+	filters?: ActivityFilters,
+	pagination?: Pagination
+): Promise<PaginatedResponse<ActivityRow>> {
+	const conditions = buildActivityFilterConditions(filters);
+
+	// Get total count
+	const [{ total }] = await db
+		.select({ total: count() })
+		.from(activities)
+		.where(conditions.length > 0 ? and(...conditions) : undefined);
+
+	// Get paginated results
+	const page = pagination?.page ?? 1;
+	const pageSize = pagination?.pageSize ?? 50;
+	const offset = (page - 1) * pageSize;
+
+	const results = await db.query.activities.findMany({
+		where: conditions.length > 0 ? and(...conditions) : undefined,
+		orderBy: [desc(activities.scheduledAt), desc(activities.createdAt)],
+		limit: pageSize,
+		offset,
+	});
+
+	const totalPages = Math.ceil(total / pageSize);
+
+	return {
+		data: results,
+		total,
+		page,
+		pageSize,
+		totalPages,
+		hasNext: page < totalPages,
+		hasPrevious: page > 1,
+	};
+}
+
 // ============================================================================
 // TIMELINE QUERIES
 // ============================================================================

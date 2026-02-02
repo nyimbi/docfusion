@@ -7,7 +7,8 @@
 
 import { Suspense } from "react";
 import { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { requireUserContext } from "@/lib/auth-utils";
 import DealDetailContent from "./deal-detail-content";
 
 interface DealDetailPageProps {
@@ -33,9 +34,16 @@ export default async function DealDetailPage({ params }: DealDetailPageProps) {
 		notFound();
 	}
 
+	let userContext;
+	try {
+		userContext = await requireUserContext();
+	} catch {
+		redirect("/auth/sign-in");
+	}
+
 	return (
 		<Suspense fallback={<DealDetailSkeleton />}>
-			<DealDetailContent dealId={id} />
+			<DealDetailContent dealId={id} userId={userContext.userId} />
 		</Suspense>
 	);
 }
