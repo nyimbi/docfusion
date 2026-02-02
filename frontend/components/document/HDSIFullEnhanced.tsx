@@ -1145,19 +1145,61 @@ ${initialBrief}
     toast.success("Template customization saved");
   };
 
-  // Find parent and siblings for context
+  // Find parent, siblings, and adjacent sections for context
   const findNodeContext = React.useCallback((
     nodeId: string,
     nodes: HDSINode[],
     parentTitle?: string
-  ): { parentTitle?: string; siblingTitles: string[] } => {
+  ): {
+    parentTitle?: string;
+    siblingTitles: string[];
+    previousSection?: { title: string; content?: string };
+    nextSection?: { title: string };
+    siblingContents: Array<{ title: string; content?: string }>;
+  } => {
+    // Helper to extract text from generated content
+    const extractText = (content?: string): string | undefined => {
+      if (!content) return undefined;
+      try {
+        const parsed = JSON.parse(content);
+        // Extract from Tiptap JSON
+        const getText = (node: any): string => {
+          if (node.text) return node.text;
+          if (node.content) return node.content.map(getText).join(" ");
+          return "";
+        };
+        const text = getText(parsed);
+        // Return first 500 chars as summary
+        return text.slice(0, 500) + (text.length > 500 ? "..." : "");
+      } catch {
+        // Plain text
+        return content.slice(0, 500) + (content.length > 500 ? "..." : "");
+      }
+    };
+
     for (const n of nodes) {
       // Check if target is a direct child
       const siblingIndex = n.children.findIndex(c => c.id === nodeId);
       if (siblingIndex !== -1) {
+        const siblings = n.children;
+        const prevSibling = siblingIndex > 0 ? siblings[siblingIndex - 1] : null;
+        const nextSibling = siblingIndex < siblings.length - 1 ? siblings[siblingIndex + 1] : null;
+
         return {
           parentTitle: n.title,
-          siblingTitles: n.children.filter((_, i) => i !== siblingIndex).map(c => c.title),
+          siblingTitles: siblings.filter((_, i) => i !== siblingIndex).map(c => c.title),
+          previousSection: prevSibling ? {
+            title: prevSibling.title,
+            content: extractText(prevSibling.generatedContent),
+          } : undefined,
+          nextSection: nextSibling ? { title: nextSibling.title } : undefined,
+          siblingContents: siblings
+            .filter((_, i) => i !== siblingIndex)
+            .filter(s => s.generatedContent)
+            .map(s => ({
+              title: s.title,
+              content: extractText(s.generatedContent),
+            })),
         };
       }
 
@@ -1169,20 +1211,41 @@ ${initialBrief}
     // Check if it's a top-level node
     const topLevelIndex = nodes.findIndex(n => n.id === nodeId);
     if (topLevelIndex !== -1) {
+      const prevNode = topLevelIndex > 0 ? nodes[topLevelIndex - 1] : null;
+      const nextNode = topLevelIndex < nodes.length - 1 ? nodes[topLevelIndex + 1] : null;
+
       return {
         parentTitle: undefined,
         siblingTitles: nodes.filter((_, i) => i !== topLevelIndex).map(n => n.title),
+        previousSection: prevNode ? {
+          title: prevNode.title,
+          content: extractText(prevNode.generatedContent),
+        } : undefined,
+        nextSection: nextNode ? { title: nextNode.title } : undefined,
+        siblingContents: nodes
+          .filter((_, i) => i !== topLevelIndex)
+          .filter(n => n.generatedContent)
+          .map(n => ({
+            title: n.title,
+            content: extractText(n.generatedContent),
+          })),
       };
     }
 
-    return { parentTitle, siblingTitles: [] };
+    return { parentTitle, siblingTitles: [], siblingContents: [] };
   }, []);
 
   // Generate content for a single node using AI
   const handleNodeGenerate = React.useCallback(async (nodeId: string, node: HDSINode): Promise<string> => {
     try {
-      // Get context for better generation
-      const { parentTitle, siblingTitles } = findNodeContext(nodeId, structure);
+      // Get enhanced context for better generation
+      const {
+        parentTitle,
+        siblingTitles,
+        previousSection,
+        nextSection,
+        siblingContents,
+      } = findNodeContext(nodeId, structure);
 
       const content = await generateSectionContent(
         node,
@@ -1194,6 +1257,9 @@ ${initialBrief}
           documentStructure: structure,
           parentTitle,
           siblingTitles,
+          previousSection,
+          nextSection,
+          siblingContents,
         }
       );
       return content;
@@ -1231,13 +1297,40 @@ ${initialBrief}
 
     toast.info(`Generating content for ${nodesToGenerate.length} sections...`);
 
+    // Keep track of the current structure as we update it
+    let currentStructure = structure;
+
     // Generate sequentially to maintain context
     for (let i = 0; i < nodesToGenerate.length; i++) {
       const node = nodesToGenerate[i];
       try {
-        const content = await handleNodeGenerate(node.id, node);
+        // Get fresh context from current structure (includes previous generated content)
+        const {
+          parentTitle,
+          siblingTitles,
+          previousSection,
+          nextSection,
+          siblingContents,
+        } = findNodeContext(node.id, currentStructure);
 
-        // Update structure with generated content
+        // Generate with updated context
+        const content = await generateSectionContent(
+          node,
+          title,
+          {
+            temperature: 0.7,
+            maxTokens: node.tokenBudget || 1000,
+            stream: false,
+            documentStructure: currentStructure,
+            parentTitle,
+            siblingTitles,
+            previousSection,
+            nextSection,
+            siblingContents,
+          }
+        );
+
+        // Update structure with generated content using functional update
         const updateNodeContent = (nodes: HDSINode[]): HDSINode[] => {
           return nodes.map(n => {
             if (n.id === node.id) {
@@ -1247,7 +1340,9 @@ ${initialBrief}
           });
         };
 
-        setStructure(updateNodeContent(structure));
+        // Update both local tracking and state
+        currentStructure = updateNodeContent(currentStructure);
+        setStructure(currentStructure);
 
         toast.success(`Generated: ${node.title} (${i + 1}/${nodesToGenerate.length})`);
       } catch (error) {
@@ -1257,7 +1352,7 @@ ${initialBrief}
     }
 
     toast.success("Document generation complete!");
-  }, [structure, handleNodeGenerate, setStructure]);
+  }, [structure, title, findNodeContext, setStructure]);
 
   // Start blank document
   const startBlankDocument = () => {

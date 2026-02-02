@@ -47,6 +47,11 @@ import {
 
 import type { HDSINode } from "@/lib/hdsi/types";
 import { NodeGlyph } from "./NodeGlyph";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 
 // Extended interface for component-local use
 
@@ -659,57 +664,63 @@ export function HDSIEnhanced({
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Content - Resizable Panels */}
+      <ResizablePanelGroup orientation="horizontal" className="flex-1">
         {/* Tree Pane */}
-        <div className="w-1/3 border-r overflow-auto p-2">
-          <TreeView
-            nodes={structure.filter(n => n.status !== "deleted")}
-            selectedId={selectedNodeId}
-            onSelect={setSelectedNodeId}
-            onToggle={toggleExpanded}
-            onDelete={requestDelete}
-            onGenerate={onGenerateNode ? handleGenerateNode : undefined}
-            onMove={moveNode}
-            onIndent={indentNode}
-            onOutdent={outdentNode}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            draggedId={draggedNodeId}
-            dragOverId={dragOverNodeId}
-            generatingIds={generatingNodes}
-          />
-        </div>
+        <ResizablePanel defaultSize={33} minSize={20} maxSize={50}>
+          <div className="h-full overflow-auto p-2 border-r">
+            <TreeView
+              nodes={structure.filter(n => n.status !== "deleted")}
+              selectedId={selectedNodeId}
+              onSelect={setSelectedNodeId}
+              onToggle={toggleExpanded}
+              onDelete={requestDelete}
+              onGenerate={onGenerateNode ? handleGenerateNode : undefined}
+              onMove={moveNode}
+              onIndent={indentNode}
+              onOutdent={outdentNode}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              draggedId={draggedNodeId}
+              dragOverId={dragOverNodeId}
+              generatingIds={generatingNodes}
+            />
+          </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
 
         {/* Properties Pane */}
-        <div className="flex-1 p-4 overflow-auto">
-          {selectedNode ? (
-            <HDSINodeEditor
-              node={selectedNode}
-              documentId={documentId}
-              documentTitle={documentTitle}
-              onUpdate={(updates) => {
-                setStructure(prev => updateNode(prev, selectedNode.id, updates));
-              }}
-              onGenerate={onGenerateNode ? () => handleGenerateNode(selectedNode.id) : undefined}
-              isGenerating={generatingNodes.has(selectedNode.id)}
-              onAddChild={() => addNode(selectedNode.id)}
-              onDelete={() => requestDelete(selectedNode.id)}
-              onMoveUp={() => moveNode(selectedNode.id, "up")}
-              onMoveDown={() => moveNode(selectedNode.id, "down")}
-              onIndent={() => indentNode(selectedNode.id)}
-              onOutdent={() => outdentNode(selectedNode.id)}
-              canOutdent={!!findParent(structure, selectedNode.id)}
-            />
-          ) : (
-            <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-              Select a section to edit
-            </div>
-          )}
-        </div>
-      </div>
+        <ResizablePanel defaultSize={67} minSize={40}>
+          <div className="h-full p-4 overflow-auto">
+            {selectedNode ? (
+              <HDSINodeEditor
+                node={selectedNode}
+                documentId={documentId}
+                documentTitle={documentTitle}
+                onUpdate={(updates) => {
+                  setStructure(prev => updateNode(prev, selectedNode.id, updates));
+                }}
+                onGenerate={onGenerateNode ? () => handleGenerateNode(selectedNode.id) : undefined}
+                isGenerating={generatingNodes.has(selectedNode.id)}
+                onAddChild={() => addNode(selectedNode.id)}
+                onDelete={() => requestDelete(selectedNode.id)}
+                onMoveUp={() => moveNode(selectedNode.id, "up")}
+                onMoveDown={() => moveNode(selectedNode.id, "down")}
+                onIndent={() => indentNode(selectedNode.id)}
+                onOutdent={() => outdentNode(selectedNode.id)}
+                canOutdent={!!findParent(structure, selectedNode.id)}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                Select a section to edit
+              </div>
+            )}
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>

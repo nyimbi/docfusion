@@ -19,6 +19,12 @@ export interface GenerateContentOptions {
   siblingTitles?: string[];
   /** Parent section title for hierarchy context */
   parentTitle?: string;
+  /** Previous section with title and optional content summary */
+  previousSection?: { title: string; content?: string };
+  /** Next section title (for transition awareness) */
+  nextSection?: { title: string };
+  /** Already-written sibling sections with content */
+  siblingContents?: Array<{ title: string; content?: string }>;
 }
 
 /**
@@ -49,6 +55,9 @@ export async function generateSectionContent(
     documentStructure = [],
     siblingTitles = [],
     parentTitle,
+    previousSection,
+    nextSection,
+    siblingContents = [],
   } = options;
 
   // Build document outline context
@@ -71,6 +80,31 @@ export async function generateSectionContent(
     return `\nSibling Sections: ${siblingTitles.join(", ")}`;
   };
 
+  // Build context from previous section (for continuity)
+  const getPreviousSectionContext = (): string => {
+    if (!previousSection) return "";
+    let context = `\n\n## PREVIOUS SECTION CONTEXT (Write as a continuation of this):\nPrevious Section Title: "${previousSection.title}"`;
+    if (previousSection.content) {
+      context += `\nPrevious Section Summary:\n${previousSection.content}`;
+    }
+    return context;
+  };
+
+  // Build context about what comes next (for transitions)
+  const getNextSectionContext = (): string => {
+    if (!nextSection) return "";
+    return `\n\n## NEXT SECTION PREVIEW:\nThe next section is titled "${nextSection.title}" - end this section with a smooth transition leading into that topic.`;
+  };
+
+  // Build context from already-written siblings (for coherence)
+  const getWrittenSiblingsContext = (): string => {
+    if (siblingContents.length === 0) return "";
+    const summaries = siblingContents.slice(0, 3).map(s =>
+      `- "${s.title}": ${s.content || "(content pending)"}`
+    ).join("\n");
+    return `\n\n## ALREADY WRITTEN SIBLING SECTIONS (Maintain consistency, avoid repetition):\n${summaries}`;
+  };
+
   // Build the prompt with full document context
   const documentOutline = documentStructure.length > 0
     ? `\nDocument Outline:\n${buildOutlineContext(documentStructure)}`
@@ -82,21 +116,24 @@ export async function generateSectionContent(
 
   const systemPrompt = `You are a professional document writing assistant. Write high-quality, detailed content for a document section.
 
+## SECTION METADATA:
 Document Title: ${documentTitle}
 Section Type: ${node.type}
 Section Title: ${node.title}
 Token Budget: Approximately ${node.tokenBudget} tokens
-Density Target: ${node.densityTarget}/5 (information density)${hierarchyContext}${getSiblingContext()}${documentOutline}
+Density Target: ${node.densityTarget}/5 (information density)${hierarchyContext}${getSiblingContext()}${documentOutline}${getPreviousSectionContext()}${getWrittenSiblingsContext()}${getNextSectionContext()}
 
-Guidelines:
-- Write comprehensive, well-structured content
+## GUIDELINES:
+- Write comprehensive, well-structured content that CONTINUES from the previous section
+- If there's a previous section, begin with a brief transition (1 sentence) that connects ideas
 - Use professional language appropriate for the document type
 - Include relevant details, examples, and analysis
 - Maintain consistency with document tone and already written sections
+- DO NOT repeat information already covered in sibling sections
 - Write in paragraphs, not bullet points unless appropriate
-- Ensure logical flow from previous sections and smooth transitions
-- Avoid repeating content from other sections
-${node.customPrompt ? `\nAdditional Instructions: ${node.customPrompt}` : ""}`;
+- Ensure logical flow and coherent narrative
+- If there's a next section mentioned, end with a natural transition toward that topic
+${node.customPrompt ? `\n## CUSTOM INSTRUCTIONS:\n${node.customPrompt}` : ""}`;
 
   try {
     if (stream && onProgress) {
