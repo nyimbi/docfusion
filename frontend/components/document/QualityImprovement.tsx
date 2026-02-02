@@ -19,13 +19,13 @@ import type {
 	IssuePriority,
 	SuggestionType,
 	QualityFactorCategory,
-} from "@/lib/actions/quality-assessment";
+} from "@/lib/actions/quality-assessment-types";
 import {
 	getPriorityColor,
 	getPriorityBgColor,
 	getCategoryIcon,
 	getCategoryLabel,
-} from "@/lib/actions/quality-assessment";
+} from "@/lib/actions/quality-assessment-types";
 
 // ============================================================================
 // Types & Props

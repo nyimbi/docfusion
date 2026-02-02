@@ -73,7 +73,8 @@ import { exportToHTML } from "@/lib/hdsi/export";
 import type { HDSINode, HDSIVersion } from "@/lib/hdsi/types";
 import { useHDSIVersionHistory } from "@/lib/hdsi/hooks";
 import { hdsiDB } from "@/lib/hdsi/db";
-import { triggerQualityAssessment, type QualityAssessment, type QualityFactorCategory } from "@/lib/actions/quality-assessment";
+import { triggerQualityAssessment } from "@/lib/actions/quality-assessment";
+import type { QualityAssessment, QualityFactorCategory } from "@/lib/actions/quality-assessment-types";
 
 // ============================================================================
 // Types & Props

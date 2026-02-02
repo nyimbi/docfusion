@@ -1490,39 +1490,51 @@ ${initialBrief}
           </div>
         ) : (
           /* Document Editor with HDSI Spec Layout */
-          <HDSILayout
-            persistenceId={`hdsi-layout-${docId}`}
-            contextBufferCollapsed={isContextBufferCollapsed}
-            onContextBufferToggle={setIsContextBufferCollapsed}
-            showControlSurface={true}
-            treePanel={
-              <HDSIEnhanced
-                documentId={docId}
-                documentTitle={title}
-                initialStructure={structure}
-                onStructureChange={setStructure}
-                onNodeSelect={setSelectedNodeId}
-                onGenerateNode={handleNodeGenerate}
-                onGenerateAll={handleGenerateAllSections}
-                isGenerating={generatingNodeIds.size > 0}
-              />
-            }
-            propertiesPanel={
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm p-4">
-                <div className="text-center space-y-2">
-                  <p>Node properties are displayed in the tree panel editor.</p>
-                  <p className="text-xs">Select a node in the tree to edit its properties.</p>
-                </div>
+          <div className="h-full flex flex-col">
+            {/* Main Editor Area */}
+            <div className="flex-1 flex overflow-hidden">
+              {/* HDSIEnhanced already includes tree + editor split */}
+              <div className="flex-1 overflow-hidden">
+                <HDSIEnhanced
+                  documentId={docId}
+                  documentTitle={title}
+                  initialStructure={structure}
+                  onStructureChange={setStructure}
+                  onNodeSelect={setSelectedNodeId}
+                  onGenerateNode={handleNodeGenerate}
+                  onGenerateAll={handleGenerateAllSections}
+                  isGenerating={generatingNodeIds.size > 0}
+                />
               </div>
-            }
-            contextBufferPanel={
-              <ContextBufferInspector
-                buffer={contextBuffer}
-                isLoading={isAssemblingContext}
-                onRefresh={selectedNodeId ? () => assembleContextBuffer(selectedNodeId) : undefined}
-              />
-            }
-            controlSurface={
+
+              {/* Context Buffer Panel - Collapsible sidebar */}
+              {!isContextBufferCollapsed && (
+                <div className="w-72 border-l bg-muted/30 overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Context Buffer
+                    </span>
+                    <button
+                      onClick={() => setIsContextBufferCollapsed(true)}
+                      className="p-1 hover:bg-muted rounded"
+                    >
+                      <span className="sr-only">Collapse</span>
+                      ×
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-auto">
+                    <ContextBufferInspector
+                      buffer={contextBuffer}
+                      isLoading={isAssemblingContext}
+                      onRefresh={selectedNodeId ? () => assembleContextBuffer(selectedNodeId) : undefined}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Generation Control Surface - Fixed Bottom */}
+            <div className="border-t bg-card/95 backdrop-blur-sm" style={{ height: 120 }}>
               <GenerationControlSurface
                 phaseState={phaseState}
                 onPhaseChange={handlePhaseChange}
@@ -1581,8 +1593,8 @@ ${initialBrief}
                   toast.info("Generation cancelled");
                 }}
               />
-            }
-          />
+            </div>
+          </div>
         )}
       </div>
 

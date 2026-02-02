@@ -113,6 +113,12 @@ export class AzureOpenAIProvider implements AIProvider {
 
 		const url = `${this.config.endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${this.config.apiVersion}`;
 
+		console.log("[Azure OpenAI] Complete request:", {
+			deployment,
+			url: url.replace(this.config.apiKey, "[REDACTED]"),
+			messageCount: request.messages.length,
+		});
+
 		const body = {
 			messages: request.messages.map((m) => ({
 				role: m.role,
@@ -137,6 +143,13 @@ export class AzureOpenAIProvider implements AIProvider {
 
 		if (!response.ok) {
 			const error = await response.text();
+			console.error("[Azure OpenAI] API Error:", {
+				status: response.status,
+				statusText: response.statusText,
+				error,
+				deployment,
+				endpoint: this.config.endpoint,
+			});
 			throw new Error(`Azure OpenAI error: ${response.status} - ${error}`);
 		}
 

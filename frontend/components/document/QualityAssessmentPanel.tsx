@@ -14,6 +14,8 @@ import { useState, useMemo } from "react";
 import {
 	triggerQualityAssessment,
 	getQualityFactors,
+} from "@/lib/actions/quality-assessment";
+import {
 	getCategoryIcon,
 	getCategoryLabel,
 	getScoreColor,
@@ -21,7 +23,7 @@ import {
 	getPriorityColor,
 	getPriorityBgColor,
 	getScoreLevel,
-} from "@/lib/actions/quality-assessment";
+} from "@/lib/actions/quality-assessment-types";
 import type {
 	QualityAssessment,
 	QualityFactorResult,
@@ -30,7 +32,7 @@ import type {
 	QualitySuggestion,
 	IssuePriority,
 	QualityScoreLevel,
-} from "@/lib/actions/quality-assessment";
+} from "@/lib/actions/quality-assessment-types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 

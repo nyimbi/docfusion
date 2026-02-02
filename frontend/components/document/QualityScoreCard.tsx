@@ -17,12 +17,12 @@ import {
 	getScoreLevel,
 	getCategoryIcon,
 	getCategoryLabel,
-} from "@/lib/actions/quality-assessment";
+} from "@/lib/actions/quality-assessment-types";
 import type {
 	QualityAssessment,
 	QualityFactorCategory,
 	QualityScoreLevel,
-} from "@/lib/actions/quality-assessment";
+} from "@/lib/actions/quality-assessment-types";
 
 // ============================================================================
 // Props
