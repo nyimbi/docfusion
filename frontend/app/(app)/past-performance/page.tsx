@@ -30,8 +30,20 @@ import {
 	Loader2,
 } from "lucide-react";
 import { ProjectDatabase } from "@/components/past-performance/ProjectDatabase";
-import { searchProjects, deleteProject, duplicateProject } from "@/lib/actions/past-performance";
+import {
+	searchProjects,
+	deleteProject,
+	duplicateProject,
+	calculateRelevanceScores,
+	generateRelevanceMatrix,
+	generateCPARNarrative,
+	checkReferenceAvailability,
+} from "@/lib/actions/past-performance";
 import type { Project } from "@/lib/db/schema-past-performance";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { getOpportunities } from "@/lib/actions/opportunities";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function PastPerformancePage() {
 	const [searchQuery, setSearchQuery] = useState("");
@@ -303,6 +315,62 @@ function ProjectDatabasePlaceholder({
 }
 
 function RelevanceCalculatorPlaceholder() {
+	const [opportunities, setOpportunities] = useState<Array<{ id: string; title: string }>>([]);
+	const [selectedOpportunityId, setSelectedOpportunityId] = useState<string>("");
+	const [scores, setScores] = useState<Array<{
+		projectId: string;
+		projectName: string;
+		overallScore: number;
+		recencyScore: number;
+		sizeScore: number;
+		scopeScore: number;
+		customerScore: number;
+	}>>([]);
+	const [isLoadingOpps, setIsLoadingOpps] = useState(true);
+	const [isCalculating, setIsCalculating] = useState(false);
+
+	useEffect(() => {
+		async function fetchOpportunities() {
+			setIsLoadingOpps(true);
+			try {
+				const result = await getOpportunities(undefined, undefined, { page: 1, pageSize: 50 });
+				if (result.data) {
+					setOpportunities(result.data.map((o) => ({ id: o.id, title: o.title })));
+				}
+			} catch (error) {
+				console.error("Failed to fetch opportunities:", error);
+			} finally {
+				setIsLoadingOpps(false);
+			}
+		}
+		fetchOpportunities();
+	}, []);
+
+	const handleCalculate = async () => {
+		if (!selectedOpportunityId) return;
+		setIsCalculating(true);
+		try {
+			const result = await calculateRelevanceScores(selectedOpportunityId);
+			if (result.success && result.data) {
+				setScores(
+					result.data.slice(0, 10).map((s) => ({
+						projectId: s.projectId,
+						projectName: s.projectName,
+						overallScore: s.overallScore,
+						recencyScore: s.recencyScore,
+						sizeScore: s.sizeScore,
+						scopeScore: s.scopeScore,
+						customerScore: s.customerScore,
+					}))
+				);
+			}
+		} catch (error) {
+			console.error("Failed to calculate relevance:", error);
+		} finally {
+			setIsCalculating(false);
+		}
+	};
+
 	return (
 		<Card>
 			<CardHeader>
@@ -312,7 +380,22 @@ function RelevanceCalculatorPlaceholder() {
 				<div className="space-y-4">
 					<div>
 						<label className="text-sm font-medium">Target Opportunity</label>
-						<Input placeholder="Select or enter opportunity" className="mt-1" />
+						{isLoadingOpps ? (
+							<Skeleton className="h-10 w-full mt-1" />
+						) : (
+							<Select value={selectedOpportunityId} onValueChange={setSelectedOpportunityId}>
+								<SelectTrigger className="mt-1">
+									<SelectValue placeholder="Select an opportunity" />
+								</SelectTrigger>
+								<SelectContent>
+									{opportunities.map((opp) => (
+										<SelectItem key={opp.id} value={opp.id}>
+											{opp.title}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
 					</div>
 					<div className="space-y-2">
 						<h4 className="text-sm font-medium">Scoring Factors</h4>
@@ -328,7 +411,33 @@ function RelevanceCalculatorPlaceholder() {
 							</div>
 						))}
 					</div>
-					<Button className="w-full">Calculate Relevance</Button>
+					<Button
+						className="w-full"
+						onClick={handleCalculate}
+						disabled={!selectedOpportunityId || isCalculating}
+					>
+						{isCalculating ? (
+							<>
+								<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+								Calculating...
+							</>
+						) : (
+							"Calculate Relevance"
+						)}
+					</Button>
+					{scores.length > 0 && (
+						<div className="mt-4 pt-4 border-t space-y-2">
+							<h4 className="text-sm font-medium">Top Matching Projects</h4>
+							{scores.map((score) => (
+								<div key={score.projectId} className="flex items-center justify-between text-sm">
+									<span className="truncate max-w-[200px]">{score.projectName}</span>
+									<Badge variant={score.overallScore >= 80 ? "default" : score.overallScore >= 60 ? "secondary" : "outline"}>
+										{score.overallScore.toFixed(0)}%
+									</Badge>
+								</div>
+							))}
+						</div>
+					)}
 				</div>
 			</CardContent>
 		</Card>
@@ -336,11 +445,89 @@ function RelevanceCalculatorPlaceholder() {
 }
 
 function RelevanceMatrixPlaceholder() {
-	const matrix = [
-		{ project: "VA Health Modernization", opportunities: [95, 88, 72] },
-		{ project: "DoD Cloud Migration", opportunities: [82, 95, 68] },
-		{ project: "DHS Border Systems", opportunities: [75, 78, 92] },
-	];
+	const [projectsList, setProjectsList] = useState<Array<{ id: string; name: string }>>([]);
+	const [opportunities, setOpportunities] = useState<Array<{ id: string; title: string }>>([]);
+	const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+	const [selectedOpportunityId, setSelectedOpportunityId] = useState<string>("");
+	const [matrixData, setMatrixData] = useState<Array<{
+		projectId: string;
+		projectName: string;
+		score: number;
+		breakdown: Record<string, number>;
+	}>>([]);
+	const [isLoading, setIsLoading] = useState(true);
+	const [isGenerating, setIsGenerating] = useState(false);
+
+	useEffect(() => {
+		async function fetchData() {
+			setIsLoading(true);
+			try {
+				const [projectsResult, oppsResult] = await Promise.all([
+					searchProjects({ offset: 0, limit: 20 }),
+					getOpportunities(undefined, undefined, { page: 1, pageSize: 20 }),
+				]);
+				if (projectsResult.success && projectsResult.data) {
+					setProjectsList(projectsResult.data.projects.map((p) => ({ id: p.id, name: p.name })));
+					// Pre-select first 5 projects
+					setSelectedProjectIds(projectsResult.data.projects.slice(0, 5).map((p) => p.id));
+				}
+				if (oppsResult.data) {
+					setOpportunities(oppsResult.data.map((o) => ({ id: o.id, title: o.title })));
+				}
+			} catch (error) {
+				console.error("Failed to fetch data:", error);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchData();
+	}, []);
+
+	const handleGenerateMatrix = async () => {
+		if (!selectedOpportunityId || selectedProjectIds.length === 0) return;
+		setIsGenerating(true);
+		try {
+			const result = await generateRelevanceMatrix({
+				opportunityId: selectedOpportunityId,
+				projectIds: selectedProjectIds,
+			});
+			if (result.success && result.data) {
+				setMatrixData(
+					result.data.projects.map((ps) => ({
+						projectId: ps.projectId,
+						projectName: ps.projectName,
+						score: ps.overallScore,
+						breakdown: {
+							size: ps.sizeScore,
+							scope: ps.scopeScore,
+							recency: ps.recencyScore,
+							customer: ps.customerScore,
+						},
+					}))
+				);
+			}
+		} catch (error) {
+			console.error("Failed to generate matrix:", error);
+		} finally {
+			setIsGenerating(false);
+		}
+	};
+
+	if (isLoading) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base">Relevance Matrix</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
+						<Skeleton className="h-10 w-full" />
+						<Skeleton className="h-32 w-full" />
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
 
 	return (
 		<Card>
@@ -348,33 +535,77 @@ function RelevanceMatrixPlaceholder() {
 				<CardTitle className="text-base">Relevance Matrix</CardTitle>
 			</CardHeader>
 			<CardContent>
-				<div className="overflow-x-auto">
-					<table className="w-full text-sm">
-						<thead>
-							<tr className="border-b">
-								<th className="text-left p-2">Project</th>
-								<th className="text-center p-2">Opp A</th>
-								<th className="text-center p-2">Opp B</th>
-								<th className="text-center p-2">Opp C</th>
-							</tr>
-						</thead>
-						<tbody>
-							{matrix.map((row) => (
-								<tr key={row.project} className="border-b">
-									<td className="p-2 font-medium">{row.project}</td>
-									{row.opportunities.map((score, idx) => (
-										<td key={idx} className="text-center p-2">
-											<Badge
-												variant={score >= 80 ? "default" : score >= 60 ? "secondary" : "outline"}
-											>
-												{score}%
-											</Badge>
-										</td>
+				<div className="space-y-4">
+					<div>
+						<label className="text-sm font-medium">Target Opportunity</label>
+						<Select value={selectedOpportunityId} onValueChange={setSelectedOpportunityId}>
+							<SelectTrigger className="mt-1">
+								<SelectValue placeholder="Select an opportunity" />
+							</SelectTrigger>
+							<SelectContent>
+								{opportunities.map((opp) => (
+									<SelectItem key={opp.id} value={opp.id}>
+										{opp.title}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={handleGenerateMatrix}
+						disabled={!selectedOpportunityId || selectedProjectIds.length === 0 || isGenerating}
+					>
+						{isGenerating ? (
+							<>
+								<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+								Generating...
+							</>
+						) : (
+							"Generate Matrix"
+						)}
+					</Button>
+					{matrixData.length > 0 ? (
+						<div className="overflow-x-auto">
+							<table className="w-full text-sm">
+								<thead>
+									<tr className="border-b">
+										<th className="text-left p-2">Project</th>
+										<th className="text-center p-2">Score</th>
+										<th className="text-center p-2">Size</th>
+										<th className="text-center p-2">Scope</th>
+										<th className="text-center p-2">Recency</th>
+									</tr>
+								</thead>
+								<tbody>
+									{matrixData.map((row) => (
+										<tr key={row.projectId} className="border-b">
+											<td className="p-2 font-medium truncate max-w-[150px]">{row.projectName}</td>
+											<td className="text-center p-2">
+												<Badge variant={row.score >= 80 ? "default" : row.score >= 60 ? "secondary" : "outline"}>
+													{row.score.toFixed(0)}%
+												</Badge>
+											</td>
+											<td className="text-center p-2 text-muted-foreground">
+												{(row.breakdown?.size ?? 0).toFixed(0)}
+											</td>
+											<td className="text-center p-2 text-muted-foreground">
+												{(row.breakdown?.scope ?? 0).toFixed(0)}
+											</td>
+											<td className="text-center p-2 text-muted-foreground">
+												{(row.breakdown?.recency ?? 0).toFixed(0)}
+											</td>
+										</tr>
 									))}
-								</tr>
-							))}
-						</tbody>
-					</table>
+								</tbody>
+							</table>
+						</div>
+					) : (
+						<div className="text-center text-muted-foreground py-4 text-sm">
+							Select an opportunity and generate the matrix to see relevance scores.
+						</div>
+					)}
 				</div>
 			</CardContent>
 		</Card>
@@ -382,6 +613,53 @@ function RelevanceMatrixPlaceholder() {
 }
 
 function NarrativeGeneratorPlaceholder() {
+	const [projectsList, setProjectsList] = useState<Array<{ id: string; name: string }>>([]);
+	const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+	const [generatedNarrative, setGeneratedNarrative] = useState<string>("");
+	const [wordCount, setWordCount] = useState<number>(0);
+	const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+	const [isGenerating, setIsGenerating] = useState(false);
+
+	useEffect(() => {
+		async function fetchProjects() {
+			setIsLoadingProjects(true);
+			try {
+				const result = await searchProjects({ offset: 0, limit: 50 });
+				if (result.success && result.data) {
+					setProjectsList(result.data.projects.map((p) => ({ id: p.id, name: p.name })));
+				}
+			} catch (error) {
+				console.error("Failed to fetch projects:", error);
+			} finally {
+				setIsLoadingProjects(false);
+			}
+		}
+		fetchProjects();
+	}, []);
+
+	const handleGenerate = async () => {
+		if (!selectedProjectId) return;
+		setIsGenerating(true);
+		setGeneratedNarrative("");
+		try {
+			const result = await generateCPARNarrative(selectedProjectId);
+			if (result.success && result.data) {
+				setGeneratedNarrative(result.data.narrative);
+				setWordCount(result.data.wordCount);
+			}
+		} catch (error) {
+			console.error("Failed to generate narrative:", error);
+		} finally {
+			setIsGenerating(false);
+		}
+	};
+
+	const handleCopy = () => {
+		if (generatedNarrative) {
+			navigator.clipboard.writeText(generatedNarrative);
+		}
+	};
+
 	return (
 		<div className="space-y-6">
 			<Card>
@@ -392,31 +670,73 @@ function NarrativeGeneratorPlaceholder() {
 					<div className="space-y-4">
 						<div>
 							<label className="text-sm font-medium">Select Project</label>
-							<Input placeholder="Choose a project" className="mt-1" />
+							{isLoadingProjects ? (
+								<Skeleton className="h-10 w-full mt-1" />
+							) : (
+								<Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+									<SelectTrigger className="mt-1">
+										<SelectValue placeholder="Choose a project" />
+									</SelectTrigger>
+									<SelectContent>
+										{projectsList.map((project) => (
+											<SelectItem key={project.id} value={project.id}>
+												{project.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							)}
 						</div>
-						<div>
-							<label className="text-sm font-medium">Target Requirements</label>
-							<Input placeholder="Enter key requirements to address" className="mt-1" />
-						</div>
-						<div>
-							<label className="text-sm font-medium">Word Limit</label>
-							<Input type="number" placeholder="500" className="mt-1" />
-						</div>
-						<Button className="w-full">
-							<FileText className="h-4 w-4 mr-2" />
-							Generate Narrative
+						<Button
+							className="w-full"
+							onClick={handleGenerate}
+							disabled={!selectedProjectId || isGenerating}
+						>
+							{isGenerating ? (
+								<>
+									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+									Generating...
+								</>
+							) : (
+								<>
+									<FileText className="h-4 w-4 mr-2" />
+									Generate CPAR Narrative
+								</>
+							)}
 						</Button>
 					</div>
 				</CardContent>
 			</Card>
 			<Card>
-				<CardHeader>
-					<CardTitle className="text-base">Generated Narrative Preview</CardTitle>
+				<CardHeader className="flex flex-row items-center justify-between">
+					<CardTitle className="text-base">Generated Narrative</CardTitle>
+					{generatedNarrative && (
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-muted-foreground">{wordCount} words</span>
+							<Button variant="ghost" size="sm" onClick={handleCopy}>
+								Copy
+							</Button>
+						</div>
+					)}
 				</CardHeader>
 				<CardContent>
-					<div className="p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
-						Select a project and requirements to generate a tailored past performance narrative...
-					</div>
+					{isGenerating ? (
+						<div className="space-y-2">
+							<Skeleton className="h-4 w-full" />
+							<Skeleton className="h-4 w-full" />
+							<Skeleton className="h-4 w-3/4" />
+							<Skeleton className="h-4 w-full" />
+							<Skeleton className="h-4 w-5/6" />
+						</div>
+					) : generatedNarrative ? (
+						<div className="p-4 bg-muted/50 rounded-lg text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
+							{generatedNarrative}
+						</div>
+					) : (
+						<div className="p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+							Select a project to generate a tailored CPAR-style past performance narrative...
+						</div>
+					)}
 				</CardContent>
 			</Card>
 		</div>
@@ -424,42 +744,181 @@ function NarrativeGeneratorPlaceholder() {
 }
 
 function ReferenceTrackerPlaceholder() {
-	const references = [
-		{ id: "1", name: "John Smith", title: "Program Manager", org: "Veterans Affairs", project: "VA Health Modernization", lastContact: "2024-01-15", status: "active" },
-		{ id: "2", name: "Mary Johnson", title: "CTO", org: "Dept of Defense", project: "DoD Cloud Migration", lastContact: "2024-02-01", status: "active" },
-		{ id: "3", name: "Robert Williams", title: "Director", org: "DHS", project: "DHS Border Systems", lastContact: "2023-11-20", status: "needs_update" },
-	];
+	const [projectsList, setProjectsList] = useState<Array<{
+		id: string;
+		name: string;
+		customerPOC: string | null;
+		customerAgency: string | null;
+		lastReferenceCheck: string | null;
+		referenceStatus: string | null;
+	}>>([]);
+	const [isLoading, setIsLoading] = useState(true);
+	const [checkingId, setCheckingId] = useState<string | null>(null);
+
+	useEffect(() => {
+		async function fetchProjects() {
+			setIsLoading(true);
+			try {
+				const result = await searchProjects({ offset: 0, limit: 50 });
+				if (result.success && result.data) {
+					setProjectsList(
+						(result.data.projects as any[])
+							.filter((p) => p.customerPOC)
+							.map((p) => ({
+								id: p.id,
+								name: p.name,
+								customerPOC: p.customerPOC ?? null,
+								customerAgency: p.customerAgency ?? null,
+								lastReferenceCheck: p.lastReferenceCheck
+									? new Date(p.lastReferenceCheck).toISOString().split("T")[0]
+									: null,
+								referenceStatus: p.referenceStatus ?? "unknown",
+							}))
+					);
+				}
+			} catch (error) {
+				console.error("Failed to fetch projects:", error);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchProjects();
+	}, []);
+
+	const handleCheckAvailability = async (projectId: string) => {
+		setCheckingId(projectId);
+		try {
+			const result = await checkReferenceAvailability(projectId);
+			if (result.success && result.data) {
+				const { status, lastChecked } = result.data;
+				setProjectsList((prev) =>
+					prev.map((p) =>
+						p.id === projectId
+							? {
+									...p,
+									referenceStatus: status,
+									lastReferenceCheck: lastChecked.split("T")[0],
+								}
+							: p
+					)
+				);
+			}
+		} catch (error) {
+			console.error("Failed to check reference:", error);
+		} finally {
+			setCheckingId(null);
+		}
+	};
+
+	const getStatusVariant = (status: string | null): "default" | "secondary" | "destructive" | "outline" => {
+		switch (status) {
+			case "available":
+				return "default";
+			case "pending":
+				return "secondary";
+			case "unavailable":
+				return "destructive";
+			default:
+				return "outline";
+		}
+	};
+
+	const getStatusLabel = (status: string | null): string => {
+		switch (status) {
+			case "available":
+				return "Available";
+			case "pending":
+				return "Pending";
+			case "unavailable":
+				return "Unavailable";
+			default:
+				return "Unknown";
+		}
+	};
+
+	if (isLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-between">
+					<h3 className="font-semibold text-lg">Reference Contacts</h3>
+				</div>
+				<div className="space-y-4">
+					{[1, 2, 3].map((i) => (
+						<Card key={i}>
+							<CardContent className="p-4">
+								<div className="flex items-start justify-between">
+									<div className="space-y-2">
+										<Skeleton className="h-5 w-40" />
+										<Skeleton className="h-4 w-32" />
+										<Skeleton className="h-3 w-24" />
+									</div>
+									<Skeleton className="h-6 w-20" />
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<h3 className="font-semibold text-lg">Reference Contacts</h3>
-				<Button variant="outline" size="sm">
-					<Plus className="h-4 w-4 mr-2" />
-					Add Reference
-				</Button>
+				<span className="text-sm text-muted-foreground">
+					{projectsList.length} references tracked
+				</span>
 			</div>
-			<div className="space-y-4">
-				{references.map((ref) => (
-					<Card key={ref.id}>
-						<CardContent className="p-4">
-							<div className="flex items-start justify-between">
-								<div>
-									<h4 className="font-medium">{ref.name}</h4>
-									<p className="text-sm text-muted-foreground">{ref.title} at {ref.org}</p>
-									<p className="text-xs text-muted-foreground mt-1">Project: {ref.project}</p>
-									<p className="text-xs text-muted-foreground">Last contact: {ref.lastContact}</p>
+			{projectsList.length === 0 ? (
+				<Card>
+					<CardContent className="pt-6 text-center">
+						<p className="text-muted-foreground">
+							No reference contacts found. Add customer POC information to projects to track references.
+						</p>
+					</CardContent>
+				</Card>
+			) : (
+				<div className="space-y-4">
+					{projectsList.map((project) => (
+						<Card key={project.id}>
+							<CardContent className="p-4">
+								<div className="flex items-start justify-between">
+									<div>
+										<h4 className="font-medium">{project.customerPOC ?? "Unknown Contact"}</h4>
+										<p className="text-sm text-muted-foreground">
+											{project.customerAgency ?? "Unknown Agency"}
+										</p>
+										<p className="text-xs text-muted-foreground mt-1">
+											Project: {project.name}
+										</p>
+										<p className="text-xs text-muted-foreground">
+											Last checked: {project.lastReferenceCheck ?? "Never"}
+										</p>
+									</div>
+									<div className="flex flex-col items-end gap-2">
+										<Badge variant={getStatusVariant(project.referenceStatus)}>
+											{getStatusLabel(project.referenceStatus)}
+										</Badge>
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={() => handleCheckAvailability(project.id)}
+											disabled={checkingId === project.id}
+										>
+											{checkingId === project.id ? (
+												<Loader2 className="h-3 w-3 animate-spin" />
+											) : (
+												"Check"
+											)}
+										</Button>
+									</div>
 								</div>
-								<Badge
-									variant={ref.status === "active" ? "default" : "destructive"}
-								>
-									{ref.status === "active" ? "Active" : "Needs Update"}
-								</Badge>
-							</div>
-						</CardContent>
-					</Card>
-				))}
-			</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }
