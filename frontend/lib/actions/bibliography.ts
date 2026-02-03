@@ -366,8 +366,9 @@ export async function citeInDocument(
 
 		// Format the citation
 		const citationStyle = style ?? "apa";
-		const formattedCitation = formatCitation(mapRowToEntry(entry), citationStyle);
-		const inTextCitation = formatInTextCitation(mapRowToEntry(entry), citationStyle);
+		const entryData = mapRowToEntry(entry);
+		const formattedCitation = await formatCitation(entryData, citationStyle);
+		const inTextCitation = await formatInTextCitation(entryData, citationStyle);
 
 		// Insert citation record
 		const [citation] = await db
@@ -543,7 +544,7 @@ export async function getBibliographyStats(): Promise<ActionResult<BibliographyS
 /**
  * Format a citation in the specified style
  */
-export function formatCitation(entry: BibliographyEntry, style: CitationStyleType): string {
+export async function formatCitation(entry: BibliographyEntry, style: CitationStyleType): Promise<string> {
 	const authors = formatAuthors(entry.authors, style);
 
 	switch (style) {
@@ -567,7 +568,7 @@ export function formatCitation(entry: BibliographyEntry, style: CitationStyleTyp
 /**
  * Format in-text citation
  */
-export function formatInTextCitation(entry: BibliographyEntry, style: CitationStyleType): string {
+export async function formatInTextCitation(entry: BibliographyEntry, style: CitationStyleType): Promise<string> {
 	const firstAuthor = entry.authors[0]?.split(",")[0] ?? "Unknown";
 	const year = entry.year;
 

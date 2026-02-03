@@ -27,6 +27,17 @@ import {
 } from "lucide-react";
 import { WinLossDashboard } from "@/components/winloss/WinLossDashboard";
 import { PwinDashboard } from "@/components/pwin/PwinDashboard";
+import {
+	listDebriefs,
+	getDebrief,
+	identifyImprovementAreas,
+	getDashboardMetrics,
+	analyzeWinLossPatterns,
+	generateLessonsLearnedReport,
+	calculateProposalROI,
+} from "@/lib/actions/winloss";
+import { evaluateModelPerformance } from "@/lib/actions/pwin";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AnalyticsPage() {
 	const [activeTab, setActiveTab] = React.useState("overview");
@@ -241,6 +252,65 @@ function QuickStat({
 }
 
 function DebriefDetail({ debriefId, onClose }: { debriefId: string; onClose: () => void }) {
+	const [debrief, setDebrief] = React.useState<any>(null);
+	const [isLoading, setIsLoading] = React.useState(true);
+	const [error, setError] = React.useState<string | null>(null);
+
+	React.useEffect(() => {
+		async function fetchDebrief() {
+			setIsLoading(true);
+			setError(null);
+			try {
+				const result = await getDebrief(debriefId);
+				if (result.success) {
+					setDebrief(result.data);
+				} else {
+					setError(result.error);
+				}
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "Failed to load debrief");
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchDebrief();
+	}, [debriefId]);
+
+	if (isLoading) {
+		return (
+			<div className="p-6 space-y-6">
+				<div className="flex items-center justify-between mb-6">
+					<Skeleton className="h-6 w-32" />
+					<Button variant="ghost" size="sm" onClick={onClose}>
+						<X className="h-4 w-4" />
+					</Button>
+				</div>
+				<div className="space-y-4">
+					{[1, 2, 3, 4, 5].map((i) => (
+						<div key={i} className="space-y-2">
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="h-5 w-48" />
+						</div>
+					))}
+				</div>
+			</div>
+		);
+	}
+
+	if (error || !debrief) {
+		return (
+			<div className="p-6">
+				<div className="flex items-center justify-between mb-6">
+					<h2 className="text-lg font-semibold">Debrief Details</h2>
+					<Button variant="ghost" size="sm" onClick={onClose}>
+						<X className="h-4 w-4" />
+					</Button>
+				</div>
+				<div className="text-destructive text-sm">{error ?? "Debrief not found"}</div>
+			</div>
+		);
+	}
+
 	return (
 		<div className="p-6">
 			<div className="flex items-center justify-between mb-6">
@@ -252,32 +322,48 @@ function DebriefDetail({ debriefId, onClose }: { debriefId: string; onClose: () 
 			<div className="space-y-6">
 				<div>
 					<h3 className="text-sm font-medium text-muted-foreground">Opportunity</h3>
-					<p className="font-medium">DoD IDIQ Cloud Services</p>
+					<p className="font-medium">{debrief.opportunityName ?? "Unknown Opportunity"}</p>
 				</div>
 				<div>
 					<h3 className="text-sm font-medium text-muted-foreground">Outcome</h3>
-					<span className="px-2 py-1 bg-red-100 text-red-700 rounded text-sm">Loss</span>
+					<span className={`px-2 py-1 rounded text-sm ${
+						debrief.outcome === "win" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+					}`}>
+						{debrief.outcome === "win" ? "Win" : "Loss"}
+					</span>
 				</div>
-				<div>
-					<h3 className="text-sm font-medium text-muted-foreground">Technical Score</h3>
-					<p>85/100 (Ranked #2)</p>
-				</div>
-				<div>
-					<h3 className="text-sm font-medium text-muted-foreground">Evaluator Feedback</h3>
-					<ul className="list-disc list-inside text-sm space-y-1 mt-1">
-						<li>Strong technical approach</li>
-						<li>Past performance section lacked recent examples</li>
-						<li>Price was 15% higher than winner</li>
-					</ul>
-				</div>
-				<div>
-					<h3 className="text-sm font-medium text-muted-foreground">Lessons Learned</h3>
-					<ul className="list-disc list-inside text-sm space-y-1 mt-1">
-						<li>Need more recent cloud migration examples</li>
-						<li>Price competitiveness requires further analysis</li>
-						<li>Consider teaming for large IDIQ vehicles</li>
-					</ul>
-				</div>
+				{debrief.technicalScore && (
+					<div>
+						<h3 className="text-sm font-medium text-muted-foreground">Technical Score</h3>
+						<p>{debrief.technicalScore}/100 {debrief.technicalRank && `(Ranked #${debrief.technicalRank})`}</p>
+					</div>
+				)}
+				{debrief.evaluatorFeedback && debrief.evaluatorFeedback.length > 0 && (
+					<div>
+						<h3 className="text-sm font-medium text-muted-foreground">Evaluator Feedback</h3>
+						<ul className="list-disc list-inside text-sm space-y-1 mt-1">
+							{debrief.evaluatorFeedback.map((item: string, i: number) => (
+								<li key={i}>{item}</li>
+							))}
+						</ul>
+					</div>
+				)}
+				{debrief.lessonsLearned && debrief.lessonsLearned.length > 0 && (
+					<div>
+						<h3 className="text-sm font-medium text-muted-foreground">Lessons Learned</h3>
+						<ul className="list-disc list-inside text-sm space-y-1 mt-1">
+							{debrief.lessonsLearned.map((item: string, i: number) => (
+								<li key={i}>{item}</li>
+							))}
+						</ul>
+					</div>
+				)}
+				{debrief.competitorAnalysis && (
+					<div>
+						<h3 className="text-sm font-medium text-muted-foreground">Competitor Analysis</h3>
+						<p className="text-sm mt-1">{debrief.competitorAnalysis}</p>
+					</div>
+				)}
 			</div>
 		</div>
 	);
@@ -286,11 +372,63 @@ function DebriefDetail({ debriefId, onClose }: { debriefId: string; onClose: () 
 // Placeholder Components - keeping only those still in use
 
 function ImprovementAreasPlaceholder() {
-	const areas = [
-		{ area: "Price Competitiveness", impact: "high", trend: "improving" },
-		{ area: "Past Performance Recency", impact: "medium", trend: "stable" },
-		{ area: "Technical Writing Quality", impact: "low", trend: "improving" },
-	];
+	const [areas, setAreas] = React.useState<any[]>([]);
+	const [isLoading, setIsLoading] = React.useState(true);
+
+	React.useEffect(() => {
+		async function fetchAreas() {
+			setIsLoading(true);
+			try {
+				const result = await identifyImprovementAreas();
+				if (result.success && result.data) {
+					setAreas(result.data);
+				}
+			} catch (err) {
+				console.error("Failed to fetch improvement areas:", err);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchAreas();
+	}, []);
+
+	if (isLoading) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base flex items-center gap-2">
+						<Lightbulb className="h-4 w-4" />
+						Key Improvement Areas
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
+						{[1, 2, 3].map((i) => (
+							<Skeleton key={i} className="h-14 w-full" />
+						))}
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	if (areas.length === 0) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base flex items-center gap-2">
+						<Lightbulb className="h-4 w-4" />
+						Key Improvement Areas
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<p className="text-sm text-muted-foreground">
+						No improvement areas identified yet. Complete more debriefs to generate insights.
+					</p>
+				</CardContent>
+			</Card>
+		);
+	}
 
 	return (
 		<Card>
@@ -303,15 +441,15 @@ function ImprovementAreasPlaceholder() {
 			<CardContent>
 				<div className="space-y-3">
 					{areas.map((item) => (
-						<div key={item.area} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+						<div key={item.area ?? item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
 							<div className="flex items-center gap-3">
 								<AlertTriangle className={`h-4 w-4 ${item.impact === "high" ? "text-red-500" : item.impact === "medium" ? "text-yellow-500" : "text-blue-500"}`} />
-								<span className="font-medium">{item.area}</span>
+								<span className="font-medium">{item.area ?? item.name}</span>
 							</div>
 							<div className="flex items-center gap-2">
-								<Badge variant="outline">{item.impact} impact</Badge>
+								<Badge variant="outline">{item.impact ?? "medium"} impact</Badge>
 								<Badge variant={item.trend === "improving" ? "default" : "secondary"}>
-									{item.trend}
+									{item.trend ?? "stable"}
 								</Badge>
 							</div>
 						</div>
@@ -323,11 +461,57 @@ function ImprovementAreasPlaceholder() {
 }
 
 function DebriefListPlaceholder({ onSelect }: { onSelect: (id: string) => void }) {
-	const debriefs = [
-		{ id: "1", opportunity: "DoD Cloud IDIQ", outcome: "loss", date: "2024-01-15" },
-		{ id: "2", opportunity: "VA Health Portal", outcome: "win", date: "2024-01-28" },
-		{ id: "3", opportunity: "DHS Analytics", outcome: "loss", date: "2024-02-05" },
-	];
+	const [debriefs, setDebriefs] = React.useState<any[]>([]);
+	const [isLoading, setIsLoading] = React.useState(true);
+
+	React.useEffect(() => {
+		async function fetchDebriefs() {
+			setIsLoading(true);
+			try {
+				const result = await listDebriefs();
+				if (result.success && result.data) {
+					setDebriefs(result.data.slice(0, 10)); // Show last 10
+				}
+			} catch (err) {
+				console.error("Failed to fetch debriefs:", err);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchDebriefs();
+	}, []);
+
+	if (isLoading) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base">Recent Debriefs</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
+						{[1, 2, 3].map((i) => (
+							<Skeleton key={i} className="h-16 w-full" />
+						))}
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	if (debriefs.length === 0) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base">Recent Debriefs</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<p className="text-sm text-muted-foreground">
+						No debriefs recorded yet. Complete proposals and record debriefs to see them here.
+					</p>
+				</CardContent>
+			</Card>
+		);
+	}
 
 	return (
 		<Card>
@@ -343,12 +527,18 @@ function DebriefListPlaceholder({ onSelect }: { onSelect: (id: string) => void }
 							onClick={() => onSelect(debrief.id)}
 						>
 							<div className="flex items-center justify-between mb-1">
-								<span className="text-sm font-medium">{debrief.opportunity}</span>
+								<span className="text-sm font-medium">{debrief.opportunityTitle ?? "Unknown Opportunity"}</span>
 								<Badge variant={debrief.outcome === "win" ? "default" : "destructive"}>
 									{debrief.outcome}
 								</Badge>
 							</div>
-							<p className="text-xs text-muted-foreground">{debrief.date}</p>
+							<p className="text-xs text-muted-foreground">
+								{debrief.debriefDate
+									? new Date(debrief.debriefDate).toLocaleDateString()
+									: debrief.createdAt
+									? new Date(debrief.createdAt).toLocaleDateString()
+									: "Date unknown"}
+							</p>
 						</div>
 					))}
 				</div>
@@ -358,6 +548,48 @@ function DebriefListPlaceholder({ onSelect }: { onSelect: (id: string) => void }
 }
 
 function PortfolioOptimizerPlaceholder() {
+	const [metrics, setMetrics] = React.useState<any>(null);
+	const [isLoading, setIsLoading] = React.useState(true);
+
+	React.useEffect(() => {
+		async function fetchMetrics() {
+			setIsLoading(true);
+			try {
+				const result = await getDashboardMetrics();
+				if (result.success && result.data) {
+					setMetrics(result.data);
+				}
+			} catch (err) {
+				console.error("Failed to fetch dashboard metrics:", err);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchMetrics();
+	}, []);
+
+	if (isLoading) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base">Portfolio Optimizer</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-4">
+						<div className="grid grid-cols-2 gap-4">
+							<Skeleton className="h-20 w-full" />
+							<Skeleton className="h-20 w-full" />
+						</div>
+						<Skeleton className="h-24 w-full" />
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	const pipelineValue = metrics?.totalContractValueWon ?? 0;
+	const expectedValue = pipelineValue * (metrics?.recentWinRate ?? 0) / 100;
+
 	return (
 		<Card>
 			<CardHeader>
@@ -367,26 +599,45 @@ function PortfolioOptimizerPlaceholder() {
 				<div className="space-y-4">
 					<div className="grid grid-cols-2 gap-4">
 						<div className="text-center p-3 bg-muted/50 rounded-lg">
-							<div className="text-xl font-bold">$64M</div>
-							<div className="text-xs text-muted-foreground">Pipeline Value</div>
+							<div className="text-xl font-bold">
+								${(pipelineValue / 1000000).toFixed(1)}M
+							</div>
+							<div className="text-xs text-muted-foreground">Total Value Won</div>
 						</div>
 						<div className="text-center p-3 bg-muted/50 rounded-lg">
-							<div className="text-xl font-bold text-green-600">$38M</div>
-							<div className="text-xs text-muted-foreground">Expected Value</div>
+							<div className="text-xl font-bold text-green-600">
+								{metrics?.recentWinRate?.toFixed(0) ?? 0}%
+							</div>
+							<div className="text-xs text-muted-foreground">Win Rate (12mo)</div>
+						</div>
+					</div>
+					<div className="grid grid-cols-2 gap-4">
+						<div className="text-center p-3 bg-muted/50 rounded-lg">
+							<div className="text-xl font-bold">{metrics?.totalDebriefs ?? 0}</div>
+							<div className="text-xs text-muted-foreground">Total Debriefs</div>
+						</div>
+						<div className="text-center p-3 bg-muted/50 rounded-lg">
+							<div className="text-xl font-bold">{metrics?.pendingActionItems ?? 0}</div>
+							<div className="text-xs text-muted-foreground">Pending Actions</div>
 						</div>
 					</div>
 					<div>
-						<h4 className="text-sm font-medium mb-2">Recommended Actions</h4>
-						<ul className="space-y-2 text-sm">
-							<li className="flex items-start gap-2">
-								<CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-								Prioritize DHS Analytics pursuit
-							</li>
-							<li className="flex items-start gap-2">
-								<CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-								Consider no-bid on low Pwin opportunities
-							</li>
-						</ul>
+						<h4 className="text-sm font-medium mb-2">Trend</h4>
+						<div className="flex items-center gap-2">
+							{metrics?.trendDirection === "up" ? (
+								<>
+									<TrendingUp className="h-4 w-4 text-green-500" />
+									<span className="text-sm text-green-600">Improving performance</span>
+								</>
+							) : metrics?.trendDirection === "down" ? (
+								<>
+									<TrendingDown className="h-4 w-4 text-red-500" />
+									<span className="text-sm text-red-600">Declining performance</span>
+								</>
+							) : (
+								<span className="text-sm text-muted-foreground">Stable performance</span>
+							)}
+						</div>
 					</div>
 				</div>
 			</CardContent>
@@ -395,6 +646,61 @@ function PortfolioOptimizerPlaceholder() {
 }
 
 function ModelPerformancePlaceholder() {
+	const [performance, setPerformance] = React.useState<any>(null);
+	const [isLoading, setIsLoading] = React.useState(true);
+
+	React.useEffect(() => {
+		async function fetchPerformance() {
+			setIsLoading(true);
+			try {
+				const result = await evaluateModelPerformance();
+				if (result.success && result.data) {
+					setPerformance(result.data);
+				}
+			} catch (err) {
+				console.error("Failed to fetch model performance:", err);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchPerformance();
+	}, []);
+
+	if (isLoading) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base">Model Performance</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
+						{[1, 2, 3].map((i) => (
+							<div key={i} className="flex items-center justify-between">
+								<Skeleton className="h-4 w-32" />
+								<Skeleton className="h-4 w-16" />
+							</div>
+						))}
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	if (!performance) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base">Model Performance</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<p className="text-sm text-muted-foreground">
+						No model performance data available. Train the model with more historical data.
+					</p>
+				</CardContent>
+			</Card>
+		);
+	}
+
 	return (
 		<Card>
 			<CardHeader>
@@ -404,16 +710,32 @@ function ModelPerformancePlaceholder() {
 				<div className="space-y-3">
 					<div className="flex items-center justify-between">
 						<span className="text-sm">Prediction Accuracy</span>
-						<span className="text-sm font-bold text-green-600">78%</span>
+						<span className={`text-sm font-bold ${(performance.accuracy ?? 0) >= 70 ? "text-green-600" : "text-yellow-600"}`}>
+							{((performance.accuracy ?? 0) * 100).toFixed(0)}%
+						</span>
 					</div>
 					<div className="flex items-center justify-between">
-						<span className="text-sm">Calibration Score</span>
-						<span className="text-sm font-bold">0.92</span>
+						<span className="text-sm">Precision</span>
+						<span className="text-sm font-bold">
+							{((performance.precision ?? 0) * 100).toFixed(0)}%
+						</span>
+					</div>
+					<div className="flex items-center justify-between">
+						<span className="text-sm">Recall</span>
+						<span className="text-sm font-bold">
+							{((performance.recall ?? 0) * 100).toFixed(0)}%
+						</span>
 					</div>
 					<div className="flex items-center justify-between">
 						<span className="text-sm">Training Data Points</span>
-						<span className="text-sm font-bold">156</span>
+						<span className="text-sm font-bold">{performance.sampleSize ?? 0}</span>
 					</div>
+					{performance.recommendations && performance.recommendations.length > 0 && (
+						<div className="pt-2 border-t">
+							<p className="text-xs text-muted-foreground mb-1">Recommendations:</p>
+							<p className="text-xs">{performance.recommendations[0]}</p>
+						</div>
+					)}
 				</div>
 			</CardContent>
 		</Card>
@@ -421,30 +743,111 @@ function ModelPerformancePlaceholder() {
 }
 
 function PatternAnalysisPlaceholder() {
-	const patterns = [
-		{ pattern: "Wins more likely with incumbent status", confidence: 85 },
-		{ pattern: "Price >10% above competitor = 40% lower win rate", confidence: 78 },
-		{ pattern: "Strong customer relationships improve Pwin by 25%", confidence: 72 },
-	];
+	const [analysis, setAnalysis] = React.useState<any>(null);
+	const [isLoading, setIsLoading] = React.useState(true);
+	const [error, setError] = React.useState<string | null>(null);
+
+	React.useEffect(() => {
+		async function fetchPatterns() {
+			setIsLoading(true);
+			setError(null);
+			try {
+				const result = await analyzeWinLossPatterns();
+				if (result.success) {
+					setAnalysis(result.data);
+				} else {
+					setError(result.error);
+				}
+			} catch (err) {
+				setError(err instanceof Error ? err.message : "Failed to analyze patterns");
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchPatterns();
+	}, []);
+
+	if (isLoading) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base">Pattern Analysis</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
+						{[1, 2, 3].map((i) => (
+							<Skeleton key={i} className="h-20 w-full" />
+						))}
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	if (error) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base">Pattern Analysis</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<p className="text-sm text-muted-foreground">{error}</p>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	const patterns = analysis?.patterns ?? [];
+	const insights = analysis?.insights ?? [];
 
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Pattern Analysis</CardTitle>
+				<CardTitle className="text-base flex items-center justify-between">
+					<span>Pattern Analysis</span>
+					{analysis?.confidence && (
+						<Badge variant="outline" className="ml-2">
+							{(analysis.confidence * 100).toFixed(0)}% confidence
+						</Badge>
+					)}
+				</CardTitle>
 			</CardHeader>
 			<CardContent>
-				<div className="space-y-3">
-					{patterns.map((item, idx) => (
-						<div key={idx} className="p-3 bg-muted/50 rounded-lg">
-							<p className="text-sm mb-2">{item.pattern}</p>
-							<div className="flex items-center gap-2">
-								<div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-									<div className="h-full bg-primary" style={{ width: `${item.confidence}%` }} />
+				<div className="space-y-4">
+					{patterns.length > 0 ? (
+						<div className="space-y-3">
+							{patterns.slice(0, 5).map((item: any, idx: number) => (
+								<div key={item.id ?? idx} className="p-3 bg-muted/50 rounded-lg">
+									<div className="flex items-center gap-2 mb-1">
+										<Badge variant="secondary" className="text-xs">{item.patternType}</Badge>
+										<span className="text-sm font-medium">{item.patternName}</span>
+									</div>
+									<p className="text-sm text-muted-foreground mb-2">{item.description}</p>
+									<div className="flex items-center gap-2">
+										<div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+											<div
+												className={`h-full ${(item.winCorrelation ?? 0) > 0 ? "bg-green-500" : "bg-red-500"}`}
+												style={{ width: `${Math.abs(item.winCorrelation ?? 0) * 100}%` }}
+											/>
+										</div>
+										<span className="text-xs text-muted-foreground">
+											{((item.confidence ?? 0) * 100).toFixed(0)}% confidence
+										</span>
+									</div>
 								</div>
-								<span className="text-xs text-muted-foreground">{item.confidence}% confidence</span>
-							</div>
+							))}
 						</div>
-					))}
+					) : insights.length > 0 ? (
+						<div className="space-y-2">
+							{insights.map((insight: string, idx: number) => (
+								<p key={idx} className="text-sm">{insight}</p>
+							))}
+						</div>
+					) : (
+						<p className="text-sm text-muted-foreground">
+							No patterns identified yet. Record more debriefs for pattern analysis.
+						</p>
+					)}
 				</div>
 			</CardContent>
 		</Card>
@@ -452,11 +855,61 @@ function PatternAnalysisPlaceholder() {
 }
 
 function LessonsLearnedPlaceholder() {
-	const lessons = [
-		{ lesson: "Always include recent (within 3 years) past performance", source: "DoD Cloud Loss Debrief" },
-		{ lesson: "Conduct competitive pricing analysis before final submission", source: "VA Portal Win" },
-		{ lesson: "Start capture activities 18+ months before RFP", source: "Multiple debriefs" },
-	];
+	const [report, setReport] = React.useState<any>(null);
+	const [isLoading, setIsLoading] = React.useState(true);
+
+	React.useEffect(() => {
+		async function fetchLessons() {
+			setIsLoading(true);
+			try {
+				const result = await generateLessonsLearnedReport();
+				if (result.success && result.data) {
+					setReport(result.data);
+				}
+			} catch (err) {
+				console.error("Failed to fetch lessons learned:", err);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchLessons();
+	}, []);
+
+	if (isLoading) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base">Lessons Learned</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
+						{[1, 2, 3].map((i) => (
+							<Skeleton key={i} className="h-16 w-full" />
+						))}
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	const lessons = report?.lessonsLearned ?? [];
+	const strengths = report?.topStrengths ?? [];
+	const weaknesses = report?.topWeaknesses ?? [];
+
+	if (lessons.length === 0 && strengths.length === 0) {
+		return (
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base">Lessons Learned</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<p className="text-sm text-muted-foreground">
+						No lessons identified yet. Complete more debriefs to generate lessons learned.
+					</p>
+				</CardContent>
+			</Card>
+		);
+	}
 
 	return (
 		<Card>
@@ -464,13 +917,54 @@ function LessonsLearnedPlaceholder() {
 				<CardTitle className="text-base">Lessons Learned</CardTitle>
 			</CardHeader>
 			<CardContent>
-				<div className="space-y-3">
-					{lessons.map((item, idx) => (
-						<div key={idx} className="p-3 bg-muted/50 rounded-lg">
-							<p className="text-sm font-medium mb-1">{item.lesson}</p>
-							<p className="text-xs text-muted-foreground">Source: {item.source}</p>
+				<div className="space-y-4">
+					{lessons.length > 0 && (
+						<div className="space-y-3">
+							{lessons.slice(0, 5).map((item: any, idx: number) => (
+								<div key={idx} className="p-3 bg-muted/50 rounded-lg">
+									<div className="flex items-center gap-2 mb-1">
+										<Badge
+											variant={item.relatedOutcome === "win" ? "default" : "destructive"}
+											className="text-xs"
+										>
+											{item.relatedOutcome}
+										</Badge>
+										<span className="text-xs text-muted-foreground">{item.category}</span>
+									</div>
+									<p className="text-sm font-medium">{item.lesson}</p>
+									<p className="text-xs text-muted-foreground mt-1">
+										Frequency: {item.frequency} occurrence{item.frequency !== 1 ? "s" : ""}
+									</p>
+								</div>
+							))}
 						</div>
-					))}
+					)}
+					{strengths.length > 0 && (
+						<div>
+							<h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+								<CheckCircle className="h-4 w-4 text-green-500" />
+								Top Strengths
+							</h4>
+							<ul className="space-y-1 text-sm text-muted-foreground">
+								{strengths.slice(0, 3).map((s: string, idx: number) => (
+									<li key={idx}>• {s}</li>
+								))}
+							</ul>
+						</div>
+					)}
+					{weaknesses.length > 0 && (
+						<div>
+							<h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+								<AlertTriangle className="h-4 w-4 text-yellow-500" />
+								Areas for Improvement
+							</h4>
+							<ul className="space-y-1 text-sm text-muted-foreground">
+								{weaknesses.slice(0, 3).map((w: string, idx: number) => (
+									<li key={idx}>• {w}</li>
+								))}
+							</ul>
+						</div>
+					)}
 				</div>
 			</CardContent>
 		</Card>
@@ -478,61 +972,175 @@ function LessonsLearnedPlaceholder() {
 }
 
 function ROICalculatorPlaceholder() {
+	const [roi, setRoi] = React.useState<any>(null);
+	const [isLoading, setIsLoading] = React.useState(true);
+
+	React.useEffect(() => {
+		async function fetchROI() {
+			setIsLoading(true);
+			try {
+				const result = await calculateProposalROI();
+				if (result.success && result.data) {
+					setRoi(result.data);
+				}
+			} catch (err) {
+				console.error("Failed to fetch ROI data:", err);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchROI();
+	}, []);
+
+	const formatCurrency = (value: number, scale: "K" | "M" = "K") => {
+		if (scale === "M") {
+			return `$${(value / 1000000).toFixed(1)}M`;
+		}
+		return `$${(value / 1000).toFixed(0)}K`;
+	};
+
+	if (isLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="grid md:grid-cols-4 gap-4">
+					{[1, 2, 3, 4].map((i) => (
+						<Card key={i}>
+							<CardContent className="p-4 text-center">
+								<Skeleton className="h-9 w-24 mx-auto mb-2" />
+								<Skeleton className="h-4 w-32 mx-auto" />
+							</CardContent>
+						</Card>
+					))}
+				</div>
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base">ROI Analysis</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="space-y-3">
+							{[1, 2, 3].map((i) => (
+								<Skeleton key={i} className="h-8 w-full" />
+							))}
+						</div>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
+
+	if (!roi) {
+		return (
+			<div className="space-y-6">
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base">ROI Analysis</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<p className="text-sm text-muted-foreground">
+							No ROI data available. Record debriefs with proposal investment and contract values to see ROI analysis.
+						</p>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
+
 	return (
 		<div className="space-y-6">
 			<div className="grid md:grid-cols-4 gap-4">
 				<Card>
 					<CardContent className="p-4 text-center">
-						<div className="text-3xl font-bold">$2.4M</div>
-						<div className="text-sm text-muted-foreground">BD Investment (12mo)</div>
+						<div className="text-3xl font-bold">
+							{formatCurrency(roi.averageProposalCost ?? 0)}
+						</div>
+						<div className="text-sm text-muted-foreground">Avg Proposal Cost</div>
 					</CardContent>
 				</Card>
 				<Card>
 					<CardContent className="p-4 text-center">
-						<div className="text-3xl font-bold text-green-600">$156M</div>
-						<div className="text-sm text-muted-foreground">Contract Value Won</div>
+						<div className="text-3xl font-bold text-green-600">
+							{formatCurrency(roi.averageContractValue ?? 0, "M")}
+						</div>
+						<div className="text-sm text-muted-foreground">Avg Contract Value</div>
 					</CardContent>
 				</Card>
 				<Card>
 					<CardContent className="p-4 text-center">
-						<div className="text-3xl font-bold text-blue-600">65x</div>
+						<div className="text-3xl font-bold text-blue-600">
+							{(roi.overallROI ?? 0).toFixed(1)}x
+						</div>
 						<div className="text-sm text-muted-foreground">ROI Multiple</div>
 					</CardContent>
 				</Card>
 				<Card>
 					<CardContent className="p-4 text-center">
-						<div className="text-3xl font-bold">$134K</div>
-						<div className="text-sm text-muted-foreground">Avg Cost per Win</div>
+						<div className="text-3xl font-bold">
+							{formatCurrency(roi.costPerWin ?? 0)}
+						</div>
+						<div className="text-sm text-muted-foreground">Cost per Win</div>
 					</CardContent>
 				</Card>
 			</div>
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base">Investment Breakdown</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-3">
-						{[
-							{ category: "Capture Activities", amount: "$850K", percent: 35 },
-							{ category: "Proposal Development", amount: "$720K", percent: 30 },
-							{ category: "Color Team Reviews", amount: "$360K", percent: 15 },
-							{ category: "Tools & Technology", amount: "$240K", percent: 10 },
-							{ category: "Training & Development", amount: "$230K", percent: 10 },
-						].map((item) => (
-							<div key={item.category} className="flex items-center justify-between">
-								<span className="text-sm">{item.category}</span>
-								<div className="flex items-center gap-4">
-									<span className="text-sm text-muted-foreground">{item.amount}</span>
-									<div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-										<div className="h-full bg-primary" style={{ width: `${item.percent}%` }} />
-									</div>
-									<span className="text-sm font-medium w-10 text-right">{item.percent}%</span>
-								</div>
+
+			<div className="grid md:grid-cols-2 gap-6">
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base flex items-center gap-2">
+							ROI Trend
+							{roi.trend === "improving" ? (
+								<Badge variant="default" className="text-xs">
+									<TrendingUp className="h-3 w-3 mr-1" />
+									Improving
+								</Badge>
+							) : roi.trend === "declining" ? (
+								<Badge variant="destructive" className="text-xs">
+									<TrendingDown className="h-3 w-3 mr-1" />
+									Declining
+								</Badge>
+							) : (
+								<Badge variant="secondary" className="text-xs">Stable</Badge>
+							)}
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="space-y-3">
+							<div className="flex items-center justify-between">
+								<span className="text-sm">Projected Annual Return</span>
+								<span className="text-sm font-bold text-green-600">
+									{formatCurrency(roi.projectedAnnualReturn ?? 0, "M")}
+								</span>
 							</div>
-						))}
-					</div>
-				</CardContent>
-			</Card>
+							<div className="flex items-center justify-between">
+								<span className="text-sm">Break-even Point</span>
+								<span className="text-sm font-bold">
+									{roi.costPerWin > 0 ? `${Math.ceil((roi.averageContractValue ?? 0) / (roi.costPerWin ?? 1))} wins` : "N/A"}
+								</span>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				{roi.recommendations && roi.recommendations.length > 0 && (
+					<Card>
+						<CardHeader>
+							<CardTitle className="text-base flex items-center gap-2">
+								<Lightbulb className="h-4 w-4" />
+								Recommendations
+							</CardTitle>
+						</CardHeader>
+						<CardContent>
+							<ul className="space-y-2 text-sm">
+								{roi.recommendations.slice(0, 4).map((rec: string, idx: number) => (
+									<li key={idx} className="flex items-start gap-2">
+										<CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+										{rec}
+									</li>
+								))}
+							</ul>
+						</CardContent>
+					</Card>
+				)}
+			</div>
 		</div>
 	);
 }
