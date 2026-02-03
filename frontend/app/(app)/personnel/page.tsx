@@ -32,7 +32,13 @@ import {
 	Loader2,
 } from "lucide-react";
 import { PersonnelDatabase } from "@/components/personnel/PersonnelDatabase";
-import { searchPersonnel, type PersonnelAPI } from "@/lib/actions/personnel";
+import {
+	searchPersonnel,
+	getExpiringCertifications,
+	parseResume,
+	type PersonnelAPI,
+} from "@/lib/actions/personnel";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PersonnelPage() {
 	const [searchQuery, setSearchQuery] = useState("");
@@ -191,7 +197,10 @@ export default function PersonnelPage() {
 
 			{/* Resume Parser Modal */}
 			{showResumeParser && (
-				<ResumeParserPlaceholder onClose={() => setShowResumeParser(false)} />
+				<ResumeParserPlaceholder
+					onClose={() => setShowResumeParser(false)}
+					onSuccess={() => fetchPersonnel()}
+				/>
 			)}
 
 			{/* Personnel Editor Side Panel */}
@@ -367,11 +376,86 @@ function PositionMatcherPlaceholder() {
 }
 
 function StaffingMatrixPlaceholder() {
-	const projects = [
-		{ name: "DoD Cloud Migration", staff: 8, needed: 10, status: "understaffed" },
-		{ name: "VA Health Portal", staff: 6, needed: 6, status: "fully_staffed" },
-		{ name: "DHS Cyber Defense", staff: 4, needed: 5, status: "understaffed" },
-	];
+	const [projects, setProjects] = React.useState<any[]>([]);
+	const [isLoading, setIsLoading] = React.useState(true);
+
+	React.useEffect(() => {
+		async function fetchStaffing() {
+			setIsLoading(true);
+			try {
+				// Get all personnel with their assignments
+				const personnelResult = await searchPersonnel("", { limit: 500 });
+				if (personnelResult.success && personnelResult.data) {
+					// Group by current assignments to understand staffing
+					const assignmentMap = new Map<string, { name: string; staff: number; needed: number }>();
+
+					for (const person of personnelResult.data) {
+						// Check if personnel has assignments
+						const assignments = (person as any).assignments || [];
+						for (const assignment of assignments) {
+							const projectName = assignment.opportunityName || assignment.projectName || "Unassigned";
+							const existing = assignmentMap.get(projectName) || { name: projectName, staff: 0, needed: 5 };
+							existing.staff++;
+							assignmentMap.set(projectName, existing);
+						}
+					}
+
+					// Convert to array and add status
+					const projectList = Array.from(assignmentMap.values()).map(p => ({
+						...p,
+						status: p.staff >= p.needed ? "fully_staffed" : "understaffed"
+					}));
+
+					// If no assignments found, show empty state
+					if (projectList.length === 0 && personnelResult.data.length > 0) {
+						// Show some personnel-based stats instead
+						setProjects([{
+							name: "Available Personnel",
+							staff: personnelResult.data.length,
+							needed: personnelResult.data.length,
+							status: "fully_staffed"
+						}]);
+					} else {
+						setProjects(projectList);
+					}
+				}
+			} catch (error) {
+				console.error("Failed to fetch staffing data:", error);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchStaffing();
+	}, []);
+
+	if (isLoading) {
+		return (
+			<div className="space-y-6">
+				<h3 className="font-semibold text-lg">Staffing Matrix</h3>
+				<div className="space-y-4">
+					{[1, 2, 3].map((i) => (
+						<Skeleton key={i} className="h-20 w-full" />
+					))}
+				</div>
+			</div>
+		);
+	}
+
+	if (projects.length === 0) {
+		return (
+			<div className="space-y-6">
+				<h3 className="font-semibold text-lg">Staffing Matrix</h3>
+				<Card>
+					<CardContent className="p-8 text-center">
+						<Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+						<p className="text-sm text-muted-foreground">
+							No staffing data available. Add personnel and assign them to opportunities to see the staffing matrix.
+						</p>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">
@@ -402,12 +486,79 @@ function StaffingMatrixPlaceholder() {
 }
 
 function CertificationTrackerPlaceholder() {
-	const certifications = [
-		{ name: "PMP", holders: 12, expiringSoon: 2 },
-		{ name: "CISSP", holders: 8, expiringSoon: 1 },
-		{ name: "AWS Solutions Architect", holders: 15, expiringSoon: 3 },
-		{ name: "Secret Clearance", holders: 25, expiringSoon: 0 },
-	];
+	const [certifications, setCertifications] = React.useState<any[]>([]);
+	const [isLoading, setIsLoading] = React.useState(true);
+
+	React.useEffect(() => {
+		async function fetchCertifications() {
+			setIsLoading(true);
+			try {
+				const result = await getExpiringCertifications(90); // Next 90 days
+				if (result.success && result.data) {
+					// Group certifications by name and count holders/expiring
+					const certMap = new Map<string, { name: string; holders: number; expiringSoon: number; personnel: any[] }>();
+					for (const item of result.data) {
+						const certName = item.certification ?? "Unknown";
+						const existing = certMap.get(certName) || { name: certName, holders: 0, expiringSoon: 0, personnel: [] };
+						existing.holders++;
+						// Check if expiring within 30 days
+						if (item.daysUntilExpiration <= 30) {
+							existing.expiringSoon++;
+						}
+						existing.personnel.push({ id: item.personnelId, name: item.personnelName });
+						certMap.set(certName, existing);
+					}
+					setCertifications(Array.from(certMap.values()));
+				}
+			} catch (error) {
+				console.error("Failed to fetch certifications:", error);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchCertifications();
+	}, []);
+
+	if (isLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-between">
+					<h3 className="font-semibold text-lg">Certification Tracker</h3>
+				</div>
+				<div className="grid gap-4 md:grid-cols-2">
+					{[1, 2, 3, 4].map((i) => (
+						<Card key={i}>
+							<CardContent className="p-4">
+								<Skeleton className="h-12 w-full" />
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			</div>
+		);
+	}
+
+	if (certifications.length === 0) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-between">
+					<h3 className="font-semibold text-lg">Certification Tracker</h3>
+					<Button variant="outline" size="sm">
+						<Plus className="h-4 w-4 mr-2" />
+						Add Certification
+					</Button>
+				</div>
+				<Card>
+					<CardContent className="p-8 text-center">
+						<Award className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+						<p className="text-sm text-muted-foreground">
+							No certifications tracked yet. Add personnel with certifications to see tracking data.
+						</p>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">
@@ -446,29 +597,218 @@ function CertificationTrackerPlaceholder() {
 	);
 }
 
-function ResumeParserPlaceholder({ onClose }: { onClose: () => void }) {
+function ResumeParserPlaceholder({ onClose, onSuccess }: { onClose: () => void; onSuccess?: () => void }) {
+	const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+	const [isDragging, setIsDragging] = React.useState(false);
+	const [isUploading, setIsUploading] = React.useState(false);
+	const [parsedData, setParsedData] = React.useState<any>(null);
+	const [error, setError] = React.useState<string | null>(null);
+	const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+	const handleDragOver = (e: React.DragEvent) => {
+		e.preventDefault();
+		setIsDragging(true);
+	};
+
+	const handleDragLeave = () => setIsDragging(false);
+
+	const handleDrop = (e: React.DragEvent) => {
+		e.preventDefault();
+		setIsDragging(false);
+		const file = e.dataTransfer.files[0];
+		if (file && isValidFile(file)) {
+			setSelectedFile(file);
+			setError(null);
+		} else {
+			setError("Invalid file type. Please upload PDF, DOCX, or TXT files.");
+		}
+	};
+
+	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (file && isValidFile(file)) {
+			setSelectedFile(file);
+			setError(null);
+		} else {
+			setError("Invalid file type. Please upload PDF, DOCX, or TXT files.");
+		}
+	};
+
+	const isValidFile = (file: File) => {
+		const validTypes = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"];
+		const validExtensions = [".pdf", ".docx", ".txt"];
+		return validTypes.includes(file.type) || validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+	};
+
+	const handleUpload = async () => {
+		if (!selectedFile) return;
+
+		setIsUploading(true);
+		setError(null);
+
+		try {
+			// Convert file to base64
+			const reader = new FileReader();
+			const base64Promise = new Promise<string>((resolve, reject) => {
+				reader.onload = () => {
+					const result = reader.result as string;
+					resolve(result.split(",")[1] ?? result);
+				};
+				reader.onerror = reject;
+			});
+			reader.readAsDataURL(selectedFile);
+			const base64Content = await base64Promise;
+
+			// Call parseResume server action
+			const result = await parseResume(base64Content, selectedFile.name);
+			if (result.success && result.data) {
+				setParsedData(result.data);
+			} else {
+				setError(result.error ?? "Failed to parse resume");
+			}
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to upload file");
+		} finally {
+			setIsUploading(false);
+		}
+	};
+
+	const handleConfirm = () => {
+		onSuccess?.();
+		onClose();
+	};
+
 	return (
 		<div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-			<div className="bg-background rounded-lg p-6 max-w-lg w-full mx-4">
+			<div className="bg-background rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
 				<div className="flex items-center justify-between mb-4">
 					<h2 className="text-lg font-semibold">Import Resumes</h2>
 					<Button variant="ghost" size="sm" onClick={onClose}>
 						<X className="h-4 w-4" />
 					</Button>
 				</div>
-				<div className="border-2 border-dashed rounded-lg p-8 text-center">
-					<Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-					<p className="text-sm text-muted-foreground mb-2">
-						Drag and drop resume files here, or click to browse
-					</p>
-					<p className="text-xs text-muted-foreground">
-						Supports PDF, DOCX, and TXT files
-					</p>
-				</div>
-				<div className="flex justify-end gap-2 mt-4">
-					<Button variant="outline" onClick={onClose}>Cancel</Button>
-					<Button>Upload</Button>
-				</div>
+
+				{!parsedData ? (
+					<>
+						<div
+							className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+								isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25"
+							}`}
+							onDragOver={handleDragOver}
+							onDragLeave={handleDragLeave}
+							onDrop={handleDrop}
+							onClick={() => fileInputRef.current?.click()}
+						>
+							<input
+								ref={fileInputRef}
+								type="file"
+								accept=".pdf,.docx,.txt"
+								className="hidden"
+								onChange={handleFileSelect}
+							/>
+							<Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+							{selectedFile ? (
+								<>
+									<p className="text-sm font-medium mb-1">{selectedFile.name}</p>
+									<p className="text-xs text-muted-foreground">
+										{(selectedFile.size / 1024).toFixed(1)} KB
+									</p>
+								</>
+							) : (
+								<>
+									<p className="text-sm text-muted-foreground mb-2">
+										Drag and drop resume files here, or click to browse
+									</p>
+									<p className="text-xs text-muted-foreground">
+										Supports PDF, DOCX, and TXT files
+									</p>
+								</>
+							)}
+						</div>
+
+						{error && (
+							<p className="text-sm text-destructive mt-3">{error}</p>
+						)}
+
+						<div className="flex justify-end gap-2 mt-4">
+							<Button variant="outline" onClick={onClose}>Cancel</Button>
+							<Button onClick={handleUpload} disabled={!selectedFile || isUploading}>
+								{isUploading ? (
+									<>
+										<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+										Parsing...
+									</>
+								) : (
+									"Upload & Parse"
+								)}
+							</Button>
+						</div>
+					</>
+				) : (
+					<>
+						<div className="space-y-4">
+							<div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+								<p className="text-sm font-medium text-green-800">Resume parsed successfully!</p>
+							</div>
+
+							<div className="space-y-3">
+								{parsedData.name && (
+									<div>
+										<label className="text-xs text-muted-foreground">Name</label>
+										<p className="font-medium">{parsedData.name}</p>
+									</div>
+								)}
+								{parsedData.email && (
+									<div>
+										<label className="text-xs text-muted-foreground">Email</label>
+										<p className="text-sm">{parsedData.email}</p>
+									</div>
+								)}
+								{parsedData.skills && parsedData.skills.length > 0 && (
+									<div>
+										<label className="text-xs text-muted-foreground">Skills Extracted</label>
+										<div className="flex flex-wrap gap-1 mt-1">
+											{parsedData.skills.slice(0, 10).map((skill: string, idx: number) => (
+												<Badge key={idx} variant="secondary" className="text-xs">
+													{skill}
+												</Badge>
+											))}
+											{parsedData.skills.length > 10 && (
+												<Badge variant="outline" className="text-xs">
+													+{parsedData.skills.length - 10} more
+												</Badge>
+											)}
+										</div>
+									</div>
+								)}
+								{parsedData.certifications && parsedData.certifications.length > 0 && (
+									<div>
+										<label className="text-xs text-muted-foreground">Certifications</label>
+										<div className="flex flex-wrap gap-1 mt-1">
+											{parsedData.certifications.map((cert: any, idx: number) => (
+												<Badge key={idx} variant="outline" className="text-xs">
+													{typeof cert === "string" ? cert : cert.name}
+												</Badge>
+											))}
+										</div>
+									</div>
+								)}
+							</div>
+						</div>
+
+						<div className="flex justify-end gap-2 mt-4">
+							<Button variant="outline" onClick={() => {
+								setParsedData(null);
+								setSelectedFile(null);
+							}}>
+								Parse Another
+							</Button>
+							<Button onClick={handleConfirm}>
+								Create Personnel Record
+							</Button>
+						</div>
+					</>
+				)}
 			</div>
 		</div>
 	);
