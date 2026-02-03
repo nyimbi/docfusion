@@ -10,6 +10,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { toast } from "sonner";
 import {
 	FileText,
 	Sparkles,
@@ -283,18 +284,24 @@ export default function HomePage() {
 						</div>
 
 						<div className="flex items-center gap-8 text-sm text-muted-foreground">
-							<a href="#" className="hover:text-foreground transition-colors">
+							<button
+								onClick={() => toast.info("Privacy policy coming soon")}
+								className="hover:text-foreground transition-colors"
+							>
 								Privacy
-							</a>
-							<a href="#" className="hover:text-foreground transition-colors">
+							</button>
+							<button
+								onClick={() => toast.info("Terms of service coming soon")}
+								className="hover:text-foreground transition-colors"
+							>
 								Terms
-							</a>
-							<a href="#" className="hover:text-foreground transition-colors">
+							</button>
+							<Link href="/help" className="hover:text-foreground transition-colors">
 								Support
-							</a>
-							<a href="#" className="hover:text-foreground transition-colors">
+							</Link>
+							<Link href="/help" className="hover:text-foreground transition-colors">
 								Documentation
-							</a>
+							</Link>
 						</div>
 
 						<div className="text-sm text-muted-foreground">

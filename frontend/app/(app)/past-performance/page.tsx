@@ -38,7 +38,9 @@ import {
 	generateRelevanceMatrix,
 	generateCPARNarrative,
 	checkReferenceAvailability,
+	exportPastPerformanceVolume,
 } from "@/lib/actions/past-performance";
+import { toast } from "sonner";
 import type { Project } from "@/lib/db/schema-past-performance";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -90,6 +92,55 @@ export default function PastPerformancePage() {
 		if (result.success) {
 			fetchProjects();
 		}
+	};
+
+	// Export selected projects as CSV
+	const handleExportProjects = (projectIds: string[]) => {
+		const selectedProjects = projects.filter((p) => projectIds.includes(p.id));
+		if (selectedProjects.length === 0) {
+			toast.error("No projects selected for export");
+			return;
+		}
+
+		// Build CSV content
+		const headers = [
+			"Name",
+			"Customer",
+			"Contract Number",
+			"Contract Value",
+			"Period of Performance",
+			"CPAR Rating",
+			"Description",
+		];
+		const rows = selectedProjects.map((p) => [
+			p.name,
+			p.customerName ?? "",
+			p.contractNumber ?? "",
+			p.contractValue?.toString() ?? "",
+			p.periodOfPerformance?.start && p.periodOfPerformance?.end
+				? `${p.periodOfPerformance.start} - ${p.periodOfPerformance.end}`
+				: "",
+			p.cparRatings?.overall?.toString() ?? "",
+			(p.description ?? "").replace(/"/g, '""'),
+		]);
+
+		const csvContent = [
+			headers.join(","),
+			...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+		].join("\n");
+
+		// Download the CSV
+		const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = `past-performance-export-${new Date().toISOString().split("T")[0]}.csv`;
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+		URL.revokeObjectURL(url);
+
+		toast.success(`Exported ${selectedProjects.length} project(s) to CSV`);
 	};
 
 	return (
@@ -189,7 +240,7 @@ export default function PastPerformancePage() {
 									onDuplicateProject={handleDuplicateProject}
 									onViewProject={(id) => setSelectedProjectId(id)}
 									onImport={() => setShowImporter(true)}
-									onExport={(ids) => console.log("Export:", ids)}
+									onExport={handleExportProjects}
 									onRefresh={fetchProjects}
 								/>
 							) : (

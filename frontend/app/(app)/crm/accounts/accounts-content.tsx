@@ -42,7 +42,7 @@ import {
 	Building2,
 } from "lucide-react";
 import type { AccountRow } from "@/lib/db/schema-crm";
-import type { AccountType } from "@/lib/types/crm";
+import type { AccountType, AccountFilters as AccountFiltersType } from "@/lib/types/crm";
 import { getAccounts, updateAccountStage } from "@/lib/actions/crm";
 
 interface AccountsContentProps {
@@ -75,6 +75,7 @@ export default function AccountsContent({ searchParams }: AccountsContentProps) 
 		(searchParams.view as "list" | "grid" | "kanban") ?? "list"
 	);
 	const [showFilters, setShowFilters] = useState(false);
+	const [advancedFilters, setAdvancedFilters] = useState<AccountFiltersType>({});
 
 	// Pagination state
 	const [totalCount, setTotalCount] = useState(0);
@@ -86,8 +87,13 @@ export default function AccountsContent({ searchParams }: AccountsContentProps) 
 		async function fetchAccounts() {
 			setIsLoading(true);
 			try {
-				const filters = typeFilter !== "all" ? { type: typeFilter as AccountType } : undefined;
-				const response = await getAccounts(filters, undefined, { page: currentPage, pageSize });
+				// Merge basic type filter with advanced filters
+				const filters: AccountFiltersType = {
+					...advancedFilters,
+					...(typeFilter !== "all" ? { type: typeFilter as AccountType } : {}),
+				};
+				const hasFilters = Object.keys(filters).length > 0;
+				const response = await getAccounts(hasFilters ? filters : undefined, undefined, { page: currentPage, pageSize });
 				setAccounts(response.data);
 				setTotalCount(response.total);
 			} catch (error) {
@@ -98,7 +104,7 @@ export default function AccountsContent({ searchParams }: AccountsContentProps) 
 		}
 
 		fetchAccounts();
-	}, [typeFilter, currentPage]);
+	}, [typeFilter, currentPage, advancedFilters]);
 
 	// Filter accounts locally
 	const filteredAccounts = useMemo(() => {
@@ -419,9 +425,15 @@ export default function AccountsContent({ searchParams }: AccountsContentProps) 
 				<AccountFilters
 					isOpen={showFilters}
 					onClose={() => setShowFilters(false)}
+					filters={advancedFilters}
 					onApply={(filters) => {
-						console.log("Apply filters:", filters);
+						setAdvancedFilters(filters);
+						setCurrentPage(1); // Reset to first page when filters change
 						setShowFilters(false);
+						const filterCount = Object.values(filters).filter(v => v !== undefined && v !== null && v !== "").length;
+						if (filterCount > 0) {
+							toast.success(`Applied ${filterCount} filter${filterCount > 1 ? "s" : ""}`);
+						}
 					}}
 				/>
 			</div>

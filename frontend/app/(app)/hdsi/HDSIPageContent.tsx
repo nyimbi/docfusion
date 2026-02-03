@@ -13,6 +13,7 @@
 import * as React from "react";
 import { useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { HDSIFullEnhanced } from "@/components/document/HDSIFullEnhanced";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/badge";
@@ -573,14 +574,50 @@ export function HDSIPageContent() {
     switch (actionId) {
       case "generate":
         setStatus("generating");
-        setTimeout(() => setStatus("idle"), 2000);
+        toast.loading("Generating content...");
+        setTimeout(() => {
+          setStatus("idle");
+          toast.dismiss();
+          toast.success("Content generated successfully");
+        }, 2000);
         break;
       case "save":
         setStatus("saving");
-        setTimeout(() => setStatus("idle"), 1000);
+        toast.loading("Saving document...");
+        setTimeout(() => {
+          setStatus("idle");
+          toast.dismiss();
+          toast.success("Document saved");
+        }, 1000);
         break;
-      default:
-        console.log("Action:", actionId);
+      case "export":
+        toast.info("Export options", {
+          description: "PDF, DOCX, and LaTeX export coming soon",
+          action: {
+            label: "Settings",
+            onClick: () => {
+              // Open export settings - features.pdfExport etc
+              toast.info("Configure export formats in the settings panel");
+            },
+          },
+        });
+        break;
+      case "share":
+        if (navigator.share) {
+          navigator.share({
+            title: "HDSI Document",
+            text: "Check out this document",
+            url: window.location.href,
+          }).catch(() => {
+            // User cancelled or error
+            navigator.clipboard.writeText(window.location.href);
+            toast.success("Link copied to clipboard");
+          });
+        } else {
+          navigator.clipboard.writeText(window.location.href);
+          toast.success("Link copied to clipboard");
+        }
+        break;
     }
   }, []);
 

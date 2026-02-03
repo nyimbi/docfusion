@@ -56,6 +56,7 @@ import {
 } from "@/components/templates/UseTemplateWizard";
 import { TemplateRating } from "@/components/templates/TemplateRating";
 import { getTemplate, getTemplateCategories } from "@/lib/actions/templates";
+import { toast } from "sonner";
 
 export default function TemplateDetailPage() {
 	const params = useParams();
@@ -129,8 +130,26 @@ export default function TemplateDetailPage() {
 	};
 
 	const handleDuplicate = () => {
-		// Duplicate logic
-		console.log("Duplicate template", templateId);
+		if (template) {
+			// Copy template data to clipboard for creating new template
+			const templateData = JSON.stringify({
+				name: `${template.name} (Copy)`,
+				content: template.content,
+				categoryIds: template.categoryIds,
+				tags: template.tags,
+				description: template.description,
+			}, null, 2);
+
+			navigator.clipboard.writeText(templateData).then(() => {
+				toast.success("Template data copied to clipboard", {
+					description: "Create a new template and paste the configuration",
+				});
+			}).catch(() => {
+				toast.info("Template duplication coming soon", {
+					description: "This feature will allow you to create a copy of this template",
+				});
+			});
+		}
 	};
 
 	const handleDelete = () => {
