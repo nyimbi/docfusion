@@ -716,6 +716,7 @@ export function HDSIEnhanced({
               onToggle={toggleExpanded}
               onDelete={requestDelete}
               onGenerate={onGenerateNode ? handleGenerateNode : undefined}
+              onGenerateAll={onGenerateAll}
               onMove={moveNode}
               onIndent={indentNode}
               onOutdent={outdentNode}
@@ -848,6 +849,7 @@ interface TreeViewProps {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onGenerate?: (id: string) => void;
+  onGenerateAll?: () => void;
   onMove: (id: string, dir: "up" | "down") => void;
   onIndent: (id: string) => void;
   onOutdent: (id: string) => void;
@@ -894,6 +896,7 @@ function TreeView({
   onToggle,
   onDelete,
   onGenerate,
+  onGenerateAll,
   onMove,
   onIndent,
   onOutdent,
@@ -1033,6 +1036,14 @@ function TreeView({
         }
         break;
 
+      case "G":
+        // Cmd/Ctrl+Shift+G: Generate All
+        if (modKey && e.shiftKey && onGenerateAll) {
+          e.preventDefault();
+          onGenerateAll();
+        }
+        break;
+
       case "Delete":
       case "Backspace":
         if (modKey) {
@@ -1060,7 +1071,7 @@ function TreeView({
         }
         break;
     }
-  }, [selectedId, visibleNodeIds, findNodeById, onSelect, onToggle, onGenerate, onDelete]);
+  }, [selectedId, visibleNodeIds, findNodeById, onSelect, onToggle, onGenerate, onGenerateAll, onDelete]);
 
   // Only attach keyboard handler at root level
   const keyboardProps = (depth === 0 || isRoot) ? {
@@ -1272,6 +1283,7 @@ function TreeView({
                   onToggle={onToggle}
                   onDelete={onDelete}
                   onGenerate={onGenerate}
+                  onGenerateAll={onGenerateAll}
                   onMove={onMove}
                   onIndent={onIndent}
                   onOutdent={onOutdent}

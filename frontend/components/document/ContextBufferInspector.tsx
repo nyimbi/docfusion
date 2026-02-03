@@ -114,8 +114,51 @@ const TIER_CONFIG: Record<
 	},
 };
 
-/** Drift threshold for staleness warning */
-const DRIFT_WARNING_THRESHOLD = 0.15;
+/** Drift thresholds for staleness indicators */
+const DRIFT_WARNING_THRESHOLD = 0.15; // Yellow warning
+const DRIFT_DANGER_THRESHOLD = 0.30; // Red critical
+
+/**
+ * Get drift indicator color and label based on embedding drift value.
+ * Lower drift = fresher content, higher drift = staler content.
+ */
+function getDriftIndicator(drift: number): {
+	color: string;
+	bgColor: string;
+	label: string;
+	severity: "fresh" | "warning" | "stale";
+} {
+	if (drift < 0.08) {
+		return {
+			color: "text-emerald-500",
+			bgColor: "bg-emerald-500/10",
+			label: "Fresh",
+			severity: "fresh",
+		};
+	}
+	if (drift < DRIFT_WARNING_THRESHOLD) {
+		return {
+			color: "text-blue-500",
+			bgColor: "bg-blue-500/10",
+			label: "Current",
+			severity: "fresh",
+		};
+	}
+	if (drift < DRIFT_DANGER_THRESHOLD) {
+		return {
+			color: "text-amber-500",
+			bgColor: "bg-amber-500/10",
+			label: "Drifting",
+			severity: "warning",
+		};
+	}
+	return {
+		color: "text-red-500",
+		bgColor: "bg-red-500/10",
+		label: "Stale",
+		severity: "stale",
+	};
+}
 
 // ============================================================================
 // Main Component
@@ -151,6 +194,18 @@ export function ContextBufferInspector({
 		(buffer.totalTokens / buffer.maxTokens) * 100
 	);
 	const isNearCapacity = utilizationPercent > 85;
+
+	// Calculate overall drift health
+	const overallDrift = React.useMemo(() => {
+		if (buffer.entries.length === 0) return 0;
+		const totalDrift = buffer.entries.reduce(
+			(sum, entry) => sum + entry.embeddingDrift,
+			0
+		);
+		return totalDrift / buffer.entries.length;
+	}, [buffer.entries]);
+
+	const overallDriftIndicator = getDriftIndicator(overallDrift);
 
 	// Toggle tier expansion
 	const toggleTier = (tier: ContextTier) => {
@@ -220,6 +275,41 @@ export function ContextBufferInspector({
 						);
 					})}
 				</div>
+
+				{/* Overall drift health indicator */}
+				{buffer.entries.length > 0 && (
+					<div className="flex items-center justify-between">
+						<span className="text-xs text-muted-foreground">Context Health</span>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div
+										className={cn(
+											"flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium",
+											overallDriftIndicator.bgColor,
+											overallDriftIndicator.color
+										)}
+									>
+										<Zap className="h-3 w-3" />
+										<span>{overallDriftIndicator.label}</span>
+										<span className="opacity-70">
+											({Math.round(overallDrift * 100)}% drift)
+										</span>
+									</div>
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="text-xs max-w-[220px]">
+									<div className="space-y-1">
+										<p className="font-medium">Overall Context Freshness</p>
+										<p className="text-muted-foreground">
+											Average embedding drift across all {buffer.entries.length} context entries.
+											{overallDriftIndicator.severity === "stale" && " Consider refreshing the context buffer."}
+										</p>
+									</div>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</div>
+				)}
 
 				{/* Last assembled time + refresh */}
 				<div className="flex items-center justify-between text-[10px] text-muted-foreground">
@@ -368,7 +458,7 @@ function ContextEntry({
 	onClick,
 }: ContextEntryProps) {
 	const [isExpanded, setIsExpanded] = React.useState(false);
-	const hasHighDrift = entry.embeddingDrift > DRIFT_WARNING_THRESHOLD;
+	const driftIndicator = getDriftIndicator(entry.embeddingDrift);
 
 	return (
 		<div
@@ -402,25 +492,34 @@ function ContextEntry({
 							</span>
 						</div>
 					</div>
-					<div className="flex items-center gap-1">
-						{/* Drift indicator */}
-						{hasHighDrift && (
-							<TooltipProvider>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<div className="flex items-center gap-0.5 text-amber-500">
-											<Zap className="h-3 w-3" />
-											<span className="text-[10px]">
-												{Math.round(entry.embeddingDrift * 100)}%
-											</span>
-										</div>
-									</TooltipTrigger>
-									<TooltipContent side="left" className="text-xs">
-										High embedding drift - content may be stale
-									</TooltipContent>
-								</Tooltip>
-							</TooltipProvider>
-						)}
+					<div className="flex items-center gap-1.5">
+						{/* Enhanced drift indicator - always shown with color-coded severity */}
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div
+										className={cn(
+											"flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium",
+											driftIndicator.bgColor,
+											driftIndicator.color
+										)}
+									>
+										<Zap className="h-2.5 w-2.5" />
+										<span>{Math.round(entry.embeddingDrift * 100)}%</span>
+									</div>
+								</TooltipTrigger>
+								<TooltipContent side="left" className="text-xs max-w-[180px]">
+									<div className="space-y-1">
+										<p className="font-medium">{driftIndicator.label}</p>
+										<p className="text-muted-foreground">
+											{driftIndicator.severity === "fresh" && "Content is current and aligned with embeddings"}
+											{driftIndicator.severity === "warning" && "Content may need refresh - embeddings drifting"}
+											{driftIndicator.severity === "stale" && "Content is stale - recommend regenerating context"}
+										</p>
+									</div>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 						{/* Relevance bar */}
 						<div className="w-12 h-1.5 rounded-full bg-muted overflow-hidden">
 							<div
@@ -531,4 +630,4 @@ export function createEmptyBuffer(): ContextBuffer {
 // ============================================================================
 
 export default ContextBufferInspector;
-export { MAX_TOKENS, TIER_CONFIG, DRIFT_WARNING_THRESHOLD };
+export { MAX_TOKENS, TIER_CONFIG, DRIFT_WARNING_THRESHOLD, DRIFT_DANGER_THRESHOLD, getDriftIndicator };
