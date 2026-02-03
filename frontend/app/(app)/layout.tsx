@@ -77,99 +77,137 @@ interface NavItem {
 }
 
 interface NavSection {
+	title: string;
 	items: NavItem[];
-	isSecondary?: boolean;
 }
 
 // ============================================================================
-// Navigation Configuration
+// Navigation Configuration - Organized by RFP Workflow Phases
 // ============================================================================
 
-const PRIMARY_NAV_ITEMS: NavItem[] = [
+/**
+ * Navigation sections organized to support the natural RFP workflow:
+ *
+ * 1. DISCOVER - Find opportunities, research customers & competitors
+ * 2. CAPTURE - Pipeline management, win probability assessment
+ * 3. DEVELOP - Create proposals using templates and editors
+ * 4. RESOURCES - Pull in personnel, past performance, partners
+ * 5. MANAGE - Coordinate tasks, reviews, deadlines
+ */
+const NAV_SECTIONS: NavSection[] = [
 	{
-		label: "Opportunities",
-		href: "/opportunities",
-		icon: Target,
-		description: "Track RFPs and bids",
+		title: "Discover",
+		items: [
+			{
+				label: "Opportunities",
+				href: "/opportunities",
+				icon: Target,
+				description: "Find and track RFP opportunities",
+			},
+			{
+				label: "CRM",
+				href: "/crm",
+				icon: Briefcase,
+				description: "Customers, contacts & partners",
+			},
+			{
+				label: "Competitive Intel",
+				href: "/competitive",
+				icon: Swords,
+				description: "Competitor analysis & battle cards",
+			},
+		],
 	},
 	{
-		label: "Pipeline",
-		href: "/pipeline",
-		icon: Kanban,
-		description: "Capture-to-proposal management",
+		title: "Capture",
+		items: [
+			{
+				label: "Pipeline",
+				href: "/pipeline",
+				icon: Kanban,
+				description: "Qualify and pursue opportunities",
+			},
+			{
+				label: "Analytics",
+				href: "/analytics",
+				icon: BarChart3,
+				description: "Win probability & insights",
+			},
+		],
 	},
 	{
-		label: "Documents",
-		href: "/documents",
-		icon: FileText,
-		description: "Manage proposals and content",
+		title: "Develop",
+		items: [
+			{
+				label: "Documents",
+				href: "/documents",
+				icon: FileText,
+				description: "Create and edit proposals",
+			},
+			{
+				label: "HDSI Editor",
+				href: "/hdsi",
+				icon: GitBranch,
+				description: "AI-powered document synthesis",
+			},
+			{
+				label: "Templates",
+				href: "/templates",
+				icon: LayoutTemplate,
+				description: "Start from proven formats",
+			},
+			{
+				label: "Content Library",
+				href: "/content-library",
+				icon: Library,
+				description: "Reusable content blocks",
+			},
+		],
 	},
 	{
-		label: "Templates",
-		href: "/templates",
-		icon: LayoutTemplate,
-		description: "Reusable document templates",
+		title: "Resources",
+		items: [
+			{
+				label: "Personnel",
+				href: "/personnel",
+				icon: UserCircle,
+				description: "Resumes & key staff",
+			},
+			{
+				label: "Past Performance",
+				href: "/past-performance",
+				icon: Award,
+				description: "Project history & references",
+			},
+		],
 	},
 	{
-		label: "HDSI Editor",
-		href: "/hdsi",
-		icon: GitBranch,
-		description: "Hierarchical document synthesis",
+		title: "Manage",
+		items: [
+			{
+				label: "Tasks",
+				href: "/tasks",
+				icon: CheckSquare,
+				description: "Track proposal activities",
+			},
+			{
+				label: "Reviews",
+				href: "/reviews",
+				icon: ClipboardCheck,
+				description: "Color team reviews",
+			},
+			{
+				label: "Calendar",
+				href: "/calendar",
+				icon: Calendar,
+				description: "Deadlines & milestones",
+			},
+		],
 	},
-	{
-		label: "Content Library",
-		href: "/content-library",
-		icon: Library,
-		description: "Reusable content blocks",
-	},
-	{
-		label: "Personnel",
-		href: "/personnel",
-		icon: UserCircle,
-		description: "Resume & staffing database",
-	},
-	{
-		label: "Past Performance",
-		href: "/past-performance",
-		icon: Award,
-		description: "Project history & references",
-	},
-	{
-		label: "Tasks",
-		href: "/tasks",
-		icon: CheckSquare,
-		description: "Proposal task management",
-	},
-	{
-		label: "Reviews",
-		href: "/reviews",
-		icon: ClipboardCheck,
-		description: "Color team reviews",
-	},
-	{
-		label: "Competitive",
-		href: "/competitive",
-		icon: Swords,
-		description: "Competitor intelligence",
-	},
-	{
-		label: "Analytics",
-		href: "/analytics",
-		icon: BarChart3,
-		description: "Win/Loss & Pwin dashboards",
-	},
-	{
-		label: "Calendar",
-		href: "/calendar",
-		icon: Calendar,
-		description: "Deadlines and milestones",
-	},
-	{
-		label: "CRM",
-		href: "/crm",
-		icon: Briefcase,
-		description: "Accounts, contacts, deals & partners",
-	},
+];
+
+/** Utility items at bottom of sidebar */
+const UTILITY_NAV_ITEMS: NavItem[] = [
 	{
 		label: "Import Data",
 		href: "/import",
@@ -374,13 +412,14 @@ const SidebarContent = React.memo(function SidebarContent({
 	if (isMobile) {
 		return (
 			<>
-				<SidebarHeader 
-					isMobile={true} 
+				<SidebarHeader
+					isMobile={true}
 					onClose={onClose}
 				/>
-				<SidebarNavigation 
+				<SidebarNavigation
 					pathname={pathname}
-					items={PRIMARY_NAV_ITEMS}
+					sections={NAV_SECTIONS}
+					utilityItems={UTILITY_NAV_ITEMS}
 					isMobile={true}
 					onClose={onClose}
 				/>
@@ -403,7 +442,8 @@ const SidebarContent = React.memo(function SidebarContent({
 			/>
 			<SidebarNavigation
 				pathname={pathname}
-				items={PRIMARY_NAV_ITEMS}
+				sections={NAV_SECTIONS}
+				utilityItems={UTILITY_NAV_ITEMS}
 				isMobile={false}
 				collapsed={collapsed}
 			/>
@@ -490,7 +530,8 @@ SidebarHeader.displayName = "SidebarHeader";
 
 interface SidebarNavigationProps {
 	pathname: string;
-	items: NavItem[];
+	sections: NavSection[];
+	utilityItems?: NavItem[];
 	isMobile: boolean;
 	collapsed?: boolean;
 	onClose?: () => void;
@@ -498,7 +539,8 @@ interface SidebarNavigationProps {
 
 const SidebarNavigation = React.memo(function SidebarNavigation({
 	pathname,
-	items,
+	sections,
+	utilityItems = [],
 	isMobile,
 	collapsed,
 	onClose,
@@ -530,19 +572,63 @@ const SidebarNavigation = React.memo(function SidebarNavigation({
 
 			{isMobile && <div className="h-px bg-border my-2" />}
 
-			{/* Primary Navigation Items */}
-			<div className="space-y-1">
-				{items.map((item) => (
-					<NavItemLink
-						key={item.href}
-						item={item}
-						pathname={pathname}
-						isMobile={isMobile}
-						collapsed={collapsed}
-						onClick={handleNavClick}
-					/>
+			{/* Workflow-Organized Navigation Sections */}
+			<div className="space-y-4">
+				{sections.map((section, sectionIndex) => (
+					<div key={section.title}>
+						{/* Section Header - only show when not collapsed */}
+						{!collapsed && (
+							<div className="px-3 mb-1.5">
+								<span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+									{section.title}
+								</span>
+							</div>
+						)}
+						{/* Collapsed mode: show divider between sections except first */}
+						{collapsed && sectionIndex > 0 && (
+							<div className="h-px bg-border/50 mx-2 mb-2" />
+						)}
+						{/* Section Items */}
+						<div className="space-y-0.5">
+							{section.items.map((item) => (
+								<NavItemLink
+									key={item.href}
+									item={item}
+									pathname={pathname}
+									isMobile={isMobile}
+									collapsed={collapsed}
+									onClick={handleNavClick}
+								/>
+							))}
+						</div>
+					</div>
 				))}
 			</div>
+
+			{/* Utility Items (Import, etc.) */}
+			{utilityItems.length > 0 && (
+				<div className="mt-4 pt-4 border-t border-border/50">
+					{!collapsed && (
+						<div className="px-3 mb-1.5">
+							<span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+								Utilities
+							</span>
+						</div>
+					)}
+					<div className="space-y-0.5">
+						{utilityItems.map((item) => (
+							<NavItemLink
+								key={item.href}
+								item={item}
+								pathname={pathname}
+								isMobile={isMobile}
+								collapsed={collapsed}
+								onClick={handleNavClick}
+							/>
+						))}
+					</div>
+				</div>
+			)}
 		</nav>
 	);
 });
