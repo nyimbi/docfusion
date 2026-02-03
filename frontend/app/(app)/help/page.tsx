@@ -10,6 +10,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { toast } from "sonner";
 import {
 	HelpCircle,
 	BookOpen,
@@ -65,9 +66,9 @@ const helpCategories = [
 ];
 
 const quickLinks = [
-	{ icon: Video, label: "Video Tutorials", href: "#" },
-	{ icon: MessageCircle, label: "Contact Support", href: "#" },
-	{ icon: ExternalLink, label: "API Documentation", href: "#" },
+	{ icon: Video, label: "Video Tutorials" },
+	{ icon: MessageCircle, label: "Contact Support" },
+	{ icon: ExternalLink, label: "API Documentation" },
 ];
 
 export default function HelpPage() {
@@ -107,9 +108,9 @@ export default function HelpPage() {
 			{/* Quick Links */}
 			<div className="flex items-center justify-center gap-4 mb-8">
 				{quickLinks.map((link) => (
-					<a
+					<button
 						key={link.label}
-						href={link.href}
+						onClick={() => toast.info(`${link.label} coming soon`)}
 						className={cn(
 							"flex items-center gap-2 px-4 py-2 rounded-xl",
 							"bg-muted/50 text-muted-foreground",
@@ -119,7 +120,7 @@ export default function HelpPage() {
 					>
 						<link.icon className="w-4 h-4" />
 						<span className="text-sm font-medium">{link.label}</span>
-					</a>
+					</button>
 				))}
 			</div>
 
@@ -154,13 +155,13 @@ export default function HelpPage() {
 								<ul className="space-y-1">
 									{category.articles.map((article) => (
 										<li key={article}>
-											<a
-												href="#"
-												className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+											<button
+												onClick={() => toast.info(`"${article}" documentation coming soon`)}
+												className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors text-left"
 											>
 												<ChevronRight className="w-3 h-3" />
 												{article}
-											</a>
+											</button>
 										</li>
 									))}
 								</ul>
