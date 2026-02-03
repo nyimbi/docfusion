@@ -25,7 +25,12 @@ import {
 	BarChart,
 } from "lucide-react";
 import { ContentLibraryBrowser } from "@/components/content-library/ContentLibraryBrowser";
-import { getContentLibraryStats, getSnippetsNeedingReview } from "@/lib/actions/content-library";
+import {
+	getContentLibraryStats,
+	getSnippetsNeedingReview,
+	semanticSearch,
+	updateSnippetFreshness,
+} from "@/lib/actions/content-library";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ContentLibraryPage() {
@@ -130,7 +135,130 @@ export default function ContentLibraryPage() {
 	);
 }
 
+interface CollectionData {
+	name: string;
+	query: string;
+	icon: React.ReactNode;
+	iconColor: string;
+	description: string;
+}
+
+const COLLECTION_DEFINITIONS: CollectionData[] = [
+	{
+		name: "Past Performance",
+		query: "past performance project experience contract history",
+		icon: <Star className="h-4 w-4" />,
+		iconColor: "text-amber-500",
+		description: "Reusable past performance narratives and project descriptions",
+	},
+	{
+		name: "Technical Approach",
+		query: "technical approach methodology solution architecture",
+		icon: <FileText className="h-4 w-4" />,
+		iconColor: "text-blue-500",
+		description: "Technical methodology and approach templates",
+	},
+	{
+		name: "Management Plans",
+		query: "management plan staffing project management quality control",
+		icon: <Tag className="h-4 w-4" />,
+		iconColor: "text-purple-500",
+		description: "Project management and staffing plan templates",
+	},
+	{
+		name: "Compliance",
+		query: "compliance security clearance FAR DFARS CMMC",
+		icon: <BarChart className="h-4 w-4" />,
+		iconColor: "text-green-500",
+		description: "Compliance statements and certifications",
+	},
+	{
+		name: "Corporate Capabilities",
+		query: "corporate capability statement company overview qualifications",
+		icon: <Library className="h-4 w-4" />,
+		iconColor: "text-indigo-500",
+		description: "Company capability statements and overviews",
+	},
+	{
+		name: "Key Personnel",
+		query: "key personnel resume biography qualifications team",
+		icon: <Clock className="h-4 w-4" />,
+		iconColor: "text-rose-500",
+		description: "Key personnel bios and qualification summaries",
+	},
+];
+
 function CollectionsPlaceholder() {
+	const [collections, setCollections] = React.useState<
+		Array<{ name: string; count: number; avgWinRate: number; description: string; icon: React.ReactNode; iconColor: string }>
+	>([]);
+	const [isLoading, setIsLoading] = React.useState(true);
+
+	React.useEffect(() => {
+		async function fetchCollections() {
+			setIsLoading(true);
+			try {
+				// Fetch content for each collection definition in parallel
+				const collectionResults = await Promise.all(
+					COLLECTION_DEFINITIONS.map(async (def) => {
+						const searchResult = await semanticSearch({
+							query: def.query,
+							limit: 100,
+							contentTypes: ["snippet", "template"],
+						});
+						const snippetResults = searchResult.results.filter(r => r.contentType === "snippet" && r.snippet);
+						const snippetsWithWinRate = snippetResults.filter(r => r.snippet?.analytics?.winRate !== undefined);
+						const avgWinRate =
+							snippetsWithWinRate.length > 0
+								? snippetsWithWinRate.reduce((acc, r) => acc + (r.snippet?.analytics?.winRate ?? 0), 0) / snippetsWithWinRate.length
+								: 0;
+						return {
+							name: def.name,
+							count: searchResult.total,
+							avgWinRate,
+							description: def.description,
+							icon: def.icon,
+							iconColor: def.iconColor,
+						};
+					})
+				);
+				setCollections(collectionResults);
+			} catch (error) {
+				console.error("Failed to fetch collections:", error);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchCollections();
+	}, []);
+
+	if (isLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-between">
+					<h2 className="text-lg font-medium">Content Collections</h2>
+					<Button size="sm" disabled>
+						<Plus className="h-4 w-4 mr-2" />
+						New Collection
+					</Button>
+				</div>
+				<div className="grid grid-cols-3 gap-4">
+					{[1, 2, 3, 4, 5, 6].map((i) => (
+						<Card key={i}>
+							<CardHeader>
+								<Skeleton className="h-5 w-32" />
+								<Skeleton className="h-4 w-24 mt-1" />
+							</CardHeader>
+							<CardContent>
+								<Skeleton className="h-4 w-full" />
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
@@ -141,48 +269,25 @@ function CollectionsPlaceholder() {
 				</Button>
 			</div>
 			<div className="grid grid-cols-3 gap-4">
-				<Card>
-					<CardHeader>
-						<CardTitle className="text-base flex items-center gap-2">
-							<Star className="h-4 w-4 text-amber-500" />
-							Past Performance
-						</CardTitle>
-						<CardDescription>12 content blocks</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<p className="text-sm text-muted-foreground">
-							Reusable past performance narratives and project descriptions
-						</p>
-					</CardContent>
-				</Card>
-				<Card>
-					<CardHeader>
-						<CardTitle className="text-base flex items-center gap-2">
-							<FileText className="h-4 w-4 text-blue-500" />
-							Technical Approach
-						</CardTitle>
-						<CardDescription>28 content blocks</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<p className="text-sm text-muted-foreground">
-							Technical methodology and approach templates
-						</p>
-					</CardContent>
-				</Card>
-				<Card>
-					<CardHeader>
-						<CardTitle className="text-base flex items-center gap-2">
-							<Tag className="h-4 w-4 text-purple-500" />
-							Management Plans
-						</CardTitle>
-						<CardDescription>15 content blocks</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<p className="text-sm text-muted-foreground">
-							Project management and staffing plan templates
-						</p>
-					</CardContent>
-				</Card>
+				{collections.map((collection) => (
+					<Card key={collection.name} className="cursor-pointer hover:border-primary transition-colors">
+						<CardHeader>
+							<CardTitle className="text-base flex items-center gap-2">
+								<span className={collection.iconColor}>{collection.icon}</span>
+								{collection.name}
+							</CardTitle>
+							<CardDescription>
+								{collection.count} content blocks
+								{collection.avgWinRate > 0 && (
+									<span className="ml-2 text-green-600">• {collection.avgWinRate.toFixed(0)}% win rate</span>
+								)}
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<p className="text-sm text-muted-foreground">{collection.description}</p>
+						</CardContent>
+					</Card>
+				))}
 			</div>
 		</div>
 	);
@@ -342,39 +447,143 @@ function AnalyticsPlaceholder() {
 }
 
 function ApprovalsPlaceholder() {
+	const [pendingItems, setPendingItems] = React.useState<any[]>([]);
+	const [isLoading, setIsLoading] = React.useState(true);
+	const [processingId, setProcessingId] = React.useState<string | null>(null);
+
+	const fetchPendingItems = React.useCallback(async () => {
+		setIsLoading(true);
+		try {
+			// Get snippets needing review as "pending approval" items
+			const items = await getSnippetsNeedingReview(20);
+			setPendingItems(items);
+		} catch (error) {
+			console.error("Failed to fetch pending approvals:", error);
+		} finally {
+			setIsLoading(false);
+		}
+	}, []);
+
+	React.useEffect(() => {
+		fetchPendingItems();
+	}, [fetchPendingItems]);
+
+	const handleApprove = async (id: string) => {
+		setProcessingId(id);
+		try {
+			// Mark as current (approved)
+			await updateSnippetFreshness(id, "current");
+			// Refresh the list
+			await fetchPendingItems();
+		} catch (error) {
+			console.error("Failed to approve item:", error);
+		} finally {
+			setProcessingId(null);
+		}
+	};
+
+	const handleReject = async (id: string) => {
+		setProcessingId(id);
+		try {
+			// Mark as stale (rejected/needs attention)
+			await updateSnippetFreshness(id, "stale");
+			// Refresh the list
+			await fetchPendingItems();
+		} catch (error) {
+			console.error("Failed to reject item:", error);
+		} finally {
+			setProcessingId(null);
+		}
+	};
+
+	const formatDate = (date: Date | string | null | undefined) => {
+		if (!date) return "Unknown date";
+		const d = new Date(date);
+		const now = new Date();
+		const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+		if (diffDays === 0) return "Today";
+		if (diffDays === 1) return "Yesterday";
+		if (diffDays < 7) return `${diffDays} days ago`;
+		return d.toLocaleDateString();
+	};
+
+	if (isLoading) {
+		return (
+			<div className="space-y-6">
+				<h2 className="text-lg font-medium">Pending Approvals</h2>
+				<div className="space-y-3">
+					{[1, 2, 3].map((i) => (
+						<Card key={i}>
+							<CardContent className="pt-4">
+								<div className="flex items-center justify-between">
+									<div className="space-y-2">
+										<Skeleton className="h-5 w-64" />
+										<Skeleton className="h-4 w-40" />
+									</div>
+									<div className="flex gap-2">
+										<Skeleton className="h-8 w-16" />
+										<Skeleton className="h-8 w-20" />
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<div className="space-y-6">
-			<h2 className="text-lg font-medium">Pending Approvals</h2>
-			<div className="space-y-3">
-				<Card>
-					<CardContent className="pt-4">
-						<div className="flex items-center justify-between">
-							<div>
-								<p className="font-medium">New Cybersecurity Capability Statement</p>
-								<p className="text-sm text-muted-foreground">Submitted by John Smith • 2 days ago</p>
-							</div>
-							<div className="flex gap-2">
-								<Button variant="outline" size="sm">Reject</Button>
-								<Button size="sm">Approve</Button>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-				<Card>
-					<CardContent className="pt-4">
-						<div className="flex items-center justify-between">
-							<div>
-								<p className="font-medium">Updated CMMC Compliance Section</p>
-								<p className="text-sm text-muted-foreground">Submitted by Jane Doe • 3 days ago</p>
-							</div>
-							<div className="flex gap-2">
-								<Button variant="outline" size="sm">Reject</Button>
-								<Button size="sm">Approve</Button>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
+			<div className="flex items-center justify-between">
+				<h2 className="text-lg font-medium">Pending Approvals</h2>
+				<span className="text-sm text-muted-foreground">
+					{pendingItems.length} items need review
+				</span>
 			</div>
+			{pendingItems.length === 0 ? (
+				<Card>
+					<CardContent className="pt-6 text-center">
+						<p className="text-muted-foreground">No items pending approval</p>
+					</CardContent>
+				</Card>
+			) : (
+				<div className="space-y-3">
+					{pendingItems.map((item) => (
+						<Card key={item.id}>
+							<CardContent className="pt-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="font-medium">{item.title ?? "Untitled Content"}</p>
+										<p className="text-sm text-muted-foreground">
+											{item.category && <span className="capitalize">{item.category} • </span>}
+											Status: <span className="text-amber-600 capitalize">{item.freshnessStatus ?? "needs review"}</span>
+											{" • "}Last updated {formatDate(item.lastReviewDate ?? item.updatedAt)}
+										</p>
+									</div>
+									<div className="flex gap-2">
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => handleReject(item.id)}
+											disabled={processingId === item.id}
+										>
+											{processingId === item.id ? "..." : "Archive"}
+										</Button>
+										<Button
+											size="sm"
+											onClick={() => handleApprove(item.id)}
+											disabled={processingId === item.id}
+										>
+											{processingId === item.id ? "..." : "Approve"}
+										</Button>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }
