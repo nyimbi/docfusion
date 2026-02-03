@@ -1,57 +1,121 @@
 // lib/db/schema-competitors.ts
-import { pgTable, uuid, varchar, text, integer, timestamp, jsonb, boolean, real } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, integer, timestamp, jsonb, boolean, real, date } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { opportunities } from "./schema";
 
-// Competitors table - tracks competitor companies
+// Competitors table - comprehensive competitive intelligence for software companies
 export const competitors = pgTable("competitors", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id"),
 
-  // Basic info
+  // ===== BASIC COMPANY INFO =====
   name: varchar("name", { length: 500 }).notNull(),
   legalName: varchar("legal_name", { length: 500 }),
+  country: varchar("country", { length: 100 }),
+  city: varchar("city", { length: 200 }),
   website: text("website"),
   description: text("description"),
   logoUrl: text("logo_url"),
 
-  // Classification
-  competitorType: varchar("competitor_type", { length: 100 }), // prime, sub, both
+  // ===== FOUNDING & AGE =====
+  foundedYear: integer("founded_year"),
+  companyAge: integer("company_age"), // Calculated from foundedYear
+
+  // ===== CLASSIFICATION =====
+  competitorType: varchar("competitor_type", { length: 100 }), // prime, sub, both, fintech, software_dev, etc.
+  companyType: varchar("company_type", { length: 200 }), // More detailed: "Fintech/Mobile Money", "Software Development Agency"
+  primaryBusiness: varchar("primary_business", { length: 500 }),
+  specialization: text("specialization"),
   sizeStandard: varchar("size_standard", { length: 50 }), // small, large, 8a, hubzone, sdvosb, wosb
 
-  // Capabilities - JSONB array
+  // ===== CONTACT INFO =====
+  linkedIn: text("linkedin"),
+  email: varchar("email", { length: 500 }),
+  phone: varchar("phone", { length: 100 }),
+  physicalAddress: text("physical_address"),
+
+  // ===== LEADERSHIP & TEAM =====
+  ceoFounder: varchar("ceo_founder", { length: 300 }),
+  ctoTechLead: varchar("cto_tech_lead", { length: 300 }),
+  keyManagement: jsonb("key_management").$type<string[]>(), // List of key management names
+  managementLinkedin: jsonb("management_linkedin").$type<string[]>(), // LinkedIn URLs for management
+  teamSize: varchar("team_size", { length: 100 }), // "50-100", "200+", etc.
+  engineerCount: varchar("engineer_count", { length: 100 }), // "20-50", "100+", etc.
+  keyEngineers: jsonb("key_engineers").$type<string[]>(), // Notable engineers
+  notableAlumni: jsonb("notable_alumni").$type<string[]>(), // Alumni who went to notable companies
+
+  // ===== FINANCIALS =====
+  annualRevenue: varchar("annual_revenue", { length: 200 }), // "$2.5B+", "$10-20M", etc.
+  revenueRange: varchar("revenue_range", { length: 100 }), // "1M-5M", "10M-50M", etc.
+  fundingRaised: varchar("funding_raised", { length: 200 }), // Total funding raised
+  investors: jsonb("investors").$type<string[]>(), // List of investors
+
+  // ===== PRODUCTS & TECHNOLOGY =====
+  productsServices: text("products_services"), // Description of products/services
+  technologyStack: jsonb("technology_stack").$type<string[]>(), // ["Node.js", "React", "AWS"]
+  industriesServed: jsonb("industries_served").$type<string[]>(), // ["FinTech", "HealthTech", "AgriTech"]
+
+  // ===== CLIENTS & CONTRACTS =====
+  notableClients: jsonb("notable_clients").$type<string[]>(), // List of notable clients
+  recentContracts: text("recent_contracts"), // Description of recent contracts
+  contractValues: varchar("contract_values", { length: 200 }), // "$500K-5M typical"
+  pursuingOpportunities: text("pursuing_opportunities"), // Known opportunities they're pursuing
+
+  // ===== PARTNERSHIPS & CERTIFICATIONS =====
+  partnerships: jsonb("partnerships").$type<string[]>(), // Strategic partnerships
+  knownPartners: jsonb("known_partners").$type<string[]>(), // Teaming partners for proposals
+  certifications: jsonb("certifications").$type<string[]>(), // ["ISO 27001", "ISO 9001", "Microsoft Gold Partner"]
+  awards: jsonb("awards").$type<string[]>(), // Industry awards
+
+  // ===== NEWS & MEDIA =====
+  newsMentions: jsonb("news_mentions").$type<string[]>(), // News article references
+  recentNews: text("recent_news"), // Summary of recent news
+  socialMediaPresence: jsonb("social_media_presence").$type<{
+    platform: string;
+    url?: string;
+    followers?: string;
+  }[]>(),
+
+  // ===== COMPETITIVE ANALYSIS =====
+  competitivePositioning: text("competitive_positioning"), // "Market Leader", "Challenger", etc.
+  marketShare: varchar("market_share", { length: 100 }), // "15%", "Dominant in Kenya", etc.
+  growthTrajectory: varchar("growth_trajectory", { length: 200 }), // "High Growth", "Stable", "Declining"
+  threatLevel: varchar("threat_level", { length: 50 }), // "HIGH", "MEDIUM", "LOW"
+  strategicNotes: text("strategic_notes"), // Internal strategic analysis
+
+  // ===== CAPABILITIES (legacy structure for compatibility) =====
   capabilities: jsonb("capabilities").$type<{
     area: string;
     strength: "strong" | "moderate" | "weak";
     notes?: string;
   }[]>(),
-
-  // Certifications and contract vehicles
-  certifications: jsonb("certifications").$type<string[]>(),
   contractVehicles: jsonb("contract_vehicles").$type<string[]>(),
   naicsCodes: jsonb("naics_codes").$type<string[]>(),
 
-  // Strengths and weaknesses analysis
+  // ===== STRENGTHS & WEAKNESSES =====
   strengths: jsonb("strengths").$type<string[]>(),
   weaknesses: jsonb("weaknesses").$type<string[]>(),
-  knownPartners: jsonb("known_partners").$type<string[]>(),
 
-  // Pricing intelligence
+  // ===== PRICING INTELLIGENCE =====
   pricingTendency: varchar("pricing_tendency", { length: 100 }), // aggressive, moderate, premium
   averageWinPrice: real("average_win_price"),
   laborRateComparison: varchar("labor_rate_comparison", { length: 50 }), // below_market, market, above_market
 
-  // Track record against this competitor
+  // ===== WIN/LOSS TRACKING =====
   winCount: integer("win_count").default(0),
   lossCount: integer("loss_count").default(0),
   winsAgainstUs: integer("wins_against_us").default(0),
   lossesToUs: integer("losses_to_us").default(0),
 
-  // Intelligence gathering
+  // ===== INTELLIGENCE METADATA =====
   lastResearchedAt: timestamp("last_researched_at", { withTimezone: true }),
+  lastUpdated: date("last_updated"), // From competitive intelligence data
   researchNotes: text("research_notes"),
   intelligenceQuality: varchar("intelligence_quality", { length: 50 }), // verified, estimated, outdated
+  dataSource: varchar("data_source", { length: 200 }), // "East Africa CI Database 2026", "Manual Entry", etc.
+  externalId: varchar("external_id", { length: 100 }), // ID from external data source
 
+  // ===== TIMESTAMPS =====
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });

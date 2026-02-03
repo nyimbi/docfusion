@@ -13,8 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
 	CheckSquare,
 	Plus,
@@ -24,11 +23,12 @@ import {
 	BarChart2,
 	AlertTriangle,
 	Users,
-	Calendar,
-	Clock,
-	User,
-	X,
 	Loader2,
+	TrendingUp,
+	Clock,
+	Target,
+	AlertCircle,
+	FileText,
 } from "lucide-react";
 import {
 	Select,
@@ -52,8 +52,64 @@ import {
 	updateTask,
 	createTask,
 	deleteTask,
+	calculateCriticalPath,
+	suggestAssignment,
+	generateProgressReport,
 } from "@/lib/actions/task-management";
+import { getOpportunities } from "@/lib/actions/opportunities";
 import type { ProposalTask, AuthorExpertise } from "@/lib/db/schema-tasks";
+import type { OpportunityListItem } from "@/lib/types/opportunity";
+
+// Type for assignment suggestions
+interface AssignmentSuggestion {
+	userId: string;
+	userName: string;
+	userEmail?: string;
+	matchScore: number;
+	reasons: string[];
+	workloadStatus: "available" | "moderate" | "high" | "overloaded";
+	estimatedCompletionDate?: string;
+	expertiseMatch: number;
+	availabilityMatch: number;
+	performanceScore: number;
+}
+
+// Type for progress report (matches server action return type)
+interface ProgressReport {
+	opportunityId: string;
+	opportunityName: string;
+	reportDate: string;
+	overallProgress: number;
+	taskSummary: {
+		total: number;
+		completed: number;
+		inProgress: number;
+		pending: number;
+		blocked: number;
+		overdue: number;
+	};
+	volumeProgress: Array<{
+		volumeId: string;
+		volumeName: string;
+		progress: number;
+		tasksCompleted: number;
+		tasksTotal: number;
+	}>;
+	teamPerformance: Array<{
+		userId: string;
+		userName: string;
+		tasksCompleted: number;
+		tasksAssigned: number;
+		onTimeRate: number;
+	}>;
+	timeline: Array<{
+		date: string;
+		tasksCompleted: number;
+		progress: number;
+	}>;
+	risks: string[];
+	recommendations: string[];
+}
 
 export default function TasksPage() {
 	const [activeTab, setActiveTab] = useState("board");
@@ -63,8 +119,27 @@ export default function TasksPage() {
 	const [showTaskGenerator, setShowTaskGenerator] = useState(false);
 	const [tasks, setTasks] = useState<ProposalTask[]>([]);
 	const [teamMembers, setTeamMembers] = useState<AuthorExpertise[]>([]);
+	const [opportunities, setOpportunities] = useState<OpportunityListItem[]>([]);
+	const [criticalPath, setCriticalPath] = useState<string[]>([]);
+	const [progressReport, setProgressReport] = useState<ProgressReport | null>(null);
+	const [assignmentSuggestions, setAssignmentSuggestions] = useState<AssignmentSuggestion[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
+	const [isLoadingCriticalPath, setIsLoadingCriticalPath] = useState(false);
+	const [isLoadingReport, setIsLoadingReport] = useState(false);
+	const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
 	const [selectedTask, setSelectedTask] = useState<ProposalTask | null>(null);
+
+	// Fetch opportunities
+	const fetchOpportunities = useCallback(async () => {
+		try {
+			const result = await getOpportunities(undefined, undefined, { page: 1, pageSize: 100 });
+			if (result.data) {
+				setOpportunities(result.data);
+			}
+		} catch (error) {
+			console.error("Failed to fetch opportunities:", error);
+		}
+	}, []);
 
 	// Fetch team members
 	const fetchTeamMembers = useCallback(async () => {
@@ -98,20 +173,90 @@ export default function TasksPage() {
 		}
 	}, [selectedOpportunityId]);
 
+	// Fetch critical path when opportunity changes
+	const fetchCriticalPath = useCallback(async () => {
+		if (!selectedOpportunityId) {
+			setCriticalPath([]);
+			return;
+		}
+		setIsLoadingCriticalPath(true);
+		try {
+			const result = await calculateCriticalPath(selectedOpportunityId);
+			if (result.success && result.data) {
+				setCriticalPath(result.data.criticalTasks);
+			}
+		} catch (error) {
+			console.error("Failed to calculate critical path:", error);
+		} finally {
+			setIsLoadingCriticalPath(false);
+		}
+	}, [selectedOpportunityId]);
+
+	// Fetch progress report when on analytics tab
+	const fetchProgressReport = useCallback(async () => {
+		if (!selectedOpportunityId) {
+			setProgressReport(null);
+			return;
+		}
+		setIsLoadingReport(true);
+		try {
+			const result = await generateProgressReport(selectedOpportunityId);
+			if (result.success && result.data) {
+				setProgressReport(result.data as ProgressReport);
+			}
+		} catch (error) {
+			console.error("Failed to generate progress report:", error);
+		} finally {
+			setIsLoadingReport(false);
+		}
+	}, [selectedOpportunityId]);
+
+	// Fetch assignment suggestions when task selected
+	const fetchAssignmentSuggestions = useCallback(async (taskId: string) => {
+		setIsLoadingSuggestions(true);
+		try {
+			const result = await suggestAssignment(taskId);
+			if (result.success && result.data) {
+				setAssignmentSuggestions(result.data);
+			} else {
+				setAssignmentSuggestions([]);
+			}
+		} catch (error) {
+			console.error("Failed to fetch assignment suggestions:", error);
+			setAssignmentSuggestions([]);
+		} finally {
+			setIsLoadingSuggestions(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		fetchOpportunities();
+		fetchTeamMembers();
+	}, [fetchOpportunities, fetchTeamMembers]);
+
 	useEffect(() => {
 		fetchTasks();
-		fetchTeamMembers();
-	}, [fetchTasks, fetchTeamMembers]);
+		fetchCriticalPath();
+	}, [fetchTasks, fetchCriticalPath]);
+
+	useEffect(() => {
+		if (activeTab === "analytics" && selectedOpportunityId) {
+			fetchProgressReport();
+		}
+	}, [activeTab, selectedOpportunityId, fetchProgressReport]);
 
 	// Update selected task when selectedTaskId changes
 	useEffect(() => {
 		if (selectedTaskId && selectedTaskId !== "new") {
 			const task = tasks.find(t => t.id === selectedTaskId);
 			setSelectedTask(task || null);
+			// Fetch AI suggestions for this task
+			fetchAssignmentSuggestions(selectedTaskId);
 		} else {
 			setSelectedTask(null);
+			setAssignmentSuggestions([]);
 		}
-	}, [selectedTaskId, tasks]);
+	}, [selectedTaskId, tasks, fetchAssignmentSuggestions]);
 
 	// Task handlers
 	const handleSaveTask = async (taskData: Partial<ProposalTask>) => {
@@ -181,13 +326,16 @@ export default function TasksPage() {
 							value={selectedOpportunityId || "all"}
 							onValueChange={(v) => setSelectedOpportunityId(v === "all" ? null : v)}
 						>
-							<SelectTrigger className="w-[200px]">
+							<SelectTrigger className="w-[250px]">
 								<SelectValue placeholder="Filter by opportunity" />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">All Opportunities</SelectItem>
-								<SelectItem value="opp1">DoD Cloud Services</SelectItem>
-								<SelectItem value="opp2">VA Health Portal</SelectItem>
+								{opportunities.map((opp) => (
+									<SelectItem key={opp.id} value={opp.id}>
+										{opp.title}
+									</SelectItem>
+								))}
 							</SelectContent>
 						</Select>
 						<Button variant="outline" onClick={() => setShowTaskGenerator(true)}>
@@ -294,10 +442,7 @@ export default function TasksPage() {
 											}}
 										/>
 									) : (
-										<TaskBoardPlaceholder
-											opportunityId={selectedOpportunityId}
-											onSelectTask={setSelectedTaskId}
-										/>
+										<EmptyTasksState onCreateTask={() => setSelectedTaskId("new")} />
 									)}
 								</div>
 							) : (
@@ -309,10 +454,7 @@ export default function TasksPage() {
 											onTaskEdit={(task) => setSelectedTaskId(task.id)}
 										/>
 									) : (
-										<TaskListPlaceholder
-											opportunityId={selectedOpportunityId}
-											onSelectTask={setSelectedTaskId}
-										/>
+										<EmptyTasksState onCreateTask={() => setSelectedTaskId("new")} />
 									)}
 								</div>
 							)}
@@ -332,14 +474,50 @@ export default function TasksPage() {
 							</div>
 						</TabsContent>
 						<TabsContent value="critical-path" className="h-full m-0 p-6">
-							<CriticalPathView
-								tasks={tasks}
-								criticalPath={[]} // TODO: Calculate from server action
-								onTaskClick={(task) => setSelectedTaskId(task.id)}
-							/>
+							{isLoadingCriticalPath ? (
+								<div className="flex items-center justify-center h-64">
+									<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+								</div>
+							) : !selectedOpportunityId ? (
+								<div className="flex flex-col items-center justify-center h-64 text-center">
+									<AlertTriangle className="h-12 w-12 text-muted-foreground/30 mb-4" />
+									<h3 className="text-lg font-medium mb-2">Select an Opportunity</h3>
+									<p className="text-sm text-muted-foreground max-w-md">
+										Select an opportunity from the dropdown above to view critical path analysis.
+									</p>
+								</div>
+							) : (
+								<CriticalPathView
+									tasks={tasks}
+									criticalPath={criticalPath}
+									onTaskClick={(task) => setSelectedTaskId(task.id)}
+								/>
+							)}
 						</TabsContent>
 						<TabsContent value="analytics" className="h-full m-0 p-6">
-							<WorkloadAnalyticsPlaceholder />
+							{!selectedOpportunityId ? (
+								<div className="flex flex-col items-center justify-center h-64 text-center">
+									<BarChart2 className="h-12 w-12 text-muted-foreground/30 mb-4" />
+									<h3 className="text-lg font-medium mb-2">Select an Opportunity</h3>
+									<p className="text-sm text-muted-foreground max-w-md">
+										Select an opportunity from the dropdown above to view analytics.
+									</p>
+								</div>
+							) : isLoadingReport ? (
+								<div className="flex items-center justify-center h-64">
+									<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+								</div>
+							) : progressReport ? (
+								<ProgressReportDashboard report={progressReport} />
+							) : (
+								<div className="flex flex-col items-center justify-center h-64 text-center">
+									<FileText className="h-12 w-12 text-muted-foreground/30 mb-4" />
+									<h3 className="text-lg font-medium mb-2">No Analytics Data</h3>
+									<p className="text-sm text-muted-foreground max-w-md">
+										Add some tasks to this opportunity to see analytics.
+									</p>
+								</div>
+							)}
 						</TabsContent>
 					</div>
 				</Tabs>
@@ -363,7 +541,13 @@ export default function TasksPage() {
 				/>
 			)}
 			{showTaskGenerator && !selectedOpportunityId && (
-				<TaskGeneratorPlaceholder onClose={() => setShowTaskGenerator(false)} />
+				<SelectOpportunityModal
+					opportunities={opportunities}
+					onSelect={(id) => {
+						setSelectedOpportunityId(id);
+					}}
+					onClose={() => setShowTaskGenerator(false)}
+				/>
 			)}
 
 			{/* Task Editor Side Panel */}
@@ -384,7 +568,17 @@ export default function TasksPage() {
 					/>
 					{selectedTaskId !== "new" && selectedTask && (
 						<div className="p-6 border-t">
-							<AssignmentSuggesterPlaceholder taskId={selectedTaskId} />
+							<AIAssignmentSuggestions
+								suggestions={assignmentSuggestions}
+								loading={isLoadingSuggestions}
+								onAssign={async (userId, userName, email) => {
+									await updateTask(selectedTaskId, {
+										assignedTo: userName,
+										assignedToEmail: email,
+									});
+									fetchTasks();
+								}}
+							/>
 						</div>
 					)}
 				</div>
@@ -393,530 +587,129 @@ export default function TasksPage() {
 	);
 }
 
-// Placeholder Components
-
-function BottleneckAlertsPlaceholder({ compact }: { compact?: boolean }) {
-	const alerts = [
-		{ severity: "high", message: "Technical volume deadline in 3 days - 5 tasks overdue" },
-		{ severity: "medium", message: "Sarah Johnson at 120% capacity this week" },
-	];
-
-	if (compact) {
-		return alerts.length > 0 ? (
-			<div className="flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-				<AlertTriangle className="h-4 w-4 text-yellow-600" />
-				<span className="text-sm text-yellow-700 dark:text-yellow-400">
-					{alerts.length} bottleneck{alerts.length > 1 ? "s" : ""} detected
-				</span>
-			</div>
-		) : null;
-	}
-
+// Empty state component
+function EmptyTasksState({ onCreateTask }: { onCreateTask: () => void }) {
 	return (
-		<div className="space-y-2">
-			{alerts.map((alert, idx) => (
-				<div
-					key={idx}
-					className={`p-3 rounded-lg flex items-center gap-2 ${
-						alert.severity === "high"
-							? "bg-red-50 dark:bg-red-900/20"
-							: "bg-yellow-50 dark:bg-yellow-900/20"
-					}`}
-				>
-					<AlertTriangle
-						className={`h-4 w-4 ${
-							alert.severity === "high" ? "text-red-600" : "text-yellow-600"
-						}`}
-					/>
-					<span className="text-sm">{alert.message}</span>
-				</div>
-			))}
+		<div className="flex flex-col items-center justify-center h-64 text-center">
+			<CheckSquare className="h-12 w-12 text-muted-foreground/30 mb-4" />
+			<h3 className="text-lg font-medium mb-2">No Tasks Yet</h3>
+			<p className="text-sm text-muted-foreground max-w-md mb-4">
+				Create your first task or generate tasks from an RFP to get started.
+			</p>
+			<Button onClick={onCreateTask}>
+				<Plus className="h-4 w-4 mr-2" />
+				Create Task
+			</Button>
 		</div>
 	);
 }
 
-function TaskBoardPlaceholder({
-	opportunityId,
-	onSelectTask,
+// Select opportunity modal for task generation
+function SelectOpportunityModal({
+	opportunities,
+	onSelect,
+	onClose,
 }: {
-	opportunityId: string | null;
-	onSelectTask: (id: string) => void;
+	opportunities: OpportunityListItem[];
+	onSelect: (id: string) => void;
+	onClose: () => void;
 }) {
-	const columns = [
-		{
-			name: "To Do",
-			tasks: [
-				{ id: "1", title: "Draft executive summary", assignee: "SJ", priority: "high", dueDate: "Feb 5" },
-				{ id: "2", title: "Gather past performance", assignee: "MC", priority: "medium", dueDate: "Feb 6" },
-			],
-		},
-		{
-			name: "In Progress",
-			tasks: [
-				{ id: "3", title: "Technical approach section", assignee: "DK", priority: "high", dueDate: "Feb 4" },
-				{ id: "4", title: "Pricing analysis", assignee: "ER", priority: "medium", dueDate: "Feb 7" },
-			],
-		},
-		{
-			name: "Review",
-			tasks: [
-				{ id: "5", title: "Management approach draft", assignee: "JW", priority: "low", dueDate: "Feb 8" },
-			],
-		},
-		{
-			name: "Complete",
-			tasks: [
-				{ id: "6", title: "Compliance matrix", assignee: "SJ", priority: "high", dueDate: "Feb 2" },
-			],
-		},
-	];
+	const [selected, setSelected] = useState<string>("");
 
-	const getPriorityColor = (priority: string) => {
-		switch (priority) {
-			case "high":
-				return "bg-red-100 text-red-700";
-			case "medium":
-				return "bg-yellow-100 text-yellow-700";
-			default:
-				return "bg-blue-100 text-blue-700";
+	return (
+		<div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+			<Card className="max-w-lg w-full mx-4">
+				<CardHeader>
+					<CardTitle>Select Opportunity</CardTitle>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<p className="text-sm text-muted-foreground">
+						Select an opportunity to generate tasks from its RFP requirements.
+					</p>
+					<Select value={selected} onValueChange={setSelected}>
+						<SelectTrigger>
+							<SelectValue placeholder="Choose an opportunity" />
+						</SelectTrigger>
+						<SelectContent>
+							{opportunities.map((opp) => (
+								<SelectItem key={opp.id} value={opp.id}>
+									{opp.title}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<div className="flex justify-end gap-2">
+						<Button variant="outline" onClick={onClose}>Cancel</Button>
+						<Button
+							disabled={!selected}
+							onClick={() => {
+								onSelect(selected);
+							}}
+						>
+							Continue
+						</Button>
+					</div>
+				</CardContent>
+			</Card>
+		</div>
+	);
+}
+
+// AI Assignment Suggestions component
+function AIAssignmentSuggestions({
+	suggestions,
+	loading,
+	onAssign,
+}: {
+	suggestions: AssignmentSuggestion[];
+	loading: boolean;
+	onAssign: (userId: string, userName: string, email?: string) => void;
+}) {
+	const getWorkloadColor = (status: string) => {
+		switch (status) {
+			case "available": return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
+			case "moderate": return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+			case "high": return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+			case "overloaded": return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+			default: return "bg-gray-100 text-gray-700";
 		}
 	};
 
-	return (
-		<div className="flex gap-4 overflow-x-auto pb-4">
-			{columns.map((column) => (
-				<div key={column.name} className="flex-shrink-0 w-72 rounded-lg border bg-card">
-					<div className="p-3 border-b">
-						<div className="flex items-center justify-between">
-							<h3 className="font-semibold text-sm">{column.name}</h3>
-							<Badge variant="secondary" className="text-xs">
-								{column.tasks.length}
-							</Badge>
-						</div>
-					</div>
-					<div className="p-2 space-y-2">
-						{column.tasks.map((task) => (
-							<Card
-								key={task.id}
-								className="cursor-pointer hover:shadow-md transition-shadow"
-								onClick={() => onSelectTask(task.id)}
-							>
-								<CardContent className="p-3">
-									<h4 className="font-medium text-sm mb-2">{task.title}</h4>
-									<div className="flex items-center justify-between">
-										<div className="flex items-center gap-2">
-											<Avatar className="h-6 w-6">
-												<AvatarFallback className="text-xs">{task.assignee}</AvatarFallback>
-											</Avatar>
-											<Badge className={`text-xs ${getPriorityColor(task.priority)}`}>
-												{task.priority}
-											</Badge>
-										</div>
-										<span className="text-xs text-muted-foreground flex items-center gap-1">
-											<Calendar className="h-3 w-3" />
-											{task.dueDate}
-										</span>
-									</div>
-								</CardContent>
-							</Card>
-						))}
-					</div>
-				</div>
-			))}
-		</div>
-	);
-}
-
-function TaskListPlaceholder({
-	opportunityId,
-	onSelectTask,
-}: {
-	opportunityId: string | null;
-	onSelectTask: (id: string) => void;
-}) {
-	const tasks = [
-		{ id: "1", title: "Draft executive summary", assignee: "Sarah Johnson", status: "To Do", priority: "high", dueDate: "Feb 5" },
-		{ id: "2", title: "Technical approach section", assignee: "David Kim", status: "In Progress", priority: "high", dueDate: "Feb 4" },
-		{ id: "3", title: "Pricing analysis", assignee: "Emily Rodriguez", status: "In Progress", priority: "medium", dueDate: "Feb 7" },
-		{ id: "4", title: "Compliance matrix", assignee: "Sarah Johnson", status: "Complete", priority: "high", dueDate: "Feb 2" },
-	];
-
-	return (
-		<div className="space-y-2">
-			{tasks.map((task) => (
-				<Card
-					key={task.id}
-					className="cursor-pointer hover:shadow-md transition-shadow"
-					onClick={() => onSelectTask(task.id)}
-				>
-					<CardContent className="p-4">
-						<div className="flex items-center justify-between">
-							<div className="flex items-center gap-4">
-								<CheckSquare className="h-4 w-4 text-muted-foreground" />
-								<div>
-									<h4 className="font-medium">{task.title}</h4>
-									<p className="text-sm text-muted-foreground">{task.assignee}</p>
-								</div>
-							</div>
-							<div className="flex items-center gap-3">
-								<Badge variant="outline">{task.status}</Badge>
-								<span className="text-sm text-muted-foreground">{task.dueDate}</span>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-			))}
-		</div>
-	);
-}
-
-function WorkloadDashboardPlaceholder() {
-	const team = [
-		{ name: "Sarah Johnson", capacity: 85, tasks: 8 },
-		{ name: "Michael Chen", capacity: 120, tasks: 12 },
-		{ name: "Emily Rodriguez", capacity: 65, tasks: 5 },
-		{ name: "David Kim", capacity: 95, tasks: 9 },
-	];
-
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle className="text-base">Team Workload</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<div className="space-y-4">
-					{team.map((member) => (
-						<div key={member.name} className="space-y-1">
-							<div className="flex items-center justify-between text-sm">
-								<span className="font-medium">{member.name}</span>
-								<span
-									className={
-										member.capacity > 100
-											? "text-red-600"
-											: member.capacity > 80
-											? "text-yellow-600"
-											: "text-green-600"
-									}
-								>
-									{member.capacity}% ({member.tasks} tasks)
-								</span>
-							</div>
-							<div className="h-2 bg-muted rounded-full overflow-hidden">
-								<div
-									className={`h-full ${
-										member.capacity > 100
-											? "bg-red-500"
-											: member.capacity > 80
-											? "bg-yellow-500"
-											: "bg-green-500"
-									}`}
-									style={{ width: `${Math.min(member.capacity, 100)}%` }}
-								/>
-							</div>
-						</div>
-					))}
-				</div>
-			</CardContent>
-		</Card>
-	);
-}
-
-function WorkloadHeatMapPlaceholder() {
-	const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-	const team = ["SJ", "MC", "ER", "DK"];
-	const data = [
-		[3, 4, 5, 2, 1],
-		[5, 5, 4, 4, 3],
-		[2, 3, 2, 2, 1],
-		[4, 3, 4, 3, 2],
-	];
-
-	const getHeatColor = (value: number) => {
-		if (value >= 5) return "bg-red-500";
-		if (value >= 4) return "bg-orange-400";
-		if (value >= 3) return "bg-yellow-400";
-		if (value >= 2) return "bg-green-300";
-		return "bg-green-200";
-	};
-
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle className="text-base">Workload Heat Map</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<div className="overflow-x-auto">
-					<table className="w-full text-sm">
-						<thead>
-							<tr>
-								<th className="p-2"></th>
-								{days.map((day) => (
-									<th key={day} className="p-2 text-center text-muted-foreground">
-										{day}
-									</th>
-								))}
-							</tr>
-						</thead>
-						<tbody>
-							{team.map((member, i) => (
-								<tr key={member}>
-									<td className="p-2 font-medium">{member}</td>
-									{data[i].map((value, j) => (
-										<td key={j} className="p-1 text-center">
-											<div
-												className={`w-8 h-8 rounded flex items-center justify-center text-white text-xs mx-auto ${getHeatColor(
-													value
-												)}`}
-											>
-												{value}
-											</div>
-										</td>
-									))}
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
-			</CardContent>
-		</Card>
-	);
-}
-
-function CriticalPathViewPlaceholder({ opportunityId }: { opportunityId: string | null }) {
-	const milestones = [
-		{ name: "Technical Volume", date: "Feb 10", status: "at_risk", tasks: 5, completed: 2 },
-		{ name: "Pricing Volume", date: "Feb 15", status: "on_track", tasks: 4, completed: 1 },
-		{ name: "Past Performance", date: "Feb 12", status: "on_track", tasks: 3, completed: 3 },
-		{ name: "Final Review", date: "Feb 18", status: "pending", tasks: 2, completed: 0 },
-	];
-
-	return (
-		<Card>
-			<CardHeader>
-				<CardTitle className="text-base flex items-center gap-2">
-					<AlertTriangle className="h-4 w-4" />
-					Critical Path Analysis
-				</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<div className="space-y-4">
-					{milestones.map((milestone, idx) => (
-						<div key={milestone.name} className="flex items-center gap-4">
-							<div className="flex flex-col items-center">
-								<div
-									className={`w-4 h-4 rounded-full ${
-										milestone.status === "at_risk"
-											? "bg-red-500"
-											: milestone.status === "on_track"
-											? "bg-green-500"
-											: "bg-gray-300"
-									}`}
-								/>
-								{idx < milestones.length - 1 && <div className="w-px h-8 bg-border" />}
-							</div>
-							<div className="flex-1">
-								<div className="flex items-center justify-between">
-									<h4 className="font-medium">{milestone.name}</h4>
-									<Badge
-										variant={
-											milestone.status === "at_risk"
-												? "destructive"
-												: milestone.status === "on_track"
-												? "default"
-												: "outline"
-										}
-									>
-										{milestone.status.replace("_", " ")}
-									</Badge>
-								</div>
-								<p className="text-sm text-muted-foreground">
-									Due: {milestone.date} - {milestone.completed}/{milestone.tasks} tasks complete
-								</p>
-							</div>
-						</div>
-					))}
-				</div>
-			</CardContent>
-		</Card>
-	);
-}
-
-function WorkloadAnalyticsPlaceholder() {
-	return (
-		<div className="grid gap-6 md:grid-cols-2">
+	if (loading) {
+		return (
 			<Card>
-				<CardHeader>
-					<CardTitle className="text-base">Task Completion Trends</CardTitle>
+				<CardHeader className="pb-2">
+					<CardTitle className="text-sm font-medium flex items-center gap-2">
+						<Users className="h-4 w-4" />
+						AI Assignment Suggestions
+					</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<div className="space-y-3">
-						{[
-							{ week: "Week 1", completed: 15, planned: 18 },
-							{ week: "Week 2", completed: 22, planned: 20 },
-							{ week: "Week 3", completed: 18, planned: 22 },
-							{ week: "Week 4", completed: 12, planned: 15 },
-						].map((item) => (
-							<div key={item.week} className="flex items-center justify-between">
-								<span className="text-sm font-medium">{item.week}</span>
-								<span className="text-sm text-muted-foreground">
-									{item.completed}/{item.planned} tasks
-								</span>
-							</div>
-						))}
+					<div className="flex items-center justify-center py-4">
+						<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
 					</div>
 				</CardContent>
 			</Card>
+		);
+	}
+
+	if (suggestions.length === 0) {
+		return (
 			<Card>
-				<CardHeader>
-					<CardTitle className="text-base">Velocity Metrics</CardTitle>
+				<CardHeader className="pb-2">
+					<CardTitle className="text-sm font-medium flex items-center gap-2">
+						<Users className="h-4 w-4" />
+						AI Assignment Suggestions
+					</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<div className="grid grid-cols-2 gap-4">
-						<div className="text-center p-4 bg-muted/50 rounded-lg">
-							<div className="text-2xl font-bold">4.2</div>
-							<div className="text-xs text-muted-foreground">Tasks/Day</div>
-						</div>
-						<div className="text-center p-4 bg-muted/50 rounded-lg">
-							<div className="text-2xl font-bold">92%</div>
-							<div className="text-xs text-muted-foreground">On-Time Rate</div>
-						</div>
-						<div className="text-center p-4 bg-muted/50 rounded-lg">
-							<div className="text-2xl font-bold">2.1d</div>
-							<div className="text-xs text-muted-foreground">Avg Cycle Time</div>
-						</div>
-						<div className="text-center p-4 bg-muted/50 rounded-lg">
-							<div className="text-2xl font-bold">85%</div>
-							<div className="text-xs text-muted-foreground">Utilization</div>
-						</div>
-					</div>
+					<p className="text-sm text-muted-foreground text-center py-4">
+						No team members available for assignment suggestions.
+					</p>
 				</CardContent>
 			</Card>
-		</div>
-	);
-}
-
-function TaskGeneratorPlaceholder({ onClose }: { onClose: () => void }) {
-	return (
-		<div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-			<div className="bg-background rounded-lg p-6 max-w-lg w-full mx-4">
-				<div className="flex items-center justify-between mb-4">
-					<h2 className="text-lg font-semibold">Generate Tasks from RFP</h2>
-					<Button variant="ghost" size="sm" onClick={onClose}>
-						<X className="h-4 w-4" />
-					</Button>
-				</div>
-				<div className="space-y-4">
-					<div>
-						<label className="text-sm font-medium">Select Opportunity</label>
-						<Input placeholder="Choose an opportunity" className="mt-1" />
-					</div>
-					<div>
-						<label className="text-sm font-medium">Task Template</label>
-						<Select>
-							<SelectTrigger className="mt-1">
-								<SelectValue placeholder="Select template" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="standard">Standard Proposal</SelectItem>
-								<SelectItem value="idiq">IDIQ Response</SelectItem>
-								<SelectItem value="task_order">Task Order</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-				</div>
-				<div className="flex justify-end gap-2 mt-6">
-					<Button variant="outline" onClick={onClose}>Cancel</Button>
-					<Button>Generate Tasks</Button>
-				</div>
-			</div>
-		</div>
-	);
-}
-
-function TaskEditorPlaceholder({
-	taskId,
-	onClose,
-}: {
-	taskId?: string;
-	onClose: () => void;
-}) {
-	return (
-		<div className="p-6">
-			<div className="flex items-center justify-between mb-6">
-				<h2 className="text-lg font-semibold">
-					{taskId ? "Edit Task" : "New Task"}
-				</h2>
-				<Button variant="ghost" size="sm" onClick={onClose}>
-					<X className="h-4 w-4" />
-				</Button>
-			</div>
-			<div className="space-y-4">
-				<div>
-					<label className="text-sm font-medium">Title</label>
-					<Input placeholder="Enter task title" className="mt-1" />
-				</div>
-				<div>
-					<label className="text-sm font-medium">Description</label>
-					<textarea
-						className="w-full mt-1 p-2 border rounded-md text-sm"
-						rows={3}
-						placeholder="Enter task description..."
-					/>
-				</div>
-				<div className="grid grid-cols-2 gap-4">
-					<div>
-						<label className="text-sm font-medium">Assignee</label>
-						<Input placeholder="Select assignee" className="mt-1" />
-					</div>
-					<div>
-						<label className="text-sm font-medium">Due Date</label>
-						<Input type="date" className="mt-1" />
-					</div>
-				</div>
-				<div className="grid grid-cols-2 gap-4">
-					<div>
-						<label className="text-sm font-medium">Priority</label>
-						<Select>
-							<SelectTrigger className="mt-1">
-								<SelectValue placeholder="Select priority" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="high">High</SelectItem>
-								<SelectItem value="medium">Medium</SelectItem>
-								<SelectItem value="low">Low</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-					<div>
-						<label className="text-sm font-medium">Status</label>
-						<Select>
-							<SelectTrigger className="mt-1">
-								<SelectValue placeholder="Select status" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="todo">To Do</SelectItem>
-								<SelectItem value="in_progress">In Progress</SelectItem>
-								<SelectItem value="review">Review</SelectItem>
-								<SelectItem value="complete">Complete</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-				</div>
-			</div>
-			<div className="flex justify-end gap-2 mt-6">
-				<Button variant="outline" onClick={onClose}>Cancel</Button>
-				<Button>Save Task</Button>
-			</div>
-		</div>
-	);
-}
-
-function AssignmentSuggesterPlaceholder({ taskId }: { taskId: string }) {
-	const suggestions = [
-		{ name: "Sarah Johnson", score: 95, reason: "Past experience, available capacity" },
-		{ name: "Michael Chen", score: 82, reason: "Technical skills match" },
-		{ name: "Emily Rodriguez", score: 78, reason: "Similar tasks completed" },
-	];
+		);
+	}
 
 	return (
 		<Card>
@@ -928,20 +721,214 @@ function AssignmentSuggesterPlaceholder({ taskId }: { taskId: string }) {
 			</CardHeader>
 			<CardContent>
 				<div className="space-y-2">
-					{suggestions.map((suggestion) => (
+					{suggestions.slice(0, 3).map((suggestion) => (
 						<div
-							key={suggestion.name}
-							className="flex items-center justify-between p-2 bg-muted/50 rounded-lg"
+							key={suggestion.userId}
+							className="flex items-center justify-between p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+							onClick={() => onAssign(suggestion.userId, suggestion.userName, suggestion.userEmail)}
 						>
-							<div>
-								<p className="text-sm font-medium">{suggestion.name}</p>
-								<p className="text-xs text-muted-foreground">{suggestion.reason}</p>
+							<div className="flex-1">
+								<div className="flex items-center gap-2">
+									<p className="text-sm font-medium">{suggestion.userName}</p>
+									<Badge className={`text-xs ${getWorkloadColor(suggestion.workloadStatus)}`}>
+										{suggestion.workloadStatus}
+									</Badge>
+								</div>
+								<p className="text-xs text-muted-foreground mt-0.5">
+									{suggestion.reasons.slice(0, 2).join(", ")}
+								</p>
 							</div>
-							<Badge variant="secondary">{suggestion.score}% match</Badge>
+							<Badge variant="secondary">{Math.round(suggestion.matchScore)}% match</Badge>
 						</div>
 					))}
 				</div>
 			</CardContent>
 		</Card>
+	);
+}
+
+// Progress Report Dashboard
+function ProgressReportDashboard({ report }: { report: ProgressReport }) {
+	const { taskSummary, volumeProgress, teamPerformance, risks, recommendations } = report;
+	const isOnTrack = report.overallProgress >= 50 && taskSummary.overdue === 0;
+
+	return (
+		<div className="grid gap-6 md:grid-cols-2">
+			{/* Overall Progress */}
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base flex items-center gap-2">
+						<Target className="h-4 w-4" />
+						Overall Progress
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-4">
+						<div>
+							<div className="flex items-center justify-between mb-2">
+								<span className="text-2xl font-bold">{Math.round(report.overallProgress)}%</span>
+								<Badge variant={isOnTrack ? "default" : "destructive"}>
+									{isOnTrack ? "On Track" : "At Risk"}
+								</Badge>
+							</div>
+							<Progress value={report.overallProgress} className="h-2" />
+						</div>
+						<div className="grid grid-cols-3 gap-2 text-center">
+							<div className="p-2 bg-muted/50 rounded">
+								<div className="text-lg font-semibold text-green-600">{taskSummary.completed}</div>
+								<div className="text-xs text-muted-foreground">Completed</div>
+							</div>
+							<div className="p-2 bg-muted/50 rounded">
+								<div className="text-lg font-semibold text-blue-600">{taskSummary.inProgress}</div>
+								<div className="text-xs text-muted-foreground">In Progress</div>
+							</div>
+							<div className="p-2 bg-muted/50 rounded">
+								<div className="text-lg font-semibold text-yellow-600">{taskSummary.pending}</div>
+								<div className="text-xs text-muted-foreground">Pending</div>
+							</div>
+						</div>
+						{taskSummary.overdue > 0 && (
+							<div className="flex items-center gap-2 p-2 bg-red-50 dark:bg-red-900/20 rounded text-sm">
+								<AlertCircle className="h-4 w-4 text-red-600" />
+								<span className="text-red-700 dark:text-red-400">
+									{taskSummary.overdue} overdue task{taskSummary.overdue > 1 ? "s" : ""}
+								</span>
+							</div>
+						)}
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Volume Progress */}
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base flex items-center gap-2">
+						<TrendingUp className="h-4 w-4" />
+						Volume Progress
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
+						{volumeProgress.length > 0 ? volumeProgress.map((volume) => (
+							<div key={volume.volumeId} className="space-y-1">
+								<div className="flex items-center justify-between text-sm">
+									<span className="font-medium">{volume.volumeName}</span>
+									<span className="text-muted-foreground">
+										{volume.tasksCompleted}/{volume.tasksTotal} tasks
+									</span>
+								</div>
+								<Progress value={volume.progress} className="h-1.5" />
+							</div>
+						)) : (
+							<p className="text-sm text-muted-foreground text-center py-4">
+								No volume data available
+							</p>
+						)}
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Team Performance */}
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base flex items-center gap-2">
+						<Users className="h-4 w-4" />
+						Team Performance
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
+						{teamPerformance.length > 0 ? teamPerformance.slice(0, 5).map((member) => (
+							<div key={member.userId} className="flex items-center justify-between">
+								<div>
+									<p className="text-sm font-medium">{member.userName}</p>
+									<p className="text-xs text-muted-foreground">
+										{member.tasksCompleted}/{member.tasksAssigned} assigned
+									</p>
+								</div>
+								<Badge
+									variant={member.onTimeRate >= 90 ? "default" : member.onTimeRate >= 70 ? "secondary" : "destructive"}
+								>
+									{Math.round(member.onTimeRate)}% on-time
+								</Badge>
+							</div>
+						)) : (
+							<p className="text-sm text-muted-foreground text-center py-4">
+								No team performance data available
+							</p>
+						)}
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Risks & Recommendations */}
+			<Card>
+				<CardHeader>
+					<CardTitle className="text-base flex items-center gap-2">
+						<AlertTriangle className="h-4 w-4" />
+						Risks & Recommendations
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-4">
+						{risks.length > 0 ? (
+							<div>
+								<h4 className="text-sm font-medium mb-2 text-red-600">Risks</h4>
+								<ul className="space-y-1">
+									{risks.slice(0, 3).map((risk, idx) => (
+										<li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+											<AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+											{risk}
+										</li>
+									))}
+								</ul>
+							</div>
+						) : (
+							<div className="flex items-center gap-2 text-green-600">
+								<CheckSquare className="h-4 w-4" />
+								<span className="text-sm">No active risks</span>
+							</div>
+						)}
+						{recommendations.length > 0 && (
+							<div>
+								<h4 className="text-sm font-medium mb-2 text-blue-600">Recommendations</h4>
+								<ul className="space-y-1">
+									{recommendations.slice(0, 3).map((rec, idx) => (
+										<li key={idx} className="text-sm text-muted-foreground">
+											• {rec}
+										</li>
+									))}
+								</ul>
+							</div>
+						)}
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Summary Stats */}
+			<Card className="md:col-span-2">
+				<CardContent className="py-4">
+					<div className="flex items-center justify-around text-center">
+						<div>
+							<Clock className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
+							<p className="text-lg font-semibold">{taskSummary.blocked}</p>
+							<p className="text-xs text-muted-foreground">Blocked Tasks</p>
+						</div>
+						<div className="h-10 w-px bg-border" />
+						<div>
+							<Target className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
+							<p className="text-lg font-semibold">{report.reportDate}</p>
+							<p className="text-xs text-muted-foreground">Report Date</p>
+						</div>
+						<div className="h-10 w-px bg-border" />
+						<div>
+							<TrendingUp className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
+							<p className="text-lg font-semibold">{taskSummary.total}</p>
+							<p className="text-xs text-muted-foreground">Total Tasks</p>
+						</div>
+					</div>
+				</CardContent>
+			</Card>
+		</div>
 	);
 }

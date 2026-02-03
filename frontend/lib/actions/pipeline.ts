@@ -429,6 +429,42 @@ export async function getPipeline(opportunityId: string): Promise<ActionResult<C
 }
 
 /**
+ * List all pipelines with their related opportunities.
+ */
+export async function listPipelines(): Promise<ActionResult<{
+	pipelines: CapturePipeline[];
+	opportunities: Map<string, { title: string; organization: string; budgetNumeric: number | null; deadline: Date | null }>;
+}>> {
+	try {
+		const pipelinesWithOpps = await db
+			.select({
+				pipeline: capturePipeline,
+				opportunity: opportunities,
+			})
+			.from(capturePipeline)
+			.innerJoin(opportunities, eq(capturePipeline.opportunityId, opportunities.id))
+			.orderBy(desc(capturePipeline.updatedAt));
+
+		const pipelines = pipelinesWithOpps.map(p => p.pipeline);
+		const opportunitiesMap = new Map<string, { title: string; organization: string; budgetNumeric: number | null; deadline: Date | null }>();
+
+		for (const { pipeline, opportunity } of pipelinesWithOpps) {
+			opportunitiesMap.set(pipeline.id, {
+				title: opportunity.title,
+				organization: opportunity.organization ?? "",
+				budgetNumeric: opportunity.budgetNumeric,
+				deadline: opportunity.deadline,
+			});
+		}
+
+		return { success: true, data: { pipelines, opportunities: opportunitiesMap } };
+	} catch (error) {
+		console.error("[Pipeline] Error listing pipelines:", error);
+		return { success: false, error: error instanceof Error ? error.message : "Failed to list pipelines" };
+	}
+}
+
+/**
  * Update pipeline stage with history tracking.
  */
 export async function updatePipelineStage(

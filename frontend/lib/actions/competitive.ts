@@ -2390,3 +2390,241 @@ export async function getCompetitorIntelligenceSummary(): Promise<ActionResult<{
 		return { success: false, error: "Failed to get intelligence summary" };
 	}
 }
+
+// ============================================================================
+// Competitive Intelligence Import
+// ============================================================================
+
+/**
+ * Row data from the competitive intelligence Excel file.
+ */
+export interface CompetitiveIntelligenceRow {
+	id: number;
+	companyName: string;
+	country: string;
+	city: string;
+	foundedYear: number | null;
+	companyAge: number | null;
+	companyType: string | null;
+	primaryBusiness: string | null;
+	specialization: string | null;
+	website: string | null;
+	linkedIn: string | null;
+	email: string | null;
+	phone: string | null;
+	physicalAddress: string | null;
+	ceoFounder: string | null;
+	ctoTechLead: string | null;
+	keyManagement: string | null;
+	managementLinkedin: string | null;
+	teamSize: string | null;
+	engineerCount: string | null;
+	keyEngineers: string | null;
+	notableAlumni: string | null;
+	annualRevenue: string | null;
+	revenueRange: string | null;
+	fundingRaised: string | null;
+	investors: string | null;
+	productsServices: string | null;
+	technologyStack: string | null;
+	industriesServed: string | null;
+	notableClients: string | null;
+	recentContracts: string | null;
+	contractValues: string | null;
+	pursuingOpportunities: string | null;
+	partnerships: string | null;
+	certifications: string | null;
+	awards: string | null;
+	newsMentions: string | null;
+	recentNews: string | null;
+	socialMediaPresence: string | null;
+	competitivePositioning: string | null;
+	strengths: string | null;
+	weaknesses: string | null;
+	marketShare: string | null;
+	growthTrajectory: string | null;
+	threatLevel: string | null;
+	strategicNotes: string | null;
+	lastUpdated: string | null;
+}
+
+/**
+ * Parse a comma/semicolon-separated string into an array.
+ */
+function parseStringArray(value: string | null | undefined): string[] | null {
+	if (!value || value.trim() === "") return null;
+	// Split by comma or semicolon, trim whitespace, filter empty
+	return value.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 0);
+}
+
+/**
+ * Parse a date string (various formats) into a Date object.
+ */
+function parseDateString(value: string | null | undefined): string | null {
+	if (!value || value.trim() === "") return null;
+	// Expected format: "2026-02-02" or similar
+	try {
+		const date = new Date(value);
+		if (!isNaN(date.getTime())) {
+			return date.toISOString().split('T')[0]; // Return YYYY-MM-DD
+		}
+	} catch {
+		// Ignore parse errors
+	}
+	return null;
+}
+
+/**
+ * Import a single competitor from competitive intelligence data.
+ */
+export async function importCompetitorFromCI(
+	row: CompetitiveIntelligenceRow
+): Promise<ActionResult<Competitor>> {
+	try {
+		// Check if competitor already exists by external ID or name
+		const existing = await db
+			.select()
+			.from(competitors)
+			.where(
+				or(
+					eq(competitors.externalId, String(row.id)),
+					eq(competitors.name, row.companyName)
+				)
+			)
+			.limit(1);
+
+		const competitorData = {
+			name: row.companyName,
+			country: row.country,
+			city: row.city,
+			foundedYear: row.foundedYear,
+			companyAge: row.companyAge,
+			companyType: row.companyType,
+			primaryBusiness: row.primaryBusiness,
+			specialization: row.specialization,
+			website: row.website,
+			linkedIn: row.linkedIn,
+			email: row.email,
+			phone: row.phone,
+			physicalAddress: row.physicalAddress,
+			ceoFounder: row.ceoFounder,
+			ctoTechLead: row.ctoTechLead,
+			keyManagement: parseStringArray(row.keyManagement),
+			managementLinkedin: parseStringArray(row.managementLinkedin),
+			teamSize: row.teamSize,
+			engineerCount: row.engineerCount,
+			keyEngineers: parseStringArray(row.keyEngineers),
+			notableAlumni: parseStringArray(row.notableAlumni),
+			annualRevenue: row.annualRevenue,
+			revenueRange: row.revenueRange,
+			fundingRaised: row.fundingRaised,
+			investors: parseStringArray(row.investors),
+			productsServices: row.productsServices,
+			technologyStack: parseStringArray(row.technologyStack),
+			industriesServed: parseStringArray(row.industriesServed),
+			notableClients: parseStringArray(row.notableClients),
+			recentContracts: row.recentContracts,
+			contractValues: row.contractValues,
+			pursuingOpportunities: row.pursuingOpportunities,
+			partnerships: parseStringArray(row.partnerships),
+			certifications: parseStringArray(row.certifications),
+			awards: parseStringArray(row.awards),
+			newsMentions: parseStringArray(row.newsMentions),
+			recentNews: row.recentNews,
+			// socialMediaPresence is complex - store as JSON if needed
+			competitivePositioning: row.competitivePositioning,
+			strengths: parseStringArray(row.strengths),
+			weaknesses: parseStringArray(row.weaknesses),
+			marketShare: row.marketShare,
+			growthTrajectory: row.growthTrajectory,
+			threatLevel: row.threatLevel,
+			strategicNotes: row.strategicNotes,
+			lastUpdated: parseDateString(row.lastUpdated),
+			externalId: String(row.id),
+			dataSource: "East Africa CI Database 2026",
+			intelligenceQuality: "verified" as const,
+			updatedAt: new Date(),
+		};
+
+		if (existing.length > 0) {
+			// Update existing competitor
+			const [updated] = await db
+				.update(competitors)
+				.set(competitorData)
+				.where(eq(competitors.id, existing[0].id))
+				.returning();
+
+			return { success: true, data: updated };
+		} else {
+			// Insert new competitor
+			const [created] = await db
+				.insert(competitors)
+				.values({
+					...competitorData,
+					createdAt: new Date(),
+				})
+				.returning();
+
+			return { success: true, data: created };
+		}
+	} catch (error) {
+		console.error("[importCompetitorFromCI]", error);
+		return { success: false, error: `Failed to import competitor: ${row.companyName}` };
+	}
+}
+
+/**
+ * Bulk import competitive intelligence data from Excel row data.
+ */
+export async function bulkImportCompetitiveIntelligence(
+	rows: CompetitiveIntelligenceRow[]
+): Promise<ActionResult<{
+	total: number;
+	imported: number;
+	updated: number;
+	failed: number;
+	errors: string[];
+}>> {
+	const result = {
+		total: rows.length,
+		imported: 0,
+		updated: 0,
+		failed: 0,
+		errors: [] as string[],
+	};
+
+	for (const row of rows) {
+		try {
+			// Check if exists
+			const existing = await db
+				.select({ id: competitors.id })
+				.from(competitors)
+				.where(
+					or(
+						eq(competitors.externalId, String(row.id)),
+						eq(competitors.name, row.companyName)
+					)
+				)
+				.limit(1);
+
+			const importResult = await importCompetitorFromCI(row);
+
+			if (importResult.success) {
+				if (existing.length > 0) {
+					result.updated++;
+				} else {
+					result.imported++;
+				}
+			} else {
+				result.failed++;
+				result.errors.push(importResult.error);
+			}
+		} catch (error) {
+			result.failed++;
+			result.errors.push(`Error processing ${row.companyName}: ${String(error)}`);
+		}
+	}
+
+	revalidatePath("/competitive");
+	return { success: true, data: result };
+}
