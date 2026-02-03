@@ -45,6 +45,7 @@ import {
 	resolveComment,
 } from "@/lib/actions/reviews";
 import { getOpportunities } from "@/lib/actions/opportunities";
+import { useSession } from "@/lib/auth-client";
 
 // Types for state management
 interface Review {
@@ -99,6 +100,10 @@ interface ResolutionItem {
 }
 
 export default function ReviewsPage() {
+	// Auth session for current user
+	const { data: session } = useSession();
+	const currentUserId = session?.user?.id ?? null;
+
 	const [activeTab, setActiveTab] = useState("dashboard");
 	const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
 	const [showScheduler, setShowScheduler] = useState(false);
@@ -246,7 +251,7 @@ export default function ReviewsPage() {
 				resolutionStatus: statusMap[status] || "open",
 				resolutionNotes: notes,
 			},
-			"current-user" // TODO: Get from auth context
+			currentUserId ?? "anonymous"
 		);
 
 		if (result.success) {

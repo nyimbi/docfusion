@@ -30,7 +30,7 @@ import {
 	Loader2,
 } from "lucide-react";
 import { ProjectDatabase } from "@/components/past-performance/ProjectDatabase";
-import { searchProjects, deleteProject } from "@/lib/actions/past-performance";
+import { searchProjects, deleteProject, duplicateProject } from "@/lib/actions/past-performance";
 import type { Project } from "@/lib/db/schema-past-performance";
 
 export default function PastPerformancePage() {
@@ -74,8 +74,10 @@ export default function PastPerformancePage() {
 	};
 
 	const handleDuplicateProject = async (projectId: string) => {
-		// TODO: Implement duplicate
-		console.log("Duplicate project:", projectId);
+		const result = await duplicateProject(projectId);
+		if (result.success) {
+			fetchProjects();
+		}
 	};
 
 	return (

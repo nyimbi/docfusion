@@ -382,6 +382,70 @@ export async function deleteProject(id: string): Promise<ActionResult<void>> {
 }
 
 /**
+ * Duplicate a project
+ * Creates a copy of an existing project with "(Copy)" appended to the name
+ */
+export async function duplicateProject(id: string): Promise<ActionResult<Project>> {
+	try {
+		// Fetch the original project
+		const [originalProject] = await db
+			.select()
+			.from(projects)
+			.where(eq(projects.id, id))
+			.limit(1);
+
+		if (!originalProject) {
+			return { success: false, error: "Project not found" };
+		}
+
+		// Create a new project with copied values (excluding id and timestamps)
+		const [duplicatedProject] = await db
+			.insert(projects)
+			.values({
+				name: `${originalProject.name} (Copy)`,
+				contractNumber: originalProject.contractNumber,
+				taskOrderNumber: originalProject.taskOrderNumber,
+				customerName: originalProject.customerName,
+				customerAgency: originalProject.customerAgency,
+				customerPOC: originalProject.customerPOC,
+				customerPOCEmail: originalProject.customerPOCEmail,
+				customerPOCPhone: originalProject.customerPOCPhone,
+				contractType: originalProject.contractType,
+				contractValue: originalProject.contractValue,
+				periodOfPerformance: originalProject.periodOfPerformance,
+				description: originalProject.description,
+				scopeSummary: originalProject.scopeSummary,
+				technicalAreas: originalProject.technicalAreas,
+				naicsCode: originalProject.naicsCode,
+				peakStaffing: originalProject.peakStaffing,
+				keyPersonnel: originalProject.keyPersonnel,
+				cparRatings: originalProject.cparRatings,
+				keyAccomplishments: originalProject.keyAccomplishments,
+				quantifiedResults: originalProject.quantifiedResults,
+				challenges: originalProject.challenges,
+				awards: originalProject.awards,
+				securityLevel: originalProject.securityLevel,
+				primeOrSub: originalProject.primeOrSub,
+				primeContractorName: originalProject.primeContractorName,
+				subcontractValue: originalProject.subcontractValue,
+				referenceStatus: originalProject.referenceStatus ?? "available",
+				referenceNotes: originalProject.referenceNotes,
+				isActive: true,
+			})
+			.returning();
+
+		const newProject: Project = mapDBProjectToProject(duplicatedProject);
+
+		revalidatePath("/past-performance");
+
+		return { success: true, data: newProject };
+	} catch (error) {
+		console.error("Failed to duplicate project:", error);
+		return { success: false, error: "Failed to duplicate project" };
+	}
+}
+
+/**
  * Search projects with filters
  */
 export async function searchProjects(
