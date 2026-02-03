@@ -55,7 +55,7 @@ import {
 	UseTemplateWizard,
 } from "@/components/templates/UseTemplateWizard";
 import { TemplateRating } from "@/components/templates/TemplateRating";
-import { getTemplate, getTemplateCategories } from "@/lib/actions/templates";
+import { getTemplate, getTemplateCategories, duplicateTemplate } from "@/lib/actions/templates";
 import { toast } from "sonner";
 
 export default function TemplateDetailPage() {
@@ -129,25 +129,28 @@ export default function TemplateDetailPage() {
 		router.push(`/templates/${templateId}/edit`);
 	};
 
-	const handleDuplicate = () => {
-		if (template) {
-			// Copy template data to clipboard for creating new template
-			const templateData = JSON.stringify({
-				name: `${template.name} (Copy)`,
-				content: template.content,
-				categoryIds: template.categoryIds,
-				tags: template.tags,
-				description: template.description,
-			}, null, 2);
+	const handleDuplicate = async () => {
+		if (!template) return;
 
-			navigator.clipboard.writeText(templateData).then(() => {
-				toast.success("Template data copied to clipboard", {
-					description: "Create a new template and paste the configuration",
+		toast.loading("Duplicating template...");
+		try {
+			const duplicated = await duplicateTemplate(templateId);
+			toast.dismiss();
+			if (duplicated) {
+				toast.success("Template duplicated successfully", {
+					description: `Created "${duplicated.name}"`,
+					action: {
+						label: "View",
+						onClick: () => router.push(`/templates/${duplicated.id}`),
+					},
 				});
-			}).catch(() => {
-				toast.info("Template duplication coming soon", {
-					description: "This feature will allow you to create a copy of this template",
-				});
+			} else {
+				toast.error("Failed to duplicate template");
+			}
+		} catch (error) {
+			toast.dismiss();
+			toast.error("Failed to duplicate template", {
+				description: error instanceof Error ? error.message : "Unknown error",
 			});
 		}
 	};

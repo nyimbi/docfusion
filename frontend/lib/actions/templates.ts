@@ -624,3 +624,74 @@ export async function getAvailableTemplateVariables(): Promise<
 		})
 		.sort((a, b) => a.category.localeCompare(b.category) || a.label.localeCompare(b.label));
 }
+
+/**
+ * Duplicate an existing template.
+ * Creates a copy of the template with a new name and draft status.
+ */
+export async function duplicateTemplate(
+	templateId: string,
+	options?: { newName?: string; createdBy?: string }
+): Promise<Template | null> {
+	const original = await getTemplate(templateId);
+	if (!original) {
+		return null;
+	}
+
+	const newName = options?.newName || `${original.name} (Copy)`;
+	const createdBy = options?.createdBy || original.createdBy;
+
+	const [duplicated] = await db
+		.insert(templates)
+		.values({
+			name: newName,
+			description: original.description,
+			content: original.content,
+			status: "draft", // Always start as draft
+			visibility: "private", // Start as private
+			createdBy,
+			categoryIds: original.categoryIds,
+			tags: original.tags,
+			placeholders: original.placeholders,
+			aiInstructions: original.aiInstructions,
+			complianceRequirements: original.complianceRequirements,
+			previewImageUrl: original.previewImageUrl,
+			estimatedTime: original.estimatedTime,
+			difficulty: original.difficulty,
+			defaultMetadata: original.defaultMetadata,
+			// Reset usage stats for the copy
+			useCount: 0,
+			rating: null,
+			ratingCount: 0,
+		})
+		.returning();
+
+	if (!duplicated) {
+		return null;
+	}
+
+	// Return the full template structure
+	return {
+		id: duplicated.id,
+		name: duplicated.name,
+		description: duplicated.description,
+		content: duplicated.content as any,
+		status: duplicated.status as TemplateStatus,
+		visibility: duplicated.visibility as TemplateVisibility,
+		createdBy: duplicated.createdBy,
+		categoryIds: (duplicated.categoryIds as string[]) || [],
+		tags: (duplicated.tags as string[]) || [],
+		placeholders: (duplicated.placeholders as any[]) || [],
+		aiInstructions: (duplicated.aiInstructions as any[]) || [],
+		complianceRequirements: (duplicated.complianceRequirements as any[]) || [],
+		useCount: duplicated.useCount,
+		rating: duplicated.rating ?? undefined,
+		ratingCount: duplicated.ratingCount ?? undefined,
+		previewImageUrl: duplicated.previewImageUrl ?? undefined,
+		estimatedTime: duplicated.estimatedTime ?? undefined,
+		difficulty: duplicated.difficulty as "beginner" | "intermediate" | "advanced" | undefined,
+		createdAt: duplicated.createdAt.toISOString(),
+		updatedAt: duplicated.updatedAt.toISOString(),
+		defaultMetadata: duplicated.defaultMetadata as any,
+	};
+}
