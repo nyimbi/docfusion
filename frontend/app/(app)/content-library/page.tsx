@@ -25,6 +25,8 @@ import {
 	BarChart,
 } from "lucide-react";
 import { ContentLibraryBrowser } from "@/components/content-library/ContentLibraryBrowser";
+import { getContentLibraryStats, getSnippetsNeedingReview } from "@/lib/actions/content-library";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ContentLibraryPage() {
 	const [searchQuery, setSearchQuery] = React.useState("");
@@ -187,6 +189,65 @@ function CollectionsPlaceholder() {
 }
 
 function AnalyticsPlaceholder() {
+	const [stats, setStats] = React.useState<any>(null);
+	const [staleContent, setStaleContent] = React.useState<any[]>([]);
+	const [isLoading, setIsLoading] = React.useState(true);
+
+	React.useEffect(() => {
+		async function fetchAnalytics() {
+			setIsLoading(true);
+			try {
+				const [statsResult, staleResult] = await Promise.all([
+					getContentLibraryStats(),
+					getSnippetsNeedingReview(10),
+				]);
+				setStats(statsResult);
+				setStaleContent(staleResult);
+			} catch (error) {
+				console.error("Failed to fetch content analytics:", error);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchAnalytics();
+	}, []);
+
+	if (isLoading) {
+		return (
+			<div className="space-y-6">
+				<h2 className="text-lg font-medium">Content Analytics</h2>
+				<div className="grid grid-cols-4 gap-4">
+					{[1, 2, 3, 4].map((i) => (
+						<Card key={i}>
+							<CardHeader className="pb-2">
+								<Skeleton className="h-4 w-24" />
+								<Skeleton className="h-9 w-16 mt-1" />
+							</CardHeader>
+						</Card>
+					))}
+				</div>
+				<Card>
+					<CardHeader>
+						<Skeleton className="h-5 w-40" />
+					</CardHeader>
+					<CardContent>
+						<div className="space-y-3">
+							{[1, 2, 3].map((i) => (
+								<Skeleton key={i} className="h-5 w-full" />
+							))}
+						</div>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
+
+	const totalContent = (stats?.totalSnippets ?? 0) + (stats?.totalTemplates ?? 0);
+	const avgWinRate = stats?.snippetWinRateAvg ?? stats?.templateWinRateAvg ?? 0;
+	const reuseRate = stats?.totalUsages > 0 && totalContent > 0
+		? (stats.totalUsages / totalContent).toFixed(1)
+		: "0";
+
 	return (
 		<div className="space-y-6">
 			<h2 className="text-lg font-medium">Content Analytics</h2>
@@ -194,49 +255,88 @@ function AnalyticsPlaceholder() {
 				<Card>
 					<CardHeader className="pb-2">
 						<CardDescription>Total Content Blocks</CardDescription>
-						<CardTitle className="text-3xl">247</CardTitle>
+						<CardTitle className="text-3xl">{totalContent}</CardTitle>
 					</CardHeader>
 				</Card>
 				<Card>
 					<CardHeader className="pb-2">
 						<CardDescription>Avg Win Rate</CardDescription>
-						<CardTitle className="text-3xl text-green-600">68%</CardTitle>
+						<CardTitle className={`text-3xl ${avgWinRate >= 50 ? "text-green-600" : "text-amber-600"}`}>
+							{avgWinRate > 0 ? `${avgWinRate.toFixed(0)}%` : "N/A"}
+						</CardTitle>
 					</CardHeader>
 				</Card>
 				<Card>
 					<CardHeader className="pb-2">
 						<CardDescription>Reuse Rate</CardDescription>
-						<CardTitle className="text-3xl text-blue-600">4.2x</CardTitle>
+						<CardTitle className="text-3xl text-blue-600">{reuseRate}x</CardTitle>
 					</CardHeader>
 				</Card>
 				<Card>
 					<CardHeader className="pb-2">
-						<CardDescription>Stale Content</CardDescription>
-						<CardTitle className="text-3xl text-amber-600">23</CardTitle>
+						<CardDescription>Needs Review</CardDescription>
+						<CardTitle className="text-3xl text-amber-600">{staleContent.length}</CardTitle>
 					</CardHeader>
 				</Card>
 			</div>
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base">Top Performing Content</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-3">
-						<div className="flex items-center justify-between">
-							<span className="text-sm">Cloud Migration Methodology</span>
-							<span className="text-sm text-green-600">92% win rate</span>
+
+			<div className="grid grid-cols-2 gap-6">
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base">Content Breakdown</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="space-y-3">
+							<div className="flex items-center justify-between">
+								<span className="text-sm">Snippets</span>
+								<span className="text-sm font-medium">{stats?.totalSnippets ?? 0}</span>
+							</div>
+							<div className="flex items-center justify-between">
+								<span className="text-sm">Templates</span>
+								<span className="text-sm font-medium">{stats?.totalTemplates ?? 0}</span>
+							</div>
+							<div className="flex items-center justify-between">
+								<span className="text-sm">Partials</span>
+								<span className="text-sm font-medium">{stats?.totalPartials ?? 0}</span>
+							</div>
+							<div className="flex items-center justify-between pt-2 border-t">
+								<span className="text-sm">Total Usages (30d)</span>
+								<span className="text-sm font-medium text-blue-600">{stats?.monthlyUsages ?? 0}</span>
+							</div>
 						</div>
-						<div className="flex items-center justify-between">
-							<span className="text-sm">Agile Development Approach</span>
-							<span className="text-sm text-green-600">87% win rate</span>
-						</div>
-						<div className="flex items-center justify-between">
-							<span className="text-sm">24/7 Support Capability</span>
-							<span className="text-sm text-green-600">85% win rate</span>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base flex items-center gap-2">
+							<Clock className="h-4 w-4 text-amber-500" />
+							Content Needing Review
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						{staleContent.length > 0 ? (
+							<div className="space-y-3">
+								{staleContent.slice(0, 5).map((item: any) => (
+									<div key={item.id} className="flex items-center justify-between">
+										<span className="text-sm truncate max-w-[200px]">{item.title ?? item.name}</span>
+										<span className="text-xs text-amber-600">{item.freshnessStatus ?? "review"}</span>
+									</div>
+								))}
+								{staleContent.length > 5 && (
+									<p className="text-xs text-muted-foreground">
+										+{staleContent.length - 5} more items need review
+									</p>
+								)}
+							</div>
+						) : (
+							<p className="text-sm text-muted-foreground">
+								All content is up to date!
+							</p>
+						)}
+					</CardContent>
+				</Card>
+			</div>
 		</div>
 	);
 }
