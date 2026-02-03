@@ -43,6 +43,7 @@ import {
 	getReview,
 	getReviewComments,
 	resolveComment,
+	updateComment,
 } from "@/lib/actions/reviews";
 import { getOpportunities } from "@/lib/actions/opportunities";
 import { useSession } from "@/lib/auth-client";
@@ -107,6 +108,7 @@ export default function ReviewsPage() {
 	const [activeTab, setActiveTab] = useState("dashboard");
 	const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
 	const [showScheduler, setShowScheduler] = useState(false);
+	const [editingComment, setEditingComment] = useState<Comment | null>(null);
 	const [isPending, startTransition] = useTransition();
 
 	// Data state
@@ -263,7 +265,43 @@ export default function ReviewsPage() {
 				}
 			}
 		}
-	}, [selectedReviewId]);
+	}, [selectedReviewId, currentUserId]);
+
+	// Handle editing a comment
+	const handleEditComment = useCallback((commentId: string) => {
+		const comment = comments.find(c => c.id === commentId);
+		if (comment) {
+			setEditingComment(comment);
+		}
+	}, [comments]);
+
+	// Handle saving edited comment
+	const handleSaveEditedComment = useCallback(async (data: {
+		comment: string;
+		severity: string;
+		category: string;
+		tags: string[];
+	}) => {
+		if (!editingComment) return;
+
+		const result = await updateComment(editingComment.id, {
+			comment: data.comment,
+			severity: data.severity as "critical" | "major" | "minor" | "editorial",
+			category: data.category,
+			tags: data.tags,
+		});
+
+		if (result.success) {
+			setEditingComment(null);
+			// Refresh comments
+			if (selectedReviewId) {
+				const commentsResult = await getReviewComments(selectedReviewId);
+				if (commentsResult.success && commentsResult.comments) {
+					setComments(commentsResult.comments as Comment[]);
+				}
+			}
+		}
+	}, [editingComment, selectedReviewId]);
 
 	// Transform comments to resolution items
 	const resolutionItems: ResolutionItem[] = comments
@@ -481,7 +519,7 @@ export default function ReviewsPage() {
 											createdAt: new Date().toISOString(),
 										};
 									})}
-									onEditComment={(id) => console.log("Edit comment", id)}
+									onEditComment={handleEditComment}
 									onResolveComment={(id) => handleResolutionUpdate(id, "resolved")}
 								/>
 							) : (
@@ -542,6 +580,27 @@ export default function ReviewsPage() {
 						review={selectedReview}
 						onClose={() => setSelectedReviewId(null)}
 					/>
+				</div>
+			)}
+
+			{/* Edit Comment Modal */}
+			{editingComment && (
+				<div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+					<div className="bg-background rounded-lg max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+						<div className="p-6">
+							<div className="flex items-center justify-between mb-4">
+								<h2 className="text-lg font-semibold">Edit Comment</h2>
+								<Button variant="ghost" size="sm" onClick={() => setEditingComment(null)}>
+									<X className="h-4 w-4" />
+								</Button>
+							</div>
+							<CommentEditForm
+								comment={editingComment}
+								onSave={handleSaveEditedComment}
+								onCancel={() => setEditingComment(null)}
+							/>
+						</div>
+					</div>
 				</div>
 			)}
 		</div>
@@ -936,6 +995,96 @@ function ReviewDetailPanel({ review, onClose }: { review: any; onClose: () => vo
 						Generate Report
 					</Button>
 				</div>
+			</div>
+		</div>
+	);
+}
+
+function CommentEditForm({
+	comment,
+	onSave,
+	onCancel,
+}: {
+	comment: Comment;
+	onSave: (data: { comment: string; severity: string; category: string; tags: string[] }) => void;
+	onCancel: () => void;
+}) {
+	const [text, setText] = useState(comment.comment);
+	const [severity, setSeverity] = useState(comment.severity);
+	const [category, setCategory] = useState(comment.category);
+	const [tagsInput, setTagsInput] = useState((comment.tags || []).join(", "));
+	const [isSaving, setIsSaving] = useState(false);
+
+	const handleSave = async () => {
+		setIsSaving(true);
+		const tags = tagsInput.split(",").map(t => t.trim()).filter(t => t.length > 0);
+		await onSave({ comment: text, severity, category, tags });
+		setIsSaving(false);
+	};
+
+	return (
+		<div className="space-y-4">
+			<div>
+				<label className="text-sm font-medium block mb-1">Comment</label>
+				<textarea
+					value={text}
+					onChange={(e) => setText(e.target.value)}
+					className="w-full min-h-[120px] p-3 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+					placeholder="Enter comment text..."
+				/>
+			</div>
+
+			<div className="grid grid-cols-2 gap-4">
+				<div>
+					<label className="text-sm font-medium block mb-1">Severity</label>
+					<Select value={severity} onValueChange={setSeverity}>
+						<SelectTrigger>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="critical">Critical</SelectItem>
+							<SelectItem value="major">Major</SelectItem>
+							<SelectItem value="minor">Minor</SelectItem>
+							<SelectItem value="editorial">Editorial</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+				<div>
+					<label className="text-sm font-medium block mb-1">Category</label>
+					<Select value={category} onValueChange={setCategory}>
+						<SelectTrigger>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="technical">Technical</SelectItem>
+							<SelectItem value="management">Management</SelectItem>
+							<SelectItem value="past_performance">Past Performance</SelectItem>
+							<SelectItem value="cost">Cost/Price</SelectItem>
+							<SelectItem value="compliance">Compliance</SelectItem>
+							<SelectItem value="other">Other</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+			</div>
+
+			<div>
+				<label className="text-sm font-medium block mb-1">Tags (comma-separated)</label>
+				<input
+					type="text"
+					value={tagsInput}
+					onChange={(e) => setTagsInput(e.target.value)}
+					className="w-full p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+					placeholder="e.g., pricing, scope, team"
+				/>
+			</div>
+
+			<div className="flex items-center justify-end gap-2 pt-4 border-t">
+				<Button variant="outline" onClick={onCancel} disabled={isSaving}>
+					Cancel
+				</Button>
+				<Button onClick={handleSave} disabled={isSaving || !text.trim()}>
+					{isSaving ? "Saving..." : "Save Changes"}
+				</Button>
 			</div>
 		</div>
 	);
