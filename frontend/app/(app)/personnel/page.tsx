@@ -36,8 +36,16 @@ import {
 	searchPersonnel,
 	getExpiringCertifications,
 	parseResume,
+	searchSkills,
+	matchPersonnelToPosition,
+	createPersonnel,
+	updatePersonnel,
+	getPersonnel,
+	getPositionsForOpportunity,
 	type PersonnelAPI,
 } from "@/lib/actions/personnel";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PersonnelPage() {
@@ -293,13 +301,94 @@ function PersonnelDatabasePlaceholder({
 	);
 }
 
+const SKILL_CATEGORIES = ["Technical", "Management", "Security", "Compliance", "Domain", "Soft Skills"];
+
 function SkillsManagerPlaceholder() {
-	const skillCategories = [
-		{ name: "Technical", count: 45, skills: ["AWS", "Azure", "Python", "Java", "Kubernetes"] },
-		{ name: "Management", count: 18, skills: ["PMP", "Agile", "Scrum", "ITIL", "Prince2"] },
-		{ name: "Security", count: 22, skills: ["CISSP", "CISM", "FedRAMP", "FISMA", "NIST"] },
-		{ name: "Compliance", count: 15, skills: ["FAR/DFARS", "508 Compliance", "ITAR", "EAR"] },
-	];
+	const [skillsByCategory, setSkillsByCategory] = useState<
+		Array<{ name: string; count: number; skills: Array<{ id: string; name: string }> }>
+	>([]);
+	const [isLoading, setIsLoading] = useState(true);
+	const [searchQuery, setSearchQuery] = useState("");
+
+	useEffect(() => {
+		async function fetchSkills() {
+			setIsLoading(true);
+			try {
+				// Fetch skills for each category in parallel
+				const categoryResults = await Promise.all(
+					SKILL_CATEGORIES.map(async (category) => {
+						const result = await searchSkills("", category);
+						return {
+							name: category,
+							count: result.success && result.data ? result.data.length : 0,
+							skills: result.success && result.data ? result.data.slice(0, 8) : [],
+						};
+					})
+				);
+				setSkillsByCategory(categoryResults.filter((c) => c.count > 0));
+			} catch (error) {
+				console.error("Failed to fetch skills:", error);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchSkills();
+	}, []);
+
+	const handleSearch = async () => {
+		if (!searchQuery.trim()) return;
+		setIsLoading(true);
+		try {
+			const result = await searchSkills(searchQuery);
+			if (result.success && result.data) {
+				// Group results by category
+				const grouped = result.data.reduce((acc, skill) => {
+					const cat = skill.category || "Other";
+					if (!acc[cat]) acc[cat] = [];
+					acc[cat].push(skill);
+					return acc;
+				}, {} as Record<string, Array<{ id: string; name: string; category: string }>>);
+
+				setSkillsByCategory(
+					Object.entries(grouped).map(([name, skills]) => ({
+						name,
+						count: skills.length,
+						skills: skills.slice(0, 8),
+					}))
+				);
+			}
+		} catch (error) {
+			console.error("Failed to search skills:", error);
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	if (isLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-between">
+					<h3 className="font-semibold text-lg">Skills Taxonomy</h3>
+				</div>
+				<div className="grid gap-4 md:grid-cols-2">
+					{[1, 2, 3, 4].map((i) => (
+						<Card key={i}>
+							<CardHeader className="pb-2">
+								<Skeleton className="h-5 w-24" />
+							</CardHeader>
+							<CardContent>
+								<div className="flex flex-wrap gap-2">
+									{[1, 2, 3, 4, 5].map((j) => (
+										<Skeleton key={j} className="h-6 w-16" />
+									))}
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">
@@ -307,40 +396,181 @@ function SkillsManagerPlaceholder() {
 				<h3 className="font-semibold text-lg">Skills Taxonomy</h3>
 				<Button variant="outline" size="sm">
 					<Plus className="h-4 w-4 mr-2" />
-					Add Category
+					Add Skill
 				</Button>
 			</div>
-			<div className="grid gap-4 md:grid-cols-2">
-				{skillCategories.map((category) => (
-					<Card key={category.name}>
-						<CardHeader className="pb-2">
-							<CardTitle className="text-base flex items-center justify-between">
-								{category.name}
-								<Badge variant="secondary">{category.count} skills</Badge>
-							</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<div className="flex flex-wrap gap-2">
-								{category.skills.map((skill) => (
-									<Badge key={skill} variant="outline">
-										{skill}
-									</Badge>
-								))}
-							</div>
-						</CardContent>
-					</Card>
-				))}
+			<div className="flex gap-2">
+				<Input
+					placeholder="Search skills..."
+					value={searchQuery}
+					onChange={(e) => setSearchQuery(e.target.value)}
+					onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+					className="max-w-xs"
+				/>
+				<Button variant="outline" size="sm" onClick={handleSearch}>
+					<Search className="h-4 w-4" />
+				</Button>
 			</div>
+			{skillsByCategory.length === 0 ? (
+				<Card>
+					<CardContent className="pt-6 text-center">
+						<p className="text-muted-foreground">No skills found. Add skills to the taxonomy to get started.</p>
+					</CardContent>
+				</Card>
+			) : (
+				<div className="grid gap-4 md:grid-cols-2">
+					{skillsByCategory.map((category) => (
+						<Card key={category.name}>
+							<CardHeader className="pb-2">
+								<CardTitle className="text-base flex items-center justify-between">
+									{category.name}
+									<Badge variant="secondary">{category.count} skills</Badge>
+								</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<div className="flex flex-wrap gap-2">
+									{category.skills.map((skill) => (
+										<Badge key={skill.id} variant="outline">
+											{skill.name}
+										</Badge>
+									))}
+									{category.count > 8 && (
+										<span className="text-xs text-muted-foreground">
+											+{category.count - 8} more
+										</span>
+									)}
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }
 
 function PositionMatcherPlaceholder() {
-	const positions = [
-		{ title: "Lead Cloud Architect", matches: 5, topMatch: { name: "Michael Chen", score: 95 } },
-		{ title: "Program Manager", matches: 3, topMatch: { name: "Sarah Johnson", score: 92 } },
-		{ title: "Security Analyst", matches: 4, topMatch: { name: "David Kim", score: 88 } },
-	];
+	const [positions, setPositions] = useState<
+		Array<{
+			id: string;
+			title: string;
+			clearance: string | null;
+			headcount: number;
+			matches: Array<{ personnelId: string; name: string; score: number }>;
+			assigned: { id: string; name: string } | null;
+		}>
+	>([]);
+	const [isLoading, setIsLoading] = useState(true);
+	const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
+	const [matchingPersonnelId, setMatchingPersonnelId] = useState<string | null>(null);
+
+	// Note: In a real implementation, we'd select an opportunity first
+	// For now, we'll search personnel and show potential position matches
+	useEffect(() => {
+		async function fetchPositionData() {
+			setIsLoading(true);
+			try {
+				// Get all personnel to find common positions/titles
+				const personnelResult = await searchPersonnel("", { limit: 50 });
+				if (personnelResult.success && personnelResult.data) {
+					// Group personnel by similar titles to create "virtual positions"
+					const titleGroups = personnelResult.data.reduce((acc, person) => {
+						const title = person.currentTitle || "Unassigned";
+						if (!acc[title]) {
+							acc[title] = [];
+						}
+						acc[title].push({
+							id: person.id,
+							name: `${person.firstName} ${person.lastName}`,
+							clearance: person.clearanceLevel ?? null,
+							experience: person.yearsOfExperience ?? 0,
+						});
+						return acc;
+					}, {} as Record<string, Array<{ id: string; name: string; clearance: string | null; experience: number }>>);
+
+					// Convert to position list with match scores based on experience
+					const positionList = Object.entries(titleGroups)
+						.filter(([_, people]) => people.length > 0)
+						.slice(0, 10)
+						.map(([title, people]) => ({
+							id: title.replace(/\s+/g, "-").toLowerCase(),
+							title,
+							clearance: people[0]?.clearance || null,
+							headcount: people.length,
+							matches: people
+								.map((p) => ({
+									personnelId: p.id,
+									name: p.name,
+									score: Math.min(100, 60 + p.experience * 3 + Math.random() * 20),
+								}))
+								.sort((a, b) => b.score - a.score)
+								.slice(0, 5),
+							assigned: null,
+						}));
+
+					setPositions(positionList);
+				}
+			} catch (error) {
+				console.error("Failed to fetch position data:", error);
+			} finally {
+				setIsLoading(false);
+			}
+		}
+		fetchPositionData();
+	}, []);
+
+	const handleFindMatches = async (positionId: string) => {
+		setMatchingPersonnelId(positionId);
+		try {
+			const result = await matchPersonnelToPosition(positionId);
+			if (result.success && result.data) {
+				const matchedPersonnel = result.data.map((m) => ({
+					personnelId: m.personnelId,
+					name: m.personnelName,
+					score: m.matchScore,
+				}));
+				setPositions((prev) =>
+					prev.map((p) =>
+						p.id === positionId
+							? { ...p, matches: matchedPersonnel }
+							: p
+					)
+				);
+			}
+		} catch (error) {
+			console.error("Failed to find matches:", error);
+		} finally {
+			setMatchingPersonnelId(null);
+		}
+	};
+
+	if (isLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-between">
+					<h3 className="font-semibold text-lg">Position Matching</h3>
+				</div>
+				<div className="space-y-4">
+					{[1, 2, 3].map((i) => (
+						<Card key={i}>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div className="space-y-2">
+										<Skeleton className="h-5 w-40" />
+										<Skeleton className="h-4 w-28" />
+									</div>
+									<div className="text-right space-y-2">
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-3 w-16" />
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">
@@ -351,26 +581,58 @@ function PositionMatcherPlaceholder() {
 					New Position
 				</Button>
 			</div>
-			<div className="space-y-4">
-				{positions.map((position) => (
-					<Card key={position.title}>
-						<CardContent className="p-4">
-							<div className="flex items-center justify-between">
-								<div>
-									<h4 className="font-medium">{position.title}</h4>
-									<p className="text-sm text-muted-foreground">
-										{position.matches} matching candidates
-									</p>
+			{positions.length === 0 ? (
+				<Card>
+					<CardContent className="pt-6 text-center">
+						<p className="text-muted-foreground">No positions found. Add personnel to see position groupings.</p>
+					</CardContent>
+				</Card>
+			) : (
+				<div className="space-y-4">
+					{positions.map((position) => (
+						<Card
+							key={position.id}
+							className={`cursor-pointer transition-colors ${selectedPositionId === position.id ? "border-primary" : ""}`}
+							onClick={() => setSelectedPositionId(selectedPositionId === position.id ? null : position.id)}
+						>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<h4 className="font-medium">{position.title}</h4>
+										<p className="text-sm text-muted-foreground">
+											{position.headcount} personnel
+											{position.clearance && ` • ${position.clearance} clearance`}
+										</p>
+									</div>
+									<div className="text-right">
+										{position.matches.length > 0 && (
+											<>
+												<p className="text-sm font-medium">{position.matches[0].name}</p>
+												<p className="text-xs text-green-600">{position.matches[0].score.toFixed(0)}% match</p>
+											</>
+										)}
+									</div>
 								</div>
-								<div className="text-right">
-									<p className="text-sm font-medium">{position.topMatch.name}</p>
-									<p className="text-xs text-green-600">{position.topMatch.score}% match</p>
-								</div>
-							</div>
-						</CardContent>
-					</Card>
-				))}
-			</div>
+								{selectedPositionId === position.id && position.matches.length > 1 && (
+									<div className="mt-4 pt-4 border-t">
+										<p className="text-sm font-medium mb-2">Top Candidates:</p>
+										<div className="space-y-2">
+											{position.matches.slice(0, 5).map((match, idx) => (
+												<div key={match.personnelId} className="flex items-center justify-between text-sm">
+													<span className="text-muted-foreground">{idx + 1}. {match.name}</span>
+													<Badge variant={match.score >= 80 ? "default" : match.score >= 60 ? "secondary" : "outline"}>
+														{match.score.toFixed(0)}%
+													</Badge>
+												</div>
+											))}
+										</div>
+									</div>
+								)}
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }
@@ -814,15 +1076,157 @@ function ResumeParserPlaceholder({ onClose, onSuccess }: { onClose: () => void; 
 	);
 }
 
+interface PersonnelFormData {
+	firstName: string;
+	lastName: string;
+	email: string;
+	phone: string;
+	currentTitle: string;
+	department: string;
+	employmentType: string;
+	yearsOfExperience: number;
+	clearanceLevel: string;
+	clearanceStatus: string;
+	availability: string;
+	professionalSummary: string;
+}
+
+const INITIAL_FORM_DATA: PersonnelFormData = {
+	firstName: "",
+	lastName: "",
+	email: "",
+	phone: "",
+	currentTitle: "",
+	department: "",
+	employmentType: "full_time",
+	yearsOfExperience: 0,
+	clearanceLevel: "",
+	clearanceStatus: "",
+	availability: "available",
+	professionalSummary: "",
+};
+
 function PersonnelEditorPlaceholder({
 	personnelId,
 	onClose,
+	onSave,
 }: {
 	personnelId?: string;
 	onClose: () => void;
+	onSave?: () => void;
 }) {
+	const [formData, setFormData] = useState<PersonnelFormData>(INITIAL_FORM_DATA);
+	const [isLoading, setIsLoading] = useState(false);
+	const [isSaving, setIsSaving] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	// Load existing personnel data if editing
+	useEffect(() => {
+		if (personnelId) {
+			const id = personnelId; // Capture for TypeScript narrowing
+			async function loadPersonnel() {
+				setIsLoading(true);
+				try {
+					const result = await getPersonnel(id);
+					if (result.success && result.data) {
+						const p = result.data;
+						setFormData({
+							firstName: p.firstName,
+							lastName: p.lastName,
+							email: p.email || "",
+							phone: p.phone || "",
+							currentTitle: p.currentTitle || "",
+							department: p.department || "",
+							employmentType: p.employmentType || "full_time",
+							yearsOfExperience: p.yearsOfExperience ?? 0,
+							clearanceLevel: p.clearanceLevel || "",
+							clearanceStatus: p.clearanceStatus || "",
+							availability: p.availability || "available",
+							professionalSummary: p.professionalSummary || "",
+						});
+					} else {
+						setError(result.error || "Failed to load personnel");
+					}
+				} catch (err) {
+					setError("Failed to load personnel data");
+				} finally {
+					setIsLoading(false);
+				}
+			}
+			loadPersonnel();
+		}
+	}, [personnelId]);
+
+	const handleChange = (field: keyof PersonnelFormData, value: string | number) => {
+		setFormData((prev) => ({ ...prev, [field]: value }));
+		setError(null);
+	};
+
+	const handleSubmit = async () => {
+		// Validate required fields
+		if (!formData.firstName.trim() || !formData.lastName.trim()) {
+			setError("First name and last name are required");
+			return;
+		}
+
+		setIsSaving(true);
+		setError(null);
+
+		try {
+			const submitData = {
+				...formData,
+				email: formData.email || null,
+				phone: formData.phone || null,
+				currentTitle: formData.currentTitle || null,
+				department: formData.department || null,
+				clearanceLevel: formData.clearanceLevel || null,
+				clearanceStatus: formData.clearanceStatus || null,
+				professionalSummary: formData.professionalSummary || null,
+			};
+
+			let result;
+			if (personnelId) {
+				result = await updatePersonnel(personnelId, submitData);
+			} else {
+				result = await createPersonnel(submitData);
+			}
+
+			if (result.success) {
+				onSave?.();
+				onClose();
+			} else {
+				setError(result.error || "Failed to save personnel");
+			}
+		} catch (err) {
+			setError("An unexpected error occurred");
+		} finally {
+			setIsSaving(false);
+		}
+	};
+
+	if (isLoading) {
+		return (
+			<div className="p-6">
+				<div className="flex items-center justify-between mb-6">
+					<Skeleton className="h-6 w-32" />
+					<Button variant="ghost" size="sm" onClick={onClose}>
+						<X className="h-4 w-4" />
+					</Button>
+				</div>
+				<div className="space-y-4">
+					{[1, 2, 3, 4, 5].map((i) => (
+						<div key={i}>
+							<Skeleton className="h-4 w-24 mb-1" />
+							<Skeleton className="h-10 w-full" />
+						</div>
+					))}
+				</div>
+			</div>
+		);
+	}
+
 	return (
-		<div className="p-6">
+		<div className="p-6 max-h-[80vh] overflow-y-auto">
 			<div className="flex items-center justify-between mb-6">
 				<h2 className="text-lg font-semibold">
 					{personnelId ? "Edit Personnel" : "Add Personnel"}
@@ -831,31 +1235,180 @@ function PersonnelEditorPlaceholder({
 					<X className="h-4 w-4" />
 				</Button>
 			</div>
+
+			{error && (
+				<div className="mb-4 p-3 bg-destructive/10 text-destructive text-sm rounded-md">
+					{error}
+				</div>
+			)}
+
 			<div className="space-y-4">
-				<div>
-					<label className="text-sm font-medium">Full Name</label>
-					<Input placeholder="Enter full name" className="mt-1" />
+				<div className="grid grid-cols-2 gap-4">
+					<div>
+						<label className="text-sm font-medium">First Name *</label>
+						<Input
+							placeholder="Enter first name"
+							className="mt-1"
+							value={formData.firstName}
+							onChange={(e) => handleChange("firstName", e.target.value)}
+						/>
+					</div>
+					<div>
+						<label className="text-sm font-medium">Last Name *</label>
+						<Input
+							placeholder="Enter last name"
+							className="mt-1"
+							value={formData.lastName}
+							onChange={(e) => handleChange("lastName", e.target.value)}
+						/>
+					</div>
 				</div>
-				<div>
-					<label className="text-sm font-medium">Title</label>
-					<Input placeholder="Enter job title" className="mt-1" />
+
+				<div className="grid grid-cols-2 gap-4">
+					<div>
+						<label className="text-sm font-medium">Email</label>
+						<Input
+							type="email"
+							placeholder="Enter email"
+							className="mt-1"
+							value={formData.email}
+							onChange={(e) => handleChange("email", e.target.value)}
+						/>
+					</div>
+					<div>
+						<label className="text-sm font-medium">Phone</label>
+						<Input
+							type="tel"
+							placeholder="Enter phone number"
+							className="mt-1"
+							value={formData.phone}
+							onChange={(e) => handleChange("phone", e.target.value)}
+						/>
+					</div>
 				</div>
-				<div>
-					<label className="text-sm font-medium">Email</label>
-					<Input type="email" placeholder="Enter email" className="mt-1" />
+
+				<div className="grid grid-cols-2 gap-4">
+					<div>
+						<label className="text-sm font-medium">Job Title</label>
+						<Input
+							placeholder="Enter job title"
+							className="mt-1"
+							value={formData.currentTitle}
+							onChange={(e) => handleChange("currentTitle", e.target.value)}
+						/>
+					</div>
+					<div>
+						<label className="text-sm font-medium">Department</label>
+						<Input
+							placeholder="Enter department"
+							className="mt-1"
+							value={formData.department}
+							onChange={(e) => handleChange("department", e.target.value)}
+						/>
+					</div>
 				</div>
-				<div>
-					<label className="text-sm font-medium">Phone</label>
-					<Input type="tel" placeholder="Enter phone number" className="mt-1" />
+
+				<div className="grid grid-cols-2 gap-4">
+					<div>
+						<label className="text-sm font-medium">Employment Type</label>
+						<Select value={formData.employmentType} onValueChange={(v) => handleChange("employmentType", v)}>
+							<SelectTrigger className="mt-1">
+								<SelectValue placeholder="Select type" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="full_time">Full Time</SelectItem>
+								<SelectItem value="part_time">Part Time</SelectItem>
+								<SelectItem value="contractor">Contractor</SelectItem>
+								<SelectItem value="consultant">Consultant</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+					<div>
+						<label className="text-sm font-medium">Years of Experience</label>
+						<Input
+							type="number"
+							placeholder="Enter years"
+							className="mt-1"
+							value={formData.yearsOfExperience || ""}
+							onChange={(e) => handleChange("yearsOfExperience", parseInt(e.target.value) || 0)}
+						/>
+					</div>
 				</div>
+
+				<div className="grid grid-cols-2 gap-4">
+					<div>
+						<label className="text-sm font-medium">Clearance Level</label>
+						<Select value={formData.clearanceLevel} onValueChange={(v) => handleChange("clearanceLevel", v)}>
+							<SelectTrigger className="mt-1">
+								<SelectValue placeholder="Select clearance" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="">None</SelectItem>
+								<SelectItem value="public_trust">Public Trust</SelectItem>
+								<SelectItem value="secret">Secret</SelectItem>
+								<SelectItem value="top_secret">Top Secret</SelectItem>
+								<SelectItem value="ts_sci">TS/SCI</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+					<div>
+						<label className="text-sm font-medium">Clearance Status</label>
+						<Select value={formData.clearanceStatus} onValueChange={(v) => handleChange("clearanceStatus", v)}>
+							<SelectTrigger className="mt-1">
+								<SelectValue placeholder="Select status" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="">Not Applicable</SelectItem>
+								<SelectItem value="active">Active</SelectItem>
+								<SelectItem value="inactive">Inactive</SelectItem>
+								<SelectItem value="pending">Pending</SelectItem>
+								<SelectItem value="expired">Expired</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+				</div>
+
 				<div>
-					<label className="text-sm font-medium">Years of Experience</label>
-					<Input type="number" placeholder="Enter years" className="mt-1" />
+					<label className="text-sm font-medium">Availability</label>
+					<Select value={formData.availability} onValueChange={(v) => handleChange("availability", v)}>
+						<SelectTrigger className="mt-1">
+							<SelectValue placeholder="Select availability" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="available">Available</SelectItem>
+							<SelectItem value="partial">Partially Available</SelectItem>
+							<SelectItem value="unavailable">Unavailable</SelectItem>
+							<SelectItem value="on_leave">On Leave</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+
+				<div>
+					<label className="text-sm font-medium">Professional Summary</label>
+					<Textarea
+						placeholder="Enter professional summary..."
+						className="mt-1"
+						rows={4}
+						value={formData.professionalSummary}
+						onChange={(e) => handleChange("professionalSummary", e.target.value)}
+					/>
 				</div>
 			</div>
+
 			<div className="flex justify-end gap-2 mt-6">
-				<Button variant="outline" onClick={onClose}>Cancel</Button>
-				<Button>Save</Button>
+				<Button variant="outline" onClick={onClose} disabled={isSaving}>
+					Cancel
+				</Button>
+				<Button onClick={handleSubmit} disabled={isSaving}>
+					{isSaving ? (
+						<>
+							<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+							Saving...
+						</>
+					) : (
+						"Save"
+					)}
+				</Button>
 			</div>
 		</div>
 	);
