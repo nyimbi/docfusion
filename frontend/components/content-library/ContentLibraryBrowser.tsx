@@ -41,6 +41,7 @@ import {
 import { ContentSnippetCard, type ContentSnippet } from "./ContentSnippetCard";
 import { useToast } from "@/lib/hooks/use-toast";
 import type { ContentType, FreshnessStatus } from "@/lib/db/schema-content-library";
+import { generateContentSuggestions } from "@/lib/actions/content-library";
 
 // ============================================================================
 // Types
@@ -143,8 +144,114 @@ export function ContentLibraryBrowser({
 	const [expandedId, setExpandedId] = useState<string | null>(null);
 	const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
 
-	// AI suggestions (mock for now)
+	// AI suggestions state
 	const [suggestions, setSuggestions] = useState<ContentSnippet[]>([]);
+	const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
+	const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+	const [hasFetchedSuggestions, setHasFetchedSuggestions] = useState(false);
+
+	// Fetch AI suggestions for the document
+	const fetchSuggestions = useCallback(async () => {
+		if (!documentId) return;
+
+		setIsSuggestionsLoading(true);
+		setSuggestionsError(null);
+
+		try {
+			// Get document context for better suggestions
+			const docResponse = await fetch(`/api/v1/documents/${documentId}`);
+			let contextText = "";
+			let opportunityId: string | undefined;
+
+			if (docResponse.ok) {
+				const docData = await docResponse.json();
+				// Use document title, description, or content as context
+				contextText = [
+					docData.title,
+					docData.description,
+					typeof docData.content === "string" ? docData.content.slice(0, 2000) : "",
+				].filter(Boolean).join(". ");
+				opportunityId = docData.opportunityId;
+			}
+
+			// If no document context, use a generic prompt
+			if (!contextText) {
+				contextText = "General proposal content for government contracting";
+			}
+
+			// Generate AI suggestions
+			const suggestionRows = await generateContentSuggestions({
+				documentId,
+				opportunityId,
+				contextText,
+				limit: 10,
+			});
+
+			// If we got suggestion rows with snippetIds, fetch the full snippet data
+			if (suggestionRows.length > 0) {
+				const snippetIds = suggestionRows
+					.map(s => s.snippetId)
+					.filter((id): id is string => id !== null);
+
+				if (snippetIds.length > 0) {
+					// Fetch full snippet data
+					const snippetsResponse = await fetch("/api/v1/content/snippets?" + new URLSearchParams({
+						ids: snippetIds.join(","),
+					}));
+
+					if (snippetsResponse.ok) {
+						const snippetsData = await snippetsResponse.json();
+						// Sort by relevance score from suggestions
+						const snippetMap = new Map(snippetsData.snippets.map((s: ContentSnippet) => [s.id, s]));
+						const sortedSuggestions = suggestionRows
+							.map(row => snippetMap.get(row.snippetId))
+							.filter((s): s is ContentSnippet => s !== undefined);
+						setSuggestions(sortedSuggestions);
+					} else {
+						// Fallback: use basic search results
+						setSuggestions([]);
+					}
+				} else {
+					setSuggestions([]);
+				}
+			} else {
+				// No AI suggestions, try semantic search fallback
+				const searchResponse = await fetch("/api/v1/content/search?" + new URLSearchParams({
+					query: contextText.slice(0, 500),
+					limit: "10",
+				}));
+
+				if (searchResponse.ok) {
+					const searchData = await searchResponse.json();
+					setSuggestions(searchData.snippets || []);
+				} else {
+					setSuggestions([]);
+				}
+			}
+
+			setHasFetchedSuggestions(true);
+		} catch (err) {
+			console.error("Failed to fetch AI suggestions:", err);
+			setSuggestionsError(err instanceof Error ? err.message : "Failed to load suggestions");
+			setSuggestions([]);
+		} finally {
+			setIsSuggestionsLoading(false);
+		}
+	}, [documentId]);
+
+	// Fetch suggestions when tab is selected (lazy loading)
+	React.useEffect(() => {
+		if (activeTab === "suggestions" && documentId && !hasFetchedSuggestions && !isSuggestionsLoading) {
+			fetchSuggestions();
+		}
+	}, [activeTab, documentId, hasFetchedSuggestions, isSuggestionsLoading, fetchSuggestions]);
+
+	// Reset suggestions when documentId changes
+	React.useEffect(() => {
+		setHasFetchedSuggestions(false);
+		setSuggestions([]);
+		setSuggestionsError(null);
+	}, [documentId]);
 
 	// Fetch snippets
 	const fetchSnippets = useCallback(async () => {
@@ -431,6 +538,14 @@ export function ContentLibraryBrowser({
 							<TabsTrigger value="suggestions" className="gap-1">
 								<Sparkles className="h-3 w-3" />
 								AI Suggestions
+								{isSuggestionsLoading && (
+									<RefreshCw className="h-3 w-3 ml-1 animate-spin" />
+								)}
+								{suggestions.length > 0 && !isSuggestionsLoading && (
+									<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-purple-100 text-purple-700">
+										{suggestions.length}
+									</Badge>
+								)}
 							</TabsTrigger>
 						)}
 					</TabsList>
@@ -641,42 +756,105 @@ export function ContentLibraryBrowser({
 					</div>
 				)}
 
+				{/* Suggestions error state */}
+				{activeTab === "suggestions" && suggestionsError && (
+					<div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center justify-between">
+						<span>{suggestionsError}</span>
+						<Button variant="outline" size="sm" onClick={fetchSuggestions}>
+							<RefreshCw className="h-4 w-4 mr-2" />
+							Retry
+						</Button>
+					</div>
+				)}
+
 				{/* Loading state */}
-				{isLoading && (
+				{(isLoading || (activeTab === "suggestions" && isSuggestionsLoading)) && (
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 						{[1, 2, 3, 4].map((i) => (
 							<div key={i} className="h-48 rounded-lg bg-muted animate-pulse" />
 						))}
+						{activeTab === "suggestions" && (
+							<div className="col-span-full text-center text-sm text-muted-foreground">
+								<Sparkles className="h-5 w-5 mx-auto mb-2 animate-pulse text-purple-500" />
+								Analyzing document context and finding relevant content...
+							</div>
+						)}
 					</div>
 				)}
 
 				{/* Empty state */}
-				{!isLoading && sortedSnippets.length === 0 && (
+				{!isLoading && !(activeTab === "suggestions" && isSuggestionsLoading) && sortedSnippets.length === 0 && (
 					<div className="text-center py-12">
-						<FolderOpen className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-						<p className="text-muted-foreground">
-							{activeTab === "suggestions"
-								? "No suggestions available for this context"
-								: filteredSnippets.length === 0 && activeFilterCount > 0
-								? "No snippets match the current filters"
-								: "No content snippets yet"}
-						</p>
-						{activeFilterCount > 0 && (
-							<Button variant="link" onClick={clearFilters} className="mt-2">
-								Clear filters
-							</Button>
-						)}
-						{onCreateSnippet && activeFilterCount === 0 && (
-							<Button onClick={onCreateSnippet} className="mt-4">
-								<Plus className="h-4 w-4 mr-2" />
-								Create Your First Snippet
-							</Button>
+						{activeTab === "suggestions" ? (
+							<>
+								<Sparkles className="h-12 w-12 mx-auto text-purple-300 mb-4" />
+								<p className="text-muted-foreground mb-2">
+									{!hasFetchedSuggestions
+										? "Click to generate AI-powered content suggestions"
+										: "No suggestions available for this document context"}
+								</p>
+								<p className="text-xs text-muted-foreground mb-4">
+									AI analyzes your document to recommend relevant content from your library
+								</p>
+								<Button onClick={fetchSuggestions} disabled={isSuggestionsLoading}>
+									<Sparkles className="h-4 w-4 mr-2" />
+									{hasFetchedSuggestions ? "Refresh Suggestions" : "Generate Suggestions"}
+								</Button>
+							</>
+						) : (
+							<>
+								<FolderOpen className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+								<p className="text-muted-foreground">
+									{filteredSnippets.length === 0 && activeFilterCount > 0
+										? "No snippets match the current filters"
+										: "No content snippets yet"}
+								</p>
+								{activeFilterCount > 0 && (
+									<Button variant="link" onClick={clearFilters} className="mt-2">
+										Clear filters
+									</Button>
+								)}
+								{onCreateSnippet && activeFilterCount === 0 && (
+									<Button onClick={onCreateSnippet} className="mt-4">
+										<Plus className="h-4 w-4 mr-2" />
+										Create Your First Snippet
+									</Button>
+								)}
+							</>
 						)}
 					</div>
 				)}
 
+				{/* Suggestions header */}
+				{activeTab === "suggestions" && suggestions.length > 0 && !isSuggestionsLoading && (
+					<div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800">
+						<div className="flex items-center gap-2">
+							<Sparkles className="h-4 w-4 text-purple-600" />
+							<span className="text-sm font-medium text-purple-900 dark:text-purple-100">
+								AI-Recommended Content
+							</span>
+							<span className="text-xs text-purple-600 dark:text-purple-400">
+								Based on your document context
+							</span>
+						</div>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => {
+								setHasFetchedSuggestions(false);
+								fetchSuggestions();
+							}}
+							disabled={isSuggestionsLoading}
+							className="text-purple-700 hover:text-purple-900 hover:bg-purple-100"
+						>
+							<RefreshCw className={cn("h-4 w-4 mr-2", isSuggestionsLoading && "animate-spin")} />
+							Refresh
+						</Button>
+					</div>
+				)}
+
 				{/* Snippets grid/list */}
-				{!isLoading && sortedSnippets.length > 0 && (
+				{!isLoading && !(activeTab === "suggestions" && isSuggestionsLoading) && sortedSnippets.length > 0 && (
 					<div
 						className={cn(
 							viewMode === "grid"

@@ -79,7 +79,19 @@ import {
   FileText,
   ExternalLink,
   Sparkles,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
+import {
+  listBibliographyEntries,
+  createBibliographyEntry,
+  updateBibliographyEntry,
+  deleteBibliographyEntry,
+  importFromBibTeX,
+  exportToBibTeX,
+  type BibliographyEntry as DBBibliographyEntry,
+  type CreateEntryInput,
+} from "@/lib/actions/bibliography";
 
 // ============================================================================
 // Types
@@ -204,63 +216,11 @@ const entryTypeIcons: Record<EntryType, React.ReactNode> = {
 };
 
 // ============================================================================
-// Mock Data for Demo
-// ============================================================================
-
-const mockEntries: BibliographyEntry[] = [
-  {
-    id: "1",
-    citeKey: "smith2023",
-    type: "article",
-    title: "Advances in Document Synthesis Systems",
-    authors: ["Smith, John", "Doe, Jane"],
-    journal: "Journal of Technical Writing",
-    year: 2023,
-    volume: "45",
-    number: "3",
-    pages: "123-145",
-    doi: "10.1000/jtw.2023.001",
-    citationCount: 12,
-    keywords: ["document synthesis", "AI", "technical writing"],
-    createdAt: new Date("2023-06-15"),
-    updatedAt: new Date("2023-06-15"),
-  },
-  {
-    id: "2",
-    citeKey: "johnson2022",
-    type: "book",
-    title: "The Art of Scientific Publishing",
-    authors: ["Johnson, Robert"],
-    publisher: "Academic Press",
-    year: 2022,
-    citationCount: 8,
-    keywords: ["publishing", "scientific writing"],
-    createdAt: new Date("2022-09-20"),
-    updatedAt: new Date("2023-01-10"),
-  },
-  {
-    id: "3",
-    citeKey: "williams2024",
-    type: "inproceedings",
-    title: "HDSI: Hierarchical Document Synthesis Interface",
-    authors: ["Williams, Sarah", "Chen, David", "Brown, Emily"],
-    booktitle: "Proceedings of the ACM CHI Conference",
-    year: 2024,
-    pages: "456-467",
-    doi: "10.1145/123456.789012",
-    citationCount: 5,
-    keywords: ["HDSI", "document synthesis", "user interface"],
-    createdAt: new Date("2024-02-28"),
-    updatedAt: new Date("2024-02-28"),
-  },
-];
-
-// ============================================================================
 // Main Component
 // ============================================================================
 
 export function BibliographyManager({
-  entries: initialEntries = mockEntries,
+  entries: initialEntries,
   currentStyle = "apa",
   onEntriesChange,
   onStyleChange,
@@ -269,7 +229,7 @@ export function BibliographyManager({
   onOpenChange,
   className,
 }: BibliographyManagerProps) {
-  const [entries, setEntries] = React.useState<BibliographyEntry[]>(initialEntries);
+  const [entries, setEntries] = React.useState<BibliographyEntry[]>(initialEntries ?? []);
   const [selectedEntryId, setSelectedEntryId] = React.useState<string | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [filterType, setFilterType] = React.useState<EntryType | "all">("all");
@@ -278,6 +238,64 @@ export function BibliographyManager({
   const [style, setStyle] = React.useState<CitationStyle>(currentStyle);
   const [isEditing, setIsEditing] = React.useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(!initialEntries);
+  const [error, setError] = React.useState<string | null>(null);
+
+  // Fetch entries from database if no initial entries provided
+  const fetchEntries = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await listBibliographyEntries({
+        search: searchQuery || undefined,
+        type: filterType !== "all" ? filterType : undefined,
+        sortBy: sortBy === "citations" ? "citations" : sortBy,
+        sortOrder: "asc",
+      });
+      if (result.success && result.data) {
+        // Convert DB entries to component entries
+        const mappedEntries: BibliographyEntry[] = result.data.entries.map((e) => ({
+          id: e.id,
+          citeKey: e.citeKey,
+          type: e.type,
+          title: e.title,
+          authors: e.authors,
+          editors: e.editors,
+          journal: e.journal,
+          booktitle: e.booktitle,
+          publisher: e.publisher,
+          year: e.year,
+          volume: e.volume,
+          number: e.number,
+          pages: e.pages,
+          doi: e.doi,
+          url: e.url,
+          abstract: e.abstract,
+          keywords: e.keywords,
+          note: e.note,
+          citationCount: e.citationCount,
+          lastCited: e.lastCitedAt,
+          createdAt: e.createdAt,
+          updatedAt: e.updatedAt,
+        }));
+        setEntries(mappedEntries);
+      } else {
+        setError(result.error ?? "Failed to load entries");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load entries");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchQuery, filterType, sortBy]);
+
+  // Load entries on mount if not provided
+  React.useEffect(() => {
+    if (!initialEntries) {
+      fetchEntries();
+    }
+  }, [initialEntries, fetchEntries]);
+
 
   // Calculate statistics
   const stats = React.useMemo((): BibliographyStats => {
@@ -360,7 +378,7 @@ export function BibliographyManager({
     setIsEditing(true);
   };
 
-  const handleDeleteEntry = (entryId: string) => {
+  const handleDeleteEntry = async (entryId: string) => {
     const confirmed = window.confirm("Are you sure you want to delete this entry?");
     if (!confirmed) return;
 
@@ -372,26 +390,90 @@ export function BibliographyManager({
       if (!force) return;
     }
 
-    const newEntries = entries.filter((e) => e.id !== entryId);
-    setEntries(newEntries);
-    onEntriesChange?.(newEntries);
-    toast.success("Entry deleted");
+    // Delete from database
+    const result = await deleteBibliographyEntry(entryId);
+    if (result.success) {
+      const newEntries = entries.filter((e) => e.id !== entryId);
+      setEntries(newEntries);
+      onEntriesChange?.(newEntries);
+      toast.success("Entry deleted");
+    } else {
+      toast.error(result.error ?? "Failed to delete entry");
+    }
   };
 
-  const handleSaveEntry = (entry: BibliographyEntry) => {
-    let newEntries: BibliographyEntry[];
-    if (entries.find((e) => e.id === entry.id)) {
-      newEntries = entries.map((e) => (e.id === entry.id ? { ...entry, updatedAt: new Date() } : e));
-      toast.success("Entry updated");
+  const handleSaveEntry = async (entry: BibliographyEntry) => {
+    const isUpdate = entries.find((e) => e.id === entry.id);
+
+    if (isUpdate) {
+      // Update existing entry in database
+      const result = await updateBibliographyEntry({
+        id: entry.id,
+        citeKey: entry.citeKey,
+        entryType: entry.type,
+        title: entry.title,
+        authors: entry.authors,
+        editors: entry.editors,
+        journal: entry.journal,
+        booktitle: entry.booktitle,
+        publisher: entry.publisher,
+        year: entry.year,
+        volume: entry.volume,
+        number: entry.number,
+        pages: entry.pages,
+        doi: entry.doi,
+        url: entry.url,
+        abstract: entry.abstract,
+        keywords: entry.keywords,
+        note: entry.note,
+      });
+      if (result.success) {
+        const newEntries = entries.map((e) => (e.id === entry.id ? { ...entry, updatedAt: new Date() } : e));
+        setEntries(newEntries);
+        onEntriesChange?.(newEntries);
+        toast.success("Entry updated");
+      } else {
+        toast.error(result.error ?? "Failed to update entry");
+        return;
+      }
     } else {
-      newEntries = [
-        ...entries,
-        { ...entry, createdAt: new Date(), updatedAt: new Date(), citationCount: 0 },
-      ];
-      toast.success("Entry added");
+      // Create new entry in database
+      const result = await createBibliographyEntry({
+        citeKey: entry.citeKey,
+        entryType: entry.type,
+        title: entry.title,
+        authors: entry.authors,
+        editors: entry.editors,
+        journal: entry.journal,
+        booktitle: entry.booktitle,
+        publisher: entry.publisher,
+        year: entry.year,
+        volume: entry.volume,
+        number: entry.number,
+        pages: entry.pages,
+        doi: entry.doi,
+        url: entry.url,
+        abstract: entry.abstract,
+        keywords: entry.keywords,
+        note: entry.note,
+      });
+      if (result.success && result.data) {
+        const newEntry: BibliographyEntry = {
+          ...entry,
+          id: result.data.id,
+          createdAt: result.data.createdAt,
+          updatedAt: result.data.updatedAt,
+          citationCount: 0,
+        };
+        const newEntries = [...entries, newEntry];
+        setEntries(newEntries);
+        onEntriesChange?.(newEntries);
+        toast.success("Entry added");
+      } else {
+        toast.error(result.error ?? "Failed to create entry");
+        return;
+      }
     }
-    setEntries(newEntries);
-    onEntriesChange?.(newEntries);
     setIsEditing(false);
     setSelectedEntryId(entry.id);
   };
@@ -414,9 +496,23 @@ export function BibliographyManager({
     toast.success(`Citation style changed to ${citationStyleLabels[newStyle]}`);
   };
 
-  const handleExportBibTeX = () => {
-    const bibtex = entriesToBibTeX(entries);
-    copyToClipboard(bibtex, "Bibliography exported to clipboard (BibTeX format)");
+  const handleExportBibTeX = async () => {
+    const result = await exportToBibTeX();
+    if (result.success && result.data) {
+      // Download as file
+      const blob = new Blob([result.data], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "bibliography.bib";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Bibliography exported successfully");
+    } else {
+      // Fallback to local export
+      const bibtex = entriesToBibTeX(entries);
+      copyToClipboard(bibtex, "Bibliography exported to clipboard (BibTeX format)");
+    }
   };
 
   const handleExportFormatted = () => {
@@ -427,14 +523,27 @@ export function BibliographyManager({
     copyToClipboard(formatted, "Formatted bibliography copied to clipboard");
   };
 
-  const handleImportBibTeX = (bibtex: string) => {
+  const handleImportBibTeX = async (bibtex: string) => {
     try {
-      const imported = parseBibTeX(bibtex);
-      const newEntries = [...entries, ...imported];
-      setEntries(newEntries);
-      onEntriesChange?.(newEntries);
-      setIsImportDialogOpen(false);
-      toast.success(`Imported ${imported.length} entries`);
+      // Try to import to database first
+      const result = await importFromBibTeX(bibtex);
+      if (result.success && result.data) {
+        toast.success(`Imported ${result.data.imported} entries`);
+        if (result.data.errors.length > 0) {
+          toast.warning(`${result.data.errors.length} entries failed to import`);
+        }
+        // Refresh entries from database
+        fetchEntries();
+        setIsImportDialogOpen(false);
+      } else {
+        // Fallback to local parsing
+        const imported = parseBibTeX(bibtex);
+        const newEntries = [...entries, ...imported];
+        setEntries(newEntries);
+        onEntriesChange?.(newEntries);
+        setIsImportDialogOpen(false);
+        toast.success(`Imported ${imported.length} entries (local only)`);
+      }
     } catch (error) {
       toast.error("Failed to parse BibTeX. Please check the format.");
     }

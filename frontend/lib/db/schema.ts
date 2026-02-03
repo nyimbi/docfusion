@@ -33,6 +33,9 @@ export * from "./schema-reviews";
 // Re-export presentations schema (oral presentations, slides, Q&A, practice recordings)
 export * from "./schema-presentations";
 
+// Re-export bibliography schema (citations, references, bibliography entries)
+export * from "./schema-bibliography";
+
 import { user } from "./auth-schema";
 
 import {
