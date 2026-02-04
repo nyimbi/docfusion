@@ -20,6 +20,7 @@ import { createScraperRun, updateScraperRun, updateSourceMetrics } from "@/lib/a
 import { scraperQueue, type ScraperJob, type ScraperJobResult } from "./queue";
 import { deduplicateOpportunity, type OpportunityData } from "./deduplicator";
 import { firecrawl, extractOpportunitiesFromMarkdown, type ScrapeResult } from "./firecrawl";
+import { getParser, genericParser, type ParseInput } from "./parsers";
 
 // UUID generation - inline for serverless compatibility
 function generateUUID(): string {
@@ -390,6 +391,7 @@ export class ScraperRuntime {
 
 	/**
 	 * Scrape using Firecrawl - handles JavaScript rendering
+	 * Uses site-specific parser if available, falls back to generic extraction
 	 */
 	private async scrapeWithFirecrawl(
 		url: string,
@@ -410,14 +412,26 @@ export class ScraperRuntime {
 			};
 		}
 
-		const opportunities = this.extractOpportunities(
-			result.data.markdown || "",
-			result.data.links || [],
+		// Prepare input for parser
+		const parseInput: ParseInput = {
+			markdown: result.data.markdown || "",
+			links: result.data.links || [],
 			url,
-			source
-		);
+		};
 
-		const nextPageUrl = this.findNextPageUrl(result.data.links || [], url);
+		// Try site-specific parser first, fall back to generic
+		const parser = getParser(source.sourceId) || genericParser;
+		const parseResult = await parser.parse(parseInput);
+
+		// Map opportunities to include source info
+		const opportunities = parseResult.opportunities.map(opp => ({
+			...opp,
+			source: source.sourceId,
+			organization: opp.organization || source.name,
+		}));
+
+		// Use parser's next page detection or fall back to link scanning
+		const nextPageUrl = parseResult.nextPageUrl || this.findNextPageUrl(result.data.links || [], url);
 
 		return {
 			url,
@@ -429,6 +443,7 @@ export class ScraperRuntime {
 
 	/**
 	 * Fallback scrape using basic HTTP fetch
+	 * Uses site-specific parser if available, falls back to basic HTML extraction
 	 */
 	private async scrapeWithFetch(
 		url: string,
@@ -454,6 +469,32 @@ export class ScraperRuntime {
 		}
 
 		const html = await response.text();
+
+		// Prepare input for parser (HTML mode)
+		const parseInput: ParseInput = {
+			html,
+			url,
+		};
+
+		// Try site-specific parser first
+		const parser = getParser(source.sourceId);
+		if (parser) {
+			const parseResult = await parser.parse(parseInput);
+			const opportunities = parseResult.opportunities.map(opp => ({
+				...opp,
+				source: source.sourceId,
+				organization: opp.organization || source.name,
+			}));
+
+			return {
+				url,
+				statusCode: response.status,
+				opportunities,
+				nextPageUrl: parseResult.nextPageUrl,
+			};
+		}
+
+		// Fall back to basic HTML extraction
 		const opportunities = this.extractFromBasicHtml(html, url, source);
 
 		return {
