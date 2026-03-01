@@ -1,0 +1,36 @@
+# DocuFusion Scraper - Tier 1 Timer (High Priority Sources)
+# Runs every 6 hours for critical sources (UNGM, AfDB, World Bank, etc.)
+#
+# INSTALL:
+#   sudo cp tier1.timer /etc/systemd/system/
+#   sudo cp tier1.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable tier1.timer
+#   sudo systemctl start tier1.timer
+#
+# STATUS:
+#   systemctl list-timers tier1.timer
+#   journalctl -u tier1.service -f
+#
+# MANUAL TRIGGER:
+#   systemctl start tier1.service
+
+[Unit]
+Description=DocuFusion Scraper Tier 1 (Every 6 Hours)
+Documentation=https://github.com/docfusion/docfusion
+
+[Timer]
+# Run at minute 0 of every 6th hour: 00:00, 06:00, 12:00, 18:00
+OnCalendar=*:0/6:00
+
+# Catch up if timer was missed (e.g., system was down)
+Persistent=true
+
+# Randomize start time within 5 minutes to prevent thundering herd
+RandomizedDelaySec=300
+
+# Accuracy to within 1 minute
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

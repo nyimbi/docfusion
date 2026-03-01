@@ -1,0 +1,36 @@
+# DocuFusion Scraper - Tier 2 Timer (Medium Priority Sources)
+# Runs every 12 hours for important sources
+#
+# INSTALL:
+#   sudo cp tier2.timer /etc/systemd/system/
+#   sudo cp tier2.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable tier2.timer
+#   sudo systemctl start tier2.timer
+#
+# STATUS:
+#   systemctl list-timers tier2.timer
+#   journalctl -u tier2.service -f
+#
+# MANUAL TRIGGER:
+#   systemctl start tier2.service
+
+[Unit]
+Description=DocuFusion Scraper Tier 2 (Every 12 Hours)
+Documentation=https://github.com/docfusion/docfusion
+
+[Timer]
+# Run at minute 0 of every 12th hour: 00:00, 12:00
+OnCalendar=*:0/12:00
+
+# Catch up if timer was missed (e.g., system was down)
+Persistent=true
+
+# Randomize start time within 10 minutes to prevent thundering herd
+RandomizedDelaySec=600
+
+# Accuracy to within 1 minute
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

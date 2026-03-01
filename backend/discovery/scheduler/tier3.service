@@ -1,0 +1,61 @@
+# DocuFusion Scraper - Tier 3 Service (Standard Priority Sources)
+# Executes scrapers for standard sources (daily run)
+#
+# This service is triggered by tier3.timer (daily at 6 AM UTC)
+#
+# CONFIGURATION:
+#   - Adjust User/Group to match your deployment user
+#   - Adjust WorkingDirectory to your installation path
+#   - EnvironmentFile can be used to set DATABASE_URL, API keys, etc.
+
+[Unit]
+Description=DocuFusion Scraper Tier 3 Service
+Documentation=https://github.com/docfusion/docfusion
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+# Service type: oneshot for scheduled execution
+Type=oneshot
+
+# Run as the application user (adjust as needed)
+User=azureuser
+Group=azureuser
+
+# Working directory - adjust to your installation path
+WorkingDirectory=/home/azureuser/docfusion/backend
+
+# Environment
+Environment="PYTHONUNBUFFERED=1"
+Environment="LOG_LEVEL=INFO"
+# EnvironmentFile=/etc/docfusion/environment (optional, for secrets)
+
+# Execute tier 3 scrapers
+ExecStart=/usr/bin/python3 -m backend.discovery.scheduler.scraper_runner --tier tier3
+
+# Resource limits - Tier 3 runs standard sources, may take longer
+MemoryMax=2G
+MemoryHigh=1800M
+CPUQuota=100%
+
+# Timeout: 60 minutes (standard sources may have more content)
+TimeoutSec=3600
+TimeoutStartSec=3600
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=docfusion-scraper-tier3
+
+# Retry configuration (no restart for oneshot, but track failures)
+Restart=no
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/azureuser/docfusion
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,36 @@
+# DocuFusion Scraper - Tier 3 Timer (Standard Priority Sources)
+# Runs daily at 6:00 AM UTC for standard sources
+#
+# INSTALL:
+#   sudo cp tier3.timer /etc/systemd/system/
+#   sudo cp tier3.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable tier3.timer
+#   sudo systemctl start tier3.timer
+#
+# STATUS:
+#   systemctl list-timers tier3.timer
+#   journalctl -u tier3.service -f
+#
+# MANUAL TRIGGER:
+#   systemctl start tier3.service
+
+[Unit]
+Description=DocuFusion Scraper Tier 3 (Daily at 6 AM UTC)
+Documentation=https://github.com/docfusion/docfusion
+
+[Timer]
+# Run daily at 6:00 AM UTC
+OnCalendar=*-*-* 06:00:00 UTC
+
+# Catch up if timer was missed (e.g., system was down)
+Persistent=true
+
+# Randomize start time within 15 minutes to prevent thundering herd
+RandomizedDelaySec=900
+
+# Accuracy to within 1 minute
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
