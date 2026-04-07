@@ -744,27 +744,39 @@ class ScoringPredictor:
 		}
 	
 	# Logging methods
-	
+
 	def _log_initialization(self):
-		print("ScoringPredictor: Initialized with ensemble models for section-level score prediction")
-	
+		import logging
+		logger = logging.getLogger(__name__)
+		logger.info("ScoringPredictor: Initialized with ensemble models for section-level score prediction")
+
 	def _log_training_start(self, data_size: int):
-		print(f"ScoringPredictor: Starting training with {data_size} historical section scores")
-	
+		import logging
+		logger = logging.getLogger(__name__)
+		logger.info(f"ScoringPredictor: Starting training with {data_size} historical section scores")
+
 	def _log_training_complete(self, performance: Dict[ProposalSection, Dict[str, SectionModelMetrics]]):
-		print(f"ScoringPredictor: Training complete for {len(performance)} section types")
+		import logging
+		logger = logging.getLogger(__name__)
+		logger.info(f"ScoringPredictor: Training complete for {len(performance)} section types")
 		for section_type, metrics in performance.items():
 			best_model = min(metrics.items(), key=lambda x: x[1].mean_absolute_error)
-			print(f"  {section_type.value}: Best model {best_model[0]} (MAE: {best_model[1].mean_absolute_error:.2f})")
-	
+			logger.info(f"  {section_type.value}: Best model {best_model[0]} (MAE: {best_model[1].mean_absolute_error:.2f})")
+
 	def _log_training_error(self, message: str):
-		print(f"ScoringPredictor Training Error: {message}")
-	
+		import logging
+		logger = logging.getLogger(__name__)
+		logger.error(f"ScoringPredictor Training Error: {message}")
+
 	def _log_section_prediction_complete(self, section_type: ProposalSection, score: float, confidence: float):
-		print(f"ScoringPredictor: Predicted {score:.1f} score for {section_type.value} (confidence: {confidence:.3f})")
-	
+		import logging
+		logger = logging.getLogger(__name__)
+		logger.info(f"ScoringPredictor: Predicted {score:.1f} score for {section_type.value} (confidence: {confidence:.3f})")
+
 	def _log_section_prediction_error(self, message: str):
-		print(f"ScoringPredictor Prediction Error: {message}")
+		import logging
+		logger = logging.getLogger(__name__)
+		logger.error(f"ScoringPredictor Prediction Error: {message}")
 
 
 # Example usage and testing

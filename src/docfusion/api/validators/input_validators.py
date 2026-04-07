@@ -179,7 +179,8 @@ class SecurityValidator:
 			import ipaddress
 			ip_obj = ipaddress.ip_address(ip)
 			return ip_obj.is_private
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Failed to validate IP '{ip}': {e}")
 			return False
 
 

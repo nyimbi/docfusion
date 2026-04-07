@@ -36,6 +36,7 @@ import { competitors, competitorOpportunities } from "@/lib/db/schema-competitor
 import { eq, and, desc, sql, gte, lte, inArray, count, avg, sum, or, asc, isNotNull } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -380,7 +381,7 @@ export async function createDebrief(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[createDebrief]", error);
+		logger.error("[createDebrief]", error);
 		return { success: false, error: "Failed to create debrief" };
 	}
 }
@@ -453,7 +454,7 @@ export async function updateDebrief(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[updateDebrief]", error);
+		logger.error("[updateDebrief]", error);
 		return { success: false, error: "Failed to update debrief" };
 	}
 }
@@ -491,7 +492,7 @@ export async function getDebrief(
 			data: { ...debrief, opportunity },
 		};
 	} catch (error) {
-		console.error("[getDebrief]", error);
+		logger.error("[getDebrief]", error);
 		return { success: false, error: "Failed to retrieve debrief" };
 	}
 }
@@ -556,7 +557,7 @@ export async function listDebriefs(
 			})),
 		};
 	} catch (error) {
-		console.error("[listDebriefs]", error);
+		logger.error("[listDebriefs]", error);
 		return { success: false, error: "Failed to list debriefs" };
 	}
 }
@@ -598,7 +599,7 @@ export async function deleteDebrief(
 
 		return { success: true, data: { deleted: true } };
 	} catch (error) {
-		console.error("[deleteDebrief]", error);
+		logger.error("[deleteDebrief]", error);
 		return { success: false, error: "Failed to delete debrief" };
 	}
 }
@@ -680,7 +681,7 @@ export async function analyzeWinLossPatterns(): Promise<ActionResult<PatternAnal
 				recommendations = analysisResult.recommendations;
 				overallConfidence = analysisResult.confidence;
 			} catch (aiError) {
-				console.warn("[analyzeWinLossPatterns] AI analysis failed:", aiError);
+				logger.warn("[analyzeWinLossPatterns] AI analysis failed:", aiError);
 			}
 		}
 
@@ -758,7 +759,7 @@ export async function analyzeWinLossPatterns(): Promise<ActionResult<PatternAnal
 			},
 		};
 	} catch (error) {
-		console.error("[analyzeWinLossPatterns]", error);
+		logger.error("[analyzeWinLossPatterns]", error);
 		return { success: false, error: "Failed to analyze patterns" };
 	}
 }
@@ -1184,7 +1185,7 @@ export async function getWinLossStatistics(
 			},
 		};
 	} catch (error) {
-		console.error("[getWinLossStatistics]", error);
+		logger.error("[getWinLossStatistics]", error);
 		return { success: false, error: "Failed to calculate statistics" };
 	}
 }
@@ -1283,7 +1284,7 @@ export async function generateLessonsLearnedReport(): Promise<ActionResult<Lesso
 				);
 				improvementAreas.push(...aiEnhancements.additionalImprovements);
 			} catch (error) {
-				console.warn("[generateLessonsLearnedReport] AI enhancement failed:", error);
+				logger.warn("[generateLessonsLearnedReport] AI enhancement failed:", error);
 			}
 		}
 
@@ -1298,7 +1299,7 @@ export async function generateLessonsLearnedReport(): Promise<ActionResult<Lesso
 			},
 		};
 	} catch (error) {
-		console.error("[generateLessonsLearnedReport]", error);
+		logger.error("[generateLessonsLearnedReport]", error);
 		return { success: false, error: "Failed to generate lessons learned report" };
 	}
 }
@@ -1474,7 +1475,7 @@ export async function calculateProposalROI(): Promise<ActionResult<ROIAnalysis>>
 			},
 		};
 	} catch (error) {
-		console.error("[calculateProposalROI]", error);
+		logger.error("[calculateProposalROI]", error);
 		return { success: false, error: "Failed to calculate ROI" };
 	}
 }
@@ -1567,13 +1568,13 @@ export async function identifyImprovementAreas(): Promise<ActionResult<Improveme
 				const enhancedAreas = await enhanceImprovementAreasWithAI(improvementAreas);
 				return { success: true, data: enhancedAreas };
 			} catch (error) {
-				console.warn("[identifyImprovementAreas] AI enhancement failed:", error);
+				logger.warn("[identifyImprovementAreas] AI enhancement failed:", error);
 			}
 		}
 
 		return { success: true, data: improvementAreas };
 	} catch (error) {
-		console.error("[identifyImprovementAreas]", error);
+		logger.error("[identifyImprovementAreas]", error);
 		return { success: false, error: "Failed to identify improvement areas" };
 	}
 }
@@ -1766,7 +1767,7 @@ export async function trackDebriefActionItems(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[trackDebriefActionItems]", error);
+		logger.error("[trackDebriefActionItems]", error);
 		return { success: false, error: "Failed to track action item" };
 	}
 }
@@ -1818,7 +1819,7 @@ export async function updateActionItemStatus(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[updateActionItemStatus]", error);
+		logger.error("[updateActionItemStatus]", error);
 		return { success: false, error: "Failed to update action item status" };
 	}
 }
@@ -1925,7 +1926,7 @@ export async function compareToCompetitors(
 				);
 				recommendations.push(...aiRecommendations);
 			} catch (error) {
-				console.warn("[compareToCompetitors] AI recommendations failed:", error);
+				logger.warn("[compareToCompetitors] AI recommendations failed:", error);
 			}
 		}
 
@@ -1944,7 +1945,7 @@ export async function compareToCompetitors(
 			},
 		};
 	} catch (error) {
-		console.error("[compareToCompetitors]", error);
+		logger.error("[compareToCompetitors]", error);
 		return { success: false, error: "Failed to compare against competitor" };
 	}
 }
@@ -2175,7 +2176,7 @@ export async function exportWinLossReport(
 			};
 		}
 	} catch (error) {
-		console.error("[exportWinLossReport]", error);
+		logger.error("[exportWinLossReport]", error);
 		return { success: false, error: "Failed to export report" };
 	}
 }
@@ -2324,7 +2325,7 @@ ${contextData.patterns.map(p => `- ${p.patternName} (correlation: ${p.winCorrela
 
 		return { success: true, data: JSON.parse(jsonMatch[0]) as string[] };
 	} catch (error) {
-		console.error("[getWinLossInsights]", error);
+		logger.error("[getWinLossInsights]", error);
 		return { success: false, error: "Failed to generate insights" };
 	}
 }
@@ -2356,7 +2357,7 @@ export async function getPatterns(
 
 		return { success: true, data: patterns };
 	} catch (error) {
-		console.error("[getPatterns]", error);
+		logger.error("[getPatterns]", error);
 		return { success: false, error: "Failed to retrieve patterns" };
 	}
 }
@@ -2385,7 +2386,7 @@ export async function acknowledgePattern(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[acknowledgePattern]", error);
+		logger.error("[acknowledgePattern]", error);
 		return { success: false, error: "Failed to acknowledge pattern" };
 	}
 }
@@ -2498,7 +2499,7 @@ export async function getDashboardMetrics(): Promise<ActionResult<DashboardMetri
 			},
 		};
 	} catch (error) {
-		console.error("[getDashboardMetrics]", error);
+		logger.error("[getDashboardMetrics]", error);
 		return { success: false, error: "Failed to get dashboard metrics" };
 	}
 }
@@ -2587,7 +2588,7 @@ export async function getDebriefTimeline(
 
 		return { success: true, data: events };
 	} catch (error) {
-		console.error("[getDebriefTimeline]", error);
+		logger.error("[getDebriefTimeline]", error);
 		return { success: false, error: "Failed to get debrief timeline" };
 	}
 }

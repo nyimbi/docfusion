@@ -18,9 +18,10 @@ from pydantic import BaseModel, Field, ConfigDict, validator
 from pydantic.types import constr
 
 from ..delivery.notification_delivery import (
-	NotificationChannel, NotificationMessage, DeliveryResult, 
+	NotificationChannel, NotificationMessage, DeliveryResult,
 	DeliveryStatus, ChannelType, Priority
 )
+from ...config.secrets import SecretsManager
 
 
 class SMSProvider(str, Enum):
@@ -593,7 +594,7 @@ def validate_phone_number(phone_number: str) -> bool:
 def format_phone_number(phone_number: str, country_code: str = "1") -> Optional[str]:
 	"""Format phone number for display."""
 	digits = re.sub(r'\D', '', phone_number)
-	
+
 	if len(digits) == 10:  # US/Canada format
 		return f"+{country_code} ({digits[:3]}) {digits[3:6]}-{digits[6:]}"
 	elif len(digits) == 11 and digits.startswith('1'):  # US/Canada with country code
@@ -602,3 +603,53 @@ def format_phone_number(phone_number: str, country_code: str = "1") -> Optional[
 		return f"+{digits}"
 	else:
 		return None
+
+
+def create_sms_channel_from_secrets(
+	provider: SMSProvider,
+	from_number: Optional[str] = None,
+	**kwargs
+) -> SMSChannel:
+	"""
+	Create SMSChannel using secrets from SecretsManager.
+
+	This factory function automatically retrieves API keys and credentials
+	from the centralized secrets management system.
+
+	Args:
+		provider: SMS service provider (TWILIO, AWS_SNS, etc.)
+		from_number: Default sender phone number
+		**kwargs: Additional configuration options
+
+	Returns:
+		Configured SMSChannel instance
+
+	Example:
+		channel = create_sms_channel_from_secrets(
+			provider=SMSProvider.TWILIO,
+			from_number="+1234567890"
+		)
+	"""
+	# Get secrets based on provider
+	if provider == SMSProvider.TWILIO:
+		kwargs.setdefault('twilio_account_sid', SecretsManager.get_twilio_account_sid())
+		kwargs.setdefault('twilio_auth_token', SecretsManager.get_twilio_auth_token())
+		if from_number:
+			kwargs.setdefault('twilio_from_number', from_number)
+	elif provider == SMSProvider.AWS_SNS:
+		kwargs.setdefault('aws_access_key_id', SecretsManager.get_aws_access_key_id())
+		kwargs.setdefault('aws_secret_access_key', SecretsManager.get_aws_secret_access_key())
+		kwargs.setdefault('aws_region', SecretsManager.get_aws_region())
+	else:
+		# Generic SMS provider
+		kwargs.setdefault('api_key', SecretsManager.get_sms_api_key())
+		kwargs.setdefault('api_secret', SecretsManager.get_sms_api_secret())
+
+	kwargs.setdefault('default_from_number', from_number)
+
+	config = SMSConfiguration(
+		provider=provider,
+		**kwargs
+	)
+
+	return SMSChannel(config)

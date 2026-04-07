@@ -18,6 +18,8 @@ from ipaddress import ip_network, ip_address, AddressValueError
 from pydantic import BaseModel, Field
 from uuid_extensions import uuid7str
 
+logger = logging.getLogger(__name__)
+
 
 class AttributeType(str, Enum):
 	"""ABAC attribute types"""
@@ -86,7 +88,8 @@ class AttributeCondition(BaseModel):
 			
 			return self._compare_values(actual_value, self.value, self.operator)
 		
-		except Exception:
+		except Exception as e:
+			logger.warning(f"Failed to evaluate condition: {e}")
 			return False
 	
 	def _compare_values(self, actual: Any, expected: Any, operator: ComparisonOperator) -> bool:
@@ -204,16 +207,17 @@ class AttributeCondition(BaseModel):
 				actual_time = actual
 			else:
 				actual_time = datetime.fromisoformat(str(actual)).time()
-			
+
 			start_time = datetime.strptime(time_range.get('start', '00:00'), '%H:%M').time()
 			end_time = datetime.strptime(time_range.get('end', '23:59'), '%H:%M').time()
-			
+
 			if start_time <= end_time:
 				return start_time <= actual_time <= end_time
 			else:
 				# Range crosses midnight
 				return actual_time >= start_time or actual_time <= end_time
-		except:
+		except (ValueError, TypeError, KeyError, AttributeError) as e:
+			logging.getLogger(__name__).warning(f"Time range evaluation failed: {e}")
 			return False
 	
 	def _date_in_range(self, actual: Any, date_range: Dict[str, str]) -> bool:
@@ -223,12 +227,13 @@ class AttributeCondition(BaseModel):
 				actual_date = actual.date()
 			else:
 				actual_date = datetime.fromisoformat(str(actual)).date()
-			
+
 			start_date = datetime.fromisoformat(date_range.get('start', '1900-01-01')).date()
 			end_date = datetime.fromisoformat(date_range.get('end', '2100-12-31')).date()
-			
+
 			return start_date <= actual_date <= end_date
-		except:
+		except (ValueError, TypeError, KeyError, AttributeError) as e:
+			logging.getLogger(__name__).warning(f"Date range evaluation failed: {e}")
 			return False
 	
 	def _ip_in_network(self, actual: Any, network: str) -> bool:

@@ -548,8 +548,8 @@ class StyleAnalyzer:
                 metrics.flesch_reading_ease = flesch_reading_ease(text)
                 metrics.flesch_kincaid_grade = flesch_kincaid_grade(text)
                 metrics.automated_readability_index = automated_readability_index(text)
-            except:
-                pass
+            except (ValueError, TypeError, ZeroDivisionError) as e:
+                self.logger.warning(f"Readability score calculation failed: {e}")
 
         # Vocabulary analysis
         if metrics.word_count > 0:

@@ -242,6 +242,7 @@ export function ContentSnippetCard({
 								e.stopPropagation();
 								onBookmark?.(snippet.id, !isBookmarked);
 							}}
+							aria-label={isBookmarked ? "Remove bookmark" : "Add bookmark"}
 						>
 							{isBookmarked ? (
 								<BookmarkCheck className="h-4 w-4 text-primary" />
@@ -259,6 +260,7 @@ export function ContentSnippetCard({
 								e.stopPropagation();
 								onCopy?.(snippet.id);
 							}}
+							aria-label="Copy snippet"
 						>
 							<Copy className="h-4 w-4" />
 						</Button>
@@ -271,6 +273,7 @@ export function ContentSnippetCard({
 									size="icon"
 									className="h-7 w-7"
 									onClick={(e) => e.stopPropagation()}
+									aria-label="More actions"
 								>
 									<MoreHorizontal className="h-4 w-4" />
 								</Button>

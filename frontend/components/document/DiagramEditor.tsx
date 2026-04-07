@@ -36,6 +36,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { sanitizeHTML } from "@/lib/utils/sanitize";
 import {
 	AlertCircle,
 	Check,
@@ -413,7 +414,7 @@ function DiagramEditorContent({
 				transformOrigin: "center",
 			}}
 			// SVG is from trusted diagram renderers (mermaid, plantuml server)
-			dangerouslySetInnerHTML={{ __html: svgContent }}
+			dangerouslySetInnerHTML={{ __html: sanitizeHTML(svgContent) }}
 		/>
 	);
 

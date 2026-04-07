@@ -23,6 +23,8 @@ import jwt
 from pydantic import BaseModel, Field
 from uuid_extensions import uuid7str
 
+from ...config.secrets import SecretsManager
+
 
 class OAuthProvider(str, Enum):
     """Supported OAuth 2.0 providers"""
@@ -191,12 +193,12 @@ class OAuthAuthentication:
         )
 
     def _setup_default_providers(self):
-        """Set up default provider configurations"""
+        """Set up default provider configurations using centralized secrets management."""
         if OAuthProvider.GOOGLE not in self.config.providers:
             self.config.providers[OAuthProvider.GOOGLE] = OAuthProviderConfig(
                 provider=OAuthProvider.GOOGLE,
-                client_id="",  # Must be set in environment
-                client_secret="",  # Must be set in environment
+                client_id=SecretsManager.get_google_client_id(),
+                client_secret=SecretsManager.get_google_client_secret(),
                 authorization_endpoint="https://accounts.google.com/o/oauth2/v2/auth",
                 token_endpoint="https://oauth2.googleapis.com/token",
                 userinfo_endpoint="https://www.googleapis.com/oauth2/v2/userinfo",
@@ -206,8 +208,8 @@ class OAuthAuthentication:
         if OAuthProvider.MICROSOFT not in self.config.providers:
             self.config.providers[OAuthProvider.MICROSOFT] = OAuthProviderConfig(
                 provider=OAuthProvider.MICROSOFT,
-                client_id="",  # Must be set in environment
-                client_secret="",  # Must be set in environment
+                client_id=SecretsManager.get_microsoft_client_id(),
+                client_secret=SecretsManager.get_microsoft_client_secret(),
                 authorization_endpoint="https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
                 token_endpoint="https://login.microsoftonline.com/common/oauth2/v2.0/token",
                 userinfo_endpoint="https://graph.microsoft.com/v1.0/me",
@@ -217,8 +219,8 @@ class OAuthAuthentication:
         if OAuthProvider.GITHUB not in self.config.providers:
             self.config.providers[OAuthProvider.GITHUB] = OAuthProviderConfig(
                 provider=OAuthProvider.GITHUB,
-                client_id="",  # Must be set in environment
-                client_secret="",  # Must be set in environment
+                client_id=SecretsManager.get_github_client_id(),
+                client_secret=SecretsManager.get_github_client_secret(),
                 authorization_endpoint="https://github.com/login/oauth/authorize",
                 token_endpoint="https://github.com/login/oauth/access_token",
                 userinfo_endpoint="https://api.github.com/user",

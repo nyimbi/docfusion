@@ -5,6 +5,7 @@
  * Supports: Azure OpenAI, OpenAI, Anthropic, and Local models
  */
 
+import { logger } from "@/lib/utils/logger";
 import type { HDSINode, ModelConfig, GenerationOptions, GenerationProgress, GenerationResult } from "./types";
 
 // ============================================================================
@@ -81,7 +82,7 @@ export async function generateNodeContent(
       coherenceScore,
     };
   } catch (error) {
-    console.error("Generation failed:", error);
+    logger.error("Generation failed:", error);
     throw error;
   }
 }
@@ -112,7 +113,7 @@ export async function generateBatch(
         tokensUsed: result.tokensUsed,
       });
     } catch (error) {
-      console.error(`Failed to generate node ${node.id}:`, error);
+      logger.error(`Failed to generate node ${node.id}:`, error);
       // Continue with other nodes
     }
   }
@@ -164,7 +165,7 @@ export async function* generateNodeStreaming(
  * Generate document outline from template or content
  */
 export async function generateOutlineFromTemplate(
-  templateContent: any, // JSONContent from novel
+  templateContent: Record<string, unknown>,
   prompt: string,
   options: GenerationOptions = {}
 ): Promise<HDSINode[]> {
@@ -272,9 +273,9 @@ function delay(ms: number): Promise<void> {
 export function createGenerationQueue(parallelism = 2) {
   let running = 0;
   const queue: Array<{
-    execute: () => Promise<any>;
-    resolve: (value: any) => void;
-    reject: (error: any) => void;
+    execute: () => Promise<unknown>;
+    resolve: (value: unknown) => void;
+    reject: (error: unknown) => void;
   }> = [];
 
   async function processQueue() {

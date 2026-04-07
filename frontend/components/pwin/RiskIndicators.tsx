@@ -321,7 +321,7 @@ export function RiskIndicators({
 						</CardDescription>
 					</div>
 
-					<Button variant="outline" size="icon" onClick={loadRisks}>
+					<Button variant="outline" size="icon" onClick={loadRisks} aria-label="Refresh risk indicators">
 						<RefreshCw className="h-4 w-4" />
 					</Button>
 				</div>

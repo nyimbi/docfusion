@@ -6,6 +6,7 @@ generation system, enabling AI-driven content optimization, real-time scoring
 feedback, and intelligent proposal enhancement during document creation.
 """
 
+import logging
 import asyncio
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -18,16 +19,9 @@ from uuid import uuid4
 from ..predictors.scoring_predictor import ScoringPredictor, SectionFeatures, ProposalSection, SectionScorePrediction
 from ..recommenders.content_recommender import ContentRecommender, ContentRecommendationReport
 from ..recommenders.strategy_recommender import StrategyRecommender
-# Integration imports (with fallback for discovery dependency issues)
-try:
-    from .discovery_integration import OpportunityIntelligence
-except ImportError:
-    # Create placeholder for OpportunityIntelligence when discovery dependencies fail
-    from pydantic import BaseModel, ConfigDict
-    class OpportunityIntelligence(BaseModel):
-        model_config = ConfigDict(extra='allow')
-        intelligence_id: str
-        opportunity_id: str
+from .discovery_integration import OpportunityIntelligence
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentState(str, Enum):
@@ -293,8 +287,8 @@ class IntelligenceDocumentService:
                     expires_timestamp=datetime.now() + timedelta(hours=2)
                 )
             
-        except Exception:
-            # Don't fail the entire analysis if scoring prediction fails
+        except Exception as e:
+            logger.warning(f"Failed to generate scoring prediction: {e}")
             pass
         
         return None
@@ -360,8 +354,8 @@ class IntelligenceDocumentService:
                 )
                 insights.append(insight)
             
-        except Exception:
-            # Don't fail if content analysis fails
+        except Exception as e:
+            logger.warning(f"Failed to generate content insights: {e}")
             pass
         
         return insights

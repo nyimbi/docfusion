@@ -21,6 +21,7 @@ import type {
 	StructurizrRenderOptions,
 	RenderResult,
 } from "./types";
+import { logger } from "@/lib/utils/logger";
 
 // =============================================================================
 // DSL Keywords
@@ -1036,7 +1037,7 @@ export async function renderStructurizr(
 			return kroikiResult;
 		}
 	} catch (e) {
-		console.warn("Structurizr Kroki rendering failed, trying Mermaid fallback:", e);
+		logger.warn("Structurizr Kroki rendering failed, trying Mermaid fallback:", e);
 	}
 
 	// Strategy 2: Convert to Mermaid for client-side rendering

@@ -8,6 +8,7 @@
  * - Compliance matching and scoring
  */
 
+import { logger } from "@/lib/utils/logger";
 import { getAIClient } from "./client";
 import type {
 	RfpRequirementCategory,
@@ -323,7 +324,7 @@ export async function parseRFPWithAI(
 
 		return parseJsonResponse<ParsedRFP>(content);
 	} catch (error) {
-		console.error("Error parsing RFP with AI:", error);
+		logger.error("Error parsing RFP with AI:", error);
 		throw new Error(`Failed to parse RFP: ${error instanceof Error ? error.message : "Unknown error"}`);
 	}
 }
@@ -366,7 +367,7 @@ export async function extractRequirementsWithAI(
 		const parsed = parseJsonResponse<{ requirements: ExtractedRequirement[] }>(content);
 		return parsed.requirements;
 	} catch (error) {
-		console.error("Error extracting requirements with AI:", error);
+		logger.error("Error extracting requirements with AI:", error);
 		throw new Error(`Failed to extract requirements: ${error instanceof Error ? error.message : "Unknown error"}`);
 	}
 }
@@ -408,7 +409,7 @@ export async function classifyRequirementWithAI(
 
 		return parseJsonResponse<RequirementClassification>(content);
 	} catch (error) {
-		console.error("Error classifying requirement with AI:", error);
+		logger.error("Error classifying requirement with AI:", error);
 		throw new Error(`Failed to classify requirement: ${error instanceof Error ? error.message : "Unknown error"}`);
 	}
 }
@@ -450,7 +451,7 @@ export async function detectAmbiguityWithAI(
 
 		return parseJsonResponse<AmbiguityAnalysis>(content);
 	} catch (error) {
-		console.error("Error detecting ambiguity with AI:", error);
+		logger.error("Error detecting ambiguity with AI:", error);
 		throw new Error(`Failed to detect ambiguity: ${error instanceof Error ? error.message : "Unknown error"}`);
 	}
 }
@@ -506,7 +507,7 @@ Respond in JSON format only:
 		const parsed = parseJsonResponse<{ questions: string[] }>(content);
 		return parsed.questions;
 	} catch (error) {
-		console.error("Error generating clarification questions:", error);
+		logger.error("Error generating clarification questions:", error);
 		return [];
 	}
 }
@@ -557,7 +558,7 @@ export async function matchRequirementToContent(
 			...parsed,
 		};
 	} catch (error) {
-		console.error("Error matching content to requirement:", error);
+		logger.error("Error matching content to requirement:", error);
 		throw new Error(`Failed to match content: ${error instanceof Error ? error.message : "Unknown error"}`);
 	}
 }
@@ -590,7 +591,7 @@ export async function batchExtractRequirements(
 				}));
 				return { sectionId: section.id, requirements: withPageNumbers };
 			} catch (error) {
-				console.error(`Error extracting from section ${section.id}:`, error);
+				logger.error(`Error extracting from section ${section.id}:`, error);
 				return { sectionId: section.id, requirements: [] };
 			}
 		});
@@ -669,7 +670,7 @@ Respond in JSON only:
 
 		return parseJsonResponse(content);
 	} catch (error) {
-		console.error("Error generating compliance summary:", error);
+		logger.error("Error generating compliance summary:", error);
 		return {
 			overallCompliance: 0,
 			summary: "Error generating compliance summary",
@@ -754,7 +755,7 @@ Respond in JSON only:
 
 		return parseJsonResponse(content);
 	} catch (error) {
-		console.error("Error analyzing evaluation criteria:", error);
+		logger.error("Error analyzing evaluation criteria:", error);
 		return {
 			criteria: [],
 			evaluationMethod: "Unknown",
@@ -837,7 +838,7 @@ Respond in JSON only:
 
 		return parseJsonResponse(content);
 	} catch (error) {
-		console.error("Error generating proposal outline:", error);
+		logger.error("Error generating proposal outline:", error);
 		return {
 			sections: [],
 			recommendations: [],

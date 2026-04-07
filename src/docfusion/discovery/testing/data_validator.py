@@ -888,7 +888,8 @@ class DataValidator:
 			
 			return len(intersection) / len(union) if union else 0.0
 		
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Failed to calculate word overlap: {e}")
 			return 0.0
 	
 	def _update_quality_metrics_for_opportunity(

@@ -12,6 +12,7 @@
  */
 
 import { v4 as uuidv4 } from "uuid";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Category IDs (matching existing categories + new ones)
@@ -10743,4 +10744,4 @@ export function generateTemplateRecords() {
 
 // Export template count for verification
 export const TEMPLATE_COUNT = ALL_PROFESSIONAL_TEMPLATES.length;
-console.log(`Total professional templates: ${TEMPLATE_COUNT}`);
+logger.debug(`Total professional templates: ${TEMPLATE_COUNT}`);

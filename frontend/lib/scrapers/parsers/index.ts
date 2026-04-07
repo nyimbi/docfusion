@@ -15,3 +15,6 @@ import "./generic";
 // Re-export for direct access
 export { dgmarketParser } from "./dgmarket";
 export { genericParser } from "./generic";
+
+// LLM-based extraction (for sites without custom parsers)
+export * from "./llm-extractor";

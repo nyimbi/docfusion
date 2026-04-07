@@ -20,6 +20,8 @@ This orchestration layer implements:
 import asyncio
 import json
 import logging
+
+logger = logging.getLogger(__name__)
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -257,13 +259,14 @@ class DocumentEngine:
 		config: Optional[DocumentGenerationConfiguration] = None,
 		enable_logging: bool = True,
 		enable_caching: bool = True,
-		storage_service: Optional[StorageService] = None
+		storage_service: Optional[StorageService] = None,
+		components: Optional[Dict[str, Any]] = None,
 	):
 		self.config = config or DocumentGenerationConfiguration()
 		self.enable_logging = enable_logging
 		self.enable_caching = enable_caching
 		self.storage_service = storage_service
-		
+
 		# Initialize logger
 		if self.enable_logging:
 			self.logger = logging.getLogger(__name__)
@@ -277,13 +280,13 @@ class DocumentEngine:
 				self.logger.setLevel(logging.INFO)
 		else:
 			self.logger = None
-		
-		# Initialize components
-		self._initialize_components()
-		
+
+		# Initialize components (injected overrides take precedence)
+		self._initialize_components(components)
+
 		# Initialize storage service if enabled and not provided
 		self._initialize_storage()
-		
+
 		# Performance tracking
 		self.metrics = {
 			'documents_generated': 0,
@@ -294,57 +297,74 @@ class DocumentEngine:
 			'component_performance': {},
 			'error_rates': {}
 		}
-		
+
 		# Caching system
 		self.cache = {} if enable_caching else None
 		self.cache_stats = {'hits': 0, 'misses': 0} if enable_caching else None
 	
-	def _initialize_components(self):
-		"""Initialize all DocuFusion components"""
+	def _initialize_components(self, components: Optional[Dict[str, Any]] = None):
+		"""Initialize all DocuFusion components.
+
+		When *components* is supplied (typically via the factory), any key
+		present in the dict is used directly instead of instantiating the
+		concrete default. This enables dependency injection for testing and
+		alternative implementations without changing any orchestration logic.
+
+		Recognised keys in *components*:
+			content_assembler, structure_builder, cross_reference_manager,
+			document_formatter, brand_formatter, layout_manager,
+			style_applier, pdf_renderer, docx_renderer, html_renderer,
+			accessibility_renderer
+		"""
+		overrides = components or {}
 		try:
 			# Assembly components
-			self.content_assembler = ContentAssembler()
-			self.structure_builder = StructureBuilder()
-			self.cross_reference_manager = CrossReferenceManager()
-			
+			self.content_assembler = overrides.get("content_assembler") or ContentAssembler()
+			self.structure_builder = overrides.get("structure_builder") or StructureBuilder()
+			self.cross_reference_manager = overrides.get("cross_reference_manager") or CrossReferenceManager()
+
 			# Formatting components
-			self.document_formatter = DocumentFormatter()
-			
-			# Create default brand specification for BrandFormatter
-			from docfusion.document_engine.formatter.brand_formatter import (
-				BrandSpecification, LogoAssetLibrary, LogoAsset
-			)
-			
-			# Create default logo asset
-			default_logo = LogoAsset(
-				asset_name="Default Logo",
-				variant_type="primary"
-			)
-			
-			# Create default logo asset library
-			default_logo_library = LogoAssetLibrary(
-				primary_logo=default_logo
-			)
-			
-			# Create default brand specification
-			default_brand_spec = BrandSpecification(
-				brand_name="Default Brand",
-				logo_assets=default_logo_library
-			)
-			self.brand_formatter = BrandFormatter(default_brand_spec)
-			
-			self.layout_manager = LayoutManager()
-			self.style_applier = StyleApplier()
-			
+			self.document_formatter = overrides.get("document_formatter") or DocumentFormatter()
+
+			if "brand_formatter" in overrides:
+				self.brand_formatter = overrides["brand_formatter"]
+			else:
+				from docfusion.document_engine.formatter.brand_formatter import (
+					BrandSpecification, LogoAssetLibrary, LogoAsset
+				)
+				default_logo = LogoAsset(
+					asset_name="Default Logo",
+					variant_type="primary"
+				)
+				default_logo_library = LogoAssetLibrary(
+					primary_logo=default_logo
+				)
+				default_brand_spec = BrandSpecification(
+					brand_name="Default Brand",
+					logo_assets=default_logo_library
+				)
+				self.brand_formatter = BrandFormatter(default_brand_spec)
+
+			self.layout_manager = overrides.get("layout_manager") or LayoutManager()
+			self.style_applier = overrides.get("style_applier") or StyleApplier()
+
 			# Rendering components
-			self.pdf_renderer = PDFRenderer()
-			self.docx_renderer = DOCXRenderer()
-			self.html_renderer = HTMLRenderer()
-			self.accessibility_renderer = AccessibilityRenderer()
-			
+			self.pdf_renderer = overrides.get("pdf_renderer") or PDFRenderer()
+			self.docx_renderer = overrides.get("docx_renderer") or DOCXRenderer()
+			self.html_renderer = overrides.get("html_renderer") or HTMLRenderer()
+			self.accessibility_renderer = overrides.get("accessibility_renderer") or AccessibilityRenderer()
+
 			if self.logger:
+				injected = [k for k in overrides if k in {
+					"content_assembler", "structure_builder", "cross_reference_manager",
+					"document_formatter", "brand_formatter", "layout_manager",
+					"style_applier", "pdf_renderer", "docx_renderer",
+					"html_renderer", "accessibility_renderer",
+				}]
+				if injected:
+					self.logger.info(f"Components injected: {', '.join(sorted(injected))}")
 				self.logger.info("All DocumentEngine components initialized successfully")
-				
+
 		except Exception as e:
 			raise IntegrationException(f"Failed to initialize components: {str(e)}")
 	

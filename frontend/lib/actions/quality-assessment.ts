@@ -40,6 +40,7 @@ import { db } from "@/lib/db";
 import { documents, documentVersions } from "@/lib/db/schema";
 import { qualityAssessments } from "@/lib/db/schema-additions";
 import { eq, desc, and, asc } from "drizzle-orm";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Helper Functions
@@ -175,7 +176,7 @@ export async function triggerQualityAssessment(
 			assessment,
 		};
 	} catch (error) {
-		console.error("Error running quality assessment:", error);
+		logger.error("Error running quality assessment:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error occurred",
@@ -223,7 +224,7 @@ export async function getQualityAssessment(
 			assessment,
 		};
 	} catch (error) {
-		console.error("Error getting quality assessment:", error);
+		logger.error("Error getting quality assessment:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error occurred",
@@ -287,7 +288,7 @@ export async function getQualityAssessmentHistory(
 			assessments,
 		};
 	} catch (error) {
-		console.error("Error getting quality assessment history:", error);
+		logger.error("Error getting quality assessment history:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error occurred",
@@ -362,7 +363,7 @@ export async function compareQualityAssessments(
 			},
 		};
 	} catch (error) {
-		console.error("Error comparing assessments:", error);
+		logger.error("Error comparing assessments:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error occurred",
@@ -393,7 +394,7 @@ export async function generateQualityReport(
 			report,
 		};
 	} catch (error) {
-		console.error("Error generating quality report:", error);
+		logger.error("Error generating quality report:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error occurred",
@@ -472,7 +473,7 @@ export async function getQualityMetrics(
 			},
 		};
 	} catch (error) {
-		console.error("Error getting quality metrics:", error);
+		logger.error("Error getting quality metrics:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error occurred",
@@ -505,7 +506,7 @@ export async function deleteQualityAssessment(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Error deleting quality assessment:", error);
+		logger.error("Error deleting quality assessment:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error occurred",

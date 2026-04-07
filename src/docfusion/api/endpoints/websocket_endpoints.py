@@ -116,8 +116,8 @@ class ConnectionManager:
 			if user_id in self.active_connections:
 				try:
 					await self.active_connections[user_id].close()
-				except:
-					pass
+				except (ConnectionError, RuntimeError, OSError) as e:
+					self.logger.debug(f"Failed to close existing connection for user {user_id}: {e}")
 			
 			# Store new connection
 			self.active_connections[user_id] = websocket

@@ -437,7 +437,7 @@ export function PipelineAnalytics({
 							<SelectItem value="all">All time</SelectItem>
 						</SelectContent>
 					</Select>
-					<Button variant="outline" size="icon" onClick={handleRefresh}>
+					<Button variant="outline" size="icon" onClick={handleRefresh} aria-label="Refresh analytics">
 						<RefreshCw className="h-4 w-4" />
 					</Button>
 					<Button variant="outline">

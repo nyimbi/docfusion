@@ -31,7 +31,17 @@ from .analytics.notification_analytics import (
     create_notification_analytics,
     create_notification_event,
 )
-from .channels import *
+from .channels import (
+	EmailChannel, EmailConfiguration,
+	SMSChannel, SMSConfiguration,
+	PushChannel, PushConfiguration,
+	InAppChannel, InAppConfiguration,
+	WhatsAppChannel, WhatsAppConfiguration,
+	TelegramChannel, TelegramConfiguration,
+	SlackChannel, SlackConfiguration,
+	WebhookChannel, WebhookConfiguration,
+	ChannelType
+)
 from .delivery.notification_delivery import (
     ChannelType,
     DeliveryResult,

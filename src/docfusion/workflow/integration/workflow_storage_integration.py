@@ -1014,8 +1014,8 @@ class WorkflowStorageIntegration:
                 days_old = (datetime.now() - stored_date).days
                 if days_old < 30:
                     score += 0.1 * (30 - days_old) / 30
-            except:
-                pass
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Failed to parse stored_at date for recency boost: {e}")
 
         return min(score, 1.0)
 

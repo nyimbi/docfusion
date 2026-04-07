@@ -13,6 +13,7 @@
 
 import { FirecrawlClient, type ScrapeOptions } from "../firecrawl";
 import type { OpportunityData } from "../deduplicator";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Tender Extraction Schema
@@ -122,6 +123,10 @@ export interface LLMExtractorOptions {
 	sourceName?: string;
 	/** Additional scrape options */
 	scrapeOptions?: Partial<ScrapeOptions>;
+	/** Use stealth scraper as fallback for anti-bot protected sites */
+	useStealthFallback?: boolean;
+	/** Stealth scraper URL (default: http://localhost:3003) */
+	stealthScraperUrl?: string;
 }
 
 export interface LLMExtractionResult {
@@ -139,18 +144,30 @@ export async function extractTendersWithLLM(
 	url: string,
 	options: LLMExtractorOptions
 ): Promise<LLMExtractionResult> {
-	const { firecrawl, sourceId, sourceName } = options;
+	const {
+		firecrawl,
+		sourceId,
+		sourceName,
+		useStealthFallback = true,
+		stealthScraperUrl = process.env.STEALTH_SCRAPER_URL || "http://localhost:3003",
+	} = options;
 
 	try {
 		const result = await firecrawl.scrape(url, {
-			formats: ["extract"],  // Must include "extract" when using extraction
-			timeout: 60000,
+			formats: ["extract" as unknown as "markdown"],  // Must include "extract" when using extraction (not in Firecrawl's type defs yet)
+			timeout: 300000, // 5 minutes for CPU-based LLM inference
 			...options.scrapeOptions,
 			extract: {
 				schema: TENDER_EXTRACTION_SCHEMA,
 				systemPrompt: TENDER_EXTRACTION_PROMPT,
 			},
 		});
+
+		// If Firecrawl was blocked by anti-bot, try stealth + separate LLM call
+		if (!result.success && result.error?.includes("SCRAPE_ALL_ENGINES_FAILED") && useStealthFallback) {
+			logger.debug(`[LLM Extractor] Firecrawl blocked for ${url}, trying stealth scraper...`);
+			return await extractWithStealthFallback(url, sourceId, sourceName, stealthScraperUrl);
+		}
 
 		if (!result.success) {
 			return {
@@ -256,6 +273,134 @@ function generateNoticeId(title: string, sourceId: string): string {
 		.replace(/[^a-z0-9]+/g, "-")
 		.substring(0, 60);
 	return `${sourceId}-${slug}`;
+}
+
+// ============================================================================
+// Stealth Fallback
+// ============================================================================
+
+/**
+ * Fallback extraction using stealth scraper when Firecrawl is blocked.
+ * Scrapes the page with stealth browser, then uses basic pattern matching
+ * since we can't use Firecrawl's LLM extraction on stealth content.
+ */
+async function extractWithStealthFallback(
+	url: string,
+	sourceId: string,
+	sourceName?: string,
+	stealthScraperUrl: string = "http://localhost:3003"
+): Promise<LLMExtractionResult> {
+	try {
+		const response = await fetch(`${stealthScraperUrl}/v1/scrape`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				url,
+				options: {
+					timeout: 60000,
+					humanScroll: true,
+					blockMedia: true,
+				},
+			}),
+			signal: AbortSignal.timeout(70000),
+		});
+
+		if (!response.ok) {
+			const error = await response.text();
+			return {
+				opportunities: [],
+				error: `Stealth scraper error: ${error}`,
+			};
+		}
+
+		const result = await response.json() as {
+			success: boolean;
+			data?: { markdown?: string };
+			error?: string;
+		};
+
+		if (!result.success || !result.data?.markdown) {
+			return {
+				opportunities: [],
+				error: result.error || "Stealth scrape returned no content",
+			};
+		}
+
+		// Use pattern-based extraction on the markdown
+		const opportunities = extractOpportunitiesFromMarkdownStealth(
+			result.data.markdown,
+			url,
+			sourceId,
+			sourceName
+		);
+
+		return {
+			opportunities,
+			rawExtraction: { stealthFallback: true, markdownLength: result.data.markdown.length },
+		};
+	} catch (error) {
+		return {
+			opportunities: [],
+			error: `Stealth fallback failed: ${error instanceof Error ? error.message : String(error)}`,
+		};
+	}
+}
+
+/**
+ * Pattern-based extraction from markdown (used for stealth fallback)
+ */
+function extractOpportunitiesFromMarkdownStealth(
+	markdown: string,
+	sourceUrl: string,
+	sourceId: string,
+	sourceName?: string
+): OpportunityData[] {
+	const opportunities: OpportunityData[] = [];
+
+	// Pattern 1: Markdown links with tender-like text
+	const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+	let match;
+
+	while ((match = linkPattern.exec(markdown)) !== null) {
+		const [, text, linkUrl] = match;
+		const lowerText = text.toLowerCase();
+
+		if (
+			lowerText.includes("tender") ||
+			lowerText.includes("rfp") ||
+			lowerText.includes("rfq") ||
+			lowerText.includes("eoi") ||
+			lowerText.includes("bid") ||
+			lowerText.includes("procurement") ||
+			lowerText.includes("contract") ||
+			lowerText.includes("solicitation")
+		) {
+			opportunities.push({
+				title: text.trim(),
+				source: sourceId,
+				organization: sourceName,
+				portalUrl: linkUrl.startsWith("http") ? linkUrl : new URL(linkUrl, sourceUrl).toString(),
+				noticeId: generateNoticeId(text, sourceId),
+			});
+		}
+	}
+
+	// Pattern 2: Headings that look like tender titles
+	const headingPattern = /^#{1,3}\s+(.+(?:tender|rfp|rfq|procurement|bid|contract).+)$/gim;
+	while ((match = headingPattern.exec(markdown)) !== null) {
+		const title = match[1].trim();
+		if (!opportunities.some(o => o.title === title)) {
+			opportunities.push({
+				title,
+				source: sourceId,
+				organization: sourceName,
+				portalUrl: sourceUrl,
+				noticeId: generateNoticeId(title, sourceId),
+			});
+		}
+	}
+
+	return opportunities;
 }
 
 // ============================================================================

@@ -23,9 +23,10 @@ from pydantic import BaseModel, Field, ConfigDict, validator
 from pydantic.types import EmailStr
 
 from ..delivery.notification_delivery import (
-	NotificationChannel, NotificationMessage, DeliveryResult, 
+	NotificationChannel, NotificationMessage, DeliveryResult,
 	DeliveryStatus, ChannelType, Priority
 )
+from ...config.secrets import SecretsManager
 
 
 class EmailProvider(str, Enum):
@@ -709,21 +710,74 @@ def create_email_attachment(
 ) -> EmailAttachment:
 	"""Create email attachment from file path."""
 	path = Path(file_path)
-	
+
 	if not path.exists():
 		raise FileNotFoundError(f"Attachment file not found: {file_path}")
-	
+
 	with open(path, 'rb') as f:
 		content = f.read()
-	
+
 	# Guess content type if not provided
 	if not content_type:
 		import mimetypes
 		content_type, _ = mimetypes.guess_type(str(path))
 		content_type = content_type or 'application/octet-stream'
-	
+
 	return EmailAttachment(
 		filename=filename or path.name,
 		content=content,
 		content_type=content_type
 	)
+
+
+def create_email_channel_from_secrets(
+	provider: EmailProvider,
+	from_email: str,
+	**kwargs
+) -> EmailChannel:
+	"""
+	Create EmailChannel using secrets from SecretsManager.
+
+	This factory function automatically retrieves API keys and credentials
+	from the centralized secrets management system.
+
+	Args:
+		provider: Email service provider (SMTP, SENDGRID, AWS_SES, etc.)
+		from_email: Default sender email address
+		**kwargs: Additional configuration options
+
+	Returns:
+		Configured EmailChannel instance
+
+	Example:
+		channel = create_email_channel_from_secrets(
+			provider=EmailProvider.SENDGRID,
+			from_email="noreply@example.com"
+		)
+	"""
+	# Get secrets based on provider
+	if provider == EmailProvider.SENDGRID:
+		kwargs.setdefault('sendgrid_api_key', SecretsManager.get_sendgrid_api_key())
+	elif provider == EmailProvider.AWS_SES:
+		kwargs.setdefault('aws_access_key_id', SecretsManager.get_aws_access_key_id())
+		kwargs.setdefault('aws_secret_access_key', SecretsManager.get_aws_secret_access_key())
+		kwargs.setdefault('aws_region', SecretsManager.get_aws_region())
+	elif provider == EmailProvider.MAILGUN:
+		kwargs.setdefault('mailgun_api_key', SecretsManager.get_mailgun_api_key())
+	elif provider == EmailProvider.POSTMARK:
+		kwargs.setdefault('postmark_api_key', SecretsManager.get_postmark_api_key())
+	elif provider == EmailProvider.SMTP:
+		# SMTP credentials are typically configured directly
+		# but can also be retrieved from environment
+		import os
+		kwargs.setdefault('smtp_host', os.environ.get('SMTP_HOST'))
+		kwargs.setdefault('smtp_username', os.environ.get('SMTP_USERNAME'))
+		kwargs.setdefault('smtp_password', os.environ.get('SMTP_PASSWORD'))
+
+	config = EmailConfiguration(
+		provider=provider,
+		from_email=from_email,
+		**kwargs
+	)
+
+	return EmailChannel(config)

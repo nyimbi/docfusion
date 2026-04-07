@@ -95,8 +95,7 @@ export function disableDebugLogging() {
 	Object.values(loggers).forEach((logger) => {
 		// Replace all methods with no-ops
 		Object.keys(logger).forEach((key) => {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(logger as any)[key] = () => {};
+			(logger as Record<string, unknown>)[key] = () => {};
 		});
 	});
 }

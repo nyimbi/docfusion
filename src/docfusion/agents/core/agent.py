@@ -32,47 +32,17 @@ except ImportError:
         return str(uuid.uuid4())
 
 
-# Import from other system components (with fallbacks)
-try:
-    from ...intelligence.models.base_models import IntelligenceResult
-except:
-    # Fallback if intelligence models not available
-    class IntelligenceResult:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items():
-                setattr(self, k, v)
+# Import from other system components via safe optional import utility
+from ..utils.optional_imports import try_import
 
-
-try:
-    from ...voice_dna.integration import AnalysisRequest, VoiceIntegrator
-except:
-    # Fallback if voice DNA not available
-    class VoiceIntegrator:
-        def __init__(self, config=None):
-            pass
-
-        async def analyze(self, request):
-            return None
-
-    class AnalysisRequest:
-        def __init__(self, **kwargs):
-            pass
-
-
-try:
-    from ..context import get_context_manager
-except:
-    # Fallback if context manager not available
-    async def get_context_manager():
-        return None
-
-
-try:
-    from ..tools import get_tool_registry
-except:
-    # Fallback if tools not available
-    def get_tool_registry():
-        return None
+IntelligenceResult = try_import(
+    "docfusion.intelligence.models.base_models", "IntelligenceResult"
+)
+VoiceIntegrator = try_import("docfusion.voice_dna.integration", "VoiceIntegrator")
+AnalysisRequest = try_import("docfusion.voice_dna.integration", "AnalysisRequest")
+get_context_manager = try_import("docfusion.agents.context", "get_context_manager")
+get_tool_registry = try_import("docfusion.agents.tools", "get_tool_registry")
+get_memory_manager = try_import("docfusion.agents.memory", "get_memory_manager")
 
 
 # Import Ollama LLM client
@@ -255,10 +225,11 @@ class Agent(ABC, Generic[T]):
 
         # Integration components
         self.voice_integrator = (
-            VoiceIntegrator() if config.voice_analysis_enabled else None
+            VoiceIntegrator() if config.voice_analysis_enabled and VoiceIntegrator else None
         )
         self.context_manager = None
-        self.tool_registry = get_tool_registry()
+        self.memory_manager = None  # Memory manager for persistent memory
+        self.tool_registry = get_tool_registry() if get_tool_registry else None
 
         # Initialize Ollama client
         self.llm_client = None
@@ -283,9 +254,19 @@ class Agent(ABC, Generic[T]):
         self.metrics.last_activity = datetime.now()
 
         # Initialize context manager
-        self.context_manager = await get_context_manager()
+        if get_context_manager is not None:
+            self.context_manager = await get_context_manager()
         if self.context_manager:
             await self._register_with_context_manager()
+
+        # Initialize memory manager (if persistent memory is enabled)
+        if get_memory_manager is not None and self.config.memory_persistence:
+            try:
+                self.memory_manager = await get_memory_manager(agent_id=self.agent_id)
+                self.logger.info(f"Memory manager initialized for agent {self.name}")
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize memory manager: {e}")
+                # Continue without memory manager - fallback to in-memory
 
         # Start main processing task
         self._main_task = asyncio.create_task(self._main_loop())
@@ -494,6 +475,209 @@ class Agent(ABC, Generic[T]):
                 )
 
         return sorted(results, key=lambda x: x["relevance"], reverse=True)
+
+    # Persistent Memory Methods
+
+    async def store_memory(
+        self,
+        key: str,
+        value: Any,
+        memory_type: str = "working",
+        scope: str = "private",
+        tags: Optional[Set[str]] = None,
+        context: Optional[Dict[str, Any]] = None,
+        ttl_seconds: Optional[int] = None,
+    ) -> bool:
+        """
+        Store item in persistent memory.
+
+        Falls back to in-memory working context if memory manager is not available.
+
+        Args:
+            key: Unique identifier for the memory
+            value: Content to store
+            memory_type: Type of memory (working, episodic, semantic, long_term)
+            scope: Access scope (private, crew, swarm, global)
+            tags: Optional tags for search
+            context: Optional context metadata
+            ttl_seconds: Optional time-to-live in seconds
+
+        Returns:
+            True if stored successfully, False otherwise
+        """
+        if self.memory_manager:
+            try:
+                # Import MemoryType and MemoryScope enums
+                from ..memory.memory_manager import MemoryType as MT, MemoryScope as MS
+
+                # Convert string to enum
+                mem_type_map = {
+                    "working": MT.WORKING,
+                    "short_term": MT.SHORT_TERM,
+                    "long_term": MT.LONG_TERM,
+                    "episodic": MT.EPISODIC,
+                    "semantic": MT.SEMANTIC,
+                    "procedural": MT.PROCEDURAL,
+                }
+                scope_map = {
+                    "private": MS.PRIVATE,
+                    "crew": MS.CREW,
+                    "swarm": MS.SWARM,
+                    "global": MS.GLOBAL,
+                    "project": MS.PROJECT,
+                }
+
+                mem_type = mem_type_map.get(memory_type, MT.WORKING)
+                mem_scope = scope_map.get(scope, MS.PRIVATE)
+
+                entry_id = await self.memory_manager.store_memory(
+                    content={key: value},
+                    memory_type=mem_type,
+                    scope=mem_scope,
+                    tags=tags,
+                    context=context or {},
+                    ttl_seconds=ttl_seconds,
+                )
+                self.logger.debug(f"Stored persistent memory: {key} ({entry_id})")
+                return True
+            except Exception as e:
+                self.logger.error(f"Failed to store persistent memory {key}: {e}")
+                # Fallback to in-memory
+                self.context.working_memory[key] = value
+                return True
+        else:
+            # Fallback to in-memory working memory
+            self.context.working_memory[key] = value
+            return True
+
+    async def recall_memory(
+        self,
+        key: str,
+        default: Any = None,
+        memory_type: Optional[str] = None,
+        tags: Optional[Set[str]] = None,
+    ) -> Any:
+        """
+        Recall item from persistent memory.
+
+        Falls back to in-memory working context if memory manager is not available.
+
+        Args:
+            key: Unique identifier for the memory
+            default: Default value if not found
+            memory_type: Optional filter by memory type
+            tags: Optional tags to search by
+
+        Returns:
+            The stored value or default if not found
+        """
+        if self.memory_manager:
+            try:
+                # Search by key in context
+                if tags:
+                    results = await self.memory_manager.search_memories(
+                        query=key, tags=tags, limit=10
+                    )
+                    if results:
+                        # Return the most recent matching result's content
+                        for entry in results:
+                            if key in entry.context:
+                                return entry.context.get(key)
+                            if isinstance(entry.content, dict) and key in entry.content:
+                                return entry.content.get(key)
+                        return results[0].content
+
+                # Direct retrieval - check cache first, then search
+                # Since we store as {key: value}, we need to search
+                results = await self.memory_manager.search_memories(
+                    query=key, limit=10
+                )
+                for entry in results:
+                    if isinstance(entry.content, dict) and key in entry.content:
+                        return entry.content.get(key)
+                    if key in str(entry.content):
+                        return entry.content
+
+                return default
+            except Exception as e:
+                self.logger.error(f"Failed to recall persistent memory {key}: {e}")
+                return self.context.working_memory.get(key, default)
+        else:
+            # Fallback to in-memory working memory
+            return self.context.working_memory.get(key, default)
+
+    async def search_memories(
+        self,
+        query: str,
+        memory_type: Optional[str] = None,
+        tags: Optional[Set[str]] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search persistent memories by query and filters.
+
+        Args:
+            query: Search query string
+            memory_type: Optional filter by memory type
+            tags: Optional tags to filter by
+            limit: Maximum number of results
+
+        Returns:
+            List of matching memory entries
+        """
+        if self.memory_manager:
+            try:
+                from ..memory.memory_manager import MemoryType as MT
+
+                mem_type = None
+                if memory_type:
+                    mem_type_map = {
+                        "working": MT.WORKING,
+                        "short_term": MT.SHORT_TERM,
+                        "long_term": MT.LONG_TERM,
+                        "episodic": MT.EPISODIC,
+                        "semantic": MT.SEMANTIC,
+                        "procedural": MT.PROCEDURAL,
+                    }
+                    mem_type = mem_type_map.get(memory_type)
+
+                results = await self.memory_manager.search_memories(
+                    query=query,
+                    tags=tags,
+                    memory_type=mem_type,
+                    limit=limit,
+                )
+
+                return [
+                    {
+                        "id": entry.entry_id,
+                        "content": entry.content,
+                        "memory_type": entry.memory_type.value,
+                        "tags": list(entry.tags) if entry.tags else [],
+                        "context": entry.context,
+                        "created_at": entry.created_at.isoformat(),
+                        "last_accessed": entry.last_accessed.isoformat(),
+                        "access_count": entry.access_count,
+                    }
+                    for entry in results
+                ]
+            except Exception as e:
+                self.logger.error(f"Failed to search persistent memories: {e}")
+                return []
+        else:
+            # Fallback to in-memory search
+            results = []
+            query_lower = query.lower()
+            for k, v in self.context.working_memory.items():
+                if query_lower in k.lower() or query_lower in str(v).lower():
+                    results.append(
+                        {
+                            "key": k,
+                            "content": v,
+                            "memory_type": "working",
+                        }
+                    )
+            return results[:limit]
 
     def update_context(self, key: str, value: Any) -> None:
         """Update working context"""
@@ -788,7 +972,7 @@ class Agent(ABC, Generic[T]):
         self, text: str, organization: str
     ) -> Optional[Any]:
         """Analyze voice consistency using Voice DNA Engine"""
-        if not self.voice_integrator:
+        if not self.voice_integrator or AnalysisRequest is None:
             return None
 
         try:

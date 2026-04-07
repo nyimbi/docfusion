@@ -6,28 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { hdsiDB } from "./db";
-import type { HDSIVersion, HDSINode } from "./types";
-
-// Re-define HDSIDocument type to match stored type
-interface HDSIDocument {
-  id: string;
-  remoteId?: string;
-  title: string;
-  structure: HDSINode[];
-  createdAt: Date;
-  updatedAt: Date;
-  syncVersion: number;
-  lastSyncedAt?: Date;
-  isDeleted?: boolean;
-  templateId?: string;
-  metadata: {
-    author?: string;
-    organization?: string;
-    tags?: string[];
-    aiModel?: string;
-    generationVersion?: string;
-  };
-}
+import type { HDSIVersion, HDSINode, HDSIDocument, VersionComparison } from "./types";
 
 interface UseHDSIDocumentOptions {
   documentId?: string;
@@ -167,7 +146,7 @@ interface UseHDSIVersionHistoryResult {
   isLoading: boolean;
   error: Error | null;
   restoreVersion: (version: HDSIVersion) => Promise<HDSIDocument>;
-  compareVersions: (from: HDSIVersion, to: HDSIVersion) => Promise<any>;
+  compareVersions: (from: HDSIVersion, to: HDSIVersion) => Promise<VersionComparison>;
 }
 
 /**
@@ -216,7 +195,7 @@ export function useHDSIVersionHistory(documentId?: string): UseHDSIVersionHistor
     return restored as unknown as HDSIDocument;
   }, [documentId]);
 
-  const compareVersions = useCallback(async (from: HDSIVersion, to: HDSIVersion): Promise<any> => {
+  const compareVersions = useCallback(async (from: HDSIVersion, to: HDSIVersion): Promise<VersionComparison> => {
     return {
       from,
       to,

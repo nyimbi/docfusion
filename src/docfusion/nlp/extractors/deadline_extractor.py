@@ -876,7 +876,8 @@ Provide comprehensive temporal analysis:
 				if ai_expr.get('parsed_date'):
 					try:
 						parsed_date = datetime.fromisoformat(ai_expr['parsed_date'].replace('Z', '+00:00'))
-					except:
+					except (ValueError, TypeError) as e:
+						self.logger.warning(f"Failed to parse AI-provided date '{ai_expr['parsed_date']}': {e}")
 						parsed_date = self._parse_date_string(ai_expr['text'], reference_date)
 				
 				expr = TemporalExpression(

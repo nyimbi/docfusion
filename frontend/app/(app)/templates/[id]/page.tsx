@@ -8,6 +8,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { cn, formatDate } from "@/lib/utils";
@@ -290,10 +291,12 @@ export default function TemplateDetailPage() {
 						<div className="rounded-xl border border-border bg-card overflow-hidden">
 							<div className="aspect-[16/9] bg-muted relative">
 								{template.previewImageUrl ? (
-									<img
+									<Image
 										src={template.previewImageUrl}
 										alt={template.name}
-										className="absolute inset-0 w-full h-full object-cover"
+										className="object-cover"
+										fill
+										unoptimized
 									/>
 								) : (
 									<div className="absolute inset-0 flex items-center justify-center">

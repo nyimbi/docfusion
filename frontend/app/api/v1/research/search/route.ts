@@ -13,7 +13,7 @@ import { auth } from "@/lib/auth";
 // Configuration
 // ============================================================================
 
-const FIRECRAWL_URL = process.env.FIRECRAWL_URL || "http://20.84.71.33:3002";
+const FIRECRAWL_URL = process.env.FIRECRAWL_URL || "http://84.247.181.100:3002";
 
 // ============================================================================
 // Types

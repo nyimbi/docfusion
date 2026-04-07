@@ -27,6 +27,7 @@ import {
 	reviewChecklists,
 } from "@/lib/db/schema-reviews";
 import { eq, and, desc, sql, inArray, gte, lte, isNull, count, avg } from "drizzle-orm";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // INPUT VALIDATION SCHEMAS
@@ -438,7 +439,7 @@ export async function createReview(
 			reviewId: review.id,
 		};
 	} catch (error) {
-		console.error("Failed to create review:", error);
+		logger.error("Failed to create review:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to create review",
@@ -505,7 +506,7 @@ export async function updateReview(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to update review:", error);
+		logger.error("Failed to update review:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to update review",
@@ -543,7 +544,7 @@ export async function deleteReview(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to delete review:", error);
+		logger.error("Failed to delete review:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to delete review",
@@ -600,7 +601,7 @@ export async function listReviews(
 
 		return { success: true, reviews };
 	} catch (error) {
-		console.error("Failed to list reviews:", error);
+		logger.error("Failed to list reviews:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to list reviews",
@@ -638,7 +639,7 @@ export async function listAllReviews(
 	error?: string;
 }> {
 	try {
-		const conditions: any[] = [];
+		const conditions: ReturnType<typeof eq>[] = [];
 
 		if (filters?.status) {
 			conditions.push(eq(proposalReviews.status, filters.status as "draft" | "scheduled" | "in_progress" | "completed" | "cancelled"));
@@ -674,7 +675,7 @@ export async function listAllReviews(
 
 		return { success: true, reviews };
 	} catch (error) {
-		console.error("Failed to list all reviews:", error);
+		logger.error("Failed to list all reviews:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to list all reviews",
@@ -794,7 +795,7 @@ export async function getReview(id: string): Promise<{
 
 		return { success: true, review };
 	} catch (error) {
-		console.error("Failed to get review:", error);
+		logger.error("Failed to get review:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to get review",
@@ -852,7 +853,7 @@ export async function assignReviewers(
 			assignedCount: insertedReviewers.length,
 		};
 	} catch (error) {
-		console.error("Failed to assign reviewers:", error);
+		logger.error("Failed to assign reviewers:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to assign reviewers",
@@ -920,7 +921,7 @@ export async function updateReviewer(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to update reviewer:", error);
+		logger.error("Failed to update reviewer:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to update reviewer",
@@ -956,7 +957,7 @@ export async function removeReviewer(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to remove reviewer:", error);
+		logger.error("Failed to remove reviewer:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to remove reviewer",
@@ -1016,7 +1017,7 @@ export async function checkConflictsOfInterest(
 
 		return { success: true, results };
 	} catch (error) {
-		console.error("Failed to check conflicts of interest:", error);
+		logger.error("Failed to check conflicts of interest:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to check conflicts",
@@ -1072,7 +1073,7 @@ export async function sendReviewerReminder(
 		};
 
 		// Log notification for audit trail (in production, would be queued)
-		console.info("Review reminder notification queued:", {
+		logger.info("Review reminder notification queued:", {
 			to: reviewer.userEmail,
 			reviewId: reviewer.reviewId,
 			reminderCount: notificationPayload.metadata.reminderCount,
@@ -1080,7 +1081,7 @@ export async function sendReviewerReminder(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to send reminder:", error);
+		logger.error("Failed to send reminder:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to send reminder",
@@ -1173,7 +1174,7 @@ export async function addReviewComment(
 			commentId: newComment.id,
 		};
 	} catch (error) {
-		console.error("Failed to add comment:", error);
+		logger.error("Failed to add comment:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to add comment",
@@ -1224,7 +1225,7 @@ export async function updateComment(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to update comment:", error);
+		logger.error("Failed to update comment:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to update comment",
@@ -1280,7 +1281,7 @@ export async function deleteComment(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to delete comment:", error);
+		logger.error("Failed to delete comment:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to delete comment",
@@ -1327,7 +1328,7 @@ export async function resolveComment(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to resolve comment:", error);
+		logger.error("Failed to resolve comment:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to resolve comment",
@@ -1369,7 +1370,7 @@ export async function verifyResolution(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to verify resolution:", error);
+		logger.error("Failed to verify resolution:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to verify resolution",
@@ -1472,7 +1473,7 @@ export async function getReviewComments(
 
 		return { success: true, comments };
 	} catch (error) {
-		console.error("Failed to get comments:", error);
+		logger.error("Failed to get comments:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to get comments",
@@ -1497,7 +1498,7 @@ export async function updateCommentPriorities(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to update priorities:", error);
+		logger.error("Failed to update priorities:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to update priorities",
@@ -1537,7 +1538,7 @@ export async function markCommentDuplicate(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to mark duplicate:", error);
+		logger.error("Failed to mark duplicate:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to mark duplicate",
@@ -1610,7 +1611,7 @@ export async function submitReviewerScores(
 			scoresSubmitted: insertedScores.length,
 		};
 	} catch (error) {
-		console.error("Failed to submit scores:", error);
+		logger.error("Failed to submit scores:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to submit scores",
@@ -1673,7 +1674,7 @@ export async function updateScore(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to update score:", error);
+		logger.error("Failed to update score:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to update score",
@@ -1840,7 +1841,7 @@ export async function aggregateScores(
 
 		return { success: true, aggregation };
 	} catch (error) {
-		console.error("Failed to aggregate scores:", error);
+		logger.error("Failed to aggregate scores:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to aggregate scores",
@@ -1981,7 +1982,7 @@ export async function generateReviewReport(
 
 		return { success: true, report };
 	} catch (error) {
-		console.error("Failed to generate report:", error);
+		logger.error("Failed to generate report:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to generate report",
@@ -2111,7 +2112,7 @@ export async function compareBeforeAfter(
 
 		return { success: true, comparison };
 	} catch (error) {
-		console.error("Failed to compare reviews:", error);
+		logger.error("Failed to compare reviews:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to compare reviews",
@@ -2273,7 +2274,7 @@ export async function trackReviewEffectiveness(
 
 		return { success: true, metrics };
 	} catch (error) {
-		console.error("Failed to track effectiveness:", error);
+		logger.error("Failed to track effectiveness:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to track effectiveness",
@@ -2312,7 +2313,7 @@ export async function exportReviewPackage(
 		const downloadUrl = `/api/reviews/${reviewId}/export?format=${format}&filename=${encodeURIComponent(filename)}`;
 
 		// Log export for audit trail
-		console.info("Review export initiated:", {
+		logger.info("Review export initiated:", {
 			reviewId,
 			format,
 			filename,
@@ -2320,7 +2321,7 @@ export async function exportReviewPackage(
 
 		return { success: true, downloadUrl };
 	} catch (error) {
-		console.error("Failed to export review package:", error);
+		logger.error("Failed to export review package:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to export review package",
@@ -2356,7 +2357,7 @@ async function updateReviewStatistics(reviewId: string): Promise<void> {
 			.set(stats)
 			.where(eq(proposalReviews.id, reviewId));
 	} catch (error) {
-		console.error("Failed to update review statistics:", error);
+		logger.error("Failed to update review statistics:", error);
 	}
 }
 
@@ -2405,7 +2406,7 @@ export async function completeReview(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to complete review:", error);
+		logger.error("Failed to complete review:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to complete review",
@@ -2441,7 +2442,7 @@ export async function startReview(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to start review:", error);
+		logger.error("Failed to start review:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to start review",
@@ -2478,7 +2479,7 @@ export async function cancelReview(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to cancel review:", error);
+		logger.error("Failed to cancel review:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to cancel review",

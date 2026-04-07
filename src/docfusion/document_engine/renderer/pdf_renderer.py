@@ -14,6 +14,8 @@ High-quality PDF generation from formatted documents with comprehensive support 
 import asyncio
 import base64
 import io
+import re
+import subprocess
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -278,13 +280,155 @@ class FormattedDocumentContent:
 # Component Classes
 # ============================================================================
 
+@dataclass
+class CompilationResult:
+	"""Result of LaTeX compilation with output and diagnostics."""
+
+	# Compilation status
+	success: bool
+	output_format: str = "pdf"
+
+	# Output content
+	compiled_content: bytes = b""
+
+	# Diagnostics and logging
+	compilation_log: str = ""
+	errors: list[str] = None
+	warnings: list[str] = None
+
+	# Performance metrics
+	compilation_time: float = 0.0
+	output_size: int = 0
+
+	# File information
+	temp_directory: str = ""
+	source_file: str = ""
+	output_file: str = ""
+
+	def __post_init__(self):
+		"""Initialize mutable defaults."""
+		if self.errors is None:
+			self.errors = []
+		if self.warnings is None:
+			self.warnings = []
+
+
 class LaTeXCompiler:
 	"""LaTeX compilation engine for primary PDF generation"""
-	
+
 	def __init__(self):
+		"""Initialize compiler with default settings."""
 		self.latex_cache = {}
 		self.compile_timeout = 30  # seconds
-		
+		self.latex_engine = "pdflatex"
+		self.bibtex_engine = "biber"
+		self.temp_dir_base = Path(tempfile.gettempdir()) / "docufusion_latex"
+		self.temp_dir_base.mkdir(exist_ok=True)
+
+	async def compile_to_pdf(self, latex_content: str, filename: str = "document") -> CompilationResult:
+		"""
+		Compile LaTeX content to PDF with full processing pipeline.
+
+		Args:
+			latex_content: LaTeX source code
+			filename: Base filename for temporary files
+
+		Returns:
+			CompilationResult with PDF content and diagnostics
+		"""
+		start_time = datetime.now()
+		temp_dir = self.temp_dir_base / f"{filename}_{uuid7str()[:8]}"
+		temp_dir.mkdir(exist_ok=True)
+
+		try:
+			tex_file = temp_dir / f"{filename}.tex"
+			tex_file.write_text(latex_content, encoding='utf-8')
+
+			compilation_log = ""
+			result1 = await self._run_latex_pass(tex_file)
+			compilation_log += result1.stdout + result1.stderr
+
+			if r'\cite{' in latex_content or r'\bibliography' in latex_content:
+				bib_result = await self._run_bibtex_pass(tex_file)
+				compilation_log += bib_result.stdout + bib_result.stderr
+				result2 = await self._run_latex_pass(tex_file)
+				compilation_log += result2.stdout + result2.stderr
+
+			result_final = await self._run_latex_pass(tex_file)
+			compilation_log += result_final.stdout + result_final.stderr
+
+			pdf_file = tex_file.with_suffix('.pdf')
+			if pdf_file.exists():
+				pdf_content = pdf_file.read_bytes()
+				compilation_time = (datetime.now() - start_time).total_seconds()
+				return CompilationResult(
+					success=True,
+					output_format="pdf",
+					compiled_content=pdf_content,
+					compilation_log=compilation_log,
+					compilation_time=compilation_time,
+					output_size=len(pdf_content),
+					temp_directory=str(temp_dir),
+					source_file=str(tex_file),
+					output_file=str(pdf_file)
+				)
+			else:
+				errors = self._parse_latex_errors(compilation_log)
+				warnings = self._parse_latex_warnings(compilation_log)
+				return CompilationResult(
+					success=False,
+					output_format="pdf",
+					compilation_log=compilation_log,
+					errors=errors,
+					warnings=warnings,
+					compilation_time=(datetime.now() - start_time).total_seconds(),
+					temp_directory=str(temp_dir),
+					source_file=str(tex_file)
+				)
+		except Exception as e:
+			return CompilationResult(
+				success=False,
+				output_format="pdf",
+				errors=[f"Compilation exception: {str(e)}"],
+				compilation_time=(datetime.now() - start_time).total_seconds(),
+				temp_directory=str(temp_dir)
+			)
+
+	async def _run_latex_pass(self, tex_file: Path) -> subprocess.CompletedProcess:
+		"""Run a single LaTeX compilation pass."""
+		cmd = [self.latex_engine, "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", str(tex_file.name)]
+		result = await asyncio.create_subprocess_exec(*cmd, cwd=tex_file.parent, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+		stdout, stderr = await result.communicate()
+		return subprocess.CompletedProcess(args=cmd, returncode=result.returncode, stdout=stdout.decode('utf-8', errors='ignore'), stderr=stderr.decode('utf-8', errors='ignore'))
+
+	async def _run_bibtex_pass(self, tex_file: Path) -> subprocess.CompletedProcess:
+		"""Run bibliography processor."""
+		base_name = tex_file.stem
+		cmd = [self.bibtex_engine, base_name]
+		result = await asyncio.create_subprocess_exec(*cmd, cwd=tex_file.parent, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+		stdout, stderr = await result.communicate()
+		return subprocess.CompletedProcess(args=cmd, returncode=result.returncode, stdout=stdout.decode('utf-8', errors='ignore'), stderr=stderr.decode('utf-8', errors='ignore'))
+
+	def _parse_latex_errors(self, log_content: str) -> list[str]:
+		"""Parse LaTeX compilation log for errors."""
+		errors = []
+		error_patterns = [r'! (.+)', r'.*Error.*', r'.*Fatal.*']
+		for line in log_content.split('\n'):
+			for pattern in error_patterns:
+				if re.match(pattern, line):
+					errors.append(line.strip())
+		return errors
+
+	def _parse_latex_warnings(self, log_content: str) -> list[str]:
+		"""Parse LaTeX compilation log for warnings."""
+		warnings = []
+		warning_patterns = [r'.*Warning.*', r'.*Overfull.*', r'.*Underfull.*']
+		for line in log_content.split('\n'):
+			for pattern in warning_patterns:
+				if re.match(pattern, line):
+					warnings.append(line.strip())
+		return warnings
+
 	async def compile_latex_to_pdf(
 		self,
 		latex_content: str,

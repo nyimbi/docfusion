@@ -238,7 +238,7 @@ function PWinTrend({ history }: { history?: Array<{ date: string; value: number 
 // Component
 // ============================================================================
 
-export function PipelineCard({
+export const PipelineCard = React.memo(function PipelineCard({
 	pipeline,
 	title,
 	customer,
@@ -394,6 +394,8 @@ export function PipelineCard({
 			</CardContent>
 		</Card>
 	);
-}
+});
+
+PipelineCard.displayName = "PipelineCard";
 
 export default PipelineCard;

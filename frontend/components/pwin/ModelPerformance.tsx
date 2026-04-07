@@ -303,7 +303,7 @@ export function ModelPerformance({
 								{modelHealth?.charAt(0).toUpperCase()}{modelHealth?.slice(1)} Health
 							</Badge>
 
-							<Button variant="outline" size="icon" onClick={loadData}>
+							<Button variant="outline" size="icon" onClick={loadData} aria-label="Refresh model data">
 								<RefreshCw className="h-4 w-4" />
 							</Button>
 						</div>

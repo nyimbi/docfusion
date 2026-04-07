@@ -7,6 +7,7 @@ incremental indexing for new documents, index optimization and maintenance.
 Provides comprehensive document indexing for fast search and retrieval operations.
 """
 
+import logging
 import asyncio
 import json
 import hashlib
@@ -25,6 +26,8 @@ from collections import defaultdict
 import aiofiles
 import pickle
 import re
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -203,7 +206,8 @@ class DocumentIndexer:
 				try:
 					with open(file_path, 'r', encoding='latin-1') as f:
 						content = f.read()
-				except Exception:
+				except Exception as e:
+					logger.warning(f"Failed to read file {file_path} with latin-1 encoding: {e}")
 					# If all else fails, read as binary and decode errors
 					with open(file_path, 'rb') as f:
 						content = f.read().decode('utf-8', errors='replace')

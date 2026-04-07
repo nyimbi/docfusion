@@ -4,6 +4,7 @@ Web Tools for Agents
 Provides web search, scraping, download, and URL validation capabilities.
 """
 
+import logging
 import asyncio
 import aiohttp
 import json
@@ -16,6 +17,8 @@ import mimetypes
 from pathlib import Path
 
 from .base import AgentTool, ToolResult, ToolCapability, ToolError, ToolConfig
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -463,7 +466,8 @@ class URLValidatorTool(AgentTool):
 		try:
 			parsed = urlparse(url)
 			is_valid = bool(parsed.scheme and parsed.netloc)
-		except Exception:
+		except Exception as e:
+			logger.warning(f"Failed to parse URL {url}: {e}")
 			is_valid = False
 		
 		result_data = {

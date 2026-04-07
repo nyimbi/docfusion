@@ -416,7 +416,8 @@ class DocumentTokenizer:
             if self.config["include_pos_tags"]:
                 try:
                     pos_tags = nltk.pos_tag(words)
-                except:
+                except (ValueError, TypeError, LookupError) as e:
+                    self.logger.warning(f"POS tagging failed, falling back to empty tags: {e}")
                     pos_tags = [(word, "") for word in words]
             else:
                 pos_tags = [(word, "") for word in words]

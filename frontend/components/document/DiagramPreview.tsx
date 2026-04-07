@@ -13,6 +13,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { sanitizeHTML } from "@/lib/utils/sanitize";
 import {
 	AlertCircle,
 	Download,
@@ -317,7 +318,7 @@ export function DiagramPreview({
 						style={{
 							transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
 						}}
-						dangerouslySetInnerHTML={{ __html: svg }}
+						dangerouslySetInnerHTML={{ __html: sanitizeHTML(svg) }}
 					/>
 				) : errors.length > 0 ? (
 					<div className="text-center text-destructive max-w-md px-4">

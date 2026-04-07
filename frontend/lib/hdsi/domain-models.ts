@@ -1,45 +1,29 @@
-"use client";
-
 /**
  * Fine-tuned Domain Models via LoRA
  * Specialized adapters for FAR/DFARS, technical specs, academic papers
+ * 
+ * NOTE: Types are re-exported from ./types for consistency.
+ * This file contains runtime implementations only.
  */
 
-import type { HDSINode } from "./types";
+import { logger } from "@/lib/utils/logger";
+import type {
+  HDSINode,
+  DomainType,
+  DomainAdapter,
+  DomainDetectionResult,
+  DomainGenerationOptions,
+  DomainGenerationResult,
+} from "./types";
 
-// ============================================================================
-// Domain Types
-// ============================================================================
-
-export type DomainType = 
-  | "far-compliance"      // Federal Acquisition Regulation
-  | "dfars-compliance"    // Defense Federal Acquisition Regulation
-  | "technical-spec"      // Technical specifications (SYSML, DoDAF)
-  | "academic"            // Academic papers
-  | "grant-proposal"      // Grant/Funding proposals
-  | "medical-device"      // FDA medical device submissions
-  | "software-rfp"        // Software development RFPs
-  | "construction"        // Construction/construction management
-  | "general";            // Fallback to base model
-
-export interface DomainAdapter {
-  id: DomainType;
-  name: string;
-  description: string;
-  baseModel: string;
-  adapterPath: string;      // HuggingFace or local path
-  triggerWords: string[];   // Words that activate the adapter
-  temperature: number;      // Optimal temp for this domain
-  maxTokens: number;
-  systemPrompt: string;
-}
-
-export interface DomainDetectionResult {
-  detectedDomain: DomainType;
-  confidence: number;
-  triggerMatches: string[];
-  suggestedAdapter: DomainAdapter;
-}
+// Re-export types for consumers
+export type { 
+  DomainType, 
+  DomainAdapter, 
+  DomainDetectionResult,
+  DomainGenerationOptions,
+  DomainGenerationResult,
+};
 
 // ============================================================================
 // Domain Adapters Configuration
@@ -252,22 +236,6 @@ export function detectDomainForDocument(nodes: HDSINode[]): DomainDetectionResul
 // Adapter Loading & Generation
 // ============================================================================
 
-export interface DomainGenerationOptions {
-  domain: DomainType;
-  prompt: string;
-  nodeContext?: HDSINode;
-  streaming?: boolean;
-  onProgress?: (progress: { tokens: number; content: string }) => void;
-}
-
-export interface DomainGenerationResult {
-  content: string;
-  domain: DomainType;
-  adapterUsed: DomainAdapter;
-  tokensUsed: number;
-  complianceScore?: number;  // 0-1 score for regulatory compliance
-}
-
 /**
  * Generate content with domain-specific adapter
  */
@@ -383,7 +351,7 @@ async function generateDomainContent(prompt: string, adapter: DomainAdapter): Pr
 
     return data.content || "";
   } catch (error) {
-    console.error(`Domain generation error (${adapter.name}):`, error);
+    logger.error(`Domain generation error (${adapter.name}):`, error);
     // Return error message instead of mock content
     return `[Error generating ${adapter.name} content: ${error instanceof Error ? error.message : "Unknown error"}]
 

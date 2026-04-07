@@ -698,7 +698,8 @@ class DLPSystem:
                 total += n
 
             return total % 10 == 0
-        except Exception:
+        except Exception as e:
+            self.logger.warning(f"Credit card validation failed: {e}")
             return False
 
     def _validate_context(self, context: str, context_patterns: List[str]) -> bool:

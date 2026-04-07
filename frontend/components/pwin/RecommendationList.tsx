@@ -349,7 +349,7 @@ export function RecommendationList({
 							</DropdownMenuContent>
 						</DropdownMenu>
 
-						<Button variant="outline" size="icon" onClick={loadRecommendations}>
+						<Button variant="outline" size="icon" onClick={loadRecommendations} aria-label="Refresh recommendations">
 							<RefreshCw className="h-4 w-4" />
 						</Button>
 					</div>

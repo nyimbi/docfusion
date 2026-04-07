@@ -8,7 +8,6 @@ and session management with comprehensive security integration.
 
 import asyncio
 import logging
-import secrets
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
@@ -27,6 +26,7 @@ except ImportError:
 
 
 from ...security import APIAuthentication, SecurityManager, UserAuthentication
+from ...config.secrets import SecretsManager
 
 
 class AuthenticationMiddleware:
@@ -40,8 +40,15 @@ class AuthenticationMiddleware:
         self.bearer_scheme = HTTPBearer(auto_error=False)
         self.api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-        # Configuration
-        self.jwt_secret = secrets.token_urlsafe(32)  # In production, use env var
+        # Configuration - use centralized secrets management
+        jwt_secret = SecretsManager.get_jwt_secret()
+        if not jwt_secret:
+            raise RuntimeError(
+                "JWT_SECRET environment variable is required in production. "
+                "Set the environment variable or run in development mode. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+            )
+        self.jwt_secret = jwt_secret
         self.jwt_algorithm = "HS256"
         self.jwt_expiration_minutes = 60
 

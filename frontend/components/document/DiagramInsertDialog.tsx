@@ -16,6 +16,7 @@
 import * as React from "react";
 import { Editor } from "@tiptap/react";
 import { cn } from "@/lib/utils";
+import { sanitizeHTML } from "@/lib/utils/sanitize";
 import {
 	Dialog,
 	DialogContent,
@@ -452,7 +453,7 @@ export function DiagramInsertDialog({
 										<div
 											ref={previewRef}
 											className="p-4"
-											dangerouslySetInnerHTML={{ __html: state.preview || "" }}
+											dangerouslySetInnerHTML={{ __html: sanitizeHTML(state.preview || "") }}
 										/>
 									) : (
 										<div className="text-center text-muted-foreground p-8">

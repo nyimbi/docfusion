@@ -81,6 +81,30 @@ export interface Opportunity {
 	createdAt: Date;
 	updatedAt: Date;
 	importedAt: Date;
+
+	// Scraper Integration Fields
+	/** Scraper source identifier (e.g., "ungm", "afdb", "kenya_ppip") */
+	source?: string | null;
+	/** SHA256 fingerprint for deduplication */
+	fingerprint?: string | null;
+	/** Notice/tender ID from source portal */
+	noticeId?: string | null;
+	/** Link to portal page */
+	portalUrl?: string | null;
+	/** Link to tender documents */
+	documentUrl?: string | null;
+	/** When the opportunity was scraped */
+	scrapedAt?: Date | null;
+	/** Published/posted date from source */
+	publishedDate?: Date | null;
+	/** Whether documents have been discovered */
+	documentsDiscovered?: boolean;
+	/** When documents were discovered */
+	documentsDiscoveredAt?: Date | null;
+	/** Count of downloaded documents */
+	documentsDownloadedCount?: number;
+	/** When last document scan occurred */
+	lastDocumentScanAt?: Date | null;
 }
 
 /**
@@ -131,6 +155,35 @@ export interface OpportunityInput {
 	sourcePlatform?: string;
 	sourceFile?: string;
 	opportunityType?: OpportunityType;
+	// Scraper integration fields
+	/** Scraper source identifier (e.g., "ungm", "afdb", "kenya_ppip") */
+	source?: string;
+	/** SHA256 fingerprint for deduplication */
+	fingerprint?: string;
+	/** Notice/tender ID from source portal */
+	noticeId?: string;
+	/** Link to portal page */
+	portalUrl?: string;
+	/** Link to tender documents */
+	documentUrl?: string;
+	/** When the opportunity was scraped */
+	scrapedAt?: Date | string;
+	/** Published/posted date from source */
+	publishedDate?: Date | string;
+	/** Country (alias for countryRegion for scraper compatibility) */
+	country?: string;
+	/** Description (alias for projectSummary for scraper compatibility) */
+	description?: string;
+	/** Status (for compatibility) */
+	status?: string;
+	/** Budget min (for range) */
+	budgetMin?: number;
+	/** Budget max (for range) */
+	budgetMax?: number;
+	/** Currency code */
+	currency?: string;
+	/** Reference number from source */
+	referenceNumber?: string;
 	priorityRank?: PriorityRank;
 	fitScore?: number;
 	winProbability?: number;

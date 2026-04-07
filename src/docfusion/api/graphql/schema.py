@@ -27,6 +27,8 @@ except ImportError:
 	def uuid7str() -> str:
 		return str(uuid4())
 
+logger = logging.getLogger(__name__)
+
 from ..endpoints.search_endpoints import SearchRequest, SearchResponse, SearchMode, SearchScope, SearchSort, SortOrder
 from ...security import SecurityManager
 
@@ -67,7 +69,8 @@ class HasPermission(BasePermission):
 				user["user_id"], self.resource, self.action
 			)
 			return auth_result.has_permission
-		except Exception:
+		except Exception as e:
+			logger.warning(f"Permission check failed: {e}")
 			return False
 
 
@@ -914,7 +917,8 @@ async def build_graphql_context(
 				"username": "testuser",
 				"permissions": ["document:read", "document:write"]
 			}
-		except Exception:
+		except Exception as e:
+			logger.warning(f"Invalid authentication token: {e}")
 			pass  # Invalid token, continue without user
 	
 	return context

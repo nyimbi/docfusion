@@ -5,6 +5,7 @@ These are the final 2 tools to complete the 10 specialized publishing tools.
 """
 
 import asyncio
+import logging
 import re
 import json
 import hashlib
@@ -752,8 +753,8 @@ class DeliveryPackagerTool(AgentTool):
 				file_count += 1
 				try:
 					total_size += file_path.stat().st_size
-				except:
-					pass  # Skip files we can't stat
+				except OSError as e:
+					logging.getLogger(__name__).debug(f"Could not stat file {file_path}: {e}")
 		
 		return {
 			"total_files": file_count,

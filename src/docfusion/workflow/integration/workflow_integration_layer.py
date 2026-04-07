@@ -1572,7 +1572,8 @@ class WorkflowIntegrationLayer:
                         # This is a simplified cleanup - would be more sophisticated in production
                         if len(keys_to_remove) < 100:  # Limit cleanup per cycle
                             keys_to_remove.append(key)
-                    except:
+                    except (ValueError, KeyError, TypeError) as e:
+                        logger.warning(f"Error during metrics cleanup for key '{key}': {e}")
                         continue
 
             for key in keys_to_remove[:50]:  # Remove up to 50 old entries per cleanup

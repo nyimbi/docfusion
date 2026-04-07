@@ -1135,42 +1135,48 @@ def validate_accessibility_renderer_installation() -> Dict[str, bool]:
 	try:
 		renderer = AccessibilityRenderer()
 		validation_results["accessibility_renderer_core"] = True
-	except Exception:
+	except Exception as e:
+		logger.warning("Accessibility renderer core validation failed: %s", str(e))
 		validation_results["accessibility_renderer_core"] = False
 		validation_results["overall_status"] = False
 	
 	try:
 		validator = WCAGValidator()
 		validation_results["wcag_validator"] = True
-	except Exception:
+	except Exception as e:
+		logger.warning("WCAG validator validation failed: %s", str(e))
 		validation_results["wcag_validator"] = False
 		validation_results["overall_status"] = False
 	
 	try:
 		generator = AlternativeTextGenerator()
 		validation_results["alt_text_generator"] = True
-	except Exception:
+	except Exception as e:
+		logger.warning("Alt text generator validation failed: %s", str(e))
 		validation_results["alt_text_generator"] = False
 		validation_results["overall_status"] = False
 	
 	try:
 		enhancer = ARIAEnhancer()
 		validation_results["aria_enhancer"] = True
-	except Exception:
+	except Exception as e:
+		logger.warning("ARIA enhancer validation failed: %s", str(e))
 		validation_results["aria_enhancer"] = False
 		validation_results["overall_status"] = False
 	
 	try:
 		simulator = ScreenReaderSimulator()
 		validation_results["screen_reader_simulator"] = True
-	except Exception:
+	except Exception as e:
+		logger.warning("Screen reader simulator validation failed: %s", str(e))
 		validation_results["screen_reader_simulator"] = False
 		validation_results["overall_status"] = False
 	
 	try:
 		analyzer = ColorContrastAnalyzer()
 		validation_results["color_contrast_analyzer"] = True
-	except Exception:
+	except Exception as e:
+		logger.warning("Color contrast analyzer validation failed: %s", str(e))
 		validation_results["color_contrast_analyzer"] = False
 		validation_results["overall_status"] = False
 	

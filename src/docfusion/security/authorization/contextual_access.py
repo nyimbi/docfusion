@@ -1116,7 +1116,8 @@ class ContextualAccessControl:
 		"""Check if IP address is in given range"""
 		try:
 			return ipaddress.ip_address(ip_address) in ipaddress.ip_network(ip_range, strict=False)
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Failed to check IP range for '{ip_address}' in '{ip_range}': {e}")
 			return False
 
 	# Management and Query Methods

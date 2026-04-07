@@ -5,6 +5,7 @@
  * Uses configuration from the config module.
  */
 
+import { logger } from "@/lib/utils/logger";
 import { AzureOpenAIProvider } from "./azure-openai";
 import { OllamaProvider } from "./ollama";
 import type {
@@ -136,62 +137,62 @@ export class AIProviderManager {
 	 * Get the active provider based on configuration.
 	 */
 	async getActiveProvider(): Promise<AIProvider | null> {
-		console.log("[AI Manager] Getting active provider...");
+		logger.debug("[AI Manager] Getting active provider...");
 		
 		// Check if we have an active provider that's still available
 		if (this.activeProvider) {
-			console.log(`[AI Manager] Checking existing active provider: ${this.activeProvider}`);
+			logger.debug(`[AI Manager] Checking existing active provider: ${this.activeProvider}`);
 			const provider = getProvider(this.activeProvider);
 			if (provider) {
 				const available = await provider.isAvailable();
-				console.log(`[AI Manager] Existing provider ${this.activeProvider} available: ${available}`);
+				logger.debug(`[AI Manager] Existing provider ${this.activeProvider} available: ${available}`);
 				if (available) {
 					return provider;
 				}
 			} else {
-				console.log(`[AI Manager] No provider instance found for ${this.activeProvider}`);
+				logger.debug(`[AI Manager] No provider instance found for ${this.activeProvider}`);
 			}
 		}
 
 		// Determine preferred provider from config
 		const preferred = getEffectiveProvider();
-		console.log(`[AI Manager] Preferred provider from config: ${preferred}`);
+		logger.debug(`[AI Manager] Preferred provider from config: ${preferred}`);
 		
 		if (preferred) {
 			const provider = getProvider(preferred);
-			console.log(`[AI Manager] Created provider instance for ${preferred}: ${provider ? 'Yes' : 'No'}`);
+			logger.debug(`[AI Manager] Created provider instance for ${preferred}: ${provider ? 'Yes' : 'No'}`);
 			if (provider) {
 				const available = await provider.isAvailable();
-				console.log(`[AI Manager] Provider ${preferred} available: ${available}`);
+				logger.debug(`[AI Manager] Provider ${preferred} available: ${available}`);
 				if (available) {
 					this.activeProvider = preferred;
 					return provider;
 				}
 			} else {
-				console.error(`[AI Manager] Failed to create provider instance for ${preferred}`);
+				logger.error(`[AI Manager] Failed to create provider instance for ${preferred}`);
 			}
 		} else {
-			console.error("[AI Manager] No preferred provider configured");
+			logger.error("[AI Manager] No preferred provider configured");
 		}
 
 		// Try fallback chain
 		const fallback = getFallbackProviders();
-		console.log(`[AI Manager] Trying fallback providers: ${fallback.join(", ")}`);
+		logger.debug(`[AI Manager] Trying fallback providers: ${fallback.join(", ")}`);
 		for (const type of fallback) {
 			if (type === preferred) continue; // Already tried
 
 			const provider = getProvider(type);
-			console.log(`[AI Manager] Trying fallback provider: ${type}, instance: ${provider ? 'Yes' : 'No'}`);
+			logger.debug(`[AI Manager] Trying fallback provider: ${type}, instance: ${provider ? 'Yes' : 'No'}`);
 			if (provider) {
 				try {
 					const available = await provider.isAvailable();
-					console.log(`[AI Manager] Fallback provider ${type} available: ${available}`);
+					logger.debug(`[AI Manager] Fallback provider ${type} available: ${available}`);
 					if (available) {
 						this.activeProvider = type;
 						return provider;
 					}
 				} catch (error) {
-					console.error(`[AI Manager] Error checking ${type} availability:`, error);
+					logger.error(`[AI Manager] Error checking ${type} availability:`, error);
 					this.lastError.set(
 						type,
 						error instanceof Error ? error.message : String(error)
@@ -200,8 +201,8 @@ export class AIProviderManager {
 			}
 		}
 
-		console.error("[AI Manager] No AI providers available after checking all options");
-		console.error("[AI Manager] Last errors:", Object.fromEntries(this.lastError));
+		logger.error("[AI Manager] No AI providers available after checking all options");
+		logger.error("[AI Manager] Last errors:", Object.fromEntries(this.lastError));
 		return null;
 	}
 
@@ -220,7 +221,7 @@ export class AIProviderManager {
 					const response = await provider.complete(request);
 					return { ...response, provider: preferredProvider, isFallback: false };
 				} catch (error) {
-					console.warn(
+					logger.warn(
 						`[AI] Preferred provider ${preferredProvider} failed, trying fallback`
 					);
 					this.lastError.set(
@@ -239,7 +240,7 @@ export class AIProviderManager {
 				const response = await active.complete(request);
 				return { ...response, provider, isFallback: false };
 			} catch (error) {
-				console.warn(`[AI] Active provider ${this.activeProvider} failed, trying fallbacks`);
+				logger.warn(`[AI] Active provider ${this.activeProvider} failed, trying fallbacks`);
 				this.lastError.set(
 					this.activeProvider!,
 					error instanceof Error ? error.message : String(error)
@@ -349,7 +350,7 @@ export class AIProviderManager {
 					const providerModels = await provider.listModels();
 					models.push(...providerModels);
 				} catch (error) {
-					console.warn(`[AI] Failed to list models for ${type}:`, error);
+					logger.warn(`[AI] Failed to list models for ${type}:`, error);
 				}
 			}
 		}

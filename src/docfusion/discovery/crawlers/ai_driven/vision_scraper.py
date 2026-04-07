@@ -463,7 +463,8 @@ class VisionScraper(BaseScraper):
 			
 			return bg_color, text_color
 			
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Failed to extract button colors: {e}")
 			return None, None
 	
 	def _detect_border(self, roi: np.ndarray) -> bool:
@@ -485,7 +486,8 @@ class VisionScraper(BaseScraper):
 			threshold = roi.shape[1] * 0.3  # 30% of width/height
 			return any(edge > threshold for edge in [top_edge, bottom_edge, left_edge, right_edge])
 			
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Failed to detect border: {e}")
 			return False
 	
 	def _calculate_element_confidence(self, contour: np.ndarray, area: int) -> float:
@@ -516,7 +518,8 @@ class VisionScraper(BaseScraper):
 			confidence = (compactness_score * 0.4 + solidity * 0.4 + size_score * 0.2)
 			return min(1.0, max(0.0, confidence))
 			
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Failed to calculate element confidence: {e}")
 			return 0.5  # Default confidence
 	
 	def _is_likely_clickable(self, element_type: str, has_border: bool) -> bool:
@@ -1205,7 +1208,8 @@ class VisionScraper(BaseScraper):
 			
 			return sum(factors) if factors else 0.0
 			
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Failed to calculate score factor: {e}")
 			return 0.0
 	
 	async def extract_opportunities(self, result: ScrapingResult) -> List[Dict[str, Any]]:

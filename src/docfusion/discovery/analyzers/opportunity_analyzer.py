@@ -24,6 +24,8 @@ from decimal import Decimal
 from pathlib import Path
 import logging
 
+logger = logging.getLogger(__name__)
+
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
@@ -533,9 +535,9 @@ class OpportunityAnalyzer:
 					scores['expert'] = scores.get('expert', 0) + 2
 				elif value > 1000000:  # $1M+
 					scores['high'] = scores.get('high', 0) + 1
-			except:
-				pass
-		
+			except (ValueError, TypeError, AttributeError) as e:
+				logger.warning(f"Failed to parse estimated_value for complexity scoring: {e}")
+
 		if not any(scores.values()):
 			return 'medium'
 		
@@ -713,8 +715,8 @@ class OpportunityAnalyzer:
 					return CompetitionLevel.INTENSE
 				elif value > 10000000:  # $10M+ typically high
 					return CompetitionLevel.HIGH
-		except:
-			pass
+		except (ValueError, TypeError, AttributeError) as e:
+			logger.warning(f"Failed to parse estimated_value for competition level: {e}")
 		
 		if high_score > low_score:
 			return CompetitionLevel.HIGH
@@ -743,8 +745,8 @@ class OpportunityAnalyzer:
 					base_count = int(base_count * 1.5)
 				elif value < 1000000:  # <$1M
 					base_count = max(1, int(base_count * 0.7))
-		except:
-			pass
+		except (ValueError, TypeError, AttributeError) as e:
+			logger.warning(f"Failed to parse estimated_value for competitor count: {e}")
 		
 		return base_count
 	
@@ -940,8 +942,8 @@ class OpportunityAnalyzer:
 		if 'deadline' in data and data['deadline']:
 			try:
 				return self._parse_date(data['deadline'])
-			except:
-				pass
+			except (ValueError, TypeError, KeyError) as e:
+				logger.warning(f"Failed to parse deadline from data: {e}")
 		
 		# Pattern matching in content
 		deadline_patterns = [
@@ -956,7 +958,8 @@ class OpportunityAnalyzer:
 			if match:
 				try:
 					return self._parse_date(match.group(1))
-				except:
+				except (ValueError, TypeError) as e:
+					logger.warning(f"Failed to parse proposal deadline '{match.group(1)}': {e}")
 					continue
 		
 		return None
@@ -968,13 +971,14 @@ class OpportunityAnalyzer:
 			r'inquiries?.*deadline.*?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
 			r'last date.*questions?.*?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})'
 		]
-		
+
 		for pattern in patterns:
 			match = re.search(pattern, content.lower())
 			if match:
 				try:
 					return self._parse_date(match.group(1))
-				except:
+				except (ValueError, TypeError) as e:
+					logger.warning(f"Failed to parse questions deadline '{match.group(1)}': {e}")
 					continue
 		
 		return None
@@ -986,13 +990,14 @@ class OpportunityAnalyzer:
 			r'bidders conference.*?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
 			r'information session.*?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})'
 		]
-		
+
 		for pattern in patterns:
 			match = re.search(pattern, content.lower())
 			if match:
 				try:
 					return self._parse_date(match.group(1))
-				except:
+				except (ValueError, TypeError) as e:
+					logger.warning(f"Failed to parse conference date '{match.group(1)}': {e}")
 					continue
 		
 		return None
@@ -1004,13 +1009,14 @@ class OpportunityAnalyzer:
 			r'selection.*?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
 			r'anticipated award.*?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})'
 		]
-		
+
 		for pattern in patterns:
 			match = re.search(pattern, content.lower())
 			if match:
 				try:
 					return self._parse_date(match.group(1))
-				except:
+				except (ValueError, TypeError) as e:
+					logger.warning(f"Failed to parse award date '{match.group(1)}': {e}")
 					continue
 		
 		return None
@@ -1038,16 +1044,18 @@ class OpportunityAnalyzer:
 				try:
 					start_date = self._parse_date(match.group(1))
 					break
-				except:
+				except (ValueError, TypeError) as e:
+					logger.warning(f"Failed to parse performance start date '{match.group(1)}': {e}")
 					continue
-		
+
 		for pattern in end_patterns:
 			match = re.search(pattern, content.lower())
 			if match:
 				try:
 					end_date = self._parse_date(match.group(1))
 					break
-				except:
+				except (ValueError, TypeError) as e:
+					logger.warning(f"Failed to parse performance end date '{match.group(1)}': {e}")
 					continue
 		
 		return start_date, end_date
@@ -1144,8 +1152,8 @@ class OpportunityAnalyzer:
 				estimated_value = Decimal(value_str)
 				value_confidence = 0.9
 				value_source = "stated"
-			except:
-				pass
+			except (ValueError, TypeError, ArithmeticError) as e:
+				logger.warning(f"Failed to parse stated estimated_value: {e}")
 		
 		# Pattern matching for values in content
 		if not estimated_value:
@@ -1210,8 +1218,9 @@ class OpportunityAnalyzer:
 						confidence = 0.8 if 'not to exceed' in match.lower() else 0.7
 						
 						return value, confidence
-						
-					except:
+
+					except (ValueError, TypeError, ArithmeticError) as e:
+						logger.warning(f"Failed to parse value from content pattern: {e}")
 						continue
 		
 		return None, 0.0
@@ -1470,7 +1479,8 @@ class OpportunityAnalyzer:
 				try:
 					amount = match.group(1).replace(',', '')
 					requirements[req_type] = float(amount)
-				except:
+				except (ValueError, TypeError) as e:
+					logger.warning(f"Failed to parse financial requirement '{req_type}': {e}")
 					requirements[req_type] = match.group(0)
 		
 		return requirements
@@ -1744,8 +1754,8 @@ class OpportunityAnalyzer:
 			if 'estimated_value' in data:
 				value = float(data['estimated_value'].replace('$', '').replace(',', ''))
 				return value > 5000000  # $5M+
-		except:
-			pass
+		except (ValueError, TypeError, AttributeError) as e:
+			logger.warning(f"Failed to parse estimated_value for large opportunity check: {e}")
 		
 		return False
 	
@@ -1763,8 +1773,8 @@ class OpportunityAnalyzer:
 					return 'medium'
 				else:
 					return 'low'
-			except:
-				pass
+			except (ValueError, TypeError) as e:
+				logger.warning(f"Failed to parse deadline for time pressure assessment: {e}")
 		
 		return 'medium'
 	

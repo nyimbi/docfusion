@@ -6,6 +6,7 @@
  * Server-side actions for managing AI configuration and settings.
  */
 
+import { logger } from "@/lib/utils/logger";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import {
@@ -40,7 +41,7 @@ export async function loadAISettings(): Promise<{
 
 		return { success: true, data: settings };
 	} catch (error) {
-		console.error("[AI Actions] Failed to load settings:", error);
+		logger.error("[AI Actions] Failed to load settings:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to load settings",
@@ -82,7 +83,7 @@ export async function saveAISettings(
 
 		return { success: true };
 	} catch (error) {
-		console.error("[AI Actions] Failed to save settings:", error);
+		logger.error("[AI Actions] Failed to save settings:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to save settings",
@@ -114,7 +115,7 @@ export async function testAIConnections(): Promise<{
 
 		return { success: true, results };
 	} catch (error) {
-		console.error("[AI Actions] Failed to test connections:", error);
+		logger.error("[AI Actions] Failed to test connections:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to test connections",
@@ -138,7 +139,7 @@ export async function testOllamaSettings(
 
 		return { success: true, result };
 	} catch (error) {
-		console.error("[AI Actions] Failed to test Ollama:", error);
+		logger.error("[AI Actions] Failed to test Ollama:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to test Ollama",
@@ -170,7 +171,7 @@ export async function validateAISettings(
 
 		return { success: true, validation };
 	} catch (error) {
-		console.error("[AI Actions] Failed to validate settings:", error);
+		logger.error("[AI Actions] Failed to validate settings:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to validate settings",
@@ -215,7 +216,7 @@ export async function listAvailableAIModels(): Promise<{
 			})),
 		};
 	} catch (error) {
-		console.error("[AI Actions] Failed to list models:", error);
+		logger.error("[AI Actions] Failed to list models:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to list models",

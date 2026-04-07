@@ -1,26 +1,28 @@
 /**
  * Scraper Runtime Engine
  *
- * Executes scraper jobs with rate limiting, timeout handling,
- * and progress tracking. Uses Firecrawl for web scraping with
- * JavaScript rendering support, with fallback to basic HTTP fetch.
+ * Thin orchestrator that coordinates fetching, extraction, deduplication,
+ * and persistence. All heavy lifting is delegated to focused modules:
  *
- * Architecture:
- * - Firecrawl integration for JS-rendered pages (primary)
- * - Basic HTTP fetch fallback when Firecrawl unavailable
- * - Rate limiting with configurable requests/second
- * - Timeout enforcement from source config
- * - Page limit enforcement
- * - Error capture and structured logging
- * - Progress callbacks for real-time updates
+ * - fetcher.ts    — page fetching (Firecrawl / stealth / HTTP)
+ * - extractor.ts  — content-to-opportunity extraction helpers
+ * - deduplicator.ts — fingerprint-based dedup (pre-existing)
+ * - persister.ts  — scraper run lifecycle in the database
  */
 
 import type { ScraperSource } from "@/lib/db/schema";
-import { createScraperRun, updateScraperRun, updateSourceMetrics } from "@/lib/actions/scraper-sources";
 import { scraperQueue, type ScraperJob, type ScraperJobResult } from "./queue";
-import { deduplicateOpportunity, type OpportunityData } from "./deduplicator";
-import { firecrawl, extractOpportunitiesFromMarkdown, type ScrapeResult } from "./firecrawl";
-import { getParser, genericParser, type ParseInput } from "./parsers";
+import { deduplicateOpportunity } from "./deduplicator";
+import { scrapePage, RateLimiter, withTimeout } from "./fetcher";
+import { createRun, finaliseRunSuccess, finaliseRunFailure } from "./persister";
+import { logger } from "@/lib/utils/logger";
+
+// Re-export ScrapedPage from fetcher so existing consumers keep working
+export type { ScrapedPage } from "./fetcher";
+
+// ============================================================================
+// Types
+// ============================================================================
 
 // UUID generation - inline for serverless compatibility
 function generateUUID(): string {
@@ -31,10 +33,6 @@ function generateUUID(): string {
 	});
 }
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export interface ScraperConfig {
 	rateLimit: number;        // Requests per second
 	timeout: number;          // Seconds
@@ -43,14 +41,6 @@ export interface ScraperConfig {
 	requiresJavascript: boolean;
 	requiresAuth: boolean;
 	requiresProxy: boolean;
-}
-
-export interface ScrapedPage {
-	url: string;
-	statusCode: number;
-	opportunities: OpportunityData[];
-	nextPageUrl?: string;
-	error?: string;
 }
 
 export interface RuntimeProgress {
@@ -66,57 +56,6 @@ export interface RuntimeProgress {
 export type ProgressHandler = (progress: RuntimeProgress) => void;
 
 // ============================================================================
-// Rate Limiter
-// ============================================================================
-
-class RateLimiter {
-	private lastRequest: number = 0;
-	private minInterval: number;
-
-	constructor(requestsPerSecond: number) {
-		this.minInterval = 1000 / requestsPerSecond;
-	}
-
-	async wait(): Promise<void> {
-		const now = Date.now();
-		const elapsed = now - this.lastRequest;
-
-		if (elapsed < this.minInterval) {
-			const delay = this.minInterval - elapsed;
-			await new Promise(resolve => setTimeout(resolve, delay));
-		}
-
-		this.lastRequest = Date.now();
-	}
-}
-
-// ============================================================================
-// Timeout Handler
-// ============================================================================
-
-function withTimeout<T>(
-	promise: Promise<T>,
-	timeoutMs: number,
-	message = "Operation timed out"
-): Promise<T> {
-	return new Promise((resolve, reject) => {
-		const timer = setTimeout(() => {
-			reject(new Error(message));
-		}, timeoutMs);
-
-		promise
-			.then(result => {
-				clearTimeout(timer);
-				resolve(result);
-			})
-			.catch(error => {
-				clearTimeout(timer);
-				reject(error);
-			});
-	});
-}
-
-// ============================================================================
 // Scraper Runtime
 // ============================================================================
 
@@ -128,23 +67,17 @@ export class ScraperRuntime {
 	// Progress Handling
 	// -------------------------------------------------------------------------
 
-	/**
-	 * Register a progress handler
-	 */
 	onProgress(handler: ProgressHandler): () => void {
 		this.progressHandlers.add(handler);
 		return () => this.progressHandlers.delete(handler);
 	}
 
-	/**
-	 * Emit progress to all handlers
-	 */
 	private emitProgress(progress: RuntimeProgress): void {
 		for (const handler of this.progressHandlers) {
 			try {
 				handler(progress);
 			} catch (error) {
-				console.error("Progress handler error:", error);
+				logger.error("Progress handler error:", error);
 			}
 		}
 	}
@@ -154,7 +87,9 @@ export class ScraperRuntime {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Execute a scraper job - this is the main entry point
+	 * Execute a scraper job — main entry point.
+	 * Creates a run record, iterates through pages, deduplicates results,
+	 * and finalises the run as success or failure.
 	 */
 	async execute(
 		job: ScraperJob,
@@ -166,15 +101,11 @@ export class ScraperRuntime {
 		this.abortControllers.set(job.id, abortController);
 
 		// Create run record
-		const dbRun = await createScraperRun({
+		const dbRun = await createRun({
 			sourceId: source.id,
 			sourceKey: source.sourceId,
 			runId,
 			batchId: job.batchId,
-			triggerType: "manual",
-			startedAt: new Date(),
-			status: "running",
-			progress: 0,
 		});
 
 		const result: ScraperJobResult = {
@@ -190,7 +121,6 @@ export class ScraperRuntime {
 		};
 
 		try {
-			// Execute scraping with timeout
 			const timeoutMs = (source.timeout || 30) * 1000;
 			const scrapingPromise = this.scrapeSource(
 				job,
@@ -209,27 +139,7 @@ export class ScraperRuntime {
 			result.success = true;
 			result.durationSeconds = (Date.now() - startTime) / 1000;
 
-			// Update run record as successful
-			await updateScraperRun(dbRun.id, {
-				status: "success",
-				completedAt: new Date(),
-				durationSeconds: result.durationSeconds,
-				progress: 100,
-				opportunitiesFound: result.opportunitiesFound,
-				opportunitiesNew: result.opportunitiesNew,
-				opportunitiesUpdated: result.opportunitiesUpdated,
-				opportunitiesSkipped: result.opportunitiesSkipped,
-				opportunitiesFailed: result.opportunitiesFailed,
-				pagesScraped: result.pagesScraped,
-			});
-
-			// Update source metrics
-			await updateSourceMetrics(source.id, {
-				success: true,
-				opportunitiesFound: result.opportunitiesFound,
-				uniqueOpportunities: result.opportunitiesNew,
-				durationSeconds: result.durationSeconds,
-			});
+			await finaliseRunSuccess(dbRun.id, source.id, result);
 
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -237,26 +147,11 @@ export class ScraperRuntime {
 			result.error = errorMessage;
 			result.durationSeconds = (Date.now() - startTime) / 1000;
 
-			// Update run record as failed
-			await updateScraperRun(dbRun.id, {
-				status: abortController.signal.aborted ? "cancelled" : "failed",
-				completedAt: new Date(),
-				durationSeconds: result.durationSeconds,
-				progress: job.progress,
+			await finaliseRunFailure(dbRun.id, source.id, result, {
+				aborted: abortController.signal.aborted,
 				errorMessage,
 				errorType: error instanceof Error ? error.name : "Unknown",
-				opportunitiesFound: result.opportunitiesFound,
-				opportunitiesNew: result.opportunitiesNew,
-				pagesScraped: result.pagesScraped,
-			});
-
-			// Update source metrics with failure
-			await updateSourceMetrics(source.id, {
-				success: false,
-				opportunitiesFound: result.opportunitiesFound,
-				uniqueOpportunities: result.opportunitiesNew,
-				durationSeconds: result.durationSeconds,
-				error: errorMessage,
+				progress: job.progress,
 			});
 
 		} finally {
@@ -266,8 +161,12 @@ export class ScraperRuntime {
 		return result;
 	}
 
+	// -------------------------------------------------------------------------
+	// Core Scraping Loop
+	// -------------------------------------------------------------------------
+
 	/**
-	 * Core scraping logic - iterates through pages
+	 * Iterate through pages, scrape each one, and deduplicate opportunities.
 	 */
 	private async scrapeSource(
 		job: ScraperJob,
@@ -282,10 +181,8 @@ export class ScraperRuntime {
 		let pageNum = 0;
 
 		while (currentUrl && pageNum < maxPages && !signal.aborted) {
-			// Rate limit
 			await rateLimiter.wait();
 
-			// Check cancellation
 			if (signal.aborted) {
 				throw new Error("Job cancelled");
 			}
@@ -305,19 +202,14 @@ export class ScraperRuntime {
 			});
 
 			// Scrape the page
-			const page = await this.scrapePage(
-				currentUrl,
-				source,
-				signal
-			);
+			const page = await scrapePage(currentUrl, source, signal);
 
 			result.pagesScraped++;
 
 			if (page.error) {
-				// Log error but continue to next page
-				console.error(`Page scrape error: ${page.error}`);
+				logger.error(`Page scrape error: ${page.error}`);
 			} else {
-				// Process opportunities
+				// Deduplicate and persist each opportunity
 				for (const opp of page.opportunities) {
 					try {
 						const dedupResult = await deduplicateOpportunity(opp, source.id);
@@ -333,12 +225,11 @@ export class ScraperRuntime {
 						}
 					} catch (error) {
 						result.opportunitiesFailed++;
-						console.error("Opportunity processing error:", error);
+						logger.error("Opportunity processing error:", error);
 					}
 				}
 			}
 
-			// Get next page URL
 			currentUrl = page.nextPageUrl;
 			pageNum++;
 		}
@@ -354,243 +245,10 @@ export class ScraperRuntime {
 		});
 	}
 
-	/**
-	 * Scrape a single page using Firecrawl or fallback to basic fetch
-	 */
-	private async scrapePage(
-		url: string,
-		source: ScraperSource,
-		signal: AbortSignal
-	): Promise<ScrapedPage> {
-		try {
-			if (signal.aborted) {
-				throw new Error("Job cancelled");
-			}
+	// -------------------------------------------------------------------------
+	// Job Cancellation
+	// -------------------------------------------------------------------------
 
-			// Try Firecrawl first if configured
-			if (firecrawl.isConfigured()) {
-				return await this.scrapeWithFirecrawl(url, source);
-			}
-
-			// Fallback to basic HTTP fetch
-			return await this.scrapeWithFetch(url, source, signal);
-
-		} catch (error) {
-			if (signal.aborted) {
-				throw error;
-			}
-
-			return {
-				url,
-				statusCode: 0,
-				opportunities: [],
-				error: error instanceof Error ? error.message : String(error),
-			};
-		}
-	}
-
-	/**
-	 * Scrape using Firecrawl - handles JavaScript rendering
-	 * Uses site-specific parser if available, falls back to generic extraction
-	 */
-	private async scrapeWithFirecrawl(
-		url: string,
-		source: ScraperSource
-	): Promise<ScrapedPage> {
-		const result = await firecrawl.scrape(url, {
-			formats: ["markdown", "links"],
-			timeout: (source.timeout || 30) * 1000,
-			waitFor: source.requiresJavascript ? 3000 : undefined,
-		});
-
-		if (!result.success || !result.data) {
-			return {
-				url,
-				statusCode: result.data?.metadata?.statusCode || 0,
-				opportunities: [],
-				error: result.error || "Firecrawl scrape failed",
-			};
-		}
-
-		// Prepare input for parser
-		const parseInput: ParseInput = {
-			markdown: result.data.markdown || "",
-			links: result.data.links || [],
-			url,
-		};
-
-		// Try site-specific parser first, fall back to generic
-		const parser = getParser(source.sourceId) || genericParser;
-		const parseResult = await parser.parse(parseInput);
-
-		// Map opportunities to include source info
-		const opportunities = parseResult.opportunities.map(opp => ({
-			...opp,
-			source: source.sourceId,
-			organization: opp.organization || source.name,
-		}));
-
-		// Use parser's next page detection or fall back to link scanning
-		const nextPageUrl = parseResult.nextPageUrl || this.findNextPageUrl(result.data.links || [], url);
-
-		return {
-			url,
-			statusCode: result.data.metadata?.statusCode || 200,
-			opportunities,
-			nextPageUrl,
-		};
-	}
-
-	/**
-	 * Fallback scrape using basic HTTP fetch
-	 * Uses site-specific parser if available, falls back to basic HTML extraction
-	 */
-	private async scrapeWithFetch(
-		url: string,
-		source: ScraperSource,
-		signal: AbortSignal
-	): Promise<ScrapedPage> {
-		const response = await fetch(url, {
-			signal,
-			headers: {
-				"User-Agent": "DocuFusion-Scraper/1.0 (+https://docufusion.ai/bot)",
-				"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-				"Accept-Language": "en-US,en;q=0.5",
-			},
-		});
-
-		if (!response.ok) {
-			return {
-				url,
-				statusCode: response.status,
-				opportunities: [],
-				error: `HTTP ${response.status}: ${response.statusText}`,
-			};
-		}
-
-		const html = await response.text();
-
-		// Prepare input for parser (HTML mode)
-		const parseInput: ParseInput = {
-			html,
-			url,
-		};
-
-		// Try site-specific parser first
-		const parser = getParser(source.sourceId);
-		if (parser) {
-			const parseResult = await parser.parse(parseInput);
-			const opportunities = parseResult.opportunities.map(opp => ({
-				...opp,
-				source: source.sourceId,
-				organization: opp.organization || source.name,
-			}));
-
-			return {
-				url,
-				statusCode: response.status,
-				opportunities,
-				nextPageUrl: parseResult.nextPageUrl,
-			};
-		}
-
-		// Fall back to basic HTML extraction
-		const opportunities = this.extractFromBasicHtml(html, url, source);
-
-		return {
-			url,
-			statusCode: response.status,
-			opportunities,
-			nextPageUrl: undefined,
-		};
-	}
-
-	/**
-	 * Extract opportunities from Firecrawl markdown output
-	 */
-	private extractOpportunities(
-		markdown: string,
-		links: string[],
-		sourceUrl: string,
-		source: ScraperSource
-	): OpportunityData[] {
-		const rawOpps = extractOpportunitiesFromMarkdown(markdown, sourceUrl);
-
-		return rawOpps.map(opp => ({
-			title: opp.title,
-			source: source.sourceId,
-			organization: opp.organization || source.name,
-			deadline: opp.deadline ? new Date(opp.deadline) : undefined,
-			projectSummary: opp.description,
-			portalUrl: opp.url || sourceUrl,
-			noticeId: this.generateNoticeId(opp.title, opp.organization),
-		}));
-	}
-
-	/**
-	 * Basic HTML extraction fallback (without Firecrawl)
-	 */
-	private extractFromBasicHtml(
-		html: string,
-		sourceUrl: string,
-		source: ScraperSource
-	): OpportunityData[] {
-		const opportunities: OpportunityData[] = [];
-		const titlePattern = /<(?:h[1-6]|a|td)[^>]*>([^<]*(?:tender|rfp|rfq|bid|procurement|eoi)[^<]*)<\/(?:h[1-6]|a|td)>/gi;
-		let match;
-
-		while ((match = titlePattern.exec(html)) !== null) {
-			const title = match[1].trim();
-			if (title.length > 10 && title.length < 500) {
-				opportunities.push({
-					title,
-					source: source.sourceId,
-					organization: source.name,
-					portalUrl: sourceUrl,
-					noticeId: this.generateNoticeId(title, source.name),
-				});
-			}
-		}
-
-		return opportunities;
-	}
-
-	/**
-	 * Find next page URL from scraped links
-	 */
-	private findNextPageUrl(links: string[], currentUrl: string): string | undefined {
-		for (const link of links) {
-			const lowerLink = link.toLowerCase();
-			if (
-				lowerLink.includes("next") ||
-				lowerLink.includes("page=2") ||
-				lowerLink.includes("/page/2")
-			) {
-				try {
-					const linkUrl = new URL(link, currentUrl);
-					const currentUrlObj = new URL(currentUrl);
-					if (linkUrl.hostname === currentUrlObj.hostname) {
-						return linkUrl.toString();
-					}
-				} catch {
-					// Invalid URL, skip
-				}
-			}
-		}
-		return undefined;
-	}
-
-	/**
-	 * Generate a notice ID from title and organization
-	 */
-	private generateNoticeId(title: string, organization?: string | null): string {
-		const normalized = `${title}-${organization || ""}`.toLowerCase().replace(/[^a-z0-9]/g, "-");
-		return normalized.substring(0, 100);
-	}
-
-	/**
-	 * Cancel a running job
-	 */
 	cancel(jobId: string): boolean {
 		const controller = this.abortControllers.get(jobId);
 		if (controller) {
@@ -605,9 +263,6 @@ export class ScraperRuntime {
 // Singleton Export
 // ============================================================================
 
-/**
- * Global scraper runtime instance
- */
 export const scraperRuntime = new ScraperRuntime();
 
 // ============================================================================
@@ -619,11 +274,10 @@ import { scraperSources } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 /**
- * Job executor function for the queue
- * Fetches source config and executes scraper
+ * Job executor function for the queue.
+ * Fetches source config and delegates to the runtime.
  */
 export async function executeScraperJob(job: ScraperJob): Promise<ScraperJobResult> {
-	// Fetch source configuration
 	const source = await db.query.scraperSources.findFirst({
 		where: eq(scraperSources.id, job.sourceId),
 	});
@@ -643,12 +297,11 @@ export async function executeScraperJob(job: ScraperJob): Promise<ScraperJobResu
 		};
 	}
 
-	// Execute the scraper
 	return scraperRuntime.execute(job, source);
 }
 
 /**
- * Initialize queue with executor
+ * Initialize queue with executor.
  */
 export function initializeScraperQueue(): void {
 	scraperQueue.setExecutor(executeScraperJob);

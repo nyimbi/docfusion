@@ -6,6 +6,7 @@
  * Card view for displaying account information in grid layouts.
  */
 
+import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -44,7 +45,7 @@ interface AccountCardProps {
 	className?: string;
 }
 
-export function AccountCard({
+export const AccountCard = React.memo(function AccountCard({
 	account,
 	variant = "default",
 	showPipeline = false,
@@ -295,6 +296,8 @@ export function AccountCard({
 			</CardContent>
 		</Card>
 	);
-}
+});
+
+AccountCard.displayName = "AccountCard";
 
 export default AccountCard;

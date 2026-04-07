@@ -29,6 +29,7 @@ import { opportunities, opportunityPartners, partners } from "@/lib/db/schema";
 import { eq, and, desc, asc, sql, gte, lte, inArray, isNull, count, avg, sum } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -405,7 +406,7 @@ export async function initializePipeline(opportunityId: string): Promise<ActionR
 
 		return { success: true, data: newPipeline };
 	} catch (error) {
-		console.error("[Pipeline] Error initializing pipeline:", error);
+		logger.error("[Pipeline] Error initializing pipeline:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to initialize pipeline" };
 	}
 }
@@ -423,7 +424,7 @@ export async function getPipeline(opportunityId: string): Promise<ActionResult<C
 
 		return { success: true, data: pipeline ?? null };
 	} catch (error) {
-		console.error("[Pipeline] Error fetching pipeline:", error);
+		logger.error("[Pipeline] Error fetching pipeline:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to fetch pipeline" };
 	}
 }
@@ -459,7 +460,7 @@ export async function listPipelines(): Promise<ActionResult<{
 
 		return { success: true, data: { pipelines, opportunities: opportunitiesMap } };
 	} catch (error) {
-		console.error("[Pipeline] Error listing pipelines:", error);
+		logger.error("[Pipeline] Error listing pipelines:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to list pipelines" };
 	}
 }
@@ -530,7 +531,7 @@ export async function updatePipelineStage(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[Pipeline] Error updating pipeline stage:", error);
+		logger.error("[Pipeline] Error updating pipeline stage:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to update pipeline stage" };
 	}
 }
@@ -584,7 +585,7 @@ export async function updatePipeline(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[Pipeline] Error updating pipeline:", error);
+		logger.error("[Pipeline] Error updating pipeline:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to update pipeline" };
 	}
 }
@@ -645,7 +646,7 @@ export async function updatePwin(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[Pipeline] Error updating pwin:", error);
+		logger.error("[Pipeline] Error updating pwin:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to update pwin" };
 	}
 }
@@ -833,7 +834,7 @@ Respond with ONLY a JSON object: {"confidence": 0.XX, "note": "brief note"}`;
 				}
 			}
 		} catch (aiError) {
-			console.warn("[Pipeline] AI enhancement not available for pwin calculation:", aiError);
+			logger.warn("[Pipeline] AI enhancement not available for pwin calculation:", aiError);
 		}
 
 		return {
@@ -845,7 +846,7 @@ Respond with ONLY a JSON object: {"confidence": 0.XX, "note": "brief note"}`;
 			},
 		};
 	} catch (error) {
-		console.error("[Pipeline] Error calculating suggested pwin:", error);
+		logger.error("[Pipeline] Error calculating suggested pwin:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to calculate pwin" };
 	}
 }
@@ -906,7 +907,7 @@ export async function recordActivity(
 
 		return { success: true, data: newActivity };
 	} catch (error) {
-		console.error("[Pipeline] Error recording activity:", error);
+		logger.error("[Pipeline] Error recording activity:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to record activity" };
 	}
 }
@@ -939,7 +940,7 @@ export async function updateActivity(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[Pipeline] Error updating activity:", error);
+		logger.error("[Pipeline] Error updating activity:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to update activity" };
 	}
 }
@@ -977,7 +978,7 @@ export async function completeActivity(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[Pipeline] Error completing activity:", error);
+		logger.error("[Pipeline] Error completing activity:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to complete activity" };
 	}
 }
@@ -1016,7 +1017,7 @@ export async function listActivities(
 
 		return { success: true, data: activities };
 	} catch (error) {
-		console.error("[Pipeline] Error listing activities:", error);
+		logger.error("[Pipeline] Error listing activities:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to list activities" };
 	}
 }
@@ -1051,7 +1052,7 @@ export async function getUpcomingActivities(
 
 		return { success: true, data: activities };
 	} catch (error) {
-		console.error("[Pipeline] Error fetching upcoming activities:", error);
+		logger.error("[Pipeline] Error fetching upcoming activities:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to fetch upcoming activities" };
 	}
 }
@@ -1124,7 +1125,7 @@ export async function scheduleGateReview(
 
 		return { success: true, data: newReview };
 	} catch (error) {
-		console.error("[Pipeline] Error scheduling gate review:", error);
+		logger.error("[Pipeline] Error scheduling gate review:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to schedule gate review" };
 	}
 }
@@ -1157,7 +1158,7 @@ export async function updateGateReview(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[Pipeline] Error updating gate review:", error);
+		logger.error("[Pipeline] Error updating gate review:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to update gate review" };
 	}
 }
@@ -1247,7 +1248,7 @@ export async function conductGateReview(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[Pipeline] Error conducting gate review:", error);
+		logger.error("[Pipeline] Error conducting gate review:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to conduct gate review" };
 	}
 }
@@ -1336,7 +1337,7 @@ export async function listGateReviews(pipelineId: string): Promise<ActionResult<
 
 		return { success: true, data: reviews };
 	} catch (error) {
-		console.error("[Pipeline] Error listing gate reviews:", error);
+		logger.error("[Pipeline] Error listing gate reviews:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to list gate reviews" };
 	}
 }
@@ -1465,7 +1466,7 @@ Respond with a JSON object:
 				recommendation = pwin >= 60 ? "bid" : pwin >= 40 ? "conditional" : "no_bid";
 			}
 		} catch (aiError) {
-			console.warn("[Pipeline] AI not available for bid decision package:", aiError);
+			logger.warn("[Pipeline] AI not available for bid decision package:", aiError);
 			executiveSummary = `Opportunity with ${opportunity.organization}. Current PWin assessment is ${pwin}%.`;
 			competitivePosition = "Assessment pending";
 			recommendation = pwin >= 60 ? "bid" : pwin >= 40 ? "conditional" : "no_bid";
@@ -1488,7 +1489,7 @@ Respond with a JSON object:
 
 		return { success: true, data: bidPackage };
 	} catch (error) {
-		console.error("[Pipeline] Error generating bid decision package:", error);
+		logger.error("[Pipeline] Error generating bid decision package:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to generate bid decision package" };
 	}
 }
@@ -1550,7 +1551,7 @@ export async function recordBidDecision(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[Pipeline] Error recording bid decision:", error);
+		logger.error("[Pipeline] Error recording bid decision:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to record bid decision" };
 	}
 }
@@ -1596,7 +1597,7 @@ export async function createMilestone(
 
 		return { success: true, data: newMilestone };
 	} catch (error) {
-		console.error("[Pipeline] Error creating milestone:", error);
+		logger.error("[Pipeline] Error creating milestone:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to create milestone" };
 	}
 }
@@ -1626,7 +1627,7 @@ export async function updateMilestone(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[Pipeline] Error updating milestone:", error);
+		logger.error("[Pipeline] Error updating milestone:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to update milestone" };
 	}
 }
@@ -1654,7 +1655,7 @@ export async function completeMilestone(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[Pipeline] Error completing milestone:", error);
+		logger.error("[Pipeline] Error completing milestone:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to complete milestone" };
 	}
 }
@@ -1672,7 +1673,7 @@ export async function listMilestones(pipelineId: string): Promise<ActionResult<P
 
 		return { success: true, data: milestones };
 	} catch (error) {
-		console.error("[Pipeline] Error listing milestones:", error);
+		logger.error("[Pipeline] Error listing milestones:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to list milestones" };
 	}
 }
@@ -1791,7 +1792,7 @@ export async function getPipelineAnalytics(organizationId?: string): Promise<Act
 			},
 		};
 	} catch (error) {
-		console.error("[Pipeline] Error getting pipeline analytics:", error);
+		logger.error("[Pipeline] Error getting pipeline analytics:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to get pipeline analytics" };
 	}
 }
@@ -1878,7 +1879,7 @@ export async function forecastPipeline(organizationId?: string): Promise<ActionR
 			},
 		};
 	} catch (error) {
-		console.error("[Pipeline] Error forecasting pipeline:", error);
+		logger.error("[Pipeline] Error forecasting pipeline:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to forecast pipeline" };
 	}
 }
@@ -2017,7 +2018,7 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
 
 		return { success: true, data: atRisk };
 	} catch (error) {
-		console.error("[Pipeline] Error identifying at-risk opportunities:", error);
+		logger.error("[Pipeline] Error identifying at-risk opportunities:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to identify at-risk opportunities" };
 	}
 }
@@ -2158,7 +2159,7 @@ export async function getPipelineSummary(pipelineId: string): Promise<ActionResu
 			},
 		};
 	} catch (error) {
-		console.error("[Pipeline] Error getting pipeline summary:", error);
+		logger.error("[Pipeline] Error getting pipeline summary:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to get pipeline summary" };
 	}
 }

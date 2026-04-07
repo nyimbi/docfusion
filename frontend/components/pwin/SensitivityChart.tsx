@@ -266,7 +266,7 @@ export function SensitivityChart({
 								</SelectContent>
 							</Select>
 
-							<Button variant="outline" size="icon" onClick={loadSensitivityData}>
+							<Button variant="outline" size="icon" onClick={loadSensitivityData} aria-label="Refresh sensitivity data">
 								<RefreshCw className="h-4 w-4" />
 							</Button>
 						</div>

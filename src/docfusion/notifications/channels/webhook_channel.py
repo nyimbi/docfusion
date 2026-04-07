@@ -17,9 +17,10 @@ import hmac
 from pydantic import BaseModel, Field, ConfigDict, validator
 
 from ..delivery.notification_delivery import (
-	NotificationChannel, NotificationMessage, DeliveryResult, 
+	NotificationChannel, NotificationMessage, DeliveryResult,
 	DeliveryStatus, ChannelType, Priority
 )
+from ...config.secrets import SecretsManager
 
 
 class WebhookAuthType(str, Enum):
@@ -589,5 +590,47 @@ def create_hmac_webhook_channel(
 		hmac_header=hmac_header,
 		**kwargs
 	)
-	
+
+	return WebhookChannel(config)
+
+
+def create_webhook_channel_from_secrets(
+	webhook_url: str,
+	auth_type: WebhookAuthType = WebhookAuthType.NONE,
+	**kwargs
+) -> WebhookChannel:
+	"""
+	Create WebhookChannel using secrets from SecretsManager.
+
+	This factory function automatically retrieves API keys and credentials
+	from the centralized secrets management system.
+
+	Args:
+		webhook_url: Webhook endpoint URL
+		auth_type: Authentication type (NONE, BEARER, API_KEY, HMAC_SHA256)
+		**kwargs: Additional configuration options
+
+	Returns:
+		Configured WebhookChannel instance
+
+	Example:
+		channel = create_webhook_channel_from_secrets(
+			webhook_url="https://example.com/webhook",
+			auth_type=WebhookAuthType.BEARER
+		)
+	"""
+	# Get secrets based on auth type
+	if auth_type == WebhookAuthType.BEARER:
+		kwargs.setdefault('bearer_token', SecretsManager.get_webhook_bearer_token())
+	elif auth_type == WebhookAuthType.API_KEY:
+		kwargs.setdefault('api_key', SecretsManager.get_webhook_api_key())
+	elif auth_type == WebhookAuthType.HMAC_SHA256:
+		kwargs.setdefault('hmac_secret', SecretsManager.get_webhook_hmac_secret())
+
+	config = WebhookConfiguration(
+		webhook_url=webhook_url,
+		auth_type=auth_type,
+		**kwargs
+	)
+
 	return WebhookChannel(config)

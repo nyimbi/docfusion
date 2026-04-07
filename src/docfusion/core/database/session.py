@@ -433,12 +433,12 @@ async def example_database_usage():
 	# Basic sync session usage
 	with session_manager.sync_session() as session:
 		result = session.execute("SELECT current_database()")
-		print(f"Current database: {result.scalar()}")
+		logging.info(f"Current database: {result.scalar()}")
 	
 	# Basic async session usage
 	async with session_manager.async_session() as session:
 		result = await session.execute("SELECT current_user")
-		print(f"Current user: {result.scalar()}")
+		logging.info(f"Current user: {result.scalar()}")
 	
 	# Transaction usage
 	async with session_manager.async_transaction() as session:
@@ -448,7 +448,7 @@ async def example_database_usage():
 	
 	# Health check
 	health = await session_manager.health_check()
-	print(f"Database health: {health}")
+	logging.info(f"Database health: {health}")
 
 
 if __name__ == "__main__":

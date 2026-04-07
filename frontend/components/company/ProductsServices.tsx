@@ -8,6 +8,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/Button";
 import {
 	Dialog,
@@ -595,10 +596,13 @@ export function ProductsServices({ type }: ProductsServicesProps) {
 										<div className="flex items-start gap-3">
 											{product.logoUrl ? (
 												<div className="h-10 w-10 rounded border bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-													<img
+													<Image
 														src={product.logoUrl}
 														alt={product.name}
 														className="max-h-full max-w-full object-contain"
+														width={40}
+														height={40}
+														unoptimized
 													/>
 												</div>
 											) : (

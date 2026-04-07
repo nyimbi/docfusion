@@ -23,6 +23,7 @@ import type {
 	WorkflowStageConfig,
 	WorkflowStage,
 } from "@/lib/types/comments-workflow";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Helper Functions
@@ -392,7 +393,7 @@ export async function bulkCreateAssignments(
 			created.push(newAssignment);
 		} catch (error) {
 			// Continue creating other assignments even if one fails
-			console.error(`Failed to create assignment:`, error);
+			logger.error(`Failed to create assignment:`, error);
 		}
 	}
 

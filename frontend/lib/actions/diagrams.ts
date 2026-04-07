@@ -16,6 +16,7 @@ import type {
 	DiagramTemplate,
 	DiagramMetadata,
 } from "../diagrams/types";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // AI Diagram Generation Helper
@@ -91,7 +92,7 @@ Output ONLY the diagram code, no explanations. Make sure it's syntactically corr
 
 		return data.content || "";
 	} catch (error) {
-		console.error("AI diagram generation error:", error);
+		logger.error("AI diagram generation error:", error);
 		// Return null to trigger fallback to templates
 		return "";
 	}

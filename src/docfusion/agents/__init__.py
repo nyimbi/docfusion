@@ -21,6 +21,8 @@ from .core import (
 	MessagePriority
 )
 
+# Import specialists with optional dependency handling
+# Some specialists may not be available due to missing dependencies
 from .specialists import (
 	ResearchAgent,
 	WriterAgent,
@@ -64,22 +66,22 @@ __all__ = [
 	# Core
 	"Agent",
 	"AgentRole",
-	"AgentCapability", 
+	"AgentCapability",
 	"AgentGoal",
 	"AgentConfig",
 	"AgentState",
 	"AgentMessage",
 	"MessageType",
 	"MessagePriority",
-	
-	# Specialists
+
+	# Specialists (may be None if dependencies unavailable)
 	"ResearchAgent",
-	"WriterAgent", 
+	"WriterAgent",
 	"ReviewerAgent",
 	"CoordinatorAgent",
 	"AnalysisAgent",
 	"QualityAgent",
-	
+
 	# Orchestration
 	"AgentCrew",
 	"AgentSwarm",
@@ -87,26 +89,26 @@ __all__ = [
 	"WorkflowEngine",
 	"CrewConfig",
 	"SwarmConfig",
-	
+
 	# Communication
 	"MessageBus",
 	"CommunicationProtocol",
 	"AgentChannel",
 	"BroadcastChannel",
 	"DirectChannel",
-	
+
 	# Memory
 	"SharedMemory",
 	"AgentMemory",
 	"ContextManager",
 	"KnowledgeBase",
 	"ConversationHistory",
-	
+
 	# Tasks
 	"AgentTask",
 	"TaskType",
 	"TaskPriority",
-	"TaskStatus", 
+	"TaskStatus",
 	"TaskResult",
 	"WorkflowTask",
 	"TaskScheduler",

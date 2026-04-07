@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 /**
  * Template Gallery - "Document Atelier" Design
  *
@@ -409,10 +411,12 @@ const SpecimenCard = React.memo(function SpecimenCard({
 				{/* Thumbnail */}
 				<div className="relative h-16 w-24 rounded-lg bg-muted overflow-hidden shrink-0">
 					{template.previewImageUrl ? (
-						<img
+						<Image
 							src={template.previewImageUrl}
 							alt=""
-							className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+							className="object-cover group-hover:scale-105 transition-transform duration-500"
+							fill
+							unoptimized
 						/>
 					) : (
 						<div className="absolute inset-0 flex items-center justify-center">

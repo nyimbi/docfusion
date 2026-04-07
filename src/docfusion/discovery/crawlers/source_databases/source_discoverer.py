@@ -55,8 +55,8 @@ class SourcePattern(BaseModel):
 	exclusion_patterns: List[str] = Field(default_factory=list)  # Patterns that exclude a source
 	
 	# Classification hints
-	likely_source_type: SourceType = SourceType.GOVERNMENT
-	likely_access_method: AccessMethod = AccessMethod.WEB_SCRAPING
+	likely_source_type: SourceType = SourceType.GOVERNMENT_FEDERAL
+	likely_access_method: AccessMethod = AccessMethod.HTTP_GET
 	confidence_threshold: float = 0.7
 	
 	# Discovery metadata
@@ -756,9 +756,9 @@ class SourceDiscoverer:
 						]
 						content_lower = content.lower()
 						return any(indicator in content_lower for indicator in procurement_indicators)
-		except:
-			pass
-		
+		except (IOError, ConnectionError, asyncio.TimeoutError) as e:
+			self.logger.warning(f"API endpoint validation failed for {api_url}: {e}")
+
 		return False
 	
 	async def _discover_via_news(self, max_sources: int) -> Optional[DiscoveryResult]:

@@ -1,0 +1,185 @@
+{
+  "updatedAt": "2026-04-06T16:35:53.126Z",
+  "missions": [
+    {
+      "id": "session:35de61ad-6fba-44d1-a2ec-c50fbc25a4a1:none",
+      "source": "session",
+      "name": "none",
+      "objective": "Session mission",
+      "createdAt": "2026-04-06T15:12:38.405Z",
+      "updatedAt": "2026-04-06T16:35:53.126Z",
+      "status": "done",
+      "workerCount": 11,
+      "taskCounts": {
+        "total": 11,
+        "pending": 0,
+        "blocked": 0,
+        "inProgress": 0,
+        "completed": 11,
+        "failed": 0
+      },
+      "agents": [
+        {
+          "name": "security-reviewer:afff764",
+          "role": "security-reviewer",
+          "ownership": "afff764423ea6376d",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-04-06T15:30:02.780Z"
+        },
+        {
+          "name": "code-reviewer:a3d6157",
+          "role": "code-reviewer",
+          "ownership": "a3d6157881e7adf9b",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-04-06T15:23:03.530Z"
+        },
+        {
+          "name": "architect:a611600",
+          "role": "architect",
+          "ownership": "a611600512ade1504",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-04-06T15:19:26.691Z"
+        },
+        {
+          "name": "quality-engineer:a50f785",
+          "role": "quality-engineer",
+          "ownership": "a50f785798d435e94",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-04-06T15:20:36.246Z"
+        },
+        {
+          "name": "performance-engineer:a059b7a",
+          "role": "performance-engineer",
+          "ownership": "a059b7a632aa1f1e3",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-04-06T15:28:49.748Z"
+        },
+        {
+          "name": "executor:a2656f6",
+          "role": "executor",
+          "ownership": "a2656f643839d18b7",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-04-06T15:37:21.510Z"
+        },
+        {
+          "name": "executor:a53e642",
+          "role": "executor",
+          "ownership": "a53e642564bb29d16",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-04-06T16:07:14.932Z"
+        },
+        {
+          "name": "executor:aa934d7",
+          "role": "executor",
+          "ownership": "aa934d70ddc83f142",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-04-06T15:55:47.980Z"
+        },
+        {
+          "name": "executor:a3b4815",
+          "role": "executor",
+          "ownership": "a3b481587a252f2d1",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-04-06T16:31:51.572Z"
+        },
+        {
+          "name": "executor:a0c6573",
+          "role": "executor",
+          "ownership": "a0c65732f61f2d64d",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-04-06T16:17:25.490Z"
+        },
+        {
+          "name": "executor:ab24f9f",
+          "role": "executor",
+          "ownership": "ab24f9f95f66b0a80",
+          "status": "done",
+          "currentStep": null,
+          "latestUpdate": "completed",
+          "completedSummary": null,
+          "updatedAt": "2026-04-06T16:35:53.126Z"
+        }
+      ],
+      "timeline": [
+        {
+          "id": "session-start:a3b481587a252f2d1:2026-04-06T16:07:40.866Z",
+          "at": "2026-04-06T16:07:40.866Z",
+          "kind": "update",
+          "agent": "executor:a3b4815",
+          "detail": "started executor:a3b4815",
+          "sourceKey": "session-start:a3b481587a252f2d1"
+        },
+        {
+          "id": "session-start:a0c65732f61f2d64d:2026-04-06T16:07:50.259Z",
+          "at": "2026-04-06T16:07:50.259Z",
+          "kind": "update",
+          "agent": "executor:a0c6573",
+          "detail": "started executor:a0c6573",
+          "sourceKey": "session-start:a0c65732f61f2d64d"
+        },
+        {
+          "id": "session-start:ab24f9f95f66b0a80:2026-04-06T16:08:00.348Z",
+          "at": "2026-04-06T16:08:00.348Z",
+          "kind": "update",
+          "agent": "executor:ab24f9f",
+          "detail": "started executor:ab24f9f",
+          "sourceKey": "session-start:ab24f9f95f66b0a80"
+        },
+        {
+          "id": "session-stop:a0c65732f61f2d64d:2026-04-06T16:17:25.490Z",
+          "at": "2026-04-06T16:17:25.490Z",
+          "kind": "completion",
+          "agent": "executor:a0c6573",
+          "detail": "completed",
+          "sourceKey": "session-stop:a0c65732f61f2d64d"
+        },
+        {
+          "id": "session-stop:a3b481587a252f2d1:2026-04-06T16:31:51.572Z",
+          "at": "2026-04-06T16:31:51.572Z",
+          "kind": "completion",
+          "agent": "executor:a3b4815",
+          "detail": "completed",
+          "sourceKey": "session-stop:a3b481587a252f2d1"
+        },
+        {
+          "id": "session-stop:ab24f9f95f66b0a80:2026-04-06T16:35:53.126Z",
+          "at": "2026-04-06T16:35:53.126Z",
+          "kind": "completion",
+          "agent": "executor:ab24f9f",
+          "detail": "completed",
+          "sourceKey": "session-stop:ab24f9f95f66b0a80"
+        }
+      ]
+    }
+  ]
+}

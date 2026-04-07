@@ -7,6 +7,7 @@ and report delivery teams.
 """
 
 import asyncio
+import logging
 import re
 import json
 import hashlib
@@ -975,7 +976,8 @@ class CitationValidatorTool(AgentTool):
 		try:
 			parsed = urlparse(url)
 			return bool(parsed.scheme and parsed.netloc)
-		except:
+		except (ValueError, AttributeError) as e:
+			logging.getLogger(__name__).debug(f"URL format validation failed for '{url}': {e}")
 			return False
 	
 	async def _calculate_consistency_score(self, validation_results: Dict[str, Any]) -> float:
@@ -1871,7 +1873,8 @@ class FactCheckerTool(AgentTool):
 		try:
 			parsed = urlparse(url)
 			return parsed.netloc.lower()
-		except:
+		except (ValueError, AttributeError) as e:
+			logging.getLogger(__name__).debug(f"Domain extraction failed for '{url}': {e}")
 			return "unknown"
 	
 	def _assess_domain_credibility(self, url: str) -> str:
@@ -1948,7 +1951,7 @@ class FactCheckerTool(AgentTool):
 			try:
 				value = float(num_str.replace(',', ''))
 				number_values.append(value)
-			except:
+			except (ValueError, TypeError):
 				continue
 		
 		# Check for suspiciously round numbers

@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { contacts } from "@/lib/db/schema-crm";
 import { eq, and } from "drizzle-orm";
 import type { UserContext } from "./contacts";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -189,7 +190,7 @@ export async function researchContact(
 				});
 			}
 		} catch (error) {
-			console.error(`Research error for ${category}:`, error);
+			logger.error(`Research error for ${category}:`, error);
 			results.push({
 				category,
 				title: getCategoryTitle(category),
@@ -245,7 +246,7 @@ export async function saveContactResearch(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Save research error:", error);
+		logger.error("Save research error:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error",

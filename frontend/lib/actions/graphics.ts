@@ -60,6 +60,7 @@ import {
 	diagramToSvg,
 } from "@/lib/diagrams/renderer";
 import type { DiagramFormat, DiagramTheme } from "@/lib/diagrams/types";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Result Type Wrapper
@@ -193,7 +194,7 @@ const CreateGraphicSchema = z.object({
 	figureNumber: z.string().max(50).optional(),
 	graphicType: GraphicTypeSchema,
 	format: FormatSchema.optional(),
-	sourceData: z.record(z.string(), z.any()).optional(),
+	sourceData: z.record(z.string(), z.unknown()).optional(),
 	diagramCode: z.string().optional(),
 	imageUrl: z.string().url().optional(),
 	caption: z.string().optional(),
@@ -273,7 +274,7 @@ export async function createGraphic(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues.map((issue: z.ZodIssue) => issue.message).join(", ")}` };
 		}
-		console.error("Error creating graphic:", error);
+		logger.error("Error creating graphic:", error);
 		return { success: false, error: "Failed to create graphic" };
 	}
 }
@@ -313,7 +314,7 @@ export async function updateGraphic(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues.map((issue: z.ZodIssue) => issue.message).join(", ")}` };
 		}
-		console.error("Error updating graphic:", error);
+		logger.error("Error updating graphic:", error);
 		return { success: false, error: "Failed to update graphic" };
 	}
 }
@@ -342,7 +343,7 @@ export async function deleteGraphic(
 
 		return { success: true, data: { deleted: true } };
 	} catch (error) {
-		console.error("Error deleting graphic:", error);
+		logger.error("Error deleting graphic:", error);
 		return { success: false, error: "Failed to delete graphic" };
 	}
 }
@@ -368,7 +369,7 @@ export async function getGraphic(
 
 		return { success: true, data: graphic };
 	} catch (error) {
-		console.error("Error getting graphic:", error);
+		logger.error("Error getting graphic:", error);
 		return { success: false, error: "Failed to retrieve graphic" };
 	}
 }
@@ -391,7 +392,7 @@ export async function listGraphics(
 
 		return { success: true, data: graphics };
 	} catch (error) {
-		console.error("Error listing graphics:", error);
+		logger.error("Error listing graphics:", error);
 		return { success: false, error: "Failed to list graphics" };
 	}
 }
@@ -502,13 +503,13 @@ Analyze this proposal section and suggest graphics that would enhance it. Return
 				.slice(0, 5);
 		} catch {
 			// If parsing fails, return empty array with a note
-			console.warn("Failed to parse AI suggestions:", response.content);
+			logger.warn("Failed to parse AI suggestions:", response.content);
 			return { success: true, data: [] };
 		}
 
 		return { success: true, data: suggestions };
 	} catch (error) {
-		console.error("Error suggesting graphics:", error);
+		logger.error("Error suggesting graphics:", error);
 		return { success: false, error: "Failed to generate graphic suggestions" };
 	}
 }
@@ -635,7 +636,7 @@ export async function generateOrgChart(
 			},
 		};
 	} catch (error) {
-		console.error("Error generating org chart:", error);
+		logger.error("Error generating org chart:", error);
 		return { success: false, error: "Failed to generate organizational chart" };
 	}
 }
@@ -749,7 +750,7 @@ Ensure the diagram is valid Mermaid syntax and renders correctly.`;
 			},
 		};
 	} catch (error) {
-		console.error("Error generating process flow:", error);
+		logger.error("Error generating process flow:", error);
 		return { success: false, error: "Failed to generate process flow diagram" };
 	}
 }
@@ -836,7 +837,7 @@ export async function generateSchedule(
 			},
 		};
 	} catch (error) {
-		console.error("Error generating schedule:", error);
+		logger.error("Error generating schedule:", error);
 		return { success: false, error: "Failed to generate schedule diagram" };
 	}
 }
@@ -934,7 +935,7 @@ export async function generateInfographic(
 			},
 		};
 	} catch (error) {
-		console.error("Error generating infographic:", error);
+		logger.error("Error generating infographic:", error);
 		return { success: false, error: "Failed to generate infographic" };
 	}
 }
@@ -1038,7 +1039,7 @@ Return only the caption text, no quotes or additional formatting.`;
 
 		return { success: true, data: finalCaption };
 	} catch (error) {
-		console.error("Error generating action caption:", error);
+		logger.error("Error generating action caption:", error);
 		return { success: false, error: "Failed to generate action caption" };
 	}
 }
@@ -1195,7 +1196,7 @@ export async function validateGraphicConsistency(
 			},
 		};
 	} catch (error) {
-		console.error("Error validating graphic consistency:", error);
+		logger.error("Error validating graphic consistency:", error);
 		return { success: false, error: "Failed to validate graphic consistency" };
 	}
 }
@@ -1264,7 +1265,7 @@ export async function exportGraphics(
 			data: { downloadUrl },
 		};
 	} catch (error) {
-		console.error("Error exporting graphics:", error);
+		logger.error("Error exporting graphics:", error);
 		return { success: false, error: "Failed to export graphics" };
 	}
 }
@@ -1313,7 +1314,7 @@ export async function createGraphicTemplate(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues.map((issue: z.ZodIssue) => issue.message).join(", ")}` };
 		}
-		console.error("Error creating graphic template:", error);
+		logger.error("Error creating graphic template:", error);
 		return { success: false, error: "Failed to create graphic template" };
 	}
 }
@@ -1339,7 +1340,7 @@ export async function getGraphicTemplates(
 
 		return { success: true, data: templates };
 	} catch (error) {
-		console.error("Error getting graphic templates:", error);
+		logger.error("Error getting graphic templates:", error);
 		return { success: false, error: "Failed to retrieve graphic templates" };
 	}
 }
@@ -1398,7 +1399,7 @@ export async function applyTemplate(
 
 		return { success: true, data: result };
 	} catch (error) {
-		console.error("Error applying template:", error);
+		logger.error("Error applying template:", error);
 		return { success: false, error: "Failed to apply template" };
 	}
 }
@@ -1432,7 +1433,7 @@ export async function getStyleGuide(
 
 		return { success: true, data: styleGuide || null };
 	} catch (error) {
-		console.error("Error getting style guide:", error);
+		logger.error("Error getting style guide:", error);
 		return { success: false, error: "Failed to retrieve style guide" };
 	}
 }
@@ -1469,7 +1470,7 @@ export async function updateStyleGuide(
 
 		return { success: true, data: styleGuide };
 	} catch (error) {
-		console.error("Error updating style guide:", error);
+		logger.error("Error updating style guide:", error);
 		return { success: false, error: "Failed to update style guide" };
 	}
 }
@@ -1513,7 +1514,7 @@ export async function getNextFigureNumber(
 
 		return { success: true, data: figureNumber };
 	} catch (error) {
-		console.error("Error generating figure number:", error);
+		logger.error("Error generating figure number:", error);
 		return { success: false, error: "Failed to generate figure number" };
 	}
 }
@@ -1572,7 +1573,7 @@ export async function copyGraphic(
 
 		return { success: true, data: copied };
 	} catch (error) {
-		console.error("Error copying graphic:", error);
+		logger.error("Error copying graphic:", error);
 		return { success: false, error: "Failed to copy graphic" };
 	}
 }
@@ -1606,7 +1607,7 @@ export async function searchGraphics(
 
 		return { success: true, data: graphics };
 	} catch (error) {
-		console.error("Error searching graphics:", error);
+		logger.error("Error searching graphics:", error);
 		return { success: false, error: "Failed to search graphics" };
 	}
 }
@@ -1638,7 +1639,7 @@ export async function recordGraphicFeedback(
 
 		return { success: true, data: { recorded: true } };
 	} catch (error) {
-		console.error("Error recording feedback:", error);
+		logger.error("Error recording feedback:", error);
 		return { success: false, error: "Failed to record feedback" };
 	}
 }
@@ -1675,7 +1676,7 @@ export async function approveGraphic(
 
 		return { success: true, data: graphic };
 	} catch (error) {
-		console.error("Error approving graphic:", error);
+		logger.error("Error approving graphic:", error);
 		return { success: false, error: "Failed to approve graphic" };
 	}
 }
@@ -1710,7 +1711,7 @@ export async function reorderGraphics(
 
 		return { success: true, data: { updated: updatedCount } };
 	} catch (error) {
-		console.error("Error reordering graphics:", error);
+		logger.error("Error reordering graphics:", error);
 		return { success: false, error: "Failed to reorder graphics" };
 	}
 }
@@ -1763,7 +1764,7 @@ export async function validateGraphicCode(
 			},
 		};
 	} catch (error) {
-		console.error("Error validating graphic code:", error);
+		logger.error("Error validating graphic code:", error);
 		return { success: false, error: "Failed to validate graphic code" };
 	}
 }
@@ -1799,7 +1800,7 @@ export async function renderGraphicToSvg(
 
 		return { success: true, data: { svg } };
 	} catch (error) {
-		console.error("Error rendering graphic:", error);
+		logger.error("Error rendering graphic:", error);
 		return { success: false, error: "Failed to render graphic to SVG" };
 	}
 }
@@ -1835,7 +1836,7 @@ export async function getGraphicStats(
 			},
 		};
 	} catch (error) {
-		console.error("Error getting graphic stats:", error);
+		logger.error("Error getting graphic stats:", error);
 		return { success: false, error: "Failed to get graphic statistics" };
 	}
 }
@@ -1863,7 +1864,7 @@ export async function formatGraphicCode(
 			},
 		};
 	} catch (error) {
-		console.error("Error formatting graphic code:", error);
+		logger.error("Error formatting graphic code:", error);
 		return { success: false, error: "Failed to format graphic code" };
 	}
 }
@@ -1894,7 +1895,7 @@ export async function getLibraryTemplates(
 		const templates = getDiagramLibTemplates(type, tags);
 		return { success: true, data: templates };
 	} catch (error) {
-		console.error("Error getting library templates:", error);
+		logger.error("Error getting library templates:", error);
 		return { success: false, error: "Failed to get library templates" };
 	}
 }
@@ -1967,7 +1968,7 @@ export async function createGraphicFromLibraryTemplate(
 
 		return { success: true, data: graphic };
 	} catch (error) {
-		console.error("Error creating graphic from library template:", error);
+		logger.error("Error creating graphic from library template:", error);
 		return { success: false, error: "Failed to create graphic from template" };
 	}
 }
@@ -1996,7 +1997,7 @@ export async function parseGraphicCode(
 			},
 		};
 	} catch (error) {
-		console.error("Error parsing graphic code:", error);
+		logger.error("Error parsing graphic code:", error);
 		return { success: false, error: "Failed to parse graphic code" };
 	}
 }

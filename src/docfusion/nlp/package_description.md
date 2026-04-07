@@ -132,10 +132,11 @@ class SemanticAnalyzer:
 #### Service Provider to ALL Packages
 **This package PROVIDES services TO other packages - it does not depend on them:**
 
-#### → AI Agents Package
-- **Content Generation Service**: Provides AI text generation with organizational voice consistency
-- **Content Analysis Service**: Analyzes generated content quality and coherence
-- **Research Analysis Service**: Processes research results and extracts key insights
+#### → AI Agents Package (Future)
+- **Content Generation Service**: Will provide AI text generation with organizational voice consistency
+- **Content Analysis Service**: Will analyze generated content quality and coherence
+- **Research Analysis Service**: Will process research results and extract key insights
+- **Note**: Current agent implementation uses `agents/specialists/`
 
 #### → Voice DNA Package  
 - **Style Analysis Service**: Analyzes writing patterns and voice characteristics

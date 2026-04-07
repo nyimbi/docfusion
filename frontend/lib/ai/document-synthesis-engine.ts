@@ -36,6 +36,8 @@ import {
 	estimateWordCount,
 	estimateReadingTime,
 } from "@/lib/types/document-synthesis";
+import { logger } from "@/lib/utils/logger";
+import { TTLCache } from "@/lib/utils/ttl-cache";
 import { chat, streamChat } from "@/lib/ai/client";
 import { getProviderManager } from "@/lib/ai/providers";
 
@@ -67,17 +69,13 @@ const DEFAULT_CONFIG: SynthesisConfig = {
 // ============================================================================
 
 /**
- * LRU cache for embeddings to avoid regenerating for same content.
- * Key: content hash, Value: embedding vector with timestamp
+ * TTL cache for embeddings to avoid regenerating for same content.
+ * Key: content hash, Value: embedding vector.
+ * TTL and size eviction handled by TTLCache.
  */
-interface EmbeddingCacheEntry {
-	embedding: number[];
-	timestamp: number;
-}
-
-const embeddingCache = new Map<string, EmbeddingCacheEntry>();
 const EMBEDDING_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 const MAX_EMBEDDING_CACHE_SIZE = 100;
+const embeddingCache = new TTLCache<string, number[]>(EMBEDDING_CACHE_TTL, MAX_EMBEDDING_CACHE_SIZE);
 
 /**
  * Generate a simple hash for cache key purposes.
@@ -98,35 +96,17 @@ function generateContentHash(content: string): string {
  * @returns Cached embedding or null if not found/expired
  */
 function getCachedEmbedding(contentHash: string): number[] | null {
-	const cached = embeddingCache.get(contentHash);
-	if (cached && Date.now() - cached.timestamp < EMBEDDING_CACHE_TTL) {
-		return cached.embedding;
-	}
-	// Remove expired entry if exists
-	if (cached) {
-		embeddingCache.delete(contentHash);
-	}
-	return null;
+	return embeddingCache.get(contentHash) ?? null;
 }
 
 /**
- * Store embedding in cache with LRU eviction.
+ * Store embedding in cache.
+ * TTL expiration and size eviction are handled by TTLCache.
  * @param contentHash - Hash of the content as cache key
  * @param embedding - Embedding vector to cache
  */
 function setCachedEmbedding(contentHash: string, embedding: number[]): void {
-	// LRU eviction: remove oldest entry if at capacity
-	if (embeddingCache.size >= MAX_EMBEDDING_CACHE_SIZE) {
-		const entries = [...embeddingCache.entries()];
-		const oldest = entries.sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
-		if (oldest) {
-			embeddingCache.delete(oldest[0]);
-		}
-	}
-	embeddingCache.set(contentHash, {
-		embedding,
-		timestamp: Date.now(),
-	});
+	embeddingCache.set(contentHash, embedding);
 }
 
 // ============================================================================
@@ -167,7 +147,7 @@ export async function generateOutline(
 
 		return nodes;
 	} catch (error) {
-		console.error("Failed to generate outline:", error);
+		logger.error("Failed to generate outline:", error);
 		// Fallback to minimal structure
 		return createMinimalStructure(spec, config);
 	}
@@ -949,7 +929,7 @@ async function generateEmbedding(content: string): Promise<number[]> {
 		});
 
 		if (!response.ok) {
-			console.warn("[Embedding] Azure OpenAI API error:", response.status);
+			logger.warn("[Embedding] Azure OpenAI API error:", response.status);
 			const fallbackEmbed = generateSimpleEmbedding(content);
 			setCachedEmbedding(contentHash, fallbackEmbed);
 			return fallbackEmbed;
@@ -959,7 +939,7 @@ async function generateEmbedding(content: string): Promise<number[]> {
 		const embedding = data.data?.[0]?.embedding;
 
 		if (!embedding || !Array.isArray(embedding)) {
-			console.warn("[Embedding] Invalid response format from Azure OpenAI");
+			logger.warn("[Embedding] Invalid response format from Azure OpenAI");
 			const fallbackEmbed = generateSimpleEmbedding(content);
 			setCachedEmbedding(contentHash, fallbackEmbed);
 			return fallbackEmbed;
@@ -969,7 +949,7 @@ async function generateEmbedding(content: string): Promise<number[]> {
 		setCachedEmbedding(contentHash, embedding);
 		return embedding;
 	} catch (error) {
-		console.warn("[Embedding] Error calling Azure OpenAI:", error);
+		logger.warn("[Embedding] Error calling Azure OpenAI:", error);
 		const fallbackEmbed = generateSimpleEmbedding(content);
 		setCachedEmbedding(contentHash, fallbackEmbed);
 		return fallbackEmbed;

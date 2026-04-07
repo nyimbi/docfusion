@@ -693,7 +693,8 @@ class SVGRenderer:
 
             dom = xml.dom.minidom.parseString(xml_content)
             return dom.toprettyxml(indent="  ")
-        except:
+        except (ValueError, TypeError) as e:
+            self.logger.warning(f"XML formatting failed: {e}")
             return xml_content  # Return original if formatting fails
 
     async def _minify_svg(self, svg_content: str) -> str:

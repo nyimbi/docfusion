@@ -2,11 +2,12 @@
 Voice Pattern Analyzer
 
 This module provides comprehensive writing style fingerprinting and analysis
-capabilities for organizational voice consistency. Uses advanced NLP and 
+capabilities for organizational voice consistency. Uses advanced NLP and
 machine learning techniques to identify unique writing patterns, vocabulary
 choices, and stylistic elements that characterize an organization's voice.
 """
 
+import logging
 import asyncio
 import re
 from collections import Counter, defaultdict
@@ -28,6 +29,7 @@ try:
 	from nltk.tokenize import sent_tokenize, word_tokenize
 	from textstat import flesch_reading_ease, flesch_kincaid_grade, automated_readability_index
 	NLP_AVAILABLE = True
+	logger = logging.getLogger(__name__)
 except ImportError:
 	NLP_AVAILABLE = False
 	# Mock objects for when NLP libraries aren't available
@@ -146,7 +148,8 @@ class VoicePatternAnalyzer:
 				nltk.download('punkt', quiet=True)
 				nltk.download('stopwords', quiet=True)
 				self.stop_words = set(stopwords.words('english'))
-			except Exception:
+			except Exception as e:
+				logger.warning(f"Failed to download NLTK resources: {e}")
 				self.stop_words = set()
 		else:
 			self.stop_words = set()
@@ -386,8 +389,8 @@ class VoicePatternAnalyzer:
 					
 					complexity_score = (normalized_fk + normalized_flesch + normalized_ari) / 3
 					complexity_scores.append(complexity_score)
-				except:
-					# Fallback to simple heuristics
+				except (ValueError, TypeError, ZeroDivisionError) as e:
+					self._log_analysis_error(f"Readability calculation failed, using fallback: {e}")
 					complexity_scores.append(self._simple_complexity_score(document))
 			else:
 				complexity_scores.append(self._simple_complexity_score(document))

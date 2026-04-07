@@ -514,7 +514,8 @@ class DocumentSummarizer:
                     vectors = vectorizer.fit_transform([sentence, full_text])
                     similarity = cosine_similarity(vectors[0:1], vectors[1:2])[0][0]
                     score.similarity_score = float(similarity)
-                except:
+                except (ValueError, TypeError, AttributeError) as e:
+                    self.logger.warning(f"Cosine similarity calculation failed: {e}")
                     score.similarity_score = 0.5
             else:
                 # Simple word overlap as fallback

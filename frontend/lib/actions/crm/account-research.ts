@@ -10,6 +10,7 @@
 import { db } from "@/lib/db";
 import { accounts, type CommercialInsights } from "@/lib/db/schema-crm";
 import { eq } from "drizzle-orm";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -221,7 +222,7 @@ export async function researchAccount(
 			results,
 		};
 	} catch (error) {
-		console.error("Error researching account:", error);
+		logger.error("Error researching account:", error);
 		return {
 			success: false,
 			accountId: request.accountId,
@@ -310,7 +311,7 @@ export async function saveResearchFindings(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Error saving research findings:", error);
+		logger.error("Error saving research findings:", error);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Failed to save findings",
@@ -391,7 +392,7 @@ export async function getResearchQueries(
 			queries,
 		};
 	} catch (error) {
-		console.error("Error getting research queries:", error);
+		logger.error("Error getting research queries:", error);
 		return {
 			success: false,
 			queries: [],

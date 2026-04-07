@@ -8,6 +8,7 @@
  */
 
 import * as React from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import {
 	Card,
@@ -169,10 +170,13 @@ export function CompetitorCard({
 					{/* Logo/Icon */}
 					<div className="flex-shrink-0 w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
 						{competitor.logoUrl ? (
-							<img
+							<Image
 								src={competitor.logoUrl}
 								alt={`${competitor.name} logo`}
 								className="w-10 h-10 object-contain rounded"
+							width={40}
+							height={40}
+							unoptimized
 							/>
 						) : (
 							<Building2 className="h-6 w-6 text-muted-foreground" />

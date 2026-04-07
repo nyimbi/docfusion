@@ -95,6 +95,9 @@ class SharedContext:
     versioning, and event notifications.
     """
 
+    # Maximum history entries to prevent unbounded growth
+    MAX_HISTORY_SIZE = 100
+
     def __init__(self, context_id: str, scope: ContextScope, name: str = ""):
         self.context_id = context_id
         self.scope = scope
@@ -175,6 +178,9 @@ class SharedContext:
                         "version": entry.version,
                     }
                 )
+                # Enforce max history size to prevent unbounded growth
+                if len(self.history) > self.MAX_HISTORY_SIZE:
+                    self.history = self.history[-self.MAX_HISTORY_SIZE:]
 
                 # Update context metadata
                 self.last_updated = datetime.now()
@@ -251,6 +257,9 @@ class SharedContext:
                         "version": entry.version,
                     }
                 )
+                # Enforce max history size to prevent unbounded growth
+                if len(self.history) > self.MAX_HISTORY_SIZE:
+                    self.history = self.history[-self.MAX_HISTORY_SIZE:]
 
                 self.last_updated = datetime.now()
                 self.update_count += 1
@@ -291,6 +300,9 @@ class SharedContext:
                         "timestamp": datetime.now().isoformat(),
                     }
                 )
+                # Enforce max history size to prevent unbounded growth
+                if len(self.history) > self.MAX_HISTORY_SIZE:
+                    self.history = self.history[-self.MAX_HISTORY_SIZE:]
 
                 self.last_updated = datetime.now()
                 self.update_count += 1
@@ -431,8 +443,8 @@ class SharedContext:
         try:
             del self.entries[key]
             self.logger.debug(f"Removed expired context entry: {key}")
-        except:
-            pass
+        except KeyError:
+            self.logger.debug(f"Expired context entry already removed: {key}")
 
     def get_context_info(self) -> Dict[str, Any]:
         """Get context metadata and statistics"""

@@ -5,6 +5,7 @@
  */
 
 import type { DocumentContent, DocumentId } from "@/lib/types/document";
+import { logger } from "@/lib/utils/logger";
 
 /** Autosave status states */
 export type AutosaveStatus =
@@ -392,7 +393,7 @@ export class Autosave {
 
 			localStorage.setItem(this.options.offlineQueueKey, JSON.stringify(queue));
 		} catch (err) {
-			console.error("Failed to queue offline:", err);
+			logger.error("Failed to queue offline:", err);
 		}
 	}
 

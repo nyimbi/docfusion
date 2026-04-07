@@ -8,6 +8,7 @@
  * - Content suggestions based on context
  */
 
+import { logger } from "@/lib/utils/logger";
 import { getAIClient } from "./client";
 import type { ContentType, SuggestionConfidence } from "@/lib/types/content-library";
 
@@ -95,7 +96,7 @@ export async function generateEmbedding(
 			tokens: response.usage.totalTokens,
 		};
 	} catch (error) {
-		console.error("Error generating embedding:", error);
+		logger.error("Error generating embedding:", error);
 		throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : "Unknown error"}`);
 	}
 }
@@ -126,7 +127,7 @@ export async function generateEmbeddingsBatch(
 			tokens: Math.floor(response.usage.totalTokens / texts.length),
 		}));
 	} catch (error) {
-		console.error("Error generating batch embeddings:", error);
+		logger.error("Error generating batch embeddings:", error);
 		throw new Error(`Failed to generate batch embeddings: ${error instanceof Error ? error.message : "Unknown error"}`);
 	}
 }
@@ -228,7 +229,7 @@ export async function autoTagContent(
 		const jsonStr = responseContent.replace(/```json\n?|\n?```/g, "").trim();
 		return JSON.parse(jsonStr) as AutoTagResult;
 	} catch (error) {
-		console.error("Error auto-tagging content:", error);
+		logger.error("Error auto-tagging content:", error);
 		// Return default values on error
 		return {
 			tags: [],
@@ -308,7 +309,7 @@ export async function scoreContentQuality(
 		const jsonStr = responseContent.replace(/```json\n?|\n?```/g, "").trim();
 		return JSON.parse(jsonStr) as ContentQualityScore;
 	} catch (error) {
-		console.error("Error scoring content quality:", error);
+		logger.error("Error scoring content quality:", error);
 		return {
 			overallScore: 0,
 			clarity: 0,
@@ -408,7 +409,7 @@ export async function getContentSuggestions(
 		const parsed = JSON.parse(jsonStr) as { suggestions: ContentSuggestionResult[] };
 		return parsed.suggestions.filter((s) => s.score >= 50); // Only return relevant suggestions
 	} catch (error) {
-		console.error("Error getting content suggestions:", error);
+		logger.error("Error getting content suggestions:", error);
 		return [];
 	}
 }
@@ -488,7 +489,7 @@ export async function analyzeContentFreshness(
 		const jsonStr = responseContent.replace(/```json\n?|\n?```/g, "").trim();
 		return JSON.parse(jsonStr) as FreshnessAnalysis;
 	} catch (error) {
-		console.error("Error analyzing content freshness:", error);
+		logger.error("Error analyzing content freshness:", error);
 		return {
 			needsReview: false,
 			freshnessScore: 50,
@@ -577,7 +578,7 @@ Respond in JSON only:
 		const jsonStr = responseContent.replace(/```json\n?|\n?```/g, "").trim();
 		return JSON.parse(jsonStr);
 	} catch (error) {
-		console.error("Error analyzing content effectiveness:", error);
+		logger.error("Error analyzing content effectiveness:", error);
 		return {
 			topPerformers: [],
 			underperformers: [],
@@ -656,7 +657,7 @@ Respond in JSON only:
 		const jsonStr = responseContent.replace(/```json\n?|\n?```/g, "").trim();
 		return JSON.parse(jsonStr);
 	} catch (error) {
-		console.error("Error suggesting content enhancements:", error);
+		logger.error("Error suggesting content enhancements:", error);
 		return {
 			enhancedContent: content,
 			changes: [],

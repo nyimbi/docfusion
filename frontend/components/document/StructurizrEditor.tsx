@@ -8,6 +8,7 @@
 "use client";
 
 import * as React from "react";
+import { sanitizeHTML } from "@/lib/utils/sanitize";
 import { Button } from "@/components/ui/Button";
 import {
 	Select,
@@ -299,7 +300,7 @@ export function StructurizrEditor({
 									transform: `scale(${zoom})`,
 									transformOrigin: "center",
 								}}
-								dangerouslySetInnerHTML={{ __html: svg }}
+								dangerouslySetInnerHTML={{ __html: sanitizeHTML(svg) }}
 							/>
 						) : errors.length > 0 ? (
 							<div className="text-center text-destructive">

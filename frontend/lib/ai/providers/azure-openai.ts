@@ -4,6 +4,7 @@
  * Implements the AI provider interface for Azure OpenAI Service.
  */
 
+import { logger } from "@/lib/utils/logger";
 import type {
 	AIProvider,
 	AIProviderRequest,
@@ -39,8 +40,8 @@ export class AzureOpenAIProvider implements AIProvider {
 	 * Note: Health check is optional - returns true if config is present even if API check fails.
 	 */
 	async isAvailable(skipHealthCheck = true): Promise<boolean> {
-		console.log("[Azure OpenAI] Checking availability...");
-		console.log("[Azure OpenAI] Config:", {
+		logger.debug("[Azure OpenAI] Checking availability...");
+		logger.debug("[Azure OpenAI] Config:", {
 			endpoint: this.config.endpoint,
 			hasKey: !!this.config.apiKey,
 			keyLength: this.config.apiKey?.length || 0,
@@ -50,7 +51,7 @@ export class AzureOpenAIProvider implements AIProvider {
 
 		// Check for missing configuration
 		if (!this.config.apiKey && !this.config.endpoint && !this.config.deploymentName) {
-			console.error("[Azure OpenAI] Not available: All config values (API key, endpoint, deployment) are missing");
+			logger.error("[Azure OpenAI] Not available: All config values (API key, endpoint, deployment) are missing");
 			return false;
 		}
 
@@ -60,22 +61,22 @@ export class AzureOpenAIProvider implements AIProvider {
 		if (!this.config.deploymentName) missing.push("deployment name");
 
 		if (missing.length > 0) {
-			console.error(`[Azure OpenAI] Not available: Missing ${missing.join(", ")}`);
+			logger.error(`[Azure OpenAI] Not available: Missing ${missing.join(", ")}`);
 			return false;
 		}
 
 		// Skip health check if configured to do so (faster, avoids permission issues)
 		if (skipHealthCheck) {
-			console.log("[Azure OpenAI] Config present, skipping health check (available)");
+			logger.debug("[Azure OpenAI] Config present, skipping health check (available)");
 			return true;
 		}
 
 		// Optional: Perform actual health check
 		try {
-			console.log("[Azure OpenAI] Performing health check...");
+			logger.debug("[Azure OpenAI] Performing health check...");
 			// Note: Listing models requires specific permissions; /deployments is safer
 			const url = `${this.config.endpoint}/openai/deployments?api-version=${this.config.apiVersion}`;
-			console.log("[Azure OpenAI] Health check URL:", url);
+			logger.debug("[Azure OpenAI] Health check URL:", url);
 			
 			const response = await fetch(url, {
 				method: "GET",
@@ -84,22 +85,22 @@ export class AzureOpenAIProvider implements AIProvider {
 				},
 			});
 
-			console.log("[Azure OpenAI] Health check response:", response.status, response.statusText);
+			logger.debug("[Azure OpenAI] Health check response:", response.status, response.statusText);
 			
 			if (response.ok) {
-				console.log("[Azure OpenAI] Health check passed, provider available");
+				logger.debug("[Azure OpenAI] Health check passed, provider available");
 				return true;
 			} else {
 				const errorText = await response.text();
-				console.warn(`[Azure OpenAI] Health check failed: ${response.status} - ${errorText}`);
+				logger.warn(`[Azure OpenAI] Health check failed: ${response.status} - ${errorText}`);
 				// Still return true if config is present - the actual API call might work even if health check doesn't
-				console.log("[Azure OpenAI] Config is valid, assuming available despite health check failure");
+				logger.debug("[Azure OpenAI] Config is valid, assuming available despite health check failure");
 				return true;
 			}
 		} catch (error) {
-			console.error("[Azure OpenAI] Health check error:", error instanceof Error ? error.message : String(error));
+			logger.error("[Azure OpenAI] Health check error:", error instanceof Error ? error.message : String(error));
 			// Return true anyway - the deployment-specific API might still work
-			console.log("[Azure OpenAI] Config is valid, assuming available despite health check error");
+			logger.debug("[Azure OpenAI] Config is valid, assuming available despite health check error");
 			return true;
 		}
 	}
@@ -113,7 +114,7 @@ export class AzureOpenAIProvider implements AIProvider {
 
 		const url = `${this.config.endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${this.config.apiVersion}`;
 
-		console.log("[Azure OpenAI] Complete request:", {
+		logger.debug("[Azure OpenAI] Complete request:", {
 			deployment,
 			url: url.replace(this.config.apiKey, "[REDACTED]"),
 			messageCount: request.messages.length,
@@ -143,7 +144,7 @@ export class AzureOpenAIProvider implements AIProvider {
 
 		if (!response.ok) {
 			const error = await response.text();
-			console.error("[Azure OpenAI] API Error:", {
+			logger.error("[Azure OpenAI] API Error:", {
 				status: response.status,
 				statusText: response.statusText,
 				error,

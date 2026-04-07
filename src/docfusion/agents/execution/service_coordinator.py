@@ -423,7 +423,8 @@ class ServiceCoordinator:
             # Try to parse JSON response
             try:
                 return await response.json()
-            except:
+            except (ValueError, TypeError, KeyError) as e:
+                self.logger.info(f"Response not JSON, falling back to text: {e}")
                 return await response.text()
 
     async def _call_direct_service(
@@ -590,7 +591,8 @@ class ServiceCoordinator:
                         service_name, endpoint.health_check_path, {}
                     )
                     self.service_states[service_name] = ServiceState.HEALTHY
-                except:
+                except Exception as e:
+                    self.logger.warning(f"Health check failed for {service_name}: {e}")
                     self.service_states[service_name] = ServiceState.UNHEALTHY
                 return
 
@@ -606,7 +608,8 @@ class ServiceCoordinator:
                 self.service_states[service_name] = (
                     ServiceState.HEALTHY if healthy else ServiceState.UNHEALTHY
                 )
-            except:
+            except Exception as e:
+                self.logger.warning(f"Direct health check failed for {service_name}: {e}")
                 self.service_states[service_name] = ServiceState.UNHEALTHY
         else:
             # Default to healthy if service exists

@@ -874,7 +874,8 @@ class WorkflowEngine:
         try:
             sorted_nodes = await self._topological_sort(workflow)
             return len(sorted_nodes) != len(workflow.nodes)
-        except:
+        except Exception as e:
+            self.logger.warning(f"Cycle detection failed, assuming cycles present: {e}")
             return True
 
     async def _should_execute_node(

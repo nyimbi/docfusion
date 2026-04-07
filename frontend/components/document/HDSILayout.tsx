@@ -288,6 +288,7 @@ function ContextBufferPanelHeader({
 							size="icon"
 							className="h-6 w-6"
 							onClick={onToggle}
+							aria-label={isCollapsed ? "Expand panel" : "Collapse panel"}
 						>
 							{isCollapsed ? (
 								<PanelRightOpen className="h-3.5 w-3.5" />

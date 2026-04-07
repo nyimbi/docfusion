@@ -8,6 +8,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
+import { logger } from "@/lib/utils/logger";
 
 // Connection string from environment or provided default
 const connectionString =
@@ -37,7 +38,7 @@ export async function checkDatabaseConnection(): Promise<boolean> {
 		client.release();
 		return true;
 	} catch (error) {
-		console.error("Database connection failed:", error);
+		logger.error("Database connection failed:", error);
 		return false;
 	}
 }

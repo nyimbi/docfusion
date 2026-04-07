@@ -8,6 +8,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -571,10 +572,13 @@ export function CompanyProfileForm() {
 							<div className="flex items-center gap-3">
 								{formData.logoImageUrl ? (
 									<div className="relative h-16 w-32 border rounded bg-muted flex items-center justify-center overflow-hidden">
-										<img
+										<Image
 											src={formData.logoImageUrl}
 											alt="Logo"
 											className="max-h-full max-w-full object-contain"
+											width={128}
+											height={64}
+											unoptimized
 										/>
 									</div>
 								) : (
@@ -601,10 +605,13 @@ export function CompanyProfileForm() {
 							<div className="flex items-center gap-3">
 								{formData.logoIconUrl ? (
 									<div className="relative h-16 w-16 border rounded bg-muted flex items-center justify-center overflow-hidden">
-										<img
+										<Image
 											src={formData.logoIconUrl}
 											alt="Icon"
 											className="max-h-full max-w-full object-contain"
+											width={64}
+											height={64}
+											unoptimized
 										/>
 									</div>
 								) : (

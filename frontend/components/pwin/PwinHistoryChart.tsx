@@ -368,7 +368,7 @@ export function PwinHistoryChart({
 								{trend.charAt(0).toUpperCase() + trend.slice(1)}
 							</Badge>
 
-							<Button variant="outline" size="icon" onClick={loadHistory}>
+							<Button variant="outline" size="icon" onClick={loadHistory} aria-label="Refresh history">
 								<RefreshCw className="h-4 w-4" />
 							</Button>
 						</div>

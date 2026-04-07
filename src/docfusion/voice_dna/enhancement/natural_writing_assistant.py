@@ -695,7 +695,8 @@ class NaturalWritingAssistant:
 		if NLTK_AVAILABLE:
 			try:
 				return sent_tokenize(text)
-			except Exception:
+			except Exception as e:
+				self.logger.warning(f"Failed to extract sentences with NLTK: {e}")
 				pass
 		
 		# Fallback sentence splitting

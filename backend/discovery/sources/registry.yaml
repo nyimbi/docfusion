@@ -1,0 +1,1376 @@
+# TenderSourceMax Source Registry
+# ================================
+#
+# Configuration for all tender/RFP sources to scrape.
+#
+# Source Types:
+#   - mdb: Multilateral Development Banks (World Bank, AfDB, IDB, ADB)
+#   - un_agency: UN Agencies (UNDP, UNICEF, UNOPS, WHO, etc.)
+#   - aggregator: Multi-source aggregators (UNGM, dgMarket, DevEx)
+#   - government: National e-procurement portals
+#   - regional: Regional organizations (EAC, SADC, AU, ECOWAS)
+#   - bilateral: Bilateral donors (USAID, EU, DFID, GIZ)
+#
+# Schedule Tiers:
+#   - tier1: Every 6 hours (high-priority, high-volume sources)
+#   - tier2: Every 12 hours (medium-priority sources)
+#   - tier3: Daily at 06:00 UTC (lower-priority sources)
+#
+# Priority Levels:
+#   - 1: Critical (must always work)
+#   - 2: Important (core functionality)
+#   - 3: Nice to have (additional coverage)
+
+# ============================================================================
+# UN System & Aggregators (Tier 1 - High Priority)
+# ============================================================================
+
+sources:
+  # UN Global Marketplace - Primary aggregator for all UN procurement
+  - id: ungm
+    name: "UN Global Marketplace"
+    url: "https://www.ungm.org"
+    type: aggregator
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.ungm.UNGMScraper"
+    notes: |
+      Central procurement portal for UN agencies.
+      Covers UNOPS, UNDP, UNICEF, WHO, FAO, WFP, etc.
+      Search API available with filters.
+
+  # African Development Bank
+  - id: afdb
+    name: "African Development Bank"
+    url: "https://www.afdb.org"
+    type: mdb
+    coverage:
+      - africa
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.afdb.AfDBScraper"
+    notes: |
+      Major funder of Africa infrastructure and development.
+      Procurement notices at /en/business/opportunities
+
+  # World Bank
+  - id: worldbank
+    name: "World Bank"
+    url: "https://projects.worldbank.org"
+    type: mdb
+    coverage:
+      - global
+      - africa
+    rate_limit: 0.5
+    timeout: 60
+    javascript: true
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.worldbank.WorldBankScraper"
+    notes: |
+      Major development finance institution.
+      Requires Playwright for JavaScript rendering.
+      Also check procurement.worldbank.org
+
+  # TED Europa (Tenders Electronic Daily)
+  - id: ted
+    name: "TED Europa"
+    url: "https://ted.europa.eu"
+    type: aggregator
+    coverage:
+      - europe
+      - africa
+    rate_limit: 0.5
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.ted.TEDScraper"
+    notes: |
+      EU procurement portal with RSS/XML feeds.
+      Covers contracts above EU thresholds.
+      CPV code filtering available.
+
+  # dgMarket
+  - id: dgmarket
+    name: "dgMarket"
+    url: "https://www.dgmarket.com"
+    type: aggregator
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.dgmarket.DgMarketScraper"
+    notes: |
+      Development aid tender aggregator.
+      May require CloudScraper for Cloudflare bypass.
+
+  # UNDP Procurement Notices
+  - id: undp
+    name: "UNDP Procurement"
+    url: "https://procurement-notices.undp.org"
+    type: un_agency
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.undp.UNDPScraper"
+    notes: Direct UNDP procurement notices with negotiation links.
+
+# ============================================================================
+# African Government Portals (Tier 1-2)
+# ============================================================================
+
+  # Kenya - Public Procurement Information Portal
+  - id: kenya_ppip
+    name: "Kenya PPIP"
+    url: "https://tenders.go.ke"
+    type: government
+    coverage:
+      - kenya
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.africa.kenya.KenyaPPIPScraper"
+    notes: Kenya national e-procurement portal.
+
+  # South Africa - eTenders
+  - id: sa_etenders
+    name: "South Africa eTenders"
+    url: "https://www.etenders.gov.za"
+    type: government
+    coverage:
+      - south_africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.africa.south_africa.SAeTendersScraper"
+    notes: |
+      South Africa central tender portal.
+      Direct PDF downloads available.
+
+  # Nigeria - Bureau of Public Procurement
+  - id: nigeria_bpp
+    name: "Nigeria BPP"
+    url: "https://www.publicprocurement.ng"
+    type: government
+    coverage:
+      - nigeria
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.africa.nigeria.NigeriaBPPScraper"
+    notes: |
+      Nigeria public procurement notices.
+      Premium subscription may be needed for full access.
+
+  # Rwanda - e-Procurement (Umucyo)
+  - id: rwanda_umucyo
+    name: "Rwanda Umucyo"
+    url: "https://umucyo.gov.rw"
+    type: government
+    coverage:
+      - rwanda
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.africa.rwanda.RwandaScraper"
+    notes: Rwanda national e-procurement system.
+
+  # Ghana - GHANEPS
+  - id: ghana_ghaneps
+    name: "Ghana GHANEPS"
+    url: "https://www.ghaneps.gov.gh"
+    type: government
+    coverage:
+      - ghana
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.africa.ghana.GhanaScraper"
+    notes: Ghana Electronic Procurement System.
+
+  # Tanzania - TANePS
+  - id: tanzania_taneps
+    name: "Tanzania TANePS"
+    url: "https://www.taneps.go.tz"
+    type: government
+    coverage:
+      - tanzania
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.africa.tanzania.TanzaniaScraper"
+    notes: Tanzania National e-Procurement System.
+
+  # Uganda - Government Procurement Portal
+  - id: uganda_gpp
+    name: "Uganda GPP"
+    url: "https://gpp.ppda.go.ug"
+    type: government
+    coverage:
+      - uganda
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.africa.uganda.UgandaScraper"
+    notes: Uganda Government Procurement Portal.
+
+  # Ethiopia - e-GP
+  - id: ethiopia_egp
+    name: "Ethiopia e-GP"
+    url: "https://production.egp.gov.et"
+    type: government
+    coverage:
+      - ethiopia
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.africa.ethiopia.EthiopiaScraper"
+    notes: Ethiopia electronic Government Procurement.
+
+  # Zambia - ZPPA e-GP
+  - id: zambia_zppa
+    name: "Zambia ZPPA"
+    url: "https://eprocure.zppa.org.zm"
+    type: government
+    coverage:
+      - zambia
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.zambia.ZambiaScraper"
+    notes: Zambia Public Procurement Authority e-GP.
+
+  # Zimbabwe - PRAZ e-GP
+  - id: zimbabwe_praz
+    name: "Zimbabwe PRAZ"
+    url: "https://egp.praz.org.zw"
+    type: government
+    coverage:
+      - zimbabwe
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.zimbabwe.ZimbabweScraper"
+    notes: Zimbabwe Procurement Regulatory Authority.
+
+  # Botswana - eTender
+  - id: botswana_etender
+    name: "Botswana eTender"
+    url: "https://etender.co.bw"
+    type: government
+    coverage:
+      - botswana
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: true
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.botswana.BotswanaScraper"
+    notes: |
+      Botswana eTender portal.
+      Subscription may be needed.
+
+  # Mauritius - e-Procurement
+  - id: mauritius_eprocurement
+    name: "Mauritius GPO"
+    url: "https://eproc.publicprocurement.govmu.org"
+    type: government
+    coverage:
+      - mauritius
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.mauritius.MauritiusScraper"
+    notes: Mauritius Government Procurement Office.
+
+  # ============================================================================
+  # New African Government Portals - Horn of Africa, East, Central, Southern
+  # ============================================================================
+
+  # DR Congo - SIGMAP
+  - id: dr_congo_sigmap
+    name: "DR Congo SIGMAP"
+    url: "https://marchepublic.cd"
+    type: government
+    coverage:
+      - dr_congo
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.africa.dr_congo.DRCongoScraper"
+    notes: |
+      DR Congo integrated public procurement management system.
+      French language portal.
+
+  # Cameroon - ARMP/COLEPS
+  - id: cameroon_armp
+    name: "Cameroon ARMP"
+    url: "https://armp.cm"
+    type: government
+    coverage:
+      - cameroon
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.africa.cameroon.CameroonScraper"
+    notes: |
+      Cameroon Public Procurement Regulatory Authority.
+      COLEPS e-procurement platform launched 2018.
+
+  # Angola - SNCP
+  - id: angola_sncp
+    name: "Angola SNCP"
+    url: "https://compraspublicas.minfin.gov.ao"
+    type: government
+    coverage:
+      - angola
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.africa.angola.AngolaScraper"
+    notes: |
+      Angola National Public Procurement Service.
+      Portuguese language, full e-procurement platform.
+
+  # Mozambique - E-GP
+  - id: mozambique_egp
+    name: "Mozambique E-GP"
+    url: "https://www.concursos.co.mz"
+    type: government
+    coverage:
+      - mozambique
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 1
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.africa.mozambique.MozambiqueScraper"
+    notes: |
+      Mozambique e-GP (GEPRES) launched April 2025.
+      Portuguese language portal.
+
+  # South Sudan - PPDAA
+  - id: south_sudan_ppdaa
+    name: "South Sudan PPDAA"
+    url: "https://tenderportal.ppdaa.gov.ss"
+    type: government
+    coverage:
+      - south_sudan
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.africa.south_sudan.SouthSudanScraper"
+    notes: |
+      South Sudan Public Procurement and Disposal of Assets Authority.
+      Governed by PPDA Act 2018.
+
+  # Namibia - CPBN
+  - id: namibia_cpbn
+    name: "Namibia CPBN"
+    url: "https://eprocurement.gov.na"
+    type: government
+    coverage:
+      - namibia
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.africa.namibia.NamibiaScraper"
+    notes: |
+      Namibia Central Procurement Board e-procurement (Portal Ariel).
+      Governed by Public Procurement Act 2015.
+
+  # Malawi - PPDA
+  - id: malawi_ppda
+    name: "Malawi PPDA"
+    url: "https://www.ppda.mw"
+    type: government
+    coverage:
+      - malawi
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.africa.malawi.MalawiScraper"
+    notes: |
+      Malawi Public Procurement and Disposal of Assets Authority.
+      e-GP system for tender publication.
+
+  # Congo Brazzaville - ARMP
+  - id: congo_armp
+    name: "Congo Brazzaville ARMP"
+    url: "https://armp.cg"
+    type: government
+    coverage:
+      - congo
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.congo_brazzaville.CongoBrazzavilleScraper"
+    notes: |
+      Congo Public Procurement Regulatory Authority.
+      BOAMP bulletin available. French language.
+
+  # Gabon - DGMP
+  - id: gabon_dgmp
+    name: "Gabon DGMP"
+    url: "http://www.dgmp.ga"
+    type: government
+    coverage:
+      - gabon
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.gabon.GabonScraper"
+    notes: |
+      Gabon Public Procurement Agency.
+      Limited e-procurement capabilities.
+
+  # Seychelles - NTB
+  - id: seychelles_ntb
+    name: "Seychelles NTB"
+    url: "https://www.ntb.sc"
+    type: government
+    coverage:
+      - seychelles
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.seychelles.SeychellesScraper"
+    notes: |
+      Seychelles National Tender Board.
+      Governed by Public Procurement Act 2008.
+
+  # Djibouti - Marchés Publics
+  - id: djibouti_marches
+    name: "Djibouti Marchés Publics"
+    url: "https://marchespublics.gouv.dj"
+    type: government
+    coverage:
+      - djibouti
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.djibouti.DjiboutiScraper"
+    notes: |
+      Djibouti Public Procurement Portal.
+      French language, 1,200+ contracts published.
+
+  # Eswatini - ESPPRA
+  - id: eswatini_esppra
+    name: "Eswatini ESPPRA"
+    url: "https://esppra.co.sz"
+    type: government
+    coverage:
+      - eswatini
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.eswatini.EswatiniScraper"
+    notes: |
+      Eswatini Public Procurement Regulatory Authority.
+      Formerly Swaziland National Tender Board.
+
+  # Somaliland - NTB
+  - id: somaliland_ntb
+    name: "Somaliland NTB"
+    url: "https://ntb.govsomaliland.org"
+    type: government
+    coverage:
+      - somaliland
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.somaliland.SomalilandScraper"
+    notes: |
+      Somaliland National Tender Board.
+      Governed by Public Procurement Act 82 of 2018.
+
+  # Sudan - Tenders (Aggregator)
+  - id: sudan_tenders
+    name: "Sudan Tenders"
+    url: "https://www.sudantenders.com"
+    type: aggregator
+    coverage:
+      - sudan
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.sudan.SudanScraper"
+    notes: |
+      Sudan tenders aggregator.
+      Ministry of Finance launching national e-procurement.
+
+  # Burundi - Tenders (Aggregator)
+  - id: burundi_tenders
+    name: "Burundi Tenders"
+    url: "https://www.burunditenders.com"
+    type: aggregator
+    coverage:
+      - burundi
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.burundi.BurundiScraper"
+    notes: |
+      Burundi tenders aggregator.
+      ARMP is regulatory authority.
+
+  # Lesotho - TenderWatch
+  - id: lesotho_tenders
+    name: "Lesotho Tenders"
+    url: "https://tenderwatch.co.ls"
+    type: government
+    coverage:
+      - lesotho
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.lesotho.LesothoScraper"
+    notes: |
+      Lesotho TenderWatch (Ponaletso) portal.
+      Governed by Public Procurement Act 2023.
+
+  # Chad - Tenders (Aggregator)
+  - id: chad_tenders
+    name: "Chad Tenders"
+    url: "https://www.chadtenders.com"
+    type: aggregator
+    coverage:
+      - chad
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.chad.ChadScraper"
+    notes: |
+      Chad tenders aggregator.
+      ~2.1 billion XAF annual procurement market.
+
+  # Comoros - Tenders (Aggregator)
+  - id: comoros_tenders
+    name: "Comoros Tenders"
+    url: "https://www.biddetail.com/comoros-tenders"
+    type: aggregator
+    coverage:
+      - comoros
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.africa.comoros.ComorosScraper"
+    notes: |
+      Comoros tenders via BidDetail aggregator.
+      ~$100M annual procurement market.
+
+# ============================================================================
+# Regional Organizations (Tier 2-3)
+# ============================================================================
+
+  # East African Community
+  - id: eac
+    name: "East African Community"
+    url: "https://www.eac.int"
+    type: regional
+    coverage:
+      - east_africa
+      - kenya
+      - uganda
+      - tanzania
+      - rwanda
+      - burundi
+      - south_sudan
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.regional.eac.EACScraper"
+    notes: |
+      EAC Secretariat procurement.
+      Also e-Procurement at eacprocurement.eac.int
+
+  # SADC
+  - id: sadc
+    name: "SADC"
+    url: "https://www.sadc.int"
+    type: regional
+    coverage:
+      - southern_africa
+      - south_africa
+      - botswana
+      - namibia
+      - zimbabwe
+      - zambia
+      - mozambique
+      - malawi
+      - angola
+      - eswatini
+      - lesotho
+      - mauritius
+      - madagascar
+      - drc
+      - seychelles
+      - comoros
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.regional.sadc.SADCScraper"
+    notes: Southern African Development Community.
+
+  # ECOWAS
+  - id: ecowas
+    name: "ECOWAS"
+    url: "https://www.ecowas.int"
+    type: regional
+    coverage:
+      - west_africa
+      - nigeria
+      - ghana
+      - senegal
+      - ivory_coast
+      - mali
+      - burkina_faso
+      - niger
+      - guinea
+      - benin
+      - togo
+      - sierra_leone
+      - liberia
+      - gambia
+      - guinea_bissau
+      - cape_verde
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.regional.ecowas.ECOWASScraper"
+    notes: Economic Community of West African States.
+
+  # African Union
+  - id: au
+    name: "African Union"
+    url: "https://au.int"
+    type: regional
+    coverage:
+      - africa
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.regional.au.AUScraper"
+    notes: African Union Commission procurement.
+
+  # Smart Africa
+  - id: smart_africa
+    name: "Smart Africa"
+    url: "https://smartafrica.org"
+    type: regional
+    coverage:
+      - africa
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 3
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.regional.smart_africa.SmartAfricaScraper"
+    notes: Pan-African digital transformation initiative.
+
+# ============================================================================
+# MDB Sources (Multilateral Development Banks)
+# ============================================================================
+
+  # IFC - International Finance Corporation (World Bank Group)
+  - id: ifc
+    name: "IFC (World Bank Group)"
+    url: "https://www.ifc.org"
+    type: mdb
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.mdb.ifc.IFCScraper"
+    notes: |
+      Private sector arm of World Bank Group.
+      Focuses on private sector development in emerging markets.
+
+  # IsDB - Islamic Development Bank
+  - id: isdb
+    name: "Islamic Development Bank"
+    url: "https://www.isdb.org"
+    type: mdb
+    coverage:
+      - africa
+      - middle_east
+      - asia
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.mdb.isdb.IsDBScraper"
+    notes: |
+      Multilateral development bank for Muslim-majority countries.
+      Sharia-compliant financing.
+
+  # ADB - Asian Development Bank
+  - id: adb
+    name: "Asian Development Bank"
+    url: "https://www.adb.org"
+    type: mdb
+    coverage:
+      - asia
+      - pacific
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.mdb.adb.ADBScraper"
+    notes: |
+      Regional development bank for Asia-Pacific.
+      ADB CMS for consulting opportunities.
+
+  # IDB - Inter-American Development Bank
+  - id: idb
+    name: "Inter-American Development Bank"
+    url: "https://www.iadb.org"
+    type: mdb
+    coverage:
+      - latin_america
+      - caribbean
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.mdb.idb.IDBScraper"
+    notes: |
+      Regional development bank for Latin America and Caribbean.
+      IDB Invest for private sector operations.
+
+  # EBRD - European Bank for Reconstruction and Development
+  - id: ebrd
+    name: "European Bank for Reconstruction and Development"
+    url: "https://www.ebrd.com"
+    type: mdb
+    coverage:
+      - europe
+      - central_asia
+      - middle_east
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.mdb.ebrd.EBRDScraper"
+    notes: |
+      Development bank focused on transition economies.
+      Covers Central Asia, Eastern Europe, Mediterranean.
+
+  # AIIB - Asian Infrastructure Investment Bank
+  - id: aiib
+    name: "Asian Infrastructure Investment Bank"
+    url: "https://www.aiib.org"
+    type: mdb
+    coverage:
+      - asia
+      - pacific
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.mdb.aiib.AIIBScraper"
+    notes: |
+      Multilateral development bank focused on infrastructure.
+      Covers Asia-Pacific region.
+
+# ============================================================================
+# Bilateral Donors
+# ============================================================================
+
+  # USAID
+  - id: usaid
+    name: "USAID"
+    url: "https://www.usaid.gov"
+    type: bilateral
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.bilateral.usaid.USAIDScraper"
+    notes: |
+      US development agency.
+      Check sam.gov for full listings.
+
+  # FCDO UK (Foreign, Commonwealth & Development Office)
+  - id: fcdo_uk
+    name: "FCDO UK"
+    url: "https://www.gov.uk"
+    type: bilateral
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.bilateral.fcdo.FCDOUKScraper"
+    notes: |
+      UK's diplomatic and development ministry.
+      Formerly DFID, merged with FCO in 2020.
+
+  # GIZ - Deutsche Gesellschaft für Internationale Zusammenarbeit
+  - id: giz
+    name: "GIZ"
+    url: "https://www.giz.de"
+    type: bilateral
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.bilateral.giz.GIZScraper"
+    notes: |
+      Germany's main development agency.
+      Part of German development cooperation.
+
+  # JICA - Japan International Cooperation Agency
+  - id: jica
+    name: "JICA"
+    url: "https://www.jica.go.jp"
+    type: bilateral
+    coverage:
+      - global
+      - africa
+      - asia
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.bilateral.jica.JICAScraper"
+    notes: |
+      Japan's official development assistance agency.
+      Technical cooperation and ODA loans.
+
+  # AFD - Agence Française de Développement
+  - id: afd
+    name: "AFD"
+    url: "https://www.afd.fr"
+    type: bilateral
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.bilateral.afd.AFDScraper"
+    notes: |
+      France's main development finance institution.
+      Proparco for private sector financing.
+
+  # KfW - Kreditanstalt für Wiederaufbau
+  - id: kfw
+    name: "KfW"
+    url: "https://www.kfw.de"
+    type: bilateral
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.bilateral.kfw.KfWScraper"
+    notes: |
+      Germany's development bank.
+      Financing and promotional programs.
+
+  # EU DEVCO/INTPA - European Union Development Cooperation
+  - id: eu_devco
+    name: "EU Development Cooperation"
+    url: "https://international-partnerships.ec.europa.eu"
+    type: bilateral
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.bilateral.eu.EUScraper"
+    notes: |
+      EU INTPA (formerly DEVCO) manages EU development cooperation.
+      Procurement through EU Tenders Electronic Daily (TED).
+
+  # SIDA - Swedish International Development Cooperation Agency
+  - id: sida
+    name: "SIDA"
+    url: "https://www.sida.se"
+    type: bilateral
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.bilateral.sida.SIDAScraper"
+    notes: |
+      Sweden's government agency for development cooperation.
+      Focuses on poverty reduction and sustainable development.
+
+  # NORAD - Norwegian Agency for Development Cooperation
+  - id: norad
+    name: "NORAD"
+    url: "https://www.norad.no"
+    type: bilateral
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.bilateral.norad.NORADScraper"
+    notes: |
+      Norway's directorate for development cooperation.
+      Focuses on climate, education, private sector development.
+
+  # DANIDA - Danish International Development Agency
+  - id: danida
+    name: "DANIDA"
+    url: "https://www.danida.dk"
+    type: bilateral
+    coverage:
+      - global
+      - africa
+    rate_limit: 1.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 3
+    scraper_class: "backend.discovery.scrapers.bilateral.danida.DANIDAScraper"
+    notes: |
+      Denmark's development cooperation agency.
+      Part of Danish Ministry of Foreign Affairs.
+
+# ============================================================================
+# Additional African Government Portals
+# ============================================================================
+
+  # Côte d'Ivoire - SIGOMAP
+  - id: ivory_coast_sigomap
+    name: "Côte d'Ivoire SIGOMAP"
+    url: "https://www.achatpublic.cm"
+    type: government
+    coverage:
+      - ivory_coast
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.africa.ivory_coast.IvoryCoastScraper"
+    notes: |
+      Côte d'Ivoire SIGOMAP portal (French language).
+      Part of WAEMU regional system.
+
+  # Benin - SIGMaP
+  - id: benin_sigmap
+    name: "Benin SIGMaP"
+    url: "https://www.achatpublic.bj"
+    type: government
+    coverage:
+      - benin
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.africa.benin.BeninScraper"
+    notes: |
+      Benin SIGMaP portal (French language).
+      WAEMU regional e-procurement system.
+
+  # Egypt - E-Tenders
+  - id: egypt_etenders
+    name: "Egypt E-Tenders"
+    url: "https://www.etenders.gov.eg"
+    type: government
+    coverage:
+      - egypt
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.africa.egypt.EgyptScraper"
+    notes: |
+      Egypt's unified e-tendering portal.
+      Part of Egyptian Government Procurement modernization.
+
+  # Morocco - Marchés Publics
+  - id: morocco_marches
+    name: "Morocco Marchés Publics"
+    url: "https://www.marchespublics.gov.ma"
+    type: government
+    coverage:
+      - morocco
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.africa.morocco.MoroccoScraper"
+    notes: |
+      Morocco Public Procurement Portal.
+      French/Arabic language portal.
+
+  # Tunisia - TUNEPS
+  - id: tunisia_tuneps
+    name: "Tunisia TUNEPS"
+    url: "https://www.tuneps.tn"
+    type: government
+    coverage:
+      - tunisia
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 1
+    schedule_tier: 1
+    scraper_class: "backend.discovery.scrapers.africa.tunisia.TunisiaScraper"
+    notes: |
+      Tunisia e-Procurement System (TUNEPS).
+      French/Arabic language portal.
+
+  # Algeria - BAOSEM
+  - id: algeria_baosem
+    name: "Algeria BAOSEM"
+    url: "https://www.baosem.gov.dz"
+    type: government
+    coverage:
+      - algeria
+    rate_limit: 2.0
+    timeout: 45
+    javascript: true
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.africa.algeria.AlgeriaScraper"
+    notes: |
+      Algeria Online Procurement System (BAOSEM).
+      Arabic/French language portal.
+
+# ============================================================================
+# Additional Regional Organizations
+# ============================================================================
+
+  # COMESA - Common Market for Eastern and Southern Africa
+  - id: comesa
+    name: "COMESA"
+    url: "https://www.comesa.int"
+    type: regional
+    coverage:
+      - eastern_africa
+      - southern_africa
+      - burundi
+      - comoros
+      - dr_congo
+      - djibouti
+      - egypt
+      - eritrea
+      - eswatini
+      - ethiopia
+      - kenya
+      - libya
+      - madagascar
+      - malawi
+      - mauritius
+      - rwanda
+      - seychelles
+      - sudan
+      - tunisia
+      - uganda
+      - zambia
+      - zimbabwe
+    rate_limit: 2.0
+    timeout: 30
+    javascript: false
+    auth: false
+    priority: 2
+    schedule_tier: 2
+    scraper_class: "backend.discovery.scrapers.regional.comesa.COMESAScraper"
+    notes: |
+      Regional economic community with 21 member states.
+      Covers Eastern and Southern Africa.
+
+# ============================================================================
+# Schedule Configuration
+# ============================================================================
+
+schedules:
+  # Tier 1: High-priority sources - every 6 hours
+  tier1:
+    cron: "0 */6 * * *"
+    sources:
+      - ungm
+      - afdb
+      - worldbank
+      - undp
+      - kenya_ppip
+      - sa_etenders
+      - nigeria_bpp
+      - dr_congo_sigmap
+      - cameroon_armp
+      - angola_sncp
+      - ivory_coast_sigomap
+      - benin_sigmap
+      - egypt_etenders
+      - morocco_marches
+      - tunisia_tuneps
+      - ifc
+      - adb
+      - idb
+      - ebrd
+      - eu_devco
+
+  # Tier 2: Medium-priority sources - every 12 hours
+  tier2:
+    cron: "0 */12 * * *"
+    sources:
+      - ted
+      - dgmarket
+      - rwanda_umucyo
+      - ghana_ghaneps
+      - tanzania_taneps
+      - uganda_gpp
+      - ethiopia_egp
+      - eac
+      - sadc
+      - mozambique_egp
+      - south_sudan_ppdaa
+      - namibia_cpbn
+      - malawi_ppda
+      - algeria_baosem
+      - isdb
+      - aiib
+      - usaid
+      - fcdo_uk
+      - giz
+      - jica
+      - afd
+      - kfw
+      - sida
+      - comesa
+
+  # Tier 3: Lower-priority sources - daily at 06:00 UTC
+  tier3:
+    cron: "0 6 * * *"
+    sources:
+      - zambia_zppa
+      - zimbabwe_praz
+      - botswana_etender
+      - mauritius_eprocurement
+      - ecowas
+      - au
+      - smart_africa
+      - congo_armp
+      - gabon_dgmp
+      - seychelles_ntb
+      - djibouti_marches
+      - eswatini_esppra
+      - somaliland_ntb
+      - sudan_tenders
+      - burundi_tenders
+      - lesotho_tenders
+      - chad_tenders
+      - comoros_tenders
+      - norad
+      - danida
+
+# ============================================================================
+# Global Settings
+# ============================================================================
+
+settings:
+  # Default rate limit for sources without explicit config
+  default_rate_limit: 1.0
+
+  # Default timeout in seconds
+  default_timeout: 30
+
+  # Maximum retries per request
+  max_retries: 3
+
+  # Deduplication database path
+  dedup_db_path: "data/discovery/dedup.sqlite"
+
+  # Audit log path
+  audit_log_path: "data/discovery/audit.jsonl"
+
+  # Enable proxy rotation
+  proxy_rotation_enabled: false
+
+  # Proxy list (if enabled)
+  proxies: []
+
+  # User agent rotation
+  user_agent_rotation_enabled: true

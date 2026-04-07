@@ -8,6 +8,7 @@ testing, and monitoring for the proposal writer system.
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Dict, List, Optional, Any
 
@@ -43,6 +44,11 @@ from ..document_engine.secure_document_engine import SecureDocumentEngine
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _get_allowed_origins() -> list[str]:
+	origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+	return [origin.strip() for origin in origins_env.split(",") if origin.strip()]
 
 
 class APIApplication:
@@ -192,10 +198,7 @@ class APIApplication:
 		# CORS middleware
 		app.add_middleware(
 			CORSMiddleware,
-			allow_origins=["*"] if self.environment != "production" else [
-				"https://app.yourdomain.com",
-				"https://yourdomain.com"
-			],
+			allow_origins=_get_allowed_origins(),
 			allow_credentials=True,
 			allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
 			allow_headers=["*"],

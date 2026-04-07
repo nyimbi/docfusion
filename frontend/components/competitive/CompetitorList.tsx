@@ -8,6 +8,7 @@
  */
 
 import * as React from "react";
+import Image from "next/image";
 import { useState, useTransition, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -438,10 +439,13 @@ export function CompetitorList({
 											<div className="flex items-center gap-3">
 												<div className="w-8 h-8 rounded bg-muted flex items-center justify-center">
 													{competitor.logoUrl ? (
-														<img
+														<Image
 															src={competitor.logoUrl}
 															alt=""
 															className="w-6 h-6 object-contain rounded"
+															width={24}
+															height={24}
+															unoptimized
 														/>
 													) : (
 														<Building2 className="h-4 w-4 text-muted-foreground" />

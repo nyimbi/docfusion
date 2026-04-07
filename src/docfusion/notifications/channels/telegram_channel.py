@@ -169,7 +169,8 @@ class TelegramChannel(NotificationChannel):
 				except ValueError:
 					return False
 			
-		except Exception:
+		except Exception as e:
+			self.logger.warning("Failed to validate Telegram recipient '%s': %s", recipient_id, str(e))
 			return False
 	
 	def get_channel_type(self) -> ChannelType:

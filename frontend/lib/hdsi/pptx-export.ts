@@ -12,17 +12,50 @@
  */
 
 import { useState, useCallback } from "react";
-import type { Presentation, Slide, ChartConfig, TableConfig } from "./presentations";
+import type { Presentation, Slide, ChartConfig, TableConfig, ChartDataPoint, ChartSeries } from "./presentations";
 import type { ConsultingFormat, MilitaryFormatType } from "./presentation-formats";
 import { BCG_FORMAT, MCKINSEY_FORMAT, BAIN_FORMAT, MILITARY_DECISION_BRIEF } from "./presentation-formats";
+import type { PresentationTheme } from "./presentations";
+
+// PptxGenJS instance type — covers the API surface we use
+interface PptxGenJSInstance {
+  author: string;
+  company: string;
+  subject: string;
+  title: string;
+  ChartType: Record<string, unknown>;
+  defineSlideMaster(opts: Record<string, unknown>): void;
+  addSlide(opts?: Record<string, unknown>): PptxSlideInstance;
+  writeFile(opts: { fileName: string }): Promise<void>;
+}
+
+interface PptxSlideInstance {
+  addText(text: string | Array<Record<string, unknown>>, opts?: Record<string, unknown>): void;
+  addChart(type: unknown, data: PptxChartData[], opts?: Record<string, unknown>): void;
+  addTable(rows: PptxTableCell[][], opts?: Record<string, unknown>): void;
+  addNotes(notes: string): void;
+}
+
+interface PptxChartData {
+  name: string;
+  labels: string[];
+  values: number[];
+}
+
+interface PptxTableCell {
+  text: string;
+  options: Record<string, unknown>;
+}
+
+type PptxGenJSConstructor = new () => PptxGenJSInstance;
 
 // Dynamic import of PptxGenJS to avoid Node.js module issues at build time
-let PptxGenJS: any = null;
+let PptxGenJS: PptxGenJSConstructor | null = null;
 
-async function getPptxGenJS(): Promise<any> {
+async function getPptxGenJS(): Promise<PptxGenJSConstructor> {
   if (!PptxGenJS) {
     const mod = await import("pptxgenjs");
-    PptxGenJS = mod.default || mod;
+    PptxGenJS = (mod.default || mod) as unknown as PptxGenJSConstructor;
   }
   return PptxGenJS;
 }
@@ -133,7 +166,7 @@ interface FormatStyle {
   type: "consulting" | "military" | "corporate";
   classification?: string;
   consultingFormat?: string;
-  theme: any;
+  theme: PresentationTheme;
   colors: {
     primary: string;
     secondary: string;
@@ -155,11 +188,11 @@ interface FormatStyle {
 // ============================================================================
 
 function createMasterSlide(
-  pptx: any,
+  pptx: PptxGenJSInstance,
   style: FormatStyle,
   options: PPTXExportOptions
 ): void {
-  const objects: any[] = [];
+  const objects: Array<{ text: { text: string; options: Record<string, unknown> } }> = [];
   
   // Page number
   objects.push({
@@ -211,7 +244,7 @@ function getClassificationColor(classification: string): string {
 // ============================================================================
 
 function createContentSlide(
-  pptx: any,
+  pptx: PptxGenJSInstance,
   slide: Slide,
   style: FormatStyle,
   options: PPTXExportOptions,
@@ -326,7 +359,7 @@ function getMilitarySectionType(slideType: string): string | null {
 // ============================================================================
 
 function addBulletContent(
-  slide: any,
+  slide: PptxSlideInstance,
   content: Slide,
   style: FormatStyle,
   bounds: { x: number; y: number; w: number; h: number }
@@ -349,23 +382,23 @@ function addBulletContent(
 }
 
 function addChart(
-  slide: any,
+  slide: PptxSlideInstance,
   chart: ChartConfig,
   style: FormatStyle,
   bounds: { x: number; y: number; w: number; h: number },
-  pptx: any
+  pptx: PptxGenJSInstance
 ): void {
   // Convert chart data to PptxGenJS format
   const chartData = convertChartData(chart);
-  
+
   // Map chart types
-  const chartTypeMap: Record<string, any> = {
+  const chartTypeMap: Record<string, unknown> = {
     "column": pptx.ChartType.bar,
     "bar": pptx.ChartType.bar,
     "line": pptx.ChartType.line,
     "pie": pptx.ChartType.pie,
   };
-  
+
   const chartType = chartTypeMap[chart.type] || pptx.ChartType.bar;
   
   slide.addChart(chartType, chartData, {
@@ -383,32 +416,33 @@ function addChart(
   });
 }
 
-function convertChartData(chart: ChartConfig): any[] {
+function convertChartData(chart: ChartConfig): PptxChartData[] {
   // Handle series data
   if (Array.isArray(chart.data) && chart.data.length > 0 && "data" in chart.data[0]) {
-    return (chart.data as any[]).map(series => ({
+    return (chart.data as ChartSeries[]).map(series => ({
       name: series.name,
       labels: chart.xAxis?.categories || [],
       values: series.data,
     }));
   }
-  
+
   // Handle simple data points
+  const dataPoints = chart.data as ChartDataPoint[];
   return [{
     name: "Data",
-    labels: (chart.data as any[]).map(d => d.label || ""),
-    values: (chart.data as any[]).map(d => d.value || 0),
+    labels: dataPoints.map(d => d.label || ""),
+    values: dataPoints.map(d => d.value || 0),
   }];
 }
 
 function addTable(
-  slide: any,
+  slide: PptxSlideInstance,
   table: TableConfig,
   style: FormatStyle,
   bounds: { x: number; y: number; w: number; h: number }
 ): void {
   // Convert to proper TableCell format
-  const rows: any[][] = [
+  const rows: PptxTableCell[][] = [
     table.headers.map(h => ({ text: String(h), options: { bold: true, fill: style.colors.secondary } })),
     ...table.rows.map(row => 
       row.map(cell => ({ text: String(cell), options: {} }))
@@ -436,7 +470,7 @@ function addTable(
 // ============================================================================
 
 function createBackupSection(
-  pptx: any,
+  pptx: PptxGenJSInstance,
   presentation: Presentation,
   style: FormatStyle
 ): void {

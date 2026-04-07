@@ -30,6 +30,7 @@ import {
 } from "@/lib/db/schema-personnel";
 import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, ne, isNull, isNotNull } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -593,7 +594,7 @@ export async function createPersonnel(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to create personnel record:", error);
+		logger.error("Failed to create personnel record:", error);
 		return { success: false, error: "Failed to create personnel record" };
 	}
 }
@@ -667,7 +668,7 @@ export async function updatePersonnel(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to update personnel record:", error);
+		logger.error("Failed to update personnel record:", error);
 		return { success: false, error: "Failed to update personnel record" };
 	}
 }
@@ -696,7 +697,7 @@ export async function deletePersonnel(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to delete personnel record:", error);
+		logger.error("Failed to delete personnel record:", error);
 		return { success: false, error: "Failed to delete personnel record" };
 	}
 }
@@ -720,7 +721,7 @@ export async function getPersonnel(
 
 		return { success: true, data: mapDBPersonnelToPersonnel(row) };
 	} catch (error) {
-		console.error("Failed to fetch personnel record:", error);
+		logger.error("Failed to fetch personnel record:", error);
 		return { success: false, error: "Failed to fetch personnel record" };
 	}
 }
@@ -811,7 +812,7 @@ export async function searchPersonnel(
 
 		return { success: true, data: results };
 	} catch (error) {
-		console.error("Failed to search personnel:", error);
+		logger.error("Failed to search personnel:", error);
 		return { success: false, error: "Failed to search personnel" };
 	}
 }
@@ -862,7 +863,7 @@ Return ONLY valid JSON, no additional text.`;
 
 			parsed = JSON.parse(jsonMatch[0]) as ParsedResume;
 		} catch (aiError) {
-			console.error("AI parsing failed, using fallback extraction:", aiError);
+			logger.error("AI parsing failed, using fallback extraction:", aiError);
 
 			// Fallback: Basic extraction
 			const lines = fileContent.split("\n");
@@ -884,7 +885,7 @@ Return ONLY valid JSON, no additional text.`;
 
 		return { success: true, data: parsed };
 	} catch (error) {
-		console.error("Failed to parse resume:", error);
+		logger.error("Failed to parse resume:", error);
 		return { success: false, error: "Failed to parse resume" };
 	}
 }
@@ -967,7 +968,7 @@ export async function bulkImportResumes(
 
 		return { success: true, ...results };
 	} catch (error) {
-		console.error("Failed to bulk import resumes:", error);
+		logger.error("Failed to bulk import resumes:", error);
 		return { success: false, imported: 0, errors: files.length };
 	}
 }
@@ -1040,7 +1041,7 @@ Generate the resume text:`;
 			});
 			resumeContent = result.content;
 		} catch (aiError) {
-			console.error("AI generation failed, using template:", aiError);
+			logger.error("AI generation failed, using template:", aiError);
 
 			// Fallback template
 			resumeContent = generateFallbackResume(person, experience, format);
@@ -1059,7 +1060,7 @@ Generate the resume text:`;
 
 		return { success: true, data: resumeContent };
 	} catch (error) {
-		console.error("Failed to generate resume:", error);
+		logger.error("Failed to generate resume:", error);
 		return { success: false, error: "Failed to generate resume" };
 	}
 }
@@ -1166,7 +1167,7 @@ async function createPersonnelExperience(
 
 		return { success: true, data: { id: inserted.id } };
 	} catch (error) {
-		console.error("Failed to create personnel experience:", error);
+		logger.error("Failed to create personnel experience:", error);
 		return { success: false, error: "Failed to create experience record" };
 	}
 }
@@ -1274,7 +1275,7 @@ export async function matchPersonnelToPosition(
 
 		return { success: true, data: matches };
 	} catch (error) {
-		console.error("Failed to match personnel:", error);
+		logger.error("Failed to match personnel:", error);
 		return { success: false, error: "Failed to match personnel" };
 	}
 }
@@ -1398,7 +1399,7 @@ export async function analyzeStaffingGaps(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to analyze gaps:", error);
+		logger.error("Failed to analyze gaps:", error);
 		return { success: false, error: "Failed to analyze gaps" };
 	}
 }
@@ -1493,7 +1494,7 @@ export async function assignPersonnelToPosition(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to assign personnel:", error);
+		logger.error("Failed to assign personnel:", error);
 		return { success: false, error: "Failed to assign personnel" };
 	}
 }
@@ -1556,7 +1557,7 @@ export async function unassignFromPosition(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to unassign personnel:", error);
+		logger.error("Failed to unassign personnel:", error);
 		return { success: false, error: "Failed to unassign personnel" };
 	}
 }
@@ -1641,7 +1642,7 @@ export async function getPersonnelAvailability(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to get personnel availability:", error);
+		logger.error("Failed to get personnel availability:", error);
 		return { success: false, error: "Failed to get personnel availability" };
 	}
 }
@@ -1681,7 +1682,7 @@ export async function checkAvailability(
 
 		return { success: true, data: availability };
 	} catch (error) {
-		console.error("Failed to check availability:", error);
+		logger.error("Failed to check availability:", error);
 		return { success: false, error: "Failed to check availability" };
 	}
 }
@@ -1751,7 +1752,7 @@ export async function updateAvailability(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to update availability:", error);
+		logger.error("Failed to update availability:", error);
 		return { success: false, error: "Failed to update availability" };
 	}
 }
@@ -1814,7 +1815,7 @@ export async function getExpiringCertifications(
 
 		return { success: true, data: expiring };
 	} catch (error) {
-		console.error("Failed to get expiring certifications:", error);
+		logger.error("Failed to get expiring certifications:", error);
 		return { success: false, error: "Failed to get expiring certifications" };
 	}
 }
@@ -1839,7 +1840,7 @@ export async function sendCertificationReminders(
 
 		return { success: true, data: { sent: sentCount } };
 	} catch (error) {
-		console.error("Failed to send reminders:", error);
+		logger.error("Failed to send reminders:", error);
 		return { success: false, error: "Failed to send reminders" };
 	}
 }
@@ -1933,7 +1934,7 @@ export async function generateOrgChart(
 
 		return { success: true, data: { nodes, edges } };
 	} catch (error) {
-		console.error("Failed to generate org chart:", error);
+		logger.error("Failed to generate org chart:", error);
 		return { success: false, error: "Failed to generate org chart" };
 	}
 }
@@ -2013,7 +2014,7 @@ export async function generateStaffingMatrix(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to generate staffing matrix:", error);
+		logger.error("Failed to generate staffing matrix:", error);
 		return { success: false, error: "Failed to generate staffing matrix" };
 	}
 }
@@ -2059,7 +2060,7 @@ export async function searchSkills(
 
 		return { success: true, data: skills };
 	} catch (error) {
-		console.error("Failed to search skills:", error);
+		logger.error("Failed to search skills:", error);
 		return { success: false, error: "Failed to search skills" };
 	}
 }
@@ -2095,7 +2096,7 @@ export async function suggestSkillsForTitle(
 			data: ["Communication", "Problem Solving", "Team Leadership", "Technical Writing", "Project Management"],
 		};
 	} catch (error) {
-		console.error("Failed to suggest skills:", error);
+		logger.error("Failed to suggest skills:", error);
 		return { success: false, error: "Failed to suggest skills" };
 	}
 }
@@ -2152,7 +2153,7 @@ export async function createPosition(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to create position:", error);
+		logger.error("Failed to create position:", error);
 		return { success: false, error: "Failed to create position" };
 	}
 }
@@ -2213,7 +2214,7 @@ export async function getPositionsForOpportunity(
 
 		return { success: true, data: results };
 	} catch (error) {
-		console.error("Failed to get positions:", error);
+		logger.error("Failed to get positions:", error);
 		return { success: false, error: "Failed to get positions" };
 	}
 }
@@ -2273,7 +2274,7 @@ export async function updatePosition(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to update position:", error);
+		logger.error("Failed to update position:", error);
 		return { success: false, error: "Failed to update position" };
 	}
 }
@@ -2298,7 +2299,7 @@ export async function deletePosition(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to delete position:", error);
+		logger.error("Failed to delete position:", error);
 		return { success: false, error: "Failed to delete position" };
 	}
 }

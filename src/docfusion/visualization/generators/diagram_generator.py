@@ -716,7 +716,8 @@ class DiagramGenerator:
                 if format_type in ["svg", "png", "pdf"]:
                     try:
                         outputs[format_type] = dot.pipe(format=format_type)
-                    except:
+                    except Exception as e:
+                        self.logger.warning(f"Graphviz pipe failed for format {format_type}: {e}")
                         outputs[format_type] = f"Mock {format_type} output"
 
             return {"success": True, "source": str(dot.source), "outputs": outputs}
@@ -861,7 +862,8 @@ class DiagramGenerator:
                             dpi=300 if config.high_resolution else 150,
                         )
                         outputs[format_type] = buffer.getvalue()
-                    except:
+                    except Exception as e:
+                        self.logger.warning(f"Matplotlib savefig failed for format {format_type}: {e}")
                         outputs[format_type] = f"Mock {format_type} output"
 
             plt.close(fig)

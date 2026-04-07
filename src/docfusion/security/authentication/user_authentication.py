@@ -534,7 +534,8 @@ class UserAuthentication:
         """Verify password against stored hash"""
         try:
             return bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
-        except Exception:
+        except Exception as e:
+            self.logger.warning(f"Password verification failed: {e}")
             return False
 
     def _validate_password_strength(self, password: str) -> Dict[str, Any]:

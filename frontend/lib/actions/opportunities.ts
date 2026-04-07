@@ -8,9 +8,9 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { opportunities, opportunityImports } from "@/lib/db/schema";
-import { eq, and, or, gte, lte, like, inArray, isNull, desc, asc, sql, count } from "drizzle-orm";
-import { AFRICAN_COUNTRIES } from "@/lib/constants/continents";
+import { opportunities, opportunityImports, savedSearches } from "@/lib/db/schema";
+import { eq, and, or, gte, lte, inArray, isNull, desc, asc, sql, count, SQL } from "drizzle-orm";
+import { buildOpportunityConditions } from "./opportunity-filters";
 import type {
 	Opportunity,
 	OpportunityInput,
@@ -41,127 +41,8 @@ export async function getOpportunities(
 	const pageSize = pagination?.pageSize ?? 25;
 	const offset = (page - 1) * pageSize;
 
-	// Build WHERE conditions
-	const conditions: ReturnType<typeof eq>[] = [];
-
-	if (filters?.search) {
-		const searchTerm = `%${filters.search}%`;
-		conditions.push(
-			or(
-				like(opportunities.title, searchTerm),
-				like(opportunities.organization, searchTerm),
-				like(opportunities.projectSummary, searchTerm),
-				like(opportunities.keyRequirements, searchTerm)
-			)!
-		);
-	}
-
-	if (filters?.categories?.length) {
-		conditions.push(inArray(opportunities.category, filters.categories));
-	}
-
-	if (filters?.sectors?.length) {
-		conditions.push(inArray(opportunities.sector, filters.sectors));
-	}
-
-	if (filters?.countries?.length) {
-		conditions.push(inArray(opportunities.countryRegion, filters.countries));
-	}
-
-	if (filters?.organizations?.length) {
-		conditions.push(inArray(opportunities.organization, filters.organizations));
-	}
-
-	if (filters?.statuses?.length) {
-		conditions.push(inArray(opportunities.decisionStatus, filters.statuses));
-	}
-
-	if (filters?.priorityRanks?.length) {
-		conditions.push(inArray(opportunities.priorityRank, filters.priorityRanks));
-	}
-
-	// Dynamic expiration check based on deadline date (not static isExpired column)
-	if (filters?.isExpired !== undefined) {
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
-		if (filters.isExpired === false) {
-			// Show non-expired: deadline >= today OR deadline is null (no deadline set)
-			conditions.push(
-				or(
-					gte(opportunities.deadline, today),
-					isNull(opportunities.deadline)
-				)!
-			);
-		} else {
-			// Show expired: deadline < today AND deadline is not null
-			conditions.push(
-				and(
-					lte(opportunities.deadline, today),
-					sql`${opportunities.deadline} IS NOT NULL`
-				)!
-			);
-		}
-	}
-
-	if (filters?.isReviewed !== undefined) {
-		conditions.push(eq(opportunities.isReviewed, filters.isReviewed));
-	}
-
-	if (filters?.deadlineFrom) {
-		conditions.push(gte(opportunities.deadline, filters.deadlineFrom));
-	}
-
-	if (filters?.deadlineTo) {
-		conditions.push(lte(opportunities.deadline, filters.deadlineTo));
-	}
-
-	if (filters?.budgetMin !== undefined) {
-		conditions.push(gte(opportunities.budgetNumeric, filters.budgetMin));
-	}
-
-	if (filters?.budgetMax !== undefined) {
-		conditions.push(lte(opportunities.budgetNumeric, filters.budgetMax));
-	}
-
-	if (filters?.fitScoreMin !== undefined) {
-		conditions.push(gte(opportunities.fitScore, filters.fitScoreMin));
-	}
-
-	if (filters?.fitScoreMax !== undefined) {
-		conditions.push(lte(opportunities.fitScore, filters.fitScoreMax));
-	}
-
-	if (filters?.sourceFiles?.length) {
-		conditions.push(inArray(opportunities.sourceFile, filters.sourceFiles));
-	}
-
-	if (filters?.assignedTo) {
-		conditions.push(eq(opportunities.assignedTo, filters.assignedTo));
-	}
-
-	// Continent filter - match countryRegion against continent's country list
-	if (filters?.continent === "africa") {
-		// Build an OR condition that matches any African country in countryRegion
-		// This handles: single country ("Kenya"), multi-country ("Kenya/Uganda"),
-		// regional ("Africa Regional", "EAC Region"), and numbered ("11 African Countries")
-		const africaPatterns = [
-			// Match "Africa" anywhere in the string
-			sql`${opportunities.countryRegion} ILIKE '%Africa%'`,
-			// Match regional blocs
-			sql`${opportunities.countryRegion} ILIKE '%EAC%'`,
-			sql`${opportunities.countryRegion} ILIKE '%COMESA%'`,
-			sql`${opportunities.countryRegion} ILIKE '%ECOWAS%'`,
-			sql`${opportunities.countryRegion} ILIKE '%SADC%'`,
-			// Match specific African countries (top 20 most common)
-			...["Kenya", "Nigeria", "South Africa", "Ghana", "Tanzania", "Uganda",
-				"Rwanda", "Ethiopia", "Egypt", "Morocco", "Botswana", "Zambia",
-				"Zimbabwe", "Malawi", "Cameroon", "Senegal", "DRC", "Angola",
-				"Mozambique", "Namibia"].map(country =>
-				sql`${opportunities.countryRegion} ILIKE ${'%' + country + '%'}`
-			),
-		];
-		conditions.push(or(...africaPatterns)!);
-	}
+	// Build WHERE conditions using shared filter builder
+	const conditions = buildOpportunityConditions(filters);
 
 	// Build ORDER BY
 	const sortField = sort?.field ?? "deadline";
@@ -442,150 +323,105 @@ export async function assignOpportunities(ids: string[], assignedTo: string | nu
 
 /**
  * Get opportunity statistics.
+ *
+ * Optimized to use only 2 parallel database round-trips instead of 8 sequential:
+ * - Batch 1: Single aggregate query combining total, active, expired, value, avg fit
+ * - Batch 2: Parallel groupBy queries for status, priority, category, country, deadlines
  */
 export async function getOpportunityStats(filters?: OpportunityFilters): Promise<OpportunityStats> {
-	// Build base conditions from filters
-	const conditions: ReturnType<typeof eq>[] = [];
-
-	if (filters?.sourceFiles?.length) {
-		conditions.push(inArray(opportunities.sourceFile, filters.sourceFiles));
-	}
-
-	// Dynamic expiration check based on deadline date (not static isExpired column)
-	if (filters?.isExpired !== undefined) {
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
-		if (filters.isExpired === false) {
-			// Show non-expired: deadline >= today OR deadline is null
-			conditions.push(
-				or(
-					gte(opportunities.deadline, today),
-					isNull(opportunities.deadline)
-				)!
-			);
-		} else {
-			// Show expired: deadline < today AND deadline is not null
-			conditions.push(
-				and(
-					lte(opportunities.deadline, today),
-					sql`${opportunities.deadline} IS NOT NULL`
-				)!
-			);
-		}
-	}
-
+	const conditions = buildOpportunityConditions(filters);
 	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-	// Get counts by status
-	const statusCounts = await db
-		.select({
-			status: opportunities.decisionStatus,
-			count: count(),
-		})
-		.from(opportunities)
-		.where(whereClause)
-		.groupBy(opportunities.decisionStatus);
-
-	// Get counts by priority
-	const priorityCounts = await db
-		.select({
-			priority: opportunities.priorityRank,
-			count: count(),
-		})
-		.from(opportunities)
-		.where(whereClause)
-		.groupBy(opportunities.priorityRank);
-
-	// Get top categories
-	const categoryCounts = await db
-		.select({
-			category: opportunities.category,
-			count: count(),
-		})
-		.from(opportunities)
-		.where(and(whereClause, sql`${opportunities.category} IS NOT NULL`))
-		.groupBy(opportunities.category)
-		.orderBy(desc(count()))
-		.limit(10);
-
-	// Get top countries
-	const countryCounts = await db
-		.select({
-			country: opportunities.countryRegion,
-			count: count(),
-		})
-		.from(opportunities)
-		.where(and(whereClause, sql`${opportunities.countryRegion} IS NOT NULL`))
-		.groupBy(opportunities.countryRegion)
-		.orderBy(desc(count()))
-		.limit(10);
-
-	// Get expired and active counts (dynamic based on deadline)
 	const today = new Date();
 	today.setHours(0, 0, 0, 0);
-
-	const [expiredResult] = await db
-		.select({ count: count() })
-		.from(opportunities)
-		.where(and(
-			whereClause,
-			lte(opportunities.deadline, today),
-			sql`${opportunities.deadline} IS NOT NULL`
-		));
-
-	const [activeResult] = await db
-		.select({ count: count() })
-		.from(opportunities)
-		.where(and(
-			whereClause,
-			or(
-				gte(opportunities.deadline, today),
-				isNull(opportunities.deadline)
-			)
-		));
-
-	// Get total count
-	const [totalResult] = await db
-		.select({ count: count() })
-		.from(opportunities)
-		.where(whereClause);
-
-	// Get total estimated value
-	const [valueResult] = await db
-		.select({
-			total: sql<number>`SUM(${opportunities.budgetNumeric})`,
-		})
-		.from(opportunities)
-		.where(whereClause);
-
-	// Get average fit score
-	const [avgFitResult] = await db
-		.select({
-			avg: sql<number>`AVG(${opportunities.fitScore})`,
-		})
-		.from(opportunities)
-		.where(and(whereClause, sql`${opportunities.fitScore} IS NOT NULL`));
-
-	// Get upcoming deadlines (next 30 days)
 	const now = new Date();
 	const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-	const upcomingDeadlines = await db
-		.select({
-			date: opportunities.deadline,
-			count: count(),
-		})
-		.from(opportunities)
-		.where(
-			and(
-				whereClause,
-				gte(opportunities.deadline, now),
-				lte(opportunities.deadline, thirtyDaysFromNow),
-				eq(opportunities.isExpired, false)
+
+	// Batch 1: Single query for all scalar aggregates (total, active, expired, value, avgFit)
+	// Batch 2: Parallel groupBy queries for dimensional breakdowns
+	const [
+		[aggregates],
+		statusCounts,
+		priorityCounts,
+		categoryCounts,
+		countryCounts,
+		upcomingDeadlines,
+	] = await Promise.all([
+		// Combined scalar aggregates -- one table scan instead of five
+		db
+			.select({
+				total: count(),
+				expired: sql<number>`COUNT(*) FILTER (WHERE ${opportunities.deadline} IS NOT NULL AND ${opportunities.deadline} <= ${today})`,
+				active: sql<number>`COUNT(*) FILTER (WHERE ${opportunities.deadline} IS NULL OR ${opportunities.deadline} >= ${today})`,
+				totalValue: sql<number>`COALESCE(SUM(${opportunities.budgetNumeric}), 0)`,
+				avgFit: sql<number | null>`AVG(${opportunities.fitScore})`,
+			})
+			.from(opportunities)
+			.where(whereClause),
+
+		// Status breakdown
+		db
+			.select({
+				status: opportunities.decisionStatus,
+				count: count(),
+			})
+			.from(opportunities)
+			.where(whereClause)
+			.groupBy(opportunities.decisionStatus),
+
+		// Priority breakdown
+		db
+			.select({
+				priority: opportunities.priorityRank,
+				count: count(),
+			})
+			.from(opportunities)
+			.where(whereClause)
+			.groupBy(opportunities.priorityRank),
+
+		// Top 10 categories
+		db
+			.select({
+				category: opportunities.category,
+				count: count(),
+			})
+			.from(opportunities)
+			.where(and(whereClause, sql`${opportunities.category} IS NOT NULL`))
+			.groupBy(opportunities.category)
+			.orderBy(desc(count()))
+			.limit(10),
+
+		// Top 10 countries
+		db
+			.select({
+				country: opportunities.countryRegion,
+				count: count(),
+			})
+			.from(opportunities)
+			.where(and(whereClause, sql`${opportunities.countryRegion} IS NOT NULL`))
+			.groupBy(opportunities.countryRegion)
+			.orderBy(desc(count()))
+			.limit(10),
+
+		// Upcoming deadlines (next 30 days)
+		db
+			.select({
+				date: opportunities.deadline,
+				count: count(),
+			})
+			.from(opportunities)
+			.where(
+				and(
+					whereClause,
+					gte(opportunities.deadline, now),
+					lte(opportunities.deadline, thirtyDaysFromNow),
+					eq(opportunities.isExpired, false)
+				)
 			)
-		)
-		.groupBy(opportunities.deadline)
-		.orderBy(asc(opportunities.deadline))
-		.limit(30);
+			.groupBy(opportunities.deadline)
+			.orderBy(asc(opportunities.deadline))
+			.limit(30),
+	]);
 
 	// Build status map
 	const byStatus: Record<DecisionStatus, number> = {
@@ -613,7 +449,7 @@ export async function getOpportunityStats(filters?: OpportunityFilters): Promise
 	}
 
 	return {
-		total: totalResult?.count ?? 0,
+		total: aggregates?.total ?? 0,
 		byStatus,
 		byPriority,
 		byCategory: categoryCounts
@@ -622,13 +458,13 @@ export async function getOpportunityStats(filters?: OpportunityFilters): Promise
 		byCountry: countryCounts
 			.filter((r) => r.country)
 			.map((r) => ({ country: r.country!, count: r.count })),
-		expiredCount: expiredResult?.count ?? 0,
-		activeCount: activeResult?.count ?? 0,
+		expiredCount: aggregates?.expired ?? 0,
+		activeCount: aggregates?.active ?? 0,
 		upcomingDeadlines: upcomingDeadlines
 			.filter((r) => r.date)
 			.map((r) => ({ date: r.date!, count: r.count })),
-		totalEstimatedValue: valueResult?.total ?? 0,
-		averageFitScore: avgFitResult?.avg ?? null,
+		totalEstimatedValue: aggregates?.totalValue ?? 0,
+		averageFitScore: aggregates?.avgFit ?? null,
 	};
 }
 
@@ -770,4 +606,479 @@ export async function refreshDeadlineStatus(): Promise<number> {
 	`);
 
 	return (result as { rowCount?: number }).rowCount ?? 0;
+}
+
+// ============================================================================
+// Full-Text Search
+// ============================================================================
+
+/**
+ * Search opportunities using PostgreSQL full-text search with relevance ranking.
+ * Returns results ranked by search relevance score.
+ */
+export async function searchOpportunities(
+	query: string,
+	filters?: OpportunityFilters,
+	sort?: OpportunitySort,
+	pagination?: PaginationOptions
+): Promise<PaginatedResponse<OpportunityListItem & { searchRank?: number }>> {
+	const page = pagination?.page ?? 1;
+	const pageSize = pagination?.pageSize ?? 25;
+	const offset = (page - 1) * pageSize;
+
+	// Build tsquery from search text
+	const tsquery = sql`plainto_tsquery('english', ${query})`;
+
+	// Build WHERE conditions: full-text search + shared filters
+	const filterConditions = buildOpportunityConditions(filters);
+	const conditions: ReturnType<typeof eq>[] = [
+		sql`${opportunities.searchVector} @@ ${tsquery}`,
+		...filterConditions,
+	];
+
+	const whereClause = and(...conditions);
+
+	// Build ORDER BY with search rank
+	const sortField = sort?.field ?? "relevance";
+	const sortDir = sort?.direction ?? "desc";
+
+	let orderBy;
+	if (sortField === "relevance") {
+		orderBy = sortDir === "desc"
+			? desc(sql`ts_rank_cd(${opportunities.searchVector}, ${tsquery})`)
+			: asc(sql`ts_rank_cd(${opportunities.searchVector}, ${tsquery})`);
+	} else {
+		const column = {
+			deadline: opportunities.deadline,
+			priorityRank: opportunities.priorityRank,
+			fitScore: opportunities.fitScore,
+			budgetNumeric: opportunities.budgetNumeric,
+			title: opportunities.title,
+			organization: opportunities.organization,
+			createdAt: opportunities.createdAt,
+			updatedAt: opportunities.updatedAt,
+		}[sortField] ?? opportunities.deadline;
+		orderBy = sortDir === "desc" ? desc(column) : asc(column);
+	}
+
+	// Execute queries
+	const [rows, totalResult] = await Promise.all([
+		db
+			.select({
+				id: opportunities.id,
+				sourceId: opportunities.sourceId,
+				title: opportunities.title,
+				category: opportunities.category,
+				countryRegion: opportunities.countryRegion,
+				organization: opportunities.organization,
+				deadline: opportunities.deadline,
+				daysLeft: opportunities.daysLeft,
+				isExpired: opportunities.isExpired,
+				budgetValue: opportunities.budgetValue,
+				priorityRank: opportunities.priorityRank,
+				fitScore: opportunities.fitScore,
+				decisionStatus: opportunities.decisionStatus,
+				assignedTo: opportunities.assignedTo,
+				tags: opportunities.tags,
+				rfpLink: opportunities.rfpLink,
+				searchRank: sql<number>`ts_rank_cd(${opportunities.searchVector}, ${tsquery})`,
+			})
+			.from(opportunities)
+			.where(whereClause)
+			.orderBy(orderBy)
+			.limit(pageSize)
+			.offset(offset),
+		db
+			.select({ count: count() })
+			.from(opportunities)
+			.where(whereClause),
+	]);
+
+	const total = totalResult[0]?.count ?? 0;
+	const now = new Date();
+
+	return {
+		data: rows.map((row) => ({
+			...row,
+			daysLeft: row.deadline
+				? Math.ceil((new Date(row.deadline).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+				: null,
+			isExpired: row.deadline ? new Date(row.deadline) < now : false,
+			tags: (row.tags as string[]) ?? [],
+			priorityRank: (row.priorityRank ?? 3) as PriorityRank,
+			decisionStatus: (row.decisionStatus ?? "pending") as DecisionStatus,
+			searchRank: row.searchRank,
+		})),
+		total,
+		page,
+		pageSize,
+		totalPages: Math.ceil(total / pageSize),
+	};
+}
+
+/**
+ * Get search suggestions for autocomplete.
+ * Returns matching terms from existing opportunities.
+ */
+export async function getSearchSuggestions(
+	prefix: string,
+	limit: number = 10
+): Promise<string[]> {
+	if (!prefix || prefix.length < 2) {
+		return [];
+	}
+
+	// Use trigram similarity for suggestions
+	const results = await db.execute(sql`
+		SELECT DISTINCT word
+		FROM ts_stat(${
+			sql`SELECT to_tsvector('english', title || ' ' || COALESCE(organization, '') || ' ' || COALESCE(category, '')) FROM opportunities`
+		})
+		WHERE word ILIKE ${prefix + '%'}
+		ORDER BY word
+		LIMIT ${limit}
+	`);
+
+	return results.rows.map((row: { word: string }) => row.word);
+}
+
+/**
+ * Refresh search vectors for all opportunities.
+ * Should be called after bulk imports or updates.
+ */
+export async function refreshSearchVectors(): Promise<number> {
+	const result = await db.execute(sql`
+		UPDATE opportunities
+		SET search_vector =
+			setweight(to_tsvector('english', COALESCE(title, '')), 'A') ||
+			setweight(to_tsvector('english', COALESCE(organization, '')), 'B') ||
+			setweight(to_tsvector('english', COALESCE(project_summary, '')), 'C') ||
+			setweight(to_tsvector('english', COALESCE(key_requirements, '')), 'C') ||
+			setweight(to_tsvector('english', COALESCE(country_region, '')), 'D') ||
+			setweight(to_tsvector('english', COALESCE(category, '')), 'D') ||
+			setweight(to_tsvector('english', COALESCE(sector, '')), 'D')
+		WHERE search_vector IS NULL OR search_vector = ''
+	`);
+
+	return (result as { rowCount?: number }).rowCount ?? 0;
+}
+
+// ============================================================================
+// Facet Counts for Filters
+// ============================================================================
+
+/**
+ * Filter option with count for faceted search.
+ */
+export interface FilterOptionWithCount {
+	value: string;
+	count: number;
+}
+
+/**
+ * Facet counts for all filter options.
+ * Returns counts respecting current filters (excludes the filter being calculated).
+ */
+export async function getFilterOptionsWithCounts(
+	filters?: OpportunityFilters
+): Promise<{
+	categories: FilterOptionWithCount[];
+	sectors: FilterOptionWithCount[];
+	countries: FilterOptionWithCount[];
+	organizations: FilterOptionWithCount[];
+	sourceFiles: FilterOptionWithCount[];
+	statuses: FilterOptionWithCount[];
+	priorityRanks: FilterOptionWithCount[];
+}> {
+	// Build base conditions using shared filter builder with excludeFilter support
+	const buildConditions = (excludeFilter?: string): ReturnType<typeof eq>[] => {
+		return buildOpportunityConditions(filters, {
+			excludeFilter: excludeFilter as import("./opportunity-filters").ExcludableFilter | undefined,
+		});
+	};
+
+	// Get counts for each category
+	const [categories, sectors, countries, organizations, sourceFiles, statuses, priorityRanks] =
+		await Promise.all([
+			// Categories with counts
+			db
+				.select({
+					value: opportunities.category,
+					count: count(),
+				})
+				.from(opportunities)
+				.where(and(...buildConditions("categories"), sql`${opportunities.category} IS NOT NULL`))
+				.groupBy(opportunities.category)
+				.orderBy(desc(count()))),
+
+			// Sectors with counts
+			db
+				.select({
+					value: opportunities.sector,
+					count: count(),
+				})
+				.from(opportunities)
+				.where(and(...buildConditions("sectors"), sql`${opportunities.sector} IS NOT NULL`))
+				.groupBy(opportunities.sector)
+				.orderBy(desc(count()))),
+
+			// Countries with counts
+			db
+				.select({
+					value: opportunities.countryRegion,
+					count: count(),
+				})
+				.from(opportunities)
+				.where(and(...buildConditions("countries"), sql`${opportunities.countryRegion} IS NOT NULL`))
+				.groupBy(opportunities.countryRegion)
+				.orderBy(desc(count())),
+
+			// Organizations with counts
+			db
+				.select({
+					value: opportunities.organization,
+					count: count(),
+				})
+				.from(opportunities)
+				.where(and(...buildConditions("organizations"), sql`${opportunities.organization} IS NOT NULL`))
+				.groupBy(opportunities.organization)
+				.orderBy(desc(count())),
+
+			// Source files with counts
+			db
+				.select({
+					value: opportunities.sourceFile,
+					count: count(),
+				})
+				.from(opportunities)
+				.where(and(...buildConditions("sourceFiles"), sql`${opportunities.sourceFile} IS NOT NULL`))
+				.groupBy(opportunities.sourceFile)
+				.orderBy(desc(count())),
+
+			// Statuses with counts
+			db
+				.select({
+					value: opportunities.decisionStatus,
+					count: count(),
+				})
+				.from(opportunities)
+				.where(and(...buildConditions("statuses"), sql`${opportunities.decisionStatus} IS NOT NULL`))
+				.groupBy(opportunities.decisionStatus)
+				.orderBy(desc(count())),
+
+			// Priority ranks with counts
+			db
+				.select({
+					value: opportunities.priorityRank,
+					count: count(),
+				})
+				.from(opportunities)
+				.where(and(...buildConditions("priorityRanks"), sql`${opportunities.priorityRank} IS NOT NULL`))
+				.groupBy(opportunities.priorityRank)
+				.orderBy(asc(opportunities.priorityRank)),
+		]);
+
+	return {
+		categories: categories.map((r) => ({ value: r.value!, count: r.count })),
+		sectors: sectors.map((r) => ({ value: r.value!, count: r.count })),
+		countries: countries.map((r) => ({ value: r.value!, count: r.count })),
+		organizations: organizations.map((r) => ({ value: r.value!, count: r.count })),
+		sourceFiles: sourceFiles.map((r) => ({ value: r.value!, count: r.count })),
+		statuses: statuses.map((r) => ({ value: r.value as string, count: r.count })),
+		priorityRanks: priorityRanks.map((r) => ({ value: String(r.value), count: r.count })),
+	};
+}
+
+// ============================================================================
+// Saved Searches (persisted to database)
+// ============================================================================
+
+/**
+ * Saved search configuration.
+ */
+export interface SavedSearch {
+	id: string;
+	userId: string;
+	name: string;
+	description?: string;
+	filters: OpportunityFilters;
+	sort: OpportunitySort;
+	isDefault?: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+/**
+ * Hydrate a database row into a SavedSearch.
+ */
+function hydrateSavedSearch(row: typeof savedSearches.$inferSelect): SavedSearch {
+	const filters = row.filters as Record<string, unknown>;
+	return {
+		id: row.id,
+		userId: row.userId,
+		name: row.name,
+		description: (filters.description as string) ?? undefined,
+		filters: (filters.filters ?? filters) as OpportunityFilters,
+		sort: (filters.sort ?? { field: "deadline", direction: "asc" }) as OpportunitySort,
+		isDefault: (filters.isDefault as boolean) ?? false,
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
+	};
+}
+
+/**
+ * Serialize a SavedSearch into the JSONB payload stored in the `filters` column.
+ */
+function serializeSavedSearchFilters(
+	search: Omit<SavedSearch, "id" | "userId" | "createdAt" | "updatedAt">
+): Record<string, unknown> {
+	return {
+		filters: search.filters,
+		sort: search.sort,
+		description: search.description,
+		isDefault: search.isDefault ?? false,
+	};
+}
+
+/**
+ * Get all saved searches for a user, ordered by most recently updated.
+ */
+export async function getSavedSearches(userId: string): Promise<SavedSearch[]> {
+	const rows = await db
+		.select()
+		.from(savedSearches)
+		.where(eq(savedSearches.userId, userId))
+		.orderBy(desc(savedSearches.updatedAt));
+
+	return rows.map(hydrateSavedSearch);
+}
+
+/**
+ * Get a saved search by ID.
+ */
+export async function getSavedSearch(id: string): Promise<SavedSearch | null> {
+	const [row] = await db
+		.select()
+		.from(savedSearches)
+		.where(eq(savedSearches.id, id))
+		.limit(1);
+
+	return row ? hydrateSavedSearch(row) : null;
+}
+
+/**
+ * Save a search configuration.
+ */
+export async function saveSearch(
+	userId: string,
+	search: Omit<SavedSearch, "id" | "userId" | "createdAt" | "updatedAt">
+): Promise<SavedSearch> {
+	const [row] = await db
+		.insert(savedSearches)
+		.values({
+			userId,
+			name: search.name,
+			filters: serializeSavedSearchFilters(search),
+		})
+		.returning();
+
+	return hydrateSavedSearch(row);
+}
+
+/**
+ * Update a saved search.
+ */
+export async function updateSavedSearch(
+	id: string,
+	updates: Partial<Omit<SavedSearch, "id" | "userId" | "createdAt">>
+): Promise<SavedSearch | null> {
+	const existing = await getSavedSearch(id);
+	if (!existing) return null;
+
+	const merged = { ...existing, ...updates };
+	const [row] = await db
+		.update(savedSearches)
+		.set({
+			name: merged.name,
+			filters: serializeSavedSearchFilters(merged),
+			updatedAt: new Date(),
+		})
+		.where(eq(savedSearches.id, id))
+		.returning();
+
+	return row ? hydrateSavedSearch(row) : null;
+}
+
+/**
+ * Delete a saved search.
+ */
+export async function deleteSavedSearch(id: string): Promise<boolean> {
+	const result = await db
+		.delete(savedSearches)
+		.where(eq(savedSearches.id, id));
+
+	return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Set a saved search as default for a user.
+ * Clears the default flag on all other searches for the same user first.
+ */
+export async function setDefaultSavedSearch(id: string): Promise<boolean> {
+	const existing = await getSavedSearch(id);
+	if (!existing) return false;
+
+	// Get all searches for this user and clear their isDefault flag
+	const userSearches = await db
+		.select()
+		.from(savedSearches)
+		.where(eq(savedSearches.userId, existing.userId));
+
+	for (const row of userSearches) {
+		const data = row.filters as Record<string, unknown>;
+		if (data.isDefault) {
+			await db
+				.update(savedSearches)
+				.set({
+					filters: { ...data, isDefault: false },
+					updatedAt: new Date(),
+				})
+				.where(eq(savedSearches.id, row.id));
+		}
+	}
+
+	// Set the new default
+	const existingData = (await db
+		.select({ filters: savedSearches.filters })
+		.from(savedSearches)
+		.where(eq(savedSearches.id, id))
+		.limit(1))[0];
+
+	if (!existingData) return false;
+
+	await db
+		.update(savedSearches)
+		.set({
+			filters: { ...(existingData.filters as Record<string, unknown>), isDefault: true },
+			updatedAt: new Date(),
+		})
+		.where(eq(savedSearches.id, id));
+
+	return true;
+}
+
+/**
+ * Get the default saved search for a user.
+ */
+export async function getDefaultSavedSearch(userId: string): Promise<SavedSearch | null> {
+	const rows = await db
+		.select()
+		.from(savedSearches)
+		.where(eq(savedSearches.userId, userId));
+
+	for (const row of rows) {
+		const data = row.filters as Record<string, unknown>;
+		if (data.isDefault) return hydrateSavedSearch(row);
+	}
+	return null;
 }

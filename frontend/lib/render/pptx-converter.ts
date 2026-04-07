@@ -7,6 +7,15 @@
 
 import type { JSONContent } from "@tiptap/react";
 import type { BrandingConfig, RenderOptions } from "@/lib/types/opportunity";
+import {
+	PPTX_COLORS,
+	PPTX_FONT_SIZES,
+	PPTX_LAYOUT,
+	PPTX_TABLE,
+	PPTX_TITLE_ADJUSTMENTS,
+	resolveTemplateStyle,
+	type PptxTemplateName,
+} from "./pptx-constants";
 
 // ============================================================================
 // Types
@@ -380,39 +389,12 @@ export async function generatePptxBuffer(doc: PptxDocument): Promise<Buffer> {
 	if (doc.metadata?.author) pptx.author = doc.metadata.author;
 	if (doc.metadata?.subject) pptx.subject = doc.metadata.subject;
 
-	// Template-specific settings
-	const templates = {
-		default: {
-			titleFontSize: 44,
-			bodyFontSize: 18,
-			bulletFontSize: 16,
-			primaryColor: doc.branding?.primaryColor || "363636",
-			secondaryColor: doc.branding?.secondaryColor || "666666",
-		},
-		executive: {
-			titleFontSize: 36,
-			bodyFontSize: 16,
-			bulletFontSize: 14,
-			primaryColor: doc.branding?.primaryColor || "1a365d",
-			secondaryColor: doc.branding?.secondaryColor || "4a5568",
-		},
-		technical: {
-			titleFontSize: 32,
-			bodyFontSize: 14,
-			bulletFontSize: 12,
-			primaryColor: doc.branding?.primaryColor || "2d3748",
-			secondaryColor: doc.branding?.secondaryColor || "718096",
-		},
-		minimal: {
-			titleFontSize: 40,
-			bodyFontSize: 18,
-			bulletFontSize: 16,
-			primaryColor: doc.branding?.primaryColor || "1a1a1a",
-			secondaryColor: doc.branding?.secondaryColor || "888888",
-		},
-	};
-
-	const template = templates[doc.template] || templates.default;
+	// Resolve template style with optional branding overrides
+	const template = resolveTemplateStyle(
+		doc.template as PptxTemplateName,
+		doc.branding?.primaryColor,
+		doc.branding?.secondaryColor,
+	);
 
 	// Process each slide
 	for (const slideData of doc.slides) {
@@ -422,10 +404,10 @@ export async function generatePptxBuffer(doc: PptxDocument): Promise<Buffer> {
 			case "title":
 				// Title slide
 				slide.addText(slideData.title || "", {
-					x: 0.5,
-					y: "35%",
-					w: "90%",
-					h: 1.5,
+					x: PPTX_LAYOUT.marginX,
+					y: PPTX_LAYOUT.titleY,
+					w: PPTX_LAYOUT.contentWidth,
+					h: PPTX_LAYOUT.titleHeight,
 					fontSize: template.titleFontSize,
 					bold: true,
 					color: template.primaryColor.replace("#", ""),
@@ -433,10 +415,10 @@ export async function generatePptxBuffer(doc: PptxDocument): Promise<Buffer> {
 				});
 				if (slideData.subtitle) {
 					slide.addText(slideData.subtitle, {
-						x: 0.5,
-						y: "55%",
-						w: "90%",
-						h: 0.75,
+						x: PPTX_LAYOUT.marginX,
+						y: PPTX_LAYOUT.subtitleY,
+						w: PPTX_LAYOUT.contentWidth,
+						h: PPTX_LAYOUT.subtitleHeight,
 						fontSize: template.bodyFontSize,
 						color: template.secondaryColor.replace("#", ""),
 						align: "center",
@@ -447,11 +429,11 @@ export async function generatePptxBuffer(doc: PptxDocument): Promise<Buffer> {
 			case "section":
 				// Section divider
 				slide.addText(slideData.title || "", {
-					x: 0.5,
-					y: "40%",
-					w: "90%",
-					h: 1.5,
-					fontSize: template.titleFontSize - 4,
+					x: PPTX_LAYOUT.marginX,
+					y: PPTX_LAYOUT.sectionY,
+					w: PPTX_LAYOUT.contentWidth,
+					h: PPTX_LAYOUT.sectionHeight,
+					fontSize: template.titleFontSize - PPTX_TITLE_ADJUSTMENTS.sectionDividerOffset,
 					bold: true,
 					color: template.primaryColor.replace("#", ""),
 					align: "center",
@@ -462,11 +444,11 @@ export async function generatePptxBuffer(doc: PptxDocument): Promise<Buffer> {
 				// Title
 				if (slideData.title) {
 					slide.addText(slideData.title, {
-						x: 0.5,
-						y: 0.5,
-						w: "90%",
-						h: 1,
-						fontSize: template.titleFontSize - 12,
+						x: PPTX_LAYOUT.marginX,
+						y: PPTX_LAYOUT.slideHeadingY,
+						w: PPTX_LAYOUT.contentWidth,
+						h: PPTX_LAYOUT.slideHeadingHeight,
+						fontSize: template.titleFontSize - PPTX_TITLE_ADJUSTMENTS.slideHeadingOffset,
 						bold: true,
 						color: template.primaryColor.replace("#", ""),
 					});
@@ -482,10 +464,10 @@ export async function generatePptxBuffer(doc: PptxDocument): Promise<Buffer> {
 						},
 					}));
 					slide.addText(bulletText, {
-						x: 0.5,
-						y: 1.5,
-						w: "90%",
-						h: 4,
+						x: PPTX_LAYOUT.marginX,
+						y: PPTX_LAYOUT.slideBodyY,
+						w: PPTX_LAYOUT.contentWidth,
+						h: PPTX_LAYOUT.slideBodyHeight,
 						valign: "top",
 					});
 				}
@@ -495,11 +477,11 @@ export async function generatePptxBuffer(doc: PptxDocument): Promise<Buffer> {
 				// Title
 				if (slideData.title) {
 					slide.addText(slideData.title, {
-						x: 0.5,
-						y: 0.5,
-						w: "90%",
-						h: 1,
-						fontSize: template.titleFontSize - 12,
+						x: PPTX_LAYOUT.marginX,
+						y: PPTX_LAYOUT.slideHeadingY,
+						w: PPTX_LAYOUT.contentWidth,
+						h: PPTX_LAYOUT.slideHeadingHeight,
+						fontSize: template.titleFontSize - PPTX_TITLE_ADJUSTMENTS.slideHeadingOffset,
 						bold: true,
 						color: template.primaryColor.replace("#", ""),
 					});
@@ -516,10 +498,10 @@ export async function generatePptxBuffer(doc: PptxDocument): Promise<Buffer> {
 						},
 					}));
 					slide.addText(contentText, {
-						x: 0.5,
-						y: 1.5,
-						w: "90%",
-						h: 4,
+						x: PPTX_LAYOUT.marginX,
+						y: PPTX_LAYOUT.slideBodyY,
+						w: PPTX_LAYOUT.contentWidth,
+						h: PPTX_LAYOUT.slideBodyHeight,
 						valign: "top",
 					});
 				}
@@ -529,33 +511,31 @@ export async function generatePptxBuffer(doc: PptxDocument): Promise<Buffer> {
 				// Title
 				if (slideData.title) {
 					slide.addText(slideData.title, {
-						x: 0.5,
-						y: 0.5,
-						w: "90%",
-						h: 0.75,
-						fontSize: template.titleFontSize - 12,
+						x: PPTX_LAYOUT.marginX,
+						y: PPTX_LAYOUT.slideHeadingY,
+						w: PPTX_LAYOUT.contentWidth,
+						h: PPTX_LAYOUT.subtitleHeight,
+						fontSize: template.titleFontSize - PPTX_TITLE_ADJUSTMENTS.slideHeadingOffset,
 						bold: true,
 						color: template.primaryColor.replace("#", ""),
 					});
 				}
 				// Table
 				if (slideData.table) {
-					// pptxgenjs accepts string[][] for simple tables
 					const tableData: string[][] = [
 						slideData.table.headers,
 						...slideData.table.rows,
 					];
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					slide.addTable(tableData as any, {
-						x: 0.5,
-						y: 1.5,
-						w: 9,
+					slide.addTable(tableData as unknown as Array<Array<{ text: string }>>, {
+						x: PPTX_LAYOUT.marginX,
+						y: PPTX_LAYOUT.slideBodyY,
+						w: PPTX_LAYOUT.tableWidth,
 						colW: Array(slideData.table.headers.length).fill(
-							9 / slideData.table.headers.length
+							PPTX_LAYOUT.tableWidth / slideData.table.headers.length
 						),
-						border: { pt: 1, color: "CCCCCC" },
-						fontFace: "Arial",
-						fontSize: 12,
+						border: { pt: PPTX_TABLE.borderWidth, color: PPTX_TABLE.borderColor },
+						fontFace: PPTX_TABLE.fontFace,
+						fontSize: PPTX_TABLE.fontSize,
 						color: template.secondaryColor.replace("#", ""),
 						autoPage: true,
 					});
@@ -566,12 +546,12 @@ export async function generatePptxBuffer(doc: PptxDocument): Promise<Buffer> {
 		// Add slide number (except title slide)
 		if (slideData.type !== "title") {
 			slide.addText(doc.slides.indexOf(slideData) + 1 + "", {
-				x: "90%",
-				y: "95%",
-				w: 0.5,
-				h: 0.25,
-				fontSize: 10,
-				color: "999999",
+				x: PPTX_LAYOUT.slideNumberX,
+				y: PPTX_LAYOUT.slideNumberY,
+				w: PPTX_LAYOUT.slideNumberWidth,
+				h: PPTX_LAYOUT.slideNumberHeight,
+				fontSize: PPTX_FONT_SIZES.footer,
+				color: PPTX_COLORS.slideNumber,
 				align: "right",
 			});
 		}
@@ -579,12 +559,12 @@ export async function generatePptxBuffer(doc: PptxDocument): Promise<Buffer> {
 		// Add company logo/name if branding
 		if (doc.branding?.companyName && slideData.type !== "title") {
 			slide.addText(doc.branding.companyName, {
-				x: 0.5,
-				y: "95%",
-				w: 3,
-				h: 0.25,
-				fontSize: 10,
-				color: "999999",
+				x: PPTX_LAYOUT.brandingX,
+				y: PPTX_LAYOUT.brandingY,
+				w: PPTX_LAYOUT.brandingWidth,
+				h: PPTX_LAYOUT.brandingHeight,
+				fontSize: PPTX_FONT_SIZES.footer,
+				color: PPTX_COLORS.brandingFooter,
 			});
 		}
 	}

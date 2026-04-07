@@ -71,6 +71,7 @@ import {
 // Re-export types needed by components
 export type { PeriodSummary, LaborMixEntry };
 import { documents } from "@/lib/db";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Result Type Wrapper
@@ -520,7 +521,7 @@ export async function createLaborCategory(
 
 		return { success: true, data: category };
 	} catch (error) {
-		console.error("Error creating labor category:", error);
+		logger.error("Error creating labor category:", error);
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues.map((i) => i.message).join(", ") };
 		}
@@ -576,7 +577,7 @@ export async function updateLaborCategory(
 
 		return { success: true, data: category };
 	} catch (error) {
-		console.error("Error updating labor category:", error);
+		logger.error("Error updating labor category:", error);
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues.map((i) => i.message).join(", ") };
 		}
@@ -615,7 +616,7 @@ export async function deleteLaborCategory(id: string): Promise<ActionResult<void
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error deleting labor category:", error);
+		logger.error("Error deleting labor category:", error);
 		return {
 			success: false,
 			error: `Failed to delete labor category: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -644,7 +645,7 @@ export async function listLaborCategories(
 
 		return { success: true, data: categories };
 	} catch (error) {
-		console.error("Error listing labor categories:", error);
+		logger.error("Error listing labor categories:", error);
 		return {
 			success: false,
 			error: `Failed to list labor categories: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -669,7 +670,7 @@ export async function getLaborCategory(id: string): Promise<ActionResult<LaborCa
 
 		return { success: true, data: category || null };
 	} catch (error) {
-		console.error("Error getting labor category:", error);
+		logger.error("Error getting labor category:", error);
 		return {
 			success: false,
 			error: `Failed to get labor category: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -722,7 +723,7 @@ export async function importLaborCategories(
 
 		return { success: true, data: { imported, errors } };
 	} catch (error) {
-		console.error("Error importing labor categories:", error);
+		logger.error("Error importing labor categories:", error);
 		return {
 			success: false,
 			error: `Failed to import labor categories: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -805,7 +806,7 @@ export async function createCostElement(
 
 		return { success: true, data: element };
 	} catch (error) {
-		console.error("Error creating cost element:", error);
+		logger.error("Error creating cost element:", error);
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues.map((i) => i.message).join(", ") };
 		}
@@ -867,7 +868,7 @@ export async function updateCostElement(
 
 		return { success: true, data: element };
 	} catch (error) {
-		console.error("Error updating cost element:", error);
+		logger.error("Error updating cost element:", error);
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues.map((i) => i.message).join(", ") };
 		}
@@ -898,7 +899,7 @@ export async function deleteCostElement(id: string): Promise<ActionResult<void>>
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error deleting cost element:", error);
+		logger.error("Error deleting cost element:", error);
 		return {
 			success: false,
 			error: `Failed to delete cost element: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -956,7 +957,7 @@ export async function listCostElements(
 
 		return { success: true, data: elements };
 	} catch (error) {
-		console.error("Error listing cost elements:", error);
+		logger.error("Error listing cost elements:", error);
 		return {
 			success: false,
 			error: `Failed to list cost elements: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -978,7 +979,7 @@ export async function getCostElement(id: string): Promise<ActionResult<CostEleme
 
 		return { success: true, data: element || null };
 	} catch (error) {
-		console.error("Error getting cost element:", error);
+		logger.error("Error getting cost element:", error);
 		return {
 			success: false,
 			error: `Failed to get cost element: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1021,7 +1022,7 @@ export async function duplicateCostElement(
 
 		return { success: true, data: element };
 	} catch (error) {
-		console.error("Error duplicating cost element:", error);
+		logger.error("Error duplicating cost element:", error);
 		return {
 			success: false,
 			error: `Failed to duplicate cost element: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1061,7 +1062,7 @@ export async function bulkUpdateCostElements(
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error bulk updating cost elements:", error);
+		logger.error("Error bulk updating cost elements:", error);
 		return {
 			success: false,
 			error: `Failed to bulk update cost elements: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1096,7 +1097,7 @@ export async function linkCostToTechnical(
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error linking cost to technical:", error);
+		logger.error("Error linking cost to technical:", error);
 		return {
 			success: false,
 			error: `Failed to link cost to technical: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1123,7 +1124,7 @@ export async function unlinkCostFromTechnical(costElementId: string): Promise<Ac
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error unlinking cost from technical:", error);
+		logger.error("Error unlinking cost from technical:", error);
 		return {
 			success: false,
 			error: `Failed to unlink cost from technical: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1258,7 +1259,7 @@ Provide actionable recommendations in a JSON array format:
 
 		return { success: true, data: report };
 	} catch (error) {
-		console.error("Error validating cost-technical alignment:", error);
+		logger.error("Error validating cost-technical alignment:", error);
 		return {
 			success: false,
 			error: `Failed to validate alignment: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1355,7 +1356,7 @@ Respond in JSON format:
 			};
 		}
 	} catch (error) {
-		console.error("Error suggesting cost for section:", error);
+		logger.error("Error suggesting cost for section:", error);
 		return {
 			success: false,
 			error: `Failed to suggest costs: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1465,7 +1466,7 @@ Respond in JSON format:
 			};
 		}
 	} catch (error) {
-		console.error("Error estimating hours from technical:", error);
+		logger.error("Error estimating hours from technical:", error);
 		return {
 			success: false,
 			error: `Failed to estimate hours: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1551,7 +1552,7 @@ Respond in JSON format:
 			};
 		}
 	} catch (error) {
-		console.error("Error estimating hours from scope:", error);
+		logger.error("Error estimating hours from scope:", error);
 		return {
 			success: false,
 			error: `Failed to estimate hours: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1702,7 +1703,7 @@ Write in a professional, third-person style suitable for DCAA review.
 
 		return { success: true, data: result.content };
 	} catch (error) {
-		console.error("Error generating BOE narrative:", error);
+		logger.error("Error generating BOE narrative:", error);
 		return {
 			success: false,
 			error: `Failed to generate BOE: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1743,7 +1744,7 @@ export async function generateBOEForOpportunity(
 
 		return { success: true, data: results };
 	} catch (error) {
-		console.error("Error generating BOE for opportunity:", error);
+		logger.error("Error generating BOE for opportunity:", error);
 		return {
 			success: false,
 			error: `Failed to generate BOEs: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1779,7 +1780,7 @@ export async function saveBOETemplate(
 
 		return { success: true, data: saved };
 	} catch (error) {
-		console.error("Error saving BOE template:", error);
+		logger.error("Error saving BOE template:", error);
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues.map((i) => i.message).join(", ") };
 		}
@@ -1820,7 +1821,7 @@ export async function listBOETemplates(
 
 		return { success: true, data: templates };
 	} catch (error) {
-		console.error("Error listing BOE templates:", error);
+		logger.error("Error listing BOE templates:", error);
 		return {
 			success: false,
 			error: `Failed to list BOE templates: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -1899,7 +1900,7 @@ export async function applyBOETemplate(
 
 		return { success: true, data: narrative };
 	} catch (error) {
-		console.error("Error applying BOE template:", error);
+		logger.error("Error applying BOE template:", error);
 		return {
 			success: false,
 			error: `Failed to apply BOE template: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -2137,7 +2138,7 @@ export async function calculateTotalPrice(
 			},
 		};
 	} catch (error) {
-		console.error("Error calculating total price:", error);
+		logger.error("Error calculating total price:", error);
 		return {
 			success: false,
 			error: `Failed to calculate price: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -2185,7 +2186,7 @@ export async function recalculateCostElement(id: string): Promise<ActionResult<C
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("Error recalculating cost element:", error);
+		logger.error("Error recalculating cost element:", error);
 		return {
 			success: false,
 			error: `Failed to recalculate: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -2250,7 +2251,7 @@ export async function applyEscalation(
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error applying escalation:", error);
+		logger.error("Error applying escalation:", error);
 		return {
 			success: false,
 			error: `Failed to apply escalation: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -2298,7 +2299,7 @@ export async function createIndirectRate(
 
 		return { success: true, data: rate };
 	} catch (error) {
-		console.error("Error creating indirect rate:", error);
+		logger.error("Error creating indirect rate:", error);
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues.map((i) => i.message).join(", ") };
 		}
@@ -2345,7 +2346,7 @@ export async function updateIndirectRate(
 
 		return { success: true, data: rate };
 	} catch (error) {
-		console.error("Error updating indirect rate:", error);
+		logger.error("Error updating indirect rate:", error);
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues.map((i) => i.message).join(", ") };
 		}
@@ -2377,7 +2378,7 @@ export async function listIndirectRates(
 
 		return { success: true, data: rates };
 	} catch (error) {
-		console.error("Error listing indirect rates:", error);
+		logger.error("Error listing indirect rates:", error);
 		return {
 			success: false,
 			error: `Failed to list indirect rates: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -2421,7 +2422,7 @@ export async function getEffectiveRates(
 
 		return { success: true, data: { overhead, ga, fee } };
 	} catch (error) {
-		console.error("Error getting effective rates:", error);
+		logger.error("Error getting effective rates:", error);
 		return {
 			success: false,
 			error: `Failed to get effective rates: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -2533,7 +2534,7 @@ Provide your analysis in JSON format:
 			};
 		}
 	} catch (error) {
-		console.error("Error analyzing cost realism:", error);
+		logger.error("Error analyzing cost realism:", error);
 		return {
 			success: false,
 			error: `Failed to analyze cost realism: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -2558,7 +2559,7 @@ export async function generateCostRealismNarrative(
 
 		return { success: true, data: analysis.data.narrative };
 	} catch (error) {
-		console.error("Error generating cost realism narrative:", error);
+		logger.error("Error generating cost realism narrative:", error);
 		return {
 			success: false,
 			error: `Failed to generate narrative: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -2713,7 +2714,7 @@ export async function exportCostVolume(
 			};
 		}
 	} catch (error) {
-		console.error("Error exporting cost volume:", error);
+		logger.error("Error exporting cost volume:", error);
 		return {
 			success: false,
 			error: `Failed to export cost volume: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -2891,7 +2892,7 @@ export async function exportBOEPackage(
 			},
 		};
 	} catch (error) {
-		console.error("Error exporting BOE package:", error);
+		logger.error("Error exporting BOE package:", error);
 		return {
 			success: false,
 			error: `Failed to export BOE package: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3003,7 +3004,7 @@ export async function generateCostSummaryTable(
 			data: { headers, rows, totals },
 		};
 	} catch (error) {
-		console.error("Error generating cost summary table:", error);
+		logger.error("Error generating cost summary table:", error);
 		return {
 			success: false,
 			error: `Failed to generate summary table: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3100,7 +3101,7 @@ Provide the WBS in JSON format:
 			};
 		}
 	} catch (error) {
-		console.error("Error generating WBS from technical:", error);
+		logger.error("Error generating WBS from technical:", error);
 		return {
 			success: false,
 			error: `Failed to generate WBS: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3142,7 +3143,7 @@ export async function updateWBSCodes(
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error updating WBS codes:", error);
+		logger.error("Error updating WBS codes:", error);
 		return {
 			success: false,
 			error: `Failed to update WBS codes: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3212,7 +3213,7 @@ export async function validateWBSStructure(
 			},
 		};
 	} catch (error) {
-		console.error("Error validating WBS structure:", error);
+		logger.error("Error validating WBS structure:", error);
 		return {
 			success: false,
 			error: `Failed to validate WBS: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3385,7 +3386,7 @@ export async function listContractPeriods(
 
 		return { success: true, data: periods };
 	} catch (error) {
-		console.error("Error listing contract periods:", error);
+		logger.error("Error listing contract periods:", error);
 		return {
 			success: false,
 			error: `Failed to list periods: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3495,7 +3496,7 @@ export async function getWBSTree(
 			},
 		};
 	} catch (error) {
-		console.error("Error getting WBS tree:", error);
+		logger.error("Error getting WBS tree:", error);
 		return {
 			success: false,
 			error: `Failed to get WBS tree: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3535,7 +3536,7 @@ export async function createWBSNode(
 
 		return { success: true, data: node };
 	} catch (error) {
-		console.error("Error creating WBS node:", error);
+		logger.error("Error creating WBS node:", error);
 		return {
 			success: false,
 			error: `Failed to create WBS node: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3599,7 +3600,7 @@ export async function updateWBSNode(
 
 		return { success: true, data: node };
 	} catch (error) {
-		console.error("Error updating WBS node:", error);
+		logger.error("Error updating WBS node:", error);
 		return {
 			success: false,
 			error: `Failed to update WBS node: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3632,7 +3633,7 @@ export async function deleteWBSNode(
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error deleting WBS node:", error);
+		logger.error("Error deleting WBS node:", error);
 		return {
 			success: false,
 			error: `Failed to delete WBS node: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3657,7 +3658,7 @@ export async function reorderWBSNodes(
 		revalidatePath(`/opportunities/${opportunityId}/pricing`);
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error reordering WBS nodes:", error);
+		logger.error("Error reordering WBS nodes:", error);
 		return {
 			success: false,
 			error: `Failed to reorder WBS: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3686,7 +3687,7 @@ export async function linkWBSToSection(
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error linking WBS to section:", error);
+		logger.error("Error linking WBS to section:", error);
 		return {
 			success: false,
 			error: `Failed to link WBS: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3908,7 +3909,7 @@ export async function getPricingSummary(
 			},
 		};
 	} catch (error) {
-		console.error("Error getting pricing summary:", error);
+		logger.error("Error getting pricing summary:", error);
 		return {
 			success: false,
 			error: `Failed to get pricing summary: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -3947,7 +3948,7 @@ export async function recalculatePricing(
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error recalculating pricing:", error);
+		logger.error("Error recalculating pricing:", error);
 		return {
 			success: false,
 			error: `Failed to recalculate: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -4006,7 +4007,7 @@ export async function lookupPerDiem(
 
 		return { success: true, data: baseRates };
 	} catch (error) {
-		console.error("Error looking up per diem:", error);
+		logger.error("Error looking up per diem:", error);
 		return {
 			success: false,
 			error: `Failed to look up per diem: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -4059,7 +4060,7 @@ export async function calculateTravelCosts(
 			},
 		};
 	} catch (error) {
-		console.error("Error calculating travel costs:", error);
+		logger.error("Error calculating travel costs:", error);
 		return {
 			success: false,
 			error: `Failed to calculate travel: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -4083,7 +4084,7 @@ export async function deleteIndirectRate(id: string): Promise<ActionResult<void>
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Error deleting indirect rate:", error);
+		logger.error("Error deleting indirect rate:", error);
 		return {
 			success: false,
 			error: `Failed to delete rate: ${error instanceof Error ? error.message : "Unknown error"}`,

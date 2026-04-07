@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Core HDSI Type Definitions
  * Shared types to avoid circular dependencies
@@ -16,6 +14,17 @@ export interface DocumentStructure {
   order: number;
   children?: DocumentStructure[];
   length?: "brief" | "medium" | "comprehensive";
+  // HDSI-specific fields (optional for backward compatibility)
+  expanded?: boolean;
+  status?: "outline" | "generating" | "generated" | "error" | "debt" | "deleted";
+  tokenBudget?: number;
+  customPrompt?: string;
+  densityTarget?: number;
+  coherenceScore?: number;
+  generatedContent?: string;
+  generationProgress?: number;
+  depth?: number;
+  parentId?: string | null;
 }
 
 export interface HDSINode extends DocumentStructure {
@@ -45,9 +54,17 @@ export interface HDSINode extends DocumentStructure {
 // Editor Types
 // ============================================================================
 
+export interface HDSITemplate {
+  id: string;
+  name: string;
+  description?: string;
+  structure: DocumentStructure[];
+  metadata?: Record<string, unknown>;
+}
+
 export interface HDSIProps {
   initialStructure?: DocumentStructure[];
-  template?: any; // Template type
+  template?: HDSITemplate;
   documentId?: string;
   onStructureChange?: (structure: HDSINode[]) => void;
   onSave?: (structure: HDSINode[]) => Promise<void>;
@@ -84,8 +101,8 @@ export interface Command {
   id: string;
   type: CommandType;
   nodeId: string;
-  payload: any;
-  previousState: any;
+  payload: Partial<HDSINode> & Record<string, unknown>;
+  previousState: Partial<HDSINode> & Record<string, unknown>;
   description: string;
   timestamp: number;
 }
@@ -174,7 +191,7 @@ export interface HDSISyncQueue {
   id: string;
   documentId: string;
   operation: "update" | "delete";
-  payload: any;
+  payload: Record<string, unknown>;
   attempts: number;
   createdAt: Date;
   error?: string;
@@ -183,7 +200,7 @@ export interface HDSISyncQueue {
 export interface HDSIYjsState {
   documentId: string;
   ydocState: Uint8Array;
-  awarenessState?: any;
+  awarenessState?: Record<string, unknown>;
   updatedAt: Date;
 }
 
@@ -212,7 +229,15 @@ export interface UseHDSIVersionHistoryResult {
   isLoading: boolean;
   error: Error | null;
   restoreVersion: (version: HDSIVersion) => Promise<HDSIDocument>;
-  compareVersions: (from: HDSIVersion, to: HDSIVersion) => Promise<any>;
+  compareVersions: (from: HDSIVersion, to: HDSIVersion) => Promise<VersionComparison>;
+}
+
+export interface VersionComparison {
+  from: HDSIVersion;
+  to: HDSIVersion;
+  added: HDSINode[];
+  removed: HDSINode[];
+  modified: Array<{ node: HDSINode; changes: Partial<HDSINode> }>;
 }
 
 export interface UseHDSIAllDocumentsResult {
@@ -234,9 +259,9 @@ export interface UseHDSIAllDocumentsResult {
 
 export interface CollaborationSession {
   documentId: string;
-  provider: any; // WebrtcProvider
-  ydoc: any; // Y.Doc
-  awareness: any;
+  provider: unknown; // WebrtcProvider instance
+  ydoc: unknown; // Y.Doc instance
+  awareness: unknown; // Awareness instance
   localClientId: number;
 }
 

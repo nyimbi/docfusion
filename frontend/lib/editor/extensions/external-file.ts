@@ -9,6 +9,7 @@
 
 import { Node, mergeAttributes } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { logger } from "@/lib/utils/logger";
 
 export interface ExternalFileOptions {
   HTMLAttributes: Record<string, any>;
@@ -200,7 +201,7 @@ export const ExternalFile = Node.create<ExternalFileOptions>({
                   )
                 );
               } catch (error) {
-                console.error("File upload failed:", error);
+                logger.error("File upload failed:", error);
               }
             });
 

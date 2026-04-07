@@ -52,6 +52,7 @@ import {
 import { eq, and, sql, desc, asc, ilike, or } from "drizzle-orm";
 import { requireUserContext } from "@/lib/auth-utils";
 import { z } from "zod";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Type Definitions - Mapped from Schema Types
@@ -1212,7 +1213,7 @@ export async function getFormatTemplates(
 
 		return rows.map(mapFormatTemplate);
 	} catch (error) {
-		console.error("Error fetching format templates:", error);
+		logger.error("Error fetching format templates:", error);
 		throw new Error("Failed to fetch format templates");
 	}
 }
@@ -1243,7 +1244,7 @@ export async function getFormatTemplateById(id: string): Promise<FormatTemplate 
 
 		return row ? mapFormatTemplate(row) : null;
 	} catch (error) {
-		console.error("Error fetching format template:", error);
+		logger.error("Error fetching format template:", error);
 		throw new Error("Failed to fetch format template");
 	}
 }
@@ -1295,7 +1296,7 @@ export async function getFormatTemplateByAgency(
 
 		return row ? mapFormatTemplate(row) : null;
 	} catch (error) {
-		console.error("Error fetching format template by agency:", error);
+		logger.error("Error fetching format template by agency:", error);
 		throw new Error("Failed to fetch format template by agency");
 	}
 }
@@ -1382,7 +1383,7 @@ export async function createFormatTemplate(
 
 		return mapFormatTemplate(row);
 	} catch (error) {
-		console.error("Error creating format template:", error);
+		logger.error("Error creating format template:", error);
 		throw new Error("Failed to create format template");
 	}
 }
@@ -1477,7 +1478,7 @@ export async function updateFormatTemplate(
 
 		return mapFormatTemplate(row);
 	} catch (error) {
-		console.error("Error updating format template:", error);
+		logger.error("Error updating format template:", error);
 		throw new Error("Failed to update format template");
 	}
 }
@@ -1511,7 +1512,7 @@ export async function deleteFormatTemplate(id: string): Promise<void> {
 			})
 			.where(eq(formatTemplates.id, id));
 	} catch (error) {
-		console.error("Error deleting format template:", error);
+		logger.error("Error deleting format template:", error);
 		throw new Error("Failed to delete format template");
 	}
 }
@@ -1603,7 +1604,7 @@ export async function applyFormatTemplate(
 
 		return mapDocumentFormat(row);
 	} catch (error) {
-		console.error("Error applying format template:", error);
+		logger.error("Error applying format template:", error);
 		throw new Error("Failed to apply format template");
 	}
 }
@@ -1637,7 +1638,7 @@ export async function removeDocumentFormat(documentId: string): Promise<void> {
 			.delete(documentFormats)
 			.where(eq(documentFormats.documentId, documentId));
 	} catch (error) {
-		console.error("Error removing document format:", error);
+		logger.error("Error removing document format:", error);
 		throw new Error("Failed to remove document format");
 	}
 }
@@ -1668,7 +1669,7 @@ export async function getDocumentFormat(documentId: string): Promise<DocumentFor
 
 		return row ? mapDocumentFormat(row) : null;
 	} catch (error) {
-		console.error("Error fetching document format:", error);
+		logger.error("Error fetching document format:", error);
 		throw new Error("Failed to fetch document format");
 	}
 }
@@ -1870,7 +1871,7 @@ export async function validateFormatCompliance(
 			validatedAt: new Date().toISOString(),
 		};
 	} catch (error) {
-		console.error("Error validating format compliance:", error);
+		logger.error("Error validating format compliance:", error);
 		throw new Error("Failed to validate format compliance");
 	}
 }
@@ -1963,7 +1964,7 @@ export async function checkPageCount(
 			byVolume: Object.keys(byVolume).length > 0 ? byVolume : undefined,
 		};
 	} catch (error) {
-		console.error("Error checking page count:", error);
+		logger.error("Error checking page count:", error);
 		throw new Error("Failed to check page count");
 	}
 }
@@ -2078,7 +2079,7 @@ export async function validateAccessibility(
 			issues: result.issues,
 		};
 	} catch (error) {
-		console.error("Error validating accessibility:", error);
+		logger.error("Error validating accessibility:", error);
 		throw new Error("Failed to validate accessibility");
 	}
 }
@@ -2210,7 +2211,7 @@ export async function generateTOC(documentId: string): Promise<TOCEntry[]> {
 
 		return buildHierarchy(storedEntries);
 	} catch (error) {
-		console.error("Error generating TOC:", error);
+		logger.error("Error generating TOC:", error);
 		throw new Error("Failed to generate table of contents");
 	}
 }
@@ -2284,7 +2285,7 @@ export async function generateListOfFigures(documentId: string): Promise<TOCEntr
 
 		return storedEntries;
 	} catch (error) {
-		console.error("Error generating list of figures:", error);
+		logger.error("Error generating list of figures:", error);
 		throw new Error("Failed to generate list of figures");
 	}
 }
@@ -2358,7 +2359,7 @@ export async function generateListOfTables(documentId: string): Promise<TOCEntry
 
 		return storedEntries;
 	} catch (error) {
-		console.error("Error generating list of tables:", error);
+		logger.error("Error generating list of tables:", error);
 		throw new Error("Failed to generate list of tables");
 	}
 }
@@ -2425,7 +2426,7 @@ export async function generateAcronymList(
 
 		return acronyms;
 	} catch (error) {
-		console.error("Error generating acronym list:", error);
+		logger.error("Error generating acronym list:", error);
 		throw new Error("Failed to generate acronym list");
 	}
 }
@@ -2507,7 +2508,7 @@ export async function applyHeaderFooter(
 				});
 		}
 	} catch (error) {
-		console.error("Error applying header/footer:", error);
+		logger.error("Error applying header/footer:", error);
 		throw new Error("Failed to apply header/footer settings");
 	}
 }
@@ -2569,7 +2570,7 @@ export async function getHeaderFooterSettings(
 
 		return { headerFormat, footerFormat, pageNumberFormat };
 	} catch (error) {
-		console.error("Error getting header/footer settings:", error);
+		logger.error("Error getting header/footer settings:", error);
 		throw new Error("Failed to get header/footer settings");
 	}
 }
@@ -2613,7 +2614,7 @@ export async function formatForAgency(
 		// Validate and return result
 		return await validateFormatCompliance(documentId);
 	} catch (error) {
-		console.error("Error formatting for agency:", error);
+		logger.error("Error formatting for agency:", error);
 		throw new Error(`Failed to format document for agency: ${agencyCode}`);
 	}
 }
@@ -2700,7 +2701,7 @@ export async function exportFormattedDocument(
 
 		return { url, filename };
 	} catch (error) {
-		console.error("Error exporting formatted document:", error);
+		logger.error("Error exporting formatted document:", error);
 		throw new Error("Failed to export formatted document");
 	}
 }
@@ -2759,7 +2760,7 @@ export async function saveFormatPreset(
 
 		return mapFormatPreset(row);
 	} catch (error) {
-		console.error("Error saving format preset:", error);
+		logger.error("Error saving format preset:", error);
 		throw new Error("Failed to save format preset");
 	}
 }
@@ -2801,7 +2802,7 @@ export async function getFormatPresets(): Promise<FormatPreset[]> {
 
 		return rows.map(mapFormatPreset);
 	} catch (error) {
-		console.error("Error fetching format presets:", error);
+		logger.error("Error fetching format presets:", error);
 		throw new Error("Failed to fetch format presets");
 	}
 }
@@ -2844,7 +2845,7 @@ export async function deleteFormatPreset(id: string): Promise<void> {
 			})
 			.where(eq(formatPresets.id, id));
 	} catch (error) {
-		console.error("Error deleting format preset:", error);
+		logger.error("Error deleting format preset:", error);
 		throw new Error("Failed to delete format preset");
 	}
 }
@@ -2947,7 +2948,7 @@ export async function applyFormatPreset(
 
 		return mapDocumentFormat(row);
 	} catch (error) {
-		console.error("Error applying format preset:", error);
+		logger.error("Error applying format preset:", error);
 		throw new Error("Failed to apply format preset");
 	}
 }

@@ -6,6 +6,7 @@
  * Card view for displaying contact information in grid layouts.
  */
 
+import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -35,7 +36,7 @@ interface ContactCardProps {
 	className?: string;
 }
 
-export function ContactCard({
+export const ContactCard = React.memo(function ContactCard({
 	contact,
 	variant = "default",
 	accountName,
@@ -348,6 +349,8 @@ export function ContactCard({
 			</CardContent>
 		</Card>
 	);
-}
+});
+
+ContactCard.displayName = "ContactCard";
 
 export default ContactCard;

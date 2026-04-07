@@ -376,8 +376,7 @@ export async function generateDocxBuffer(doc: DocxDocument): Promise<Buffer> {
 				underline: run.underline ? {} : undefined,
 				strike: run.strike,
 				font: run.code ? "Courier New" : undefined,
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				highlight: run.highlight as any,
+				highlight: run.highlight as unknown as string,
 				subScript: run.subscript,
 				superScript: run.superscript,
 			});

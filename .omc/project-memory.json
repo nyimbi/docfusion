@@ -1,0 +1,552 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1775451637734,
+  "projectRoot": "/Users/nyimbiodero/src/pjs/docfusion",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Python",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "pyproject.toml",
+          "requirements.txt"
+        ]
+      },
+      {
+        "name": "C/C++",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "Makefile"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "fastapi",
+        "version": null,
+        "category": "backend"
+      },
+      {
+        "name": "pytest",
+        "version": null,
+        "category": "testing"
+      }
+    ],
+    "packageManager": "pip",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "make build",
+    "testCommand": "make test",
+    "lintCommand": "ruff check",
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "examples",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "artifacts": {
+      "path": "artifacts",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1775451637718,
+      "keyFiles": []
+    },
+    "backend": {
+      "path": "backend",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1775451637718,
+      "keyFiles": []
+    },
+    "config": {
+      "path": "config",
+      "purpose": "Configuration files",
+      "fileCount": 0,
+      "lastAccessed": 1775451637719,
+      "keyFiles": []
+    },
+    "data": {
+      "path": "data",
+      "purpose": "Data files",
+      "fileCount": 4,
+      "lastAccessed": 1775451637721,
+      "keyFiles": [
+        "dedup.db",
+        "docfusion.sql",
+        "dump.sh"
+      ]
+    },
+    "deployment": {
+      "path": "deployment",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1775451637722,
+      "keyFiles": [
+        "README.md",
+        "servers.yaml"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 23,
+      "lastAccessed": 1775451637722,
+      "keyFiles": [
+        "API_REFERENCE.md",
+        "CENTRALIZED_LLM_CONFIG.md",
+        "DOCUMENT_ORGANIZATION.md",
+        "INFRASTRUCTURE_SERVICES.md",
+        "README.md"
+      ]
+    },
+    "examples": {
+      "path": "examples",
+      "purpose": "Example code",
+      "fileCount": 10,
+      "lastAccessed": 1775451637723,
+      "keyFiles": [
+        "complete_workflow_integration_example.py",
+        "composition_example.py",
+        "document_indexing_integration.py",
+        "graphql_integration.py",
+        "ollama_loadbalancer_example.py"
+      ]
+    },
+    "frontend": {
+      "path": "frontend",
+      "purpose": null,
+      "fileCount": 26,
+      "lastAccessed": 1775451637724,
+      "keyFiles": [
+        "AI_CONFIG.md",
+        "COMMENTS_WORKFLOW_README.md",
+        "IMPLEMENTATION_PLAN.md",
+        "TECH_DEBT_REMEDIATION_SUMMARY.md",
+        "drizzle.config.ts"
+      ]
+    },
+    "infra": {
+      "path": "infra",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1775451637724,
+      "keyFiles": []
+    },
+    "migrations": {
+      "path": "migrations",
+      "purpose": "Database migrations",
+      "fileCount": 3,
+      "lastAccessed": 1775451637724,
+      "keyFiles": [
+        "env.py",
+        "script.py.mako"
+      ]
+    },
+    "notebooks": {
+      "path": "notebooks",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1775451637725,
+      "keyFiles": []
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 2,
+      "lastAccessed": 1775451637727,
+      "keyFiles": [
+        "deploy.sh",
+        "migrate-opportunities.py"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 0,
+      "lastAccessed": 1775451637728,
+      "keyFiles": []
+    },
+    "storage": {
+      "path": "storage",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1775451637728,
+      "keyFiles": []
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 27,
+      "lastAccessed": 1775451637729,
+      "keyFiles": [
+        "conftest.py",
+        "test_advanced_prompting.py",
+        "test_agent_fixes.py",
+        "test_agent_integration.py",
+        "test_agent_tools.py"
+      ]
+    },
+    "artifacts/models": {
+      "path": "artifacts/models",
+      "purpose": "Data models",
+      "fileCount": 1,
+      "lastAccessed": 1775451637729,
+      "keyFiles": []
+    },
+    "deployment/config": {
+      "path": "deployment/config",
+      "purpose": "Configuration files",
+      "fileCount": 0,
+      "lastAccessed": 1775451637730,
+      "keyFiles": []
+    },
+    "deployment/scripts": {
+      "path": "deployment/scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 9,
+      "lastAccessed": 1775451637730,
+      "keyFiles": [
+        "01-configure-vps.sh",
+        "02-install-postgresql.sh",
+        "03-install-nginx.sh"
+      ]
+    },
+    "scripts/data": {
+      "path": "scripts/data",
+      "purpose": "Data files",
+      "fileCount": 0,
+      "lastAccessed": 1775451637732,
+      "keyFiles": []
+    },
+    "tests/fixtures": {
+      "path": "tests/fixtures",
+      "purpose": "Test fixtures",
+      "fileCount": 1,
+      "lastAccessed": 1775451637734,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/docfusion/document_engine/git_latex_manager.py",
+      "accessCount": 74,
+      "lastAccessed": 1775493269855,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion",
+      "accessCount": 70,
+      "lastAccessed": 1775493042466,
+      "type": "directory"
+    },
+    {
+      "path": "",
+      "accessCount": 62,
+      "lastAccessed": 1775492008156,
+      "type": "directory"
+    },
+    {
+      "path": "src/docfusion/infrastructure/litellm_client.py",
+      "accessCount": 38,
+      "lastAccessed": 1775493076655,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 30,
+      "lastAccessed": 1775488564278,
+      "type": "directory"
+    },
+    {
+      "path": "src/docfusion/document_engine/renderer/pdf_renderer.py",
+      "accessCount": 27,
+      "lastAccessed": 1775492587237,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/document_engine/formatter/latex_formatter.py",
+      "accessCount": 23,
+      "lastAccessed": 1775466775917,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/memory/memory_manager.py",
+      "accessCount": 22,
+      "lastAccessed": 1775492746655,
+      "type": "file"
+    },
+    {
+      "path": "docs/todo3.md",
+      "accessCount": 18,
+      "lastAccessed": 1775461148184,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/core/agent.py",
+      "accessCount": 15,
+      "lastAccessed": 1775488519825,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/infrastructure/firecrawl_client.py",
+      "accessCount": 11,
+      "lastAccessed": 1775490156777,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/memory/context_manager.py",
+      "accessCount": 11,
+      "lastAccessed": 1775490755076,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/api/dependencies.py",
+      "accessCount": 8,
+      "lastAccessed": 1775466306159,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/discovery/crawlers/ai_driven/universal_scraper.py",
+      "accessCount": 7,
+      "lastAccessed": 1775461308811,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/notifications/channels/email_channel.py",
+      "accessCount": 7,
+      "lastAccessed": 1775466325737,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents",
+      "accessCount": 7,
+      "lastAccessed": 1775468898510,
+      "type": "directory"
+    },
+    {
+      "path": "src/docfusion/intelligence/predictors/scoring_predictor.py",
+      "accessCount": 7,
+      "lastAccessed": 1775491947939,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/rfp/__init__.py",
+      "accessCount": 6,
+      "lastAccessed": 1775469114786,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/notifications/channels/webhook_channel.py",
+      "accessCount": 6,
+      "lastAccessed": 1775489892688,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/config/llm_config.py",
+      "accessCount": 6,
+      "lastAccessed": 1775491687122,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/security/authentication/oauth_authentication.py",
+      "accessCount": 5,
+      "lastAccessed": 1775466321338,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/notifications/channels/sms_channel.py",
+      "accessCount": 5,
+      "lastAccessed": 1775466326240,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/storage/rag/embedding_service.py",
+      "accessCount": 5,
+      "lastAccessed": 1775466822259,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/api/middleware/authentication_middleware.py",
+      "accessCount": 5,
+      "lastAccessed": 1775488604748,
+      "type": "file"
+    },
+    {
+      "path": "config/local/.env.example",
+      "accessCount": 5,
+      "lastAccessed": 1775489702448,
+      "type": "file"
+    },
+    {
+      "path": "config/prod/.env.example",
+      "accessCount": 5,
+      "lastAccessed": 1775489702583,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/document_engine",
+      "accessCount": 5,
+      "lastAccessed": 1775490409268,
+      "type": "directory"
+    },
+    {
+      "path": "src/docfusion/agents/specialists",
+      "accessCount": 4,
+      "lastAccessed": 1775456825942,
+      "type": "directory"
+    },
+    {
+      "path": "src/docfusion/ai_agents/__init__.py",
+      "accessCount": 4,
+      "lastAccessed": 1775460941492,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/ai_agents/package_description.md",
+      "accessCount": 3,
+      "lastAccessed": 1775460941347,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/specialists/research_agent.py",
+      "accessCount": 3,
+      "lastAccessed": 1775468871428,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/ai_agents/reasoning/__init__.py",
+      "accessCount": 2,
+      "lastAccessed": 1775453108855,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/ai_agents/execution/__init__.py",
+      "accessCount": 2,
+      "lastAccessed": 1775453109062,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/ai_agents/orchestration/__init__.py",
+      "accessCount": 2,
+      "lastAccessed": 1775453110386,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/document_engine/git_latex_manager_old.py",
+      "accessCount": 2,
+      "lastAccessed": 1775460956172,
+      "type": "file"
+    },
+    {
+      "path": ".serena/memories/project_structure.md",
+      "accessCount": 2,
+      "lastAccessed": 1775461021218,
+      "type": "file"
+    },
+    {
+      "path": ".serena/memories/project_overview.md",
+      "accessCount": 2,
+      "lastAccessed": 1775461022374,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/nlp/package_description.md",
+      "accessCount": 2,
+      "lastAccessed": 1775461037690,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/nlp/extractors/entity_extractor.py",
+      "accessCount": 2,
+      "lastAccessed": 1775466854538,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/document_engine/renderer/base_renderer.py",
+      "accessCount": 1,
+      "lastAccessed": 1775452544233,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/core",
+      "accessCount": 1,
+      "lastAccessed": 1775457031572,
+      "type": "directory"
+    },
+    {
+      "path": "src/docfusion/ai_agents/description.md",
+      "accessCount": 1,
+      "lastAccessed": 1775460941227,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/ai_agents/README.md",
+      "accessCount": 1,
+      "lastAccessed": 1775460948185,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/nlp/extractors/relationship_extractor.py",
+      "accessCount": 1,
+      "lastAccessed": 1775460959938,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/config",
+      "accessCount": 1,
+      "lastAccessed": 1775460982598,
+      "type": "directory"
+    },
+    {
+      "path": "tests/test_week6_nlp.py",
+      "accessCount": 1,
+      "lastAccessed": 1775460991674,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/nlp/extractors/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1775460992251,
+      "type": "file"
+    },
+    {
+      "path": "tests/ci/test_pdf_renderer.py",
+      "accessCount": 1,
+      "lastAccessed": 1775461023327,
+      "type": "file"
+    },
+    {
+      "path": "tests/test_git_latex_manager.py",
+      "accessCount": 1,
+      "lastAccessed": 1775461024434,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/config/secrets.py",
+      "accessCount": 1,
+      "lastAccessed": 1775461056167,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

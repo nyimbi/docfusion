@@ -399,7 +399,7 @@ class ScraperRunner:
 								"""
 								UPDATE opportunities SET
 									title = $2,
-									description = $3,
+									project_summary = $3,
 									updated_at = $4
 								WHERE id = $1
 								""",
@@ -413,8 +413,8 @@ class ScraperRunner:
 							await conn.execute(
 								"""
 								INSERT INTO opportunities (
-									id, title, description, source, source_id,
-									organization, country, deadline, budget_value,
+									id, title, project_summary, source, source_id,
+									organization, country_region, deadline, budget_value,
 									portal_url, document_url, fingerprint,
 									created_at, updated_at
 								) VALUES (
@@ -428,7 +428,7 @@ class ScraperRunner:
 								opp.source_id,
 								opp.organization[:255] if opp.organization else None,
 								opp.country[:100] if opp.country else None,
-								opp.deadline.isoformat() if opp.deadline else None,
+								opp.deadline if opp.deadline else None,
 								opp.budget_value[:100] if opp.budget_value else None,
 								opp.portal_url[:1000] if opp.portal_url else None,
 								opp.document_url[:1000] if opp.document_url else None,

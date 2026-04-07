@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
+import logging
 """
 DocumentFormatter Module - Professional CSS-like Styling Engine
 
@@ -30,6 +32,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 from pydantic import Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass, rebuild_dataclass
 from uuid import uuid4

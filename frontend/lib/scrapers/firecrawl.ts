@@ -122,7 +122,7 @@ export class FirecrawlClient {
 	private timeout: number;
 
 	constructor(config?: Partial<FirecrawlConfig>) {
-		this.baseUrl = config?.baseUrl || process.env.FIRECRAWL_URL || "http://localhost:3002";
+		this.baseUrl = config?.baseUrl || process.env.FIRECRAWL_URL || "http://84.247.181.100:3002";
 		this.apiKey = config?.apiKey || process.env.FIRECRAWL_KEY || "";
 		this.timeout = config?.timeout || 60000;
 
@@ -142,9 +142,11 @@ export class FirecrawlClient {
 	 */
 	private async request<T>(
 		endpoint: string,
-		options: RequestInit = {}
+		options: RequestInit = {},
+		requestTimeout?: number
 	): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
+		const timeout = requestTimeout || this.timeout;
 
 		const response = await fetch(url, {
 			...options,
@@ -153,7 +155,7 @@ export class FirecrawlClient {
 				"Authorization": `Bearer ${this.apiKey}`,
 				...options.headers,
 			},
-			signal: AbortSignal.timeout(this.timeout),
+			signal: AbortSignal.timeout(timeout),
 		});
 
 		if (!response.ok) {
@@ -175,7 +177,7 @@ export class FirecrawlClient {
 					url,
 					...options,
 				}),
-			});
+			}, options?.timeout);
 
 			return result;
 		} catch (error) {

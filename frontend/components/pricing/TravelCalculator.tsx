@@ -241,6 +241,7 @@ export function TravelCalculator({
 												size="icon"
 												onClick={handleLookupPerDiem}
 												disabled={isLookingUp || !destination}
+												aria-label="Look up per diem rates"
 											>
 												{isLookingUp ? (
 													<Loader2 className="h-4 w-4 animate-spin" />

@@ -31,7 +31,7 @@ import importlib
 import logging
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Type
 
@@ -94,7 +94,7 @@ class OrchestrationResult:
 	def duration_seconds(self) -> float:
 		if self.completed_at:
 			return (self.completed_at - self.started_at).total_seconds()
-		return (datetime.utcnow() - self.started_at).total_seconds()
+		return (datetime.now(timezone.utc) - self.started_at).total_seconds()
 
 
 # ============================================================================
@@ -103,30 +103,83 @@ class OrchestrationResult:
 
 # Map source IDs to scraper classes
 SCRAPER_REGISTRY: dict[str, str] = {
-	# MDB Scrapers
-	"ungm": "backend.discovery.scrapers.ungm.UNGMScraper",
-	"undp": "backend.discovery.scrapers.undp.UNDPScraper",
-	"afdb": "backend.discovery.scrapers.afdb.AfDBScraper",
-	"worldbank": "backend.discovery.scrapers.worldbank.WorldBankScraper",
+    # MDB Scrapers
+    "ungm": "backend.discovery.scrapers.ungm.UNGMScraper",
+    "undp": "backend.discovery.scrapers.undp.UNDPScraper",
+    "afdb": "backend.discovery.scrapers.afdb.AfDBScraper",
+    "worldbank": "backend.discovery.scrapers.worldbank.WorldBankScraper",
+    "ifc": "backend.discovery.scrapers.mdb.ifc.IFCScraper",
+    "isdb": "backend.discovery.scrapers.mdb.isdb.IsDBScraper",
+    "adb": "backend.discovery.scrapers.mdb.adb.ADBScraper",
+    "idb": "backend.discovery.scrapers.mdb.idb.IDBScraper",
+    "ebrd": "backend.discovery.scrapers.mdb.ebrd.EBRDScraper",
+    "aiib": "backend.discovery.scrapers.mdb.aiib.AIIBScraper",
 
-	# African Government Portals
-	"kenya_ppip": "backend.discovery.scrapers.africa.kenya.KenyaPPIPScraper",
-	"sa_etenders": "backend.discovery.scrapers.africa.south_africa.SAeTendersScraper",
-	"nigeria_bpp": "backend.discovery.scrapers.africa.nigeria.NigeriaBPPScraper",
-	"rwanda": "backend.discovery.scrapers.africa.rwanda.RwandaRPPAScraper",
-	"ghana": "backend.discovery.scrapers.africa.ghana.GHANEPSScraper",
-	"tanzania": "backend.discovery.scrapers.africa.tanzania.TanzaniaPPRAScraper",
-	"uganda": "backend.discovery.scrapers.africa.uganda.UgandaGPPScraper",
-	"ethiopia": "backend.discovery.scrapers.africa.ethiopia.EthiopiaPPAScraper",
+    # Aggregators
+    "ted": "backend.discovery.scrapers.ted.TEDScraper",
+    "dgmarket": "backend.discovery.scrapers.dgmarket.DgMarketScraper",
 
-	# Regional Organizations
-	"eac": "backend.discovery.scrapers.regional.eac.EACScraper",
-	"sadc": "backend.discovery.scrapers.regional.sadc.SADCScraper",
-	"ecowas": "backend.discovery.scrapers.regional.ecowas.ECOWASScraper",
+    # African Government Portals - Tier 1 (High Priority)
+    "nigeria_bpp": "backend.discovery.scrapers.africa.nigeria.NigeriaBPPScraper",
+    "kenya_ppip": "backend.discovery.scrapers.africa.kenya.KenyaPPIPScraper",
+    "sa_etenders": "backend.discovery.scrapers.africa.south_africa.SAeTendersScraper",
+    "ethiopia_egp": "backend.discovery.scrapers.africa.ethiopia.EthiopiaScraper",
+    "dr_congo_sigmap": "backend.discovery.scrapers.africa.dr_congo.DRCongoScraper",
+    "cameroon_armp": "backend.discovery.scrapers.africa.cameroon.CameroonScraper",
+    "angola_sncp": "backend.discovery.scrapers.africa.angola.AngolaScraper",
+    "ivory_coast_sigomap": "backend.discovery.scrapers.africa.ivory_coast.IvoryCoastScraper",
+    "benin_sigmap": "backend.discovery.scrapers.africa.benin.BeninScraper",
+    "egypt_etenders": "backend.discovery.scrapers.africa.egypt.EgyptScraper",
+    "morocco_marches": "backend.discovery.scrapers.africa.morocco.MoroccoScraper",
+    "tunisia_tuneps": "backend.discovery.scrapers.africa.tunisia.TunisiaScraper",
+    "algeria_baosem": "backend.discovery.scrapers.africa.algeria.AlgeriaScraper",
 
-	# Aggregators
-	"ted": "backend.discovery.scrapers.ted.TEDScraper",
-	"dgmarket": "backend.discovery.scrapers.dgmarket.DGMarketScraper",
+    # African Government Portals - Tier 2 (Medium Priority)
+    "rwanda_umucyo": "backend.discovery.scrapers.africa.rwanda.RwandaScraper",
+    "ghana_ghaneps": "backend.discovery.scrapers.africa.ghana.GhanaScraper",
+    "tanzania_taneps": "backend.discovery.scrapers.africa.tanzania.TanzaniaScraper",
+    "uganda_gpp": "backend.discovery.scrapers.africa.uganda.UgandaScraper",
+    "zimbabwe_praz": "backend.discovery.scrapers.africa.zimbabwe.ZimbabweScraper",
+    "zambia_zppa": "backend.discovery.scrapers.africa.zambia.ZambiaScraper",
+    "mozambique_egp": "backend.discovery.scrapers.africa.mozambique.MozambiqueScraper",
+    "namibia_cpbn": "backend.discovery.scrapers.africa.namibia.NamibiaScraper",
+    "malawi_ppda": "backend.discovery.scrapers.africa.malawi.MalawiScraper",
+    "south_sudan_ppdaa": "backend.discovery.scrapers.africa.south_sudan.SouthSudanScraper",
+
+    # African Government Portals - Tier 3 (Lower Priority)
+    "botswana_etender": "backend.discovery.scrapers.africa.botswana.BotswanaScraper",
+    "mauritius_eprocurement": "backend.discovery.scrapers.africa.mauritius.MauritiusScraper",
+    "congo_armp": "backend.discovery.scrapers.africa.congo_brazzaville.CongoBrazzavilleScraper",
+    "gabon_dgmp": "backend.discovery.scrapers.africa.gabon.GabonScraper",
+    "seychelles_ntb": "backend.discovery.scrapers.africa.seychelles.SeychellesScraper",
+    "djibouti_marches": "backend.discovery.scrapers.africa.djibouti.DjiboutiScraper",
+    "eswatini_esppra": "backend.discovery.scrapers.africa.eswatini.EswatiniScraper",
+    "somaliland_ntb": "backend.discovery.scrapers.africa.somaliland.SomalilandScraper",
+    "sudan_tenders": "backend.discovery.scrapers.africa.sudan.SudanScraper",
+    "burundi_tenders": "backend.discovery.scrapers.africa.burundi.BurundiScraper",
+    "lesotho_tenders": "backend.discovery.scrapers.africa.lesotho.LesothoScraper",
+    "chad_tenders": "backend.discovery.scrapers.africa.chad.ChadScraper",
+    "comoros_tenders": "backend.discovery.scrapers.africa.comoros.ComorosScraper",
+
+    # Regional Organizations
+    "eac": "backend.discovery.scrapers.regional.eac.EACScraper",
+    "sadc": "backend.discovery.scrapers.regional.sadc.SADCScraper",
+    "ecowas": "backend.discovery.scrapers.regional.ecowas.ECOWASScraper",
+    "au": "backend.discovery.scrapers.regional.au.AUScraper",
+    "smart_africa": "backend.discovery.scrapers.regional.smart_africa.SmartAfricaScraper",
+    "comesa": "backend.discovery.scrapers.regional.comesa.COMESAScraper",
+
+    # Bilateral Donors
+    "usaid": "backend.discovery.scrapers.bilateral.usaid.USAIDScraper",
+    "fcdo_uk": "backend.discovery.scrapers.bilateral.fcdo.FCDOUKScraper",
+    "giz": "backend.discovery.scrapers.bilateral.giz.GIZScraper",
+    "jica": "backend.discovery.scrapers.bilateral.jica.JICAScraper",
+    "afd": "backend.discovery.scrapers.bilateral.afd.AFDScraper",
+    "kfw": "backend.discovery.scrapers.bilateral.kfw.KfWScraper",
+    "eu_devco": "backend.discovery.scrapers.bilateral.eu.EUScraper",
+    "sida": "backend.discovery.scrapers.bilateral.sida.SIDAScraper",
+    "norad": "backend.discovery.scrapers.bilateral.norad.NORADScraper",
+    "danida": "backend.discovery.scrapers.bilateral.danida.DANIDAScraper",
 }
 
 
@@ -243,8 +296,8 @@ class ScrapingOrchestrator:
 		else:
 			# Try to run even if not in config
 			result = OrchestrationResult(
-				run_id=f"manual_{source_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
-				started_at=datetime.utcnow(),
+				run_id=f"manual_{source_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
+				started_at=datetime.now(timezone.utc),
 				sources_total=1,
 			)
 
@@ -261,7 +314,7 @@ class ScrapingOrchestrator:
 			result.opportunities_total = source_result.opportunities_scraped
 			result.opportunities_unique = source_result.opportunities_unique
 			result.opportunities_synced = source_result.opportunities_synced
-			result.completed_at = datetime.utcnow()
+			result.completed_at = datetime.now(timezone.utc)
 			result.status = "completed"
 
 			return result
@@ -281,11 +334,11 @@ class ScrapingOrchestrator:
 		Returns:
 			OrchestrationResult
 		"""
-		run_id = f"{run_name}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+		run_id = f"{run_name}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
 		result = OrchestrationResult(
 			run_id=run_id,
-			started_at=datetime.utcnow(),
+			started_at=datetime.now(timezone.utc),
 			sources_total=len(sources),
 		)
 
@@ -330,7 +383,7 @@ class ScrapingOrchestrator:
 				result.opportunities_unique += source_result.opportunities_unique
 				result.opportunities_synced += source_result.opportunities_synced
 
-		result.completed_at = datetime.utcnow()
+		result.completed_at = datetime.now(timezone.utc)
 		result.status = "completed" if result.sources_failed == 0 else "partial"
 
 		logger.info(
@@ -376,7 +429,7 @@ class ScrapingOrchestrator:
 		Returns:
 			SourceResult
 		"""
-		start_time = datetime.utcnow()
+		start_time = datetime.now(timezone.utc)
 		result = SourceResult(
 			source_id=source_id,
 			source_name=source_id,
@@ -446,7 +499,7 @@ class ScrapingOrchestrator:
 			logger.exception(f"Source {source_id} failed: {e}")
 
 		finally:
-			result.duration_seconds = (datetime.utcnow() - start_time).total_seconds()
+			result.duration_seconds = (datetime.now(timezone.utc) - start_time).total_seconds()
 			logger.info(
 				f"Completed {source_id}: {result.status} "
 				f"({result.opportunities_unique} unique in {result.duration_seconds:.1f}s)"

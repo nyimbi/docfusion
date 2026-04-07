@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Union
 
+from simpleeval import simple_eval, InvalidExpression, NameNotDefined, FunctionNotDefined
+
 try:
     from uuid_extensions import uuid7str
 except ImportError:
@@ -586,10 +588,10 @@ class CompositionRunner:
         elif condition == "nonempty":
             return bool(context.variables)
         else:
-            # Try to evaluate as Python expression (unsafe - use proper evaluator in production)
             try:
-                return eval(condition, {"context": context.variables})
-            except:
+                return simple_eval(condition, names={"context": context.variables})
+            except (InvalidExpression, NameNotDefined, FunctionNotDefined, TypeError, ValueError) as e:
+                self.logger.warning(f"Condition evaluation failed for '{condition}': {e}")
                 return False
 
     async def _builtin_merge(

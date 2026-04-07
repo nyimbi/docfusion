@@ -485,7 +485,7 @@ function DiffChangeRowV2(props: {
             <TooltipContent>Reject</TooltipContent>
           </Tooltip>
 
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggle}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggle} aria-label={isExpanded ? "Collapse diff" : "Expand diff"}>
             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
         </div>

@@ -5,7 +5,7 @@
  */
 
 // ============================================================================
-// Base Types
+// Base Types (legacy interface)
 // ============================================================================
 
 export type {
@@ -19,6 +19,23 @@ export type {
 	MessageRole,
 	AIProviderConfig,
 } from "./types";
+
+// ============================================================================
+// LLM Provider Abstraction Layer
+// ============================================================================
+
+export type {
+	LLMProvider,
+	CompletionOptions,
+	CompletionResult,
+	StreamChunk,
+	EmbeddingOptions,
+	EmbeddingResult,
+} from "./llm-provider";
+
+export { buildMessages } from "./llm-provider";
+
+export { ProviderRegistry, providerRegistry } from "./provider-registry";
 
 // ============================================================================
 // Provider Implementations

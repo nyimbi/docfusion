@@ -86,13 +86,13 @@ export async function getScraperSources(options?: {
 		conditions.push(eq(scraperSources.enabled, options.enabled));
 	}
 	if (options?.sourceType) {
-		conditions.push(eq(scraperSources.sourceType, options.sourceType as any));
+		conditions.push(eq(scraperSources.sourceType, options.sourceType as typeof scraperSources.sourceType.enumValues[number]));
 	}
 	if (options?.tier) {
 		conditions.push(eq(scraperSources.scheduleTier, options.tier));
 	}
 	if (options?.healthStatus) {
-		conditions.push(eq(scraperSources.healthStatus, options.healthStatus as any));
+		conditions.push(eq(scraperSources.healthStatus, options.healthStatus as typeof scraperSources.healthStatus.enumValues[number]));
 	}
 
 	const query = db
@@ -151,13 +151,13 @@ export async function getPaginatedScraperSources(options: {
 		conditions.push(eq(scraperSources.enabled, filters.enabled));
 	}
 	if (filters.sourceType) {
-		conditions.push(eq(scraperSources.sourceType, filters.sourceType as any));
+		conditions.push(eq(scraperSources.sourceType, filters.sourceType as typeof scraperSources.sourceType.enumValues[number]));
 	}
 	if (filters.tier) {
 		conditions.push(eq(scraperSources.scheduleTier, filters.tier));
 	}
 	if (filters.healthStatus) {
-		conditions.push(eq(scraperSources.healthStatus, filters.healthStatus as any));
+		conditions.push(eq(scraperSources.healthStatus, filters.healthStatus as typeof scraperSources.healthStatus.enumValues[number]));
 	}
 
 	// Get total count
@@ -465,7 +465,7 @@ export async function getSourceRuns(
 	const conditions = [eq(scraperRuns.sourceId, sourceId)];
 
 	if (options?.status) {
-		conditions.push(eq(scraperRuns.status, options.status as any));
+		conditions.push(eq(scraperRuns.status, options.status as typeof scraperRuns.status.enumValues[number]));
 	}
 
 	return db

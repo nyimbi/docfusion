@@ -24,21 +24,17 @@ from ..recommenders.strategy_recommender import (
     StrategyRecommender, OpportunityContext, StrategicRecommendation
 )
 
-# Discovery system imports (when available)
+# Canonical OpportunityData lives in discovery.models -- always available
+from ...discovery.models.opportunity_models import OpportunityData
+
+# Optional deeper discovery dependencies (analyzers, matchers, notification)
 try:
-    from ...discovery.models.opportunity_models import OpportunityData
     from ...discovery.analyzers.opportunity_analyzer import OpportunityAnalyzer
     from ...discovery.matchers.relevance_filter import RelevanceFilter, OpportunityContext as DiscoveryContext
     from ...discovery.integrations.notification_service import OpportunityNotificationService
     DISCOVERY_AVAILABLE = True
 except ImportError:
     DISCOVERY_AVAILABLE = False
-    # Create placeholder classes for when discovery is not available
-    class OpportunityData(BaseModel):
-        model_config = ConfigDict(extra='allow')
-        id: str
-        title: str
-        description: str
 
 
 class IntelligenceLevel(str, Enum):

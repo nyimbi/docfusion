@@ -14,15 +14,55 @@ Key Features:
 """
 
 import asyncio
-import git
 import json
+import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, TypeAlias
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+logger = logging.getLogger(__name__)
+
+# Optional dependency: gitpython
+if TYPE_CHECKING:
+	from git import Repo  # type: ignore[import-not-found]
+else:
+	Repo = None  # type: ignore[misc]
+
+GIT_AVAILABLE = False
+
+try:
+	import git as _git_runtime  # type: ignore[import-not-found]
+	GIT_AVAILABLE = True
+	if not TYPE_CHECKING:
+		git = _git_runtime  # type: ignore[misc]
+except ImportError:
+	git = None  # type: ignore[assignment]
+
+# Import canonical LaTeX compiler from pdf_renderer
+try:
+	from ..renderer.pdf_renderer import CompilationResult as CanonicalCompilationResult  # type: ignore[import-not-found]
+	from ..renderer.pdf_renderer import LaTeXCompiler as CanonicalLaTeXCompiler  # type: ignore[import-not-found]
+except ImportError:
+	# Fallback for standalone use - define minimal versions
+	from dataclasses import dataclass, field
+
+	@dataclass
+	class CanonicalCompilationResult:
+		success: bool = False
+		output_file: str = ""
+		compilation_log: str = ""
+		compilation_time: float = 0.0
+		output_format: str = "pdf"
+		errors: list[str] = field(default_factory=list)
+		compiled_content: bytes = b""
+
+	class CanonicalLaTeXCompiler:
+		async def compile_to_pdf(self, content: str, filename: str = "") -> "CanonicalCompilationResult":
+			return CanonicalCompilationResult(success=False, errors=["LaTeX compiler not available"])
 
 
 def uuid7str() -> str:
@@ -32,16 +72,16 @@ def uuid7str() -> str:
 
 # Import from content_assembler if available, otherwise define minimal versions
 try:
-	from .content_assembler import ContentBlock, DocumentMetadata
+	from .assembler.content_assembler import ContentBlock
 except ImportError:
-	# Define minimal versions for standalone use
+	# Define minimal version for standalone use
 	from datetime import datetime
 	from typing import Any
-	
+
 	class ContentBlock(BaseModel):
 		model_config = ConfigDict(
-			extra='forbid', 
-			validate_by_name=True, 
+			extra='forbid',
+			validate_by_name=True,
 			validate_by_alias=True,
 			validate_assignment=True
 		)
@@ -51,18 +91,20 @@ except ImportError:
 		title: str = ""
 		metadata: dict[str, Any] = Field(default_factory=dict)
 		created_at: datetime = Field(default_factory=datetime.now)
-	
-	class DocumentMetadata(BaseModel):
-		model_config = ConfigDict(
-			extra='forbid', 
-			validate_by_name=True, 
-			validate_by_alias=True
-		)
-		title: str
-		author: str = ""
-		client: str = ""
-		rfp_number: str = ""
-		created_at: datetime = Field(default_factory=datetime.now)
+
+
+# DocumentMetadata is defined locally for use in this module
+class DocumentMetadata(BaseModel):
+	model_config = ConfigDict(
+		extra='forbid',
+		validate_by_name=True,
+		validate_by_alias=True
+	)
+	title: str
+	author: str = ""
+	client: str = ""
+	rfp_number: str = ""
+	created_at: datetime = Field(default_factory=datetime.now)
 
 
 class FileContentBlock(BaseModel):
@@ -173,7 +215,7 @@ class FileContentBlock(BaseModel):
 	
 	def _log_git_error(self, message: str) -> None:
 		"""Log Git operation errors"""
-		print(f"[GitLatex] {message}")
+		logger.error("[GitLatex] %s", message)
 
 
 class LaTeXTemplate(BaseModel):
@@ -193,20 +235,8 @@ class LaTeXTemplate(BaseModel):
 	custom_commands: dict[str, str] = Field(default_factory=dict)
 
 
-class CompilationResult(BaseModel):
-	"""Result of LaTeX compilation"""
-	model_config = ConfigDict(
-		extra='forbid',
-		validate_by_name=True,
-		validate_by_alias=True
-	)
-	
-	success: bool
-	output_file: Optional[Path] = None
-	log_content: str = ""
-	error_messages: list[str] = Field(default_factory=list)
-	compilation_time: float = 0.0
-	output_format: str = "pdf"
+# Use CompilationResult from pdf_renderer - alias for backward compatibility
+CompilationResult: TypeAlias = CanonicalCompilationResult
 
 
 class GitLatexContentManager:
@@ -234,14 +264,17 @@ class GitLatexContentManager:
 		assert self.repo_path.exists(), "Repository path must exist after initialization"
 		assert self.git_repo is not None, "Git repository must be initialized"
 	
-	def _init_git_repo(self) -> git.Repo:
+	def _init_git_repo(self) -> "Repo | None":
 		"""Initialize or load Git repository"""
+		if not GIT_AVAILABLE:
+			logger.warning("GitPython not available - Git features disabled")
+			return None
 		try:
 			# Try to load existing repository
 			repo = git.Repo(self.repo_path)
-		except git.exc.InvalidGitRepositoryError:
+		except git.exc.InvalidGitRepositoryError:  # type: ignore[union-attr]
 			# Initialize new repository
-			repo = git.Repo.init(self.repo_path)
+			repo = git.Repo.init(self.repo_path)  # type: ignore[union-attr]
 			
 			# Create initial commit
 			gitignore_content = """
@@ -728,52 +761,55 @@ Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliqu
 
 class GitLatexAssembler:
 	"""Assemble documents from Git-managed LaTeX blocks"""
-	
+
 	def __init__(self, repo_path: Path):
 		assert isinstance(repo_path, Path), "repo_path must be Path instance"
-		
+
 		self.repo_path = Path(repo_path)
-		self.git_repo = git.Repo(repo_path)
+		self.git_repo: "Repo | None" = None
+		if GIT_AVAILABLE:
+			self.git_repo = git.Repo(repo_path)  # type: ignore[union-attr]
 		self.build_dir = repo_path / "build"
 		self.build_dir.mkdir(exist_ok=True)
-		
+
 		assert self.build_dir.exists(), "Build directory must exist after initialization"
-	
+
 	async def assemble_document(
 		self,
 		document_config: dict[str, Any],
 		target_branch: str = "main"
-	) -> CompilationResult:
+	) -> "CompilationResult":
 		"""Assemble document from current Git state"""
 		assert isinstance(document_config, dict), "document_config must be dict"
 		assert isinstance(target_branch, str), "target_branch must be string"
-		
+
 		try:
 			# Checkout target branch
-			self.git_repo.git.checkout(target_branch)
-			
+			if self.git_repo:
+				self.git_repo.git.checkout(target_branch)
+
 			# Generate main.tex from configuration
 			main_tex = self._generate_main_document(document_config)
-			
+
 			# Write main document
 			main_path = self.repo_path / "main.tex"
 			main_path.write_text(main_tex, encoding='utf-8')
-			
+
 			# Compile LaTeX document
 			compiler = LaTeXCompiler(working_dir=self.repo_path)
 			result = await compiler.compile_document("main.tex")
-			
+
 			# Tag successful builds
 			if result.success:
 				await self._tag_successful_build(document_config)
-			
-			assert isinstance(result, CompilationResult), "Result must be CompilationResult"
+
+			assert isinstance(result, CanonicalCompilationResult), "Result must be CompilationResult"
 			return result
-			
+
 		except Exception as e:
-			return CompilationResult(
+			return CanonicalCompilationResult(
 				success=False,
-				error_messages=[f"Assembly failed: {str(e)}"]
+				errors=[f"Assembly failed: {str(e)}"]
 			)
 	
 	def _generate_main_document(self, config: dict[str, Any]) -> str:
@@ -846,135 +882,85 @@ class GitLatexAssembler:
 	async def _tag_successful_build(self, config: dict[str, Any]) -> None:
 		"""Tag successful builds in Git"""
 		assert isinstance(config, dict), "config must be dict"
-		
+
 		try:
 			tag_name = f"build-{config.get('rfp_number', 'unknown')}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-			self.git_repo.create_tag(tag_name, message=f"Successful build: {config.get('title', 'Document')}")
+			if self.git_repo:
+				self.git_repo.create_tag(tag_name, message=f"Successful build: {config.get('title', 'Document')}")  # type: ignore[union-attr]
 		except Exception as e:
 			self._log_build_error(f"Failed to create Git tag: {e}")
-	
+
 	def _log_build_error(self, message: str) -> None:
 		"""Log build operation errors"""
 		print(f"[GitLatex] Build Error: {message}")
 
 
+# Adapter class to use canonical LaTeXCompiler with file-based interface
 class LaTeXCompiler:
-	"""Compile LaTeX documents to various output formats"""
-	
+	"""
+	Adapter wrapping canonical LaTeXCompiler for file-based compilation.
+
+	This class provides a file-based interface (working_dir, compile_document)
+	while delegating to the canonical content-based LaTeXCompiler from pdf_renderer.
+	"""
+
 	def __init__(self, working_dir: Path):
 		assert isinstance(working_dir, Path), "working_dir must be Path instance"
-		
+
 		self.working_dir = Path(working_dir)
-		self.latex_engine = "pdflatex"
+		self._canonical_compiler = CanonicalLaTeXCompiler()
 		self.build_dir = working_dir / "build"
 		self.build_dir.mkdir(exist_ok=True)
-		
+
 		assert self.build_dir.exists(), "Build directory must exist after initialization"
-	
-	async def compile_document(self, tex_file: str) -> CompilationResult:
-		"""Compile LaTeX to PDF with full processing pipeline"""
+
+	async def compile_document(self, tex_file: str) -> "CompilationResult":
+		"""Compile LaTeX file to PDF using canonical compiler."""
 		assert isinstance(tex_file, str), "tex_file must be string"
-		
-		start_time = datetime.now()
+
 		tex_path = self.working_dir / tex_file
-		
+
 		if not tex_path.exists():
-			return CompilationResult(
+			return CanonicalCompilationResult(
 				success=False,
-				error_messages=[f"LaTeX file not found: {tex_file}"]
+				errors=[f"LaTeX file not found: {tex_file}"]
 			)
-		
+
 		try:
-			# Multi-pass compilation for cross-references
-			log_content = ""
-			
-			# First pass
-			result1 = await self._run_latex_pass(tex_file)
-			log_content += result1.get("log", "")
-			
-			# Second pass for cross-references
-			result2 = await self._run_latex_pass(tex_file)
-			log_content += result2.get("log", "")
-			
-			# Check for PDF output
-			pdf_file = self.build_dir / f"{Path(tex_file).stem}.pdf"
-			
-			if pdf_file.exists():
-				compilation_time = (datetime.now() - start_time).total_seconds()
-				result = CompilationResult(
+			# Read LaTeX content from file
+			latex_content = tex_path.read_text(encoding='utf-8')
+
+			# Use canonical compiler with working directory
+			result = await self._canonical_compiler.compile_to_pdf(
+				latex_content,
+				filename=Path(tex_file).stem
+			)
+
+			# Adapt result to file-based interface
+			if result.success:
+				# Copy PDF to build directory
+				pdf_target = self.build_dir / f"{Path(tex_file).stem}.pdf"
+				pdf_target.write_bytes(result.compiled_content)
+
+				return CanonicalCompilationResult(
 					success=True,
-					output_file=pdf_file,
-					log_content=log_content,
-					compilation_time=compilation_time,
+					output_file=str(pdf_target),
+					compilation_log=result.compilation_log,
+					compilation_time=result.compilation_time,
 					output_format="pdf"
 				)
 			else:
-				result = CompilationResult(
+				return CanonicalCompilationResult(
 					success=False,
-					log_content=log_content,
-					error_messages=["PDF output not generated"]
+					compilation_log=result.compilation_log,
+					errors=result.errors
 				)
-			
-			assert isinstance(result, CompilationResult), "Result must be CompilationResult"
-			return result
-		
+
 		except Exception as e:
-			return CompilationResult(
+			return CanonicalCompilationResult(
 				success=False,
-				error_messages=[f"Compilation error: {str(e)}"]
+				errors=[f"Compilation error: {str(e)}"]
 			)
-	
-	async def _run_latex_pass(self, tex_file: str) -> dict[str, Any]:
-		"""Run a single LaTeX compilation pass"""
-		assert isinstance(tex_file, str), "tex_file must be string"
-		
-		try:
-			# Copy tex file to build directory for compilation
-			source_path = self.working_dir / tex_file
-			target_path = self.build_dir / tex_file
-			
-			# Copy main file
-			target_path.write_text(source_path.read_text(encoding='utf-8'), encoding='utf-8')
-			
-			# Run pdflatex
-			cmd = [
-				self.latex_engine,
-				"-interaction=nonstopmode",
-				"-output-directory", str(self.build_dir),
-				tex_file
-			]
-			
-			result = await asyncio.create_subprocess_exec(
-				*cmd,
-				cwd=self.build_dir,
-				stdout=asyncio.subprocess.PIPE,
-				stderr=asyncio.subprocess.PIPE
-			)
-			
-			stdout, stderr = await result.communicate()
-			
-			# Read log file
-			log_file = self.build_dir / f"{Path(tex_file).stem}.log"
-			log_content = ""
-			if log_file.exists():
-				log_content = log_file.read_text(encoding='utf-8', errors='ignore')
-			
-			latex_result = {
-				"returncode": result.returncode,
-				"stdout": stdout.decode('utf-8', errors='ignore'),
-				"stderr": stderr.decode('utf-8', errors='ignore'),
-				"log": log_content
-			}
-			
-			assert isinstance(latex_result, dict), "Result must be dict"
-			return latex_result
-			
-		except Exception as e:
-			return {
-				"returncode": 1,
-				"error": str(e),
-				"log": ""
-			}
 
 
 # Mock AI service for Phase 1 implementation

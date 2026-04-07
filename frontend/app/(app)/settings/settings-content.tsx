@@ -8,6 +8,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -414,7 +415,7 @@ function ProfileSection({ showToast }: { showToast: (msg: string, type: "success
 			<div className="flex items-center gap-6 pb-6 border-b">
 				<div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary text-2xl font-semibold border-2 border-primary/20">
 					{profile?.image ? (
-						<img src={profile.image} alt={profile.name} className="w-full h-full rounded-full object-cover" />
+						<Image src={profile.image} alt={profile.name} className="w-full h-full rounded-full object-cover" width={80} height={80} unoptimized />
 					) : (
 						profile?.name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?"
 					)}

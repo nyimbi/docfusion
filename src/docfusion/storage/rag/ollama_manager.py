@@ -169,7 +169,8 @@ class OllamaManager:
 					return await response.json()
 				else:
 					return None
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Failed to get running models: {e}")
 			return None
 	
 	def _update_metrics(self, success: bool, response_time: float, error: Optional[str] = None):

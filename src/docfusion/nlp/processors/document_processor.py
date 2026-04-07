@@ -706,7 +706,8 @@ class DocumentProcessor:
 
             return None
 
-        except Exception:
+        except Exception as e:
+            self.logger.warning(f"Failed to detect content type: {e}")
             return None
 
     def _parse_pdf_date(self, date_string: str) -> Optional[datetime]:

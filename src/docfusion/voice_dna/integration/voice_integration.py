@@ -6,6 +6,7 @@ components and external NLP analyzers and document processing systems.
 Enables seamless voice analysis workflow and unified API access.
 """
 
+import logging
 import asyncio
 from collections import defaultdict
 from datetime import datetime
@@ -28,6 +29,8 @@ from ..profiler.profile_manager import ProfileManager, ProfileVersion, ProfileCo
 
 # Import Enhancement components
 from ..enhancement.writing_enhancer import WritingEnhancer, EnhancementRequest, EnhancementResult
+
+logger = logging.getLogger(__name__)
 from ..enhancement.content_quality_analyzer import ContentQualityAnalyzer, QualityAnalysisResult
 from ..enhancement.style_guide_compliance import StyleGuideCompliance, ComplianceRequest, ComplianceResult
 from ..enhancement.natural_writing_assistant import NaturalWritingAssistant, WritingAssistanceRequest, WritingAssistanceResult
@@ -270,7 +273,8 @@ class DocumentAnalysisEngine:
 					pos_counts[pos] += 1
 				features["pos_distribution"] = dict(pos_counts)
 				
-			except Exception:
+			except Exception as e:
+				logger.warning(f"Failed to extract advanced features: {e}")
 				pass  # Fallback to basic analysis
 		
 		return features

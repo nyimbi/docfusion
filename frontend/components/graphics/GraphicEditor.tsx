@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 /**
  * GraphicEditor Component - DocFusion
  *
@@ -475,10 +477,13 @@ export function GraphicEditor({
 		if (format === "png" && imageUrl) {
 			return (
 				<div className="h-full flex items-center justify-center bg-muted/30 rounded-md p-4">
-					<img
+					<Image
 						src={imageUrl}
 						alt={title || "Preview"}
 						className="max-w-full max-h-full object-contain"
+						width={600}
+						height={400}
+						unoptimized
 					/>
 				</div>
 			);

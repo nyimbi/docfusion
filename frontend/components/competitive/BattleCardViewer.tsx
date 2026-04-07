@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 /**
  * Battle Card Viewer Component
  *
@@ -198,10 +200,13 @@ export function BattleCardViewer({
 					<div className="flex items-center gap-3">
 						<div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
 							{competitor.logoUrl ? (
-								<img
+								<Image
 									src={competitor.logoUrl}
 									alt=""
 									className="w-8 h-8 object-contain rounded"
+									width={32}
+									height={32}
+									unoptimized
 								/>
 							) : (
 								<Building2 className="h-5 w-5 text-muted-foreground" />

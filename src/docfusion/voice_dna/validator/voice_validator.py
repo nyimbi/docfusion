@@ -516,9 +516,9 @@ class VoiceValidator:
 				# Normalize to 0-1 scale
 				complexity = max(0.0, min(1.0, (100 - flesch_score) / 100.0))
 				return complexity
-			except:
-				pass
-		
+			except (ValueError, TypeError, ZeroDivisionError) as e:
+				self._log_validation_error(f"Readability scoring failed, using fallback: {e}")
+
 		# Fallback complexity calculation
 		sentences = text.split('.')
 		words = text.split()

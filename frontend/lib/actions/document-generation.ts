@@ -13,6 +13,7 @@ import { eq } from "drizzle-orm";
 import { initializeAIConfig } from "@/lib/ai/config";
 import { getProviderManager } from "@/lib/ai/providers";
 import type { DocumentContent, DocumentBlock } from "@/lib/types/document";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -233,7 +234,7 @@ Guidelines:
 
 			return structure;
 		} catch (parseError) {
-			console.error("[AI] Failed to parse structure, creating minimal fallback:", parseError);
+			logger.error("[AI] Failed to parse structure, creating minimal fallback:", parseError);
 
 			// Create minimal structure from the prompt (use first 50 chars as title)
 			const title = prompt.slice(0, 50) + (prompt.length > 50 ? "..." : "");
@@ -272,7 +273,7 @@ Guidelines:
 			];
 		}
 	} catch (error) {
-		console.error("[AI] Failed to generate structure:", error);
+		logger.error("[AI] Failed to generate structure:", error);
 
 		// If it's already a provider error, re-throw it
 		if (error instanceof Error && error.message.includes("AI provider not configured")) {
@@ -361,7 +362,7 @@ function parseContentResponse(responseContent: string): DocumentContent {
 			})),
 		};
 	} catch (error) {
-		console.error("[AI] Failed to parse content response:", error);
+		logger.error("[AI] Failed to parse content response:", error);
 
 		// Fallback: treat the entire response as a single paragraph
 		return {
@@ -443,7 +444,7 @@ export async function generateSectionContent(
 
 		return { content, wordCount, charCount };
 	} catch (error) {
-		console.error("[AI] Failed to generate section content:", error);
+		logger.error("[AI] Failed to generate section content:", error);
 		throw new Error(
 			error instanceof Error ? error.message : "Failed to generate section content. Please try again."
 		);
@@ -557,7 +558,7 @@ export async function generateDiagram(
 			description: `Generated ${type} diagram based on: ${description.slice(0, 100)}...`,
 		};
 	} catch (error) {
-		console.error("[AI] Failed to generate diagram:", error);
+		logger.error("[AI] Failed to generate diagram:", error);
 
 		// Return a simple fallback diagram
 		return {
@@ -621,7 +622,7 @@ export async function renderMermaidToSvg(code: string): Promise<string> {
 
 		return await response.text();
 	} catch (error) {
-		console.error("Failed to render Mermaid diagram:", error);
+		logger.error("Failed to render Mermaid diagram:", error);
 
 		// Fallback: return an error SVG with the error message
 		const errorMessage = error instanceof Error ? error.message : "Rendering failed";
@@ -692,7 +693,7 @@ export async function createDocumentFromStructure(
 	}
 ): Promise<{ id: string; content: DocumentContent }> {
 	try {
-		console.log("[Server] createDocumentFromStructure called", { title, structureCount: structure.length, userId });
+		logger.debug("[Server] createDocumentFromStructure called", { title, structureCount: structure.length, userId });
 		// Convert structure to document content
 		const content = structureToDocumentContent(structure);
 
@@ -717,10 +718,10 @@ export async function createDocumentFromStructure(
 			createdBy: userId,
 		});
 
-		console.log("[Server] Document created successfully:", doc.id);
+		logger.debug("[Server] Document created successfully:", doc.id);
 		return { id: doc.id, content };
 	} catch (error) {
-		console.error("[Server] Failed to create document:", error);
+		logger.error("[Server] Failed to create document:", error);
 		throw error;
 	}
 }

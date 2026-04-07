@@ -664,7 +664,58 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
+# =============================================================================
+# SECURITY: Environment files with secrets - NEVER COMMIT THESE
+# =============================================================================
+# Environment files (may contain secrets)
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/.env
+**/.env.local
+**/.env.*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+config/local/.env
+config/prod/.env
+
+# Secret files and directories
+.secrets/
+secrets/
+*.pem
+*.key
+*.crt
+credentials.json
+service-account.json
+*-credentials.json
+
+# =============================================================================
+# IDE and Editor files
+# =============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# =============================================================================
+# OS generated files
+# =============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =============================================================================
 # Project specific
+# =============================================================================
 reports/
 logs/
 *.sqlite

@@ -37,6 +37,7 @@ import type {
 import { transformRows, generateValidationResult, createUniqueKey, convertDatesToObjects } from "@/lib/import/data-transformer";
 import { getTableSchema } from "@/lib/import/table-schemas";
 import type { ColumnMappingConfig } from "@/lib/db/schema-import";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -131,7 +132,7 @@ async function findExistingRecords(
 			}
 		}
 	} catch (error) {
-		console.error("Error finding existing records:", error);
+		logger.error("Error finding existing records:", error);
 	}
 
 	return existingSet;
@@ -262,7 +263,7 @@ async function insertRecords(
 		return { insertedIds, errors };
 	} catch (batchError) {
 		// Batch failed - try inserting one by one to identify problematic records
-		console.warn("Batch insert failed, falling back to individual inserts:", batchError);
+		logger.warn("Batch insert failed, falling back to individual inserts:", batchError);
 
 		for (let i = 0; i < enrichedRecords.length; i++) {
 			try {

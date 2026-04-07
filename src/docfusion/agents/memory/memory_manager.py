@@ -13,16 +13,17 @@ import asyncio
 import hashlib
 import json
 import logging
-import pickle
+import pickle  # noqa: S403 - used for trusted internal memory serialization only
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 
+from cachetools import TTLCache  # type: ignore[import-untyped]
 from pydantic import BaseModel, ConfigDict, Field
 
 try:
-    from uuid_extensions import uuid7str
+    from uuid_extensions import uuid7str  # type: ignore[import-not-found]
 except ImportError:
     import uuid
 
@@ -110,6 +111,10 @@ class MemoryConfig(BaseModel):
     working_memory_ttl_minutes: int = Field(default=60, ge=5)
     cleanup_interval_minutes: int = Field(default=30, ge=5)
 
+    # Cache settings - TTL-based eviction prevents unbounded growth
+    cache_size: int = Field(default=100, ge=10)
+    cache_ttl_seconds: int = Field(default=3600, ge=60, description="Cache entry TTL in seconds (default 1 hour)")
+
     # Features
     enable_compression: bool = Field(default=True)
     enable_encryption: bool = Field(default=False)
@@ -117,7 +122,6 @@ class MemoryConfig(BaseModel):
     enable_indexing: bool = Field(default=True)
 
     # Performance
-    cache_size: int = Field(default=100, ge=10)
     batch_size: int = Field(default=50, ge=1)
     async_operations: bool = Field(default=True)
 
@@ -220,7 +224,11 @@ class MemoryManager:
 
         # Memory storage
         self.memories: Dict[str, MemoryEntry] = {}
-        self.memory_cache: Dict[str, MemoryEntry] = {}
+        # TTL-based cache with automatic eviction - prevents unbounded growth
+        self.memory_cache: TTLCache[str, MemoryEntry] = TTLCache(
+            maxsize=self.config.cache_size,
+            ttl=self.config.cache_ttl_seconds
+        )
 
         # Indexing and search
         self.index = MemoryIndex()
@@ -335,9 +343,8 @@ class MemoryManager:
             self.memories[entry.entry_id] = entry
             self.index.add_entry(entry)
 
-            # Update cache
-            if len(self.memory_cache) < self.config.cache_size:
-                self.memory_cache[entry.entry_id] = entry
+            # Update cache - TTLCache handles eviction automatically
+            self.memory_cache[entry.entry_id] = entry
 
             # Update statistics
             self._update_stats()
@@ -352,7 +359,7 @@ class MemoryManager:
     async def retrieve_memory(self, entry_id: str) -> Optional[MemoryEntry]:
         """Retrieve a specific memory entry"""
         try:
-            # Check cache first
+            # Check cache first - TTLCache handles eviction automatically
             if entry_id in self.memory_cache:
                 entry = self.memory_cache[entry_id]
                 self.stats["cache_hits"] += 1
@@ -361,9 +368,8 @@ class MemoryManager:
                 entry = self.memories.get(entry_id)
                 if entry:
                     self.stats["cache_misses"] += 1
-                    # Add to cache
-                    if len(self.memory_cache) < self.config.cache_size:
-                        self.memory_cache[entry_id] = entry
+                    # Add to cache - TTLCache handles eviction automatically
+                    self.memory_cache[entry_id] = entry
 
             if entry:
                 # Update access information
@@ -563,7 +569,7 @@ class MemoryManager:
                 await asyncio.sleep(60)
 
     async def _perform_cleanup(self) -> None:
-        """Perform memory cleanup"""
+        """Perform memory cleanup - TTLCache handles cache eviction automatically"""
         current_time = datetime.now()
         cleanup_count = 0
 
@@ -590,15 +596,8 @@ class MemoryManager:
                     await self.delete_memory(entry.entry_id)
                     cleanup_count += 1
 
-        # Clear cache of old entries
-        cache_cutoff = current_time - timedelta(hours=1)
-        old_cache_ids = []
-        for entry_id, entry in self.memory_cache.items():
-            if entry.last_accessed < cache_cutoff:
-                old_cache_ids.append(entry_id)
-
-        for entry_id in old_cache_ids:
-            self.memory_cache.pop(entry_id, None)
+        # Note: TTLCache handles cache eviction automatically based on TTL
+        # No manual cache cleanup needed - entries expire automatically
 
         if cleanup_count > 0:
             self.logger.info(f"Cleaned up {cleanup_count} memory entries")
@@ -612,7 +611,8 @@ class MemoryManager:
                 str(content) if not isinstance(content, (str, bytes)) else content
             )
             return hashlib.md5(content_str.encode()).hexdigest()
-        except:
+        except (TypeError, AttributeError, UnicodeEncodeError) as e:
+            self.logger.warning(f"Content hash primary encoding failed, using fallback: {e}")
             return hashlib.md5(str(content).encode()).hexdigest()
 
     def _compress_content(self, content: Any) -> bytes:
@@ -663,9 +663,10 @@ class MemoryManager:
 
             # Estimate size
             try:
-                size = len(pickle.dumps(entry.content))
+                size = len(pickle.dumps(entry.content))  # noqa: S301 - trusted internal data only
                 total_size += size
-            except:
+            except (TypeError, AttributeError) as e:
+                self.logger.debug(f"Could not serialize content for size estimation: {e}")
                 total_size += len(str(entry.content))
 
         self.stats["entries_by_type"] = type_counts

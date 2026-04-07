@@ -601,6 +601,7 @@ export function ContentLibraryBrowser({
 						variant="ghost"
 						size="icon"
 						onClick={() => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
+						aria-label={sortOrder === "asc" ? "Sort descending" : "Sort ascending"}
 					>
 						{sortOrder === "asc" ? (
 							<SortAsc className="h-4 w-4" />
@@ -610,12 +611,14 @@ export function ContentLibraryBrowser({
 					</Button>
 
 					{/* View mode */}
-					<div className="flex items-center border rounded-md">
+					<div className="flex items-center border rounded-md" role="group" aria-label="View mode">
 						<Button
 							variant={viewMode === "grid" ? "secondary" : "ghost"}
 							size="icon"
 							className="rounded-r-none"
 							onClick={() => setViewMode("grid")}
+							aria-label="Grid view"
+							aria-pressed={viewMode === "grid"}
 						>
 							<LayoutGrid className="h-4 w-4" />
 						</Button>
@@ -624,6 +627,8 @@ export function ContentLibraryBrowser({
 							size="icon"
 							className="rounded-l-none"
 							onClick={() => setViewMode("list")}
+							aria-label="List view"
+							aria-pressed={viewMode === "list"}
 						>
 							<List className="h-4 w-4" />
 						</Button>

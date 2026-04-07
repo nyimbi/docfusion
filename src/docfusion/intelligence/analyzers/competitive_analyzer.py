@@ -29,18 +29,8 @@ except ImportError:
     SemanticMatcher = None
     NLP_AVAILABLE = False
 
-# Optional discovery dependencies
-try:
-    from ...discovery.models.opportunity_models import OpportunityData
-    DISCOVERY_AVAILABLE = True
-except ImportError:
-    # Create a minimal placeholder for when discovery is not available
-    class OpportunityData(BaseModel):
-        model_config = ConfigDict(extra='allow')
-        id: str
-        title: str
-        description: str
-    DISCOVERY_AVAILABLE = False
+# Canonical OpportunityData -- always available from discovery.models
+from ...discovery.models.opportunity_models import OpportunityData
 
 
 class CompetitorTier(Enum):
@@ -1169,7 +1159,9 @@ class CompetitiveAnalyzer:
 	
 	def _log_analysis_error(self, message: str) -> None:
 		"""Log analysis errors"""
-		print(f"CompetitiveAnalyzer Error: {message}")
+		import logging
+		logger = logging.getLogger(__name__)
+		logger.error(f"CompetitiveAnalyzer Error: {message}")
 
 
 # Example usage and testing

@@ -876,9 +876,9 @@ class PatternRecognizer:
 				
 				current = current.parent
 		
-		except:
-			pass
-		
+		except (ValueError, TypeError, AttributeError) as e:
+			self.logger.debug(f"Page section detection failed: {e}")
+
 		return 'main'  # Default
 	
 	async def _analyze_site_characteristics(self, site: ProcurementSite, html_content: str) -> ProcurementSite:

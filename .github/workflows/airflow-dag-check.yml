@@ -105,8 +105,8 @@ env:
   AIRFLOW__CORE__EXECUTOR: 'SequentialExecutor'
   
   # Security configuration (enhanced for 3.x)
-  AIRFLOW__WEBSERVER__SECRET_KEY: 'test-secret-key-for-ci'
-  AIRFLOW__CORE__FERNET_KEY: 'test-fernet-key-for-ci-validation'
+  AIRFLOW__WEBSERVER__SECRET_KEY: ${{ secrets.AIRFLOW_SECRET_KEY || 'test-secret-key-for-ci' }}
+  AIRFLOW__CORE__FERNET_KEY: ${{ secrets.AIRFLOW_FERNET_KEY || 'test-fernet-key-for-ci-validation' }}
   AIRFLOW__WEBSERVER__EXPOSE_HOSTNAME: 'False'
   AIRFLOW__WEBSERVER__EXPOSE_STACKTRACE: 'False'
   

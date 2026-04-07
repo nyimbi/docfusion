@@ -30,6 +30,7 @@ import type {
 	WorkflowStage,
 	ApprovalStatus,
 } from "@/lib/types/comments-workflow";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Helper Functions
@@ -56,7 +57,7 @@ async function sendWorkflowNotification(notification: WorkflowNotification): Pro
 	const { type, recipientUserId, documentId, stage, status, metadata } = notification;
 
 	// Log the notification (always do this for debugging/audit)
-	console.log(`[Workflow Notification] ${type}:`, {
+	logger.debug(`[Workflow Notification] ${type}:`, {
 		recipientUserId,
 		documentId,
 		stage,
@@ -76,7 +77,7 @@ async function sendWorkflowNotification(notification: WorkflowNotification): Pro
 		});
 
 		if (!recipient) {
-			console.warn(`[Notification] Recipient not found: ${recipientUserId}`);
+			logger.warn(`[Notification] Recipient not found: ${recipientUserId}`);
 			return;
 		}
 
@@ -110,7 +111,7 @@ async function sendWorkflowNotification(notification: WorkflowNotification): Pro
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(notificationPayload),
 			}).catch((err) => {
-				console.error("[Notification] Webhook delivery failed:", err);
+				logger.error("[Notification] Webhook delivery failed:", err);
 			});
 		}
 
@@ -122,12 +123,12 @@ async function sendWorkflowNotification(notification: WorkflowNotification): Pro
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(emailPayload),
 			}).catch((err) => {
-				console.error("[Notification] Email delivery failed:", err);
+				logger.error("[Notification] Email delivery failed:", err);
 			});
 		}
 	} catch (error) {
 		// Don't throw - notifications should not break the main workflow
-		console.error("[Notification] Failed to send notification:", error);
+		logger.error("[Notification] Failed to send notification:", error);
 	}
 }
 

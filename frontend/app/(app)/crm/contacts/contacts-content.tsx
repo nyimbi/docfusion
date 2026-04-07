@@ -12,7 +12,7 @@
  * - People: Standalone contacts (accountId IS NULL)
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
@@ -142,9 +142,9 @@ export default function ContactsContent({ searchParams, userContext }: ContactsC
 		router.refresh();
 	};
 
-	const handleContactClick = (contact: ContactRow) => {
+	const handleContactClick = useCallback((contact: ContactRow) => {
 		router.push(`/crm/contacts/${contact.id}`);
-	};
+	}, [router]);
 
 	return (
 		<div className="h-full flex flex-col overflow-hidden">

@@ -18,6 +18,7 @@ import {
 import { eq, and, desc, asc, ilike, or, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -214,7 +215,7 @@ export async function listBibliographyEntries(options?: {
 			},
 		};
 	} catch (error) {
-		console.error("Failed to list bibliography entries:", error);
+		logger.error("Failed to list bibliography entries:", error);
 		return { success: false, error: "Failed to list bibliography entries" };
 	}
 }
@@ -234,7 +235,7 @@ export async function getBibliographyEntry(id: string): Promise<ActionResult<Bib
 
 		return { success: true, data: mapRowToEntry(entry) };
 	} catch (error) {
-		console.error("Failed to get bibliography entry:", error);
+		logger.error("Failed to get bibliography entry:", error);
 		return { success: false, error: "Failed to get bibliography entry" };
 	}
 }
@@ -282,7 +283,7 @@ export async function createBibliographyEntry(
 
 		return { success: true, data: mapRowToEntry(inserted) };
 	} catch (error) {
-		console.error("Failed to create bibliography entry:", error);
+		logger.error("Failed to create bibliography entry:", error);
 		return { success: false, error: "Failed to create bibliography entry" };
 	}
 }
@@ -314,7 +315,7 @@ export async function updateBibliographyEntry(
 
 		return { success: true, data: mapRowToEntry(updated) };
 	} catch (error) {
-		console.error("Failed to update bibliography entry:", error);
+		logger.error("Failed to update bibliography entry:", error);
 		return { success: false, error: "Failed to update bibliography entry" };
 	}
 }
@@ -337,7 +338,7 @@ export async function deleteBibliographyEntry(id: string): Promise<ActionResult<
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to delete bibliography entry:", error);
+		logger.error("Failed to delete bibliography entry:", error);
 		return { success: false, error: "Failed to delete bibliography entry" };
 	}
 }
@@ -399,7 +400,7 @@ export async function citeInDocument(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to cite in document:", error);
+		logger.error("Failed to cite in document:", error);
 		return { success: false, error: "Failed to cite in document" };
 	}
 }
@@ -425,7 +426,7 @@ export async function getDocumentCitations(
 
 		return { success: true, data: entries };
 	} catch (error) {
-		console.error("Failed to get document citations:", error);
+		logger.error("Failed to get document citations:", error);
 		return { success: false, error: "Failed to get document citations" };
 	}
 }
@@ -456,7 +457,7 @@ export async function importFromBibTeX(
 
 		return { success: true, data: { imported, errors } };
 	} catch (error) {
-		console.error("Failed to import BibTeX:", error);
+		logger.error("Failed to import BibTeX:", error);
 		return { success: false, error: "Failed to parse BibTeX file" };
 	}
 }
@@ -480,7 +481,7 @@ export async function exportToBibTeX(entryIds?: string[]): Promise<ActionResult<
 
 		return { success: true, data: bibtex };
 	} catch (error) {
-		console.error("Failed to export BibTeX:", error);
+		logger.error("Failed to export BibTeX:", error);
 		return { success: false, error: "Failed to export BibTeX" };
 	}
 }
@@ -532,7 +533,7 @@ export async function getBibliographyStats(): Promise<ActionResult<BibliographyS
 			},
 		};
 	} catch (error) {
-		console.error("Failed to get bibliography stats:", error);
+		logger.error("Failed to get bibliography stats:", error);
 		return { success: false, error: "Failed to get bibliography stats" };
 	}
 }

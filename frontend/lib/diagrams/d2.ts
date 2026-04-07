@@ -18,6 +18,7 @@ import type {
 	ParsedD2Diagram,
 	RenderResult,
 } from "./types";
+import { logger } from "@/lib/utils/logger";
 
 // =============================================================================
 // Syntax Definitions
@@ -832,7 +833,7 @@ export async function renderD2(
 			return kroikiResult;
 		}
 	} catch (e) {
-		console.warn("D2 Kroki rendering failed, trying Mermaid fallback:", e);
+		logger.warn("D2 Kroki rendering failed, trying Mermaid fallback:", e);
 	}
 
 	// Strategy 2: Convert to Mermaid and use mermaid library

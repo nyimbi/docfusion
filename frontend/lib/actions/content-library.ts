@@ -60,6 +60,7 @@ import type {
 	SnippetWithAnalytics,
 	TemplateWithAnalytics,
 } from "@/lib/types/content-library";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Helper Functions for Type Conversion
@@ -250,7 +251,7 @@ export async function semanticSearch(input: SemanticSearchInput): Promise<Semant
 			queryEmbedding = embeddingResult.embedding;
 		} catch (embeddingError) {
 			// Fall back to text-based search if embedding fails
-			console.warn("Embedding generation failed, using text search:", embeddingError);
+			logger.warn("Embedding generation failed, using text search:", embeddingError);
 		}
 
 		// Search snippets
@@ -401,7 +402,7 @@ export async function semanticSearch(input: SemanticSearchInput): Promise<Semant
 			processingTimeMs: Date.now() - startTime,
 		};
 	} catch (error) {
-		console.error("Error performing semantic search:", error);
+		logger.error("Error performing semantic search:", error);
 		return {
 			results: [],
 			total: 0,
@@ -470,7 +471,7 @@ export async function recordContentUsage(input: RecordUsageInput): Promise<{ suc
 
 		return { success: true };
 	} catch (error) {
-		console.error("Error recording content usage:", error);
+		logger.error("Error recording content usage:", error);
 		return { success: false, error: "Failed to record usage" };
 	}
 }
@@ -547,7 +548,7 @@ export async function recordProposalOutcome(input: ContentOutcomeInput): Promise
 			templatesUpdated: uniqueTemplateIds.length,
 		};
 	} catch (error) {
-		console.error("Error recording proposal outcome:", error);
+		logger.error("Error recording proposal outcome:", error);
 		return { success: false, snippetsUpdated: 0, templatesUpdated: 0, error: "Failed to record outcome" };
 	}
 }
@@ -662,7 +663,7 @@ export async function updateSnippetFreshness(
 		revalidatePath("/content-library");
 		return { success: true };
 	} catch (error) {
-		console.error("Error updating snippet freshness:", error);
+		logger.error("Error updating snippet freshness:", error);
 		return { success: false, error: "Failed to update freshness" };
 	}
 }
@@ -696,7 +697,7 @@ export async function getSnippetsNeedingReview(limit = 20): Promise<SnippetWithA
 
 		return snippets.map(snippet => mapSnippetToInterface(snippet, analyticsMap.get(snippet.id)));
 	} catch (error) {
-		console.error("Error getting snippets needing review:", error);
+		logger.error("Error getting snippets needing review:", error);
 		return [];
 	}
 }
@@ -783,7 +784,7 @@ export async function generateContentSuggestions(input: GenerateSuggestionsInput
 
 			return suggestions;
 		} catch (aiError) {
-			console.warn("AI suggestion generation failed, using semantic search:", aiError);
+			logger.warn("AI suggestion generation failed, using semantic search:", aiError);
 
 			// Fall back to semantic search
 			const searchResults = await semanticSearch({
@@ -811,7 +812,7 @@ export async function generateContentSuggestions(input: GenerateSuggestionsInput
 			return suggestions;
 		}
 	} catch (error) {
-		console.error("Error generating content suggestions:", error);
+		logger.error("Error generating content suggestions:", error);
 		return [];
 	}
 }
@@ -837,7 +838,7 @@ export async function provideSuggestionFeedback(input: SuggestionFeedbackInput):
 
 		return { success: true };
 	} catch (error) {
-		console.error("Error providing suggestion feedback:", error);
+		logger.error("Error providing suggestion feedback:", error);
 		return { success: false, error: "Failed to save feedback" };
 	}
 }
@@ -933,7 +934,7 @@ export async function getContentLibraryStats(organizationId?: string): Promise<C
 			staleSnippets: Number(staleCount[0]?.count ?? 0),
 		};
 	} catch (error) {
-		console.error("Error getting content library stats:", error);
+		logger.error("Error getting content library stats:", error);
 		return {
 			totalSnippets: 0,
 			totalTemplates: 0,
@@ -1082,7 +1083,7 @@ export async function getContentEffectivenessReport(
 			};
 		}
 	} catch (error) {
-		console.error("Error getting content effectiveness report:", error);
+		logger.error("Error getting content effectiveness report:", error);
 		return null;
 	}
 }

@@ -7,6 +7,7 @@ import {
 	QueryCache,
 	MutationCache,
 } from "@tanstack/react-query";
+import { logger } from "@/lib/utils/logger";
 
 /**
  * Default stale time for queries (5 minutes).
@@ -29,7 +30,7 @@ function createQueryClient(): QueryClient {
 			onError: (error, query) => {
 				// Log query errors in development
 				if (process.env.NODE_ENV === "development") {
-					console.error(
+					logger.error(
 						`[Query Error] ${query.queryKey.join("/")}:`,
 						error
 					);
@@ -40,7 +41,7 @@ function createQueryClient(): QueryClient {
 			onError: (error, _variables, _context, mutation) => {
 				// Log mutation errors in development
 				if (process.env.NODE_ENV === "development") {
-					console.error(
+					logger.error(
 						`[Mutation Error] ${mutation.options.mutationKey?.join("/") ?? "unknown"}:`,
 						error
 					);

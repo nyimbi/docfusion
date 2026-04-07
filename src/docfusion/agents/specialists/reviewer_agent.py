@@ -398,14 +398,14 @@ class ReviewerAgent(Agent[ReviewTask]):
 					organization_name="review_org"
 				)
 				result = await self.voice_integrator.analyze(request)
-				
+
 				return {
 					"consistency": result.consistency_score,
 					"authenticity": result.authenticity_score,
 					"overall": result.overall_voice_score
 				}
-			except:
-				pass
+			except Exception as e:
+				self.logger.warning(f"Voice consistency check failed, using fallback scores: {e}")
 		
 		# Fallback voice assessment
 		return {

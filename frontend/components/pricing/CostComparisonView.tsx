@@ -237,6 +237,7 @@ function ScenarioSelector({
 							size="icon"
 							className="h-4 w-4 ml-1 hover:bg-destructive/20"
 							onClick={() => onRemove(id)}
+							aria-label={`Remove ${scenario.name} scenario`}
 						>
 							<Trash2 className="h-3 w-3" />
 						</Button>

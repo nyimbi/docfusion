@@ -791,7 +791,8 @@ class DeviceManager:
 
             return False  # Simplified - always return False for now
 
-        except Exception:
+        except Exception as e:
+            self.logger.warning(f"Failed to parse IP address '{ip_address}': {e}")
             return True  # If we can't parse the IP, consider it suspicious
 
     # Fingerprinting and Device Identification
@@ -942,7 +943,8 @@ class DeviceManager:
             return ipaddress.ip_address(ip_address) in ipaddress.ip_network(
                 ip_range, strict=False
             )
-        except Exception:
+        except Exception as e:
+            self.logger.warning(f"Failed to check IP range for '{ip_address}' in '{ip_range}': {e}")
             return False
 
     # Device Trust Automation

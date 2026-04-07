@@ -7,10 +7,29 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import type { Partner, PartnerType, CreatePartnerInput } from "@/lib/types/opportunity";
 import { createPartner } from "@/lib/actions/partners";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+
+// Validation schema for partner creation
+const createPartnerSchema = z.object({
+	name: z.string().min(1, "Partner name is required").max(500, "Name must be 500 characters or less"),
+	type: z.enum(["prime", "sub", "consultant", "vendor", "other"]).optional(),
+	contactName: z.string().max(200, "Contact name must be 200 characters or less").optional(),
+	contactEmail: z
+		.string()
+		.email("Please enter a valid email address")
+		.optional()
+		.or(z.literal("")),
+	contactPhone: z.string().max(50, "Phone must be 50 characters or less").optional(),
+	notes: z.string().max(5000, "Notes must be 5000 characters or less").optional(),
+});
+
+type CreatePartnerFormValues = z.infer<typeof createPartnerSchema>;
 
 // ============================================================================
 // Types
@@ -29,16 +48,27 @@ export function CreatePartnerDialog({
 	onCreated,
 	onClose,
 }: CreatePartnerDialogProps) {
-	const [name, setName] = useState("");
-	const [type, setType] = useState<PartnerType | "">("");
-	const [contactName, setContactName] = useState("");
-	const [contactEmail, setContactEmail] = useState("");
-	const [contactPhone, setContactPhone] = useState("");
 	const [capabilities, setCapabilities] = useState<string[]>([]);
 	const [capabilityInput, setCapabilityInput] = useState("");
-	const [notes, setNotes] = useState("");
 	const [isPending, startTransition] = useTransition();
 	const [error, setError] = useState<string | null>(null);
+
+	const {
+		register,
+		handleSubmit: handleFormSubmit,
+		formState: { errors },
+		reset,
+	} = useForm<CreatePartnerFormValues>({
+		resolver: zodResolver(createPartnerSchema),
+		defaultValues: {
+			name: "",
+			type: undefined,
+			contactName: "",
+			contactEmail: "",
+			contactPhone: "",
+			notes: "",
+		},
+	});
 
 	const addCapability = () => {
 		const cap = capabilityInput.trim();
@@ -52,25 +82,23 @@ export function CreatePartnerDialog({
 		setCapabilities(capabilities.filter((c) => c !== cap));
 	};
 
-	const handleSubmit = () => {
-		if (!name.trim()) {
-			setError("Partner name is required");
-			return;
-		}
-
+	const onValidSubmit = (data: CreatePartnerFormValues) => {
 		setError(null);
 		startTransition(async () => {
 			try {
 				const partner = await createPartner({
-					name: name.trim(),
-					type: type || undefined,
-					contactName: contactName.trim() || undefined,
-					contactEmail: contactEmail.trim() || undefined,
-					contactPhone: contactPhone.trim() || undefined,
+					name: data.name.trim(),
+					type: data.type || undefined,
+					contactName: data.contactName?.trim() || undefined,
+					contactEmail: data.contactEmail?.trim() || undefined,
+					contactPhone: data.contactPhone?.trim() || undefined,
 					capabilities,
-					notes: notes.trim() || undefined,
+					notes: data.notes?.trim() || undefined,
 				});
 				onCreated?.(partner);
+				reset();
+				setCapabilities([]);
+				setCapabilityInput("");
 				onClose();
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Failed to create partner");
@@ -93,7 +121,7 @@ export function CreatePartnerDialog({
 				</div>
 
 				{/* Content */}
-				<div className="flex-1 overflow-y-auto p-6 space-y-4">
+				<form id="create-partner-form" onSubmit={handleFormSubmit(onValidSubmit)} className="flex-1 overflow-y-auto p-6 space-y-4">
 					{/* Name */}
 					<div>
 						<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
@@ -101,11 +129,16 @@ export function CreatePartnerDialog({
 						</label>
 						<input
 							type="text"
-							value={name}
-							onChange={(e) => setName(e.target.value)}
+							{...register("name")}
 							placeholder="Organization name"
-							className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+							className={cn(
+								"w-full px-3 py-2 rounded-lg border bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent",
+								errors.name ? "border-red-500" : "border-[var(--border)]"
+							)}
 						/>
+						{errors.name && (
+							<p className="text-sm text-red-500 mt-1">{errors.name.message}</p>
+						)}
 					</div>
 
 					{/* Type */}
@@ -114,8 +147,7 @@ export function CreatePartnerDialog({
 							Partner Type
 						</label>
 						<select
-							value={type}
-							onChange={(e) => setType(e.target.value as PartnerType | "")}
+							{...register("type")}
 							className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 						>
 							<option value="">Select type...</option>
@@ -125,6 +157,9 @@ export function CreatePartnerDialog({
 							<option value="vendor">Vendor</option>
 							<option value="other">Other</option>
 						</select>
+						{errors.type && (
+							<p className="text-sm text-red-500 mt-1">{errors.type.message}</p>
+						)}
 					</div>
 
 					{/* Contact Information */}
@@ -139,11 +174,13 @@ export function CreatePartnerDialog({
 							</label>
 							<input
 								type="text"
-								value={contactName}
-								onChange={(e) => setContactName(e.target.value)}
+								{...register("contactName")}
 								placeholder="Primary contact name"
 								className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 							/>
+							{errors.contactName && (
+								<p className="text-sm text-red-500 mt-1">{errors.contactName.message}</p>
+							)}
 						</div>
 
 						<div className="grid grid-cols-2 gap-3">
@@ -153,11 +190,16 @@ export function CreatePartnerDialog({
 								</label>
 								<input
 									type="email"
-									value={contactEmail}
-									onChange={(e) => setContactEmail(e.target.value)}
+									{...register("contactEmail")}
 									placeholder="email@example.com"
-									className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+									className={cn(
+										"w-full px-3 py-2 rounded-lg border bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent",
+										errors.contactEmail ? "border-red-500" : "border-[var(--border)]"
+									)}
 								/>
+								{errors.contactEmail && (
+									<p className="text-sm text-red-500 mt-1">{errors.contactEmail.message}</p>
+								)}
 							</div>
 							<div>
 								<label className="block text-xs text-[var(--foreground-muted)] mb-1">
@@ -165,11 +207,13 @@ export function CreatePartnerDialog({
 								</label>
 								<input
 									type="tel"
-									value={contactPhone}
-									onChange={(e) => setContactPhone(e.target.value)}
+									{...register("contactPhone")}
 									placeholder="+1 (555) 000-0000"
 									className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 								/>
+								{errors.contactPhone && (
+									<p className="text-sm text-red-500 mt-1">{errors.contactPhone.message}</p>
+								)}
 							</div>
 						</div>
 					</div>
@@ -219,12 +263,14 @@ export function CreatePartnerDialog({
 							Notes
 						</label>
 						<textarea
-							value={notes}
-							onChange={(e) => setNotes(e.target.value)}
+							{...register("notes")}
 							placeholder="Additional notes about this partner..."
 							rows={3}
 							className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
 						/>
+						{errors.notes && (
+							<p className="text-sm text-red-500 mt-1">{errors.notes.message}</p>
+						)}
 					</div>
 
 					{/* Error */}
@@ -233,7 +279,7 @@ export function CreatePartnerDialog({
 							{error}
 						</div>
 					)}
-				</div>
+				</form>
 
 				{/* Footer */}
 				<div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-2">
@@ -241,7 +287,8 @@ export function CreatePartnerDialog({
 						Cancel
 					</Button>
 					<Button
-						onClick={handleSubmit}
+						type="submit"
+						form="create-partner-form"
 						disabled={isPending}
 						isLoading={isPending}
 					>

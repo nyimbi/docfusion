@@ -1,5 +1,7 @@
 import asyncio
 import logging
+
+logger = logging.getLogger(__name__)
 from typing import Any, Dict, List, Optional, Set, Callable, Union
 from datetime import datetime, timedelta
 from collections import deque
@@ -8,6 +10,7 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field, ConfigDict
 from ..core.messages import AgentMessage, MessageStatus, MessageType
 import re
+
 """
 Agent Communication Channels
 
@@ -20,17 +23,11 @@ Copyright (c) 2025
 
 
 try:
-	try:
 	from uuid_extensions import uuid7str
 except ImportError:
 	import uuid
 	def uuid7str() -> str:
 		return str(uuid.uuid4())
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-
 
 
 class ChannelType(str, Enum):

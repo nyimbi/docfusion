@@ -34,6 +34,7 @@ import {
 import { opportunities, proposalDocuments, documents, requirements } from "@/lib/db/schema";
 import { eq, and, or, ilike, desc, asc, sql, inArray, gte, lte } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -245,7 +246,7 @@ export async function createPresentation(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to create presentation:", error);
+		logger.error("Failed to create presentation:", error);
 		return { success: false, error: "Failed to create presentation" };
 	}
 }
@@ -307,7 +308,7 @@ export async function getPresentation(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to get presentation:", error);
+		logger.error("Failed to get presentation:", error);
 		return { success: false, error: "Failed to get presentation" };
 	}
 }
@@ -359,7 +360,7 @@ export async function updatePresentation(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to update presentation:", error);
+		logger.error("Failed to update presentation:", error);
 		return { success: false, error: "Failed to update presentation" };
 	}
 }
@@ -392,7 +393,7 @@ export async function deletePresentation(id: string): Promise<ActionResult<void>
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Failed to delete presentation:", error);
+		logger.error("Failed to delete presentation:", error);
 		return { success: false, error: "Failed to delete presentation" };
 	}
 }
@@ -457,7 +458,7 @@ export async function listPresentations(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to list presentations:", error);
+		logger.error("Failed to list presentations:", error);
 		return { success: false, error: "Failed to list presentations" };
 	}
 }
@@ -572,7 +573,7 @@ Return ONLY the JSON array, no additional text.`;
 
 			slidesData = JSON.parse(jsonMatch[0]);
 		} catch (aiError) {
-			console.error("AI slide generation failed, using template:", aiError);
+			logger.error("AI slide generation failed, using template:", aiError);
 			slidesData = generateFallbackSlides(presentation, doc);
 		}
 
@@ -612,7 +613,7 @@ Return ONLY the JSON array, no additional text.`;
 
 		return { success: true, data: insertedSlides };
 	} catch (error) {
-		console.error("Failed to generate slides:", error);
+		logger.error("Failed to generate slides:", error);
 		return { success: false, error: "Failed to generate slides from proposal" };
 	}
 }
@@ -776,7 +777,7 @@ export async function createSlide(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to create slide:", error);
+		logger.error("Failed to create slide:", error);
 		return { success: false, error: "Failed to create slide" };
 	}
 }
@@ -827,7 +828,7 @@ export async function updateSlide(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to update slide:", error);
+		logger.error("Failed to update slide:", error);
 		return { success: false, error: "Failed to update slide" };
 	}
 }
@@ -867,7 +868,7 @@ export async function deleteSlide(slideId: string): Promise<ActionResult<void>> 
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Failed to delete slide:", error);
+		logger.error("Failed to delete slide:", error);
 		return { success: false, error: "Failed to delete slide" };
 	}
 }
@@ -924,7 +925,7 @@ export async function reorderSlides(
 
 		return { success: true, data: slides };
 	} catch (error) {
-		console.error("Failed to reorder slides:", error);
+		logger.error("Failed to reorder slides:", error);
 		return { success: false, error: "Failed to reorder slides" };
 	}
 }
@@ -999,7 +1000,7 @@ export async function duplicateSlide(slideId: string): Promise<ActionResult<Pres
 
 		return { success: true, data: duplicate };
 	} catch (error) {
-		console.error("Failed to duplicate slide:", error);
+		logger.error("Failed to duplicate slide:", error);
 		return { success: false, error: "Failed to duplicate slide" };
 	}
 }
@@ -1056,7 +1057,7 @@ Keep notes concise but comprehensive. Target ${Math.ceil((slide.estimatedDuratio
 			});
 			speakerNotes = result.content;
 		} catch (aiError) {
-			console.error("AI speaker notes generation failed:", aiError);
+			logger.error("AI speaker notes generation failed:", aiError);
 			speakerNotes = generateFallbackSpeakerNotes(slide);
 		}
 
@@ -1073,7 +1074,7 @@ Keep notes concise but comprehensive. Target ${Math.ceil((slide.estimatedDuratio
 
 		return { success: true, data: speakerNotes };
 	} catch (error) {
-		console.error("Failed to generate speaker notes:", error);
+		logger.error("Failed to generate speaker notes:", error);
 		return { success: false, error: "Failed to generate speaker notes" };
 	}
 }
@@ -1211,7 +1212,7 @@ Return ONLY the JSON array.`;
 
 			questionsData = JSON.parse(jsonMatch[0]);
 		} catch (aiError) {
-			console.error("AI question anticipation failed, using fallback:", aiError);
+			logger.error("AI question anticipation failed, using fallback:", aiError);
 			questionsData = generateFallbackQuestions(presentation);
 		}
 
@@ -1243,7 +1244,7 @@ Return ONLY the JSON array.`;
 
 		return { success: true, data: insertedItems };
 	} catch (error) {
-		console.error("Failed to anticipate questions:", error);
+		logger.error("Failed to anticipate questions:", error);
 		return { success: false, error: "Failed to anticipate questions" };
 	}
 }
@@ -1363,7 +1364,7 @@ export async function createQAItem(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to create Q&A item:", error);
+		logger.error("Failed to create Q&A item:", error);
 		return { success: false, error: "Failed to create Q&A item" };
 	}
 }
@@ -1413,7 +1414,7 @@ export async function updateQAItem(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to update Q&A item:", error);
+		logger.error("Failed to update Q&A item:", error);
 		return { success: false, error: "Failed to update Q&A item" };
 	}
 }
@@ -1487,7 +1488,7 @@ Format the answer for verbal delivery (no bullet points).`;
 			});
 			suggestedAnswer = result.content;
 		} catch (aiError) {
-			console.error("AI answer generation failed:", aiError);
+			logger.error("AI answer generation failed:", aiError);
 			suggestedAnswer = generateFallbackAnswer(qaItem);
 		}
 
@@ -1504,7 +1505,7 @@ Format the answer for verbal delivery (no bullet points).`;
 
 		return { success: true, data: suggestedAnswer };
 	} catch (error) {
-		console.error("Failed to generate answer suggestion:", error);
+		logger.error("Failed to generate answer suggestion:", error);
 		return { success: false, error: "Failed to generate answer suggestion" };
 	}
 }
@@ -1545,7 +1546,7 @@ export async function listQAItems(
 
 		return { success: true, data: items };
 	} catch (error) {
-		console.error("Failed to list Q&A items:", error);
+		logger.error("Failed to list Q&A items:", error);
 		return { success: false, error: "Failed to list Q&A items" };
 	}
 }
@@ -1576,7 +1577,7 @@ export async function markQAReviewed(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("Failed to mark Q&A as reviewed:", error);
+		logger.error("Failed to mark Q&A as reviewed:", error);
 		return { success: false, error: "Failed to mark Q&A as reviewed" };
 	}
 }
@@ -1604,7 +1605,7 @@ export async function deleteQAItem(id: string): Promise<ActionResult<void>> {
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Failed to delete Q&A item:", error);
+		logger.error("Failed to delete Q&A item:", error);
 		return { success: false, error: "Failed to delete Q&A item" };
 	}
 }
@@ -1700,7 +1701,7 @@ export async function validateTimelimits(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to validate time limits:", error);
+		logger.error("Failed to validate time limits:", error);
 		return { success: false, error: "Failed to validate time limits" };
 	}
 }
@@ -1801,7 +1802,7 @@ export async function calculateSlideTiming(
 
 		return { success: true, data: timingAnalysis };
 	} catch (error) {
-		console.error("Failed to calculate slide timing:", error);
+		logger.error("Failed to calculate slide timing:", error);
 		return { success: false, error: "Failed to calculate slide timing" };
 	}
 }
@@ -1964,7 +1965,7 @@ export async function suggestSlideReduction(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to suggest slide reduction:", error);
+		logger.error("Failed to suggest slide reduction:", error);
 		return { success: false, error: "Failed to suggest slide reduction" };
 	}
 }
@@ -2015,7 +2016,7 @@ export async function recordPractice(
 
 		return { success: true, data: inserted };
 	} catch (error) {
-		console.error("Failed to record practice:", error);
+		logger.error("Failed to record practice:", error);
 		return { success: false, error: "Failed to record practice session" };
 	}
 }
@@ -2070,7 +2071,7 @@ export async function analyzePracticeRecording(
 
 		return { success: true, data: analysis };
 	} catch (error) {
-		console.error("Failed to analyze recording:", error);
+		logger.error("Failed to analyze recording:", error);
 		return { success: false, error: "Failed to analyze practice recording" };
 	}
 }
@@ -2175,7 +2176,7 @@ export async function getPracticeHistory(
 
 		return { success: true, data: recordings };
 	} catch (error) {
-		console.error("Failed to get practice history:", error);
+		logger.error("Failed to get practice history:", error);
 		return { success: false, error: "Failed to get practice history" };
 	}
 }
@@ -2229,7 +2230,7 @@ Keep feedback constructive and motivating. Target 150-200 words.`;
 			});
 			feedback = result.content;
 		} catch (aiError) {
-			console.error("AI feedback generation failed:", aiError);
+			logger.error("AI feedback generation failed:", aiError);
 			feedback = generateFallbackFeedback(recording);
 		}
 
@@ -2245,7 +2246,7 @@ Keep feedback constructive and motivating. Target 150-200 words.`;
 
 		return { success: true, data: feedback };
 	} catch (error) {
-		console.error("Failed to generate practice feedback:", error);
+		logger.error("Failed to generate practice feedback:", error);
 		return { success: false, error: "Failed to generate practice feedback" };
 	}
 }
@@ -2322,7 +2323,7 @@ export async function assignTeamMember(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to assign team member:", error);
+		logger.error("Failed to assign team member:", error);
 		return { success: false, error: "Failed to assign team member" };
 	}
 }
@@ -2364,7 +2365,7 @@ export async function updateTeamAssignment(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to update team assignment:", error);
+		logger.error("Failed to update team assignment:", error);
 		return { success: false, error: "Failed to update team assignment" };
 	}
 }
@@ -2387,7 +2388,7 @@ export async function removeTeamMember(id: string): Promise<ActionResult<void>> 
 
 		return { success: true, data: undefined };
 	} catch (error) {
-		console.error("Failed to remove team member:", error);
+		logger.error("Failed to remove team member:", error);
 		return { success: false, error: "Failed to remove team member" };
 	}
 }
@@ -2406,7 +2407,7 @@ export async function listTeamMembers(
 
 		return { success: true, data: team };
 	} catch (error) {
-		console.error("Failed to list team members:", error);
+		logger.error("Failed to list team members:", error);
 		return { success: false, error: "Failed to list team members" };
 	}
 }
@@ -2473,7 +2474,7 @@ export async function exportPresentation(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to export presentation:", error);
+		logger.error("Failed to export presentation:", error);
 		return { success: false, error: "Failed to export presentation" };
 	}
 }
@@ -2563,7 +2564,7 @@ export async function generateHandout(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to generate handout:", error);
+		logger.error("Failed to generate handout:", error);
 		return { success: false, error: "Failed to generate handout" };
 	}
 }

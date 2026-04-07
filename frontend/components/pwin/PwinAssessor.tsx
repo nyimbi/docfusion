@@ -550,7 +550,7 @@ function FactorScoreInput({
 						{score.guidelines && score.guidelines.length > 0 && (
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<Button variant="ghost" size="icon" className="h-5 w-5">
+									<Button variant="ghost" size="icon" className="h-5 w-5" aria-label="Scoring guidelines">
 										<HelpCircle className="h-3.5 w-3.5" />
 									</Button>
 								</TooltipTrigger>

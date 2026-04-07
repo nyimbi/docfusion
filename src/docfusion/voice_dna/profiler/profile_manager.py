@@ -371,8 +371,8 @@ class ProfileManager:
 		try:
 			parts = latest_version.split('.')
 			major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
-		except:
-			# Fallback if version parsing fails
+		except (ValueError, IndexError) as e:
+			self._log_version_error(f"Version number parsing failed for '{latest_version}': {e}")
 			return f"{len(existing_versions) + 1}.0.0"
 		
 		# Increment based on change type

@@ -2,8 +2,15 @@
 
 Production deployment scripts for DocuFusion on Ubuntu 22.04/24.04 VPS.
 
+## Servers
+
+| Server | IP | Domain | Role |
+|--------|-----|--------|------|
+| DataCraft Systems | 37.60.225.7 | ours.datacraft.systems | Primary production |
+
 ## Quick Start
 
+### Local Deployment (on server)
 ```bash
 # Clone repository
 git clone https://github.com/your-org/docfusion.git
@@ -11,6 +18,18 @@ cd docfusion/deployment/scripts
 
 # Run full deployment
 sudo ./deploy.sh all
+```
+
+### Remote Deployment (from local machine)
+```bash
+# Deploy to DataCraft server
+./deploy-remote.sh datacraft deploy
+
+# Check status
+./deploy-remote.sh datacraft status
+
+# View logs
+./deploy-remote.sh datacraft logs
 ```
 
 ## Deployment Steps

@@ -9,6 +9,7 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
+import logging
 import pytest
 import asyncio
 from datetime import datetime, timedelta
@@ -72,8 +73,8 @@ class TestSystemInitialization:
 				if hasattr(component, 'stop'):
 					try:
 						await component.stop()
-					except:
-						pass
+					except Exception as e:
+						logging.getLogger(__name__).debug(f"Component stop failed during cleanup: {e}")
 
 
 class TestAgentCreationAndCoordination:
@@ -143,8 +144,8 @@ class TestAgentCreationAndCoordination:
 			for agent in agents.values():
 				try:
 					await agent.stop()
-				except:
-					pass
+				except Exception as e:
+					logging.getLogger(__name__).debug(f"Agent stop failed during cleanup: {e}")
 			await message_bus.stop()
 
 

@@ -13,7 +13,7 @@
  */
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import type { DocumentMetadata } from "./document-organization";
+import type { DocumentMetadata, DocumentType, DocumentObjective, DocumentStatus, DocumentStage } from "./document-organization";
 import { hdsiDB } from "./db";
 
 // ============================================================================
@@ -383,11 +383,11 @@ export function useBidirectionalLinks(currentDocumentId?: string) {
         title: doc.title,
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
-        type: (doc.metadata?.type as any) || "draft",
-        objectives: (doc.metadata?.objectives as any[]) || [],
+        type: (doc.metadata?.type as DocumentType) || "draft",
+        objectives: (doc.metadata?.objectives as DocumentObjective[]) || [],
         tags: doc.metadata?.tags || [],
-        status: "draft" as any,
-        stage: "outline" as any,
+        status: "draft" as DocumentStatus,
+        stage: "outline" as DocumentStage,
         ownerId: doc.metadata?.author || "unknown",
         ownerName: doc.metadata?.author || "Unknown",
         collaborators: [],
@@ -467,23 +467,31 @@ export function useBidirectionalLinks(currentDocumentId?: string) {
 // Commands Integration
 // ============================================================================
 
+interface TiptapEditorLike {
+  chain(): { focus(): { insertContent(content: string): { run(): void } } };
+  state: {
+    doc: { textBetween(from: number, to: number, separator: string): string };
+    selection: { from: number };
+  };
+}
+
 export const LINK_EDITOR_COMMANDS = {
-  openLinkSuggestions: (editor: any) => {
+  openLinkSuggestions: (editor: TiptapEditorLike) => {
     editor.chain().focus().insertContent("[[").run();
   },
-  
-  closeLinkSuggestions: (editor: any) => {
+
+  closeLinkSuggestions: (editor: TiptapEditorLike) => {
     const { state } = editor;
     const { selection } = state;
     const textBefore = state.doc.textBetween(0, selection.from, "\n");
-    
+
     // Check if we're in a partial link and close it
     if (detectPartialLink(textBefore, textBefore.length).isInLink) {
       editor.chain().focus().insertContent("]]").run();
     }
   },
-  
-  navigateLink: (editor: any, onNavigate: (url: string) => void) => {
+
+  navigateLink: (editor: TiptapEditorLike, onNavigate: (url: string) => void) => {
     const { state } = editor;
     const { selection } = state;
     const textBefore = state.doc.textBetween(0, selection.from, "\n");

@@ -24,6 +24,7 @@ import type {
 	IssueSeverity,
 	SuggestionImpact,
 } from "@/lib/types/opportunity";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Analysis Factor Definitions (30+ Factors)
@@ -845,7 +846,7 @@ Provide your JSON analysis.`;
 			suggestions,
 		};
 	} catch (error) {
-		console.warn(`[AI Analysis Error] Factor ${factor.id}:`, error);
+		logger.warn(`[AI Analysis Error] Factor ${factor.id}:`, error);
 		// Fallback to default score when AI fails
 		return {
 			id: factor.id,
@@ -1051,7 +1052,7 @@ export async function analyzeDocument(input: AnalyzeDocumentInput): Promise<Docu
 	}
 
 	const processingTime = Date.now() - startTime;
-	console.log(`Analysis completed in ${processingTime}ms`);
+	logger.debug(`Analysis completed in ${processingTime}ms`);
 
 	return {
 		id: savedAnalysis.id,

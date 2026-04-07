@@ -21,6 +21,14 @@ import type {
 	AIRequestId,
 	AIStreamChunk,
 } from "@/lib/types/ai";
+import {
+	AUTO_ACCEPT_THRESHOLD,
+	DEFAULT_AI_ENDPOINT,
+	OPERATION_HISTORY_LIMIT,
+	RECENT_COMMANDS_LIMIT,
+	STREAM_DEFAULT_CONFIDENCE,
+} from "@/lib/ai/constants";
+import { logger } from "@/lib/utils/logger";
 
 /** AI store state */
 export interface AIState {
@@ -123,8 +131,8 @@ const initialState: AIState = {
 	recentCommands: [],
 	operationHistory: [],
 	streamingEnabled: true,
-	autoAcceptThreshold: 0.95,
-	apiEndpoint: "/api/ai/completion",
+	autoAcceptThreshold: AUTO_ACCEPT_THRESHOLD,
+	apiEndpoint: DEFAULT_AI_ENDPOINT,
 };
 
 // Import the commands constant at runtime to avoid circular dependency
@@ -135,13 +143,13 @@ async function getAICommands(): Promise<AICommand[]> {
 		const aiModule = await import("@/lib/types/ai");
 		const commands = aiModule.AI_COMMANDS;
 		if (!commands || !Array.isArray(commands)) {
-			console.error("AI_COMMANDS not found or invalid in ai module");
+			logger.error("AI_COMMANDS not found or invalid in ai module");
 			return [];
 		}
 		AI_COMMANDS_CACHE = commands;
 		return commands;
 	} catch (error) {
-		console.error("Failed to load AI commands:", error);
+		logger.error("Failed to load AI commands:", error);
 		return [];
 	}
 }

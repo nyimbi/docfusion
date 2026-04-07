@@ -9,6 +9,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { sanitizeHTML } from "@/lib/utils/sanitize";
 import { Button } from "@/components/ui/Button";
 import {
 	Select,
@@ -413,7 +414,7 @@ export function DiagramPanel({
 								<div
 									ref={svgContainerRef}
 									className="bg-white p-4 rounded-lg shadow-sm"
-									dangerouslySetInnerHTML={{ __html: renderedSvg }}
+									dangerouslySetInnerHTML={{ __html: sanitizeHTML(renderedSvg) }}
 								/>
 							) : activeTab === "generate" && !result ? (
 								<div className="text-center text-muted-foreground p-8">

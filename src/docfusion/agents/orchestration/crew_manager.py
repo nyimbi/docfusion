@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from ..core.agent import Agent
 from ..core.messages import AgentMessage, MessageType, MessageTemplates
 import re
-from ..specialists import (
+
 """
 Agent Crew Management
 
@@ -28,10 +28,6 @@ except ImportError:
 	import uuid
 	def uuid7str() -> str:
 		return str(uuid.uuid4())
-
-	ResearchAgent, WriterAgent, ReviewerAgent, CoordinatorAgent, 
-	AnalysisAgent, QualityAgent
-)
 
 
 class CrewStatus(str, Enum):
@@ -423,7 +419,8 @@ class AgentCrew:
 				if fit_score > best_score:
 					best_score = fit_score
 					best_agent = agent_id
-			except:
+			except Exception as e:
+				self.logger.warning(f"Agent {agent_id} task fit evaluation failed: {e}")
 				continue
 		
 		return best_agent if best_score > 0.5 else None

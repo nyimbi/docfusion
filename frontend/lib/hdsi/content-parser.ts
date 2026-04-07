@@ -11,6 +11,7 @@
  * 4. AI-assisted: Use AI to infer structure from unstructured text
  */
 
+import { logger } from "@/lib/utils/logger";
 import type { HDSINode } from "./types";
 
 // ============================================================================
@@ -687,7 +688,7 @@ Return ONLY the JSON array, no explanation.`,
       method: "ai",
     };
   } catch (error) {
-    console.error("AI parsing error:", error);
+    logger.error("AI parsing error:", error);
     // Fallback to paragraph parsing
     return parseFromParagraphs(text, documentTitle, options);
   }

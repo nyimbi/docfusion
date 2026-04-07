@@ -380,7 +380,7 @@ export function ScoringRubric({
 										{/* Criteria Header */}
 										<div className="flex items-start gap-4">
 											<CollapsibleTrigger asChild>
-												<Button variant="ghost" size="icon" className="shrink-0 mt-0.5">
+												<Button variant="ghost" size="icon" className="shrink-0 mt-0.5" aria-label={isExpanded ? "Collapse criteria" : "Expand criteria"}>
 													{isExpanded ? (
 														<ChevronUp className="h-4 w-4" />
 													) : (

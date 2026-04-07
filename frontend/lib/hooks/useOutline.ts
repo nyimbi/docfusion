@@ -8,6 +8,7 @@ import type {
 	OutlineOptions,
 } from "@/lib/editor/extensions/outline";
 import type { DropPosition, DragMode } from "@/lib/editor/extensions/drag-drop";
+import { logger } from "@/lib/utils/logger";
 import {
 	getEditorOutline,
 	navigateToHeading,
@@ -124,7 +125,7 @@ export function useOutline(options: UseOutlineOptions): UseOutlineReturn {
 					return new Set<string>(JSON.parse(stored) as string[]);
 				}
 			} catch (e) {
-				console.warn("Failed to load collapsed sections from localStorage", e);
+				logger.warn("Failed to load collapsed sections from localStorage", e);
 			}
 		}
 		return new Set<string>();
@@ -145,7 +146,7 @@ export function useOutline(options: UseOutlineOptions): UseOutlineReturn {
 			try {
 				localStorage.setItem(storageKey, JSON.stringify(Array.from(collapsedSections)));
 			} catch (e) {
-				console.warn("Failed to save collapsed sections to localStorage", e);
+				logger.warn("Failed to save collapsed sections to localStorage", e);
 			}
 		}
 	}, [collapsedSections, saveCollapsedState, storageKey, isReady]);
@@ -321,7 +322,7 @@ export function useOutline(options: UseOutlineOptions): UseOutlineReturn {
 			};
 
 			if (isDescendant(source.id, target.targetId)) {
-				console.warn("Cannot drop a section into its own children");
+				logger.warn("Cannot drop a section into its own children");
 				return false;
 			}
 

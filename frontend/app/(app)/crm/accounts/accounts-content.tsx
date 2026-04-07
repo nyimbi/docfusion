@@ -7,7 +7,7 @@
  * Features the shared CRM navigation bar at the top.
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
@@ -148,9 +148,9 @@ export default function AccountsContent({ searchParams }: AccountsContentProps) 
 	};
 
 	// Handle account actions
-	const handleAccountClick = (account: AccountRow) => {
+	const handleAccountClick = useCallback((account: AccountRow) => {
 		router.push(`/crm/accounts/${account.id}`);
-	};
+	}, [router]);
 
 	const handleStageChange = async (accountId: string, newStage: string) => {
 		try {

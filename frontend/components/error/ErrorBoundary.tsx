@@ -10,6 +10,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { captureException } from "@/lib/monitoring/sentry";
 import {
 	AlertTriangle,
 	RefreshCw,
@@ -110,6 +111,11 @@ export class ErrorBoundary extends React.Component<
 		if (process.env.NODE_ENV === "development") {
 			console.error("ErrorBoundary caught an error:", error, errorInfo);
 		}
+
+		// Report to Sentry with the React component stack for debuggability
+		captureException(error, {
+			componentStack: errorInfo.componentStack ?? undefined,
+		});
 
 		// Call optional error callback
 		this.props.onError?.(error, errorInfo);

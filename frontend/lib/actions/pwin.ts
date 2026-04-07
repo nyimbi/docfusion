@@ -50,6 +50,7 @@ import { debriefs } from "@/lib/db/schema-winloss";
 import { eq, and, desc, asc, sql, gte, lte, inArray, count, avg, sum, isNotNull, or } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -556,7 +557,7 @@ export async function listPwinFactors(
 
 		return { success: true, data: factors };
 	} catch (error) {
-		console.error("[listPwinFactors]", error);
+		logger.error("[listPwinFactors]", error);
 		return { success: false, error: "Failed to list PWin factors" };
 	}
 }
@@ -613,7 +614,7 @@ export async function createPwinFactor(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[createPwinFactor]", error);
+		logger.error("[createPwinFactor]", error);
 		return { success: false, error: "Failed to create PWin factor" };
 	}
 }
@@ -667,7 +668,7 @@ export async function updatePwinFactor(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[updatePwinFactor]", error);
+		logger.error("[updatePwinFactor]", error);
 		return { success: false, error: "Failed to update PWin factor" };
 	}
 }
@@ -697,7 +698,7 @@ export async function deletePwinFactor(id: string): Promise<ActionResult<{ delet
 
 		return { success: true, data: { deleted: true } };
 	} catch (error) {
-		console.error("[deletePwinFactor]", error);
+		logger.error("[deletePwinFactor]", error);
 		return { success: false, error: "Failed to delete PWin factor" };
 	}
 }
@@ -743,7 +744,7 @@ export async function initializeDefaultFactors(
 
 		return { success: true, data: createdFactors };
 	} catch (error) {
-		console.error("[initializeDefaultFactors]", error);
+		logger.error("[initializeDefaultFactors]", error);
 		return { success: false, error: "Failed to initialize default factors" };
 	}
 }
@@ -855,7 +856,7 @@ export async function assessPwin(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[assessPwin]", error);
+		logger.error("[assessPwin]", error);
 		return { success: false, error: "Failed to assess PWin" };
 	}
 }
@@ -942,7 +943,7 @@ export async function getPwinAssessment(id: string): Promise<ActionResult<PwinAs
 
 		return { success: true, data: assessment };
 	} catch (error) {
-		console.error("[getPwinAssessment]", error);
+		logger.error("[getPwinAssessment]", error);
 		return { success: false, error: "Failed to get PWin assessment" };
 	}
 }
@@ -962,7 +963,7 @@ export async function listPwinAssessments(
 
 		return { success: true, data: assessments };
 	} catch (error) {
-		console.error("[listPwinAssessments]", error);
+		logger.error("[listPwinAssessments]", error);
 		return { success: false, error: "Failed to list PWin assessments" };
 	}
 }
@@ -992,7 +993,7 @@ export async function getPwinHistory(
 
 		return { success: true, data: history };
 	} catch (error) {
-		console.error("[getPwinHistory]", error);
+		logger.error("[getPwinHistory]", error);
 		return { success: false, error: "Failed to get PWin history" };
 	}
 }
@@ -1059,7 +1060,7 @@ export async function comparePwinAssessments(
 
 		return { success: true, data: { assessments, comparison } };
 	} catch (error) {
-		console.error("[comparePwinAssessments]", error);
+		logger.error("[comparePwinAssessments]", error);
 		return { success: false, error: "Failed to compare assessments" };
 	}
 }
@@ -1131,7 +1132,7 @@ export async function runSensitivityAnalysis(
 
 		return { success: true, data: analysis };
 	} catch (error) {
-		console.error("[runSensitivityAnalysis]", error);
+		logger.error("[runSensitivityAnalysis]", error);
 		return { success: false, error: "Failed to run sensitivity analysis" };
 	}
 }
@@ -1195,7 +1196,7 @@ export async function getRecommendationsToImprovePwin(
 					currentPwin
 				);
 			} catch (aiError) {
-				console.warn("[getRecommendationsToImprovePwin] AI generation failed:", aiError);
+				logger.warn("[getRecommendationsToImprovePwin] AI generation failed:", aiError);
 			}
 		}
 
@@ -1212,7 +1213,7 @@ export async function getRecommendationsToImprovePwin(
 
 		return { success: true, data: recommendations };
 	} catch (error) {
-		console.error("[getRecommendationsToImprovePwin]", error);
+		logger.error("[getRecommendationsToImprovePwin]", error);
 		return { success: false, error: "Failed to generate recommendations" };
 	}
 }
@@ -1461,7 +1462,7 @@ export async function identifyPwinRisks(
 
 		return { success: true, data: risks };
 	} catch (error) {
-		console.error("[identifyPwinRisks]", error);
+		logger.error("[identifyPwinRisks]", error);
 		return { success: false, error: "Failed to identify PWin risks" };
 	}
 }
@@ -1546,7 +1547,7 @@ export async function generatePwinReport(
 
 		return { success: true, data: report };
 	} catch (error) {
-		console.error("[generatePwinReport]", error);
+		logger.error("[generatePwinReport]", error);
 		return { success: false, error: "Failed to generate PWin report" };
 	}
 }
@@ -1700,7 +1701,7 @@ export async function optimizePortfolio(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[optimizePortfolio]", error);
+		logger.error("[optimizePortfolio]", error);
 		return { success: false, error: "Failed to optimize portfolio" };
 	}
 }
@@ -1799,7 +1800,7 @@ export async function compareOpportunities(
 
 		return { success: true, data: comparisons };
 	} catch (error) {
-		console.error("[compareOpportunities]", error);
+		logger.error("[compareOpportunities]", error);
 		return { success: false, error: "Failed to compare opportunities" };
 	}
 }
@@ -1901,7 +1902,7 @@ export async function rankOpportunities(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[rankOpportunities]", error);
+		logger.error("[rankOpportunities]", error);
 		return { success: false, error: "Failed to rank opportunities" };
 	}
 }
@@ -2024,7 +2025,7 @@ export async function getPortfolioMetrics(
 			},
 		};
 	} catch (error) {
-		console.error("[getPortfolioMetrics]", error);
+		logger.error("[getPortfolioMetrics]", error);
 		return { success: false, error: "Failed to get portfolio metrics" };
 	}
 }
@@ -2241,7 +2242,7 @@ export async function trainPwinModel(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[trainPwinModel]", error);
+		logger.error("[trainPwinModel]", error);
 		return { success: false, error: "Failed to train PWin model" };
 	}
 }
@@ -2313,7 +2314,7 @@ export async function evaluateModelPerformance(): Promise<ActionResult<ModelEval
 
 		return { success: true, data: evaluation };
 	} catch (error) {
-		console.error("[evaluateModelPerformance]", error);
+		logger.error("[evaluateModelPerformance]", error);
 		return { success: false, error: "Failed to evaluate model performance" };
 	}
 }
@@ -2331,7 +2332,7 @@ export async function getModelHistory(): Promise<ActionResult<PwinModelPerforman
 
 		return { success: true, data: models };
 	} catch (error) {
-		console.error("[getModelHistory]", error);
+		logger.error("[getModelHistory]", error);
 		return { success: false, error: "Failed to get model history" };
 	}
 }
@@ -2414,7 +2415,7 @@ export async function validateModelPredictions(): Promise<ActionResult<{
 			},
 		};
 	} catch (error) {
-		console.error("[validateModelPredictions]", error);
+		logger.error("[validateModelPredictions]", error);
 		return { success: false, error: "Failed to validate model predictions" };
 	}
 }
@@ -2480,7 +2481,7 @@ export async function forecastWinProbabilities(): Promise<ActionResult<PwinForec
 			},
 		};
 	} catch (error) {
-		console.error("[forecastWinProbabilities]", error);
+		logger.error("[forecastWinProbabilities]", error);
 		return { success: false, error: "Failed to forecast win probabilities" };
 	}
 }
@@ -2590,7 +2591,7 @@ export async function getCalibrationData(): Promise<ActionResult<CalibrationData
 			},
 		};
 	} catch (error) {
-		console.error("[getCalibrationData]", error);
+		logger.error("[getCalibrationData]", error);
 		return { success: false, error: "Failed to get calibration data" };
 	}
 }
@@ -2675,7 +2676,7 @@ export async function predictOutcome(
 			},
 		};
 	} catch (error) {
-		console.error("[predictOutcome]", error);
+		logger.error("[predictOutcome]", error);
 		return { success: false, error: "Failed to predict outcome" };
 	}
 }

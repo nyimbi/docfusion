@@ -13,6 +13,7 @@ Simple API for seamless collaboration features in document generation.
 
 import asyncio
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -22,6 +23,8 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 from uuid_extensions import uuid7str
+
+logger = logging.getLogger(__name__)
 
 from ..conflicts.conflict_detector import (
     ConflictAnalysisResult,
@@ -805,8 +808,9 @@ class CollaborationIntegrator:
                 await asyncio.sleep(30)  # Sync every 30 seconds
                 try:
                     await self._sync_document_immediately(document_id)
-                except Exception:
-                    pass  # Continue on errors
+                except Exception as e:
+                    logger.warning(f"Background sync failed for document {document_id}: {e}")
+                    pass
 
         task = asyncio.create_task(sync_task())
         self._sync_tasks[document_id] = task

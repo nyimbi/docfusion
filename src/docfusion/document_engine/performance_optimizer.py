@@ -11,6 +11,7 @@ Analyzes system performance metrics and provides optimizations for:
 """
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Tuple
@@ -18,6 +19,8 @@ from pathlib import Path
 import json
 
 from docfusion.document_engine.document_engine import DocumentEngine
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -67,13 +70,13 @@ class PerformanceOptimizer:
 		Returns:
 			PerformanceProfile with detailed analysis
 		"""
-		print(f"🔍 Profiling performance with {len(test_requests)} requests over {iterations} iterations...")
+		logger.info(f"Profiling performance with {len(test_requests)} requests over {iterations} iterations...")
 		
 		total_times = []
 		component_times_sum = {}
 		
 		for iteration in range(iterations):
-			print(f"  Iteration {iteration + 1}/{iterations}")
+			logger.debug(f"  Iteration {iteration + 1}/{iterations}")
 			
 			for request in test_requests:
 				start_time = time.time()
@@ -131,7 +134,7 @@ class PerformanceOptimizer:
 		)
 		
 		self.baseline_metrics = profile
-		print(f"✅ Performance profiling complete. Grade: {grade}")
+		logger.info(f"Performance profiling complete. Grade: {grade}")
 		return profile
 	
 	def _generate_recommendations(
@@ -218,7 +221,7 @@ class PerformanceOptimizer:
 		if not self.baseline_metrics:
 			raise ValueError("Must run profile_performance() first")
 		
-		print("🚀 Applying performance optimizations...")
+		logger.info("Applying performance optimizations...")
 		
 		original_time = self.baseline_metrics.total_time
 		optimizations_applied = []
@@ -264,7 +267,7 @@ class PerformanceOptimizer:
 		)
 		
 		self.optimization_history.append(result)
-		print(f"✅ Optimizations applied. Estimated improvement: {improvement_percentage:.1f}%")
+		logger.info(f"Optimizations applied. Estimated improvement: {improvement_percentage:.1f}%")
 		return result
 	
 	def _estimate_performance_improvement(self, optimizations: List[str]) -> float:
@@ -355,7 +358,7 @@ class PerformanceOptimizer:
 		
 		if output_path:
 			output_path.write_text(report)
-			print(f"📊 Performance report saved to {output_path}")
+			logger.info(f"Performance report saved to {output_path}")
 		
 		return report
 

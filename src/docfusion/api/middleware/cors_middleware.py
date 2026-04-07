@@ -7,12 +7,18 @@ origins, methods, headers, and security policies for frontend integration.
 """
 
 import logging
+import os
 from typing import Dict, List, Optional, Set, Union, Callable
 from urllib.parse import urlparse
 
 from fastapi import Request, Response
 from fastapi.middleware.cors import CORSMiddleware as FastAPICORSMiddleware
 from fastapi.responses import Response as FastAPIResponse
+
+
+def _get_allowed_origins() -> list[str]:
+	origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+	return [origin.strip() for origin in origins_env.split(",") if origin.strip()]
 
 
 class CORSConfiguration:
@@ -73,12 +79,7 @@ class CORSMiddleware:
 	def _get_default_config(self) -> CORSConfiguration:
 		"""Get default CORS configuration"""
 		return CORSConfiguration(
-			allowed_origins=[
-				"http://localhost:3000",  # Next.js dev server
-				"http://localhost:8000",  # Local development
-				"http://127.0.0.1:3000",
-				"http://127.0.0.1:8000"
-			],
+			allowed_origins=_get_allowed_origins(),
 			allowed_origin_patterns=[
 				r"https://.*\.yourdomain\.com",  # Production subdomains
 				r"https://.*\.vercel\.app",      # Vercel deployments
@@ -214,7 +215,8 @@ class CORSMiddleware:
 				return True
 			
 			return False
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Failed to validate origin '{origin}': {e}")
 			return False
 	
 	def _is_private_ip(self, ip: str) -> bool:
@@ -223,7 +225,8 @@ class CORSMiddleware:
 			import ipaddress
 			ip_obj = ipaddress.ip_address(ip)
 			return ip_obj.is_private
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Failed to check private IP for '{ip}': {e}")
 			return False
 	
 	# ==================== CONFIGURATION METHODS ====================
@@ -319,17 +322,10 @@ class ProductionCORSConfig(CORSConfiguration):
 
 class DevelopmentCORSConfig(CORSConfiguration):
 	"""Development-friendly CORS configuration"""
-	
+
 	def __init__(self):
 		super().__init__(
-			allowed_origins=[
-				"http://localhost:3000",
-				"http://localhost:3001",
-				"http://localhost:8000",
-				"http://localhost:8080",
-				"http://127.0.0.1:3000",
-				"http://127.0.0.1:8000"
-			],
+			allowed_origins=_get_allowed_origins(),
 			allowed_origin_patterns=[
 				r"http://localhost:\d+",
 				r"http://127\.0\.0\.1:\d+",

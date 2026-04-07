@@ -22,6 +22,7 @@ import type {
 	AIScoreFactor,
 	Opportunity,
 } from "@/lib/types/opportunity";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // AI Score Operations
@@ -294,7 +295,7 @@ async function calculateFitFactors(opp: typeof opportunities.$inferSelect): Prom
 		try {
 			return await calculateFitFactorsWithAI(opp);
 		} catch (error) {
-			console.warn("[AI Fit Factors Error] Falling back to heuristic:", error);
+			logger.warn("[AI Fit Factors Error] Falling back to heuristic:", error);
 		}
 	}
 	
@@ -469,7 +470,7 @@ async function calculateWinFactors(opp: typeof opportunities.$inferSelect): Prom
 			const aiFactors = await calculateWinFactorsWithAI(opp, relationshipScore);
 			return aiFactors;
 		} catch (error) {
-			console.warn("[AI Win Factors Error] Falling back to heuristic:", error);
+			logger.warn("[AI Win Factors Error] Falling back to heuristic:", error);
 		}
 	}
 	
@@ -611,7 +612,7 @@ async function estimateRelationshipScoreFromCRM(organization: string | null): Pr
 		if (winRate >= 0.1) return 55; // Some history
 		return 45; // Poor track record
 	} catch (error) {
-		console.warn("[CRM Query Error] Using default relationship score:", error);
+		logger.warn("[CRM Query Error] Using default relationship score:", error);
 		return 50;
 	}
 }
@@ -719,7 +720,7 @@ async function calculateRiskFactors(opp: typeof opportunities.$inferSelect): Pro
 		try {
 			return await calculateRiskFactorsWithAI(opp);
 		} catch (error) {
-			console.warn("[AI Risk Factors Error] Falling back to heuristic:", error);
+			logger.warn("[AI Risk Factors Error] Falling back to heuristic:", error);
 		}
 	}
 	
@@ -1080,7 +1081,7 @@ export async function calculateFitScoreWithLLM(opportunityId: string): Promise<O
 	const manager = getProviderManager();
 	await manager.initialize();
 	if (!manager.isAvailable()) {
-		console.log("[AI] No provider available, using heuristic scoring");
+		logger.debug("[AI] No provider available, using heuristic scoring");
 		return calculateFitScore(opportunityId);
 	}
 
@@ -1188,7 +1189,7 @@ Provide your fit analysis as JSON.`;
 
 		return mapToAIScore(score);
 	} catch (error) {
-		console.error("[AI Fit Score Error]", error);
+		logger.error("[AI Fit Score Error]", error);
 		// Fall back to heuristic scoring
 		return calculateFitScore(opportunityId);
 	}
@@ -1299,7 +1300,7 @@ Provide your win probability analysis as JSON.`;
 
 		return mapToAIScore(score);
 	} catch (error) {
-		console.error("[AI Win Probability Error]", error);
+		logger.error("[AI Win Probability Error]", error);
 		return calculateWinProbability(opportunityId);
 	}
 }
@@ -1395,7 +1396,7 @@ Provide your risk analysis as JSON.`;
 
 		return mapToAIScore(score);
 	} catch (error) {
-		console.error("[AI Risk Score Error]", error);
+		logger.error("[AI Risk Score Error]", error);
 		return calculateRiskScore(opportunityId);
 	}
 }
@@ -1460,7 +1461,7 @@ ${opp.keyRequirements || "Not specified"}`;
 			maxTokens: 300,
 		});
 	} catch (error) {
-		console.error("[AI Summary Error]", error);
+		logger.error("[AI Summary Error]", error);
 		return "Unable to generate summary. Please try again later.";
 	}
 }

@@ -12,6 +12,7 @@ import { db } from "@/lib/db";
 import { organization, user, templates, templateCategories } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { PREMIUM_TEMPLATE_INPUTS } from "@/lib/data/templates-data";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Seed Configuration
@@ -56,14 +57,14 @@ const SEED_CONFIG = {
  * Seed the Datacraft organization
  */
 async function seedOrganization() {
-	console.log("🔧 Seeding Datacraft organization...");
+	logger.debug("🔧 Seeding Datacraft organization...");
 	
 	const existingOrg = await db.query.organization.findFirst({
 		where: eq(organization.slug, "datacraft"),
 	});
 	
 	if (existingOrg) {
-		console.log("✅ Datacraft organization already exists");
+		logger.debug("✅ Datacraft organization already exists");
 		return existingOrg.id;
 	}
 	
@@ -74,7 +75,7 @@ async function seedOrganization() {
 		isActive: true,
 	});
 	
-	console.log("✅ Created Datacraft organization");
+	logger.debug("✅ Created Datacraft organization");
 	return orgId;
 }
 
@@ -82,18 +83,18 @@ async function seedOrganization() {
  * Seed template categories
  */
 async function seedCategories() {
-	console.log("📂 Seeding template categories...");
+	logger.debug("📂 Seeding template categories...");
 	
 	const existingCategories = await db.query.templateCategories.findMany();
 	
 	if (existingCategories.length > 0) {
-		console.log(`✅ ${existingCategories.length} categories already exist`);
+		logger.debug(`✅ ${existingCategories.length} categories already exist`);
 		return existingCategories.map((c) => c.id);
 	}
 	
 	await db.insert(templateCategories).values(SEED_CONFIG.categories);
 	
-	console.log("✅ Created template categories");
+	logger.debug("✅ Created template categories");
 	return SEED_CONFIG.categories.map((c) => c.id);
 }
 
@@ -101,14 +102,14 @@ async function seedCategories() {
  * Seed premium templates
  */
 async function seedTemplates(categoryIds: string[], orgId: string) {
-	console.log("📄 Seeding premium templates...");
+	logger.debug("📄 Seeding premium templates...");
 	
 	const existingTemplates = await db.query.templates.findMany({
 		limit: 1,
 	});
 	
 	if (existingTemplates.length > 0) {
-		console.log("✅ Templates already seeded");
+		logger.debug("✅ Templates already seeded");
 		return;
 	}
 	
@@ -170,10 +171,10 @@ async function seedTemplates(categoryIds: string[], orgId: string) {
 	for (let i = 0; i < templatesToInsert.length; i += batchSize) {
 		const batch = templatesToInsert.slice(i, i + batchSize);
 		await db.insert(templates).values(batch);
-		console.log(`✅ Inserted batch ${i / batchSize + 1}/${Math.ceil(templatesToInsert.length / batchSize)}`);
+		logger.debug(`✅ Inserted batch ${i / batchSize + 1}/${Math.ceil(templatesToInsert.length / batchSize)}`);
 	}
 	
-	console.log(`✅ Seeded ${templatesToInsert.length} templates`);
+	logger.debug(`✅ Seeded ${templatesToInsert.length} templates`);
 }
 
 /**
@@ -181,7 +182,7 @@ async function seedTemplates(categoryIds: string[], orgId: string) {
  */
 export async function seedDatabase(adminEmail?: string, adminPassword?: string) {
 	try {
-		console.log("🌱 Starting database seed...\n");
+		logger.debug("🌱 Starting database seed...\n");
 		
 		// 1. Seed organization
 		const orgId = await seedOrganization();
@@ -192,10 +193,10 @@ export async function seedDatabase(adminEmail?: string, adminPassword?: string) 
 		// 3. Seed templates
 		await seedTemplates(categoryIds, orgId);
 		
-		console.log("\n✅ Database seed completed successfully!");
+		logger.debug("\n✅ Database seed completed successfully!");
 		return { orgId, categoryIds };
 	} catch (error) {
-		console.error("❌ Database seed failed:", error);
+		logger.error("❌ Database seed failed:", error);
 		throw error;
 	}
 }
@@ -213,7 +214,7 @@ if (require.main === module) {
 	seedDatabase(adminEmail, adminPassword)
 		.then(() => process.exit(0))
 		.catch((error) => {
-			console.error(error);
+			logger.error(error);
 			process.exit(1);
 		});
 }

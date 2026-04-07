@@ -19,7 +19,7 @@ export interface CollaborationSession {
   documentId: string;
   provider: WebrtcProvider;
   ydoc: Y.Doc;
-  awareness: any;
+  awareness: WebrtcProvider["awareness"];
   localClientId: number;
 }
 
@@ -33,6 +33,17 @@ export interface UserPresence {
     selection: { start: number; end: number } | null;
   } | null;
   lastSeen: Date;
+}
+
+interface AwarenessUserState {
+  userId: string;
+  userName: string;
+  userColor: string;
+  cursor: {
+    nodeId: string | null;
+    selection: { start: number; end: number } | null;
+  } | null;
+  lastSeen: number;
 }
 
 export interface CollaborationConfig {
@@ -232,7 +243,7 @@ export class CollaborationManager {
     const session = this.sessions.get(documentId);
     if (!session) return [];
 
-    const entries = Array.from(session.awareness.getStates().entries()) as [number, any][];
+    const entries = Array.from(session.awareness.getStates().entries()) as [number, AwarenessUserState][];
     const now = Date.now();
 
     return entries
@@ -285,8 +296,8 @@ export class CollaborationManager {
   // Private Methods
   // ========================================================================
 
-  private notifyAwarenessChange(awareness: any): void {
-    const entries = Array.from(awareness.getStates().entries()) as [number, any][];
+  private notifyAwarenessChange(awareness: WebrtcProvider["awareness"]): void {
+    const entries = Array.from(awareness.getStates().entries()) as [number, AwarenessUserState][];
     const now = Date.now();
 
     const users: UserPresence[] = entries

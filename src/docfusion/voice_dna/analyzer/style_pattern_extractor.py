@@ -7,6 +7,7 @@ language patterns, and technical writing styles. Complements the VoicePatternAna
 with deeper stylistic analysis capabilities.
 """
 
+import logging
 import asyncio
 import re
 from collections import Counter, defaultdict
@@ -21,6 +22,8 @@ from uuid import uuid4
 
 # Import the base pattern classes from voice pattern analyzer
 from .voice_pattern_analyzer import WritingPattern, VoiceComponent
+
+logger = logging.getLogger(__name__)
 
 # NLP imports with fallbacks
 try:
@@ -139,7 +142,8 @@ class StylePatternExtractor:
 				nltk.download('wordnet', quiet=True)
 				nltk.download('vader_lexicon', quiet=True)
 				self.stop_words = set(stopwords.words('english'))
-			except Exception:
+			except Exception as e:
+				logger.warning(f"Failed to download NLTK resources: {e}")
 				self.stop_words = set()
 		else:
 			self.stop_words = set()

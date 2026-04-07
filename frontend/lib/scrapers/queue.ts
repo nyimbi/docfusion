@@ -309,7 +309,7 @@ class ScraperQueueImpl {
 				const job = this.getNextJob();
 				if (!job) {
 					if (this.running.size === 0) {
-						this.emit("queue:empty", null as any);
+						this.emit("queue:empty", null);
 					}
 					break;
 				}
@@ -427,10 +427,10 @@ class ScraperQueueImpl {
 	/**
 	 * Emit an event
 	 */
-	private emit(type: QueueEventType, job: ScraperJob): void {
+	private emit(type: QueueEventType, job: ScraperJob | null): void {
 		const event: QueueEvent = {
 			type,
-			job,
+			job: job!,
 			timestamp: new Date(),
 		};
 		this.events.emit(type, job);

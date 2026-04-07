@@ -8,38 +8,31 @@
 // Re-export auth schema so Drizzle sees all tables
 export * from "./auth-schema";
 
-// Re-export company schema
-export * from "./schema-company";
-export * from "./schema-comments-workflow";
+// ============================================================================
+// Domain Schema Re-exports (consolidated)
+// ============================================================================
 
-// Re-export import schema (universal data import)
-export * from "./schema-import";
+// Core domain: RFP intelligence, template additions, quality assessments
+export * from "./schema-rfp";
+export * from "./schema-additions";
 
-// Re-export extended partner schema (replaces basic partners table)
-export * from "./schema-partners";
-
-// Re-export CRM schema (accounts, contacts, activities, deals, documents)
+// CRM domain: accounts, contacts, activities, deals, documents
 export * from "./schema-crm";
 
-// Re-export RFP intelligence schema (RFP parsing, requirements, compliance)
-export * from "./schema-rfp";
+// Workflow domain: pipeline, reviews, comments, tasks, presentations
+export * from "./schema-workflow";
 
-// Re-export content library extensions (embeddings, analytics, usage tracking)
-export * from "./schema-content-library";
+// Intelligence & Analysis
+export * from "./schema-intelligence";
 
-// Re-export review schema (Pink/Red/Gold team reviews)
-export * from "./schema-reviews";
-
-// Re-export presentations schema (oral presentations, slides, Q&A, practice recordings)
-export * from "./schema-presentations";
-
-// Re-export bibliography schema (citations, references, bibliography entries)
-export * from "./schema-bibliography";
+// Integration & External Systems
+export * from "./schema-integration";
 
 import { user } from "./auth-schema";
 
 import {
 	pgTable,
+	pgEnum,
 	text,
 	timestamp,
 	integer,
@@ -334,6 +327,22 @@ export const opportunities = pgTable(
 		/** Type of opportunity */
 		opportunityType: varchar("opportunity_type", { length: 50 }).notNull().default("rfp"),
 
+		// Scraper Integration Fields
+		/** Scraper source identifier (e.g., "ungm", "afdb", "kenya_ppip") */
+		source: varchar("source", { length: 50 }),
+		/** SHA256 fingerprint for deduplication (hash of title+org+deadline) */
+		fingerprint: varchar("fingerprint", { length: 64 }),
+		/** Notice/tender ID from source portal */
+		noticeId: varchar("notice_id", { length: 100 }),
+		/** Link to portal page */
+		portalUrl: text("portal_url"),
+		/** Link to tender documents */
+		documentUrl: text("document_url"),
+		/** When the opportunity was scraped */
+		scrapedAt: timestamp("scraped_at", { withTimezone: true }),
+		/** Published/posted date from source */
+		publishedDate: timestamp("published_date", { withTimezone: true }),
+
 		// Ranking & Analysis Fields
 		/** Manual priority ranking (1-5, 5 being highest priority) */
 		priorityRank: integer("priority_rank").default(3),
@@ -364,6 +373,20 @@ export const opportunities = pgTable(
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 		importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+
+		// Document Management Fields
+		/** Whether documents have been discovered */
+		documentsDiscovered: boolean("documents_discovered").default(false),
+		/** When documents were discovered */
+		documentsDiscoveredAt: timestamp("documents_discovered_at", { withTimezone: true }),
+		/** Count of downloaded documents */
+		documentsDownloadedCount: integer("documents_downloaded_count").default(0),
+		/** When last document scan occurred */
+		lastDocumentScanAt: timestamp("last_document_scan_at", { withTimezone: true }),
+
+		// Full-Text Search
+		/** Pre-computed tsvector for full-text search */
+		searchVector: text("search_vector", { mode: "tsvector" }),
 	},
 	(table) => [
 		index("opportunities_deadline_idx").on(table.deadline),
@@ -375,8 +398,37 @@ export const opportunities = pgTable(
 		index("opportunities_source_idx").on(table.sourceFile),
 		index("opportunities_expired_idx").on(table.isExpired),
 		uniqueIndex("opportunities_source_id_file_idx").on(table.sourceId, table.sourceFile),
+		// Scraper deduplication indexes
+		uniqueIndex("opportunities_fingerprint_idx").on(table.fingerprint),
+		index("opportunities_source_source_id_idx").on(table.source, table.sourceId),
+		index("opportunities_scraped_at_idx").on(table.scrapedAt),
+		// Full-text search indexes
+		index("opportunities_search_vector_idx").using("gin", table.searchVector),
 	]
 );
+
+// ============================================================================
+// Saved Searches
+// ============================================================================
+
+export const savedSearches = pgTable(
+	"saved_searches",
+	{
+		id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+		userId: text("user_id").notNull(),
+		name: text("name").notNull(),
+		/** JSONB payload containing filters, sort, description, isDefault */
+		filters: jsonb("filters").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("saved_searches_user_idx").on(table.userId),
+	]
+);
+
+export type SavedSearchRow = typeof savedSearches.$inferSelect;
+export type NewSavedSearch = typeof savedSearches.$inferInsert;
 
 // ============================================================================
 // Opportunity Import History
@@ -709,8 +761,8 @@ export const submissions = pgTable(
 	]
 );
 
-// Partners table is now defined in schema-partners.ts (re-exported above)
-import { partners } from "./schema-partners";
+// Partners table is defined in schema-integration.ts (re-exported above)
+import { partners } from "./schema-integration";
 
 // ============================================================================
 // Opportunity Partners (partner assignments)
@@ -756,6 +808,7 @@ export const opportunitiesRelations = relations(opportunities, ({ many }) => ({
 	proposalDocuments: many(proposalDocuments),
 	submissions: many(submissions),
 	partners: many(opportunityPartners),
+	opportunityDocuments: many(opportunityDocuments),
 }));
 
 export const opportunityVotesRelations = relations(opportunityVotes, ({ one }) => ({
@@ -825,8 +878,96 @@ export const submissionsRelations = relations(submissions, ({ one }) => ({
 	}),
 }));
 
+// ============================================================================
+// Opportunity Documents (RFP documents discovered and downloaded)
+// ============================================================================
+
+export const opportunityDocStatusEnum = pgEnum("opportunity_doc_status", [
+	"discovered",
+	"downloading",
+	"downloaded",
+	"failed",
+	"analyzed",
+	"error",
+]);
+
+export const opportunityDocTypeEnum = pgEnum("opportunity_doc_type", [
+	"rfp",
+	"amendment",
+	"attachment",
+	"specification",
+	"evaluation",
+	"form",
+	"other",
+]);
+
+export const opportunityDocuments = pgTable(
+	"opportunity_documents",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		opportunityId: uuid("opportunity_id").notNull().references(() => opportunities.id, { onDelete: "cascade" }),
+		/** Document name/title */
+		documentName: varchar("document_name", { length: 500 }).notNull(),
+		/** Type of document */
+		documentType: opportunityDocTypeEnum("document_type").notNull().default("attachment"),
+		/** Description of the document */
+		description: text("description"),
+		/** Original source URL */
+		sourceUrl: text("source_url").notNull(),
+		/** When the document was discovered */
+		discoveredAt: timestamp("discovered_at", { withTimezone: true }).notNull().defaultNow(),
+		/** Local file path after download */
+		localPath: text("local_path"),
+		/** File size in bytes */
+		fileSizeBytes: integer("file_size_bytes"),
+		/** MIME type */
+		mimeType: varchar("mime_type", { length: 100 }),
+		/** SHA256 hash for deduplication */
+		fileHash: varchar("file_hash", { length: 64 }),
+		/** When downloaded */
+		downloadedAt: timestamp("downloaded_at", { withTimezone: true }),
+		/** Number of download attempts */
+		downloadAttempts: integer("download_attempts").notNull().default(0),
+		/** Last error message */
+		lastError: text("last_error"),
+		/** Extracted text content */
+		extractedText: text("extracted_text"),
+		/** When text was extracted */
+		extractedAt: timestamp("extracted_at", { withTimezone: true }),
+		/** Page count (for PDFs) */
+		pageCount: integer("page_count"),
+		/** Whether document has been analyzed */
+		isAnalyzed: boolean("is_analyzed").notNull().default(false),
+		/** When analyzed */
+		analyzedAt: timestamp("analyzed_at", { withTimezone: true }),
+		/** AI analysis results */
+		analysisResults: jsonb("analysis_results"),
+		/** Current status */
+		status: opportunityDocStatusEnum("status").notNull().default("discovered"),
+		/** Whether selected for bulk operations */
+		isSelected: boolean("is_selected").notNull().default(true),
+		/** Who downloaded */
+		downloadedBy: varchar("downloaded_by", { length: 200 }),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("opp_docs_opportunity_idx").on(table.opportunityId),
+		index("opp_docs_status_idx").on(table.status),
+		index("opp_docs_type_idx").on(table.documentType),
+		uniqueIndex("opp_docs_opp_url_idx").on(table.opportunityId, table.sourceUrl),
+	]
+);
+
+export const opportunityDocumentsRelations = relations(opportunityDocuments, ({ one }) => ({
+	opportunity: one(opportunities, {
+		fields: [opportunityDocuments.opportunityId],
+		references: [opportunities.id],
+	}),
+}));
+
 // Import partner communication and notes tables for relations
-import { partnerCommunications, partnerNotes } from "./schema-partners";
+import { partnerCommunications, partnerNotes } from "./schema-integration";
 
 export const partnersRelations = relations(partners, ({ many }) => ({
 	opportunities: many(opportunityPartners),
@@ -989,6 +1130,9 @@ export type NewParagraphAnalysis = typeof paragraphAnalyses.$inferInsert;
 
 export type SubmissionRow = typeof submissions.$inferSelect;
 export type NewSubmission = typeof submissions.$inferInsert;
+
+export type OpportunityDocumentRow = typeof opportunityDocuments.$inferSelect;
+export type NewOpportunityDocument = typeof opportunityDocuments.$inferInsert;
 
 // PartnerRow and NewPartner are exported from schema-partners.ts
 
@@ -1505,25 +1649,5 @@ export type NewDataExport = typeof dataExports.$inferInsert;
 export type UserSessionRow = typeof userSessions.$inferSelect;
 export type NewUserSession = typeof userSessions.$inferInsert;
 
-// ============================================================================
-// Re-export Template Snippets, Edits, and Partials
-// ============================================================================
-
-export {
-	templateSnippets,
-	templateEdits,
-	templatePartials,
-	templateVersions,
-	templateSnippetsRelations,
-	templateEditsRelations,
-	templatePartialsRelations,
-	templateVersionsRelations,
-	type TemplateSnippetRow,
-	type NewTemplateSnippet,
-	type TemplateEditRow,
-	type NewTemplateEdit,
-	type TemplatePartialRow,
-	type NewTemplatePartial,
-	type TemplateVersionRow,
-	type NewTemplateVersion,
-} from "./schema-additions";
+// Template Snippets, Edits, and Partials are now re-exported via
+// export * from "./schema-additions" at the top of this file.

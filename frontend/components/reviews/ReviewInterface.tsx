@@ -31,6 +31,7 @@ import {
 	ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
+import { sanitizeHTML } from "@/lib/utils/sanitize";
 import { CommentPanel } from "./CommentPanel";
 import { ScoringRubric, type EvaluationCriteria, type CriteriaScore } from "./ScoringRubric";
 import type { Comment } from "./CommentCard";
@@ -254,6 +255,7 @@ export function ReviewInterface({
 										variant="ghost"
 										size="icon"
 										onClick={() => setIsFullscreen(!isFullscreen)}
+										aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
 									>
 										{isFullscreen ? (
 											<Minimize2 className="h-4 w-4" />
@@ -283,7 +285,7 @@ export function ReviewInterface({
 									/>
 								) : currentSection?.content ? (
 									<div className="prose dark:prose-invert max-w-none">
-										<div dangerouslySetInnerHTML={{ __html: currentSection.content }} />
+										<div dangerouslySetInnerHTML={{ __html: sanitizeHTML(currentSection.content) }} />
 									</div>
 								) : (
 									<div className="flex items-center justify-center h-full text-muted-foreground">

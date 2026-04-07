@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 /**
  * GraphicsGallery Component - DocFusion
  *
@@ -152,10 +154,12 @@ function GraphicCard({
 						/>
 					</div>
 				) : graphic.imageUrl ? (
-					<img
+					<Image
 						src={graphic.imageUrl}
 						alt={graphic.title}
-						className="absolute inset-0 w-full h-full object-contain"
+						className="object-contain"
+						fill
+						unoptimized
 					/>
 				) : (
 					<div className="absolute inset-0 flex items-center justify-center">

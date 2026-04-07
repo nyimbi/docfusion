@@ -55,6 +55,7 @@ from PIL import Image
 import io
 
 from ..generic.base_scraper import BaseScraper, ScrapingResult, ScrapingStatus, ScrapingConfiguration, uuid7str
+from ....config.secrets import SecretsManager
 from pydantic import BaseModel, Field
 from enum import Enum
 
@@ -233,7 +234,7 @@ class UniversalScraper(BaseScraper):
 			if HAS_CRAWL4AI:
 				self.llm_strategy = LLMExtractionStrategy(
 					provider="openai/gpt-4o-mini",
-					api_key="your-api-key-here",  # Should be configured externally
+					api_key=SecretsManager.get_openai_api_key(),  # Uses centralized secrets management
 					instruction="""
 					Extract procurement opportunities from this webpage. For each opportunity, extract:
 					- title: The title or name of the opportunity
@@ -245,7 +246,7 @@ class UniversalScraper(BaseScraper):
 					- reference_number: Any reference or ID number
 					- requirements: Key requirements mentioned
 					- contact_info: Contact information if available
-					
+
 					Return as JSON array of objects with these fields.
 					"""
 				)
@@ -576,7 +577,8 @@ class UniversalScraper(BaseScraper):
 						title = await title_element.text_content()
 						if title and len(title.strip()) > 5:
 							break
-				except:
+				except (ValueError, TypeError, KeyError, AttributeError, ConnectionError) as e:
+					self.logger.debug(f"Title selector '{selector}' failed: {e}")
 					continue
 			
 			# If no title found in sub-elements, use first meaningful line
@@ -651,7 +653,8 @@ class UniversalScraper(BaseScraper):
 			else:
 				return tag_name
 		
-		except:
+		except (ValueError, TypeError, AttributeError, ConnectionError) as e:
+			self.logger.debug(f"Failed to generate element selector: {e}")
 			return "unknown"
 	
 	async def _extract_with_crawl4ai_llm(self, url: str) -> Tuple[ScrapingResult, ExtractionResult]:
@@ -813,8 +816,8 @@ class UniversalScraper(BaseScraper):
 			# Wait for page to fully load and any dynamic content
 			try:
 				await page.wait_for_load_state('networkidle', timeout=10000)
-			except:
-				pass  # Continue even if networkidle times out
+			except (TimeoutError, Exception) as e:
+				self.logger.debug(f"Network idle wait timed out, continuing: {e}")
 			
 			# Check for Cloudflare or other blocking
 			await self._handle_blocking_mechanisms(page)
@@ -1012,8 +1015,8 @@ class UniversalScraper(BaseScraper):
 				if await accept_button.count() > 0:
 					await accept_button.first.click()
 					await page.wait_for_timeout(1000)
-			except:
-				pass
+			except (TimeoutError, ValueError, TypeError) as e:
+				self.logger.debug(f"Cookie banner dismissal failed: {e}")
 			
 			# Handle "Show more" or pagination
 			try:
@@ -1021,8 +1024,8 @@ class UniversalScraper(BaseScraper):
 				if await show_more.count() > 0:
 					await show_more.first.click()
 					await page.wait_for_timeout(2000)
-			except:
-				pass
+			except (TimeoutError, ValueError, TypeError) as e:
+				self.logger.debug(f"Show more/pagination click failed: {e}")
 			
 		except Exception as e:
 			self.logger.debug(f"Error handling blocking mechanisms: {e}")

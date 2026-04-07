@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 /**
  * Document Sidebar - Right sidebar with document info and metadata.
  *
@@ -568,10 +570,13 @@ function CollaboratorCard({ collaborator, isOwner }: CollaboratorCardProps) {
 		<div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
 			<div className="relative">
 				{collaborator.avatarUrl ? (
-					<img
+					<Image
 						src={collaborator.avatarUrl}
 						alt={collaborator.name}
 						className="w-8 h-8 rounded-full object-cover"
+						width={32}
+						height={32}
+						unoptimized
 					/>
 				) : (
 					<div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium">

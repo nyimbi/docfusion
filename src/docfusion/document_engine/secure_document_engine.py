@@ -30,7 +30,7 @@ from ..security import (
 )
 from .document_engine import (
     DocumentEngine,
-    DocumentEngineConfiguration,
+    DocumentGenerationConfiguration,
     DocumentGenerationResult,
 )
 
@@ -40,7 +40,7 @@ class SecureDocumentEngineConfiguration:
     """Configuration for secure document engine"""
 
     # Base document engine configuration
-    document_engine_config: DocumentEngineConfiguration
+    document_engine_config: DocumentGenerationConfiguration
 
     # Security configuration
     security_config: Optional[SecurityManagerConfiguration] = None

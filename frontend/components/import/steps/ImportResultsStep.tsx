@@ -73,8 +73,8 @@ export function ImportResultsStep() {
 	const [rollbackError, setRollbackError] = useState<string | null>(null);
 
 	const {
-		setImportResult,
-		setIsLoading,
+		setResult: setImportResult,
+		setLoading: setIsLoading,
 		setError,
 		setProgress,
 	} = useImportStore();

@@ -155,14 +155,9 @@ export interface ImportWizardActions {
 	// UI
 	setLoading: (loading: boolean) => void;
 	setError: (error: string | null) => void;
-	setIsLoading: (loading: boolean) => void;
 	setPreviewData: (data: ImportWizardState["previewData"]) => void;
 	setTemplates: (templates: ImportWizardState["templates"]) => void;
 	setSelectedTemplateId: (id: string | null) => void;
-	setImportResult: (result: ImportResult) => void;
-
-	// Navigation helpers
-	previousStep: () => void;
 
 	// Reset
 	reset: () => void;
@@ -435,11 +430,6 @@ export const useImportStore = create<ImportWizardState & ImportWizardActions>()(
 					state.isLoading = false;
 				}),
 
-			setIsLoading: (loading) =>
-				set((state) => {
-					state.isLoading = loading;
-				}),
-
 			setPreviewData: (data) =>
 				set((state) => {
 					state.previewData = data;
@@ -453,21 +443,6 @@ export const useImportStore = create<ImportWizardState & ImportWizardActions>()(
 			setSelectedTemplateId: (id) =>
 				set((state) => {
 					state.selectedTemplateId = id;
-				}),
-
-			setImportResult: (result) =>
-				set((state) => {
-					state.result = result;
-				}),
-
-			// Navigation alias
-			previousStep: () =>
-				set((state) => {
-					const currentIndex = WIZARD_STEPS.indexOf(state.currentStep);
-					if (currentIndex > 0) {
-						state.currentStep = WIZARD_STEPS[currentIndex - 1];
-						state.error = null;
-					}
 				}),
 
 			// ===== Reset =====

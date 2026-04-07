@@ -287,10 +287,13 @@ export async function getAccounts(
 	const conditions = buildAccountFilterConditions(filters);
 
 	// Build order by clause
-	const orderByClause = sort
-		? sort.direction === "asc"
-			? asc(accounts[sort.field as keyof typeof accounts] as any)
-			: desc(accounts[sort.field as keyof typeof accounts] as any)
+	const sortColumn = sort
+		? accounts[sort.field as keyof typeof accounts] as unknown as Parameters<typeof asc>[0]
+		: null;
+	const orderByClause = sortColumn
+		? sort!.direction === "asc"
+			? asc(sortColumn)
+			: desc(sortColumn)
 		: desc(accounts.updatedAt);
 
 	// Get total count

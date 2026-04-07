@@ -5,6 +5,7 @@
  * HNSW indexing with cosine similarity for RAG
  */
 
+import { logger } from "@/lib/utils/logger";
 import type { HDSINode } from "./types";
 
 // ============================================================================
@@ -71,7 +72,7 @@ export async function generateEmbedding(
   try {
     return await generateApiEmbedding(truncated, model);
   } catch (error) {
-    console.error("Embedding generation failed:", error);
+    logger.error("Embedding generation failed:", error);
     // Return zero vector as fallback
     return new Array(config.dimensions).fill(0);
   }

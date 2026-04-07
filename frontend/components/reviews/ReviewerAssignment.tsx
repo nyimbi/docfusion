@@ -319,11 +319,11 @@ export function ReviewerAssignment({
 													<Badge variant="outline">{reviewer.assignedSections.length} sections</Badge>
 												)}
 												<CollapsibleTrigger asChild>
-													<Button variant="ghost" size="icon">
+													<Button variant="ghost" size="icon" aria-label={isExpanded ? "Collapse reviewer details" : "Expand reviewer details"}>
 														<ChevronDown className={cn("h-4 w-4 transition-transform", isExpanded && "rotate-180")} />
 													</Button>
 												</CollapsibleTrigger>
-												<Button variant="ghost" size="icon" onClick={() => handleRemoveReviewer(reviewer.userId)}>
+												<Button variant="ghost" size="icon" onClick={() => handleRemoveReviewer(reviewer.userId)} aria-label="Remove reviewer">
 													<X className="h-4 w-4" />
 												</Button>
 											</div>

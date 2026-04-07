@@ -10,13 +10,7 @@ import uuid
 
 # UUID generation with fallback
 try:
-	try:
 	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4()) as _uuid7str
-	uuid7str = _uuid7str
 except ImportError:
 	def uuid7str() -> str:
 		return str(uuid.uuid4())

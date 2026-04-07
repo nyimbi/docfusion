@@ -661,9 +661,226 @@ class WinProbabilityPredictor:
 	
 	def _log_models_loaded(self):
 		print("WinProbabilityPredictor: Models loaded from cache")
-	
+
 	def _log_load_error(self, message: str):
 		print(f"WinProbabilityPredictor Load Error: {message}")
+
+	async def predict_win_probability_from_scores(
+		self,
+		section_scores: Dict[str, float],
+		opportunity_id: str,
+		opportunity_features: Optional[Dict[str, float]] = None
+	) -> PredictionResult:
+		"""
+		Calculate win probability from section scores combined with opportunity features.
+
+		This method integrates with ScoringPredictor to derive win probability
+		from predicted section scores and other opportunity factors.
+
+		Args:
+			section_scores: Dictionary of section type to predicted score (0-100)
+			opportunity_id: Unique opportunity identifier
+			opportunity_features: Optional additional opportunity features
+
+		Returns:
+			PredictionResult with win probability and insights
+		"""
+		# Calculate combined proposal score
+		combined_score = self._combine_section_scores(section_scores)
+
+		# Create prediction features from scores and additional features
+		features_dict = self._create_features_from_scores(
+			section_scores, combined_score, opportunity_features
+		)
+
+		# Create PredictionFeatures object
+		prediction_features = PredictionFeatures(**features_dict)
+
+		# Use existing prediction logic
+		return await self.predict_win_probability(prediction_features, opportunity_id)
+
+	def _combine_section_scores(self, section_scores: Dict[str, float]) -> float:
+		"""
+		Combine section scores into overall proposal score.
+
+		Uses weighted average based on typical evaluation criteria weights.
+
+		Args:
+			section_scores: Dictionary of section type to score (0-100)
+
+		Returns:
+			Combined proposal score (0-100)
+		"""
+		# Standard section weights (typical RFP evaluation weights)
+		section_weights = {
+			'technical_approach': 0.30,
+			'management_approach': 0.15,
+			'past_performance': 0.20,
+			'personnel_qualifications': 0.10,
+			'corporate_experience': 0.05,
+			'understanding_of_requirements': 0.10,
+			'price_cost': 0.05,
+			'small_business_utilization': 0.02,
+			'transition_approach': 0.02,
+			'risk_management': 0.01,
+		}
+
+		total_weight = 0.0
+		weighted_sum = 0.0
+
+		for section, score in section_scores.items():
+			weight = section_weights.get(section, 0.05)  # Default weight for unknown sections
+			weighted_sum += score * weight
+			total_weight += weight
+
+		# Normalize by total weight used
+		if total_weight > 0:
+			combined_score = weighted_sum / total_weight
+		else:
+			# Fallback to simple average
+			combined_score = sum(section_scores.values()) / len(section_scores) if section_scores else 0.0
+
+		return min(100.0, max(0.0, combined_score))
+
+	def _create_features_from_scores(
+		self,
+		section_scores: Dict[str, float],
+		combined_score: float,
+		opportunity_features: Optional[Dict[str, float]] = None
+	) -> Dict[str, Any]:
+		"""
+		Create prediction features from section scores and opportunity data.
+
+		Args:
+			section_scores: Dictionary of section scores
+			combined_score: Combined proposal score
+			opportunity_features: Optional additional features
+
+		Returns:
+			Dictionary of feature values for PredictionFeatures
+		"""
+		# Default opportunity features
+		defaults: Dict[str, Any] = {
+			'opportunity_value': 1000000.0,
+			'submission_days_remaining': 30,
+			'requirements_complexity': 0.5,
+			'capability_match_score': 0.5,
+			'past_performance_score': 0.5,
+			'team_experience_score': 0.5,
+			'competitive_intensity': 0.5,
+			'incumbent_advantage': False,
+			'estimated_competitors': 5,
+			'market_familiarity': 0.5,
+			'industry_experience_years': 5,
+			'client_relationship_score': 0.5,
+			'strategic_importance': 0.5,
+			'resource_availability': 0.5,
+			'pricing_competitiveness': 0.5,
+		}
+
+		# Override defaults with provided features
+		if opportunity_features:
+			for key, value in opportunity_features.items():
+				if key in defaults:
+					defaults[key] = value
+
+		# Derive features from section scores
+		# Technical approach score maps to capability match
+		if 'technical_approach' in section_scores:
+			defaults['capability_match_score'] = min(1.0, section_scores['technical_approach'] / 100.0)
+
+		# Past performance score maps directly
+		if 'past_performance' in section_scores:
+			defaults['past_performance_score'] = min(1.0, section_scores['past_performance'] / 100.0)
+
+		# Personnel qualifications maps to team experience
+		if 'personnel_qualifications' in section_scores:
+			defaults['team_experience_score'] = min(1.0, section_scores['personnel_qualifications'] / 100.0)
+
+		# Understanding of requirements maps to market familiarity
+		if 'understanding_of_requirements' in section_scores:
+			defaults['market_familiarity'] = min(1.0, section_scores['understanding_of_requirements'] / 100.0)
+
+		# Combined score influences client relationship (higher scores = better relationship)
+		defaults['client_relationship_score'] = min(1.0, combined_score / 100.0)
+
+		return defaults
+
+	def get_confidence_interval(
+		self,
+		probability: float,
+		confidence_level: float = 0.95
+	) -> Tuple[float, float]:
+		"""
+		Get confidence interval for a win probability prediction.
+
+		Uses the model's prediction confidence to estimate the interval.
+
+		Args:
+			probability: Predicted win probability
+			confidence_level: Confidence level (default 0.95 for 95% CI)
+
+		Returns:
+			Tuple of (lower_bound, upper_bound)
+		"""
+		# Calculate margin based on prediction confidence
+		# Higher confidence = narrower interval
+		if not self.is_trained:
+			# If not trained, use wider interval
+			margin = 0.2
+		else:
+			# Use model performance to estimate margin
+			# Lower accuracy = wider interval
+			avg_accuracy = np.mean([
+				metrics.accuracy for metrics in self.model_performance.values()
+			]) if self.model_performance else 0.7
+
+			# Margin inversely proportional to accuracy
+			margin = (1 - avg_accuracy) * 0.5
+
+		# Calculate bounds
+		lower = max(0.0, probability - margin)
+		upper = min(1.0, probability + margin)
+
+		return (lower, upper)
+
+	def integrate_with_scoring_predictor(
+		self,
+		scoring_predictor: Any,  # ScoringPredictor instance
+		requirements: List[Any],  # List of Requirement objects
+		opportunity_id: str,
+		compliance_matrix: Optional[Any] = None,  # ComplianceMatrix object
+		opportunity_features: Optional[Dict[str, float]] = None
+	) -> Dict[str, Any]:
+		"""
+		Integrate with ScoringPredictor to provide comprehensive prediction.
+
+		This method coordinates between the scoring predictor (section-level scores)
+		and win probability predictor to provide a complete picture.
+
+		Args:
+			scoring_predictor: Instance of ScoringPredictor
+			requirements: List of extracted requirements
+			opportunity_id: Unique opportunity identifier
+			compliance_matrix: Optional compliance matrix
+			opportunity_features: Optional additional features
+
+		Returns:
+			Dictionary with integrated prediction results
+		"""
+		# This is a placeholder for integration
+		# In practice, this would call scoring_predictor methods
+		# and combine results with win probability
+
+		return {
+			"opportunity_id": opportunity_id,
+			"section_scores": {},
+			"combined_score": 0.0,
+			"win_probability": 0.5,
+			"confidence_interval": (0.3, 0.7),
+			"recommendations": [],
+			"integrated_prediction": True
+		}
 
 
 # Example usage and testing

@@ -410,22 +410,22 @@ export function HDSINodeEditor({
 
         <div className="flex items-center gap-1">
           {/* Structure Controls */}
-          <Button variant="ghost" size="icon" onClick={onMoveUp} title="Move up">
+          <Button variant="ghost" size="icon" onClick={onMoveUp} title="Move up" aria-label="Move up">
             <MoveUp className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onMoveDown} title="Move down">
+          <Button variant="ghost" size="icon" onClick={onMoveDown} title="Move down" aria-label="Move down">
             <MoveDown className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onIndent} title="Make subsection">
+          <Button variant="ghost" size="icon" onClick={onIndent} title="Make subsection" aria-label="Make subsection">
             <Indent className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onOutdent} disabled={!canOutdent} title="Move up level">
+          <Button variant="ghost" size="icon" onClick={onOutdent} disabled={!canOutdent} title="Move up level" aria-label="Move up level">
             <Outdent className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onAddChild} title="Add subsection">
+          <Button variant="ghost" size="icon" onClick={onAddChild} title="Add subsection" aria-label="Add subsection">
             <Plus className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onDelete} className="text-destructive">
+          <Button variant="ghost" size="icon" onClick={onDelete} className="text-destructive" aria-label="Delete section">
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>

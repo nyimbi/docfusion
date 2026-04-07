@@ -11,11 +11,14 @@ import { Suspense } from "react";
 import { getOpportunity } from "@/lib/actions/opportunities";
 import { getVoteSummary, getVotes } from "@/lib/actions/opportunity-votes";
 import { getLatestScores } from "@/lib/actions/opportunity-ai";
+import { getOpportunityDocuments } from "@/lib/services/rfp-document-service";
 import { OpportunityDetailView } from "@/components/opportunities/OpportunityDetailView";
 import { GoNoGoPanel } from "@/components/opportunities/GoNoGoPanel";
 import { AIScoreCard } from "@/components/opportunities/AIScoreCard";
+import { OpportunityDocumentsPanel } from "@/components/opportunities/OpportunityDocumentsPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/Button";
+import { OpportunityHeaderActions } from "@/components/opportunities/OpportunityHeaderActions";
 
 interface PageProps {
 	params: Promise<{ id: string }>;
@@ -25,11 +28,12 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 	const { id } = await params;
 
 	// Fetch data in parallel
-	const [opportunity, voteSummary, votes, aiScores] = await Promise.all([
+	const [opportunity, voteSummary, votes, aiScores, documents] = await Promise.all([
 		getOpportunity(id),
 		getVoteSummary(id),
 		getVotes(id),
 		getLatestScores(id),
+		getOpportunityDocuments(id),
 	]);
 
 	if (!opportunity) {
@@ -96,20 +100,16 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 						</div>
 
 						{/* Status badge and actions */}
-						<div className="flex items-center gap-3">
+						<div className="flex items-center gap-3 flex-wrap">
 							<StatusBadge status={opportunity.decisionStatus} />
-							<div className="flex gap-2">
-								<Button variant="outline" size="sm" asChild>
-									<Link href={`/opportunities/${id}/requirements`}>
-										Requirements
-									</Link>
-								</Button>
-								<Button variant="primary" size="sm" asChild>
-									<Link href={`/opportunities/${id}/documents`}>
-										Proposal Docs
-									</Link>
-								</Button>
-							</div>
+							<OpportunityHeaderActions
+								opportunityId={id}
+								opportunityTitle={opportunity.title}
+								sourceUrl={opportunity.portalUrl || opportunity.rfpLink}
+								rfpLink={opportunity.rfpLink}
+								documentsDiscovered={opportunity.documentsDiscovered || documents.length > 0}
+								documents={documents}
+							/>
 						</div>
 					</div>
 				</div>
@@ -118,9 +118,26 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 			{/* Main content */}
 			<main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-					{/* Left column - Details */}
+					{/* Left column - Details & Documents */}
 					<div className="lg:col-span-2 space-y-6">
 						<OpportunityDetailView opportunity={opportunity} />
+						
+						{/* RFP Documents Panel */}
+						<Suspense fallback={<CardSkeleton title="RFP Documents" />}>
+							<OpportunityDocumentsPanel
+								opportunityId={id}
+								opportunityTitle={opportunity.title}
+								sourceUrl={opportunity.portalUrl || opportunity.rfpLink}
+								documentsDiscovered={opportunity.documentsDiscovered || documents.length > 0}
+								initialDocuments={documents.map(d => ({
+									...d,
+									documentType: d.documentType as "rfp" | "amendment" | "attachment" | "specification" | "evaluation" | "form" | "other",
+									status: d.status as "discovered" | "downloading" | "downloaded" | "failed" | "analyzed" | "error",
+									discoveredAt: new Date(d.discoveredAt),
+									downloadedAt: d.downloadedAt ? new Date(d.downloadedAt) : null,
+								}))}
+							/>
+						</Suspense>
 					</div>
 
 					{/* Right column - Voting and AI Scores */}
@@ -179,16 +196,25 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 									</div>
 								)}
 								{opportunity.rfpLink && (
-									<div className="pt-2">
-										<a
-											href={opportunity.rfpLink}
-											target="_blank"
-											rel="noopener noreferrer"
-											className="text-primary hover:underline flex items-center gap-1"
-										>
-											<ExternalLinkIcon className="h-4 w-4" />
-											View RFP Document
-										</a>
+									<div className="pt-2 border-t border-border mt-2">
+										<div className="flex items-center justify-between">
+											<span className="text-sm text-muted-foreground">Source RFP</span>
+											<a
+												href={opportunity.rfpLink}
+												target="_blank"
+												rel="noopener noreferrer"
+												className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
+												title="Opens the actual RFP document in a new tab"
+											>
+												<ExternalLinkIcon className="h-4 w-4" />
+												Open RFP
+											</a>
+										</div>
+										<p className="text-xs text-muted-foreground mt-1 truncate" title={opportunity.rfpLink}>
+											{opportunity.rfpLink.length > 50 
+												? opportunity.rfpLink.substring(0, 50) + "..." 
+												: opportunity.rfpLink}
+										</p>
 									</div>
 								)}
 							</CardContent>

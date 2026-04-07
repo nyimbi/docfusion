@@ -4,6 +4,7 @@ File Operation Tools for Agents
 Provides file system operations like read, write, copy, delete, search, etc.
 """
 
+import logging
 import os
 import shutil
 import json
@@ -17,6 +18,8 @@ import re
 from datetime import datetime
 
 from .base import AgentTool, ToolResult, ToolCapability, ToolError, ToolConfig
+
+logger = logging.getLogger(__name__)
 
 
 class FileReadTool(AgentTool):
@@ -559,8 +562,8 @@ class FileSearchTool(AgentTool):
 							"matches": match_contexts
 						})
 						
-			except Exception:
-				# Skip files we can't read
+			except Exception as e:
+				logger.warning(f"Failed to read file {file_path}: {e}")
 				continue
 		
 		return results

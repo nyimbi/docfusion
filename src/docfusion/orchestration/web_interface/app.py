@@ -79,7 +79,8 @@ class ConnectionManager:
 		if user_id in self.active_connections:
 			try:
 				await self.active_connections[user_id].send_json(message)
-			except:
+			except (ConnectionError, RuntimeError) as e:
+				logging.getLogger("visual_editor_web").warning(f"Failed to send message to user {user_id}, disconnecting: {e}")
 				self.disconnect(user_id)
 	
 	async def broadcast(self, message: dict, exclude: List[str] = None):
@@ -90,7 +91,8 @@ class ConnectionManager:
 			if user_id not in exclude:
 				try:
 					await websocket.send_json(message)
-				except:
+				except (ConnectionError, RuntimeError) as e:
+					logging.getLogger("visual_editor_web").warning(f"Failed to broadcast to user {user_id}: {e}")
 					disconnected.append(user_id)
 		
 		# Clean up disconnected clients

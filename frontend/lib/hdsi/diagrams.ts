@@ -5,6 +5,7 @@
  * DALL-E, Mermaid.js, and other diagram types
  */
 
+import { logger } from "@/lib/utils/logger";
 import { useState, useCallback } from "react";
 
 // ============================================================================
@@ -208,7 +209,7 @@ export async function generateDalleDiagram(
       model: "dall-e-3",
     };
   } catch (error) {
-    console.error('DALL-E generation error:', error);
+    logger.error('DALL-E generation error:', error);
     // Return a placeholder indicating the feature requires API setup
     // Using "url" format but with empty content to indicate failure
     return {

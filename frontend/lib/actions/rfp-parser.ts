@@ -48,6 +48,7 @@ import type {
 	CreateComplianceMatrixInput,
 	UpdateComplianceEntryInput,
 } from "@/lib/types/rfp";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // RFP Document Actions
@@ -102,13 +103,13 @@ export async function uploadRfpDocument(input: {
 		// Start the parsing job asynchronously (fire-and-forget)
 		// This runs after the response is sent to the client
 		processRfpParsingJob(job.id, rfpDoc.id).catch((error) => {
-			console.error("[RFP Parser] Background job failed:", error);
+			logger.error("[RFP Parser] Background job failed:", error);
 		});
 
 		revalidatePath("/documents");
 		return { success: true, rfpDocumentId: rfpDoc.id, jobId: job.id };
 	} catch (error) {
-		console.error("Error uploading RFP document:", error);
+		logger.error("Error uploading RFP document:", error);
 		return { success: false, error: "Failed to upload document" };
 	}
 }
@@ -123,7 +124,7 @@ export async function getRfpDocument(id: string): Promise<RfpDocumentRow | null>
 		});
 		return doc ?? null;
 	} catch (error) {
-		console.error("Error getting RFP document:", error);
+		logger.error("Error getting RFP document:", error);
 		return null;
 	}
 }
@@ -158,7 +159,7 @@ export async function listRfpDocuments(params?: {
 
 		return { documents, total: Number(count) };
 	} catch (error) {
-		console.error("Error listing RFP documents:", error);
+		logger.error("Error listing RFP documents:", error);
 		return { documents: [], total: 0 };
 	}
 }
@@ -177,7 +178,7 @@ export async function deleteRfpDocument(id: string): Promise<{ success: boolean;
 		revalidatePath("/documents");
 		return { success: true };
 	} catch (error) {
-		console.error("Error deleting RFP document:", error);
+		logger.error("Error deleting RFP document:", error);
 		return { success: false, error: "Failed to delete document" };
 	}
 }
@@ -234,7 +235,7 @@ export async function getRequirements(filters: RfpRequirementFilters & {
 		const [requirements, [{ count }]] = await Promise.all([
 			db.query.rfpRequirements.findMany({
 				where: whereClause,
-				orderBy: [orderFn(orderColumn as any)],
+				orderBy: [orderFn(orderColumn as unknown as Parameters<typeof asc>[0])],
 				limit,
 				offset,
 			}),
@@ -243,7 +244,7 @@ export async function getRequirements(filters: RfpRequirementFilters & {
 
 		return { requirements, total: Number(count) };
 	} catch (error) {
-		console.error("Error getting requirements:", error);
+		logger.error("Error getting requirements:", error);
 		return { requirements: [], total: 0 };
 	}
 }
@@ -258,7 +259,7 @@ export async function getRequirement(id: string): Promise<RfpRequirementRow | nu
 		});
 		return req ?? null;
 	} catch (error) {
-		console.error("Error getting requirement:", error);
+		logger.error("Error getting requirement:", error);
 		return null;
 	}
 }
@@ -296,7 +297,7 @@ export async function updateRequirement(
 		revalidatePath("/requirements");
 		return { success: true };
 	} catch (error) {
-		console.error("Error updating requirement:", error);
+		logger.error("Error updating requirement:", error);
 		return { success: false, error: "Failed to update requirement" };
 	}
 }
@@ -329,7 +330,7 @@ export async function bulkUpdateRequirements(
 		revalidatePath("/requirements");
 		return { success: true, updated: ids.length };
 	} catch (error) {
-		console.error("Error bulk updating requirements:", error);
+		logger.error("Error bulk updating requirements:", error);
 		return { success: false, updated: 0, error: "Failed to update requirements" };
 	}
 }
@@ -388,7 +389,7 @@ export async function createComplianceMatrix(
 		revalidatePath("/compliance");
 		return { success: true, matrixId: matrix.id };
 	} catch (error) {
-		console.error("Error creating compliance matrix:", error);
+		logger.error("Error creating compliance matrix:", error);
 		return { success: false, error: "Failed to create compliance matrix" };
 	}
 }
@@ -430,7 +431,7 @@ export async function getComplianceMatrix(id: string): Promise<{
 
 		return { matrix, entries, requirements };
 	} catch (error) {
-		console.error("Error getting compliance matrix:", error);
+		logger.error("Error getting compliance matrix:", error);
 		return { matrix: null, entries: [], requirements: {} };
 	}
 }
@@ -464,7 +465,7 @@ export async function listComplianceMatrices(filters?: ComplianceMatrixFilters &
 
 		return { matrices, total: Number(count) };
 	} catch (error) {
-		console.error("Error listing compliance matrices:", error);
+		logger.error("Error listing compliance matrices:", error);
 		return { matrices: [], total: 0 };
 	}
 }
@@ -501,7 +502,7 @@ export async function updateComplianceEntry(
 		revalidatePath("/compliance");
 		return { success: true };
 	} catch (error) {
-		console.error("Error updating compliance entry:", error);
+		logger.error("Error updating compliance entry:", error);
 		return { success: false, error: "Failed to update compliance entry" };
 	}
 }
@@ -535,7 +536,7 @@ export async function updateComplianceMatrixStatus(
 		revalidatePath("/compliance");
 		return { success: true };
 	} catch (error) {
-		console.error("Error updating matrix status:", error);
+		logger.error("Error updating matrix status:", error);
 		return { success: false, error: "Failed to update matrix status" };
 	}
 }
@@ -631,7 +632,7 @@ export async function getParsingJobStatus(jobId: string): Promise<{
 			error: job.errorMessage ?? undefined,
 		};
 	} catch (error) {
-		console.error("Error getting parsing job status:", error);
+		logger.error("Error getting parsing job status:", error);
 		return null;
 	}
 }
@@ -661,7 +662,7 @@ export async function cancelParsingJob(jobId: string): Promise<{ success: boolea
 
 		return { success: true };
 	} catch (error) {
-		console.error("Error cancelling parsing job:", error);
+		logger.error("Error cancelling parsing job:", error);
 		return { success: false, error: "Failed to cancel job" };
 	}
 }
@@ -716,7 +717,7 @@ export async function getRfpStats(opportunityId?: string): Promise<{
 			byStatus,
 		};
 	} catch (error) {
-		console.error("Error getting RFP stats:", error);
+		logger.error("Error getting RFP stats:", error);
 		return {
 			totalDocuments: 0,
 			totalRequirements: 0,
@@ -776,7 +777,7 @@ export async function exportComplianceMatrix(matrixId: string): Promise<{
 
 		return { success: true, data: exportData };
 	} catch (error) {
-		console.error("Error exporting compliance matrix:", error);
+		logger.error("Error exporting compliance matrix:", error);
 		return { success: false, error: "Failed to export matrix" };
 	}
 }
@@ -790,7 +791,7 @@ export async function exportComplianceMatrix(matrixId: string): Promise<{
  * This function handles the actual parsing, extraction, and storage of requirements.
  */
 async function processRfpParsingJob(jobId: string, rfpDocumentId: string): Promise<void> {
-	console.log(`[RFP Parser] Starting job ${jobId} for document ${rfpDocumentId}`);
+	logger.debug(`[RFP Parser] Starting job ${jobId} for document ${rfpDocumentId}`);
 
 	try {
 		// Update job status to processing
@@ -921,10 +922,10 @@ async function processRfpParsingJob(jobId: string, rfpDocumentId: string): Promi
 			updatedAt: now,
 		}).where(eq(rfpDocuments.id, rfpDocumentId));
 
-		console.log(`[RFP Parser] Job ${jobId} completed successfully. Extracted ${allExtractedRequirements.length} requirements.`);
+		logger.debug(`[RFP Parser] Job ${jobId} completed successfully. Extracted ${allExtractedRequirements.length} requirements.`);
 
 	} catch (error) {
-		console.error(`[RFP Parser] Job ${jobId} failed:`, error);
+		logger.error(`[RFP Parser] Job ${jobId} failed:`, error);
 
 		const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
@@ -1004,7 +1005,7 @@ async function extractTextFromDocument(
 				const arrayBuffer = await response.arrayBuffer();
 				fileBuffer = Buffer.from(arrayBuffer);
 			} else {
-				console.warn(`[RFP Parser] No storage URL configured, cannot fetch: ${storagePath}`);
+				logger.warn(`[RFP Parser] No storage URL configured, cannot fetch: ${storagePath}`);
 				return "";
 			}
 		}
@@ -1020,7 +1021,7 @@ async function extractTextFromDocument(
 					const data = await pdfParse(fileBuffer);
 					return data.text;
 				} catch (pdfError) {
-					console.error("[RFP Parser] PDF parsing failed, trying fallback:", pdfError);
+					logger.error("[RFP Parser] PDF parsing failed, trying fallback:", pdfError);
 					// Fallback: return buffer as string (may contain some readable text)
 					return fileBuffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ");
 				}
@@ -1037,7 +1038,7 @@ async function extractTextFromDocument(
 					const result = await mammoth.extractRawText({ buffer: fileBuffer });
 					return result.value;
 				} catch (docxError) {
-					console.error("[RFP Parser] DOCX parsing failed:", docxError);
+					logger.error("[RFP Parser] DOCX parsing failed:", docxError);
 					return "";
 				}
 			}
@@ -1066,11 +1067,11 @@ async function extractTextFromDocument(
 
 			default:
 				// Unknown file type - attempt to read as UTF-8
-				console.warn(`[RFP Parser] Unknown file type: ${fileType}, attempting UTF-8 decode`);
+				logger.warn(`[RFP Parser] Unknown file type: ${fileType}, attempting UTF-8 decode`);
 				return fileBuffer.toString("utf-8");
 		}
 	} catch (error) {
-		console.error("[RFP Parser] Error extracting text:", error);
+		logger.error("[RFP Parser] Error extracting text:", error);
 		return "";
 	}
 }

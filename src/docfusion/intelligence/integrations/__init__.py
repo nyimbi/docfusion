@@ -6,23 +6,12 @@ including discovery, storage, and document generation for comprehensive proposal
 development intelligence.
 """
 
-# from .discovery_integration import IntelligenceDiscoveryService  # Disabled due to dependencies
-try:
-    from .storage_integration import IntelligenceStorageService
-    STORAGE_AVAILABLE = True
-except ImportError:
-    IntelligenceStorageService = None
-    STORAGE_AVAILABLE = False
-
-try:
-    from .document_integration import IntelligenceDocumentService
-    DOCUMENT_AVAILABLE = True
-except ImportError:
-    IntelligenceDocumentService = None
-    DOCUMENT_AVAILABLE = False
+from .discovery_integration import IntelligenceDiscoveryService
+from .storage_integration import IntelligenceStorageService
+from .document_integration import IntelligenceDocumentService
 
 __all__ = [
-    # "IntelligenceDiscoveryService",  # Disabled
-    *(["IntelligenceStorageService"] if STORAGE_AVAILABLE else []),
-    *(["IntelligenceDocumentService"] if DOCUMENT_AVAILABLE else [])
+    "IntelligenceDiscoveryService",
+    "IntelligenceStorageService",
+    "IntelligenceDocumentService",
 ]

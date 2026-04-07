@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from ..core.agent import Agent, AgentState
 from ..core.messages import AgentMessage, MessageType, MessageTemplates
 import re
-from ..specialists import (
+
 """
 Agent Swarm Management
 
@@ -30,10 +30,6 @@ except ImportError:
 	import uuid
 	def uuid7str() -> str:
 		return str(uuid.uuid4())
-
-	ResearchAgent, WriterAgent, ReviewerAgent, CoordinatorAgent, 
-	AnalysisAgent, QualityAgent
-)
 
 
 class SwarmBehavior(str, Enum):
@@ -576,7 +572,8 @@ class AgentSwarm:
 				bid_score = await agent.evaluate_task_fit(task)
 				if bid_score > 0.5:
 					bids.append((agent_id, bid_score))
-			except:
+			except Exception as e:
+				self.logger.warning(f"Agent {agent_id} bid evaluation failed: {e}")
 				continue
 		
 		if not bids:

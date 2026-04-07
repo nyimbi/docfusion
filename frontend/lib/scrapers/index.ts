@@ -19,7 +19,7 @@ export {
 	type JobExecutor,
 } from "./queue";
 
-// Runtime engine
+// Runtime engine (orchestrator)
 export {
 	scraperRuntime,
 	ScraperRuntime,
@@ -30,6 +30,30 @@ export {
 	type RuntimeProgress,
 	type ProgressHandler,
 } from "./runtime";
+
+// Fetcher (page fetching strategies)
+export {
+	scrapePage,
+	RateLimiter,
+	withTimeout,
+} from "./fetcher";
+
+// Extractor (content-to-opportunity conversion)
+export {
+	extractOpportunitiesFromContent,
+	extractFromBasicHtml,
+	findNextPageUrl,
+	generateNoticeId,
+} from "./extractor";
+
+// Persister (run lifecycle management)
+export {
+	createRun,
+	finaliseRunSuccess,
+	finaliseRunFailure,
+	type CreateRunParams,
+	type RunRecord,
+} from "./persister";
 
 // Deduplication
 export {

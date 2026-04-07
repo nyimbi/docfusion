@@ -126,11 +126,32 @@ class HDSIDatabase extends Dexie {
   constructor() {
     super("hdsi_v1");
 
+    // Version 1: Initial schema
     this.version(1).stores({
       documents: "id, [isDeleted+updatedAt], syncVersion, lastSyncedAt",
       versions: "id, documentId, [documentId+timestamp], isAutoSave",
       syncQueue: "id, [documentId+createdAt], attempts",
       yjsStates: "documentId",
+    });
+
+    // Version 2: Add version and discoveryAnalysis fields
+    this.version(2).upgrade((tx) => {
+      // Migrate documents to add semantic version
+      return tx.table("documents").toCollection().modify((doc: Record<string, unknown>) => {
+        if (!doc.version) {
+          doc.version = (doc as Record<string, unknown>).isAiGenerated ? "0.0-gen" : "0.1.0";
+        }
+      });
+    });
+
+    // Version 3: Add metadata.type field
+    this.version(3).upgrade((tx) => {
+      return tx.table("documents").toCollection().modify((doc: Record<string, unknown>) => {
+        if (!doc.metadata) doc.metadata = {};
+        if (!(doc.metadata as Record<string, unknown>).type) {
+          (doc.metadata as Record<string, unknown>).type = "draft";
+        }
+      });
     });
   }
 
@@ -311,7 +332,7 @@ class HDSIDatabase extends Dexie {
   // Sync Queue
   // ========================================================================
 
-  async queueForSync(documentId: string, operation: HDSISyncQueue["operation"], payload: any): Promise<void> {
+  async queueForSync(documentId: string, operation: HDSISyncQueue["operation"], payload: Record<string, unknown>): Promise<void> {
     const queueItem: HDSISyncQueue = {
       id: crypto.randomUUID(),
       documentId,
@@ -364,7 +385,7 @@ class HDSIDatabase extends Dexie {
   // Yjs Collaboration
   // ========================================================================
 
-  async saveYjsState(documentId: string, ydocState: Uint8Array, awareness?: any): Promise<void> {
+  async saveYjsState(documentId: string, ydocState: Uint8Array, awareness?: Record<string, unknown>): Promise<void> {
     const state: HDSIYjsState = {
       documentId,
       ydocState,
@@ -491,9 +512,9 @@ class HDSIDatabase extends Dexie {
 // Instantiate singleton
 export const hdsiDB = new HDSIDatabase();
 
-// Global for debugging
-if (typeof window !== "undefined") {
-  (window as any).__hdsiDB = hdsiDB;
+// Global for debugging (development only)
+if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
+  (window as unknown as Record<string, unknown>).__hdsiDB = hdsiDB;
 }
 
 // ============================================================================
@@ -576,16 +597,16 @@ function flattenStructure(nodes: DS[], result: StoredNode[] = [], parentId?: str
       type: node.type,
       title: node.title,
       order: node.order,
-      length: (node as any).length,
-      expanded: (node as any).expanded ?? true,
-      status: (node as any).status ?? "outline",
-      tokenBudget: (node as any).tokenBudget ?? 500,
-      customPrompt: (node as any).customPrompt ?? "",
-      densityTarget: (node as any).densityTarget ?? 2.5,
-      coherenceScore: (node as any).coherenceScore ?? 1.0,
-      generatedContent: (node as any).generatedContent,
-      generationProgress: (node as any).generationProgress,
-      depth: (node as any).depth ?? 0,
+      length: node.length,
+      expanded: node.expanded ?? true,
+      status: node.status ?? "outline",
+      tokenBudget: node.tokenBudget ?? 500,
+      customPrompt: node.customPrompt ?? "",
+      densityTarget: node.densityTarget ?? 2.5,
+      coherenceScore: node.coherenceScore ?? 1.0,
+      generatedContent: node.generatedContent,
+      generationProgress: node.generationProgress,
+      depth: node.depth ?? 0,
       childrenIds: node.children?.map(c => c.id) ?? [],
     };
     
@@ -599,19 +620,22 @@ function flattenStructure(nodes: DS[], result: StoredNode[] = [], parentId?: str
   return result;
 }
 
+// Intermediate type for reconstruction
+type ReconstructionNode = DS & { _childrenIds: string[] };
+
 export function unflattenNodes(flatNodes: StoredNode[]): DS[] {
-  const nodeMap = new Map<string, DS & { _childrenIds: string[] }>();
+  const nodeMap = new Map<string, ReconstructionNode>();
   const roots: DS[] = [];
   
   // First pass: create all nodes
   for (const fn of flatNodes) {
-    const node = {
+    const node: ReconstructionNode = {
       id: fn.id,
       type: fn.type,
       title: fn.title,
       order: fn.order,
       length: fn.length,
-      children: [] as DS[],
+      children: [],
       // HDSI properties
       expanded: fn.expanded,
       status: fn.status,
@@ -629,7 +653,15 @@ export function unflattenNodes(flatNodes: StoredNode[]): DS[] {
     nodeMap.set(fn.id, node);
   }
   
-  // Second pass: link children
+  // Second pass: build set of all child IDs for O(1) parent lookup
+  const hasParent = new Set<string>();
+  for (const node of nodeMap.values()) {
+    for (const childId of node._childrenIds) {
+      hasParent.add(childId);
+    }
+  }
+
+  // Third pass: link children and collect roots
   const list = Array.from(nodeMap.values());
   for (const node of list) {
     for (const childId of node._childrenIds) {
@@ -638,17 +670,13 @@ export function unflattenNodes(flatNodes: StoredNode[]): DS[] {
         node.children.push(child);
       }
     }
-    
-    // Remove tracking property
-    delete (node as any)._childrenIds;
-    
+
+    // Remove tracking property and cast to final type
+    const { _childrenIds, ...finalNode } = node;
+
     // Add to roots if no parent references it
-    const hasParent = Array.from(nodeMap.values()).some(n => 
-      n.children && n.children.includes(node as unknown as DS)
-    );
-    
-    if (!hasParent) {
-      roots.push(node as unknown as DS);
+    if (!hasParent.has(node.id)) {
+      roots.push(finalNode);
     }
   }
   

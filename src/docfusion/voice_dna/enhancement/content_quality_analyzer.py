@@ -7,6 +7,7 @@ metrics and actionable recommendations for content improvement.
 """
 
 import asyncio
+import logging
 import re
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -14,6 +15,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from enum import Enum
 import statistics
 import math
+
+logger = logging.getLogger(__name__)
 
 from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
@@ -420,8 +423,8 @@ class ContentQualityAnalyzer:
 				cli = coleman_liau_index(text)
 				gf = gunning_fog(text)
 				smog = smog_index(text)
-			except:
-				# Fallback to simple calculations
+			except (ValueError, TypeError, ZeroDivisionError) as e:
+				logger.warning(f"Readability scoring failed, using fallback: {e}")
 				flesch_ease, fk_grade, ari, cli, gf, smog = self._simple_readability_scores(text)
 		else:
 			flesch_ease, fk_grade, ari, cli, gf, smog = self._simple_readability_scores(text)

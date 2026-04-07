@@ -8,6 +8,7 @@ using PostgreSQL with pgai extensions for vector operations and embeddings.
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Union
 from pathlib import Path
@@ -25,6 +26,16 @@ except ImportError:
 	from uuid import uuid4
 	def uuid7str() -> str:
 		return str(uuid4())
+
+
+VALID_SCHEMA_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
+
+def _validate_schema_name(schema_name: str) -> str:
+	"""Validate schema name to prevent SQL injection via config values."""
+	if not VALID_SCHEMA_PATTERN.match(schema_name):
+		raise ValueError(f"Invalid schema name: {schema_name!r}")
+	return schema_name
 
 
 @dataclass
@@ -80,10 +91,11 @@ class RAGDatabase:
 	"""PostgreSQL database layer for RAG system with pgai integration"""
 	
 	def __init__(self, config: DatabaseConfiguration):
+		_validate_schema_name(config.schema_name)
 		self.config = config
 		self.pool: Optional[asyncpg.Pool] = None
 		self.logger = logging.getLogger(__name__)
-		
+
 		# Connection state
 		self._initialized = False
 		self._schema_initialized = False

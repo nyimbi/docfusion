@@ -62,7 +62,7 @@ classifiers = [
 dependencies = [
     "aiofiles>=24.1.0",
     "aiohttp>=3.12.14",
-    "asyncpg>=0.30.0",
+    "asyncpg>=0.30.0",        # Async database driver for FastAPI/async endpoints
     "beautifulsoup4>=4.13.4",
     "chardet>=5.2.0",
     "cloudscraper>=1.2.71",
@@ -76,7 +76,7 @@ dependencies = [
     "pandas>=2.3.1",
     "pgai>=0.11.4",
     "playwright>=1.53.0",
-    "psycopg2-binary>=2.9.10",
+    "psycopg2-binary>=2.9.10", # Required for Alembic migrations, Airflow, and sync operations
     "psutil>=6.1.0",
     "pydantic>=2.0.0",
     "pyotp>=2.9.0",
@@ -93,6 +93,8 @@ dependencies = [
     "bcrypt>=5.0.0",
     "pyjwt>=2.10.1",
     "uuid7>=0.1.0",
+    "simpleeval>=1.0.7",
+    "cachetools>=6.2.5",
 ]
 
 # Optional dependency groups
@@ -416,8 +418,6 @@ ignore = [
     "B027",
     # Allow boolean positional values in function calls
     "FBT003",
-    # Ignore complexity in __init__ files
-    "C901",
     # Allow print statements (useful for debugging)
     "T201",
     # Allow TODO comments
@@ -432,18 +432,10 @@ ignore = [
     "S602",
     # Allow hardcoded passwords in tests
     "S106",
-    # Allow use of datetime without timezone
-    "DTZ005",
     # Allow broad exception catching in CLI apps
     "BLE001",
     # Allow magic values in tests
     "PLR2004",
-    # Allow too many arguments (sometimes necessary)
-    "PLR0913",
-    # Allow too many branches (sometimes necessary)
-    "PLR0912",
-    # Allow too many statements (sometimes necessary)
-    "PLR0915",
 ]
 
 # Allow unused variables when underscore-prefixed
@@ -480,6 +472,24 @@ typing-modules = ["typing", "typing_extensions"]
 
 # Migration files (if using Django/SQLAlchemy)
 "**/migrations/*" = ["ALL"]
+
+# Known complex files - to be refactored (suppress until then)
+"src/docfusion/document_engine/formatter/document_formatter.py" = ["C901", "PLR0912", "PLR0915"]
+"src/docfusion/agents/tools/publishing_tools.py" = ["C901", "PLR0912", "PLR0915"]
+"src/docfusion/document_engine/assembler/block_manager.py" = ["C901", "PLR0912", "PLR0915"]
+"src/docfusion/nlp/transformers/content_generator.py" = ["C901", "PLR0912", "PLR0915"]
+"src/docfusion/discovery/analyzers/opportunity_analyzer.py" = ["C901", "PLR0912", "PLR0915"]
+"src/docfusion/agents/core/agent.py" = ["C901", "PLR0912", "PLR0913", "PLR0915"]
+
+# McCabe complexity configuration
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+# Pylint configuration
+[tool.ruff.lint.pylint]
+max-args = 10
+max-branches = 15
+max-statements = 60
 
 # pydocstyle configuration
 [tool.ruff.lint.pydocstyle]
@@ -860,6 +870,11 @@ rich_markup_mode = "rich"
 
 # Environment-specific settings
 [tool.docfusion.environments]
+
+[dependency-groups]
+dev = [
+    "types-cachetools>=6.2.0.20260317",
+]
 # Example environment configurations:
 # development = {debug = true, log_level = "DEBUG"}
 # production = {debug = false, log_level = "WARNING"}

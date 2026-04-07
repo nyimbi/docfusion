@@ -137,7 +137,7 @@ export function ImportWizard({
 
 	const {
 		nextStep,
-		previousStep,
+		prevStep,
 		goToStep,
 		reset,
 	} = useImportStore();
@@ -159,9 +159,9 @@ export function ImportWizard({
 	 */
 	const handleBack = useCallback(() => {
 		if (canGoBack) {
-			previousStep();
+			prevStep();
 		}
-	}, [canGoBack, previousStep]);
+	}, [canGoBack, prevStep]);
 
 	/**
 	 * Handle wizard reset (start over)

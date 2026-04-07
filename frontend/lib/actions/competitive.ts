@@ -34,6 +34,7 @@ import { opportunities, partners, companySettings } from "@/lib/db/schema";
 import { eq, and, desc, sql, like, or, inArray, asc, ne, isNull, isNotNull } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -260,7 +261,7 @@ export async function createCompetitor(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[createCompetitor]", error);
+		logger.error("[createCompetitor]", error);
 		return { success: false, error: "Failed to create competitor" };
 	}
 }
@@ -295,7 +296,7 @@ export async function updateCompetitor(
 		revalidatePath("/competitive");
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[updateCompetitor]", error);
+		logger.error("[updateCompetitor]", error);
 		return { success: false, error: "Failed to update competitor" };
 	}
 }
@@ -319,7 +320,7 @@ export async function deleteCompetitor(
 		revalidatePath("/competitive");
 		return { success: true, data: { deleted: true } };
 	} catch (error) {
-		console.error("[deleteCompetitor]", error);
+		logger.error("[deleteCompetitor]", error);
 		return { success: false, error: "Failed to delete competitor" };
 	}
 }
@@ -343,7 +344,7 @@ export async function getCompetitor(
 
 		return { success: true, data: competitor };
 	} catch (error) {
-		console.error("[getCompetitor]", error);
+		logger.error("[getCompetitor]", error);
 		return { success: false, error: "Failed to retrieve competitor" };
 	}
 }
@@ -368,7 +369,7 @@ export async function listCompetitors(
 
 		return { success: true, data: result };
 	} catch (error) {
-		console.error("[listCompetitors]", error);
+		logger.error("[listCompetitors]", error);
 		return { success: false, error: "Failed to list competitors" };
 	}
 }
@@ -420,7 +421,7 @@ export async function searchCompetitors(
 
 		return { success: true, data: result };
 	} catch (error) {
-		console.error("[searchCompetitors]", error);
+		logger.error("[searchCompetitors]", error);
 		return { success: false, error: "Failed to search competitors" };
 	}
 }
@@ -456,7 +457,7 @@ export async function createDiscriminator(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[createDiscriminator]", error);
+		logger.error("[createDiscriminator]", error);
 		return { success: false, error: "Failed to create discriminator" };
 	}
 }
@@ -485,7 +486,7 @@ export async function updateDiscriminator(
 		revalidatePath("/competitive/discriminators");
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[updateDiscriminator]", error);
+		logger.error("[updateDiscriminator]", error);
 		return { success: false, error: "Failed to update discriminator" };
 	}
 }
@@ -509,7 +510,7 @@ export async function deleteDiscriminator(
 		revalidatePath("/competitive/discriminators");
 		return { success: true, data: { deleted: true } };
 	} catch (error) {
-		console.error("[deleteDiscriminator]", error);
+		logger.error("[deleteDiscriminator]", error);
 		return { success: false, error: "Failed to delete discriminator" };
 	}
 }
@@ -545,7 +546,7 @@ export async function listDiscriminators(
 
 		return { success: true, data: result };
 	} catch (error) {
-		console.error("[listDiscriminators]", error);
+		logger.error("[listDiscriminators]", error);
 		return { success: false, error: "Failed to list discriminators" };
 	}
 }
@@ -585,7 +586,7 @@ export async function recordDiscriminatorUsage(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[recordDiscriminatorUsage]", error);
+		logger.error("[recordDiscriminatorUsage]", error);
 		return { success: false, error: "Failed to record discriminator usage" };
 	}
 }
@@ -630,7 +631,7 @@ export async function createGhostTheme(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[createGhostTheme]", error);
+		logger.error("[createGhostTheme]", error);
 		return { success: false, error: "Failed to create ghost theme" };
 	}
 }
@@ -655,7 +656,7 @@ export async function listGhostThemes(
 
 		return { success: true, data: result };
 	} catch (error) {
-		console.error("[listGhostThemes]", error);
+		logger.error("[listGhostThemes]", error);
 		return { success: false, error: "Failed to list ghost themes" };
 	}
 }
@@ -724,7 +725,7 @@ in this area without naming or directly attacking the competitor.`;
 
 		return { success: true, data: response.content.trim() };
 	} catch (error) {
-		console.error("[generateGhostTheme]", error);
+		logger.error("[generateGhostTheme]", error);
 		return { success: false, error: "Failed to generate ghost theme language" };
 	}
 }
@@ -830,13 +831,13 @@ export async function identifyLikelyCompetitors(
 				);
 				return { success: true, data: enhancedMatches };
 			} catch (aiError) {
-				console.warn("[identifyLikelyCompetitors] AI enhancement failed:", aiError);
+				logger.warn("[identifyLikelyCompetitors] AI enhancement failed:", aiError);
 			}
 		}
 
 		return { success: true, data: matches.slice(0, 15) }; // Return top 15
 	} catch (error) {
-		console.error("[identifyLikelyCompetitors]", error);
+		logger.error("[identifyLikelyCompetitors]", error);
 		return { success: false, error: "Failed to identify competitors" };
 	}
 }
@@ -1046,7 +1047,7 @@ Provide refined likelihood scores and any additional reasons.`;
 			return match;
 		}).sort((a, b) => b.likelihoodScore - a.likelihoodScore);
 	} catch (error) {
-		console.warn("[enhanceCompetitorMatchesWithAI] Failed:", error);
+		logger.warn("[enhanceCompetitorMatchesWithAI] Failed:", error);
 		return matches;
 	}
 }
@@ -1091,7 +1092,7 @@ export async function addCompetitorToOpportunity(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues[0].message };
 		}
-		console.error("[addCompetitorToOpportunity]", error);
+		logger.error("[addCompetitorToOpportunity]", error);
 		return { success: false, error: "Failed to add competitor to opportunity" };
 	}
 }
@@ -1120,7 +1121,7 @@ export async function updateCompetitorOpportunity(
 		revalidatePath(`/opportunities/${updated.opportunityId}`);
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[updateCompetitorOpportunity]", error);
+		logger.error("[updateCompetitorOpportunity]", error);
 		return { success: false, error: "Failed to update competitor-opportunity link" };
 	}
 }
@@ -1140,7 +1141,7 @@ export async function listCompetitorsForOpportunity(
 
 		return { success: true, data: links };
 	} catch (error) {
-		console.error("[listCompetitorsForOpportunity]", error);
+		logger.error("[listCompetitorsForOpportunity]", error);
 		return { success: false, error: "Failed to list competitors for opportunity" };
 	}
 }
@@ -1316,7 +1317,7 @@ Provide comprehensive SWOT analysis as JSON.`;
 			},
 		};
 	} catch (error) {
-		console.error("[generateSWOT]", error);
+		logger.error("[generateSWOT]", error);
 		return { success: false, error: "Failed to generate SWOT analysis" };
 	}
 }
@@ -1463,7 +1464,7 @@ export async function suggestDiscriminators(
 				);
 				suggestions.push(...aiSuggestions);
 			} catch (error) {
-				console.warn("[suggestDiscriminators] AI suggestion failed:", error);
+				logger.warn("[suggestDiscriminators] AI suggestion failed:", error);
 			}
 		}
 
@@ -1472,7 +1473,7 @@ export async function suggestDiscriminators(
 
 		return { success: true, data: suggestions.slice(0, 10) };
 	} catch (error) {
-		console.error("[suggestDiscriminators]", error);
+		logger.error("[suggestDiscriminators]", error);
 		return { success: false, error: "Failed to suggest discriminators" };
 	}
 }
@@ -1662,7 +1663,7 @@ export async function generateCompetitiveMatrix(
 			},
 		};
 	} catch (error) {
-		console.error("[generateCompetitiveMatrix]", error);
+		logger.error("[generateCompetitiveMatrix]", error);
 		return { success: false, error: "Failed to generate competitive matrix" };
 	}
 }
@@ -1928,7 +1929,7 @@ export async function suggestTeamingPartners(
 
 		return { success: true, data: suggestions.slice(0, 10) };
 	} catch (error) {
-		console.error("[suggestTeamingPartners]", error);
+		logger.error("[suggestTeamingPartners]", error);
 		return { success: false, error: "Failed to suggest teaming partners" };
 	}
 }
@@ -2082,7 +2083,7 @@ export async function trackCompetitorWinLoss(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[trackCompetitorWinLoss]", error);
+		logger.error("[trackCompetitorWinLoss]", error);
 		return { success: false, error: "Failed to track win/loss" };
 	}
 }
@@ -2174,7 +2175,7 @@ export async function getWinLossAnalysis(
 				);
 				aiInsights.push(...insights);
 			} catch (error) {
-				console.warn("[getWinLossAnalysis] AI insights failed:", error);
+				logger.warn("[getWinLossAnalysis] AI insights failed:", error);
 			}
 		}
 
@@ -2202,7 +2203,7 @@ export async function getWinLossAnalysis(
 			},
 		};
 	} catch (error) {
-		console.error("[getWinLossAnalysis]", error);
+		logger.error("[getWinLossAnalysis]", error);
 		return { success: false, error: "Failed to generate win/loss analysis" };
 	}
 }
@@ -2286,7 +2287,7 @@ export async function getLatestCompetitiveAnalysis(
 
 		return { success: true, data: analysis || null };
 	} catch (error) {
-		console.error("[getLatestCompetitiveAnalysis]", error);
+		logger.error("[getLatestCompetitiveAnalysis]", error);
 		return { success: false, error: "Failed to retrieve competitive analysis" };
 	}
 }
@@ -2313,7 +2314,7 @@ export async function recordGhostThemeUsage(
 
 		return { success: true, data: updated };
 	} catch (error) {
-		console.error("[recordGhostThemeUsage]", error);
+		logger.error("[recordGhostThemeUsage]", error);
 		return { success: false, error: "Failed to record ghost theme usage" };
 	}
 }
@@ -2386,7 +2387,7 @@ export async function getCompetitorIntelligenceSummary(): Promise<ActionResult<{
 			},
 		};
 	} catch (error) {
-		console.error("[getCompetitorIntelligenceSummary]", error);
+		logger.error("[getCompetitorIntelligenceSummary]", error);
 		return { success: false, error: "Failed to get intelligence summary" };
 	}
 }
@@ -2568,7 +2569,7 @@ export async function importCompetitorFromCI(
 			return { success: true, data: created };
 		}
 	} catch (error) {
-		console.error("[importCompetitorFromCI]", error);
+		logger.error("[importCompetitorFromCI]", error);
 		return { success: false, error: `Failed to import competitor: ${row.companyName}` };
 	}
 }

@@ -8,6 +8,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import type { CollaboratorPresence, CollaboratorUser } from "@/lib/types/collaboration";
 import { getUserInitials } from "@/lib/types/collaboration";
@@ -137,13 +138,16 @@ function CollaboratorAvatar({
 			<TooltipTrigger asChild>
 				<div className="relative" style={style}>
 					{user.avatarUrl ? (
-						<img
+						<Image
 							src={user.avatarUrl}
 							alt={user.name}
 							className={cn(
 								"rounded-full ring-2 ring-white dark:ring-gray-900 object-cover",
 								sizeClasses[size]
 							)}
+							width={size === "sm" ? 24 : size === "md" ? 32 : 40}
+							height={size === "sm" ? 24 : size === "md" ? 32 : 40}
+							unoptimized
 						/>
 					) : (
 						<div
@@ -233,10 +237,13 @@ function CollaboratorListItem({
 		<div className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
 			<div className="relative">
 				{user.avatarUrl ? (
-					<img
+					<Image
 						src={user.avatarUrl}
 						alt={user.name}
 						className="h-8 w-8 rounded-full object-cover"
+						width={32}
+						height={32}
+						unoptimized
 					/>
 				) : (
 					<div

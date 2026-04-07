@@ -221,6 +221,10 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
 				</div>
 
 				{/* Results */}
+				<div aria-live="polite" aria-atomic="true" className="sr-only">
+					{hasQuery && !isLoading && hasResults && `${results.length} results found`}
+					{hasQuery && !isLoading && !hasResults && "No results found"}
+				</div>
 				<div
 					ref={listRef}
 					id="search-results-list"

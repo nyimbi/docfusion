@@ -187,7 +187,7 @@ export function DocumentActionsMenu({
 		<>
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
-					<Button variant="ghost" size="icon" className={className}>
+					<Button variant="ghost" size="icon" className={className} aria-label="Document actions">
 						<MoreHorizontal className="h-4 w-4" />
 					</Button>
 				</DropdownMenuTrigger>

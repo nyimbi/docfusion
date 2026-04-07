@@ -1,3 +1,6 @@
+// Query key factory (preferred import for new code)
+export { queryKeys as domainQueryKeys } from "./keys";
+
 // Provider and core exports
 export {
 	QueryProvider,

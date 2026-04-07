@@ -8,6 +8,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import type {
 	ProposalDocument,
 	ProposalDocumentType,
@@ -19,6 +22,34 @@ import {
 import { getDocumentTypeLabel } from "@/lib/utils/proposal-labels";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+
+// Validation schema for single document creation
+const proposalDocumentSchema = z.object({
+	documentType: z.enum(
+		[
+			"cover_letter",
+			"executive_summary",
+			"technical_approach",
+			"management_plan",
+			"staffing_plan",
+			"past_performance",
+			"cost_proposal",
+			"quality_assurance",
+			"risk_mitigation",
+			"appendix",
+			"other",
+		],
+		{ required_error: "Please select a document type" }
+	),
+	title: z.string().max(500, "Title must be 500 characters or less").optional(),
+	assignedTo: z
+		.string()
+		.max(200, "Assignee must be 200 characters or less")
+		.optional(),
+	dueDate: z.string().optional(),
+});
+
+type ProposalDocumentFormValues = z.infer<typeof proposalDocumentSchema>;
 
 interface CreateProposalDialogProps {
 	opportunityId: string;
@@ -60,23 +91,36 @@ export function CreateProposalDialog({
 	onCreated,
 }: CreateProposalDialogProps) {
 	const [mode, setMode] = useState<Mode>("single");
-	const [selectedType, setSelectedType] = useState<ProposalDocumentType | null>(null);
-	const [title, setTitle] = useState("");
-	const [assignedTo, setAssignedTo] = useState("");
-	const [dueDate, setDueDate] = useState("");
 	const [isPending, startTransition] = useTransition();
 
-	const handleCreateSingle = () => {
-		if (!selectedType) return;
+	const {
+		register,
+		handleSubmit: handleFormSubmit,
+		setValue,
+		watch,
+		formState: { errors },
+		reset,
+	} = useForm<ProposalDocumentFormValues>({
+		resolver: zodResolver(proposalDocumentSchema),
+		defaultValues: {
+			documentType: undefined,
+			title: "",
+			assignedTo: "",
+			dueDate: "",
+		},
+	});
 
+	const selectedType = watch("documentType") ?? null;
+
+	const handleCreateSingle = (data: ProposalDocumentFormValues) => {
 		startTransition(async () => {
 			try {
 				const doc = await createProposalDocument({
 					opportunityId,
-					documentType: selectedType,
-					title: title || undefined,
-					assignedTo: assignedTo || undefined,
-					dueDate: dueDate || undefined,
+					documentType: data.documentType,
+					title: data.title || undefined,
+					assignedTo: data.assignedTo || undefined,
+					dueDate: data.dueDate || undefined,
 				});
 				onCreated([doc]);
 				handleReset();
@@ -100,10 +144,7 @@ export function CreateProposalDialog({
 
 	const handleReset = () => {
 		setMode("single");
-		setSelectedType(null);
-		setTitle("");
-		setAssignedTo("");
-		setDueDate("");
+		reset();
 		onClose();
 	};
 
@@ -185,17 +226,20 @@ export function CreateProposalDialog({
 				{/* Content */}
 				<div className="flex-1 overflow-y-auto p-6">
 					{mode === "single" ? (
-						<div className="space-y-6">
+						<form id="create-proposal-form" onSubmit={handleFormSubmit(handleCreateSingle)} className="space-y-6">
 							{/* Document Type Selection */}
 							<div>
 								<label className="block text-sm font-medium text-[var(--foreground)] mb-3">
-									Document Type
+									Document Type <span className="text-red-500">*</span>
 								</label>
 								<div className="grid grid-cols-2 gap-2">
 									{DOCUMENT_TYPES.map(({ type, description }) => (
 										<button
 											key={type}
-											onClick={() => setSelectedType(type)}
+											type="button"
+											onClick={() => {
+												setValue("documentType", type, { shouldValidate: true });
+											}}
 											className={cn(
 												"flex flex-col items-start p-3 rounded-lg border text-left transition-all",
 												selectedType === type
@@ -212,6 +256,9 @@ export function CreateProposalDialog({
 										</button>
 									))}
 								</div>
+								{errors.documentType && (
+									<p className="text-sm text-red-500 mt-2">{errors.documentType.message}</p>
+								)}
 							</div>
 
 							{/* Optional Fields */}
@@ -224,11 +271,16 @@ export function CreateProposalDialog({
 										</label>
 										<input
 											type="text"
-											value={title}
-											onChange={(e) => setTitle(e.target.value)}
+											{...register("title")}
 											placeholder={`${getDocumentTypeLabel(selectedType)} - Draft`}
-											className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+											className={cn(
+												"w-full px-3 py-2 text-sm border rounded-lg bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]",
+												errors.title ? "border-red-500" : "border-[var(--border)]"
+											)}
 										/>
+										{errors.title && (
+											<p className="text-sm text-red-500 mt-1">{errors.title.message}</p>
+										)}
 									</div>
 
 									{/* Due Date */}
@@ -238,8 +290,7 @@ export function CreateProposalDialog({
 										</label>
 										<input
 											type="date"
-											value={dueDate}
-											onChange={(e) => setDueDate(e.target.value)}
+											{...register("dueDate")}
 											className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
 										/>
 									</div>
@@ -251,15 +302,20 @@ export function CreateProposalDialog({
 										</label>
 										<input
 											type="text"
-											value={assignedTo}
-											onChange={(e) => setAssignedTo(e.target.value)}
+											{...register("assignedTo")}
 											placeholder="Enter username or email"
-											className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+											className={cn(
+												"w-full px-3 py-2 text-sm border rounded-lg bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]",
+												errors.assignedTo ? "border-red-500" : "border-[var(--border)]"
+											)}
 										/>
+										{errors.assignedTo && (
+											<p className="text-sm text-red-500 mt-1">{errors.assignedTo.message}</p>
+										)}
 									</div>
 								</div>
 							)}
-						</div>
+						</form>
 					) : (
 						<div className="space-y-6">
 							<div className="bg-[var(--background-muted)] rounded-lg p-4">
@@ -307,8 +363,9 @@ export function CreateProposalDialog({
 					{mode === "single" ? (
 						<Button
 							variant="primary"
-							onClick={handleCreateSingle}
-							disabled={!selectedType || isPending}
+							type="submit"
+							form="create-proposal-form"
+							disabled={isPending}
 							isLoading={isPending}
 						>
 							Create Document

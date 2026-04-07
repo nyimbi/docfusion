@@ -18,6 +18,7 @@ import { requireServerSession, getServerSession } from "@/lib/auth-utils";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import crypto from "crypto";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -193,7 +194,7 @@ export async function updateUserProfile(data: {
 		revalidatePath("/settings");
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to update profile:", error);
+		logger.error("Failed to update profile:", error);
 		return { success: false, error: "Failed to update profile" };
 	}
 }
@@ -216,7 +217,7 @@ export async function updateUserAvatar(imageUrl: string): Promise<{ success: boo
 		revalidatePath("/settings");
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to update avatar:", error);
+		logger.error("Failed to update avatar:", error);
 		return { success: false, error: "Failed to update avatar" };
 	}
 }
@@ -284,7 +285,7 @@ export async function updateNotificationPreferences(
 		revalidatePath("/settings");
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to update notification preferences:", error);
+		logger.error("Failed to update notification preferences:", error);
 		return { success: false, error: "Failed to update preferences" };
 	}
 }
@@ -319,7 +320,7 @@ export async function updateAppearancePreferences(
 		revalidatePath("/settings");
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to update appearance preferences:", error);
+		logger.error("Failed to update appearance preferences:", error);
 		return { success: false, error: "Failed to update preferences" };
 	}
 }
@@ -388,7 +389,7 @@ export async function revokeSession(sessionId: string): Promise<{ success: boole
 		revalidatePath("/settings");
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to revoke session:", error);
+		logger.error("Failed to revoke session:", error);
 		return { success: false, error: "Failed to revoke session" };
 	}
 }
@@ -445,7 +446,7 @@ export async function changePassword(
 		revalidatePath("/settings");
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to change password:", error);
+		logger.error("Failed to change password:", error);
 		return { success: false, error: "Failed to change password" };
 	}
 }
@@ -476,7 +477,7 @@ export async function revokeAllOtherSessions(): Promise<{ success: boolean; erro
 		revalidatePath("/settings");
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to revoke sessions:", error);
+		logger.error("Failed to revoke sessions:", error);
 		return { success: false, error: "Failed to revoke sessions" };
 	}
 }
@@ -532,7 +533,7 @@ export async function generateApiKey(name: string): Promise<{ success: boolean; 
 		revalidatePath("/settings");
 		return { success: true, key }; // Return full key only on creation
 	} catch (error) {
-		console.error("Failed to generate API key:", error);
+		logger.error("Failed to generate API key:", error);
 		return { success: false, error: "Failed to generate API key" };
 	}
 }
@@ -566,7 +567,7 @@ export async function deleteApiKey(keyId: string): Promise<{ success: boolean; e
 		revalidatePath("/settings");
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to delete API key:", error);
+		logger.error("Failed to delete API key:", error);
 		return { success: false, error: "Failed to delete API key" };
 	}
 }
@@ -712,7 +713,7 @@ export async function exportOpportunitiesCSV(): Promise<{ success: boolean; data
 
 		return { success: true, data: csv };
 	} catch (error) {
-		console.error("Failed to export opportunities:", error);
+		logger.error("Failed to export opportunities:", error);
 		return { success: false, error: "Failed to export opportunities" };
 	}
 }
@@ -764,7 +765,7 @@ export async function exportContactsCSV(): Promise<{ success: boolean; data?: st
 
 		return { success: true, data: csv };
 	} catch (error) {
-		console.error("Failed to export contacts:", error);
+		logger.error("Failed to export contacts:", error);
 		return { success: false, error: "Failed to export contacts" };
 	}
 }
@@ -807,7 +808,7 @@ export async function exportAccountsCSV(): Promise<{ success: boolean; data?: st
 
 		return { success: true, data: csv };
 	} catch (error) {
-		console.error("Failed to export accounts:", error);
+		logger.error("Failed to export accounts:", error);
 		return { success: false, error: "Failed to export accounts" };
 	}
 }
@@ -825,7 +826,7 @@ export async function deleteAllUserData(): Promise<{ success: boolean; deletedCo
 		const sessionData = await requireServerSession();
 		const userId = sessionData.user.id;
 
-		console.log(`[DANGER] Delete all data requested by user: ${userId}`);
+		logger.debug(`[DANGER] Delete all data requested by user: ${userId}`);
 
 		// Delete user-owned data in correct order (respecting foreign keys)
 		const deletedCounts: Record<string, number> = {};
@@ -849,12 +850,12 @@ export async function deleteAllUserData(): Promise<{ success: boolean; deletedCo
 		const accountsResult = await db.delete(accounts).where(eq(accounts.ownerId, userId));
 		deletedCounts.accounts = accountsResult.rowCount || 0;
 
-		console.log(`[DANGER] Deleted data for user ${userId}:`, deletedCounts);
+		logger.debug(`[DANGER] Deleted data for user ${userId}:`, deletedCounts);
 
 		revalidatePath("/");
 		return { success: true, deletedCounts };
 	} catch (error) {
-		console.error("Failed to delete user data:", error);
+		logger.error("Failed to delete user data:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to delete data" };
 	}
 }
@@ -868,7 +869,7 @@ export async function deleteUserAccount(): Promise<{ success: boolean; error?: s
 		const sessionData = await requireServerSession();
 		const userId = sessionData.user.id;
 
-		console.log(`[DANGER] Delete account requested by user: ${userId}`);
+		logger.debug(`[DANGER] Delete account requested by user: ${userId}`);
 
 		// 1. Delete all user data first
 		const dataResult = await deleteAllUserData();
@@ -882,11 +883,11 @@ export async function deleteUserAccount(): Promise<{ success: boolean; error?: s
 		// 3. Delete the user account
 		await db.delete(user).where(eq(user.id, userId));
 
-		console.log(`[DANGER] Account deleted for user: ${userId}`);
+		logger.debug(`[DANGER] Account deleted for user: ${userId}`);
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to delete account:", error);
+		logger.error("Failed to delete account:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to delete account" };
 	}
 }

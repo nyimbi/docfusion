@@ -1,0 +1,51 @@
+# DocuFusion Deployment Server Configuration
+# ===========================================
+# Server inventory for deployment orchestration
+
+servers:
+  # DataCraft Systems (Primary)
+  datacraft-ours:
+    host: "37.60.225.7"
+    domain: "ours.datacraft.systems"
+    user: "root"
+    alias: "datacraft"
+    roles:
+      - app
+      - database
+      - scrapers
+      - monitoring
+    description: "Primary server at DataCraft Systems"
+    https_url: "https://ours.datacraft.systems"
+
+# Deployment Configuration
+deployment:
+  default_server: "datacraft-ours"
+
+  # SSH Configuration
+  ssh:
+    port: 22
+    key_path: "~/.ssh/id_rsa"
+    timeout: 30
+
+  # Application Settings
+  app:
+    repo_url: "https://github.com/your-org/docfusion.git"
+    branch: "main"
+    deploy_user: "docfusion"
+    app_dir: "/opt/docfusion/app"
+
+  # Database Settings
+  database:
+    name: "docfusion"
+    user: "docfusion"
+    # Password auto-generated if not set
+
+  # Scraper Settings
+  scrapers:
+    tier1_schedule: "0 */6 * * *"   # Every 6 hours
+    tier2_schedule: "0 */12 * * *"  # Every 12 hours
+    tier3_schedule: "0 6 * * *"     # Daily at 6am UTC
+
+# Domain Mapping
+domains:
+  primary: "ours.datacraft.systems"

@@ -24,7 +24,13 @@ from ..analytics.notification_analytics import (
 	NotificationAnalytics, AnalyticsEvent,
 	create_notification_analytics
 )
-from ..channels import *
+from ..channels import (
+	EmailChannel, EmailConfiguration,
+	SMSChannel, SMSConfiguration, SMSProvider,
+	PushChannel, PushConfiguration,
+	InAppChannel, InAppConfiguration,
+	ChannelType
+)
 from ..workflow_notification_integration import (
 	WorkflowNotificationIntegration, WorkflowEventType,
 	create_workflow_notification_integration

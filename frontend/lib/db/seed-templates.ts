@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { templates, templateCategories } from "@/lib/db/schema";
 import { sql, eq } from "drizzle-orm";
 import { EXTENDED_TEMPLATES } from "./seed-templates-extended";
+import { logger } from "@/lib/utils/logger";
 import { ALL_PROFESSIONAL_TEMPLATES } from "./seed-templates-professional";
 import { randomUUID } from "crypto";
 
@@ -2525,10 +2526,10 @@ const ALL_TEMPLATES = [
 // ============================================================================
 
 export async function seedTemplates() {
-	console.log("Starting template seed...");
+	logger.debug("Starting template seed...");
 
 	// Seed categories first
-	console.log("Seeding categories...");
+	logger.debug("Seeding categories...");
 	for (const category of CATEGORIES) {
 		await db
 			.insert(templateCategories)
@@ -2551,14 +2552,14 @@ export async function seedTemplates() {
 				},
 			});
 	}
-	console.log(`Seeded ${CATEGORIES.length} categories`);
+	logger.debug(`Seeded ${CATEGORIES.length} categories`);
 
 	// Clear existing system templates to avoid duplicates
-	console.log("Clearing existing system templates...");
+	logger.debug("Clearing existing system templates...");
 	await db.delete(templates).where(eq(templates.createdBy, "system"));
 
 	// Seed templates
-	console.log("Seeding templates...");
+	logger.debug("Seeding templates...");
 	let count = 0;
 	for (const template of ALL_TEMPLATES) {
 		const content = createSectionContent(template.sections);
@@ -2591,8 +2592,8 @@ export async function seedTemplates() {
 		count++;
 	}
 
-	console.log(`Seeded ${count} templates`);
-	console.log("Template seed complete!");
+	logger.debug(`Seeded ${count} templates`);
+	logger.debug("Template seed complete!");
 
 	return { categories: CATEGORIES.length, templates: count };
 }

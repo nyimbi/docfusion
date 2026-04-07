@@ -14,6 +14,7 @@
  */
 
 import type { Slide, PresentationTheme, StorylineFramework, ChartConfig } from "./presentations";
+import type { HDSINode } from "./types";
 
 // ============================================================================
 // Format Types
@@ -679,7 +680,7 @@ export function isActionTitle(title: string): boolean {
 // Format-Aware Storyline Generators
 // ============================================================================
 
-export function generateBCGStoryline(nodes: any[]): Slide[] {
+export function generateBCGStoryline(nodes: HDSINode[]): Slide[] {
   return [
     {
       id: `slide-${Date.now()}-1`,
@@ -701,7 +702,7 @@ export function generateBCGStoryline(nodes: any[]): Slide[] {
   ];
 }
 
-export function generateMilitaryDecisionBrief(content: any): Slide[] {
+export function generateMilitaryDecisionBrief(content: Record<string, unknown>): Slide[] {
   return [
     {
       id: `slide-${Date.now()}-situation`,

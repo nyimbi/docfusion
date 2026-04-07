@@ -28,13 +28,7 @@ from ..predictors.scoring_predictor import (
 )
 from ..recommenders.strategy_recommender import StrategyRecommender, StrategicRecommendation
 from ..recommenders.content_recommender import ContentRecommender, ContentRecommendationReport
-# from .discovery_integration import OpportunityIntelligence  # Disabled due to dependencies
-
-# Create a minimal placeholder for OpportunityIntelligence
-class OpportunityIntelligence(BaseModel):
-    model_config = ConfigDict(extra='allow')
-    intelligence_id: str
-    opportunity_id: str
+from .discovery_integration import OpportunityIntelligence
 
 
 class StorageType(str, Enum):

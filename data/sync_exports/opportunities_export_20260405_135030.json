@@ -1,0 +1,31 @@
+[
+  {
+    "id": "39fae8fe-295a-4bae-80f5-741ea235c641",
+    "title": "Search",
+    "project_summary": null,
+    "status": "open",
+    "deadline": null,
+    "published_date": null,
+    "organization": null,
+    "country_region": "Rwanda",
+    "funder": null,
+    "category": "Other",
+    "sector": "Other",
+    "opportunity_type": "tender",
+    "budget_value": null,
+    "budget_min": null,
+    "budget_max": null,
+    "currency": "USD",
+    "reference_number": null,
+    "notice_id": "13348442cc6a2703",
+    "source": "rwanda_umucyo",
+    "source_id": "RWANDA_UMUCYO-13348442cc6a2703",
+    "portal_url": "javascript:void(0)",
+    "document_url": "javascript:void(0)",
+    "scraped_at": "2026-04-05T13:49:20.854298+00:00",
+    "fingerprint": "64e3f450103f183386b84e75a5a8cd28",
+    "raw_data": null,
+    "created_at": "2026-04-05T13:50:30.782189+00:00",
+    "updated_at": "2026-04-05T13:50:30.782191+00:00"
+  }
+]

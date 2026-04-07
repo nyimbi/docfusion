@@ -707,8 +707,8 @@ class StructureLearner:
 			if hasattr(self.success_predictor, 'predict_proba'):
 				try:
 					success_prob = self.success_predictor.predict_proba([feature_vector])[0][1]
-				except:
-					pass
+				except (ValueError, IndexError, AttributeError) as e:
+					self.logger.warning(f"Success prediction failed: {e}")
 			
 			# Predict best method
 			recommended_method = "crawl4ai_llm"
@@ -719,11 +719,11 @@ class StructureLearner:
 					method_pred = self.method_selector.predict([feature_vector])[0]
 					method_probs = self.method_selector.predict_proba([feature_vector])[0]
 					max_prob_idx = np.argmax(method_probs)
-					
+
 					recommended_method = method_pred
 					method_confidence = method_probs[max_prob_idx]
-				except:
-					pass
+				except (ValueError, IndexError, AttributeError) as e:
+					self.logger.warning(f"Method selection prediction failed: {e}")
 			
 			if method_confidence < 0.5:  # Low confidence in ML prediction
 				return None

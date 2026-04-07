@@ -28,6 +28,7 @@ import type {
 	PaginatedResponse,
 	PaginationOptions,
 } from "@/lib/types/opportunity";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // CRUD Operations
@@ -548,7 +549,7 @@ export async function extractRequirements(
 		try {
 			return await extractRequirementsWithAI(opportunityId, documentContent);
 		} catch (error) {
-			console.warn("[AI Extraction Error] Falling back to heuristic:", error);
+			logger.warn("[AI Extraction Error] Falling back to heuristic:", error);
 		}
 	}
 
@@ -666,7 +667,7 @@ Provide your extraction as JSON.`;
 			processingTime,
 		};
 	} catch (error) {
-		console.warn("[AI Extraction Parse Error]:", error);
+		logger.warn("[AI Extraction Parse Error]:", error);
 		// Fallback to heuristic extraction on parse error
 		return extractRequirementsHeuristic(opportunityId, documentContent, startTime);
 	}

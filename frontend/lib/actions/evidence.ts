@@ -62,6 +62,7 @@ import {
 	type StrengthImprovementSuggestion,
 	type ClaimLocation,
 } from "@/lib/db/schema-evidence";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Extended Type Aliases (for component compatibility)
@@ -2303,7 +2304,7 @@ export async function batchRateEvidence(evidenceIds: string[]): Promise<ActionRe
 					results[evidenceId] = result.data;
 				}
 			} catch (error) {
-				console.error(`Error rating evidence ${evidenceId}:`, error);
+				logger.error(`Error rating evidence ${evidenceId}:`, error);
 				// Continue processing other evidence
 			}
 		}
@@ -2561,7 +2562,7 @@ export async function exportEvidenceLibrary(format: "csv" | "json"): Promise<Act
 		const downloadUrl = `/api/evidence/export?format=${format}&filename=${encodeURIComponent(filename)}`;
 
 		// Log export for audit
-		console.info("Evidence library export initiated:", {
+		logger.info("Evidence library export initiated:", {
 			format,
 			filename,
 			evidenceCount: allEvidenceResult.data?.length || 0,

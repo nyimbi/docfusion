@@ -58,7 +58,7 @@ class DatabaseConfig(BaseModel):
 	
 	# Connection settings
 	connection_url: str = Field(
-		default="postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb",
+		default="postgresql://azureuser:Abcd1234.@db.lindela.io:5432/docfusion",
 		description="PostgreSQL connection URL"
 	)
 	
@@ -259,7 +259,7 @@ def reset_database_config() -> None:
 def create_development_config() -> DatabaseConfig:
 	"""Create development environment database configuration."""
 	return DatabaseConfig(
-		connection_url="postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb",
+		connection_url="postgresql://azureuser:Abcd1234.@db.lindela.io:5432/docfusion",
 		pool_size=5,
 		max_overflow=10,
 		echo_sql=True,
@@ -271,7 +271,7 @@ def create_development_config() -> DatabaseConfig:
 def create_testing_config() -> DatabaseConfig:
 	"""Create testing environment database configuration."""
 	return DatabaseConfig(
-		connection_url="postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb_test",
+		connection_url="postgresql://azureuser:Abcd1234.@db.lindela.io:5432/docfusion_test",
 		pool_size=3,
 		max_overflow=5,
 		echo_sql=False,
@@ -283,7 +283,7 @@ def create_testing_config() -> DatabaseConfig:
 def create_production_config() -> DatabaseConfig:
 	"""Create production environment database configuration."""
 	return DatabaseConfig(
-		connection_url="postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb",
+		connection_url="postgresql://azureuser:Abcd1234.@db.lindela.io:5432/docfusion",
 		pool_size=20,
 		max_overflow=40,
 		pool_timeout=60,

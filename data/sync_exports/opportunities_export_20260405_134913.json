@@ -1,0 +1,31 @@
+[
+  {
+    "id": "ad139963-82ce-4f87-beb1-b2ec02c8f138",
+    "title": "",
+    "project_summary": null,
+    "status": "open",
+    "deadline": null,
+    "published_date": null,
+    "organization": "FG INAUGURATES COMMITTEE TO REVIEW PUBLIC PROCUREMENT ACT 2007",
+    "country_region": "Nigeria",
+    "funder": null,
+    "category": "IT Infrastructure",
+    "sector": "Technology",
+    "opportunity_type": "tender",
+    "budget_value": null,
+    "budget_min": null,
+    "budget_max": null,
+    "currency": "USD",
+    "reference_number": null,
+    "notice_id": "48b666a503860b73",
+    "source": "nigeria_bpp",
+    "source_id": "NIGERIA_BPP-48b666a503860b73",
+    "portal_url": "https://www.publicprocurement.ng/wp-content/uploads/2024/09/457059311_1039078128227085_8011771975001815066_n.jpg",
+    "document_url": null,
+    "scraped_at": "2026-04-05T13:49:13.406633+00:00",
+    "fingerprint": "22b10830b568161a2d4330790e874bd2",
+    "raw_data": null,
+    "created_at": "2026-04-05T13:49:13.577888+00:00",
+    "updated_at": "2026-04-05T13:49:13.577890+00:00"
+  }
+]

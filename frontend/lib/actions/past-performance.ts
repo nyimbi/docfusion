@@ -22,6 +22,7 @@ import {
 import { opportunities, requirements } from "@/lib/db/schema";
 import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Input Schemas
@@ -259,7 +260,7 @@ export async function createProject(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to create project:", error);
+		logger.error("Failed to create project:", error);
 		return { success: false, error: "Failed to create project" };
 	}
 }
@@ -353,7 +354,7 @@ export async function updateProject(
 		if (error instanceof z.ZodError) {
 			return { success: false, error: `Validation error: ${error.issues[0].message}` };
 		}
-		console.error("Failed to update project:", error);
+		logger.error("Failed to update project:", error);
 		return { success: false, error: "Failed to update project" };
 	}
 }
@@ -376,7 +377,7 @@ export async function deleteProject(id: string): Promise<ActionResult<void>> {
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to delete project:", error);
+		logger.error("Failed to delete project:", error);
 		return { success: false, error: "Failed to delete project" };
 	}
 }
@@ -440,7 +441,7 @@ export async function duplicateProject(id: string): Promise<ActionResult<Project
 
 		return { success: true, data: newProject };
 	} catch (error) {
-		console.error("Failed to duplicate project:", error);
+		logger.error("Failed to duplicate project:", error);
 		return { success: false, error: "Failed to duplicate project" };
 	}
 }
@@ -529,7 +530,7 @@ export async function searchProjects(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to search projects:", error);
+		logger.error("Failed to search projects:", error);
 		return { success: false, error: "Failed to search projects" };
 	}
 }
@@ -551,7 +552,7 @@ export async function getProject(id: string): Promise<ActionResult<Project>> {
 
 		return { success: true, data: mapDBProjectToProject(row) };
 	} catch (error) {
-		console.error("Failed to get project:", error);
+		logger.error("Failed to get project:", error);
 		return { success: false, error: "Failed to get project" };
 	}
 }
@@ -689,7 +690,7 @@ export async function calculateRelevanceScores(
 
 		return { success: true, data: scores };
 	} catch (error) {
-		console.error("Failed to calculate relevance scores:", error);
+		logger.error("Failed to calculate relevance scores:", error);
 		return { success: false, error: "Failed to calculate relevance scores" };
 	}
 }
@@ -976,7 +977,7 @@ export async function generateRelevanceMatrix(
 
 		return { success: true, data: matrix };
 	} catch (error) {
-		console.error("Failed to generate relevance matrix:", error);
+		logger.error("Failed to generate relevance matrix:", error);
 		return { success: false, error: "Failed to generate relevance matrix" };
 	}
 }
@@ -1098,7 +1099,7 @@ Generate the CPAR narrative:`;
 			},
 		};
 	} catch (error) {
-		console.error("Failed to generate CPAR narrative:", error);
+		logger.error("Failed to generate CPAR narrative:", error);
 		return { success: false, error: "Failed to generate CPAR narrative" };
 	}
 }
@@ -1224,7 +1225,7 @@ Write a concise, impactful summary highlighting the most impressive metrics and 
 			},
 		};
 	} catch (error) {
-		console.error("Failed to generate brief description:", error);
+		logger.error("Failed to generate brief description:", error);
 		return { success: false, error: "Failed to generate brief description" };
 	}
 }
@@ -1365,7 +1366,7 @@ Write a narrative that:
 			},
 		};
 	} catch (error) {
-		console.error("Failed to generate relevance narrative:", error);
+		logger.error("Failed to generate relevance narrative:", error);
 		return { success: false, error: "Failed to generate relevance narrative" };
 	}
 }
@@ -1438,7 +1439,7 @@ export async function checkReferenceAvailability(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to check reference availability:", error);
+		logger.error("Failed to check reference availability:", error);
 		return { success: false, error: "Failed to check reference availability" };
 	}
 }
@@ -1509,7 +1510,7 @@ export async function importProjectFromCPARS(
 		revalidatePath("/past-performance");
 		return { success: true, data: mapDBProjectToProject(newProject) };
 	} catch (error) {
-		console.error("Failed to import from CPARS:", error);
+		logger.error("Failed to import from CPARS:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to import from CPARS" };
 	}
 }
@@ -1604,7 +1605,7 @@ export async function exportPastPerformanceVolume(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to export past performance volume:", error);
+		logger.error("Failed to export past performance volume:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to export past performance volume" };
 	}
 }
@@ -1719,7 +1720,7 @@ export async function getPastPerformanceAnalytics(): Promise<ActionResult<{
 			},
 		};
 	} catch (error) {
-		console.error("Failed to get analytics:", error);
+		logger.error("Failed to get analytics:", error);
 		return { success: false, error: "Failed to get analytics" };
 	}
 }
@@ -2024,7 +2025,7 @@ export async function analyzePortfolioGaps(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to analyze portfolio gaps:", error);
+		logger.error("Failed to analyze portfolio gaps:", error);
 		return { success: false, error: "Failed to analyze portfolio gaps" };
 	}
 }

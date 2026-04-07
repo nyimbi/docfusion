@@ -25,6 +25,7 @@ import {
 } from "@/lib/db/schema-tasks";
 import { requirements } from "@/lib/db/schema";
 import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, isNull, count, sum, ne, lt, gt } from "drizzle-orm";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -250,7 +251,7 @@ async function logTaskActivity(
 			changeField: changeField ?? null,
 		});
 	} catch (error) {
-		console.error("Failed to log task activity:", error);
+		logger.error("Failed to log task activity:", error);
 	}
 }
 
@@ -345,7 +346,7 @@ export async function createTask(
 
 		return { success: true, data: task };
 	} catch (error) {
-		console.error("Failed to create task:", error);
+		logger.error("Failed to create task:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to create task" };
 	}
 }
@@ -462,7 +463,7 @@ export async function updateTask(
 
 		return { success: true, data: updatedTask };
 	} catch (error) {
-		console.error("Failed to update task:", error);
+		logger.error("Failed to update task:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to update task" };
 	}
 }
@@ -496,7 +497,7 @@ export async function deleteTask(id: string): Promise<{ success: boolean; error?
 
 		return { success: true };
 	} catch (error) {
-		console.error("Failed to delete task:", error);
+		logger.error("Failed to delete task:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to delete task" };
 	}
 }
@@ -565,7 +566,7 @@ export async function listAllTasks(
 
 		return { success: true, data: tasks };
 	} catch (error) {
-		console.error("Failed to list all tasks:", error);
+		logger.error("Failed to list all tasks:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to list tasks" };
 	}
 }
@@ -640,7 +641,7 @@ export async function listTasks(
 
 		return { success: true, data: tasks };
 	} catch (error) {
-		console.error("Failed to list tasks:", error);
+		logger.error("Failed to list tasks:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to list tasks" };
 	}
 }
@@ -664,7 +665,7 @@ export async function getTask(
 
 		return { success: true, data: task };
 	} catch (error) {
-		console.error("Failed to get task:", error);
+		logger.error("Failed to get task:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to get task" };
 	}
 }
@@ -759,7 +760,7 @@ export async function generateTasksFromCompliance(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to generate tasks:", error);
+		logger.error("Failed to generate tasks:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to generate tasks" };
 	}
 }
@@ -935,7 +936,7 @@ export async function suggestAssignment(
 
 		return { success: true, data: suggestions };
 	} catch (error) {
-		console.error("Failed to suggest assignments:", error);
+		logger.error("Failed to suggest assignments:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to suggest assignments" };
 	}
 }
@@ -982,7 +983,7 @@ export async function bulkAssignTasks(
 
 		return { success: true, data: { assigned, failed } };
 	} catch (error) {
-		console.error("Failed to bulk assign tasks:", error);
+		logger.error("Failed to bulk assign tasks:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to bulk assign tasks" };
 	}
 }
@@ -1174,7 +1175,7 @@ export async function calculateCriticalPath(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to calculate critical path:", error);
+		logger.error("Failed to calculate critical path:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to calculate critical path" };
 	}
 }
@@ -1285,7 +1286,7 @@ export async function getWorkloadSummary(
 
 		return { success: true, data: summary };
 	} catch (error) {
-		console.error("Failed to get workload summary:", error);
+		logger.error("Failed to get workload summary:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to get workload summary" };
 	}
 }
@@ -1333,7 +1334,7 @@ export async function getTeamWorkload(
 
 		return { success: true, data: workloads };
 	} catch (error) {
-		console.error("Failed to get team workload:", error);
+		logger.error("Failed to get team workload:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to get team workload" };
 	}
 }
@@ -1455,7 +1456,7 @@ export async function balanceWorkload(
 
 		return { success: true, data: result };
 	} catch (error) {
-		console.error("Failed to balance workload:", error);
+		logger.error("Failed to balance workload:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to balance workload" };
 	}
 }
@@ -1598,7 +1599,7 @@ export async function detectBottlenecks(
 
 		return { success: true, data: bottlenecks };
 	} catch (error) {
-		console.error("Failed to detect bottlenecks:", error);
+		logger.error("Failed to detect bottlenecks:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to detect bottlenecks" };
 	}
 }
@@ -1709,7 +1710,7 @@ export async function escalateOverdueTasks(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to escalate tasks:", error);
+		logger.error("Failed to escalate tasks:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to escalate tasks" };
 	}
 }
@@ -1885,7 +1886,7 @@ export async function generateProgressReport(
 
 		return { success: true, data: report };
 	} catch (error) {
-		console.error("Failed to generate progress report:", error);
+		logger.error("Failed to generate progress report:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to generate progress report" };
 	}
 }
@@ -1995,7 +1996,7 @@ export async function updateAuthorExpertise(
 
 		return { success: true, data: updatedAuthor };
 	} catch (error) {
-		console.error("Failed to update author expertise:", error);
+		logger.error("Failed to update author expertise:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to update author expertise" };
 	}
 }
@@ -2019,7 +2020,7 @@ export async function getAuthorExpertise(
 
 		return { success: true, data: author };
 	} catch (error) {
-		console.error("Failed to get author expertise:", error);
+		logger.error("Failed to get author expertise:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to get author expertise" };
 	}
 }
@@ -2036,7 +2037,7 @@ export async function listTeamMembers(
 	}
 ): Promise<{ success: boolean; data?: AuthorExpertiseType[]; error?: string }> {
 	try {
-		const conditions: any[] = [];
+		const conditions: ReturnType<typeof eq>[] = [];
 
 		if (filters?.availability) {
 			conditions.push(eq(authorExpertise.availability, filters.availability));
@@ -2062,7 +2063,7 @@ export async function listTeamMembers(
 
 		return { success: true, data: members };
 	} catch (error) {
-		console.error("Failed to list team members:", error);
+		logger.error("Failed to list team members:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to list team members" };
 	}
 }
@@ -2086,7 +2087,7 @@ export async function getTaskActivity(
 
 		return { success: true, data: activities };
 	} catch (error) {
-		console.error("Failed to get task activity:", error);
+		logger.error("Failed to get task activity:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to get task activity" };
 	}
 }
@@ -2166,7 +2167,7 @@ export async function logTime(
 			},
 		};
 	} catch (error) {
-		console.error("Failed to log time:", error);
+		logger.error("Failed to log time:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to log time" };
 	}
 }
@@ -2291,6 +2292,6 @@ async function updateOpportunityTaskSummary(opportunityId: string): Promise<void
 			await db.insert(opportunityTaskSummary).values(summaryData);
 		}
 	} catch (error) {
-		console.error("Failed to update opportunity task summary:", error);
+		logger.error("Failed to update opportunity task summary:", error);
 	}
 }

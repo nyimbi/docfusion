@@ -661,8 +661,8 @@ class BaseScraper(ABC):
 					proxy_used = getattr(session.connector, '_proxy', None) if hasattr(session, 'connector') else None
 					if proxy_used:
 						self.proxy_manager.record_proxy_result(str(proxy_used), False)
-				except:
-					pass
+				except Exception as e:
+					self.logger.warning(f"Failed to record proxy result after scraping error: {e}")
 				
 				if attempt < self.config.max_retries:
 					delay = self.config.retry_delay_base * (self.config.backoff_multiplier ** attempt)

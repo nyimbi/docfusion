@@ -23,6 +23,10 @@ import {
 } from "./types";
 import type { AIModelConfig, AIProviderType } from "./providers/types";
 
+const debugLog = process.env.NODE_ENV === "production"
+	? (..._args: unknown[]) => {}
+	: (...args: unknown[]) => console.log(...args);
+
 // ============================================================================
 // Environment Configuration Loading
 // ============================================================================
@@ -36,8 +40,8 @@ export function loadAzureConfigFromEnv(): ConfigEntry<AzureOpenAIConfig | undefi
 	const deploymentName = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
 	const apiVersion = process.env.AZURE_OPENAI_API_VERSION || "2024-02-15-preview";
 
-	console.log("[AI Config] Loading Azure OpenAI config from environment...");
-	console.log("[AI Config] Environment variables present:", {
+	debugLog("[AI Config] Loading Azure OpenAI config from environment...");
+	debugLog("[AI Config] Environment variables present:", {
 		AZURE_OPENAI_API_KEY: apiKey ? `Yes (${apiKey.length} chars)` : "Missing",
 		AZURE_OPENAI_ENDPOINT: endpoint || "Missing",
 		AZURE_OPENAI_DEPLOYMENT_NAME: deploymentName || "Missing",
@@ -59,7 +63,7 @@ export function loadAzureConfigFromEnv(): ConfigEntry<AzureOpenAIConfig | undefi
 		} as ConfigEntry<AzureOpenAIConfig | undefined>;
 	}
 
-	console.log("[AI Config] Azure OpenAI configuration loaded successfully");
+	debugLog("[AI Config] Azure OpenAI configuration loaded successfully");
 	return {
 		value: {
 			apiKey: apiKey!, // Non-null assertion validated above
@@ -169,7 +173,7 @@ class AIConfigManager {
 	private ensureConfigLoaded(): void {
 		if (this.configLoaded) return;
 
-		console.log("[AI Config] Lazy loading configuration...");
+		debugLog("[AI Config] Lazy loading configuration...");
 		const azure = loadAzureConfigFromEnv();
 		const ollama = loadOllamaConfigFromEnv();
 
@@ -194,7 +198,7 @@ class AIConfigManager {
 		};
 
 		this.configLoaded = true;
-		console.log("[AI Config] Configuration loaded:", {
+		debugLog("[AI Config] Configuration loaded:", {
 			hasAzure: !!this.config.azure,
 			hasOllama: !!this.config.ollama,
 			defaultProvider: this.config.defaultProvider,

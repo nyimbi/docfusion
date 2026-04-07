@@ -6,6 +6,7 @@
  * Connects to the DocFusion AI API for content generation.
  */
 
+import { logger } from "@/lib/utils/logger";
 import type { HDSINode } from "./types";
 
 export interface GenerateContentOptions {
@@ -213,11 +214,11 @@ ${node.customPrompt ? `\n## CUSTOM INSTRUCTIONS:\n${node.customPrompt}` : ""}`;
       return data.content || "No content generated";
     }
   } catch (error) {
-    console.error("AI Generation error:", error);
+    logger.error("AI Generation error:", error);
 
     // Fallback to mock if API is not available
     if (error instanceof Error && error.message.includes("No AI provider available")) {
-      console.log("AI provider not available, using fallback");
+      logger.debug("AI provider not available, using fallback");
       return generateFallbackContent(node);
     }
 
@@ -387,19 +388,19 @@ Return ONLY the JSON array of chapters.`;
       try {
         const parsed = JSON.parse(jsonStr);
         // Validate, ensure required fields, and enforce structure rules
-        const normalizedSections = parsed.map((section: any) => normalizeSection(section, title, description));
+        const normalizedSections = parsed.map((section: Record<string, unknown>) => normalizeSection(section, title, description));
         return enforceStructuralRules(normalizedSections, title, description);
       } catch (parseError) {
-        console.error("JSON parse error after cleanup:", parseError);
-        console.error("Attempted to parse:", jsonStr.substring(0, 500));
+        logger.error("JSON parse error after cleanup:", parseError);
+        logger.error("Attempted to parse:", jsonStr.substring(0, 500));
         // Fall through to fallback
       }
     }
 
-    console.warn("Could not parse AI response, using smart fallback");
+    logger.warn("Could not parse AI response, using smart fallback");
     return generateSmartFallbackOutline(title, description);
   } catch (error) {
-    console.error("Outline generation error:", error);
+    logger.error("Outline generation error:", error);
 
     // Enhanced fallback that uses the description to generate better sections
     return generateSmartFallbackOutline(title, description);
@@ -409,14 +410,15 @@ Return ONLY the JSON array of chapters.`;
 /**
  * Normalize a section from AI response
  */
-function normalizeSection(section: any, docTitle: string, docDescription: string): OutlineSection {
+function normalizeSection(section: Record<string, unknown>, docTitle: string, docDescription: string): OutlineSection {
+  const title = (section.title as string) || "Untitled Section";
   return {
-    title: section.title || "Untitled Section",
-    type: section.type || "section",
-    description: section.description || "",
-    customPrompt: section.customPrompt || `Write comprehensive content for the "${section.title}" section in the context of "${docTitle}". Reference: ${docDescription.slice(0, 100)}.`,
-    suggestedTokenBudget: section.suggestedTokenBudget || 500,
-    children: (section.children || []).map((child: any) => normalizeSection(child, docTitle, docDescription)),
+    title,
+    type: (section.type as OutlineSection["type"]) || "section",
+    description: (section.description as string) || "",
+    customPrompt: (section.customPrompt as string) || `Write comprehensive content for the "${title}" section in the context of "${docTitle}". Reference: ${docDescription.slice(0, 100)}.`,
+    suggestedTokenBudget: (section.suggestedTokenBudget as number) || 500,
+    children: ((section.children as Record<string, unknown>[]) || []).map((child) => normalizeSection(child, docTitle, docDescription)),
   };
 }
 

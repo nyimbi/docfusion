@@ -13,6 +13,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "@/lib/theme-provider";
@@ -64,6 +65,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 
 // ============================================================================
 // Types
@@ -245,6 +247,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 	return (
 		<div className="min-h-screen bg-background bg-paper">
+			<a
+				href="#main-content"
+				className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-background focus:text-foreground focus:border focus:border-border focus:rounded-md focus:top-2 focus:left-2"
+			>
+				Skip to main content
+			</a>
+
 			{/* Mobile Header */}
 			<MobileHeader 
 				onMenuOpen={openMobileMenu}
@@ -267,6 +276,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 			{/* Main Content Area */}
 			<main
+				id="main-content"
 				className={cn(
 					"relative h-screen flex flex-col transition-all duration-300",
 					sidebarCollapsed ? "lg:pl-20" : "lg:pl-64",
@@ -278,7 +288,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 				{/* Page Content - flex-1 allows children to control their own overflow */}
 				<div className="relative flex-1 overflow-hidden">
-					{children}
+					<ErrorBoundary>
+						{children}
+					</ErrorBoundary>
 				</div>
 			</main>
 		</div>
@@ -859,10 +871,13 @@ function UserMenu() {
 					aria-label="User menu"
 				>
 					{session?.user?.image ? (
-						<img
+						<Image
 							src={session.user.image}
 							alt={session.user.name || "User"}
 							className="w-8 h-8 rounded-lg object-cover"
+							width={32}
+							height={32}
+							unoptimized
 						/>
 					) : (
 						<div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium">

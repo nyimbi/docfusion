@@ -5,6 +5,7 @@
  * Real-time rule checking for tone, terminology, readability, bias, accessibility
  */
 
+import { logger } from "@/lib/utils/logger";
 import { useState, useCallback, useMemo } from "react";
 
 // ============================================================================
@@ -348,7 +349,7 @@ export function analyzeStyle(text: string, customRules?: StyleRule[]): StyleRepo
       const ruleViolations = rule.check(text);
       violations.push(...ruleViolations);
     } catch (error) {
-      console.error(`Rule ${rule.id} failed:`, error);
+      logger.error(`Rule ${rule.id} failed:`, error);
     }
   }
   

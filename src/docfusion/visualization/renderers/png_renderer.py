@@ -532,7 +532,8 @@ class PNGRenderer:
         title = chart_data.get("title", "Chart")
         try:
             font = ImageFont.truetype("arial.ttf", 16)
-        except:
+        except (IOError, OSError) as e:
+            self.logger.warning(f"Failed to load truetype font: {e}")
             font = ImageFont.load_default()
 
         # Get text bounding box for centering
@@ -572,7 +573,8 @@ class PNGRenderer:
 
         try:
             font = ImageFont.truetype("arial.ttf", 12)
-        except:
+        except (IOError, OSError) as e:
+            self.logger.warning(f"Failed to load truetype font: {e}")
             font = ImageFont.load_default()
 
         # Draw edges first

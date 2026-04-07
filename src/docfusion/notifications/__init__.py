@@ -39,7 +39,17 @@ from .analytics import (
     create_notification_analytics
 )
 
-from .channels import *
+from .channels import (
+	EmailChannel, EmailConfiguration, EmailTemplate, EmailAttachment, EmailProvider,
+	SMSChannel, SMSConfiguration, SMSProvider,
+	PushChannel, PushConfiguration, PushPlatform,
+	InAppChannel, InAppConfiguration, InAppNotificationType,
+	WhatsAppChannel, WhatsAppConfiguration, WhatsAppMessageType,
+	TelegramChannel, TelegramConfiguration, TelegramParseMode,
+	SlackChannel, SlackConfiguration, SlackMessageType,
+	WebhookChannel, WebhookConfiguration, WebhookAuthType, WebhookMethod,
+	create_email_channel, create_sms_channel
+)
 
 from .workflow_notification_integration import (
     WorkflowNotificationIntegration,

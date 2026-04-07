@@ -98,6 +98,7 @@ import type {
 	ThemePriority,
 	ThemeStatus,
 } from "@/lib/types/win-themes";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Zod Validation Schemas
@@ -290,7 +291,7 @@ export async function getThemes(opportunityId: string): Promise<GetThemesResult>
 
 		return { success: true, data: themes.map(mapDBThemeToWinTheme) };
 	} catch (error) {
-		console.error("Error getting themes:", error);
+		logger.error("Error getting themes:", error);
 		return { success: false, error: `Failed to get themes: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -316,7 +317,7 @@ export async function getTheme(themeId: WinThemeId): Promise<GetThemeResult> {
 
 		return { success: true, data: mapDBThemeToWinTheme(theme) };
 	} catch (error) {
-		console.error("Error getting theme:", error);
+		logger.error("Error getting theme:", error);
 		return { success: false, error: `Failed to get theme: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -359,7 +360,7 @@ export async function createTheme(input: CreateWinThemeInput): Promise<CreateThe
 
 		return { success: true, data: mapDBThemeToWinTheme(theme) };
 	} catch (error) {
-		console.error("Error creating theme:", error);
+		logger.error("Error creating theme:", error);
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues.map((issue: z.ZodIssue) => issue.message).join(", ") };
 		}
@@ -412,7 +413,7 @@ export async function updateTheme(
 
 		return { success: true, data: mapDBThemeToWinTheme(theme) };
 	} catch (error) {
-		console.error("Error updating theme:", error);
+		logger.error("Error updating theme:", error);
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues.map((issue: z.ZodIssue) => issue.message).join(", ") };
 		}
@@ -446,7 +447,7 @@ export async function deleteTheme(themeId: WinThemeId): Promise<DeleteThemeResul
 
 		return { success: true, data: { deleted: true } };
 	} catch (error) {
-		console.error("Error deleting theme:", error);
+		logger.error("Error deleting theme:", error);
 		return { success: false, error: `Failed to delete theme: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -483,7 +484,7 @@ export async function reorderThemes(
 
 		return { success: true, data: { reordered: true } };
 	} catch (error) {
-		console.error("Error reordering themes:", error);
+		logger.error("Error reordering themes:", error);
 		return { success: false, error: `Failed to reorder themes: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -512,7 +513,7 @@ export async function getThemeSuggestions(
 		// For now, return empty array (suggestions are generated on-demand)
 		return { success: true, data: [] };
 	} catch (error) {
-		console.error("Error getting suggestions:", error);
+		logger.error("Error getting suggestions:", error);
 		return { success: false, error: `Failed to get suggestions: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -616,11 +617,11 @@ Respond in JSON format:
 
 			return { success: true, data: suggestions };
 		} catch (parseError) {
-			console.error("Error parsing AI response:", parseError);
+			logger.error("Error parsing AI response:", parseError);
 			return { success: false, error: "Failed to parse AI suggestions" };
 		}
 	} catch (error) {
-		console.error("Error generating suggestions:", error);
+		logger.error("Error generating suggestions:", error);
 		return { success: false, error: `Failed to generate suggestions: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -651,7 +652,7 @@ export async function acceptThemeSuggestion(
 		const result = await createTheme(modifications as CreateWinThemeInput);
 		return result;
 	} catch (error) {
-		console.error("Error accepting suggestion:", error);
+		logger.error("Error accepting suggestion:", error);
 		return { success: false, error: `Failed to accept suggestion: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -670,7 +671,7 @@ export async function dismissThemeSuggestion(
 		// In a full implementation, update suggestion status in database
 		return { success: true };
 	} catch (error) {
-		console.error("Error dismissing suggestion:", error);
+		logger.error("Error dismissing suggestion:", error);
 		return { success: false, error: `Failed to dismiss suggestion: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -820,7 +821,7 @@ export async function getThemeHeatMap(opportunityId: string): Promise<GetHeatMap
 			},
 		};
 	} catch (error) {
-		console.error("Error generating heat map:", error);
+		logger.error("Error generating heat map:", error);
 		return { success: false, error: `Failed to generate heat map: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -878,7 +879,7 @@ export async function getHeatMapCellDetails(
 			},
 		};
 	} catch (error) {
-		console.error("Error getting cell details:", error);
+		logger.error("Error getting cell details:", error);
 		return { success: false, error: `Failed to get cell details: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1111,7 +1112,7 @@ export async function analyzeConsistency(
 			},
 		};
 	} catch (error) {
-		console.error("Error analyzing consistency:", error);
+		logger.error("Error analyzing consistency:", error);
 		return { success: false, error: `Failed to analyze consistency: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1140,7 +1141,7 @@ export async function getThemeOccurrences(
 
 		return { success: true, data: occurrences.map(mapDBOccurrenceToThemeOccurrence) };
 	} catch (error) {
-		console.error("Error getting occurrences:", error);
+		logger.error("Error getting occurrences:", error);
 		return { success: false, error: `Failed to get occurrences: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1173,7 +1174,7 @@ export async function verifyOccurrence(
 
 		return { success: true, data: mapDBOccurrenceToThemeOccurrence(occurrence) };
 	} catch (error) {
-		console.error("Error verifying occurrence:", error);
+		logger.error("Error verifying occurrence:", error);
 		return { success: false, error: `Failed to verify occurrence: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1274,14 +1275,14 @@ Return empty array [] if no occurrences found.`;
 					}
 				}
 			} catch (aiError) {
-				console.warn(`AI analysis failed for document ${doc.id}:`, aiError);
+				logger.warn(`AI analysis failed for document ${doc.id}:`, aiError);
 				// Continue processing other documents
 			}
 		}
 
 		return { success: true, count: totalOccurrences };
 	} catch (error) {
-		console.error("Error scanning for occurrences:", error);
+		logger.error("Error scanning for occurrences:", error);
 		return { success: false, error: `Failed to scan for occurrences: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1343,7 +1344,7 @@ export async function getInjectionSuggestions(
 
 		return { success: true, data: results };
 	} catch (error) {
-		console.error("Error getting injections:", error);
+		logger.error("Error getting injections:", error);
 		return { success: false, error: `Failed to get injections: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1474,11 +1475,11 @@ Respond in JSON format:
 
 			return { success: true, data: results };
 		} catch (parseError) {
-			console.error("Error parsing AI response:", parseError);
+			logger.error("Error parsing AI response:", parseError);
 			return { success: false, error: "Failed to parse AI injection suggestions" };
 		}
 	} catch (error) {
-		console.error("Error generating injections:", error);
+		logger.error("Error generating injections:", error);
 		return { success: false, error: `Failed to generate injections: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1509,7 +1510,7 @@ export async function acceptInjection(
 
 		return { success: true, data: { accepted: true } };
 	} catch (error) {
-		console.error("Error accepting injection:", error);
+		logger.error("Error accepting injection:", error);
 		return { success: false, error: `Failed to accept injection: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1537,7 +1538,7 @@ export async function rejectInjection(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Error rejecting injection:", error);
+		logger.error("Error rejecting injection:", error);
 		return { success: false, error: `Failed to reject injection: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1566,7 +1567,7 @@ export async function getCompetitors(
 
 		return { success: true, data: competitors.map(mapDBCompetitorToCompetitor) };
 	} catch (error) {
-		console.error("Error getting competitors:", error);
+		logger.error("Error getting competitors:", error);
 		return { success: false, error: `Failed to get competitors: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1605,7 +1606,7 @@ export async function createCompetitor(
 
 		return { success: true, data: mapDBCompetitorToCompetitor(competitor) };
 	} catch (error) {
-		console.error("Error creating competitor:", error);
+		logger.error("Error creating competitor:", error);
 		if (error instanceof z.ZodError) {
 			return { success: false, error: error.issues.map((issue: z.ZodIssue) => issue.message).join(", ") };
 		}
@@ -1653,7 +1654,7 @@ export async function updateCompetitor(
 
 		return { success: true, data: mapDBCompetitorToCompetitor(competitor) };
 	} catch (error) {
-		console.error("Error updating competitor:", error);
+		logger.error("Error updating competitor:", error);
 		return { success: false, error: `Failed to update competitor: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1685,7 +1686,7 @@ export async function deleteCompetitor(
 
 		return { success: true };
 	} catch (error) {
-		console.error("Error deleting competitor:", error);
+		logger.error("Error deleting competitor:", error);
 		return { success: false, error: `Failed to delete competitor: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1783,11 +1784,11 @@ Respond in JSON format:
 
 			return { success: true, data: suggestions };
 		} catch (parseError) {
-			console.error("Error parsing AI response:", parseError);
+			logger.error("Error parsing AI response:", parseError);
 			return { success: false, error: "Failed to parse AI ghost theme suggestions" };
 		}
 	} catch (error) {
-		console.error("Error generating ghost themes:", error);
+		logger.error("Error generating ghost themes:", error);
 		return { success: false, error: `Failed to generate ghost themes: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1853,7 +1854,7 @@ export async function getCriteriaMappings(
 
 		return { success: true, data: mappings };
 	} catch (error) {
-		console.error("Error getting criteria mappings:", error);
+		logger.error("Error getting criteria mappings:", error);
 		return { success: false, error: `Failed to get mappings: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1904,7 +1905,7 @@ export async function mapThemesToCriteria(
 
 		return { success: true, data: result };
 	} catch (error) {
-		console.error("Error mapping themes to criteria:", error);
+		logger.error("Error mapping themes to criteria:", error);
 		return { success: false, error: `Failed to map themes: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -1925,7 +1926,7 @@ export async function suggestCriteriaMappings(
 		// For now, return current mappings
 		return getCriteriaMappings(opportunityId);
 	} catch (error) {
-		console.error("Error suggesting criteria mappings:", error);
+		logger.error("Error suggesting criteria mappings:", error);
 		return { success: false, error: `Failed to suggest mappings: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -2023,7 +2024,7 @@ export async function getThemeSummary(opportunityId: string): Promise<GetSummary
 			},
 		};
 	} catch (error) {
-		console.error("Error getting theme summary:", error);
+		logger.error("Error getting theme summary:", error);
 		return { success: false, error: `Failed to get summary: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
@@ -2127,11 +2128,11 @@ Respond in JSON format:
 				},
 			};
 		} catch (parseError) {
-			console.error("Error parsing AI response:", parseError);
+			logger.error("Error parsing AI response:", parseError);
 			return { success: false, error: "Failed to parse AI reinforcement text" };
 		}
 	} catch (error) {
-		console.error("Error generating reinforcement:", error);
+		logger.error("Error generating reinforcement:", error);
 		return { success: false, error: `Failed to generate reinforcement: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
