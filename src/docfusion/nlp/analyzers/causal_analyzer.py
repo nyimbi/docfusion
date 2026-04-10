@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from ...core.utils import uuid7str
 
 # Statistical libraries for causal analysis
 try:
@@ -39,15 +40,6 @@ try:
 except ImportError:
     HAS_STATSMODELS = False
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 class CausalityType(str, Enum):
     """Types of causal relationships"""
 
@@ -59,7 +51,6 @@ class CausalityType(str, Enum):
     PROPENSITY_SCORE_MATCHING = "propensity_score_matching"
     STRUCTURAL_EQUATION = "structural_equation"
 
-
 class CausalStrength(str, Enum):
     """Strength of causal evidence"""
 
@@ -69,7 +60,6 @@ class CausalStrength(str, Enum):
     STRONG = "strong"  # 0.001 < p <= 0.01
     VERY_STRONG = "very_strong"  # p <= 0.001
 
-
 class ConfidenceLevel(str, Enum):
     """Statistical confidence levels"""
 
@@ -77,7 +67,6 @@ class ConfidenceLevel(str, Enum):
     MEDIUM = "95%"  # α = 0.05
     HIGH = "99%"  # α = 0.01
     VERY_HIGH = "99.9%"  # α = 0.001
-
 
 @dataclass
 class CausalRelationship:
@@ -112,7 +101,6 @@ class CausalRelationship:
     data_quality: str = "unknown"
     temporal_ordering: bool = False
 
-
 @dataclass
 class CausalModel:
     """Represents a causal model with multiple relationships"""
@@ -138,7 +126,6 @@ class CausalModel:
     # Robustness checks
     robustness_tests: List[Dict[str, Any]] = field(default_factory=list)
     sensitivity_analysis: Optional[Dict[str, Any]] = None
-
 
 @dataclass
 class CausalAnalysisResult:
@@ -177,7 +164,6 @@ class CausalAnalysisResult:
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     statistics: Dict[str, Any] = field(default_factory=dict)
-
 
 class CausalAnalyzer:
     """Advanced causal analysis using established statistical libraries"""
@@ -856,7 +842,6 @@ class CausalAnalyzer:
     async def close(self):
         """Clean up resources"""
         self.logger.info("CausalAnalyzer closed")
-
 
 # Factory function
 def create_causal_analyzer(

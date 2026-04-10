@@ -16,16 +16,9 @@ from enum import Enum
 from fastapi import WebSocket, WebSocketDisconnect, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
 from ..middleware.authentication_middleware import get_websocket_user
 from ...security import SecurityManager
-
+from ...core.utils import uuid7str
 
 class MessageType(str, Enum):
 	"""WebSocket message types"""
@@ -57,14 +50,12 @@ class MessageType(str, Enum):
 	ERROR = "error"
 	DISCONNECT = "disconnect"
 
-
 class WebSocketMessage(BaseModel):
 	"""Base WebSocket message structure"""
 	type: MessageType = Field(..., description="Message type")
 	data: Dict[str, Any] = Field(..., description="Message data")
 	message_id: str = Field(default_factory=uuid7str, description="Unique message ID")
 	timestamp: datetime = Field(default_factory=datetime.utcnow, description="Message timestamp")
-
 
 class DocumentEditMessage(BaseModel):
 	"""Document edit message structure"""
@@ -73,7 +64,6 @@ class DocumentEditMessage(BaseModel):
 	changes: List[Dict[str, Any]] = Field(..., description="Change operations")
 	cursor_position: Optional[Dict[str, Any]] = Field(None, description="Current cursor position")
 	user_id: str = Field(..., description="User making the change")
-
 
 class PresenceInfo(BaseModel):
 	"""User presence information"""
@@ -84,7 +74,6 @@ class PresenceInfo(BaseModel):
 	document_id: Optional[str] = Field(None, description="Currently editing document")
 	cursor_position: Optional[Dict[str, Any]] = Field(None, description="Current cursor position")
 	last_activity: datetime = Field(default_factory=datetime.utcnow, description="Last activity timestamp")
-
 
 class ConnectionManager:
 	"""Manages WebSocket connections and message routing"""
@@ -346,7 +335,6 @@ class ConnectionManager:
 		await asyncio.sleep(delay)
 		if user_id in self.user_presence and self.user_presence[user_id].status == "offline":
 			del self.user_presence[user_id]
-
 
 class WebSocketEndpoints:
 	"""WebSocket endpoint handlers"""
@@ -817,7 +805,6 @@ class WebSocketEndpoints:
 	def get_document_collaborators(self, document_id: str) -> List[Dict[str, Any]]:
 		"""Get users currently collaborating on a document"""
 		return self.connection_manager.get_document_users(document_id)
-
 
 # Factory function
 def create_websocket_endpoints(security_manager: SecurityManager) -> WebSocketEndpoints:

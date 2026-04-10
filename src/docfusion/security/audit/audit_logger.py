@@ -19,17 +19,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class AuditEventType(Enum):
     """Types of audit events"""
@@ -86,7 +77,6 @@ class AuditEventType(Enum):
     DATA_RETENTION = "compliance.data.retention"
     AUDIT_EXPORT = "compliance.audit.export"
 
-
 class AuditSeverity(Enum):
     """Audit event severity levels"""
 
@@ -95,11 +85,10 @@ class AuditSeverity(Enum):
     HIGH = "high"
     CRITICAL = "critical"
 
-
 class AuditEvent(BaseModel):
     """Audit event model"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Event identification
     event_id: str = Field(default_factory=uuid7str)
@@ -138,11 +127,10 @@ class AuditEvent(BaseModel):
     # Integrity
     checksum: Optional[str] = None
 
-
 class LogIntegrityRecord(BaseModel):
     """Log integrity record for tamper detection"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     record_id: str = Field(default_factory=uuid7str)
     event_id: str
@@ -150,7 +138,6 @@ class LogIntegrityRecord(BaseModel):
     current_hash: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     signature: str  # HMAC signature
-
 
 @dataclass
 class AuditConfiguration:
@@ -191,7 +178,6 @@ class AuditConfiguration:
     log_all_events: bool = True
     excluded_event_types: List[str] = Field(default_factory=list)
     minimum_severity: AuditSeverity = AuditSeverity.LOW
-
 
 class AuditLogger:
     """Comprehensive audit logging system with integrity protection"""
@@ -756,12 +742,10 @@ class AuditLogger:
 
         self.logger.info("Audit logger closed")
 
-
 # Factory function
 def create_audit_logger(config: Optional[AuditConfiguration] = None) -> AuditLogger:
     """Create AuditLogger instance with optional configuration"""
     return AuditLogger(config)
-
 
 # Convenience functions for common audit events
 async def log_authentication_event(
@@ -791,7 +775,6 @@ async def log_authentication_event(
         tags=["authentication"],
     )
 
-
 async def log_document_event(
     audit_logger: AuditLogger,
     event_type: AuditEventType,
@@ -816,7 +799,6 @@ async def log_document_event(
         details=details,
         tags=["document"],
     )
-
 
 async def log_security_event(
     audit_logger: AuditLogger,

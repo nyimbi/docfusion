@@ -30,7 +30,7 @@ class WhatsAppMessageType(str, Enum):
 
 class WhatsAppConfiguration(BaseModel):
 	"""WhatsApp Business API configuration."""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# WhatsApp Business API Configuration
 	access_token: str = Field(..., description="WhatsApp Business API access token")

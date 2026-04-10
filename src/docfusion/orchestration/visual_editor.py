@@ -17,21 +17,12 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from .agent_composer import AgentComposer, AgentConfiguration
 from .workflow_builder import WorkflowBuilder
 from .workflow_engine import WorkflowEngine
-
+from ..core.utils import uuid7str
 
 class EditorMode(str, Enum):
     """Editor interaction modes"""
@@ -42,7 +33,6 @@ class EditorMode(str, Enum):
     EDIT = "edit"
     ZOOM = "zoom"
     PAN = "pan"
-
 
 class UIComponent(str, Enum):
     """UI component types"""
@@ -55,7 +45,6 @@ class UIComponent(str, Enum):
     MINIMAP = "minimap"
     LAYERS = "layers"
     HISTORY = "history"
-
 
 @dataclass
 class EditorState:
@@ -111,7 +100,6 @@ class EditorState:
     collaborators: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     real_time_enabled: bool = True
 
-
 @dataclass
 class PromptEditSession:
     """Prompt editing session"""
@@ -138,7 +126,6 @@ class PromptEditSession:
     # Metadata
     created_at: datetime = field(default_factory=datetime.now)
     last_modified: datetime = field(default_factory=datetime.now)
-
 
 class VisualWorkflowEditor:
     """

@@ -2,7 +2,6 @@ import asyncio
 import logging
 import re
 import statistics
-import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -10,6 +9,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, Generic, List, Optional, Set, TypeVar, Union
 
 from pydantic import BaseModel, ConfigDict, Field
+from ...core.utils import uuid7str
 
 """
 Core Agent Base Class
@@ -22,16 +22,6 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 # Import from other system components via safe optional import utility
 from ..utils.optional_imports import try_import
 
@@ -43,7 +33,6 @@ AnalysisRequest = try_import("docfusion.voice_dna.integration", "AnalysisRequest
 get_context_manager = try_import("docfusion.agents.context", "get_context_manager")
 get_tool_registry = try_import("docfusion.agents.tools", "get_tool_registry")
 get_memory_manager = try_import("docfusion.agents.memory", "get_memory_manager")
-
 
 # Import Ollama LLM client
 try:
@@ -61,12 +50,11 @@ except ImportError:
             return False
 
         async def close(self):
-            pass
+            raise NotImplementedError("close is not yet implemented")
 
     class OllamaConfig:
         def __init__(self, **kwargs):
             pass
-
 
 class AgentState(str, Enum):
     """Agent operational states"""
@@ -80,7 +68,6 @@ class AgentState(str, Enum):
     SUSPENDED = "suspended"
     TERMINATED = "terminated"
 
-
 class AgentPriority(str, Enum):
     """Agent priority levels for task assignment"""
 
@@ -90,11 +77,10 @@ class AgentPriority(str, Enum):
     LOW = "low"
     BACKGROUND = "background"
 
-
 class AgentMetrics(BaseModel):
     """Agent performance and operational metrics"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     tasks_completed: int = 0
     tasks_failed: int = 0
@@ -112,11 +98,10 @@ class AgentMetrics(BaseModel):
     uptime_seconds: float = 0.0
     last_activity: datetime = Field(default_factory=datetime.now)
 
-
 class AgentCapabilities(BaseModel):
     """Agent capability definitions and constraints"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     max_concurrent_tasks: int = Field(default=3, ge=1, le=10)
     max_memory_items: int = Field(default=1000, ge=100)
@@ -130,11 +115,10 @@ class AgentCapabilities(BaseModel):
     supported_task_types: List[str] = Field(default_factory=list)
     quality_threshold: float = Field(default=0.8, ge=0.0, le=1.0)
 
-
 class AgentConfig(BaseModel):
     """Agent configuration settings"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     agent_id: str = Field(default_factory=uuid7str)
     name: str = Field(description="Human-readable agent name")
@@ -168,11 +152,10 @@ class AgentConfig(BaseModel):
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     llm_max_tokens: int = Field(default=2048, ge=100, le=8192)
 
-
 class AgentContext(BaseModel):
     """Current operational context for an agent"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     current_tasks: List[str] = Field(default_factory=list)
     active_conversations: List[str] = Field(default_factory=list)
@@ -183,9 +166,7 @@ class AgentContext(BaseModel):
     current_focus: Optional[str] = None
     collaboration_state: Dict[str, str] = Field(default_factory=dict)
 
-
 T = TypeVar("T")
-
 
 class Agent(ABC, Generic[T]):
     """
@@ -326,22 +307,22 @@ class Agent(ABC, Generic[T]):
     @abstractmethod
     async def process_task(self, task: Any) -> Any:
         """Process a specific task - must be implemented by subclasses"""
-        pass
+        raise NotImplementedError("process_task is not yet implemented")
 
     @abstractmethod
     async def handle_message(self, message: Any) -> Optional[Any]:
         """Handle incoming message - must be implemented by subclasses"""
-        pass
+        raise NotImplementedError("handle_message is not yet implemented")
 
     @abstractmethod
     def get_capabilities(self) -> List[str]:
         """Return list of agent capabilities"""
-        pass
+        raise NotImplementedError("get_capabilities is not yet implemented")
 
     @abstractmethod
     async def evaluate_task_fit(self, task: Any) -> float:
         """Evaluate how well this agent fits a given task (0.0 to 1.0)"""
-        pass
+        raise NotImplementedError("evaluate_task_fit is not yet implemented")
 
     # Task management
 

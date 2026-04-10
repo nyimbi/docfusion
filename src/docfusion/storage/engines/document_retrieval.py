@@ -16,21 +16,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 import os
 import pickle
 from collections import OrderedDict
 
 import aiofiles
-
+from ...core.utils import uuid7str
 
 @dataclass
 class DocumentMetadata:
@@ -54,7 +45,6 @@ class DocumentMetadata:
     content_hash: Optional[str] = None
     custom_metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class DocumentVersion:
     """Document version information"""
@@ -68,7 +58,6 @@ class DocumentVersion:
     file_path: str = ""
     checksum: str = ""
 
-
 @dataclass
 class RetrievalStats:
     """Document retrieval statistics"""
@@ -79,7 +68,6 @@ class RetrievalStats:
     average_retrieval_time: float = 0.0
     most_accessed_documents: Dict[str, int] = field(default_factory=dict)
     performance_metrics: Dict[str, float] = field(default_factory=dict)
-
 
 class LRUCache:
     """Least Recently Used cache for document content"""
@@ -129,7 +117,6 @@ class LRUCache:
     def size(self) -> int:
         """Get cache size"""
         return len(self.cache)
-
 
 class DocumentRetrieval:
     """
@@ -672,14 +659,12 @@ class DocumentRetrieval:
 
         return optimization_stats
 
-
 # Convenience functions
 async def create_document_retrieval(
     storage_path: Optional[Path] = None, cache_size: int = 1000
 ) -> DocumentRetrieval:
     """Create and initialize document retrieval system"""
     return DocumentRetrieval(storage_path, cache_size)
-
 
 async def store_text_document(
     retrieval: DocumentRetrieval, content: str, title: str, **kwargs

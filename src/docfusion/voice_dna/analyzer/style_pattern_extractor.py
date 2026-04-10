@@ -53,7 +53,7 @@ class StyleDimension(str, Enum):
 
 class StylePattern(BaseModel):
 	"""Detailed style pattern with multi-dimensional analysis"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	pattern_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique pattern identifier")
 	dimension: StyleDimension = Field(description="Style dimension this pattern belongs to")
@@ -83,7 +83,7 @@ class StylePattern(BaseModel):
 
 class StyleProfile(BaseModel):
 	"""Comprehensive style profile across multiple dimensions"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	profile_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique profile identifier")
 	organization_name: str = Field(description="Organization name")

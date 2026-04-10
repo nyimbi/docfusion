@@ -8,21 +8,15 @@ visual workflow designer, process validation, versioning, and testing.
 import asyncio
 import json
 import logging
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-
-def uuid7str():
-	"""Generate a UUID7-like string using UUID4 for compatibility."""
-	return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 class NodeType(str, Enum):
 	"""Types of workflow nodes."""
@@ -43,7 +37,6 @@ class NodeType(str, Enum):
 	RECEIVE_TASK = "receive_task"
 	SEND_TASK = "send_task"
 
-
 class EdgeType(str, Enum):
 	"""Types of workflow edges."""
 	SEQUENCE = "sequence"
@@ -51,7 +44,6 @@ class EdgeType(str, Enum):
 	DEFAULT = "default"
 	MESSAGE = "message"
 	ASSOCIATION = "association"
-
 
 class ProcessStatus(str, Enum):
 	"""Process definition statuses."""
@@ -61,17 +53,15 @@ class ProcessStatus(str, Enum):
 	DEPRECATED = "deprecated"
 	ARCHIVED = "archived"
 
-
 class ValidationSeverity(str, Enum):
 	"""Validation issue severities."""
 	ERROR = "error"
 	WARNING = "warning"
 	INFO = "info"
 
-
 class WorkflowNode(BaseModel):
 	"""Workflow node definition."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	node_id: str = Field(default_factory=uuid7str)
 	name: str = Field(description="Display name for the node")
@@ -110,10 +100,9 @@ class WorkflowNode(BaseModel):
 	created_by: str = Field("", description="Creator user ID")
 	tags: List[str] = Field(default_factory=list, description="Node tags")
 
-
 class WorkflowEdge(BaseModel):
 	"""Workflow edge (connection) definition."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	edge_id: str = Field(default_factory=uuid7str)
 	name: str = Field("", description="Edge name/label")
@@ -138,10 +127,9 @@ class WorkflowEdge(BaseModel):
 	# Metadata
 	properties: Dict[str, Any] = Field(default_factory=dict, description="Edge-specific properties")
 
-
 class ValidationIssue(BaseModel):
 	"""Workflow validation issue."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	issue_id: str = Field(default_factory=uuid7str)
 	severity: ValidationSeverity = Field(description="Issue severity")
@@ -151,10 +139,9 @@ class ValidationIssue(BaseModel):
 	suggestion: Optional[str] = Field(None, description="Suggested fix")
 	rule_name: str = Field("", description="Validation rule that triggered this issue")
 
-
 class WorkflowValidationResult(BaseModel):
 	"""Result of workflow validation."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	is_valid: bool = Field(description="Whether workflow is valid")
 	issues: List[ValidationIssue] = Field(default_factory=list, description="Validation issues")
@@ -163,10 +150,9 @@ class WorkflowValidationResult(BaseModel):
 	validation_time: datetime = Field(default_factory=datetime.now)
 	validator_version: str = Field("1.0.0", description="Validator version used")
 
-
 class ProcessMetadata(BaseModel):
 	"""Process metadata and version information."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	process_id: str = Field(default_factory=uuid7str)
 	name: str = Field(description="Process name")
@@ -200,7 +186,6 @@ class ProcessMetadata(BaseModel):
 	editor_user_ids: List[str] = Field(default_factory=list, description="Users who can edit")
 	viewer_user_ids: List[str] = Field(default_factory=list, description="Users who can view")
 
-
 @dataclass
 class ProcessTestResult:
 	"""Result of process testing."""
@@ -212,7 +197,6 @@ class ProcessTestResult:
 	issues_found: List[str]
 	test_data: Dict[str, Any]
 	timestamp: datetime = field(default_factory=datetime.now)
-
 
 class ProcessDefinition:
 	"""

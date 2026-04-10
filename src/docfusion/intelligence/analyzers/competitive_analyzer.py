@@ -55,7 +55,7 @@ class CompetitiveAdvantage(Enum):
 
 class CompetitorProfile(BaseModel):
 	"""Individual competitor profile"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	name: str = Field(description="Competitor organization name")
 	tier: CompetitorTier = Field(description="Competitor tier classification")
@@ -92,7 +92,7 @@ class CompetitorProfile(BaseModel):
 
 class CompetitivePositioning(BaseModel):
 	"""Competitive positioning assessment"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	opportunity_id: str = Field(description="Opportunity identifier")
 	
@@ -121,7 +121,7 @@ class CompetitivePositioning(BaseModel):
 
 class CompetitorComparison(BaseModel):
 	"""Head-to-head competitor comparison"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	competitor_name: str = Field(description="Competitor being compared")
 	
@@ -148,7 +148,7 @@ class CompetitorComparison(BaseModel):
 
 class MarketIntelligence(BaseModel):
 	"""Market intelligence summary"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	market_segment: str = Field(description="Market segment being analyzed")
 	
@@ -175,7 +175,7 @@ class MarketIntelligence(BaseModel):
 
 class CompetitiveAnalysis(BaseModel):
 	"""Complete competitive analysis result"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	opportunity_id: str = Field(description="Opportunity identifier")
 	

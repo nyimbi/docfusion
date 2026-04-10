@@ -14,15 +14,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # Import all pipeline components
 from ..prompting_strategies import filter_thinking_tags
 from .document_outline_generator import (
@@ -33,6 +24,7 @@ from .document_outline_generator import (
     PsychologyBias,
     create_document_outline_generator,
 )
+from ...core.utils import uuid7str
 from .iterative_section_generator import (
     ContentGenerationStrategy,
     ContentPipeline,
@@ -43,7 +35,6 @@ from .iterative_section_generator import (
     create_iterative_section_generator,
 )
 
-
 class DocumentComplexity(Enum):
     """Levels of document complexity"""
 
@@ -52,7 +43,6 @@ class DocumentComplexity(Enum):
     ADVANCED = "advanced"  # Full psychology integration, complex structure
     EXPERT = "expert"  # Maximum sophistication, all features
 
-
 class GenerationMode(Enum):
     """Modes for document generation"""
 
@@ -60,7 +50,6 @@ class GenerationMode(Enum):
     BALANCED = "balanced"  # Balance of speed and quality
     QUALITY = "quality"  # Maximum quality, longer generation time
     CUSTOM = "custom"  # Custom configuration
-
 
 @dataclass
 class DocumentRequirements:
@@ -102,7 +91,6 @@ class DocumentRequirements:
     enable_advanced_prompting: bool = True
     quality_over_speed: bool = True
 
-
 @dataclass
 class GeneratedDocument:
     """Complete generated document with all sections"""
@@ -139,7 +127,6 @@ class GeneratedDocument:
 
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
-
 @dataclass
 class PipelineResult:
     """Complete result of multi-stage document generation"""
@@ -164,7 +151,6 @@ class PipelineResult:
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     recommendations: List[str] = field(default_factory=list)
-
 
 class MultiStageDocumentPipeline:
     """Comprehensive multi-stage document generation pipeline"""
@@ -846,7 +832,6 @@ class MultiStageDocumentPipeline:
                 "document_export": True,
             },
         }
-
 
 # Factory function
 def create_multi_stage_pipeline(

@@ -7,16 +7,11 @@ Base entity and data structure definitions for the proposal writer system.
 from datetime import datetime
 from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field, ConfigDict
-from uuid import uuid4
-
-def uuid7str():
-    """Generate a UUID4 string (fallback for uuid7str)"""
-    return str(uuid4())
-
+from ...core.utils import uuid7str
 
 class BaseEntity(BaseModel):
     """Base entity model for all proposal writer entities"""
-    model_config = ConfigDict(extra='forbid', validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
     
     id: str = Field(default_factory=uuid7str, description="Unique entity identifier")
     created_at: datetime = Field(default_factory=datetime.now, description="Entity creation timestamp")
@@ -27,19 +22,17 @@ class BaseEntity(BaseModel):
         """Update the last modified timestamp"""
         self.updated_at = datetime.now()
 
-
 class BaseResponse(BaseModel):
     """Base response model for API responses"""
-    model_config = ConfigDict(extra='forbid', validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
     
     success: bool = Field(description="Whether the operation was successful")
     message: Optional[str] = Field(None, description="Optional response message")
     timestamp: datetime = Field(default_factory=datetime.now, description="Response timestamp")
 
-
 class BaseConfig(BaseModel):
     """Base configuration model"""
-    model_config = ConfigDict(extra='forbid', validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
     
     version: str = Field(default="1.0.0", description="Configuration version")
     environment: str = Field(default="development", description="Environment name")

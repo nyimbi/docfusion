@@ -13,15 +13,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from ..security import (
     AuditEventType,
     AuditSeverity,
@@ -29,12 +20,12 @@ from ..security import (
     SecurityManager,
     SecurityManagerConfiguration,
 )
+from ..core.utils import uuid7str
 from .rag_storage_service import (
     EnhancedSearchResult,
     RAGStorageConfiguration,
     RAGStorageService,
 )
-
 
 @dataclass
 class SecureStorageConfiguration:
@@ -60,7 +51,6 @@ class SecureStorageConfiguration:
     # Encryption settings
     encrypt_sensitive_fields: List[str] = None
     encryption_key_rotation_days: int = 90
-
 
 class SecureStorageService:
     """Security-enhanced storage service"""
@@ -711,7 +701,6 @@ class SecureStorageService:
         await self.security.close()
         # Would also close RAG storage service
         self.logger.info("Secure storage service closed")
-
 
 # Factory function
 def create_secure_storage_service(

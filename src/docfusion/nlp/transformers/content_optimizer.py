@@ -21,15 +21,7 @@ except ImportError:
     aiohttp = None
 
 try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
-try:
+from ...core.utils import uuid7str
     from ..prompting_strategies import (
         AdvancedPromptBuilder,
         create_advanced_prompt_builder,
@@ -51,7 +43,6 @@ except ImportError:
 
     AdvancedPromptBuilder = None
 
-
 class OptimizationType(Enum):
     """Types of content optimizations"""
 
@@ -65,7 +56,6 @@ class OptimizationType(Enum):
     FLOW = "flow"
     COMPREHENSIVENESS = "comprehensiveness"
 
-
 class OptimizationPriority(Enum):
     """Priority levels for optimizations"""
 
@@ -74,7 +64,6 @@ class OptimizationPriority(Enum):
     MEDIUM = "medium"
     LOW = "low"
     OPTIONAL = "optional"
-
 
 class ImprovementArea(Enum):
     """Specific areas for content improvement"""
@@ -89,7 +78,6 @@ class ImprovementArea(Enum):
     READABILITY = "readability"
     TONE = "tone"
     ORGANIZATION = "organization"
-
 
 @dataclass
 class OptimizationSuggestion:
@@ -114,7 +102,6 @@ class OptimizationSuggestion:
     impact_score: float = 0.0
     confidence: float = 0.0
     effort_required: str = "medium"  # low, medium, high
-
 
 @dataclass
 class QualityMetrics:
@@ -146,7 +133,6 @@ class QualityMetrics:
     benefit_emphasis: float = 0.0
     credibility_indicators: float = 0.0
 
-
 @dataclass
 class OptimizedContent:
     """Optimized content result"""
@@ -168,7 +154,6 @@ class OptimizedContent:
     word_count_change: int = 0
     readability_improvement: float = 0.0
     overall_improvement: float = 0.0
-
 
 @dataclass
 class ContentOptimizationResult:
@@ -198,7 +183,6 @@ class ContentOptimizationResult:
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     statistics: Dict[str, Any] = field(default_factory=dict)
-
 
 class ContentOptimizer:
     """Advanced content optimizer with AI-powered improvements"""
@@ -1556,7 +1540,6 @@ Analysis:"""
     async def close(self):
         """Close optimizer and cleanup resources"""
         self.logger.info("ContentOptimizer closed")
-
 
 # Factory function
 def create_content_optimizer(

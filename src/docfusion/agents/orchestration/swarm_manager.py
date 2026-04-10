@@ -6,11 +6,11 @@ from typing import Any, Dict, List, Optional, Set, Union, Callable, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
-import uuid
 from pydantic import BaseModel, Field, ConfigDict
 from ..core.agent import Agent, AgentState
 from ..core.messages import AgentMessage, MessageType, MessageTemplates
 import re
+from ...core.utils import uuid7str
 
 """
 Agent Swarm Management
@@ -23,15 +23,6 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-
-
 class SwarmBehavior(str, Enum):
 	"""Swarm collective behaviors"""
 	COLLABORATIVE = "collaborative"  # Agents work together on shared goals
@@ -40,7 +31,6 @@ class SwarmBehavior(str, Enum):
 	HIERARCHICAL = "hierarchical"  # Structured command/control patterns
 	DEMOCRATIC = "democratic"  # Consensus-based decision making
 	ADAPTIVE = "adaptive"  # Self-organizing based on environment
-
 
 class SwarmState(str, Enum):
 	"""Swarm operational states"""
@@ -52,7 +42,6 @@ class SwarmState(str, Enum):
 	DORMANT = "dormant"
 	ERROR = "error"
 
-
 class AgentRole(str, Enum):
 	"""Agent roles within swarm"""
 	LEADER = "leader"  # Guides swarm direction
@@ -61,7 +50,6 @@ class AgentRole(str, Enum):
 	SPECIALIST = "specialist"  # Provides expert knowledge
 	COORDINATOR = "coordinator"  # Facilitates communication
 	EVALUATOR = "evaluator"  # Assesses swarm performance
-
 
 @dataclass
 class SwarmTask:
@@ -81,7 +69,6 @@ class SwarmTask:
 	assigned_agents: List[str] = field(default_factory=list)
 	result: Optional[Any] = None
 
-
 @dataclass
 class SwarmMetrics:
 	"""Swarm performance and behavior metrics"""
@@ -94,10 +81,9 @@ class SwarmMetrics:
 	communication_density: float = 0.0
 	convergence_speed: float = 0.0
 
-
 class SwarmConfig(BaseModel):
 	"""Swarm configuration parameters"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	swarm_id: str = Field(default_factory=uuid7str)
 	name: str = Field(description="Swarm name")
@@ -128,7 +114,6 @@ class SwarmConfig(BaseModel):
 	optimization_target: str = Field(default="efficiency")  # "speed", "quality", "efficiency", "innovation"
 	convergence_criteria: Dict[str, float] = Field(default_factory=dict)
 	performance_monitoring: bool = Field(default=True)
-
 
 class AgentSwarm:
 	"""

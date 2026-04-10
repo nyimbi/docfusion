@@ -14,20 +14,11 @@ import unicodedata
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # Ollama integration
 import json
 
 import httpx
-
+from ...core.utils import uuid7str
 
 class CleaningResult:
     """Result of text cleaning operations"""
@@ -42,7 +33,6 @@ class CleaningResult:
         self.errors: List[str] = []
         self.processing_time: float = 0.0
         self.ai_enhancements: Dict[str, Any] = {}
-
 
 class OllamaTextCleaner:
     """AI-powered text cleaner using Ollama for intelligent preprocessing"""
@@ -622,7 +612,6 @@ Provide a JSON response with the structure analysis."""
     async def close(self):
         """Close the Ollama client"""
         await self.ollama_client.aclose()
-
 
 # Factory function
 def create_text_cleaner(config: Optional[Dict[str, Any]] = None) -> OllamaTextCleaner:

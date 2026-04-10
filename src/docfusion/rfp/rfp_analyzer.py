@@ -12,16 +12,9 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-
-	def uuid7str() -> str:
-		return str(uuid4())
-
 from pydantic import BaseModel, Field, ConfigDict
 
+from ..core.utils import uuid7str
 from .requirement_extractor import (
 	RequirementExtractor,
 	Requirement,
@@ -30,11 +23,10 @@ from .requirement_extractor import (
 	RequirementExtractionResult,
 )
 
-
 class RFPAnalysisResult(BaseModel):
 	"""Complete RFP analysis result"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	analysis_id: str = Field(default_factory=uuid7str)
 	success: bool = Field(default=False)
@@ -49,7 +41,6 @@ class RFPAnalysisResult(BaseModel):
 	warnings: list[str] = Field(default_factory=list)
 	processing_time: float = Field(default=0.0)
 	analyzed_at: datetime = Field(default_factory=datetime.now)
-
 
 class RFPAnalyzer:
 	"""
@@ -614,7 +605,6 @@ class RFPAnalyzer:
 			"compliance_standards": self.config["compliance_standards"],
 			"extractor_info": self.requirement_extractor.get_extractor_info(),
 		}
-
 
 def create_rfp_analyzer(config: dict[str, Any] | None = None) -> RFPAnalyzer:
 	"""Create RFPAnalyzer instance with configuration"""

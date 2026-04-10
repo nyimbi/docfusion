@@ -28,17 +28,8 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class EncryptionAlgorithm(Enum):
     """Supported encryption algorithms"""
@@ -47,7 +38,6 @@ class EncryptionAlgorithm(Enum):
     AES_256_CBC = "aes-256-cbc"
     RSA_2048 = "rsa-2048"
     RSA_4096 = "rsa-4096"
-
 
 class KeyType(Enum):
     """Encryption key types"""
@@ -58,11 +48,10 @@ class KeyType(Enum):
     SESSION = "session"
     BACKUP = "backup"
 
-
 class EncryptionResult(BaseModel):
     """Result of encryption operation"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     success: bool
     encrypted_data: Optional[str] = None  # Base64 encoded
@@ -76,11 +65,10 @@ class EncryptionResult(BaseModel):
     encrypted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     data_size: Optional[int] = None
 
-
 class DecryptionResult(BaseModel):
     """Result of decryption operation"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     success: bool
     decrypted_data: Optional[str] = None
@@ -92,11 +80,10 @@ class DecryptionResult(BaseModel):
     decrypted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     data_size: Optional[int] = None
 
-
 class EncryptionKey(BaseModel):
     """Encryption key model"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     key_id: str = Field(default_factory=uuid7str)
     key_type: KeyType
@@ -126,7 +113,6 @@ class EncryptionKey(BaseModel):
     is_active: bool = True
     revoked_at: Optional[datetime] = None
     revoked_by: Optional[str] = None
-
 
 @dataclass
 class EncryptionConfiguration:
@@ -159,7 +145,6 @@ class EncryptionConfiguration:
     enable_key_cache: bool = True
     key_cache_ttl_seconds: int = 300
     max_concurrent_operations: int = 100
-
 
 class DataEncryption:
     """Comprehensive data encryption system with key management"""
@@ -795,7 +780,6 @@ class DataEncryption:
         data = unpadder.update(padded_data) + unpadder.finalize()
 
         return data
-
 
 # Factory function
 def create_data_encryption(

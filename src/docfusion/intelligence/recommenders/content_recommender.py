@@ -48,7 +48,7 @@ class RecommendationCategory(str, Enum):
 
 class ContentIssue(BaseModel):
 	"""Identified content issue"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	issue_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique issue identifier")
 	issue_type: RecommendationCategory = Field(description="Category of the issue")
@@ -64,7 +64,7 @@ class ContentIssue(BaseModel):
 
 class ContentSuggestion(BaseModel):
 	"""Content improvement suggestion"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	suggestion_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique suggestion identifier")
 	category: RecommendationCategory = Field(description="Category of suggestion")
@@ -83,7 +83,7 @@ class ContentSuggestion(BaseModel):
 
 class ContentAnalysis(BaseModel):
 	"""Comprehensive content analysis results"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	analysis_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique analysis identifier")
 	section_type: ProposalSection = Field(description="Type of section analyzed")
@@ -109,7 +109,7 @@ class ContentAnalysis(BaseModel):
 
 class ContentRecommendationReport(BaseModel):
 	"""Comprehensive content recommendation report"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	report_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique report identifier")
 	proposal_id: str = Field(description="Proposal identifier")

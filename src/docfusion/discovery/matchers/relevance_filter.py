@@ -51,7 +51,7 @@ class FilterOperator(Enum):
 
 class FilterRule(BaseModel):
 	"""Individual filter rule definition"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	criterion: FilterCriterion = Field(description="Filter criterion to evaluate")
 	operator: FilterOperator = Field(description="Comparison operator")
@@ -63,7 +63,7 @@ class FilterRule(BaseModel):
 
 class ScoringModel(BaseModel):
 	"""Scoring model configuration"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	model_name: str = Field(description="Name of the scoring model")
 	criteria_weights: Dict[FilterCriterion, float] = Field(description="Weights for each criterion")
@@ -80,7 +80,7 @@ class ScoringModel(BaseModel):
 
 class FilterProfile(BaseModel):
 	"""Complete filtering profile with rules and scoring"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	profile_name: str = Field(description="Name of the filter profile")
 	description: str = Field(description="Profile description and use case")
@@ -96,7 +96,7 @@ class FilterProfile(BaseModel):
 
 class OpportunityScore(BaseModel):
 	"""Individual opportunity scoring result"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	opportunity_id: str = Field(description="Opportunity identifier")
 	overall_score: float = Field(ge=0.0, le=1.0, description="Overall relevance score")
@@ -122,7 +122,7 @@ class OpportunityScore(BaseModel):
 
 class FilteringResults(BaseModel):
 	"""Complete filtering and scoring results"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	profile_used: str = Field(description="Filter profile name used")
 	total_opportunities: int = Field(ge=0, description="Total opportunities evaluated")

@@ -14,13 +14,6 @@ from datetime import datetime, date
 from dataclasses import dataclass
 from enum import Enum
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
 # spaCy integration for NER
 try:
 	import spacy
@@ -34,7 +27,7 @@ except ImportError:
 # Ollama integration for AI-powered entity extraction
 import httpx
 import json
-
+from ...core.utils import uuid7str
 
 class EntityType(str, Enum):
 	"""Entity types for extraction"""
@@ -84,7 +77,6 @@ class EntityType(str, Enum):
 	URL = "URL"
 	ADDRESS = "ADDRESS"
 
-
 class EntityConfidence(str, Enum):
 	"""Confidence levels for entity extraction"""
 	VERY_HIGH = "very_high"  # 0.9+
@@ -92,7 +84,6 @@ class EntityConfidence(str, Enum):
 	MEDIUM = "medium"       # 0.5-0.69
 	LOW = "low"            # 0.3-0.49
 	VERY_LOW = "very_low"  # 0.0-0.29
-
 
 @dataclass
 class Entity:
@@ -132,7 +123,6 @@ class Entity:
 		else:
 			self.confidence_level = EntityConfidence.VERY_LOW
 
-
 @dataclass
 class EntityGroup:
 	"""Group of related entities"""
@@ -142,7 +132,6 @@ class EntityGroup:
 	group_type: str
 	description: Optional[str] = None
 	confidence: float = 0.0
-
 
 class EntityExtractionResult:
 	"""Result of entity extraction"""
@@ -158,7 +147,6 @@ class EntityExtractionResult:
 		self.processing_time: float = 0.0
 		self.methods_used: List[str] = []
 		self.ai_analysis: Dict[str, Any] = {}
-
 
 class EntityExtractor:
 	"""Advanced entity extractor with custom domain recognition"""
@@ -774,7 +762,7 @@ Provide analysis:
 		try:
 			return EntityType(ai_type_upper)
 		except ValueError:
-			pass
+			self.logger.warning("ValueError in _map_ai_type_to_entity_type")
 		
 		# Fallback mappings
 		mapping = {
@@ -1141,7 +1129,6 @@ Provide validation results:
 			'config': self.config.copy(),
 			'version': '1.0.0'
 		}
-
 
 # Factory function
 def create_entity_extractor(config: Optional[Dict[str, Any]] = None) -> EntityExtractor:

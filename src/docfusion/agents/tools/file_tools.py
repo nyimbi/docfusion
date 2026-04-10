@@ -375,7 +375,7 @@ class DirectoryListTool(AgentTool):
 					items.extend(sub_items)
 				except PermissionError:
 					# Skip directories we can't access
-					pass
+					logger.warning("PermissionError in unknown")
 		
 		return items
 	

@@ -49,7 +49,7 @@ class AuthenticityDimension(str, Enum):
 
 class AuthenticityFactor(BaseModel):
 	"""Individual factor contributing to authenticity score"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	factor_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique factor identifier")
 	dimension: AuthenticityDimension = Field(description="Authenticity dimension")
@@ -75,7 +75,7 @@ class AuthenticityFactor(BaseModel):
 
 class AuthenticityReport(BaseModel):
 	"""Comprehensive authenticity assessment report"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	report_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique report identifier")
 	organization_name: str = Field(description="Organization being assessed")

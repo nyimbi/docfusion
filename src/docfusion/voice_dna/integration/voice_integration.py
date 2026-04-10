@@ -74,7 +74,7 @@ class IntegrationMode(str, Enum):
 
 class AnalysisRequest(BaseModel):
 	"""Request for voice analysis"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	request_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique request identifier")
 	analysis_type: AnalysisType = Field(description="Type of analysis to perform")
@@ -111,7 +111,7 @@ class AnalysisRequest(BaseModel):
 
 class AnalysisResult(BaseModel):
 	"""Comprehensive voice analysis result"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	result_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique result identifier")
 	request_id: str = Field(description="Associated request ID")
@@ -157,7 +157,7 @@ class AnalysisResult(BaseModel):
 
 class IntegrationConfig(BaseModel):
 	"""Configuration for voice integration"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Component configuration
 	enable_pattern_analysis: bool = Field(default=True, description="Enable voice pattern analysis")

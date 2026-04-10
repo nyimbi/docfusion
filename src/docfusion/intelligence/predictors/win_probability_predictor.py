@@ -28,7 +28,7 @@ from ...core.models.base import BaseEntity
 
 class PredictionFeatures(BaseModel):
 	"""Features used for win probability prediction"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Opportunity characteristics
 	opportunity_value: float = Field(description="Estimated opportunity value")
@@ -58,7 +58,7 @@ class PredictionFeatures(BaseModel):
 
 class PredictionResult(BaseModel):
 	"""Win probability prediction result"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	opportunity_id: str = Field(description="Opportunity identifier")
 	predicted_win_probability: float = Field(ge=0.0, le=1.0, description="Predicted win probability")
@@ -81,7 +81,7 @@ class PredictionResult(BaseModel):
 
 class ModelPerformanceMetrics(BaseModel):
 	"""Model performance tracking metrics"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	model_name: str = Field(description="Name of the ML model")
 	accuracy: float = Field(description="Model accuracy")

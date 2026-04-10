@@ -29,11 +29,7 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-
-
-def uuid7str() -> str:
-	"""Generate a UUID7-style string using uuid4 for compatibility"""
-	return str(uuid4())
+from ...core.utils import uuid7str
 
 # ============================================================================
 # Exceptions
@@ -62,7 +58,6 @@ class ARIAImplementationException(AccessibilityRendererException):
 class ScreenReaderCompatibilityException(AccessibilityRendererException):
 	"""Exception raised during screen reader compatibility testing"""
 	pass
-
 
 # ============================================================================
 # Data Models
@@ -138,7 +133,6 @@ class AccessibilityRenderConfiguration:
 	remediation_priorities: bool = True
 	progress_tracking: bool = True
 
-
 @dataclass
 class AccessibilityMetadata:
 	"""Accessibility-specific metadata"""
@@ -171,7 +165,6 @@ class AccessibilityMetadata:
 	# Custom accessibility properties
 	custom_accessibility_properties: Dict[str, str] = field(default_factory=dict)
 
-
 @dataclass
 class AccessibilityIssue:
 	"""Individual accessibility issue"""
@@ -186,7 +179,6 @@ class AccessibilityIssue:
 	estimated_fix_time: str = ""
 	testing_notes: str = ""
 
-
 @dataclass
 class RemediationSuggestion:
 	"""Accessibility remediation suggestion"""
@@ -199,7 +191,6 @@ class RemediationSuggestion:
 	testing_instructions: str = ""
 	compliance_impact: str = ""
 
-
 @dataclass
 class AccessibilityOutputMetadata:
 	"""Accessibility rendering output metadata"""
@@ -210,7 +201,6 @@ class AccessibilityOutputMetadata:
 	validation_tools_used: List[str] = field(default_factory=list)
 	total_enhancements_applied: int = 0
 	accessibility_score_improvement: float = 0.0
-
 
 @dataclass
 class AccessibilityRenderResult:
@@ -271,7 +261,6 @@ class AccessibilityRenderResult:
 	
 	# Metadata
 	output_metadata: AccessibilityOutputMetadata = field(default_factory=AccessibilityOutputMetadata)
-
 
 # ============================================================================
 # Core Component Classes
@@ -400,7 +389,6 @@ class WCAGValidator:
 			'issues': ['Invalid HTML markup', 'ARIA roles not properly nested']
 		}
 
-
 class AlternativeTextGenerator:
 	"""AI-powered alternative text generation for images and media"""
 	
@@ -474,7 +462,6 @@ class AlternativeTextGenerator:
 	def _generate_functional_alt_text(self, context: Dict[str, Any]) -> str:
 		"""Generate functional alternative text"""
 		return f"{context.get('function', 'Action')}: {context.get('purpose', 'purpose description')}"
-
 
 class ARIAEnhancer:
 	"""ARIA attributes and accessibility enhancement"""
@@ -605,7 +592,6 @@ class ARIAEnhancer:
 		
 		return html_content
 
-
 class ScreenReaderSimulator:
 	"""Screen reader behavior simulation and testing"""
 	
@@ -658,7 +644,6 @@ class ScreenReaderSimulator:
 			
 		except Exception as e:
 			raise ScreenReaderCompatibilityException(f"Screen reader simulation failed: {str(e)}")
-
 
 class ColorContrastAnalyzer:
 	"""Color contrast analysis and optimization"""
@@ -726,7 +711,6 @@ class ColorContrastAnalyzer:
 			
 		except Exception as e:
 			raise AccessibilityAnalysisException(f"Color contrast analysis failed: {str(e)}")
-
 
 # ============================================================================
 # Main AccessibilityRenderer Class
@@ -1067,7 +1051,6 @@ Based on issue complexity: 2-4 hours for manual fixes
 			'color_contrast_analyzer_metrics': self.color_contrast_analyzer.analysis_metrics
 		}
 
-
 # ============================================================================
 # Utility Functions
 # ============================================================================
@@ -1098,7 +1081,6 @@ def create_default_accessibility_configuration(
 	
 	return config
 
-
 async def quick_accessibility_analysis(
 	document_content: Any,
 	document_format: str,
@@ -1115,7 +1097,6 @@ async def quick_accessibility_analysis(
 	return await renderer.render_accessibility_enhanced(
 		document_content, document_format
 	)
-
 
 def validate_accessibility_renderer_installation() -> Dict[str, bool]:
 	"""Validate AccessibilityRenderer installation and dependencies"""
@@ -1181,7 +1162,6 @@ def validate_accessibility_renderer_installation() -> Dict[str, bool]:
 		validation_results["overall_status"] = False
 	
 	return validation_results
-
 
 # ============================================================================
 # Example Usage

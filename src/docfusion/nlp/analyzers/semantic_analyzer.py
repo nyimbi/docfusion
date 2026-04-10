@@ -15,6 +15,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
+from ...core.utils import uuid7str
 
 try:
     from ...prompting_strategies import (
@@ -52,7 +53,6 @@ except ImportError:
             )
             return re.sub(r"\n\s*\n\s*\n", "\n\n", cleaned).strip()
 
-
 try:
     from ...config.llm_config import LLMConfiguration, LLMTask, get_llm_config
 except ImportError:
@@ -83,7 +83,6 @@ except ImportError:
         def get_llm_config(task):
             return LLMConfiguration()
 
-
 try:
     import aiohttp
     from aiohttp import ClientError, ClientTimeout
@@ -113,15 +112,6 @@ try:
 except ImportError:
     np = TfidfVectorizer = cosine_similarity = LatentDirichletAllocation = KMeans = None
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 class TopicModelType(Enum):
     """Topic modeling algorithm types"""
 
@@ -129,14 +119,12 @@ class TopicModelType(Enum):
     CLUSTERING = "kmeans_clustering"
     AI_ENHANCED = "ollama_ai_topics"
 
-
 class SimilarityMetric(Enum):
     """Similarity calculation methods"""
 
     COSINE = "cosine_similarity"
     JACCARD = "jaccard_similarity"
     SEMANTIC_AI = "ai_semantic_similarity"
-
 
 @dataclass
 class Topic:
@@ -154,7 +142,6 @@ class Topic:
     related_entities: List[str] = field(default_factory=list)
     document_coverage: float = 0.0  # Percentage of document covered by this topic
 
-
 @dataclass
 class SemanticCluster:
     """Represents a cluster of semantically related content"""
@@ -170,7 +157,6 @@ class SemanticCluster:
     keywords: List[str] = field(default_factory=list)
     themes: List[str] = field(default_factory=list)
     representative_sentence: str = ""
-
 
 @dataclass
 class SimilarityAnalysis:
@@ -190,7 +176,6 @@ class SimilarityAnalysis:
     shared_concepts: List[str] = field(default_factory=list)
     similarity_explanation: str = ""
 
-
 @dataclass
 class ConceptMap:
     """Semantic concept mapping"""
@@ -201,7 +186,6 @@ class ConceptMap:
     )  # (concept1, relation, concept2)
     concept_weights: Dict[str, float] = field(default_factory=dict)
     central_concepts: List[str] = field(default_factory=list)
-
 
 @dataclass
 class SemanticAnalysisResult:
@@ -229,7 +213,6 @@ class SemanticAnalysisResult:
     statistics: Dict[str, Any] = field(default_factory=dict)
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
-
 
 class SemanticAnalyzer:
     """Advanced semantic analyzer with topic modeling and similarity analysis"""
@@ -1208,7 +1191,6 @@ Response format:
     async def close(self):
         """Close analyzer and cleanup resources"""
         self.logger.info("SemanticAnalyzer closed")
-
 
 # Factory function
 def create_semantic_analyzer(

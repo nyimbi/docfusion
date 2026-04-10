@@ -59,7 +59,7 @@ class ValidationSeverity(str, Enum):
 
 class VoiceDeviation(BaseModel):
 	"""Individual voice deviation detection"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	deviation_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique deviation identifier")
 	deviation_type: DeviationType = Field(description="Type of voice deviation")
@@ -89,7 +89,7 @@ class VoiceDeviation(BaseModel):
 
 class ValidationResult(BaseModel):
 	"""Comprehensive voice validation result"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	validation_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique validation identifier")
 	text_analyzed: str = Field(description="Text that was analyzed")

@@ -17,15 +17,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 import psutil
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
+from ...core.utils import uuid7str
 
 class AlertLevel(str, Enum):
     """Alert severity levels"""
@@ -34,7 +26,6 @@ class AlertLevel(str, Enum):
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
-
 
 class MetricType(str, Enum):
     """Performance metric types"""
@@ -50,7 +41,6 @@ class MetricType(str, Enum):
     QUEUE_SIZE = "queue_size"
     DATABASE_CONNECTIONS = "database_connections"
 
-
 @dataclass
 class PerformanceMetric:
     """Performance metric data point"""
@@ -64,7 +54,6 @@ class PerformanceMetric:
     status_code: Optional[int] = None
     user_id: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class Alert:
@@ -81,7 +70,6 @@ class Alert:
     resolved_at: Optional[datetime] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class PerformanceThreshold:
     """Performance threshold configuration"""
@@ -92,7 +80,6 @@ class PerformanceThreshold:
     duration_seconds: int = 60  # Time window to evaluate
     min_samples: int = 5  # Minimum samples needed
     endpoint_pattern: Optional[str] = None
-
 
 class SystemMonitor:
     """System resource monitoring"""
@@ -149,7 +136,6 @@ class SystemMonitor:
         except Exception as e:
             self.logger.error(f"Failed to get network stats: {e}")
             return {}
-
 
 class PerformanceCollector:
     """Collects and aggregates performance metrics"""
@@ -352,7 +338,6 @@ class PerformanceCollector:
             except Exception as e:
                 self.logger.error(f"System metrics collection failed: {e}")
                 await asyncio.sleep(60)  # Wait longer on error
-
 
 class AlertManager:
     """Manages performance alerts and notifications"""
@@ -573,7 +558,6 @@ class AlertManager:
         """Get recent alert history"""
         return list(self.alert_history)[-limit:]
 
-
 class PerformanceMonitor:
     """Main performance monitoring system"""
 
@@ -732,7 +716,6 @@ class PerformanceMonitor:
         except Exception as e:
             self.logger.error(f"Failed to get top endpoints: {e}")
             return {}
-
 
 # Factory function
 def create_performance_monitor() -> PerformanceMonitor:

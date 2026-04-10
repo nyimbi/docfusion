@@ -8,7 +8,6 @@ scheduling, deadline-driven optimization, and schedule conflict resolution.
 
 import asyncio
 import logging
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -18,14 +17,9 @@ import heapq
 import json
 
 from pydantic import BaseModel, Field, ConfigDict
-
-def uuid7str():
-	"""Generate a UUID7-like string using UUID4 for compatibility."""
-	return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 class SchedulingStrategy(str, Enum):
 	"""Task scheduling strategies."""
@@ -37,7 +31,6 @@ class SchedulingStrategy(str, Enum):
 	SHORTEST_JOB_FIRST = "shortest_job_first"  # Shortest estimated duration first
 	LONGEST_JOB_FIRST = "longest_job_first"  # Longest estimated duration first
 	ROUND_ROBIN = "round_robin"  # Round-robin across users/groups
-
 
 class ResourceType(str, Enum):
 	"""Types of resources that can be allocated."""
@@ -51,7 +44,6 @@ class ResourceType(str, Enum):
 	LICENSE = "license"
 	CUSTOM = "custom"
 
-
 class TaskPriority(int, Enum):
 	"""Standard task priorities."""
 	CRITICAL = 1
@@ -60,10 +52,9 @@ class TaskPriority(int, Enum):
 	LOW = 7
 	BACKGROUND = 9
 
-
 class ScheduledTask(BaseModel):
 	"""A task in the scheduling queue."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	task_id: str = Field(default_factory=uuid7str)
 	workflow_instance_id: str = Field(description="Parent workflow instance")
@@ -105,7 +96,6 @@ class ScheduledTask(BaseModel):
 	max_retries: int = Field(3)
 	last_failure_reason: Optional[str] = None
 
-
 @dataclass
 class ResourcePool:
 	"""Available resource pool for scheduling."""
@@ -137,7 +127,6 @@ class ResourcePool:
 		"""Get current resource utilization percentage."""
 		return ((self.total_capacity - self.available_capacity) / self.total_capacity) * 100.0
 
-
 @dataclass
 class SchedulingDecision:
 	"""Result of a scheduling decision."""
@@ -148,7 +137,6 @@ class SchedulingDecision:
 	scheduling_reason: str
 	confidence_score: float
 	alternative_schedules: List[Dict[str, Any]] = field(default_factory=list)
-
 
 @dataclass
 class SchedulingMetrics:
@@ -161,7 +149,6 @@ class SchedulingMetrics:
 	task_throughput_per_hour: float = 0.0
 	conflicts_resolved: int = 0
 	optimization_runs: int = 0
-
 
 class TaskScheduler:
 	"""

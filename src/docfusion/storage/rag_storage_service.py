@@ -13,15 +13,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from .rag import (
     RAGConfiguration,
     RAGQueryResult,
@@ -31,7 +22,7 @@ from .rag import (
     get_default_rag_config,
 )
 from .storage_service import StorageConfiguration, StorageService, StorageStats
-
+from ..core.utils import uuid7str
 
 @dataclass
 class RAGStorageConfiguration:
@@ -67,7 +58,6 @@ class RAGStorageConfiguration:
     retrieval_cache_size: int = 500
     max_concurrent_requests: int = 10
 
-
 @dataclass
 class EnhancedSearchResult:
     """Enhanced search result combining traditional and RAG search"""
@@ -91,7 +81,6 @@ class EnhancedSearchResult:
     tags: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     highlights: List[str] = field(default_factory=list)
-
 
 class RAGStorageService:
     """Storage service enhanced with RAG capabilities"""
@@ -598,7 +587,6 @@ class RAGStorageService:
 
         except Exception as e:
             self.logger.error(f"Error closing RAG storage service: {e}")
-
 
 # Utility functions
 async def create_rag_storage_service(

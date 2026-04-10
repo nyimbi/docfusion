@@ -15,18 +15,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-
-	def uuid7str() -> str:
-		return str(uuid4())
-
-
 import httpx
 from pydantic import BaseModel, Field, ConfigDict
-
+from ..core.utils import uuid7str
 
 class RequirementCategory(str, Enum):
 	"""Classification categories for RFP requirements"""
@@ -34,7 +25,6 @@ class RequirementCategory(str, Enum):
 	MANDATORY = "mandatory"  # Must be met - "shall", "must", "required"
 	OPTIONAL = "optional"  # Nice to have - "may", "should", "preferred"
 	CONDITIONAL = "conditional"  # Depends on conditions - "if", "when", "where applicable"
-
 
 class RequirementType(str, Enum):
 	"""Types of requirements in RFP documents"""
@@ -49,7 +39,6 @@ class RequirementType(str, Enum):
 	CONTRACT = "contract"
 	ADMINISTRATIVE = "administrative"
 	UNKNOWN = "unknown"
-
 
 class Requirement(BaseModel):
 	"""
@@ -68,7 +57,7 @@ class Requirement(BaseModel):
 		metadata: Additional extraction metadata
 	"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str)
 	text: str = Field(..., description="Requirement text")
@@ -99,11 +88,10 @@ class Requirement(BaseModel):
 		if requirement_id not in self.cross_references:
 			self.cross_references.append(requirement_id)
 
-
 class RequirementExtractionResult(BaseModel):
 	"""Result of extracting requirements from a document"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	success: bool = Field(default=False)
 	requirements: list[Requirement] = Field(default_factory=list)
@@ -116,7 +104,6 @@ class RequirementExtractionResult(BaseModel):
 	warnings: list[str] = Field(default_factory=list)
 	processing_time: float = Field(default=0.0)
 	methods_used: list[str] = Field(default_factory=list)
-
 
 class RequirementExtractor:
 	"""
@@ -1091,7 +1078,6 @@ class RequirementExtractor:
 			],
 			"docling_service_url": self.config["docling_service_url"],
 		}
-
 
 def create_requirement_extractor(
 	config: dict[str, Any] | None = None,

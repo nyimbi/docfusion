@@ -20,16 +20,8 @@ try:
 except ImportError:
     aiohttp = None
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # Advanced prompting strategies for deepseek-r1:32b
+from ...core.utils import uuid7str
 from ..prompting_strategies import (
     AdvancedPromptBuilder,
     PromptingStrategy,
@@ -38,7 +30,6 @@ from ..prompting_strategies import (
     create_tree_of_thought_prompt,
     filter_thinking_tags,
 )
-
 
 class ContentType(Enum):
     """Comprehensive types of content that can be generated"""
@@ -195,7 +186,6 @@ class ContentType(Enum):
     CUSTOM_CONTENT = "custom_content"
     TEMPLATE_BASED = "template_based"
 
-
 class GenerationStyle(Enum):
     """Comprehensive writing styles for content generation"""
 
@@ -265,7 +255,6 @@ class GenerationStyle(Enum):
     PROBLEM_SOLVING = "problem_solving"
     INNOVATION_FOCUSED = "innovation_focused"
 
-
 class ContentFormat(Enum):
     """Output formats for generated content"""
 
@@ -275,7 +264,6 @@ class ContentFormat(Enum):
     BULLET_LIST = "bullet_list"
     NUMBERED_LIST = "numbered_list"
     PARAGRAPH_FORM = "paragraph_form"
-
 
 @dataclass
 class GenerationContext:
@@ -306,7 +294,6 @@ class GenerationContext:
     use_active_voice: bool = True
     avoid_jargon: bool = False
 
-
 @dataclass
 class GenerationPrompt:
     """Structured prompt for content generation"""
@@ -317,7 +304,6 @@ class GenerationPrompt:
     format_requirements: str = ""
     quality_criteria: str = ""
     examples: List[str] = field(default_factory=list)
-
 
 @dataclass
 class GeneratedContent:
@@ -339,7 +325,6 @@ class GeneratedContent:
     generation_parameters: Dict[str, Any] = field(default_factory=dict)
     prompt_tokens: int = 0
     completion_tokens: int = 0
-
 
 @dataclass
 class ContentGenerationResult:
@@ -370,7 +355,6 @@ class ContentGenerationResult:
 
     # Statistics
     statistics: Dict[str, Any] = field(default_factory=dict)
-
 
 class ContentGenerator:
     """Advanced AI-powered content generator with Ollama integration"""
@@ -2105,7 +2089,6 @@ Please generate the content now:"""
     async def close(self):
         """Close generator and cleanup resources"""
         self.logger.info("ContentGenerator closed")
-
 
 # Factory function
 def create_content_generator(

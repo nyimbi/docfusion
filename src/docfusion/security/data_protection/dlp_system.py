@@ -20,9 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from pydantic import BaseModel, Field, validator
-from uuid_extensions import uuid7str
-
-
+from ...core.utils import uuid7str
 class DataSensitivityLevel(str, Enum):
     """Data sensitivity classification levels"""
 
@@ -31,7 +29,6 @@ class DataSensitivityLevel(str, Enum):
     CONFIDENTIAL = "confidential"
     RESTRICTED = "restricted"
     TOP_SECRET = "top_secret"
-
 
 class DLPViolationType(str, Enum):
     """Types of DLP violations"""
@@ -42,7 +39,6 @@ class DLPViolationType(str, Enum):
     SUSPICIOUS_ACTIVITY = "suspicious_activity"
     CONTENT_VIOLATION = "content_violation"
     CLASSIFICATION_MISMATCH = "classification_mismatch"
-
 
 class ContentType(str, Enum):
     """Types of content for DLP scanning"""
@@ -55,7 +51,6 @@ class ContentType(str, Enum):
     API_REQUEST = "api_request"
     WEB_FORM = "web_form"
 
-
 class DLPAction(str, Enum):
     """Actions to take on DLP policy violations"""
 
@@ -67,7 +62,6 @@ class DLPAction(str, Enum):
     REDACT = "redact"
     LOG_ONLY = "log_only"
 
-
 class ScanningEngine(str, Enum):
     """Content scanning engines"""
 
@@ -76,7 +70,6 @@ class ScanningEngine(str, Enum):
     ML_CLASSIFIER = "ml_classifier"
     HASH_MATCHING = "hash_matching"
     SEMANTIC_ANALYSIS = "semantic_analysis"
-
 
 class DataPattern(BaseModel):
     """Data pattern definition for DLP scanning"""
@@ -109,7 +102,6 @@ class DataPattern(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str
     active: bool = True
-
 
 class DLPRule(BaseModel):
     """DLP policy rule definition"""
@@ -154,7 +146,6 @@ class DLPRule(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str
 
-
 class ScanResult(BaseModel):
     """Result of DLP content scan"""
 
@@ -182,7 +173,6 @@ class ScanResult(BaseModel):
     scanned_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     scanned_by_user: Optional[str] = None
     source_ip: Optional[str] = None
-
 
 class DLPViolation(BaseModel):
     """DLP policy violation record"""
@@ -227,7 +217,6 @@ class DLPViolation(BaseModel):
     source_ip: Optional[str] = None
     user_agent: Optional[str] = None
 
-
 class DLPIncident(BaseModel):
     """DLP security incident record"""
 
@@ -265,7 +254,6 @@ class DLPIncident(BaseModel):
     # Metadata
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str
-
 
 @dataclass
 class DLPConfiguration:
@@ -311,7 +299,6 @@ class DLPConfiguration:
     # Integration settings
     integrate_with_encryption: bool = True
     integrate_with_classification: bool = True
-
 
 class DLPSystem:
     """Data Loss Prevention system implementation"""
@@ -1241,12 +1228,10 @@ class DLPSystem:
             "queue_size": self.scan_queue.qsize(),
         }
 
-
 # Factory functions
 def create_dlp_system(config: Optional[DLPConfiguration] = None) -> DLPSystem:
     """Create DLP system instance"""
     return DLPSystem(config)
-
 
 def create_test_dlp_config() -> DLPConfiguration:
     """Create test DLP configuration"""

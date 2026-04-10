@@ -25,7 +25,7 @@ from .nlp_integration import NLPAnalysisResult
 
 class StorageOperationResult(BaseModel):
 	"""Result of storage operation"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	success: bool = Field(description="Whether operation was successful")
 	operation_type: str = Field(description="Type of operation performed")
@@ -37,7 +37,7 @@ class StorageOperationResult(BaseModel):
 
 class OpportunitySearchCriteria(BaseModel):
 	"""Criteria for searching opportunities"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Basic filters
 	date_range: Optional[Tuple[datetime, datetime]] = Field(None, description="Date range filter")
@@ -67,7 +67,7 @@ class OpportunitySearchCriteria(BaseModel):
 
 class AnalysisCache(BaseModel):
 	"""Cached analysis result"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	opportunity_id: str = Field(description="Opportunity identifier")
 	analysis_type: str = Field(description="Type of analysis")

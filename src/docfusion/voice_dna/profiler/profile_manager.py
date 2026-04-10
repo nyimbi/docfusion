@@ -56,7 +56,7 @@ class ComparisonType(str, Enum):
 
 class ProfileVersion(BaseModel):
 	"""Version information for voice profiles"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	version_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique version identifier")
 	version_number: str = Field(description="Semantic version number (e.g., '1.0.0')")
@@ -80,7 +80,7 @@ class ProfileVersion(BaseModel):
 
 class ProfileComparison(BaseModel):
 	"""Comparison result between voice profiles"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	comparison_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique comparison identifier")
 	comparison_type: ComparisonType = Field(description="Type of comparison performed")

@@ -35,13 +35,7 @@ import pandas as pd
 
 from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
-import uuid
-
-def uuid7str() -> str:
-	"""Generate a UUID7-like string using UUID4"""
-	return str(uuid.uuid4())
-
-
+from ...core.utils import uuid7str
 class OpportunityType(str, Enum):
 	"""Types of procurement opportunities"""
 	GOODS = "goods"
@@ -54,7 +48,6 @@ class OpportunityType(str, Enum):
 	TRAINING = "training"
 	DESIGN = "design"
 	UNKNOWN = "unknown"
-
 
 class OpportunitySector(str, Enum):
 	"""Market sectors for opportunities"""
@@ -72,7 +65,6 @@ class OpportunitySector(str, Enum):
 	MANUFACTURING = "manufacturing"
 	UNKNOWN = "unknown"
 
-
 class CompetitionLevel(str, Enum):
 	"""Competition intensity levels"""
 	LOW = "low"			# 1-3 competitors expected
@@ -80,7 +72,6 @@ class CompetitionLevel(str, Enum):
 	HIGH = "high"		# 9-15 competitors expected
 	INTENSE = "intense"	# 15+ competitors expected
 	UNKNOWN = "unknown"
-
 
 class OpportunityClassification(BaseModel):
 	"""Opportunity classification results"""
@@ -94,7 +85,6 @@ class OpportunityClassification(BaseModel):
 	confidence_score: float = Field(ge=0.0, le=1.0)
 	classification_reasons: List[str] = Field(default_factory=list)
 
-
 class CompetitiveAssessment(BaseModel):
 	"""Competitive landscape analysis"""
 	competition_level: CompetitionLevel
@@ -106,7 +96,6 @@ class CompetitiveAssessment(BaseModel):
 	incumbent_name: Optional[str] = None
 	market_dynamics: Dict[str, Any] = Field(default_factory=dict)
 	assessment_confidence: float = Field(ge=0.0, le=1.0)
-
 
 class TimelineAnalysis(BaseModel):
 	"""Timeline and deadline analysis"""
@@ -121,7 +110,6 @@ class TimelineAnalysis(BaseModel):
 	timeline_risks: List[str] = Field(default_factory=list)
 	timeline_confidence: float = Field(ge=0.0, le=1.0)
 
-
 class ValueEstimation(BaseModel):
 	"""Opportunity value analysis"""
 	estimated_value: Optional[Decimal] = None
@@ -134,7 +122,6 @@ class ValueEstimation(BaseModel):
 	pricing_model: str = Field(description="fixed_price, cost_plus, time_materials")
 	economic_factors: Dict[str, Any] = Field(default_factory=dict)
 
-
 class EligibilityAnalysis(BaseModel):
 	"""Eligibility and qualification requirements"""
 	minimum_requirements: List[str] = Field(default_factory=list)
@@ -146,7 +133,6 @@ class EligibilityAnalysis(BaseModel):
 	geographic_restrictions: List[str] = Field(default_factory=list)
 	eligibility_score: float = Field(ge=0.0, le=1.0, description="How well we meet requirements")
 	qualification_gaps: List[str] = Field(default_factory=list)
-
 
 class OpportunityAnalysis(BaseModel):
 	"""Complete opportunity analysis result"""
@@ -171,7 +157,6 @@ class OpportunityAnalysis(BaseModel):
 	analysis_confidence: float = Field(ge=0.0, le=1.0)
 	data_quality_score: float = Field(ge=0.0, le=1.0)
 	analysis_version: str = "1.0"
-
 
 class OpportunityAnalyzer:
 	"""
@@ -1803,7 +1788,6 @@ class OpportunityAnalyzer:
 			stats['max_processing_time'] = np.max(self.analysis_stats['processing_times'])
 		
 		return stats
-
 
 # Factory function for easy instantiation
 def create_opportunity_analyzer(model_cache_dir: Optional[Path] = None,

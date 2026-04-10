@@ -44,7 +44,7 @@ class EnhancementType(str, Enum):
 
 class WritingPattern(BaseModel):
 	"""Analysis of writing patterns for enhancement"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	pattern_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique pattern identifier")
 	pattern_type: str = Field(description="Type of writing pattern")
@@ -66,7 +66,7 @@ class WritingPattern(BaseModel):
 
 class VocabularyAnalysis(BaseModel):
 	"""Comprehensive vocabulary analysis"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Diversity metrics
 	total_words: int = Field(ge=0, description="Total word count")
@@ -90,7 +90,7 @@ class VocabularyAnalysis(BaseModel):
 
 class SentenceStructureAnalysis(BaseModel):
 	"""Analysis of sentence structure and variation"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Basic metrics
 	total_sentences: int = Field(ge=0, description="Total sentence count")
@@ -118,7 +118,7 @@ class SentenceStructureAnalysis(BaseModel):
 
 class EnhancementRequest(BaseModel):
 	"""Request for writing enhancement"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	request_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique request identifier")
 	enhancement_type: EnhancementType = Field(description="Type of enhancement requested")
@@ -150,7 +150,7 @@ class EnhancementRequest(BaseModel):
 
 class EnhancementResult(BaseModel):
 	"""Result of writing enhancement"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	result_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique result identifier")
 	request_id: str = Field(description="Associated request ID")

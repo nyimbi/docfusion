@@ -20,22 +20,14 @@ try:
 except ImportError:
 	strawberry = None
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
 logger = logging.getLogger(__name__)
 
 from ..endpoints.search_endpoints import SearchRequest, SearchResponse, SearchMode, SearchScope, SearchSort, SortOrder
 from ...security import SecurityManager
-
+from ...core.utils import uuid7str
 
 if strawberry is None:
 	raise ImportError("strawberry-graphql is required for GraphQL support")
-
 
 # ==================== PERMISSIONS ====================
 
@@ -46,7 +38,6 @@ class IsAuthenticated(BasePermission):
 	async def has_permission(self, source: Any, info: Info, **kwargs) -> bool:
 		context = info.context
 		return context.get("user") is not None
-
 
 class HasPermission(BasePermission):
 	"""Check specific permission"""
@@ -73,7 +64,6 @@ class HasPermission(BasePermission):
 			logger.warning(f"Permission check failed: {e}")
 			return False
 
-
 class IsOwnerOrAdmin(BasePermission):
 	"""Check if user owns resource or is admin"""
 	message = "Must be owner or admin"
@@ -97,7 +87,6 @@ class IsOwnerOrAdmin(BasePermission):
 		resource_owner = getattr(source, "created_by", None) or getattr(source, "user_id", None)
 		return resource_owner == user["user_id"]
 
-
 # ==================== ENUMS ====================
 
 @strawberry.enum
@@ -107,7 +96,6 @@ class DocumentStatus(Enum):
 	ARCHIVED = "archived"
 	DELETED = "deleted"
 
-
 @strawberry.enum
 class DocumentType(Enum):
 	PROPOSAL = "proposal"
@@ -115,7 +103,6 @@ class DocumentType(Enum):
 	REPORT = "report"
 	MEMO = "memo"
 	OTHER = "other"
-
 
 @strawberry.enum
 class SearchModeEnum(Enum):
@@ -125,7 +112,6 @@ class SearchModeEnum(Enum):
 	REGEX = "regex"
 	SEMANTIC = "semantic"
 
-
 @strawberry.enum
 class SearchScopeEnum(Enum):
 	ALL = "all"
@@ -133,12 +119,10 @@ class SearchScopeEnum(Enum):
 	TEMPLATES = "templates"
 	COMMENTS = "comments"
 
-
 @strawberry.enum
 class SortOrderEnum(Enum):
 	ASC = "asc"
 	DESC = "desc"
-
 
 @strawberry.enum
 class SearchSortEnum(Enum):
@@ -147,7 +131,6 @@ class SearchSortEnum(Enum):
 	UPDATED_AT = "updated_at"
 	TITLE = "title"
 	AUTHOR = "author"
-
 
 # ==================== SCALAR TYPES ====================
 
@@ -163,14 +146,12 @@ class User:
 	last_login: Optional[datetime] = None
 	is_active: bool = True
 
-
 @strawberry.type
 class Tag:
 	"""Document tag"""
 	name: str
 	color: Optional[str] = None
 	description: Optional[str] = None
-
 
 @strawberry.type
 class DocumentMetadata:
@@ -182,7 +163,6 @@ class DocumentMetadata:
 	mime_type: Optional[str] = None
 	checksum: Optional[str] = None
 
-
 @strawberry.type
 class DocumentVersion:
 	"""Document version information"""
@@ -192,7 +172,6 @@ class DocumentVersion:
 	created_by: str
 	changes_summary: Optional[str] = None
 	is_current: bool = False
-
 
 @strawberry.type
 class Document:
@@ -243,7 +222,6 @@ class Document:
 		# In production, would check user favorites
 		return False
 
-
 @strawberry.type
 class Comment:
 	"""Document comment"""
@@ -273,13 +251,11 @@ class Comment:
 		# In production, would fetch replies from database
 		return []
 
-
 @strawberry.type
 class SearchHighlight:
 	"""Search result highlight"""
 	field: str
 	fragments: List[str]
-
 
 @strawberry.type
 class SearchResult:
@@ -305,7 +281,6 @@ class SearchResult:
 			updated_at=datetime.utcnow()
 		)
 
-
 @strawberry.type
 class SearchResults:
 	"""Paginated search results"""
@@ -318,7 +293,6 @@ class SearchResults:
 	search_id: str
 	timestamp: datetime
 
-
 @strawberry.type
 class DocumentConnection:
 	"""GraphQL connection for documents"""
@@ -326,13 +300,11 @@ class DocumentConnection:
 	page_info: "PageInfo"
 	total_count: int
 
-
 @strawberry.type
 class DocumentEdge:
 	"""Document edge for connections"""
 	node: Document
 	cursor: str
-
 
 @strawberry.type
 class PageInfo:
@@ -342,14 +314,12 @@ class PageInfo:
 	start_cursor: Optional[str] = None
 	end_cursor: Optional[str] = None
 
-
 @strawberry.type
 class AnalyticsData:
 	"""Analytics data point"""
 	timestamp: datetime
 	value: float
 	metadata: Optional[str] = None  # JSON string
-
 
 @strawberry.type
 class DocumentAnalytics:
@@ -361,7 +331,6 @@ class DocumentAnalytics:
 	total_views: int = 0
 	total_edits: int = 0
 	total_collaborators: int = 0
-
 
 # ==================== INPUT TYPES ====================
 
@@ -378,13 +347,11 @@ class DocumentFilters:
 	updated_before: Optional[datetime] = None
 	search_query: Optional[str] = None
 
-
 @strawberry.input
 class DocumentSort:
 	"""Document sorting options"""
 	field: SearchSortEnum
 	order: SortOrderEnum = SortOrderEnum.DESC
-
 
 @strawberry.input
 class SearchInput:
@@ -399,7 +366,6 @@ class SearchInput:
 	highlight: bool = True
 	include_suggestions: bool = False
 
-
 @strawberry.input
 class DocumentInput:
 	"""Document creation/update input"""
@@ -409,7 +375,6 @@ class DocumentInput:
 	tags: List[str] = strawberry.field(default_factory=list)
 	metadata: Optional[str] = None  # JSON string
 
-
 @strawberry.input
 class CommentInput:
 	"""Comment creation input"""
@@ -417,7 +382,6 @@ class CommentInput:
 	content: str
 	parent_id: Optional[str] = None
 	position: Optional[str] = None
-
 
 # ==================== QUERIES ====================
 
@@ -636,7 +600,6 @@ class Query:
 			"search_queries_today": 200
 		}
 
-
 # ==================== MUTATIONS ====================
 
 @strawberry.type
@@ -815,7 +778,6 @@ class Mutation:
 			logging.error(f"Reindexing failed: {e}")
 			return False
 
-
 # ==================== SUBSCRIPTIONS ====================
 
 @strawberry.type
@@ -876,7 +838,6 @@ class Subscription:
 				"popular_queries": ["proposal", "template", "report"]
 			}
 
-
 # ==================== SCHEMA ====================
 
 def create_graphql_schema(security_manager: SecurityManager):
@@ -889,7 +850,6 @@ def create_graphql_schema(security_manager: SecurityManager):
 	)
 	
 	return schema
-
 
 # ==================== CONTEXT BUILDER ====================
 

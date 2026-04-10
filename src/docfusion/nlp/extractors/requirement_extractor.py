@@ -14,20 +14,11 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # Ollama integration for AI-powered requirement analysis
 import json
 
 import httpx
-
+from ...core.utils import uuid7str
 
 class RequirementType(str, Enum):
     """Types of requirements in RFPs"""
@@ -51,7 +42,6 @@ class RequirementType(str, Enum):
     EVALUATION = "evaluation"
     CONTRACT = "contract"
 
-
 class RequirementPriority(str, Enum):
     """Priority levels for requirements"""
 
@@ -61,7 +51,6 @@ class RequirementPriority(str, Enum):
     DESIRABLE = "desirable"
     OPTIONAL = "optional"
 
-
 class RequirementClarity(str, Enum):
     """Clarity assessment of requirements"""
 
@@ -69,7 +58,6 @@ class RequirementClarity(str, Enum):
     SOMEWHAT_CLEAR = "somewhat_clear"
     AMBIGUOUS = "ambiguous"
     UNCLEAR = "unclear"
-
 
 @dataclass
 class Requirement:
@@ -104,7 +92,6 @@ class Requirement:
         if self.ai_analysis is None:
             self.ai_analysis = {}
 
-
 @dataclass
 class RequirementGroup:
     """Group of related requirements"""
@@ -121,7 +108,6 @@ class RequirementGroup:
         if self.dependencies is None:
             self.dependencies = []
 
-
 class RequirementExtractionResult:
     """Result of requirement extraction"""
 
@@ -136,7 +122,6 @@ class RequirementExtractionResult:
         self.warnings: List[str] = []
         self.processing_time: float = 0.0
         self.methods_used: List[str] = []
-
 
 class RequirementExtractor:
     """Advanced RFP requirement extractor with AI enhancement"""
@@ -1275,7 +1260,6 @@ Identify what requirement categories might be missing:
             "config": self.config.copy(),
             "version": "1.0.0",
         }
-
 
 # Factory function
 def create_requirement_extractor(

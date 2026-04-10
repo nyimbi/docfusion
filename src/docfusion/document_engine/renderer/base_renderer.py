@@ -22,12 +22,7 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict
-
-
-def uuid7str() -> str:
-	"""Generate a UUID7-style string using uuid4 for compatibility"""
-	return str(uuid4())
-
+from ...core.utils import uuid7str
 
 # ============================================================================
 # Unified Data Models
@@ -35,7 +30,7 @@ def uuid7str() -> str:
 
 class UnifiedRenderConfiguration(BaseModel):
 	"""Base configuration for all renderers with common settings"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Configuration identification
 	config_id: str = Field(default_factory=uuid7str)
@@ -61,10 +56,9 @@ class UnifiedRenderConfiguration(BaseModel):
 	# Format-specific settings (overridden by subclasses)
 	format_specific_settings: Dict[str, Any] = Field(default_factory=dict)
 
-
 class UnifiedDocumentContent(BaseModel):
 	"""Unified document content representation supporting multiple formats"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Document identification
 	document_id: str = Field(default_factory=uuid7str)
@@ -94,10 +88,9 @@ class UnifiedDocumentContent(BaseModel):
 	estimated_pages: int = 1  # Estimated page count
 	complexity_score: float = 0.0  # Content complexity (0.0-1.0)
 
-
 class UnifiedRenderResult(BaseModel):
 	"""Base result class for all renderers with standardized output"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Core rendering status
 	render_successful: bool = False
@@ -131,7 +124,6 @@ class UnifiedRenderResult(BaseModel):
 	renderer_version: str = "1.0.0"  # Version of renderer
 	render_config_used: Dict[str, Any] = Field(default_factory=dict)  # Config snapshot
 
-
 # ============================================================================
 # Renderer Exceptions
 # ============================================================================
@@ -140,26 +132,21 @@ class RendererException(Exception):
 	"""Base exception for all renderer-related errors"""
 	pass
 
-
 class RenderConfigurationException(RendererException):
 	"""Exception raised for configuration-related errors"""
 	pass
-
 
 class ContentProcessingException(RendererException):
 	"""Exception raised during content processing"""
 	pass
 
-
 class OutputGenerationException(RendererException):
 	"""Exception raised during output generation"""
 	pass
 
-
 class ValidationException(RendererException):
 	"""Exception raised during content validation"""
 	pass
-
 
 # ============================================================================
 # Abstract Base Renderer
@@ -450,7 +437,6 @@ class BaseRenderer(ABC):
 		# Final fallback
 		return content.title if content.title else "Untitled Document"
 
-
 # ============================================================================
 # Renderer Factory and Registry
 # ============================================================================
@@ -488,10 +474,8 @@ class RendererRegistry:
 		"""Check if a format is supported"""
 		return format_name.lower() in self._renderers
 
-
 # Global renderer registry
 renderer_registry = RendererRegistry()
-
 
 # ============================================================================
 # Utility Functions
@@ -517,7 +501,6 @@ async def render_document(
 	"""
 	renderer = renderer_registry.get_renderer(format_name, config)
 	return await renderer.render(content, output_path)
-
 
 async def batch_render_multi_format(
 	documents: List[UnifiedDocumentContent],
@@ -549,7 +532,6 @@ async def batch_render_multi_format(
 	
 	return results
 
-
 def create_unified_content_from_html(
 	html_content: str,
 	title: str = "",
@@ -575,7 +557,6 @@ def create_unified_content_from_html(
 		content_length=len(html_content),
 		metadata=metadata or {}
 	)
-
 
 # ============================================================================
 # Example Usage

@@ -4,11 +4,11 @@ from typing import Any, Dict, List, Optional, Set, Union, Callable
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
-import uuid
 from pydantic import BaseModel, Field, ConfigDict
 from ..core.agent import Agent
 from ..core.messages import AgentMessage, MessageType, MessageTemplates
 import re
+from ...core.utils import uuid7str
 
 """
 Agent Crew Management
@@ -21,15 +21,6 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-
-
 class CrewStatus(str, Enum):
 	"""Crew operational status"""
 	FORMING = "forming"
@@ -41,14 +32,12 @@ class CrewStatus(str, Enum):
 	DISBANDED = "disbanded"
 	ERROR = "error"
 
-
 class TaskPriority(str, Enum):
 	"""Task priority levels"""
 	CRITICAL = "critical"
 	HIGH = "high"
 	MEDIUM = "medium"
 	LOW = "low"
-
 
 @dataclass
 class CrewTask:
@@ -65,10 +54,9 @@ class CrewTask:
 	status: str = "pending"
 	created_at: datetime = field(default_factory=datetime.now)
 
-
 class CrewConfig(BaseModel):
 	"""Configuration for agent crew"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	crew_id: str = Field(default_factory=uuid7str)
 	name: str = Field(description="Crew name")
@@ -94,10 +82,9 @@ class CrewConfig(BaseModel):
 	success_criteria: Dict[str, Any] = Field(default_factory=dict)
 	kpis: List[str] = Field(default_factory=list)
 
-
 class CrewMetrics(BaseModel):
 	"""Crew performance metrics"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	tasks_completed: int = 0
 	tasks_failed: int = 0
@@ -111,7 +98,6 @@ class CrewMetrics(BaseModel):
 	communication_volume: int = 0
 	started_at: Optional[datetime] = None
 	last_activity: Optional[datetime] = None
-
 
 class AgentCrew:
 	"""

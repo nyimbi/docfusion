@@ -25,13 +25,6 @@ import json
 import hashlib
 from pydantic import BaseModel, Field, ConfigDict
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-
 # Import workflow components
 from ..coordination.task_coordinator import TaskCoordinator, TaskAssignment
 from ..coordination.deadline_manager import DeadlineManager
@@ -45,7 +38,7 @@ from ...security.encryption.data_encryption import EncryptionResult
 from ...security.audit.audit_logger import AuditEventType, AuditSeverity
 from ...security.data_protection.dlp_system import ContentType, DLPAction
 from ...security.compliance.gdpr_compliance import GDPRRights
-
+from ...core.utils import uuid7str
 
 class WorkflowSecurityLevel(str, Enum):
 	"""Security levels for workflow execution"""
@@ -54,7 +47,6 @@ class WorkflowSecurityLevel(str, Enum):
 	CONFIDENTIAL = "confidential"
 	RESTRICTED = "restricted"
 	TOP_SECRET = "top_secret"
-
 
 class WorkflowSecurityAction(str, Enum):
 	"""Security actions for workflow operations"""
@@ -67,7 +59,6 @@ class WorkflowSecurityAction(str, Enum):
 	MONITOR_WORKFLOW = "monitor_workflow"
 	ACCESS_RESULTS = "access_results"
 
-
 class WorkflowSecurityEvent(str, Enum):
 	"""Security events in workflow execution"""
 	WORKFLOW_STARTED = "workflow_started"
@@ -78,7 +69,6 @@ class WorkflowSecurityEvent(str, Enum):
 	DATA_ENCRYPTED = "data_encrypted"
 	COMPLIANCE_VIOLATION = "compliance_violation"
 	SECURITY_POLICY_APPLIED = "security_policy_applied"
-
 
 @dataclass
 class WorkflowSecurityContext:
@@ -93,7 +83,6 @@ class WorkflowSecurityContext:
 	encryption_required: bool = True
 	audit_required: bool = True
 	compliance_frameworks: List[str] = field(default_factory=list)
-
 
 @dataclass
 class SecureWorkflowPermissions:
@@ -110,10 +99,9 @@ class SecureWorkflowPermissions:
 	allowed_classifications: List[str] = field(default_factory=list)
 	resource_restrictions: Dict[str, Any] = field(default_factory=dict)
 
-
 class SecureWorkflowResult(BaseModel):
 	"""Result of secure workflow operation"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	success: bool
 	workflow_id: Optional[str] = None
@@ -127,7 +115,6 @@ class SecureWorkflowResult(BaseModel):
 	security_warnings: List[str] = Field(default_factory=list)
 	result_data: Optional[Dict[str, Any]] = None
 	execution_time: Optional[float] = None
-
 
 class SecurityWorkflowIntegration:
 	"""
@@ -1053,7 +1040,6 @@ class SecurityWorkflowIntegration:
 		"""Validate compliance with specific framework"""
 		# Implementation would validate compliance with specific frameworks
 		return {'compliant': True, 'violations': [], 'recommendations': []}
-
 
 # Factory function for creating security-workflow integration
 async def create_security_workflow_integration(

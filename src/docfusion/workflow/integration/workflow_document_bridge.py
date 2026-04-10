@@ -23,15 +23,6 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
 
 # Import document engine components
@@ -51,6 +42,7 @@ from ..automation.task_scheduler import (
 )
 
 # Import workflow components
+from ...core.utils import uuid7str
 from ..automation.workflow_engine import (
     ProcessState,
     TriggerType,
@@ -80,11 +72,9 @@ from ..monitoring.workflow_monitor import (
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # Configuration Models
 # ============================================================================
-
 
 class DocumentWorkflowMode(Enum):
     """Modes for document workflow integration"""
@@ -94,11 +84,10 @@ class DocumentWorkflowMode(Enum):
     MANUAL = "manual"  # Manual workflow coordination
     REVIEW_ONLY = "review_only"  # Review and approval only
 
-
 class WorkflowPhaseMapping(BaseModel):
     """Maps document generation phases to workflow tasks"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     phase: GenerationPhase
     task_name: str
@@ -109,11 +98,10 @@ class WorkflowPhaseMapping(BaseModel):
     can_be_automated: bool = True
     requires_human_review: bool = False
 
-
 class WorkflowDocumentConfiguration(BaseModel):
     """Configuration for workflow-enabled document creation"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Workflow settings
     workflow_mode: DocumentWorkflowMode = DocumentWorkflowMode.AUTOMATIC
@@ -149,16 +137,14 @@ class WorkflowDocumentConfiguration(BaseModel):
         default_factory=lambda: ["email", "workflow"]
     )
 
-
 # ============================================================================
 # Event Models
 # ============================================================================
 
-
 class DocumentWorkflowEvent(BaseModel):
     """Event model for document workflow integration"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     event_id: str = Field(default_factory=uuid7str)
     event_type: str
@@ -169,11 +155,10 @@ class DocumentWorkflowEvent(BaseModel):
     data: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-
 class WorkflowProgress(BaseModel):
     """Progress tracking for workflow-enabled documents"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     workflow_instance_id: str
     document_id: str
@@ -185,11 +170,9 @@ class WorkflowProgress(BaseModel):
     quality_score: Optional[float] = None
     processing_metrics: Dict[str, Any] = Field(default_factory=dict)
 
-
 # ============================================================================
 # Main Bridge Class
 # ============================================================================
-
 
 class WorkflowDocumentBridge:
     """
@@ -765,7 +748,7 @@ class WorkflowDocumentBridge:
                         try:
                             progress.current_phase = GenerationPhase(phase_str)
                         except ValueError:
-                            pass
+                            logger.warning("ValueError in unknown")
 
             # Update estimated completion time
             if progress.completion_percentage < 100.0:
@@ -903,7 +886,7 @@ class WorkflowDocumentBridge:
     def _setup_event_handlers(self):
         """Set up event handlers for workflow components"""
         # These will be implemented as the workflow system matures
-        pass
+        raise NotImplementedError("_setup_event_handlers is not yet implemented")
 
     # ========================================================================
     # Lifecycle Management
@@ -1009,11 +992,9 @@ class WorkflowDocumentBridge:
                 logger.error(f"Error in deadline monitoring: {str(e)}")
                 await asyncio.sleep(60)
 
-
 # ============================================================================
 # Factory Functions
 # ============================================================================
-
 
 async def create_workflow_document_bridge(
     workflow_engine: WorkflowEngine,

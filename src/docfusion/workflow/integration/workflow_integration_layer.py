@@ -22,15 +22,6 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..automation.task_scheduler import SchedulerConfiguration, TaskScheduler
@@ -53,6 +44,7 @@ from .workflow_document_bridge import (
     WorkflowDocumentConfiguration,
     create_workflow_document_bridge,
 )
+from ...core.utils import uuid7str
 from .workflow_storage_integration import (
     WorkflowStorageIntegration,
     create_workflow_storage_integration,
@@ -72,7 +64,6 @@ except ImportError:
         def __init__(self, *args, **kwargs):
             pass
 
-
 # Import existing system components
 from ...api.endpoints.document_endpoints import DocumentEndpoints
 from ...document_engine.document_engine import (
@@ -83,11 +74,9 @@ from ...storage.storage_service import StorageService
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # Configuration Models
 # ============================================================================
-
 
 class IntegrationMode(Enum):
     """Integration modes for different deployment scenarios"""
@@ -97,11 +86,10 @@ class IntegrationMode(Enum):
     PRODUCTION = "production"
     TESTING = "testing"
 
-
 class WorkflowIntegrationConfiguration(BaseModel):
     """Comprehensive configuration for workflow integration"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Deployment settings
     integration_mode: IntegrationMode = IntegrationMode.DEVELOPMENT
@@ -139,11 +127,9 @@ class WorkflowIntegrationConfiguration(BaseModel):
     event_batch_size: int = 50
     event_flush_interval_seconds: int = 10
 
-
 # ============================================================================
 # Main Integration Layer
 # ============================================================================
-
 
 class WorkflowIntegrationLayer:
     """
@@ -1719,11 +1705,9 @@ class WorkflowIntegrationLayer:
         except Exception as e:
             logger.error(f"Error during shutdown: {str(e)}")
 
-
 # ============================================================================
 # Factory Functions
 # ============================================================================
-
 
 async def create_workflow_integration_layer(
     document_engine: DocumentEngine,
@@ -1751,7 +1735,6 @@ async def create_workflow_integration_layer(
 
     return integration_layer
 
-
 async def create_development_workflow_integration(
     document_engine: DocumentEngine, storage_service: StorageService
 ) -> WorkflowIntegrationLayer:
@@ -1778,7 +1761,6 @@ async def create_development_workflow_integration(
     return await create_workflow_integration_layer(
         document_engine=document_engine, storage_service=storage_service, config=config
     )
-
 
 async def create_production_workflow_integration(
     document_engine: DocumentEngine, storage_service: StorageService

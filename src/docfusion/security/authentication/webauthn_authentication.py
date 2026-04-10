@@ -32,22 +32,18 @@ except ImportError:
 	HAS_FIDO2 = False
 
 from pydantic import BaseModel, Field
-from uuid_extensions import uuid7str
-
-
+from ...core.utils import uuid7str
 class AuthenticatorType(str, Enum):
 	"""WebAuthn authenticator types"""
 	PLATFORM = "platform"  # Built-in authenticators (TouchID, FaceID, Windows Hello)
 	CROSS_PLATFORM = "cross-platform"  # External authenticators (USB keys, NFC)
 	BOTH = "both"
 
-
 class UserVerification(str, Enum):
 	"""User verification requirements"""
 	REQUIRED = "required"
 	PREFERRED = "preferred"
 	DISCOURAGED = "discouraged"
-
 
 class AttestationType(str, Enum):
 	"""Attestation preferences"""
@@ -56,7 +52,6 @@ class AttestationType(str, Enum):
 	DIRECT = "direct"
 	ENTERPRISE = "enterprise"
 
-
 class CredentialTransport(str, Enum):
 	"""Transport methods for authenticators"""
 	USB = "usb"
@@ -64,7 +59,6 @@ class CredentialTransport(str, Enum):
 	BLE = "ble"
 	INTERNAL = "internal"
 	HYBRID = "hybrid"
-
 
 @dataclass
 class WebAuthnConfiguration:
@@ -101,7 +95,6 @@ class WebAuthnConfiguration:
 		CredentialTransport.INTERNAL
 	])
 
-
 class WebAuthnCredential(BaseModel):
 	"""WebAuthn credential record"""
 	credential_id: str = Field(default_factory=uuid7str)
@@ -137,7 +130,6 @@ class WebAuthnCredential(BaseModel):
 	blocked: bool = False
 	block_reason: Optional[str] = None
 
-
 class WebAuthnRegistrationChallenge(BaseModel):
 	"""WebAuthn registration challenge"""
 	challenge_id: str = Field(default_factory=uuid7str)
@@ -160,7 +152,6 @@ class WebAuthnRegistrationChallenge(BaseModel):
 	ip_address: Optional[str] = None
 	user_agent: Optional[str] = None
 
-
 class WebAuthnAuthenticationChallenge(BaseModel):
 	"""WebAuthn authentication challenge"""
 	challenge_id: str = Field(default_factory=uuid7str)
@@ -180,7 +171,6 @@ class WebAuthnAuthenticationChallenge(BaseModel):
 	used: bool = False
 	ip_address: Optional[str] = None
 	user_agent: Optional[str] = None
-
 
 class WebAuthnResult(BaseModel):
 	"""WebAuthn operation result"""
@@ -204,7 +194,6 @@ class WebAuthnResult(BaseModel):
 	authenticator_type: Optional[AuthenticatorType] = None
 	counter: Optional[int] = None
 	timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 
 class WebAuthnAuthentication:
 	"""WebAuthn/FIDO2 authentication manager"""
@@ -972,12 +961,10 @@ class WebAuthnAuthentication:
 			"active_authentication_challenges": len(self.authentication_challenges)
 		}
 
-
 # Factory functions
 def create_webauthn_authentication(config: Optional[WebAuthnConfiguration] = None) -> WebAuthnAuthentication:
 	"""Create WebAuthnAuthentication instance"""
 	return WebAuthnAuthentication(config)
-
 
 def create_test_webauthn_config() -> WebAuthnConfiguration:
 	"""Create test WebAuthn configuration"""

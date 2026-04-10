@@ -27,15 +27,8 @@ except ImportError:
 	openai = None
 	AsyncOpenAI = None
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
 from .database import DocumentChunk, RAGDocument
-
+from ...core.utils import uuid7str
 
 @dataclass
 class EmbeddingConfiguration:
@@ -74,7 +67,6 @@ class EmbeddingConfiguration:
 	enable_embedding_cache: bool = True
 	cache_ttl_hours: int = 24
 
-
 @dataclass
 class EmbeddingResult:
 	"""Result of embedding operation"""
@@ -85,7 +77,6 @@ class EmbeddingResult:
 	token_count: int = 0
 	processing_time: float = 0.0
 
-
 @dataclass
 class ChunkingResult:
 	"""Result of text chunking operation"""
@@ -94,7 +85,6 @@ class ChunkingResult:
 	total_characters: int
 	overlap_characters: int
 	processing_time: float = 0.0
-
 
 class TextChunker:
 	"""Handles intelligent text chunking for RAG processing"""
@@ -264,7 +254,6 @@ class TextChunker:
 			return overlap_text[space_pos + 1:] + " "
 		
 		return overlap_text + " "
-
 
 class EmbeddingService:
 	"""Service for generating and managing embeddings"""
@@ -564,7 +553,6 @@ class EmbeddingService:
 		
 		self.logger.info("Embedding service closed")
 
-
 # Utility functions
 def create_embedding_service(
 	provider: str = "ollama",
@@ -586,7 +574,6 @@ def create_embedding_service(
 		**kwargs
 	)
 	return EmbeddingService(config)
-
 
 def get_optimal_chunk_size(text: str, target_chunks: int = 10) -> int:
 	"""Calculate optimal chunk size for a given text"""

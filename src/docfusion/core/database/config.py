@@ -54,7 +54,7 @@ class DatabaseConfig(BaseModel):
 	Supports both async and sync connections with configurable pooling,
 	schema management, and environment-specific settings.
 	"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Connection settings
 	connection_url: str = Field(

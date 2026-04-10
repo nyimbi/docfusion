@@ -35,7 +35,7 @@ class SMSProvider(str, Enum):
 
 class SMSConfiguration(BaseModel):
 	"""SMS channel configuration."""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	provider: SMSProvider = Field(..., description="SMS service provider")
 	

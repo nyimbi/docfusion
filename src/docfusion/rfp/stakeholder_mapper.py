@@ -15,15 +15,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-
-	def uuid7str() -> str:
-		return str(uuid4())
-
-
 # spaCy integration for NER
 try:
 	import spacy
@@ -36,7 +27,7 @@ except ImportError:
 
 import httpx
 import json
-
+from ..core.utils import uuid7str
 
 class StakeholderRole(str, Enum):
 	"""Stakeholder roles in RFP processes"""
@@ -100,7 +91,6 @@ class StakeholderRole(str, Enum):
 	CONSULTANT = "consultant"
 	SUBCONTRACTOR = "subcontractor"
 
-
 class StakeholderRoleCategory(str, Enum):
 	"""Categories for grouping stakeholder roles"""
 
@@ -113,7 +103,6 @@ class StakeholderRoleCategory(str, Enum):
 	EXECUTIVE = "executive"
 	EXTERNAL = "external"
 	UNKNOWN = "unknown"
-
 
 @dataclass
 class Stakeholder:
@@ -185,7 +174,6 @@ class Stakeholder:
 			"extraction_method": self.extraction_method,
 		}
 
-
 @dataclass
 class StakeholderRelationship:
 	"""Represents a relationship between stakeholders"""
@@ -202,7 +190,6 @@ class StakeholderRelationship:
 	def __post_init__(self):
 		if not self.id:
 			self.id = uuid7str()
-
 
 @dataclass
 class StakeholderGraph:
@@ -290,7 +277,6 @@ class StakeholderGraph:
 			},
 		}
 
-
 class StakeholderExtractionResult:
 	"""Result of stakeholder extraction"""
 
@@ -306,7 +292,6 @@ class StakeholderExtractionResult:
 		self.processing_time: float = 0.0
 		methods_used: List[str] = []
 		ai_analysis: Dict[str, Any] = {}
-
 
 # Role pattern definitions
 ROLE_PATTERNS: Dict[StakeholderRole, List[str]] = {
@@ -577,13 +562,11 @@ CONTACT_PATTERNS = {
 	"phone_intl": r"\+?[1-9]\d{1,14}",
 }
 
-
 def get_role_category(role: Optional[StakeholderRole]) -> StakeholderRoleCategory:
 	"""Get the category for a stakeholder role"""
 	if role is None:
 		return StakeholderRoleCategory.UNKNOWN
 	return ROLE_CATEGORIES.get(role, StakeholderRoleCategory.UNKNOWN)
-
 
 class StakeholderMapper:
 	"""Maps stakeholder roles from RFP documents"""
@@ -1427,7 +1410,6 @@ class StakeholderMapper:
 			"config": {k: v for k, v in self.config.items() if k not in ["role_patterns", "organization_patterns"]},
 			"version": "1.0.0",
 		}
-
 
 def create_stakeholder_mapper(config: Optional[Dict[str, Any]] = None) -> StakeholderMapper:
 	"""Create StakeholderMapper instance with configuration"""

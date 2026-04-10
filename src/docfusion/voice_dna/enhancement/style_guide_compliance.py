@@ -48,7 +48,7 @@ class RuleCategory(str, Enum):
 
 class StyleGuideRule(BaseModel):
 	"""Individual style guide rule definition"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	rule_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique rule identifier")
 	rule_name: str = Field(description="Human-readable rule name")
@@ -81,7 +81,7 @@ class StyleGuideRule(BaseModel):
 
 class ComplianceViolation(BaseModel):
 	"""Individual compliance violation found in text"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	violation_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique violation identifier")
 	rule_id: str = Field(description="Associated rule ID")
@@ -113,7 +113,7 @@ class ComplianceViolation(BaseModel):
 
 class ComplianceRequest(BaseModel):
 	"""Request for style guide compliance checking"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	request_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique request identifier")
 	
@@ -143,7 +143,7 @@ class ComplianceRequest(BaseModel):
 
 class ComplianceResult(BaseModel):
 	"""Comprehensive style guide compliance result"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	result_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique result identifier")
 	request_id: str = Field(description="Associated request ID")

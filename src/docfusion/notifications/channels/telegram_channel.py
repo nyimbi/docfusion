@@ -29,7 +29,7 @@ class TelegramParseMode(str, Enum):
 
 class TelegramConfiguration(BaseModel):
 	"""Telegram Bot API configuration."""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Bot Configuration
 	bot_token: str = Field(..., description="Telegram Bot API token")

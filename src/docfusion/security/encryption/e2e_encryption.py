@@ -31,9 +31,7 @@ except ImportError:
     HAS_CRYPTOGRAPHY = False
 
 from pydantic import BaseModel, Field
-from uuid_extensions import uuid7str
-
-
+from ...core.utils import uuid7str
 class EncryptionScheme(str, Enum):
     """Supported encryption schemes"""
 
@@ -42,7 +40,6 @@ class EncryptionScheme(str, Enum):
     CHACHA20_POLY1305 = "chacha20-poly1305"
     FERNET = "fernet"
 
-
 class KeyExchangeProtocol(str, Enum):
     """Key exchange protocols"""
 
@@ -50,14 +47,12 @@ class KeyExchangeProtocol(str, Enum):
     ECDH = "ecdh"
     RSA_PKCS1V15 = "rsa-pkcs1v15"
 
-
 class KeyDerivationFunction(str, Enum):
     """Key derivation functions"""
 
     PBKDF2 = "pbkdf2"
     HKDF = "hkdf"
     SCRYPT = "scrypt"
-
 
 @dataclass
 class E2EEncryptionConfig:
@@ -85,7 +80,6 @@ class E2EEncryptionConfig:
     # Performance settings
     chunk_size: int = 64 * 1024  # 64KB chunks for large files
 
-
 class EncryptionKey(BaseModel):
     """Encryption key information"""
 
@@ -105,7 +99,6 @@ class EncryptionKey(BaseModel):
     # Key derivation info (if derived)
     derivation_info: Optional[Dict[str, Any]] = None
 
-
 class KeyPair(BaseModel):
     """Asymmetric key pair"""
 
@@ -122,7 +115,6 @@ class KeyPair(BaseModel):
     # Usage tracking
     usage_count: int = 0
     last_used: Optional[datetime] = None
-
 
 class EncryptedDocument(BaseModel):
     """Encrypted document container"""
@@ -146,7 +138,6 @@ class EncryptedDocument(BaseModel):
     version: int = 1
     parent_document_id: Optional[str] = None
 
-
 class DocumentShare(BaseModel):
     """Document sharing information"""
 
@@ -164,7 +155,6 @@ class DocumentShare(BaseModel):
     # Access tracking
     accessed_count: int = 0
     last_accessed: Optional[datetime] = None
-
 
 class E2EEncryptionResult(BaseModel):
     """End-to-end encryption operation result"""
@@ -186,7 +176,6 @@ class E2EEncryptionResult(BaseModel):
     # Performance metrics
     operation_time_ms: Optional[float] = None
     data_size: Optional[int] = None
-
 
 class E2EEncryption:
     """End-to-end encryption manager"""
@@ -847,14 +836,12 @@ class E2EEncryption:
             ),
         }
 
-
 # Factory functions
 def create_e2e_encryption(
     config: Optional[E2EEncryptionConfig] = None,
 ) -> E2EEncryption:
     """Create E2EEncryption instance"""
     return E2EEncryption(config)
-
 
 def create_test_e2e_config() -> E2EEncryptionConfig:
     """Create test E2E encryption configuration"""

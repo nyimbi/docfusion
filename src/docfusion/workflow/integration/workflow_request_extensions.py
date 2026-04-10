@@ -22,15 +22,6 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field, validator
 
 # Import existing document engine models
@@ -48,6 +39,7 @@ from ..coordination.task_coordinator import (
 )
 
 # Import workflow models
+from ...core.utils import uuid7str
 from .workflow_document_bridge import (
     DocumentWorkflowMode,
     WorkflowDocumentConfiguration,
@@ -56,11 +48,9 @@ from .workflow_document_bridge import (
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # Configuration Models
 # ============================================================================
-
 
 class WorkflowIntegrationLevel(Enum):
     """Levels of workflow integration"""
@@ -70,7 +60,6 @@ class WorkflowIntegrationLevel(Enum):
     STANDARD = "standard"  # Full workflow with coordination
     ADVANCED = "advanced"  # Advanced workflow with AI optimization
     CUSTOM = "custom"  # Custom workflow configuration
-
 
 class TeamRole(Enum):
     """Roles for team members in workflow"""
@@ -83,11 +72,10 @@ class TeamRole(Enum):
     COORDINATOR = "coordinator"  # Workflow coordinator
     SUBJECT_MATTER_EXPERT = "subject_matter_expert"  # SME for technical content
 
-
 class WorkflowConfiguration(BaseModel):
     """Comprehensive workflow configuration for document requests"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Integration settings
     integration_level: WorkflowIntegrationLevel = WorkflowIntegrationLevel.STANDARD
@@ -147,11 +135,10 @@ class WorkflowConfiguration(BaseModel):
     escalation_delay_hours: float = 4.0
     escalation_recipients: List[str] = Field(default_factory=list)
 
-
 class TeamMemberAssignment(BaseModel):
     """Assignment of team member to workflow"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     user_id: str
     role: TeamRole
@@ -163,11 +150,10 @@ class TeamMemberAssignment(BaseModel):
     collaboration_preference: CollaborationType = CollaborationType.INDIVIDUAL
     notification_preferences: Dict[str, bool] = Field(default_factory=dict)
 
-
 class WorkflowTemplate(BaseModel):
     """Template for predefined workflow configurations"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     template_id: str = Field(default_factory=uuid7str)
     template_name: str
@@ -188,11 +174,9 @@ class WorkflowTemplate(BaseModel):
     usage_count: int = 0
     success_rate: float = 0.0  # Success rate for this template
 
-
 # ============================================================================
 # Extended Request Models
 # ============================================================================
-
 
 class WorkflowEnabledDocumentRequest(BaseModel):
     """
@@ -202,7 +186,7 @@ class WorkflowEnabledDocumentRequest(BaseModel):
     workflow configuration while maintaining backward compatibility.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Standard document request fields
     request_id: str = Field(default_factory=uuid7str)
@@ -299,11 +283,10 @@ class WorkflowEnabledDocumentRequest(BaseModel):
             notification_channels=config.notification_channels,
         )
 
-
 class WorkflowEnabledDocumentResult(BaseModel):
     """Extended document generation result with workflow metadata"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Standard result fields
     request_id: str
@@ -353,11 +336,9 @@ class WorkflowEnabledDocumentResult(BaseModel):
         """Convert to standard DocumentGenerationResult for backward compatibility"""
         return self.generation_result
 
-
 # ============================================================================
 # Request Builder and Factory
 # ============================================================================
-
 
 class WorkflowRequestBuilder:
     """Builder for creating workflow-enabled document requests"""
@@ -500,11 +481,9 @@ class WorkflowRequestBuilder:
             **self._project_context,
         )
 
-
 # ============================================================================
 # Template Management
 # ============================================================================
-
 
 class WorkflowTemplateManager:
     """Manager for workflow templates"""
@@ -649,16 +628,13 @@ class WorkflowTemplateManager:
                     + (1 - weight) * template.success_rate
                 )
 
-
 # ============================================================================
 # Factory Functions
 # ============================================================================
 
-
 def create_workflow_request_builder(requester_id: str) -> WorkflowRequestBuilder:
     """Create a new workflow request builder"""
     return WorkflowRequestBuilder(requester_id)
-
 
 def create_simple_workflow_request(
     requester_id: str,
@@ -673,7 +649,6 @@ def create_simple_workflow_request(
         builder.with_deadline(deadline)
 
     return builder.build()
-
 
 def create_team_workflow_request(
     requester_id: str,
@@ -699,7 +674,6 @@ def create_team_workflow_request(
 
     return builder.build()
 
-
 async def convert_standard_to_workflow_request(
     standard_request: DocumentGenerationRequest,
     workflow_config: Optional[WorkflowConfiguration] = None,
@@ -711,7 +685,6 @@ async def convert_standard_to_workflow_request(
         generation_config=standard_request.generation_config,
         workflow_config=workflow_config,
     )
-
 
 # Global template manager instance
 template_manager = WorkflowTemplateManager()

@@ -26,21 +26,12 @@ from fastapi import Path as PathParam
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from ...document_engine.secure_document_engine import SecureDocumentEngine
 from ...security import SecurityManager
 from ...storage.secure_storage_service import SecureStorageService
 from ..middleware.authentication_middleware import get_current_user
 from ..serializers.document_serializers import DocumentCreateRequest, DocumentResponse
-
+from ...core.utils import uuid7str
 
 class BatchJobStatus(str, Enum):
     """Batch job status enumeration"""
@@ -52,7 +43,6 @@ class BatchJobStatus(str, Enum):
     CANCELLED = "cancelled"
     PAUSED = "paused"
 
-
 class BatchJobType(str, Enum):
     """Batch job type enumeration"""
 
@@ -62,7 +52,6 @@ class BatchJobType(str, Enum):
     DOCUMENT_ANALYSIS = "document_analysis"
     BULK_UPDATE = "bulk_update"
     BULK_DELETE = "bulk_delete"
-
 
 class BatchDocumentCreateRequest(BaseModel):
     """Request model for batch document creation"""
@@ -77,7 +66,6 @@ class BatchDocumentCreateRequest(BaseModel):
     )
     metadata: Optional[Dict[str, Any]] = Field(None, description="Batch job metadata")
 
-
 class BatchJobResponse(BaseModel):
     """Response model for batch job creation"""
 
@@ -91,7 +79,6 @@ class BatchJobResponse(BaseModel):
     )
     priority: int = Field(..., description="Job priority")
     user_id: str = Field(..., description="User who created the job")
-
 
 class BatchJobStatusResponse(BaseModel):
     """Response model for batch job status"""
@@ -109,7 +96,6 @@ class BatchJobStatusResponse(BaseModel):
     completed_at: Optional[datetime] = Field(None, description="Job completion time")
     duration: Optional[float] = Field(None, description="Job duration in seconds")
 
-
 class AsyncProcessingRequest(BaseModel):
     """Request model for async document processing"""
 
@@ -124,7 +110,6 @@ class AsyncProcessingRequest(BaseModel):
         None, description="Webhook URL for completion notification"
     )
     priority: int = Field(0, ge=-10, le=10, description="Processing priority")
-
 
 class BatchEndpoints:
     """FastAPI batch processing endpoints"""
@@ -1243,7 +1228,6 @@ class BatchEndpoints:
             "session_id": current_user.get("session_id"),
             "permissions": current_user.get("permissions", []),
         }
-
 
 # Factory function
 def create_batch_endpoints(

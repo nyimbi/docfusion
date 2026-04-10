@@ -44,7 +44,7 @@ class ProposalSection(str, Enum):
 
 class SectionFeatures(BaseModel):
 	"""Features for predicting section scores"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Content quality features
 	word_count: int = Field(ge=0, description="Total word count for section")
@@ -79,7 +79,7 @@ class SectionFeatures(BaseModel):
 
 class SectionScorePrediction(BaseModel):
 	"""Section score prediction result"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	prediction_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique prediction identifier")
 	section_type: ProposalSection = Field(description="Type of proposal section")
@@ -103,7 +103,7 @@ class SectionScorePrediction(BaseModel):
 
 class SectionModelMetrics(BaseModel):
 	"""Model performance metrics for section scoring"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	model_name: str = Field(description="Name of the ML model")
 	section_type: ProposalSection = Field(description="Section type this model predicts")

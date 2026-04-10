@@ -8,7 +8,6 @@ routing, dependency management, and progress tracking.
 
 import asyncio
 import logging
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -18,14 +17,9 @@ import json
 import math
 
 from pydantic import BaseModel, Field, ConfigDict
-
-def uuid7str():
-	"""Generate a UUID7-like string using UUID4 for compatibility."""
-	return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 class AssignmentStrategy(str, Enum):
 	"""Task assignment strategies."""
@@ -38,7 +32,6 @@ class AssignmentStrategy(str, Enum):
 	COST_MINIMIZED = "cost_minimized"
 	QUALITY_FOCUSED = "quality_focused"
 
-
 class TaskComplexity(str, Enum):
 	"""Task complexity levels."""
 	TRIVIAL = "trivial"
@@ -46,7 +39,6 @@ class TaskComplexity(str, Enum):
 	MODERATE = "moderate"
 	COMPLEX = "complex"
 	EXPERT = "expert"
-
 
 class CollaborationType(str, Enum):
 	"""Types of collaboration required."""
@@ -57,10 +49,9 @@ class CollaborationType(str, Enum):
 	REVIEW_REQUIRED = "review_required"
 	MENTORSHIP = "mentorship"
 
-
 class TaskAssignment(BaseModel):
 	"""A task assignment to team members."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	assignment_id: str = Field(default_factory=uuid7str)
 	task_id: str = Field(description="Task being assigned")
@@ -99,10 +90,9 @@ class TaskAssignment(BaseModel):
 	dependents: List[str] = Field(default_factory=list, description="Task IDs that depend on this")
 	coordination_notes: List[str] = Field(default_factory=list, description="Coordination notes")
 
-
 class TeamMember(BaseModel):
 	"""Team member profile for task assignment."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	user_id: str = Field(description="Unique user identifier")
 	name: str = Field(description="User display name")
@@ -138,10 +128,9 @@ class TeamMember(BaseModel):
 	mentorship_capacity: bool = Field(False, description="Can mentor others")
 	seeks_mentorship: bool = Field(False, description="Seeks mentorship")
 
-
 class WorkloadBalance(BaseModel):
 	"""Workload balance analysis for team members."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	user_id: str = Field(description="User identifier")
 	
@@ -165,7 +154,6 @@ class WorkloadBalance(BaseModel):
 	workload_adjustment_needed: bool = Field(description="Whether workload adjustment is needed")
 	suggested_actions: List[str] = Field(default_factory=list)
 
-
 @dataclass
 class SkillGap:
 	"""Identified skill gap for a task."""
@@ -175,7 +163,6 @@ class SkillGap:
 	gap_severity: float
 	suggested_training: Optional[str] = None
 	alternative_assignees: List[str] = field(default_factory=list)
-
 
 @dataclass
 class CoordinationMetrics:
@@ -188,7 +175,6 @@ class CoordinationMetrics:
 	skill_utilization_efficiency: float = 0.0
 	collaboration_effectiveness: float = 0.0
 	deadline_adherence_rate: float = 0.0
-
 
 class TaskCoordinator:
 	"""

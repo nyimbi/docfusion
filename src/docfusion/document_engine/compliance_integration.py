@@ -12,9 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
-import uuid
-def uuid7str() -> str:
-	return str(uuid.uuid4())
 from pydantic import BaseModel, Field, ConfigDict
 import asyncio
 
@@ -25,7 +22,7 @@ from ..compliance.validators.format_validator import (
 	FormatValidator, FormatReport
 )
 from ..compliance.frameworks.compliance_framework import ComplianceFramework
-
+from ..core.utils import uuid7str
 
 class DocumentComplianceStatus(Enum):
 	"""Overall document compliance status"""
@@ -34,7 +31,6 @@ class DocumentComplianceStatus(Enum):
 	PARTIAL_COMPLIANT = "partial_compliant"
 	VALIDATION_PENDING = "validation_pending"
 	VALIDATION_ERROR = "validation_error"
-
 
 @dataclass
 class ComplianceCheck:
@@ -48,10 +44,9 @@ class ComplianceCheck:
 	check_timing: str = "pre_render"  # pre_render, post_render, real_time
 	parameters: Dict[str, Any] = field(default_factory=dict)
 
-
 class DocumentComplianceConfig(BaseModel):
 	"""Configuration for document compliance validation"""
-	model_config = ConfigDict(extra='forbid', validate_default=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 	
 	config_id: str = Field(default_factory=uuid7str)
 	document_type: str = "proposal"
@@ -80,10 +75,9 @@ class DocumentComplianceConfig(BaseModel):
 	created_date: datetime = Field(default_factory=datetime.now)
 	metadata: Dict[str, Any] = Field(default_factory=dict)
 
-
 class ComplianceIntegrationResult(BaseModel):
 	"""Result of compliance integration process"""
-	model_config = ConfigDict(extra='forbid', validate_default=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 	
 	result_id: str = Field(default_factory=uuid7str)
 	document_id: str
@@ -110,7 +104,6 @@ class ComplianceIntegrationResult(BaseModel):
 	validation_time_ms: float = 0.0
 	created_at: datetime = Field(default_factory=datetime.now)
 	metadata: Dict[str, Any] = Field(default_factory=dict)
-
 
 class DocumentComplianceIntegrator:
 	"""

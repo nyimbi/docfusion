@@ -7,17 +7,12 @@ workflow execution, and integration with collaboration features.
 
 import asyncio
 import logging
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Callable
 
 from pydantic import BaseModel, Field, ConfigDict
-
-def uuid7str():
-	"""Generate a UUID7-like string using UUID4 for compatibility."""
-	return str(uuid.uuid4())
 
 # Import collaboration components
 from ..collaboration.presence.presence_manager import PresenceManager, UserSession
@@ -27,10 +22,9 @@ from ..collaboration.editing.collaborative_editor import CollaborativeEditor
 # Import workflow components  
 from .processes.process_definition import ProcessDefinition, WorkflowNode, NodeType
 from .processes.workflow_template import WorkflowTemplate, IndustryTemplate
-
+from ..core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 class WorkflowExecutionStatus(str, Enum):
 	"""Workflow execution statuses."""
@@ -42,7 +36,6 @@ class WorkflowExecutionStatus(str, Enum):
 	CANCELLED = "cancelled"
 	SUSPENDED = "suspended"
 
-
 class TaskStatus(str, Enum):
 	"""Individual task statuses."""
 	NOT_STARTED = "not_started"
@@ -52,10 +45,9 @@ class TaskStatus(str, Enum):
 	SKIPPED = "skipped"
 	WAITING_FOR_INPUT = "waiting_for_input"
 
-
 class WorkflowExecution(BaseModel):
 	"""Active workflow execution instance."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	execution_id: str = Field(default_factory=uuid7str)
 	process_id: str = Field(description="Process definition ID")
@@ -84,10 +76,9 @@ class WorkflowExecution(BaseModel):
 	collaboration_sessions: Dict[str, str] = Field(default_factory=dict, description="Task ID -> session ID")
 	permission_grants: List[str] = Field(default_factory=list, description="Permission grant IDs created for this workflow")
 
-
 class TaskExecution(BaseModel):
 	"""Individual task execution state."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	task_id: str = Field(description="Task identifier")
 	execution_id: str = Field(description="Parent workflow execution ID")
@@ -113,7 +104,6 @@ class TaskExecution(BaseModel):
 	retry_count: int = 0
 	escalated: bool = False
 
-
 @dataclass
 class WorkflowEvent:
 	"""Workflow execution event."""
@@ -123,7 +113,6 @@ class WorkflowEvent:
 	event_data: Dict[str, Any] = field(default_factory=dict)
 	timestamp: datetime = field(default_factory=datetime.now)
 	user_id: Optional[str] = None
-
 
 class CollaborationWorkflowIntegrator:
 	"""

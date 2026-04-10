@@ -18,15 +18,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 # For visualization libraries - would need to install these
 try:
     import pandas as pd
@@ -40,7 +31,7 @@ except ImportError:
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class ChartType(str, Enum):
     """Supported chart types"""
@@ -58,7 +49,6 @@ class ChartType(str, Enum):
     TREEMAP = "treemap"
     WATERFALL = "waterfall"
 
-
 class DataType(str, Enum):
     """Data types for automatic chart selection"""
 
@@ -66,7 +56,6 @@ class DataType(str, Enum):
     NUMERICAL = "numerical"
     TEMPORAL = "temporal"
     GEOGRAPHIC = "geographic"
-
 
 @dataclass
 class ChartData:
@@ -83,7 +72,6 @@ class ChartData:
         if not PLOTLY_AVAILABLE:
             return None
         return pd.DataFrame(self.data)
-
 
 @dataclass
 class ChartConfiguration:
@@ -112,7 +100,6 @@ class ChartConfiguration:
 
     # Export options
     export_formats: List[str] = field(default_factory=lambda: ["html", "png", "svg"])
-
 
 class ChartGenerator:
     """

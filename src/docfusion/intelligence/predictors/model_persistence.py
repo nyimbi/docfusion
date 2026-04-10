@@ -15,17 +15,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-
-	def uuid7str() -> str:
-		return str(uuid4())
-
 import joblib
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class ModelType(str, Enum):
 	"""Types of ML models supported"""
@@ -35,7 +27,6 @@ class ModelType(str, Enum):
 	OUTCOME_PREDICTOR = "outcome_predictor"
 	RISK_PREDICTOR = "risk_predictor"
 	ENSEMBLE = "ensemble"
-
 
 class ModelStatus(str, Enum):
 	"""Status of a persisted model"""
@@ -47,7 +38,6 @@ class ModelStatus(str, Enum):
 	DEPRECATED = "deprecated"
 	ARCHIVED = "archived"
 
-
 class ModelMetadata(BaseModel):
 	"""
 	Metadata for a persisted model.
@@ -55,7 +45,7 @@ class ModelMetadata(BaseModel):
 	Tracks model version, performance metrics, and deployment status.
 	"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str, description="Unique model ID")
 	name: str = Field(..., description="Human-readable model name")
@@ -112,7 +102,6 @@ class ModelMetadata(BaseModel):
 	tags: List[str] = Field(default_factory=list, description="Tags for organization")
 	labels: Dict[str, str] = Field(default_factory=dict, description="Key-value labels")
 
-
 @dataclass
 class ModelVersion:
 	"""Represents a specific model version"""
@@ -122,7 +111,6 @@ class ModelVersion:
 	file_path: Path
 	metadata: ModelMetadata
 	created_at: datetime = field(default_factory=datetime.now)
-
 
 class ModelPersistence:
 	"""
@@ -786,7 +774,6 @@ class ModelPersistence:
 		}
 
 		return summary
-
 
 # Convenience factory function
 def create_model_persistence(

@@ -14,15 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
+from ...core.utils import uuid7str
 
 class AlertLevel(str, Enum):
     """Alert severity levels"""
@@ -32,7 +24,6 @@ class AlertLevel(str, Enum):
     ERROR = "error"
     CRITICAL = "critical"
 
-
 class HealthStatus(str, Enum):
     """Health check status"""
 
@@ -40,7 +31,6 @@ class HealthStatus(str, Enum):
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
-
 
 @dataclass
 class RequestMetric:
@@ -60,7 +50,6 @@ class RequestMetric:
     error_message: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class PerformanceStats:
     """Performance statistics"""
@@ -75,7 +64,6 @@ class PerformanceStats:
     requests_per_second: float = 0.0
     error_rate: float = 0.0
     throughput_mb_per_second: float = 0.0
-
 
 @dataclass
 class ErrorMetric:
@@ -92,7 +80,6 @@ class ErrorMetric:
     request_data: Optional[Dict[str, Any]] = None
     count: int = 1
 
-
 @dataclass
 class HealthCheck:
     """Health check result"""
@@ -104,7 +91,6 @@ class HealthCheck:
     message: str = ""
     timestamp: datetime = field(default_factory=datetime.utcnow)
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class Alert:
@@ -119,7 +105,6 @@ class Alert:
     resolved: bool = False
     resolved_at: Optional[datetime] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 class APIMonitor:
     """Comprehensive API monitoring and analytics system"""
@@ -1106,10 +1091,8 @@ class APIMonitor:
 
         self.logger.info("API monitor closed")
 
-
 # Global monitor instance
 _monitor_instance: Optional[APIMonitor] = None
-
 
 def get_monitor() -> APIMonitor:
     """Get global monitor instance"""
@@ -1117,7 +1100,6 @@ def get_monitor() -> APIMonitor:
     if _monitor_instance is None:
         _monitor_instance = APIMonitor()
     return _monitor_instance
-
 
 # Factory function
 def create_api_monitor() -> APIMonitor:

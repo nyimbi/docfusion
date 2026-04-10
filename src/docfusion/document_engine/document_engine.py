@@ -32,12 +32,6 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict
 
-
-def uuid7str() -> str:
-	"""Generate a UUID7-style string using uuid4 for compatibility"""
-	return str(uuid4())
-
-
 # Import all DocuFusion components
 from docfusion.document_engine.assembler.content_assembler import (
 	ContentAssembler, AssemblyResult
@@ -51,6 +45,7 @@ from docfusion.document_engine.assembler.cross_reference_manager import (
 from docfusion.document_engine.formatter.document_formatter import (
 	DocumentFormatter, FormattingResult
 )
+from ..core.utils import uuid7str
 from docfusion.document_engine.formatter.brand_formatter import (
 	BrandFormatter, BrandFormattingResult
 )
@@ -76,7 +71,6 @@ from docfusion.storage.storage_service import (
 	StorageService, StorageConfiguration, create_storage_service
 )
 
-
 # ============================================================================
 # Exceptions
 # ============================================================================
@@ -100,7 +94,6 @@ class ConfigurationException(DocumentEngineException):
 class IntegrationException(DocumentEngineException):
 	"""Exception raised during component integration"""
 	pass
-
 
 # ============================================================================
 # Configuration Classes
@@ -154,7 +147,6 @@ class DocumentGenerationConfiguration:
 	html_config: Optional[HTMLRenderConfiguration] = None
 	accessibility_config: Optional[AccessibilityRenderConfiguration] = None
 
-
 @dataclass
 class DocumentGenerationRequest:
 	"""Document generation request specification"""
@@ -190,7 +182,6 @@ class DocumentGenerationRequest:
 	# Context information
 	project_context: Dict[str, Any] = field(default_factory=dict)
 	document_context: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class DocumentGenerationResult:
@@ -245,7 +236,6 @@ class DocumentGenerationResult:
 	processing_analytics: Dict[str, Any] = field(default_factory=dict)
 	optimization_opportunities: List[str] = field(default_factory=list)
 	recommendations: List[str] = field(default_factory=list)
-
 
 # ============================================================================
 # DocumentEngine Main Class
@@ -1404,7 +1394,6 @@ class DocumentEngine:
 				self.logger.error(f"Storage optimization failed: {e}")
 			return {'error': str(e)}
 
-
 # ============================================================================
 # Utility Functions
 # ============================================================================
@@ -1430,7 +1419,6 @@ def create_default_generation_configuration(
 		storage_root_path=storage_root_path
 	)
 
-
 async def quick_document_generation(
 	title: str,
 	content: str,
@@ -1454,7 +1442,6 @@ async def quick_document_generation(
 	
 	engine = DocumentEngine(config=config)
 	return await engine.generate_document(request)
-
 
 async def create_document_engine_with_storage(
 	storage_root_path: Optional[str] = None,
@@ -1486,7 +1473,6 @@ async def create_document_engine_with_storage(
 		enable_caching=enable_caching,
 		storage_service=storage_service
 	)
-
 
 def validate_document_engine_installation() -> Dict[str, bool]:
 	"""Validate DocumentEngine installation and all components"""
@@ -1538,7 +1524,6 @@ def validate_document_engine_installation() -> Dict[str, bool]:
 		validation_results["overall_status"] = False
 	
 	return validation_results
-
 
 # ============================================================================
 # Example Usage

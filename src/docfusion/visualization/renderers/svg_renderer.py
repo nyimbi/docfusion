@@ -19,17 +19,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class SVGOptimizationLevel(str, Enum):
     """SVG optimization levels"""
@@ -38,7 +29,6 @@ class SVGOptimizationLevel(str, Enum):
     BASIC = "basic"
     ADVANCED = "advanced"
     MAXIMUM = "maximum"
-
 
 @dataclass
 class SVGElement:
@@ -60,7 +50,6 @@ class SVGElement:
             return f"<{self.tag} {attr_str}>{self.content}{children_str}</{self.tag}>"
         else:
             return f"<{self.tag} {attr_str} />"
-
 
 @dataclass
 class SVGConfiguration:
@@ -93,7 +82,6 @@ class SVGConfiguration:
     minify: bool = False
     pretty_print: bool = True
     include_xml_declaration: bool = True
-
 
 class SVGRenderer:
     """
@@ -745,27 +733,27 @@ class SVGRenderer:
     async def _merge_similar_elements(self, element: SVGElement):
         """Merge similar elements to reduce redundancy"""
         # This would implement logic to merge similar elements
-        pass
+        raise NotImplementedError("_merge_similar_elements is not yet implemented")
 
     async def _optimize_paths(self, element: SVGElement):
         """Optimize SVG path elements"""
         # This would implement path optimization logic
-        pass
+        raise NotImplementedError("_optimize_paths is not yet implemented")
 
     async def _remove_default_attributes(self, element: SVGElement):
         """Remove attributes that have default values"""
         # This would remove attributes with default values
-        pass
+        raise NotImplementedError("_remove_default_attributes is not yet implemented")
 
     async def _compress_styles(self, element: SVGElement):
         """Compress style attributes"""
         # This would compress CSS styles
-        pass
+        raise NotImplementedError("_compress_styles is not yet implemented")
 
     async def _xml_to_svg_element(self, xml_element, svg_element: SVGElement):
         """Convert XML element to SVG element"""
         # This would convert ElementTree elements to SVGElement
-        pass
+        raise NotImplementedError("_xml_to_svg_element is not yet implemented")
 
     def _initialize_optimization_patterns(self) -> Dict[str, Any]:
         """Initialize optimization patterns"""

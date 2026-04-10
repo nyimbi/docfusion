@@ -327,7 +327,7 @@ def with_async_db_session(func):
 		@with_async_db_session
 		async def my_function(session: AsyncSession, other_param: str):
 			# session is automatically injected
-			pass
+				pass
 	"""
 	@wraps(func)
 	async def wrapper(*args, **kwargs):

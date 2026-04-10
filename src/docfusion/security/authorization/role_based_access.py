@@ -13,17 +13,8 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class PermissionAction(Enum):
     """Standard permission actions"""
@@ -37,7 +28,6 @@ class PermissionAction(Enum):
     MANAGE = "manage"
     ADMIN = "admin"
 
-
 class ResourceType(Enum):
     """Resource types for permissions"""
 
@@ -50,7 +40,6 @@ class ResourceType(Enum):
     WORKFLOW = "workflow"
     REPORT = "report"
 
-
 class RoleLevel(Enum):
     """Hierarchical role levels"""
 
@@ -61,7 +50,6 @@ class RoleLevel(Enum):
     ADMIN = 5
     SUPER_ADMIN = 6
 
-
 class AccessDecision(Enum):
     """Access control decision"""
 
@@ -69,11 +57,10 @@ class AccessDecision(Enum):
     DENIED = "denied"
     CONDITIONAL = "conditional"
 
-
 class Permission(BaseModel):
     """Individual permission model"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     permission_id: str = Field(default_factory=uuid7str)
     name: str
@@ -92,11 +79,10 @@ class Permission(BaseModel):
     created_by: str
     is_system: bool = False  # System-defined vs custom permission
 
-
 class Role(BaseModel):
     """Role model with hierarchical structure"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     role_id: str = Field(default_factory=uuid7str)
     name: str
@@ -122,11 +108,10 @@ class Role(BaseModel):
     is_system: bool = True  # System-defined vs custom role
     is_active: bool = True
 
-
 class UserRoleAssignment(BaseModel):
     """User role assignment with metadata"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     assignment_id: str = Field(default_factory=uuid7str)
     user_id: str
@@ -146,11 +131,10 @@ class UserRoleAssignment(BaseModel):
     suspended_until: Optional[datetime] = None
     suspension_reason: Optional[str] = None
 
-
 class AccessResult(BaseModel):
     """Result of access control check"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     decision: AccessDecision
     user_id: str
@@ -171,7 +155,6 @@ class AccessResult(BaseModel):
     # Additional context
     user_roles: List[str] = Field(default_factory=list)
     effective_permissions: List[str] = Field(default_factory=list)
-
 
 @dataclass
 class RBACConfiguration:
@@ -197,7 +180,6 @@ class RBACConfiguration:
     # Audit
     log_all_access_checks: bool = True
     log_permission_changes: bool = True
-
 
 class RoleBasedAccess:
     """Comprehensive role-based access control system"""
@@ -947,7 +929,6 @@ class RoleBasedAccess:
         """Invalidate permission cache"""
         self.permission_cache.clear()
         self.cache_timestamps.clear()
-
 
 # Factory function
 def create_role_based_access(

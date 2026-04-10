@@ -50,7 +50,7 @@ class QualityDimension(str, Enum):
 
 class ReadabilityMetrics(BaseModel):
 	"""Comprehensive readability analysis"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Standard readability scores
 	flesch_reading_ease: float = Field(description="Flesch Reading Ease score")
@@ -78,7 +78,7 @@ class ReadabilityMetrics(BaseModel):
 
 class EngagementMetrics(BaseModel):
 	"""Content engagement analysis"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Engagement indicators
 	hook_strength: float = Field(ge=0.0, le=1.0, description="Strength of opening hook")
@@ -107,7 +107,7 @@ class EngagementMetrics(BaseModel):
 
 class HumanLikenessMetrics(BaseModel):
 	"""Analysis of human-like writing characteristics"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Natural variation indicators
 	sentence_length_variation: float = Field(ge=0.0, le=1.0, description="Variation in sentence lengths")
@@ -136,7 +136,7 @@ class HumanLikenessMetrics(BaseModel):
 
 class QualityAnalysisResult(BaseModel):
 	"""Comprehensive content quality analysis result"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	analysis_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique analysis identifier")
 	text_analyzed: str = Field(description="Text that was analyzed (truncated for storage)")

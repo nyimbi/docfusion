@@ -21,15 +21,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
 
 try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
-try:
     import meilisearch
 except ImportError:
     meilisearch = None
@@ -46,7 +37,7 @@ except ImportError:
 
 from ...security import SecurityManager
 from ..middleware.authentication_middleware import get_api_key_user, get_current_user
-
+from ...core.utils import uuid7str
 
 class SearchScope(str, Enum):
     """Search scope options"""
@@ -58,7 +49,6 @@ class SearchScope(str, Enum):
     METADATA = "metadata"
     CONTENT = "content"
 
-
 class SearchMode(str, Enum):
     """Search mode options"""
 
@@ -68,13 +58,11 @@ class SearchMode(str, Enum):
     REGEX = "regex"
     SEMANTIC = "semantic"
 
-
 class SortOrder(str, Enum):
     """Sort order options"""
 
     ASC = "asc"
     DESC = "desc"
-
 
 class SearchSort(str, Enum):
     """Sort field options"""
@@ -87,7 +75,6 @@ class SearchSort(str, Enum):
     AUTHOR = "author"
     POPULARITY = "popularity"
 
-
 class DateFilter(BaseModel):
     """Date range filter"""
 
@@ -98,7 +85,6 @@ class DateFilter(BaseModel):
         None, description="Relative date (e.g., '7d', '1m', '1y')"
     )
 
-
 class RangeFilter(BaseModel):
     """Numeric range filter"""
 
@@ -106,14 +92,12 @@ class RangeFilter(BaseModel):
     min_value: Optional[float] = Field(None, description="Minimum value")
     max_value: Optional[float] = Field(None, description="Maximum value")
 
-
 class FacetFilter(BaseModel):
     """Facet-based filter"""
 
     field: str = Field(..., description="Field to facet on")
     values: List[str] = Field(..., min_items=1, description="Values to filter by")
     operator: str = Field("OR", description="Filter operator (AND/OR)")
-
 
 class SearchFilters(BaseModel):
     """Advanced search filters"""
@@ -138,7 +122,6 @@ class SearchFilters(BaseModel):
         None, description="Custom field filters"
     )
 
-
 class SearchRequest(BaseModel):
     """Advanced search request"""
 
@@ -155,13 +138,11 @@ class SearchRequest(BaseModel):
     include_suggestions: bool = Field(False, description="Include search suggestions")
     include_debug: bool = Field(False, description="Include debug information")
 
-
 class SearchHighlight(BaseModel):
     """Search result highlight"""
 
     field: str = Field(..., description="Highlighted field")
     fragments: List[str] = Field(..., description="Highlighted text fragments")
-
 
 class SearchResultItem(BaseModel):
     """Individual search result item"""
@@ -179,7 +160,6 @@ class SearchResultItem(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
-
 class SearchFacet(BaseModel):
     """Search facet result"""
 
@@ -187,14 +167,12 @@ class SearchFacet(BaseModel):
     values: List[Dict[str, Any]] = Field(..., description="Facet values with counts")
     total: int = Field(..., description="Total unique values")
 
-
 class SearchSuggestion(BaseModel):
     """Search suggestion"""
 
     text: str = Field(..., description="Suggested query text")
     type: str = Field(..., description="Suggestion type")
     score: float = Field(..., description="Suggestion relevance")
-
 
 class SearchDebugInfo(BaseModel):
     """Search debug information"""
@@ -204,7 +182,6 @@ class SearchDebugInfo(BaseModel):
     total_docs_examined: int = Field(..., description="Total documents examined")
     filters_applied: List[str] = Field(..., description="Filters that were applied")
     optimization_hints: List[str] = Field(..., description="Query optimization hints")
-
 
 class SearchResponse(BaseModel):
     """Search response"""
@@ -225,7 +202,6 @@ class SearchResponse(BaseModel):
         default_factory=datetime.utcnow, description="Search timestamp"
     )
 
-
 class SavedSearch(BaseModel):
     """Saved search configuration"""
 
@@ -244,7 +220,6 @@ class SavedSearch(BaseModel):
     )
     is_public: bool = Field(False, description="Whether search is publicly accessible")
     tags: List[str] = Field(default_factory=list, description="Search tags")
-
 
 class SearchBackend(ABC):
     """Abstract base class for search backends"""
@@ -272,7 +247,6 @@ class SearchBackend(ABC):
     async def get_stats(self) -> Dict[str, Any]:
         """Get backend statistics"""
         pass
-
 
 class MeiliSearchBackend(SearchBackend):
     """MeiliSearch backend implementation"""
@@ -493,7 +467,6 @@ class MeiliSearchBackend(SearchBackend):
         except Exception as e:
             self.logger.error(f"Failed to get MeiliSearch stats: {e}")
             return {"backend": "meilisearch", "error": str(e)}
-
 
 class OpenSearchBackend(SearchBackend):
     """OpenSearch/Elasticsearch backend implementation"""
@@ -798,7 +771,6 @@ class OpenSearchBackend(SearchBackend):
             self.logger.error(f"Failed to get OpenSearch stats: {e}")
             return {"backend": "opensearch", "error": str(e)}
 
-
 class InMemorySearchBackend(SearchBackend):
     """Simple in-memory search backend for development/testing"""
 
@@ -918,7 +890,6 @@ class InMemorySearchBackend(SearchBackend):
             "total_documents": len(self.documents),
             "total_words_indexed": len(self.word_index),
         }
-
 
 class SearchEngine:
     """Advanced search engine with multiple backend support"""
@@ -1222,7 +1193,6 @@ class SearchEngine:
             hints.append("Facets are more effective when combined with filters")
 
         return hints
-
 
 class SearchEndpoints:
     """Advanced search and filtering endpoints"""
@@ -1650,7 +1620,6 @@ class SearchEndpoints:
             "ip_address": current_user.get("ip_address"),
             "user_agent": current_user.get("user_agent"),
         }
-
 
 # Factory function
 def create_search_endpoints(security_manager: SecurityManager) -> SearchEndpoints:

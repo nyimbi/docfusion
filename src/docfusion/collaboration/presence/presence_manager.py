@@ -8,21 +8,15 @@ activity status management, and session coordination.
 import asyncio
 import json
 import logging
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Callable
 
 from pydantic import BaseModel, Field, ConfigDict
-
-def uuid7str():
-	"""Generate a UUID7-like string using UUID4 for compatibility."""
-	return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 class PresenceStatus(str, Enum):
 	"""User presence status enumeration."""
@@ -32,10 +26,9 @@ class PresenceStatus(str, Enum):
 	IDLE = "idle"
 	OFFLINE = "offline"
 
-
 class CursorPosition(BaseModel):
 	"""User cursor position information."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	position: int = Field(description="Character position in document")
 	selection_start: Optional[int] = Field(None, description="Start of selection")
@@ -44,10 +37,9 @@ class CursorPosition(BaseModel):
 	column: Optional[int] = Field(None, description="Column number")
 	last_updated: datetime = Field(default_factory=datetime.now)
 
-
 class UserPresence(BaseModel):
 	"""User presence information."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	user_id: str = Field(description="Unique user identifier")
 	user_name: str = Field(description="Display name")
@@ -59,10 +51,9 @@ class UserPresence(BaseModel):
 	avatar_url: Optional[str] = None
 	color: Optional[str] = None  # For displaying user cursors/highlights
 
-
 class UserSession(BaseModel):
 	"""Complete user session information."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	session_id: str = Field(default_factory=uuid7str)
 	document_id: str = Field(description="Document being accessed")
@@ -76,7 +67,6 @@ class UserSession(BaseModel):
 	active_branch: Optional[str] = Field("main", description="Current working branch")
 	websocket_id: Optional[str] = None  # For WebSocket connection tracking
 
-
 @dataclass
 class PresenceUpdate:
 	"""Presence update event."""
@@ -85,7 +75,6 @@ class PresenceUpdate:
 	update_type: str  # status, cursor, section, etc.
 	data: Dict[str, Any]
 	timestamp: datetime = field(default_factory=datetime.now)
-
 
 class PresenceManager:
 	"""
@@ -453,7 +442,7 @@ class PresenceManager:
 				self.presence_subscribers[document_id].remove(callback)
 				return True
 			except ValueError:
-				pass
+				logger.warning("ValueError in unknown")
 		return False
 	
 	async def get_presence_statistics(self, document_id: str) -> Dict[str, Any]:

@@ -29,12 +29,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict, AfterValidator
 from pydantic.dataclasses import dataclass as pydantic_dataclass, rebuild_dataclass
-
-
-def uuid7str() -> str:
-	"""Generate a UUID7-like string using UUID4"""
-	return str(uuid4())
-
+from ...core.utils import uuid7str
 
 # ============================================================================
 # Exception Classes
@@ -44,26 +39,21 @@ class BrandFormatterException(Exception):
 	"""Base exception for BrandFormatter module"""
 	pass
 
-
 class LogoManagementException(BrandFormatterException):
 	"""Exception for logo management errors"""
 	pass
-
 
 class BrandComplianceException(BrandFormatterException):
 	"""Exception for brand compliance validation errors"""
 	pass
 
-
 class DocumentTypeClassificationException(BrandFormatterException):
 	"""Exception for document type classification errors"""
 	pass
 
-
 class BrandAssetException(BrandFormatterException):
 	"""Exception for brand asset management errors"""
 	pass
-
 
 # ============================================================================
 # Core Data Models
@@ -83,7 +73,6 @@ class LogoDimensions:
 	max_width: float = 400.0
 	min_height: float = 20.0
 	max_height: float = 400.0
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class LogoAsset:
@@ -123,7 +112,6 @@ class LogoAsset:
 	last_optimized: datetime = Field(default_factory=datetime.now)
 	usage_count: int = 0
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class LogoAssetLibrary:
 	"""Comprehensive logo asset management"""
@@ -146,7 +134,6 @@ class LogoAssetLibrary:
 	# Validation and compliance
 	asset_validation_status: dict[str, bool] = Field(default_factory=dict)
 	compliance_check_results: dict[str, dict[str, Any]] = Field(default_factory=dict)
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class BrandRule:
@@ -185,7 +172,6 @@ class BrandRule:
 	last_updated: datetime = Field(default_factory=datetime.now)
 	usage_statistics: dict[str, Any] = Field(default_factory=dict)
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class BrandColorSystem:
 	"""Brand color system specification"""
@@ -209,7 +195,6 @@ class BrandColorSystem:
 	# Format specifications
 	color_profiles: dict[str, str] = Field(default_factory=dict)  # format -> profile
 	color_precision: int = 6  # Hex color precision
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class BrandTypographySystem:
@@ -238,7 +223,6 @@ class BrandTypographySystem:
 	fallback_fonts: dict[str, list[str]] = Field(default_factory=dict)
 	web_font_optimizations: dict[str, Any] = Field(default_factory=dict)
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class BrandSpacingSystem:
 	"""Brand spacing and layout system"""
@@ -259,7 +243,6 @@ class BrandSpacingSystem:
 	# Responsive spacing
 	responsive_spacing: dict[str, dict[str, str]] = Field(default_factory=dict)
 	breakpoint_adaptations: dict[str, dict[str, str]] = Field(default_factory=dict)
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class LogoPlacementRules:
@@ -287,7 +270,6 @@ class LogoPlacementRules:
 	multi_logo_spacing: str = "2x clear_space"
 	logo_hierarchy_rules: dict[str, int] = Field(default_factory=dict)  # variant -> priority
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class ComplianceThresholds:
 	"""Brand compliance scoring thresholds"""
@@ -311,7 +293,6 @@ class ComplianceThresholds:
 	# Performance thresholds
 	max_processing_time: float = 5.0  # seconds
 	max_memory_usage: float = 100.0  # MB
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class BrandSpecification:
@@ -348,7 +329,6 @@ class BrandSpecification:
 	created_date: datetime = Field(default_factory=datetime.now)
 	last_modified: datetime = Field(default_factory=datetime.now)
 	compliance_validated: bool = False
-
 
 # ============================================================================
 # Result Classes
@@ -392,7 +372,6 @@ class LogoPlacement:
 	placement_timestamp: datetime = Field(default_factory=datetime.now)
 	optimization_applied: bool = False
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class BrandViolation:
 	"""Brand guideline violation specification"""
@@ -424,7 +403,6 @@ class BrandViolation:
 	# Metadata
 	detected_timestamp: datetime = Field(default_factory=datetime.now)
 	correction_applied: bool = False
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class BrandComplianceReport:
@@ -472,7 +450,6 @@ class BrandComplianceReport:
 	rules_evaluated: int = 0
 	auto_corrections_available: int = 0
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class DocumentTypeClassification:
 	"""Document type classification result"""
@@ -495,7 +472,6 @@ class DocumentTypeClassification:
 	classification_method: str = "hybrid"
 	model_version: str = "1.0"
 	classification_timestamp: datetime = Field(default_factory=datetime.now)
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class BrandFormattingResult:
@@ -535,7 +511,6 @@ class BrandFormattingResult:
 	validation_warnings: list[str] = Field(default_factory=list)
 	validation_errors: list[str] = Field(default_factory=list)
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class BrandFormatterMetrics:
 	"""BrandFormatter performance and quality metrics"""
@@ -564,7 +539,6 @@ class BrandFormatterMetrics:
 	formatting_success_rate: float = 0.0
 	user_satisfaction_score: float = 0.0
 	brand_consistency_improvement: float = 0.0
-
 
 # ============================================================================
 # Core Components
@@ -880,7 +854,6 @@ class LogoManager:
 		}
 		
 		return severity_weights.get(violation.get('severity', 'warning'), 0.15)
-
 
 class BrandEnforcementEngine:
 	"""Brand guideline enforcement and compliance validation"""
@@ -1275,7 +1248,6 @@ class BrandEnforcementEngine:
 		
 		return corrections
 
-
 class DocumentTypeClassifier:
 	"""AI-powered document type recognition and brand template selection"""
 	
@@ -1461,7 +1433,6 @@ class DocumentTypeClassifier:
 			return max(0.0, estimated_length / min_length)
 		else:
 			return max(0.0, max_length / estimated_length)
-
 
 # ============================================================================
 # Main BrandFormatter Class
@@ -1841,7 +1812,6 @@ class BrandFormatter:
 		
 		return base_usage + cache_usage + asset_usage
 
-
 # ============================================================================
 # Utility Functions
 # ============================================================================
@@ -1884,7 +1854,6 @@ def create_default_brand_specification(brand_name: str) -> BrandSpecification:
 	
 	return brand_spec
 
-
 def create_logo_asset_from_file(
 	file_path: str,
 	asset_name: str,
@@ -1917,7 +1886,6 @@ def create_logo_asset_from_file(
 	
 	return logo_asset
 
-
 async def quick_brand_formatting(
 	document_content: dict[str, Any],
 	brand_name: str,
@@ -1947,7 +1915,6 @@ async def quick_brand_formatting(
 	)
 	
 	return result
-
 
 def validate_brand_formatter_installation() -> dict[str, bool]:
 	"""Validate BrandFormatter installation and dependencies"""
@@ -1982,7 +1949,6 @@ def validate_brand_formatter_installation() -> dict[str, bool]:
 	
 	return validation_results
 
-
 # Rebuild dataclasses to ensure proper initialization
 rebuild_dataclass(LogoDimensions)
 rebuild_dataclass(LogoAsset)
@@ -2000,7 +1966,6 @@ rebuild_dataclass(BrandComplianceReport)
 rebuild_dataclass(DocumentTypeClassification)
 rebuild_dataclass(BrandFormattingResult)
 rebuild_dataclass(BrandFormatterMetrics)
-
 
 # Module exports
 __all__ = [

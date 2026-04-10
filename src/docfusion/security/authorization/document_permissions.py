@@ -13,17 +13,8 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class PermissionLevel(Enum):
     """Document permission levels"""
@@ -35,7 +26,6 @@ class PermissionLevel(Enum):
     MANAGE = "manage"
     OWNER = "owner"
 
-
 class ShareType(Enum):
     """Document sharing types"""
 
@@ -44,7 +34,6 @@ class ShareType(Enum):
     PUBLIC = "public"
     LINK = "link"  # Anyone with link
     DOMAIN = "domain"  # Specific domain users
-
 
 class AccessType(Enum):
     """How access was granted"""
@@ -55,11 +44,10 @@ class AccessType(Enum):
     TEAM_BASED = "team_based"  # Through team membership
     LINK_BASED = "link_based"  # Through shared link
 
-
 class DocumentAccess(BaseModel):
     """Document access record"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     access_id: str = Field(default_factory=uuid7str)
     document_id: str
@@ -99,11 +87,10 @@ class DocumentAccess(BaseModel):
     revoked_at: Optional[datetime] = None
     revoked_by: Optional[str] = None
 
-
 class DocumentSharingSettings(BaseModel):
     """Document sharing configuration"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     document_id: str
     share_type: ShareType
@@ -135,11 +122,10 @@ class DocumentSharingSettings(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-
 class DocumentPermissionInheritance(BaseModel):
     """Document permission inheritance settings"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     document_id: str
     parent_document_id: Optional[str] = None
@@ -155,7 +141,6 @@ class DocumentPermissionInheritance(BaseModel):
     # Metadata
     updated_by: str
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 
 @dataclass
 class DocumentPermissionsConfig:
@@ -183,7 +168,6 @@ class DocumentPermissionsConfig:
     # Cleanup settings
     cleanup_expired_access_hours: int = 24
     cleanup_revoked_access_days: int = 30
-
 
 class DocumentPermissions:
     """Document-level access control and sharing system"""
@@ -931,7 +915,6 @@ class DocumentPermissions:
         # Keep only last 10,000 logs
         if len(self.access_logs) > 10000:
             self.access_logs = self.access_logs[-10000:]
-
 
 # Factory function
 def create_document_permissions(

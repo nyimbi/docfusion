@@ -6,14 +6,7 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import uuid
-
-# UUID generation with fallback
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
+from ...core.utils import uuid7str
 
 # Voice DNA integration with fallbacks
 def get_voice_integrator():

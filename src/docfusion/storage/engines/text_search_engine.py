@@ -18,15 +18,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from difflib import SequenceMatcher
 
 # Stemming and text processing
@@ -35,11 +26,11 @@ try:
     from nltk.corpus import stopwords
     from nltk.stem import PorterStemmer
     from nltk.tokenize import word_tokenize
+from ...core.utils import uuid7str
 
     nltk_available = True
 except ImportError:
     nltk_available = False
-
 
 @dataclass
 class SearchResult:
@@ -53,7 +44,6 @@ class SearchResult:
     metadata: Dict[str, Any] = field(default_factory=dict)
     match_type: str = "exact"  # exact, fuzzy, boolean, semantic
 
-
 @dataclass
 class SearchQuery:
     """Structured search query with multiple parameters"""
@@ -65,7 +55,6 @@ class SearchQuery:
     highlight_fragments: int = 3
     result_limit: int = 50
     min_relevance_threshold: float = 0.1
-
 
 @dataclass
 class DocumentIndex:
@@ -81,7 +70,6 @@ class DocumentIndex:
     created_at: datetime = field(default_factory=datetime.now)
     last_updated: datetime = field(default_factory=datetime.now)
 
-
 @dataclass
 class SearchStats:
     """Search performance and usage statistics"""
@@ -91,7 +79,6 @@ class SearchStats:
     average_search_time: float = 0.0
     most_common_queries: Dict[str, int] = field(default_factory=dict)
     performance_metrics: Dict[str, float] = field(default_factory=dict)
-
 
 class TextSearchEngine:
     """
@@ -719,13 +706,11 @@ class TextSearchEngine:
             self.document_frequencies = defaultdict(int)
             self.stats = SearchStats()
 
-
 # Convenience functions for easy integration
 async def create_search_engine(storage_path: Optional[Path] = None) -> TextSearchEngine:
     """Create and initialize text search engine"""
     engine = TextSearchEngine(storage_path)
     return engine
-
 
 async def search_documents(
     query: str, search_engine: TextSearchEngine, **kwargs

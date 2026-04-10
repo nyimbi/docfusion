@@ -22,15 +22,6 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...document_engine.document_engine import DocumentGenerationResult
@@ -47,14 +38,13 @@ from ..automation.workflow_engine import (
 )
 from ..coordination.task_coordinator import TaskAssignment
 from ..monitoring.workflow_monitor import PerformanceMetrics, WorkflowMonitor
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 # ============================================================================
 # Data Models
 # ============================================================================
-
 
 class DocumentWorkflowState(Enum):
     """Document workflow states"""
@@ -67,11 +57,10 @@ class DocumentWorkflowState(Enum):
     ARCHIVED = "archived"
     FAILED = "failed"
 
-
 class WorkflowStorageMetadata(BaseModel):
     """Extended metadata for workflow-aware documents"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Workflow tracking
     workflow_instance_id: Optional[str] = None
@@ -101,11 +90,10 @@ class WorkflowStorageMetadata(BaseModel):
     )  # phase -> document_version
     rollback_points: List[Dict[str, Any]] = Field(default_factory=list)
 
-
 class WorkflowDocumentRelation(BaseModel):
     """Relationship between documents and workflows"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     relation_id: str = Field(default_factory=uuid7str)
     document_id: str
@@ -114,11 +102,10 @@ class WorkflowDocumentRelation(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-
 class WorkflowSearchResult(BaseModel):
     """Enhanced search result with workflow context"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     document_id: str
     title: str
@@ -137,11 +124,9 @@ class WorkflowSearchResult(BaseModel):
     success_probability: Optional[float] = None
     estimated_completion_time: Optional[float] = None
 
-
 # ============================================================================
 # Main Integration Class
 # ============================================================================
-
 
 class WorkflowStorageIntegration:
     """
@@ -1235,11 +1220,9 @@ class WorkflowStorageIntegration:
 
         logger.info("WorkflowStorageIntegration cleaned up")
 
-
 # ============================================================================
 # Factory Functions
 # ============================================================================
-
 
 async def create_workflow_storage_integration(
     storage_service: StorageService,

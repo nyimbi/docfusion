@@ -41,11 +41,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass, rebuild_datacl
 
 # Import from document formatter for integration
 from .document_formatter import ComputedStyle, ResponsiveConfiguration
-
-def uuid7str() -> str:
-	"""Generate UUID string compatible with uuid7str"""
-	return str(uuid4())
-
+from ...core.utils import uuid7str
 
 # ============================================================================
 # Data Models
@@ -85,7 +81,6 @@ class ColorPalette:
 	accessibility_compliant: bool = True
 	validation_errors: list[str] = Field(default_factory=list)
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_by_name=True))
 class TypographyProfile:
 	"""Typography configuration with font management"""
@@ -124,7 +119,6 @@ class TypographyProfile:
 	fonts_available: dict[str, bool] = Field(default_factory=dict)
 	loading_performance: dict[str, float] = Field(default_factory=dict)
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_by_name=True))
 class BrandStyleRule:
 	"""Enhanced style rule with brand application"""
@@ -152,7 +146,6 @@ class BrandStyleRule:
 	cache_key: str = ""
 	last_applied: datetime = Field(default_factory=datetime.now)
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_by_name=True))
 class BrandGuidelines:
 	"""Brand guideline rules and validation criteria"""
@@ -179,7 +172,6 @@ class BrandGuidelines:
 	# Validation rules
 	validation_rules: list[dict[str, Any]] = Field(default_factory=list)
 	auto_corrections: dict[str, Any] = Field(default_factory=dict)
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_by_name=True))
 class StyleApplicationResult:
@@ -211,7 +203,6 @@ class StyleApplicationResult:
 	color_definitions: dict[str, str] = Field(default_factory=dict)
 	font_definitions: dict[str, str] = Field(default_factory=dict)
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_by_name=True))
 class ComplianceResult:
 	"""Brand compliance validation result"""
@@ -232,7 +223,6 @@ class ComplianceResult:
 	# Auto-corrections
 	corrections_applied: list[str] = Field(default_factory=list)
 	corrected_style: ComputedStyle | None = None
-
 
 # ============================================================================
 # Color Management System
@@ -468,7 +458,6 @@ class ColorManager:
 		
 		return '\n'.join(variables)
 
-
 # ============================================================================
 # Typography Management System
 # ============================================================================
@@ -663,7 +652,6 @@ class TypographyManager:
 		
 		return '\n'.join(css)
 
-
 # ============================================================================
 # Brand Compliance System
 # ============================================================================
@@ -819,7 +807,6 @@ class BrandCompliance:
 		except Exception:
 			return style
 
-
 # ============================================================================
 # Main StyleApplier Class
 # ============================================================================
@@ -852,7 +839,7 @@ class StyleApplier:
 	def _log_initialization(self) -> None:
 		"""Log initialization status"""
 		# Placeholder for initialization logging
-		pass
+		raise NotImplementedError("_log_initialization is not yet implemented")
 	
 	async def apply_brand_styles(
 		self,
@@ -992,7 +979,6 @@ class StyleApplier:
 			}
 		}
 
-
 # ============================================================================
 # Exception Classes
 # ============================================================================
@@ -1001,21 +987,17 @@ class StyleApplierException(Exception):
 	"""Base exception for StyleApplier operations"""
 	pass
 
-
 class ColorManagementException(StyleApplierException):
 	"""Raised when color management operations fail"""
 	pass
-
 
 class TypographyException(StyleApplierException):
 	"""Raised when typography operations fail"""
 	pass
 
-
 class BrandComplianceException(StyleApplierException):
 	"""Raised when brand compliance validation fails"""
 	pass
-
 
 # ============================================================================
 # Utility Functions
@@ -1037,7 +1019,6 @@ def create_default_brand_guidelines(brand_name: str) -> BrandGuidelines:
 		)
 	)
 
-
 async def quick_apply_brand_styles(
 	styles: list[ComputedStyle],
 	brand_name: str = "Default Brand"
@@ -1047,7 +1028,6 @@ async def quick_apply_brand_styles(
 	applier = StyleApplier()
 	
 	return await applier.apply_brand_styles(styles, guidelines)
-
 
 # ============================================================================
 # Module Assertions

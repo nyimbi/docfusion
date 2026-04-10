@@ -14,15 +14,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # Ollama integration for AI-powered structure recognition
 import json
 
@@ -31,11 +22,11 @@ import httpx
 # Optional libraries for enhanced processing
 try:
     import numpy as np
+from ...core.utils import uuid7str
 
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
-
 
 class StructureType(str, Enum):
     """Document structure types"""
@@ -66,7 +57,6 @@ class StructureType(str, Enum):
     CODE_BLOCK = "code_block"
     FORMULA = "formula"
 
-
 class ConfidenceLevel(str, Enum):
     """Confidence levels for structure recognition"""
 
@@ -75,7 +65,6 @@ class ConfidenceLevel(str, Enum):
     MEDIUM = "medium"  # 0.5-0.69
     LOW = "low"  # 0.3-0.49
     VERY_LOW = "very_low"  # 0.0-0.29
-
 
 @dataclass
 class StructureElement:
@@ -117,7 +106,6 @@ class StructureElement:
         else:
             self.confidence_level = ConfidenceLevel.VERY_LOW
 
-
 @dataclass
 class DocumentStructure:
     """Complete document structure"""
@@ -132,7 +120,6 @@ class DocumentStructure:
         if self.metadata is None:
             self.metadata = {}
 
-
 class StructureRecognitionResult:
     """Result of structure recognition"""
 
@@ -146,7 +133,6 @@ class StructureRecognitionResult:
         self.processing_time: float = 0.0
         self.methods_used: List[str] = []
         self.ai_analysis: Dict[str, Any] = {}
-
 
 class StructureRecognizer:
     """Advanced document structure recognizer with AI enhancement"""
@@ -1003,7 +989,6 @@ Provide JSON response:
             "config": self.config.copy(),
             "version": "1.0.0",
         }
-
 
 # Factory function
 def create_structure_recognizer(

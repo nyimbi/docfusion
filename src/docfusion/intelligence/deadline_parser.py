@@ -16,14 +16,7 @@ from enum import Enum
 from dataclasses import dataclass
 
 from pydantic import BaseModel, Field, ConfigDict
-
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
+from ..core.utils import uuid7str
 
 class DeadlineType(str, Enum):
 	"""Types of deadlines in RFP documents"""
@@ -42,7 +35,6 @@ class DeadlineType(str, Enum):
 	MILESTONE = "milestone"
 	OTHER = "other"
 
-
 class DeadlineStatus(str, Enum):
 	"""Status of a deadline"""
 	UPCOMING = "upcoming"
@@ -52,7 +44,6 @@ class DeadlineStatus(str, Enum):
 	COMPLETED = "completed"
 	UNKNOWN = "unknown"
 
-
 class DeadlinePriority(str, Enum):
 	"""Priority level for deadline importance"""
 	CRITICAL = "critical"
@@ -60,10 +51,9 @@ class DeadlinePriority(str, Enum):
 	MEDIUM = "medium"
 	LOW = "low"
 
-
 class Deadline(BaseModel):
 	"""Extracted deadline from RFP document"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str, description="Unique identifier")
 	deadline_type: DeadlineType = Field(description="Type of deadline")
@@ -127,10 +117,9 @@ class Deadline(BaseModel):
 
 		return DeadlinePriority.LOW
 
-
 class Milestone(BaseModel):
 	"""A milestone in the timeline"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str)
 	name: str = Field(description="Milestone name")
@@ -146,10 +135,9 @@ class Milestone(BaseModel):
 	tasks_total: int = Field(default=0)
 	tasks_completed: int = Field(default=0)
 
-
 class Timeline(BaseModel):
 	"""Complete timeline from RFP document"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str)
 	name: str = Field(default="RFP Timeline", description="Timeline name")
@@ -187,10 +175,9 @@ class Timeline(BaseModel):
 
 		self.updated_at = datetime.now()
 
-
 class DeadlineExtractionResult(BaseModel):
 	"""Result of deadline extraction from document"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	success: bool = Field(default=False, description="Whether extraction succeeded")
 	deadlines: List[Deadline] = Field(default_factory=list)
@@ -208,7 +195,6 @@ class DeadlineExtractionResult(BaseModel):
 
 	# AI analysis (optional)
 	ai_analysis: Dict[str, Any] = Field(default_factory=dict)
-
 
 class DeadlineParser:
 	"""
@@ -1035,7 +1021,6 @@ class DeadlineParser:
 				days_added += 1
 
 		return current
-
 
 # Module-level exports
 __all__ = [

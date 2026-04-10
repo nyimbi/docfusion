@@ -17,19 +17,11 @@ from fastapi import Path as PathParam
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from ...document_engine.secure_document_engine import SecureDocumentEngine
 from ...security import SecurityManager
 from ...storage.secure_storage_service import SecureStorageService
 from ..middleware.authentication_middleware import get_api_key_user, get_current_user
+from ...core.utils import uuid7str
 from ..serializers.template_serializers import (
     TemplateCreateRequest,
     TemplateListResponse,
@@ -38,7 +30,6 @@ from ..serializers.template_serializers import (
     TemplateSearchRequest,
     TemplateUpdateRequest,
 )
-
 
 class TemplateEndpoints:
     """FastAPI template endpoints with security integration"""
@@ -764,7 +755,6 @@ class TemplateEndpoints:
             if template.get("access_level"):
                 access_levels.add(template["access_level"])
         return sorted(list(access_levels))
-
 
 # Factory function
 def create_template_endpoints(

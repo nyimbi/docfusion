@@ -14,6 +14,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
+from ...core.utils import uuid7str
 
 try:
     import aiohttp
@@ -43,15 +44,6 @@ except ImportError:
     HAS_NLTK = False
 
 try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
-try:
     from ..prompting_strategies import (
         AdvancedPromptBuilder,
         create_advanced_prompt_builder,
@@ -73,7 +65,6 @@ except ImportError:
 
     AdvancedPromptBuilder = None
 
-
 class SummaryType(Enum):
     """Types of summary generation"""
 
@@ -85,7 +76,6 @@ class SummaryType(Enum):
     TECHNICAL = "technical"
     KEY_FINDINGS = "key_findings"
 
-
 class SummaryLength(Enum):
     """Summary length categories"""
 
@@ -94,7 +84,6 @@ class SummaryLength(Enum):
     MEDIUM = "medium"  # 100-200 words
     LONG = "long"  # 200-400 words
     DETAILED = "detailed"  # 400+ words
-
 
 class SummaryFocus(Enum):
     """Summary focus areas"""
@@ -106,7 +95,6 @@ class SummaryFocus(Enum):
     RECOMMENDATIONS = "recommendations"
     TECHNICAL_DETAILS = "technical_details"
     BUSINESS_VALUE = "business_value"
-
 
 @dataclass
 class SentenceScore:
@@ -121,7 +109,6 @@ class SentenceScore:
     length_score: float = 0.0
     total_score: float = 0.0
 
-
 @dataclass
 class SummarySegment:
     """A segment or section of the summary"""
@@ -131,7 +118,6 @@ class SummarySegment:
     importance: float = 0.0
     source_sentences: List[str] = field(default_factory=list)
     segment_type: str = "content"  # content, introduction, conclusion
-
 
 @dataclass
 class SummaryResult:
@@ -174,7 +160,6 @@ class SummaryResult:
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     statistics: Dict[str, Any] = field(default_factory=dict)
-
 
 class DocumentSummarizer:
     """Advanced document summarizer with multiple techniques"""
@@ -1487,7 +1472,6 @@ Executive Summary:"""
     async def close(self):
         """Close summarizer and cleanup resources"""
         self.logger.info("DocumentSummarizer closed")
-
 
 # Factory function
 def create_document_summarizer(

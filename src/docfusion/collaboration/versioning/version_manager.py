@@ -23,9 +23,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
-from uuid_extensions import uuid7str
-
-
+from ...core.utils import uuid7str
 class ChangeType(Enum):
     """Types of document changes"""
 
@@ -35,7 +33,6 @@ class ChangeType(Enum):
     MOVE = "move"
     FORMAT = "format"
 
-
 class MergeStrategy(Enum):
     """Merge strategies for combining branches"""
 
@@ -43,7 +40,6 @@ class MergeStrategy(Enum):
     MANUAL = "manual"  # Require manual conflict resolution
     OVERWRITE = "overwrite"  # Overwrite target with source
     APPEND = "append"  # Append changes to target
-
 
 @dataclass
 class DocumentChange:
@@ -57,7 +53,6 @@ class DocumentChange:
     new_content: str = ""  # New content
     line_number: int = 0  # Line number for reference
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class DocumentCommit:
@@ -76,7 +71,6 @@ class DocumentCommit:
     tags: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class DocumentBranch:
     """Document branch for parallel development"""
@@ -90,7 +84,6 @@ class DocumentBranch:
     is_active: bool = True
     merge_conflicts: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class MergeConflict:
@@ -110,7 +103,6 @@ class MergeConflict:
     resolved_by: str = ""
     resolved_at: Optional[datetime] = None
 
-
 @dataclass
 class DocumentTag:
     """Document version tag (like Git tag)"""
@@ -124,11 +116,10 @@ class DocumentTag:
     tag_type: str = "lightweight"  # lightweight, annotated
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 class DocumentHistory(BaseModel):
     """Complete document version history"""
 
-    model_config = ConfigDict(extra="forbid", validate_default=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 
     document_id: str = Field(default_factory=uuid7str)
     current_branch: str = "main"
@@ -137,7 +128,6 @@ class DocumentHistory(BaseModel):
     tags: Dict[str, DocumentTag] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.now)
     last_modified: datetime = Field(default_factory=datetime.now)
-
 
 class VersionManager:
     """

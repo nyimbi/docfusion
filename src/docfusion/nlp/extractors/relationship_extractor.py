@@ -15,15 +15,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # spaCy integration for dependency parsing
 try:
     import spacy
@@ -45,12 +36,11 @@ except ImportError:
     class Span:
         pass
 
-
 # Ollama integration for AI-powered relationship extraction
 import json
 
 import httpx
-
+from ...core.utils import uuid7str
 
 class RelationshipType(str, Enum):
     """Types of relationships that can be extracted"""
@@ -107,7 +97,6 @@ class RelationshipType(str, Enum):
     REQUIRED_FOR = "required_for"
     ENABLES = "enables"
 
-
 class RelationshipConfidence(str, Enum):
     """Confidence levels for relationship extraction"""
 
@@ -116,7 +105,6 @@ class RelationshipConfidence(str, Enum):
     MEDIUM = "medium"  # 0.5-0.69
     LOW = "low"  # 0.3-0.49
     VERY_LOW = "very_low"  # 0.0-0.29
-
 
 @dataclass
 class Relationship:
@@ -157,7 +145,6 @@ class Relationship:
         else:
             self.confidence_level = RelationshipConfidence.VERY_LOW
 
-
 @dataclass
 class RelationshipGraph:
     """Graph representation of relationships"""
@@ -174,7 +161,6 @@ class RelationshipGraph:
         if self.statistics is None:
             self.statistics = {}
 
-
 class RelationshipExtractionResult:
     """Result of relationship extraction"""
 
@@ -189,7 +175,6 @@ class RelationshipExtractionResult:
         self.processing_time: float = 0.0
         self.methods_used: List[str] = []
         self.ai_analysis: Dict[str, Any] = {}
-
 
 class RelationshipExtractor:
     """Advanced relationship extractor with dependency parsing and AI enhancement"""
@@ -1085,7 +1070,7 @@ Provide comprehensive analysis:
         try:
             return RelationshipType(ai_type_upper)
         except ValueError:
-            pass
+            self.logger.warning("ValueError in _map_ai_type_to_relationship_type")
 
         # Fallback mappings
         mapping = {
@@ -1414,7 +1399,6 @@ Provide analysis:
             "config": self.config.copy(),
             "version": "1.0.0",
         }
-
 
 # Factory function
 def create_relationship_extractor(

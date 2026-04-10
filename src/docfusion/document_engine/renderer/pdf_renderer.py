@@ -24,10 +24,7 @@ from uuid import uuid4
 
 from pydantic import Field, ConfigDict
 from pydantic.dataclasses import dataclass
-
-def uuid7str() -> str:
-	"""Generate a UUID4 string for compatibility"""
-	return str(uuid4())
+from ...core.utils import uuid7str
 
 try:
 	from weasyprint import HTML, CSS
@@ -37,7 +34,6 @@ except ImportError:
 	HTML = None
 	CSS = None
 	FontConfiguration = None
-
 
 # ============================================================================
 # Data Models
@@ -63,7 +59,6 @@ class PageMargins:
 	bleed_margin: str = "0mm"
 	crop_marks: bool = False
 
-
 @dataclass
 class PDFPermissions:
 	"""PDF security permissions configuration"""
@@ -75,7 +70,6 @@ class PDFPermissions:
 	allow_accessibility: bool = True
 	allow_assembly: bool = False
 	high_quality_printing: bool = True
-
 
 @dataclass
 class PDFMetadata:
@@ -107,7 +101,6 @@ class PDFMetadata:
 	# Accessibility metadata
 	accessibility_summary: str = ""
 	accessibility_features: list[str] = Field(default_factory=list)
-
 
 @dataclass
 class PDFRenderConfiguration:
@@ -161,7 +154,6 @@ class PDFRenderConfiguration:
 	attachments_allowed: bool = False
 	transparency_flattening: bool = False
 
-
 @dataclass
 class PDFRenderingIssue:
 	"""Individual PDF rendering issue or warning"""
@@ -174,7 +166,6 @@ class PDFRenderingIssue:
 	auto_correctable: bool = False
 	detected_timestamp: datetime = Field(default_factory=datetime.now)
 
-
 @dataclass
 class PDFOutputMetadata:
 	"""Metadata about the generated PDF output"""
@@ -186,7 +177,6 @@ class PDFOutputMetadata:
 	embedded_images_count: int = 0
 	page_dimensions: dict[str, float] = Field(default_factory=dict)
 	color_spaces_used: list[str] = Field(default_factory=list)
-
 
 @dataclass
 class PDFRenderResult:
@@ -231,7 +221,6 @@ class PDFRenderResult:
 	embedded_images: list[str] = Field(default_factory=list)
 	embedded_assets: list[str] = Field(default_factory=list)
 
-
 @dataclass
 class FormattedDocumentContent:
 	"""Formatted document content ready for PDF rendering"""
@@ -275,7 +264,6 @@ class FormattedDocumentContent:
 			return self.latex_assets
 		return self.html_assets
 
-
 # ============================================================================
 # Component Classes
 # ============================================================================
@@ -311,7 +299,6 @@ class CompilationResult:
 			self.errors = []
 		if self.warnings is None:
 			self.warnings = []
-
 
 class LaTeXCompiler:
 	"""LaTeX compilation engine for primary PDF generation"""
@@ -517,7 +504,7 @@ class LaTeXCompiler:
 			
 		except (FileNotFoundError, asyncio.TimeoutError, Exception):
 			# pdflatex not available or compilation failed
-			pass
+			logger.warning("FileNotFoundError/TimeoutError/Exception in unknown")
 		
 		return None
 	
@@ -760,7 +747,6 @@ body {{
 		}
 		return mime_types.get(extension, 'application/octet-stream')
 
-
 class FontManager:
 	"""Font loading, embedding, and optimization for PDF rendering"""
 	
@@ -801,7 +787,6 @@ class FontManager:
 			availability[font] = font in common_fonts or font in self.font_cache
 		
 		return availability
-
 
 class PDFQualityValidator:
 	"""Comprehensive PDF quality validation and compliance checking"""
@@ -858,7 +843,6 @@ class PDFQualityValidator:
 			'required_metadata': ['title', 'author'],
 			'accessibility_features': ['tagged_pdf', 'alt_text', 'bookmarks']
 		}
-
 
 # ============================================================================
 # Main PDFRenderer Class
@@ -1159,7 +1143,6 @@ Content: Basic text-only fallback document
 		
 		return base_usage + cache_usage + font_usage
 
-
 # ============================================================================
 # Utility Functions
 # ============================================================================
@@ -1186,7 +1169,6 @@ def create_default_pdf_configuration(
 	
 	return config
 
-
 async def quick_pdf_render_latex(
 	latex_content: str,
 	assets_map: Optional[dict[str, str]] = None,
@@ -1205,7 +1187,6 @@ async def quick_pdf_render(
 	renderer = PDFRenderer()
 	return await renderer.render_from_html_css(html_content, css_content)
 
-
 def validate_pdf_renderer_installation() -> dict[str, bool]:
 	"""Validate PDFRenderer installation and dependencies"""
 	import subprocess
@@ -1217,7 +1198,7 @@ def validate_pdf_renderer_installation() -> dict[str, bool]:
 							   capture_output=True, timeout=5)
 		pdflatex_available = result.returncode == 0
 	except (FileNotFoundError, subprocess.TimeoutExpired):
-		pass
+		logger.warning("FileNotFoundError/TimeoutExpired in validate_pdf_renderer_installation")
 	
 	validation_results = {
 		'pdflatex_available': pdflatex_available,
@@ -1242,7 +1223,6 @@ def validate_pdf_renderer_installation() -> dict[str, bool]:
 	
 	return validation_results
 
-
 # ============================================================================
 # Exception Classes
 # ============================================================================
@@ -1251,21 +1231,17 @@ class PDFRendererException(Exception):
 	"""Base exception for PDF rendering errors"""
 	pass
 
-
 class PDFRenderingException(PDFRendererException):
 	"""Exception for PDF rendering process errors"""
 	pass
-
 
 class PDFQualityException(PDFRendererException):
 	"""Exception for PDF quality validation errors"""
 	pass
 
-
 class FontEmbeddingException(PDFRendererException):
 	"""Exception for font embedding errors"""
 	pass
-
 
 class PDFAccessibilityException(PDFRendererException):
 	"""Exception for PDF accessibility compliance errors"""

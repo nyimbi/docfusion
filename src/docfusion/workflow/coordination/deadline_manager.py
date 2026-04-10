@@ -8,7 +8,6 @@ buffer time management, and escalation procedures.
 
 import asyncio
 import logging
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -18,14 +17,9 @@ import json
 import heapq
 
 from pydantic import BaseModel, Field, ConfigDict
-
-def uuid7str():
-	"""Generate a UUID7-like string using UUID4 for compatibility."""
-	return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 class AlertSeverity(str, Enum):
 	"""Alert severity levels."""
@@ -33,7 +27,6 @@ class AlertSeverity(str, Enum):
 	WARNING = "warning"
 	CRITICAL = "critical"
 	URGENT = "urgent"
-
 
 class EscalationLevel(str, Enum):
 	"""Escalation levels."""
@@ -43,7 +36,6 @@ class EscalationLevel(str, Enum):
 	EXECUTIVE = "executive"
 	EMERGENCY = "emergency"
 
-
 class BufferStrategy(str, Enum):
 	"""Buffer time management strategies."""
 	FIXED_PERCENTAGE = "fixed_percentage"
@@ -52,10 +44,9 @@ class BufferStrategy(str, Enum):
 	DYNAMIC = "dynamic"
 	MONTE_CARLO = "monte_carlo"
 
-
 class DeadlineAlert(BaseModel):
 	"""Deadline alert notification."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	alert_id: str = Field(default_factory=uuid7str)
 	task_id: str = Field(description="Task identifier")
@@ -91,10 +82,9 @@ class DeadlineAlert(BaseModel):
 	is_resolved: bool = Field(False)
 	notification_sent: bool = Field(False)
 
-
 class CriticalPathNode(BaseModel):
 	"""Node in critical path analysis."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	task_id: str = Field(description="Task identifier")
 	task_name: str = Field(description="Task name")
@@ -119,10 +109,9 @@ class CriticalPathNode(BaseModel):
 	buffer_time_hours: float = Field(0.0, description="Buffer time allocated")
 	confidence_level: float = Field(description="Confidence in duration estimate")
 
-
 class CriticalPath(BaseModel):
 	"""Complete critical path analysis."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	analysis_id: str = Field(default_factory=uuid7str)
 	workflow_instance_id: str = Field(description="Workflow instance ID")
@@ -153,7 +142,6 @@ class CriticalPath(BaseModel):
 	calculation_method: str = Field("CPM", description="Calculation method used")
 	confidence_score: float = Field(description="Confidence in analysis accuracy")
 
-
 @dataclass
 class EscalationRule:
 	"""Rule for escalating deadline issues."""
@@ -166,7 +154,6 @@ class EscalationRule:
 	auto_escalate: bool = True
 	is_active: bool = True
 
-
 @dataclass
 class ScheduleOptimization:
 	"""Schedule optimization result."""
@@ -178,7 +165,6 @@ class ScheduleOptimization:
 	resource_changes: Dict[str, Any] = field(default_factory=dict)
 	confidence_score: float = 0.0
 	implementation_cost: float = 0.0
-
 
 class DeadlineManager:
 	"""

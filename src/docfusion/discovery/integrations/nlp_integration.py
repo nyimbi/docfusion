@@ -25,7 +25,7 @@ from ..analyzers.capability_matcher import CapabilityMatcher
 
 class NLPAnalysisRequest(BaseModel):
 	"""Request for NLP analysis of opportunity text"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	opportunity_id: str = Field(description="Unique opportunity identifier")
 	text_sources: Dict[str, str] = Field(description="Text sources to analyze (source -> content)")
@@ -36,7 +36,7 @@ class NLPAnalysisRequest(BaseModel):
 
 class NLPAnalysisResult(BaseModel):
 	"""Result of NLP analysis"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	opportunity_id: str = Field(description="Opportunity identifier")
 	

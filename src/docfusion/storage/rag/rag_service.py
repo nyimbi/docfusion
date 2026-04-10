@@ -15,18 +15,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from .database import DatabaseConfiguration, DocumentChunk, RAGDatabase, RAGDocument
 from .embedding_service import EmbeddingConfiguration, EmbeddingResult, EmbeddingService
-
+from ...core.utils import uuid7str
 
 @dataclass
 class RAGConfiguration:
@@ -62,7 +53,6 @@ class RAGConfiguration:
     batch_size: int = 100
     max_processing_time: float = 300.0
 
-
 @dataclass
 class RAGSearchResult:
     """Result from RAG search operation"""
@@ -78,7 +68,6 @@ class RAGSearchResult:
     category: str = ""
     tags: List[str] = field(default_factory=list)
 
-
 @dataclass
 class RAGQueryResult:
     """Complete RAG query result with context"""
@@ -90,7 +79,6 @@ class RAGQueryResult:
     search_time: float
     embedding_time: float
     query_metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class RAGStats:
@@ -104,7 +92,6 @@ class RAGStats:
     cache_hit_rate: float = 0.0
     embedding_cache_size: int = 0
     database_stats: Dict[str, Any] = field(default_factory=dict)
-
 
 class RAGService:
     """Main RAG service orchestrating all components"""
@@ -620,7 +607,6 @@ class RAGService:
         except Exception as e:
             self.logger.error(f"Error closing RAG service: {e}")
 
-
 # Utility functions
 async def create_rag_service(
     connection_string: str,
@@ -643,7 +629,6 @@ async def create_rag_service(
     service = RAGService(config)
     await service.initialize()
     return service
-
 
 def get_default_rag_config(connection_string: str) -> RAGConfiguration:
     """Get default RAG configuration using Ollama"""

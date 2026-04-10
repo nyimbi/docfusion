@@ -15,15 +15,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 class MessageType(str, Enum):
     """Types of messages exchanged between agents"""
@@ -75,7 +67,6 @@ class MessageType(str, Enum):
     DIRECT_MESSAGE = "direct_message"
     URGENT_ALERT = "urgent_alert"
 
-
 class MessagePriority(str, Enum):
     """Message priority levels"""
 
@@ -84,7 +75,6 @@ class MessagePriority(str, Enum):
     MEDIUM = "medium"
     LOW = "low"
     BACKGROUND = "background"
-
 
 class MessageStatus(str, Enum):
     """Message delivery and processing status"""
@@ -99,7 +89,6 @@ class MessageStatus(str, Enum):
     EXPIRED = "expired"
     CANCELLED = "cancelled"
 
-
 class MessageDeliveryMode(str, Enum):
     """Message delivery modes"""
 
@@ -110,11 +99,10 @@ class MessageDeliveryMode(str, Enum):
     QUEUE = "queue"  # Queued delivery
     REQUEST_RESPONSE = "request_response"  # Synchronous request/response
 
-
 class MessageMetadata(BaseModel):
     """Metadata associated with messages"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     created_at: datetime = Field(default_factory=datetime.now)
     expires_at: Optional[datetime] = None
@@ -130,11 +118,10 @@ class MessageMetadata(BaseModel):
     checksum: Optional[str] = None
     tags: Dict[str, str] = Field(default_factory=dict)
 
-
 class MessageHeader(BaseModel):
     """Message header information"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     message_id: str = Field(default_factory=uuid7str)
     conversation_id: Optional[str] = None
@@ -160,11 +147,10 @@ class MessageHeader(BaseModel):
     response_expected: bool = False
     response_timeout_seconds: Optional[int] = None
 
-
 class MessagePayload(BaseModel):
     """Message payload containing the actual content"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     content: Any = Field(description="Main message content")
     content_format: str = "json"
@@ -176,11 +162,10 @@ class MessagePayload(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
-
 class AgentMessage(BaseModel):
     """Complete message structure for inter-agent communication"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     header: MessageHeader
     payload: MessagePayload
@@ -229,7 +214,6 @@ class AgentMessage(BaseModel):
     def get_age_seconds(self) -> float:
         """Get message age in seconds"""
         return (datetime.now() - self.header.timestamp).total_seconds()
-
 
 class MessageBuilder:
     """Builder class for constructing messages"""
@@ -345,7 +329,6 @@ class MessageBuilder:
             )
 
         return AgentMessage(header=header, payload=payload, metadata=metadata)
-
 
 # Predefined message templates
 class MessageTemplates:
@@ -490,7 +473,6 @@ class MessageTemplates:
             builder.broadcast()
 
         return builder.build()
-
 
 class MessageValidator:
     """Validator for message integrity and format"""

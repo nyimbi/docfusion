@@ -17,14 +17,7 @@ from dataclasses import dataclass
 import hashlib
 
 from pydantic import BaseModel, Field, ConfigDict
-
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
+from ..core.utils import uuid7str
 
 class CalendarProvider(str, Enum):
 	"""Supported calendar providers"""
@@ -33,7 +26,6 @@ class CalendarProvider(str, Enum):
 	ICAL = "ical"
 	LOCAL = "local"
 
-
 class ReminderType(str, Enum):
 	"""Types of reminders"""
 	EMAIL = "email"
@@ -41,17 +33,15 @@ class ReminderType(str, Enum):
 	SMS = "sms"
 	WEBHOOK = "webhook"
 
-
 class EventStatus(str, Enum):
 	"""Status of calendar events"""
 	CONFIRMED = "confirmed"
 	TENTATIVE = "tentative"
 	CANCELLED = "cancelled"
 
-
 class CalendarEvent(BaseModel):
 	"""Calendar event model"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str, description="Event ID")
 	provider_event_id: str | None = Field(default=None, description="Provider's event ID")
@@ -81,10 +71,9 @@ class CalendarEvent(BaseModel):
 	html_link: str | None = Field(default=None, description="Link to view event")
 	ics_url: str | None = Field(default=None, description="ICS download URL")
 
-
 class Reminder(BaseModel):
 	"""Reminder configuration"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str)
 	event_id: str = Field(description="Associated event ID")
@@ -94,10 +83,9 @@ class Reminder(BaseModel):
 	delivered: bool = Field(default=False)
 	delivered_at: datetime | None = Field(default=None)
 
-
 class CalendarCredentials(BaseModel):
 	"""Calendar API credentials"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	provider: CalendarProvider = Field(description="Calendar provider")
 	client_id: str | None = Field(default=None, description="OAuth client ID")
@@ -106,7 +94,6 @@ class CalendarCredentials(BaseModel):
 	refresh_token: str | None = Field(default=None, description="Refresh token")
 	token_expiry: datetime | None = Field(default=None, description="Token expiry time")
 	calendar_id: str | None = Field(default=None, description="Calendar ID")
-
 
 class CalendarIntegration:
 	"""
@@ -763,7 +750,6 @@ class CalendarIntegration:
 			.replace("\r", "")
 		)
 
-
 # Module-level exports
 __all__ = [
 	'CalendarProvider',
@@ -774,7 +760,6 @@ __all__ = [
 	'CalendarCredentials',
 	'CalendarIntegration',
 ]
-
 
 # Import Deadline type for type hints (avoid circular import)
 from .deadline_parser import Deadline

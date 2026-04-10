@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional, Set, Union, Callable, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
-import uuid
 import json
 from pydantic import BaseModel, Field, ConfigDict, validator
 from ..core.agent import Agent
@@ -12,6 +11,7 @@ from ..core.messages import AgentMessage, MessageType, MessageTemplates
 from .crew_manager import AgentCrew, CrewTask
 from .swarm_manager import AgentSwarm, SwarmTask
 import re
+from ...core.utils import uuid7str
 """
 Task Orchestrator and Workflow Engine
 
@@ -23,16 +23,6 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-
-
-
 class TaskType(str, Enum):
 	"""Task classification types"""
 	SEQUENTIAL = "sequential"  # Tasks must be executed in order
@@ -41,7 +31,6 @@ class TaskType(str, Enum):
 	ITERATIVE = "iterative"  # Tasks that repeat until condition met
 	PIPELINE = "pipeline"  # Output of one task feeds into next
 	SCATTER_GATHER = "scatter_gather"  # Parallel execution with result aggregation
-
 
 class TaskStatus(str, Enum):
 	"""Task execution status"""
@@ -55,7 +44,6 @@ class TaskStatus(str, Enum):
 	WAITING = "waiting"  # Waiting for dependencies
 	RETRYING = "retrying"
 
-
 class WorkflowStatus(str, Enum):
 	"""Workflow execution status"""
 	CREATED = "created"
@@ -66,14 +54,12 @@ class WorkflowStatus(str, Enum):
 	FAILED = "failed"
 	CANCELLED = "cancelled"
 
-
 class ExecutionMode(str, Enum):
 	"""Task execution modes"""
 	AGENT_CREW = "agent_crew"  # Execute using structured crew
 	AGENT_SWARM = "agent_swarm"  # Execute using swarm intelligence
 	DIRECT_AGENT = "direct_agent"  # Execute using specific agent
 	HYBRID = "hybrid"  # Combine multiple execution modes
-
 
 @dataclass
 class TaskDependency:
@@ -83,7 +69,6 @@ class TaskDependency:
 	condition: Optional[Dict[str, Any]] = None
 	wait_timeout: Optional[int] = None  # seconds
 
-
 @dataclass
 class TaskConstraint:
 	"""Task execution constraints"""
@@ -92,7 +77,6 @@ class TaskConstraint:
 	resource_requirements: Dict[str, Any] = field(default_factory=dict)
 	agent_preferences: List[str] = field(default_factory=list)
 	execution_window: Optional[Tuple[datetime, datetime]] = None
-
 
 @dataclass
 class WorkflowTask:
@@ -129,10 +113,9 @@ class WorkflowTask:
 	stage: int = 0
 	priority: float = 0.5
 
-
 class WorkflowDefinition(BaseModel):
 	"""Complete workflow definition"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	workflow_id: str = Field(default_factory=uuid7str)
 	name: str = Field(description="Workflow name")
@@ -160,10 +143,9 @@ class WorkflowDefinition(BaseModel):
 	created_by: str = Field(default="system")
 	tags: List[str] = Field(default_factory=list)
 
-
 class WorkflowExecution(BaseModel):
 	"""Workflow execution instance"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	execution_id: str = Field(default_factory=uuid7str)
 	workflow_id: str
@@ -187,7 +169,6 @@ class WorkflowExecution(BaseModel):
 	success_rate: float = 0.0
 	average_task_duration: float = 0.0
 	resource_utilization: Dict[str, float] = Field(default_factory=dict)
-
 
 class TaskOrchestrator:
 	"""
@@ -799,7 +780,6 @@ class TaskOrchestrator:
 	async def _cancel_workflow_tasks(self, execution_id: str) -> None:
 		"""Cancel all tasks for workflow execution"""
 		pass
-
 
 class WorkflowEngine:
 	"""

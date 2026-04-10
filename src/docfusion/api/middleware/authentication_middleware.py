@@ -16,18 +16,9 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from ...security import APIAuthentication, SecurityManager, UserAuthentication
 from ...config.secrets import SecretsManager
-
+from ...core.utils import uuid7str
 
 class AuthenticationMiddleware:
     """Authentication middleware with JWT and API key support"""
@@ -358,10 +349,8 @@ class AuthenticationMiddleware:
 
         self.logger.info(f"Cleaned up {len(expired_sessions)} expired sessions")
 
-
 # Dependency functions for FastAPI
 auth_middleware: Optional[AuthenticationMiddleware] = None
-
 
 def initialize_auth_middleware(
     security_manager: SecurityManager,
@@ -370,7 +359,6 @@ def initialize_auth_middleware(
     global auth_middleware
     auth_middleware = AuthenticationMiddleware(security_manager)
     return auth_middleware
-
 
 async def get_current_user(request: Request) -> Dict[str, Any]:
     """FastAPI dependency to get current authenticated user"""
@@ -381,11 +369,9 @@ async def get_current_user(request: Request) -> Dict[str, Any]:
 
     return request.state.user
 
-
 async def get_current_user_optional(request: Request) -> Optional[Dict[str, Any]]:
     """FastAPI dependency to get current user if authenticated"""
     return getattr(request.state, "user", None)
-
 
 async def get_api_key_user(
     api_key: str = Depends(APIKeyHeader(name="X-API-Key")),
@@ -416,7 +402,6 @@ async def get_api_key_user(
         )
 
     return user_info
-
 
 def require_permission(required_permission: str):
     """Decorator to require specific permission"""
@@ -452,7 +437,6 @@ def require_permission(required_permission: str):
 
     return decorator
 
-
 def require_role(required_role: str):
     """Decorator to require specific role"""
 
@@ -476,7 +460,6 @@ def require_role(required_role: str):
         return wrapper
 
     return decorator
-
 
 # Factory function
 def create_authentication_middleware(

@@ -19,7 +19,7 @@ class FeatureContribution(BaseModel):
 	Represents the contribution of a single feature to a prediction.
 	"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	feature_name: str = Field(..., description="Name of the feature")
 	feature_value: float = Field(..., description="Value of the feature")
@@ -43,7 +43,7 @@ class PredictionExplanation(BaseModel):
 	Complete explanation for a model prediction.
 	"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	prediction_id: str = Field(..., description="Unique prediction identifier")
 	model_type: str = Field(..., description="Type of model used")
@@ -87,7 +87,7 @@ class PredictionExplanation(BaseModel):
 class ExplainerConfig(BaseModel):
 	"""Configuration for prediction explainer"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	top_n_features: int = Field(default=10, ge=1, le=50, description="Number of top features to show")
 	importance_threshold: float = Field(default=0.01, ge=0.0, le=1.0, description="Minimum importance to include")

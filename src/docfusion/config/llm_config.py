@@ -15,17 +15,9 @@ from typing import Any, Dict, Optional, Union
 
 try:
     import yaml
+from ..core.utils import uuid7str
 except ImportError:
     yaml = None
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
 
 class LLMTask(Enum):
     """Standard LLM task categories"""
@@ -57,7 +49,6 @@ class LLMTask(Enum):
     COMPLIANCE_REPORTING = "compliance.compliance_reporting"
     REGULATORY_INTERPRETATION = "compliance.regulatory_interpretation"
 
-
 class ModelProfile(Enum):
     """Pre-defined model profiles for common use cases"""
 
@@ -65,7 +56,6 @@ class ModelProfile(Enum):
     CREATIVE = "creative"
     LIGHTWEIGHT = "lightweight"
     PRECISION = "precision"
-
 
 @dataclass
 class LLMConfiguration:
@@ -104,7 +94,6 @@ class LLMConfiguration:
             "stream": False,
             "options": self.to_ollama_options(),
         }
-
 
 class LLMConfigManager:
     """Centralized LLM configuration manager"""
@@ -334,10 +323,8 @@ class LLMConfigManager:
             },
         }
 
-
 # Global configuration manager instance
 _global_config_manager: Optional[LLMConfigManager] = None
-
 
 def get_llm_config_manager(
     config_path: Optional[Union[str, Path]] = None, environment: Optional[str] = None
@@ -351,7 +338,6 @@ def get_llm_config_manager(
 
     return _global_config_manager
 
-
 def get_llm_config(
     task: Union[LLMTask, str], profile: Optional[ModelProfile] = None
 ) -> LLMConfiguration:
@@ -359,22 +345,18 @@ def get_llm_config(
     manager = get_llm_config_manager()
     return manager.get_config(task, profile)
 
-
 # Example usage functions
 def configure_for_style_analysis() -> LLMConfiguration:
     """Get configuration optimized for style analysis"""
     return get_llm_config(LLMTask.STYLE_ANALYSIS)
 
-
 def configure_for_content_generation() -> LLMConfiguration:
     """Get configuration optimized for content generation"""
     return get_llm_config(LLMTask.DOCUMENT_CONTENT)
 
-
 def configure_for_semantic_analysis() -> LLMConfiguration:
     """Get configuration optimized for semantic analysis"""
     return get_llm_config(LLMTask.SEMANTIC_ANALYSIS)
-
 
 # Development utilities
 def print_config_summary():
@@ -397,7 +379,6 @@ def print_config_summary():
         if config["description"]:
             print(f"  Description: {config['description']}")
         print()
-
 
 if __name__ == "__main__":
     # Demo the configuration system

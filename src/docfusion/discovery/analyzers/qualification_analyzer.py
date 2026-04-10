@@ -24,7 +24,7 @@ from ..models.opportunity_models import OpportunityData
 
 class CapabilityMatch(BaseModel):
 	"""Individual capability match assessment"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	capability_name: str = Field(description="Name of the capability")
 	required_level: str = Field(description="Required proficiency level")
@@ -37,7 +37,7 @@ class CapabilityMatch(BaseModel):
 
 class ExperienceMatch(BaseModel):
 	"""Experience requirement matching assessment"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	requirement_type: str = Field(description="Type of experience required")
 	years_required: int = Field(ge=0, description="Years of experience required")
@@ -49,7 +49,7 @@ class ExperienceMatch(BaseModel):
 
 class CertificationMatch(BaseModel):
 	"""Certification and credential matching"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	certification_name: str = Field(description="Required certification")
 	is_required: bool = Field(description="Whether certification is mandatory")
@@ -61,7 +61,7 @@ class CertificationMatch(BaseModel):
 
 class TechnicalMatch(BaseModel):
 	"""Technical requirement matching assessment"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	technology_stack: List[str] = Field(description="Required technologies")
 	proficiency_levels: Dict[str, float] = Field(description="Technology proficiency scores")
@@ -72,7 +72,7 @@ class TechnicalMatch(BaseModel):
 
 class TeamMatch(BaseModel):
 	"""Team composition and capacity matching"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	required_roles: List[str] = Field(description="Required team roles")
 	available_capacity: Dict[str, float] = Field(description="Available capacity by role")
@@ -84,7 +84,7 @@ class TeamMatch(BaseModel):
 
 class ComplianceMatch(BaseModel):
 	"""Regulatory and compliance requirement matching"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	regulatory_requirements: List[str] = Field(description="Required regulatory compliance")
 	current_compliance: Dict[str, bool] = Field(description="Current compliance status")
@@ -96,7 +96,7 @@ class ComplianceMatch(BaseModel):
 
 class QualificationGap(BaseModel):
 	"""Identified qualification gap with remediation plan"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	gap_type: str = Field(description="Type of qualification gap")
 	severity: str = Field(description="Gap severity (critical, major, minor)")
@@ -110,7 +110,7 @@ class QualificationGap(BaseModel):
 
 class QualificationAssessment(BaseModel):
 	"""Complete qualification assessment result"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	opportunity_id: str = Field(description="Opportunity identifier")
 	overall_match_score: float = Field(ge=0.0, le=1.0, description="Overall qualification score")

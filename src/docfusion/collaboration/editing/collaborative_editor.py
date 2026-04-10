@@ -14,12 +14,9 @@ import asyncio
 import json
 import time
 from datetime import datetime
-import uuid
-def uuid7str() -> str:
-	return str(uuid.uuid4())
 from pydantic import BaseModel, Field, ConfigDict
 import weakref
-
+from ...core.utils import uuid7str
 
 class OperationType(Enum):
 	"""Types of collaborative operations"""
@@ -29,7 +26,6 @@ class OperationType(Enum):
 	FORMAT = "format"
 	COMMENT = "comment"
 
-
 class UserPresence(Enum):
 	"""User presence states"""
 	ONLINE = "online"
@@ -37,7 +33,6 @@ class UserPresence(Enum):
 	VIEWING = "viewing"
 	IDLE = "idle"
 	OFFLINE = "offline"
-
 
 @dataclass
 class Operation:
@@ -52,7 +47,6 @@ class Operation:
 	timestamp: float = field(default_factory=time.time)
 	vector_clock: Dict[str, int] = field(default_factory=dict)
 
-
 @dataclass
 class CursorPosition:
 	"""User cursor position and selection"""
@@ -61,7 +55,6 @@ class CursorPosition:
 	selection_start: int = 0
 	selection_end: int = 0
 	last_updated: float = field(default_factory=time.time)
-
 
 @dataclass
 class Comment:
@@ -75,7 +68,6 @@ class Comment:
 	resolved: bool = False
 	replies: List['Comment'] = field(default_factory=list)
 
-
 @dataclass
 class User:
 	"""Collaborative user"""
@@ -88,10 +80,9 @@ class User:
 	last_activity: datetime = field(default_factory=datetime.now)
 	permissions: Set[str] = field(default_factory=set)
 
-
 class DocumentState(BaseModel):
 	"""Current document state with collaborative metadata"""
-	model_config = ConfigDict(extra='forbid', validate_default=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 	
 	document_id: str = Field(default_factory=uuid7str)
 	content: str = ""
@@ -102,7 +93,6 @@ class DocumentState(BaseModel):
 	comments: Dict[str, Comment] = Field(default_factory=dict)
 	last_modified: datetime = Field(default_factory=datetime.now)
 	version: int = 0
-
 
 class CollaborativeEditor:
 	"""
@@ -681,7 +671,7 @@ class CollaborativeEditor:
 				await self.websocket_handler(event_type, event_data)
 			except Exception as e:
 				# Log error but don't fail
-				pass
+				logger.warning("Exception in _broadcast_event")
 		
 		# Call all subscribers
 		for subscription_id, callback in self.subscribers.items():
@@ -689,7 +679,7 @@ class CollaborativeEditor:
 				await callback(event_type, event_data)
 			except Exception as e:
 				# Log error but don't fail
-				pass
+				logger.warning("Exception in _broadcast_event")
 	
 	async def get_state_snapshot(self) -> Dict[str, Any]:
 		"""Get complete state snapshot for new clients."""
@@ -728,7 +718,6 @@ class CollaborativeEditor:
 				for comment_id, comment in self.state.comments.items()
 			}
 		}
-
 
 class CollaborativeSession:
 	"""

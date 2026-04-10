@@ -11,15 +11,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, root_validator, validator
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
+from ...core.utils import uuid7str
 
 class TemplateCategory(str, Enum):
     """Template categories"""
@@ -35,7 +27,6 @@ class TemplateCategory(str, Enum):
     TECHNICAL = "technical"
     GENERAL = "general"
 
-
 class TemplateAccessLevel(str, Enum):
     """Template access levels"""
 
@@ -43,7 +34,6 @@ class TemplateAccessLevel(str, Enum):
     USER = "user"
     ADMIN = "admin"
     SYSTEM = "system"
-
 
 class FieldType(str, Enum):
     """Template field types"""
@@ -58,7 +48,6 @@ class FieldType(str, Enum):
     FILE = "file"
     IMAGE = "image"
 
-
 class OutputFormat(str, Enum):
     """Supported output formats"""
 
@@ -67,24 +56,21 @@ class OutputFormat(str, Enum):
     HTML = "html"
     PPTX = "pptx"
 
-
 # ==================== FIELD MODELS ====================
-
 
 class TemplateFieldOption(BaseModel):
     """Template field option for select fields"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     value: str = Field(..., description="Option value")
     label: str = Field(..., description="Option display label")
     default: bool = Field(False, description="Whether this is the default option")
 
-
 class TemplateField(BaseModel):
     """Template field definition"""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_assignment=True)
 
     name: str = Field(
         ...,
@@ -142,15 +128,13 @@ class TemplateField(BaseModel):
 
         return values
 
-
 # ==================== REQUEST MODELS ====================
-
 
 class TemplateCreateRequest(BaseModel):
     """Request model for creating a template"""
 
     model_config = ConfigDict(
-        extra="forbid", validate_assignment=True, str_strip_whitespace=True
+        extra="forbid", validate_by_name=True, validate_by_alias=True, validate_assignment=True, str_strip_whitespace=True
     )
 
     name: str = Field(..., min_length=1, max_length=255, description="Template name")
@@ -230,12 +214,11 @@ class TemplateCreateRequest(BaseModel):
 
         return v
 
-
 class TemplateUpdateRequest(BaseModel):
     """Request model for updating a template"""
 
     model_config = ConfigDict(
-        extra="forbid", validate_assignment=True, str_strip_whitespace=True
+        extra="forbid", validate_by_name=True, validate_by_alias=True, validate_assignment=True, str_strip_whitespace=True
     )
 
     name: Optional[str] = Field(
@@ -278,11 +261,10 @@ class TemplateUpdateRequest(BaseModel):
             raise ValueError("At least one field must be provided for update")
         return values
 
-
 class TemplatePreviewRequest(BaseModel):
     """Request model for template preview"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     sample_data: Optional[Dict[str, Any]] = Field(
         None, description="Sample data to populate template fields"
@@ -292,11 +274,10 @@ class TemplatePreviewRequest(BaseModel):
         OutputFormat.HTML, description="Output format for preview"
     )
 
-
 class TemplateSearchRequest(BaseModel):
     """Request model for template search"""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_assignment=True)
 
     query: Optional[str] = Field(None, max_length=500, description="Search query")
 
@@ -318,9 +299,7 @@ class TemplateSearchRequest(BaseModel):
             raise ValueError("Maximum 10 tags allowed for search")
         return v
 
-
 # ==================== RESPONSE MODELS ====================
-
 
 class TemplateResponse(BaseModel):
     """Response model for template data"""
@@ -357,7 +336,6 @@ class TemplateResponse(BaseModel):
         None, description="Number of times template was used"
     )
 
-
 class TemplateListResponse(BaseModel):
     """Response model for template list with pagination"""
 
@@ -375,7 +353,6 @@ class TemplateListResponse(BaseModel):
         None, description="Available access levels"
     )
     search_query: Optional[str] = Field(None, description="Search query used")
-
 
 class TemplateValidationResult(BaseModel):
     """Template validation result"""
@@ -396,7 +373,6 @@ class TemplateValidationResult(BaseModel):
     placeholder_analysis: Optional[Dict[str, Any]] = Field(
         None, description="Analysis of template placeholders"
     )
-
 
 class TemplateUsageAnalytics(BaseModel):
     """Template usage analytics"""
@@ -420,14 +396,12 @@ class TemplateUsageAnalytics(BaseModel):
         default_factory=dict, description="Most common values for each field"
     )
 
-
 # ==================== BULK OPERATIONS ====================
-
 
 class BulkTemplateOperationRequest(BaseModel):
     """Request for bulk operations on templates"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     template_ids: List[str] = Field(
         ..., min_items=1, max_items=50, description="List of template IDs to operate on"
@@ -441,7 +415,6 @@ class BulkTemplateOperationRequest(BaseModel):
     parameters: Optional[Dict[str, Any]] = Field(
         None, description="Operation-specific parameters"
     )
-
 
 class BulkTemplateOperationResult(BaseModel):
     """Result of bulk template operation"""
@@ -462,14 +435,12 @@ class BulkTemplateOperationResult(BaseModel):
         default_factory=list, description="Successfully processed template IDs"
     )
 
-
 # ==================== IMPORT/EXPORT MODELS ====================
-
 
 class TemplateImportRequest(BaseModel):
     """Request model for template import"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     templates: List[TemplateCreateRequest] = Field(
         ..., min_items=1, max_items=20, description="Templates to import"
@@ -483,7 +454,6 @@ class TemplateImportRequest(BaseModel):
         TemplateAccessLevel.USER,
         description="Default access level for imported templates",
     )
-
 
 class TemplateImportResult(BaseModel):
     """Result of template import operation"""
@@ -507,7 +477,6 @@ class TemplateImportResult(BaseModel):
 
     warnings: List[str] = Field(default_factory=list, description="Import warnings")
 
-
 class TemplateExportFormat(str, Enum):
     """Template export formats"""
 
@@ -515,11 +484,10 @@ class TemplateExportFormat(str, Enum):
     YAML = "yaml"
     CSV = "csv"
 
-
 class TemplateExportRequest(BaseModel):
     """Request model for template export"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     template_ids: Optional[List[str]] = Field(
         None,
@@ -538,9 +506,7 @@ class TemplateExportRequest(BaseModel):
         False, description="Whether to include usage statistics"
     )
 
-
 # ==================== UTILITY FUNCTIONS ====================
-
 
 def create_template_response(
     template_id: str, name: str, category: str, content: str, **kwargs
@@ -555,7 +521,6 @@ def create_template_response(
         **kwargs,
     )
 
-
 def create_template_field(
     name: str,
     label: str,
@@ -567,7 +532,6 @@ def create_template_field(
     return TemplateField(
         name=name, label=label, type=field_type, required=required, **kwargs
     )
-
 
 def create_paginated_template_response(
     templates: List[TemplateResponse], total: int, page: int, limit: int, **kwargs

@@ -20,18 +20,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
-
+from ...core.utils import uuid7str
 
 class ErrorSeverity(str, Enum):
     """Error severity levels"""
@@ -40,7 +31,6 @@ class ErrorSeverity(str, Enum):
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
-
 
 class ErrorCategory(str, Enum):
     """Error categories"""
@@ -54,7 +44,6 @@ class ErrorCategory(str, Enum):
     WEBSOCKET = "websocket"
     SYSTEM = "system"
     UNKNOWN = "unknown"
-
 
 @dataclass
 class ErrorContext:
@@ -70,7 +59,6 @@ class ErrorContext:
     request_data: Optional[Dict[str, Any]] = None
     response_data: Optional[Dict[str, Any]] = None
     system_info: Optional[Dict[str, Any]] = None
-
 
 @dataclass
 class ErrorEvent:
@@ -94,7 +82,6 @@ class ErrorEvent:
     resolved_at: Optional[datetime] = None
     resolution_notes: str = ""
 
-
 @dataclass
 class ErrorSummary:
     """Error summary for aggregation"""
@@ -106,7 +93,6 @@ class ErrorSummary:
     sample_error: ErrorEvent
     affected_users: set = field(default_factory=set)
     affected_endpoints: set = field(default_factory=set)
-
 
 class ErrorCapture:
     """Captures and processes exceptions"""
@@ -199,7 +185,6 @@ class ErrorCapture:
             context.user_id = getattr(request.state.user, "user_id", None)
 
         return self.capture_exception(exception, context, severity, category, metadata)
-
 
 class ErrorAggregator:
     """Aggregates and analyzes error patterns"""
@@ -432,7 +417,6 @@ class ErrorAggregator:
 
         return filtered_errors
 
-
 class DebugUtils:
     """Debugging utilities and helpers"""
 
@@ -510,7 +494,6 @@ class DebugUtils:
             current_exception = current_exception.__cause__
 
         return chain
-
 
 class ErrorTracker:
     """Main error tracking system"""
@@ -613,7 +596,6 @@ class ErrorTracker:
                 return error
         return None
 
-
 class ErrorLogHandler(logging.Handler):
     """Custom logging handler to capture errors"""
 
@@ -653,7 +635,6 @@ class ErrorLogHandler(logging.Handler):
                 )
             except Exception:
                 pass  # Don't let error handling break logging
-
 
 # Factory function
 def create_error_tracker() -> ErrorTracker:

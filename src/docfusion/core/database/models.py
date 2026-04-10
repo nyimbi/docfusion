@@ -5,7 +5,6 @@ SQLAlchemy ORM base classes and common model patterns for all DocuFusion compone
 Provides base entities with timestamps, UUIDs, and common fields.
 """
 
-import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -13,19 +12,11 @@ from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text, f
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property
+from ...core.utils import uuid7str
 
 # Try to import uuid7str, fallback to uuid4
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 # Base class for all ORM models
 Base = declarative_base()
-
 
 class BaseModel(Base):
     """
@@ -129,7 +120,6 @@ class BaseModel(Base):
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(id={self.id})>"
 
-
 class AuditableMixin:
     """
     Mixin for models that need audit trail functionality.
@@ -155,7 +145,6 @@ class AuditableMixin:
         """Set the updater of the record."""
         self.updated_by = user_id
 
-
 class NamedEntityMixin:
     """
     Mixin for entities that have name and description fields.
@@ -175,7 +164,6 @@ class NamedEntityMixin:
             slug = re.sub(r"[^\w\s-]", "", self.name.lower())
             slug = re.sub(r"[-\s]+", "-", slug)
             self.slug = slug.strip("-")
-
 
 class TaggableMixin:
     """
@@ -200,7 +188,6 @@ class TaggableMixin:
         """Check if entity has a specific tag."""
         return self.tags and tag in self.tags
 
-
 class TimestampMixin:
     """
     Lightweight timestamp mixin for models that don't need full BaseModel.
@@ -212,21 +199,17 @@ class TimestampMixin:
         DateTime(timezone=True), nullable=False, default=func.now(), onupdate=func.now()
     )
 
-
 # Common base classes for specific use cases
-
 
 class UserEntity(BaseModel, AuditableMixin):
     """Base class for user-related entities."""
 
     __abstract__ = True
 
-
 class NamedEntity(BaseModel, NamedEntityMixin, TaggableMixin):
     """Base class for named entities with tags."""
 
     __abstract__ = True
-
 
 class DocumentEntity(BaseModel, AuditableMixin, TaggableMixin):
     """Base class for document-related entities."""
@@ -247,7 +230,6 @@ class DocumentEntity(BaseModel, AuditableMixin, TaggableMixin):
     file_size = Column(Integer, nullable=True, comment="File size in bytes")
 
     checksum = Column(String(64), nullable=True, comment="Content checksum (SHA-256)")
-
 
 class WorkflowEntity(BaseModel, AuditableMixin, NamedEntityMixin):
     """Base class for workflow-related entities."""
@@ -284,27 +266,21 @@ class WorkflowEntity(BaseModel, AuditableMixin, NamedEntityMixin):
         """Mark workflow as failed."""
         self.status = "failed"
 
-
 # Database utility functions
-
 
 def create_all_tables(engine):
     """Create all tables defined by Base metadata."""
     Base.metadata.create_all(bind=engine)
 
-
 def drop_all_tables(engine):
     """Drop all tables defined by Base metadata."""
     Base.metadata.drop_all(bind=engine)
-
 
 def get_table_names():
     """Get list of all table names defined in Base metadata."""
     return list(Base.metadata.tables.keys())
 
-
 # Example component-specific models (these would typically be in separate files)
-
 
 class User(UserEntity):
     """User account model."""
@@ -322,7 +298,6 @@ class User(UserEntity):
 
     # Profile information
     profile_data = Column(JSONB, default=dict)
-
 
 class Organization(NamedEntity):
     """Organization/tenant model."""
@@ -346,7 +321,6 @@ class Organization(NamedEntity):
     subscription_status = Column(String(50), default="active")
     subscription_tier = Column(String(50), default="basic")
 
-
 class Document(DocumentEntity):
     """Generic document model."""
 
@@ -368,7 +342,6 @@ class Document(DocumentEntity):
     organization_id = Column(UUID(as_uuid=False), nullable=True)
     parent_document_id = Column(UUID(as_uuid=False), nullable=True)
 
-
 class WorkflowTemplate(WorkflowEntity):
     """Workflow template model."""
 
@@ -386,7 +359,6 @@ class WorkflowTemplate(WorkflowEntity):
     # Usage tracking
     usage_count = Column(Integer, default=0)
     success_rate = Column(Integer, default=0)  # Percentage
-
 
 class WorkflowInstance(WorkflowEntity):
     """Workflow instance model."""
@@ -409,7 +381,6 @@ class WorkflowInstance(WorkflowEntity):
     # Error information
     error_message = Column(Text, nullable=True)
     error_details = Column(JSONB, nullable=True)
-
 
 # Export commonly used models and utilities
 __all__ = [

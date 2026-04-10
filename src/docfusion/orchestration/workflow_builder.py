@@ -17,18 +17,10 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from .agent_composer import AgentComposer, AgentConfiguration
+from ..core.utils import uuid7str
 from .workflow_engine import (
     ExecutionStatus,
     NodeType,
@@ -37,7 +29,6 @@ from .workflow_engine import (
     WorkflowNode,
     WorkflowType,
 )
-
 
 class CanvasAction(str, Enum):
     """Canvas interaction actions"""
@@ -51,7 +42,6 @@ class CanvasAction(str, Enum):
     ZOOM = "zoom"
     PAN = "pan"
 
-
 class ElementType(str, Enum):
     """Canvas element types"""
 
@@ -63,7 +53,6 @@ class ElementType(str, Enum):
     CONNECTION = "connection"
     GROUP = "group"
     NOTE = "note"
-
 
 @dataclass
 class CanvasElement:
@@ -100,7 +89,6 @@ class CanvasElement:
     config: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class CanvasConnection:
     """Canvas connection representation"""
@@ -130,7 +118,6 @@ class CanvasConnection:
     condition: Optional[str] = None
     data_mapping: Dict[str, str] = field(default_factory=dict)
     enabled: bool = True
-
 
 @dataclass
 class WorkflowCanvas:
@@ -171,7 +158,6 @@ class WorkflowCanvas:
     # Collaboration
     collaborators: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     cursors: Dict[str, Tuple[float, float]] = field(default_factory=dict)
-
 
 class WorkflowBuilder:
     """

@@ -48,7 +48,7 @@ class IntelligenceLevel(str, Enum):
 
 class OpportunityIntelligence(BaseModel):
     """Comprehensive opportunity intelligence report"""
-    model_config = ConfigDict(extra='forbid', validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
     
     intelligence_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique intelligence identifier")
     opportunity_id: str = Field(description="Opportunity identifier")

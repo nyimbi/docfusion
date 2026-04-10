@@ -14,9 +14,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
-from uuid_extensions import uuid7str
-
-
+from ...core.utils import uuid7str
 class ComplianceFramework(str, Enum):
     """Supported compliance frameworks"""
 
@@ -28,7 +26,6 @@ class ComplianceFramework(str, Enum):
     PCI_DSS = "pci_dss"
     NIST = "nist"
 
-
 class ComplianceStatus(str, Enum):
     """Compliance status levels"""
 
@@ -38,7 +35,6 @@ class ComplianceStatus(str, Enum):
     UNDER_REVIEW = "under_review"
     UNKNOWN = "unknown"
 
-
 class RiskLevel(str, Enum):
     """Risk assessment levels"""
 
@@ -47,7 +43,6 @@ class RiskLevel(str, Enum):
     MEDIUM = "medium"
     LOW = "low"
     MINIMAL = "minimal"
-
 
 class ComplianceMetric(BaseModel):
     """Individual compliance metric"""
@@ -79,7 +74,6 @@ class ComplianceMetric(BaseModel):
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 
 class ComplianceFrameworkAssessment(BaseModel):
     """Overall assessment for a compliance framework"""
@@ -115,7 +109,6 @@ class ComplianceFrameworkAssessment(BaseModel):
     previous_score: Optional[float] = None
     score_change: Optional[float] = None
 
-
 class ComplianceAlert(BaseModel):
     """Compliance alert or notification"""
 
@@ -142,7 +135,6 @@ class ComplianceAlert(BaseModel):
     # Resolution
     status: str = "open"  # open, acknowledged, in_progress, resolved
     resolution_notes: Optional[str] = None
-
 
 class SecurityIncident(BaseModel):
     """Security incident record"""
@@ -181,7 +173,6 @@ class SecurityIncident(BaseModel):
     lessons_learned: Optional[str] = None
     preventive_measures: List[str] = Field(default_factory=list)
 
-
 @dataclass
 class DashboardConfiguration:
     """Dashboard configuration settings"""
@@ -208,7 +199,6 @@ class DashboardConfiguration:
     generate_monthly_reports: bool = True
     generate_quarterly_reports: bool = True
     retain_historical_data_months: int = 24
-
 
 class ComplianceDashboard:
     """Compliance reporting and monitoring dashboard"""
@@ -1063,14 +1053,12 @@ class ComplianceDashboard:
 
         return sorted(metrics, key=lambda m: (m.framework.value, m.control_id))
 
-
 # Factory functions
 def create_compliance_dashboard(
     config: Optional[DashboardConfiguration] = None,
 ) -> ComplianceDashboard:
     """Create ComplianceDashboard instance"""
     return ComplianceDashboard(config)
-
 
 def create_sample_compliance_data() -> Tuple[
     List[ComplianceMetric], List[SecurityIncident]

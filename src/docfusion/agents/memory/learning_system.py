@@ -17,15 +17,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Union
 
 from pydantic import BaseModel, ConfigDict, Field
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 class LearningType(str, Enum):
     """Types of learning experiences"""
@@ -35,7 +27,6 @@ class LearningType(str, Enum):
     ADAPTATION = "adaptation"
     DISCOVERY = "discovery"
     OPTIMIZATION = "optimization"
-
 
 @dataclass
 class ExperienceRecord:
@@ -49,7 +40,6 @@ class ExperienceRecord:
     lessons_learned: List[str] = field(default_factory=list)
     performance_impact: float = 0.0
     created_at: datetime = field(default_factory=datetime.now)
-
 
 class AdaptationEngine:
     """
@@ -80,7 +70,6 @@ class AdaptationEngine:
     async def get_adaptations(self, agent_id: str) -> Dict[str, Any]:
         """Get recommended adaptations for agent"""
         return self.adaptation_patterns.get(agent_id, {})
-
 
 class LearningSystem:
     """

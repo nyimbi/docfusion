@@ -968,7 +968,7 @@ class VisionScraper(BaseScraper):
 				
 				except Exception as e:
 					# Silently continue if mapping fails for this element
-					pass
+					self.logger.warning("Exception in unknown")
 		
 		except Exception as e:
 			analysis_result.warnings.append(f"DOM mapping partially failed: {str(e)}")

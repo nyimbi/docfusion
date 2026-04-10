@@ -14,16 +14,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-
-	def uuid7str() -> str:
-		return str(uuid4())
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class RFPStatus(str, Enum):
 	"""Status of an RFP in the pipeline"""
@@ -35,7 +27,6 @@ class RFPStatus(str, Enum):
 	WITHDRAWN = "withdrawn"
 	PENDING = "pending"
 
-
 class HistoricalRFPResult(BaseModel):
 	"""
 	Historical RFP result data for model training.
@@ -44,7 +35,7 @@ class HistoricalRFPResult(BaseModel):
 	scoring data, and lessons learned.
 	"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str, description="Unique result identifier")
 	rfp_id: str = Field(..., description="Associated RFP identifier")
@@ -101,7 +92,6 @@ class HistoricalRFPResult(BaseModel):
 	decision_date: datetime | None = Field(default=None, description="Award decision date")
 	metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
-
 class TrainingExample(BaseModel):
 	"""
 	Single training example for model training.
@@ -110,7 +100,7 @@ class TrainingExample(BaseModel):
 	suitable for ML model training.
 	"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str, description="Training example ID")
 	features: Dict[str, float] = Field(..., description="Feature vector")
@@ -129,11 +119,10 @@ class TrainingExample(BaseModel):
 
 	created_at: datetime = Field(default_factory=datetime.now)
 
-
 class DataQualityMetrics(BaseModel):
 	"""Data quality metrics for historical data store"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	total_records: int = Field(default=0, description="Total number of records")
 	validated_records: int = Field(default=0, description="Number of validated records")
@@ -157,7 +146,6 @@ class DataQualityMetrics(BaseModel):
 	oldest_record: datetime | None = Field(default=None, description="Date of oldest record")
 	newest_record: datetime | None = Field(default=None, description="Date of newest record")
 	records_last_30_days: int = Field(default=0, description="Records added in last 30 days")
-
 
 class HistoricalDataStore:
 	"""
@@ -677,7 +665,6 @@ class HistoricalDataStore:
 
 		self.logger.info(f"Deleted RFP result {result_id}")
 		return True
-
 
 # Convenience factory function
 def create_historical_data_store(

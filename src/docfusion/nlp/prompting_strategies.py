@@ -12,14 +12,7 @@ import logging
 from typing import List, Dict, Any, Optional, Union, Tuple
 from enum import Enum
 from dataclasses import dataclass, field
-
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
+from ..core.utils import uuid7str
 
 class PromptingStrategy(str, Enum):
 	"""Types of prompting strategies"""
@@ -30,7 +23,6 @@ class PromptingStrategy(str, Enum):
 	SELF_REFLECTION = "self_reflection"
 	GUIDED_GENERATION = "guided_generation"
 
-
 class ThoughtBranch(str, Enum):
 	"""Tree-of-thought branch types"""
 	ANALYSIS = "analysis"
@@ -39,7 +31,6 @@ class ThoughtBranch(str, Enum):
 	CREATIVE = "creative"
 	FACTUAL = "factual"
 	CRITICAL = "critical"
-
 
 @dataclass
 class PromptTemplate:
@@ -54,7 +45,6 @@ class PromptTemplate:
 	expected_output_format: Dict[str, str] = field(default_factory=dict)
 	quality_criteria: List[str] = field(default_factory=list)
 	examples: List[Dict[str, str]] = field(default_factory=list)
-
 
 def filter_thinking_tags(text: str) -> str:
 	"""
@@ -83,7 +73,6 @@ def filter_thinking_tags(text: str) -> str:
 	cleaned = cleaned.strip()
 	
 	return cleaned
-
 
 def create_chain_of_thought_prompt(
 	task: str,
@@ -144,7 +133,6 @@ Think through each step carefully and show your reasoning process. Your response
 	prompt_parts.append("Please work through each step systematically and provide your complete reasoning and final answer.")
 	
 	return "\n".join(prompt_parts)
-
 
 def create_tree_of_thought_prompt(
 	task: str,
@@ -215,7 +203,6 @@ For each branch, think deeply and explore different possibilities. Then evaluate
 	
 	return "\n".join(prompt_parts)
 
-
 def create_multi_step_reasoning_prompt(
 	task: str,
 	context: str,
@@ -265,7 +252,6 @@ def create_multi_step_reasoning_prompt(
 	
 	return "\n".join(prompt_parts)
 
-
 def create_self_reflection_prompt(
 	task: str,
 	context: str,
@@ -312,7 +298,6 @@ def create_self_reflection_prompt(
 	prompt_parts.append("Based on your self-reflection, provide a refined and improved conclusion.")
 	
 	return "\n".join(prompt_parts)
-
 
 class AdvancedPromptBuilder:
 	"""Builder class for creating sophisticated prompts with advanced techniques"""
@@ -470,7 +455,7 @@ class AdvancedPromptBuilder:
 			try:
 				structured[f'json_block_{i}'] = json.loads(match)
 			except json.JSONDecodeError:
-				pass
+				self.logger.warning("json.JSONDecodeError in _extract_structured_data")
 		
 		# Look for markdown sections
 		section_pattern = r'## ([^#\n]+)\n(.*?)(?=\n## |\n### |\Z)'
@@ -513,7 +498,6 @@ class AdvancedPromptBuilder:
 		metrics['overall'] = sum(metrics.values()) / len(metrics)
 		
 		return metrics
-
 
 # Factory function
 def create_advanced_prompt_builder(model_name: str = "deepseek-r1:32b") -> AdvancedPromptBuilder:

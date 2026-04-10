@@ -11,21 +11,14 @@ import logging
 import math
 
 # from uuid_extensions import uuid7str
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-
-def uuid7str() -> str:
-    """Generate UUID7-style string (fallback implementation)."""
-    return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field, validator
 from pydantic.types import confloat, conint
-
+from ...core.utils import uuid7str
 
 class PriorityLevel(str, Enum):
     """Notification priority levels with semantic meaning."""
@@ -35,7 +28,6 @@ class PriorityLevel(str, Enum):
     MEDIUM = "medium"  # Regular workflow updates, status changes
     LOW = "low"  # Informational updates, minor changes
     VERY_LOW = "very_low"  # Background updates, system maintenance
-
 
 class ImportanceContext(str, Enum):
     """Context types that influence notification importance."""
@@ -50,7 +42,6 @@ class ImportanceContext(str, Enum):
     MILESTONE_CRITICAL = "milestone_critical"  # Project milestone
     SECURITY_ALERT = "security_alert"  # Security-related
     PERFORMANCE_ALERT = "performance_alert"  # Performance degradation
-
 
 @dataclass
 class UserPreferenceProfile:
@@ -89,11 +80,10 @@ class UserPreferenceProfile:
     profile_confidence: float = 0.0  # 0.0 to 1.0, higher = more data
     learning_iterations: int = 0
 
-
 class NotificationMetadata(BaseModel):
     """Rich metadata for priority calculation."""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Basic information
     notification_id: str = Field(..., description="Unique notification identifier")
@@ -167,11 +157,10 @@ class NotificationMetadata(BaseModel):
             raise ValueError("Delivery window hours must be between 0 and 23")
         return v
 
-
 class PriorityScore(BaseModel):
     """Comprehensive priority scoring result."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     notification_id: str = Field(..., description="Notification identifier")
     user_id: str = Field(..., description="Target user identifier")
@@ -221,7 +210,6 @@ class PriorityScore(BaseModel):
     reasoning: List[str] = Field(
         default_factory=list, description="Priority reasoning factors"
     )
-
 
 class PriorityManager:
     """
@@ -1041,9 +1029,7 @@ class PriorityManager:
 
         self.logger.debug("Cache cleanup worker stopped")
 
-
 # Utility functions for priority management
-
 
 async def create_priority_manager(
     learning_enabled: bool = True, **kwargs
@@ -1052,7 +1038,6 @@ async def create_priority_manager(
     manager = PriorityManager(learning_enabled=learning_enabled, **kwargs)
     await manager.start()
     return manager
-
 
 def create_notification_metadata(
     notification_id: str,
@@ -1073,7 +1058,6 @@ def create_notification_metadata(
         deadline_timestamp=deadline_timestamp,
         **kwargs,
     )
-
 
 def extract_urgency_keywords(text: str) -> List[str]:
     """Extract urgency-related keywords from text."""

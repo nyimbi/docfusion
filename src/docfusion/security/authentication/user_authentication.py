@@ -28,18 +28,9 @@ import pyotp
 import qrcode
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # Pydantic models
 from pydantic import BaseModel, ConfigDict, Field, validator
-
+from ...core.utils import uuid7str
 
 class AuthenticationStatus(Enum):
     """Authentication status enumeration"""
@@ -52,7 +43,6 @@ class AuthenticationStatus(Enum):
     SECURITY_CHALLENGE = "security_challenge"
     RATE_LIMITED = "rate_limited"
 
-
 class MFAMethod(Enum):
     """Multi-factor authentication methods"""
 
@@ -60,7 +50,6 @@ class MFAMethod(Enum):
     SMS = "sms"  # SMS verification
     EMAIL = "email"  # Email verification
     BACKUP_CODES = "backup_codes"  # Backup recovery codes
-
 
 @dataclass
 class UserCredentials:
@@ -73,11 +62,10 @@ class UserCredentials:
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
 
-
 class AuthenticationResult(BaseModel):
     """Result of authentication attempt"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     status: AuthenticationStatus
     user_id: Optional[str] = None
@@ -91,11 +79,10 @@ class AuthenticationResult(BaseModel):
     device_trusted: bool = False
     security_warnings: List[str] = Field(default_factory=list)
 
-
 class UserSecurityProfile(BaseModel):
     """User security profile and settings"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     user_id: str
     password_hash: str
@@ -120,7 +107,6 @@ class UserSecurityProfile(BaseModel):
     # Audit trail
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 
 @dataclass
 class SecurityConfiguration:
@@ -155,7 +141,6 @@ class SecurityConfiguration:
     session_timeout_minutes: int = 60
     device_trust_duration_days: int = 30
     concurrent_sessions_limit: int = 3
-
 
 class UserAuthentication:
     """Secure user authentication system with comprehensive security features"""
@@ -300,11 +285,11 @@ class UserAuthentication:
             )
 
             # Generate tokens and session
+            session_id = uuid7str()
             access_token = self._generate_access_token(
-                user_profile.user_id, credentials.device_id
+                user_profile.user_id, credentials.device_id, session_id
             )
             refresh_token = self._generate_refresh_token(user_profile.user_id)
-            session_id = uuid7str()
 
             # Create session
             expires_at = datetime.now(timezone.utc) + timedelta(
@@ -681,7 +666,7 @@ class UserAuthentication:
         return False
 
     def _generate_access_token(
-        self, user_id: str, device_id: Optional[str] = None
+        self, user_id: str, device_id: Optional[str] = None, session_id: Optional[str] = None
     ) -> str:
         """Generate JWT access token"""
         now = datetime.now(timezone.utc)
@@ -690,7 +675,7 @@ class UserAuthentication:
             "type": "access",
             "iat": now,
             "exp": now + timedelta(minutes=self.config.access_token_expiry_minutes),
-            "session_id": uuid7str(),
+            "session_id": session_id or uuid7str(),
         }
 
         if device_id:
@@ -797,7 +782,6 @@ class UserAuthentication:
 
         self.logger.info(f"Revoked {revoked_count} sessions for user: {user_id}")
         return revoked_count
-
 
 # Factory function for convenience
 def create_user_authentication(

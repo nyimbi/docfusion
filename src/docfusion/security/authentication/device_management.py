@@ -21,9 +21,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
 from pydantic import BaseModel, Field, validator
-from uuid_extensions import uuid7str
-
-
+from ...core.utils import uuid7str
 class DeviceType(str, Enum):
     """Device types"""
 
@@ -35,7 +33,6 @@ class DeviceType(str, Enum):
     API_CLIENT = "api_client"
     UNKNOWN = "unknown"
 
-
 class DeviceStatus(str, Enum):
     """Device status"""
 
@@ -45,7 +42,6 @@ class DeviceStatus(str, Enum):
     EXPIRED = "expired"  # Trust has expired
     REVOKED = "revoked"  # Trust has been revoked
 
-
 class TrustLevel(str, Enum):
     """Device trust levels"""
 
@@ -53,7 +49,6 @@ class TrustLevel(str, Enum):
     MEDIUM = "medium"  # Standard access, some additional verification
     LOW = "low"  # Limited access, frequent verification required
     UNTRUSTED = "untrusted"  # No trust, full verification always required
-
 
 class DeviceRiskLevel(str, Enum):
     """Device risk assessment levels"""
@@ -63,7 +58,6 @@ class DeviceRiskLevel(str, Enum):
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
-
 
 class DeviceFingerprint(BaseModel):
     """Device fingerprint for identification"""
@@ -102,7 +96,6 @@ class DeviceFingerprint(BaseModel):
             return v
         except ValueError:
             raise ValueError("Invalid IP address format")
-
 
 class TrustedDevice(BaseModel):
     """Trusted device record"""
@@ -155,7 +148,6 @@ class TrustedDevice(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     notes: Optional[str] = None
 
-
 class DevicePolicy(BaseModel):
     """Device management policy"""
 
@@ -205,7 +197,6 @@ class DevicePolicy(BaseModel):
     created_by: str
     active: bool = True
 
-
 class DeviceSecurityEvent(BaseModel):
     """Device security event record"""
 
@@ -232,7 +223,6 @@ class DeviceSecurityEvent(BaseModel):
     resolved: bool = False
     resolved_at: Optional[datetime] = None
     resolved_by: Optional[str] = None
-
 
 @dataclass
 class DeviceManagementConfig:
@@ -274,7 +264,6 @@ class DeviceManagementConfig:
     enable_anomaly_detection: bool = True
     alert_on_new_device: bool = True
     alert_on_suspicious_activity: bool = True
-
 
 class DeviceManager:
     """Device management and trusted devices system"""
@@ -1274,14 +1263,12 @@ class DeviceManager:
             "policies_configured": len(self.device_policies),
         }
 
-
 # Factory functions
 def create_device_manager(
     config: Optional[DeviceManagementConfig] = None,
 ) -> DeviceManager:
     """Create DeviceManager instance"""
     return DeviceManager(config)
-
 
 def create_test_device_config() -> DeviceManagementConfig:
     """Create test device management configuration"""

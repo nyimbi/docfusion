@@ -14,12 +14,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 from datetime import datetime, date
-import uuid
-def uuid7str() -> str:
-	return str(uuid.uuid4())
 from pydantic import BaseModel, Field, ConfigDict, validator
 import asyncio
-
+from ...core.utils import uuid7str
 
 class FrameworkType(Enum):
 	"""Types of compliance frameworks"""
@@ -29,14 +26,12 @@ class FrameworkType(Enum):
 	INTERNATIONAL = "international"
 	CUSTOM = "custom"
 
-
 class FrameworkStatus(Enum):
 	"""Framework status enumeration"""
 	ACTIVE = "active"
 	DRAFT = "draft"
 	DEPRECATED = "deprecated"
 	ARCHIVED = "archived"
-
 
 class JurisdictionLevel(Enum):
 	"""Jurisdiction levels for compliance frameworks"""
@@ -46,7 +41,6 @@ class JurisdictionLevel(Enum):
 	INTERNATIONAL = "international"
 	INDUSTRY = "industry"
 	ORGANIZATIONAL = "organizational"
-
 
 @dataclass
 class FrameworkVersion:
@@ -61,7 +55,6 @@ class FrameworkVersion:
 	created_by: str = ""
 	status: FrameworkStatus = FrameworkStatus.DRAFT
 	metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class FrameworkRule:
@@ -85,7 +78,6 @@ class FrameworkRule:
 	last_updated: datetime = field(default_factory=datetime.now)
 	metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 class ComplianceFramework(BaseModel):
 	"""
 	Comprehensive compliance framework definition and management.
@@ -93,7 +85,7 @@ class ComplianceFramework(BaseModel):
 	Manages compliance frameworks including regulatory, industry, and organizational
 	standards with support for versioning, jurisdiction handling, and rule management.
 	"""
-	model_config = ConfigDict(extra='forbid', validate_default=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 	
 	framework_id: str = Field(default_factory=uuid7str)
 	name: str

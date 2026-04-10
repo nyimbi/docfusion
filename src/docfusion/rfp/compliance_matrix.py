@@ -23,19 +23,10 @@ from enum import Enum
 from io import BytesIO, StringIO
 from typing import Any
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-
-	def uuid7str() -> str:
-		return str(uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from .requirement_extractor import Requirement, RequirementCategory, RequirementType
-
+from ..core.utils import uuid7str
 
 class ComplianceStatus(str, Enum):
 	"""Status of requirement compliance in response"""
@@ -44,7 +35,6 @@ class ComplianceStatus(str, Enum):
 	IN_PROGRESS = "in_progress"
 	ADDRESSED = "addressed"
 	VERIFIED = "verified"
-
 
 class RequirementMapping(BaseModel):
 	"""
@@ -68,7 +58,7 @@ class RequirementMapping(BaseModel):
 		requirement_type: Type of requirement (functional/technical/etc.)
 	"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str)
 	requirement_id: str = Field(..., description="ID of the requirement being mapped")
@@ -110,7 +100,6 @@ class RequirementMapping(BaseModel):
 			self.confidence = confidence
 		self.updated_at = datetime.now()
 
-
 class ComplianceMatrix(BaseModel):
 	"""
 	Compliance matrix tracking requirement coverage.
@@ -130,7 +119,7 @@ class ComplianceMatrix(BaseModel):
 		metadata: Additional metadata
 	"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str)
 	rfp_id: str = Field(..., description="ID of the RFP document")
@@ -556,7 +545,6 @@ class ComplianceMatrix(BaseModel):
 			self.updated_at = datetime.now()
 			return True
 		return False
-
 
 class ComplianceMatrixGenerator:
 	"""
@@ -1078,7 +1066,6 @@ class ComplianceMatrixGenerator:
 				for sec_id, data in section_map.items()
 			},
 		}
-
 
 def create_compliance_matrix_generator(config: dict[str, Any] | None = None) -> ComplianceMatrixGenerator:
 	"""

@@ -16,10 +16,8 @@ import logging
 from ipaddress import ip_network, ip_address, AddressValueError
 
 from pydantic import BaseModel, Field
-from uuid_extensions import uuid7str
-
+from ...core.utils import uuid7str
 logger = logging.getLogger(__name__)
-
 
 class AttributeType(str, Enum):
 	"""ABAC attribute types"""
@@ -28,12 +26,10 @@ class AttributeType(str, Enum):
 	ACTION = "action"  # Action attributes
 	ENVIRONMENT = "environment"  # Environmental attributes
 
-
 class PolicyEffect(str, Enum):
 	"""Policy decision effects"""
 	PERMIT = "Permit"
 	DENY = "Deny"
-
 
 class PolicyCombiningAlgorithm(str, Enum):
 	"""Policy combining algorithms"""
@@ -41,7 +37,6 @@ class PolicyCombiningAlgorithm(str, Enum):
 	PERMIT_OVERRIDES = "permit-overrides"
 	FIRST_APPLICABLE = "first-applicable"
 	ONLY_ONE_APPLICABLE = "only-one-applicable"
-
 
 class ComparisonOperator(str, Enum):
 	"""Comparison operators for attribute matching"""
@@ -62,7 +57,6 @@ class ComparisonOperator(str, Enum):
 	TIME_IN_RANGE = "time_in_range"
 	DATE_IN_RANGE = "date_in_range"
 	IP_IN_NETWORK = "ip_in_network"
-
 
 class AttributeCondition(BaseModel):
 	"""Single attribute condition"""
@@ -243,7 +237,6 @@ class AttributeCondition(BaseModel):
 		except AddressValueError:
 			return False
 
-
 class PolicyRule(BaseModel):
 	"""ABAC policy rule"""
 	rule_id: str = Field(default_factory=uuid7str)
@@ -302,7 +295,6 @@ class PolicyRule(BaseModel):
 		if self.applies_to(attributes):
 			return self.effect
 		return None
-
 
 class ABACPolicy(BaseModel):
 	"""ABAC policy containing multiple rules"""
@@ -369,7 +361,6 @@ class ABACPolicy(BaseModel):
 		
 		return PolicyEffect.DENY
 
-
 class ABACDecision(BaseModel):
 	"""ABAC authorization decision"""
 	decision: PolicyEffect
@@ -386,7 +377,6 @@ class ABACDecision(BaseModel):
 	
 	# Debugging information
 	debug_info: Optional[Dict[str, Any]] = None
-
 
 @dataclass
 class ABACConfiguration:
@@ -406,7 +396,6 @@ class ABACConfiguration:
 	
 	# Environment attribute providers
 	attribute_providers: Dict[str, Callable] = field(default_factory=dict)
-
 
 class ABACAuthorization:
 	"""Attribute-Based Access Control authorization manager"""
@@ -775,12 +764,10 @@ class ABACAuthorization:
 			'default_decision': self.config.default_decision.value
 		}
 
-
 # Factory functions
 def create_abac_authorization(config: Optional[ABACConfiguration] = None) -> ABACAuthorization:
 	"""Create ABACAuthorization instance"""
 	return ABACAuthorization(config)
-
 
 def create_sample_abac_policies() -> List[ABACPolicy]:
 	"""Create sample ABAC policies for testing"""

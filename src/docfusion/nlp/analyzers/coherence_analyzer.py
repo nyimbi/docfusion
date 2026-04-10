@@ -14,6 +14,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
+from ...core.utils import uuid7str
 
 try:
     from ...prompting_strategies import (
@@ -51,7 +52,6 @@ except ImportError:
             )
             return re.sub(r"\n\s*\n\s*\n", "\n\n", cleaned).strip()
 
-
 try:
     from ...config.llm_config import LLMConfiguration, LLMTask, get_llm_config
 except ImportError:
@@ -82,7 +82,6 @@ except ImportError:
         def get_llm_config(task):
             return LLMConfiguration()
 
-
 try:
     import aiohttp
     from aiohttp import ClientError, ClientTimeout
@@ -103,15 +102,6 @@ try:
 except ImportError:
     HAS_NLTK = False
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 class CoherenceType(Enum):
     """Types of coherence analysis"""
 
@@ -120,7 +110,6 @@ class CoherenceType(Enum):
     STRUCTURAL = "structural_coherence"
     DISCOURSE = "discourse_coherence"
     ARGUMENTATIVE = "argumentative_coherence"
-
 
 class TransitionType(Enum):
     """Types of discourse transitions"""
@@ -134,7 +123,6 @@ class TransitionType(Enum):
     CONCLUSION = "conclusion"
     EXAMPLE = "example"
 
-
 class ArgumentStructure(Enum):
     """Types of argument structures"""
 
@@ -144,7 +132,6 @@ class ArgumentStructure(Enum):
     PROBLEM_SOLUTION = "problem_solution"
     CAUSE_EFFECT = "cause_effect_chain"
     EVIDENCE_BASED = "evidence_based"
-
 
 @dataclass
 class CoherenceScore:
@@ -163,7 +150,6 @@ class CoherenceScore:
     argument_flow: float = 0.0
     reference_resolution: float = 0.0
 
-
 @dataclass
 class TransitionAnalysis:
     """Analysis of discourse transitions"""
@@ -179,7 +165,6 @@ class TransitionAnalysis:
     strengthens_argument: bool = False
     clarity_contribution: float = 0.0
 
-
 @dataclass
 class ArgumentFlow:
     """Analysis of argument structure and flow"""
@@ -194,7 +179,6 @@ class ArgumentFlow:
     evidence_relevance: float = 0.0
     logical_consistency: float = 0.0
     conclusion_strength: float = 0.0
-
 
 @dataclass
 class TopicProgression:
@@ -214,7 +198,6 @@ class TopicProgression:
     development_consistency: float = 0.0
     narrative_flow: float = 0.0
 
-
 @dataclass
 class CoherenceBreak:
     """Identified break in coherence"""
@@ -224,7 +207,6 @@ class CoherenceBreak:
     severity: float = 0.0
     description: str = ""
     suggestion: str = ""
-
 
 @dataclass
 class CoherenceAnalysisResult:
@@ -253,7 +235,6 @@ class CoherenceAnalysisResult:
 
     # Statistical summaries
     statistics: Dict[str, Any] = field(default_factory=dict)
-
 
 class CoherenceAnalyzer:
     """Advanced coherence analyzer with logical flow assessment"""
@@ -1524,7 +1505,6 @@ class CoherenceAnalyzer:
     async def close(self):
         """Close analyzer and cleanup resources"""
         self.logger.info("CoherenceAnalyzer closed")
-
 
 # Factory function
 def create_coherence_analyzer(

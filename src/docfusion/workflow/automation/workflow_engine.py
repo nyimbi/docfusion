@@ -8,7 +8,6 @@ persistence, monitoring, alerting, and optimization.
 
 import asyncio
 import logging
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -17,14 +16,9 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 
 from pydantic import BaseModel, Field, ConfigDict
-
-def uuid7str():
-	"""Generate a UUID7-like string using UUID4 for compatibility."""
-	return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 class ProcessState(str, Enum):
 	"""Workflow process states."""
@@ -39,7 +33,6 @@ class ProcessState(str, Enum):
 	CANCELLED = "cancelled"
 	TERMINATED = "terminated"
 
-
 class TaskState(str, Enum):
 	"""Individual task states within workflow."""
 	PENDING = "pending"
@@ -52,7 +45,6 @@ class TaskState(str, Enum):
 	CANCELLED = "cancelled"
 	SKIPPED = "skipped"
 	RETRYING = "retrying"
-
 
 class TriggerType(str, Enum):
 	"""Types of workflow triggers."""
@@ -67,7 +59,6 @@ class TriggerType(str, Enum):
 	COMPLIANCE_FAILED = "compliance_failed"
 	TEMPLATE_AVAILABLE = "template_available"
 
-
 class OptimizationType(str, Enum):
 	"""Types of workflow optimization."""
 	PERFORMANCE = "performance"
@@ -77,10 +68,9 @@ class OptimizationType(str, Enum):
 	DEADLINE_ADHERENCE = "deadline_adherence"
 	USER_SATISFACTION = "user_satisfaction"
 
-
 class WorkflowTask(BaseModel):
 	"""Individual task within a workflow instance."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	task_id: str = Field(default_factory=uuid7str)
 	name: str = Field(description="Human-readable task name")
@@ -118,10 +108,9 @@ class WorkflowTask(BaseModel):
 	resource_usage: Dict[str, float] = Field(default_factory=dict)
 	quality_score: Optional[float] = None
 
-
 class WorkflowInstance(BaseModel):
 	"""Active workflow process instance."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	instance_id: str = Field(default_factory=uuid7str)
 	process_definition_id: str = Field(description="Process definition this instance is based on")
@@ -164,7 +153,6 @@ class WorkflowInstance(BaseModel):
 	state_history: List[Dict[str, Any]] = Field(default_factory=list)
 	execution_log: List[Dict[str, Any]] = Field(default_factory=list)
 
-
 @dataclass
 class WorkflowTrigger:
 	"""Workflow trigger configuration."""
@@ -175,7 +163,6 @@ class WorkflowTrigger:
 	is_active: bool = True
 	created_at: datetime = field(default_factory=datetime.now)
 
-
 @dataclass
 class OptimizationMetric:
 	"""Workflow optimization metric."""
@@ -185,7 +172,6 @@ class OptimizationMetric:
 	target_value: float = 0.0
 	improvement_suggestions: List[str] = field(default_factory=list)
 	measured_at: datetime = field(default_factory=datetime.now)
-
 
 class WorkflowEngine:
 	"""
@@ -832,13 +818,23 @@ class WorkflowEngine:
 		"""Execute a workflow task."""
 		task.state = TaskState.RUNNING
 		task.started_at = datetime.now()
-		
+
 		logger.debug(f"Starting execution of task {task.task_id}: {task.name}")
-		
+
 		# For demonstration, automatically complete system tasks
+		# Complete inline (without acquiring lock) since we're already in a locked context
 		if task.task_type == "system":
 			await asyncio.sleep(0.1)  # Simulate execution time
-			await self.complete_task(instance.instance_id, task.task_id, {"result": "success"})
+			task.state = TaskState.COMPLETED
+			task.completed_at = datetime.now()
+			task.output_data = {"result": "success"}
+			if task.started_at:
+				task.actual_duration_minutes = (task.completed_at - task.started_at).total_seconds() / 60
+			instance.active_tasks.discard(task.task_id)
+			instance.completed_tasks.add(task.task_id)
+			self.performance_stats['task_execution_count'] += 1
+			await self._update_completion_percentage(instance)
+			await self._check_workflow_completion(instance)
 	
 	async def _schedule_task_retry(self, instance: WorkflowInstance, task: WorkflowTask):
 		"""Schedule a task retry after delay."""

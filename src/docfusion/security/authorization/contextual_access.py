@@ -19,9 +19,7 @@ import ipaddress
 from pathlib import Path
 
 from pydantic import BaseModel, Field, validator
-from uuid_extensions import uuid7str
-
-
+from ...core.utils import uuid7str
 class AccessTimePattern(str, Enum):
 	"""Access time patterns"""
 	BUSINESS_HOURS = "business_hours"
@@ -32,7 +30,6 @@ class AccessTimePattern(str, Enum):
 	NEVER = "never"
 	CUSTOM = "custom"
 
-
 class LocationScope(str, Enum):
 	"""Location scopes for access control"""
 	COUNTRY = "country"
@@ -41,7 +38,6 @@ class LocationScope(str, Enum):
 	OFFICE = "office"
 	NETWORK = "network"
 	COORDINATES = "coordinates"
-
 
 class RiskFactorType(str, Enum):
 	"""Types of risk factors"""
@@ -52,7 +48,6 @@ class RiskFactorType(str, Enum):
 	NETWORK = "network"
 	VELOCITY = "velocity"
 	AUTHENTICATION = "authentication"
-
 
 class TimeRange(BaseModel):
 	"""Time range for access control"""
@@ -66,7 +61,6 @@ class TimeRange(BaseModel):
 		if v not in ['UTC', 'EST', 'PST', 'GMT', 'CET']:
 			raise ValueError('Invalid timezone')
 		return v
-
 
 class LocationConstraint(BaseModel):
 	"""Location-based access constraint"""
@@ -90,7 +84,6 @@ class LocationConstraint(BaseModel):
 
 	created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 	created_by: str
-
 
 class TimeConstraint(BaseModel):
 	"""Time-based access constraint"""
@@ -118,7 +111,6 @@ class TimeConstraint(BaseModel):
 	created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 	created_by: str
 
-
 class VelocityConstraint(BaseModel):
 	"""Velocity-based access constraint (impossible travel detection)"""
 	constraint_id: str = Field(default_factory=uuid7str)
@@ -140,7 +132,6 @@ class VelocityConstraint(BaseModel):
 	created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 	created_by: str
 
-
 class RiskFactor(BaseModel):
 	"""Individual risk factor assessment"""
 	factor_id: str = Field(default_factory=uuid7str)
@@ -154,7 +145,6 @@ class RiskFactor(BaseModel):
 
 	detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 	expires_at: Optional[datetime] = None
-
 
 class AccessContext(BaseModel):
 	"""Complete access context for evaluation"""
@@ -189,7 +179,6 @@ class AccessContext(BaseModel):
 	# Risk factors
 	risk_factors: List[RiskFactor] = Field(default_factory=list)
 	overall_risk_score: float = 0.0
-
 
 class ContextualPolicy(BaseModel):
 	"""Contextual access control policy"""
@@ -229,7 +218,6 @@ class ContextualPolicy(BaseModel):
 	updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 	created_by: str
 
-
 class AccessDecision(BaseModel):
 	"""Contextual access control decision"""
 	decision_id: str = Field(default_factory=uuid7str)
@@ -258,7 +246,6 @@ class AccessDecision(BaseModel):
 	# Metadata
 	evaluated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 	expires_at: Optional[datetime] = None
-
 
 @dataclass
 class ContextualAccessConfig:
@@ -296,7 +283,6 @@ class ContextualAccessConfig:
 	log_all_decisions: bool = True
 	log_policy_violations: bool = True
 	alert_on_high_risk: bool = True
-
 
 class ContextualAccessControl:
 	"""Contextual access control system with time and location constraints"""
@@ -1239,12 +1225,10 @@ class ContextualAccessControl:
 			"total_history_entries": total_history_entries
 		}
 
-
 # Factory functions
 def create_contextual_access_control(config: Optional[ContextualAccessConfig] = None) -> ContextualAccessControl:
 	"""Create ContextualAccessControl instance"""
 	return ContextualAccessControl(config)
-
 
 def create_test_contextual_config() -> ContextualAccessConfig:
 	"""Create test contextual access configuration"""

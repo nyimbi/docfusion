@@ -73,7 +73,7 @@ class SearchResult:
 			try:
 				published_date = datetime.fromisoformat(data["publishedDate"].replace("Z", "+00:00"))
 			except (ValueError, TypeError):
-				pass
+				logger.warning("ValueError/TypeError in from_dict")
 
 		return cls(
 			title=data.get("title", ""),

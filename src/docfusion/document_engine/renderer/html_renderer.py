@@ -25,12 +25,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict
-
-
-def uuid7str() -> str:
-	"""Generate a UUID7-style string using uuid4 for compatibility"""
-	return str(uuid4())
-
+from ...core.utils import uuid7str
 
 # ============================================================================
 # Data Models
@@ -77,7 +72,6 @@ class HTMLMetadata:
 	# Custom metadata
 	custom_meta_tags: dict[str, str] = field(default_factory=dict)
 	custom_link_tags: list[dict[str, str]] = field(default_factory=list)
-
 
 @dataclass
 class HTMLRenderConfiguration:
@@ -153,7 +147,6 @@ class HTMLRenderConfiguration:
 	twitter_cards: bool = True
 	schema_org_markup: bool = True
 
-
 @dataclass
 class HTMLOutputMetadata:
 	"""HTML output metadata and creation information"""
@@ -163,7 +156,6 @@ class HTMLOutputMetadata:
 	template_used: str = ""
 	processing_notes: list[str] = field(default_factory=list)
 
-
 @dataclass
 class HTMLRenderingIssue:
 	"""HTML rendering issue information"""
@@ -172,7 +164,6 @@ class HTMLRenderingIssue:
 	message: str = ""
 	severity: str = "low"  # low, medium, high, critical
 	suggested_fix: str = ""
-
 
 @dataclass
 class HTMLRenderResult:
@@ -231,10 +222,9 @@ class HTMLRenderResult:
 	external_stylesheets: list[str] = field(default_factory=list)
 	external_scripts: list[str] = field(default_factory=list)
 
-
 class FormattedDocumentContent(BaseModel):
 	"""Formatted document content for HTML rendering"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Document identification
 	document_id: str = Field(default_factory=uuid7str)
@@ -261,7 +251,6 @@ class FormattedDocumentContent(BaseModel):
 	brand_elements: dict[str, Any] = Field(default_factory=dict)
 	layout_specifications: dict[str, Any] = Field(default_factory=dict)
 
-
 # ============================================================================
 # Exception Classes
 # ============================================================================
@@ -270,26 +259,21 @@ class HTMLRendererException(Exception):
 	"""Base exception for HTML renderer errors"""
 	pass
 
-
 class HTMLRenderingException(HTMLRendererException):
 	"""Exception for HTML rendering errors"""
 	pass
-
 
 class HTMLValidationException(HTMLRendererException):
 	"""Exception for HTML validation errors"""
 	pass
 
-
 class HTMLAccessibilityException(HTMLRendererException):
 	"""Exception for accessibility compliance errors"""
 	pass
 
-
 class HTMLPerformanceException(HTMLRendererException):
 	"""Exception for performance optimization errors"""
 	pass
-
 
 # ============================================================================
 # Core Components
@@ -590,7 +574,6 @@ class SemanticHTMLBuilder:
 		
 		count_attributes(body_structure)
 		return count
-
 
 class ResponsiveCSSGenerator:
 	"""Generate responsive CSS with mobile-first approach"""
@@ -939,7 +922,6 @@ main[role="main"] { padding: 2rem 0; }
 		
 		return compressed_size / original_size
 
-
 class HTMLAccessibilityValidator:
 	"""Comprehensive HTML accessibility validation"""
 	
@@ -1052,7 +1034,6 @@ class HTMLAccessibilityValidator:
 		"""Check for keyboard navigation support"""
 		nav_elements = ['<nav', '<a ', 'tabindex=', 'role="button"']
 		return any(element in html_content for element in nav_elements)
-
 
 # ============================================================================
 # Main HTMLRenderer Class
@@ -1540,7 +1521,6 @@ document.addEventListener('click', function(e) {
 			'system_status': 'operational'
 		}
 
-
 # ============================================================================
 # Utility Functions
 # ============================================================================
@@ -1566,7 +1546,6 @@ def create_default_html_configuration(
 	
 	return config
 
-
 async def quick_html_render(
 	content: str,
 	title: str = "Quick Document",
@@ -1581,7 +1560,6 @@ async def quick_html_render(
 	
 	renderer = HTMLRenderer()
 	return await renderer.render_html(formatted_content, output_path)
-
 
 def validate_html_renderer_installation() -> dict[str, bool]:
 	"""Validate HTML renderer installation and dependencies"""

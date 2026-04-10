@@ -22,15 +22,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from fastapi import HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -55,6 +46,7 @@ from .workflow_document_bridge import (
     WorkflowDocumentConfiguration,
     WorkflowProgress,
 )
+from ...core.utils import uuid7str
 from .workflow_request_extensions import (
     TeamRole,
     WorkflowConfiguration,
@@ -67,16 +59,14 @@ from .workflow_request_extensions import (
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # Configuration Models
 # ============================================================================
 
-
 class WorkflowMiddlewareConfig(BaseModel):
     """Configuration for workflow middleware"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Integration settings
     enabled: bool = True
@@ -126,11 +116,10 @@ class WorkflowMiddlewareConfig(BaseModel):
     workflow_timeout_seconds: float = 30.0
     max_concurrent_workflows: int = 100
 
-
 class WorkflowRequestMetadata(BaseModel):
     """Metadata extracted from HTTP request for workflow integration"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Request identification
     request_id: str = Field(default_factory=uuid7str)
@@ -160,11 +149,9 @@ class WorkflowRequestMetadata(BaseModel):
     # Request body data
     original_request_data: Dict[str, Any] = Field(default_factory=dict)
 
-
 # ============================================================================
 # Main Middleware Class
 # ============================================================================
-
 
 class WorkflowMiddleware(BaseHTTPMiddleware):
     """
@@ -735,7 +722,7 @@ class WorkflowMiddleware(BaseHTTPMiddleware):
                             ).template_id
 
                 except json.JSONDecodeError:
-                    pass
+                    logger.warning("json.JSONDecodeError in unknown")
 
         except Exception as e:
             logger.warning(f"Failed to suggest workflow template: {str(e)}")
@@ -837,7 +824,7 @@ class WorkflowMiddleware(BaseHTTPMiddleware):
             if doc_index + 1 < len(segments):
                 return segments[doc_index + 1]
         except ValueError:
-            pass
+            logger.warning("ValueError in _extract_document_id_from_path")
 
         return None
 
@@ -902,11 +889,9 @@ class WorkflowMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error(f"Error handling workflow event: {str(e)}")
 
-
 # ============================================================================
 # Factory Functions
 # ============================================================================
-
 
 def create_workflow_middleware(
     workflow_bridge: WorkflowDocumentBridge,
@@ -923,7 +908,6 @@ def create_workflow_middleware(
             Configured WorkflowMiddleware instance
     """
     return WorkflowMiddleware(None, workflow_bridge, config)
-
 
 def add_workflow_middleware_to_app(
     app,  # FastAPI app

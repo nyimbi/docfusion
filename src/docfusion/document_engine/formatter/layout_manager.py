@@ -29,11 +29,7 @@ from pydantic import BaseModel, Field, ConfigDict, AfterValidator
 from pydantic.dataclasses import dataclass as pydantic_dataclass, rebuild_dataclass
 
 from uuid import uuid4
-
-def uuid7str() -> str:
-	"""Generate a UUID7-like string using UUID4"""
-	return str(uuid4())
-
+from ...core.utils import uuid7str
 
 # ============================================================================
 # Exception Classes
@@ -43,26 +39,21 @@ class LayoutManagerException(Exception):
 	"""Base exception for LayoutManager module"""
 	pass
 
-
 class PageConfigurationException(LayoutManagerException):
 	"""Exception for page configuration errors"""
 	pass
-
 
 class ColumnLayoutException(LayoutManagerException):
 	"""Exception for column layout computation errors"""
 	pass
 
-
 class ContentPositioningException(LayoutManagerException):
 	"""Exception for content positioning errors"""
 	pass
 
-
 class LayoutValidationException(LayoutManagerException):
 	"""Exception for layout validation errors"""
 	pass
-
 
 # ============================================================================
 # Core Data Models
@@ -83,7 +74,6 @@ class PageMargins:
 	margin_unit: str = "cm"
 	symmetric: bool = True
 	responsive: bool = True
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class PageConfiguration:
@@ -114,7 +104,6 @@ class PageConfiguration:
 	last_modified: datetime = Field(default_factory=datetime.now)
 	validation_status: bool = True
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class ColumnLayout:
 	"""Multi-column layout configuration"""
@@ -142,7 +131,6 @@ class ColumnLayout:
 	# Performance optimization
 	layout_cache_key: str = ""
 	calculation_complexity: str = "standard"  # simple, standard, complex
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class ContentPositioning:
@@ -181,7 +169,6 @@ class ContentPositioning:
 	responsive_positions: dict[str, dict[str, Any]] = Field(default_factory=dict)
 	adaptive_sizing: dict[str, dict[str, str]] = Field(default_factory=dict)
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class HeaderFooterConfig:
 	"""Header and footer configuration"""
@@ -207,7 +194,6 @@ class HeaderFooterConfig:
 	responsive_templates: dict[str, str] = Field(default_factory=dict)
 	adaptive_height: dict[str, str] = Field(default_factory=dict)
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class LayoutConstraint:
 	"""Layout constraint specification"""
@@ -228,7 +214,6 @@ class LayoutConstraint:
 	# Validation
 	constraint_satisfied: bool = True
 	violation_severity: str = "none"  # none, warning, error
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class LayoutSpecification:
@@ -263,7 +248,6 @@ class LayoutSpecification:
 	validation_errors: list[str] = Field(default_factory=list)
 	last_validated: datetime = Field(default_factory=datetime.now)
 
-
 # ============================================================================
 # Result Classes
 # ============================================================================
@@ -295,7 +279,6 @@ class PageGeometry:
 	units: str = "pt"
 	coordinate_system: str = "bottom_left"  # bottom_left, top_left
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class ColumnLayoutResult:
 	"""Result of column layout computation"""
@@ -324,7 +307,6 @@ class ColumnLayoutResult:
 	cache_used: bool = False
 	complexity_score: float = 0.0
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class PositioningResult:
 	"""Result of content positioning computation"""
@@ -350,7 +332,6 @@ class PositioningResult:
 	# Performance
 	positioning_time: float = 0.0
 	algorithm_complexity: str = "standard"
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class LayoutResult:
@@ -385,7 +366,6 @@ class LayoutResult:
 	validation_warnings: list[str] = Field(default_factory=list)
 	validation_errors: list[str] = Field(default_factory=list)
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class LayoutManagerMetrics:
 	"""LayoutManager performance and quality metrics"""
@@ -413,7 +393,6 @@ class LayoutManagerMetrics:
 	memory_usage: float = 0.0
 	peak_memory: float = 0.0
 	cpu_efficiency: float = 0.0
-
 
 # ============================================================================
 # Core Components
@@ -696,7 +675,6 @@ class PageManager:
 		
 		scaled_value = scaled_points * conversion_factors.get(unit, 1.0)
 		return f"{scaled_value:.2f}{unit}"
-
 
 class ColumnEngine:
 	"""Multi-column layout computation and optimization"""
@@ -1114,7 +1092,6 @@ class ColumnEngine:
 		
 		return False
 
-
 class ContentPositioner:
 	"""Advanced content positioning and flow management"""
 	
@@ -1436,7 +1413,6 @@ class ContentPositioner:
 		}
 		
 		return value * conversion_factors.get(unit, 1.0)
-
 
 # ============================================================================
 # Main LayoutManager Class
@@ -1859,7 +1835,6 @@ class LayoutManager:
 		
 		return f"{scaled_value:.2f}{unit}"
 
-
 # ============================================================================
 # Utility Functions
 # ============================================================================
@@ -1867,7 +1842,6 @@ class LayoutManager:
 def create_default_layout_manager() -> LayoutManager:
 	"""Create LayoutManager with default configuration"""
 	return LayoutManager()
-
 
 def create_responsive_layout_specification(
 	page_size: str = "A4",
@@ -1893,7 +1867,6 @@ def create_responsive_layout_specification(
 		column_layout=column_config
 	)
 
-
 async def quick_layout_computation(
 	content_elements: list[dict[str, Any]],
 	page_size: str = "A4",
@@ -1909,7 +1882,6 @@ async def quick_layout_computation(
 	}
 	
 	return await layout_manager.compute_document_layout(content_elements, layout_requirements)
-
 
 def validate_layout_manager_installation() -> dict[str, bool]:
 	"""Validate LayoutManager installation and dependencies"""
@@ -1940,7 +1912,6 @@ def validate_layout_manager_installation() -> dict[str, bool]:
 	
 	return validation_results
 
-
 # Rebuild dataclasses to ensure proper initialization
 rebuild_dataclass(PageMargins)
 rebuild_dataclass(PageConfiguration)
@@ -1954,7 +1925,6 @@ rebuild_dataclass(ColumnLayoutResult)
 rebuild_dataclass(PositioningResult)
 rebuild_dataclass(LayoutResult)
 rebuild_dataclass(LayoutManagerMetrics)
-
 
 # Module exports
 __all__ = [

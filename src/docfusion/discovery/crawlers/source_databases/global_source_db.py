@@ -31,12 +31,7 @@ import requests
 from dataclasses import asdict
 
 from pydantic import BaseModel, Field, HttpUrl
-import uuid
-
-def uuid7str() -> str:
-	"""Generate a UUID7-like string using UUID4"""
-	return str(uuid.uuid4())
-
+from ....core.utils import uuid7str
 
 class SourceType(str, Enum):
 	"""Types of procurement sources"""
@@ -55,7 +50,6 @@ class SourceType(str, Enum):
 	MARKETPLACE = "marketplace"
 	AGGREGATOR = "aggregator"
 
-
 class SourceStatus(str, Enum):
 	"""Health status of procurement sources"""
 	ACTIVE = "active"
@@ -66,7 +60,6 @@ class SourceStatus(str, Enum):
 	REQUIRES_LOGIN = "requires_login"
 	REQUIRES_SUBSCRIPTION = "requires_subscription"
 	DEPRECATED = "deprecated"
-
 
 class AccessMethod(str, Enum):
 	"""How to access the procurement source"""
@@ -80,7 +73,6 @@ class AccessMethod(str, Enum):
 	EMAIL_SUBSCRIPTION = "email_subscription"
 	MANUAL_DOWNLOAD = "manual_download"
 
-
 class GeographicScope(str, Enum):
 	"""Geographic scope of procurement source"""
 	GLOBAL = "global"
@@ -90,7 +82,6 @@ class GeographicScope(str, Enum):
 	STATE_PROVINCIAL = "state_provincial"
 	MUNICIPAL = "municipal"
 	LOCAL = "local"
-
 
 class ProcurementSource(BaseModel):
 	"""Represents a procurement source in the database"""
@@ -156,7 +147,6 @@ class ProcurementSource(BaseModel):
 	verified_date: Optional[datetime] = None
 	notes: Optional[str] = None
 	tags: List[str] = Field(default_factory=list)
-
 
 class GlobalSourceDB:
 	"""
@@ -1241,7 +1231,6 @@ class GlobalSourceDB:
 			self.active_sources.add(source.source_id)
 		else:
 			self.active_sources.discard(source.source_id)
-
 
 # Factory function
 def create_global_source_db(db_path: Optional[Path] = None) -> GlobalSourceDB:

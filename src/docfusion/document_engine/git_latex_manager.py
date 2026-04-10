@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Optional, TypeAlias
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
+from ..core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
 
@@ -64,12 +65,6 @@ except ImportError:
 		async def compile_to_pdf(self, content: str, filename: str = "") -> "CanonicalCompilationResult":
 			return CanonicalCompilationResult(success=False, errors=["LaTeX compiler not available"])
 
-
-def uuid7str() -> str:
-	"""Generate UUID7-style string using uuid4 for Phase 1"""
-	return str(uuid4())
-
-
 # Import from content_assembler if available, otherwise define minimal versions
 try:
 	from .assembler.content_assembler import ContentBlock
@@ -92,7 +87,6 @@ except ImportError:
 		metadata: dict[str, Any] = Field(default_factory=dict)
 		created_at: datetime = Field(default_factory=datetime.now)
 
-
 # DocumentMetadata is defined locally for use in this module
 class DocumentMetadata(BaseModel):
 	model_config = ConfigDict(
@@ -105,7 +99,6 @@ class DocumentMetadata(BaseModel):
 	client: str = ""
 	rfp_number: str = ""
 	created_at: datetime = Field(default_factory=datetime.now)
-
 
 class FileContentBlock(BaseModel):
 	"""Content block represented as a file in Git repository"""
@@ -217,7 +210,6 @@ class FileContentBlock(BaseModel):
 		"""Log Git operation errors"""
 		logger.error("[GitLatex] %s", message)
 
-
 class LaTeXTemplate(BaseModel):
 	"""LaTeX template configuration"""
 	model_config = ConfigDict(
@@ -234,10 +226,8 @@ class LaTeXTemplate(BaseModel):
 	required_packages: list[str] = Field(default_factory=list)
 	custom_commands: dict[str, str] = Field(default_factory=dict)
 
-
 # Use CompilationResult from pdf_renderer - alias for backward compatibility
 CompilationResult: TypeAlias = CanonicalCompilationResult
-
 
 class GitLatexContentManager:
 	"""Manage content blocks as Git-versioned LaTeX files"""
@@ -758,7 +748,6 @@ Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliqu
 		"""Log block operation errors"""
 		print(f"[GitLatex] Block Error: {message}")
 
-
 class GitLatexAssembler:
 	"""Assemble documents from Git-managed LaTeX blocks"""
 
@@ -894,7 +883,6 @@ class GitLatexAssembler:
 		"""Log build operation errors"""
 		print(f"[GitLatex] Build Error: {message}")
 
-
 # Adapter class to use canonical LaTeXCompiler with file-based interface
 class LaTeXCompiler:
 	"""
@@ -961,7 +949,6 @@ class LaTeXCompiler:
 				success=False,
 				errors=[f"Compilation error: {str(e)}"]
 			)
-
 
 # Mock AI service for Phase 1 implementation
 class MockAIService:

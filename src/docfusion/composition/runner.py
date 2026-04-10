@@ -21,17 +21,9 @@ from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Union
 
 from simpleeval import simple_eval, InvalidExpression, NameNotDefined, FunctionNotDefined
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..core.utils import uuid7str
 from .interpreter import (
     ExecutionGraph,
     ExecutionMode,
@@ -39,7 +31,6 @@ from .interpreter import (
     InterpretedComposition,
     NodeType,
 )
-
 
 class ExecutionStatus(Enum):
     """Execution status states"""
@@ -52,11 +43,10 @@ class ExecutionStatus(Enum):
     PAUSED = "paused"
     RETRYING = "retrying"
 
-
 class NodeExecutionResult(BaseModel):
     """Result of individual node execution"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     node_id: str
     status: ExecutionStatus
@@ -67,7 +57,6 @@ class NodeExecutionResult(BaseModel):
     error: Optional[str] = None
     retry_count: int = 0
     metadata: Dict[str, Any] = Field(default_factory=dict)
-
 
 @dataclass
 class ExecutionContext:
@@ -82,7 +71,6 @@ class ExecutionContext:
     runtime_state: Dict[str, Any] = field(default_factory=dict)
     start_time: float = field(default_factory=time.time)
     cancellation_token: Optional[asyncio.Event] = None
-
 
 @dataclass
 class ExecutionReport:
@@ -102,7 +90,6 @@ class ExecutionReport:
     performance_metrics: Dict[str, Any]
     resource_usage: Dict[str, Any]
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 class CompositionRunnerError(Exception):
     """Exception raised during composition execution"""
@@ -126,7 +113,6 @@ class CompositionRunnerError(Exception):
         if self.node_id:
             msg += f" (node: {self.node_id})"
         return msg
-
 
 class CompositionRunner:
     """

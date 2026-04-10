@@ -24,7 +24,7 @@ class EngineeredFeatures(BaseModel):
 	Contains all extracted and computed features for prediction models.
 	"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	# Document-level features
 	requirement_count: int = Field(default=0, ge=0, description="Total number of requirements")

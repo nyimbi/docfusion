@@ -17,17 +17,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ..core.utils import uuid7str
 
 class WorkflowType(str, Enum):
     """Workflow execution patterns"""
@@ -39,7 +30,6 @@ class WorkflowType(str, Enum):
     PIPELINE = "pipeline"
     DAG = "dag"  # Directed Acyclic Graph
 
-
 class NodeType(str, Enum):
     """Workflow node types"""
 
@@ -50,7 +40,6 @@ class NodeType(str, Enum):
     LOOP = "loop"
     SUBWORKFLOW = "subworkflow"
 
-
 class ExecutionStatus(str, Enum):
     """Execution status states"""
 
@@ -60,7 +49,6 @@ class ExecutionStatus(str, Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     SKIPPED = "skipped"
-
 
 @dataclass
 class WorkflowNode:
@@ -99,7 +87,6 @@ class WorkflowNode:
     # Metadata
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class WorkflowEdge:
     """Workflow connection between nodes"""
@@ -121,7 +108,6 @@ class WorkflowEdge:
 
     # Execution properties
     enabled: bool = True
-
 
 @dataclass
 class Workflow:
@@ -158,7 +144,6 @@ class Workflow:
     updated_at: datetime = field(default_factory=datetime.now)
     version: str = "1.0"
     tags: List[str] = field(default_factory=list)
-
 
 class WorkflowEngine:
     """

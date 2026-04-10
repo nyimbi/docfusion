@@ -16,19 +16,13 @@ from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Set, Any, Optional, Union, Tuple
 from pathlib import Path
 from datetime import datetime, timedelta
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
 from collections import defaultdict
 import aiofiles
 import pickle
 import re
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class IndexedDocument:
@@ -53,7 +47,6 @@ class IndexedDocument:
 	extracted_keywords: List[str] = field(default_factory=list)
 	custom_fields: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class IndexStats:
 	"""Document indexing statistics"""
@@ -65,7 +58,6 @@ class IndexStats:
 	last_full_index: Optional[datetime] = None
 	last_incremental_index: Optional[datetime] = None
 	index_errors: List[str] = field(default_factory=list)
-
 
 @dataclass
 class IndexConfiguration:
@@ -80,7 +72,6 @@ class IndexConfiguration:
 	index_batch_size: int = 100
 	enable_incremental_indexing: bool = True
 	auto_index_interval_minutes: int = 60
-
 
 class DocumentIndexer:
 	"""
@@ -727,12 +718,10 @@ class DocumentIndexer:
 		except Exception as e:
 			print(f"Error loading indexes: {e}")
 
-
 # Convenience functions
 async def create_document_indexer(storage_path: Optional[Path] = None, config: Optional[IndexConfiguration] = None) -> DocumentIndexer:
 	"""Create and initialize document indexer"""
 	return DocumentIndexer(storage_path, config)
-
 
 async def index_text_document(indexer: DocumentIndexer, content: str, title: str, **kwargs) -> str:
 	"""Convenience function to index text document"""

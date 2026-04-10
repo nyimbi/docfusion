@@ -60,7 +60,7 @@ class ProfileStatus(str, Enum):
 
 class DocumentMetadata(BaseModel):
 	"""Metadata for documents used in voice profiling"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	document_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique document identifier")
 	document_title: Optional[str] = Field(None, description="Document title")
@@ -91,7 +91,7 @@ class DocumentMetadata(BaseModel):
 
 class VoiceEvolutionPoint(BaseModel):
 	"""Point in time snapshot of voice evolution"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	evolution_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique evolution point identifier")
 	timestamp: datetime = Field(default_factory=datetime.now)
@@ -112,7 +112,7 @@ class VoiceEvolutionPoint(BaseModel):
 
 class VoiceProfile(BaseModel):
 	"""Comprehensive voice profile with multi-dimensional modeling"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	profile_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique profile identifier")
 	organization_name: str = Field(description="Organization name")

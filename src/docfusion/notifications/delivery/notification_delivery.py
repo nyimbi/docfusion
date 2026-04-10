@@ -10,22 +10,15 @@ import asyncio
 import logging
 
 # from uuid_extensions import uuid7str
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Protocol
 from uuid import uuid4
 
-
-def uuid7str() -> str:
-    """Generate UUID7-style string (fallback implementation)."""
-    return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field, validator
 from pydantic.types import confloat, conint
-
+from ...core.utils import uuid7str
 
 class DeliveryStatus(str, Enum):
     """Notification delivery status tracking."""
@@ -39,7 +32,6 @@ class DeliveryStatus(str, Enum):
     EXPIRED = "expired"
     CANCELLED = "cancelled"
 
-
 class ChannelType(str, Enum):
     """Supported notification delivery channels."""
 
@@ -51,7 +43,6 @@ class ChannelType(str, Enum):
     SLACK = "slack"
     TEAMS = "teams"
 
-
 class Priority(str, Enum):
     """Notification priority levels for delivery optimization."""
 
@@ -59,7 +50,6 @@ class Priority(str, Enum):
     HIGH = "high"  # Priority queue, minimal delay
     MEDIUM = "medium"  # Standard delivery
     LOW = "low"  # Batch delivery, respect quiet hours
-
 
 @dataclass
 class DeliveryMetrics:
@@ -75,7 +65,6 @@ class DeliveryMetrics:
         default_factory=dict
     )
     last_updated: datetime = field(default_factory=datetime.now)
-
 
 class NotificationMessage(BaseModel):
     """Structured notification message with delivery requirements."""
@@ -138,11 +127,10 @@ class NotificationMessage(BaseModel):
             raise ValueError("Scheduled time must be in the future")
         return v
 
-
 class DeliveryResult(BaseModel):
     """Detailed delivery attempt result."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     message_id: str = Field(..., description="Message identifier")
     status: DeliveryStatus = Field(..., description="Delivery status")
@@ -173,7 +161,6 @@ class DeliveryResult(BaseModel):
     )
     receipt_id: Optional[str] = Field(None, description="Delivery receipt identifier")
 
-
 class NotificationChannel(Protocol):
     """Protocol defining notification channel interface."""
 
@@ -192,7 +179,6 @@ class NotificationChannel(Protocol):
     def supports_priority(self, priority: Priority) -> bool:
         """Check if channel supports given priority level."""
         ...
-
 
 class RetryStrategy:
     """Configurable retry strategy for failed deliveries."""
@@ -228,7 +214,6 @@ class RetryStrategy:
             delay = delay + random.randint(0, delay // 4)
 
         return delay
-
 
 class NotificationDelivery:
     """
@@ -804,9 +789,7 @@ class NotificationDelivery:
             "Initialized health monitoring for %d channels", len(self._channel_health)
         )
 
-
 # Utility functions for common delivery patterns
-
 
 async def create_notification_delivery(
     channels: Optional[Dict[ChannelType, NotificationChannel]] = None, **kwargs
@@ -815,7 +798,6 @@ async def create_notification_delivery(
     delivery = NotificationDelivery(channels=channels, **kwargs)
     await delivery.start()
     return delivery
-
 
 def create_urgent_message(
     title: str,
@@ -835,7 +817,6 @@ def create_urgent_message(
         workflow_id=workflow_id,
         tags=["urgent", "immediate"],
     )
-
 
 def create_scheduled_message(
     title: str,

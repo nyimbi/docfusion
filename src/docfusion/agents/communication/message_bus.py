@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..core.messages import AgentMessage, MessageStatus, MessageType
+from ...core.utils import uuid7str
 
 """
 Message Bus System
@@ -20,16 +21,6 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 class CommunicationProtocol(str, Enum):
     """Communication protocol types"""
 
@@ -39,11 +30,10 @@ class CommunicationProtocol(str, Enum):
     REQUEST_RESPONSE = "request_response"
     QUEUE = "queue"
 
-
 class MessageBusConfig(BaseModel):
     """Message bus configuration"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     max_message_history: int = Field(default=10000)
     message_ttl_seconds: int = Field(default=3600)
@@ -51,7 +41,6 @@ class MessageBusConfig(BaseModel):
     retry_delay_seconds: float = Field(default=1.0)
     enable_persistence: bool = Field(default=False)
     enable_metrics: bool = Field(default=True)
-
 
 class MessageBus:
     """

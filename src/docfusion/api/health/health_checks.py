@@ -15,13 +15,6 @@ from datetime import datetime, timedelta
 from enum import Enum
 from dataclasses import dataclass, field
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -32,6 +25,7 @@ try:
 	import asyncpg
 	import meilisearch
 	from opensearchpy import OpenSearch
+from ...core.utils import uuid7str
 except ImportError:
 	httpx = None
 	aioredis = None
@@ -39,14 +33,12 @@ except ImportError:
 	meilisearch = None
 	OpenSearch = None
 
-
 class HealthStatus(str, Enum):
 	"""Health check status levels"""
 	HEALTHY = "healthy"
 	DEGRADED = "degraded" 
 	UNHEALTHY = "unhealthy"
 	UNKNOWN = "unknown"
-
 
 class ComponentType(str, Enum):
 	"""System component types"""
@@ -60,7 +52,6 @@ class ComponentType(str, Enum):
 	AUTHENTICATION = "authentication"
 	MONITORING = "monitoring"
 
-
 @dataclass
 class HealthCheckResult:
 	"""Health check result for a component"""
@@ -73,7 +64,6 @@ class HealthCheckResult:
 	checked_at: datetime = field(default_factory=datetime.utcnow)
 	error: Optional[str] = None
 
-
 @dataclass
 class SystemHealth:
 	"""Overall system health status"""
@@ -83,7 +73,6 @@ class SystemHealth:
 	response_time_ms: float = 0.0
 	uptime_seconds: float = 0.0
 	version: str = "1.0.0"
-
 
 class BaseHealthCheck:
 	"""Base class for health checks"""
@@ -152,7 +141,6 @@ class BaseHealthCheck:
 		"""Override this method to implement specific health check logic"""
 		raise NotImplementedError
 
-
 class DatabaseHealthCheck(BaseHealthCheck):
 	"""Database connectivity and performance check"""
 	
@@ -210,7 +198,6 @@ class DatabaseHealthCheck(BaseHealthCheck):
 				'details': {'connection_string': self.connection_string.split('@')[0] + '@***'}
 			}
 
-
 class RedisHealthCheck(BaseHealthCheck):
 	"""Redis cache connectivity check"""
 	
@@ -259,7 +246,6 @@ class RedisHealthCheck(BaseHealthCheck):
 				'message': f'Redis connection failed: {str(e)}'
 			}
 
-
 class MeiliSearchHealthCheck(BaseHealthCheck):
 	"""MeiliSearch search engine health check"""
 	
@@ -307,7 +293,6 @@ class MeiliSearchHealthCheck(BaseHealthCheck):
 				'status': HealthStatus.UNHEALTHY,
 				'message': f'MeiliSearch connection failed: {str(e)}'
 			}
-
 
 class OpenSearchHealthCheck(BaseHealthCheck):
 	"""OpenSearch/Elasticsearch health check"""
@@ -375,7 +360,6 @@ class OpenSearchHealthCheck(BaseHealthCheck):
 				'message': f'OpenSearch connection failed: {str(e)}'
 			}
 
-
 class ExternalAPIHealthCheck(BaseHealthCheck):
 	"""External API service health check"""
 	
@@ -426,7 +410,6 @@ class ExternalAPIHealthCheck(BaseHealthCheck):
 				'details': {'url': self.url}
 			}
 
-
 class WebSocketHealthCheck(BaseHealthCheck):
 	"""WebSocket service health check"""
 	
@@ -453,7 +436,6 @@ class WebSocketHealthCheck(BaseHealthCheck):
 				'status': HealthStatus.UNHEALTHY,
 				'message': f'WebSocket service check failed: {str(e)}'
 			}
-
 
 class HealthChecker:
 	"""Main health checking system"""
@@ -557,7 +539,6 @@ class HealthChecker:
 	def get_cached_results(self) -> List[HealthCheckResult]:
 		"""Get last cached health check results"""
 		return list(self.last_check_results.values())
-
 
 class HealthEndpoints:
 	"""Health check API endpoints"""
@@ -825,12 +806,10 @@ class HealthEndpoints:
 		
 		return html_content
 
-
 # Factory functions
 def create_health_checker() -> HealthChecker:
 	"""Create health checker instance"""
 	return HealthChecker()
-
 
 def create_health_endpoints(health_checker: HealthChecker) -> HealthEndpoints:
 	"""Create health endpoints instance"""

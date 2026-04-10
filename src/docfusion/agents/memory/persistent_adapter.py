@@ -23,14 +23,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import asyncpg
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from .memory_manager import (
@@ -41,17 +33,17 @@ from .memory_manager import (
     MemoryConfig,
     MemoryIndex,
 )
+from ...core.utils import uuid7str
 from .schema import (
     SCHEMA_VERSION,
     DEFAULT_EMBEDDING_DIMENSIONS,
     get_schema_sql,
 )
 
-
 class PersistentMemoryConfig(BaseModel):
     """Configuration for persistent memory adapter."""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Database connection
     database_url: str = Field(
@@ -122,7 +114,6 @@ class PersistentMemoryConfig(BaseModel):
         elif "postgresql+psycopg2://" in url:
             url = url.replace("postgresql+psycopg2://", "postgresql://")
         return url
-
 
 class EmbeddingClient:
     """
@@ -198,7 +189,6 @@ class EmbeddingClient:
             self.logger.error(f"Batch embedding generation failed: {e}")
             return [None] * len(texts)
 
-
 @dataclass
 class MemoryCacheEntry:
     """Cache entry for in-memory caching."""
@@ -210,7 +200,6 @@ class MemoryCacheEntry:
     def is_expired(self, ttl_minutes: int) -> bool:
         """Check if cache entry is expired."""
         return (datetime.now() - self.cached_at) > timedelta(minutes=ttl_minutes)
-
 
 class PersistentMemoryAdapter:
     """
@@ -418,7 +407,7 @@ class PersistentMemoryAdapter:
             try:
                 content = json.loads(content)
             except json.JSONDecodeError:
-                pass
+                self.logger.warning("json.JSONDecodeError in _row_to_entry")
 
         entry = MemoryEntry(
             entry_id=str(row["id"]),
@@ -1336,7 +1325,6 @@ class PersistentMemoryAdapter:
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit."""
         await self.stop()
-
 
 # Factory function
 async def create_persistent_memory(

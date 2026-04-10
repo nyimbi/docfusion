@@ -20,17 +20,8 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 import aiohttp
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class ServiceState(str, Enum):
     """Service health state"""
@@ -41,14 +32,12 @@ class ServiceState(str, Enum):
     UNAVAILABLE = "unavailable"
     CIRCUIT_OPEN = "circuit_open"
 
-
 class CircuitBreakerState(str, Enum):
     """Circuit breaker states"""
 
     CLOSED = "closed"  # Normal operation
     OPEN = "open"  # Failing, calls rejected
     HALF_OPEN = "half_open"  # Testing if service recovered
-
 
 @dataclass
 class ServiceCall:
@@ -65,7 +54,6 @@ class ServiceCall:
     response: Any = None
     duration_ms: float = 0.0
 
-
 @dataclass
 class CircuitBreaker:
     """Circuit breaker for service calls"""
@@ -81,11 +69,10 @@ class CircuitBreaker:
     last_failure_time: Optional[datetime] = None
     next_attempt_time: Optional[datetime] = None
 
-
 class ServiceEndpoint(BaseModel):
     """Service endpoint configuration"""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_assignment=True)
 
     name: str
     url: str
@@ -95,7 +82,6 @@ class ServiceEndpoint(BaseModel):
     headers: Dict[str, str] = Field(default_factory=dict)
     auth_required: bool = False
     health_check_path: Optional[str] = None
-
 
 class ServiceCoordinator:
     """

@@ -28,7 +28,7 @@ from ...nlp.services.semantic_matcher import SemanticMatcher
 
 class CapabilityDefinition(BaseModel):
 	"""Standardized capability definition"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	name: str = Field(description="Canonical capability name")
 	category: str = Field(description="Capability category (technical, domain, process)")
@@ -43,7 +43,7 @@ class CapabilityDefinition(BaseModel):
 
 class RequirementProfile(BaseModel):
 	"""Parsed requirement profile from opportunity"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	raw_text: str = Field(description="Original requirement text")
 	extracted_capabilities: List[str] = Field(description="Extracted capability keywords")
@@ -57,7 +57,7 @@ class RequirementProfile(BaseModel):
 
 class CapabilityMatch(BaseModel):
 	"""Individual capability matching result"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	requirement_text: str = Field(description="Original requirement text")
 	matched_capability: str = Field(description="Matched organizational capability")
@@ -75,7 +75,7 @@ class CapabilityMatch(BaseModel):
 
 class MatchingStrategy(BaseModel):
 	"""Matching strategy configuration"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	similarity_threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Minimum similarity threshold")
 	context_weight: float = Field(default=0.3, ge=0.0, le=1.0, description="Context relevance weight")
@@ -91,7 +91,7 @@ class MatchingStrategy(BaseModel):
 
 class CapabilityCluster(BaseModel):
 	"""Clustered capability group"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	cluster_id: str = Field(description="Unique cluster identifier")
 	cluster_name: str = Field(description="Human-readable cluster name")
@@ -103,7 +103,7 @@ class CapabilityCluster(BaseModel):
 
 class MatchingResults(BaseModel):
 	"""Complete matching results"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	opportunity_id: str = Field(description="Opportunity identifier")
 	total_requirements: int = Field(description="Total number of requirements analyzed")

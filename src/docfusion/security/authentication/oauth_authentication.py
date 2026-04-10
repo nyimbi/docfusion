@@ -21,10 +21,8 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import aiohttp
 import jwt
 from pydantic import BaseModel, Field
-from uuid_extensions import uuid7str
-
 from ...config.secrets import SecretsManager
-
+from ...core.utils import uuid7str
 
 class OAuthProvider(str, Enum):
     """Supported OAuth 2.0 providers"""
@@ -33,7 +31,6 @@ class OAuthProvider(str, Enum):
     MICROSOFT = "microsoft"
     GITHUB = "github"
 
-
 class OAuthGrantType(str, Enum):
     """OAuth 2.0 grant types"""
 
@@ -41,13 +38,11 @@ class OAuthGrantType(str, Enum):
     REFRESH_TOKEN = "refresh_token"
     CLIENT_CREDENTIALS = "client_credentials"
 
-
 class OAuthTokenType(str, Enum):
     """OAuth token types"""
 
     BEARER = "Bearer"
     MAC = "MAC"
-
 
 @dataclass
 class OAuthProviderConfig:
@@ -74,7 +69,6 @@ class OAuthProviderConfig:
     verify_ssl: bool = True
     timeout_seconds: int = 30
 
-
 @dataclass
 class OAuthConfiguration:
     """OAuth 2.0 system configuration"""
@@ -94,7 +88,6 @@ class OAuthConfiguration:
     auth_rate_limit_per_hour: int = 100
     token_rate_limit_per_hour: int = 500
 
-
 class OAuthState(BaseModel):
     """OAuth state for CSRF protection"""
 
@@ -106,7 +99,6 @@ class OAuthState(BaseModel):
     expires_at: datetime
     user_id: Optional[str] = None
     client_info: Dict[str, Any] = Field(default_factory=dict)
-
 
 class OAuthToken(BaseModel):
     """OAuth token information"""
@@ -134,7 +126,6 @@ class OAuthToken(BaseModel):
     client_ip: Optional[str] = None
     user_agent: Optional[str] = None
 
-
 class OAuthUserInfo(BaseModel):
     """User information from OAuth provider"""
 
@@ -151,7 +142,6 @@ class OAuthUserInfo(BaseModel):
     # Provider-specific fields
     raw_data: Dict[str, Any] = Field(default_factory=dict)
 
-
 class OAuthResult(BaseModel):
     """OAuth authentication result"""
 
@@ -167,7 +157,6 @@ class OAuthResult(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc)
     )
     requires_linking: bool = False  # If account needs to be linked to existing user
-
 
 class OAuthAuthentication:
     """OAuth 2.0 authentication manager"""
@@ -783,14 +772,12 @@ class OAuthAuthentication:
 
         return user_tokens
 
-
 # Factory functions
 def create_oauth_authentication(
     config: Optional[OAuthConfiguration] = None,
 ) -> OAuthAuthentication:
     """Create OAuthAuthentication instance"""
     return OAuthAuthentication(config)
-
 
 def create_oauth_config_from_env() -> OAuthConfiguration:
     """Create OAuth configuration from environment variables"""

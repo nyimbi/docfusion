@@ -19,15 +19,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 # For diagram libraries - would need to install these
 try:
     import graphviz
@@ -47,7 +38,7 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class DiagramType(str, Enum):
     """Supported diagram types"""
@@ -63,7 +54,6 @@ class DiagramType(str, Enum):
     GANTT_CHART = "gantt_chart"
     TREE_DIAGRAM = "tree_diagram"
 
-
 class NodeShape(str, Enum):
     """Node shapes for diagrams"""
 
@@ -75,7 +65,6 @@ class NodeShape(str, Enum):
     HEXAGON = "hexagon"
     PARALLELOGRAM = "parallelogram"
 
-
 class EdgeStyle(str, Enum):
     """Edge styles for connections"""
 
@@ -83,7 +72,6 @@ class EdgeStyle(str, Enum):
     DASHED = "dashed"
     DOTTED = "dotted"
     BOLD = "bold"
-
 
 @dataclass
 class DiagramNode:
@@ -98,7 +86,6 @@ class DiagramNode:
     size: Tuple[float, float] = (100, 50)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class DiagramEdge:
     """Diagram edge representation"""
@@ -111,7 +98,6 @@ class DiagramEdge:
     color: str = "#000000"
     weight: float = 1.0
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class DiagramLayout:
@@ -130,7 +116,6 @@ class DiagramLayout:
     )  # top, right, bottom, left
     auto_arrange: bool = True
 
-
 @dataclass
 class DiagramData:
     """Complete diagram data structure"""
@@ -142,7 +127,6 @@ class DiagramData:
     edges: List[DiagramEdge] = field(default_factory=list)
     layout: DiagramLayout = field(default_factory=DiagramLayout)
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class DiagramConfiguration:
@@ -169,7 +153,6 @@ class DiagramConfiguration:
     # Accessibility
     high_contrast: bool = False
     include_descriptions: bool = True
-
 
 class DiagramGenerator:
     """

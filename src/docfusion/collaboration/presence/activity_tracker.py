@@ -7,21 +7,15 @@ collaboration analytics, and activity-based notifications.
 
 import asyncio
 import logging
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from pydantic import BaseModel, Field, ConfigDict
-
-def uuid7str():
-	"""Generate a UUID7-like string using UUID4 for compatibility."""
-	return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 class ActivityType(str, Enum):
 	"""Types of user activities to track."""
@@ -53,10 +47,9 @@ class ActivityType(str, Enum):
 	IDLE_START = "idle_start"
 	IDLE_END = "idle_end"
 
-
 class ActivityEvent(BaseModel):
 	"""Individual activity event record."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	event_id: str = Field(default_factory=uuid7str)
 	document_id: str = Field(description="Document being worked on")
@@ -70,10 +63,9 @@ class ActivityEvent(BaseModel):
 	metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional activity data")
 	productivity_score: Optional[float] = Field(None, description="Productivity contribution score")
 
-
 class SessionSummary(BaseModel):
 	"""Summary of user activity within a session."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	session_id: str
 	document_id: str
@@ -101,10 +93,9 @@ class SessionSummary(BaseModel):
 	peak_productivity_period: Optional[Tuple[datetime, datetime]] = None
 	focus_score: float = 0.0  # Based on session length and activity density
 
-
 class ProductivityMetrics(BaseModel):
 	"""Comprehensive productivity metrics for a user or document."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	user_id: Optional[str] = None
 	document_id: Optional[str] = None
@@ -139,7 +130,6 @@ class ProductivityMetrics(BaseModel):
 	consistency_score: float = 0.0  # How consistent activity levels are
 	collaboration_score: float = 0.0  # Based on helpful collaboration activities
 
-
 @dataclass
 class ActivityFilter:
 	"""Filter criteria for querying activities."""
@@ -151,7 +141,6 @@ class ActivityFilter:
 	end_time: Optional[datetime] = None
 	min_productivity_score: Optional[float] = None
 	max_productivity_score: Optional[float] = None
-
 
 class ActivityTracker:
 	"""

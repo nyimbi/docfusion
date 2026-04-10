@@ -15,20 +15,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, validator
 
 from .language import CompositionLanguage
-
+from ..core.utils import uuid7str
 
 class OperatorType(Enum):
     """Operator types for composition language"""
@@ -44,7 +35,6 @@ class OperatorType(Enum):
     ASYNC = "async"
     FALLBACK = "fallback"
 
-
 @dataclass
 class ParsedExpression:
     """Represents a parsed flow expression"""
@@ -57,7 +47,6 @@ class ParsedExpression:
     parameters: Dict[str, Any] = field(default_factory=dict)
     raw_expression: str = ""
 
-
 @dataclass
 class ParsedFlow:
     """Represents a parsed workflow flow"""
@@ -68,7 +57,6 @@ class ParsedFlow:
     exit_points: List[str]
     dependencies: Dict[str, List[str]]
     raw_definition: str
-
 
 @dataclass
 class ParsedComposition:
@@ -87,7 +75,6 @@ class ParsedComposition:
     error_handling: Dict[str, Any]
     monitoring: Dict[str, Any]
     metadata: Dict[str, Any]
-
 
 class CompositionParseError(Exception):
     """Exception raised during composition parsing"""
@@ -111,7 +98,6 @@ class CompositionParseError(Exception):
         if self.context:
             msg += f" in context: {self.context}"
         return msg
-
 
 class CompositionParser:
     """

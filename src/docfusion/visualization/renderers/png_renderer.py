@@ -18,15 +18,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 # Image processing libraries
 try:
     from PIL import Image, ImageDraw, ImageEnhance, ImageFont
@@ -46,7 +37,7 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class PNGQuality(str, Enum):
     """PNG quality levels"""
@@ -56,7 +47,6 @@ class PNGQuality(str, Enum):
     HIGH = "high"
     MAXIMUM = "maximum"
 
-
 class CompressionLevel(str, Enum):
     """PNG compression levels"""
 
@@ -64,7 +54,6 @@ class CompressionLevel(str, Enum):
     FAST = "fast"
     BALANCED = "balanced"
     MAXIMUM = "maximum"
-
 
 @dataclass
 class PNGConfiguration:
@@ -93,7 +82,6 @@ class PNGConfiguration:
     # Output options
     include_metadata: bool = True
     embed_color_profile: bool = False
-
 
 class PNGRenderer:
     """

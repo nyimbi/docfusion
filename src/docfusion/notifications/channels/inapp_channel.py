@@ -31,7 +31,7 @@ class InAppNotificationType(str, Enum):
 
 class InAppConfiguration(BaseModel):
 	"""In-app notification channel configuration."""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# WebSocket Configuration
 	websocket_url: Optional[str] = Field(None, description="WebSocket server URL")

@@ -24,13 +24,6 @@ import tempfile
 import os
 
 from pydantic import BaseModel, Field
-import uuid
-
-def uuid7str() -> str:
-	"""Generate a UUID7-like string using UUID4"""
-	return str(uuid.uuid4())
-
-
 class ScrapingStatus(str, Enum):
 	"""Scraping operation status"""
 	PENDING = "pending"
@@ -41,7 +34,6 @@ class ScrapingStatus(str, Enum):
 	BLOCKED = "blocked"
 	TIMEOUT = "timeout"
 
-
 class ProxyStatus(str, Enum):
 	"""Proxy health status"""
 	ACTIVE = "active"
@@ -49,7 +41,6 @@ class ProxyStatus(str, Enum):
 	BLOCKED = "blocked"
 	FAILED = "failed"
 	TESTING = "testing"
-
 
 @dataclass
 class ScrapingConfiguration:
@@ -98,7 +89,6 @@ class ScrapingConfiguration:
 	proxy_test_timeout: int = 10
 	proxy_max_failures: int = 3
 	proxy_cooldown_minutes: int = 30
-
 
 class ProxyManager:
 	"""Manages proxy rotation and health monitoring"""
@@ -240,7 +230,6 @@ class ProxyManager:
 					self.proxy_failures[proxy] = 0
 					self.logger.info(f"Proxy {proxy} reset for retesting after cooldown")
 
-
 class RateLimiter:
 	"""Advanced rate limiting with multiple windows and burst support"""
 	
@@ -306,7 +295,6 @@ class RateLimiter:
 		"""Add random delay to avoid detection"""
 		delay = random.uniform(*self.config.random_delay_range)
 		return delay
-
 
 class SessionManager:
 	"""Manages HTTP sessions with automatic rotation"""
@@ -433,7 +421,6 @@ class SessionManager:
 		self.session_created.clear()
 		self.session_request_count.clear()
 
-
 class ScrapingResult(BaseModel):
 	"""Result from a scraping operation"""
 	request_id: str = Field(default_factory=uuid7str)
@@ -464,7 +451,6 @@ class ScrapingResult(BaseModel):
 	# Error information
 	error_message: Optional[str] = None
 	error_type: Optional[str] = None
-
 
 class BaseScraper(ABC):
 	"""
@@ -762,6 +748,7 @@ class BaseScraper(ABC):
 		except ImportError:
 			# Fallback: basic HTML tag removal
 			import re
+from ....core.utils import uuid7str
 			text = re.sub(r'<[^>]+>', ' ', html_content)
 			text = re.sub(r'\s+', ' ', text).strip()
 			return text
@@ -806,7 +793,6 @@ class BaseScraper(ABC):
 		"""
 		pass
 
-
 # Utility functions for common scraping tasks
 def create_scraper_config(
 	requests_per_second: float = 1.0,
@@ -819,7 +805,6 @@ def create_scraper_config(
 		max_retries=max_retries,
 		enable_proxy_rotation=use_proxies
 	)
-
 
 async def test_scraper_connectivity(scraper: BaseScraper, test_urls: List[str]) -> Dict[str, Any]:
 	"""Test scraper connectivity and performance"""

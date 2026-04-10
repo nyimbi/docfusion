@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.types import confloat
-
+from ...core.utils import uuid7str
 
 class AnalyticsEvent(str, Enum):
     """Notification analytics event types."""
@@ -34,7 +34,6 @@ class AnalyticsEvent(str, Enum):
     CONVERTED = "converted"
     SHARED = "shared"
 
-
 class TimeGranularity(str, Enum):
     """Time-based analytics granularity."""
 
@@ -43,7 +42,6 @@ class TimeGranularity(str, Enum):
     DAY = "day"
     WEEK = "week"
     MONTH = "month"
-
 
 @dataclass
 class NotificationEvent:
@@ -74,11 +72,10 @@ class NotificationEvent:
     # Custom attributes
     custom_attributes: Dict[str, Any] = field(default_factory=dict)
 
-
 class AnalyticsMetrics(BaseModel):
     """Comprehensive analytics metrics."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Time period
     start_time: datetime = Field(..., description="Analytics period start")
@@ -130,11 +127,10 @@ class AnalyticsMetrics(BaseModel):
         default_factory=dict, description="Daily trend data"
     )
 
-
 class ABTestResult(BaseModel):
     """A/B test analysis results."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     test_name: str = Field(..., description="A/B test identifier")
     start_date: datetime = Field(..., description="Test start date")
@@ -164,7 +160,6 @@ class ABTestResult(BaseModel):
 
     # Recommendations
     recommendation: Optional[str] = Field(None, description="Test recommendation")
-
 
 class NotificationAnalytics:
     """
@@ -865,9 +860,7 @@ class NotificationAnalytics:
             else "Continue testing",
         }
 
-
 # Utility functions for analytics
-
 
 def create_notification_event(
     notification_id: str,
@@ -877,7 +870,6 @@ def create_notification_event(
     **kwargs,
 ) -> NotificationEvent:
     """Create a notification analytics event."""
-    from uuid_extensions import uuid7str
 
     return NotificationEvent(
         event_id=uuid7str(),
@@ -888,7 +880,6 @@ def create_notification_event(
         timestamp=datetime.now(),
         **kwargs,
     )
-
 
 async def create_notification_analytics(
     retention_days: int = 90, **kwargs

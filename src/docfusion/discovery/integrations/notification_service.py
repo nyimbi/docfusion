@@ -43,7 +43,7 @@ class NotificationPriority(Enum):
 
 class NotificationRule(BaseModel):
 	"""Rule for generating notifications"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	rule_id: str = Field(description="Unique rule identifier")
 	rule_name: str = Field(description="Human-readable rule name")
@@ -75,7 +75,7 @@ class NotificationRule(BaseModel):
 
 class OpportunityNotification(BaseModel):
 	"""Opportunity-specific notification"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	notification_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique notification ID")
 	opportunity_id: str = Field(description="Associated opportunity ID")
@@ -107,7 +107,7 @@ class OpportunityNotification(BaseModel):
 
 class NotificationSubscription(BaseModel):
 	"""User notification subscription preferences"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	user_id: str = Field(description="User identifier")
 	subscription_id: str = Field(default_factory=lambda: str(uuid4()), description="Subscription ID")

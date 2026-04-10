@@ -67,7 +67,7 @@ class VoiceComponent(str, Enum):
 
 class WritingPattern(BaseModel):
 	"""Individual writing pattern identification"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	pattern_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique pattern identifier")
 	component: VoiceComponent = Field(description="Voice component this pattern relates to")
@@ -91,7 +91,7 @@ class WritingPattern(BaseModel):
 
 class VoiceFingerprint(BaseModel):
 	"""Comprehensive voice fingerprint for an organization"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	fingerprint_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique fingerprint identifier")
 	organization_name: str = Field(description="Organization name")

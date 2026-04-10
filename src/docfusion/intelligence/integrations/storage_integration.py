@@ -53,7 +53,7 @@ class DataType(str, Enum):
 
 class StorageMetadata(BaseModel):
     """Metadata for stored items"""
-    model_config = ConfigDict(extra='forbid', validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
     
     storage_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique storage identifier")
     data_type: DataType = Field(description="Type of stored data")

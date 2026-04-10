@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Union
 
 from pydantic import BaseModel, ConfigDict, Field
+from ...core.utils import uuid7str
 
 """
 Agent Context Management System
@@ -20,15 +21,6 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 class ContextType(str, Enum):
     """Types of context information"""
 
@@ -41,7 +33,6 @@ class ContextType(str, Enum):
     ERROR_INFO = "error_info"
     SYSTEM_STATE = "system_state"
 
-
 class ContextScope(str, Enum):
     """Scope of context visibility"""
 
@@ -50,7 +41,6 @@ class ContextScope(str, Enum):
     WORKFLOW = "workflow"  # Visible to workflow participants
     PRIVATE = "private"  # Only visible to the agent
     SHARED_ROLE = "shared_role"  # Visible to agents with same role
-
 
 @dataclass
 class ContextEntry:
@@ -70,11 +60,10 @@ class ContextEntry:
     related_task_ids: List[str] = field(default_factory=list)
     related_agent_ids: List[str] = field(default_factory=list)
 
-
 class AgentAwarenessInfo(BaseModel):
     """Information about an agent's current state and activities"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     agent_id: str
     agent_name: str
@@ -88,11 +77,10 @@ class AgentAwarenessInfo(BaseModel):
     recent_outputs: List[Dict[str, Any]] = Field(default_factory=list)
     collaborative_preferences: Dict[str, Any] = Field(default_factory=dict)
 
-
 class WorkflowContext(BaseModel):
     """Context for a specific workflow or project"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     workflow_id: str
     workflow_name: str
@@ -106,11 +94,10 @@ class WorkflowContext(BaseModel):
     quality_requirements: Dict[str, Any] = Field(default_factory=dict)
     client_context: Dict[str, Any] = Field(default_factory=dict)
 
-
 class TaskInterdependency(BaseModel):
     """Represents dependencies between tasks and agents"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     task_id: str
     depends_on_tasks: List[str] = Field(default_factory=list)
@@ -118,7 +105,6 @@ class TaskInterdependency(BaseModel):
     blocks_tasks: List[str] = Field(default_factory=list)
     shared_resources: List[str] = Field(default_factory=list)
     coordination_points: List[Dict[str, Any]] = Field(default_factory=list)
-
 
 class ContextManager:
     """
@@ -711,10 +697,8 @@ Client: {workflow.client_context.get("organization", "Not specified")}""")
 
         del self.context_store[entry_id]
 
-
 # Global context manager instance
 _context_manager: Optional[ContextManager] = None
-
 
 async def get_context_manager() -> ContextManager:
     """Get the global context manager instance"""

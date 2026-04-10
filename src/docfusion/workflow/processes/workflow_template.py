@@ -8,21 +8,15 @@ template performance analytics, and optimization recommendations.
 import asyncio
 import json
 import logging
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Union
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-
-def uuid7str():
-	"""Generate a UUID7-like string using UUID4 for compatibility."""
-	return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 class TemplateCategory(str, Enum):
 	"""Categories of workflow templates."""
@@ -36,7 +30,6 @@ class TemplateCategory(str, Enum):
 	QUALITY_ASSURANCE = "quality_assurance"
 	PUBLISHING = "publishing"
 	MAINTENANCE = "maintenance"
-
 
 class IndustryType(str, Enum):
 	"""Target industries for templates."""
@@ -52,7 +45,6 @@ class IndustryType(str, Enum):
 	NONPROFIT = "nonprofit"
 	GENERIC = "generic"
 
-
 class ParameterType(str, Enum):
 	"""Types of template parameters."""
 	STRING = "string"
@@ -67,7 +59,6 @@ class ParameterType(str, Enum):
 	DATE = "date"
 	ENUM = "enum"
 
-
 class TemplateStatus(str, Enum):
 	"""Template lifecycle statuses."""
 	DRAFT = "draft"
@@ -75,10 +66,9 @@ class TemplateStatus(str, Enum):
 	DEPRECATED = "deprecated"
 	ARCHIVED = "archived"
 
-
 class TemplateParameter(BaseModel):
 	"""Customizable template parameter definition."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	parameter_id: str = Field(default_factory=uuid7str)
 	name: str = Field(description="Parameter name")
@@ -102,10 +92,9 @@ class TemplateParameter(BaseModel):
 	group: Optional[str] = Field(None, description="Parameter grouping for UI")
 	order: int = Field(100, description="Display order")
 
-
 class TemplateUsageStatistics(BaseModel):
 	"""Template usage and performance statistics."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	template_id: str = Field(description="Template identifier")
 	total_usage_count: int = Field(0, description="Total number of template uses")
@@ -128,10 +117,9 @@ class TemplateUsageStatistics(BaseModel):
 	performance_trend: Dict[str, float] = Field(default_factory=dict, description="Performance trend by date")
 	last_updated: datetime = Field(default_factory=datetime.now)
 
-
 class TemplateInstance(BaseModel):
 	"""Instance of a template with specific parameter values."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	instance_id: str = Field(default_factory=uuid7str)
 	template_id: str = Field(description="Source template ID")
@@ -153,10 +141,9 @@ class TemplateInstance(BaseModel):
 	user_feedback: Optional[Dict[str, Any]] = Field(None, description="User feedback on instance")
 	performance_metrics: Dict[str, float] = Field(default_factory=dict, description="Performance measurements")
 
-
 class IndustryTemplate(BaseModel):
 	"""Industry-specific workflow template configuration."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	template_id: str = Field(default_factory=uuid7str)
 	name: str = Field(description="Template name")
@@ -191,7 +178,6 @@ class IndustryTemplate(BaseModel):
 	complexity_score: float = Field(1.0, description="Template complexity (1-10)")
 	estimated_duration_hours: Optional[float] = Field(None, description="Estimated completion time")
 
-
 @dataclass
 class TemplateRecommendation:
 	"""Template recommendation for specific use case."""
@@ -201,7 +187,6 @@ class TemplateRecommendation:
 	suggested_parameters: Dict[str, Any]
 	expected_benefits: List[str]
 	customization_suggestions: List[str]
-
 
 class WorkflowTemplate:
 	"""

@@ -30,7 +30,7 @@ class SlackMessageType(str, Enum):
 
 class SlackConfiguration(BaseModel):
 	"""Slack API configuration."""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Slack App Configuration
 	bot_token: str = Field(..., description="Slack Bot User OAuth Token")

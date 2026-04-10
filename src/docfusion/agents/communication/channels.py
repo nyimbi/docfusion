@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field, ConfigDict
 from ..core.messages import AgentMessage, MessageStatus, MessageType
 import re
+from ...core.utils import uuid7str
 
 """
 Agent Communication Channels
@@ -21,15 +22,6 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-
-
 class ChannelType(str, Enum):
 	"""Communication channel types"""
 	DIRECT = "direct"
@@ -38,7 +30,6 @@ class ChannelType(str, Enum):
 	QUEUE = "queue"
 	TOPIC = "topic"
 
-
 class ChannelStatus(str, Enum):
 	"""Channel operational status"""
 	ACTIVE = "active"
@@ -46,10 +37,9 @@ class ChannelStatus(str, Enum):
 	CLOSED = "closed"
 	ERROR = "error"
 
-
 class ChannelConfig(BaseModel):
 	"""Channel configuration"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	channel_id: str = Field(default_factory=uuid7str)
 	name: str = Field(description="Channel name")
@@ -60,10 +50,9 @@ class ChannelConfig(BaseModel):
 	enable_compression: bool = Field(default=False)
 	priority_handling: bool = Field(default=True)
 
-
 class ChannelMetrics(BaseModel):
 	"""Channel performance metrics"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	messages_sent: int = 0
 	messages_received: int = 0
@@ -73,7 +62,6 @@ class ChannelMetrics(BaseModel):
 	buffer_utilization: float = 0.0
 	error_count: int = 0
 	uptime_seconds: float = 0.0
-
 
 class BaseChannel(ABC):
 	"""
@@ -150,17 +138,17 @@ class BaseChannel(ABC):
 	@abstractmethod
 	async def send_message(self, message: AgentMessage, sender_id: Optional[str] = None, **kwargs) -> bool:
 		"""Send a message through this channel"""
-		pass
+		raise NotImplementedError("send_message is not yet implemented")
 	
 	@abstractmethod
 	async def connect(self, agent_id: str, connection_info: Dict[str, Any]) -> bool:
 		"""Connect an agent to this channel"""
-		pass
+		raise NotImplementedError("connect is not yet implemented")
 	
 	@abstractmethod
 	async def disconnect(self, agent_id: str) -> bool:
 		"""Disconnect an agent from this channel"""
-		pass
+		raise NotImplementedError("disconnect is not yet implemented")
 	
 	async def _message_processor(self) -> None:
 		"""Process messages in the queue"""
@@ -184,7 +172,7 @@ class BaseChannel(ABC):
 	@abstractmethod
 	async def _process_message(self, message: AgentMessage) -> None:
 		"""Process a single message"""
-		pass
+		raise NotImplementedError("_process_message is not yet implemented")
 	
 	def get_channel_status(self) -> Dict[str, Any]:
 		"""Get channel status and metrics"""
@@ -202,7 +190,6 @@ class BaseChannel(ABC):
 			"subscribers": len(self.subscribers),
 			"metrics": self.metrics.model_dump()
 		}
-
 
 class DirectChannel(BaseChannel):
 	"""
@@ -333,7 +320,6 @@ class DirectChannel(BaseChannel):
 				break
 		
 		return messages
-
 
 class BroadcastChannel(BaseChannel):
 	"""
@@ -515,7 +501,6 @@ class BroadcastChannel(BaseChannel):
 				break
 		
 		return messages
-
 
 class AgentChannel(BaseChannel):
 	"""

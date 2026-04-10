@@ -23,13 +23,6 @@ from enum import Enum
 from uuid import uuid4
 from pydantic import BaseModel, Field, ConfigDict
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-
 # Import workflow components
 from ..coordination.task_coordinator import TaskCoordinator, TaskAssignment, TaskProgress
 from ..coordination.deadline_manager import DeadlineManager, WorkflowDeadline
@@ -45,7 +38,7 @@ from ...agents.specialists.research_agent import ResearchAgent
 from ...agents.specialists.quality_agent import QualityAgent
 from ...agents.specialists.reviewer_agent import ReviewerAgent
 from ...agents.specialists.compliance_agent import ComplianceAgent
-
+from ...core.utils import uuid7str
 
 class AgentWorkflowRole(str, Enum):
 	"""Agent roles within workflow execution"""
@@ -59,7 +52,6 @@ class AgentWorkflowRole(str, Enum):
 	LAYOUT_SPECIALIST = "layout_specialist"
 	WORKFLOW_MONITOR = "workflow_monitor"
 
-
 class AgentTaskType(str, Enum):
 	"""Types of tasks agents can perform in workflows"""
 	RESEARCH_TASK = "research_task"
@@ -72,7 +64,6 @@ class AgentTaskType(str, Enum):
 	COLLABORATION = "collaboration"
 	WORKFLOW_COORDINATION = "workflow_coordination"
 
-
 class AgentWorkflowStatus(str, Enum):
 	"""Status of agent within workflow"""
 	AVAILABLE = "available"
@@ -82,7 +73,6 @@ class AgentWorkflowStatus(str, Enum):
 	COMPLETED_TASK = "completed_task"
 	ERROR_STATE = "error_state"
 	OFFLINE = "offline"
-
 
 @dataclass
 class AgentCapabilityMapping:
@@ -96,7 +86,6 @@ class AgentCapabilityMapping:
 	availability_schedule: Optional[Dict[str, Any]] = None
 	max_concurrent_tasks: int = 3
 	preferred_collaboration_patterns: List[str] = field(default_factory=list)
-
 
 @dataclass
 class WorkflowAgentAssignment:
@@ -114,10 +103,9 @@ class WorkflowAgentAssignment:
 	constraints: Dict[str, Any] = field(default_factory=dict)
 	context: Dict[str, Any] = field(default_factory=dict)
 
-
 class AgentWorkflowMetrics(BaseModel):
 	"""Performance metrics for agents in workflows"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	agent_id: str
 	workflow_id: str
@@ -131,7 +119,6 @@ class AgentWorkflowMetrics(BaseModel):
 	error_rate: float = 0.0
 	learning_progress: float = 0.0
 	user_satisfaction: float = 0.0
-
 
 class AgentsWorkflowIntegration:
 	"""
@@ -1007,7 +994,7 @@ class AgentsWorkflowIntegration:
 	async def _create_workflow_swarm(self, workflow_id: str, assignments: List[WorkflowAgentAssignment]) -> AgentSwarm:
 		"""Create agent swarm for workflow execution"""
 		# Implementation would create and configure agent swarm
-		pass
+		raise NotImplementedError("_create_workflow_swarm is not yet implemented")
 	
 	async def _identify_performance_bottlenecks(self, workflow_id: str, performance_data: Dict[str, Any]) -> List[Dict[str, Any]]:
 		"""Identify performance bottlenecks in workflow execution"""
@@ -1037,7 +1024,7 @@ class AgentsWorkflowIntegration:
 	async def _facilitate_agent_collaboration(self, workflow_id: str, waiting_agents: List[WorkflowAgentAssignment]) -> None:
 		"""Facilitate collaboration between waiting agents"""
 		# Implementation would coordinate collaboration between agents
-		pass
+		raise NotImplementedError("_facilitate_agent_collaboration is not yet implemented")
 	
 	async def _identify_stuck_agents(self, workflow_id: str, assignments: List[WorkflowAgentAssignment]) -> List[WorkflowAgentAssignment]:
 		"""Identify agents that are stuck or unresponsive"""
@@ -1047,13 +1034,12 @@ class AgentsWorkflowIntegration:
 	async def _resolve_stuck_agent(self, assignment: WorkflowAgentAssignment) -> None:
 		"""Resolve issues with stuck agent"""
 		# Implementation would attempt to resolve stuck agent issues
-		pass
+		raise NotImplementedError("_resolve_stuck_agent is not yet implemented")
 	
 	async def _handle_failed_agent(self, agent_id: str) -> None:
 		"""Handle agent failure by reassigning tasks"""
 		# Implementation would reassign tasks from failed agent to other agents
-		pass
-
+		raise NotImplementedError("_handle_failed_agent is not yet implemented")
 
 # Factory function for creating agents-workflow integration
 async def create_agents_workflow_integration(

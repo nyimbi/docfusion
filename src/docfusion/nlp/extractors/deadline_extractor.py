@@ -16,13 +16,6 @@ from dataclasses import dataclass
 from enum import Enum
 import calendar
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
 # Enhanced date parsing
 try:
 	import dateutil.parser as dateparser
@@ -46,7 +39,7 @@ except ImportError:
 # Ollama integration for AI-powered temporal understanding
 import httpx
 import json
-
+from ...core.utils import uuid7str
 
 class TemporalType(str, Enum):
 	"""Types of temporal expressions"""
@@ -63,7 +56,6 @@ class TemporalType(str, Enum):
 	DATE_RANGE = "date_range"             # "January 1-15, 2024"
 	FUZZY_DATE = "fuzzy_date"             # "early 2024", "mid-quarter"
 
-
 class UrgencyLevel(str, Enum):
 	"""Urgency levels for deadlines"""
 	CRITICAL = "critical"    # Within 1 week
@@ -71,7 +63,6 @@ class UrgencyLevel(str, Enum):
 	MEDIUM = "medium"       # Within 3 months
 	LOW = "low"            # Beyond 3 months
 	UNKNOWN = "unknown"     # Cannot determine urgency
-
 
 @dataclass
 class TemporalExpression:
@@ -107,7 +98,6 @@ class TemporalExpression:
 		if self.ai_insights is None:
 			self.ai_insights = {}
 
-
 @dataclass
 class BusinessCalendar:
 	"""Business calendar information for temporal calculations"""
@@ -129,7 +119,6 @@ class BusinessCalendar:
 				4: (10, 12)  # Q4: Oct-Dec
 			}
 
-
 class DeadlineExtractionResult:
 	"""Result of deadline/temporal extraction"""
 	
@@ -146,7 +135,6 @@ class DeadlineExtractionResult:
 		self.processing_time: float = 0.0
 		self.methods_used: List[str] = []
 		self.ai_analysis: Dict[str, Any] = {}
-
 
 class DeadlineExtractor:
 	"""Advanced deadline and temporal expression extractor"""
@@ -947,7 +935,7 @@ Provide comprehensive temporal analysis:
 		try:
 			return TemporalType(ai_type_upper)
 		except ValueError:
-			pass
+			self.logger.warning("ValueError in _map_ai_type_to_temporal_type")
 		
 		# Fallback mappings
 		mapping = {
@@ -1142,7 +1130,7 @@ Provide comprehensive temporal analysis:
 			try:
 				return dateparser.parse(date_str, fuzzy=True)
 			except (ValueError, TypeError, OverflowError):
-				pass
+				self.logger.warning("ValueError/TypeError/OverflowError in _parse_date_string")
 		
 		# Try standard datetime parsing with preferred formats
 		for fmt in self.config['preferred_date_formats']:
@@ -1375,7 +1363,6 @@ Provide comprehensive temporal analysis:
 			'config': self.config.copy(),
 			'version': '1.0.0'
 		}
-
 
 # Factory function
 def create_deadline_extractor(config: Optional[Dict[str, Any]] = None) -> DeadlineExtractor:

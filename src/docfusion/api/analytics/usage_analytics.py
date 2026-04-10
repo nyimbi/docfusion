@@ -15,18 +15,9 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4)
-
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-
+from ...core.utils import uuid7str
 
 class AnalyticsPeriod(str, Enum):
     """Time periods for analytics"""
@@ -35,7 +26,6 @@ class AnalyticsPeriod(str, Enum):
     DAY = "day"
     WEEK = "week"
     MONTH = "month"
-
 
 class EventType(str, Enum):
     """API event types"""
@@ -51,7 +41,6 @@ class EventType(str, Enum):
     SEARCH_QUERY = "search_query"
     WEBSOCKET_CONNECT = "websocket_connect"
     WEBSOCKET_DISCONNECT = "websocket_disconnect"
-
 
 @dataclass
 class AnalyticsEvent:
@@ -73,7 +62,6 @@ class AnalyticsEvent:
     response_size_bytes: Optional[int] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class UsageStats:
     """Usage statistics summary"""
@@ -93,7 +81,6 @@ class UsageStats:
     top_users: List[Dict[str, Any]] = field(default_factory=list)
     status_code_distribution: Dict[int, int] = field(default_factory=dict)
     hourly_distribution: Dict[int, int] = field(default_factory=dict)
-
 
 class AnalyticsCollector:
     """Collects and stores analytics events"""
@@ -249,7 +236,6 @@ class AnalyticsCollector:
         except Exception as e:
             self.logger.error(f"Failed to get events in period: {e}")
             return []
-
 
 class UsageAnalyzer:
     """Analyzes usage patterns and generates insights"""
@@ -565,7 +551,6 @@ class UsageAnalyzer:
             self.logger.error(f"Failed to get trend analysis: {e}")
             return {"metric": metric, "error": str(e)}
 
-
 class UsageAnalyticsAPI:
     """API endpoints for usage analytics"""
 
@@ -702,17 +687,14 @@ class UsageAnalyticsAPI:
                 self.logger.error(f"Dashboard endpoint failed: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
-
 # Factory functions
 def create_analytics_collector() -> AnalyticsCollector:
     """Create analytics collector instance"""
     return AnalyticsCollector()
 
-
 def create_usage_analyzer(collector: AnalyticsCollector) -> UsageAnalyzer:
     """Create usage analyzer instance"""
     return UsageAnalyzer(collector)
-
 
 def create_analytics_api(analyzer: UsageAnalyzer) -> UsageAnalyticsAPI:
     """Create analytics API instance"""

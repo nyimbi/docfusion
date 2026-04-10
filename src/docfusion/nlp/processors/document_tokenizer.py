@@ -14,15 +14,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # spaCy integration for advanced NLP
 try:
     import spacy
@@ -40,11 +31,11 @@ try:
     from nltk.corpus import stopwords
     from nltk.stem import PorterStemmer, WordNetLemmatizer
     from nltk.tokenize import sent_tokenize, word_tokenize
+from ...core.utils import uuid7str
 
     HAS_NLTK_SUPPORT = True
 except ImportError:
     HAS_NLTK_SUPPORT = False
-
 
 class TokenType(str, Enum):
     """Token types for classification"""
@@ -60,7 +51,6 @@ class TokenType(str, Enum):
     ENTITY = "entity"
     STOPWORD = "stopword"
     WHITESPACE = "whitespace"
-
 
 @dataclass
 class Token:
@@ -88,7 +78,6 @@ class Token:
         if self.custom_attributes is None:
             self.custom_attributes = {}
 
-
 @dataclass
 class Sentence:
     """Sentence with tokens and features"""
@@ -106,7 +95,6 @@ class Sentence:
         if self.entities is None:
             self.entities = []
 
-
 class TokenizationResult:
     """Result of document tokenization"""
 
@@ -123,7 +111,6 @@ class TokenizationResult:
         self.model_used: str = ""
         self.language: str = "en"
         self.metadata: Dict[str, Any] = {}
-
 
 class DocumentTokenizer:
     """Advanced document tokenizer with spaCy and NLTK integration"""
@@ -720,7 +707,6 @@ class DocumentTokenizer:
             "config": self.config.copy(),
             "version": "1.0.0",
         }
-
 
 # Factory function
 def create_document_tokenizer(

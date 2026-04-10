@@ -13,23 +13,13 @@ import asyncio
 import json
 import logging
 import time
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class TaskStatus(str, Enum):
     """Task execution status"""
@@ -41,7 +31,6 @@ class TaskStatus(str, Enum):
     TIMEOUT = "timeout"
     CANCELLED = "cancelled"
 
-
 class TaskPriority(str, Enum):
     """Task execution priority levels"""
 
@@ -49,7 +38,6 @@ class TaskPriority(str, Enum):
     NORMAL = "normal"
     HIGH = "high"
     CRITICAL = "critical"
-
 
 @dataclass
 class TaskResult:
@@ -79,11 +67,10 @@ class TaskResult:
             "metadata": self.metadata,
         }
 
-
 class TaskDefinition(BaseModel):
     """Task definition for execution"""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_assignment=True)
 
     task_id: str = Field(default_factory=uuid7str)
     name: str
@@ -99,7 +86,6 @@ class TaskDefinition(BaseModel):
 
     created_at: datetime = Field(default_factory=datetime.now)
     scheduled_at: Optional[datetime] = None
-
 
 class TaskExecutor:
     """

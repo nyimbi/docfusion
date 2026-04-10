@@ -14,15 +14,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Type, Union
 
 from pydantic import BaseModel, ConfigDict, Field
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 class ToolCapability(str, Enum):
     """Tool capability categories"""
@@ -37,7 +29,6 @@ class ToolCapability(str, Enum):
     DATABASE = "database"
     COMMUNICATION = "communication"
 
-
 class ToolError(Exception):
     """Base exception for tool errors"""
 
@@ -46,7 +37,6 @@ class ToolError(Exception):
         self.tool_name = tool_name
         self.error_code = error_code
         super().__init__(f"{tool_name}: {message}")
-
 
 @dataclass
 class ToolResult:
@@ -72,18 +62,16 @@ class ToolResult:
             "timestamp": self.timestamp.isoformat(),
         }
 
-
 class ToolConfig(BaseModel):
     """Configuration for a tool"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     enabled: bool = True
     timeout_seconds: int = 30
     max_retries: int = 3
     rate_limit: Optional[int] = None  # requests per minute
     custom_settings: Dict[str, Any] = Field(default_factory=dict)
-
 
 class AgentTool(ABC):
     """
@@ -265,7 +253,6 @@ class AgentTool(ABC):
         self.enabled = False
         self.logger.info(f"Tool {self.name} disabled")
 
-
 class ToolRegistry:
     """
     Registry for managing agent tools
@@ -358,10 +345,8 @@ class ToolRegistry:
             },
         }
 
-
 # Global tool registry instance
 _tool_registry: Optional[ToolRegistry] = None
-
 
 def get_tool_registry() -> ToolRegistry:
     """Get the global tool registry instance"""

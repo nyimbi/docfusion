@@ -16,19 +16,10 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-
+from ...core.utils import uuid7str
 
 class RateLimitScope(str, Enum):
     """Rate limit scopes"""
@@ -39,7 +30,6 @@ class RateLimitScope(str, Enum):
     ENDPOINT = "endpoint"
     GLOBAL = "global"
 
-
 class LimitationType(str, Enum):
     """Rate limitation types"""
 
@@ -49,7 +39,6 @@ class LimitationType(str, Enum):
     CONCURRENT_REQUESTS = "concurrent_requests"
     BANDWIDTH_PER_MINUTE = "bandwidth_per_minute"
 
-
 class ThrottleAction(str, Enum):
     """Actions to take when rate limit is exceeded"""
 
@@ -57,7 +46,6 @@ class ThrottleAction(str, Enum):
     DELAY = "delay"
     PRIORITY_QUEUE = "priority_queue"
     ADAPTIVE_BACKOFF = "adaptive_backoff"
-
 
 @dataclass
 class RateLimitRule:
@@ -76,7 +64,6 @@ class RateLimitRule:
     enabled: bool = True
     created_at: datetime = field(default_factory=datetime.utcnow)
 
-
 @dataclass
 class RateLimitState:
     """Current state of rate limiting for a scope"""
@@ -89,7 +76,6 @@ class RateLimitState:
     total_blocked: int = 0
     total_delayed: int = 0
     burst_tokens: int = 0
-
 
 @dataclass
 class RateLimitEvent:
@@ -111,7 +97,6 @@ class RateLimitEvent:
     ip_address: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class RateLimitAnalytics:
     """Analytics summary for rate limiting"""
@@ -127,7 +112,6 @@ class RateLimitAnalytics:
     top_blocked_endpoints: List[Dict[str, Any]] = field(default_factory=list)
     rule_effectiveness: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     hourly_distribution: Dict[int, Dict[str, int]] = field(default_factory=dict)
-
 
 class RateLimitStore:
     """In-memory store for rate limit states"""
@@ -179,7 +163,6 @@ class RateLimitStore:
             except Exception as e:
                 self.logger.error(f"Rate limit cleanup failed: {e}")
                 await asyncio.sleep(self.cleanup_interval)
-
 
 class RateLimitEngine:
     """Core rate limiting engine"""
@@ -418,7 +401,6 @@ class RateLimitEngine:
             self.logger.error(f"Failed to get rate limit status: {e}")
             return {}
 
-
 class RateLimitAnalyzer:
     """Analyzes rate limiting patterns and effectiveness"""
 
@@ -584,7 +566,6 @@ class RateLimitAnalyzer:
             self.logger.error(f"Failed to generate rule optimization suggestions: {e}")
             return []
 
-
 class RateLimitMiddleware:
     """FastAPI middleware for rate limiting"""
 
@@ -646,7 +627,6 @@ class RateLimitMiddleware:
             self.logger.error(f"Rate limit middleware failed: {e}")
             # Continue with request on error
             return await call_next(request)
-
 
 class RateLimitAPI:
     """API endpoints for rate limiting analytics"""
@@ -741,22 +721,18 @@ class RateLimitAPI:
                 self.logger.error(f"Optimization suggestions endpoint failed: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
-
 # Factory functions
 def create_rate_limit_store() -> RateLimitStore:
     """Create rate limit store instance"""
     return RateLimitStore()
 
-
 def create_rate_limit_engine(store: RateLimitStore) -> RateLimitEngine:
     """Create rate limit engine instance"""
     return RateLimitEngine(store)
 
-
 def create_rate_limit_analyzer(engine: RateLimitEngine) -> RateLimitAnalyzer:
     """Create rate limit analyzer instance"""
     return RateLimitAnalyzer(engine)
-
 
 def create_rate_limit_api(analyzer: RateLimitAnalyzer) -> RateLimitAPI:
     """Create rate limiting API instance"""

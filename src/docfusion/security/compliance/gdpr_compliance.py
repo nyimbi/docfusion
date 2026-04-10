@@ -19,9 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
 from pydantic import BaseModel, Field
-from uuid_extensions import uuid7str
-
-
+from ...core.utils import uuid7str
 class DataProcessingPurpose(str, Enum):
     """GDPR data processing purposes"""
 
@@ -32,7 +30,6 @@ class DataProcessingPurpose(str, Enum):
     PUBLIC_TASK = "public_task"
     CONSENT = "consent"
 
-
 class ConsentStatus(str, Enum):
     """Consent status types"""
 
@@ -41,7 +38,6 @@ class ConsentStatus(str, Enum):
     PENDING = "pending"
     EXPIRED = "expired"
     NOT_REQUIRED = "not_required"
-
 
 class DataCategory(str, Enum):
     """Data categories under GDPR"""
@@ -55,7 +51,6 @@ class DataCategory(str, Enum):
     COMMUNICATION_DATA = "communication_data"
     BEHAVIORAL_DATA = "behavioral_data"
 
-
 class GDPRRights(str, Enum):
     """GDPR individual rights"""
 
@@ -68,7 +63,6 @@ class GDPRRights(str, Enum):
     AUTOMATED_DECISION_MAKING = (
         "automated_decision_making"  # Rights related to automated decision making
     )
-
 
 class ProcessingActivity(BaseModel):
     """GDPR processing activity record"""
@@ -102,7 +96,6 @@ class ProcessingActivity(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str
 
-
 class ConsentRecord(BaseModel):
     """Individual consent record"""
 
@@ -134,7 +127,6 @@ class ConsentRecord(BaseModel):
     # Metadata
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
 
 class DataSubjectRequest(BaseModel):
     """GDPR data subject request"""
@@ -171,7 +163,6 @@ class DataSubjectRequest(BaseModel):
     processed_by: Optional[str] = None
     notes: Optional[str] = None
 
-
 class DataExportResult(BaseModel):
     """Data export operation result"""
 
@@ -198,7 +189,6 @@ class DataExportResult(BaseModel):
     download_count: int = 0
     max_downloads: int = 3
 
-
 class DataDeletionResult(BaseModel):
     """Data deletion operation result"""
 
@@ -221,7 +211,6 @@ class DataDeletionResult(BaseModel):
     # Verification
     deletion_verified: bool = False
     verification_method: Optional[str] = None
-
 
 @dataclass
 class GDPRConfiguration:
@@ -258,7 +247,6 @@ class GDPRConfiguration:
     enable_consent_logging: bool = True
     enable_processing_logging: bool = True
     enable_automated_deletion: bool = True
-
 
 class GDPRCompliance:
     """GDPR compliance management system"""
@@ -986,14 +974,12 @@ class GDPRCompliance:
 
         return sorted(requests, key=lambda r: r.submitted_at, reverse=True)
 
-
 # Factory functions
 def create_gdpr_compliance(
     config: Optional[GDPRConfiguration] = None,
 ) -> GDPRCompliance:
     """Create GDPRCompliance instance"""
     return GDPRCompliance(config)
-
 
 def create_sample_processing_activities() -> List[ProcessingActivity]:
     """Create sample processing activities for testing"""

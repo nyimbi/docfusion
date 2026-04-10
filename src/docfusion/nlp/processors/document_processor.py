@@ -15,15 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import chardet
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
+from ...core.utils import uuid7str
 
 # PDF processing
 try:
@@ -60,7 +52,6 @@ try:
     HAS_OCR_SUPPORT = True
 except ImportError:
     HAS_OCR_SUPPORT = False
-
 
 class DocumentMetadata:
     """Document metadata extracted during processing"""
@@ -106,7 +97,6 @@ class DocumentMetadata:
             "custom_properties": self.custom_properties,
         }
 
-
 class ProcessingResult:
     """Result of document processing"""
 
@@ -122,7 +112,6 @@ class ProcessingResult:
         self.extracted_images: List[Dict[str, Any]] = []
         self.tables: List[Dict[str, Any]] = []
         self.links: List[Dict[str, str]] = []
-
 
 class DocumentProcessor:
     """Advanced document processor with multi-format support"""
@@ -702,7 +691,7 @@ class DocumentProcessor:
                 header.decode("utf-8")
                 return "text/plain"
             except UnicodeDecodeError:
-                pass
+                self.logger.warning("UnicodeDecodeError in unknown")
 
             return None
 
@@ -729,7 +718,7 @@ class DocumentProcessor:
                 return datetime(year, month, day, hour, minute, second)
 
         except (ValueError, IndexError):
-            pass
+            self.logger.warning("ValueError/IndexError in _parse_pdf_date")
 
         return None
 
@@ -815,7 +804,6 @@ class DocumentProcessor:
             "config": self.config.copy(),
             "version": "1.0.0",
         }
-
 
 # Factory function
 def create_document_processor(

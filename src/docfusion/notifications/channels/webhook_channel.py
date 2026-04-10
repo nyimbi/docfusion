@@ -42,7 +42,7 @@ class WebhookMethod(str, Enum):
 
 class WebhookConfiguration(BaseModel):
 	"""Webhook channel configuration."""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Webhook URL
 	webhook_url: str = Field(..., description="Webhook endpoint URL")

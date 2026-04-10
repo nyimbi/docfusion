@@ -21,15 +21,7 @@ except ImportError:
     aiohttp = None
 
 try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
-try:
+from ...core.utils import uuid7str
     from ..prompting_strategies import (
         AdvancedPromptBuilder,
         create_advanced_prompt_builder,
@@ -51,7 +43,6 @@ except ImportError:
 
     AdvancedPromptBuilder = None
 
-
 class ToneTransformation(Enum):
     """Types of tone transformations"""
 
@@ -66,7 +57,6 @@ class ToneTransformation(Enum):
     MORE_DIPLOMATIC = "more_diplomatic"
     MORE_DIRECT = "more_direct"
 
-
 class StyleAttribute(Enum):
     """Style attributes that can be modified"""
 
@@ -78,7 +68,6 @@ class StyleAttribute(Enum):
     WARMTH = "warmth"
     AUTHORITY = "authority"
     CLARITY = "clarity"
-
 
 @dataclass
 class StyleProfile:
@@ -97,7 +86,6 @@ class StyleProfile:
     audience_level: str = "professional"  # general, professional, expert
     cultural_context: str = "business"  # business, academic, casual
 
-
 @dataclass
 class TransformationRule:
     """Rule for style transformation"""
@@ -107,7 +95,6 @@ class TransformationRule:
     condition: Optional[str] = None
     priority: int = 1
     description: str = ""
-
 
 @dataclass
 class TransformationResult:
@@ -126,7 +113,6 @@ class TransformationResult:
     original_style_scores: Dict[str, float] = field(default_factory=dict)
     transformed_style_scores: Dict[str, float] = field(default_factory=dict)
     style_delta: Dict[str, float] = field(default_factory=dict)
-
 
 @dataclass
 class StyleTransformationResult:
@@ -158,7 +144,6 @@ class StyleTransformationResult:
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     statistics: Dict[str, Any] = field(default_factory=dict)
-
 
 class StyleTransformer:
     """Advanced style transformer with AI-powered text rewriting"""
@@ -1135,7 +1120,6 @@ Rewritten text:"""
     async def close(self):
         """Close transformer and cleanup resources"""
         self.logger.info("StyleTransformer closed")
-
 
 # Factory function
 def create_style_transformer(

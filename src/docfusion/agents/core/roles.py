@@ -15,14 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from pydantic import BaseModel, Field, ConfigDict
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-
-
+from ...core.utils import uuid7str
 class AgentRole(str, Enum):
 	"""Predefined agent roles in the proposal system"""
 	
@@ -47,7 +40,6 @@ class AgentRole(str, Enum):
 	COMMUNICATION_FACILITATOR = "communication_facilitator"
 	TASK_SCHEDULER = "task_scheduler"
 	RESOURCE_ALLOCATOR = "resource_allocator"
-
 
 class AgentCapability(str, Enum):
 	"""Individual capabilities that agents can possess"""
@@ -110,7 +102,6 @@ class AgentCapability(str, Enum):
 	REGULATORY_KNOWLEDGE = "regulatory_knowledge"
 	FINANCIAL_EXPERTISE = "financial_expertise"
 
-
 class AgentGoal(str, Enum):
 	"""Goal types that agents can pursue"""
 	
@@ -140,7 +131,6 @@ class AgentGoal(str, Enum):
 	INNOVATION = "innovation"
 	COMPETITIVE_ADVANTAGE = "competitive_advantage"
 
-
 class CapabilityLevel(str, Enum):
 	"""Skill levels for capabilities"""
 	NOVICE = "novice"
@@ -148,7 +138,6 @@ class CapabilityLevel(str, Enum):
 	ADVANCED = "advanced"
 	EXPERT = "expert"
 	MASTER = "master"
-
 
 class GoalPriority(str, Enum):
 	"""Priority levels for goals"""
@@ -158,10 +147,9 @@ class GoalPriority(str, Enum):
 	LOW = "low"
 	OPTIONAL = "optional"
 
-
 class CapabilityDefinition(BaseModel):
 	"""Definition of an agent capability"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	capability: AgentCapability
 	level: CapabilityLevel = CapabilityLevel.INTERMEDIATE
@@ -174,10 +162,9 @@ class CapabilityDefinition(BaseModel):
 	success_rate: float = Field(ge=0.0, le=1.0, default=1.0)
 	improvement_rate: float = Field(ge=0.0, default=0.01)
 
-
 class GoalDefinition(BaseModel):
 	"""Definition of an agent goal"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	goal_id: str = Field(default_factory=uuid7str)
 	goal_type: AgentGoal
@@ -193,10 +180,9 @@ class GoalDefinition(BaseModel):
 	completion_reward: float = Field(ge=0.0, default=1.0)
 	failure_penalty: float = Field(ge=0.0, default=0.1)
 
-
 class RoleDefinition(BaseModel):
 	"""Complete definition of an agent role"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	role: AgentRole
 	name: str = Field(description="Human-readable role name")
@@ -225,7 +211,6 @@ class RoleDefinition(BaseModel):
 	preferred_collaborators: List[AgentRole] = Field(default_factory=list)
 	communication_frequency: Dict[str, int] = Field(default_factory=dict)
 	escalation_triggers: Dict[str, float] = Field(default_factory=dict)
-
 
 # Predefined role configurations
 ROLE_DEFINITIONS = {
@@ -548,7 +533,6 @@ ROLE_DEFINITIONS = {
 	)
 }
 
-
 def get_role_definition(role: AgentRole) -> RoleDefinition:
 	"""Get the role definition for a specific agent role"""
 	return ROLE_DEFINITIONS.get(role, RoleDefinition(
@@ -556,7 +540,6 @@ def get_role_definition(role: AgentRole) -> RoleDefinition:
 		name=role.value.replace('_', ' ').title(),
 		description=f"Agent with {role.value} role"
 	))
-
 
 def get_capability_requirements(capability: AgentCapability) -> Dict[str, Any]:
 	"""Get the requirements and dependencies for a specific capability"""
@@ -584,7 +567,6 @@ def get_capability_requirements(capability: AgentCapability) -> Dict[str, Any]:
 		"skills": [],
 		"experience_threshold": 50
 	})
-
 
 def calculate_role_compatibility(agent_capabilities: List[CapabilityDefinition], 
 								target_role: AgentRole) -> float:
@@ -623,7 +605,6 @@ def calculate_role_compatibility(agent_capabilities: List[CapabilityDefinition],
 	# Weighted combination
 	compatibility = (primary_score * 0.7) + (secondary_score * 0.3)
 	return min(1.0, compatibility)
-
 
 def suggest_capability_improvements(current_capabilities: List[CapabilityDefinition], 
 								   target_role: AgentRole) -> List[Dict[str, Any]]:

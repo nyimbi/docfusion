@@ -8,7 +8,6 @@ SLA monitoring and reporting, and predictive workflow analytics.
 
 import asyncio
 import logging
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -18,14 +17,9 @@ import statistics
 import json
 
 from pydantic import BaseModel, Field, ConfigDict
-
-def uuid7str():
-	"""Generate a UUID7-like string using UUID4 for compatibility."""
-	return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 class MonitoringLevel(str, Enum):
 	"""Monitoring detail levels."""
@@ -33,7 +27,6 @@ class MonitoringLevel(str, Enum):
 	DETAILED = "detailed"
 	COMPREHENSIVE = "comprehensive"
 	DEBUG = "debug"
-
 
 class AlertType(str, Enum):
 	"""Types of monitoring alerts."""
@@ -46,7 +39,6 @@ class AlertType(str, Enum):
 	THRESHOLD_EXCEEDED = "threshold_exceeded"
 	PREDICTIVE_WARNING = "predictive_warning"
 
-
 class MetricType(str, Enum):
 	"""Types of performance metrics."""
 	THROUGHPUT = "throughput"
@@ -58,10 +50,9 @@ class MetricType(str, Enum):
 	USER_SATISFACTION = "user_satisfaction"
 	COST = "cost"
 
-
 class MonitoringAlert(BaseModel):
 	"""Monitoring alert for workflow issues."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	alert_id: str = Field(default_factory=uuid7str)
 	workflow_instance_id: str = Field(description="Affected workflow instance")
@@ -98,10 +89,9 @@ class MonitoringAlert(BaseModel):
 	resolved_at: Optional[datetime] = None
 	resolution_notes: Optional[str] = None
 
-
 class PerformanceMetrics(BaseModel):
 	"""Performance metrics for workflows."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	metric_id: str = Field(default_factory=uuid7str)
 	workflow_instance_id: str = Field(description="Workflow instance ID")
@@ -134,7 +124,6 @@ class PerformanceMetrics(BaseModel):
 	sla_target: Optional[float] = None
 	sla_compliance: Optional[float] = None
 
-
 @dataclass
 class WorkflowStep:
 	"""Individual step in workflow execution."""
@@ -151,7 +140,6 @@ class WorkflowStep:
 	resource_usage: Dict[str, float] = field(default_factory=dict)
 	error_message: Optional[str] = None
 
-
 @dataclass
 class BottleneckAnalysis:
 	"""Analysis of workflow bottlenecks."""
@@ -166,7 +154,6 @@ class BottleneckAnalysis:
 	recommended_solutions: List[str] = field(default_factory=list)
 	detected_at: datetime = field(default_factory=datetime.now)
 
-
 @dataclass
 class SLADefinition:
 	"""Service Level Agreement definition."""
@@ -179,7 +166,6 @@ class SLADefinition:
 	violation_threshold_percentage: float = 95.0  # % of time target must be met
 	escalation_delay_minutes: int = 30
 	is_active: bool = True
-
 
 class WorkflowMonitor:
 	"""

@@ -16,15 +16,8 @@ from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass, field
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-
 from pydantic import BaseModel, Field, ConfigDict
-
+from ..core.utils import uuid7str
 
 class CompositionLanguage:
 	"""

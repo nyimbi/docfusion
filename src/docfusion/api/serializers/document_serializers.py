@@ -11,15 +11,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, root_validator, validator
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
+from ...core.utils import uuid7str
 
 class OutputFormat(str, Enum):
     """Supported document output formats"""
@@ -27,7 +19,6 @@ class OutputFormat(str, Enum):
     PDF = "pdf"
     DOCX = "docx"
     HTML = "html"
-
 
 class DocumentCategory(str, Enum):
     """Document categories"""
@@ -40,7 +31,6 @@ class DocumentCategory(str, Enum):
     TEMPLATE = "template"
     GENERAL = "general"
 
-
 class PermissionLevel(str, Enum):
     """Document permission levels"""
 
@@ -49,7 +39,6 @@ class PermissionLevel(str, Enum):
     COMMENT = "comment"
     VIEW = "view"
 
-
 class SearchType(str, Enum):
     """Document search types"""
 
@@ -57,15 +46,13 @@ class SearchType(str, Enum):
     SEMANTIC = "semantic"
     HYBRID = "hybrid"
 
-
 # ==================== REQUEST MODELS ====================
-
 
 class DocumentCreateRequest(BaseModel):
     """Request model for creating a document"""
 
     model_config = ConfigDict(
-        extra="forbid", validate_assignment=True, str_strip_whitespace=True
+        extra="forbid", validate_by_name=True, validate_by_alias=True, validate_assignment=True, str_strip_whitespace=True
     )
 
     title: str = Field(..., min_length=1, max_length=255, description="Document title")
@@ -115,12 +102,11 @@ class DocumentCreateRequest(BaseModel):
                     raise ValueError(f"Invalid permission level: {permission}")
         return v
 
-
 class DocumentUpdateRequest(BaseModel):
     """Request model for updating a document"""
 
     model_config = ConfigDict(
-        extra="forbid", validate_assignment=True, str_strip_whitespace=True
+        extra="forbid", validate_by_name=True, validate_by_alias=True, validate_assignment=True, str_strip_whitespace=True
     )
 
     title: Optional[str] = Field(
@@ -141,11 +127,10 @@ class DocumentUpdateRequest(BaseModel):
             raise ValueError("At least one field must be provided for update")
         return values
 
-
 class RenderRequest(BaseModel):
     """Request model for document rendering"""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_assignment=True)
 
     output_format: OutputFormat = Field(
         OutputFormat.PDF, description="Output format for rendering"
@@ -163,9 +148,7 @@ class RenderRequest(BaseModel):
         None, description="Additional rendering metadata"
     )
 
-
 # ==================== RESPONSE MODELS ====================
-
 
 class DocumentResponse(BaseModel):
     """Response model for document data"""
@@ -196,7 +179,6 @@ class DocumentResponse(BaseModel):
     relevance_score: Optional[float] = Field(None, description="Search relevance score")
     match_type: Optional[str] = Field(None, description="Type of search match")
 
-
 class DocumentListResponse(BaseModel):
     """Response model for document list with pagination"""
 
@@ -212,7 +194,6 @@ class DocumentListResponse(BaseModel):
     search_query: Optional[str] = Field(None, description="Search query used")
     search_type: Optional[str] = Field(None, description="Type of search performed")
 
-
 class DocumentHistoryEntry(BaseModel):
     """Single entry in document history"""
 
@@ -224,7 +205,6 @@ class DocumentHistoryEntry(BaseModel):
     changes: List[str] = Field(..., description="List of changes made")
     comment: Optional[str] = Field(None, description="Change comment")
 
-
 class DocumentHistoryResponse(BaseModel):
     """Response model for document version history"""
 
@@ -235,14 +215,12 @@ class DocumentHistoryResponse(BaseModel):
         ..., description="Version history entries"
     )
 
-
 # ==================== SEARCH MODELS ====================
-
 
 class DocumentSearchRequest(BaseModel):
     """Request model for document search"""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_assignment=True)
 
     query: str = Field(..., min_length=1, max_length=500, description="Search query")
 
@@ -286,7 +264,6 @@ class DocumentSearchRequest(BaseModel):
 
         return values
 
-
 class SearchResultHighlight(BaseModel):
     """Search result highlight"""
 
@@ -296,7 +273,6 @@ class SearchResultHighlight(BaseModel):
     text: str = Field(..., description="Highlighted text snippet")
     start_pos: int = Field(..., description="Start position of match")
     end_pos: int = Field(..., description="End position of match")
-
 
 class EnhancedSearchResult(BaseModel):
     """Enhanced search result with additional context"""
@@ -330,9 +306,7 @@ class EnhancedSearchResult(BaseModel):
         default_factory=list, description="Search highlights"
     )
 
-
 # ==================== VALIDATION MODELS ====================
-
 
 class DocumentValidationResult(BaseModel):
     """Result of document validation"""
@@ -346,11 +320,10 @@ class DocumentValidationResult(BaseModel):
         default_factory=list, description="Improvement suggestions"
     )
 
-
 class BulkOperationRequest(BaseModel):
     """Request for bulk operations on documents"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     document_ids: List[str] = Field(
         ...,
@@ -367,7 +340,6 @@ class BulkOperationRequest(BaseModel):
     parameters: Optional[Dict[str, Any]] = Field(
         None, description="Operation-specific parameters"
     )
-
 
 class BulkOperationResult(BaseModel):
     """Result of bulk operation"""
@@ -386,9 +358,7 @@ class BulkOperationResult(BaseModel):
         default_factory=list, description="Successfully processed document IDs"
     )
 
-
 # ==================== ANALYTICS MODELS ====================
-
 
 class DocumentAnalytics(BaseModel):
     """Document analytics data"""
@@ -415,9 +385,7 @@ class DocumentAnalytics(BaseModel):
         None, description="User-specific activity metrics"
     )
 
-
 # ==================== ERROR MODELS ====================
-
 
 class APIError(BaseModel):
     """Standard API error response"""
@@ -436,7 +404,6 @@ class APIError(BaseModel):
         None, description="Request identifier for tracking"
     )
 
-
 class ValidationError(APIError):
     """Validation error response"""
 
@@ -444,9 +411,7 @@ class ValidationError(APIError):
         default_factory=list, description="Field-specific validation errors"
     )
 
-
 # ==================== UTILITY FUNCTIONS ====================
-
 
 def create_document_response(
     document_id: str, title: str, content: str, category: str = "general", **kwargs
@@ -460,7 +425,6 @@ def create_document_response(
         permission_level=kwargs.get("permission_level", "view"),
         **kwargs,
     )
-
 
 def create_paginated_response(
     documents: List[DocumentResponse], total: int, page: int, limit: int, **kwargs

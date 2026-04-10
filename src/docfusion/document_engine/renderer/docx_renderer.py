@@ -26,12 +26,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict
-
-
-def uuid7str() -> str:
-	"""Generate a UUID7-style string using uuid4 for compatibility"""
-	return str(uuid4())
-
+from ...core.utils import uuid7str
 
 # ============================================================================
 # Data Models
@@ -52,7 +47,6 @@ class PageMargins:
 	# Header/footer margins
 	header_margin: str = "1.27cm"
 	footer_margin: str = "1.27cm"
-
 
 @dataclass
 class DOCXMetadata:
@@ -90,7 +84,6 @@ class DOCXMetadata:
 	security_level: str = "None"  # None, Password, ReadOnly, Restricted
 	digital_signature: bool = False
 
-
 @dataclass
 class DOCXPermissions:
 	"""DOCX document permissions and restrictions"""
@@ -100,7 +93,6 @@ class DOCXPermissions:
 	allow_reviewing: bool = True
 	track_changes_enforced: bool = False
 	password_required: bool = False
-
 
 @dataclass
 class DOCXRenderConfiguration:
@@ -163,7 +155,6 @@ class DOCXRenderConfiguration:
 	image_optimization: bool = True
 	embedding_optimization: bool = True
 
-
 @dataclass
 class DOCXOutputMetadata:
 	"""DOCX output metadata and creation information"""
@@ -173,7 +164,6 @@ class DOCXOutputMetadata:
 	template_used: str = ""
 	processing_notes: list[str] = field(default_factory=list)
 
-
 @dataclass
 class DOCXRenderingIssue:
 	"""DOCX rendering issue information"""
@@ -182,7 +172,6 @@ class DOCXRenderingIssue:
 	message: str = ""
 	severity: str = "low"  # low, medium, high, critical
 	suggested_fix: str = ""
-
 
 @dataclass
 class DOCXRenderResult:
@@ -234,10 +223,9 @@ class DOCXRenderResult:
 	embedded_fonts: list[str] = field(default_factory=list)
 	applied_styles: list[str] = field(default_factory=list)
 
-
 class FormattedDocumentContent(BaseModel):
 	"""Formatted document content for DOCX rendering"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Document identification
 	document_id: str = Field(default_factory=uuid7str)
@@ -264,7 +252,6 @@ class FormattedDocumentContent(BaseModel):
 	brand_elements: dict[str, Any] = Field(default_factory=dict)
 	layout_specifications: dict[str, Any] = Field(default_factory=dict)
 
-
 # ============================================================================
 # Exception Classes
 # ============================================================================
@@ -273,26 +260,21 @@ class DOCXRendererException(Exception):
 	"""Base exception for DOCX renderer errors"""
 	pass
 
-
 class DOCXRenderingException(DOCXRendererException):
 	"""Exception for DOCX rendering errors"""
 	pass
-
 
 class DOCXCompatibilityException(DOCXRendererException):
 	"""Exception for Word compatibility issues"""
 	pass
 
-
 class DOCXStyleException(DOCXRendererException):
 	"""Exception for style translation errors"""
 	pass
 
-
 class DOCXAssetException(DOCXRendererException):
 	"""Exception for asset embedding errors"""
 	pass
-
 
 # ============================================================================
 # Core Components
@@ -366,7 +348,6 @@ class DocumentBuilder:
 			'positioning': 'inline'
 		}
 
-
 class StyleTranslator:
 	"""Translate web/CSS styles to native DOCX formatting"""
 	
@@ -437,7 +418,6 @@ class StyleTranslator:
 			'formatting': formatting,
 			'base_style': 'Normal'
 		}
-
 
 class AssetEmbedder:
 	"""Embed images, charts, and other assets in DOCX"""
@@ -539,7 +519,6 @@ class AssetEmbedder:
 			}
 		}
 
-
 class DOCXQualityValidator:
 	"""Comprehensive DOCX quality validation"""
 	
@@ -634,7 +613,6 @@ class DOCXQualityValidator:
 			'color_contrast_compliant': True,
 			'accessibility_score': 0.92
 		}
-
 
 # ============================================================================
 # Main DOCXRenderer Class
@@ -881,7 +859,6 @@ class DOCXRenderer:
 			'system_status': 'operational'
 		}
 
-
 # ============================================================================
 # Utility Functions
 # ============================================================================
@@ -907,7 +884,6 @@ def create_default_docx_configuration(
 	
 	return config
 
-
 async def quick_docx_render(
 	content: str,
 	title: str = "Quick Document",
@@ -922,7 +898,6 @@ async def quick_docx_render(
 	
 	renderer = DOCXRenderer()
 	return await renderer.render_docx(formatted_content, output_path)
-
 
 def validate_docx_renderer_installation() -> dict[str, bool]:
 	"""Validate DOCX renderer installation and dependencies"""

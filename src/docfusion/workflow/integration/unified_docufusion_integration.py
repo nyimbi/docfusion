@@ -25,15 +25,6 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 # Import core workflow components
 from ...agents.core.agent import Agent
 
@@ -55,7 +46,7 @@ from .nlp_workflow_integration import NLPWorkflowIntegration
 from .security_workflow_integration import SecurityWorkflowIntegration
 from .workflow_integration_layer import WorkflowIntegrationLayer
 from .workflow_storage_integration import WorkflowStorageIntegration
-
+from ...core.utils import uuid7str
 
 class IntegrationScope(str, Enum):
     """Scope of integration capabilities"""
@@ -65,7 +56,6 @@ class IntegrationScope(str, Enum):
     COMPREHENSIVE = "comprehensive"  # All components fully integrated
     ENTERPRISE = "enterprise"  # Full enterprise features + compliance
 
-
 class WorkflowExecutionMode(str, Enum):
     """Workflow execution modes"""
 
@@ -73,7 +63,6 @@ class WorkflowExecutionMode(str, Enum):
     PARALLEL = "parallel"
     HYBRID = "hybrid"
     INTELLIGENT = "intelligent"  # AI-optimized execution
-
 
 class ComponentStatus(str, Enum):
     """Status of individual components"""
@@ -85,7 +74,6 @@ class ComponentStatus(str, Enum):
     ERROR = "error"
     DEGRADED = "degraded"
     OFFLINE = "offline"
-
 
 @dataclass
 class IntegrationConfiguration:
@@ -103,7 +91,6 @@ class IntegrationConfiguration:
     integration_health_check_interval: int = 60
     enable_comprehensive_logging: bool = True
 
-
 @dataclass
 class ComponentHealth:
     """Health status of integration components"""
@@ -117,11 +104,10 @@ class ComponentHealth:
     resource_utilization: float = 0.0
     details: Dict[str, Any] = field(default_factory=dict)
 
-
 class UnifiedWorkflowRequest(BaseModel):
     """Unified request for workflow execution across all components"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     workflow_id: str = Field(default_factory=uuid7str)
     user_id: str
@@ -157,11 +143,10 @@ class UnifiedWorkflowRequest(BaseModel):
     # Metadata
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-
 class UnifiedWorkflowResult(BaseModel):
     """Unified result from workflow execution"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     workflow_id: str
     success: bool
@@ -200,7 +185,6 @@ class UnifiedWorkflowResult(BaseModel):
     # Output data
     final_output: Optional[Dict[str, Any]] = None
     intermediate_outputs: Dict[str, Any] = Field(default_factory=dict)
-
 
 class UnifiedDocuFusionIntegration:
     """
@@ -1220,7 +1204,6 @@ class UnifiedDocuFusionIntegration:
             "Enable intelligent routing for better performance",
             "Implement caching for frequently used components",
         ]
-
 
 # Factory function for creating unified integration
 async def create_unified_docufusion_integration(

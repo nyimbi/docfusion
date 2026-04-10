@@ -45,7 +45,7 @@ class IntegrationMode(str, Enum):
 
 class DocumentIntelligenceInsight(BaseModel):
     """Intelligence insight for document development"""
-    model_config = ConfigDict(extra='forbid', validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
     
     insight_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique insight identifier")
     section_type: ProposalSection = Field(description="Section this insight applies to")
@@ -78,7 +78,7 @@ class DocumentIntelligenceInsight(BaseModel):
 
 class DocumentIntelligenceSession(BaseModel):
     """Intelligence session for document development"""
-    model_config = ConfigDict(extra='forbid', validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
     
     session_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique session identifier")
     proposal_id: str = Field(description="Proposal identifier")

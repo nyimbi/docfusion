@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
+from ...core.utils import uuid7str
 
 try:
     from ...prompting_strategies import (
@@ -50,7 +51,6 @@ except ImportError:
             )
             return re.sub(r"\n\s*\n\s*\n", "\n\n", cleaned).strip()
 
-
 try:
     from ...config.llm_config import LLMConfiguration, LLMTask, get_llm_config
 except ImportError:
@@ -73,7 +73,6 @@ except ImportError:
         def get_llm_config(task):
             return LLMConfiguration()
 
-
 try:
     import aiohttp
     from aiohttp import ClientError, ClientTimeout
@@ -89,15 +88,6 @@ try:
 except ImportError:
     flesch_reading_ease = flesch_kincaid_grade = automated_readability_index = None
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 class WritingTone(Enum):
     """Writing tone classifications"""
 
@@ -110,7 +100,6 @@ class WritingTone(Enum):
     CONVERSATIONAL = "conversational"
     ACADEMIC = "academic"
 
-
 class WritingStyle(Enum):
     """Writing style classifications"""
 
@@ -122,7 +111,6 @@ class WritingStyle(Enum):
     INSTRUCTIONAL = "instructional"
     COMPARATIVE = "comparative"
     TECHNICAL_SPECIFICATION = "technical_specification"
-
 
 @dataclass
 class StyleMetrics:
@@ -164,7 +152,6 @@ class StyleMetrics:
     uncertainty_words_ratio: float = 0.0
     modal_verbs_ratio: float = 0.0
 
-
 @dataclass
 class ToneAnalysis:
     """Detailed tone analysis results"""
@@ -182,7 +169,6 @@ class ToneAnalysis:
     # Supporting evidence
     tone_indicators: Dict[str, List[str]] = field(default_factory=dict)
     linguistic_features: Dict[str, float] = field(default_factory=dict)
-
 
 @dataclass
 class StyleAnalysis:
@@ -202,7 +188,6 @@ class StyleAnalysis:
     structure_patterns: List[str] = field(default_factory=list)
     rhetorical_devices: List[str] = field(default_factory=list)
     writing_techniques: List[str] = field(default_factory=list)
-
 
 @dataclass
 class StyleAnalysisResult:
@@ -229,7 +214,6 @@ class StyleAnalysisResult:
 
     # Statistical summaries
     statistics: Dict[str, Any] = field(default_factory=dict)
-
 
 class StyleAnalyzer:
     """Advanced style analyzer with Ollama AI enhancement"""
@@ -1246,7 +1230,6 @@ class StyleAnalyzer:
     async def close(self):
         """Close analyzer and cleanup resources"""
         self.logger.info("StyleAnalyzer closed")
-
 
 # Factory function
 def create_style_analyzer(

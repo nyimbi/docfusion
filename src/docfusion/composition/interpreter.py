@@ -15,17 +15,10 @@ from typing import Any, Dict, List, Optional, Union, Tuple, Set, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-
 from pydantic import BaseModel, Field, ConfigDict
 
 from .parser import ParsedComposition, ParsedFlow, ParsedExpression, OperatorType
-
+from ..core.utils import uuid7str
 
 class ExecutionMode(Enum):
 	"""Execution modes for workflow interpretation"""
@@ -33,7 +26,6 @@ class ExecutionMode(Enum):
 	ASYNCHRONOUS = "asynchronous"
 	PARALLEL = "parallel"
 	STREAMING = "streaming"
-
 
 class NodeType(Enum):
 	"""Types of execution nodes"""
@@ -44,7 +36,6 @@ class NodeType(Enum):
 	SPLIT = "split"
 	LOOP = "loop"
 	ERROR_HANDLER = "error_handler"
-
 
 @dataclass
 class ExecutionNode:
@@ -63,7 +54,6 @@ class ExecutionNode:
 	position: Tuple[int, int] = (0, 0)
 	metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class ExecutionGraph:
 	"""Complete execution graph for a workflow"""
@@ -81,7 +71,6 @@ class ExecutionGraph:
 	data_flow: Dict[str, List[str]]  # Data flow mappings
 	metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class InterpretedComposition:
 	"""Complete interpreted composition ready for execution"""
@@ -97,7 +86,6 @@ class InterpretedComposition:
 	monitoring_config: Dict[str, Any]
 	transformations: Dict[str, Any]
 	metadata: Dict[str, Any]
-
 
 class CompositionInterpreterError(Exception):
 	"""Exception raised during composition interpretation"""
@@ -116,7 +104,6 @@ class CompositionInterpreterError(Exception):
 		if self.context:
 			msg += f" context: {self.context}"
 		return msg
-
 
 class CompositionInterpreter:
 	"""
@@ -445,7 +432,7 @@ class CompositionInterpreter:
 		# - Have no branching between them
 		# - Use the same execution environment
 		# - Have compatible resource requirements
-		pass
+		raise NotImplementedError("_merge_sequential_nodes is not yet implemented")
 	
 	async def _optimize_parallel_execution(self, graph: ExecutionGraph):
 		"""Optimize parallel execution groups"""

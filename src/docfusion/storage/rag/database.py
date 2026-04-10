@@ -19,24 +19,15 @@ from datetime import datetime
 import asyncpg
 import psycopg2
 from psycopg2.extras import RealDictCursor
-
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
+from ...core.utils import uuid7str
 
 VALID_SCHEMA_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
-
 
 def _validate_schema_name(schema_name: str) -> str:
 	"""Validate schema name to prevent SQL injection via config values."""
 	if not VALID_SCHEMA_PATTERN.match(schema_name):
 		raise ValueError(f"Invalid schema name: {schema_name!r}")
 	return schema_name
-
 
 @dataclass
 class DatabaseConfiguration:
@@ -52,7 +43,6 @@ class DatabaseConfiguration:
 	chunk_overlap: int = 200
 	schema_name: str = "rag"
 
-
 @dataclass 
 class DocumentChunk:
 	"""Represents a document chunk with embedding"""
@@ -64,7 +54,6 @@ class DocumentChunk:
 	embedding: Optional[List[float]] = None
 	created_at: Optional[datetime] = None
 	updated_at: Optional[datetime] = None
-
 
 @dataclass
 class RAGDocument:
@@ -85,7 +74,6 @@ class RAGDocument:
 			self.tags = []
 		if self.metadata is None:
 			self.metadata = {}
-
 
 class RAGDatabase:
 	"""PostgreSQL database layer for RAG system with pgai integration"""
@@ -594,7 +582,6 @@ class RAGDatabase:
 			await self.pool.close()
 			self.logger.info("Database connection pool closed")
 
-
 # Utility functions
 async def create_rag_database(connection_string: str, **kwargs) -> RAGDatabase:
 	"""Create and initialize RAG database"""
@@ -606,7 +593,6 @@ async def create_rag_database(connection_string: str, **kwargs) -> RAGDatabase:
 	database = RAGDatabase(config)
 	await database.initialize()
 	return database
-
 
 def get_default_database_config(connection_string: str) -> DatabaseConfiguration:
 	"""Get default database configuration"""

@@ -19,17 +19,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field, validator
-
+from ...core.utils import uuid7str
 
 class ValidationLevel(str, Enum):
     """Validation severity levels"""
@@ -38,7 +29,6 @@ class ValidationLevel(str, Enum):
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
-
 
 class ValidationCategory(str, Enum):
     """Categories of validation checks"""
@@ -50,7 +40,6 @@ class ValidationCategory(str, Enum):
     COMPLIANCE = "compliance"
     PERFORMANCE = "performance"
     SECURITY = "security"
-
 
 @dataclass
 class ValidationIssue:
@@ -83,7 +72,6 @@ class ValidationIssue:
             "suggestions": self.suggestions,
             "created_at": self.created_at.isoformat(),
         }
-
 
 @dataclass
 class ValidationResult:
@@ -129,11 +117,10 @@ class ValidationResult:
             "validated_at": self.validated_at.isoformat(),
         }
 
-
 class ValidationRule(BaseModel):
     """Validation rule definition"""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_assignment=True)
 
     rule_id: str = Field(default_factory=uuid7str)
     name: str
@@ -156,7 +143,6 @@ class ValidationRule(BaseModel):
 
     # Suggestions for fixing issues
     fix_suggestions: List[str] = Field(default_factory=list)
-
 
 class ResultValidator:
     """

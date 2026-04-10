@@ -23,13 +23,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-
 # Import workflow components
 from ..coordination.task_coordinator import TaskCoordinator, TaskAssignment
 from ..coordination.deadline_manager import DeadlineManager
@@ -55,8 +48,8 @@ from ...nlp.generators.multi_stage_document_pipeline import MultiStageDocumentPi
 from ...nlp.extractors.requirement_extractor import RequirementExtractor
 from ...nlp.extractors.entity_extractor import EntityExtractor
 from ...nlp.extractors.relationship_extractor import RelationshipExtractor
+from ...core.utils import uuid7str
 from ...nlp.extractors.deadline_extractor import DeadlineExtractor
-
 
 class NLPWorkflowTaskType(str, Enum):
 	"""Types of NLP tasks in workflows"""
@@ -78,7 +71,6 @@ class NLPWorkflowTaskType(str, Enum):
 	SECTION_GENERATION = "section_generation"
 	MULTI_STAGE_PROCESSING = "multi_stage_processing"
 
-
 class NLPProcessingMode(str, Enum):
 	"""Processing modes for NLP workflows"""
 	BATCH = "batch"
@@ -86,7 +78,6 @@ class NLPProcessingMode(str, Enum):
 	REAL_TIME = "real_time"
 	INTERACTIVE = "interactive"
 	BACKGROUND = "background"
-
 
 class ContentType(str, Enum):
 	"""Content types for NLP processing"""
@@ -98,7 +89,6 @@ class ContentType(str, Enum):
 	BUSINESS_CONTENT = "business_content"
 	LEGAL_CONTENT = "legal_content"
 	PROPOSAL_CONTENT = "proposal_content"
-
 
 @dataclass
 class NLPWorkflowContext:
@@ -115,7 +105,6 @@ class NLPWorkflowContext:
 	constraints: Dict[str, Any] = field(default_factory=dict)
 	metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class NLPTaskConfiguration:
 	"""Configuration for NLP workflow tasks"""
@@ -127,10 +116,9 @@ class NLPTaskConfiguration:
 	performance_requirements: Dict[str, Any] = field(default_factory=dict)
 	fallback_strategies: List[str] = field(default_factory=list)
 
-
 class NLPWorkflowResult(BaseModel):
 	"""Result of NLP workflow operation"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	success: bool
 	task_id: str
@@ -143,7 +131,6 @@ class NLPWorkflowResult(BaseModel):
 	warnings: List[str] = Field(default_factory=list)
 	suggestions: List[str] = Field(default_factory=list)
 	performance_metrics: Dict[str, Any] = Field(default_factory=dict)
-
 
 class NLPWorkflowIntegration:
 	"""
@@ -1040,13 +1027,12 @@ class NLPWorkflowIntegration:
 	async def _update_performance_metrics(self) -> None:
 		"""Update comprehensive performance metrics"""
 		# Implementation would update detailed performance tracking
-		pass
+		raise NotImplementedError("_update_performance_metrics is not yet implemented")
 	
 	async def _check_performance_thresholds(self) -> None:
 		"""Check if performance metrics exceed thresholds"""
 		# Implementation would check and alert on performance issues
-		pass
-
+		raise NotImplementedError("_check_performance_thresholds is not yet implemented")
 
 # Factory function for creating NLP-workflow integration
 async def create_nlp_workflow_integration(

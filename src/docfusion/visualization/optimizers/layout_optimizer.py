@@ -17,17 +17,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class LayoutType(str, Enum):
     """Layout optimization types"""
@@ -39,7 +30,6 @@ class LayoutType(str, Enum):
     MASONRY = "masonry"
     ADAPTIVE = "adaptive"
 
-
 class ScreenSize(str, Enum):
     """Target screen sizes for optimization"""
 
@@ -48,7 +38,6 @@ class ScreenSize(str, Enum):
     DESKTOP = "desktop"  # 1024px - 1440px
     LARGE_DESKTOP = "large"  # > 1440px
 
-
 class OptimizationLevel(str, Enum):
     """Layout optimization levels"""
 
@@ -56,7 +45,6 @@ class OptimizationLevel(str, Enum):
     STANDARD = "standard"
     AGGRESSIVE = "aggressive"
     CUSTOM = "custom"
-
 
 @dataclass
 class LayoutConstraints:
@@ -81,7 +69,6 @@ class LayoutConstraints:
     max_items_per_row: int = 4
     min_item_spacing: int = 15
 
-
 @dataclass
 class LayoutElement:
     """Individual layout element"""
@@ -94,7 +81,6 @@ class LayoutElement:
     priority: int = 1  # Higher priority elements get better placement
     flexible: bool = True  # Can be resized
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class LayoutConfiguration:
@@ -126,7 +112,6 @@ class LayoutConfiguration:
     allow_element_reordering: bool = True
     prioritize_important_content: bool = True
     minimize_whitespace: bool = False
-
 
 class LayoutOptimizer:
     """

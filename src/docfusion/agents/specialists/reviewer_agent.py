@@ -579,7 +579,7 @@ class ReviewerAgent(Agent[ReviewTask]):
 	# Public interface methods
 	
 	async def review_content(self, content: str, review_type: str = "comprehensive",
-							criteria: Dict[str, Any] = field(default_factory=dict)) -> ReviewResult:
+							criteria: Optional[Dict[str, Any]] = None) -> ReviewResult:
 		"""Public method for content review"""
 		task = ReviewTask(
 			task_id=f"review_{hash(content)}",

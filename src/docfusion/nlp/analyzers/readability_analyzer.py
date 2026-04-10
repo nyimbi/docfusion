@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
+from ...core.utils import uuid7str
 
 try:
     import aiohttp
@@ -44,15 +45,6 @@ except ImportError:
     syllable_count = textstat_sentence_count = lexicon_count = None
     avg_sentence_length = difficult_words = None
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # Import centralized LLM config and advanced prompting
 try:
     from ..config.llm_config import LLMConfiguration, LLMTask, get_llm_config
@@ -68,7 +60,6 @@ except ImportError:
     HAS_ADVANCED_PROMPTING = False
     LLMConfiguration = None
 
-
 class ReadingLevel(Enum):
     """Reading difficulty levels"""
 
@@ -79,7 +70,6 @@ class ReadingLevel(Enum):
     GRADUATE = "graduate"
     PROFESSIONAL = "professional"
 
-
 class AudienceType(Enum):
     """Target audience types"""
 
@@ -88,7 +78,6 @@ class AudienceType(Enum):
     TECHNICAL_EXPERT = "technical_expert"
     ACADEMIC_RESEARCHER = "academic_researcher"
     GOVERNMENT_OFFICIAL = "government_official"
-
 
 @dataclass
 class ReadabilityMetrics:
@@ -124,7 +113,6 @@ class ReadabilityMetrics:
     technical_terms_count: int = 0
     jargon_ratio: float = 0.0
 
-
 @dataclass
 class ReadingLevelAssessment:
     """Reading level assessment and recommendations"""
@@ -140,7 +128,6 @@ class ReadingLevelAssessment:
     # Level indicators
     level_indicators: Dict[str, float] = field(default_factory=dict)
     complexity_factors: List[str] = field(default_factory=list)
-
 
 @dataclass
 class AccessibilityAssessment:
@@ -158,7 +145,6 @@ class AccessibilityAssessment:
     sentence_complexity: float = 0.0
     vocabulary_difficulty: float = 0.0
     structure_clarity: float = 0.0
-
 
 @dataclass
 class ReadabilityAnalysisResult:
@@ -189,7 +175,6 @@ class ReadabilityAnalysisResult:
 
     # Statistical summaries
     statistics: Dict[str, Any] = field(default_factory=dict)
-
 
 class ReadabilityAnalyzer:
     """Advanced readability analyzer with multiple metrics and AI insights"""
@@ -1288,7 +1273,6 @@ Provide your analysis in JSON format:
     async def close(self):
         """Close analyzer and cleanup resources"""
         self.logger.info("ReadabilityAnalyzer closed")
-
 
 # Factory function
 def create_readability_analyzer(

@@ -21,17 +21,13 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from cachetools import TTLCache  # type: ignore[import-untyped]
 from pydantic import BaseModel, ConfigDict, Field
+from ...core.utils import uuid7str
 
 try:
-    from uuid_extensions import uuid7str  # type: ignore[import-not-found]
 except ImportError:
     import uuid
 
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
-class MemoryType(str, Enum):
+    class MemoryType(str, Enum):
     """Types of memory storage"""
 
     SHORT_TERM = "short_term"  # Temporary working memory
@@ -42,7 +38,6 @@ class MemoryType(str, Enum):
     WORKING = "working"  # Active task context
     SHARED = "shared"  # Inter-agent shared memories
 
-
 class MemoryScope(str, Enum):
     """Memory access scope"""
 
@@ -52,7 +47,6 @@ class MemoryScope(str, Enum):
     GLOBAL = "global"  # System-wide shared memory
     PROJECT = "project"  # Project-specific memory
 
-
 class MemoryPriority(str, Enum):
     """Memory retention priority"""
 
@@ -61,7 +55,6 @@ class MemoryPriority(str, Enum):
     MEDIUM = "medium"  # Normal retention
     LOW = "low"  # Can be deleted if needed
     TEMPORARY = "temporary"  # Delete after session
-
 
 @dataclass
 class MemoryEntry:
@@ -95,11 +88,10 @@ class MemoryEntry:
     expires_at: Optional[datetime] = None
     retention_policy: Optional[str] = None
 
-
 class MemoryConfig(BaseModel):
     """Memory manager configuration"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     # Storage limits
     max_short_term_entries: int = Field(default=1000, ge=10)
@@ -124,7 +116,6 @@ class MemoryConfig(BaseModel):
     # Performance
     batch_size: int = Field(default=50, ge=1)
     async_operations: bool = Field(default=True)
-
 
 class MemoryIndex:
     """Memory indexing system for fast retrieval"""
@@ -208,7 +199,6 @@ class MemoryIndex:
     def find_by_content_hash(self, content_hash: str) -> Set[str]:
         """Find entries by content hash"""
         return self.content_index.get(content_hash, set()).copy()
-
 
 class MemoryManager:
     """

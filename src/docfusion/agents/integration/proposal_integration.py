@@ -17,15 +17,6 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from ..orchestration.crew_manager import AgentCrew, CrewConfig
 from ..orchestration.swarm_manager import AgentSwarm, SwarmConfig
 from ..orchestration.task_orchestrator import (
@@ -34,7 +25,7 @@ from ..orchestration.task_orchestrator import (
     WorkflowEngine,
 )
 from ..specialists import QualityAgent, ResearchAgent, ReviewerAgent, WriterAgent
-
+from ...core.utils import uuid7str
 
 @dataclass
 class ProposalRequirements:
@@ -52,7 +43,6 @@ class ProposalRequirements:
     compliance_requirements: List[str] = field(default_factory=list)
     target_audience: str = "decision_makers"
 
-
 @dataclass
 class ProposalContext:
     """Context for proposal generation"""
@@ -64,7 +54,6 @@ class ProposalContext:
     previous_proposals: List[Dict[str, Any]] = field(default_factory=list)
     templates_available: List[str] = field(default_factory=list)
     resources: Dict[str, Any] = field(default_factory=dict)
-
 
 class ProposalAgentBridge:
     """
@@ -596,7 +585,6 @@ class ProposalAgentBridge:
                 "rag_service": self.rag_service is not None,
             },
         }
-
 
 class ProposalIntegration:
     """

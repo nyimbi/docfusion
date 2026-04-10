@@ -11,18 +11,11 @@ import json
 import logging
 
 # from uuid_extensions import uuid7str
-import uuid
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field
-
-
-def uuid7str() -> str:
-    """Generate UUID7-style string (fallback implementation)."""
-    return str(uuid.uuid4())
-
 
 from .analytics.notification_analytics import (
     AnalyticsEvent,
@@ -50,6 +43,7 @@ from .delivery.notification_delivery import (
     Priority,
     create_notification_delivery,
 )
+from ..core.utils import uuid7str
 from .prioritization.priority_manager import (
     ImportanceContext,
     NotificationMetadata,
@@ -58,7 +52,6 @@ from .prioritization.priority_manager import (
     create_notification_metadata,
     create_priority_manager,
 )
-
 
 class WorkflowEventType(str, Enum):
     """Workflow event types that trigger notifications."""
@@ -93,11 +86,10 @@ class WorkflowEventType(str, Enum):
     PERFORMANCE_ALERT = "performance_alert"
     SECURITY_ALERT = "security_alert"
 
-
 class NotificationTemplate(BaseModel):
     """Notification template for workflow events."""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     template_id: str = Field(..., description="Template identifier")
     event_type: WorkflowEventType = Field(..., description="Triggering event type")
@@ -123,7 +115,6 @@ class NotificationTemplate(BaseModel):
     channel_templates: Dict[ChannelType, Dict[str, Any]] = Field(
         default_factory=dict, description="Channel-specific template overrides"
     )
-
 
 class WorkflowNotificationIntegration:
     """
@@ -936,9 +927,7 @@ class WorkflowNotificationIntegration:
         self._integration_stats["batch_processes"] += 1
         self.logger.debug("Completed batch processing")
 
-
 # Utility functions for workflow notification integration
-
 
 async def create_workflow_notification_integration(
     notification_channels: Optional[Dict[ChannelType, Any]] = None, **kwargs
@@ -956,7 +945,6 @@ async def create_workflow_notification_integration(
     await integration.start()
     return integration
 
-
 def create_workflow_event_data(
     workflow_name: str, workflow_id: str, **additional_data
 ) -> Dict[str, Any]:
@@ -968,9 +956,7 @@ def create_workflow_event_data(
         **additional_data,
     }
 
-
 # Example usage patterns
-
 
 async def example_workflow_integration():
     """Example of how to use the workflow notification integration."""

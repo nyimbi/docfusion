@@ -40,7 +40,7 @@ class EmailProvider(str, Enum):
 
 class EmailTemplate(BaseModel):
 	"""Email template configuration."""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	name: str = Field(..., description="Template name identifier")
 	subject_template: str = Field(..., description="Subject line template")
@@ -59,7 +59,7 @@ class EmailTemplate(BaseModel):
 
 class EmailAttachment(BaseModel):
 	"""Email attachment specification."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	filename: str = Field(..., description="Attachment filename")
 	content: bytes = Field(..., description="File content bytes")
@@ -69,7 +69,7 @@ class EmailAttachment(BaseModel):
 
 class EmailConfiguration(BaseModel):
 	"""Email channel configuration."""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	provider: EmailProvider = Field(..., description="Email service provider")
 	

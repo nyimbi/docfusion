@@ -11,19 +11,13 @@ organization as specified in the desired outcomes.
 """
 
 import asyncio
-import uuid
 import logging
 from datetime import datetime
 from typing import Any, Protocol, Optional
 from dataclasses import dataclass, field
 from pydantic import BaseModel, Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-
-
-def uuid7str() -> str:
-	"""Generate a UUID7-style string (time-ordered UUID)."""
-	return str(uuid.uuid4())  # Using uuid4 for now, will upgrade to uuid7 when available
-
+from ...core.utils import uuid7str
 
 # Data Models
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_by_name=True))
@@ -52,7 +46,6 @@ class ContentBlock:
 	version: str = "1.0.0"
 	status: str = "draft"  # draft, reviewed, approved, archived
 
-
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_by_name=True))
 class AssemblyRequest:
 	"""Request for document assembly with content blocks and configuration."""
@@ -64,7 +57,6 @@ class AssemblyRequest:
 	target_audience: Optional[str] = None
 	quality_requirements: dict[str, Any] = Field(default_factory=dict)
 	created_at: datetime = Field(default_factory=datetime.now)
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_by_name=True))
 class AssemblyContext:
@@ -88,7 +80,6 @@ class AssemblyContext:
 	deadline: datetime | None = None
 	collaborative_mode: bool = False
 	version_tracking: bool = True
-
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_by_name=True))
 class AssemblyResult:
@@ -114,7 +105,6 @@ class AssemblyResult:
 	audit_trail: list[dict[str, Any]] = Field(default_factory=list)
 	created_at: datetime = Field(default_factory=datetime.now)
 
-
 # Service Interfaces and Real NLP Integration
 class NLPService(Protocol):
 	"""NLP service interface for content analysis and generation."""
@@ -127,7 +117,6 @@ class NLPService(Protocol):
 		"""Generate content based on provided prompt and context."""
 		...
 
-
 # Import real NLP services
 try:
 	from ...nlp.nlp_service import NLPServiceConfiguration, NLPServiceImplementation, create_nlp_service
@@ -136,7 +125,6 @@ try:
 	HAS_REAL_NLP = True
 except ImportError:
 	HAS_REAL_NLP = False
-
 
 class StorageService(Protocol):
 	"""Mock storage service interface for template and content management."""
@@ -149,14 +137,12 @@ class StorageService(Protocol):
 		"""Store content block and return storage ID."""
 		...
 
-
 class VoiceDNAService(Protocol):
 	"""Mock voice DNA service interface for organizational voice consistency."""
 	
 	async def validate_voice(self, content: str) -> dict[str, Any]:
 		"""Validate content against organizational voice standards."""
 		...
-
 
 # Core Assembly Components
 class AssemblyEngine:
@@ -430,7 +416,6 @@ class AssemblyEngine:
 		
 		return min(1.0, quality_score)  # Ensure score doesn't exceed 1.0
 
-
 class DependencyResolver:
 	"""
 	Advanced dependency management system for content blocks.
@@ -605,7 +590,6 @@ class DependencyResolver:
 		
 		self._resolution_metrics['resolved_dependencies'] += len(sorted_blocks)
 		return sorted_blocks
-
 
 class ContentValidator:
 	"""
@@ -822,7 +806,6 @@ class ContentValidator:
 		
 		return max(0.0, min(1.0, base_score))
 
-
 class AssemblyOptimizer:
 	"""
 	Performance optimization engine for document assembly operations.
@@ -1014,7 +997,6 @@ class AssemblyOptimizer:
 			recommendations.append("Limited parallelization potential - review block dependencies")
 		
 		return recommendations
-
 
 class AssemblyAuditor:
 	"""
@@ -1272,7 +1254,6 @@ class AssemblyAuditor:
 			'error_types': error_types,
 			'error_rate': len(self._error_logs) / len(self._audit_logs) * 100 if self._audit_logs else 0
 		}
-
 
 # Main ContentAssembler Class
 class ContentAssembler:
@@ -1639,7 +1620,6 @@ class ContentAssembler:
 			new_avg = ((current_avg * (total_successful - 1)) + assembly_duration) / total_successful
 			self._metrics['average_assembly_time'] = new_avg
 
-
 # Real NLP Service Implementation
 class RealNLPService:
 	"""Real NLP service using our comprehensive NLP pipeline."""
@@ -1717,7 +1697,6 @@ class RealNLPService:
 			self.logger.error(f"Content generation failed: {e}")
 			return f"Generated content based on prompt: {prompt[:50]}... (Error: {str(e)})"
 
-
 # Mock Service Implementations (for Phase 1 compatibility)
 class MockNLPService:
 	"""Mock NLP service for development phase."""
@@ -1735,7 +1714,6 @@ class MockNLPService:
 	async def generate_content(self, prompt: str, content_type: str = "general", max_length: int = 500) -> str:
 		"""Mock content generation returning placeholder text."""
 		return f"Generated {content_type} content based on prompt: {prompt[:50]}... (max_length: {max_length})"
-
 
 class MockStorageService:
 	"""Mock storage service for development phase."""
@@ -1766,7 +1744,6 @@ class MockStorageService:
 		"""Mock block storage."""
 		return f"stored_{block.block_id}"
 
-
 class MockVoiceDNAService:
 	"""Mock voice DNA service for development phase."""
 	
@@ -1783,27 +1760,22 @@ class MockVoiceDNAService:
 			'suggestions': []
 		}
 
-
 # Exception Classes
 class AssemblerException(Exception):
 	"""Base exception for document assembler operations."""
 	pass
 
-
 class InvalidBlockException(AssemblerException):
 	"""Raised when content block validation fails."""
 	pass
-
 
 class MissingDependencyException(AssemblerException):
 	"""Raised when required dependencies are missing."""
 	pass
 
-
 class CircularDependencyException(AssemblerException):
 	"""Raised when circular dependencies are detected."""
 	pass
-
 
 # Module-level assertions for robustness
 assert ContentBlock, "ContentBlock model must be available for assembly operations"

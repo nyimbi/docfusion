@@ -17,17 +17,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..core.utils import uuid7str
 from .workflow_engine import (
     NodeType,
     Workflow,
@@ -35,7 +27,6 @@ from .workflow_engine import (
     WorkflowNode,
     WorkflowType,
 )
-
 
 class AgentTemplate(str, Enum):
     """Built-in agent templates"""
@@ -49,7 +40,6 @@ class AgentTemplate(str, Enum):
     QA_AGENT = "qa_agent"
     CUSTOM_AGENT = "custom_agent"
 
-
 class PromptTemplate(str, Enum):
     """Built-in prompt templates"""
 
@@ -61,7 +51,6 @@ class PromptTemplate(str, Enum):
     LAYOUT_SPECIFICATIONS = "layout_specifications"
     QUALITY_CHECK = "quality_check"
     CUSTOM_PROMPT = "custom_prompt"
-
 
 @dataclass
 class AgentConfiguration:
@@ -108,7 +97,6 @@ class AgentConfiguration:
     version: str = "1.0"
     tags: List[str] = field(default_factory=list)
 
-
 @dataclass
 class WorkflowTemplate:
     """Predefined workflow template"""
@@ -130,7 +118,6 @@ class WorkflowTemplate:
     difficulty: str = "beginner"  # beginner, intermediate, advanced
     estimated_time: int = 300  # seconds
     tags: List[str] = field(default_factory=list)
-
 
 class AgentComposer:
     """

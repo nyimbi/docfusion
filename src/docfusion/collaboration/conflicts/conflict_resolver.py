@@ -22,8 +22,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
-from uuid_extensions import uuid7str
-
+from ...core.utils import uuid7str
 from .conflict_detector import (
     ConflictAnalysisResult,
     ConflictScope,
@@ -33,7 +32,6 @@ from .conflict_detector import (
     DetectedConflict,
     SemanticEntity,
 )
-
 
 class ResolutionStrategy(Enum):
     """Conflict resolution strategies"""
@@ -47,7 +45,6 @@ class ResolutionStrategy(Enum):
     COMBINE_BOTH = "combine_both"  # Merge both versions intelligently
     REJECT_CONFLICT = "reject_conflict"  # Reject conflicting changes
 
-
 class ResolutionStatus(Enum):
     """Status of conflict resolution"""
 
@@ -57,7 +54,6 @@ class ResolutionStatus(Enum):
     FAILED = "failed"
     PENDING = "pending"
 
-
 class ResolutionQuality(Enum):
     """Quality assessment of resolution"""
 
@@ -66,7 +62,6 @@ class ResolutionQuality(Enum):
     ACCEPTABLE = "acceptable"  # Resolution works but not optimal
     POOR = "poor"  # Low confidence, may need review
     UNKNOWN = "unknown"  # Cannot assess quality
-
 
 @dataclass
 class ResolutionRule:
@@ -92,7 +87,6 @@ class ResolutionRule:
     created_by: str = ""
     enabled: bool = True
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class ResolutionAttempt:
@@ -120,7 +114,6 @@ class ResolutionAttempt:
     manual_modifications: bool = False
     feedback_provided: str = ""
 
-
 @dataclass
 class ResolvedConflict:
     """Conflict with its resolution"""
@@ -141,11 +134,10 @@ class ResolvedConflict:
     resolved_at: Optional[datetime] = None
     resolved_by: str = ""  # system, rule, manual, hybrid
 
-
 class ConflictResolutionResult(BaseModel):
     """Result of conflict resolution process"""
 
-    model_config = ConfigDict(extra="forbid", validate_default=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 
     # Input information
     total_conflicts: int = 0
@@ -174,11 +166,10 @@ class ConflictResolutionResult(BaseModel):
     processed_at: datetime = Field(default_factory=datetime.now)
     resolver_version: str = "1.0"
 
-
 class UserPreferences(BaseModel):
     """User preferences for conflict resolution"""
 
-    model_config = ConfigDict(extra="forbid", validate_default=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 
     user_id: str
     preferred_strategy: ResolutionStrategy = ResolutionStrategy.AUTO_MERGE
@@ -204,7 +195,6 @@ class UserPreferences(BaseModel):
     # Metadata
     created_at: datetime = Field(default_factory=datetime.now)
     last_updated: datetime = Field(default_factory=datetime.now)
-
 
 class ConflictResolver:
     """

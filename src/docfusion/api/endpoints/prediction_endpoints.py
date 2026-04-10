@@ -12,22 +12,14 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
-
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-
-	def uuid7str() -> str:
-		return str(uuid4())
-
+from ...core.utils import uuid7str
 
 # Request/Response Models
 
 class SectionScoreRequest(BaseModel):
 	"""Request for section score prediction"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	features: Dict[str, float] = Field(
 		...,
@@ -42,11 +34,10 @@ class SectionScoreRequest(BaseModel):
 		description="Whether to include feature importance explanation"
 	)
 
-
 class WinProbabilityRequest(BaseModel):
 	"""Request for win probability prediction"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	# Opportunity characteristics
 	opportunity_value: float = Field(description="Estimated opportunity value")
@@ -117,11 +108,10 @@ class WinProbabilityRequest(BaseModel):
 		description="Optional section scores from ScoringPredictor"
 	)
 
-
 class WinProbabilityFromScoresRequest(BaseModel):
 	"""Request for win probability from section scores"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	section_scores: Dict[str, float] = Field(
 		...,
@@ -136,11 +126,10 @@ class WinProbabilityFromScoresRequest(BaseModel):
 		description="Optional additional opportunity features"
 	)
 
-
 class FeatureContributionResponse(BaseModel):
 	"""Feature contribution in prediction"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	feature_name: str = Field(description="Name of the feature")
 	feature_value: float = Field(description="Value of the feature")
@@ -149,11 +138,10 @@ class FeatureContributionResponse(BaseModel):
 	direction: str = Field(description="Direction of impact: positive, negative, neutral")
 	description: str = Field(description="Human-readable description")
 
-
 class PredictionExplanationResponse(BaseModel):
 	"""Explanation for a prediction"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	prediction_id: str = Field(description="Unique prediction identifier")
 	model_type: str = Field(description="Type of model used")
@@ -176,11 +164,10 @@ class PredictionExplanationResponse(BaseModel):
 
 	explained_at: datetime = Field(default_factory=datetime.now)
 
-
 class SectionScoreResponse(BaseModel):
 	"""Response for section score prediction"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	prediction_id: str = Field(description="Unique prediction identifier")
 	section_type: str = Field(description="Type of proposal section")
@@ -216,11 +203,10 @@ class SectionScoreResponse(BaseModel):
 		description="Detailed prediction explanation if requested"
 	)
 
-
 class WinProbabilityResponse(BaseModel):
 	"""Response for win probability prediction"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	opportunity_id: str = Field(description="Opportunity identifier")
 	predicted_win_probability: float = Field(
@@ -255,11 +241,10 @@ class WinProbabilityResponse(BaseModel):
 		description="Detailed prediction explanation if requested"
 	)
 
-
 class ModelStatusResponse(BaseModel):
 	"""Response for model status"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	model_type: str = Field(description="Type of model")
 	is_trained: bool = Field(description="Whether model is trained")
@@ -270,7 +255,6 @@ class ModelStatusResponse(BaseModel):
 	performance_metrics: Optional[Dict[str, float]] = Field(
 		description="Model performance metrics"
 	)
-
 
 # Prediction Endpoints Class
 
@@ -624,7 +608,6 @@ class PredictionEndpoints:
 		except Exception as e:
 			self.logger.error(f"Get models status failed: {e}")
 			raise HTTPException(status_code=500, detail=str(e))
-
 
 # Factory function
 def create_prediction_endpoints(

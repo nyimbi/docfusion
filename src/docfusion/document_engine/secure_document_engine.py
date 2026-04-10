@@ -12,15 +12,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from ..security import (
     AuditEventType,
     AuditSeverity,
@@ -28,12 +19,12 @@ from ..security import (
     SecurityManager,
     SecurityManagerConfiguration,
 )
+from ..core.utils import uuid7str
 from .document_engine import (
     DocumentEngine,
     DocumentGenerationConfiguration,
     DocumentGenerationResult,
 )
-
 
 @dataclass
 class SecureDocumentEngineConfiguration:
@@ -60,7 +51,6 @@ class SecureDocumentEngineConfiguration:
     # Template security
     template_access_levels: Dict[str, List[str]] = None  # template_id -> required_roles
     restrict_system_templates: bool = True
-
 
 class SecureDocumentEngine:
     """Security-enhanced document generation engine"""
@@ -537,7 +527,6 @@ class SecureDocumentEngine:
         await self.security.close()
         # Would also close document engine
         self.logger.info("Secure document engine closed")
-
 
 # Factory function
 def create_secure_document_engine(

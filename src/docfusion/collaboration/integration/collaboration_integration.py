@@ -22,8 +22,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
-from uuid_extensions import uuid7str
-
 logger = logging.getLogger(__name__)
 
 from ..conflicts.conflict_detector import (
@@ -45,6 +43,7 @@ from ..editing.collaborative_editor import (
     Operation,
     User,
 )
+from ...core.utils import uuid7str
 from ..versioning.version_manager import (
     DocumentBranch,
     DocumentCommit,
@@ -63,7 +62,6 @@ except ImportError:
     DocumentProcessor = None
     DocumentComplianceIntegrator = None
 
-
 class CollaborationMode(Enum):
     """Collaboration modes for documents"""
 
@@ -73,7 +71,6 @@ class CollaborationMode(Enum):
     REVIEW_BASED = "review_based"  # Review and approval workflow
     HYBRID = "hybrid"  # Combination of modes
 
-
 class SyncStrategy(Enum):
     """Document synchronization strategies"""
 
@@ -81,7 +78,6 @@ class SyncStrategy(Enum):
     BATCHED = "batched"  # Batch changes for efficiency
     PERIODIC = "periodic"  # Sync at regular intervals
     ON_DEMAND = "on_demand"  # Sync only when requested
-
 
 class DocumentStatus(Enum):
     """Status of collaborative document"""
@@ -92,7 +88,6 @@ class DocumentStatus(Enum):
     APPROVED = "approved"
     PUBLISHED = "published"
     ARCHIVED = "archived"
-
 
 @dataclass
 class CollaborationSettings:
@@ -110,7 +105,6 @@ class CollaborationSettings:
     track_all_changes: bool = True
     backup_frequency: int = 300  # seconds
 
-
 @dataclass
 class UserSession:
     """User collaboration session information"""
@@ -127,7 +121,6 @@ class UserSession:
     is_online: bool = True
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class DocumentSnapshot:
     """Point-in-time snapshot of document state"""
@@ -142,11 +135,10 @@ class DocumentSnapshot:
     created_at: datetime = field(default_factory=datetime.now)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 class CollaborativeDocument(BaseModel):
     """Collaborative document with integrated features"""
 
-    model_config = ConfigDict(extra="forbid", validate_default=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 
     # Document identification
     document_id: str = Field(default_factory=uuid7str)
@@ -178,7 +170,6 @@ class CollaborativeDocument(BaseModel):
     total_operations: int = 0
     total_conflicts_resolved: int = 0
     average_sync_time_ms: float = 0.0
-
 
 class CollaborationIntegrator:
     """

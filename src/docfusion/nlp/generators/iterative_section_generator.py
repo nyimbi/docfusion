@@ -20,15 +20,6 @@ try:
 except ImportError:
     aiohttp = None
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # Import outline structures and prompting strategies
 from ..prompting_strategies import (
     AdvancedPromptBuilder,
@@ -38,13 +29,13 @@ from ..prompting_strategies import (
     create_tree_of_thought_prompt,
     filter_thinking_tags,
 )
+from ...core.utils import uuid7str
 from .document_outline_generator import (
     DocumentOutline,
     DocumentType,
     OutlineElement,
     PsychologyBias,
 )
-
 
 class ContentGenerationStrategy(Enum):
     """Strategies for iterative content generation"""
@@ -54,7 +45,6 @@ class ContentGenerationStrategy(Enum):
     DEPENDENCY_AWARE = "dependency_aware"  # Respect section dependencies
     PSYCHOLOGY_OPTIMIZED = "psychology_optimized"  # Optimize for persuasive flow
 
-
 class RepetitionPreventionMode(Enum):
     """Methods for preventing content repetition"""
 
@@ -62,7 +52,6 @@ class RepetitionPreventionMode(Enum):
     KEYWORD_TRACKING = "keyword_tracking"  # Track key phrases and concepts
     CONTENT_FINGERPRINTING = "content_fingerprinting"  # Hash-based content tracking
     AI_REVIEW = "ai_review"  # AI-powered repetition detection
-
 
 @dataclass
 class SectionContent:
@@ -94,7 +83,6 @@ class SectionContent:
     transition_in: str = ""  # How this section connects to previous
     transition_out: str = ""  # How this section connects to next
 
-
 @dataclass
 class ContentPipeline:
     """Complete pipeline of generated content"""
@@ -122,7 +110,6 @@ class ContentPipeline:
     total_model_calls: int = 0
     total_repetition_retries: int = 0
 
-
 @dataclass
 class IterativeGenerationResult:
     """Result of complete iterative section generation"""
@@ -142,7 +129,6 @@ class IterativeGenerationResult:
 
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
-
 
 class IterativeSectionGenerator:
     """Advanced iterative section-by-section content generator with repetition prevention"""
@@ -1611,7 +1597,6 @@ Return only a single number between 0.0 and 1.0:"""
             "narrative_templates": len(self.narrative_templates),
             "max_retries_per_section": self.max_retries_per_section,
         }
-
 
 # Factory function
 def create_iterative_section_generator(

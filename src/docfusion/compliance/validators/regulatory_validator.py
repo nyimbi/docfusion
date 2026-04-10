@@ -13,13 +13,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 import re
 from datetime import datetime
-import uuid
-def uuid7str() -> str:
-	return str(uuid.uuid4())
 from pydantic import BaseModel, Field, ConfigDict, validator
 import asyncio
 import json
-
+from ...core.utils import uuid7str
 
 class ViolationSeverity(Enum):
 	"""Severity levels for compliance violations"""
@@ -29,7 +26,6 @@ class ViolationSeverity(Enum):
 	LOW = "low"
 	WARNING = "warning"
 
-
 class ComplianceStatus(Enum):
 	"""Compliance status enumeration"""
 	COMPLIANT = "compliant"
@@ -37,7 +33,6 @@ class ComplianceStatus(Enum):
 	PARTIAL_COMPLIANT = "partial_compliant"
 	UNKNOWN = "unknown"
 	EXEMPTED = "exempted"
-
 
 @dataclass
 class ComplianceViolation:
@@ -54,7 +49,6 @@ class ComplianceViolation:
 	detected_at: datetime = field(default_factory=datetime.now)
 	metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class ComplianceRule:
 	"""Defines a compliance rule"""
@@ -70,10 +64,9 @@ class ComplianceRule:
 	exemptions: List[str] = field(default_factory=list)
 	metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 class ComplianceReport(BaseModel):
 	"""Comprehensive compliance report"""
-	model_config = ConfigDict(extra='forbid', validate_default=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 	
 	report_id: str = Field(default_factory=uuid7str)
 	document_id: str
@@ -92,7 +85,6 @@ class ComplianceReport(BaseModel):
 	exemptions_applied: List[str] = Field(default_factory=list)
 	processing_time_ms: float = 0.0
 	metadata: Dict[str, Any] = Field(default_factory=dict)
-
 
 class RegulatoryValidator:
 	"""

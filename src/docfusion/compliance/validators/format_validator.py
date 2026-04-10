@@ -16,12 +16,9 @@ from datetime import datetime
 import os
 import mimetypes
 from pathlib import Path
-import uuid
-def uuid7str() -> str:
-	return str(uuid.uuid4())
 from pydantic import BaseModel, Field, ConfigDict
 import asyncio
-
+from ...core.utils import uuid7str
 
 class FormatSeverity(Enum):
 	"""Severity levels for format violations"""
@@ -31,7 +28,6 @@ class FormatSeverity(Enum):
 	LOW = "low"
 	WARNING = "warning"
 
-
 class DocumentFormat(Enum):
 	"""Supported document formats"""
 	PDF = "pdf"
@@ -40,7 +36,6 @@ class DocumentFormat(Enum):
 	HTML = "html"
 	TXT = "txt"
 	RTF = "rtf"
-
 
 @dataclass
 class FormatRequirement:
@@ -56,7 +51,6 @@ class FormatRequirement:
 	active: bool = True
 	metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class FormatViolation:
 	"""Represents a format violation"""
@@ -71,10 +65,9 @@ class FormatViolation:
 	detected_at: datetime = field(default_factory=datetime.now)
 	metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 class FormatReport(BaseModel):
 	"""Comprehensive format validation report"""
-	model_config = ConfigDict(extra='forbid', validate_default=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 	
 	report_id: str = Field(default_factory=uuid7str)
 	document_id: str
@@ -93,7 +86,6 @@ class FormatReport(BaseModel):
 	file_properties: Dict[str, Any] = Field(default_factory=dict)
 	processing_time_ms: float = 0.0
 	metadata: Dict[str, Any] = Field(default_factory=dict)
-
 
 class FormatValidator:
 	"""

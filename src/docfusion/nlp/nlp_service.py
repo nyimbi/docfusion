@@ -12,15 +12,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # Import all NLP processors and extractors
 from .analyzers.causal_analyzer import CausalAnalyzer, create_causal_analyzer
 from .analyzers.coherence_analyzer import CoherenceAnalyzer, create_coherence_analyzer
@@ -56,7 +47,7 @@ from .transformers.document_summarizer import (
     create_document_summarizer,
 )
 from .transformers.style_transformer import StyleTransformer, create_style_transformer
-
+from ..core.utils import uuid7str
 
 @dataclass
 class NLPAnalysisResult:
@@ -124,7 +115,6 @@ class NLPAnalysisResult:
             self.errors = []
         if self.warnings is None:
             self.warnings = []
-
 
 class NLPServiceConfiguration:
     """Configuration for NLP service"""
@@ -289,7 +279,6 @@ class NLPServiceConfiguration:
             **base_ollama_config,
             **(content_optimizer_config or {}),
         }
-
 
 class NLPService:
     """Unified NLP service for comprehensive document analysis"""
@@ -1113,7 +1102,6 @@ class NLPService:
                 "min_confidence_threshold": self.config.min_confidence_threshold,
             },
         }
-
 
 # Factory function
 def create_nlp_service(config: Optional[NLPServiceConfiguration] = None) -> NLPService:

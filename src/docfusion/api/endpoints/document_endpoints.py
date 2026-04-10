@@ -17,19 +17,11 @@ from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field, validator
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from ...document_engine.secure_document_engine import SecureDocumentEngine
 from ...security import SecurityManager
 from ...storage.secure_storage_service import SecureStorageService
 from ..middleware.authentication_middleware import get_api_key_user, get_current_user
+from ...core.utils import uuid7str
 from ..serializers.document_serializers import (
     DocumentCreateRequest,
     DocumentHistoryResponse,
@@ -38,7 +30,6 @@ from ..serializers.document_serializers import (
     DocumentUpdateRequest,
     RenderRequest,
 )
-
 
 class DocumentEndpoints:
     """FastAPI document endpoints with security integration"""
@@ -802,7 +793,6 @@ class DocumentEndpoints:
             "session_id": current_user.get("session_id"),
             "permissions": current_user.get("permissions", []),
         }
-
 
 # Factory function
 def create_document_endpoints(

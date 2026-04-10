@@ -17,14 +17,11 @@ import json
 import hashlib
 from datetime import datetime, date, timedelta
 from pathlib import Path
-import uuid
-def uuid7str() -> str:
-	return str(uuid.uuid4())
 from pydantic import BaseModel, Field, ConfigDict, validator
 import asyncio
 import mimetypes
 import base64
-
+from ...core.utils import uuid7str
 
 class EvidenceType(Enum):
 	"""Types of compliance evidence"""
@@ -47,7 +44,6 @@ class EvidenceType(Enum):
 	LOG_FILE = "log_file"
 	CUSTOM = "custom"
 
-
 class EvidenceStatus(Enum):
 	"""Evidence status enumeration"""
 	ACTIVE = "active"
@@ -60,7 +56,6 @@ class EvidenceStatus(Enum):
 	UNDER_REVIEW = "under_review"
 	REJECTED = "rejected"
 
-
 class EvidenceSource(Enum):
 	"""Sources of evidence"""
 	INTERNAL_SYSTEM = "internal_system"
@@ -72,7 +67,6 @@ class EvidenceSource(Enum):
 	SCAN_UPLOAD = "scan_upload"
 	THIRD_PARTY = "third_party"
 
-
 class EvidenceQuality(Enum):
 	"""Evidence quality levels"""
 	EXCELLENT = "excellent"
@@ -80,7 +74,6 @@ class EvidenceQuality(Enum):
 	ACCEPTABLE = "acceptable"
 	POOR = "poor"
 	INSUFFICIENT = "insufficient"
-
 
 @dataclass
 class EvidenceLink:
@@ -97,7 +90,6 @@ class EvidenceLink:
 	verified_date: Optional[datetime] = None
 	metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass  
 class EvidenceQualityMetrics:
 	"""Quality assessment metrics for evidence"""
@@ -113,10 +105,9 @@ class EvidenceQualityMetrics:
 	assessed_by: str = ""
 	confidence_level: float = 0.0
 
-
 class EvidenceRecord(BaseModel):
 	"""Comprehensive evidence record"""
-	model_config = ConfigDict(extra='forbid', validate_default=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 	
 	# Basic information
 	evidence_id: str = Field(default_factory=uuid7str)
@@ -178,10 +169,9 @@ class EvidenceRecord(BaseModel):
 	# Additional metadata
 	metadata: Dict[str, Any] = Field(default_factory=dict)
 
-
 class EvidenceSearchCriteria(BaseModel):
 	"""Search criteria for evidence"""
-	model_config = ConfigDict(extra='forbid', validate_default=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 	
 	# Text search
 	search_query: Optional[str] = None
@@ -217,7 +207,6 @@ class EvidenceSearchCriteria(BaseModel):
 	offset: int = 0
 	sort_by: str = "created_date"
 	sort_order: str = "desc"
-
 
 class EvidenceManager:
 	"""

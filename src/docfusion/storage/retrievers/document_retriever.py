@@ -15,21 +15,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 import pickle
 from collections import Counter, defaultdict
 from difflib import SequenceMatcher
 
 import aiofiles
-
+from ...core.utils import uuid7str
 
 @dataclass
 class ContentBlock:
@@ -57,7 +48,6 @@ class ContentBlock:
     )  # Dependencies on other blocks
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class Template:
     """Document template with content blocks and structure"""
@@ -83,7 +73,6 @@ class Template:
     tags: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class ContentRecommendation:
     """Content recommendation with scoring"""
@@ -99,7 +88,6 @@ class ContentRecommendation:
     last_used: datetime
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class RetrievalStats:
     """Content retrieval statistics"""
@@ -113,7 +101,6 @@ class RetrievalStats:
     average_retrieval_time: float = 0.0
     most_used_content: Dict[str, int] = field(default_factory=dict)
     performance_metrics: Dict[str, float] = field(default_factory=dict)
-
 
 class DocumentRetriever:
     """
@@ -843,14 +830,12 @@ class DocumentRetriever:
         except Exception as e:
             print(f"Error loading data: {e}")
 
-
 # Convenience functions
 async def create_document_retriever(
     storage_path: Optional[Path] = None,
 ) -> DocumentRetriever:
     """Create and initialize document retriever"""
     return DocumentRetriever(storage_path)
-
 
 async def add_boilerplate_content(
     retriever: DocumentRetriever,

@@ -12,20 +12,13 @@ from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
 from .enhanced_nlp_service import EnhancedNLPService, EnhancedNLPServiceConfiguration, EnhancedAnalysisResult
 from .nlp_service import NLPService, NLPServiceConfiguration
+from ..core.utils import uuid7str
 from ..security import (
 	SecurityManager, SecurityManagerConfiguration,
 	AuditEventType, AuditSeverity, PermissionLevel
 )
-
 
 @dataclass
 class SecureNLPServiceConfiguration:
@@ -57,7 +50,6 @@ class SecureNLPServiceConfiguration:
 	# Data retention
 	analysis_result_retention_days: int = 90
 	audit_log_retention_days: int = 365
-
 
 class SecureNLPService:
 	"""Security-enhanced NLP service"""
@@ -640,7 +632,6 @@ class SecureNLPService:
 		await self.security.close()
 		await self.nlp_service.close()
 		self.logger.info("Secure NLP service closed")
-
 
 # Factory function
 def create_secure_nlp_service(config: SecureNLPServiceConfiguration) -> SecureNLPService:

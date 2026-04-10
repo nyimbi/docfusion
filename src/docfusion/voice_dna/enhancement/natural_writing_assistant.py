@@ -100,7 +100,7 @@ class SuggestionType(str, Enum):
 # Data models
 class SentenceAnalysis(BaseModel):
 	"""Analysis of sentence structure and characteristics"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	sentence: str
 	sentence_type: SentenceType
@@ -117,7 +117,7 @@ class SentenceAnalysis(BaseModel):
 
 class SentenceVariation(BaseModel):
 	"""Metrics for sentence variation and structure diversity"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	total_sentences: int
 	avg_sentence_length: float
@@ -131,7 +131,7 @@ class SentenceVariation(BaseModel):
 
 class VoicePattern(BaseModel):
 	"""Analysis of voice patterns and characteristics"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	dominant_characteristics: List[VoiceCharacteristic]
 	consistency_score: float
@@ -144,7 +144,7 @@ class VoicePattern(BaseModel):
 
 class VoiceAuthenticity(BaseModel):
 	"""Assessment of voice authenticity and human-likeness"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	overall_score: float = Field(ge=0, le=1)
 	human_likeness: float = Field(ge=0, le=1)
@@ -158,7 +158,7 @@ class VoiceAuthenticity(BaseModel):
 
 class FlowAnalysis(BaseModel):
 	"""Analysis of text flow and transition quality"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	overall_flow_score: float = Field(ge=0, le=1)
 	transition_quality: float = Field(ge=0, le=1)
@@ -171,7 +171,7 @@ class FlowAnalysis(BaseModel):
 
 class WritingSuggestion(BaseModel):
 	"""Individual writing improvement suggestion"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 	suggestion_type: SuggestionType
@@ -186,7 +186,7 @@ class WritingSuggestion(BaseModel):
 
 class WritingAssistanceRequest(BaseModel):
 	"""Request for writing assistance and improvement"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	text: str = Field(min_length=1)
 	assistance_type: AssistanceType = AssistanceType.COMPREHENSIVE
@@ -201,7 +201,7 @@ class WritingAssistanceRequest(BaseModel):
 
 class WritingAssistanceResult(BaseModel):
 	"""Comprehensive writing assistance results"""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	original_text: str
 	sentence_analysis: List[SentenceAnalysis]

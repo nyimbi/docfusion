@@ -12,7 +12,7 @@ Copyright (c) 2025
 import os
 import re
 from pathlib import Path
-
+from ..core.utils import uuid7str
 
 def fix_uuid_imports(file_path):
 	"""Fix UUID import issues"""
@@ -20,31 +20,13 @@ def fix_uuid_imports(file_path):
 		content = f.read()
 
 	# Replace direct uuid_extension import with fallback
-	uuid_import_pattern = r'try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())'
-	uuid_fallback = '''try:
-	try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())
-except ImportError:
-	import uuid
-	def uuid7str() -> str:
-		return str(uuid.uuid4())'''
-
+	uuid_import_pattern = r'
 	if uuid_import_pattern in content:
 		content = content.replace(uuid_import_pattern, uuid_fallback)
 
 		with open(file_path, 'w') as f:
 			f.write(content)
 		print(f"Fixed UUID imports in {file_path}")
-
 
 def fix_capability_references(file_path):
 	"""Fix capability reference issues"""
@@ -58,7 +40,6 @@ def fix_capability_references(file_path):
 		with open(file_path, 'w') as f:
 			f.write(content)
 		print(f"Fixed capability references in {file_path}")
-
 
 def add_missing_imports(file_path):
 	"""Add missing imports like 're' module"""
@@ -95,7 +76,6 @@ def add_missing_imports(file_path):
 			f.write(new_content)
 		print(f"Added 're' import to {file_path}")
 
-
 def fix_method_signatures(file_path):
 	"""Fix method signature mismatches"""
 	with open(file_path, 'r') as f:
@@ -113,7 +93,6 @@ def fix_method_signatures(file_path):
 		with open(file_path, 'w') as f:
 			f.write(content)
 		print(f"Fixed method signatures in {file_path}")
-
 
 def fix_none_assignments(file_path):
 	"""Fix None value assignments to required types"""
@@ -141,7 +120,6 @@ def fix_none_assignments(file_path):
 		with open(file_path, 'w') as f:
 			f.write(content)
 		print(f"Fixed None assignments in {file_path}")
-
 
 async def fix_async_issues(file_path):
 	"""Fix async/await issues"""
@@ -180,7 +158,6 @@ async def fix_async_issues(file_path):
 		with open(file_path, 'w') as f:
 			f.write(content)
 		print(f"Fixed async issues in {file_path}")
-
 
 def main():
 	"""Main fix script"""
@@ -221,7 +198,6 @@ def main():
 	print()
 	print("✅ Import and type fixes completed!")
 	print("🧪 Run tests with: python tests/run_tests.py")
-
 
 if __name__ == "__main__":
 	main()

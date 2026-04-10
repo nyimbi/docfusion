@@ -7,21 +7,15 @@ controls, dynamic permission management, and permission inheritance.
 
 import asyncio
 import logging
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Union
 
 from pydantic import BaseModel, Field, ConfigDict
-
-def uuid7str():
-	"""Generate a UUID7-like string using UUID4 for compatibility."""
-	return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
-
 
 class Permission(str, Enum):
 	"""Available collaboration permissions."""
@@ -38,7 +32,6 @@ class Permission(str, Enum):
 	EXPORT = "export"
 	TEMPLATE = "template"
 
-
 class PermissionScope(str, Enum):
 	"""Scope of permission application."""
 	DOCUMENT = "document"
@@ -47,13 +40,11 @@ class PermissionScope(str, Enum):
 	SENTENCE = "sentence"
 	SELECTION = "selection"
 
-
 class PermissionEffect(str, Enum):
 	"""Effect of permission rule."""
 	ALLOW = "allow"
 	DENY = "deny"
 	INHERIT = "inherit"
-
 
 class ConditionType(str, Enum):
 	"""Types of permission conditions."""
@@ -64,10 +55,9 @@ class ConditionType(str, Enum):
 	WORKFLOW_BASED = "workflow_based"
 	USER_BASED = "user_based"
 
-
 class PermissionGrant(BaseModel):
 	"""Individual permission grant record."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	grant_id: str = Field(default_factory=uuid7str)
 	user_id: str = Field(description="User receiving permission")
@@ -82,10 +72,9 @@ class PermissionGrant(BaseModel):
 	priority: int = Field(100, description="Priority for conflict resolution")
 	reason: Optional[str] = Field(None, description="Reason for permission grant")
 
-
 class PermissionRule(BaseModel):
 	"""Dynamic permission rule definition."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	rule_id: str = Field(default_factory=uuid7str)
 	name: str = Field(description="Human-readable rule name")
@@ -99,10 +88,9 @@ class PermissionRule(BaseModel):
 	created_by: str = Field(description="User who created rule")
 	created_at: datetime = Field(default_factory=datetime.now)
 
-
 class UserPermissions(BaseModel):
 	"""User's effective permissions for a resource."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	user_id: str = Field(description="User identifier")
 	target_id: str = Field(description="Target resource ID")
@@ -114,10 +102,9 @@ class UserPermissions(BaseModel):
 	last_computed: datetime = Field(default_factory=datetime.now)
 	cache_ttl: int = Field(300, description="Cache TTL in seconds")
 
-
 class SectionPermissions(BaseModel):
 	"""Permissions configuration for a document section."""
-	model_config = ConfigDict(extra='forbid')
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	section_id: str = Field(description="Section identifier")
 	document_id: str = Field(description="Parent document ID")
@@ -129,7 +116,6 @@ class SectionPermissions(BaseModel):
 	locked_by: Optional[str] = Field(None, description="User who has exclusive lock")
 	locked_until: Optional[datetime] = Field(None, description="Lock expiration")
 	requires_approval: bool = Field(False, description="Whether changes need approval")
-
 
 @dataclass
 class PermissionContext:
@@ -144,7 +130,6 @@ class PermissionContext:
 	session_id: Optional[str] = None
 	workflow_state: Optional[str] = None
 	additional_context: Dict[str, Any] = field(default_factory=dict)
-
 
 class CollaborationPermissions:
 	"""

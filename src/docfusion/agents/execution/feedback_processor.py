@@ -21,17 +21,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class FeedbackType(str, Enum):
     """Types of feedback"""
@@ -43,7 +34,6 @@ class FeedbackType(str, Enum):
     ERROR_ANALYSIS = "error_analysis"
     IMPROVEMENT_SUGGESTION = "improvement_suggestion"
 
-
 class FeedbackSource(str, Enum):
     """Sources of feedback"""
 
@@ -54,7 +44,6 @@ class FeedbackSource(str, Enum):
     MONITORING = "monitoring"
     VALIDATION = "validation"
 
-
 class FeedbackSentiment(str, Enum):
     """Sentiment of feedback"""
 
@@ -62,7 +51,6 @@ class FeedbackSentiment(str, Enum):
     NEGATIVE = "negative"
     NEUTRAL = "neutral"
     MIXED = "mixed"
-
 
 @dataclass
 class FeedbackItem:
@@ -118,7 +106,6 @@ class FeedbackItem:
             "actionability_score": self.actionability_score,
         }
 
-
 @dataclass
 class PerformancePattern:
     """Identified performance pattern"""
@@ -143,7 +130,6 @@ class PerformancePattern:
 
     created_at: datetime = field(default_factory=datetime.now)
     last_seen: datetime = field(default_factory=datetime.now)
-
 
 @dataclass
 class ImprovementRecommendation:
@@ -172,7 +158,6 @@ class ImprovementRecommendation:
     status: str = "pending"  # pending, in_progress, implemented, rejected
     created_at: datetime = field(default_factory=datetime.now)
     implemented_at: Optional[datetime] = None
-
 
 class FeedbackProcessor:
     """

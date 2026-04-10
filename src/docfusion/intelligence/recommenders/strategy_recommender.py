@@ -44,7 +44,7 @@ class StrategicPriority(str, Enum):
 
 class OpportunityContext(BaseModel):
 	"""Context information for strategic decision making"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	opportunity_id: str = Field(description="Unique opportunity identifier")
 	opportunity_value: float = Field(ge=0, description="Estimated opportunity value")
@@ -67,7 +67,7 @@ class OpportunityContext(BaseModel):
 
 class ResourceAllocation(BaseModel):
 	"""Resource allocation recommendation"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Personnel allocation
 	proposed_team_size: int = Field(ge=0, description="Recommended team size")
@@ -90,7 +90,7 @@ class ResourceAllocation(BaseModel):
 
 class StrategicRecommendation(BaseModel):
 	"""Strategic recommendation with detailed rationale"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	recommendation_id: str = Field(default_factory=lambda: str(uuid4()), description="Unique recommendation identifier")
 	opportunity_id: str = Field(description="Opportunity being evaluated")
@@ -128,7 +128,7 @@ class StrategicRecommendation(BaseModel):
 
 class PortfolioAnalysis(BaseModel):
 	"""Analysis of opportunity portfolio"""
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 	
 	# Portfolio composition
 	total_opportunities: int = Field(ge=0, description="Total opportunities under consideration")

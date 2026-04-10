@@ -19,17 +19,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-
-	def uuid7str() -> str:
-		return str(uuid4())
-
-
 from pydantic import BaseModel, ConfigDict, Field
-
+from ..core.utils import uuid7str
 
 class TraceabilityDirection(str, Enum):
 	"""Direction of traceability lookup"""
@@ -37,7 +28,6 @@ class TraceabilityDirection(str, Enum):
 	FORWARD = "forward"  # Requirement -> Section
 	BACKWARD = "backward"  # Section -> Requirement
 	BIDIRECTIONAL = "bidirectional"  # Both directions
-
 
 class TraceabilityLink(BaseModel):
 	"""
@@ -55,7 +45,7 @@ class TraceabilityLink(BaseModel):
 		notes: Additional notes
 	"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str)
 	requirement_id: str = Field(..., description="ID of the requirement")
@@ -73,7 +63,6 @@ class TraceabilityLink(BaseModel):
 	verified: bool = Field(default=False, description="Whether manually verified")
 	notes: str = Field(default="", description="Additional notes")
 
-
 class TraceabilityMatrix(BaseModel):
 	"""
 	Complete traceability matrix for requirements.
@@ -89,7 +78,7 @@ class TraceabilityMatrix(BaseModel):
 		updated_at: When this matrix was last updated
 	"""
 
-	model_config = ConfigDict(extra='forbid', validate_by_name=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
 	id: str = Field(default_factory=uuid7str)
 	rfp_id: str = Field(..., description="ID of the RFP document")
@@ -234,7 +223,6 @@ class TraceabilityMatrix(BaseModel):
 			"verified_links": sum(1 for link in self.links if link.verified),
 			"average_links_per_requirement": round(len(self.links) / total_requirements, 2) if total_requirements > 0 else 0,
 		}
-
 
 class TraceabilityAnalyzer:
 	"""
@@ -507,7 +495,6 @@ class TraceabilityAnalyzer:
 
 		return recommendations
 
-
 class TraceabilityMatrixBuilder:
 	"""
 	Builder for creating traceability matrices.
@@ -647,7 +634,6 @@ class TraceabilityMatrixBuilder:
 		self._matrix.updated_at = datetime.now()
 		return self._matrix
 
-
 def create_traceability_matrix_builder(
 	rfp_id: str,
 	name: str = "Traceability Matrix",
@@ -663,7 +649,6 @@ def create_traceability_matrix_builder(
 		TraceabilityMatrixBuilder instance
 	"""
 	return TraceabilityMatrixBuilder(rfp_id=rfp_id, name=name)
-
 
 def create_traceability_analyzer(config: dict[str, Any] | None = None) -> TraceabilityAnalyzer:
 	"""

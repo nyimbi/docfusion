@@ -21,18 +21,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import jwt
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # Pydantic models
 from pydantic import BaseModel, ConfigDict, Field
-
+from ...core.utils import uuid7str
 
 class APIKeyStatus(Enum):
     """API key status enumeration"""
@@ -42,7 +33,6 @@ class APIKeyStatus(Enum):
     EXPIRED = "expired"
     REVOKED = "revoked"
 
-
 class APIPermissionLevel(Enum):
     """API permission levels"""
 
@@ -50,7 +40,6 @@ class APIPermissionLevel(Enum):
     READ_WRITE = "read_write"
     ADMIN = "admin"
     SUPER_ADMIN = "super_admin"
-
 
 class RateLimitScope(Enum):
     """Rate limiting scope"""
@@ -60,11 +49,10 @@ class RateLimitScope(Enum):
     PER_USER = "per_user"
     GLOBAL = "global"
 
-
 class APIKey(BaseModel):
     """API key model"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     key_id: str = Field(default_factory=uuid7str)
     key_hash: str
@@ -94,11 +82,10 @@ class APIKey(BaseModel):
     rate_limit_requests: int = 1000  # Per hour
     rate_limit_window_seconds: int = 3600
 
-
 class APIKeyResult(BaseModel):
     """Result of API key operations"""
 
-    model_config = ConfigDict(extra="forbid", validate_by_name=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
 
     success: bool
     key_id: Optional[str] = None
@@ -107,7 +94,6 @@ class APIKeyResult(BaseModel):
     rate_limited: bool = False
     remaining_requests: Optional[int] = None
     reset_time: Optional[datetime] = None
-
 
 @dataclass
 class APIAuthenticationConfig:
@@ -133,7 +119,6 @@ class APIAuthenticationConfig:
     require_https: bool = True
     log_all_requests: bool = True
     block_suspicious_ips: bool = True
-
 
 class APIAuthentication:
     """API authentication system with key management and rate limiting"""
@@ -735,7 +720,6 @@ class APIAuthentication:
             "daily_stats": daily_stats,
             "top_endpoints": top_endpoints,
         }
-
 
 # Factory function
 def create_api_authentication(

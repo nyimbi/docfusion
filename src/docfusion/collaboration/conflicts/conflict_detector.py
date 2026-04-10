@@ -23,9 +23,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
-from uuid_extensions import uuid7str
-
-
+from ...core.utils import uuid7str
 class ConflictType(Enum):
     """Types of conflicts in collaborative editing"""
 
@@ -38,7 +36,6 @@ class ConflictType(Enum):
     REFERENCE_CONFLICT = "reference_conflict"  # Cross-reference conflicts
     METADATA_CONFLICT = "metadata_conflict"  # Document metadata conflicts
 
-
 class ConflictSeverity(Enum):
     """Severity levels for conflicts"""
 
@@ -47,7 +44,6 @@ class ConflictSeverity(Enum):
     MEDIUM = "medium"  # Moderate conflicts requiring attention
     LOW = "low"  # Minor conflicts, easily resolvable
     INFO = "info"  # Informational, no action needed
-
 
 class ConflictScope(Enum):
     """Scope of conflict impact"""
@@ -58,7 +54,6 @@ class ConflictScope(Enum):
     SENTENCE = "sentence"  # Affects sentence
     WORD = "word"  # Affects individual words
     CHARACTER = "character"  # Character-level conflict
-
 
 @dataclass
 class ContentRegion:
@@ -72,7 +67,6 @@ class ContentRegion:
     content_type: str = "text"  # text, heading, list, table, etc.
     semantic_tags: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class SemanticEntity:
@@ -88,7 +82,6 @@ class SemanticEntity:
     synonyms: List[str] = field(default_factory=list)
     relationships: Dict[str, List[str]] = field(default_factory=dict)
 
-
 @dataclass
 class DocumentStructure:
     """Document structure analysis"""
@@ -100,7 +93,6 @@ class DocumentStructure:
     tables: List[ContentRegion] = field(default_factory=list)
     cross_references: Dict[str, List[int]] = field(default_factory=dict)
     hierarchy: Dict[str, List[str]] = field(default_factory=dict)
-
 
 @dataclass
 class DetectedConflict:
@@ -135,11 +127,10 @@ class DetectedConflict:
     user_ids: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 class ConflictAnalysisResult(BaseModel):
     """Result of conflict detection analysis"""
 
-    model_config = ConfigDict(extra="forbid", validate_default=True)
+    model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 
     document_a_id: str = ""
     document_b_id: str = ""
@@ -159,7 +150,6 @@ class ConflictAnalysisResult(BaseModel):
     overall_assessment: str = ""
     resolution_priority: List[str] = Field(default_factory=list)
     automated_resolution_possible: bool = False
-
 
 class ConflictDetector:
     """

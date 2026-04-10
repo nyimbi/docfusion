@@ -16,9 +16,6 @@ from enum import Enum
 import json
 from datetime import datetime, date, timedelta
 from pathlib import Path
-import uuid
-def uuid7str() -> str:
-	return str(uuid.uuid4())
 from pydantic import BaseModel, Field, ConfigDict
 import asyncio
 
@@ -30,10 +27,10 @@ from ..frameworks.compliance_framework import ComplianceFramework
 from ..evidence.evidence_manager import (
 	EvidenceManager, EvidenceRecord, EvidenceStatus, EvidenceQuality
 )
+from ...core.utils import uuid7str
 from ...document_engine.compliance_integration import (
 	DocumentComplianceIntegrator, ComplianceIntegrationResult
 )
-
 
 class ReportType(Enum):
 	"""Types of compliance reports"""
@@ -48,7 +45,6 @@ class ReportType(Enum):
 	PERFORMANCE_DASHBOARD = "performance_dashboard"
 	TREND_ANALYSIS = "trend_analysis"
 
-
 class RiskLevel(Enum):
 	"""Risk level enumeration"""
 	CRITICAL = "critical"
@@ -56,7 +52,6 @@ class RiskLevel(Enum):
 	MEDIUM = "medium"
 	LOW = "low"
 	MINIMAL = "minimal"
-
 
 class ComplianceMetricType(Enum):
 	"""Types of compliance metrics"""
@@ -66,7 +61,6 @@ class ComplianceMetricType(Enum):
 	EVIDENCE_COVERAGE = "evidence_coverage"
 	RISK_SCORE = "risk_score"
 	AUDIT_READINESS = "audit_readiness"
-
 
 @dataclass
 class ComplianceMetric:
@@ -82,7 +76,6 @@ class ComplianceMetric:
 	last_updated: datetime = field(default_factory=datetime.now)
 	data_points: List[Dict[str, Any]] = field(default_factory=list)
 	metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class RiskAssessment:
@@ -103,7 +96,6 @@ class RiskAssessment:
 	created_date: datetime = field(default_factory=datetime.now)
 	last_reviewed: datetime = field(default_factory=datetime.now)
 	metadata: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class EvidenceGap:
@@ -126,10 +118,9 @@ class EvidenceGap:
 	created_date: datetime = field(default_factory=datetime.now)
 	metadata: Dict[str, Any] = field(default_factory=dict)
 
-
 class ComplianceReport(BaseModel):
 	"""Comprehensive compliance report"""
-	model_config = ConfigDict(extra='forbid', validate_default=True)
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True, validate_default=True)
 	
 	# Report metadata
 	report_id: str = Field(default_factory=uuid7str)
@@ -181,7 +172,6 @@ class ComplianceReport(BaseModel):
 	generated_by: str = ""
 	next_review_date: Optional[date] = None
 	metadata: Dict[str, Any] = Field(default_factory=dict)
-
 
 class ComplianceReporter:
 	"""

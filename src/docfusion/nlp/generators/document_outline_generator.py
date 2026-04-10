@@ -21,16 +21,8 @@ try:
 except ImportError:
     aiohttp = None
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 # Import advanced prompting strategies
+from ...core.utils import uuid7str
 from ..prompting_strategies import (
     AdvancedPromptBuilder,
     PromptingStrategy,
@@ -39,7 +31,6 @@ from ..prompting_strategies import (
     create_tree_of_thought_prompt,
     filter_thinking_tags,
 )
-
 
 class DocumentType(Enum):
     """Types of documents that can be outlined and generated"""
@@ -56,7 +47,6 @@ class DocumentType(Enum):
     BUSINESS_PLAN = "business_plan"
     STRATEGY_DOCUMENT = "strategy_document"
     TECHNICAL_SPECIFICATION = "technical_specification"
-
 
 class PsychologyBias(Enum):
     """Behavioral psychology and economic biases for persuasive content"""
@@ -87,7 +77,6 @@ class PsychologyBias(Enum):
     PRIDE_OWNERSHIP = "pride_ownership"  # Personal achievement
     PROBLEM_AGITATION = "problem_agitation"  # Intensify pain points
 
-
 @dataclass
 class OutlineElement:
     """Individual element in document outline"""
@@ -113,7 +102,6 @@ class OutlineElement:
     supporting_data: List[str] = field(default_factory=list)
     call_to_action: str = ""
 
-
 @dataclass
 class OutlineImprovement:
     """Suggested improvement to outline"""
@@ -126,7 +114,6 @@ class OutlineImprovement:
     impact_score: float = 0.0  # 0-1 scale
     psychology_benefit: List[PsychologyBias] = field(default_factory=list)
     implementation_difficulty: str = "medium"  # easy, medium, hard
-
 
 @dataclass
 class DocumentOutline:
@@ -156,7 +143,6 @@ class DocumentOutline:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     improvements_applied: List[OutlineImprovement] = field(default_factory=list)
 
-
 @dataclass
 class OutlineGenerationResult:
     """Result of outline generation process"""
@@ -181,7 +167,6 @@ class OutlineGenerationResult:
 
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
-
 
 class DocumentOutlineGenerator:
     """Advanced multi-stage document outline generator with psychology integration"""
@@ -976,7 +961,7 @@ Generate the 10 improvements now:"""
                         psychology_benefits.append(bias)
                     except ValueError:
                         # Skip invalid bias names
-                        pass
+                        self.logger.warning("ValueError in unknown: {names}", names)
 
                 improvement = OutlineImprovement(
                     element_id=imp_data.get("element_id", ""),
@@ -1427,7 +1412,6 @@ Generate the 10 improvements now:"""
             "templates_available": len(self.document_templates),
             "psychology_biases_available": len(self.psychology_biases),
         }
-
 
 # Factory function
 def create_document_outline_generator(

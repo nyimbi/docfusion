@@ -29,16 +29,13 @@ except ImportError:
     HAS_XMLSEC = False
 
 from pydantic import BaseModel, Field
-from uuid_extensions import uuid7str
-
-
+from ...core.utils import uuid7str
 class SAMLBinding(str, Enum):
     """SAML binding types"""
 
     HTTP_REDIRECT = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
     HTTP_POST = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
     HTTP_ARTIFACT = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact"
-
 
 class SAMLNameIDFormat(str, Enum):
     """SAML NameID format types"""
@@ -47,7 +44,6 @@ class SAMLNameIDFormat(str, Enum):
     EMAIL = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
     TRANSIENT = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
     PERSISTENT = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
-
 
 class SAMLAuthContextClass(str, Enum):
     """SAML authentication context classes"""
@@ -58,7 +54,6 @@ class SAMLAuthContextClass(str, Enum):
     )
     TLS_CLIENT = "urn:oasis:names:tc:SAML:2.0:ac:classes:TLSClient"
     X509 = "urn:oasis:names:tc:SAML:2.0:ac:classes:X509"
-
 
 @dataclass
 class SAMLIdentityProviderConfig:
@@ -94,7 +89,6 @@ class SAMLIdentityProviderConfig:
         }
     )
 
-
 @dataclass
 class SAMLServiceProviderConfig:
     """Configuration for SAML Service Provider (SP)"""
@@ -125,7 +119,6 @@ class SAMLServiceProviderConfig:
     technical_contact_email: str = "tech@docufusion.ai"
     support_contact_email: str = "support@docufusion.ai"
 
-
 @dataclass
 class SAMLConfiguration:
     """SAML authentication configuration"""
@@ -149,7 +142,6 @@ class SAMLConfiguration:
     require_encrypted_assertions: bool = False
     validate_audience_restriction: bool = True
 
-
 class SAMLRequest(BaseModel):
     """SAML authentication request"""
 
@@ -171,7 +163,6 @@ class SAMLRequest(BaseModel):
     # State management
     relay_state: Optional[str] = None
     user_id: Optional[str] = None  # Associated user if any
-
 
 class SAMLAssertion(BaseModel):
     """SAML assertion information"""
@@ -199,7 +190,6 @@ class SAMLAssertion(BaseModel):
     signature_valid: bool = False
     assertion_encrypted: bool = False
 
-
 class SAMLResponse(BaseModel):
     """SAML authentication response"""
 
@@ -221,7 +211,6 @@ class SAMLResponse(BaseModel):
     # Security validation results
     signature_valid: bool = False
     response_encrypted: bool = False
-
 
 class SAMLUserInfo(BaseModel):
     """User information from SAML assertion"""
@@ -245,7 +234,6 @@ class SAMLUserInfo(BaseModel):
     # Provider info
     idp_entity_id: str
 
-
 class SAMLResult(BaseModel):
     """SAML authentication result"""
 
@@ -263,7 +251,6 @@ class SAMLResult(BaseModel):
     # Session management
     session_index: Optional[str] = None
     logout_url: Optional[str] = None
-
 
 class SAMLAuthentication:
     """SAML 2.0 authentication manager"""
@@ -738,7 +725,7 @@ class SAMLAuthentication:
                 try:
                     authn_context_class = SAMLAuthContextClass(authn_context_elem.text)
                 except ValueError:
-                    pass
+                    self.logger.warning("ValueError in unknown")
 
         # Extract attributes
         attributes = {}
@@ -903,12 +890,10 @@ class SAMLAuthentication:
             )
         return sessions
 
-
 # Factory functions
 def create_saml_authentication(config: SAMLConfiguration) -> SAMLAuthentication:
     """Create SAMLAuthentication instance"""
     return SAMLAuthentication(config)
-
 
 def create_test_saml_config() -> SAMLConfiguration:
     """Create test SAML configuration"""

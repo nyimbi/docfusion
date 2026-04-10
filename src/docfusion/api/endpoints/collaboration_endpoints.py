@@ -17,19 +17,10 @@ from fastapi import Path as PathParam
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from ...security import SecurityManager
 from ...storage.secure_storage_service import SecureStorageService
 from ..middleware.authentication_middleware import get_current_user
-
+from ...core.utils import uuid7str
 
 class CollaborationPermission(str, Enum):
     """Collaboration permission levels"""
@@ -39,14 +30,12 @@ class CollaborationPermission(str, Enum):
     EDITOR = "editor"
     OWNER = "owner"
 
-
 class CommentStatus(str, Enum):
     """Comment status options"""
 
     OPEN = "open"
     RESOLVED = "resolved"
     ARCHIVED = "archived"
-
 
 class SuggestionStatus(str, Enum):
     """Suggestion status options"""
@@ -55,7 +44,6 @@ class SuggestionStatus(str, Enum):
     ACCEPTED = "accepted"
     REJECTED = "rejected"
     SUPERSEDED = "superseded"
-
 
 class CommentCreateRequest(BaseModel):
     """Request model for creating a comment"""
@@ -74,7 +62,6 @@ class CommentCreateRequest(BaseModel):
         None, description="Parent comment ID if this is a reply"
     )
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
-
 
 class CommentResponse(BaseModel):
     """Response model for comments"""
@@ -98,7 +85,6 @@ class CommentResponse(BaseModel):
     )
     resolved_at: Optional[datetime] = Field(None, description="Resolution timestamp")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
-
 
 class SuggestionCreateRequest(BaseModel):
     """Request model for creating a suggestion"""
@@ -125,7 +111,6 @@ class SuggestionCreateRequest(BaseModel):
     priority: int = Field(0, ge=0, le=5, description="Priority level (0-5)")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
-
 class SuggestionResponse(BaseModel):
     """Response model for suggestions"""
 
@@ -149,7 +134,6 @@ class SuggestionResponse(BaseModel):
     reviewed_at: Optional[datetime] = Field(None, description="Review timestamp")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
-
 class CollaboratorRequest(BaseModel):
     """Request model for adding collaborators"""
 
@@ -159,7 +143,6 @@ class CollaboratorRequest(BaseModel):
     message: Optional[str] = Field(
         None, max_length=500, description="Invitation message"
     )
-
 
 class CollaboratorResponse(BaseModel):
     """Response model for collaborators"""
@@ -173,7 +156,6 @@ class CollaboratorResponse(BaseModel):
     last_active: Optional[datetime] = Field(None, description="Last activity timestamp")
     is_online: bool = Field(False, description="Whether user is currently online")
 
-
 class ActivityLogEntry(BaseModel):
     """Activity log entry model"""
 
@@ -184,7 +166,6 @@ class ActivityLogEntry(BaseModel):
     description: str = Field(..., description="Activity description")
     timestamp: datetime = Field(..., description="Activity timestamp")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
-
 
 class CollaborationEndpoints:
     """Document collaboration endpoints"""
@@ -1560,7 +1541,6 @@ class CollaborationEndpoints:
             "session_id": current_user.get("session_id"),
             "permissions": current_user.get("permissions", []),
         }
-
 
 # Factory function
 def create_collaboration_endpoints(

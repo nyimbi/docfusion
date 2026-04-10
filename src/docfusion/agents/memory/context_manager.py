@@ -19,15 +19,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
-
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    import uuid
-
-    def uuid7str() -> str:
-        return str(uuid.uuid4())
-
+from ...core.utils import uuid7str
 
 class ContextScope(str, Enum):
     """Context visibility and access scope"""
@@ -39,7 +31,6 @@ class ContextScope(str, Enum):
     WORKFLOW = "workflow"  # Workflow execution context
     PROJECT = "project"  # Project-wide context
     GLOBAL = "global"  # System-wide global context
-
 
 class ContextType(str, Enum):
     """Types of context information"""
@@ -53,7 +44,6 @@ class ContextType(str, Enum):
     CONFIGURATION = "configuration"  # System configuration
     USER_PREFERENCES = "user_preferences"  # User settings and preferences
 
-
 class ContextAccess(str, Enum):
     """Context access permissions"""
 
@@ -61,7 +51,6 @@ class ContextAccess(str, Enum):
     READ_WRITE = "read_write"
     ADMIN = "admin"  # Full control including deletion
     OWNER = "owner"  # Original creator with full rights
-
 
 @dataclass
 class ContextEntry:
@@ -85,7 +74,6 @@ class ContextEntry:
     # Lifecycle
     ttl_seconds: Optional[int] = None
     expires_at: Optional[datetime] = None
-
 
 class SharedContext:
     """
@@ -459,7 +447,6 @@ class SharedContext:
             "last_updated": self.last_updated.isoformat(),
             "update_count": self.update_count,
         }
-
 
 class ContextManager:
     """

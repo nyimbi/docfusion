@@ -21,18 +21,9 @@ from fastapi import Path as PathParam
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, HttpUrl, validator
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from ...security import SecurityManager
 from ..middleware.authentication_middleware import get_api_key_user, get_current_user
-
+from ...core.utils import uuid7str
 
 class WebhookEventType(str, Enum):
     """Webhook event types"""
@@ -50,7 +41,6 @@ class WebhookEventType(str, Enum):
     SECURITY_VIOLATION = "security.violation"
     SYSTEM_MAINTENANCE = "system.maintenance"
 
-
 class WebhookStatus(str, Enum):
     """Webhook delivery status"""
 
@@ -59,7 +49,6 @@ class WebhookStatus(str, Enum):
     DELIVERED = "delivered"
     FAILED = "failed"
     DISABLED = "disabled"
-
 
 class WebhookCreateRequest(BaseModel):
     """Request model for webhook creation"""
@@ -82,7 +71,6 @@ class WebhookCreateRequest(BaseModel):
     retry_count: int = Field(3, ge=0, le=10, description="Number of retries on failure")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Custom metadata")
 
-
 class WebhookResponse(BaseModel):
     """Response model for webhook operations"""
 
@@ -101,7 +89,6 @@ class WebhookResponse(BaseModel):
     total_deliveries: int = Field(0, description="Total delivery attempts")
     success_rate: float = Field(1.0, description="Success rate (0.0 to 1.0)")
 
-
 class WebhookDeliveryResponse(BaseModel):
     """Response model for webhook delivery status"""
 
@@ -119,7 +106,6 @@ class WebhookDeliveryResponse(BaseModel):
         None, description="Request duration in milliseconds"
     )
 
-
 class WebhookEvent(BaseModel):
     """Webhook event data structure"""
 
@@ -134,7 +120,6 @@ class WebhookEvent(BaseModel):
         None, description="Resource ID associated with event"
     )
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
-
 
 class WebhookManager:
     """Manages webhook registrations and deliveries"""
@@ -532,7 +517,6 @@ class WebhookManager:
     def get_stats(self) -> Dict[str, Any]:
         """Get webhook system statistics"""
         return self.stats.copy()
-
 
 class WebhookEndpoints:
     """Webhook management endpoints"""
@@ -993,7 +977,6 @@ class WebhookEndpoints:
         await self.webhook_manager.trigger_webhook_event(event)
 
         self.logger.debug(f"Webhook event {event_type} sent for resource {resource_id}")
-
 
 # Factory function
 def create_webhook_endpoints(security_manager: SecurityManager) -> WebhookEndpoints:

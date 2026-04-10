@@ -12,13 +12,6 @@ from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass, field
 from datetime import datetime
 
-try:
-	from uuid_extensions import uuid7str
-except ImportError:
-	from uuid import uuid4
-	def uuid7str() -> str:
-		return str(uuid4())
-
 # Import all NLP components
 from .nlp_service import NLPService, NLPServiceConfiguration, NLPAnalysisResult
 
@@ -34,7 +27,7 @@ from .transformers.content_generator import ContentGenerator, create_content_gen
 from .transformers.style_transformer import StyleTransformer, create_style_transformer
 from .transformers.document_summarizer import DocumentSummarizer, create_document_summarizer
 from .transformers.content_optimizer import ContentOptimizer, create_content_optimizer
-
+from ..core.utils import uuid7str
 
 @dataclass
 class EnhancedAnalysisResult:
@@ -73,7 +66,6 @@ class EnhancedAnalysisResult:
 	warnings: List[str] = field(default_factory=list)
 	errors: List[str] = field(default_factory=list)
 	statistics: Dict[str, Any] = field(default_factory=dict)
-
 
 class EnhancedNLPServiceConfiguration:
 	"""Enhanced configuration for comprehensive NLP service"""
@@ -147,7 +139,6 @@ class EnhancedNLPServiceConfiguration:
 			if component_type not in self.transformer_configs:
 				self.transformer_configs[component_type] = {}
 			self.transformer_configs[component_type].update(base_config_dict)
-
 
 class EnhancedNLPService:
 	"""Enhanced NLP service with comprehensive analysis and transformation capabilities"""
@@ -784,7 +775,6 @@ class EnhancedNLPService:
 					self.logger.warning(f"Failed to close transformer {type(transformer).__name__}: {e}")
 		
 		self.logger.info("Enhanced NLP service closed")
-
 
 # Factory function
 def create_enhanced_nlp_service(config: Optional[EnhancedNLPServiceConfiguration] = None) -> EnhancedNLPService:

@@ -15,15 +15,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-try:
-    from uuid_extensions import uuid7str
-except ImportError:
-    from uuid import uuid4
-
-    def uuid7str() -> str:
-        return str(uuid4())
-
-
 from .engines.document_retrieval import DocumentMetadata, DocumentRetrieval
 from .engines.text_search_engine import SearchQuery, SearchResult, TextSearchEngine
 from .indexes.document_indexer import (
@@ -32,7 +23,7 @@ from .indexes.document_indexer import (
     IndexedDocument,
 )
 from .retrievers.document_retriever import ContentRecommendation, DocumentRetriever
-
+from ..core.utils import uuid7str
 
 class HealthStatus(Enum):
     """Health status enumeration"""
@@ -41,7 +32,6 @@ class HealthStatus(Enum):
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
     UNKNOWN = "unknown"
-
 
 @dataclass
 class ComponentHealth:
@@ -54,7 +44,6 @@ class ComponentHealth:
     error_message: Optional[str] = None
     details: Dict[str, Any] = field(default_factory=dict)
 
-
 @dataclass
 class StorageHealthCheck:
     """Complete storage service health check result"""
@@ -66,7 +55,6 @@ class StorageHealthCheck:
     performance_metrics: Dict[str, float]
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
-
 
 @dataclass
 class StorageConfiguration:
@@ -82,7 +70,6 @@ class StorageConfiguration:
     index_batch_size: int = 100
     enable_keyword_extraction: bool = True
     max_content_length: int = 1_000_000
-
 
 @dataclass
 class StorageStats:
@@ -100,7 +87,6 @@ class StorageStats:
     average_retrieval_time: float = 0.0
     cache_hit_rate: float = 0.0
     component_status: Dict[str, str] = field(default_factory=dict)
-
 
 class StorageService:
     """
@@ -1196,7 +1182,6 @@ class StorageService:
         except Exception as e:
             print(f"Error during storage service cleanup: {e}")
 
-
 # Convenience functions for easy integration
 async def create_storage_service(
     storage_path: Path, enable_all_components: bool = True, **kwargs
@@ -1214,7 +1199,6 @@ async def create_storage_service(
     service = StorageService(config)
     await service.initialize()
     return service
-
 
 async def create_minimal_storage_service(storage_path: Path) -> StorageService:
     """Create storage service with minimal components for basic functionality"""
