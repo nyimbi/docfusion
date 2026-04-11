@@ -54,7 +54,8 @@ import requests
 from PIL import Image
 import io
 
-from ..generic.base_scraper import BaseScraper, ScrapingResult, ScrapingStatus, ScrapingConfiguration, uuid7str
+from ..generic.base_scraper import BaseScraper, ScrapingResult, ScrapingStatus, ScrapingConfiguration
+from ....core.utils import uuid7str
 from ....config.secrets import SecretsManager
 from pydantic import BaseModel, Field
 from enum import Enum

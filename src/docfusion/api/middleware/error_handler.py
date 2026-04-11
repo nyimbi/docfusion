@@ -7,7 +7,6 @@ Centralized error handling for the DocuFusion API with consistent response forma
 from __future__ import annotations
 
 import logging
-import os
 import traceback
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -181,7 +180,7 @@ def build_error_response(
 		body["error"]["details"] = details
 
 	# Include traceback in development
-	if os.environ.get("ENV", "development") != "production":
+	if not _is_production():
 		body["error"]["request_id"] = getattr(request.state, "request_id", None)
 
 	return JSONResponse(
@@ -278,7 +277,8 @@ def register_error_handlers(app: FastAPI) -> None:
 		logger.error(traceback.format_exc())
 
 		# In production, hide error details
-		if os.environ.get("ENV", "development") == "production":
+		from ...config.secrets import SecretsManager
+		if SecretsManager.is_production():
 			message = "Internal server error"
 			details = None
 		else:

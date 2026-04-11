@@ -330,7 +330,7 @@ class WorkflowMiddleware(BaseHTTPMiddleware):
                     priority_mapping.get(metadata.priority, "MEDIUM")
                 )
             except ValueError:
-                priority = TaskPriority.MEDIUM
+                priority = TaskPriority.NORMAL
 
             builder.with_priority(priority, metadata.urgency)
 

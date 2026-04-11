@@ -7,7 +7,6 @@ origins, methods, headers, and security policies for frontend integration.
 """
 
 import logging
-import os
 from typing import Dict, List, Optional, Set, Union, Callable
 from urllib.parse import urlparse
 
@@ -17,8 +16,8 @@ from fastapi.responses import Response as FastAPIResponse
 
 
 def _get_allowed_origins() -> list[str]:
-	origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
-	return [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+	from ...config.secrets import SecretsManager
+	return SecretsManager.get_cors_allowed_origins()
 
 
 class CORSConfiguration:

@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 
 from pydantic import BaseModel, Field, ConfigDict, validator
-from pydantic.types import EmailStr
+from pydantic import EmailStr
 
 from ..delivery.notification_delivery import (
 	NotificationChannel, NotificationMessage, DeliveryResult,
@@ -770,9 +770,9 @@ def create_email_channel_from_secrets(
 		# SMTP credentials are typically configured directly
 		# but can also be retrieved from environment
 		import os
-		kwargs.setdefault('smtp_host', os.environ.get('SMTP_HOST'))
-		kwargs.setdefault('smtp_username', os.environ.get('SMTP_USERNAME'))
-		kwargs.setdefault('smtp_password', os.environ.get('SMTP_PASSWORD'))
+		kwargs.setdefault('smtp_host', SecretsManager.get_smtp_host())
+		kwargs.setdefault('smtp_username', SecretsManager.get_smtp_user())
+		kwargs.setdefault('smtp_password', SecretsManager.get_smtp_password())
 
 	config = EmailConfiguration(
 		provider=provider,

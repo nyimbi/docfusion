@@ -348,7 +348,7 @@ class UserAuthentication:
         except ExpiredSignatureError:
             raise InvalidTokenError("Token has expired")
         except Exception as e:
-            raise InvalidTokenError(f"Invalid token: {e}")
+            raise InvalidTokenError(f"Invalid token: {e}") from e
 
     async def refresh_token(self, refresh_token: str) -> AuthenticationResult:
         """Refresh access token using refresh token"""

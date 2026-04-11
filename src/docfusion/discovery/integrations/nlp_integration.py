@@ -20,7 +20,7 @@ from ...nlp.services.keyword_extractor import KeywordExtractor
 from ..models.opportunity_models import OpportunityData
 from ..analyzers.opportunity_analyzer import OpportunityAnalyzer
 from ..analyzers.qualification_analyzer import QualificationAnalyzer
-from ..analyzers.capability_matcher import CapabilityMatcher
+from ..matchers.capability_matcher import CapabilityMatcher
 
 
 class NLPAnalysisRequest(BaseModel):

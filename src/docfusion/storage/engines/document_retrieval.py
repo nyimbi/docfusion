@@ -224,7 +224,7 @@ class DocumentRetrieval:
         except Exception as e:
             raise RuntimeError(
                 f"Failed to save metadata for {metadata.document_id}: {e}"
-            )
+            ) from e
 
     async def store_document(
         self,
@@ -306,7 +306,7 @@ class DocumentRetrieval:
                 # Clean up file if metadata save failed
                 if file_path.exists():
                     file_path.unlink()
-                raise RuntimeError(f"Failed to store document: {e}")
+                raise RuntimeError(f"Failed to store document: {e}") from e
 
     async def _store_version_info(self, metadata: DocumentMetadata) -> None:
         """Store version information"""

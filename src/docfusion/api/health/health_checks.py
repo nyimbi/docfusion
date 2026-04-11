@@ -25,13 +25,14 @@ try:
 	import asyncpg
 	import meilisearch
 	from opensearchpy import OpenSearch
-from ...core.utils import uuid7str
 except ImportError:
 	httpx = None
 	aioredis = None
 	asyncpg = None
 	meilisearch = None
 	OpenSearch = None
+
+from ...core.utils import uuid7str
 
 class HealthStatus(str, Enum):
 	"""Health check status levels"""

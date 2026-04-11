@@ -227,7 +227,7 @@ class DocumentRetriever:
                 return block.block_id
 
             except Exception as e:
-                raise RuntimeError(f"Failed to add content block: {e}")
+                raise RuntimeError(f"Failed to add content block: {e}") from e
 
     async def add_template(
         self,
@@ -278,7 +278,7 @@ class DocumentRetriever:
                 return template.template_id
 
             except Exception as e:
-                raise RuntimeError(f"Failed to add template: {e}")
+                raise RuntimeError(f"Failed to add template: {e}") from e
 
     async def _update_block_indexes(self, block: ContentBlock) -> None:
         """Update content block indexes"""
@@ -757,7 +757,7 @@ class DocumentRetriever:
                 await f.write(json.dumps(block_dict, indent=2))
 
         except Exception as e:
-            raise RuntimeError(f"Failed to save content block {block.block_id}: {e}")
+            raise RuntimeError(f"Failed to save content block {block.block_id}: {e}") from e
 
     async def _save_template(self, template: Template) -> None:
         """Save template to disk"""
@@ -774,7 +774,7 @@ class DocumentRetriever:
                 await f.write(json.dumps(template_dict, indent=2))
 
         except Exception as e:
-            raise RuntimeError(f"Failed to save template {template.template_id}: {e}")
+            raise RuntimeError(f"Failed to save template {template.template_id}: {e}") from e
 
     async def _load_data(self) -> None:
         """Load content blocks and templates from disk"""

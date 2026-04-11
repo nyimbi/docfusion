@@ -31,7 +31,7 @@ from bs4 import BeautifulSoup
 from PIL import Image
 
 from pydantic import BaseModel, Field
-from ..generic.base_scraper import uuid7str
+from ....core.utils import uuid7str
 
 
 class PatternType(str, Enum):

@@ -26,6 +26,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
@@ -78,6 +79,15 @@ from docfusion.storage.storage_service import (
 class DocumentEngineException(Exception):
 	"""Base exception for DocumentEngine module"""
 	pass
+
+class GenerationPhase(str, Enum):
+	"""Phases of document generation"""
+	INITIALIZATION = "initialization"
+	STRUCTURE_BUILDING = "structure_building"
+	CONTENT_ASSEMBLY = "content_assembly"
+	FORMATTING = "formatting"
+	RENDERING = "rendering"
+	COMPLETED = "completed"
 
 class DocumentGenerationException(DocumentEngineException):
 	"""Exception raised during document generation"""

@@ -278,7 +278,7 @@ class UnifiedAccessibilityRenderer(BaseRenderer):
 				return await self._create_basic_enhancement(content, config)
 				
 		except Exception as e:
-			raise OutputGenerationException(f"Accessibility enhancement failed: {e}")
+			raise OutputGenerationException(f"Accessibility enhancement failed: {e}") from e
 	
 	async def _create_basic_enhancement(
 		self,

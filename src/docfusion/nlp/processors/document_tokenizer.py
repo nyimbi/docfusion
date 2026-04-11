@@ -27,15 +27,16 @@ except ImportError:
 
 # NLTK fallback for basic tokenization
 try:
-    import nltk
-    from nltk.corpus import stopwords
-    from nltk.stem import PorterStemmer, WordNetLemmatizer
-    from nltk.tokenize import sent_tokenize, word_tokenize
-from ...core.utils import uuid7str
+	import nltk
+	from nltk.corpus import stopwords
+	from nltk.stem import PorterStemmer, WordNetLemmatizer
+	from nltk.tokenize import sent_tokenize, word_tokenize
 
-    HAS_NLTK_SUPPORT = True
+	HAS_NLTK_SUPPORT = True
 except ImportError:
-    HAS_NLTK_SUPPORT = False
+	HAS_NLTK_SUPPORT = False
+
+from ...core.utils import uuid7str
 
 class TokenType(str, Enum):
     """Token types for classification"""

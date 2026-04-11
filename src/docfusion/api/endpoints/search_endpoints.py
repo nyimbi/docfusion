@@ -1290,10 +1290,12 @@ class SearchEndpoints:
             doc_id: str = Query(..., description="Document ID"),
             title: str = Query(..., description="Document title"),
             content: str = Query(..., description="Document content"),
-            metadata: Dict[str, Any] = {},
+            metadata: Dict[str, Any] = None,
             current_user: Dict[str, Any] = Depends(get_current_user),
         ):
             """Index document for searching"""
+            if metadata is None:
+                metadata = {}
             return await self.index_document_handler(
                 doc_id, title, content, metadata, current_user
             )
@@ -1303,10 +1305,12 @@ class SearchEndpoints:
             backend_type: str = Query(
                 ..., description="Backend type (memory, meilisearch, opensearch)"
             ),
-            config: Dict[str, Any] = {},
+            config: Dict[str, Any] = None,
             current_user: Dict[str, Any] = Depends(get_current_user),
         ):
             """Switch search backend"""
+            if config is None:
+                config = {}
             return await self.switch_backend_handler(backend_type, config, current_user)
 
     # ==================== HANDLER METHODS ====================

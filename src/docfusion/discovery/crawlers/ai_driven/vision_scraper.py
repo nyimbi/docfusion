@@ -35,7 +35,8 @@ except ImportError:
 
 from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 
-from ..generic.base_scraper import BaseScraper, ScrapingResult, ScrapingStatus, ScrapingConfiguration, uuid7str
+from ..generic.base_scraper import BaseScraper, ScrapingResult, ScrapingStatus, ScrapingConfiguration
+from ....core.utils import uuid7str
 from pydantic import BaseModel, Field
 
 

@@ -19,8 +19,8 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from ...core.models.base import BaseEntity
 from ..models.opportunity_models import OpportunityData
-from .opportunity_analyzer import OpportunityAnalysis
-from .qualification_analyzer import QualificationAssessment
+from ..analyzers.opportunity_analyzer import OpportunityAnalysis
+from ..analyzers.qualification_analyzer import QualificationAssessment
 
 
 class FilterCriterion(Enum):

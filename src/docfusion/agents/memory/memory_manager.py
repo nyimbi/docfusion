@@ -23,20 +23,17 @@ from cachetools import TTLCache  # type: ignore[import-untyped]
 from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
 
-try:
-except ImportError:
-    import uuid
 
-    class MemoryType(str, Enum):
-    """Types of memory storage"""
+class MemoryType(str, Enum):
+	"""Types of memory storage"""
 
-    SHORT_TERM = "short_term"  # Temporary working memory
-    LONG_TERM = "long_term"  # Persistent memory
-    EPISODIC = "episodic"  # Event-based memories
-    SEMANTIC = "semantic"  # Knowledge-based memories
-    PROCEDURAL = "procedural"  # Skill and process memories
-    WORKING = "working"  # Active task context
-    SHARED = "shared"  # Inter-agent shared memories
+	SHORT_TERM = "short_term"  # Temporary working memory
+	LONG_TERM = "long_term"  # Persistent memory
+	EPISODIC = "episodic"  # Event-based memories
+	SEMANTIC = "semantic"  # Knowledge-based memories
+	PROCEDURAL = "procedural"  # Skill and process memories
+	WORKING = "working"  # Active task context
+	SHARED = "shared"  # Inter-agent shared memories
 
 class MemoryScope(str, Enum):
     """Memory access scope"""

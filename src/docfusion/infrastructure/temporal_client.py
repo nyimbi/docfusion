@@ -21,17 +21,18 @@ Usage:
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any, Dict, Optional, Type, TypeVar
 
+from ..config.secrets import SecretsManager
+
 logger = logging.getLogger(__name__)
 
-# Configuration
-TEMPORAL_URL = os.environ.get("TEMPORAL_URL", "62.84.181.55:7233")
-TEMPORAL_NAMESPACE = os.environ.get("TEMPORAL_NAMESPACE", "default")
-TEMPORAL_TASK_QUEUE = os.environ.get("TEMPORAL_TASK_QUEUE", "docfusion-queue")
+# Configuration via SecretsManager
+TEMPORAL_URL = SecretsManager.get_temporal_url()
+TEMPORAL_NAMESPACE = SecretsManager.get_temporal_namespace()
+TEMPORAL_TASK_QUEUE = SecretsManager.get_temporal_task_queue()
 
 # Try to import temporal client
 try:

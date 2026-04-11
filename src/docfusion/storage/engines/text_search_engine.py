@@ -22,15 +22,16 @@ from difflib import SequenceMatcher
 
 # Stemming and text processing
 try:
-    import nltk
-    from nltk.corpus import stopwords
-    from nltk.stem import PorterStemmer
-    from nltk.tokenize import word_tokenize
-from ...core.utils import uuid7str
+	import nltk
+	from nltk.corpus import stopwords
+	from nltk.stem import PorterStemmer
+	from nltk.tokenize import word_tokenize
 
-    nltk_available = True
+	nltk_available = True
 except ImportError:
-    nltk_available = False
+	nltk_available = False
+
+from ...core.utils import uuid7str
 
 @dataclass
 class SearchResult:

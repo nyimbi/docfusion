@@ -18,7 +18,7 @@ from collections import defaultdict, deque
 import statistics
 
 from pydantic import BaseModel, Field
-from ..generic.base_scraper import uuid7str
+from ...core.utils import uuid7str
 
 from ..deployment.scraper_deployment import ScraperDeployment
 from ..deployment.deployment_monitor import DeploymentMonitor, HealthStatus, AlertSeverity

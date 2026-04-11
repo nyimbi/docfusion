@@ -29,7 +29,7 @@ import tempfile
 from collections import defaultdict, Counter
 
 from pydantic import BaseModel, Field, validator
-from ..generic.base_scraper import uuid7str
+from ....core.utils import uuid7str
 
 from ..ai_driven.universal_scraper import UniversalScraper, ScrapingConfiguration
 from .global_source_db import GlobalSourceDB, ProcurementSource, SourceType, SourceStatus, AccessMethod, GeographicScope

@@ -13,16 +13,18 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, TYPE_CHECKING
 
 # spaCy integration for NER
 try:
 	import spacy
-	from spacy.matcher import Matcher, PhraseMatcher
+	from spacy.matcher import Matcher, PhraseMatch
 	from spacy.tokens import Doc, Span
 
 	HAS_SPACY_SUPPORT = True
 except ImportError:
+	Doc = None  # type: ignore[misc,assignment]
+	Span = None  # type: ignore[misc,assignment]
 	HAS_SPACY_SUPPORT = False
 
 import httpx

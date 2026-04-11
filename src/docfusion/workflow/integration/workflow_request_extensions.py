@@ -97,7 +97,7 @@ class WorkflowConfiguration(BaseModel):
     # Task coordination
     assignment_strategy: AssignmentStrategy = AssignmentStrategy.SKILL_BASED
     scheduling_strategy: SchedulingStrategy = SchedulingStrategy.BALANCED
-    task_priority: TaskPriority = TaskPriority.MEDIUM
+    task_priority: TaskPriority = TaskPriority.NORMAL
     enable_workload_balancing: bool = True
 
     # Quality assurance
@@ -164,7 +164,7 @@ class WorkflowTemplate(BaseModel):
     workflow_config: WorkflowConfiguration
     default_team_size: int = 1
     estimated_duration_hours: float = 4.0
-    complexity_level: TaskComplexity = TaskComplexity.MEDIUM
+    complexity_level: TaskComplexity = TaskComplexity.MODERATE
 
     # Template metadata
     created_by: str
@@ -206,7 +206,7 @@ class WorkflowEnabledDocumentRequest(BaseModel):
 
     # Priority and urgency
     urgency_level: str = "medium"  # low, medium, high, critical
-    business_priority: TaskPriority = TaskPriority.MEDIUM
+    business_priority: TaskPriority = TaskPriority.NORMAL
     competitive_situation: bool = False
 
     # External dependencies
@@ -511,7 +511,7 @@ class WorkflowTemplateManager:
             workflow_config=simple_config,
             default_team_size=1,
             estimated_duration_hours=2.0,
-            complexity_level=TaskComplexity.LOW,
+            complexity_level=TaskComplexity.SIMPLE,
             created_by="system",
             tags=["simple", "individual", "basic"],
         )
@@ -539,7 +539,7 @@ class WorkflowTemplateManager:
             workflow_config=team_config,
             default_team_size=3,
             estimated_duration_hours=6.0,
-            complexity_level=TaskComplexity.MEDIUM,
+            complexity_level=TaskComplexity.MODERATE,
             created_by="system",
             tags=["team", "collaborative", "review"],
         )
@@ -571,7 +571,7 @@ class WorkflowTemplateManager:
             workflow_config=enterprise_config,
             default_team_size=5,
             estimated_duration_hours=12.0,
-            complexity_level=TaskComplexity.HIGH,
+            complexity_level=TaskComplexity.COMPLEX,
             created_by="system",
             tags=["enterprise", "approval", "ai", "advanced"],
         )

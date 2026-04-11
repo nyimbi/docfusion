@@ -34,7 +34,7 @@ from sklearn.metrics import classification_report
 import pandas as pd
 
 from pydantic import BaseModel, Field
-from ..generic.base_scraper import uuid7str
+from ....core.utils import uuid7str
 
 
 class ExtractionAttempt(BaseModel):

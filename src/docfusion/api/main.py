@@ -8,7 +8,6 @@ testing, and monitoring for the proposal writer system.
 
 import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager
 from typing import Dict, List, Optional, Any
 
@@ -47,8 +46,8 @@ logger = logging.getLogger(__name__)
 
 
 def _get_allowed_origins() -> list[str]:
-	origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
-	return [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+	from ..config.secrets import SecretsManager
+	return SecretsManager.get_cors_allowed_origins()
 
 
 class APIApplication:

@@ -191,7 +191,7 @@ class RAGService:
 
         except Exception as e:
             self.logger.error(f"Failed to initialize RAG service: {e}")
-            raise RuntimeError(f"RAG service initialization failed: {e}")
+            raise RuntimeError(f"RAG service initialization failed: {e}") from e
 
     async def add_document(
         self,

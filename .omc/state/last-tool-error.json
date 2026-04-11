@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"uv run python -c \\\"\\nfrom docfusion.security.authentication.user_authentication import UserAuthentication, SecurityConfiguration\\nimport jwt\\nauth = UserAuthentication()\\ntoken = auth._gen...",
-  "error": "Exit code 1\nTraceback (most recent call last):\n  File \"<string>\", line 5, in <module>\n    token = auth._generate_access_token('user123')\n  File \"/Users/nyimbiodero/src/pjs/docfusion/src/docfusion/security/authentication/user_authentication.py\", line 684, in _generate_access_token\n    return jwt.encode(\n           ~~~~~~~~~~^\n        payload, self.config.jwt_secret_key, algorithm=self.config.jwt_algorithm\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^...",
-  "timestamp": "2026-04-09T23:18:18.266Z",
+  "tool_input_preview": "{\"command\":\".venv/bin/python -c \\\"from docfusion.discovery.matchers import CapabilityMatcher\\\" 2>&1\",\"description\":\"Test matchers import\"}",
+  "error": "Exit code 1\nTraceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    from docfusion.discovery.matchers import CapabilityMatcher\n  File \"/Users/nyimbiodero/src/pjs/docfusion/src/docfusion/discovery/matchers/__init__.py\", line 14, in <module>\n    from .relevance_filter import RelevanceFilter\n  File \"/Users/nyimbiodero/src/pjs/docfusion/src/docfusion/discovery/matchers/relevance_filter.py\", line 22, in <module>\n    from .opportunity_analyzer import OpportunityAnalysis\nModuleNot...",
+  "timestamp": "2026-04-10T20:50:04.978Z",
   "retry_count": 1
 }

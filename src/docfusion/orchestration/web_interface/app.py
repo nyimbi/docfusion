@@ -19,7 +19,7 @@ try:
 	from fastapi.responses import HTMLResponse, JSONResponse
 	from fastapi.staticfiles import StaticFiles
 	from fastapi.templating import Jinja2Templates
-	from pydantic import BaseModel
+	from pydantic import BaseModel, Field
 	FASTAPI_AVAILABLE = True
 except ImportError:
 	FASTAPI_AVAILABLE = False
@@ -40,7 +40,7 @@ class AgentRequest(BaseModel):
 	agent_type: str = "custom_agent"
 	description: str = ""
 	prompt: str = ""
-	position: List[float] = [0, 0]
+	position: List[float] = Field(default_factory=lambda: [0, 0])
 
 
 class ConnectionRequest(BaseModel):
@@ -51,7 +51,7 @@ class ConnectionRequest(BaseModel):
 
 class ExecutionRequest(BaseModel):
 	workflow_id: str = None
-	context: Dict[str, Any] = {}
+	context: Dict[str, Any] = Field(default_factory=dict)
 
 
 # WebSocket connection manager

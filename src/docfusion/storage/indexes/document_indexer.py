@@ -306,7 +306,7 @@ class DocumentIndexer:
 				
 			except Exception as e:
 				self.stats.index_errors.append(f"Error indexing document: {e}")
-				raise RuntimeError(f"Failed to index document: {e}")
+				raise RuntimeError(f"Failed to index document: {e}") from e
 	
 	async def _update_indexes(self, doc: IndexedDocument) -> None:
 		"""Update all secondary indexes"""
@@ -610,7 +610,7 @@ class DocumentIndexer:
 				await f.write(json.dumps(doc_dict, indent=2))
 				
 		except Exception as e:
-			raise RuntimeError(f"Failed to save document index {doc.document_id}: {e}")
+			raise RuntimeError(f"Failed to save document index {doc.document_id}: {e}") from e
 	
 	async def _save_all_indexes(self) -> None:
 		"""Save all indexes to disk"""

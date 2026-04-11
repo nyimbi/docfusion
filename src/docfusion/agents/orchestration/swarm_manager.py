@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import random
+import secrets
 import math
 from typing import Any, Dict, List, Optional, Set, Union, Callable, Tuple
 from datetime import datetime, timedelta
@@ -453,7 +453,7 @@ class AgentSwarm:
 		if len(self.agents) > 3:
 			# Sample agents for consensus
 			sample_size = min(5, len(self.agents))
-			sample_agents = random.sample(list(self.agents.keys()), sample_size)
+			sample_agents = secrets.SystemRandom().sample(list(self.agents.keys()), sample_size)
 			
 			# Facilitate consensus discussion
 			for i, agent_id in enumerate(sample_agents):
@@ -466,11 +466,11 @@ class AgentSwarm:
 		# Let communication patterns emerge naturally
 		for agent_id in self.agents.keys():
 			# Probabilistic communication based on agent activity
-			if random.random() < 0.3:  # 30% chance of initiating communication
+			if secrets.SystemRandom().random() < 0.3:  # 30% chance of initiating communication
 				potential_partners = list(self.agents.keys())
 				potential_partners.remove(agent_id)
 				if potential_partners:
-					partner_id = random.choice(potential_partners)
+					partner_id = secrets.choice(potential_partners)
 					await self._spontaneous_communication(agent_id, partner_id)
 	
 	async def _adapt_swarm_behavior(self) -> None:
@@ -600,7 +600,7 @@ class AgentSwarm:
 		if len(available_agents) < task.required_agents:
 			return False
 		
-		selected_agents = random.sample(available_agents, task.required_agents)
+		selected_agents = secrets.SystemRandom().sample(available_agents, task.required_agents)
 		task.assigned_agents = selected_agents
 		
 		for agent_id in selected_agents:

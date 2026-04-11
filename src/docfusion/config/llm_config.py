@@ -14,10 +14,11 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 try:
-    import yaml
-from ..core.utils import uuid7str
+	import yaml
 except ImportError:
-    yaml = None
+	yaml = None
+
+from ..core.utils import uuid7str
 
 class LLMTask(Enum):
     """Standard LLM task categories"""

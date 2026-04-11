@@ -14,7 +14,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from ...storage.services.storage_manager import StorageManager
+from ...storage.services import StorageManager
 from ...storage.models.storage_models import StorageQuery, StorageResult
 from ..models.opportunity_models import OpportunityData
 from ..analyzers.opportunity_analyzer import OpportunityAnalysis

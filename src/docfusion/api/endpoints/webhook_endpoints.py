@@ -610,10 +610,12 @@ class WebhookEndpoints:
             event_type: WebhookEventType = Query(
                 ..., description="Event type to trigger"
             ),
-            data: Dict[str, Any] = {},
+            data: Dict[str, Any] = None,
             current_user: Dict[str, Any] = Depends(get_current_user),
         ):
             """Manually trigger webhook event (testing)"""
+            if data is None:
+                data = {}
             return await self.trigger_event_handler(event_type, data, current_user)
 
     # ==================== HANDLER METHODS ====================

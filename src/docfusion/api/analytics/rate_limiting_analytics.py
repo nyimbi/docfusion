@@ -26,7 +26,7 @@ class RateLimitScope(str, Enum):
 
     USER = "user"
     IP = "ip"
-    API_KEY = "api_key"
+    # Note: API keys managed via SecretsManager, never hardcoded
     ENDPOINT = "endpoint"
     GLOBAL = "global"
 

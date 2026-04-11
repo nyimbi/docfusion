@@ -9,7 +9,8 @@ import asyncio
 import base64
 import json
 import logging
-import os
+# import os removed - using SecretsManager
+from ..config.secrets import SecretsManager
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from enum import Enum
@@ -120,14 +121,14 @@ class CalendarIntegration:
 		"""Get default configuration"""
 		return {
 			# Google Calendar settings
-			'google_client_id': os.environ.get('GOOGLE_CLIENT_ID'),
-			'google_client_secret': os.environ.get('GOOGLE_CLIENT_SECRET'),
+			'google_client_id': SecretsManager.get_google_client_id(),
+			'google_client_secret': SecretsManager.get_google_client_secret(),
 			'google_calendar_id': 'primary',
 
 			# Outlook settings
-			'outlook_client_id': os.environ.get('OUTLOOK_CLIENT_ID'),
-			'outlook_client_secret': os.environ.get('OUTLOOK_CLIENT_SECRET'),
-			'outlook_tenant_id': os.environ.get('OUTLOOK_TENENT_ID'),
+			'outlook_client_id': SecretsManager.get_microsoft_client_id(),
+			'outlook_client_secret': SecretsManager.get_microsoft_client_secret(),
+			'outlook_tenant_id': SecretsManager.get_outlook_tenant_id(),
 
 			# Default reminder settings
 			'default_reminders': [
@@ -495,7 +496,7 @@ class CalendarIntegration:
 		"""Get Google OAuth access token"""
 		# This would need full OAuth implementation
 		# For now, check environment variable
-		return os.environ.get("GOOGLE_ACCESS_TOKEN")
+		return SecretsManager.get_google_access_token()
 
 	def _build_google_event_body(self, event: CalendarEvent) -> Dict[str, Any]:
 		"""Build Google Calendar event body"""
@@ -630,7 +631,7 @@ class CalendarIntegration:
 	async def _get_outlook_access_token(self) -> str | None:
 		"""Get Microsoft OAuth access token"""
 		# This would need full OAuth implementation
-		return os.environ.get("OUTLOOK_ACCESS_TOKEN")
+		return SecretsManager.get_outlook_access_token()
 
 	def _build_outlook_event_body(self, event: CalendarEvent) -> Dict[str, Any]:
 		"""Build Outlook event body"""

@@ -34,28 +34,28 @@ from ...document_engine.document_engine import (
     GenerationPhase,
 )
 from ..automation.task_scheduler import (
-    ScheduledTask,
-    SchedulingStrategy,
-    TaskPriority,
-    TaskScheduler,
-    TaskState,
+	ScheduledTask,
+	SchedulingStrategy,
+	TaskPriority,
+	TaskScheduler,
 )
 
 # Import workflow components
 from ...core.utils import uuid7str
 from ..automation.workflow_engine import (
-    ProcessState,
-    TriggerType,
-    WorkflowEngine,
-    WorkflowEvent,
+	ProcessState,
+	TriggerType,
+	WorkflowEngine,
+	TaskState,
     WorkflowInstance,
     WorkflowTrigger,
 )
+from ..collaboration_workflow_integration import WorkflowEvent
 from ..coordination.deadline_manager import (
-    AlertLevel,
-    CriticalPath,
-    DeadlineAlert,
-    DeadlineManager,
+	AlertSeverity,
+	CriticalPath,
+	DeadlineAlert,
+	DeadlineManager,
 )
 from ..coordination.task_coordinator import (
     AssignmentStrategy,
@@ -93,7 +93,7 @@ class WorkflowPhaseMapping(BaseModel):
     task_name: str
     estimated_duration_minutes: float
     required_skills: Dict[str, float] = Field(default_factory=dict)
-    complexity: TaskComplexity = TaskComplexity.MEDIUM
+    complexity: TaskComplexity = TaskComplexity.MODERATE
     collaboration_type: CollaborationType = CollaborationType.INDIVIDUAL
     can_be_automated: bool = True
     requires_human_review: bool = False
@@ -116,7 +116,7 @@ class WorkflowDocumentConfiguration(BaseModel):
 
     # Scheduling preferences
     scheduling_strategy: SchedulingStrategy = SchedulingStrategy.BALANCED
-    priority_level: TaskPriority = TaskPriority.MEDIUM
+    priority_level: TaskPriority = TaskPriority.NORMAL
 
     # Timeline settings
     enable_automatic_deadlines: bool = True
@@ -583,7 +583,7 @@ class WorkflowDocumentBridge:
                 workflow_instance_id=workflow_instance_id,
                 name="coordinate_content_assembly",
                 description="Coordinate content assembly phase",
-                priority=TaskPriority.MEDIUM,
+                priority=TaskPriority.NORMAL,
                 estimated_duration_minutes=60.0,
             ),
             ScheduledTask(
@@ -591,7 +591,7 @@ class WorkflowDocumentBridge:
                 workflow_instance_id=workflow_instance_id,
                 name="coordinate_formatting",
                 description="Coordinate document formatting phase",
-                priority=TaskPriority.MEDIUM,
+                priority=TaskPriority.NORMAL,
                 estimated_duration_minutes=45.0,
             ),
             ScheduledTask(
@@ -778,7 +778,7 @@ class WorkflowDocumentBridge:
                 task_name="content_assembly",
                 estimated_duration_minutes=45.0,
                 required_skills={"content_writing": 0.7, "research": 0.5},
-                complexity=TaskComplexity.MEDIUM,
+                complexity=TaskComplexity.MODERATE,
                 can_be_automated=True,
             ),
             WorkflowPhaseMapping(
@@ -786,7 +786,7 @@ class WorkflowDocumentBridge:
                 task_name="structure_building",
                 estimated_duration_minutes=30.0,
                 required_skills={"document_structure": 0.8, "organization": 0.6},
-                complexity=TaskComplexity.MEDIUM,
+                complexity=TaskComplexity.MODERATE,
                 can_be_automated=True,
             ),
             WorkflowPhaseMapping(
@@ -794,7 +794,7 @@ class WorkflowDocumentBridge:
                 task_name="document_formatting",
                 estimated_duration_minutes=25.0,
                 required_skills={"formatting": 0.7, "design": 0.4},
-                complexity=TaskComplexity.LOW,
+                complexity=TaskComplexity.SIMPLE,
                 can_be_automated=True,
             ),
             WorkflowPhaseMapping(
@@ -802,7 +802,7 @@ class WorkflowDocumentBridge:
                 task_name="document_rendering",
                 estimated_duration_minutes=15.0,
                 required_skills={"technical_skills": 0.6},
-                complexity=TaskComplexity.LOW,
+                complexity=TaskComplexity.SIMPLE,
                 can_be_automated=True,
             ),
             WorkflowPhaseMapping(
@@ -810,7 +810,7 @@ class WorkflowDocumentBridge:
                 task_name="quality_validation",
                 estimated_duration_minutes=35.0,
                 required_skills={"quality_assurance": 0.8, "attention_to_detail": 0.9},
-                complexity=TaskComplexity.HIGH,
+                complexity=TaskComplexity.COMPLEX,
                 can_be_automated=False,
                 requires_human_review=True,
             ),

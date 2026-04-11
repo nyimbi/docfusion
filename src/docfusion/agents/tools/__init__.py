@@ -34,12 +34,9 @@ from .web_tools import (
 )
 
 from .file_tools import (
-    FileReadTool,
-    FileWriteTool,
-    FileCopyTool,
-    FileDeleteTool,
-    DirectoryListTool,
-    FileSearchTool
+	FileReadTool,
+	FileWriteTool,
+	FileSearchTool,
 )
 
 from .data_tools import (
@@ -50,10 +47,8 @@ from .data_tools import (
 )
 
 from .research_tools import (
-    CompanyResearchTool,
-    MarketResearchTool,
-    CompetitorAnalysisTool,
-    TrendAnalysisTool
+	CompanyResearchTool,
+	MarketResearchTool,
 )
 
 __all__ = [
@@ -78,13 +73,10 @@ __all__ = [
     "DownloadTool",
     "URLValidatorTool",
     
-    # File tools
-    "FileReadTool",
-    "FileWriteTool",
-    "FileCopyTool", 
-    "FileDeleteTool",
-    "DirectoryListTool",
-    "FileSearchTool",
+	# File tools
+	"FileReadTool",
+	"FileWriteTool",
+	"FileSearchTool",
     
     # Data processing tools
     "JSONProcessorTool",
@@ -92,9 +84,7 @@ __all__ = [
     "XMLProcessorTool", 
     "TextProcessorTool",
     
-    # Research tools
-    "CompanyResearchTool",
-    "MarketResearchTool",
-    "CompetitorAnalysisTool",
-    "TrendAnalysisTool"
+	# Research tools
+	"CompanyResearchTool",
+	"MarketResearchTool",
 ]

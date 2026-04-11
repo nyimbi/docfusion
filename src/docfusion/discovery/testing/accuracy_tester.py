@@ -19,12 +19,12 @@ from enum import Enum
 import tempfile
 
 from pydantic import BaseModel, Field, validator
-from ..generic.base_scraper import uuid7str
+from ...core.utils import uuid7str
 
 from ..crawlers.source_databases.global_source_db import GlobalSourceDB, ProcurementSource
 from ..crawlers.ai_driven.universal_scraper import UniversalScraper, ScrapingConfiguration
 from ..crawlers.ai_driven.structure_learner import StructureLearner, create_extraction_attempt
-from ...models import Opportunity
+from ..models.opportunity_models import OpportunityData as Opportunity
 
 
 class TestType(Enum):

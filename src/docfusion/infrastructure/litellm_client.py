@@ -84,9 +84,8 @@ class Model(str, Enum):
 
 
 def _get_default_timeout() -> int:
-	"""Get default timeout from environment or return 120 seconds."""
-	import os
-	return int(os.environ.get("LITELLM_TIMEOUT", "120"))
+	"""Get default timeout via SecretsManager or return 120 seconds."""
+	return SecretsManager.get_litellm_timeout()
 
 
 @dataclass

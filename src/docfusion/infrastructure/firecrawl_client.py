@@ -45,9 +45,8 @@ class OutputFormat(str, Enum):
 
 
 def _get_default_timeout() -> int:
-	"""Get default timeout from environment or return 60 seconds."""
-	import os
-	return int(os.environ.get("FIRECRAWL_TIMEOUT", "60"))
+	"""Get default timeout via SecretsManager or return 60 seconds."""
+	return SecretsManager.get_firecrawl_timeout()
 
 
 @dataclass

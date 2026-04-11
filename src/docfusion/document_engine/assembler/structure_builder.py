@@ -787,7 +787,7 @@ class TemplateEngine:
 				try:
 					processed_def.title_template = processed_def.title_template.format(**variables)
 				except KeyError as e:
-					raise TemplateInvalid(f"Missing variable in title template: {e}")
+					raise TemplateInvalid(f"Missing variable in title template: {e}") from e
 			
 			# Process template variables
 			for var_name, var_value in variables.items():

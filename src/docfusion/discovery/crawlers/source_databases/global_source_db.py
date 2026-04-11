@@ -21,7 +21,7 @@ import json
 import logging
 import sqlite3
 import aiofiles
-from typing import Dict, List, Optional, Any, Set, Tuple
+from typing import ClassVar, Dict, List, Optional, Any, Set, Tuple
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -153,6 +153,25 @@ class GlobalSourceDB:
 	Global database of procurement sources with management and monitoring capabilities
 	"""
 	
+
+	# Allowlist of valid column names for procurement_sources table (SQL injection prevention)
+	_VALID_SOURCE_COLUMNS: ClassVar[frozenset] = frozenset({
+		'source_id', 'name', 'url', 'base_domain', 'source_type',
+		'geographic_scope', 'country', 'region', 'language',
+		'access_method', 'requires_login', 'requires_subscription',
+		'has_api', 'api_endpoint', 'api_key_required',
+		'typical_opportunities_per_day', 'opportunity_types',
+		'value_ranges', 'recommended_scraper', 'scraping_frequency',
+		'rate_limit_rps', 'requires_proxy', 'requires_javascript',
+		'opportunity_list_url', 'search_url', 'pagination_pattern',
+		'title_selector', 'description_selector', 'deadline_selector',
+		'value_selector', 'reference_selector', 'status',
+		'last_successful_scrape', 'last_check', 'consecutive_failures',
+		'average_response_time', 'success_rate_30d',
+		'opportunities_found_30d', 'avg_processing_time',
+		'added_date', 'updated_date', 'verified_date', 'notes', 'tags'
+	})
+
 	def __init__(self, db_path: Optional[Path] = None):
 		self.logger = logging.getLogger(__name__)
 		self.db_path = db_path or Path("procurement_sources.db")
@@ -837,13 +856,18 @@ class GlobalSourceDB:
 			source_dict['access_method'] = source_dict['access_method'].value
 			source_dict['status'] = source_dict['status'].value
 			
-			# Insert into database
-			columns = ', '.join(source_dict.keys())
-			placeholders = ', '.join(['?' for _ in source_dict])
+			# Insert into database - validate column names against allowlist (SQL injection prevention)
+			valid_keys = [k for k in source_dict.keys() if k in self._VALID_SOURCE_COLUMNS]
+			if len(valid_keys) < len(source_dict):
+				invalid_keys = set(source_dict.keys()) - self._VALID_SOURCE_COLUMNS
+				self.logger.warning(f"Discarding invalid columns: {invalid_keys}")
+			columns = ', '.join(valid_keys)
+			placeholders = ', '.join(['?' for _ in valid_keys])
+			values = [source_dict[k] for k in valid_keys]
 			
 			cursor.execute(
 				f"INSERT OR REPLACE INTO procurement_sources ({columns}) VALUES ({placeholders})",
-				list(source_dict.values())
+				values
 			)
 			
 			conn.commit()

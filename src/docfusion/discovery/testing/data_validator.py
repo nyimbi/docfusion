@@ -20,9 +20,9 @@ from enum import Enum
 import tempfile
 
 from pydantic import BaseModel, Field, validator
-from ..generic.base_scraper import uuid7str
+from ...core.utils import uuid7str
 
-from ...models import Opportunity
+from ..models.opportunity_models import OpportunityData as Opportunity
 from ..crawlers.source_databases.global_source_db import GlobalSourceDB
 
 

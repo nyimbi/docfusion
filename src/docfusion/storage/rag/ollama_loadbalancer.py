@@ -9,7 +9,7 @@ request distribution strategies.
 
 import asyncio
 import logging
-import random
+import secrets
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional, Union, Tuple
@@ -226,7 +226,7 @@ class OllamaLoadBalancer:
 			return instance
 		
 		elif self.config.strategy == LoadBalancingStrategy.RANDOM:
-			return random.choice(healthy_instances)
+			return secrets.choice(healthy_instances)
 		
 		elif self.config.strategy == LoadBalancingStrategy.LEAST_CONNECTIONS:
 			return min(healthy_instances, key=lambda x: x.current_connections)

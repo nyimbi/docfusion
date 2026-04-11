@@ -156,7 +156,7 @@ class RAGStorageService:
 
         except Exception as e:
             self.logger.error(f"Failed to initialize RAG storage service: {e}")
-            raise RuntimeError(f"RAG storage service initialization failed: {e}")
+            raise RuntimeError(f"RAG storage service initialization failed: {e}") from e
 
     async def store_document(
         self,

@@ -21,12 +21,13 @@ import httpx
 
 # Optional libraries for enhanced processing
 try:
-    import numpy as np
-from ...core.utils import uuid7str
+	import numpy as np
 
-    HAS_NUMPY = True
+	HAS_NUMPY = True
 except ImportError:
-    HAS_NUMPY = False
+	HAS_NUMPY = False
+
+from ...core.utils import uuid7str
 
 class StructureType(str, Enum):
     """Document structure types"""

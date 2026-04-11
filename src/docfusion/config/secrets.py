@@ -277,6 +277,72 @@ class SecretsManager:
 			development_default="",
 			required_in_production=False,
 		),
+		# SMTP secrets
+		"SMTP_HOST": SecretConfig(
+			name="smtp_host",
+			env_var="SMTP_HOST",
+			description="SMTP server hostname",
+			development_default="mail.lindela.io",
+			required_in_production=True,
+		),
+		"SMTP_PORT": SecretConfig(
+			name="smtp_port",
+			env_var="SMTP_PORT",
+			description="SMTP server port",
+			development_default="587",
+			required_in_production=True,
+		),
+		"SMTP_USER": SecretConfig(
+			name="smtp_user",
+			env_var="SMTP_USER",
+			description="SMTP authentication username",
+			development_default="",
+			required_in_production=True,
+		),
+		"SMTP_PASSWORD": SecretConfig(
+			name="smtp_password",
+			env_var="SMTP_PASSWORD",
+			description="SMTP authentication password",
+			development_default="",
+			required_in_production=True,
+		),
+		"SMTP_FROM": SecretConfig(
+			name="smtp_from",
+			env_var="SMTP_FROM",
+			description="SMTP sender email address",
+			development_default="opportunities@lindela.io",
+			required_in_production=True,
+		),
+		# Calendar integration secrets
+		"OUTLOOK_TENANT_ID": SecretConfig(
+			name="outlook_tenant_id",
+			env_var="OUTLOOK_TENANT_ID",
+			description="Outlook/Azure AD tenant ID",
+			development_default="",
+			required_in_production=False,
+		),
+		"GOOGLE_ACCESS_TOKEN": SecretConfig(
+			name="google_access_token",
+			env_var="GOOGLE_ACCESS_TOKEN",
+			description="Google OAuth access token",
+			development_default="",
+			required_in_production=False,
+		),
+		"OUTLOOK_ACCESS_TOKEN": SecretConfig(
+			name="outlook_access_token",
+			env_var="OUTLOOK_ACCESS_TOKEN",
+			description="Outlook OAuth access token",
+			development_default="",
+			required_in_production=False,
+		),
+		# Database URL (non-secret config, but centralized)
+		"DATABASE_URL": SecretConfig(
+			name="database_url",
+			env_var="DATABASE_URL",
+			description="PostgreSQL database connection URL",
+			development_default="",
+			required_in_production=True,
+		),
 	}
 
 	@staticmethod
@@ -519,6 +585,149 @@ class SecretsManager:
 	def get_aws_region() -> str:
 		"""Get AWS region."""
 		return os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
+
+	# ========================================================================
+	# SMTP Secrets
+	# ========================================================================
+
+	@staticmethod
+	def get_smtp_host() -> str:
+		"""Get SMTP server hostname."""
+		return SecretsManager._get_secret("SMTP_HOST")
+
+	@staticmethod
+	def get_smtp_port() -> int:
+		"""Get SMTP server port."""
+		return int(SecretsManager._get_secret("SMTP_PORT"))
+
+	@staticmethod
+	def get_smtp_user() -> str:
+		"""Get SMTP authentication username."""
+		return SecretsManager._get_secret("SMTP_USER")
+
+	@staticmethod
+	def get_smtp_password() -> str:
+		"""Get SMTP authentication password."""
+		return SecretsManager._get_secret("SMTP_PASSWORD")
+
+	@staticmethod
+	def get_smtp_from_address() -> str:
+		"""Get SMTP sender email address."""
+		return SecretsManager._get_secret("SMTP_FROM")
+
+	@staticmethod
+	def get_smtp_username() -> str:
+		"""Get SMTP username (alias for get_smtp_user)."""
+		return SecretsManager.get_smtp_user()
+
+	# ========================================================================
+	# Calendar Integration Secrets
+	# ========================================================================
+
+	@staticmethod
+	def get_outlook_tenant_id() -> str:
+		"""Get Outlook/Azure AD tenant ID."""
+		return SecretsManager._get_secret("OUTLOOK_TENANT_ID")
+
+	@staticmethod
+	def get_google_access_token() -> str:
+		"""Get Google OAuth access token."""
+		return SecretsManager._get_secret("GOOGLE_ACCESS_TOKEN")
+
+	@staticmethod
+	def get_outlook_access_token() -> str:
+		"""Get Outlook OAuth access token."""
+		return SecretsManager._get_secret("OUTLOOK_ACCESS_TOKEN")
+
+	# ========================================================================
+	# Infrastructure Configuration
+	# ========================================================================
+
+	@staticmethod
+	def get_temporal_url() -> str:
+		"""Get Temporal server URL."""
+		return os.environ.get("TEMPORAL_URL", "62.84.181.55:7233")
+
+	@staticmethod
+	def get_temporal_namespace() -> str:
+		"""Get Temporal namespace."""
+		return os.environ.get("TEMPORAL_NAMESPACE", "default")
+
+	@staticmethod
+	def get_temporal_task_queue() -> str:
+		"""Get Temporal task queue."""
+		return os.environ.get("TEMPORAL_TASK_QUEUE", "docfusion-queue")
+
+	@staticmethod
+	def get_database_url() -> str:
+		"""Get database connection URL."""
+		return SecretsManager._get_secret("DATABASE_URL")
+
+	@staticmethod
+	def get_environment() -> str:
+		"""Get current environment name (development, staging, production)."""
+		return _detect_environment().value
+
+	@staticmethod
+	def is_production() -> bool:
+		"""Check if running in production environment."""
+		return _detect_environment() == Environment.PRODUCTION
+
+	@staticmethod
+	def get_searxng_timeout() -> int:
+		"""Get SearXNG request timeout in seconds."""
+		return int(os.environ.get("SEARXNG_TIMEOUT", "30"))
+
+	@staticmethod
+	def get_firecrawl_timeout() -> int:
+		"""Get Firecrawl request timeout in seconds."""
+		return int(os.environ.get("FIRECRAWL_TIMEOUT", "60"))
+
+	@staticmethod
+	def get_litellm_timeout() -> int:
+		"""Get LiteLLM request timeout in seconds."""
+		return int(os.environ.get("LITELLM_TIMEOUT", "120"))
+
+	@staticmethod
+	def get_cors_allowed_origins() -> list[str]:
+		"""Get CORS allowed origins from environment."""
+		origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+		return [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+
+	@staticmethod
+	def get_storage_path() -> str:
+		"""Get storage path for documents."""
+		return os.environ.get("STORAGE_PATH", "./data/storage")
+
+	@staticmethod
+	def get_template_path() -> str:
+		"""Get template path."""
+		return os.environ.get("TEMPLATE_PATH", "./templates")
+
+	@staticmethod
+	def get_output_path() -> str:
+		"""Get output path."""
+		return os.environ.get("OUTPUT_PATH", "./output")
+
+	@staticmethod
+	def get_collaboration_storage_path() -> str:
+		"""Get collaboration storage path."""
+		return os.environ.get("COLLAB_STORAGE_PATH", "./data/collaboration")
+
+	@staticmethod
+	def get_embedding_model() -> str:
+		"""Get embedding model name."""
+		return os.environ.get("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+
+	@staticmethod
+	def is_embeddings_enabled() -> bool:
+		"""Check if embeddings are enabled."""
+		return os.environ.get("ENABLE_EMBEDDINGS", "true").lower() in ("true", "1", "yes")
+
+	@staticmethod
+	def get_smtp_port_number() -> int:
+		"""Get SMTP port as integer (alias for get_smtp_port)."""
+		return SecretsManager.get_smtp_port()
 
 	# ========================================================================
 	# Utility Methods

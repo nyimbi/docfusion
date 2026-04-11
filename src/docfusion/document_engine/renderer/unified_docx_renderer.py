@@ -261,7 +261,7 @@ class UnifiedDOCXRenderer(BaseRenderer):
 				return await self._create_minimal_docx(content)
 				
 		except Exception as e:
-			raise OutputGenerationException(f"DOCX generation failed: {e}")
+			raise OutputGenerationException(f"DOCX generation failed: {e}") from e
 	
 	async def _create_minimal_docx(
 		self,

@@ -7,7 +7,6 @@ Creates and configures the FastAPI application with all endpoints wired to servi
 from __future__ import annotations
 
 import logging
-import os
 from contextlib import asynccontextmanager
 from typing import Dict, Optional
 
@@ -32,9 +31,9 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 def get_cors_origins() -> list[str]:
-	"""Get CORS allowed origins from environment."""
-	origins_env = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
-	return [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+	"""Get CORS allowed origins via centralized configuration."""
+	from ..config.secrets import SecretsManager
+	return SecretsManager.get_cors_allowed_origins()
 
 
 @asynccontextmanager

@@ -36,7 +36,7 @@ class TaskPriority(str, Enum):
 	"""Task priority levels"""
 	CRITICAL = "critical"
 	HIGH = "high"
-	MEDIUM = "medium"
+	NORMAL = "normal"
 	LOW = "low"
 
 @dataclass
@@ -46,7 +46,7 @@ class CrewTask:
 	description: str
 	task_type: str
 	assigned_agent: Optional[str] = None
-	priority: TaskPriority = TaskPriority.MEDIUM
+	priority: TaskPriority = TaskPriority.NORMAL
 	dependencies: List[str] = field(default_factory=list)
 	deadline: Optional[datetime] = None
 	context: Dict[str, Any] = field(default_factory=dict)

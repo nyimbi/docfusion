@@ -966,7 +966,7 @@ async def example_workflow_integration():
             EmailProvider.SMTP, from_email="notifications@docufusion.com"
         ),
         ChannelType.SMS: create_sms_channel(
-            SMSProvider.TWILIO, api_key="your_twilio_key"
+            SMSProvider.TWILIO  # api_key resolved via SecretsManager
         ),
         ChannelType.IN_APP: create_inapp_channel(),
     }

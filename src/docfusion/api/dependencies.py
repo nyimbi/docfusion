@@ -34,7 +34,6 @@ Usage:
 from __future__ import annotations
 
 import logging
-import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -114,7 +113,7 @@ class ServiceSettings:
 	litellm_key: str = "sk-pjs-litellm-master-key"
 
 	# CORS
-	cors_allowed_origins: str = "http://localhost:3000"
+	cors_allowed_origins: list[str] = field(default_factory=lambda: ["http://localhost:3000"])
 
 
 def load_settings() -> ServiceSettings:
@@ -123,18 +122,18 @@ def load_settings() -> ServiceSettings:
 		jwt_secret=SecretsManager.get_jwt_secret(),
 		encryption_key=SecretsManager.get_encryption_key(),
 		require_authentication=SecretsManager.get_require_auth(),
-		storage_path=os.environ.get("STORAGE_PATH", "./data/storage"),
-		enable_embeddings=os.environ.get("ENABLE_EMBEDDINGS", "true").lower() == "true",
-		embedding_model=os.environ.get("EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
-		template_path=os.environ.get("TEMPLATE_PATH", "./templates"),
-		output_path=os.environ.get("OUTPUT_PATH", "./output"),
-		collaboration_storage_path=os.environ.get("COLLAB_STORAGE_PATH", "./data/collaboration"),
-		database_url=os.environ.get("DATABASE_URL", ""),
+		storage_path=SecretsManager.get_storage_path(),
+		enable_embeddings=SecretsManager.is_embeddings_enabled(),
+		embedding_model=SecretsManager.get_embedding_model(),
+		template_path=SecretsManager.get_template_path(),
+		output_path=SecretsManager.get_output_path(),
+		collaboration_storage_path=SecretsManager.get_collaboration_storage_path(),
+		database_url=SecretsManager.get_database_url(),
 		searxng_url=SecretsManager.get_searxng_url(),
 		firecrawl_url=SecretsManager.get_firecrawl_url(),
 		litellm_url=SecretsManager.get_litellm_url(),
 		litellm_key=SecretsManager.get_litellm_key(),
-		cors_allowed_origins=os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
+		cors_allowed_origins=SecretsManager.get_cors_allowed_origins(),
 	)
 
 

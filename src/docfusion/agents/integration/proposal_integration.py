@@ -348,7 +348,7 @@ class ProposalAgentBridge:
                 task_id=f"write_{section}",
                 description=f"Write {section} section",
                 task_type="writing",
-                priority=TaskPriority.MEDIUM,
+                priority=TaskPriority.NORMAL,
                 dependencies=["content_planning"],
                 context={
                     "section_name": section,

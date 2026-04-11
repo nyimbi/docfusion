@@ -18,12 +18,12 @@ from enum import Enum
 import tempfile
 
 from pydantic import BaseModel, Field, validator
-from ..generic.base_scraper import uuid7str
+from ...core.utils import uuid7str
 
 from ..crawlers.source_databases.global_source_db import GlobalSourceDB, ProcurementSource, SourceStatus
 from ..crawlers.ai_driven.universal_scraper import UniversalScraper, ScrapingConfiguration
 from ..crawlers.ai_driven.structure_learner import StructureLearner
-from ...security.models import Permission
+from ...security.authorization.role_based_access import Permission
 
 
 class DeploymentStatus(Enum):

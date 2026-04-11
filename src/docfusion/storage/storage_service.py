@@ -160,7 +160,7 @@ class StorageService:
                 self._initialized = True
 
             except Exception as e:
-                raise RuntimeError(f"Failed to initialize storage service: {e}")
+                raise RuntimeError(f"Failed to initialize storage service: {e}") from e
 
     async def store_document(
         self,
@@ -220,7 +220,7 @@ class StorageService:
         except Exception as e:
             # Attempt cleanup on failure
             await self._cleanup_failed_store(document_id)
-            raise RuntimeError(f"Failed to store document {document_id}: {e}")
+            raise RuntimeError(f"Failed to store document {document_id}: {e}") from e
 
     async def retrieve_document(
         self, document_id: str, include_metadata: bool = True

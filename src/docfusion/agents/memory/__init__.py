@@ -10,6 +10,7 @@ Copyright (c) 2025
 """
 
 import os
+from ...config.secrets import SecretsManager
 from typing import Optional
 
 from .memory_manager import MemoryManager, MemoryConfig, MemoryType
@@ -52,7 +53,7 @@ def is_persistent_memory_enabled() -> bool:
 		return _persistent_memory_enabled
 
 	# Check environment variable
-	env_value = os.environ.get("PERSISTENT_MEMORY_ENABLED", "").lower()
+	env_value = os.environ.get("PERSISTENT_MEMORY_ENABLED", "").lower()  # TODO: migrate to SecretsManager
 
 	# Explicit setting takes precedence
 	if env_value in ("true", "1", "yes"):
@@ -63,7 +64,7 @@ def is_persistent_memory_enabled() -> bool:
 		# Default based on environment
 		# In production (no DEBUG flag), enable by default
 		# In development, disable by default
-		debug_mode = os.environ.get("DEBUG", "").lower() in ("true", "1", "yes")
+		debug_mode = not SecretsManager.is_production()
 		_persistent_memory_enabled = not debug_mode
 
 	return _persistent_memory_enabled
@@ -103,7 +104,7 @@ async def get_memory_manager(
 		# Try to use persistent memory adapter
 		try:
 			# Get database URL from environment or parameter
-			db_url = database_url or os.environ.get("DATABASE_URL")
+			db_url = database_url or SecretsManager.get_database_url()
 
 			if db_url:
 				# Create persistent memory adapter

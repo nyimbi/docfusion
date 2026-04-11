@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -25,11 +24,13 @@ from typing import Any
 
 import httpx
 
+from ..config.secrets import SecretsManager
+
 logger = logging.getLogger(__name__)
 
-# Configuration
-SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://84.247.181.100:8888")
-SEARXNG_TIMEOUT = int(os.environ.get("SEARXNG_TIMEOUT", "30"))
+# Configuration via SecretsManager
+SEARXNG_URL = SecretsManager.get_searxng_url()
+SEARXNG_TIMEOUT = SecretsManager.get_searxng_timeout()
 
 
 class SearchCategory(str, Enum):

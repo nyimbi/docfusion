@@ -285,7 +285,7 @@ class UnifiedPDFRenderer(BaseRenderer):
 			except Exception as e:
 				if self.enable_logging:
 					print(f"WeasyPrint rendering failed: {e}")
-				raise ContentProcessingException(f"Both LaTeX and WeasyPrint rendering failed: {e}")
+				raise ContentProcessingException(f"Both LaTeX and WeasyPrint rendering failed: {e}") from e
 		
 		# Final fallback: use legacy renderer if available
 		if self.legacy_renderer:
@@ -293,7 +293,7 @@ class UnifiedPDFRenderer(BaseRenderer):
 				legacy_result = await self.legacy_renderer.render_pdf(content)
 				return legacy_result.pdf_content
 			except Exception as e:
-				raise OutputGenerationException(f"All PDF rendering methods failed: {e}")
+				raise OutputGenerationException(f"All PDF rendering methods failed: {e}") from e
 		
 		# No renderers available
 		raise RendererException("No PDF rendering engines available")

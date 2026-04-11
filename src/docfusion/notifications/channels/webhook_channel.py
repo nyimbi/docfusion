@@ -28,7 +28,7 @@ class WebhookAuthType(str, Enum):
 	NONE = "none"
 	BASIC = "basic"
 	BEARER = "bearer"
-	API_KEY = "api_key"
+	# Note: API keys must be provided via SecretsManager, never hardcoded
 	HMAC_SHA256 = "hmac_sha256"
 	CUSTOM_HEADER = "custom_header"
 

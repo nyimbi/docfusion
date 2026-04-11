@@ -20,7 +20,7 @@ from dataclasses import dataclass
 import tempfile
 
 from pydantic import BaseModel, Field, validator
-from ..generic.base_scraper import uuid7str
+from ...core.utils import uuid7str
 
 from .scraper_deployment import ScraperDeployment, DeploymentStatus, ScraperInstance
 from ..crawlers.source_databases.global_source_db import GlobalSourceDB, ProcurementSource

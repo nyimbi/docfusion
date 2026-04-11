@@ -11,6 +11,7 @@ import aiohttp
 import time
 import logging
 import random
+import secrets
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -24,6 +25,8 @@ import tempfile
 import os
 
 from pydantic import BaseModel, Field
+
+from ....core.utils import uuid7str
 class ScrapingStatus(str, Enum):
 	"""Scraping operation status"""
 	PENDING = "pending"
@@ -348,7 +351,7 @@ class SessionManager:
 		"""Create a new HTTP session"""
 		# Get headers with random user agent
 		headers = self.config.default_headers.copy()
-		headers['User-Agent'] = random.choice(self.config.user_agents)
+		headers['User-Agent'] = secrets.choice(self.config.user_agents)
 		
 		# Configure proxy if enabled
 		connector = None
@@ -748,7 +751,6 @@ class BaseScraper(ABC):
 		except ImportError:
 			# Fallback: basic HTML tag removal
 			import re
-from ....core.utils import uuid7str
 			text = re.sub(r'<[^>]+>', ' ', html_content)
 			text = re.sub(r'\s+', ' ', text).strip()
 			return text

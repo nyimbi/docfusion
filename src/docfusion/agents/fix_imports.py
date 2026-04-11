@@ -20,7 +20,8 @@ def fix_uuid_imports(file_path):
 		content = f.read()
 
 	# Replace direct uuid_extension import with fallback
-	uuid_import_pattern = r'
+	uuid_import_pattern = r'from uuid_extensions import uuid7str'
+	uuid_fallback = 'from ...core.utils import uuid7str'
 	if uuid_import_pattern in content:
 		content = content.replace(uuid_import_pattern, uuid_fallback)
 

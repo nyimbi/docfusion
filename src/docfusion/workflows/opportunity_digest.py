@@ -9,18 +9,15 @@ Uses:
 - SearXNG for opportunity discovery
 - LiteLLM for content analysis
 
-Configuration:
-- SMTP_HOST=mail.lindela.io
-- SMTP_PORT=587
-- SMTP_USER=nyimbi@lindela.io
-- SMTP_PASS=Car3Ana1234
+Configuration via environment variables:
+- SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
+- All secrets managed through SecretsManager
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
@@ -30,12 +27,14 @@ import smtplib
 
 logger = logging.getLogger(__name__)
 
-# Email configuration
-SMTP_HOST = os.environ.get("SMTP_HOST", "mail.lindela.io")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("SMTP_USER", "nyimbi@lindela.io")
-SMTP_PASS = os.environ.get("SMTP_PASS", "Car3Ana1234")
-SMTP_FROM = os.environ.get("SMTP_FROM", "opportunities@lindela.io")
+# Email configuration - all secrets via SecretsManager, no hardcoded defaults
+from ..config.secrets import SecretsManager
+
+SMTP_HOST = SecretsManager.get_smtp_host()
+SMTP_PORT = SecretsManager.get_smtp_port()
+SMTP_USER = SecretsManager.get_smtp_user()
+SMTP_PASS = SecretsManager.get_smtp_password()
+SMTP_FROM = SecretsManager.get_smtp_from_address()
 
 
 # ============================================================================

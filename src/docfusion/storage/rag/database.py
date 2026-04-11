@@ -112,7 +112,7 @@ class RAGDatabase:
 			
 		except Exception as e:
 			self.logger.error(f"Failed to initialize RAG database: {e}")
-			raise RuntimeError(f"Database initialization failed: {e}")
+			raise RuntimeError(f"Database initialization failed: {e}") from e
 	
 	async def _initialize_schema(self):
 		"""Initialize database schema and pgai setup"""

@@ -120,7 +120,7 @@ class DatabaseConfig(BaseModel):
 				raise ValueError("URL must use postgresql:// or postgres:// scheme")
 			return v
 		except Exception as e:
-			raise ValueError(f"Invalid PostgreSQL URL: {e}")
+			raise ValueError(f"Invalid PostgreSQL URL: {e}") from e
 	
 	@property
 	def connection_info(self) -> PostgreSQLConnectionInfo:

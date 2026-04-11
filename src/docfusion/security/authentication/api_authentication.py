@@ -401,7 +401,7 @@ class APIAuthentication:
         except ExpiredSignatureError:
             raise InvalidTokenError("Token has expired")
         except Exception as e:
-            raise InvalidTokenError(f"Invalid token: {e}")
+            raise InvalidTokenError(f"Invalid token: {e}") from e
 
     async def revoke_api_key(self, key_id: str, user_id: Optional[str] = None) -> bool:
         """Revoke an API key"""

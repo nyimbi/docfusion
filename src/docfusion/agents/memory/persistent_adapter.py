@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import asyncpg
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .memory_manager import (
     MemoryEntry,
@@ -56,6 +56,18 @@ class PersistentMemoryConfig(BaseModel):
         default="agent_memory",
         description="Database schema name for memory tables"
     )
+
+    @field_validator("schema_name")
+    @classmethod
+    def validate_schema_name(cls, v: str) -> str:
+        """Validate schema name contains only safe identifier characters (prevents SQL injection)."""
+        import re
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", v):
+            raise ValueError(
+                f"Invalid schema name '{v}': must start with letter or underscore "
+                "and contain only alphanumeric characters and underscores"
+            )
+        return v
 
     # Pool settings
     pool_size: int = Field(default=10, ge=1, le=100)

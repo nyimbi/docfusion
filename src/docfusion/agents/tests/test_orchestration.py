@@ -129,7 +129,7 @@ class TestCrewManagement:
 				task_id=f"task_{i}",
 				description=f"Test task {i}",
 				task_type="research",
-				priority=TaskPriority.MEDIUM
+				priority=TaskPriority.NORMAL
 			) for i in range(2)
 		]
 		
