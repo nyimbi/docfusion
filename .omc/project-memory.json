@@ -256,8 +256,8 @@
   "hotPaths": [
     {
       "path": "src/docfusion",
-      "accessCount": 95,
-      "lastAccessed": 1775924863983,
+      "accessCount": 105,
+      "lastAccessed": 1775925059711,
       "type": "directory"
     },
     {
@@ -268,8 +268,8 @@
     },
     {
       "path": "src/docfusion/infrastructure/litellm_client.py",
-      "accessCount": 13,
-      "lastAccessed": 1775924079052,
+      "accessCount": 14,
+      "lastAccessed": 1775924963781,
       "type": "file"
     },
     {
@@ -309,6 +309,12 @@
       "type": "file"
     },
     {
+      "path": "src/docfusion/collaboration/presence/presence_manager.py",
+      "accessCount": 4,
+      "lastAccessed": 1775924922356,
+      "type": "file"
+    },
+    {
       "path": "src/docfusion/core/database/config.py",
       "accessCount": 3,
       "lastAccessed": 1775922780386,
@@ -345,9 +351,21 @@
       "type": "file"
     },
     {
-      "path": "src/docfusion/collaboration/presence/presence_manager.py",
+      "path": "src/docfusion/infrastructure/firecrawl_client.py",
       "accessCount": 3,
-      "lastAccessed": 1775924496313,
+      "lastAccessed": 1775924957579,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/infrastructure/searxng_client.py",
+      "accessCount": 3,
+      "lastAccessed": 1775924958075,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/infrastructure/llm_fallback.py",
+      "accessCount": 3,
+      "lastAccessed": 1775925050671,
       "type": "file"
     },
     {
@@ -381,18 +399,6 @@
       "type": "file"
     },
     {
-      "path": "src/docfusion/infrastructure/searxng_client.py",
-      "accessCount": 2,
-      "lastAccessed": 1775922905818,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/infrastructure/firecrawl_client.py",
-      "accessCount": 2,
-      "lastAccessed": 1775922906463,
-      "type": "file"
-    },
-    {
       "path": "src/docfusion/api/middleware/cors_middleware.py",
       "accessCount": 2,
       "lastAccessed": 1775922933532,
@@ -423,15 +429,21 @@
       "type": "file"
     },
     {
-      "path": "src/docfusion/composition/runner.py",
-      "accessCount": 1,
-      "lastAccessed": 1775922550813,
+      "path": "src/docfusion/composition/parser.py",
+      "accessCount": 2,
+      "lastAccessed": 1775924920947,
       "type": "file"
     },
     {
-      "path": "src/docfusion/infrastructure/llm_fallback.py",
+      "path": "src/docfusion/document_engine/git_latex_manager.py",
+      "accessCount": 2,
+      "lastAccessed": 1775924941093,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/composition/runner.py",
       "accessCount": 1,
-      "lastAccessed": 1775922590760,
+      "lastAccessed": 1775922550813,
       "type": "file"
     },
     {
@@ -462,12 +474,6 @@
       "path": "src/docfusion/composition/language.py",
       "accessCount": 1,
       "lastAccessed": 1775922644478,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/composition/parser.py",
-      "accessCount": 1,
-      "lastAccessed": 1775922646457,
       "type": "file"
     },
     {
@@ -534,12 +540,6 @@
       "path": "src/docfusion/agents/llm/ollama_client.py",
       "accessCount": 1,
       "lastAccessed": 1775922753989,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/document_engine/git_latex_manager.py",
-      "accessCount": 1,
-      "lastAccessed": 1775922814344,
       "type": "file"
     },
     {

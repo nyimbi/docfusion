@@ -9,7 +9,7 @@ Provides enterprise-grade reliability and performance for workflow notifications
 import asyncio
 import logging
 
-# from uuid_extensions import uuid7str
+# from ...core.utils import uuid7str
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
