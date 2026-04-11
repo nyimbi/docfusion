@@ -1499,9 +1499,10 @@ def validate_document_engine_installation() -> Dict[str, bool]:
 		# Test core engine initialization
 		engine = DocumentEngine()
 		validation_results["document_engine_core"] = True
-	except Exception:
-		validation_results["document_engine_core"] = False
-		validation_results["overall_status"] = False
+	except Exception as e:
+			logger.warning(f"Document engine core validation failed: {e}")
+			validation_results["document_engine_core"] = False
+			validation_results["overall_status"] = False
 	
 	# Test component availability
 	try:
@@ -1509,9 +1510,10 @@ def validate_document_engine_installation() -> Dict[str, bool]:
 		from docfusion.document_engine.assembler.structure_builder import StructureBuilder
 		from docfusion.document_engine.assembler.cross_reference_manager import CrossReferenceManager
 		validation_results["content_assembly_components"] = True
-	except Exception:
-		validation_results["content_assembly_components"] = False
-		validation_results["overall_status"] = False
+	except Exception as e:
+			logger.warning(f"Content assembly components validation failed: {e}")
+			validation_results["content_assembly_components"] = False
+			validation_results["overall_status"] = False
 	
 	try:
 		from docfusion.document_engine.formatter.document_formatter import DocumentFormatter
@@ -1519,9 +1521,10 @@ def validate_document_engine_installation() -> Dict[str, bool]:
 		from docfusion.document_engine.formatter.layout_manager import LayoutManager
 		from docfusion.document_engine.formatter.style_applier import StyleApplier
 		validation_results["formatting_components"] = True
-	except Exception:
-		validation_results["formatting_components"] = False
-		validation_results["overall_status"] = False
+	except Exception as e:
+			logger.warning(f"Formatting components validation failed: {e}")
+			validation_results["formatting_components"] = False
+			validation_results["overall_status"] = False
 	
 	try:
 		from docfusion.document_engine.renderer.pdf_renderer import PDFRenderer
@@ -1529,9 +1532,10 @@ def validate_document_engine_installation() -> Dict[str, bool]:
 		from docfusion.document_engine.renderer.html_renderer import HTMLRenderer
 		from docfusion.document_engine.renderer.accessibility_renderer import AccessibilityRenderer
 		validation_results["rendering_components"] = True
-	except Exception:
-		validation_results["rendering_components"] = False
-		validation_results["overall_status"] = False
+	except Exception as e:
+			logger.warning(f"Rendering components validation failed: {e}")
+			validation_results["rendering_components"] = False
+			validation_results["overall_status"] = False
 	
 	return validation_results
 

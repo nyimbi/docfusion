@@ -503,7 +503,8 @@ class LiteLLMClient:
 				timeout=10.0,
 			)
 			return response.status_code == 200
-		except Exception:
+		except Exception as e:
+			logger.warning(f"LiteLLM health check failed: {e}")
 			return False
 
 	async def close(self) -> None:

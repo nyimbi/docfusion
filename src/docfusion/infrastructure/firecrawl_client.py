@@ -351,7 +351,8 @@ class FirecrawlClient:
 				headers=self._get_headers(),
 			)
 			return response.status_code == 200
-		except Exception:
+		except Exception as e:
+			logger.warning(f"Firecrawl crawl cancel failed for {crawl_id}: {e}")
 			return False
 
 	async def map_website(
@@ -466,7 +467,8 @@ class FirecrawlClient:
 				timeout=10.0,
 			)
 			return response.status_code == 200
-		except Exception:
+		except Exception as e:
+			logger.warning(f"Firecrawl health check failed: {e}")
 			return False
 
 	async def close(self) -> None:

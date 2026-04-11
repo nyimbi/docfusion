@@ -348,7 +348,8 @@ class SearXNGClient:
 				timeout=5.0,
 			)
 			return response.status_code == 200
-		except Exception:
+		except Exception as e:
+			logger.warning(f"SearXNG health check failed: {e}")
 			return False
 
 	async def close(self) -> None:

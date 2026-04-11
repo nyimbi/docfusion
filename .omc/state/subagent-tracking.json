@@ -120,11 +120,13 @@
       "agent_type": "oh-my-claudecode:code-reviewer",
       "started_at": "2026-04-11T16:25:08.177Z",
       "parent_mode": "none",
-      "status": "running"
+      "status": "completed",
+      "completed_at": "2026-04-11T16:42:27.187Z",
+      "duration_ms": 1039010
     }
   ],
   "total_spawned": 12,
-  "total_completed": 12,
+  "total_completed": 13,
   "total_failed": 0,
-  "last_updated": "2026-04-11T16:25:19.008Z"
+  "last_updated": "2026-04-11T16:42:27.290Z"
 }

@@ -268,8 +268,8 @@
     },
     {
       "path": "src/docfusion/infrastructure/litellm_client.py",
-      "accessCount": 14,
-      "lastAccessed": 1775924963781,
+      "accessCount": 16,
+      "lastAccessed": 1775925729276,
       "type": "file"
     },
     {
@@ -297,6 +297,12 @@
       "type": "directory"
     },
     {
+      "path": "src/docfusion/infrastructure/firecrawl_client.py",
+      "accessCount": 7,
+      "lastAccessed": 1775925654171,
+      "type": "file"
+    },
+    {
       "path": "src/docfusion/security/authentication/saml_authentication.py",
       "accessCount": 5,
       "lastAccessed": 1775923071306,
@@ -312,6 +318,12 @@
       "path": "src/docfusion/document_engine/git_latex_manager.py",
       "accessCount": 5,
       "lastAccessed": 1775925436807,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/infrastructure/searxng_client.py",
+      "accessCount": 5,
+      "lastAccessed": 1775925688122,
       "type": "file"
     },
     {
@@ -366,18 +378,6 @@
       "path": "src/docfusion/core/database/models.py",
       "accessCount": 3,
       "lastAccessed": 1775923724253,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/infrastructure/firecrawl_client.py",
-      "accessCount": 3,
-      "lastAccessed": 1775924957579,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/infrastructure/searxng_client.py",
-      "accessCount": 3,
-      "lastAccessed": 1775924958075,
       "type": "file"
     },
     {
