@@ -9,7 +9,6 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import os
 from ...config.secrets import SecretsManager
 from typing import Optional
 
@@ -53,7 +52,7 @@ def is_persistent_memory_enabled() -> bool:
 		return _persistent_memory_enabled
 
 	# Check environment variable
-	env_value = os.environ.get("PERSISTENT_MEMORY_ENABLED", "").lower()  # TODO: migrate to SecretsManager
+	env_value = SecretsManager.get_persistent_memory_enabled().lower()
 
 	# Explicit setting takes precedence
 	if env_value in ("true", "1", "yes"):

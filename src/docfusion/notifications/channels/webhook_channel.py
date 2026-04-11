@@ -169,7 +169,8 @@ class WebhookChannel(NotificationChannel):
 			# Basic validation - could be enhanced with actual HTTP checks
 			return True
 			
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Webhook recipient validation failed: {e}")
 			return False
 	
 	def get_channel_type(self) -> ChannelType:

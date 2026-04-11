@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
+from ...core.types.intelligence import IntelligenceLevel
 
 from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
@@ -39,15 +40,7 @@ except ImportError:
     DISCOVERY_AVAILABLE = False
 
 
-class IntelligenceLevel(str, Enum):
-    """Levels of intelligence analysis"""
-    
-    BASIC = "basic"
-    ENHANCED = "enhanced"
-    COMPREHENSIVE = "comprehensive"
-    STRATEGIC = "strategic"
-
-
+# IntelligenceLevel imported from core/types to avoid duplication
 class OpportunityIntelligence(BaseModel):
     """Comprehensive opportunity intelligence report"""
     model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)

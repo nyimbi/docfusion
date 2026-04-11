@@ -232,9 +232,9 @@ class CompositionParser:
             return parsed_composition
 
         except yaml.YAMLError as e:
-            raise CompositionParseError(f"Invalid YAML syntax: {str(e)}")
+            raise CompositionParseError(f"Invalid YAML syntax: {str(e)}") from e
         except Exception as e:
-            raise CompositionParseError(f"Parsing failed: {str(e)}")
+            raise CompositionParseError(f"Parsing failed: {str(e)}") from e
 
     async def _validate_structure(self, composition_data: Dict[str, Any]):
         """Validate basic composition structure"""
@@ -337,7 +337,7 @@ class CompositionParser:
             )
 
         except Exception as e:
-            raise CompositionParseError(f"Failed to parse flow {flow_id}: {str(e)}")
+            raise CompositionParseError(f"Failed to parse flow {flow_id}: {str(e)}") from e
 
     async def _parse_sequence(
         self, sequence: str, agents: Dict[str, Any]
@@ -538,7 +538,7 @@ class CompositionParser:
             expressions = await self._parse_sequence(flow_syntax, {})
             return expressions
         except Exception as e:
-            raise CompositionParseError(f"Failed to parse flow syntax: {str(e)}")
+            raise CompositionParseError(f"Failed to parse flow syntax: {str(e)}") from e
 
     async def validate_expression(
         self, expression: str, agents: List[str]

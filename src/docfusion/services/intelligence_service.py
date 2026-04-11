@@ -149,7 +149,7 @@ class DefaultIntelligenceService:
 		if not self._discovery_service:
 			return {"error": "Intelligence service unavailable", "opportunity_id": opportunity_id}
 
-		from docfusion.intelligence.integrations.discovery_integration import IntelligenceLevel
+		from docfusion.core.types.intelligence import IntelligenceLevel
 		from docfusion.discovery.models.opportunity_models import OpportunityData
 
 		level = IntelligenceLevel(intelligence_level)

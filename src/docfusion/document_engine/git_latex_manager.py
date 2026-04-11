@@ -188,7 +188,8 @@ class FileContentBlock(BaseModel):
 			
 			assert isinstance(history, list), "History must be list"
 			return history
-		except Exception:
+		except Exception as e:
+			self._log_git_error(f"Failed to get commit history: {e}")
 			return []
 	
 	def get_diff(self, commit1: str, commit2: str = "HEAD") -> str:
@@ -203,7 +204,8 @@ class FileContentBlock(BaseModel):
 			diff = self.git_repo.git.diff(commit1, commit2, str(self.file_path))
 			assert isinstance(diff, str), "Diff must be string"
 			return diff
-		except Exception:
+		except Exception as e:
+			self._log_git_error(f"Failed to get diff: {e}")
 			return ""
 	
 	def _log_git_error(self, message: str) -> None:

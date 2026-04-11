@@ -170,7 +170,8 @@ class WhatsAppChannel(NotificationChannel):
 			
 			return True
 			
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"WhatsApp recipient validation failed: {e}")
 			return False
 	
 	def get_channel_type(self) -> ChannelType:

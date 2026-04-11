@@ -256,8 +256,8 @@
   "hotPaths": [
     {
       "path": "src/docfusion",
-      "accessCount": 105,
-      "lastAccessed": 1775925059711,
+      "accessCount": 109,
+      "lastAccessed": 1775925404605,
       "type": "directory"
     },
     {
@@ -303,6 +303,18 @@
       "type": "file"
     },
     {
+      "path": "src/docfusion/composition/parser.py",
+      "accessCount": 5,
+      "lastAccessed": 1775925162641,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/document_engine/git_latex_manager.py",
+      "accessCount": 5,
+      "lastAccessed": 1775925436807,
+      "type": "file"
+    },
+    {
       "path": "src/docfusion/core/database/connection.py",
       "accessCount": 4,
       "lastAccessed": 1775924127297,
@@ -312,6 +324,12 @@
       "path": "src/docfusion/collaboration/presence/presence_manager.py",
       "accessCount": 4,
       "lastAccessed": 1775924922356,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/memory/__init__.py",
+      "accessCount": 4,
+      "lastAccessed": 1775925437257,
       "type": "file"
     },
     {
@@ -366,6 +384,12 @@
       "path": "src/docfusion/infrastructure/llm_fallback.py",
       "accessCount": 3,
       "lastAccessed": 1775925050671,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/core/types/intelligence.py",
+      "accessCount": 3,
+      "lastAccessed": 1775925174547,
       "type": "file"
     },
     {
@@ -429,18 +453,6 @@
       "type": "file"
     },
     {
-      "path": "src/docfusion/composition/parser.py",
-      "accessCount": 2,
-      "lastAccessed": 1775924920947,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/document_engine/git_latex_manager.py",
-      "accessCount": 2,
-      "lastAccessed": 1775924941093,
-      "type": "file"
-    },
-    {
       "path": "src/docfusion/composition/runner.py",
       "accessCount": 1,
       "lastAccessed": 1775922550813,
@@ -456,12 +468,6 @@
       "path": "src/docfusion/core/utils.py",
       "accessCount": 1,
       "lastAccessed": 1775922614541,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/core/types/intelligence.py",
-      "accessCount": 1,
-      "lastAccessed": 1775922625568,
       "type": "file"
     },
     {
@@ -516,12 +522,6 @@
       "path": "src/docfusion/__main__.py",
       "accessCount": 1,
       "lastAccessed": 1775922720985,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/agents/memory/__init__.py",
-      "accessCount": 1,
-      "lastAccessed": 1775922750815,
       "type": "file"
     },
     {

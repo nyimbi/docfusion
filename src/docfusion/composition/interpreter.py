@@ -159,7 +159,7 @@ class CompositionInterpreter:
 			return interpreted_composition
 			
 		except Exception as e:
-			raise CompositionInterpreterError(f"Failed to interpret composition: {str(e)}")
+			raise CompositionInterpreterError(f"Failed to interpret composition: {str(e)}") from e
 	
 	async def _build_execution_graph(self, composition: ParsedComposition) -> ExecutionGraph:
 		"""Build execution graph from parsed flows"""

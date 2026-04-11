@@ -144,7 +144,8 @@ class PushChannel(NotificationChannel):
 			# Platform-specific validation could be added here
 			return True
 			
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Push notification recipient validation failed: {e}")
 			return False
 	
 	def get_channel_type(self) -> ChannelType:

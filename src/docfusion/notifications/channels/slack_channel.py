@@ -166,7 +166,8 @@ class SlackChannel(NotificationChannel):
 			else:
 				return False
 			
-		except Exception:
+		except Exception as e:
+			self.logger.warning(f"Slack recipient validation failed: {e}")
 			return False
 	
 	def get_channel_type(self) -> ChannelType:
