@@ -7,6 +7,8 @@ data lifecycle management.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
@@ -705,67 +707,67 @@ class DiscoveryStorageService:
 	
 	def _log_service_initialized(self) -> None:
 		"""Log service initialization"""
-		print("DiscoveryStorageService: Service initialized with storage manager")
+		logger.info(f"DiscoveryStorageService: Service initialized with storage manager")
 	
 	def _log_storage_success(self, operation_type: str, document_id: str, processing_time: float) -> None:
 		"""Log successful storage operation"""
-		print(f"DiscoveryStorageService: {operation_type.title()} stored {document_id} ({processing_time:.3f}s)")
+		logger.info(f"DiscoveryStorageService: {operation_type.title()} stored {document_id} ({processing_time:.3f}s)")
 	
 	def _log_storage_error(self, message: str) -> None:
 		"""Log storage errors"""
-		print(f"DiscoveryStorageService Error: {message}")
+		logger.error(f"DiscoveryStorageService Error: {message}")
 	
 	def _log_retrieval_error(self, message: str) -> None:
 		"""Log retrieval errors"""
-		print(f"DiscoveryStorageService Retrieval Error: {message}")
+		logger.error(f"DiscoveryStorageService Retrieval Error: {message}")
 	
 	def _log_search_success(self, results_count: int, limit: int) -> None:
 		"""Log successful search operation"""
-		print(f"DiscoveryStorageService: Search returned {results_count}/{limit} results")
+		logger.info(f"DiscoveryStorageService: Search returned {results_count}/{limit} results")
 	
 	def _log_search_error(self, message: str) -> None:
 		"""Log search errors"""
-		print(f"DiscoveryStorageService Search Error: {message}")
+		logger.error(f"DiscoveryStorageService Search Error: {message}")
 	
 	def _log_batch_operation(self, operation: str, total: int, successful: int) -> None:
 		"""Log batch operation completion"""
-		print(f"DiscoveryStorageService: Batch {operation} completed - {successful}/{total} successful")
+		logger.info(f"DiscoveryStorageService: Batch {operation} completed - {successful}/{total} successful")
 	
 	def _log_batch_error(self, message: str) -> None:
 		"""Log batch operation errors"""
-		print(f"DiscoveryStorageService Batch Error: {message}")
+		logger.error(f"DiscoveryStorageService Batch Error: {message}")
 	
 	def _log_update_success(self, document_id: str, status: str, processing_time: float) -> None:
 		"""Log successful update operation"""
-		print(f"DiscoveryStorageService: Updated {document_id} to {status} ({processing_time:.3f}s)")
+		logger.info(f"DiscoveryStorageService: Updated {document_id} to {status} ({processing_time:.3f}s)")
 	
 	def _log_cache_hit(self, cache_key: str) -> None:
 		"""Log cache hit"""
-		print(f"DiscoveryStorageService: Cache hit for {cache_key}")
+		logger.info(f"DiscoveryStorageService: Cache hit for {cache_key}")
 	
 	def _log_cache_miss(self, cache_key: str, reason: str) -> None:
 		"""Log cache miss"""
-		print(f"DiscoveryStorageService: Cache miss for {cache_key} ({reason})")
+		logger.info(f"DiscoveryStorageService: Cache miss for {cache_key} ({reason})")
 	
 	def _log_cache_error(self, message: str) -> None:
 		"""Log cache errors"""
-		print(f"DiscoveryStorageService Cache Error: {message}")
+		logger.error(f"DiscoveryStorageService Cache Error: {message}")
 	
 	def _log_cache_cleanup(self, expired_count: int) -> None:
 		"""Log cache cleanup"""
-		print(f"DiscoveryStorageService: Cleaned up {expired_count} expired cache entries")
+		logger.info(f"DiscoveryStorageService: Cleaned up {expired_count} expired cache entries")
 	
 	def _log_optimization_complete(self, processing_time: float) -> None:
 		"""Log optimization completion"""
-		print(f"DiscoveryStorageService: Storage optimization completed ({processing_time:.2f}s)")
+		logger.info(f"DiscoveryStorageService: Storage optimization completed ({processing_time:.2f}s)")
 	
 	def _log_archive_complete(self, archived_count: int) -> None:
 		"""Log archive operation completion"""
-		print(f"DiscoveryStorageService: Archived {archived_count} old analyses")
+		logger.info(f"DiscoveryStorageService: Archived {archived_count} old analyses")
 	
 	def _log_index_optimization(self, index_count: int) -> None:
 		"""Log index optimization"""
-		print(f"DiscoveryStorageService: Optimized {index_count} database indexes")
+		logger.info(f"DiscoveryStorageService: Optimized {index_count} database indexes")
 
 
 # Example usage and testing
@@ -790,11 +792,11 @@ async def test_storage_integration():
 		metadata={'source': 'test', 'priority': 'high'}
 	)
 	
-	print(f"Store Result: {store_result.success}")
+	logger.info(f"Store Result: {store_result.success}")
 	
 	# Retrieve opportunity
 	retrieved_opp = await storage_service.retrieve_opportunity(opportunity.id)
-	print(f"Retrieved: {retrieved_opp.title if retrieved_opp else 'Not found'}")
+	logger.info(f"Retrieved: {retrieved_opp.title if retrieved_opp else 'Not found'}")
 	
 	# Search opportunities
 	search_criteria = OpportunitySearchCriteria(
@@ -803,7 +805,7 @@ async def test_storage_integration():
 	)
 	
 	search_results = await storage_service.search_opportunities(search_criteria)
-	print(f"Search Results: {len(search_results)} opportunities found")
+	logger.info(f"Search Results: {len(search_results)} opportunities found")
 	
 	# Get statistics
 	stats = await storage_service.get_storage_statistics()
@@ -817,10 +819,10 @@ if __name__ == "__main__":
 	
 	async def main():
 		stats = await test_storage_integration()
-		print("Storage Statistics:")
-		print(f"- Opportunities Stored: {stats['opportunities_stored']}")
-		print(f"- Total Operations: {stats['total_operations']}")
-		print(f"- Success Rate: {stats['success_rate']:.2%}")
-		print(f"- Cache Hit Rate: {stats['cache_statistics']['cache_hit_rate']:.2%}")
+		logger.info(f"Storage Statistics:")
+		logger.info(f"- Opportunities Stored: {stats['opportunities_stored']}")
+		logger.info(f"- Total Operations: {stats['total_operations']}")
+		logger.info(f"- Success Rate: {stats['success_rate']:.2%}")
+		logger.info(f"- Cache Hit Rate: {stats['cache_statistics']['cache_hit_rate']:.2%}")
 		
 	asyncio.run(main())

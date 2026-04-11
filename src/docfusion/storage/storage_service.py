@@ -8,6 +8,8 @@ into a cohesive service that the document engine can use seamlessly.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -252,7 +254,7 @@ class StorageService:
             return result
 
         except Exception as e:
-            print(f"Error retrieving document {document_id}: {e}")
+            logger.error(f"Error retrieving document {document_id}: {e}")
             return None
 
     async def search_documents(
@@ -379,7 +381,7 @@ class StorageService:
             return final_results[:limit]
 
         except Exception as e:
-            print(f"Error searching documents: {e}")
+            logger.error(f"Error searching documents: {e}")
             return []
 
     async def get_content_recommendations(
@@ -408,7 +410,7 @@ class StorageService:
             return recommendations
 
         except Exception as e:
-            print(f"Error getting content recommendations: {e}")
+            logger.error(f"Error getting content recommendations: {e}")
             return []
 
     async def add_content_block(
@@ -441,7 +443,7 @@ class StorageService:
             return block_id
 
         except Exception as e:
-            print(f"Error adding content block: {e}")
+            logger.error(f"Error adding content block: {e}")
             return None
 
     async def add_template(
@@ -476,7 +478,7 @@ class StorageService:
             return template_id
 
         except Exception as e:
-            print(f"Error adding template: {e}")
+            logger.error(f"Error adding template: {e}")
             return None
 
     async def list_documents(
@@ -521,7 +523,7 @@ class StorageService:
             return results
 
         except Exception as e:
-            print(f"Error listing documents: {e}")
+            logger.error(f"Error listing documents: {e}")
             return []
 
     async def delete_document(self, document_id: str) -> bool:
@@ -546,7 +548,7 @@ class StorageService:
             return success
 
         except Exception as e:
-            print(f"Error deleting document {document_id}: {e}")
+            logger.error(f"Error deleting document {document_id}: {e}")
             return False
 
     async def get_storage_statistics(self) -> StorageStats:
@@ -596,7 +598,7 @@ class StorageService:
             return self._stats
 
         except Exception as e:
-            print(f"Error getting storage statistics: {e}")
+            logger.error(f"Error getting storage statistics: {e}")
             return self._stats
 
     async def optimize_storage(self) -> Dict[str, Any]:
@@ -1167,7 +1169,7 @@ class StorageService:
             if self._document_indexer:
                 await self._document_indexer.remove_document(document_id)
         except Exception as e:
-            print(f"Error during cleanup of {document_id}: {e}")
+            logger.error(f"Error during cleanup of {document_id}: {e}")
 
     async def close(self) -> None:
         """Close storage service and cleanup resources"""
@@ -1180,7 +1182,7 @@ class StorageService:
                 await self._document_indexer._save_all_indexes()
 
         except Exception as e:
-            print(f"Error during storage service cleanup: {e}")
+            logger.error(f"Error during storage service cleanup: {e}")
 
 # Convenience functions for easy integration
 async def create_storage_service(

@@ -8,7 +8,7 @@ processing, and async operations with status tracking.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import timezone, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -280,7 +280,7 @@ class BatchEndpoints:
                 "processed_items": 0,
                 "successful_items": 0,
                 "failed_items": 0,
-                "created_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
                 "priority": request.priority,
                 "metadata": request.metadata or {},
                 "request": request,
@@ -332,7 +332,7 @@ class BatchEndpoints:
                 "processed_items": 0,
                 "successful_items": 0,
                 "failed_items": 0,
-                "created_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
                 "priority": request.priority,
                 "metadata": {"operation": request.operation},
                 "request": request,
@@ -397,7 +397,7 @@ class BatchEndpoints:
             # Calculate duration
             duration = None
             if job.get("started_at"):
-                end_time = job.get("completed_at") or datetime.utcnow()
+                end_time = job.get("completed_at") or datetime.now(timezone.utc)
                 duration = (end_time - job["started_at"]).total_seconds()
 
             return BatchJobStatusResponse(
@@ -447,7 +447,7 @@ class BatchEndpoints:
 
             # Cancel job
             job["status"] = BatchJobStatus.CANCELLED
-            job["completed_at"] = datetime.utcnow()
+            job["completed_at"] = datetime.now(timezone.utc)
 
             # Move to results
             self.job_results[job_id] = job
@@ -591,7 +591,7 @@ class BatchEndpoints:
 
                 duration = None
                 if job.get("started_at"):
-                    end_time = job.get("completed_at") or datetime.utcnow()
+                    end_time = job.get("completed_at") or datetime.now(timezone.utc)
                     duration = (end_time - job["started_at"]).total_seconds()
 
                 responses.append(
@@ -642,7 +642,7 @@ class BatchEndpoints:
                 "processed_items": 0,
                 "successful_items": 0,
                 "failed_items": 0,
-                "created_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
                 "priority": 0,
                 "metadata": {"operation": "bulk_upload", "category": category},
                 "context": context,
@@ -714,7 +714,7 @@ class BatchEndpoints:
                 "processed_items": 0,
                 "successful_items": 0,
                 "failed_items": 0,
-                "created_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
                 "priority": 0,
                 "metadata": {
                     "operation": "bulk_render",
@@ -765,7 +765,7 @@ class BatchEndpoints:
 
         try:
             job["status"] = BatchJobStatus.RUNNING
-            job["started_at"] = datetime.utcnow()
+            job["started_at"] = datetime.now(timezone.utc)
 
             user_id = context["user_id"]
 
@@ -837,7 +837,7 @@ class BatchEndpoints:
                 if job["failed_items"] == 0
                 else BatchJobStatus.FAILED
             )
-            job["completed_at"] = datetime.utcnow()
+            job["completed_at"] = datetime.now(timezone.utc)
 
             # Move to results
             self.job_results[job_id] = job
@@ -846,7 +846,7 @@ class BatchEndpoints:
         except Exception as e:
             self.logger.error(f"Batch document creation failed: {e}")
             job["status"] = BatchJobStatus.FAILED
-            job["completed_at"] = datetime.utcnow()
+            job["completed_at"] = datetime.now(timezone.utc)
             job["errors"].append(
                 {"error": f"Job processing failed: {str(e)}", "type": "job_error"}
             )
@@ -878,7 +878,7 @@ class BatchEndpoints:
         return {
             "document_id": result["document_id"],
             "title": doc_request.title,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "encrypted": result.get("encrypted", False),
         }
 
@@ -892,7 +892,7 @@ class BatchEndpoints:
 
         try:
             job["status"] = BatchJobStatus.RUNNING
-            job["started_at"] = datetime.utcnow()
+            job["started_at"] = datetime.now(timezone.utc)
 
             user_id = context["user_id"]
 
@@ -932,7 +932,7 @@ class BatchEndpoints:
                 if job["failed_items"] == 0
                 else BatchJobStatus.FAILED
             )
-            job["completed_at"] = datetime.utcnow()
+            job["completed_at"] = datetime.now(timezone.utc)
 
             # Send webhook notification if provided
             if request.webhook_url:
@@ -945,7 +945,7 @@ class BatchEndpoints:
         except Exception as e:
             self.logger.error(f"Async document processing failed: {e}")
             job["status"] = BatchJobStatus.FAILED
-            job["completed_at"] = datetime.utcnow()
+            job["completed_at"] = datetime.now(timezone.utc)
             job["errors"].append(
                 {"error": f"Job processing failed: {str(e)}", "type": "job_error"}
             )
@@ -970,7 +970,7 @@ class BatchEndpoints:
                 "document_id": document_id,
                 "operation": operation,
                 "result": "analysis_completed",
-                "processed_at": datetime.utcnow().isoformat(),
+                "processed_at": datetime.now(timezone.utc).isoformat(),
             }
         elif operation == "render":
             # Use document engine for rendering
@@ -1012,7 +1012,7 @@ class BatchEndpoints:
                 "result": "render_completed",
                 "output_format": format,
                 "file_path": generation_result.get("file_path"),
-                "processed_at": datetime.utcnow().isoformat(),
+                "processed_at": datetime.now(timezone.utc).isoformat(),
             }
         else:
             raise Exception(f"Unknown operation: {operation}")
@@ -1033,7 +1033,7 @@ class BatchEndpoints:
 
         try:
             job["status"] = BatchJobStatus.RUNNING
-            job["started_at"] = datetime.utcnow()
+            job["started_at"] = datetime.now(timezone.utc)
 
             user_id = context["user_id"]
 
@@ -1075,7 +1075,7 @@ class BatchEndpoints:
                         {
                             "document_id": result["document_id"],
                             "filename": file_info["filename"],
-                            "created_at": datetime.utcnow().isoformat(),
+                            "created_at": datetime.now(timezone.utc).isoformat(),
                         }
                     )
                     job["successful_items"] += 1
@@ -1098,7 +1098,7 @@ class BatchEndpoints:
                 if job["failed_items"] == 0
                 else BatchJobStatus.FAILED
             )
-            job["completed_at"] = datetime.utcnow()
+            job["completed_at"] = datetime.now(timezone.utc)
 
             # Move to results
             self.job_results[job_id] = job
@@ -1107,7 +1107,7 @@ class BatchEndpoints:
         except Exception as e:
             self.logger.error(f"Bulk upload processing failed: {e}")
             job["status"] = BatchJobStatus.FAILED
-            job["completed_at"] = datetime.utcnow()
+            job["completed_at"] = datetime.now(timezone.utc)
             job["errors"].append(
                 {
                     "error": f"Bulk upload processing failed: {str(e)}",
@@ -1135,7 +1135,7 @@ class BatchEndpoints:
 
         try:
             job["status"] = BatchJobStatus.RUNNING
-            job["started_at"] = datetime.utcnow()
+            job["started_at"] = datetime.now(timezone.utc)
 
             user_id = context["user_id"]
 
@@ -1173,7 +1173,7 @@ class BatchEndpoints:
                 if job["failed_items"] == 0
                 else BatchJobStatus.FAILED
             )
-            job["completed_at"] = datetime.utcnow()
+            job["completed_at"] = datetime.now(timezone.utc)
 
             # Move to results
             self.job_results[job_id] = job
@@ -1182,7 +1182,7 @@ class BatchEndpoints:
         except Exception as e:
             self.logger.error(f"Bulk render processing failed: {e}")
             job["status"] = BatchJobStatus.FAILED
-            job["completed_at"] = datetime.utcnow()
+            job["completed_at"] = datetime.now(timezone.utc)
             job["errors"].append(
                 {
                     "error": f"Bulk render processing failed: {str(e)}",

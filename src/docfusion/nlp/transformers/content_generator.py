@@ -23,6 +23,7 @@ except ImportError:
 # Advanced prompting strategies for deepseek-r1:32b
 from ...core.utils import uuid7str
 from ..prompting_strategies import (
+import time
     AdvancedPromptBuilder,
     PromptingStrategy,
     ThoughtBranch,
@@ -1275,7 +1276,7 @@ class ContentGenerator:
         generate_alternatives: bool = False,
     ) -> ContentGenerationResult:
         """Generate content based on type, context, and style requirements"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = ContentGenerationResult()
 
         try:
@@ -1325,7 +1326,7 @@ class ContentGenerator:
             result.success = (
                 len(result.errors) == 0 and result.primary_content is not None
             )
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Content generation completed: {content_type.value}, "

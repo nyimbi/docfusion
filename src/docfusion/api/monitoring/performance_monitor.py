@@ -12,7 +12,7 @@ import statistics
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
@@ -214,7 +214,7 @@ class PerformanceCollector:
     ) -> Dict[str, Any]:
         """Get aggregated metrics summary"""
         try:
-            cutoff_time = datetime.utcnow() - timedelta(minutes=duration_minutes)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=duration_minutes)
             recent_metrics = [
                 m for m in self.metrics[metric_type] if m.timestamp >= cutoff_time
             ]
@@ -258,7 +258,7 @@ class PerformanceCollector:
     ) -> Dict[str, Any]:
         """Get performance stats for specific endpoint"""
         try:
-            cutoff_time = datetime.utcnow() - timedelta(minutes=duration_minutes)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=duration_minutes)
             endpoint_data = self.endpoint_metrics.get(endpoint, deque())
 
             recent_metrics = [m for m in endpoint_data if m.timestamp >= cutoff_time]
@@ -432,7 +432,7 @@ class AlertManager:
             # Update existing alert
             existing = self.active_alerts[alert_key]
             existing.value = value
-            existing.created_at = datetime.utcnow()
+            existing.created_at = datetime.now(timezone.utc)
             existing.metadata.update(metadata or {})
             alert = existing
         else:
@@ -457,7 +457,7 @@ class AlertManager:
         alert_key = f"{metric_type}:{endpoint or 'system'}"
         if alert_key in self.active_alerts:
             alert = self.active_alerts[alert_key]
-            alert.resolved_at = datetime.utcnow()
+            alert.resolved_at = datetime.now(timezone.utc)
             del self.active_alerts[alert_key]
             self.logger.info(f"Alert resolved: {alert.message}")
 
@@ -495,7 +495,7 @@ class AlertManager:
                     current_value = summary.get("mean", 0)
                 elif threshold.metric_type == MetricType.ERROR_RATE:
                     # Calculate error rate from recent metrics
-                    cutoff_time = datetime.utcnow() - timedelta(
+                    cutoff_time = datetime.now(timezone.utc) - timedelta(
                         minutes=duration_minutes
                     )
                     recent_errors = [
@@ -667,7 +667,7 @@ class PerformanceMonitor:
             disk_stats = await self.collector.system_monitor.get_disk_usage()
 
             summary["system_status"] = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "memory_usage_mb": memory_stats.get("used_mb", 0),
                 "memory_percentage": memory_stats.get("percentage", 0),
                 "disk_usage_gb": disk_stats.get("used_gb", 0),

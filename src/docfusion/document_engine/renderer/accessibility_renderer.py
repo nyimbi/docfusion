@@ -19,6 +19,8 @@ This module implements:
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 import re
 import time
@@ -1201,9 +1203,9 @@ if __name__ == "__main__":
 			sample_html, "html"
 		)
 		
-		print(f"Accessibility Score: {result.overall_accessibility_score:.2%}")
-		print(f"Issues Detected: {len(result.accessibility_issues)}")
-		print(f"Enhancements Applied: {len(result.accessibility_enhancements)}")
+		logger.info(f"Accessibility Score: {result.overall_accessibility_score:.2%}")
+		logger.info(f"Issues Detected: {len(result.accessibility_issues)}")
+		logger.info(f"Enhancements Applied: {len(result.accessibility_enhancements)}")
 		
 		# Print accessibility report
 		print("\n" + "="*50)

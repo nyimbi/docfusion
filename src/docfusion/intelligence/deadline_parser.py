@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, Field, ConfigDict
 from ..core.utils import uuid7str
+import time
 
 class DeadlineType(str, Enum):
 	"""Types of deadlines in RFP documents"""
@@ -465,7 +466,7 @@ class DeadlineParser:
 		Returns:
 			DeadlineExtractionResult with extracted deadlines and timeline
 		"""
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		result = DeadlineExtractionResult(document_text=text[:10000])  # Store first 10k chars for reference
 
 		if not text or not text.strip():
@@ -551,7 +552,7 @@ class DeadlineParser:
 			if filtered_deadlines:
 				result.confidence_score = sum(d.confidence for d in filtered_deadlines) / len(filtered_deadlines)
 
-			result.processing_time = asyncio.get_event_loop().time() - start_time
+			result.processing_time = time.monotonic() - start_time
 
 			self.logger.info(
 				f"Extracted {len(filtered_deadlines)} deadlines in {result.processing_time:.2f}s"

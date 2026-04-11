@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 from ...core.utils import uuid7str
+import time
 
 # Statistical libraries for causal analysis
 try:
@@ -212,7 +213,7 @@ class CausalAnalyzer:
         methods: Optional[List[CausalityType]] = None,
     ) -> CausalAnalysisResult:
         """Perform comprehensive causal analysis"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = CausalAnalysisResult()
 
         try:
@@ -289,7 +290,7 @@ class CausalAnalyzer:
                     result.causal_relationships, key=lambda x: x.p_value
                 )
 
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
             result.success = len(result.errors) == 0
 
             self.logger.info(

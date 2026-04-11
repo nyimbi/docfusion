@@ -7,6 +7,8 @@ Provides detailed compliance scoring and actionable recommendations.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import re
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -1160,25 +1162,25 @@ class StyleGuideCompliance:
 	def _log_initialization(self):
 		guide_count = len(self.style_guides)
 		rule_count = sum(len(guide["rules"]) for guide in self.style_guides.values())
-		print(f"StyleGuideCompliance: Initialized with {guide_count} style guides and {rule_count} rules")
+		logger.info(f"StyleGuideCompliance: Initialized with {guide_count} style guides and {rule_count} rules")
 	
 	def _log_compliance_start(self, request_id: str, style_guide: str):
-		print(f"StyleGuideCompliance: Starting compliance check [{request_id}] using '{style_guide}' guide")
+		logger.info(f"StyleGuideCompliance: Starting compliance check [{request_id}] using '{style_guide}' guide")
 	
 	def _log_compliance_complete(self, request_id: str, compliance_score: float, violations: int, duration: float):
-		print(f"StyleGuideCompliance: Check complete [{request_id}] (score: {compliance_score:.3f}, {violations} violations, {duration:.2f}s)")
+		logger.info(f"StyleGuideCompliance: Check complete [{request_id}] (score: {compliance_score:.3f}, {violations} violations, {duration:.2f}s)")
 	
 	def _log_pattern_error(self, message: str):
-		print(f"StyleGuideCompliance Pattern Error: {message}")
+		logger.error(f"StyleGuideCompliance Pattern Error: {message}")
 	
 	def _log_rule_error(self, message: str):
-		print(f"StyleGuideCompliance Rule Error: {message}")
+		logger.error(f"StyleGuideCompliance Rule Error: {message}")
 	
 	def _log_rule_added(self, rule_name: str):
-		print(f"StyleGuideCompliance: Added custom rule '{rule_name}'")
+		logger.info(f"StyleGuideCompliance: Added custom rule '{rule_name}'")
 	
 	def _log_compliance_error(self, message: str):
-		print(f"StyleGuideCompliance Error: {message}")
+		logger.error(f"StyleGuideCompliance Error: {message}")
 
 
 # Example usage and testing
@@ -1230,88 +1232,88 @@ if __name__ == "__main__":
 	async def main():
 		sample = await create_sample_compliance_check()
 		
-		print("Style Guide Compliance Results:")
+		logger.info(f"Style Guide Compliance Results:")
 		print("=" * 60)
 		
 		result = sample["result"]
 		
-		print(f"📝 Text Length: {len(sample['sample_text'])} characters")
-		print(f"📋 Style Guide: {result.style_guide_used}")
-		print(f"🔍 Rules Checked: {result.rules_checked}")
+		logger.info(f"📝 Text Length: {len(sample['sample_text'])} characters")
+		logger.info(f"📋 Style Guide: {result.style_guide_used}")
+		logger.info(f"🔍 Rules Checked: {result.rules_checked}")
 		print()
 		
-		print(f"🎯 Overall Compliance:")
-		print(f"  Compliance Score: {result.overall_compliance_score:.3f}")
-		print(f"  Total Violations: {result.total_violations}")
-		print(f"  Analysis Confidence: {result.analysis_confidence:.3f}")
-		print(f"  Brand Voice Alignment: {result.brand_voice_alignment:.3f}")
+		logger.info(f"🎯 Overall Compliance:")
+		logger.info(f"  Compliance Score: {result.overall_compliance_score:.3f}")
+		logger.info(f"  Total Violations: {result.total_violations}")
+		logger.info(f"  Analysis Confidence: {result.analysis_confidence:.3f}")
+		logger.info(f"  Brand Voice Alignment: {result.brand_voice_alignment:.3f}")
 		print()
 		
-		print(f"📊 Violations by Severity:")
+		logger.info(f"📊 Violations by Severity:")
 		for severity, count in result.violations_by_severity.items():
 			if count > 0:
-				print(f"  {severity.title()}: {count}")
+				logger.info(f"  {severity.title()}: {count}")
 		print()
 		
-		print(f"📂 Violations by Category:")
+		logger.info(f"📂 Violations by Category:")
 		for category, count in result.violations_by_category.items():
 			if count > 0:
-				print(f"  {category.replace('_', ' ').title()}: {count}")
+				logger.info(f"  {category.replace('_', ' ').title()}: {count}")
 		print()
 		
-		print(f"🚨 Critical Violations:")
+		logger.info(f"🚨 Critical Violations:")
 		for violation in result.critical_violations:
-			print(f"  • {violation.rule_name}: {violation.violation_description}")
-			print(f"    Fix: {violation.suggested_correction}")
+			logger.info(f"  • {violation.rule_name}: {violation.violation_description}")
+			logger.info(f"    Fix: {violation.suggested_correction}")
 		print()
 		
 		if result.violations:
-			print(f"📝 Sample Violations:")
+			logger.info(f"📝 Sample Violations:")
 			for violation in result.violations[:3]:  # Show first 3
-				print(f"  • {violation.rule_name} ({violation.severity.value})")
-				print(f"    Issue: {violation.violation_description}")
-				print(f"    Text: '{violation.violating_text}'")
-				print(f"    Fix: {violation.suggested_correction}")
+				logger.info(f"  • {violation.rule_name} ({violation.severity.value})")
+				logger.info(f"    Issue: {violation.violation_description}")
+				logger.info(f"    Text: '{violation.violating_text}'")
+				logger.info(f"    Fix: {violation.suggested_correction}")
 				print()
 		
 		if result.priority_fixes:
-			print(f"🎯 Priority Fixes:")
+			logger.info(f"🎯 Priority Fixes:")
 			for fix in result.priority_fixes:
-				print(f"  1. {fix}")
+				logger.info(f"  1. {fix}")
 		print()
 		
 		if result.quick_fixes:
-			print(f"⚡ Quick Fixes:")
+			logger.info(f"⚡ Quick Fixes:")
 			for fix in result.quick_fixes:
-				print(f"  • {fix}")
+				logger.info(f"  • {fix}")
 		print()
 		
 		if result.best_practices_followed:
-			print(f"✅ Best Practices Followed:")
+			logger.info(f"✅ Best Practices Followed:")
 			for practice in result.best_practices_followed:
-				print(f"  • {practice}")
+				logger.info(f"  • {practice}")
 		print()
 		
 		if result.areas_of_excellence:
-			print(f"🌟 Areas of Excellence:")
+			logger.info(f"🌟 Areas of Excellence:")
 			for area in result.areas_of_excellence:
-				print(f"  • {area}")
+				logger.info(f"  • {area}")
 		print()
 		
-		print(f"📈 Category Compliance Scores:")
+		logger.info(f"📈 Category Compliance Scores:")
 		for category, score in result.category_compliance.items():
-			print(f"  {category.replace('_', ' ').title()}: {score:.3f}")
+			logger.info(f"  {category.replace('_', ' ').title()}: {score:.3f}")
 		print()
 		
-		print(f"📊 Compliance Trends:")
+		logger.info(f"📊 Compliance Trends:")
 		trends = result.compliance_trends
 		for trend, value in trends.items():
-			print(f"  {trend.replace('_', ' ').title()}: {value}")
+			logger.info(f"  {trend.replace('_', ' ').title()}: {value}")
 		print()
 		
-		print(f"⚙️ System Statistics:")
+		logger.info(f"⚙️ System Statistics:")
 		stats = sample["stats"]
 		for key, value in stats.items():
-			print(f"  {key.replace('_', ' ').title()}: {value}")
+			logger.info(f"  {key.replace('_', ' ').title()}: {value}")
 	
 	asyncio.run(main())

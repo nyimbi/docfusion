@@ -33,6 +33,7 @@ from ....core.utils import uuid7str
 
 from ..ai_driven.universal_scraper import UniversalScraper, ScrapingConfiguration
 from .global_source_db import GlobalSourceDB, ProcurementSource, SourceType, SourceStatus, AccessMethod, GeographicScope
+import time
 
 
 @dataclass
@@ -375,7 +376,7 @@ class SourceDiscoverer:
 	async def _discover_via_crawling(self, max_sources: int) -> Optional[DiscoveryResult]:
 		"""Discover sources by crawling predefined targets"""
 		discovered_sources = []
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		
 		try:
 			for target in self.crawl_targets[:5]:  # Limit concurrent targets
@@ -385,7 +386,7 @@ class SourceDiscoverer:
 				if len(discovered_sources) >= max_sources:
 					break
 			
-			discovery_time = asyncio.get_event_loop().time() - start_time
+			discovery_time = time.monotonic() - start_time
 			
 			return DiscoveryResult(
 				discovered_sources=discovered_sources[:max_sources],
@@ -512,7 +513,7 @@ class SourceDiscoverer:
 	async def _discover_via_patterns(self, max_sources: int) -> Optional[DiscoveryResult]:
 		"""Discover sources using pattern matching"""
 		discovered_sources = []
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		
 		try:
 			# Use search engines to find pages matching our patterns
@@ -531,7 +532,7 @@ class SourceDiscoverer:
 				if len(discovered_sources) >= max_sources:
 					break
 			
-			discovery_time = asyncio.get_event_loop().time() - start_time
+			discovery_time = time.monotonic() - start_time
 			
 			return DiscoveryResult(
 				discovered_sources=discovered_sources[:max_sources],
@@ -619,7 +620,7 @@ class SourceDiscoverer:
 	async def _discover_via_links(self, max_sources: int) -> Optional[DiscoveryResult]:
 		"""Discover sources by analyzing links from known sources"""
 		discovered_sources = []
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		
 		try:
 			# Get existing sources from our database
@@ -638,7 +639,7 @@ class SourceDiscoverer:
 				if len(discovered_sources) >= max_sources:
 					break
 			
-			discovery_time = asyncio.get_event_loop().time() - start_time
+			discovery_time = time.monotonic() - start_time
 			
 			return DiscoveryResult(
 				discovered_sources=discovered_sources[:max_sources],
@@ -686,7 +687,7 @@ class SourceDiscoverer:
 	async def _discover_apis(self, max_sources: int) -> Optional[DiscoveryResult]:
 		"""Discover API endpoints for procurement data"""
 		api_sources = []
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		
 		try:
 			# Known API patterns to look for
@@ -725,7 +726,7 @@ class SourceDiscoverer:
 				if len(api_sources) >= max_sources:
 					break
 			
-			discovery_time = asyncio.get_event_loop().time() - start_time
+			discovery_time = time.monotonic() - start_time
 			
 			return DiscoveryResult(
 				discovered_sources=api_sources,

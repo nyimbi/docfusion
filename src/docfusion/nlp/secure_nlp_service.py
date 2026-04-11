@@ -10,7 +10,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Union
-from datetime import datetime
+from datetime import timezone, datetime
 
 from .enhanced_nlp_service import EnhancedNLPService, EnhancedNLPServiceConfiguration, EnhancedAnalysisResult
 from .nlp_service import NLPService, NLPServiceConfiguration
@@ -185,7 +185,7 @@ class SecureNLPService:
 				'analysis_id': analysis_id,
 				'user_id': user_id,
 				'document_id': document_id,
-				'analysis_timestamp': datetime.utcnow().isoformat(),
+				'analysis_timestamp': datetime.now(timezone.utc).isoformat(),
 				'security_metadata': {
 					'content_encrypted': encryption_metadata.get('content_encrypted', False),
 					'results_encrypted': bool(encrypted_results),
@@ -512,7 +512,7 @@ class SecureNLPService:
 					'encryption_algorithm': encryption_result.algorithm,
 					'encryption_nonce': encryption_result.nonce,
 					'encryption_tag': encryption_result.tag,
-					'encrypted_at': datetime.utcnow().isoformat()
+					'encrypted_at': datetime.now(timezone.utc).isoformat()
 				}
 			else:
 				self.logger.error(f"Failed to encrypt analysis results: {encryption_result.error_message}")

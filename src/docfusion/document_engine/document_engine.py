@@ -1575,15 +1575,15 @@ if __name__ == "__main__":
 		# Generate document
 		result = await engine.generate_document(request)
 		
-		print(f"Generation successful: {result.generation_successful}")
-		print(f"Overall quality score: {result.overall_quality_score:.2f}")
-		print(f"Processing time: {result.processing_time:.2f}s")
-		print(f"Generated formats: {list(result.format_quality_scores.keys())}")
+		logger.info(f"Generation successful: {result.generation_successful}")
+		logger.info(f"Overall quality score: {result.overall_quality_score:.2f}")
+		logger.info(f"Processing time: {result.processing_time:.2f}s")
+		logger.info(f"Generated formats: {list(result.format_quality_scores.keys())}")
 		
 		# Get engine metrics
 		metrics = await engine.get_engine_metrics()
-		print(f"Documents generated: {metrics['engine_metrics']['documents_generated']}")
-		print(f"Success rate: {metrics['engine_metrics']['success_rate']:.2%}")
+		logger.info(f"Documents generated: {metrics['engine_metrics']['documents_generated']}")
+		logger.info(f"Success rate: {metrics['engine_metrics']['success_rate']:.2%}")
 	
 	# Run example
 	asyncio.run(main())

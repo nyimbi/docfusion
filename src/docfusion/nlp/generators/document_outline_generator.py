@@ -24,6 +24,7 @@ except ImportError:
 # Import advanced prompting strategies
 from ...core.utils import uuid7str
 from ..prompting_strategies import (
+import time
     AdvancedPromptBuilder,
     PromptingStrategy,
     ThoughtBranch,
@@ -507,7 +508,7 @@ class DocumentOutlineGenerator:
         target_word_count: Optional[int] = None,
     ) -> OutlineGenerationResult:
         """Generate complete multi-stage outline with improvements and psychology integration"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = OutlineGenerationResult()
 
         try:
@@ -548,7 +549,7 @@ class DocumentOutlineGenerator:
 
             result.outline = result.final_outline
             result.success = len(result.errors) == 0 and result.outline is not None
-            result.generation_time = asyncio.get_event_loop().time() - start_time
+            result.generation_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Multi-stage outline generation completed in {result.generation_time:.2f}s"

@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 from ...core.utils import uuid7str
+import time
 
 try:
     from ...prompting_strategies import (
@@ -424,7 +425,7 @@ class StyleAnalyzer:
         detailed_analysis: Optional[bool] = None,
     ) -> StyleAnalysisResult:
         """Perform comprehensive style analysis"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = StyleAnalysisResult()
 
         try:
@@ -465,7 +466,7 @@ class StyleAnalyzer:
             result.statistics = self._compile_statistics(result)
 
             result.success = True
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Style analysis completed, confidence: {result.confidence_score:.3f}"

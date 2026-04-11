@@ -19,6 +19,7 @@ import json
 
 import httpx
 from ...core.utils import uuid7str
+import time
 
 class RequirementType(str, Enum):
     """Types of requirements in RFPs"""
@@ -328,7 +329,7 @@ class RequirementExtractor:
         use_ai: Optional[bool] = None,
     ) -> RequirementExtractionResult:
         """Extract requirements from RFP document"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = RequirementExtractionResult()
         result.original_text = text
 
@@ -388,7 +389,7 @@ class RequirementExtractor:
             result.statistics = statistics
             result.methods_used = methods_used
             result.success = True
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Requirements extracted successfully, time: {result.processing_time:.2f}s"

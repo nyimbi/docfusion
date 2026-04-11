@@ -11,7 +11,7 @@ import logging
 import time
 import json
 from typing import Dict, List, Optional, Any, Callable
-from datetime import datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from enum import Enum
 from dataclasses import dataclass, field
 
@@ -590,7 +590,7 @@ class HealthEndpoints:
 					content={
 						'status': HealthStatus.UNHEALTHY.value,
 						'error': str(e),
-						'timestamp': datetime.utcnow().isoformat()
+						'timestamp': datetime.now(timezone.utc).isoformat()
 					},
 					status_code=503
 				)
@@ -631,7 +631,7 @@ class HealthEndpoints:
 					content={
 						'status': HealthStatus.UNHEALTHY.value,
 						'error': str(e),
-						'timestamp': datetime.utcnow().isoformat()
+						'timestamp': datetime.now(timezone.utc).isoformat()
 					},
 					status_code=503
 				)
@@ -668,7 +668,7 @@ class HealthEndpoints:
 						'component': component_name,
 						'status': HealthStatus.UNHEALTHY.value,
 						'error': str(e),
-						'timestamp': datetime.utcnow().isoformat()
+						'timestamp': datetime.now(timezone.utc).isoformat()
 					},
 					status_code=503
 				)
@@ -691,7 +691,7 @@ class HealthEndpoints:
 				<body>
 					<h1>System Status - Error</h1>
 					<p>Failed to generate status page: {str(e)}</p>
-					<p>Time: {datetime.utcnow().isoformat()}</p>
+					<p>Time: {datetime.now(timezone.utc).isoformat()}</p>
 				</body>
 				</html>
 				"""

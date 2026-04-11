@@ -14,6 +14,8 @@ Features:
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional, Union
@@ -153,7 +155,7 @@ class UnifiedAccessibilityRenderer(BaseRenderer):
 			
 		except Exception as e:
 			if self.enable_logging:
-				print(f"Warning: Accessibility renderer initialization issue: {e}")
+				logger.warning(f"Warning: Accessibility renderer initialization issue: {e}")
 			# Create minimal fallback
 			self.legacy_renderer = None
 			self.wcag_validator = None
@@ -234,7 +236,7 @@ class UnifiedAccessibilityRenderer(BaseRenderer):
 			result.validation_errors.append(f"Accessibility enhancement failed: {str(e)}")
 			
 			if self.enable_logging:
-				print(f"Accessibility rendering error: {e}")
+				logger.error(f"Accessibility rendering error: {e}")
 		
 		# Calculate processing time
 		end_time = datetime.now()

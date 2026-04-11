@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import httpx
 from pydantic import BaseModel, Field, ConfigDict
 from ..core.utils import uuid7str
+import time
 
 class RequirementCategory(str, Enum):
 	"""Classification categories for RFP requirements"""
@@ -364,7 +365,7 @@ class RequirementExtractor:
 		Returns:
 			RequirementExtractionResult with extracted requirements
 		"""
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		result = RequirementExtractionResult()
 
 		try:
@@ -401,7 +402,7 @@ class RequirementExtractor:
 			result.errors.append(f"PDF extraction failed: {str(e)}")
 			self.logger.error(f"PDF extraction error: {e}")
 
-		result.processing_time = asyncio.get_event_loop().time() - start_time
+		result.processing_time = time.monotonic() - start_time
 		result.statistics = self._calculate_statistics(result.requirements)
 		self._log_extraction_complete(len(result.requirements), result.processing_time)
 
@@ -422,7 +423,7 @@ class RequirementExtractor:
 		Returns:
 			RequirementExtractionResult with extracted requirements
 		"""
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		result = RequirementExtractionResult()
 
 		try:
@@ -461,7 +462,7 @@ class RequirementExtractor:
 			result.errors.append(f"DOCX extraction failed: {str(e)}")
 			self.logger.error(f"DOCX extraction error: {e}")
 
-		result.processing_time = asyncio.get_event_loop().time() - start_time
+		result.processing_time = time.monotonic() - start_time
 		result.statistics = self._calculate_statistics(result.requirements)
 		self._log_extraction_complete(len(result.requirements), result.processing_time)
 
@@ -482,7 +483,7 @@ class RequirementExtractor:
 		Returns:
 			RequirementExtractionResult with extracted requirements
 		"""
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		result = RequirementExtractionResult()
 
 		try:
@@ -502,7 +503,7 @@ class RequirementExtractor:
 			result.errors.append(f"Text extraction failed: {str(e)}")
 			self.logger.error(f"Text extraction error: {e}")
 
-		result.processing_time = asyncio.get_event_loop().time() - start_time
+		result.processing_time = time.monotonic() - start_time
 		result.statistics = self._calculate_statistics(result.requirements)
 		self._log_extraction_complete(len(result.requirements), result.processing_time)
 

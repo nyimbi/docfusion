@@ -7,6 +7,8 @@ feature engineering and performance monitoring.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 import numpy as np
 import pandas as pd
@@ -633,37 +635,37 @@ class WinProbabilityPredictor:
 	# Logging methods
 	
 	def _log_initialization(self):
-		print("WinProbabilityPredictor: Initialized with Random Forest and XGBoost models")
+		logger.info(f"WinProbabilityPredictor: Initialized with Random Forest and XGBoost models")
 	
 	def _log_training_start(self, data_size: int):
-		print(f"WinProbabilityPredictor: Starting training with {data_size} historical opportunities")
+		logger.info(f"WinProbabilityPredictor: Starting training with {data_size} historical opportunities")
 	
 	def _log_training_complete(self, rf_metrics: ModelPerformanceMetrics, xgb_metrics: ModelPerformanceMetrics):
-		print(f"WinProbabilityPredictor: Training complete")
-		print(f"  Random Forest Accuracy: {rf_metrics.accuracy:.3f}")
-		print(f"  XGBoost Accuracy: {xgb_metrics.accuracy:.3f}")
-		print(f"  Primary Model: {self.primary_model}")
+		logger.info(f"WinProbabilityPredictor: Training complete")
+		logger.info(f"  Random Forest Accuracy: {rf_metrics.accuracy:.3f}")
+		logger.info(f"  XGBoost Accuracy: {xgb_metrics.accuracy:.3f}")
+		logger.info(f"  Primary Model: {self.primary_model}")
 	
 	def _log_training_error(self, message: str):
-		print(f"WinProbabilityPredictor Training Error: {message}")
+		logger.error(f"WinProbabilityPredictor Training Error: {message}")
 	
 	def _log_prediction_complete(self, opportunity_id: str, probability: float, confidence: float):
-		print(f"WinProbabilityPredictor: Predicted {probability:.3f} win probability for {opportunity_id} (confidence: {confidence:.3f})")
+		logger.info(f"WinProbabilityPredictor: Predicted {probability:.3f} win probability for {opportunity_id} (confidence: {confidence:.3f})")
 	
 	def _log_prediction_error(self, message: str):
-		print(f"WinProbabilityPredictor Prediction Error: {message}")
+		logger.error(f"WinProbabilityPredictor Prediction Error: {message}")
 	
 	def _log_retraining_complete(self, new_samples: int):
-		print(f"WinProbabilityPredictor: Retrained with {new_samples} new outcome samples")
+		logger.info(f"WinProbabilityPredictor: Retrained with {new_samples} new outcome samples")
 	
 	def _log_models_saved(self):
-		print("WinProbabilityPredictor: Models saved to cache")
+		logger.info(f"WinProbabilityPredictor: Models saved to cache")
 	
 	def _log_models_loaded(self):
-		print("WinProbabilityPredictor: Models loaded from cache")
+		logger.info(f"WinProbabilityPredictor: Models loaded from cache")
 
 	def _log_load_error(self, message: str):
-		print(f"WinProbabilityPredictor Load Error: {message}")
+		logger.error(f"WinProbabilityPredictor Load Error: {message}")
 
 	async def predict_win_probability_from_scores(
 		self,
@@ -956,25 +958,25 @@ if __name__ == "__main__":
 	async def main():
 		prediction, performance, stats = await create_sample_win_probability_prediction()
 		
-		print("Win Probability Prediction Results:")
-		print(f"  Opportunity ID: {prediction.opportunity_id}")
-		print(f"  Predicted Win Probability: {prediction.predicted_win_probability:.3f}")
-		print(f"  Confidence Interval: {prediction.confidence_interval[0]:.3f} - {prediction.confidence_interval[1]:.3f}")
-		print(f"  Model Used: {prediction.model_used}")
-		print(f"  Prediction Confidence: {prediction.prediction_confidence:.3f}")
+		logger.info(f"Win Probability Prediction Results:")
+		logger.info(f"  Opportunity ID: {prediction.opportunity_id}")
+		logger.info(f"  Predicted Win Probability: {prediction.predicted_win_probability:.3f}")
+		logger.info(f"  Confidence Interval: {prediction.confidence_interval[0]:.3f} - {prediction.confidence_interval[1]:.3f}")
+		logger.info(f"  Model Used: {prediction.model_used}")
+		logger.info(f"  Prediction Confidence: {prediction.prediction_confidence:.3f}")
 		print()
-		print("Top Positive Factors:")
+		logger.info(f"Top Positive Factors:")
 		for factor, impact in prediction.top_positive_factors[:3]:
-			print(f"  - {factor}: {impact:.3f}")
+			logger.info(f"  - {factor}: {impact:.3f}")
 		print()
-		print("Improvement Recommendations:")
+		logger.info(f"Improvement Recommendations:")
 		for rec in prediction.improvement_recommendations[:3]:
-			print(f"  - {rec}")
+			logger.info(f"  - {rec}")
 		print()
-		print(f"Model Performance (Primary: {list(performance.keys())[0] if performance else 'None'}):")
+		logger.info(f"Model Performance (Primary: {list(performance.keys())[0] if performance else 'None'}):")
 		if performance:
 			perf = list(performance.values())[0]
-			print(f"  Accuracy: {perf.accuracy:.3f}")
-			print(f"  F1 Score: {perf.f1_score:.3f}")
+			logger.info(f"  Accuracy: {perf.accuracy:.3f}")
+			logger.info(f"  F1 Score: {perf.f1_score:.3f}")
 		
 	asyncio.run(main())

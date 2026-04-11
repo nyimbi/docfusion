@@ -7,6 +7,8 @@ and machine learning techniques.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 import re
 from dataclasses import dataclass, field
@@ -891,23 +893,23 @@ class CapabilityMatcher:
 	
 	def _log_training_complete(self, num_capabilities: int) -> None:
 		"""Log training completion"""
-		print(f"CapabilityMatcher: Training completed with {num_capabilities} capabilities")
+		logger.info(f"CapabilityMatcher: Training completed with {num_capabilities} capabilities")
 	
 	def _log_training_error(self, message: str) -> None:
 		"""Log training errors"""
-		print(f"CapabilityMatcher Training Error: {message}")
+		logger.error(f"CapabilityMatcher Training Error: {message}")
 	
 	def _log_matching_error(self, message: str) -> None:
 		"""Log matching errors"""
-		print(f"CapabilityMatcher Matching Error: {message}")
+		logger.error(f"CapabilityMatcher Matching Error: {message}")
 	
 	def _log_clustering_complete(self, num_clusters: int) -> None:
 		"""Log clustering completion"""
-		print(f"CapabilityMatcher: Clustering completed with {num_clusters} clusters")
+		logger.info(f"CapabilityMatcher: Clustering completed with {num_clusters} clusters")
 	
 	def _log_clustering_error(self, message: str) -> None:
 		"""Log clustering errors"""
-		print(f"CapabilityMatcher Clustering Error: {message}")
+		logger.error(f"CapabilityMatcher Clustering Error: {message}")
 
 
 # Example usage and testing
@@ -957,15 +959,15 @@ if __name__ == "__main__":
 	
 	async def main():
 		results = await create_sample_capability_matching()
-		print(f"Overall Match Score: {results.overall_match_score:.2f}")
-		print(f"Coverage: {results.coverage_percentage:.1f}%")
-		print(f"Strong Matches: {len(results.strong_matches)}")
-		print(f"Weak Matches: {len(results.weak_matches)}")
-		print(f"Unmatched: {len(results.unmatched_requirements)}")
+		logger.info(f"Overall Match Score: {results.overall_match_score:.2f}")
+		logger.info(f"Coverage: {results.coverage_percentage:.1f}%")
+		logger.info(f"Strong Matches: {len(results.strong_matches)}")
+		logger.info(f"Weak Matches: {len(results.weak_matches)}")
+		logger.info(f"Unmatched: {len(results.unmatched_requirements)}")
 		
 		for match in results.strong_matches[:3]:
-			print(f"\nMatch: {match.requirement_text} -> {match.matched_capability}")
-			print(f"Confidence: {match.confidence_level:.2f}")
-			print(f"Type: {match.match_type}")
+			logger.info(f"\nMatch: {match.requirement_text} -> {match.matched_capability}")
+			logger.info(f"Confidence: {match.confidence_level:.2f}")
+			logger.info(f"Type: {match.match_type}")
 		
 	asyncio.run(main())

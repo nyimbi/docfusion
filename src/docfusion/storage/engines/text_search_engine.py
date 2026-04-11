@@ -8,6 +8,8 @@ Designed to handle 1000+ documents with optimized performance.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 import math
 import pickle
@@ -32,6 +34,7 @@ except ImportError:
 	nltk_available = False
 
 from ...core.utils import uuid7str
+import time
 
 @dataclass
 class SearchResult:
@@ -325,7 +328,7 @@ class TextSearchEngine:
 
     async def search(self, query: SearchQuery) -> List[SearchResult]:
         """Perform comprehensive search with multiple strategies"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         results = []
 
         if not query.query.strip():
@@ -376,7 +379,7 @@ class TextSearchEngine:
                 self.stats.successful_searches += 1
 
             # Calculate performance metrics
-            search_time = asyncio.get_event_loop().time() - start_time
+            search_time = time.monotonic() - start_time
             self.stats.performance_metrics["last_search_time"] = search_time
             self.stats.average_search_time = (
                 self.stats.average_search_time * (self.stats.total_searches - 1)
@@ -384,7 +387,7 @@ class TextSearchEngine:
             ) / self.stats.total_searches
 
         except Exception as e:
-            print(f"Search error: {e}")
+            logger.error(f"Search error: {e}")
             # Return empty results on error
             results = []
 
@@ -654,7 +657,7 @@ class TextSearchEngine:
                 )
 
         except Exception as e:
-            print(f"Error saving search indexes: {e}")
+            logger.error(f"Error saving search indexes: {e}")
 
     def _load_indexes(self) -> None:
         """Load search indexes from disk"""
@@ -749,7 +752,7 @@ class TextSearchEngine:
                     self.total_documents = data.get("total_documents", 0)
 
         except Exception as e:
-            print(f"Error loading search indexes: {e}")
+            logger.error(f"Error loading search indexes: {e}")
             # Initialize empty indexes on error
             self.document_indexes = {}
             self.inverted_index = defaultdict(set)

@@ -12,7 +12,7 @@ import logging
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -142,7 +142,7 @@ class RateLimitStore:
         """Clean up expired rate limit states"""
         while True:
             try:
-                current_time = datetime.utcnow()
+                current_time = datetime.now(timezone.utc)
                 expired_keys = []
 
                 for key, state in self.states.items():
@@ -299,7 +299,7 @@ class RateLimitEngine:
                 scope_key = self._get_scope_key(rule, request, user_id)
                 state = await self.store.get_state(scope_key, rule.rule_id)
 
-                current_time = datetime.utcnow()
+                current_time = datetime.now(timezone.utc)
 
                 # Check if we need to reset the window
                 window_elapsed = (current_time - state.window_start).total_seconds()
@@ -378,7 +378,7 @@ class RateLimitEngine:
                 scope_key = self._get_scope_key(rule, request, user_id)
                 state = await self.store.get_state(scope_key, rule.rule_id)
 
-                current_time = datetime.utcnow()
+                current_time = datetime.now(timezone.utc)
                 window_elapsed = (current_time - state.window_start).total_seconds()
                 remaining_window = max(0, rule.window_seconds - window_elapsed)
                 remaining_requests = max(0, rule.limit - state.current_count)
@@ -411,7 +411,7 @@ class RateLimitAnalyzer:
     async def generate_analytics(self, hours: int = 24) -> RateLimitAnalytics:
         """Generate rate limiting analytics"""
         try:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(hours=hours)
 
             # Filter events in time period
@@ -515,8 +515,8 @@ class RateLimitAnalyzer:
         except Exception as e:
             self.logger.error(f"Failed to generate rate limit analytics: {e}")
             return RateLimitAnalytics(
-                period_start=datetime.utcnow() - timedelta(hours=hours),
-                period_end=datetime.utcnow(),
+                period_start=datetime.now(timezone.utc) - timedelta(hours=hours),
+                period_end=datetime.now(timezone.utc),
             )
 
     async def suggest_rule_optimizations(self) -> List[Dict[str, Any]]:

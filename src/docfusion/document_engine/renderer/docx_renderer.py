@@ -14,6 +14,8 @@ This module provides enterprise-grade DOCX generation capabilities including:
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import base64
 import io
 import mimetypes
@@ -454,7 +456,7 @@ class AssetEmbedder:
 					processing_results['format_conversions'] += 1
 					
 			except Exception as e:
-				print(f"Failed to process image {image_name}: {e}")
+				logger.error(f"Failed to process image {image_name}: {e}")
 			
 			processing_results['total_processed'] += 1
 		

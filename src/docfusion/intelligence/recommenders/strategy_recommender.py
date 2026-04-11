@@ -7,6 +7,8 @@ optimization for competitive proposal development.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 import numpy as np
 import pandas as pd
@@ -728,16 +730,16 @@ class StrategyRecommender:
 	# Logging methods
 	
 	def _log_initialization(self):
-		print("StrategyRecommender: Initialized for intelligent go/no-go and resource allocation recommendations")
+		logger.info(f"StrategyRecommender: Initialized for intelligent go/no-go and resource allocation recommendations")
 	
 	def _log_recommendation_start(self, opportunity_id: str):
-		print(f"StrategyRecommender: Generating strategic recommendation for {opportunity_id}")
+		logger.info(f"StrategyRecommender: Generating strategic recommendation for {opportunity_id}")
 	
 	def _log_recommendation_complete(self, opportunity_id: str, recommendation_type: RecommendationType, confidence: float):
-		print(f"StrategyRecommender: Recommended {recommendation_type.value} for {opportunity_id} (confidence: {confidence:.3f})")
+		logger.info(f"StrategyRecommender: Recommended {recommendation_type.value} for {opportunity_id} (confidence: {confidence:.3f})")
 	
 	def _log_recommendation_error(self, message: str):
-		print(f"StrategyRecommender Error: {message}")
+		logger.error(f"StrategyRecommender Error: {message}")
 
 
 # Example usage and testing
@@ -808,39 +810,39 @@ if __name__ == "__main__":
 	async def main():
 		recommendation, stats = await create_sample_strategy_recommendation()
 		
-		print("Strategic Recommendation Results:")
+		logger.info(f"Strategic Recommendation Results:")
 		print("=" * 50)
-		print(f"Opportunity ID: {recommendation.opportunity_id}")
-		print(f"Recommendation: {recommendation.recommendation_type.value.upper()}")
-		print(f"Priority: {recommendation.priority.value}")
-		print(f"Confidence: {recommendation.confidence_level:.3f}")
-		print(f"Expected Value: ${recommendation.expected_value:,.0f}")
-		print(f"Strategic Value Score: {recommendation.strategic_value_score:.3f}")
+		logger.info(f"Opportunity ID: {recommendation.opportunity_id}")
+		logger.info(f"Recommendation: {recommendation.recommendation_type.value.upper()}")
+		logger.info(f"Priority: {recommendation.priority.value}")
+		logger.info(f"Confidence: {recommendation.confidence_level:.3f}")
+		logger.info(f"Expected Value: ${recommendation.expected_value:,.0f}")
+		logger.info(f"Strategic Value Score: {recommendation.strategic_value_score:.3f}")
 		
-		print(f"\nPrimary Rationale:")
-		print(f"  {recommendation.primary_rationale}")
+		logger.info(f"\nPrimary Rationale:")
+		logger.info(f"  {recommendation.primary_rationale}")
 		
-		print(f"\nKey Supporting Factors:")
+		logger.info(f"\nKey Supporting Factors:")
 		for factor in recommendation.key_factors_supporting[:3]:
-			print(f"  ✅ {factor}")
+			logger.info(f"  ✅ {factor}")
 		
-		print(f"\nKey Opposing Factors:")
+		logger.info(f"\nKey Opposing Factors:")
 		for factor in recommendation.key_factors_against[:3]:
-			print(f"  ⚠️ {factor}")
+			logger.info(f"  ⚠️ {factor}")
 		
 		if recommendation.resource_allocation:
-			print(f"\nResource Allocation:")
-			print(f"  Team Size: {recommendation.resource_allocation.proposed_team_size}")
-			print(f"  Timeline: {recommendation.resource_allocation.proposal_timeline_weeks:.1f} weeks")
-			print(f"  Estimated Cost: ${recommendation.resource_allocation.estimated_proposal_cost:,.0f}")
+			logger.info(f"\nResource Allocation:")
+			logger.info(f"  Team Size: {recommendation.resource_allocation.proposed_team_size}")
+			logger.info(f"  Timeline: {recommendation.resource_allocation.proposal_timeline_weeks:.1f} weeks")
+			logger.info(f"  Estimated Cost: ${recommendation.resource_allocation.estimated_proposal_cost:,.0f}")
 		
-		print(f"\nSuccess Conditions:")
+		logger.info(f"\nSuccess Conditions:")
 		for condition in recommendation.success_conditions[:3]:
-			print(f"  📋 {condition}")
+			logger.info(f"  📋 {condition}")
 		
-		print(f"\nPortfolio Impact:")
-		print(f"  {recommendation.portfolio_impact}")
+		logger.info(f"\nPortfolio Impact:")
+		logger.info(f"  {recommendation.portfolio_impact}")
 		
-		print(f"\nDecision Deadline: {recommendation.decision_deadline.strftime('%Y-%m-%d %H:%M')}")
+		logger.info(f"\nDecision Deadline: {recommendation.decision_deadline.strftime('%Y-%m-%d %H:%M')}")
 	
 	asyncio.run(main())

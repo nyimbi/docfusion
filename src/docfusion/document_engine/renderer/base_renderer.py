@@ -15,6 +15,8 @@ Key Benefits:
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
@@ -580,9 +582,9 @@ if __name__ == "__main__":
 			wcag_compliance_level="AA"
 		)
 		
-		print(f"Sample content created with ID: {content.document_id}")
-		print(f"Available formats: {renderer_registry.get_available_formats()}")
-		print(f"Configuration: {config.output_quality} quality, {config.wcag_compliance_level} compliance")
+		logger.info(f"Sample content created with ID: {content.document_id}")
+		logger.info(f"Available formats: {renderer_registry.get_available_formats()}")
+		logger.info(f"Configuration: {config.output_quality} quality, {config.wcag_compliance_level} compliance")
 	
 	# Run example
 	asyncio.run(main())

@@ -9,6 +9,8 @@ Provides comprehensive format validation for RFP responses and document submissi
 """
 
 from typing import Any, Dict, List, Optional, Tuple, Union
+import logging
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from enum import Enum
 import re
@@ -425,7 +427,7 @@ class FormatValidator:
 			})
 			
 		except Exception as e:
-			print(f"Error extracting file properties: {str(e)}")
+			logger.error(f"Error extracting file properties: {str(e)}")
 			properties = {"error": str(e)}
 		
 		return properties
@@ -506,7 +508,7 @@ class FormatValidator:
 					violations.extend(result)
 					
 		except Exception as e:
-			print(f"Error checking requirement {requirement.requirement_id}: {str(e)}")
+			logger.error(f"Error checking requirement {requirement.requirement_id}: {str(e)}")
 		
 		return violations
 	

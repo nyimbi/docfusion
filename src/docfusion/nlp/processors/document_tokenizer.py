@@ -37,6 +37,7 @@ except ImportError:
 	HAS_NLTK_SUPPORT = False
 
 from ...core.utils import uuid7str
+import time
 
 class TokenType(str, Enum):
     """Token types for classification"""
@@ -265,7 +266,7 @@ class DocumentTokenizer:
         include_entities: Optional[bool] = None,
     ) -> TokenizationResult:
         """Tokenize document with comprehensive linguistic analysis"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = TokenizationResult()
         result.original_text = text
 
@@ -299,7 +300,7 @@ class DocumentTokenizer:
                 self._calculate_complexity_scores(result)
 
             result.success = True
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Document tokenized successfully, time: {result.processing_time:.2f}s"

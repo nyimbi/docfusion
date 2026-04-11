@@ -1011,10 +1011,10 @@ async def example_workflow_integration():
         WorkflowEventType.TASK_ASSIGNED, event_data
     )
 
-    print(f"Sent {len(notification_ids)} notifications")
+    logger.info(f"Sent {len(notification_ids)} notifications")
 
     # Get statistics
     stats = await integration.get_integration_statistics()
-    print(f"Integration stats: {stats}")
+    logger.info(f"Integration stats: {stats}")
 
     await integration.stop()

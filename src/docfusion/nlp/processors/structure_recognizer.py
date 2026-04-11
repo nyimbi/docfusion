@@ -28,6 +28,7 @@ except ImportError:
 	HAS_NUMPY = False
 
 from ...core.utils import uuid7str
+import time
 
 class StructureType(str, Enum):
     """Document structure types"""
@@ -217,7 +218,7 @@ class StructureRecognizer:
         include_formatting: Optional[bool] = None,
     ) -> StructureRecognitionResult:
         """Recognize document structure with multiple methods"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = StructureRecognitionResult()
         result.original_text = text
 
@@ -278,7 +279,7 @@ class StructureRecognizer:
             result.confidence = self._calculate_overall_confidence(merged_elements)
             result.methods_used = methods_used
             result.success = True
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Structure recognized successfully, time: {result.processing_time:.2f}s"

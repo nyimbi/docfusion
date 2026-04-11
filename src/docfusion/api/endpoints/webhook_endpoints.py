@@ -11,7 +11,7 @@ import hashlib
 import hmac
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
@@ -186,8 +186,8 @@ class WebhookManager:
             "timeout": request.timeout,
             "retry_count": request.retry_count,
             "metadata": request.metadata or {},
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
             "created_by": user_id,
             "last_delivery": None,
             "failure_count": 0,
@@ -236,7 +236,7 @@ class WebhookManager:
             if field in allowed_updates:
                 webhook[field] = value
 
-        webhook["updated_at"] = datetime.utcnow()
+        webhook["updated_at"] = datetime.now(timezone.utc)
 
         self.logger.info(f"Updated webhook {webhook_id}")
         return True
@@ -336,7 +336,7 @@ class WebhookManager:
                 "webhook_id": webhook["webhook_id"],
                 "event_type": event.event_type,
                 "status": WebhookStatus.SENDING,
-                "created_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
                 "completed_at": None,
                 "response_status": None,
                 "response_body": None,
@@ -375,7 +375,7 @@ class WebhookManager:
                 headers["X-Signature-SHA256"] = f"sha256={signature}"
 
             # Make HTTP request
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
             try:
                 import httpx
@@ -385,7 +385,7 @@ class WebhookManager:
                         webhook["url"], json=payload, headers=headers
                     )
 
-                    end_time = datetime.utcnow()
+                    end_time = datetime.now(timezone.utc)
                     duration_ms = (end_time - start_time).total_seconds() * 1000
 
                     # Update delivery record
@@ -420,7 +420,7 @@ class WebhookManager:
                         )
 
             except Exception as e:
-                end_time = datetime.utcnow()
+                end_time = datetime.now(timezone.utc)
                 duration_ms = (end_time - start_time).total_seconds() * 1000
 
                 delivery["completed_at"] = end_time

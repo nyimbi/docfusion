@@ -9,6 +9,8 @@ Provides comprehensive regulatory compliance validation including:
 """
 
 from typing import Any, Dict, List, Optional, Set
+import logging
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from enum import Enum
 import re
@@ -321,7 +323,7 @@ class RegulatoryValidator:
 				
 		except Exception as e:
 			# Log error but don't fail entire validation
-			print(f"Error checking rule {rule.rule_id}: {str(e)}")
+			logger.error(f"Error checking rule {rule.rule_id}: {str(e)}")
 		
 		return violations
 	
@@ -356,7 +358,7 @@ class RegulatoryValidator:
 				violations.append(violation)
 				
 		except re.error as e:
-			print(f"Invalid regex pattern in rule {rule.rule_id}: {str(e)}")
+			logger.info(f"Invalid regex pattern in rule {rule.rule_id}: {str(e)}")
 		
 		return violations
 	
@@ -394,7 +396,7 @@ class RegulatoryValidator:
 				if result:
 					violations.extend(result)
 			except Exception as e:
-				print(f"Error in validator function {rule.validator_function}: {str(e)}")
+				logger.error(f"Error in validator function {rule.validator_function}: {str(e)}")
 		
 		return violations
 	

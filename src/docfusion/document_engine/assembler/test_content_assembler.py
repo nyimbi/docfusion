@@ -11,6 +11,8 @@ ensuring 90%+ coverage and verification of success criteria including:
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import pytest
 from datetime import datetime, timedelta
 from typing import Any
@@ -1021,10 +1023,10 @@ class TestSuccessCriteriaValidation:
 		# ✅ Verification: Maintains referential integrity
 		original_ids = {block.block_id for block in blocks}
 		assembled_ids = {block.block_id for block in result.assembled_blocks}
-		print(f"Original IDs: {len(original_ids)} blocks")
-		print(f"Assembled IDs: {len(assembled_ids)} blocks")
-		print(f"Missing from assembled: {original_ids - assembled_ids}")
-		print(f"Extra in assembled: {assembled_ids - original_ids}")
+		logger.info(f"Original IDs: {len(original_ids)} blocks")
+		logger.info(f"Assembled IDs: {len(assembled_ids)} blocks")
+		logger.info(f"Missing from assembled: {original_ids - assembled_ids}")
+		logger.info(f"Extra in assembled: {assembled_ids - original_ids}")
 		assert original_ids == assembled_ids
 		
 		# Verify all dependencies are preserved and valid

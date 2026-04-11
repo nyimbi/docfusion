@@ -776,16 +776,16 @@ class VoicePatternAnalyzer:
 	
 	def _log_initialization(self):
 		nlp_status = "available" if NLP_AVAILABLE else "not available (using fallbacks)"
-		print(f"VoicePatternAnalyzer: Initialized (NLP libraries: {nlp_status})")
+		logger.info(f"VoicePatternAnalyzer: Initialized (NLP libraries: {nlp_status})")
 	
 	def _log_analysis_start(self, organization_name: str, document_count: int):
-		print(f"VoicePatternAnalyzer: Starting voice analysis for {organization_name} ({document_count} documents)")
+		logger.info(f"VoicePatternAnalyzer: Starting voice analysis for {organization_name} ({document_count} documents)")
 	
 	def _log_analysis_complete(self, organization_name: str, confidence: float, duration: float):
-		print(f"VoicePatternAnalyzer: Completed analysis for {organization_name} (confidence: {confidence:.3f}, duration: {duration:.1f}s)")
+		logger.info(f"VoicePatternAnalyzer: Completed analysis for {organization_name} (confidence: {confidence:.3f}, duration: {duration:.1f}s)")
 	
 	def _log_analysis_error(self, message: str):
-		print(f"VoicePatternAnalyzer Error: {message}")
+		logger.error(f"VoicePatternAnalyzer Error: {message}")
 
 
 # Example usage and testing
@@ -836,33 +836,33 @@ if __name__ == "__main__":
 	async def main():
 		fingerprint, stats = await create_sample_voice_analysis()
 		
-		print("Voice Pattern Analysis Results:")
+		logger.info(f"Voice Pattern Analysis Results:")
 		print("=" * 50)
-		print(f"Organization: {fingerprint.organization_name}")
-		print(f"Confidence Level: {fingerprint.confidence_level:.3f}")
-		print(f"Formality Level: {fingerprint.formality_level:.3f}")
-		print(f"Complexity Score: {fingerprint.complexity_score:.3f}")
-		print(f"Technical Density: {fingerprint.technical_density:.3f}")
-		print(f"Consistency Score: {fingerprint.consistency_score:.3f}")
-		print(f"Distinctiveness: {fingerprint.distinctiveness_score:.3f}")
+		logger.info(f"Organization: {fingerprint.organization_name}")
+		logger.info(f"Confidence Level: {fingerprint.confidence_level:.3f}")
+		logger.info(f"Formality Level: {fingerprint.formality_level:.3f}")
+		logger.info(f"Complexity Score: {fingerprint.complexity_score:.3f}")
+		logger.info(f"Technical Density: {fingerprint.technical_density:.3f}")
+		logger.info(f"Consistency Score: {fingerprint.consistency_score:.3f}")
+		logger.info(f"Distinctiveness: {fingerprint.distinctiveness_score:.3f}")
 		
-		print(f"\nTone Profile:")
+		logger.info(f"\nTone Profile:")
 		for tone, score in fingerprint.tone_profile.items():
-			print(f"  {tone.title()}: {score:.4f}")
+			logger.info(f"  {tone.title()}: {score:.4f}")
 		
-		print(f"\nTop Vocabulary (showing first 10):")
+		logger.info(f"\nTop Vocabulary (showing first 10):")
 		vocab_items = list(fingerprint.vocabulary_signature.items())[:10]
 		for word, freq in vocab_items:
-			print(f"  {word}: {freq:.4f}")
+			logger.info(f"  {word}: {freq:.4f}")
 		
-		print(f"\nIdentified Patterns ({len(fingerprint.patterns)}):")
+		logger.info(f"\nIdentified Patterns ({len(fingerprint.patterns)}):")
 		for pattern in fingerprint.patterns[:3]:  # Show first 3 patterns
-			print(f"  📝 {pattern.pattern_description}")
-			print(f"     Component: {pattern.component.value}")
-			print(f"     Confidence: {pattern.confidence_score:.3f}")
+			logger.info(f"  📝 {pattern.pattern_description}")
+			logger.info(f"     Component: {pattern.component.value}")
+			logger.info(f"     Confidence: {pattern.confidence_score:.3f}")
 		
-		print(f"\nAnalyzer Statistics:")
+		logger.info(f"\nAnalyzer Statistics:")
 		for key, value in stats.items():
-			print(f"  {key.replace('_', ' ').title()}: {value}")
+			logger.info(f"  {key.replace('_', ' ').title()}: {value}")
 	
 	asyncio.run(main())

@@ -365,20 +365,20 @@ def print_config_summary():
     manager = get_llm_config_manager()
     summary = manager.get_config_summary()
 
-    print(f"LLM Configuration Summary")
-    print(f"Environment: {summary['environment']}")
-    print(f"Config Path: {summary['config_path']}")
-    print(f"Total Tasks: {summary['total_tasks']}")
+    logger.info(f"LLM Configuration Summary")
+    logger.info(f"Environment: {summary['environment']}")
+    logger.info(f"Config Path: {summary['config_path']}")
+    logger.info(f"Total Tasks: {summary['total_tasks']}")
     print()
 
     for task_id, config in summary["tasks"].items():
-        print(f"{task_id}:")
-        print(f"  Model: {config['model']}")
-        print(f"  Timeout: {config['timeout']}s")
-        print(f"  Temperature: {config['temperature']}")
-        print(f"  Num Predict: {config['num_predict']}")
+        logger.info(f"{task_id}:")
+        logger.info(f"  Model: {config['model']}")
+        logger.info(f"  Timeout: {config['timeout']}s")
+        logger.info(f"  Temperature: {config['temperature']}")
+        logger.info(f"  Num Predict: {config['num_predict']}")
         if config["description"]:
-            print(f"  Description: {config['description']}")
+            logger.info(f"  Description: {config['description']}")
         print()
 
 if __name__ == "__main__":

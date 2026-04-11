@@ -48,6 +48,7 @@ from .transformers.document_summarizer import (
 )
 from .transformers.style_transformer import StyleTransformer, create_style_transformer
 from ..core.utils import uuid7str
+import time
 
 @dataclass
 class NLPAnalysisResult:
@@ -429,7 +430,7 @@ class NLPService:
         document_id: Optional[str] = None,
     ) -> NLPAnalysisResult:
         """Perform comprehensive NLP analysis on document content"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = NLPAnalysisResult()
         result.document_id = document_id or uuid7str()
 
@@ -489,7 +490,7 @@ class NLPService:
             self._calculate_overall_statistics(result)
 
             result.success = len(result.errors) == 0
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"NLP analysis completed for document {result.document_id}, "

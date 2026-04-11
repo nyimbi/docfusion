@@ -21,6 +21,7 @@ except ImportError:
 	aiohttp = None
 
 from ...core.utils import uuid7str
+import time
 
 try:
 	from ..prompting_strategies import (
@@ -363,7 +364,7 @@ class ContentOptimizer:
         apply_suggestions: bool = True,
     ) -> ContentOptimizationResult:
         """Optimize content for specified improvements"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = ContentOptimizationResult()
 
         try:
@@ -428,7 +429,7 @@ class ContentOptimizer:
             result.statistics = self._compile_optimization_statistics(result, text)
 
             result.success = len(result.errors) == 0
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Content optimization completed: {len(optimization_types)} types, "
@@ -1462,7 +1463,7 @@ Analysis:"""
                             "comprehensive_analysis": analysis_text,
                             "focus_areas": optimization_focus,
                             "target_audience": target_audience,
-                            "analysis_timestamp": asyncio.get_event_loop().time(),
+                            "analysis_timestamp": time.monotonic(),
                         }
                     else:
                         raise Exception(f"Ollama API error: {response.status}")

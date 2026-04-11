@@ -7,6 +7,8 @@ and strategic recommendations for discovered opportunities.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
@@ -518,22 +520,22 @@ class IntelligenceDiscoveryService:
     
     def _log_initialization(self):
         discovery_status = "available" if DISCOVERY_AVAILABLE else "not available"
-        print(f"IntelligenceDiscoveryService: Initialized (Discovery integration: {discovery_status})")
+        logger.info(f"IntelligenceDiscoveryService: Initialized (Discovery integration: {discovery_status})")
     
     def _log_analysis_start(self, opportunity_id: str, level: IntelligenceLevel):
-        print(f"IntelligenceDiscoveryService: Starting {level.value} analysis for {opportunity_id}")
+        logger.info(f"IntelligenceDiscoveryService: Starting {level.value} analysis for {opportunity_id}")
     
     def _log_analysis_complete(self, opportunity_id: str, confidence: float, duration: float):
-        print(f"IntelligenceDiscoveryService: Completed analysis for {opportunity_id} (confidence: {confidence:.3f}, duration: {duration:.1f}s)")
+        logger.info(f"IntelligenceDiscoveryService: Completed analysis for {opportunity_id} (confidence: {confidence:.3f}, duration: {duration:.1f}s)")
     
     def _log_analysis_error(self, message: str):
-        print(f"IntelligenceDiscoveryService Error: {message}")
+        logger.error(f"IntelligenceDiscoveryService Error: {message}")
     
     def _log_bulk_analysis_start(self, count: int):
-        print(f"IntelligenceDiscoveryService: Starting bulk analysis of {count} opportunities")
+        logger.info(f"IntelligenceDiscoveryService: Starting bulk analysis of {count} opportunities")
     
     def _log_bulk_analysis_complete(self, total: int, successful: int):
-        print(f"IntelligenceDiscoveryService: Completed bulk analysis ({successful}/{total} successful)")
+        logger.info(f"IntelligenceDiscoveryService: Completed bulk analysis ({successful}/{total} successful)")
 
 
 # Example usage and testing
@@ -584,40 +586,40 @@ if __name__ == "__main__":
     async def main():
         intelligence, stats = await create_sample_intelligence_analysis()
         
-        print("Opportunity Intelligence Analysis:")
+        logger.info(f"Opportunity Intelligence Analysis:")
         print("=" * 50)
-        print(f"Opportunity ID: {intelligence.opportunity_id}")
-        print(f"Intelligence Level: {intelligence.intelligence_level.value}")
-        print(f"Overall Confidence: {intelligence.confidence_score:.3f}")
-        print(f"Analysis Duration: {intelligence.analysis_duration_seconds:.1f} seconds")
+        logger.info(f"Opportunity ID: {intelligence.opportunity_id}")
+        logger.info(f"Intelligence Level: {intelligence.intelligence_level.value}")
+        logger.info(f"Overall Confidence: {intelligence.confidence_score:.3f}")
+        logger.info(f"Analysis Duration: {intelligence.analysis_duration_seconds:.1f} seconds")
         
-        print(f"\nKey Insights ({len(intelligence.key_insights)}):")
+        logger.info(f"\nKey Insights ({len(intelligence.key_insights)}):")
         for insight in intelligence.key_insights[:5]:
-            print(f"  💡 {insight}")
+            logger.info(f"  💡 {insight}")
         
-        print(f"\nOpportunity Strengths:")
+        logger.info(f"\nOpportunity Strengths:")
         for strength in intelligence.opportunity_strengths[:3]:
-            print(f"  ✅ {strength}")
+            logger.info(f"  ✅ {strength}")
         
-        print(f"\nRisk Factors:")
+        logger.info(f"\nRisk Factors:")
         for risk in intelligence.risk_factors[:3]:
-            print(f"  ⚠️ {risk}")
+            logger.info(f"  ⚠️ {risk}")
         
-        print(f"\nImmediate Actions:")
+        logger.info(f"\nImmediate Actions:")
         for action in intelligence.immediate_actions[:3]:
-            print(f"  🎯 {action}")
+            logger.info(f"  🎯 {action}")
         
         if intelligence.win_probability_analysis:
             win_prob = intelligence.win_probability_analysis.predicted_win_probability
-            print(f"\nWin Probability: {win_prob:.1%}")
+            logger.info(f"\nWin Probability: {win_prob:.1%}")
         
         if intelligence.strategic_recommendation:
             rec_type = intelligence.strategic_recommendation.recommendation_type.value
-            print(f"Strategic Recommendation: {rec_type.upper()}")
+            logger.info(f"Strategic Recommendation: {rec_type.upper()}")
         
-        print(f"\nService Statistics:")
-        print(f"  Total Analyses: {stats['total_analyses']}")
-        print(f"  Average Confidence: {stats['average_confidence']:.3f}")
-        print(f"  Discovery Integration: {stats['discovery_integration_available']}")
+        logger.info(f"\nService Statistics:")
+        logger.info(f"  Total Analyses: {stats['total_analyses']}")
+        logger.info(f"  Average Confidence: {stats['average_confidence']:.3f}")
+        logger.info(f"  Discovery Integration: {stats['discovery_integration_available']}")
     
     asyncio.run(main())

@@ -10,7 +10,7 @@ import asyncio
 import logging
 import re
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
@@ -318,7 +318,7 @@ class MeiliSearchBackend(SearchBackend):
                 "title": title,
                 "content": content,
                 "metadata": metadata,
-                "indexed_at": datetime.utcnow().isoformat(),
+                "indexed_at": datetime.now(timezone.utc).isoformat(),
             }
 
             await asyncio.get_event_loop().run_in_executor(
@@ -359,11 +359,11 @@ class MeiliSearchBackend(SearchBackend):
                 query_params["sort"] = [f"{sort_field}:{sort_order}"]
 
             # Execute search
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             results = await asyncio.get_event_loop().run_in_executor(
                 None, self.index.search, request.query, query_params
             )
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
 
             # Process results
             search_results = []
@@ -573,7 +573,7 @@ class OpenSearchBackend(SearchBackend):
                 "title": title,
                 "content": content,
                 "metadata": metadata,
-                "indexed_at": datetime.utcnow().isoformat(),
+                "indexed_at": datetime.now(timezone.utc).isoformat(),
             }
 
             await asyncio.get_event_loop().run_in_executor(
@@ -595,11 +595,11 @@ class OpenSearchBackend(SearchBackend):
             query_body = self._build_opensearch_query(request)
 
             # Execute search
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             response = await asyncio.get_event_loop().run_in_executor(
                 None, self.client.search, self.index_name, query_body
             )
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
 
             # Process results
             search_results = []
@@ -791,7 +791,7 @@ class InMemorySearchBackend(SearchBackend):
             "title": title,
             "content": content,
             "metadata": metadata,
-            "indexed_at": datetime.utcnow(),
+            "indexed_at": datetime.now(timezone.utc),
         }
         self.documents[doc_id] = doc
 
@@ -818,7 +818,7 @@ class InMemorySearchBackend(SearchBackend):
         self, request: SearchRequest
     ) -> Tuple[List[Tuple[str, float]], Dict[str, Any]]:
         """Execute in-memory search"""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         # Simple full-text search
         query_words = re.findall(r"\b\w+\b", request.query.lower())
@@ -848,7 +848,7 @@ class InMemorySearchBackend(SearchBackend):
             )
         ]
 
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         debug_info = {
             "query_time_ms": (end_time - start_time).total_seconds() * 1000,
             "total_hits": len(results),
@@ -989,7 +989,7 @@ class SearchEngine:
         self, request: SearchRequest, user_id: str, context: Dict[str, Any]
     ) -> SearchResponse:
         """Execute advanced search"""
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         try:
             # Track search statistics
@@ -1040,7 +1040,7 @@ class SearchEngine:
                 response.suggestions = await self._generate_suggestions(request.query)
 
             if request.include_debug:
-                end_time = datetime.utcnow()
+                end_time = datetime.now(timezone.utc)
                 query_time = (end_time - start_time).total_seconds() * 1000
 
                 response.debug_info = SearchDebugInfo(
@@ -1054,7 +1054,7 @@ class SearchEngine:
                 )
 
             # Update statistics
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             query_time = (end_time - start_time).total_seconds() * 1000
             self._update_average_query_time(query_time)
 
@@ -1110,8 +1110,8 @@ class SearchEngine:
             score=score,
             highlights=None,
             metadata={"doc_id": doc_id, "backend": self.backend_type},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
     async def _calculate_facets(
@@ -1572,7 +1572,7 @@ class SearchEndpoints:
             return {
                 "success": True,
                 "document_id": doc_id,
-                "indexed_at": datetime.utcnow().isoformat(),
+                "indexed_at": datetime.now(timezone.utc).isoformat(),
                 "backend": self.search_engine.backend_type,
             }
 
@@ -1607,7 +1607,7 @@ class SearchEndpoints:
                 "success": True,
                 "old_backend": old_backend,
                 "new_backend": backend_type,
-                "switched_at": datetime.utcnow().isoformat(),
+                "switched_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except HTTPException:

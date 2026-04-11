@@ -1208,15 +1208,15 @@ if __name__ == "__main__":
 	
 	async def main():
 		analysis = await create_sample_competitive_analysis()
-		print(f"Identified Competitors: {len(analysis.identified_competitors)}")
-		print(f"Competitive Intensity: {analysis.competitive_positioning.competitive_intensity:.2f}")
-		print(f"Our Rank: {analysis.competitive_positioning.our_rank}")
-		print(f"Win Probability: {analysis.competitive_positioning.our_win_probability:.2f}")
-		print(f"Strategy: {analysis.competitive_strategy}")
-		print(f"Analysis Confidence: {analysis.analysis_confidence:.2f}")
+		logger.info(f"Identified Competitors: {len(analysis.identified_competitors)}")
+		logger.info(f"Competitive Intensity: {analysis.competitive_positioning.competitive_intensity:.2f}")
+		logger.info(f"Our Rank: {analysis.competitive_positioning.our_rank}")
+		logger.info(f"Win Probability: {analysis.competitive_positioning.our_win_probability:.2f}")
+		logger.info(f"Strategy: {analysis.competitive_strategy}")
+		logger.info(f"Analysis Confidence: {analysis.analysis_confidence:.2f}")
 		
 		for competitor in analysis.identified_competitors:
-			print(f"\nCompetitor: {competitor.name} ({competitor.tier.value})")
-			print(f"Advantages: {[adv.value for adv in competitor.competitive_advantages]}")
+			logger.info(f"\nCompetitor: {competitor.name} ({competitor.tier.value})")
+			logger.info(f"Advantages: {[adv.value for adv in competitor.competitive_advantages]}")
 		
 	asyncio.run(main())

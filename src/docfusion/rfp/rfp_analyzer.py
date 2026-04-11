@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 from ..core.utils import uuid7str
 from .requirement_extractor import (
+import time
 	RequirementExtractor,
 	Requirement,
 	RequirementCategory,
@@ -145,7 +146,7 @@ class RFPAnalyzer:
 		Returns:
 			RFPAnalysisResult with complete analysis
 		"""
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		result = RFPAnalysisResult()
 
 		try:
@@ -178,7 +179,7 @@ class RFPAnalyzer:
 			result.errors.append(f"PDF analysis failed: {str(e)}")
 			self.logger.error(f"RFP PDF analysis error: {e}")
 
-		result.processing_time = asyncio.get_event_loop().time() - start_time
+		result.processing_time = time.monotonic() - start_time
 		self._log_analysis_complete(len(result.requirements), result.processing_time)
 
 		return result
@@ -198,7 +199,7 @@ class RFPAnalyzer:
 		Returns:
 			RFPAnalysisResult with complete analysis
 		"""
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		result = RFPAnalysisResult()
 
 		try:
@@ -231,7 +232,7 @@ class RFPAnalyzer:
 			result.errors.append(f"DOCX analysis failed: {str(e)}")
 			self.logger.error(f"RFP DOCX analysis error: {e}")
 
-		result.processing_time = asyncio.get_event_loop().time() - start_time
+		result.processing_time = time.monotonic() - start_time
 		self._log_analysis_complete(len(result.requirements), result.processing_time)
 
 		return result
@@ -251,7 +252,7 @@ class RFPAnalyzer:
 		Returns:
 			RFPAnalysisResult with complete analysis
 		"""
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		result = RFPAnalysisResult()
 
 		try:
@@ -284,7 +285,7 @@ class RFPAnalyzer:
 			result.errors.append(f"Text analysis failed: {str(e)}")
 			self.logger.error(f"RFP text analysis error: {e}")
 
-		result.processing_time = asyncio.get_event_loop().time() - start_time
+		result.processing_time = time.monotonic() - start_time
 		self._log_analysis_complete(len(result.requirements), result.processing_time)
 
 		return result

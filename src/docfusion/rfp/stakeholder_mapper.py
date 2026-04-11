@@ -30,6 +30,7 @@ except ImportError:
 import httpx
 import json
 from ..core.utils import uuid7str
+import time
 
 class StakeholderRole(str, Enum):
 	"""Stakeholder roles in RFP processes"""
@@ -710,7 +711,7 @@ class StakeholderMapper:
 
 	async def extract_stakeholders(self, text: str, use_ai: bool = True) -> StakeholderExtractionResult:
 		"""Extract stakeholders with roles and organizations from text"""
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		result = StakeholderExtractionResult()
 		result.original_text = text
 
@@ -781,7 +782,7 @@ class StakeholderMapper:
 			result.statistics = statistics
 			result.methods_used = methods_used
 			result.success = True
-			result.processing_time = asyncio.get_event_loop().time() - start_time
+			result.processing_time = time.monotonic() - start_time
 
 			self.logger.info(f"Stakeholders extracted successfully, time: {result.processing_time:.2f}s")
 

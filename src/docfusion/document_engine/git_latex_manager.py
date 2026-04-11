@@ -746,7 +746,7 @@ Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliqu
 	
 	def _log_block_error(self, message: str) -> None:
 		"""Log block operation errors"""
-		print(f"[GitLatex] Block Error: {message}")
+		logger.error(f"[GitLatex] Block Error: {message}")
 
 class GitLatexAssembler:
 	"""Assemble documents from Git-managed LaTeX blocks"""
@@ -881,7 +881,7 @@ class GitLatexAssembler:
 
 	def _log_build_error(self, message: str) -> None:
 		"""Log build operation errors"""
-		print(f"[GitLatex] Build Error: {message}")
+		logger.error(f"[GitLatex] Build Error: {message}")
 
 # Adapter class to use canonical LaTeXCompiler with file-based interface
 class LaTeXCompiler:

@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 from ...core.utils import uuid7str
+import time
 
 try:
     import aiohttp
@@ -293,7 +294,7 @@ class DocumentSummarizer:
         custom_word_limit: Optional[int] = None,
     ) -> SummaryResult:
         """Generate comprehensive document summary"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = SummaryResult()
 
         try:
@@ -389,7 +390,7 @@ class DocumentSummarizer:
             result.statistics = self._compile_summarization_statistics(result, text)
 
             result.success = len(result.errors) == 0 and bool(result.summary_text)
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Document summarization completed: {summary_type.value}, "

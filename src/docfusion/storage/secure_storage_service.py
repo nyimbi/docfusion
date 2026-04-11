@@ -9,7 +9,7 @@ encryption, and audit logging with the existing storage system.
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import timezone, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -140,7 +140,7 @@ class SecureStorageService:
             secure_metadata = {
                 **(metadata or {}),
                 "created_by": user_id,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "security_level": "encrypted"
                 if encryption_metadata.get("encrypted")
                 else "standard",
@@ -349,7 +349,7 @@ class SecureStorageService:
                 "content_length": len(content)
                 if content
                 else before_state["content_length"],
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
                 "updated_by": user_id,
                 **encryption_metadata,
             }

@@ -9,6 +9,8 @@ Copyright (c) 2025
 """
 
 import sys
+import logging
+logger = logging.getLogger(__name__)
 import os
 import pytest
 import asyncio
@@ -20,7 +22,7 @@ sys.path.insert(0, str(agents_dir))
 
 def run_agent_tests():
 	"""Run all agent system tests"""
-	print("🤖 Starting AI Agent System Test Suite")
+	logger.info(f"🤖 Starting AI Agent System Test Suite")
 	print("=" * 50)
 	
 	test_modules = [
@@ -51,25 +53,25 @@ def run_agent_tests():
 		if test_path.exists():
 			pytest_args.append(str(test_path))
 		else:
-			print(f"⚠️  Warning: Test module {module} not found")
+			logger.warning(f"⚠️  Warning: Test module {module} not found")
 	
-	print(f"Running tests: {', '.join(test_modules)}")
+	logger.info(f"Running tests: {', '.join(test_modules)}")
 	print("=" * 50)
 	
 	# Run tests
 	exit_code = pytest.main(pytest_args)
 	
 	if exit_code == 0:
-		print("\n✅ All tests passed successfully!")
+		logger.info(f"\n✅ All tests passed successfully!")
 	else:
-		print(f"\n❌ Tests failed with exit code: {exit_code}")
+		logger.error(f"\n❌ Tests failed with exit code: {exit_code}")
 	
 	return exit_code
 
 
 def run_quick_tests():
 	"""Run only core and integration tests for quick validation"""
-	print("🚀 Running Quick Agent System Tests")
+	logger.info(f"🚀 Running Quick Agent System Tests")
 	print("=" * 40)
 	
 	quick_tests = [
@@ -89,22 +91,22 @@ def run_quick_tests():
 	exit_code = pytest.main(pytest_args)
 	
 	if exit_code == 0:
-		print("\n✅ Quick tests passed!")
+		logger.info(f"\n✅ Quick tests passed!")
 	else:
-		print(f"\n❌ Quick tests failed with exit code: {exit_code}")
+		logger.error(f"\n❌ Quick tests failed with exit code: {exit_code}")
 	
 	return exit_code
 
 
 def run_specific_test(test_name):
 	"""Run a specific test module"""
-	print(f"🎯 Running Specific Test: {test_name}")
+	logger.info(f"🎯 Running Specific Test: {test_name}")
 	print("=" * 30)
 	
 	test_path = Path(__file__).parent / f"test_{test_name}.py"
 	
 	if not test_path.exists():
-		print(f"❌ Test file not found: {test_path}")
+		logger.info(f"❌ Test file not found: {test_path}")
 		return 1
 	
 	pytest_args = ["-v", "-s", "--tb=short", str(test_path)]

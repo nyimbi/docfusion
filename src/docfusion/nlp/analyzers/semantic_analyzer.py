@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 from ...core.utils import uuid7str
+import time
 
 try:
     from ...prompting_strategies import (
@@ -350,7 +351,7 @@ class SemanticAnalyzer:
         self, text: str, use_ai: Optional[bool] = None, num_topics: Optional[int] = None
     ) -> SemanticAnalysisResult:
         """Perform comprehensive semantic analysis"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = SemanticAnalysisResult()
 
         try:
@@ -417,7 +418,7 @@ class SemanticAnalyzer:
             result.statistics = self._compile_semantic_statistics(result, text)
 
             result.success = len(result.errors) == 0
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Semantic analysis completed, topics: {len(result.topics)}, "

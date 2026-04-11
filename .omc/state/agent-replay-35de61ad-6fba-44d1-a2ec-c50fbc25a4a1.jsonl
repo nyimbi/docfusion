@@ -21,3 +21,6 @@
 {"t":0,"agent":"acc4260","agent_type":"security-reviewer","event":"agent_stop","success":true,"duration_ms":435708}
 {"t":0,"agent":"a33d518","agent_type":"feature-dev:code-reviewer","event":"agent_stop","success":true,"duration_ms":1134767}
 {"t":0,"agent":"aad61bd","agent_type":"feature-dev:code-architect","event":"agent_stop","success":true,"duration_ms":1580833}
+{"t":0,"agent":"aa8eef6","agent_type":"feature-dev:code-reviewer","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"aab9af0","agent_type":"code-reviewer","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"aa8eef6","agent_type":"feature-dev:code-reviewer","event":"agent_stop","success":true,"duration_ms":49889}

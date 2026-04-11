@@ -10,6 +10,8 @@ Copyright (c) 2025
 """
 
 import os
+import logging
+logger = logging.getLogger(__name__)
 import re
 from pathlib import Path
 from ..core.utils import uuid7str
@@ -27,7 +29,7 @@ def fix_uuid_imports(file_path):
 
 		with open(file_path, 'w') as f:
 			f.write(content)
-		print(f"Fixed UUID imports in {file_path}")
+		logger.info(f"Fixed UUID imports in {file_path}")
 
 def fix_capability_references(file_path):
 	"""Fix capability reference issues"""
@@ -40,7 +42,7 @@ def fix_capability_references(file_path):
 
 		with open(file_path, 'w') as f:
 			f.write(content)
-		print(f"Fixed capability references in {file_path}")
+		logger.info(f"Fixed capability references in {file_path}")
 
 def add_missing_imports(file_path):
 	"""Add missing imports like 're' module"""
@@ -75,7 +77,7 @@ def add_missing_imports(file_path):
 
 		with open(file_path, 'w') as f:
 			f.write(new_content)
-		print(f"Added 're' import to {file_path}")
+		logger.info(f"Added 're' import to {file_path}")
 
 def fix_method_signatures(file_path):
 	"""Fix method signature mismatches"""
@@ -93,7 +95,7 @@ def fix_method_signatures(file_path):
 
 		with open(file_path, 'w') as f:
 			f.write(content)
-		print(f"Fixed method signatures in {file_path}")
+		logger.info(f"Fixed method signatures in {file_path}")
 
 def fix_none_assignments(file_path):
 	"""Fix None value assignments to required types"""
@@ -120,7 +122,7 @@ def fix_none_assignments(file_path):
 	if changes_made:
 		with open(file_path, 'w') as f:
 			f.write(content)
-		print(f"Fixed None assignments in {file_path}")
+		logger.info(f"Fixed None assignments in {file_path}")
 
 async def fix_async_issues(file_path):
 	"""Fix async/await issues"""
@@ -152,17 +154,17 @@ async def fix_async_issues(file_path):
 			if i > 0 and 'def ' in lines[i-1]:
 				lines[i-1] = lines[i-1].replace('def ', 'async def ')
 				changes_made = True
-				print(f"Made function async: {current_function}")
+				logger.info(f"Made function async: {current_function}")
 
 	if changes_made:
 		content = '\n'.join(lines)
 		with open(file_path, 'w') as f:
 			f.write(content)
-		print(f"Fixed async issues in {file_path}")
+		logger.info(f"Fixed async issues in {file_path}")
 
 def main():
 	"""Main fix script"""
-	print("🔧 Fixing Agent System Import and Type Issues")
+	logger.info(f"🔧 Fixing Agent System Import and Type Issues")
 	print("=" * 50)
 
 	# Get all Python files in the agent system
@@ -178,11 +180,11 @@ def main():
 			if file.endswith('.py') and not file.startswith('__'):
 				python_files.append(Path(root) / file)
 
-	print(f"Found {len(python_files)} Python files to fix")
+	logger.info(f"Found {len(python_files)} Python files to fix")
 	print()
 
 	for file_path in python_files:
-		print(f"Processing: {file_path.relative_to(agents_dir)}")
+		logger.info(f"Processing: {file_path.relative_to(agents_dir)}")
 
 		try:
 			# Apply all fixes
@@ -194,11 +196,11 @@ def main():
 			fix_async_issues(file_path)
 
 		except Exception as e:
-			print(f"❌ Error processing {file_path}: {e}")
+			logger.error(f"❌ Error processing {file_path}: {e}")
 
 	print()
-	print("✅ Import and type fixes completed!")
-	print("🧪 Run tests with: python tests/run_tests.py")
+	logger.info(f"✅ Import and type fixes completed!")
+	logger.info(f"🧪 Run tests with: python tests/run_tests.py")
 
 if __name__ == "__main__":
 	main()

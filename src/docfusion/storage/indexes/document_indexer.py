@@ -131,7 +131,7 @@ class DocumentIndexer:
 				'directory': str(file_path.parent)
 			}
 		except Exception as e:
-			print(f"Error extracting metadata from {file_path}: {e}")
+			logger.error(f"Error extracting metadata from {file_path}: {e}")
 			return {}
 	
 	def _extract_keywords(self, content: str, max_keywords: int = 20) -> List[str]:
@@ -166,7 +166,7 @@ class DocumentIndexer:
 			return [word for word, freq in keywords[:max_keywords]]
 			
 		except Exception as e:
-			print(f"Error extracting keywords: {e}")
+			logger.error(f"Error extracting keywords: {e}")
 			return []
 	
 	def _extract_content_from_file(self, file_path: Path) -> Tuple[str, str]:
@@ -210,7 +210,7 @@ class DocumentIndexer:
 			return content, content_type
 			
 		except Exception as e:
-			print(f"Error extracting content from {file_path}: {e}")
+			logger.error(f"Error extracting content from {file_path}: {e}")
 			return "", "unknown"
 	
 	async def index_document(
@@ -591,7 +591,7 @@ class DocumentIndexer:
 				optimization_stats['compacted_indexes'] = 1
 				
 			except Exception as e:
-				print(f"Error during index optimization: {e}")
+				logger.error(f"Error during index optimization: {e}")
 		
 		return optimization_stats
 	
@@ -640,7 +640,7 @@ class DocumentIndexer:
 				await f.write(json.dumps(stats_dict, indent=2))
 				
 		except Exception as e:
-			print(f"Error saving indexes: {e}")
+			logger.error(f"Error saving indexes: {e}")
 	
 	async def _load_indexes(self) -> None:
 		"""Load indexes from disk"""
@@ -665,7 +665,7 @@ class DocumentIndexer:
 							await self._update_indexes(doc)
 							
 					except Exception as e:
-						print(f"Error loading document index {doc_file}: {e}")
+						logger.error(f"Error loading document index {doc_file}: {e}")
 			
 			# Load secondary indexes
 			indexes_file = self.indexes_path / "secondary_indexes.json"
@@ -691,7 +691,7 @@ class DocumentIndexer:
 						self.file_to_document = indexes_data.get('file_to_document', {})
 						
 				except Exception as e:
-					print(f"Error loading secondary indexes: {e}")
+					logger.error(f"Error loading secondary indexes: {e}")
 			
 			# Load statistics
 			stats_file = self.indexes_path / "index_stats.json"
@@ -710,13 +710,13 @@ class DocumentIndexer:
 						self.stats = IndexStats(**stats_dict)
 						
 				except Exception as e:
-					print(f"Error loading index statistics: {e}")
+					logger.error(f"Error loading index statistics: {e}")
 			
 			# Update statistics
 			await self._update_stats()
 			
 		except Exception as e:
-			print(f"Error loading indexes: {e}")
+			logger.error(f"Error loading indexes: {e}")
 
 # Convenience functions
 async def create_document_indexer(storage_path: Optional[Path] = None, config: Optional[IndexConfiguration] = None) -> DocumentIndexer:

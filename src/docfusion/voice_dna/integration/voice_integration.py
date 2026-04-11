@@ -983,23 +983,23 @@ class VoiceIntegrator:
 		] if enabled]
 		
 		nlp_status = "available" if NLP_AVAILABLE else "fallback mode"
-		print(f"VoiceIntegrator: Initialized with {len(components)} components ({nlp_status})")
-		print(f"  Components: {', '.join(components)}")
+		logger.info(f"VoiceIntegrator: Initialized with {len(components)} components ({nlp_status})")
+		logger.info(f"  Components: {', '.join(components)}")
 	
 	def _log_analysis_start(self, request_id: str, analysis_type: str):
-		print(f"VoiceIntegrator: Starting {analysis_type} analysis [{request_id}]")
+		logger.info(f"VoiceIntegrator: Starting {analysis_type} analysis [{request_id}]")
 	
 	def _log_analysis_complete(self, request_id: str, voice_score: float, duration: float):
-		print(f"VoiceIntegrator: Analysis complete [{request_id}] (score: {voice_score:.3f}, {duration:.2f}s)")
+		logger.info(f"VoiceIntegrator: Analysis complete [{request_id}] (score: {voice_score:.3f}, {duration:.2f}s)")
 	
 	def _log_cache_hit(self, request_id: str):
-		print(f"VoiceIntegrator: Cache hit for analysis [{request_id}]")
+		logger.info(f"VoiceIntegrator: Cache hit for analysis [{request_id}]")
 	
 	def _log_analysis_error(self, message: str):
-		print(f"VoiceIntegrator Error: {message}")
+		logger.error(f"VoiceIntegrator Error: {message}")
 	
 	def _log_profile_update_error(self, message: str):
-		print(f"VoiceIntegrator Profile Error: {message}")
+		logger.error(f"VoiceIntegrator Profile Error: {message}")
 
 
 # Example usage and testing
@@ -1058,56 +1058,56 @@ if __name__ == "__main__":
 	async def main():
 		sample = await create_sample_voice_integration()
 		
-		print("Voice Integration Results:")
+		logger.info(f"Voice Integration Results:")
 		print("=" * 60)
 		
 		result = sample["result"]
-		print(f"Request ID: {result.request_id}")
-		print(f"Analysis Type: {result.analysis_type.value}")
-		print(f"Organization: {result.organization_name}")
+		logger.info(f"Request ID: {result.request_id}")
+		logger.info(f"Analysis Type: {result.analysis_type.value}")
+		logger.info(f"Organization: {result.organization_name}")
 		
-		print(f"\n🎯 Overall Scores:")
-		print(f"  Voice Score: {result.overall_voice_score:.3f}")
-		print(f"  Consistency: {result.consistency_score:.3f}")
-		print(f"  Authenticity: {result.authenticity_score:.3f}")
-		print(f"  Confidence: {result.confidence_level:.3f}")
+		logger.info(f"\n🎯 Overall Scores:")
+		logger.info(f"  Voice Score: {result.overall_voice_score:.3f}")
+		logger.info(f"  Consistency: {result.consistency_score:.3f}")
+		logger.info(f"  Authenticity: {result.authenticity_score:.3f}")
+		logger.info(f"  Confidence: {result.confidence_level:.3f}")
 		
-		print(f"\n🔍 Components Analyzed:")
+		logger.info(f"\n🔍 Components Analyzed:")
 		for component in result.components_analyzed:
-			print(f"  ✅ {component.replace('_', ' ').title()}")
+			logger.info(f"  ✅ {component.replace('_', ' ').title()}")
 		
-		print(f"\n📊 Quality Metrics:")
-		print(f"  Data Quality: {result.data_quality_score:.3f}")
-		print(f"  Completeness: {result.analysis_completeness:.3f}")
-		print(f"  Analysis Time: {result.analysis_duration_seconds:.2f}s")
-		print(f"  NLP Enhanced: {'✅' if result.nlp_enhancement_used else '❌'}")
+		logger.info(f"\n📊 Quality Metrics:")
+		logger.info(f"  Data Quality: {result.data_quality_score:.3f}")
+		logger.info(f"  Completeness: {result.analysis_completeness:.3f}")
+		logger.info(f"  Analysis Time: {result.analysis_duration_seconds:.2f}s")
+		logger.info(f"  NLP Enhanced: {'✅' if result.nlp_enhancement_used else '❌'}")
 		
 		if result.key_recommendations:
-			print(f"\n💡 Key Recommendations:")
+			logger.info(f"\n💡 Key Recommendations:")
 			for i, rec in enumerate(result.key_recommendations, 1):
-				print(f"  {i}. {rec}")
+				logger.info(f"  {i}. {rec}")
 		
 		if result.priority_issues:
-			print(f"\n⚠️ Priority Issues:")
+			logger.info(f"\n⚠️ Priority Issues:")
 			for i, issue in enumerate(result.priority_issues, 1):
-				print(f"  {i}. {issue}")
+				logger.info(f"  {i}. {issue}")
 		
 		if result.improvement_roadmap:
-			print(f"\n🗺️ Improvement Roadmap:")
+			logger.info(f"\n🗺️ Improvement Roadmap:")
 			for timeframe, actions in result.improvement_roadmap.items():
 				if actions:
-					print(f"  {timeframe.replace('_', ' ').title()}:")
+					logger.info(f"  {timeframe.replace('_', ' ').title()}:")
 					for action in actions:
-						print(f"    • {action}")
+						logger.info(f"    • {action}")
 		
-		print(f"\nIntegration Statistics:")
+		logger.info(f"\nIntegration Statistics:")
 		stats = sample["stats"]
 		for key, value in stats.items():
 			if isinstance(value, dict):
-				print(f"  {key.replace('_', ' ').title()}:")
+				logger.info(f"  {key.replace('_', ' ').title()}:")
 				for k, v in value.items():
-					print(f"    {k}: {v}")
+					logger.info(f"    {k}: {v}")
 			else:
-				print(f"  {key.replace('_', ' ').title()}: {value}")
+				logger.info(f"  {key.replace('_', ' ').title()}: {value}")
 	
 	asyncio.run(main())

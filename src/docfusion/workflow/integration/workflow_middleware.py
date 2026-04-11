@@ -48,6 +48,7 @@ from .workflow_document_bridge import (
 )
 from ...core.utils import uuid7str
 from .workflow_request_extensions import (
+import time
     TeamRole,
     WorkflowConfiguration,
     WorkflowEnabledDocumentRequest,
@@ -366,7 +367,7 @@ class WorkflowMiddleware(BaseHTTPMiddleware):
             ]
 
             # Create workflow instance
-            start_time = asyncio.get_event_loop().time()
+            start_time = time.monotonic()
 
             workflow_instance = await self.workflow_bridge.create_document_workflow(
                 document_request=workflow_request.to_standard_request(),
@@ -375,7 +376,7 @@ class WorkflowMiddleware(BaseHTTPMiddleware):
             )
 
             # Track performance
-            creation_time = asyncio.get_event_loop().time() - start_time
+            creation_time = time.monotonic() - start_time
             self._workflow_creation_times.append(creation_time)
             self._concurrent_workflows += 1
 

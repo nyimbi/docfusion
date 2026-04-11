@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import chardet
 from ...core.utils import uuid7str
+import time
 
 # PDF processing
 try:
@@ -165,7 +166,7 @@ class DocumentProcessor:
         self, file_path: Union[str, Path], content_type: Optional[str] = None
     ) -> ProcessingResult:
         """Process document from file path"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = ProcessingResult()
 
         try:
@@ -204,7 +205,7 @@ class DocumentProcessor:
             await self._post_process_content(result)
 
             result.success = len(result.errors) == 0
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Processed document: {file_path.name}, success: {result.success}, time: {result.processing_time:.2f}s"
@@ -220,7 +221,7 @@ class DocumentProcessor:
         self, content: bytes, content_type: str, filename: Optional[str] = None
     ) -> ProcessingResult:
         """Process document from raw content"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = ProcessingResult()
 
         try:
@@ -239,7 +240,7 @@ class DocumentProcessor:
             await self._post_process_content(result)
 
             result.success = len(result.errors) == 0
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
         except Exception as e:
             result.errors.append(f"Processing error: {str(e)}")

@@ -8,6 +8,8 @@ maintaining the original meaning and intent.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import re
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -1458,16 +1460,16 @@ class WritingEnhancer:
 	def _log_initialization(self):
 		nlp_status = "available" if NLP_AVAILABLE else "fallback mode"
 		vocab_resources = len(self.common_words) + len(self.academic_words) + sum(len(v) for v in self.transition_words.values())
-		print(f"WritingEnhancer: Initialized with {vocab_resources} vocabulary resources ({nlp_status})")
+		logger.info(f"WritingEnhancer: Initialized with {vocab_resources} vocabulary resources ({nlp_status})")
 	
 	def _log_enhancement_start(self, request_id: str, enhancement_type: str):
-		print(f"WritingEnhancer: Starting {enhancement_type} enhancement [{request_id}]")
+		logger.info(f"WritingEnhancer: Starting {enhancement_type} enhancement [{request_id}]")
 	
 	def _log_enhancement_complete(self, request_id: str, improvement_score: float, duration: float):
-		print(f"WritingEnhancer: Enhancement complete [{request_id}] (score: {improvement_score:.3f}, {duration:.2f}s)")
+		logger.info(f"WritingEnhancer: Enhancement complete [{request_id}] (score: {improvement_score:.3f}, {duration:.2f}s)")
 	
 	def _log_enhancement_error(self, message: str):
-		print(f"WritingEnhancer Error: {message}")
+		logger.error(f"WritingEnhancer Error: {message}")
 
 
 # Example usage and testing
@@ -1515,60 +1517,60 @@ if __name__ == "__main__":
 	async def main():
 		sample = await create_sample_writing_enhancement()
 		
-		print("Writing Enhancement Results:")
+		logger.info(f"Writing Enhancement Results:")
 		print("=" * 60)
 		
 		result = sample["result"]
 		request = sample["request"]
 		
-		print(f"Original Text ({len(request.original_text)} chars):")
+		logger.info(f"Original Text ({len(request.original_text)} chars):")
 		print(f'"{request.original_text.strip()}"')
 		print()
 		
-		print(f"Enhanced Text ({len(result.enhanced_text)} chars):")
+		logger.info(f"Enhanced Text ({len(result.enhanced_text)} chars):")
 		print(f'"{result.enhanced_text}"')
 		print()
 		
-		print(f"Enhancement Summary:")
-		print(f"  {result.enhancement_summary}")
+		logger.info(f"Enhancement Summary:")
+		logger.info(f"  {result.enhancement_summary}")
 		print()
 		
-		print(f"📊 Improvement Metrics:")
-		print(f"  Overall Score: {result.improvement_score:.3f}")
-		print(f"  Naturalness: {result.naturalness_score:.3f}")
-		print(f"  Readability: {result.readability_score:.3f}")
-		print(f"  Authenticity: {result.authenticity_score:.3f}")
-		print(f"  Confidence: {result.confidence_level:.3f}")
+		logger.info(f"📊 Improvement Metrics:")
+		logger.info(f"  Overall Score: {result.improvement_score:.3f}")
+		logger.info(f"  Naturalness: {result.naturalness_score:.3f}")
+		logger.info(f"  Readability: {result.readability_score:.3f}")
+		logger.info(f"  Authenticity: {result.authenticity_score:.3f}")
+		logger.info(f"  Confidence: {result.confidence_level:.3f}")
 		print()
 		
-		print(f"🔤 Vocabulary Analysis:")
+		logger.info(f"🔤 Vocabulary Analysis:")
 		vocab = result.vocabulary_analysis
-		print(f"  Diversity Ratio: {vocab.diversity_ratio:.3f}")
-		print(f"  Unique Words: {vocab.unique_words}/{vocab.total_words}")
-		print(f"  Complex Word Ratio: {vocab.complex_word_ratio:.3f}")
+		logger.info(f"  Diversity Ratio: {vocab.diversity_ratio:.3f}")
+		logger.info(f"  Unique Words: {vocab.unique_words}/{vocab.total_words}")
+		logger.info(f"  Complex Word Ratio: {vocab.complex_word_ratio:.3f}")
 		print()
 		
-		print(f"📝 Structure Analysis:")
+		logger.info(f"📝 Structure Analysis:")
 		structure = result.structure_analysis
-		print(f"  Sentence Count: {structure.total_sentences}")
-		print(f"  Avg Length: {structure.average_sentence_length:.1f} words")
-		print(f"  Starter Diversity: {structure.starter_diversity:.3f}")
-		print(f"  Flow Score: {structure.flow_score:.3f}")
+		logger.info(f"  Sentence Count: {structure.total_sentences}")
+		logger.info(f"  Avg Length: {structure.average_sentence_length:.1f} words")
+		logger.info(f"  Starter Diversity: {structure.starter_diversity:.3f}")
+		logger.info(f"  Flow Score: {structure.flow_score:.3f}")
 		print()
 		
 		if result.vocabulary_improvements:
-			print(f"✨ Vocabulary Improvements:")
+			logger.info(f"✨ Vocabulary Improvements:")
 			for imp in result.vocabulary_improvements[:3]:
-				print(f"  • {imp['improvement']}")
+				logger.info(f"  • {imp['improvement']}")
 		print()
 		
 		if result.structure_improvements:
-			print(f"🏗️ Structure Improvements:")
+			logger.info(f"🏗️ Structure Improvements:")
 			for imp in result.structure_improvements:
-				print(f"  • {imp['improvement']}")
+				logger.info(f"  • {imp['improvement']}")
 		print()
 		
-		print(f"📈 Before/After Comparison:")
+		logger.info(f"📈 Before/After Comparison:")
 		comp = result.before_after_comparison
 		for metric, value in comp.items():
 			if 'before' in metric:
@@ -1576,16 +1578,16 @@ if __name__ == "__main__":
 				if after_metric in comp:
 					change = comp[after_metric] - value
 					trend = "📈" if change > 0 else "📉" if change < 0 else "➡️"
-					print(f"  {trend} {metric.replace('_', ' ').title()}: {value:.3f} → {comp[after_metric]:.3f}")
+					logger.info(f"  {trend} {metric.replace('_', ' ').title()}: {value:.3f} → {comp[after_metric]:.3f}")
 		
-		print(f"\nEnhancer Statistics:")
+		logger.info(f"\nEnhancer Statistics:")
 		stats = sample["stats"]
 		for key, value in stats.items():
 			if isinstance(value, dict):
-				print(f"  {key.replace('_', ' ').title()}:")
+				logger.info(f"  {key.replace('_', ' ').title()}:")
 				for k, v in value.items():
-					print(f"    {k}: {v}")
+					logger.info(f"    {k}: {v}")
 			else:
-				print(f"  {key.replace('_', ' ').title()}: {value}")
+				logger.info(f"  {key.replace('_', ' ').title()}: {value}")
 	
 	asyncio.run(main())

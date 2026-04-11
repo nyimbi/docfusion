@@ -7,6 +7,8 @@ benchmarking to optimize proposal competitiveness.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 import re
 from datetime import datetime, timedelta
@@ -930,16 +932,16 @@ class ContentRecommender:
 	# Logging methods
 	
 	def _log_initialization(self):
-		print("ContentRecommender: Initialized for intelligent content analysis and improvement recommendations")
+		logger.info(f"ContentRecommender: Initialized for intelligent content analysis and improvement recommendations")
 	
 	def _log_analysis_start(self, section_type: ProposalSection):
-		print(f"ContentRecommender: Starting content analysis for {section_type.value}")
+		logger.info(f"ContentRecommender: Starting content analysis for {section_type.value}")
 	
 	def _log_analysis_complete(self, section_type: ProposalSection, score: float, issues: int):
-		print(f"ContentRecommender: Completed analysis for {section_type.value} - Score: {score:.1f}, Issues: {issues}")
+		logger.info(f"ContentRecommender: Completed analysis for {section_type.value} - Score: {score:.1f}, Issues: {issues}")
 	
 	def _log_analysis_error(self, message: str):
-		print(f"ContentRecommender Error: {message}")
+		logger.error(f"ContentRecommender Error: {message}")
 
 
 # Example usage and testing
@@ -988,32 +990,32 @@ if __name__ == "__main__":
 	async def main():
 		report, stats = await create_sample_content_recommendation()
 		
-		print("Content Recommendation Report:")
+		logger.info(f"Content Recommendation Report:")
 		print("=" * 50)
-		print(f"Section: {report.section_type.value}")
-		print(f"Overall Score: {report.overall_content_score:.1f}/100")
-		print(f"Content Length: {report.content_analysis.content_length} words")
+		logger.info(f"Section: {report.section_type.value}")
+		logger.info(f"Overall Score: {report.overall_content_score:.1f}/100")
+		logger.info(f"Content Length: {report.content_analysis.content_length} words")
 		
-		print(f"\nQuality Metrics:")
-		print(f"  Readability: {report.content_analysis.readability_score:.3f}")
-		print(f"  Technical Depth: {report.content_analysis.technical_depth_score:.3f}")
-		print(f"  Compliance: {report.content_analysis.compliance_score:.3f}")
-		print(f"  Evidence Strength: {report.content_analysis.evidence_strength_score:.3f}")
+		logger.info(f"\nQuality Metrics:")
+		logger.info(f"  Readability: {report.content_analysis.readability_score:.3f}")
+		logger.info(f"  Technical Depth: {report.content_analysis.technical_depth_score:.3f}")
+		logger.info(f"  Compliance: {report.content_analysis.compliance_score:.3f}")
+		logger.info(f"  Evidence Strength: {report.content_analysis.evidence_strength_score:.3f}")
 		
-		print(f"\nCritical Issues ({len(report.critical_issues)}):")
+		logger.info(f"\nCritical Issues ({len(report.critical_issues)}):")
 		for issue in report.critical_issues[:3]:
-			print(f"  🚨 {issue.severity.upper()}: {issue.description}")
+			logger.info(f"  🚨 {issue.severity.upper()}: {issue.description}")
 		
-		print(f"\nTop Improvement Suggestions:")
+		logger.info(f"\nTop Improvement Suggestions:")
 		for suggestion in report.improvement_suggestions[:3]:
-			print(f"  💡 {suggestion.title} ({suggestion.priority} priority)")
-			print(f"     {suggestion.description}")
+			logger.info(f"  💡 {suggestion.title} ({suggestion.priority} priority)")
+			logger.info(f"     {suggestion.description}")
 		
-		print(f"\nQuick Wins:")
+		logger.info(f"\nQuick Wins:")
 		for win in report.quick_wins[:3]:
-			print(f"  ⚡ {win}")
+			logger.info(f"  ⚡ {win}")
 		
-		print(f"\nExpected Improvement: {report.expected_score_improvement:.1f} points")
-		print(f"Implementation Timeline: {report.implementation_timeline}")
+		logger.info(f"\nExpected Improvement: {report.expected_score_improvement:.1f} points")
+		logger.info(f"Implementation Timeline: {report.implementation_timeline}")
 	
 	asyncio.run(main())

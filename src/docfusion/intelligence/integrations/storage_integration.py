@@ -7,6 +7,8 @@ and intelligence analyses for continuous learning and improvement.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 import pickle
 from datetime import datetime, timedelta
@@ -685,25 +687,25 @@ class IntelligenceStorageService:
     # Logging methods
     
     def _log_initialization(self):
-        print(f"IntelligenceStorageService: Initialized with {self.storage_type.value} storage at {self.base_path}")
+        logger.info(f"IntelligenceStorageService: Initialized with {self.storage_type.value} storage at {self.base_path}")
     
     def _log_storage_start(self, data_type: str, item_id: str):
-        print(f"IntelligenceStorageService: Storing {data_type} {item_id}")
+        logger.info(f"IntelligenceStorageService: Storing {data_type} {item_id}")
     
     def _log_storage_complete(self, data_type: str, item_id: str, path: str):
-        print(f"IntelligenceStorageService: Stored {data_type} {item_id} at {path}")
+        logger.info(f"IntelligenceStorageService: Stored {data_type} {item_id} at {path}")
     
     def _log_storage_error(self, message: str):
-        print(f"IntelligenceStorageService Storage Error: {message}")
+        logger.error(f"IntelligenceStorageService Storage Error: {message}")
     
     def _log_load_complete(self, data_type: str, item_id: str, details: str):
-        print(f"IntelligenceStorageService: Loaded {data_type} {item_id} ({details})")
+        logger.info(f"IntelligenceStorageService: Loaded {data_type} {item_id} ({details})")
     
     def _log_load_error(self, message: str):
-        print(f"IntelligenceStorageService Load Error: {message}")
+        logger.error(f"IntelligenceStorageService Load Error: {message}")
     
     def _log_cleanup_complete(self, stats: Dict[str, int]):
-        print(f"IntelligenceStorageService: Cleanup complete - {stats['files_deleted']} files deleted, {stats['bytes_freed']} bytes freed")
+        logger.info(f"IntelligenceStorageService: Cleanup complete - {stats['files_deleted']} files deleted, {stats['bytes_freed']} bytes freed")
 
 
 # Example usage and testing
@@ -786,22 +788,22 @@ if __name__ == "__main__":
     async def main():
         results = await create_sample_storage_operations()
         
-        print("Storage Integration Test Results:")
+        logger.info(f"Storage Integration Test Results:")
         print("=" * 50)
-        print(f"Historical Data Path: {results['historical_path']}")
-        print(f"Prediction Path: {results['prediction_path']}")
-        print(f"Metrics Path: {results['metrics_path']}")
+        logger.info(f"Historical Data Path: {results['historical_path']}")
+        logger.info(f"Prediction Path: {results['prediction_path']}")
+        logger.info(f"Metrics Path: {results['metrics_path']}")
         
-        print(f"\nStorage Statistics:")
+        logger.info(f"\nStorage Statistics:")
         stats = results['storage_stats']
-        print(f"  Total Items: {stats['total_items']}")
-        print(f"  Total Size: {stats['total_size_bytes']} bytes")
-        print(f"  Storage Type: {stats['storage_type']}")
-        print(f"  Items by Type: {stats['items_by_type']}")
+        logger.info(f"  Total Items: {stats['total_items']}")
+        logger.info(f"  Total Size: {stats['total_size_bytes']} bytes")
+        logger.info(f"  Storage Type: {stats['storage_type']}")
+        logger.info(f"  Items by Type: {stats['items_by_type']}")
         
         if stats['access_statistics']:
-            print(f"  Average Access Count: {stats['access_statistics']['average_access_count']:.1f}")
+            logger.info(f"  Average Access Count: {stats['access_statistics']['average_access_count']:.1f}")
         
-        print(f"  Base Path: {stats['base_path']}")
+        logger.info(f"  Base Path: {stats['base_path']}")
     
     asyncio.run(main())

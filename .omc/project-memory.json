@@ -256,8 +256,8 @@
   "hotPaths": [
     {
       "path": "src/docfusion",
-      "accessCount": 80,
-      "lastAccessed": 1775924311938,
+      "accessCount": 95,
+      "lastAccessed": 1775924863983,
       "type": "directory"
     },
     {
@@ -291,16 +291,16 @@
       "type": "file"
     },
     {
+      "path": "",
+      "accessCount": 7,
+      "lastAccessed": 1775924706011,
+      "type": "directory"
+    },
+    {
       "path": "src/docfusion/security/authentication/saml_authentication.py",
       "accessCount": 5,
       "lastAccessed": 1775923071306,
       "type": "file"
-    },
-    {
-      "path": "",
-      "accessCount": 5,
-      "lastAccessed": 1775924336591,
-      "type": "directory"
     },
     {
       "path": "src/docfusion/core/database/connection.py",

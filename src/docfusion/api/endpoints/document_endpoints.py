@@ -8,7 +8,7 @@ updating, deletion, and rendering with comprehensive security integration.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import timezone, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -245,8 +245,8 @@ class DocumentEndpoints:
                 category=request.category or "",
                 tags=request.tags or [],
                 metadata=request.metadata or {},
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
                 created_by=user_id,
                 encrypted=result.get("encrypted", False),
                 permission_level=document.get("permission_level", "owner"),
@@ -564,7 +564,7 @@ class DocumentEndpoints:
             history = [
                 {
                     "version": "1.0",
-                    "changed_at": datetime.utcnow().isoformat(),
+                    "changed_at": datetime.now(timezone.utc).isoformat(),
                     "changed_by": user_id,
                     "changes": ["Initial creation"],
                     "comment": "Document created",

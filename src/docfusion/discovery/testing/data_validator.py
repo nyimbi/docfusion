@@ -24,6 +24,7 @@ from ...core.utils import uuid7str
 
 from ..models.opportunity_models import OpportunityData as Opportunity
 from ..crawlers.source_databases.global_source_db import GlobalSourceDB
+import time
 
 
 class ValidationLevel(Enum):
@@ -352,7 +353,7 @@ class DataValidator:
 		)
 		
 		try:
-			start_time = asyncio.get_event_loop().time()
+			start_time = time.monotonic()
 			
 			# Initialize quality metrics
 			quality_metrics = QualityMetrics()
@@ -389,7 +390,7 @@ class DataValidator:
 			
 			# Complete validation
 			validation_result.completed_at = datetime.now(timezone.utc)
-			validation_result.duration_seconds = asyncio.get_event_loop().time() - start_time
+			validation_result.duration_seconds = time.monotonic() - start_time
 			
 			# Update statistics
 			self._update_validation_stats(validation_result)

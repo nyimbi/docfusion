@@ -863,27 +863,27 @@ if __name__ == "__main__":
 	async def main():
 		predictions, performance, stats = await create_sample_section_scoring_prediction()
 		
-		print("Section Score Prediction Results:")
+		logger.info(f"Section Score Prediction Results:")
 		print("=" * 50)
 		
 		for section_type, prediction in predictions.items():
-			print(f"\n📊 {section_type.value.replace('_', ' ').title()}:")
-			print(f"  Predicted Score: {prediction.predicted_score:.1f}/100")
-			print(f"  Confidence Interval: {prediction.confidence_interval[0]:.1f} - {prediction.confidence_interval[1]:.1f}")
-			print(f"  Model Used: {prediction.model_used}")
-			print(f"  Prediction Confidence: {prediction.prediction_confidence:.3f}")
+			logger.info(f"\n📊 {section_type.value.replace('_', ' ').title()}:")
+			logger.info(f"  Predicted Score: {prediction.predicted_score:.1f}/100")
+			logger.info(f"  Confidence Interval: {prediction.confidence_interval[0]:.1f} - {prediction.confidence_interval[1]:.1f}")
+			logger.info(f"  Model Used: {prediction.model_used}")
+			logger.info(f"  Prediction Confidence: {prediction.prediction_confidence:.3f}")
 			
-			print(f"\n  Top Positive Features:")
+			logger.info(f"\n  Top Positive Features:")
 			for factor, impact in prediction.top_positive_features[:3]:
-				print(f"    ✅ {factor}: {impact:.3f}")
+				logger.info(f"    ✅ {factor}: {impact:.3f}")
 			
-			print(f"\n  Improvement Suggestions:")
+			logger.info(f"\n  Improvement Suggestions:")
 			for suggestion in prediction.improvement_suggestions[:2]:
-				print(f"    💡 {suggestion}")
+				logger.info(f"    💡 {suggestion}")
 		
-		print(f"\nModel Performance Summary:")
+		logger.info(f"\nModel Performance Summary:")
 		for section_type, section_performance in performance.items():
 			best_model = min(section_performance.items(), key=lambda x: x[1].mean_absolute_error)
-			print(f"  {section_type.value}: {best_model[0]} (MAE: {best_model[1].mean_absolute_error:.2f})")
+			logger.error(f"  {section_type.value}: {best_model[0]} (MAE: {best_model[1].mean_absolute_error:.2f})")
 	
 	asyncio.run(main())

@@ -8,7 +8,7 @@ and session management with comprehensive security integration.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import timezone, datetime
 from typing import Any, Callable, Dict, List, Optional
 
 import aioredis
@@ -153,7 +153,7 @@ class AuthenticationMiddleware:
 
             # Check if token is not expired
             exp = payload.get("exp")
-            if exp and datetime.utcnow().timestamp() > exp:
+            if exp and datetime.now(timezone.utc).timestamp() > exp:
                 return None
 
             # Get user permissions from security manager
@@ -166,7 +166,7 @@ class AuthenticationMiddleware:
                 "permissions": permissions,
                 "ip_address": self._get_client_ip(request),
                 "user_agent": request.headers.get("User-Agent"),
-                "authenticated_at": datetime.utcnow(),
+                "authenticated_at": datetime.now(timezone.utc),
                 "token_payload": payload,
             }
 
@@ -204,7 +204,7 @@ class AuthenticationMiddleware:
                 "permissions": permissions,
                 "ip_address": self._get_client_ip(request),
                 "user_agent": request.headers.get("User-Agent"),
-                "authenticated_at": datetime.utcnow(),
+                "authenticated_at": datetime.now(timezone.utc),
                 "api_key_info": {
                     "key_id": result.api_key_id,
                     "rate_limited": result.rate_limited,
@@ -228,7 +228,7 @@ class AuthenticationMiddleware:
             session = self.active_sessions[session_id]
 
             # Check session expiration
-            if session["expires_at"] < datetime.utcnow():
+            if session["expires_at"] < datetime.now(timezone.utc):
                 del self.active_sessions[session_id]
                 return None
 
@@ -286,7 +286,7 @@ class AuthenticationMiddleware:
     async def _update_session_activity(self, session_id: Optional[str]):
         """Update session last activity timestamp"""
         if session_id and session_id in self.active_sessions:
-            self.active_sessions[session_id]["last_activity"] = datetime.utcnow()
+            self.active_sessions[session_id]["last_activity"] = datetime.now(timezone.utc)
 
     # ==================== SESSION MANAGEMENT ====================
 
@@ -303,10 +303,10 @@ class AuthenticationMiddleware:
             "session_id": session_id,
             "user_id": user_id,
             "auth_method": auth_method,
-            "authenticated_at": datetime.utcnow(),
-            "last_activity": datetime.utcnow(),
-            "expires_at": datetime.utcnow().replace(
-                minute=datetime.utcnow().minute + self.jwt_expiration_minutes
+            "authenticated_at": datetime.now(timezone.utc),
+            "last_activity": datetime.now(timezone.utc),
+            "expires_at": datetime.now(timezone.utc).replace(
+                minute=datetime.now(timezone.utc).minute + self.jwt_expiration_minutes
             ),
             "ip_address": ip_address,
             "user_agent": user_agent,
@@ -328,8 +328,8 @@ class AuthenticationMiddleware:
         payload = {
             "sub": user_id,
             "session_id": session_id,
-            "iat": datetime.utcnow().timestamp(),
-            "exp": datetime.utcnow().timestamp() + (self.jwt_expiration_minutes * 60),
+            "iat": datetime.now(timezone.utc).timestamp(),
+            "exp": datetime.now(timezone.utc).timestamp() + (self.jwt_expiration_minutes * 60),
             "type": "access_token",
         }
 
@@ -337,7 +337,7 @@ class AuthenticationMiddleware:
 
     async def cleanup_expired_sessions(self):
         """Clean up expired sessions"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         expired_sessions = []
 
         for session_id, session in self.active_sessions.items():

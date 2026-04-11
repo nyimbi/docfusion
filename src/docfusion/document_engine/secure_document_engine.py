@@ -9,7 +9,7 @@ encryption, and audit logging with document generation and processing.
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import timezone, datetime
 from typing import Any, Dict, List, Optional, Union
 
 from ..security import (
@@ -117,7 +117,7 @@ class SecureDocumentEngine:
             generation_metadata = {
                 **(metadata or {}),
                 "generated_by": user_id,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "classification": classification
                 or self.config.default_document_classification,
                 "security_version": "1.0",
@@ -143,7 +143,7 @@ class SecureDocumentEngine:
                 "success": True,
                 "document_id": document_id,
                 "output_format": output_format,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "metadata": generation_metadata,
                 "file_path": f"/generated/{document_id}.{output_format}",
                 "file_size": 1024000,  # Simulated size
@@ -224,7 +224,7 @@ class SecureDocumentEngine:
             document_info = {
                 "document_id": document_id,
                 "file_path": f"/generated/{document_id}.pdf",
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "classification": "internal",
                 "watermarked": True,
                 "file_size": 1024000,
@@ -337,7 +337,7 @@ class SecureDocumentEngine:
                 "fields": ["title", "content", "author"],
                 "output_formats": ["pdf", "docx", "html"],
                 "access_level": "user",
-                "last_modified": datetime.utcnow().isoformat(),
+                "last_modified": datetime.now(timezone.utc).isoformat(),
             }
 
             return {"success": True, "template": template_info, "user_has_access": True}
@@ -493,7 +493,7 @@ class SecureDocumentEngine:
         access_info = {
             "document_id": document_id,
             "user_id": user_id,
-            "accessed_at": datetime.utcnow().isoformat(),
+            "accessed_at": datetime.now(timezone.utc).isoformat(),
             "ip_address": context.get("ip_address") if context else None,
             "user_agent": context.get("user_agent") if context else None,
         }

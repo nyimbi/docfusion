@@ -8,7 +8,7 @@ categorization, search, and preview functionality with security integration.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import timezone, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -233,8 +233,8 @@ class TemplateEndpoints:
                 fields=request.fields or [],
                 tags=request.tags or [],
                 access_level=request.access_level or "user",
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
                 created_by=user_id,
                 version="1.0",
                 is_active=True,
@@ -409,7 +409,7 @@ class TemplateEndpoints:
                 "template_access_level": request.access_level
                 or template_info.access_level,
                 "is_template": True,
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             }
 
             # This is a simplified update - in production would need to find the actual document
@@ -425,7 +425,7 @@ class TemplateEndpoints:
                 tags=request.tags or template_info.tags,
                 access_level=request.access_level or template_info.access_level,
                 created_at=template_info.created_at,
-                updated_at=datetime.utcnow(),
+                updated_at=datetime.now(timezone.utc),
                 created_by=template_info.created_by,
                 version="1.1",
                 is_active=True,

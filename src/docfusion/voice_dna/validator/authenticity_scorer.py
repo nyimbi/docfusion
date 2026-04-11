@@ -8,6 +8,8 @@ appropriateness.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import re
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -1156,16 +1158,16 @@ class AuthenticityScorer:
 	# Logging methods
 	
 	def _log_initialization(self):
-		print(f"AuthenticityScorer: Initialized with {len(AuthenticityDimension)} authenticity dimensions")
+		logger.info(f"AuthenticityScorer: Initialized with {len(AuthenticityDimension)} authenticity dimensions")
 	
 	def _log_assessment_start(self, organization: str, text_length: int):
-		print(f"AuthenticityScorer: Starting authenticity assessment for {organization} ({text_length} characters)")
+		logger.info(f"AuthenticityScorer: Starting authenticity assessment for {organization} ({text_length} characters)")
 	
 	def _log_assessment_complete(self, organization: str, score: float, factor_count: int, duration: float):
-		print(f"AuthenticityScorer: Assessment complete for {organization} (score: {score:.3f}, {factor_count} factors, {duration:.2f}s)")
+		logger.info(f"AuthenticityScorer: Assessment complete for {organization} (score: {score:.3f}, {factor_count} factors, {duration:.2f}s)")
 	
 	def _log_assessment_error(self, message: str):
-		print(f"AuthenticityScorer Error: {message}")
+		logger.error(f"AuthenticityScorer Error: {message}")
 
 
 # Example usage and testing
@@ -1248,47 +1250,47 @@ if __name__ == "__main__":
 	async def main():
 		result, stats = await create_sample_authenticity_assessment()
 		
-		print("Authenticity Assessment Results:")
+		logger.info(f"Authenticity Assessment Results:")
 		print("=" * 50)
-		print(f"Organization: {result.organization_name}")
-		print(f"Overall Authenticity Score: {result.overall_authenticity_score:.3f}")
-		print(f"Authenticity Grade: {result.authenticity_grade}")
-		print(f"Confidence: {result.authenticity_confidence:.3f}")
+		logger.info(f"Organization: {result.organization_name}")
+		logger.info(f"Overall Authenticity Score: {result.overall_authenticity_score:.3f}")
+		logger.info(f"Authenticity Grade: {result.authenticity_grade}")
+		logger.info(f"Confidence: {result.authenticity_confidence:.3f}")
 		
-		print(f"\nDimension Scores:")
+		logger.info(f"\nDimension Scores:")
 		for dimension, score in result.dimension_scores.items():
 			weight = result.dimension_weights.get(dimension, 0.0)
-			print(f"  {dimension.replace('_', ' ').title()}: {score:.3f} (weight: {weight:.2f})")
+			logger.info(f"  {dimension.replace('_', ' ').title()}: {score:.3f} (weight: {weight:.2f})")
 		
-		print(f"\nCompliance Metrics:")
-		print(f"  Brand Compliance: {result.brand_compliance_score:.3f}")
-		print(f"  Voice Consistency: {result.voice_consistency_score:.3f}")
-		print(f"  Audience Alignment: {result.audience_alignment_score:.3f}")
-		print(f"  Competitive Differentiation: {result.competitive_differentiation_score:.3f}")
-		print(f"  UVP Strength: {result.unique_value_proposition_strength:.3f}")
+		logger.info(f"\nCompliance Metrics:")
+		logger.info(f"  Brand Compliance: {result.brand_compliance_score:.3f}")
+		logger.info(f"  Voice Consistency: {result.voice_consistency_score:.3f}")
+		logger.info(f"  Audience Alignment: {result.audience_alignment_score:.3f}")
+		logger.info(f"  Competitive Differentiation: {result.competitive_differentiation_score:.3f}")
+		logger.info(f"  UVP Strength: {result.unique_value_proposition_strength:.3f}")
 		
-		print(f"\nTop Authenticity Strengths:")
+		logger.info(f"\nTop Authenticity Strengths:")
 		for i, strength in enumerate(result.top_authenticity_strengths, 1):
-			print(f"  {i}. {strength}")
+			logger.info(f"  {i}. {strength}")
 		
-		print(f"\nCritical Improvements Needed:")
+		logger.info(f"\nCritical Improvements Needed:")
 		for i, improvement in enumerate(result.critical_improvements_needed, 1):
-			print(f"  {i}. {improvement}")
+			logger.info(f"  {i}. {improvement}")
 		
-		print(f"\nTop Factors:")
+		logger.info(f"\nTop Factors:")
 		for i, factor in enumerate(result.authenticity_factors[:5], 1):
-			print(f"  {i}. {factor.factor_name}: {factor.score:.3f}")
-			print(f"     Dimension: {factor.dimension.value}")
-			print(f"     Confidence: {factor.confidence:.3f}")
+			logger.info(f"  {i}. {factor.factor_name}: {factor.score:.3f}")
+			logger.info(f"     Dimension: {factor.dimension.value}")
+			logger.info(f"     Confidence: {factor.confidence:.3f}")
 		
-		print(f"\nAnalysis Quality:")
-		print(f"  Completeness: {result.analysis_completeness:.3f}")
-		print(f"  Reliability: {result.measurement_reliability:.3f}")
-		print(f"  Duration: {result.analysis_duration_seconds:.3f}s")
-		print(f"  Words Analyzed: {result.words_analyzed}")
+		logger.info(f"\nAnalysis Quality:")
+		logger.info(f"  Completeness: {result.analysis_completeness:.3f}")
+		logger.info(f"  Reliability: {result.measurement_reliability:.3f}")
+		logger.info(f"  Duration: {result.analysis_duration_seconds:.3f}s")
+		logger.info(f"  Words Analyzed: {result.words_analyzed}")
 		
-		print(f"\nScorer Statistics:")
+		logger.info(f"\nScorer Statistics:")
 		for key, value in stats.items():
-			print(f"  {key.replace('_', ' ').title()}: {value}")
+			logger.info(f"  {key.replace('_', ' ').title()}: {value}")
 	
 	asyncio.run(main())

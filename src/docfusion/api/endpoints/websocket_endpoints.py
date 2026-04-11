@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 from typing import Dict, List, Optional, Any, Set
-from datetime import datetime
+from datetime import timezone, datetime
 from enum import Enum
 
 from fastapi import WebSocket, WebSocketDisconnect, Depends, HTTPException, Query
@@ -122,7 +122,7 @@ class ConnectionManager:
 			# Send authentication success
 			await self.send_to_user(user_id, MessageType.AUTH_SUCCESS, {
 				'user_id': user_id,
-				'connected_at': datetime.utcnow().isoformat(),
+				'connected_at': datetime.now(timezone.utc).isoformat(),
 				'session_id': user_info.get('session_id')
 			})
 			
@@ -153,7 +153,7 @@ class ConnectionManager:
 						await self.send_to_document_subscribers(document_id, MessageType.USER_LEFT, {
 							'user_id': user_id,
 							'document_id': document_id,
-							'left_at': datetime.utcnow().isoformat()
+							'left_at': datetime.now(timezone.utc).isoformat()
 						}, exclude_user=user_id)
 			
 			# Update presence to offline
@@ -182,13 +182,13 @@ class ConnectionManager:
 		# Update user presence
 		if user_id in self.user_presence:
 			self.user_presence[user_id].document_id = document_id
-			self.user_presence[user_id].last_activity = datetime.utcnow()
+			self.user_presence[user_id].last_activity = datetime.now(timezone.utc)
 		
 		# Notify other users in document
 		await self.send_to_document_subscribers(document_id, MessageType.USER_JOINED, {
 			'user_id': user_id,
 			'document_id': document_id,
-			'joined_at': datetime.utcnow().isoformat(),
+			'joined_at': datetime.now(timezone.utc).isoformat(),
 			'presence': self.user_presence.get(user_id, {}).dict() if user_id in self.user_presence else {}
 		}, exclude_user=user_id)
 		
@@ -210,7 +210,7 @@ class ConnectionManager:
 		await self.send_to_document_subscribers(document_id, MessageType.USER_LEFT, {
 			'user_id': user_id,
 			'document_id': document_id,
-			'left_at': datetime.utcnow().isoformat()
+			'left_at': datetime.now(timezone.utc).isoformat()
 		}, exclude_user=user_id)
 		
 		self.logger.debug(f"User {user_id} unsubscribed from document {document_id}")
@@ -287,7 +287,7 @@ class ConnectionManager:
 	
 	def is_rate_limited(self, user_id: str) -> bool:
 		"""Check if user is rate limited"""
-		current_minute = datetime.utcnow().minute
+		current_minute = datetime.now(timezone.utc).minute
 		
 		if user_id not in self.message_counts:
 			self.message_counts[user_id] = {}
@@ -366,7 +366,7 @@ class WebSocketEndpoints:
 					await websocket.send_text(json.dumps({
 						'type': MessageType.AUTH_FAILED,
 						'data': {'error': 'Authentication failed'},
-						'timestamp': datetime.utcnow().isoformat()
+						'timestamp': datetime.now(timezone.utc).isoformat()
 					}))
 					await websocket.close()
 					return
@@ -375,7 +375,7 @@ class WebSocketEndpoints:
 				await websocket.send_text(json.dumps({
 					'type': MessageType.AUTH_FAILED,
 					'data': {'error': 'Token required'},
-					'timestamp': datetime.utcnow().isoformat()
+					'timestamp': datetime.now(timezone.utc).isoformat()
 				}))
 				await websocket.close()
 				return
@@ -446,7 +446,7 @@ class WebSocketEndpoints:
 		try:
 			if message.type == MessageType.PING:
 				await self.connection_manager.send_to_user(user_id, MessageType.PONG, {
-					'timestamp': datetime.utcnow().isoformat()
+					'timestamp': datetime.now(timezone.utc).isoformat()
 				})
 			
 			elif message.type == MessageType.DOCUMENT_EDIT:
@@ -519,7 +519,7 @@ class WebSocketEndpoints:
 				'user_id': user_id,
 				'operation': message.data.get('operation'),
 				'changes': message.data.get('changes', []),
-				'timestamp': datetime.utcnow().isoformat(),
+				'timestamp': datetime.now(timezone.utc).isoformat(),
 				'message_id': message.message_id
 			}
 			
@@ -570,7 +570,7 @@ class WebSocketEndpoints:
 			# Update user presence
 			if user_id in self.connection_manager.user_presence:
 				self.connection_manager.user_presence[user_id].cursor_position = cursor_position
-				self.connection_manager.user_presence[user_id].last_activity = datetime.utcnow()
+				self.connection_manager.user_presence[user_id].last_activity = datetime.now(timezone.utc)
 			
 			# Broadcast cursor update to document subscribers
 			await self.connection_manager.send_to_document_subscribers(
@@ -580,7 +580,7 @@ class WebSocketEndpoints:
 					'user_id': user_id,
 					'document_id': document_id,
 					'cursor_position': cursor_position,
-					'timestamp': datetime.utcnow().isoformat()
+					'timestamp': datetime.now(timezone.utc).isoformat()
 				},
 				exclude_user=user_id
 			)
@@ -610,7 +610,7 @@ class WebSocketEndpoints:
 					'user_id': user_id,
 					'document_id': document_id,
 					'selection': selection,
-					'timestamp': datetime.utcnow().isoformat()
+					'timestamp': datetime.now(timezone.utc).isoformat()
 				},
 				exclude_user=user_id
 			)
@@ -650,7 +650,7 @@ class WebSocketEndpoints:
 			# For now, just confirm save
 			save_result = {
 				'document_id': document_id,
-				'saved_at': datetime.utcnow().isoformat(),
+				'saved_at': datetime.now(timezone.utc).isoformat(),
 				'saved_by': user_id,
 				'version': '1.0',  # Would be actual version
 				'success': True
@@ -759,7 +759,7 @@ class WebSocketEndpoints:
 			{
 				'job_id': job_id,
 				'status': status_data,
-				'timestamp': datetime.utcnow().isoformat()
+				'timestamp': datetime.now(timezone.utc).isoformat()
 			}
 		)
 	
@@ -770,7 +770,7 @@ class WebSocketEndpoints:
 			MessageType.NOTIFICATION,
 			{
 				'notification': notification,
-				'timestamp': datetime.utcnow().isoformat()
+				'timestamp': datetime.now(timezone.utc).isoformat()
 			}
 		)
 	
@@ -781,7 +781,7 @@ class WebSocketEndpoints:
 			{
 				'notification': notification,
 				'type': 'system',
-				'timestamp': datetime.utcnow().isoformat()
+				'timestamp': datetime.now(timezone.utc).isoformat()
 			}
 		)
 	

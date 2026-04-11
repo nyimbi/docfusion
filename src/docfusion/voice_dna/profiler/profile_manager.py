@@ -7,6 +7,8 @@ storage, retrieval, and analysis of organizational voice profiles over time.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 import shutil
 from collections import defaultdict
@@ -795,50 +797,50 @@ class ProfileManager:
 	
 	def _log_initialization(self):
 		ml_status = "available" if ML_AVAILABLE else "fallback mode"
-		print(f"ProfileManager: Initialized with storage at {self.storage_path} ({ml_status})")
+		logger.info(f"ProfileManager: Initialized with storage at {self.storage_path} ({ml_status})")
 	
 	def _log_profiles_loaded(self, profile_count: int, version_count: int):
-		print(f"ProfileManager: Loaded {profile_count} profiles and {version_count} versions")
+		logger.info(f"ProfileManager: Loaded {profile_count} profiles and {version_count} versions")
 	
 	def _log_version_creation_start(self, profile_id: str):
-		print(f"ProfileManager: Creating version for profile {profile_id}")
+		logger.info(f"ProfileManager: Creating version for profile {profile_id}")
 	
 	def _log_version_created(self, profile_id: str, version: str, is_major: bool, duration: float):
 		change_type = "major" if is_major else "minor"
-		print(f"ProfileManager: Created {change_type} version {version} for {profile_id} ({duration:.2f}s)")
+		logger.info(f"ProfileManager: Created {change_type} version {version} for {profile_id} ({duration:.2f}s)")
 	
 	def _log_version_skipped(self, profile_id: str, change_amount: float):
-		print(f"ProfileManager: Version skipped for {profile_id} (change: {change_amount:.3f} < threshold)")
+		logger.info(f"ProfileManager: Version skipped for {profile_id} (change: {change_amount:.3f} < threshold)")
 	
 	def _log_comparison_start(self, source_id: str, target_id: str, comparison_type: str):
-		print(f"ProfileManager: Starting {comparison_type} comparison: {source_id} vs {target_id}")
+		logger.info(f"ProfileManager: Starting {comparison_type} comparison: {source_id} vs {target_id}")
 	
 	def _log_comparison_complete(self, source_id: str, target_id: str, similarity: float, duration: float):
-		print(f"ProfileManager: Comparison complete: {source_id} vs {target_id} (similarity: {similarity:.3f}, {duration:.2f}s)")
+		logger.info(f"ProfileManager: Comparison complete: {source_id} vs {target_id} (similarity: {similarity:.3f}, {duration:.2f}s)")
 	
 	def _log_profile_archived(self, profile_id: str, reason: str):
-		print(f"ProfileManager: Archived profile {profile_id} (reason: {reason})")
+		logger.info(f"ProfileManager: Archived profile {profile_id} (reason: {reason})")
 	
 	def _log_profile_restored(self, profile_id: str):
-		print(f"ProfileManager: Restored profile {profile_id}")
+		logger.info(f"ProfileManager: Restored profile {profile_id}")
 	
 	def _log_versions_cleaned(self, profile_id: str, removed_count: int):
-		print(f"ProfileManager: Cleaned {removed_count} old versions for profile {profile_id}")
+		logger.info(f"ProfileManager: Cleaned {removed_count} old versions for profile {profile_id}")
 	
 	def _log_backup_created(self, backup_name: str, profile_count: int):
-		print(f"ProfileManager: Created backup '{backup_name}' ({profile_count} profiles)")
+		logger.info(f"ProfileManager: Created backup '{backup_name}' ({profile_count} profiles)")
 	
 	def _log_storage_error(self, message: str):
-		print(f"ProfileManager Storage Error: {message}")
+		logger.error(f"ProfileManager Storage Error: {message}")
 	
 	def _log_version_error(self, message: str):
-		print(f"ProfileManager Version Error: {message}")
+		logger.error(f"ProfileManager Version Error: {message}")
 	
 	def _log_comparison_error(self, message: str):
-		print(f"ProfileManager Comparison Error: {message}")
+		logger.error(f"ProfileManager Comparison Error: {message}")
 	
 	def _log_management_error(self, message: str):
-		print(f"ProfileManager Management Error: {message}")
+		logger.error(f"ProfileManager Management Error: {message}")
 
 
 # Example usage and testing
@@ -925,50 +927,50 @@ if __name__ == "__main__":
 	async def main():
 		result = await create_sample_profile_management()
 		
-		print("Profile Management Results:")
+		logger.info(f"Profile Management Results:")
 		print("=" * 60)
 		
-		print(f"\nCreated Profiles: {len(result['profiles'])}")
+		logger.info(f"\nCreated Profiles: {len(result['profiles'])}")
 		for profile in result['profiles']:
-			print(f"  📋 {profile.organization_name} ({profile.profile_type.value})")
-			print(f"     Confidence: {profile.voice_fingerprint.confidence_level:.3f}")
+			logger.info(f"  📋 {profile.organization_name} ({profile.profile_type.value})")
+			logger.info(f"     Confidence: {profile.voice_fingerprint.confidence_level:.3f}")
 		
-		print(f"\nCreated Versions: {len(result['versions'])}")
+		logger.info(f"\nCreated Versions: {len(result['versions'])}")
 		for version in result['versions']:
 			change_type = "🔴 Major" if version.is_major_change else "🟡 Minor"
-			print(f"  {change_type} v{version.version_number}: {version.change_description}")
+			logger.info(f"  {change_type} v{version.version_number}: {version.change_description}")
 		
-		print(f"\nProfile Comparison:")
+		logger.info(f"\nProfile Comparison:")
 		comp = result['comparison']
-		print(f"  Overall Similarity: {comp.overall_similarity:.3f}")
-		print(f"  Vocabulary Overlap: {comp.vocabulary_overlap:.3f}")
-		print(f"  Formality Difference: {comp.formality_difference:.3f}")
+		logger.info(f"  Overall Similarity: {comp.overall_similarity:.3f}")
+		logger.info(f"  Vocabulary Overlap: {comp.vocabulary_overlap:.3f}")
+		logger.info(f"  Formality Difference: {comp.formality_difference:.3f}")
 		
-		print(f"\nEvolution Analysis:")
+		logger.info(f"\nEvolution Analysis:")
 		evo = result['evolution']
 		if evo.evolution_trajectory:
 			for metric, change in evo.evolution_trajectory.items():
 				direction = "📈" if change > 0 else "📉" if change < 0 else "➡️"
-				print(f"  {direction} {metric.title()}: {change:+.3f}")
+				logger.info(f"  {direction} {metric.title()}: {change:+.3f}")
 		
-		print(f"\nTimeline Analysis:")
+		logger.info(f"\nTimeline Analysis:")
 		timeline = result['timeline']
 		if 'timeline' in timeline:
 			for entry in timeline['timeline']:
-				print(f"  v{entry['version']}: {entry['description']}")
+				logger.info(f"  v{entry['version']}: {entry['description']}")
 				if 'changes' in entry:
 					for change, delta in entry['changes'].items():
 						if abs(delta) > 0.01:
-							print(f"    {change}: {delta:+.3f}")
+							logger.info(f"    {change}: {delta:+.3f}")
 		
-		print(f"\nManager Statistics:")
+		logger.info(f"\nManager Statistics:")
 		stats = result['stats']
 		for key, value in stats.items():
 			if isinstance(value, dict):
-				print(f"  {key.replace('_', ' ').title()}:")
+				logger.info(f"  {key.replace('_', ' ').title()}:")
 				for k, v in value.items():
-					print(f"    {k}: {v}")
+					logger.info(f"    {k}: {v}")
 			else:
-				print(f"  {key.replace('_', ' ').title()}: {value}")
+				logger.info(f"  {key.replace('_', ' ').title()}: {value}")
 	
 	asyncio.run(main())

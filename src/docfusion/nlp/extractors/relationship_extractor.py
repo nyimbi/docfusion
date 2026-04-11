@@ -41,6 +41,7 @@ import json
 
 import httpx
 from ...core.utils import uuid7str
+import time
 
 class RelationshipType(str, Enum):
     """Types of relationships that can be extracted"""
@@ -363,7 +364,7 @@ class RelationshipExtractor:
         use_ai: Optional[bool] = None,
     ) -> RelationshipExtractionResult:
         """Extract relationships from text"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = RelationshipExtractionResult()
         result.original_text = text
 
@@ -441,7 +442,7 @@ class RelationshipExtractor:
             result.statistics = statistics
             result.methods_used = methods_used
             result.success = True
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Relationships extracted successfully, time: {result.processing_time:.2f}s"

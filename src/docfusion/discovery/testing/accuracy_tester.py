@@ -25,6 +25,7 @@ from ..crawlers.source_databases.global_source_db import GlobalSourceDB, Procure
 from ..crawlers.ai_driven.universal_scraper import UniversalScraper, ScrapingConfiguration
 from ..crawlers.ai_driven.structure_learner import StructureLearner, create_extraction_attempt
 from ..models.opportunity_models import OpportunityData as Opportunity
+import time
 
 
 class TestType(Enum):
@@ -437,7 +438,7 @@ class AccuracyTester:
 				
 				# Test each extraction method
 				for method in self.config.extraction_methods:
-					start_time = asyncio.get_event_loop().time()
+					start_time = time.monotonic()
 					
 					# Create scraper for this method
 					scraper = await self._create_test_scraper(method)
@@ -448,7 +449,7 @@ class AccuracyTester:
 						use_learned_structure=True
 					)
 					
-					extraction_time = asyncio.get_event_loop().time() - start_time
+					extraction_time = time.monotonic() - start_time
 					extraction_times.append(extraction_time)
 					
 					if scraping_result.success and extraction_result:

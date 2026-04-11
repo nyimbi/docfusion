@@ -42,12 +42,14 @@ Usage:
     result = await integrator.analyze(request)
     
     # Access results
-    print(f"Voice Score: {result.overall_voice_score}")
-    print(f"Recommendations: {result.key_recommendations}")
+    logger.info(f"Voice Score: {result.overall_voice_score}")
+    logger.info(f"Recommendations: {result.key_recommendations}")
 """
 
 # Core analyzer components
 from .analyzer import (
+import logging
+logger = logging.getLogger(__name__)
 	VoicePatternAnalyzer,
 	VoiceFingerprint,
 	WritingPattern,

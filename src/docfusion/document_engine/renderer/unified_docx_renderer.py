@@ -14,6 +14,8 @@ Features:
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import io
 import tempfile
 from datetime import datetime
@@ -157,7 +159,7 @@ class UnifiedDOCXRenderer(BaseRenderer):
 			
 		except Exception as e:
 			if self.enable_logging:
-				print(f"Warning: DOCX renderer initialization issue: {e}")
+				logger.warning(f"Warning: DOCX renderer initialization issue: {e}")
 			# Create minimal fallback
 			self.legacy_renderer = None
 			self.document_processor = None
@@ -233,7 +235,7 @@ class UnifiedDOCXRenderer(BaseRenderer):
 			result.validation_errors.append(f"DOCX generation failed: {str(e)}")
 			
 			if self.enable_logging:
-				print(f"DOCX rendering error: {e}")
+				logger.error(f"DOCX rendering error: {e}")
 		
 		# Calculate processing time
 		end_time = datetime.now()

@@ -7,6 +7,8 @@ NLP services with the opportunity analysis pipeline.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -499,7 +501,7 @@ class DiscoveryNLPService:
 	
 	def _log_service_initialized(self) -> None:
 		"""Log service initialization"""
-		print("DiscoveryNLPService: Service initialized with all NLP components")
+		logger.info(f"DiscoveryNLPService: Service initialized with all NLP components")
 	
 	def _log_analysis_complete(self, opportunity_id: str, processing_time: float, confidence: float) -> None:
 		"""Log successful analysis completion"""
@@ -508,19 +510,19 @@ class DiscoveryNLPService:
 	
 	def _log_analysis_error(self, message: str) -> None:
 		"""Log analysis errors"""
-		print(f"DiscoveryNLPService Error: {message}")
+		logger.error(f"DiscoveryNLPService Error: {message}")
 	
 	def _log_extraction_error(self, message: str) -> None:
 		"""Log extraction errors"""
-		print(f"DiscoveryNLPService Extraction Error: {message}")
+		logger.error(f"DiscoveryNLPService Extraction Error: {message}")
 	
 	def _log_batch_complete(self, requested: int, completed: int) -> None:
 		"""Log batch processing completion"""
-		print(f"DiscoveryNLPService: Batch processing complete - {completed}/{requested} successful")
+		logger.info(f"DiscoveryNLPService: Batch processing complete - {completed}/{requested} successful")
 	
 	def _log_batch_error(self, message: str) -> None:
 		"""Log batch processing errors"""
-		print(f"DiscoveryNLPService Batch Error: {message}")
+		logger.error(f"DiscoveryNLPService Batch Error: {message}")
 
 
 # Integration helpers for discovery analyzers
@@ -637,10 +639,10 @@ if __name__ == "__main__":
 	
 	async def main():
 		enhanced_data, stats = await test_nlp_integration()
-		print("Enhanced Opportunity Data:")
-		print(f"- Requirements: {len(enhanced_data.get('extracted_requirements', []))}")
-		print(f"- Technologies: {enhanced_data.get('required_technologies', [])}")
-		print(f"- Key Themes: {len(enhanced_data.get('key_themes', []))}")
-		print(f"- Processing Stats: {stats}")
+		logger.info(f"Enhanced Opportunity Data:")
+		logger.info(f"- Requirements: {len(enhanced_data.get('extracted_requirements', []))}")
+		logger.info(f"- Technologies: {enhanced_data.get('required_technologies', [])}")
+		logger.info(f"- Key Themes: {len(enhanced_data.get('key_themes', []))}")
+		logger.info(f"- Processing Stats: {stats}")
 		
 	asyncio.run(main())

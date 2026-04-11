@@ -26,6 +26,7 @@ from .document_outline_generator import (
 )
 from ...core.utils import uuid7str
 from .iterative_section_generator import (
+import time
     ContentGenerationStrategy,
     ContentPipeline,
     IterativeGenerationResult,
@@ -250,7 +251,7 @@ class MultiStageDocumentPipeline:
         self, requirements: DocumentRequirements
     ) -> PipelineResult:
         """Execute complete multi-stage document generation pipeline"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = PipelineResult()
 
         try:
@@ -302,7 +303,7 @@ class MultiStageDocumentPipeline:
             # Set final results
             result.document = document
             result.success = len(result.errors) == 0
-            result.total_processing_time = asyncio.get_event_loop().time() - start_time
+            result.total_processing_time = time.monotonic() - start_time
             result.total_model_calls = (
                 result.outline_result.total_tokens
                 + result.generation_result.pipeline.total_model_calls

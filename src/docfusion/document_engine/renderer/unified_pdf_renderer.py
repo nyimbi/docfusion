@@ -14,6 +14,8 @@ Features:
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import base64
 import io
 import tempfile
@@ -165,7 +167,7 @@ class UnifiedPDFRenderer(BaseRenderer):
 			
 		except Exception as e:
 			if self.enable_logging:
-				print(f"Warning: PDF renderer initialization issue: {e}")
+				logger.warning(f"Warning: PDF renderer initialization issue: {e}")
 			# Create minimal fallback
 			self.legacy_renderer = None
 			self.latex_renderer = None
@@ -240,7 +242,7 @@ class UnifiedPDFRenderer(BaseRenderer):
 			result.validation_errors.append(f"PDF generation failed: {str(e)}")
 			
 			if self.enable_logging:
-				print(f"PDF rendering error: {e}")
+				logger.error(f"PDF rendering error: {e}")
 		
 		# Calculate processing time
 		end_time = datetime.now()
@@ -272,7 +274,7 @@ class UnifiedPDFRenderer(BaseRenderer):
 				return latex_result.pdf_content
 			except Exception as e:
 				if self.enable_logging:
-					print(f"LaTeX rendering failed, falling back to WeasyPrint: {e}")
+					logger.error(f"LaTeX rendering failed, falling back to WeasyPrint: {e}")
 		
 		# Fallback to WeasyPrint using HTML content
 		if self.weasyprint_renderer:
@@ -284,7 +286,7 @@ class UnifiedPDFRenderer(BaseRenderer):
 				return weasyprint_result.pdf_content
 			except Exception as e:
 				if self.enable_logging:
-					print(f"WeasyPrint rendering failed: {e}")
+					logger.error(f"WeasyPrint rendering failed: {e}")
 				raise ContentProcessingException(f"Both LaTeX and WeasyPrint rendering failed: {e}") from e
 		
 		# Final fallback: use legacy renderer if available

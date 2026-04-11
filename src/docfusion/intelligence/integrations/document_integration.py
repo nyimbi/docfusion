@@ -652,31 +652,31 @@ class IntelligenceDocumentService:
     # Logging methods
     
     def _log_initialization(self):
-        print("IntelligenceDocumentService: Initialized for real-time document intelligence")
+        logger.info(f"IntelligenceDocumentService: Initialized for real-time document intelligence")
     
     def _log_session_start(self, session_id: str, proposal_id: str, mode: IntegrationMode):
-        print(f"IntelligenceDocumentService: Started session {session_id} for proposal {proposal_id} in {mode.value} mode")
+        logger.info(f"IntelligenceDocumentService: Started session {session_id} for proposal {proposal_id} in {mode.value} mode")
     
     def _log_session_error(self, message: str):
-        print(f"IntelligenceDocumentService Session Error: {message}")
+        logger.error(f"IntelligenceDocumentService Session Error: {message}")
     
     def _log_analysis_start(self, session_id: str, section_type: ProposalSection):
-        print(f"IntelligenceDocumentService: Analyzing {section_type.value} for session {session_id}")
+        logger.info(f"IntelligenceDocumentService: Analyzing {section_type.value} for session {session_id}")
     
     def _log_analysis_complete(self, session_id: str, section_type: ProposalSection, insight_count: int, duration: float):
-        print(f"IntelligenceDocumentService: Generated {insight_count} insights for {section_type.value} in {duration:.2f}s")
+        logger.info(f"IntelligenceDocumentService: Generated {insight_count} insights for {section_type.value} in {duration:.2f}s")
     
     def _log_analysis_error(self, message: str):
-        print(f"IntelligenceDocumentService Analysis Error: {message}")
+        logger.error(f"IntelligenceDocumentService Analysis Error: {message}")
     
     def _log_insight_implemented(self, session_id: str, insight_id: str):
-        print(f"IntelligenceDocumentService: Insight {insight_id} implemented in session {session_id}")
+        logger.info(f"IntelligenceDocumentService: Insight {insight_id} implemented in session {session_id}")
     
     def _log_state_update(self, session_id: str, old_state: DocumentState, new_state: DocumentState):
-        print(f"IntelligenceDocumentService: Session {session_id} state changed from {old_state.value} to {new_state.value}")
+        logger.info(f"IntelligenceDocumentService: Session {session_id} state changed from {old_state.value} to {new_state.value}")
     
     def _log_session_end(self, session_id: str, insights_implemented: int, score_improvement: float):
-        print(f"IntelligenceDocumentService: Ended session {session_id} - {insights_implemented} insights implemented, {score_improvement:.1f} estimated score improvement")
+        logger.info(f"IntelligenceDocumentService: Ended session {session_id} - {insights_implemented} insights implemented, {score_improvement:.1f} estimated score improvement")
 
 
 # Example usage and testing
@@ -741,28 +741,28 @@ if __name__ == "__main__":
     async def main():
         results = await create_sample_document_intelligence()
         
-        print("Document Intelligence Integration Test:")
+        logger.info(f"Document Intelligence Integration Test:")
         print("=" * 50)
         
-        print(f"\nGenerated Insights ({len(results['insights'])}):")
+        logger.info(f"\nGenerated Insights ({len(results['insights'])}):")
         for insight in results['insights'][:3]:
-            print(f"  🔍 {insight.title} ({insight.priority} priority)")
-            print(f"     {insight.description}")
+            logger.info(f"  🔍 {insight.title} ({insight.priority} priority)")
+            logger.info(f"     {insight.description}")
             if insight.specific_actions:
-                print(f"     Action: {insight.specific_actions[0]}")
+                logger.info(f"     Action: {insight.specific_actions[0]}")
         
-        print(f"\nService Statistics:")
+        logger.info(f"\nService Statistics:")
         stats = results['service_stats']
-        print(f"  Total Analyses: {stats['total_analyses']}")
-        print(f"  Total Insights: {stats['total_insights_generated']}")
-        print(f"  Average Response Time: {stats['average_response_time_seconds']:.2f}s")
-        print(f"  Insights per Analysis: {stats['insights_per_analysis']:.1f}")
+        logger.info(f"  Total Analyses: {stats['total_analyses']}")
+        logger.info(f"  Total Insights: {stats['total_insights_generated']}")
+        logger.info(f"  Average Response Time: {stats['average_response_time_seconds']:.2f}s")
+        logger.info(f"  Insights per Analysis: {stats['insights_per_analysis']:.1f}")
         
-        print(f"\nFinal Session:")
+        logger.info(f"\nFinal Session:")
         session = results['final_session']
-        print(f"  Duration: {session.session_duration_minutes:.1f} minutes")
-        print(f"  Insights Generated: {session.total_insights_generated}")
-        print(f"  Insights Implemented: {session.insights_implemented}")
-        print(f"  Estimated Score Improvement: {session.estimated_score_improvement:.1f} points")
+        logger.info(f"  Duration: {session.session_duration_minutes:.1f} minutes")
+        logger.info(f"  Insights Generated: {session.total_insights_generated}")
+        logger.info(f"  Insights Implemented: {session.insights_implemented}")
+        logger.info(f"  Estimated Score Improvement: {session.estimated_score_improvement:.1f} points")
     
     asyncio.run(main())

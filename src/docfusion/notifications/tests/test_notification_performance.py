@@ -6,6 +6,8 @@ including load testing, error handling, and end-to-end workflow integration.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import pytest
 import time
 from datetime import datetime, timedelta
@@ -647,7 +649,7 @@ class TestIntegrationEndToEnd:
 	
 	async def test_performance_benchmark_suite(self):
 		"""Comprehensive performance benchmark for the entire system."""
-		print("\n=== DocuFusion Notifications Performance Benchmark ===")
+		logger.info(f"\n=== DocuFusion Notifications Performance Benchmark ===")
 		
 		# Setup test environment
 		channels = {}
@@ -671,7 +673,7 @@ class TestIntegrationEndToEnd:
 		await integration.handle_workflow_event(WorkflowEventType.TASK_ASSIGNED, event_data)
 		single_latency = (time.time() - start_time) * 1000  # milliseconds
 		
-		print(f"Single notification latency: {single_latency:.2f}ms")
+		logger.info(f"Single notification latency: {single_latency:.2f}ms")
 		
 		# Benchmark 2: Batch throughput
 		batch_size = 1000
@@ -690,7 +692,7 @@ class TestIntegrationEndToEnd:
 		batch_time = time.time() - start_time
 		throughput = batch_size / batch_time
 		
-		print(f"Batch throughput: {throughput:.2f} notifications/second")
+		logger.info(f"Batch throughput: {throughput:.2f} notifications/second")
 		
 		# Benchmark 3: Memory efficiency
 		import psutil
@@ -715,12 +717,12 @@ class TestIntegrationEndToEnd:
 		memory_after = process.memory_info().rss / 1024 / 1024  # MB
 		memory_increase = memory_after - memory_before
 		
-		print(f"Memory increase for 5000 notifications: {memory_increase:.2f}MB")
+		logger.info(f"Memory increase for 5000 notifications: {memory_increase:.2f}MB")
 		
 		# Final statistics
 		stats = await integration.get_integration_statistics()
-		print(f"Total events processed: {stats['events_processed']}")
-		print(f"Total notifications sent: {stats['notifications_sent']}")
+		logger.info(f"Total events processed: {stats['events_processed']}")
+		logger.info(f"Total notifications sent: {stats['notifications_sent']}")
 		
 		# Performance assertions
 		assert single_latency < 100  # Less than 100ms for single notification
@@ -729,7 +731,7 @@ class TestIntegrationEndToEnd:
 		
 		await integration.stop()
 		
-		print("=== Benchmark Complete ===\n")
+		logger.info(f"=== Benchmark Complete ===\n")
 
 
 if __name__ == "__main__":

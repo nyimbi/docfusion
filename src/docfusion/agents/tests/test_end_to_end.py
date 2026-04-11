@@ -10,6 +10,8 @@ Copyright (c) 2025
 """
 
 import logging
+import logging
+logger = logging.getLogger(__name__)
 import pytest
 import asyncio
 from datetime import datetime, timedelta
@@ -435,7 +437,7 @@ class TestCompleteProposalGeneration:
 		# Performance should be reasonable (under 10 seconds for 5 proposals)
 		assert total_time < 10
 		
-		print(f"Generated 5 proposals in {total_time:.2f} seconds")
+		logger.info(f"Generated 5 proposals in {total_time:.2f} seconds")
 
 
 class TestSystemResilience:

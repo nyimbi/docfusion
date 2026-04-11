@@ -7,6 +7,8 @@ match quality.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -1053,7 +1055,7 @@ class QualificationAnalyzer:
 	def _log_analysis_error(self, message: str) -> None:
 		"""Log analysis errors"""
 		# Would integrate with actual logging system
-		print(f"QualificationAnalyzer Error: {message}")
+		logger.error(f"QualificationAnalyzer Error: {message}")
 
 
 # Example usage and testing helpers
@@ -1114,9 +1116,9 @@ if __name__ == "__main__":
 	
 	async def main():
 		assessment = await create_sample_qualification_analysis()
-		print(f"Qualification Level: {assessment.qualification_level}")
-		print(f"Overall Match Score: {assessment.overall_match_score:.2f}")
-		print(f"Win Probability: {assessment.win_probability:.2f}")
-		print(f"Number of Gaps: {len(assessment.qualification_gaps)}")
+		logger.info(f"Qualification Level: {assessment.qualification_level}")
+		logger.info(f"Overall Match Score: {assessment.overall_match_score:.2f}")
+		logger.info(f"Win Probability: {assessment.win_probability:.2f}")
+		logger.info(f"Number of Gaps: {len(assessment.qualification_gaps)}")
 		
 	asyncio.run(main())

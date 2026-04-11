@@ -11,7 +11,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 from ...core.utils import uuid7str
@@ -190,7 +190,7 @@ class APIMonitor:
             ip_address=ip_address,
             user_agent=user_agent,
             request_size_bytes=request_size_bytes,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
         self.active_requests[request_id] = metric
@@ -211,7 +211,7 @@ class APIMonitor:
         metric = self.active_requests[request_id]
 
         # Calculate response time
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         response_time_ms = (end_time - metric.timestamp).total_seconds() * 1000
 
         # Update metric
@@ -281,7 +281,7 @@ class APIMonitor:
 
         if existing_error:
             existing_error.count += 1
-            existing_error.timestamp = datetime.utcnow()
+            existing_error.timestamp = datetime.now(timezone.utc)
             error_id = existing_error.error_id
         else:
             error_metric = ErrorMetric(
@@ -315,7 +315,7 @@ class APIMonitor:
     ) -> Optional[ErrorMetric]:
         """Find existing similar error"""
         # Look for errors in the last hour
-        cutoff_time = datetime.utcnow() - timedelta(hours=1)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=1)
 
         for error in reversed(self.error_metrics):
             if error.timestamp < cutoff_time:
@@ -472,7 +472,7 @@ class APIMonitor:
 
     async def _check_stale_requests(self):
         """Check for requests that have been active too long"""
-        cutoff_time = datetime.utcnow() - timedelta(minutes=10)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=10)
         stale_requests = []
 
         for request_id, metric in self.active_requests.items():
@@ -501,10 +501,10 @@ class APIMonitor:
         if user_id not in self.rate_limit_violations:
             self.rate_limit_violations[user_id] = []
 
-        self.rate_limit_violations[user_id].append(datetime.utcnow())
+        self.rate_limit_violations[user_id].append(datetime.now(timezone.utc))
 
         # Clean old violations
-        cutoff_time = datetime.utcnow() - timedelta(seconds=window_seconds)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
         self.rate_limit_violations[user_id] = [
             ts for ts in self.rate_limit_violations[user_id] if ts > cutoff_time
         ]
@@ -605,7 +605,7 @@ class APIMonitor:
         for alert in self.alerts:
             if alert.alert_id == alert_id and not alert.resolved:
                 alert.resolved = True
-                alert.resolved_at = datetime.utcnow()
+                alert.resolved_at = datetime.now(timezone.utc)
                 alert.metadata["resolved_by"] = resolved_by
 
                 self.logger.info(f"Alert {alert_id} resolved by {resolved_by}")
@@ -623,9 +623,9 @@ class APIMonitor:
     ) -> PerformanceStats:
         """Get performance statistics"""
         if not start_time:
-            start_time = datetime.utcnow() - timedelta(hours=1)
+            start_time = datetime.now(timezone.utc) - timedelta(hours=1)
         if not end_time:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
 
         # Filter metrics
         filtered_metrics = [
@@ -687,9 +687,9 @@ class APIMonitor:
     ) -> Dict[str, Any]:
         """Get analytics by endpoint"""
         if not start_time:
-            start_time = datetime.utcnow() - timedelta(hours=1)
+            start_time = datetime.now(timezone.utc) - timedelta(hours=1)
         if not end_time:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
 
         # Group metrics by endpoint
         endpoint_metrics: Dict[str, List[RequestMetric]] = {}
@@ -730,9 +730,9 @@ class APIMonitor:
     ) -> Dict[str, Any]:
         """Get error analytics"""
         if not start_time:
-            start_time = datetime.utcnow() - timedelta(hours=1)
+            start_time = datetime.now(timezone.utc) - timedelta(hours=1)
         if not end_time:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
 
         # Filter errors
         filtered_errors = [
@@ -783,9 +783,9 @@ class APIMonitor:
     ) -> Dict[str, Any]:
         """Get user activity analytics"""
         if not start_time:
-            start_time = datetime.utcnow() - timedelta(hours=1)
+            start_time = datetime.now(timezone.utc) - timedelta(hours=1)
         if not end_time:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
 
         # Filter metrics with user IDs
         user_metrics = [
@@ -851,7 +851,7 @@ class APIMonitor:
         recent_checks = [
             check
             for check in self.health_checks
-            if check.timestamp > datetime.utcnow() - timedelta(minutes=10)
+            if check.timestamp > datetime.now(timezone.utc) - timedelta(minutes=10)
         ]
 
         if not recent_checks:
@@ -908,7 +908,7 @@ class APIMonitor:
             "critical_alerts": critical_alerts,
             "active_requests": len(self.active_requests),
             "current_stats": self.current_stats,
-            "last_updated": datetime.utcnow(),
+            "last_updated": datetime.now(timezone.utc),
         }
 
     async def get_service_health(self, service_name: str) -> Dict[str, Any]:
@@ -931,7 +931,7 @@ class APIMonitor:
         recent_checks = [
             check
             for check in service_checks
-            if check.timestamp > datetime.utcnow() - timedelta(hours=1)
+            if check.timestamp > datetime.now(timezone.utc) - timedelta(hours=1)
         ]
 
         avg_response_time = (
@@ -966,7 +966,7 @@ class APIMonitor:
     async def _aggregate_metrics(self):
         """Aggregate and summarize metrics"""
         # Calculate current RPS
-        one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
+        one_minute_ago = datetime.now(timezone.utc) - timedelta(minutes=1)
         recent_requests = [
             m for m in self.request_metrics if m.timestamp > one_minute_ago
         ]
@@ -1012,7 +1012,7 @@ class APIMonitor:
 
     async def _cleanup_old_data(self):
         """Clean up old metrics and data"""
-        cutoff_time = datetime.utcnow() - timedelta(days=self.config["retention_days"])
+        cutoff_time = datetime.now(timezone.utc) - timedelta(days=self.config["retention_days"])
 
         # Clean up request metrics
         old_count = len(self.request_metrics)
@@ -1031,7 +1031,7 @@ class APIMonitor:
         ]
 
         # Clean up old alerts (keep resolved alerts for 7 days)
-        alert_cutoff = datetime.utcnow() - timedelta(days=7)
+        alert_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
         self.alerts = [
             a
             for a in self.alerts
@@ -1039,7 +1039,7 @@ class APIMonitor:
         ]
 
         # Clean up rate limit violations
-        rate_limit_cutoff = datetime.utcnow() - timedelta(hours=1)
+        rate_limit_cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
         for user_id in list(self.rate_limit_violations.keys()):
             self.rate_limit_violations[user_id] = [
                 ts

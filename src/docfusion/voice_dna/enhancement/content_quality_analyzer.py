@@ -1671,17 +1671,17 @@ class ContentQualityAnalyzer:
 		vocab_size = (sum(len(words) for words in self.emotional_words.values()) +
 		             sum(len(words) for words in self.engagement_words.values()) +
 		             len(self.conversational_markers) + len(self.storytelling_indicators))
-		print(f"ContentQualityAnalyzer: Initialized with {vocab_size} vocabulary resources ({nlp_status})")
+		logger.info(f"ContentQualityAnalyzer: Initialized with {vocab_size} vocabulary resources ({nlp_status})")
 	
 	def _log_analysis_start(self, text_length: int, content_type: Optional[str]):
 		content_info = f" ({content_type})" if content_type else ""
-		print(f"ContentQualityAnalyzer: Starting analysis of {text_length} characters{content_info}")
+		logger.info(f"ContentQualityAnalyzer: Starting analysis of {text_length} characters{content_info}")
 	
 	def _log_analysis_complete(self, quality_score: float, duration: float):
-		print(f"ContentQualityAnalyzer: Analysis complete (quality: {quality_score:.3f}, {duration:.2f}s)")
+		logger.info(f"ContentQualityAnalyzer: Analysis complete (quality: {quality_score:.3f}, {duration:.2f}s)")
 	
 	def _log_analysis_error(self, message: str):
-		print(f"ContentQualityAnalyzer Error: {message}")
+		logger.error(f"ContentQualityAnalyzer Error: {message}")
 
 
 # Example usage and testing
@@ -1730,92 +1730,92 @@ if __name__ == "__main__":
 	async def main():
 		sample = await create_sample_quality_analysis()
 		
-		print("Content Quality Analysis Results:")
+		logger.info(f"Content Quality Analysis Results:")
 		print("=" * 60)
 		
 		result = sample["result"]
 		
-		print(f"📝 Text Length: {len(sample['sample_text'])} characters")
-		print(f"📋 Content Type: {result.content_type_classification}")
+		logger.info(f"📝 Text Length: {len(sample['sample_text'])} characters")
+		logger.info(f"📋 Content Type: {result.content_type_classification}")
 		print()
 		
-		print(f"🎯 Overall Scores:")
-		print(f"  Quality Score: {result.overall_quality_score:.3f}")
-		print(f"  Content Effectiveness: {result.content_effectiveness:.3f}")
-		print(f"  Audience Appropriateness: {result.audience_appropriateness:.3f}")
-		print(f"  Confidence Level: {result.confidence_level:.3f}")
+		logger.info(f"🎯 Overall Scores:")
+		logger.info(f"  Quality Score: {result.overall_quality_score:.3f}")
+		logger.info(f"  Content Effectiveness: {result.content_effectiveness:.3f}")
+		logger.info(f"  Audience Appropriateness: {result.audience_appropriateness:.3f}")
+		logger.info(f"  Confidence Level: {result.confidence_level:.3f}")
 		print()
 		
-		print(f"📊 Dimensional Analysis:")
+		logger.info(f"📊 Dimensional Analysis:")
 		for dimension, score in result.dimension_scores.items():
-			print(f"  {dimension.replace('_', ' ').title()}: {score:.3f}")
+			logger.info(f"  {dimension.replace('_', ' ').title()}: {score:.3f}")
 		print()
 		
-		print(f"📖 Readability Metrics:")
+		logger.info(f"📖 Readability Metrics:")
 		r = result.readability_metrics
-		print(f"  Flesch Reading Ease: {r.flesch_reading_ease:.1f}")
-		print(f"  Grade Level: {r.overall_grade_level:.1f}")
-		print(f"  Difficulty: {r.difficulty_level}")
-		print(f"  Avg Sentence Length: {r.average_sentence_length:.1f} words")
+		logger.info(f"  Flesch Reading Ease: {r.flesch_reading_ease:.1f}")
+		logger.info(f"  Grade Level: {r.overall_grade_level:.1f}")
+		logger.info(f"  Difficulty: {r.difficulty_level}")
+		logger.info(f"  Avg Sentence Length: {r.average_sentence_length:.1f} words")
 		print()
 		
-		print(f"🎭 Engagement Metrics:")
+		logger.info(f"🎭 Engagement Metrics:")
 		e = result.engagement_metrics
-		print(f"  Hook Strength: {e.hook_strength:.3f}")
-		print(f"  Emotional Language: {e.emotional_language_ratio:.3f}")
-		print(f"  Active Voice: {e.active_voice_ratio:.3f}")
-		print(f"  Engagement Level: {e.engagement_level}")
+		logger.info(f"  Hook Strength: {e.hook_strength:.3f}")
+		logger.info(f"  Emotional Language: {e.emotional_language_ratio:.3f}")
+		logger.info(f"  Active Voice: {e.active_voice_ratio:.3f}")
+		logger.info(f"  Engagement Level: {e.engagement_level}")
 		print()
 		
-		print(f"👤 Human-likeness Metrics:")
+		logger.info(f"👤 Human-likeness Metrics:")
 		h = result.human_likeness_metrics
-		print(f"  Sentence Variation: {h.sentence_length_variation:.3f}")
-		print(f"  Vocabulary Diversity: {h.vocabulary_diversity:.3f}")
-		print(f"  Conversational Tone: {h.conversational_markers:.3f}")
-		print(f"  Human-likeness Score: {h.human_likeness_score:.3f}")
+		logger.info(f"  Sentence Variation: {h.sentence_length_variation:.3f}")
+		logger.info(f"  Vocabulary Diversity: {h.vocabulary_diversity:.3f}")
+		logger.info(f"  Conversational Tone: {h.conversational_markers:.3f}")
+		logger.info(f"  Human-likeness Score: {h.human_likeness_score:.3f}")
 		print()
 		
 		if result.strength_areas:
-			print(f"💪 Strengths:")
+			logger.info(f"💪 Strengths:")
 			for strength in result.strength_areas:
-				print(f"  • {strength}")
+				logger.info(f"  • {strength}")
 		print()
 		
 		if result.improvement_areas:
-			print(f"🎯 Improvement Areas:")
+			logger.info(f"🎯 Improvement Areas:")
 			for improvement in result.improvement_areas:
-				print(f"  • {improvement}")
+				logger.info(f"  • {improvement}")
 		print()
 		
 		if result.priority_improvements:
-			print(f"🚨 Priority Improvements:")
+			logger.info(f"🚨 Priority Improvements:")
 			for priority in result.priority_improvements:
-				print(f"  1. {priority}")
+				logger.info(f"  1. {priority}")
 		print()
 		
 		if result.quick_wins:
-			print(f"⚡ Quick Wins:")
+			logger.info(f"⚡ Quick Wins:")
 			for win in result.quick_wins:
-				print(f"  • {win}")
+				logger.info(f"  • {win}")
 		print()
 		
-		print(f"🎨 Writing Style Profile:")
+		logger.info(f"🎨 Writing Style Profile:")
 		for aspect, value in result.writing_style_profile.items():
-			print(f"  {aspect.replace('_', ' ').title()}: {value}")
+			logger.info(f"  {aspect.replace('_', ' ').title()}: {value}")
 		print()
 		
-		print(f"📈 Analyzer Statistics:")
+		logger.info(f"📈 Analyzer Statistics:")
 		stats = sample["stats"]
 		for key, value in stats.items():
 			if isinstance(value, dict):
-				print(f"  {key.replace('_', ' ').title()}:")
+				logger.info(f"  {key.replace('_', ' ').title()}:")
 				for k, v in value.items():
-					print(f"    {k}: {v}")
+					logger.info(f"    {k}: {v}")
 			elif isinstance(value, list):
-				print(f"  {key.replace('_', ' ').title()}:")
+				logger.info(f"  {key.replace('_', ' ').title()}:")
 				for item in value:
-					print(f"    • {item}")
+					logger.info(f"    • {item}")
 			else:
-				print(f"  {key.replace('_', ' ').title()}: {value}")
+				logger.info(f"  {key.replace('_', ' ').title()}: {value}")
 	
 	asyncio.run(main())

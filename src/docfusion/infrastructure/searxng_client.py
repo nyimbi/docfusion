@@ -10,7 +10,7 @@ Usage:
     client = SearXNGClient()
     results = await client.search("kenya conflict 2026", time_range="month")
     for result in results.results:
-        print(f"{result.title}: {result.url}")
+        logger.info(f"{result.title}: {result.url}")
 """
 
 from __future__ import annotations
@@ -117,7 +117,7 @@ class SearXNGClient:
 		async with SearXNGClient() as client:
 			response = await client.search("RFP opportunities Kenya")
 			for result in response.results:
-				print(f"{result.title}: {result.url}")
+				logger.info(f"{result.title}: {result.url}")
 	"""
 
 	def __init__(

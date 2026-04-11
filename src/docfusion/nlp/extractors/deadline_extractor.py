@@ -40,6 +40,7 @@ except ImportError:
 import httpx
 import json
 from ...core.utils import uuid7str
+import time
 
 class TemporalType(str, Enum):
 	"""Types of temporal expressions"""
@@ -389,7 +390,7 @@ class DeadlineExtractor:
 		use_ai: Optional[bool] = None
 	) -> DeadlineExtractionResult:
 		"""Extract deadlines and temporal expressions from text"""
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		result = DeadlineExtractionResult()
 		result.original_text = text
 		
@@ -477,7 +478,7 @@ class DeadlineExtractor:
 			result.statistics = statistics
 			result.methods_used = methods_used
 			result.success = True
-			result.processing_time = asyncio.get_event_loop().time() - start_time
+			result.processing_time = time.monotonic() - start_time
 			
 			self.logger.info(f"Deadlines extracted successfully, time: {result.processing_time:.2f}s")
 		

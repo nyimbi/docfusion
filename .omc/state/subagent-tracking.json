@@ -105,10 +105,26 @@
       "status": "completed",
       "completed_at": "2026-04-11T16:14:26.072Z",
       "duration_ms": 1580833
+    },
+    {
+      "agent_id": "aa8eef6dc9da605dd",
+      "agent_type": "feature-dev:code-reviewer",
+      "started_at": "2026-04-11T16:24:29.015Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-04-11T16:25:18.904Z",
+      "duration_ms": 49889
+    },
+    {
+      "agent_id": "aab9af08c773c14d3",
+      "agent_type": "oh-my-claudecode:code-reviewer",
+      "started_at": "2026-04-11T16:25:08.177Z",
+      "parent_mode": "none",
+      "status": "running"
     }
   ],
-  "total_spawned": 10,
-  "total_completed": 11,
+  "total_spawned": 12,
+  "total_completed": 12,
   "total_failed": 0,
-  "last_updated": "2026-04-11T16:14:26.176Z"
+  "last_updated": "2026-04-11T16:25:19.008Z"
 }

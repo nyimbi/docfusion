@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 from ...core.utils import uuid7str
+import time
 
 try:
     from ...prompting_strategies import (
@@ -461,7 +462,7 @@ class CoherenceAnalyzer:
         detailed_analysis: Optional[bool] = None,
     ) -> CoherenceAnalysisResult:
         """Perform comprehensive coherence analysis"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = CoherenceAnalysisResult()
 
         try:
@@ -536,7 +537,7 @@ class CoherenceAnalyzer:
             result.statistics = self._compile_coherence_statistics(result, text)
 
             result.success = len(result.errors) == 0
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Coherence analysis completed, overall score: {result.coherence_scores.overall_score:.3f}"

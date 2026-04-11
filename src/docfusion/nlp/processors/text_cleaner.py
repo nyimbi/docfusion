@@ -19,6 +19,7 @@ import json
 
 import httpx
 from ...core.utils import uuid7str
+import time
 
 class CleaningResult:
     """Result of text cleaning operations"""
@@ -118,7 +119,7 @@ class OllamaTextCleaner:
         self, text: str, use_ai: Optional[bool] = None, preserve_formatting: bool = True
     ) -> CleaningResult:
         """Clean and normalize text with optional AI enhancement"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = CleaningResult()
         result.original_text = text
 
@@ -144,7 +145,7 @@ class OllamaTextCleaner:
 
             result.cleaned_text = cleaned_text
             result.success = True
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             # Calculate statistics
             self._calculate_statistics(result)

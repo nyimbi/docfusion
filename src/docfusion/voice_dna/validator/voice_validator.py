@@ -8,6 +8,8 @@ recommendations.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import re
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -735,16 +737,16 @@ class VoiceValidator:
 	
 	def _log_initialization(self):
 		nlp_status = "available" if NLP_AVAILABLE else "fallback mode"
-		print(f"VoiceValidator: Initialized ({nlp_status})")
+		logger.info(f"VoiceValidator: Initialized ({nlp_status})")
 	
 	def _log_validation_start(self, organization: str, text_length: int):
-		print(f"VoiceValidator: Starting validation for {organization} ({text_length} characters)")
+		logger.info(f"VoiceValidator: Starting validation for {organization} ({text_length} characters)")
 	
 	def _log_validation_complete(self, organization: str, voice_score: float, deviation_count: int, duration: float):
-		print(f"VoiceValidator: Validation complete for {organization} (score: {voice_score:.3f}, {deviation_count} deviations, {duration:.2f}s)")
+		logger.info(f"VoiceValidator: Validation complete for {organization} (score: {voice_score:.3f}, {deviation_count} deviations, {duration:.2f}s)")
 	
 	def _log_validation_error(self, message: str):
-		print(f"VoiceValidator Error: {message}")
+		logger.error(f"VoiceValidator Error: {message}")
 
 
 # Example usage and testing
@@ -817,41 +819,41 @@ if __name__ == "__main__":
 	async def main():
 		result, stats = await create_sample_voice_validation()
 		
-		print("Voice Validation Results:")
+		logger.info(f"Voice Validation Results:")
 		print("=" * 50)
-		print(f"Organization: {result.organization_name}")
-		print(f"Overall Voice Score: {result.overall_voice_score:.3f}")
-		print(f"Voice Confidence: {result.voice_confidence:.3f}")
-		print(f"Total Deviations: {result.deviation_count}")
+		logger.info(f"Organization: {result.organization_name}")
+		logger.info(f"Overall Voice Score: {result.overall_voice_score:.3f}")
+		logger.info(f"Voice Confidence: {result.voice_confidence:.3f}")
+		logger.info(f"Total Deviations: {result.deviation_count}")
 		
-		print(f"\nComponent Scores:")
-		print(f"  Vocabulary: {result.vocabulary_score:.3f}")
-		print(f"  Formality: {result.formality_score:.3f}")
-		print(f"  Tone: {result.tone_score:.3f}")
-		print(f"  Complexity: {result.complexity_score:.3f}")
-		print(f"  Style: {result.style_score:.3f}")
+		logger.info(f"\nComponent Scores:")
+		logger.info(f"  Vocabulary: {result.vocabulary_score:.3f}")
+		logger.info(f"  Formality: {result.formality_score:.3f}")
+		logger.info(f"  Tone: {result.tone_score:.3f}")
+		logger.info(f"  Complexity: {result.complexity_score:.3f}")
+		logger.info(f"  Style: {result.style_score:.3f}")
 		
-		print(f"\nDeviations by Severity:")
+		logger.info(f"\nDeviations by Severity:")
 		for severity, count in result.deviations_by_severity.items():
-			print(f"  {severity.title()}: {count}")
+			logger.info(f"  {severity.title()}: {count}")
 		
-		print(f"\nTop Deviations:")
+		logger.info(f"\nTop Deviations:")
 		for i, deviation in enumerate(result.deviations[:3], 1):
-			print(f"  {i}. {deviation.deviation_type.value}: {deviation.deviation_description}")
-			print(f"     Severity: {deviation.severity.value}")
-			print(f"     Confidence: {deviation.confidence:.3f}")
+			logger.info(f"  {i}. {deviation.deviation_type.value}: {deviation.deviation_description}")
+			logger.info(f"     Severity: {deviation.severity.value}")
+			logger.info(f"     Confidence: {deviation.confidence:.3f}")
 		
-		print(f"\nKey Recommendations:")
+		logger.info(f"\nKey Recommendations:")
 		for i, rec in enumerate(result.key_recommendations, 1):
-			print(f"  {i}. {rec}")
+			logger.info(f"  {i}. {rec}")
 		
-		print(f"\nImprovement Summary:")
-		print(f"  Priority: {result.improvement_priority.value}")
-		print(f"  Effort: {result.estimated_effort}")
-		print(f"  Analysis Time: {result.analysis_duration_seconds:.3f}s")
+		logger.info(f"\nImprovement Summary:")
+		logger.info(f"  Priority: {result.improvement_priority.value}")
+		logger.info(f"  Effort: {result.estimated_effort}")
+		logger.info(f"  Analysis Time: {result.analysis_duration_seconds:.3f}s")
 		
-		print(f"\nValidator Statistics:")
+		logger.info(f"\nValidator Statistics:")
 		for key, value in stats.items():
-			print(f"  {key.replace('_', ' ').title()}: {value}")
+			logger.info(f"  {key.replace('_', ' ').title()}: {value}")
 	
 	asyncio.run(main())

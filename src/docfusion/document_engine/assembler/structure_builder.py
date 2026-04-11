@@ -15,6 +15,8 @@ Key Features:
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 import weakref
 from collections import defaultdict, deque
@@ -1543,7 +1545,7 @@ class StructureBuilder:
 	
 	def _log_structure_error(self, message: str) -> None:
 		"""Log structure operation errors"""
-		print(f"[StructureBuilder] Error: {message}")
+		logger.error(f"[StructureBuilder] Error: {message}")
 	
 	def get_performance_stats(self) -> dict[str, Any]:
 		"""Get current performance statistics"""

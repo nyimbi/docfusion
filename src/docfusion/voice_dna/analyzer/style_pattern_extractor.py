@@ -831,16 +831,16 @@ class StylePatternExtractor:
 	
 	def _log_initialization(self):
 		nlp_status = "available" if NLP_AVAILABLE else "fallback mode"
-		print(f"StylePatternExtractor: Initialized ({nlp_status})")
+		logger.info(f"StylePatternExtractor: Initialized ({nlp_status})")
 	
 	def _log_extraction_start(self, organization: str, doc_count: int):
-		print(f"StylePatternExtractor: Starting style extraction for {organization} ({doc_count} documents)")
+		logger.info(f"StylePatternExtractor: Starting style extraction for {organization} ({doc_count} documents)")
 	
 	def _log_extraction_complete(self, organization: str, confidence: float, duration: float):
-		print(f"StylePatternExtractor: Completed extraction for {organization} (confidence: {confidence:.3f}, duration: {duration:.1f}s)")
+		logger.info(f"StylePatternExtractor: Completed extraction for {organization} (confidence: {confidence:.3f}, duration: {duration:.1f}s)")
 	
 	def _log_extraction_error(self, message: str):
-		print(f"StylePatternExtractor Error: {message}")
+		logger.error(f"StylePatternExtractor Error: {message}")
 
 
 # Example usage and testing
@@ -892,32 +892,32 @@ if __name__ == "__main__":
 	async def main():
 		profile, stats = await create_sample_style_extraction()
 		
-		print("Style Pattern Extraction Results:")
+		logger.info(f"Style Pattern Extraction Results:")
 		print("=" * 50)
-		print(f"Organization: {profile.organization_name}")
-		print(f"Analysis Confidence: {profile.analysis_confidence:.3f}")
-		print(f"Profile Completeness: {profile.profile_completeness:.3f}")
-		print(f"Formality Score: {profile.formality_score:.3f}")
-		print(f"Brand Alignment: {profile.brand_alignment:.3f}")
-		print(f"Technical Sophistication: {profile.technical_sophistication:.3f}")
+		logger.info(f"Organization: {profile.organization_name}")
+		logger.info(f"Analysis Confidence: {profile.analysis_confidence:.3f}")
+		logger.info(f"Profile Completeness: {profile.profile_completeness:.3f}")
+		logger.info(f"Formality Score: {profile.formality_score:.3f}")
+		logger.info(f"Brand Alignment: {profile.brand_alignment:.3f}")
+		logger.info(f"Technical Sophistication: {profile.technical_sophistication:.3f}")
 		
-		print(f"\nPersuasion Strategies:")
+		logger.info(f"\nPersuasion Strategies:")
 		for strategy, score in profile.persuasion_scores.items():
-			print(f"  {strategy.replace('_', ' ').title()}: {score:.3f}")
+			logger.info(f"  {strategy.replace('_', ' ').title()}: {score:.3f}")
 		
-		print(f"\nEmotional Range:")
+		logger.info(f"\nEmotional Range:")
 		for emotion, score in profile.emotional_range.items():
-			print(f"  {emotion.title()}: {score:.3f}")
+			logger.info(f"  {emotion.title()}: {score:.3f}")
 		
-		print(f"\nIdentified Patterns ({len(profile.style_patterns)}):")
+		logger.info(f"\nIdentified Patterns ({len(profile.style_patterns)}):")
 		for pattern in profile.style_patterns[:5]:  # Show first 5 patterns
-			print(f"  📊 {pattern.pattern_name}")
-			print(f"     Dimension: {pattern.dimension.value}")
-			print(f"     Intensity: {pattern.intensity:.3f}")
-			print(f"     Confidence: {pattern.confidence_score:.3f}")
+			logger.info(f"  📊 {pattern.pattern_name}")
+			logger.info(f"     Dimension: {pattern.dimension.value}")
+			logger.info(f"     Intensity: {pattern.intensity:.3f}")
+			logger.info(f"     Confidence: {pattern.confidence_score:.3f}")
 		
-		print(f"\nExtractor Statistics:")
+		logger.info(f"\nExtractor Statistics:")
 		for key, value in stats.items():
-			print(f"  {key.replace('_', ' ').title()}: {value}")
+			logger.info(f"  {key.replace('_', ' ').title()}: {value}")
 	
 	asyncio.run(main())

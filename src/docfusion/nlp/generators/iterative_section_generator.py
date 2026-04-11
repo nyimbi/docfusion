@@ -31,6 +31,7 @@ from ..prompting_strategies import (
 )
 from ...core.utils import uuid7str
 from .document_outline_generator import (
+import time
     DocumentOutline,
     DocumentType,
     OutlineElement,
@@ -438,7 +439,7 @@ class IterativeSectionGenerator:
         self, outline: DocumentOutline, context: Optional[Dict[str, Any]] = None
     ) -> IterativeGenerationResult:
         """Generate complete document content from outline using iterative section generation"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = IterativeGenerationResult()
 
         try:
@@ -500,7 +501,7 @@ class IterativeSectionGenerator:
 
             result.pipeline = pipeline
             result.success = len(result.errors) == 0 and result.sections_generated > 0
-            result.total_processing_time = asyncio.get_event_loop().time() - start_time
+            result.total_processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Document generation completed: {result.sections_generated} sections, "
@@ -638,7 +639,7 @@ class IterativeSectionGenerator:
 
         for attempt in range(self.max_retries_per_section):
             try:
-                section_start_time = asyncio.get_event_loop().time()
+                section_start_time = time.monotonic()
 
                 # Determine narrative role for this section
                 narrative_role = self._determine_narrative_role(element, pipeline)
@@ -661,7 +662,7 @@ class IterativeSectionGenerator:
                     content=generated_text,
                     word_count=len(generated_text.split()),
                     narrative_role=narrative_role,
-                    generation_time=asyncio.get_event_loop().time()
+                    generation_time=time.monotonic()
                     - section_start_time,
                     model_calls=1,
                     retries_due_to_repetition=attempt,

@@ -7,6 +7,8 @@ including strategic fit, capability alignment, and business potential.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -826,7 +828,7 @@ class RelevanceFilter:
 	
 	def _log_filtering_error(self, message: str) -> None:
 		"""Log filtering errors"""
-		print(f"RelevanceFilter Error: {message}")
+		logger.error(f"RelevanceFilter Error: {message}")
 
 
 # Example usage and testing
@@ -865,15 +867,15 @@ if __name__ == "__main__":
 	
 	async def main():
 		results = await create_sample_relevance_filtering()
-		print(f"Total Opportunities: {results.total_opportunities}")
-		print(f"Passed Filtering: {len(results.passed_opportunities)}")
-		print(f"Top Opportunities: {len(results.top_opportunities)}")
-		print(f"Recommended: {len(results.recommended_opportunities)}")
-		print(f"Average Score: {results.average_score:.2f}")
+		logger.info(f"Total Opportunities: {results.total_opportunities}")
+		logger.info(f"Passed Filtering: {len(results.passed_opportunities)}")
+		logger.info(f"Top Opportunities: {len(results.top_opportunities)}")
+		logger.info(f"Recommended: {len(results.recommended_opportunities)}")
+		logger.info(f"Average Score: {results.average_score:.2f}")
 		
 		for i, opp in enumerate(results.top_opportunities[:3]):
-			print(f"\n#{i+1}: {opp.opportunity_id}")
-			print(f"Score: {opp.overall_score:.2f}")
-			print(f"Strengths: {', '.join(opp.strengths[:2])}")
+			logger.info(f"\n#{i+1}: {opp.opportunity_id}")
+			logger.info(f"Score: {opp.overall_score:.2f}")
+			logger.info(f"Strengths: {', '.join(opp.strengths[:2])}")
 		
 	asyncio.run(main())

@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 from ...core.utils import uuid7str
+import time
 
 try:
     import aiohttp
@@ -357,7 +358,7 @@ class ReadabilityAnalyzer:
         use_ai: Optional[bool] = None,
     ) -> ReadabilityAnalysisResult:
         """Perform comprehensive readability analysis"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = ReadabilityAnalysisResult()
 
         try:
@@ -409,7 +410,7 @@ class ReadabilityAnalyzer:
             result.statistics = self._compile_readability_statistics(result, text)
 
             result.success = len(result.errors) == 0
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Readability analysis completed, reading level: {result.reading_level.primary_level.value}"

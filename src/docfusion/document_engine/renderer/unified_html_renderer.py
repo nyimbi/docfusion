@@ -14,6 +14,8 @@ Features:
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 from datetime import datetime
 from pathlib import Path
@@ -160,7 +162,7 @@ class UnifiedHTMLRenderer(BaseRenderer):
 			
 		except Exception as e:
 			if self.enable_logging:
-				print(f"Warning: HTML renderer initialization issue: {e}")
+				logger.warning(f"Warning: HTML renderer initialization issue: {e}")
 			# Create minimal fallback
 			self.legacy_renderer = None
 			self.html_generator = None
@@ -237,7 +239,7 @@ class UnifiedHTMLRenderer(BaseRenderer):
 			result.validation_errors.append(f"HTML generation failed: {str(e)}")
 			
 			if self.enable_logging:
-				print(f"HTML rendering error: {e}")
+				logger.error(f"HTML rendering error: {e}")
 		
 		# Calculate processing time
 		end_time = datetime.now()

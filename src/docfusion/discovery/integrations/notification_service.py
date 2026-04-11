@@ -7,6 +7,8 @@ and critical deadlines.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Union
@@ -686,55 +688,55 @@ class OpportunityNotificationService:
 	
 	def _log_service_initialized(self) -> None:
 		"""Log service initialization"""
-		print(f"OpportunityNotificationService: Service initialized with {len(self.notification_rules)} rules")
+		logger.info(f"OpportunityNotificationService: Service initialized with {len(self.notification_rules)} rules")
 	
 	def _log_event_processed(self, event_type: str, opportunity_id: str, notifications_count: int) -> None:
 		"""Log event processing completion"""
-		print(f"OpportunityNotificationService: Processed {event_type} for {opportunity_id} - {notifications_count} notifications generated")
+		logger.info(f"OpportunityNotificationService: Processed {event_type} for {opportunity_id} - {notifications_count} notifications generated")
 	
 	def _log_event_error(self, message: str) -> None:
 		"""Log event processing errors"""
-		print(f"OpportunityNotificationService Event Error: {message}")
+		logger.error(f"OpportunityNotificationService Event Error: {message}")
 	
 	def _log_rule_error(self, message: str) -> None:
 		"""Log rule evaluation errors"""
-		print(f"OpportunityNotificationService Rule Error: {message}")
+		logger.error(f"OpportunityNotificationService Rule Error: {message}")
 	
 	def _log_notification_skip(self, rule_id: str, reason: str) -> None:
 		"""Log skipped notification"""
-		print(f"OpportunityNotificationService: Skipped notification for rule {rule_id} - {reason}")
+		logger.info(f"OpportunityNotificationService: Skipped notification for rule {rule_id} - {reason}")
 	
 	def _log_notification_error(self, message: str) -> None:
 		"""Log notification errors"""
-		print(f"OpportunityNotificationService Notification Error: {message}")
+		logger.error(f"OpportunityNotificationService Notification Error: {message}")
 	
 	def _log_notification_queued(self, notification_id: str, priority: str) -> None:
 		"""Log queued notification"""
-		print(f"OpportunityNotificationService: Queued notification {notification_id} (priority: {priority})")
+		logger.info(f"OpportunityNotificationService: Queued notification {notification_id} (priority: {priority})")
 	
 	def _log_notification_sent(self, notification_id: str, recipient_count: int) -> None:
 		"""Log sent notification"""
-		print(f"OpportunityNotificationService: Sent notification {notification_id} to {recipient_count} recipients")
+		logger.info(f"OpportunityNotificationService: Sent notification {notification_id} to {recipient_count} recipients")
 	
 	def _log_notification_retry(self, notification_id: str, attempt: int) -> None:
 		"""Log notification retry"""
-		print(f"OpportunityNotificationService: Retrying notification {notification_id} (attempt {attempt})")
+		logger.info(f"OpportunityNotificationService: Retrying notification {notification_id} (attempt {attempt})")
 	
 	def _log_notification_failed(self, notification_id: str, error: Optional[str]) -> None:
 		"""Log failed notification"""
-		print(f"OpportunityNotificationService: Failed to send notification {notification_id} - {error}")
+		logger.error(f"OpportunityNotificationService: Failed to send notification {notification_id} - {error}")
 	
 	def _log_processor_error(self, message: str) -> None:
 		"""Log processor errors"""
-		print(f"OpportunityNotificationService Processor Error: {message}")
+		logger.error(f"OpportunityNotificationService Processor Error: {message}")
 	
 	def _log_subscription_created(self, user_id: str) -> None:
 		"""Log subscription creation"""
-		print(f"OpportunityNotificationService: Created subscription for user {user_id}")
+		logger.info(f"OpportunityNotificationService: Created subscription for user {user_id}")
 	
 	def _log_subscription_updated(self, user_id: str) -> None:
 		"""Log subscription update"""
-		print(f"OpportunityNotificationService: Updated subscription for user {user_id}")
+		logger.info(f"OpportunityNotificationService: Updated subscription for user {user_id}")
 
 
 # Example usage and testing
@@ -793,11 +795,11 @@ if __name__ == "__main__":
 	
 	async def main():
 		notification_count, stats = await test_notification_service()
-		print(f"Generated Notifications: {notification_count}")
-		print("Notification Statistics:")
-		print(f"- Rules Triggered: {stats['rules_triggered']}")
-		print(f"- Active Rules: {stats['active_rules']}")
-		print(f"- Queue Size: {stats['queue_statistics']['queue_size']}")
-		print(f"- Success Rate: {stats['success_rate']:.2%}")
+		logger.info(f"Generated Notifications: {notification_count}")
+		logger.info(f"Notification Statistics:")
+		logger.info(f"- Rules Triggered: {stats['rules_triggered']}")
+		logger.info(f"- Active Rules: {stats['active_rules']}")
+		logger.info(f"- Queue Size: {stats['queue_statistics']['queue_size']}")
+		logger.info(f"- Success Rate: {stats['success_rate']:.2%}")
 		
 	asyncio.run(main())

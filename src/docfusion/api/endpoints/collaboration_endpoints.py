@@ -8,7 +8,7 @@ comments, suggestions, and team management with comprehensive security integrati
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
@@ -440,8 +440,8 @@ class CollaborationEndpoints:
                 "content": request.content,
                 "author_id": user_id,
                 "author_name": current_user.get("username", "Unknown"),
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
                 "status": CommentStatus.OPEN,
                 "selection_start": request.selection_start,
                 "selection_end": request.selection_end,
@@ -562,7 +562,7 @@ class CollaborationEndpoints:
 
             # Update comment
             comment["content"] = content
-            comment["updated_at"] = datetime.utcnow()
+            comment["updated_at"] = datetime.now(timezone.utc)
 
             # Add to activity log
             await self._log_activity(
@@ -622,7 +622,7 @@ class CollaborationEndpoints:
             # Resolve comment
             comment["status"] = CommentStatus.RESOLVED
             comment["resolved_by"] = user_id
-            comment["resolved_at"] = datetime.utcnow()
+            comment["resolved_at"] = datetime.now(timezone.utc)
 
             # Add to activity log
             await self._log_activity(
@@ -748,8 +748,8 @@ class CollaborationEndpoints:
                 "description": request.description,
                 "author_id": user_id,
                 "author_name": current_user.get("username", "Unknown"),
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc),
                 "status": SuggestionStatus.PENDING,
                 "original_text": request.original_text,
                 "suggested_text": request.suggested_text,
@@ -864,7 +864,7 @@ class CollaborationEndpoints:
             # Accept suggestion
             suggestion["status"] = SuggestionStatus.ACCEPTED
             suggestion["reviewed_by"] = user_id
-            suggestion["reviewed_at"] = datetime.utcnow()
+            suggestion["reviewed_at"] = datetime.now(timezone.utc)
 
             # Add to activity log
             await self._log_activity(
@@ -931,7 +931,7 @@ class CollaborationEndpoints:
             # Reject suggestion
             suggestion["status"] = SuggestionStatus.REJECTED
             suggestion["reviewed_by"] = user_id
-            suggestion["reviewed_at"] = datetime.utcnow()
+            suggestion["reviewed_at"] = datetime.now(timezone.utc)
             if reason:
                 suggestion["metadata"]["rejection_reason"] = reason
 
@@ -1077,7 +1077,7 @@ class CollaborationEndpoints:
                 "username": target_user_id,  # In production, would get from user service
                 "email": request.email or f"{target_user_id}@example.com",
                 "permission": request.permission,
-                "added_at": datetime.utcnow(),
+                "added_at": datetime.now(timezone.utc),
                 "added_by": user_id,
                 "last_active": None,
                 "is_online": False,
@@ -1430,7 +1430,7 @@ class CollaborationEndpoints:
                 [
                     a
                     for a in self.activity_log.get(document_id, [])
-                    if a["timestamp"] >= datetime.utcnow() - timedelta(hours=24)
+                    if a["timestamp"] >= datetime.now(timezone.utc) - timedelta(hours=24)
                 ]
             )
 
@@ -1507,7 +1507,7 @@ class CollaborationEndpoints:
             "username": username,
             "action": action,
             "description": description,
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "metadata": metadata or {},
         }
 

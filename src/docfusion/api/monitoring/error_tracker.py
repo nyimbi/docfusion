@@ -15,7 +15,7 @@ import sys
 import traceback
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -267,7 +267,7 @@ class ErrorAggregator:
 
     def get_error_stats(self, hours: int = 24) -> Dict[str, Any]:
         """Get error statistics for specified time period"""
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         recent_errors = [e for e in self.error_events if e.timestamp >= cutoff_time]
 
         if not recent_errors:
@@ -329,14 +329,14 @@ class ErrorAggregator:
             "affected_users": len(affected_users),
             "affected_endpoints": len(affected_endpoints),
             "time_period_hours": hours,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     def get_error_trends(
         self, hours: int = 24, bucket_minutes: int = 60
     ) -> List[Dict[str, Any]]:
         """Get error trends over time"""
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         recent_errors = [e for e in self.error_events if e.timestamp >= cutoff_time]
 
         # Create time buckets
@@ -344,7 +344,7 @@ class ErrorAggregator:
         buckets = []
 
         current_time = cutoff_time
-        while current_time < datetime.utcnow():
+        while current_time < datetime.now(timezone.utc):
             buckets.append(
                 {
                     "timestamp": current_time,
@@ -391,7 +391,7 @@ class ErrorAggregator:
         limit: int = 100,
     ) -> List[ErrorEvent]:
         """Search errors with filters"""
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         filtered_errors = []
 
         for error in self.error_events:

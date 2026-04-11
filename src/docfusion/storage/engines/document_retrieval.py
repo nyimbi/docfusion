@@ -8,6 +8,8 @@ Supports concurrent access and provides high-performance document access pattern
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import hashlib
 import json
 import shutil
@@ -22,6 +24,7 @@ from collections import OrderedDict
 
 import aiofiles
 from ...core.utils import uuid7str
+import time
 
 @dataclass
 class DocumentMetadata:
@@ -198,10 +201,10 @@ class DocumentRetrieval:
                         self.metadata_cache[metadata.document_id] = metadata
 
                 except Exception as e:
-                    print(f"Error loading metadata from {metadata_file}: {e}")
+                    logger.error(f"Error loading metadata from {metadata_file}: {e}")
 
         except Exception as e:
-            print(f"Error loading metadata: {e}")
+            logger.error(f"Error loading metadata: {e}")
 
     async def _save_metadata(self, metadata: DocumentMetadata) -> None:
         """Save document metadata to disk"""
@@ -345,7 +348,7 @@ class DocumentRetrieval:
     ) -> Optional[Dict[str, Any]]:
         """Retrieve document with optional version specification"""
 
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
 
         try:
             # Update statistics
@@ -414,7 +417,7 @@ class DocumentRetrieval:
             self.cache.put(cache_key, result)
 
             # Update performance metrics
-            retrieval_time = asyncio.get_event_loop().time() - start_time
+            retrieval_time = time.monotonic() - start_time
             self.stats.performance_metrics["last_retrieval_time"] = retrieval_time
             self.stats.average_retrieval_time = (
                 self.stats.average_retrieval_time * (self.stats.total_retrievals - 1)
@@ -424,7 +427,7 @@ class DocumentRetrieval:
             return result
 
         except Exception as e:
-            print(f"Error retrieving document {document_id}: {e}")
+            logger.error(f"Error retrieving document {document_id}: {e}")
             return None
 
     async def get_document_metadata(
@@ -531,7 +534,7 @@ class DocumentRetrieval:
                     return versions.copy()
 
             except Exception as e:
-                print(f"Error loading version history for {document_id}: {e}")
+                logger.error(f"Error loading version history for {document_id}: {e}")
 
         return []
 
@@ -585,7 +588,7 @@ class DocumentRetrieval:
                 return True
 
             except Exception as e:
-                print(f"Error deleting document {document_id}: {e}")
+                logger.error(f"Error deleting document {document_id}: {e}")
                 return False
 
     async def get_storage_stats(self) -> Dict[str, Any]:

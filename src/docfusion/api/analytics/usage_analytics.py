@@ -11,7 +11,7 @@ import json
 import logging
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -254,7 +254,7 @@ class UsageAnalyzer:
         try:
             # Set default time range based on period
             if end_time is None:
-                end_time = datetime.utcnow()
+                end_time = datetime.now(timezone.utc)
 
             if start_time is None:
                 if period == AnalyticsPeriod.HOUR:
@@ -393,8 +393,8 @@ class UsageAnalyzer:
             self.logger.error(f"Failed to generate usage stats: {e}")
             return UsageStats(
                 period=period.value,
-                start_time=start_time or datetime.utcnow(),
-                end_time=end_time or datetime.utcnow(),
+                start_time=start_time or datetime.now(timezone.utc),
+                end_time=end_time or datetime.now(timezone.utc),
             )
 
     async def get_user_behavior_analysis(
@@ -402,7 +402,7 @@ class UsageAnalyzer:
     ) -> Dict[str, Any]:
         """Analyze individual user behavior patterns"""
         try:
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(days=days)
 
             events = self.collector.get_events_in_period(
@@ -479,7 +479,7 @@ class UsageAnalyzer:
         """Get trend analysis for specified metric over time"""
         try:
             trends = []
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc)
 
             # Calculate time delta based on period
             if period == AnalyticsPeriod.HOUR:
@@ -681,7 +681,7 @@ class UsageAnalyticsAPI:
                     "trends": {"requests": request_trends, "errors": error_trends},
                     "top_endpoints_today": day_stats.top_endpoints[:5],
                     "top_users_today": day_stats.top_users[:5],
-                    "generated_at": datetime.utcnow().isoformat(),
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
                 }
             except Exception as e:
                 self.logger.error(f"Dashboard endpoint failed: {e}")

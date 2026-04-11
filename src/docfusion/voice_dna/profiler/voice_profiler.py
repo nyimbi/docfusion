@@ -8,6 +8,8 @@ interface for creating and managing organizational voice profiles.
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 import pickle
 from collections import Counter, defaultdict
@@ -1052,16 +1054,16 @@ class VoiceProfiler:
 	# Logging methods
 	
 	def _log_initialization(self):
-		print(f"VoiceProfiler: Initialized with {len(ProfileType)} profile types")
+		logger.info(f"VoiceProfiler: Initialized with {len(ProfileType)} profile types")
 	
 	def _log_profile_creation_start(self, organization: str, doc_count: int, profile_type: ProfileType):
-		print(f"VoiceProfiler: Creating {profile_type.value} for {organization} ({doc_count} documents)")
+		logger.info(f"VoiceProfiler: Creating {profile_type.value} for {organization} ({doc_count} documents)")
 	
 	def _log_profile_creation_complete(self, organization: str, profile_name: str, confidence: float, duration: float):
-		print(f"VoiceProfiler: Created profile '{profile_name}' for {organization} (confidence: {confidence:.3f}, duration: {duration:.1f}s)")
+		logger.info(f"VoiceProfiler: Created profile '{profile_name}' for {organization} (confidence: {confidence:.3f}, duration: {duration:.1f}s)")
 	
 	def _log_profile_creation_error(self, message: str):
-		print(f"VoiceProfiler Error: {message}")
+		logger.error(f"VoiceProfiler Error: {message}")
 
 
 # Example usage and testing
@@ -1166,66 +1168,66 @@ if __name__ == "__main__":
 	async def main():
 		results = await create_sample_voice_profiling()
 		
-		print("Voice Profiling Results:")
+		logger.info(f"Voice Profiling Results:")
 		print("=" * 60)
 		
 		# Master profile results
 		master = results["master_profile"]
-		print(f"\nMaster Profile: {master.profile_name}")
-		print(f"  Confidence: {master.confidence_level:.3f}")
-		print(f"  Consistency: {master.internal_consistency:.3f}")
-		print(f"  Completeness: {master.profile_completeness:.3f}")
-		print(f"  Documents: {master.total_documents}")
-		print(f"  Words: {master.total_words:,}")
+		logger.info(f"\nMaster Profile: {master.profile_name}")
+		logger.info(f"  Confidence: {master.confidence_level:.3f}")
+		logger.info(f"  Consistency: {master.internal_consistency:.3f}")
+		logger.info(f"  Completeness: {master.profile_completeness:.3f}")
+		logger.info(f"  Documents: {master.total_documents}")
+		logger.info(f"  Words: {master.total_words:,}")
 		
-		print(f"\n  Voice Characteristics:")
-		print(f"    Formality: {master.voice_fingerprint.formality_level:.3f}")
-		print(f"    Complexity: {master.voice_fingerprint.complexity_score:.3f}")
-		print(f"    Technical Density: {master.voice_fingerprint.technical_density:.3f}")
-		print(f"    Distinctiveness: {master.voice_fingerprint.distinctiveness_score:.3f}")
+		logger.info(f"\n  Voice Characteristics:")
+		logger.info(f"    Formality: {master.voice_fingerprint.formality_level:.3f}")
+		logger.info(f"    Complexity: {master.voice_fingerprint.complexity_score:.3f}")
+		logger.info(f"    Technical Density: {master.voice_fingerprint.technical_density:.3f}")
+		logger.info(f"    Distinctiveness: {master.voice_fingerprint.distinctiveness_score:.3f}")
 		
-		print(f"\n  Distinctive Features:")
+		logger.info(f"\n  Distinctive Features:")
 		for feature in master.distinctive_features:
-			print(f"    • {feature}")
+			logger.info(f"    • {feature}")
 		
 		# Casual profile results
 		casual = results["casual_profile"]
-		print(f"\nCasual Profile: {casual.profile_name}")
-		print(f"  Confidence: {casual.confidence_level:.3f}")
-		print(f"  Evolution Points: {len(casual.evolution_history)}")
+		logger.info(f"\nCasual Profile: {casual.profile_name}")
+		logger.info(f"  Confidence: {casual.confidence_level:.3f}")
+		logger.info(f"  Evolution Points: {len(casual.evolution_history)}")
 		
 		# Comparison results
 		comparison = results["comparison"]
-		print(f"\nProfile Comparison:")
-		print(f"  Overall Similarity: {comparison['overall_similarity']:.3f}")
-		print(f"  Vocabulary Similarity: {comparison['similarity_metrics']['vocabulary_similarity']:.3f}")
-		print(f"  Tone Similarity: {comparison['similarity_metrics']['tone_similarity']:.3f}")
-		print(f"  Formality Similarity: {comparison['similarity_metrics']['formality_similarity']:.3f}")
+		logger.info(f"\nProfile Comparison:")
+		logger.info(f"  Overall Similarity: {comparison['overall_similarity']:.3f}")
+		logger.info(f"  Vocabulary Similarity: {comparison['similarity_metrics']['vocabulary_similarity']:.3f}")
+		logger.info(f"  Tone Similarity: {comparison['similarity_metrics']['tone_similarity']:.3f}")
+		logger.info(f"  Formality Similarity: {comparison['similarity_metrics']['formality_similarity']:.3f}")
 		
-		print(f"\n  Key Similarities:")
+		logger.info(f"\n  Key Similarities:")
 		for similarity in comparison['key_similarities']:
-			print(f"    • {similarity}")
+			logger.info(f"    • {similarity}")
 		
-		print(f"\n  Key Differences:")
+		logger.info(f"\n  Key Differences:")
 		for difference in comparison['key_differences']:
-			print(f"    • {difference}")
+			logger.info(f"    • {difference}")
 		
 		# Evolution analysis
 		evolution = results["evolution_analysis"]
-		print(f"\nEvolution Analysis:")
-		print(f"  Evolution Points: {evolution['evolution_points']}")
-		print(f"  Stability Score: {evolution.get('stability_score', 'N/A')}")
-		print(f"  Evolution Trajectory: {evolution.get('evolution_trajectory', 'N/A')}")
+		logger.info(f"\nEvolution Analysis:")
+		logger.info(f"  Evolution Points: {evolution['evolution_points']}")
+		logger.info(f"  Stability Score: {evolution.get('stability_score', 'N/A')}")
+		logger.info(f"  Evolution Trajectory: {evolution.get('evolution_trajectory', 'N/A')}")
 		
 		# Profiler statistics
 		stats = results["profiler_stats"]
-		print(f"\nProfiler Statistics:")
+		logger.info(f"\nProfiler Statistics:")
 		for key, value in stats.items():
 			if isinstance(value, dict):
-				print(f"  {key.replace('_', ' ').title()}:")
+				logger.info(f"  {key.replace('_', ' ').title()}:")
 				for subkey, subvalue in value.items():
-					print(f"    {subkey}: {subvalue}")
+					logger.info(f"    {subkey}: {subvalue}")
 			else:
-				print(f"  {key.replace('_', ' ').title()}: {value}")
+				logger.info(f"  {key.replace('_', ' ').title()}: {value}")
 	
 	asyncio.run(main())

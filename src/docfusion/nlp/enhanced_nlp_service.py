@@ -28,6 +28,7 @@ from .transformers.style_transformer import StyleTransformer, create_style_trans
 from .transformers.document_summarizer import DocumentSummarizer, create_document_summarizer
 from .transformers.content_optimizer import ContentOptimizer, create_content_optimizer
 from ..core.utils import uuid7str
+import time
 
 @dataclass
 class EnhancedAnalysisResult:
@@ -225,7 +226,7 @@ class EnhancedNLPService:
 		include_transformations: bool = False
 	) -> EnhancedAnalysisResult:
 		"""Perform comprehensive document analysis with all available components"""
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		result = EnhancedAnalysisResult()
 		
 		try:
@@ -262,7 +263,7 @@ class EnhancedNLPService:
 			result.statistics = self._compile_comprehensive_statistics(result)
 			
 			result.success = len(result.errors) == 0
-			result.total_processing_time = asyncio.get_event_loop().time() - start_time
+			result.total_processing_time = time.monotonic() - start_time
 			
 			self.logger.info(f"Comprehensive analysis completed: quality={result.document_quality_score:.3f}, "
 							f"components={len(result.components_used)}")

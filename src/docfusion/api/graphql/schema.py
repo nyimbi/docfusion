@@ -9,7 +9,7 @@ and subscriptions with integrated security and real-time capabilities.
 import asyncio
 import logging
 from typing import Dict, List, Optional, Any, Union
-from datetime import datetime, timedelta
+from datetime import timezone, datetime, timedelta
 from enum import Enum
 
 try:
@@ -196,7 +196,7 @@ class Document:
 			user_id=self.created_by,
 			username=f"user_{self.created_by[:8]}",
 			email=f"user_{self.created_by[:8]}@example.com",
-			created_at=datetime.utcnow()
+			created_at=datetime.now(timezone.utc)
 		)
 	
 	@strawberry.field
@@ -242,7 +242,7 @@ class Comment:
 			user_id=self.created_by,
 			username=f"user_{self.created_by[:8]}",
 			email=f"user_{self.created_by[:8]}@example.com",
-			created_at=datetime.utcnow()
+			created_at=datetime.now(timezone.utc)
 		)
 	
 	@strawberry.field
@@ -277,8 +277,8 @@ class SearchResult:
 			status=DocumentStatus.PUBLISHED,
 			document_type=DocumentType.PROPOSAL,
 			created_by="user123",
-			created_at=datetime.utcnow(),
-			updated_at=datetime.utcnow()
+			created_at=datetime.now(timezone.utc),
+			updated_at=datetime.now(timezone.utc)
 		)
 
 @strawberry.type
@@ -408,8 +408,8 @@ class Query:
 				status=DocumentStatus.PUBLISHED,
 				document_type=DocumentType.PROPOSAL,
 				created_by="user123",
-				created_at=datetime.utcnow() - timedelta(days=i),
-				updated_at=datetime.utcnow() - timedelta(days=i//2)
+				created_at=datetime.now(timezone.utc) - timedelta(days=i),
+				updated_at=datetime.now(timezone.utc) - timedelta(days=i//2)
 			) for i in range(1, 21)
 		]
 		
@@ -456,8 +456,8 @@ class Query:
 			status=DocumentStatus.PUBLISHED,
 			document_type=DocumentType.PROPOSAL,
 			created_by="user123",
-			created_at=datetime.utcnow(),
-			updated_at=datetime.utcnow()
+			created_at=datetime.now(timezone.utc),
+			updated_at=datetime.now(timezone.utc)
 		)
 	
 	@strawberry.field(permission_classes=[IsAuthenticated])
@@ -480,7 +480,7 @@ class Query:
 				total_pages=0,
 				results=[],
 				search_id=uuid7str(),
-				timestamp=datetime.utcnow()
+				timestamp=datetime.now(timezone.utc)
 			)
 		
 		# Convert GraphQL input to search request
@@ -537,7 +537,7 @@ class Query:
 				total_pages=0,
 				results=[],
 				search_id=uuid7str(),
-				timestamp=datetime.utcnow()
+				timestamp=datetime.now(timezone.utc)
 			)
 	
 	@strawberry.field(permission_classes=[IsAuthenticated])
@@ -576,7 +576,7 @@ class Query:
 			document_id=document_id,
 			views=[
 				AnalyticsData(
-					timestamp=datetime.utcnow() - timedelta(days=i),
+					timestamp=datetime.now(timezone.utc) - timedelta(days=i),
 					value=float(10 + i * 2)
 				) for i in range(days)
 			],
@@ -626,8 +626,8 @@ class Mutation:
 			status=DocumentStatus.DRAFT,
 			document_type=input.document_type,
 			created_by=user["user_id"],
-			created_at=datetime.utcnow(),
-			updated_at=datetime.utcnow(),
+			created_at=datetime.now(timezone.utc),
+			updated_at=datetime.now(timezone.utc),
 			tags=[Tag(name=tag) for tag in input.tags]
 		)
 		
@@ -680,8 +680,8 @@ class Mutation:
 			status=DocumentStatus.DRAFT,
 			document_type=input.document_type,
 			created_by=user["user_id"],
-			created_at=datetime.utcnow() - timedelta(days=1),
-			updated_at=datetime.utcnow(),
+			created_at=datetime.now(timezone.utc) - timedelta(days=1),
+			updated_at=datetime.now(timezone.utc),
 			tags=[Tag(name=tag) for tag in input.tags]
 		)
 		
@@ -741,7 +741,7 @@ class Mutation:
 			document_id=input.document_id,
 			content=input.content,
 			created_by=user["user_id"],
-			created_at=datetime.utcnow(),
+			created_at=datetime.now(timezone.utc),
 			parent_id=input.parent_id,
 			position=input.position
 		)
@@ -770,7 +770,7 @@ class Mutation:
 				{
 					"type": "proposal",
 					"author": "user123",
-					"reindexed_at": datetime.utcnow().isoformat()
+					"reindexed_at": datetime.now(timezone.utc).isoformat()
 				}
 			)
 			return True
@@ -800,12 +800,12 @@ class Subscription:
 			yield Document(
 				document_id=document_id,
 				title="Updated Document",
-				content=f"Document updated at {datetime.utcnow()}",
+				content=f"Document updated at {datetime.now(timezone.utc)}",
 				status=DocumentStatus.PUBLISHED,
 				document_type=DocumentType.PROPOSAL,
 				created_by="user123",
-				created_at=datetime.utcnow(),
-				updated_at=datetime.utcnow()
+				created_at=datetime.now(timezone.utc),
+				updated_at=datetime.now(timezone.utc)
 			)
 	
 	@strawberry.subscription(permission_classes=[IsAuthenticated])
@@ -819,7 +819,7 @@ class Subscription:
 		
 		while True:
 			await asyncio.sleep(10)
-			yield f"User activity on document {document_id} at {datetime.utcnow()}"
+			yield f"User activity on document {document_id} at {datetime.now(timezone.utc)}"
 	
 	@strawberry.subscription(permission_classes=[IsAuthenticated])
 	async def search_analytics(
@@ -832,7 +832,7 @@ class Subscription:
 			await asyncio.sleep(60)  # Update every minute
 			
 			yield {
-				"timestamp": datetime.utcnow(),
+				"timestamp": datetime.now(timezone.utc),
 				"total_searches": 1000,
 				"active_users": 50,
 				"popular_queries": ["proposal", "template", "report"]

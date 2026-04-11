@@ -8,6 +8,8 @@ Provides intelligent content discovery and retrieval for document generation wor
 """
 
 import asyncio
+import logging
+logger = logging.getLogger(__name__)
 import json
 import re
 from dataclasses import asdict, dataclass, field
@@ -21,6 +23,7 @@ from difflib import SequenceMatcher
 
 import aiofiles
 from ...core.utils import uuid7str
+import time
 
 @dataclass
 class ContentBlock:
@@ -297,7 +300,7 @@ class DocumentRetriever:
         self, block_id: str, track_usage: bool = True
     ) -> Optional[ContentBlock]:
         """Retrieve a content block by ID"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
 
         try:
             self.stats.total_retrievals += 1
@@ -318,7 +321,7 @@ class DocumentRetriever:
                 await self._save_content_block(block)
 
             # Update performance metrics
-            retrieval_time = asyncio.get_event_loop().time() - start_time
+            retrieval_time = time.monotonic() - start_time
             self.stats.performance_metrics["last_block_retrieval_time"] = retrieval_time
             self.stats.average_retrieval_time = (
                 self.stats.average_retrieval_time * (self.stats.total_retrievals - 1)
@@ -328,14 +331,14 @@ class DocumentRetriever:
             return block
 
         except Exception as e:
-            print(f"Error retrieving content block {block_id}: {e}")
+            logger.error(f"Error retrieving content block {block_id}: {e}")
             return None
 
     async def retrieve_template(
         self, template_id: str, track_usage: bool = True
     ) -> Optional[Template]:
         """Retrieve a template by ID"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
 
         try:
             self.stats.total_retrievals += 1
@@ -356,7 +359,7 @@ class DocumentRetriever:
                 await self._save_template(template)
 
             # Update performance metrics
-            retrieval_time = asyncio.get_event_loop().time() - start_time
+            retrieval_time = time.monotonic() - start_time
             self.stats.performance_metrics["last_template_retrieval_time"] = (
                 retrieval_time
             )
@@ -368,7 +371,7 @@ class DocumentRetriever:
             return template
 
         except Exception as e:
-            print(f"Error retrieving template {template_id}: {e}")
+            logger.error(f"Error retrieving template {template_id}: {e}")
             return None
 
     async def search_content_blocks(
@@ -801,7 +804,7 @@ class DocumentRetriever:
                             await self._update_block_indexes(block)
 
                     except Exception as e:
-                        print(f"Error loading content block {block_file}: {e}")
+                        logger.error(f"Error loading content block {block_file}: {e}")
 
             # Load templates
             if self.templates_path.exists():
@@ -825,10 +828,10 @@ class DocumentRetriever:
                             await self._update_template_indexes(template)
 
                     except Exception as e:
-                        print(f"Error loading template {template_file}: {e}")
+                        logger.error(f"Error loading template {template_file}: {e}")
 
         except Exception as e:
-            print(f"Error loading data: {e}")
+            logger.error(f"Error loading data: {e}")
 
 # Convenience functions
 async def create_document_retriever(

@@ -21,6 +21,7 @@ except ImportError:
 	aiohttp = None
 
 from ...core.utils import uuid7str
+import time
 
 try:
 	from ..prompting_strategies import (
@@ -336,7 +337,7 @@ class StyleTransformer:
         preserve_structure: bool = True,
     ) -> StyleTransformationResult:
         """Transform text tone with specified transformation"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = StyleTransformationResult()
 
         try:
@@ -388,7 +389,7 @@ class StyleTransformer:
             result.success = (
                 len(result.errors) == 0 and result.primary_result is not None
             )
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
             self.logger.info(
                 f"Style transformation completed: {transformation.value}, "
@@ -408,7 +409,7 @@ class StyleTransformer:
         adaptation_strength: float = 0.8,
     ) -> StyleTransformationResult:
         """Transform text to match a specific style profile"""
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         result = StyleTransformationResult()
 
         try:
@@ -479,7 +480,7 @@ class StyleTransformer:
             result.success = (
                 len(result.errors) == 0 and result.primary_result is not None
             )
-            result.processing_time = asyncio.get_event_loop().time() - start_time
+            result.processing_time = time.monotonic() - start_time
 
         except Exception as e:
             result.errors.append(f"Style profile transformation failed: {str(e)}")

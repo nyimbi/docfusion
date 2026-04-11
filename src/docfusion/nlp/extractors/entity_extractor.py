@@ -28,6 +28,7 @@ except ImportError:
 import httpx
 import json
 from ...core.utils import uuid7str
+import time
 
 class EntityType(str, Enum):
 	"""Entity types for extraction"""
@@ -320,7 +321,7 @@ class EntityExtractor:
 		use_ai: Optional[bool] = None
 	) -> EntityExtractionResult:
 		"""Extract entities from text"""
-		start_time = asyncio.get_event_loop().time()
+		start_time = time.monotonic()
 		result = EntityExtractionResult()
 		result.original_text = text
 		
@@ -398,7 +399,7 @@ class EntityExtractor:
 			result.statistics = statistics
 			result.methods_used = methods_used
 			result.success = True
-			result.processing_time = asyncio.get_event_loop().time() - start_time
+			result.processing_time = time.monotonic() - start_time
 			
 			self.logger.info(f"Entities extracted successfully, time: {result.processing_time:.2f}s")
 		
