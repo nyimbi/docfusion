@@ -277,7 +277,7 @@ class MeiliSearchBackend(SearchBackend):
         """Setup MeiliSearch index configuration"""
         try:
             # Configure searchable attributes
-            await asyncio.get_event_loop().run_in_executor(
+            await asyncio.get_running_loop().run_in_executor(
                 None,
                 self.index.update_searchable_attributes,
                 [
@@ -290,14 +290,14 @@ class MeiliSearchBackend(SearchBackend):
             )
 
             # Configure filterable attributes
-            await asyncio.get_event_loop().run_in_executor(
+            await asyncio.get_running_loop().run_in_executor(
                 None,
                 self.index.update_filterable_attributes,
                 ["type", "author", "category", "tags", "created_at", "updated_at"],
             )
 
             # Configure sortable attributes
-            await asyncio.get_event_loop().run_in_executor(
+            await asyncio.get_running_loop().run_in_executor(
                 None,
                 self.index.update_sortable_attributes,
                 ["created_at", "updated_at", "title"],
@@ -321,7 +321,7 @@ class MeiliSearchBackend(SearchBackend):
                 "indexed_at": datetime.now(timezone.utc).isoformat(),
             }
 
-            await asyncio.get_event_loop().run_in_executor(
+            await asyncio.get_running_loop().run_in_executor(
                 None, self.index.add_documents, [document]
             )
 
@@ -360,7 +360,7 @@ class MeiliSearchBackend(SearchBackend):
 
             # Execute search
             start_time = datetime.now(timezone.utc)
-            results = await asyncio.get_event_loop().run_in_executor(
+            results = await asyncio.get_running_loop().run_in_executor(
                 None, self.index.search, request.query, query_params
             )
             end_time = datetime.now(timezone.utc)
@@ -444,7 +444,7 @@ class MeiliSearchBackend(SearchBackend):
     async def delete_document(self, doc_id: str):
         """Delete document from MeiliSearch"""
         try:
-            await asyncio.get_event_loop().run_in_executor(
+            await asyncio.get_running_loop().run_in_executor(
                 None, self.index.delete_document, doc_id
             )
             self.logger.debug(f"Deleted document {doc_id} from MeiliSearch")
@@ -455,7 +455,7 @@ class MeiliSearchBackend(SearchBackend):
     async def get_stats(self) -> Dict[str, Any]:
         """Get MeiliSearch statistics"""
         try:
-            stats = await asyncio.get_event_loop().run_in_executor(
+            stats = await asyncio.get_running_loop().run_in_executor(
                 None, self.index.get_stats
             )
             return {
@@ -512,7 +512,7 @@ class OpenSearchBackend(SearchBackend):
         """Setup OpenSearch index mapping"""
         try:
             # Check if index exists
-            if not await asyncio.get_event_loop().run_in_executor(
+            if not await asyncio.get_running_loop().run_in_executor(
                 None, self.client.indices.exists, self.index_name
             ):
                 # Create index with mapping
@@ -554,7 +554,7 @@ class OpenSearchBackend(SearchBackend):
                     },
                 }
 
-                await asyncio.get_event_loop().run_in_executor(
+                await asyncio.get_running_loop().run_in_executor(
                     None, self.client.indices.create, self.index_name, mapping
                 )
 
@@ -576,7 +576,7 @@ class OpenSearchBackend(SearchBackend):
                 "indexed_at": datetime.now(timezone.utc).isoformat(),
             }
 
-            await asyncio.get_event_loop().run_in_executor(
+            await asyncio.get_running_loop().run_in_executor(
                 None, self.client.index, self.index_name, document, doc_id
             )
 
@@ -596,7 +596,7 @@ class OpenSearchBackend(SearchBackend):
 
             # Execute search
             start_time = datetime.now(timezone.utc)
-            response = await asyncio.get_event_loop().run_in_executor(
+            response = await asyncio.get_running_loop().run_in_executor(
                 None, self.client.search, self.index_name, query_body
             )
             end_time = datetime.now(timezone.utc)
@@ -742,7 +742,7 @@ class OpenSearchBackend(SearchBackend):
     async def delete_document(self, doc_id: str):
         """Delete document from OpenSearch"""
         try:
-            await asyncio.get_event_loop().run_in_executor(
+            await asyncio.get_running_loop().run_in_executor(
                 None, self.client.delete, self.index_name, doc_id
             )
             self.logger.debug(f"Deleted document {doc_id} from OpenSearch")
@@ -753,7 +753,7 @@ class OpenSearchBackend(SearchBackend):
     async def get_stats(self) -> Dict[str, Any]:
         """Get OpenSearch statistics"""
         try:
-            stats = await asyncio.get_event_loop().run_in_executor(
+            stats = await asyncio.get_running_loop().run_in_executor(
                 None, self.client.indices.stats, self.index_name
             )
 

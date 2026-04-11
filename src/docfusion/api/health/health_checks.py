@@ -325,12 +325,12 @@ class OpenSearchHealthCheck(BaseHealthCheck):
 			)
 			
 			# Check cluster health
-			health = await asyncio.get_event_loop().run_in_executor(
+			health = await asyncio.get_running_loop().run_in_executor(
 				None, client.cluster.health
 			)
 			
 			# Get cluster stats
-			stats = await asyncio.get_event_loop().run_in_executor(
+			stats = await asyncio.get_running_loop().run_in_executor(
 				None, client.cluster.stats
 			)
 			
