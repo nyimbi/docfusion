@@ -230,8 +230,14 @@ class ConflictResolver:
         # Thread safety
         self._lock = asyncio.Lock()
 
-        # Initialize default rules
-        asyncio.create_task(self._initialize_default_rules())
+        # Lazy initialization flag - avoid asyncio.create_task in __init__
+        self._rules_initialized = False
+
+    async def _ensure_rules_initialized(self) -> None:
+        """Lazy-initialize default rules on first use."""
+        if not self._rules_initialized:
+            self._rules_initialized = True
+            await self._initialize_default_rules()
 
     async def resolve_conflicts(
         self,
@@ -246,6 +252,7 @@ class ConflictResolver:
 
         Simple API - provide conflicts and get resolved content.
         """
+        await self._ensure_rules_initialized()
         start_time = time.time()
 
         async with self._lock:

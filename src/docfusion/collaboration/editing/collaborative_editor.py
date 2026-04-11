@@ -12,11 +12,14 @@ from dataclasses import dataclass, field
 from enum import Enum
 import asyncio
 import json
+import logging
 import time
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 import weakref
 from ...core.utils import uuid7str
+
+logger = logging.getLogger(__name__)
 
 class OperationType(Enum):
 	"""Types of collaborative operations"""
@@ -353,19 +356,20 @@ class CollaborativeEditor:
 	
 	async def resolve_comment(self, user_id: str, comment_id: str) -> bool:
 		"""Resolve a comment."""
-		if comment_id not in self.state.comments:
-			return False
-		
-		comment = self.state.comments[comment_id]
-		
-		# Check permissions (author or admin)
-		if not (comment.author_id == user_id or await self._check_permission(user_id, "admin")):
-			raise PermissionError("Cannot resolve comment")
-		
-		comment.resolved = True
-		await self._broadcast_comment_resolved(comment_id)
-		
-		return True
+		async with self._lock:  # Fix: acquire lock before modifying shared state
+			if comment_id not in self.state.comments:
+				return False
+
+			comment = self.state.comments[comment_id]
+
+			# Check permissions (author or admin)
+			if not (comment.author_id == user_id or await self._check_permission(user_id, "admin")):
+				raise PermissionError("Cannot resolve comment")
+
+			comment.resolved = True
+			await self._broadcast_comment_resolved(comment_id)
+
+			return True
 	
 	async def undo(self, user_id: str) -> Optional[Operation]:
 		"""
@@ -543,7 +547,8 @@ class CollaborativeEditor:
 			for user in set(clock1.keys()) | set(clock2.keys())
 		)
 		
-		return not (op1_before_op2 and op2_before_op1)
+		# Concurrent means NEITHER happened-before the other
+		return not op1_before_op2 and not op2_before_op1
 	
 	async def _create_inverse_operation(
 		self,
@@ -671,15 +676,15 @@ class CollaborativeEditor:
 				await self.websocket_handler(event_type, event_data)
 			except Exception as e:
 				# Log error but don't fail
-				logger.warning("Exception in _broadcast_event")
-		
-		# Call all subscribers
-		for subscription_id, callback in self.subscribers.items():
+				logger.warning(f"WebSocket handler error in _broadcast_event: {e}")
+
+		# Snapshot subscribers to avoid RuntimeError during concurrent modification
+		for subscription_id, callback in list(self.subscribers.items()):
 			try:
 				await callback(event_type, event_data)
 			except Exception as e:
 				# Log error but don't fail
-				logger.warning("Exception in _broadcast_event")
+				logger.warning(f"Subscriber callback error in _broadcast_event: {e}")
 	
 	async def get_state_snapshot(self) -> Dict[str, Any]:
 		"""Get complete state snapshot for new clients."""

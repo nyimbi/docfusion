@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager, contextmanager
 import threading
 
 import asyncpg
-from sqlalchemy import create_engine, Engine, event
+from sqlalchemy import create_engine, Engine, event, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncSession
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
@@ -55,7 +55,7 @@ class DatabaseConnection:
 		self.logger.info("Initializing database connections...")
 		
 		# Initialize sync engine
-		await asyncio.get_event_loop().run_in_executor(None, self._initialize_sync_engine)
+		await asyncio.get_running_loop().run_in_executor(None, self._initialize_sync_engine)
 		
 		# Initialize async engine
 		await self._initialize_async_engine()
@@ -286,7 +286,7 @@ class DatabaseConnection:
 		# Test sync connection
 		try:
 			with self.get_sync_session() as session:
-				session.execute("SELECT 1")
+				session.execute(text("SELECT 1"))
 			health['sync_connection'] = True
 		except Exception as e:
 			self.logger.error(f"Sync connection health check failed: {e}")
@@ -295,7 +295,7 @@ class DatabaseConnection:
 		# Test async connection
 		try:
 			async with self.get_async_session() as session:
-				await session.execute("SELECT 1")
+				await session.execute(text("SELECT 1"))
 			health['async_connection'] = True
 		except Exception as e:
 			self.logger.error(f"Async connection health check failed: {e}")

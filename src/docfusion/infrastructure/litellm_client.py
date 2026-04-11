@@ -178,7 +178,14 @@ class LiteLLMClient:
 
 	# Class-level singleton session with connection pooling
 	_session: "aiohttp.ClientSession | None" = None
-	_session_lock: asyncio.Lock = asyncio.Lock()
+	_session_lock: "asyncio.Lock | None" = None
+
+	@classmethod
+	def _get_session_lock(cls) -> asyncio.Lock:
+		"""Lazy-initialize session lock to avoid creating Lock outside event loop."""
+		if cls._session_lock is None:
+			cls._session_lock = asyncio.Lock()
+		return cls._session_lock
 
 	def __init__(
 		self,
@@ -214,7 +221,7 @@ class LiteLLMClient:
 				"aiohttp is required for LiteLLMClient. "
 				"Install with: pip install aiohttp"
 			)
-		async with self._session_lock:
+		async with self._get_session_lock():
 			if self._session is None or self._session.closed:
 				# Create session with connection pooling
 				connector = aiohttp.TCPConnector(
@@ -248,7 +255,7 @@ class LiteLLMClient:
 		Call this method during application shutdown to properly
 		release all connections and resources.
 		"""
-		async with cls._session_lock:
+		async with cls._get_session_lock():
 			if cls._session and not cls._session.closed:
 				await cls._session.close()
 				cls._session = None
@@ -517,7 +524,7 @@ class LiteLLMClient:
 				"aiohttp is required for LiteLLMClient. "
 				"Install with: pip install aiohttp"
 			)
-		async with cls._session_lock:
+		async with cls._get_session_lock():
 			if cls._session is None or cls._session.closed:
 				connector = aiohttp.TCPConnector(
 					limit=100,

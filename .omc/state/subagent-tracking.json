@@ -78,10 +78,37 @@
       "status": "completed",
       "completed_at": "2026-04-10T20:28:06.956Z",
       "duration_ms": 1673231
+    },
+    {
+      "agent_id": "acc42608e435fde92",
+      "agent_type": "oh-my-claudecode:security-reviewer",
+      "started_at": "2026-04-11T15:48:05.164Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-04-11T15:55:20.872Z",
+      "duration_ms": 435708
+    },
+    {
+      "agent_id": "a33d51822f112d335",
+      "agent_type": "feature-dev:code-reviewer",
+      "started_at": "2026-04-11T15:48:05.189Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-04-11T16:06:59.956Z",
+      "duration_ms": 1134767
+    },
+    {
+      "agent_id": "aad61bdcd0ea9f60e",
+      "agent_type": "feature-dev:code-architect",
+      "started_at": "2026-04-11T15:48:05.239Z",
+      "parent_mode": "none",
+      "status": "completed",
+      "completed_at": "2026-04-11T16:14:26.072Z",
+      "duration_ms": 1580833
     }
   ],
-  "total_spawned": 9,
-  "total_completed": 8,
+  "total_spawned": 10,
+  "total_completed": 11,
   "total_failed": 0,
-  "last_updated": "2026-04-10T20:29:32.209Z"
+  "last_updated": "2026-04-11T16:14:26.176Z"
 }

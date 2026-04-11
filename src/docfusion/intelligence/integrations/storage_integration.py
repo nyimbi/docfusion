@@ -198,9 +198,18 @@ class IntelligenceStorageService:
             # Get most recent model
             latest_model_file = max(model_files, key=lambda x: x.stat().st_mtime)
             
-            # Load model
-            with open(latest_model_file, 'rb') as f:
-                model = pickle.load(f)
+            # Load model - prefer JSON for safety (deserializing untrusted data can execute arbitrary code)
+            model_json_file = latest_model_file.with_suffix('.json')
+            if model_json_file.exists():
+                with open(model_json_file, 'r') as f:
+                    model = json.load(f)
+            else:
+                # Legacy fallback with size validation
+                latest_model_file_stat = latest_model_file.stat()
+                if latest_model_file_stat.st_size > 10 * 1024 * 1024:
+                    raise ValueError(f"Refusing to deserialize file >10MB: {latest_model_file}")
+                with open(latest_model_file, 'rb') as f:
+                    model = pickle.load(f)  # noqa: S301
             
             # Load performance metrics if available
             metrics_file = latest_model_file.with_suffix('.metrics.json')

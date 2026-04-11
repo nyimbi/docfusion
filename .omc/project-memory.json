@@ -253,6 +253,307 @@
       "keyFiles": []
     }
   },
-  "hotPaths": [],
+  "hotPaths": [
+    {
+      "path": "src/docfusion",
+      "accessCount": 80,
+      "lastAccessed": 1775924311938,
+      "type": "directory"
+    },
+    {
+      "path": "src/docfusion/collaboration/editing/collaborative_editor.py",
+      "accessCount": 24,
+      "lastAccessed": 1775923793058,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/infrastructure/litellm_client.py",
+      "accessCount": 13,
+      "lastAccessed": 1775924079052,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/core/database/session.py",
+      "accessCount": 11,
+      "lastAccessed": 1775924516399,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/storage/engines/text_search_engine.py",
+      "accessCount": 8,
+      "lastAccessed": 1775923212782,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/collaboration/conflicts/conflict_resolver.py",
+      "accessCount": 7,
+      "lastAccessed": 1775923877938,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/security/authentication/saml_authentication.py",
+      "accessCount": 5,
+      "lastAccessed": 1775923071306,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 5,
+      "lastAccessed": 1775924336591,
+      "type": "directory"
+    },
+    {
+      "path": "src/docfusion/core/database/connection.py",
+      "accessCount": 4,
+      "lastAccessed": 1775924127297,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/core/database/config.py",
+      "accessCount": 3,
+      "lastAccessed": 1775922780386,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/document_engine/renderer/pdf_renderer.py",
+      "accessCount": 3,
+      "lastAccessed": 1775922810122,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/tools/file_tools.py",
+      "accessCount": 3,
+      "lastAccessed": 1775922825741,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/intelligence/integrations/storage_integration.py",
+      "accessCount": 3,
+      "lastAccessed": 1775923040554,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/discovery/crawlers/ai_driven/structure_learner.py",
+      "accessCount": 3,
+      "lastAccessed": 1775923041254,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/core/database/models.py",
+      "accessCount": 3,
+      "lastAccessed": 1775923724253,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/collaboration/presence/presence_manager.py",
+      "accessCount": 3,
+      "lastAccessed": 1775924496313,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/config/llm_config.py",
+      "accessCount": 2,
+      "lastAccessed": 1775922716652,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/infrastructure/temporal_client.py",
+      "accessCount": 2,
+      "lastAccessed": 1775922745239,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/config",
+      "accessCount": 2,
+      "lastAccessed": 1775922759163,
+      "type": "directory"
+    },
+    {
+      "path": "src/docfusion/agents/tools/data_tools.py",
+      "accessCount": 2,
+      "lastAccessed": 1775922771219,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/config/__init__.py",
+      "accessCount": 2,
+      "lastAccessed": 1775922820860,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/infrastructure/searxng_client.py",
+      "accessCount": 2,
+      "lastAccessed": 1775922905818,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/infrastructure/firecrawl_client.py",
+      "accessCount": 2,
+      "lastAccessed": 1775922906463,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/api/middleware/cors_middleware.py",
+      "accessCount": 2,
+      "lastAccessed": 1775922933532,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/memory/persistent_adapter.py",
+      "accessCount": 2,
+      "lastAccessed": 1775923052788,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/memory/memory_manager.py",
+      "accessCount": 2,
+      "lastAccessed": 1775923053495,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/visualization/renderers/svg_renderer.py",
+      "accessCount": 2,
+      "lastAccessed": 1775923069686,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/core/models/base.py",
+      "accessCount": 2,
+      "lastAccessed": 1775923689200,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/composition/runner.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922550813,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/infrastructure/llm_fallback.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922590760,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/core/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922609664,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/core/utils.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922614541,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/core/types/intelligence.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922625568,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/collaboration/versioning/version_manager.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922631663,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/composition/language.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922644478,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/composition/parser.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922646457,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/services/discovery_service.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922671662,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/storage/rag/rag_service.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922673843,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/orchestration/agent_composer.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922691832,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/core/database/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922715097,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/main.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922719535,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922720027,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/__main__.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922720985,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/memory/__init__.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922750815,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/context/context_manager.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922751544,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/tools/base.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922753155,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/llm/ollama_client.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922753989,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/document_engine/git_latex_manager.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922814344,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/api/dependencies.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922821289,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/api/app.py",
+      "accessCount": 1,
+      "lastAccessed": 1775922824171,
+      "type": "file"
+    }
+  ],
   "userDirectives": []
 }

@@ -5,18 +5,21 @@ SQLAlchemy ORM base classes and common model patterns for all DocuFusion compone
 Provides base entities with timestamps, UUIDs, and common fields.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.hybrid import hybrid_property
 from ...core.utils import uuid7str
 
-# Try to import uuid7str, fallback to uuid4
-# Base class for all ORM models
-Base = declarative_base()
+# ORM base class for all models
+class _Base(DeclarativeBase):
+	"""SQLAlchemy declarative base for DocuFusion models."""
+	pass
+
+Base = _Base
 
 class BaseModel(Base):
     """
@@ -85,11 +88,11 @@ class BaseModel(Base):
 
     def update_timestamp(self) -> None:
         """Manually update the timestamp."""
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
     def soft_delete(self) -> None:
         """Perform soft delete on the record."""
-        self.deleted_at = datetime.utcnow()
+        self.deleted_at = datetime.now(timezone.utc)
         self.is_active = False
 
     def restore(self) -> None:
@@ -254,12 +257,12 @@ class WorkflowEntity(BaseModel, AuditableMixin, NamedEntityMixin):
 
     def start_workflow(self) -> None:
         """Mark workflow as started."""
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now(timezone.utc)
         self.status = "running"
 
     def complete_workflow(self) -> None:
         """Mark workflow as completed."""
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         self.status = "completed"
 
     def fail_workflow(self) -> None:

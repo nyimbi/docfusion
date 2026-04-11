@@ -8,7 +8,7 @@ DocuFusion components with support for different environments and connection poo
 import os
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from urllib.parse import urlparse
 import logging
 
@@ -111,7 +111,8 @@ class DatabaseConfig(BaseModel):
 	enable_pgai: bool = Field(default=True, description="Enable pgai extension")
 	enable_timescaledb: bool = Field(default=False, description="Enable TimescaleDB extension")
 	
-	@validator('connection_url')
+	@field_validator('connection_url')
+	@classmethod
 	def validate_connection_url(cls, v):
 		"""Validate PostgreSQL connection URL format."""
 		try:

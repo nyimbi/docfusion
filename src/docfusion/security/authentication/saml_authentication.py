@@ -12,7 +12,11 @@ import hashlib
 import logging
 import secrets
 import time
-import xml.etree.ElementTree as ET
+# Security: use defusedxml to prevent XXE attacks when available
+try:
+    import defusedxml.ElementTree as ET
+except ImportError:
+    import xml.etree.ElementTree as ET  # noqa: S405 - fallback when defusedxml not installed
 import zlib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone

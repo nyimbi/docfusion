@@ -442,7 +442,7 @@ class PresenceManager:
 				self.presence_subscribers[document_id].remove(callback)
 				return True
 			except ValueError:
-				logger.warning("ValueError in unknown")
+				logger.warning(f"Callback not found in subscribers for document {document_id}")
 		return False
 	
 	async def get_presence_statistics(self, document_id: str) -> Dict[str, Any]:

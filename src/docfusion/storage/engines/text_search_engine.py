@@ -659,30 +659,80 @@ class TextSearchEngine:
     def _load_indexes(self) -> None:
         """Load search indexes from disk"""
         try:
-            # Load document indexes
-            indexes_file = self.storage_path / "document_indexes.pkl"
+            # Load document indexes (prefer JSON, fallback to legacy pickle with size limit)
+            indexes_file = self.storage_path / "document_indexes.json"
             if indexes_file.exists():
-                with open(indexes_file, "rb") as f:
-                    self.document_indexes = pickle.load(f)
+                with open(indexes_file, "r") as f:
+                    self.document_indexes = json.load(f)
+            else:
+                # Legacy pickle fallback - restricted for security
+                legacy_file = self.storage_path / "document_indexes.pkl"
+                if legacy_file.exists():
+                    import pickle  # noqa: S403
+                    with open(legacy_file, "rb") as f:
+                        f.seek(0, 2)  # Seek to end
+                        size = f.tell()
+                        f.seek(0)
+                        if size > 10 * 1024 * 1024:  # Max 10MB
+                            logger.warning("Refusing to load pickle file >10MB: %s", legacy_file)
+                        else:
+                            self.document_indexes = pickle.load(f)  # noqa: S301
 
             # Load inverted index
-            inverted_file = self.storage_path / "inverted_index.pkl"
+            inverted_file = self.storage_path / "inverted_index.json"
             if inverted_file.exists():
-                with open(inverted_file, "rb") as f:
-                    loaded_index = pickle.load(f)
-                    self.inverted_index = defaultdict(set, loaded_index)
+                with open(inverted_file, "r") as f:
+                    loaded_index = json.load(f)
+                    self.inverted_index = defaultdict(set, {k: set(v) if isinstance(v, list) else v for k, v in loaded_index.items()})
+            else:
+                legacy_file = self.storage_path / "inverted_index.pkl"
+                if legacy_file.exists():
+                    import pickle  # noqa: S403
+                    with open(legacy_file, "rb") as f:
+                        f.seek(0, 2)
+                        size = f.tell()
+                        f.seek(0)
+                        if size > 10 * 1024 * 1024:
+                            logger.warning("Refusing to load pickle file >10MB: %s", legacy_file)
+                        else:
+                            loaded_index = pickle.load(f)  # noqa: S301
+                            self.inverted_index = defaultdict(set, loaded_index)
 
             # Load TF-IDF scores
-            tfidf_file = self.storage_path / "tf_idf_scores.pkl"
+            tfidf_file = self.storage_path / "tf_idf_scores.json"
             if tfidf_file.exists():
-                with open(tfidf_file, "rb") as f:
-                    self.tf_idf_scores = pickle.load(f)
+                with open(tfidf_file, "r") as f:
+                    self.tf_idf_scores = json.load(f)
+            else:
+                legacy_file = self.storage_path / "tf_idf_scores.pkl"
+                if legacy_file.exists():
+                    import pickle  # noqa: S403
+                    with open(legacy_file, "rb") as f:
+                        f.seek(0, 2)
+                        size = f.tell()
+                        f.seek(0)
+                        if size > 10 * 1024 * 1024:
+                            logger.warning("Refusing to load pickle file >10MB: %s", legacy_file)
+                        else:
+                            self.tf_idf_scores = pickle.load(f)  # noqa: S301
 
             # Load document frequencies
-            freq_file = self.storage_path / "document_frequencies.pkl"
+            freq_file = self.storage_path / "document_frequencies.json"
             if freq_file.exists():
-                with open(freq_file, "rb") as f:
-                    self.document_frequencies = pickle.load(f)
+                with open(freq_file, "r") as f:
+                    self.document_frequencies = json.load(f)
+            else:
+                legacy_file = self.storage_path / "document_frequencies.pkl"
+                if legacy_file.exists():
+                    import pickle  # noqa: S403
+                    with open(legacy_file, "rb") as f:
+                        f.seek(0, 2)
+                        size = f.tell()
+                        f.seek(0)
+                        if size > 10 * 1024 * 1024:
+                            logger.warning("Refusing to load pickle file >10MB: %s", legacy_file)
+                        else:
+                            self.document_frequencies = pickle.load(f)  # noqa: S301
 
             # Load statistics
             stats_file = self.storage_path / "search_stats.json"

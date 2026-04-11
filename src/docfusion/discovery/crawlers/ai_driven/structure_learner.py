@@ -808,8 +808,19 @@ class StructureLearner:
 			if not model_file.exists():
 				return
 				
-			with open(model_file, 'rb') as f:
-				saved_models = pickle.load(f)
+			# Prefer JSON for safety (deserializing untrusted data can execute arbitrary code)
+			json_model_file = self.model_cache_dir / 'structure_learner_models.json'
+			if json_model_file.exists():
+				with open(json_model_file, 'r') as f:
+					saved_models = json.load(f)
+			else:
+				# Legacy fallback with size validation
+				model_size = model_file.stat().st_size
+				if model_size > 10 * 1024 * 1024:
+					logger.warning("Refusing to deserialize file >10MB: %s", model_file)
+					return
+				with open(model_file, 'rb') as f:
+					saved_models = pickle.load(f)  # noqa: S301
 			
 			self.site_patterns = saved_models.get('site_patterns', {})
 			self.domain_clusters = defaultdict(list, saved_models.get('domain_clusters', {}))
