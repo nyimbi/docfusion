@@ -16,7 +16,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Protocol
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.types import confloat, conint
 from ...core.utils import uuid7str
 
@@ -113,14 +113,16 @@ class NotificationMessage(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
-    @validator("expires_at")
+    @field_validator("expires_at")
+    @classmethod
     def validate_expiry(cls, v, values):
         """Ensure expiry time is in the future."""
         if v and v <= datetime.now():
             raise ValueError("Expiry time must be in the future")
         return v
 
-    @validator("scheduled_at")
+    @field_validator("scheduled_at")
+    @classmethod
     def validate_schedule(cls, v, values):
         """Ensure scheduled time is valid."""
         if v and v <= datetime.now():

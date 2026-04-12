@@ -22,8 +22,8 @@ from uuid import uuid4
 # Import Voice DNA components
 from ..analyzer.voice_pattern_analyzer import VoicePatternAnalyzer, VoiceFingerprint, WritingPattern
 from ..analyzer.style_pattern_extractor import StylePatternExtractor, StyleProfile, StylePattern
-from ..validator.voice_validator import VoiceValidator, ValidationResult, VoiceDeviation
-from ..validator.authenticity_scorer import AuthenticityScorer, AuthenticityReport, AuthenticityDimension
+from ..field_validator.voice_field_validator import VoiceValidator, ValidationResult, VoiceDeviation
+from ..field_validator.authenticity_scorer import AuthenticityScorer, AuthenticityReport, AuthenticityDimension
 from ..profiler.voice_profiler import VoiceProfiler, VoiceProfile, ProfileType
 from ..profiler.profile_manager import ProfileManager, ProfileVersion, ProfileComparison
 
@@ -471,7 +471,7 @@ class VoiceIntegrator:
 		# Initialize core components
 		self.pattern_analyzer = VoicePatternAnalyzer() if self.config.enable_pattern_analysis else None
 		self.style_extractor = StylePatternExtractor() if self.config.enable_style_analysis else None
-		self.voice_validator = VoiceValidator() if self.config.enable_validation else None
+		self.voice_field_validator = VoiceValidator() if self.config.enable_validation else None
 		self.authenticity_scorer = AuthenticityScorer() if self.config.enable_authenticity_scoring else None
 		self.voice_profiler = VoiceProfiler() if self.config.enable_profile_management else None
 		self.profile_manager = ProfileManager(self.config.profile_storage_path) if self.config.enable_profile_management else None
@@ -622,15 +622,15 @@ class VoiceIntegrator:
 		
 		# Voice validation
 		if (request.analysis_type in [AnalysisType.FULL_ANALYSIS, AnalysisType.VALIDATION_ONLY] and 
-		    self.voice_validator):
+		    self.voice_field_validator):
 			
 			# Get or use existing voice profile
 			voice_profile = results.get("voice_fingerprint")
 			if not voice_profile and request.use_cached_profiles:
-				voice_profile = self.voice_validator.voice_profiles_cache.get(request.organization_name)
+				voice_profile = self.voice_field_validator.voice_profiles_cache.get(request.organization_name)
 			
 			if voice_profile:
-				results["validation_result"] = await self.voice_validator.validate_voice_consistency(
+				results["validation_result"] = await self.voice_field_validator.validate_voice_consistency(
 					text_content, request.organization_name, voice_profile
 				)
 				results["components_analyzed"].append("voice_validation")
@@ -962,7 +962,7 @@ class VoiceIntegrator:
 			"component_status": {
 				"pattern_analyzer": self.pattern_analyzer is not None,
 				"style_extractor": self.style_extractor is not None,
-				"voice_validator": self.voice_validator is not None,
+				"voice_field_validator": self.voice_field_validator is not None,
 				"authenticity_scorer": self.authenticity_scorer is not None,
 				"voice_profiler": self.voice_profiler is not None,
 				"profile_manager": self.profile_manager is not None
@@ -977,7 +977,7 @@ class VoiceIntegrator:
 		components = [name for name, enabled in [
 			("Pattern Analysis", self.pattern_analyzer is not None),
 			("Style Analysis", self.style_extractor is not None),
-			("Voice Validation", self.voice_validator is not None),
+			("Voice Validation", self.voice_field_validator is not None),
 			("Authenticity Scoring", self.authenticity_scorer is not None),
 			("Profile Management", self.profile_manager is not None)
 		] if enabled]

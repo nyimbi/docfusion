@@ -16,19 +16,19 @@ import concurrent.futures
 from memory_profiler import profile
 
 # Intelligence engine imports
-from src.proposal_writer.intelligence.predictors.win_probability_predictor import (
+from docfusion.intelligence.predictors.win_probability_predictor import (
     WinProbabilityPredictor, PredictionFeatures, HistoricalOpportunity
 )
-from src.proposal_writer.intelligence.predictors.scoring_predictor import (
+from docfusion.intelligence.predictors.scoring_predictor import (
     ScoringPredictor, SectionFeatures, ProposalSection, HistoricalSectionScore
 )
-from src.proposal_writer.intelligence.recommenders.strategy_recommender import StrategyRecommender, OpportunityContext
-from src.proposal_writer.intelligence.recommenders.content_recommender import ContentRecommender
-from src.proposal_writer.intelligence.integrations.discovery_integration import (
+from docfusion.intelligence.recommenders.strategy_recommender import StrategyRecommender, OpportunityContext
+from docfusion.intelligence.recommenders.content_recommender import ContentRecommender
+from docfusion.intelligence.integrations.discovery_integration import (
     IntelligenceDiscoveryService, IntelligenceLevel
 )
-from src.proposal_writer.intelligence.integrations.storage_integration import IntelligenceStorageService
-from src.proposal_writer.intelligence.integrations.document_integration import (
+from docfusion.intelligence.integrations.storage_integration import IntelligenceStorageService
+from docfusion.intelligence.integrations.document_integration import (
     IntelligenceDocumentService, IntegrationMode
 )
 

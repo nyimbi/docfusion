@@ -47,8 +47,8 @@ from .workflow_document_bridge import (
     WorkflowProgress,
 )
 from ...core.utils import uuid7str
-from .workflow_request_extensions import (
 import time
+from .workflow_request_extensions import (
     TeamRole,
     WorkflowConfiguration,
     WorkflowEnabledDocumentRequest,

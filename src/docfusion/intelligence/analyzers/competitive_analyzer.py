@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from uuid import uuid4
 
 import numpy as np
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from ...core.models.base import BaseEntity

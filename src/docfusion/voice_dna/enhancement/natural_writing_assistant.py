@@ -18,7 +18,7 @@ from collections import Counter, defaultdict
 import uuid
 import logging
 
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing_extensions import Annotated
 
 # Optional NLP imports with fallbacks

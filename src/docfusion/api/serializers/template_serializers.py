@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, root_validator, validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 from ...core.utils import uuid7str
 
 class TemplateCategory(str, Enum):
@@ -103,7 +103,8 @@ class TemplateField(BaseModel):
         None, description="Options for select fields"
     )
 
-    @validator("options")
+    @field_validator("options")
+    @classmethod
     def validate_options(cls, v, values):
         field_type = values.get("type")
         if field_type in [FieldType.SELECT, FieldType.MULTISELECT]:
@@ -113,12 +114,12 @@ class TemplateField(BaseModel):
             raise ValueError("Options only allowed for select fields")
         return v
 
-    @root_validator
-    def validate_field_constraints(cls, values):
-        min_len = values.get("min_length")
-        max_len = values.get("max_length")
-        min_val = values.get("min_value")
-        max_val = values.get("max_value")
+    @model_validator(mode='after')
+    def validate_field_constraints(self):
+        min_len = self.min_length
+        max_len = self.max_length
+        min_val = self.min_value
+        max_val = self.max_value
 
         if min_len is not None and max_len is not None and min_len > max_len:
             raise ValueError("min_length cannot be greater than max_length")
@@ -126,7 +127,7 @@ class TemplateField(BaseModel):
         if min_val is not None and max_val is not None and min_val > max_val:
             raise ValueError("min_value cannot be greater than max_value")
 
-        return values
+        return self
 
 # ==================== REQUEST MODELS ====================
 
@@ -168,7 +169,8 @@ class TemplateCreateRequest(BaseModel):
 
     is_active: bool = Field(True, description="Whether template is active")
 
-    @validator("tags")
+    @field_validator("tags")
+    @classmethod
     def validate_tags(cls, v):
         if v is not None:
             if len(v) > 20:
@@ -180,7 +182,8 @@ class TemplateCreateRequest(BaseModel):
                     raise ValueError("Tag length must be 50 characters or less")
         return v
 
-    @validator("fields")
+    @field_validator("fields")
+    @classmethod
     def validate_fields(cls, v):
         if v is not None:
             if len(v) > 50:
@@ -193,7 +196,8 @@ class TemplateCreateRequest(BaseModel):
 
         return v
 
-    @validator("content")
+    @field_validator("content")
+    @classmethod
     def validate_content_placeholders(cls, v, values):
         """Validate that content placeholders match defined fields"""
         import re
@@ -255,11 +259,11 @@ class TemplateUpdateRequest(BaseModel):
         None, description="Updated template active status"
     )
 
-    @root_validator
-    def validate_at_least_one_field(cls, values):
-        if not any(v is not None for v in values.values()):
+    @model_validator(mode='after')
+    def validate_at_least_one_field(self):
+        if not any(v is not None for v in self.model_dump().values()):
             raise ValueError("At least one field must be provided for update")
-        return values
+        return self
 
 class TemplatePreviewRequest(BaseModel):
     """Request model for template preview"""
@@ -293,7 +297,8 @@ class TemplateSearchRequest(BaseModel):
 
     limit: int = Field(20, ge=1, le=100, description="Maximum number of results")
 
-    @validator("tags")
+    @field_validator("tags")
+    @classmethod
     def validate_search_tags(cls, v):
         if v is not None and len(v) > 10:
             raise ValueError("Maximum 10 tags allowed for search")

@@ -12,7 +12,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Any
 import json
 
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from ..delivery.notification_delivery import (
 	NotificationChannel, NotificationMessage, DeliveryResult, 

@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from uuid import uuid4
 
 import numpy as np
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity

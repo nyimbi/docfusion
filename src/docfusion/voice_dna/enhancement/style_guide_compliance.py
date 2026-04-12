@@ -509,8 +509,8 @@ class StyleGuideCompliance:
 		try:
 			# Use custom validation function if specified
 			if rule.validation_function and rule.validation_function in self.validation_functions:
-				validator = self.validation_functions[rule.validation_function]
-				rule_violations = await validator(text, rule)
+				field_validator = self.validation_functions[rule.validation_function]
+				rule_violations = await field_validator(text, rule)
 				violations.extend(rule_violations)
 			
 			# Pattern-based checking

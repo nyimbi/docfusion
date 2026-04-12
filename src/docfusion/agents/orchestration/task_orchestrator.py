@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
 import json
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from ..core.agent import Agent
 from ..core.messages import AgentMessage, MessageType, MessageTemplates
 from .crew_manager import AgentCrew, CrewTask

@@ -12,7 +12,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Any
 import json
 
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from ..delivery.notification_delivery import (
 	NotificationChannel, NotificationMessage, DeliveryResult, 
@@ -48,7 +48,8 @@ class TelegramConfiguration(BaseModel):
 	webhook_url: Optional[str] = Field(None, description="Webhook URL for receiving updates")
 	webhook_secret_token: Optional[str] = Field(None, description="Webhook secret token")
 	
-	@validator('bot_token')
+	@field_validator('bot_token')
+	@classmethod
 	def validate_bot_token(cls, v):
 		"""Validate bot token format."""
 		if not v or not v.count(':') == 1:

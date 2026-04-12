@@ -626,10 +626,10 @@ class DOCXRenderer:
 	def __init__(
 		self,
 		render_config: DOCXRenderConfiguration = None,
-		quality_validator: DOCXQualityValidator = None
+		quality_field_validator: DOCXQualityValidator = None
 	):
 		self.render_config = render_config or DOCXRenderConfiguration()
-		self.quality_validator = quality_validator or DOCXQualityValidator()
+		self.quality_field_validator = quality_field_validator or DOCXQualityValidator()
 		
 		# Core components
 		self.document_builder = DocumentBuilder()
@@ -687,7 +687,7 @@ class DOCXRenderer:
 			file_size = len(docx_content)
 			
 			# Validate quality
-			quality_report = await self.quality_validator.validate_docx_quality(
+			quality_report = await self.quality_field_validator.validate_docx_quality(
 				docx_content, config
 			)
 			
@@ -909,7 +909,7 @@ def validate_docx_renderer_installation() -> dict[str, bool]:
 		'docx_renderer_core': True,
 		'style_translator': True,
 		'asset_embedder': True,
-		'quality_validator': True,
+		'quality_field_validator': True,
 		'document_builder': True,
 		'overall_status': True
 	}

@@ -12,16 +12,25 @@ import hashlib
 import logging
 import secrets
 import time
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
 # Security: use defusedxml to prevent XXE attacks when available
 try:
-    import defusedxml.ElementTree as ET
+	import defusedxml.ElementTree as ET
 except ImportError:
-    import xml.etree.ElementTree as ET  # noqa: S405 - fallback when defusedxml not installed
+	import xml.etree.ElementTree as ET  # noqa: S405 - fallback when defusedxml not installed
+
+# Type annotation: defusedxml.ElementTree doesn't expose Element as module attr
+if TYPE_CHECKING:
+	import xml.etree.ElementTree as _ET
+	ElementType = _ET.Element
+else:
+	ElementType = type(ET.fromstring('<x/>'))  # Runtime Element type
+
 import zlib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
 from urllib.parse import parse_qs, urlencode, urlparse
 
 try:
@@ -651,7 +660,7 @@ class SAMLAuthentication:
             self.logger.error(f"Error parsing SAML response: {e}")
             return None
 
-    def _parse_assertion(self, assertion_elem: ET.Element) -> SAMLAssertion:
+    def _parse_assertion(self, assertion_elem: ElementType) -> SAMLAssertion:
         """Parse SAML assertion"""
         assertion_id = assertion_elem.get("ID", "")
         issue_instant = assertion_elem.get("IssueInstant", "")

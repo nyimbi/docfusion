@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, root_validator, validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 from ...core.utils import uuid7str
 
 class OutputFormat(str, Enum):
@@ -79,7 +79,8 @@ class DocumentCreateRequest(BaseModel):
         None, description="Initial sharing permissions (user_id: permission_level)"
     )
 
-    @validator("tags")
+    @field_validator("tags")
+    @classmethod
     def validate_tags(cls, v):
         if v is not None:
             if len(v) > 20:
@@ -91,7 +92,8 @@ class DocumentCreateRequest(BaseModel):
                     raise ValueError("Tag length must be 50 characters or less")
         return v
 
-    @validator("sharing_permissions")
+    @field_validator("sharing_permissions")
+    @classmethod
     def validate_sharing_permissions(cls, v):
         if v is not None:
             valid_permissions = {e.value for e in PermissionLevel}
@@ -121,11 +123,11 @@ class DocumentUpdateRequest(BaseModel):
         None, description="Updated document metadata"
     )
 
-    @root_validator
-    def validate_at_least_one_field(cls, values):
-        if not any(v is not None for v in values.values()):
+    @model_validator(mode='after')
+    def validate_at_least_one_field(self):
+        if not any(v is not None for v in self.model_dump().values()):
             raise ValueError("At least one field must be provided for update")
-        return values
+        return self
 
 class RenderRequest(BaseModel):
     """Request model for document rendering"""
@@ -248,21 +250,22 @@ class DocumentSearchRequest(BaseModel):
         None, description="Filter documents created before this date"
     )
 
-    @validator("tags")
+    @field_validator("tags")
+    @classmethod
     def validate_search_tags(cls, v):
         if v is not None and len(v) > 10:
             raise ValueError("Maximum 10 tags allowed for search")
         return v
 
-    @root_validator
-    def validate_date_range(cls, values):
-        date_from = values.get("date_from")
-        date_to = values.get("date_to")
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        date_from = self.date_from
+        date_to = self.date_to
 
         if date_from and date_to and date_from > date_to:
             raise ValueError("date_from must be before date_to")
 
-        return values
+        return self
 
 class SearchResultHighlight(BaseModel):
     """Search result highlight"""

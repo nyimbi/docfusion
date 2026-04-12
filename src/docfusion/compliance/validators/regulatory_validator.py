@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import re
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 import asyncio
 import json
 from ...core.utils import uuid7str
@@ -90,7 +90,7 @@ class ComplianceReport(BaseModel):
 
 class RegulatoryValidator:
 	"""
-	Comprehensive regulatory compliance validator.
+	Comprehensive regulatory compliance field_validator.
 	
 	Validates documents against regulatory requirements including:
 	- Federal Acquisition Regulation (FAR)
@@ -396,7 +396,7 @@ class RegulatoryValidator:
 				if result:
 					violations.extend(result)
 			except Exception as e:
-				logger.error(f"Error in validator function {rule.validator_function}: {str(e)}")
+				logger.error(f"Error in field_validator function {rule.validator_function}: {str(e)}")
 		
 		return violations
 	
@@ -843,7 +843,7 @@ class RegulatoryValidator:
 		return recommendations
 	
 	async def add_custom_rule(self, rule: ComplianceRule, regulation: str) -> None:
-		"""Add a custom compliance rule to the validator"""
+		"""Add a custom compliance rule to the field_validator"""
 		if regulation not in self.regulation_database:
 			self.regulation_database[regulation] = []
 		

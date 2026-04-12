@@ -253,8 +253,8 @@ class StyleParser:
 			if property_name not in self.property_validators:
 				result = (False, f"Unknown property: {property_name}")
 			else:
-				validator = self.property_validators[property_name]
-				result = validator(value)
+				field_validator = self.property_validators[property_name]
+				result = field_validator(value)
 
 			self.validation_cache[cache_key] = result
 			return result

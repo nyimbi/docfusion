@@ -14,7 +14,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Any
 from urllib.parse import quote
 
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from pydantic.types import constr
 
 from ..delivery.notification_delivery import (
@@ -73,7 +73,8 @@ class SMSConfiguration(BaseModel):
 		description="Opt-out keywords"
 	)
 	
-	@validator('max_message_length')
+	@field_validator('max_message_length')
+	@classmethod
 	def validate_message_length(cls, v):
 		"""Validate message length limits."""
 		if not 70 <= v <= 1600:  # SMS limits

@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi import Path as PathParam
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 try:
     import meilisearch

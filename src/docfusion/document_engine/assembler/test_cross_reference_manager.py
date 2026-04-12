@@ -339,7 +339,7 @@ class TestReferenceValidator:
 	"""Test suite for ReferenceValidator class"""
 
 	@pytest.fixture
-	def validator(self):
+	def field_validator(self):
 		return ReferenceValidator()
 
 	@pytest.fixture
@@ -400,14 +400,14 @@ class TestReferenceValidator:
 			reference_edges={ref.reference_id: ref.target_id for ref in references}
 		)
 
-	async def test_validate_valid_reference_graph(self, validator, sample_graph):
+	async def test_validate_valid_reference_graph(self, field_validator, sample_graph):
 		"""Test validation of valid reference graph"""
-		result = await validator.validate_reference_graph(sample_graph)
+		result = await field_validator.validate_reference_graph(sample_graph)
 		
 		assert result.valid is True
 		assert len(result.errors) == 0
 
-	async def test_validate_reference_with_missing_target(self, validator, sample_graph):
+	async def test_validate_reference_with_missing_target(self, field_validator, sample_graph):
 		"""Test validation of reference with missing target"""
 		# Add reference with non-existent target
 		broken_ref = CrossReference(
@@ -420,35 +420,35 @@ class TestReferenceValidator:
 		sample_graph.references["ref_broken"] = broken_ref
 		sample_graph.reference_edges["ref_broken"] = "missing_target"
 		
-		result = await validator.validate_reference_graph(sample_graph)
+		result = await field_validator.validate_reference_graph(sample_graph)
 		
 		assert result.valid is False
 		assert any("missing target" in error.lower() for error in result.errors)
 
-	async def test_validate_individual_reference(self, validator, sample_graph):
+	async def test_validate_individual_reference(self, field_validator, sample_graph):
 		"""Test validation of individual reference"""
 		reference = sample_graph.references["ref_001"]
 		
-		result = await validator.validate_reference(reference, sample_graph)
+		result = await field_validator.validate_reference(reference, sample_graph)
 		
 		assert result.valid is True
 
-	def test_detect_orphaned_references(self, validator, sample_graph):
+	def test_detect_orphaned_references(self, field_validator, sample_graph):
 		"""Test detection of orphaned references"""
 		# Remove a target to create orphaned reference
 		del sample_graph.targets["fig_001"]
 		
-		orphaned = validator.find_orphaned_references(sample_graph)
+		orphaned = field_validator.find_orphaned_references(sample_graph)
 		
 		assert "ref_001" in orphaned
 
-	def test_suggest_repairs(self, validator, sample_graph):
+	def test_suggest_repairs(self, field_validator, sample_graph):
 		"""Test reference repair suggestions"""
 		# Create broken reference
 		broken_refs = ["ref_001"]  # Reference to fig_001
 		del sample_graph.targets["fig_001"]  # Remove target
 		
-		suggestions = validator.suggest_repairs(broken_refs, sample_graph)
+		suggestions = field_validator.suggest_repairs(broken_refs, sample_graph)
 		
 		assert "ref_001" in suggestions
 		assert len(suggestions["ref_001"]) > 0
@@ -848,7 +848,7 @@ class TestErrorHandling:
 		# This is challenging to test in practice since our content format
 		# doesn't naturally create circular references, but we can test
 		# the detection mechanism
-		validator = ReferenceValidator()
+		field_validator = ReferenceValidator()
 		
 		# Create a graph with circular references manually
 		circular_graph = ReferenceGraph(
@@ -884,7 +884,7 @@ class TestErrorHandling:
 		)
 		
 		# Test circular reference detection
-		circulars = validator.detect_circular_references(circular_graph)
+		circulars = field_validator.detect_circular_references(circular_graph)
 		# Should detect at least some circular patterns
 
 	async def test_performance_with_large_document(self, reference_manager):

@@ -19,7 +19,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ...core.utils import uuid7str
 
 class ValidationLevel(str, Enum):
@@ -139,7 +139,7 @@ class ValidationRule(BaseModel):
     max_length: Optional[int] = None
     pattern: Optional[str] = None  # Regex pattern
     allowed_values: List[Any] = Field(default_factory=list)
-    custom_validator: Optional[str] = None  # Custom validation function name
+    custom_field_validator: Optional[str] = None  # Custom validation function name
 
     # Suggestions for fixing issues
     fix_suggestions: List[str] = Field(default_factory=list)
@@ -189,10 +189,10 @@ class ResultValidator:
             del self.validation_rules[rule_id]
             self.logger.info(f"Unregistered validation rule: {rule.name}")
 
-    def register_custom_validator(self, name: str, validator_func: Callable) -> None:
+    def register_custom_field_validator(self, name: str, validator_func: Callable) -> None:
         """Register a custom validation function"""
         self.custom_validators[name] = validator_func
-        self.logger.info(f"Registered custom validator: {name}")
+        self.logger.info(f"Registered custom field_validator: {name}")
 
     async def validate_result(
         self,
@@ -603,14 +603,14 @@ class ResultValidator:
                     )
                 )
 
-            # Custom validator
+            # Custom field_validator
             if (
-                rule.custom_validator
-                and rule.custom_validator in self.custom_validators
+                rule.custom_field_validator
+                and rule.custom_field_validator in self.custom_validators
             ):
-                validator_func = self.custom_validators[rule.custom_validator]
+                validator_func = self.custom_validators[rule.custom_field_validator]
                 try:
-                    custom_issues = await self._call_custom_validator(
+                    custom_issues = await self._call_custom_field_validator(
                         validator_func, target_value, rule, context
                     )
                     issues.extend(custom_issues)
@@ -619,7 +619,7 @@ class ResultValidator:
                         ValidationIssue(
                             category=ValidationCategory.STRUCTURE,
                             level=ValidationLevel.ERROR,
-                            message=f"Custom validator failed: {e}",
+                            message=f"Custom field_validator failed: {e}",
                             path=rule.target_path,
                             rule_name=rule.name,
                         )
@@ -675,7 +675,7 @@ class ResultValidator:
 
         return True  # Unknown type, assume valid
 
-    async def _call_custom_validator(
+    async def _call_custom_field_validator(
         self,
         validator_func: Callable,
         value: Any,

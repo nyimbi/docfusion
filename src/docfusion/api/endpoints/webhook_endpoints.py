@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Set
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
 from fastapi import Path as PathParam
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, HttpUrl, validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 from ...security import SecurityManager
 from ..middleware.authentication_middleware import get_api_key_user, get_current_user

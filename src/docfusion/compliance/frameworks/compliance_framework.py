@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 from datetime import datetime, date
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 import asyncio
 from ...core.utils import uuid7str
 

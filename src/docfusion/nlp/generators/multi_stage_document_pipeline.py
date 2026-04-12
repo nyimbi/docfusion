@@ -25,8 +25,8 @@ from .document_outline_generator import (
     create_document_outline_generator,
 )
 from ...core.utils import uuid7str
-from .iterative_section_generator import (
 import time
+from .iterative_section_generator import (
     ContentGenerationStrategy,
     ContentPipeline,
     IterativeGenerationResult,

@@ -735,7 +735,7 @@ class CitationValidatorTool(AgentTool):
 	
 	def __init__(self, config: Optional[ToolConfig] = None):
 		super().__init__(
-			name="citation_validator",
+			name="citation_field_validator",
 			description="Academic and professional citation verification and formatting validation",
 			capabilities=[ToolCapability.DATA_PROCESSING],
 			config=config
@@ -996,7 +996,7 @@ class CitationValidatorTool(AgentTool):
 		return max(0, score)
 	
 	def get_parameters_schema(self) -> Dict[str, Any]:
-		"""Get parameters schema for citation validator"""
+		"""Get parameters schema for citation field_validator"""
 		return {
 			"type": "object",
 			"properties": {

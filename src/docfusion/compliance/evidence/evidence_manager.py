@@ -17,7 +17,7 @@ import json
 import hashlib
 from datetime import datetime, date, timedelta
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 import asyncio
 import mimetypes
 import base64

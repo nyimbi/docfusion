@@ -11,7 +11,6 @@ import logging
 from datetime import timezone, datetime
 from typing import Any, Callable, Dict, List, Optional
 
-import aioredis
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
@@ -467,3 +466,38 @@ def create_authentication_middleware(
 ) -> AuthenticationMiddleware:
     """Create AuthenticationMiddleware instance"""
     return AuthenticationMiddleware(security_manager)
+
+
+async def get_websocket_user(token: str) -> Dict[str, Any]:
+    """
+    Validate a WebSocket authentication token and return user info.
+
+    Used by WebSocket endpoints that need to authenticate
+    connections without relying on HTTP request context.
+    """
+    if not auth_middleware:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication middleware not initialized",
+        )
+
+    payload = jwt.decode(
+        token,
+        auth_middleware.config.jwt_secret_key,
+        algorithms=[auth_middleware.config.jwt_algorithm],
+    )
+
+    user_id: str | None = payload.get("sub") or payload.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: missing user identifier",
+        )
+
+    return {
+        "user_id": user_id,
+        "username": payload.get("username", ""),
+        "email": payload.get("email", ""),
+        "roles": payload.get("roles", []),
+        "token_payload": payload,
+    }

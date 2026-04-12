@@ -12,7 +12,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Any
 import json
 
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from ..delivery.notification_delivery import (
 	NotificationChannel, NotificationMessage, DeliveryResult, 
@@ -54,7 +54,8 @@ class SlackConfiguration(BaseModel):
 	# Rate Limiting (Slack Tier 1: 1+ requests per minute)
 	rate_limit_per_minute: int = Field(60, description="Requests per minute limit")
 	
-	@validator('bot_token')
+	@field_validator('bot_token')
+	@classmethod
 	def validate_bot_token(cls, v):
 		"""Validate bot token format."""
 		if not v or not v.startswith('xoxb-'):

@@ -369,7 +369,7 @@ class TestContentValidator:
 	
 	async def test_validate_valid_content_block(self):
 		"""Test validation of a valid content block."""
-		validator = ContentValidator()
+		field_validator = ContentValidator()
 		
 		block = ContentBlock(
 			block_type="text",
@@ -377,7 +377,7 @@ class TestContentValidator:
 			content="This is valid content with sufficient length for validation testing."
 		)
 		
-		result = await validator.validate_content_block(block)
+		result = await field_validator.validate_content_block(block)
 		
 		assert result['is_valid'] is True
 		assert result['block_id'] == block.block_id
@@ -386,7 +386,7 @@ class TestContentValidator:
 	
 	async def test_validate_invalid_content_block(self):
 		"""Test validation of invalid content blocks."""
-		validator = ContentValidator()
+		field_validator = ContentValidator()
 		
 		# Block with invalid type
 		invalid_block = ContentBlock(
@@ -395,7 +395,7 @@ class TestContentValidator:
 			content="Content with invalid block type"
 		)
 		
-		result = await validator.validate_content_block(invalid_block)
+		result = await field_validator.validate_content_block(invalid_block)
 		
 		assert result['is_valid'] is False
 		assert len(result['errors']) > 0
@@ -403,7 +403,7 @@ class TestContentValidator:
 	
 	async def test_validate_empty_content(self):
 		"""Test validation of blocks with empty content."""
-		validator = ContentValidator()
+		field_validator = ContentValidator()
 		
 		empty_block = ContentBlock(
 			block_type="text",
@@ -411,14 +411,14 @@ class TestContentValidator:
 			content=""
 		)
 		
-		result = await validator.validate_content_block(empty_block)
+		result = await field_validator.validate_content_block(empty_block)
 		
 		assert result['is_valid'] is False
 		assert any("Content cannot be empty" in error for error in result['errors'])
 	
 	async def test_validate_content_length_warnings(self):
 		"""Test validation warnings for content length."""
-		validator = ContentValidator()
+		field_validator = ContentValidator()
 		
 		short_block = ContentBlock(
 			block_type="text",
@@ -426,14 +426,14 @@ class TestContentValidator:
 			content="Short"  # Below minimum length
 		)
 		
-		result = await validator.validate_content_block(short_block)
+		result = await field_validator.validate_content_block(short_block)
 		
 		assert len(result['warnings']) > 0
 		assert any("below minimum" in warning for warning in result['warnings'])
 	
 	async def test_validate_placeholder_content_detection(self):
 		"""Test detection of placeholder content."""
-		validator = ContentValidator()
+		field_validator = ContentValidator()
 		
 		placeholder_block = ContentBlock(
 			block_type="text",
@@ -441,14 +441,14 @@ class TestContentValidator:
 			content="This is a lorem ipsum placeholder content that needs to be replaced later."
 		)
 		
-		result = await validator.validate_content_block(placeholder_block)
+		result = await field_validator.validate_content_block(placeholder_block)
 		
 		assert len(result['warnings']) > 0
 		assert any("placeholder content detected" in warning.lower() for warning in result['warnings'])
 	
 	async def test_validate_metadata_requirements(self):
 		"""Test validation of metadata requirements for specific block types."""
-		validator = ContentValidator()
+		field_validator = ContentValidator()
 		
 		# Table block without required metadata
 		table_block = ContentBlock(
@@ -457,7 +457,7 @@ class TestContentValidator:
 			content="Table content without proper metadata"
 		)
 		
-		result = await validator.validate_content_block(table_block)
+		result = await field_validator.validate_content_block(table_block)
 		
 		# Should have warnings about missing metadata
 		assert len(result['warnings']) > 0

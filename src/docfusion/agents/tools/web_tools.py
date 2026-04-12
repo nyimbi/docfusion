@@ -451,7 +451,7 @@ class URLValidatorTool(AgentTool):
 	
 	def __init__(self, config: Optional[ToolConfig] = None):
 		super().__init__(
-			name="url_validator",
+			name="url_field_validator",
 			description="Validate and analyze URLs",
 			capabilities=[ToolCapability.WEB_SEARCH],
 			config=config

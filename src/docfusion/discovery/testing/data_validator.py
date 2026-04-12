@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from enum import Enum
 import tempfile
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from ...core.utils import uuid7str
 
 from ..models.opportunity_models import OpportunityData as Opportunity
@@ -183,7 +183,7 @@ class ValidationResult(BaseModel):
 
 class DataValidator:
 	"""
-	Comprehensive data quality validator for procurement opportunities
+	Comprehensive data quality field_validator for procurement opportunities
 	"""
 	
 	def __init__(
@@ -682,7 +682,7 @@ class DataValidator:
 		field_value: Any,
 		rule: ValidationRule
 	) -> List[ValidationIssue]:
-		"""Custom validator for deadline format"""
+		"""Custom field_validator for deadline format"""
 		
 		issues = []
 		
@@ -722,7 +722,7 @@ class DataValidator:
 		field_value: Any,
 		rule: ValidationRule
 	) -> List[ValidationIssue]:
-		"""Custom validator to ensure deadline is in future"""
+		"""Custom field_validator to ensure deadline is in future"""
 		
 		issues = []
 		
@@ -769,7 +769,7 @@ class DataValidator:
 		field_value: Any,
 		rule: ValidationRule
 	) -> List[ValidationIssue]:
-		"""Custom validator for estimated value"""
+		"""Custom field_validator for estimated value"""
 		
 		issues = []
 		

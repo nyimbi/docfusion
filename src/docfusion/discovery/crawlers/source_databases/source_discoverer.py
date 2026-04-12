@@ -28,7 +28,7 @@ from dataclasses import dataclass
 import tempfile
 from collections import defaultdict, Counter
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from ....core.utils import uuid7str
 
 from ..ai_driven.universal_scraper import UniversalScraper, ScrapingConfiguration

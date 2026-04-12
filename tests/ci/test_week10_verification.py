@@ -11,17 +11,17 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any
 
 # Test imports to verify package structure
-from src.proposal_writer.discovery.models.opportunity_models import OpportunityData
-from src.proposal_writer.discovery.analyzers.opportunity_analyzer import OpportunityAnalyzer
-from src.proposal_writer.discovery.analyzers.qualification_analyzer import (
+from docfusion.discovery.models.opportunity_models import OpportunityData
+from docfusion.discovery.analyzers.opportunity_analyzer import OpportunityAnalyzer
+from docfusion.discovery.analyzers.qualification_analyzer import (
     QualificationAnalyzer, OrganizationalCapabilities
 )
-from src.proposal_writer.discovery.matchers.capability_matcher import CapabilityMatcher
-from src.proposal_writer.discovery.matchers.relevance_filter import RelevanceFilter, OpportunityContext
-from src.proposal_writer.intelligence.analyzers.competitive_analyzer import CompetitiveAnalyzer
-from src.proposal_writer.discovery.integrations.nlp_integration import DiscoveryNLPService
-from src.proposal_writer.discovery.integrations.storage_integration import DiscoveryStorageService
-from src.proposal_writer.discovery.integrations.notification_service import OpportunityNotificationService
+from docfusion.discovery.matchers.capability_matcher import CapabilityMatcher
+from docfusion.discovery.matchers.relevance_filter import RelevanceFilter, OpportunityContext
+from docfusion.intelligence.analyzers.competitive_analyzer import CompetitiveAnalyzer
+from docfusion.discovery.integrations.nlp_integration import DiscoveryNLPService
+from docfusion.discovery.integrations.storage_integration import DiscoveryStorageService
+from docfusion.discovery.integrations.notification_service import OpportunityNotificationService
 
 
 class Week10VerificationSuite:
@@ -346,16 +346,16 @@ class Week10VerificationSuite:
         
         try:
             # Test package imports
-            from src.proposal_writer.discovery.analyzers import OpportunityAnalyzer, QualificationAnalyzer
+            from docfusion.discovery.analyzers import OpportunityAnalyzer, QualificationAnalyzer
             results['analyzers_package'] = True
             
-            from src.proposal_writer.discovery.matchers import CapabilityMatcher, RelevanceFilter
+            from docfusion.discovery.matchers import CapabilityMatcher, RelevanceFilter
             results['matchers_package'] = True
             
-            from src.proposal_writer.intelligence.analyzers import CompetitiveAnalyzer
+            from docfusion.intelligence.analyzers import CompetitiveAnalyzer
             results['intelligence_package'] = True
             
-            from src.proposal_writer.discovery.integrations import (
+            from docfusion.discovery.integrations import (
                 DiscoveryNLPService, DiscoveryStorageService, OpportunityNotificationService
             )
             results['integrations_package'] = True

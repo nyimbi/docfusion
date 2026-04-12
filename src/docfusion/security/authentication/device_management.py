@@ -20,7 +20,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from ...core.utils import uuid7str
 class DeviceType(str, Enum):
     """Device types"""
@@ -89,7 +89,8 @@ class DeviceFingerprint(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     confidence_score: float = 0.0  # 0.0 to 1.0
 
-    @validator("ip_address")
+    @field_validator("ip_address")
+    @classmethod
     def validate_ip_address(cls, v):
         try:
             ipaddress.ip_address(v)

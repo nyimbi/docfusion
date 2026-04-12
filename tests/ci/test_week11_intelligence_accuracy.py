@@ -14,25 +14,25 @@ from typing import Dict, List, Any
 import time
 
 # Intelligence engine imports
-from src.proposal_writer.intelligence.predictors.win_probability_predictor import (
+from docfusion.intelligence.predictors.win_probability_predictor import (
     WinProbabilityPredictor, PredictionFeatures, HistoricalOpportunity
 )
-from src.proposal_writer.intelligence.predictors.scoring_predictor import (
+from docfusion.intelligence.predictors.scoring_predictor import (
     ScoringPredictor, SectionFeatures, ProposalSection, HistoricalSectionScore
 )
-from src.proposal_writer.intelligence.recommenders.strategy_recommender import (
+from docfusion.intelligence.recommenders.strategy_recommender import (
     StrategyRecommender, OpportunityContext, RecommendationType
 )
-from src.proposal_writer.intelligence.recommenders.content_recommender import (
+from docfusion.intelligence.recommenders.content_recommender import (
     ContentRecommender, ProposalSection as ContentSection
 )
-from src.proposal_writer.intelligence.integrations.discovery_integration import (
+from docfusion.intelligence.integrations.discovery_integration import (
     IntelligenceDiscoveryService, IntelligenceLevel
 )
-from src.proposal_writer.intelligence.integrations.storage_integration import (
+from docfusion.intelligence.integrations.storage_integration import (
     IntelligenceStorageService, DataType
 )
-from src.proposal_writer.intelligence.integrations.document_integration import (
+from docfusion.intelligence.integrations.document_integration import (
     IntelligenceDocumentService, IntegrationMode, DocumentState
 )
 

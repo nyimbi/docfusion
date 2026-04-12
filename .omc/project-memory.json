@@ -267,21 +267,27 @@
       "type": "file"
     },
     {
+      "path": "src/docfusion/core/database/session.py",
+      "accessCount": 23,
+      "lastAccessed": 1775929908840,
+      "type": "file"
+    },
+    {
       "path": "src/docfusion/infrastructure/litellm_client.py",
       "accessCount": 16,
       "lastAccessed": 1775925729276,
       "type": "file"
     },
     {
-      "path": "src/docfusion/core/database/session.py",
-      "accessCount": 11,
-      "lastAccessed": 1775924516399,
-      "type": "file"
-    },
-    {
       "path": "src/docfusion/storage/engines/text_search_engine.py",
       "accessCount": 8,
       "lastAccessed": 1775923212782,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/security/authentication/saml_authentication.py",
+      "accessCount": 8,
+      "lastAccessed": 1775976129850,
       "type": "file"
     },
     {
@@ -300,12 +306,6 @@
       "path": "src/docfusion/infrastructure/firecrawl_client.py",
       "accessCount": 7,
       "lastAccessed": 1775925654171,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/security/authentication/saml_authentication.py",
-      "accessCount": 5,
-      "lastAccessed": 1775923071306,
       "type": "file"
     },
     {
@@ -342,6 +342,12 @@
       "path": "src/docfusion/agents/memory/__init__.py",
       "accessCount": 4,
       "lastAccessed": 1775925437257,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/agents/memory/memory_manager.py",
+      "accessCount": 4,
+      "lastAccessed": 1775930209850,
       "type": "file"
     },
     {
@@ -393,6 +399,12 @@
       "type": "file"
     },
     {
+      "path": "src/docfusion/api/app.py",
+      "accessCount": 3,
+      "lastAccessed": 1775976895971,
+      "type": "file"
+    },
+    {
       "path": "src/docfusion/config/llm_config.py",
       "accessCount": 2,
       "lastAccessed": 1775922716652,
@@ -432,12 +444,6 @@
       "path": "src/docfusion/agents/memory/persistent_adapter.py",
       "accessCount": 2,
       "lastAccessed": 1775923052788,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/agents/memory/memory_manager.py",
-      "accessCount": 2,
-      "lastAccessed": 1775923053495,
       "type": "file"
     },
     {
@@ -546,12 +552,6 @@
       "path": "src/docfusion/api/dependencies.py",
       "accessCount": 1,
       "lastAccessed": 1775922821289,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/api/app.py",
-      "accessCount": 1,
-      "lastAccessed": 1775922824171,
       "type": "file"
     }
   ],

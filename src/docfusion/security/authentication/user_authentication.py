@@ -29,7 +29,7 @@ import qrcode
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 # Pydantic models
-from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ...core.utils import uuid7str
 
 class AuthenticationStatus(Enum):

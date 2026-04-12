@@ -12,19 +12,19 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 import json
 
-from src.proposal_writer.agents.specialists.compliance_agent import ComplianceAgent
-from src.proposal_writer.agents.core.agent import AgentStatus
-from src.proposal_writer.orchestration.compliance_workflows import (
+from docfusion.agents.specialists.compliance_agent import ComplianceAgent
+from docfusion.agents.core.agent import AgentStatus
+from docfusion.orchestration.compliance_workflows import (
 	ComplianceWorkflowEngine, ComplianceTaskOrchestrator
 )
-from src.proposal_writer.compliance.evidence.evidence_manager import (
+from docfusion.compliance.evidence.evidence_manager import (
 	EvidenceManager, EvidenceType, EvidenceStatus, EvidenceSearchCriteria
 )
-from src.proposal_writer.compliance.reporting.compliance_reporter import (
+from docfusion.compliance.reporting.compliance_reporter import (
 	ComplianceReporter, ReportType, RiskLevel
 )
-from src.proposal_writer.compliance.validators.regulatory_validator import RegulatoryValidator
-from src.proposal_writer.compliance.frameworks.compliance_framework import ComplianceFramework
+from docfusion.compliance.validators.regulatory_validator import RegulatoryValidator
+from docfusion.compliance.frameworks.compliance_framework import ComplianceFramework
 
 
 class TestComplianceAgent:
@@ -255,7 +255,7 @@ class TestComplianceTaskOrchestrator:
 				self.name = name
 			
 			async def process_task(self, task_data):
-				from src.proposal_writer.agents.core.agent import AgentResponse, AgentStatus
+				from docfusion.agents.core.agent import AgentResponse, AgentStatus
 				return AgentResponse(
 					status=AgentStatus.COMPLETED,
 					content=f"Mock {self.name} response for task {task_data.get('task_type', 'unknown')}",

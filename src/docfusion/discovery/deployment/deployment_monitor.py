@@ -19,7 +19,7 @@ from enum import Enum
 from dataclasses import dataclass
 import tempfile
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from ...core.utils import uuid7str
 
 from .scraper_deployment import ScraperDeployment, DeploymentStatus, ScraperInstance

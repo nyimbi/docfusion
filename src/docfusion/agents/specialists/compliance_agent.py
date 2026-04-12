@@ -11,8 +11,8 @@ from datetime import datetime, date
 import json
 
 from ..core.agent import Agent, AgentCapability, AgentResponse, AgentStatus
-from ...compliance.validators.regulatory_validator import RegulatoryValidator, ComplianceReport
-from ...compliance.validators.format_validator import FormatValidator, FormatReport
+from ...compliance.validators.regulatory_field_validator import RegulatoryValidator, ComplianceReport
+from ...compliance.validators.format_field_validator import FormatValidator, FormatReport
 from ...compliance.frameworks.compliance_framework import ComplianceFramework
 from ...compliance.evidence.evidence_manager import EvidenceManager, EvidenceRecord
 from ...compliance.reporting.compliance_reporter import ComplianceReporter, ReportType
@@ -58,8 +58,8 @@ class ComplianceAgent(Agent):
 		)
 		
 		# Initialize compliance components
-		self.regulatory_validator = RegulatoryValidator()
-		self.format_validator = FormatValidator()
+		self.regulatory_field_validator = RegulatoryValidator()
+		self.format_field_validator = FormatValidator()
 		self.evidence_manager = EvidenceManager()
 		self.compliance_reporter = ComplianceReporter()
 		self.compliance_integrator = DocumentComplianceIntegrator()
@@ -170,7 +170,7 @@ Be thorough, accurate, and focused on regulatory compliance excellence."""
 			analysis_results = {}
 			for framework in frameworks:
 				if framework == "FAR":
-					report = await self.regulatory_validator.validate_document(
+					report = await self.regulatory_field_validator.validate_document(
 						document_content=content,
 						document_type="proposal",
 						regulations=["FAR"]

@@ -18,7 +18,7 @@ import logging
 import ipaddress
 from pathlib import Path
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from ...core.utils import uuid7str
 class AccessTimePattern(str, Enum):
 	"""Access time patterns"""
@@ -55,7 +55,8 @@ class TimeRange(BaseModel):
 	end_time: time
 	timezone: str = "UTC"
 
-	@validator('timezone')
+	@field_validator('timezone')
+	@classmethod
 	def validate_timezone(cls, v):
 		# Simplified timezone validation
 		if v not in ['UTC', 'EST', 'PST', 'GMT', 'CET']:

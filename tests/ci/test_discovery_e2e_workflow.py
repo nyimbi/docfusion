@@ -10,21 +10,21 @@ import pytest
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
 
-from src.proposal_writer.discovery.models.opportunity_models import OpportunityData
-from src.proposal_writer.discovery.analyzers.opportunity_analyzer import OpportunityAnalyzer
-from src.proposal_writer.discovery.analyzers.qualification_analyzer import (
+from docfusion.discovery.models.opportunity_models import OpportunityData
+from docfusion.discovery.analyzers.opportunity_analyzer import OpportunityAnalyzer
+from docfusion.discovery.analyzers.qualification_analyzer import (
 	QualificationAnalyzer, OrganizationalCapabilities
 )
-from src.proposal_writer.discovery.matchers.capability_matcher import CapabilityMatcher
-from src.proposal_writer.discovery.matchers.relevance_filter import RelevanceFilter, OpportunityContext
-from src.proposal_writer.intelligence.analyzers.competitive_analyzer import CompetitiveAnalyzer
-from src.proposal_writer.discovery.integrations.nlp_integration import (
+from docfusion.discovery.matchers.capability_matcher import CapabilityMatcher
+from docfusion.discovery.matchers.relevance_filter import RelevanceFilter, OpportunityContext
+from docfusion.intelligence.analyzers.competitive_analyzer import CompetitiveAnalyzer
+from docfusion.discovery.integrations.nlp_integration import (
 	DiscoveryNLPService, NLPAnalysisRequest, AnalyzerNLPIntegration
 )
-from src.proposal_writer.discovery.integrations.storage_integration import (
+from docfusion.discovery.integrations.storage_integration import (
 	DiscoveryStorageService, OpportunitySearchCriteria
 )
-from src.proposal_writer.discovery.integrations.notification_service import OpportunityNotificationService
+from docfusion.discovery.integrations.notification_service import OpportunityNotificationService
 
 
 class DiscoveryWorkflowOrchestrator:

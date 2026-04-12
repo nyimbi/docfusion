@@ -854,12 +854,12 @@ class PDFRenderer:
 	def __init__(
 		self,
 		render_config: Optional[PDFRenderConfiguration] = None,
-		quality_validator: Optional[PDFQualityValidator] = None,
+		quality_field_validator: Optional[PDFQualityValidator] = None,
 		font_manager: Optional[FontManager] = None,
 		latex_compiler: Optional[LaTeXCompiler] = None
 	):
 		self.render_config = render_config or PDFRenderConfiguration()
-		self.quality_validator = quality_validator or PDFQualityValidator()
+		self.quality_field_validator = quality_field_validator or PDFQualityValidator()
 		self.font_manager = font_manager or FontManager()
 		
 		# Primary and fallback engines
@@ -935,7 +935,7 @@ class PDFRenderer:
 				rendering_method = "minimal"
 			
 			# Validate quality
-			quality_report = await self.quality_validator.validate_pdf_quality(
+			quality_report = await self.quality_field_validator.validate_pdf_quality(
 				pdf_content, config
 			)
 			
@@ -1208,7 +1208,7 @@ def validate_pdf_renderer_installation() -> dict[str, bool]:
 		'pdf_renderer_core': True,
 		'html_css_generator': True,
 		'font_manager': True,
-		'quality_validator': True,
+		'quality_field_validator': True,
 		'overall_status': False
 	}
 	
@@ -1218,7 +1218,7 @@ def validate_pdf_renderer_installation() -> dict[str, bool]:
 		validation_results['latex_compiler'],
 		validation_results['html_css_generator'],
 		validation_results['font_manager'],
-		validation_results['quality_validator']
+		validation_results['quality_field_validator']
 	])
 	
 	return validation_results

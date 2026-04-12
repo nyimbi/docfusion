@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.types import confloat, conint
 from ...core.utils import uuid7str
 
@@ -150,7 +150,8 @@ class NotificationMetadata(BaseModel):
         None, description="Manual priority override"
     )
 
-    @validator("optimal_delivery_window")
+    @field_validator("optimal_delivery_window")
+    @classmethod
     def validate_delivery_window(cls, v):
         """Validate delivery window hours."""
         if v and (v[0] < 0 or v[0] > 23 or v[1] < 0 or v[1] > 23):

@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 import html
 import bleach
 
-from pydantic import BaseModel, Field, validator, ValidationError
+from pydantic import BaseModel, Field, field_validator, ValidationError
 
 
 class ValidationResult:

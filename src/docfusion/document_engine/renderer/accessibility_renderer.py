@@ -724,11 +724,11 @@ class AccessibilityRenderer:
 	def __init__(
 		self,
 		render_config: AccessibilityRenderConfiguration = None,
-		wcag_validator: WCAGValidator = None,
+		wcag_field_validator: WCAGValidator = None,
 		alt_text_generator: AlternativeTextGenerator = None
 	):
 		self.render_config = render_config or AccessibilityRenderConfiguration()
-		self.wcag_validator = wcag_validator or WCAGValidator()
+		self.wcag_field_validator = wcag_field_validator or WCAGValidator()
 		self.alt_text_generator = alt_text_generator or AlternativeTextGenerator()
 		
 		# Core components
@@ -768,7 +768,7 @@ class AccessibilityRenderer:
 			
 			# Phase 1: Analyze current accessibility state
 			analysis_start = time.time()
-			wcag_results = await self.wcag_validator.validate_wcag_compliance(
+			wcag_results = await self.wcag_field_validator.validate_wcag_compliance(
 				source_document, source_format, config.wcag_compliance_level
 			)
 			result.analysis_time = time.time() - analysis_start
@@ -861,7 +861,7 @@ class AccessibilityRenderer:
 		for standard in standards:
 			if standard.startswith("WCAG"):
 				level = standard.split("_")[-1] if "_" in standard else "AA"
-				compliance_results[standard] = await self.wcag_validator.validate_wcag_compliance(
+				compliance_results[standard] = await self.wcag_field_validator.validate_wcag_compliance(
 					document_content, document_format, level
 				)
 		
@@ -1046,7 +1046,7 @@ Based on issue complexity: 2-4 hours for manual fixes
 			'issues_detected': self.metrics['issues_detected'],
 			'issues_remediated': self.metrics['issues_remediated'],
 			'total_enhancements_applied': self.metrics['total_enhancements_applied'],
-			'wcag_validator_metrics': self.wcag_validator.validation_metrics,
+			'wcag_validator_metrics': self.wcag_field_validator.validation_metrics,
 			'alt_text_generator_metrics': self.alt_text_generator.generation_metrics,
 			'aria_enhancer_metrics': self.aria_enhancer.enhancement_metrics,
 			'screen_reader_simulator_metrics': self.screen_reader_simulator.simulation_metrics,
@@ -1104,7 +1104,7 @@ def validate_accessibility_renderer_installation() -> Dict[str, bool]:
 	"""Validate AccessibilityRenderer installation and dependencies"""
 	validation_results = {
 		"accessibility_renderer_core": True,
-		"wcag_validator": True,
+		"wcag_field_validator": True,
 		"alt_text_generator": True,
 		"aria_enhancer": True,
 		"screen_reader_simulator": True,
@@ -1124,11 +1124,11 @@ def validate_accessibility_renderer_installation() -> Dict[str, bool]:
 		validation_results["overall_status"] = False
 	
 	try:
-		validator = WCAGValidator()
-		validation_results["wcag_validator"] = True
+		field_validator = WCAGValidator()
+		validation_results["wcag_field_validator"] = True
 	except Exception as e:
-		logger.warning("WCAG validator validation failed: %s", str(e))
-		validation_results["wcag_validator"] = False
+		logger.warning("WCAG field_validator validation failed: %s", str(e))
+		validation_results["wcag_field_validator"] = False
 		validation_results["overall_status"] = False
 	
 	try:

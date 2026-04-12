@@ -15,10 +15,10 @@ from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 import asyncio
 
-from ..compliance.validators.regulatory_validator import (
+from ..compliance.validators.regulatory_field_validator import (
 	RegulatoryValidator, ComplianceReport, ComplianceStatus
 )
-from ..compliance.validators.format_validator import (
+from ..compliance.validators.format_field_validator import (
 	FormatValidator, FormatReport
 )
 from ..compliance.frameworks.compliance_framework import ComplianceFramework
@@ -114,8 +114,8 @@ class DocumentComplianceIntegrator:
 	"""
 	
 	def __init__(self):
-		self.regulatory_validator = RegulatoryValidator()
-		self.format_validator = FormatValidator()
+		self.regulatory_field_validator = RegulatoryValidator()
+		self.format_field_validator = FormatValidator()
 		self.frameworks: Dict[str, ComplianceFramework] = {}
 		self.default_configs: Dict[str, DocumentComplianceConfig] = {}
 		self._initialize_default_configs()
@@ -318,7 +318,7 @@ class DocumentComplianceIntegrator:
 				frameworks_to_check.append(check.framework_code)
 		
 		# Run validation
-		return await self.regulatory_validator.validate_document(
+		return await self.regulatory_field_validator.validate_document(
 			document_content=document_content,
 			document_type=document_type,
 			regulations=frameworks_to_check
@@ -339,7 +339,7 @@ class DocumentComplianceIntegrator:
 				format_specs.update(check.parameters)
 		
 		# Run validation
-		return await self.format_validator.validate_document_format(
+		return await self.format_field_validator.validate_document_format(
 			document_path=document_path,
 			document_content=document_content,
 			format_specifications=format_specs

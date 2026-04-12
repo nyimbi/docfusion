@@ -48,8 +48,6 @@ Usage:
 
 # Core analyzer components
 from .analyzer import (
-import logging
-logger = logging.getLogger(__name__)
 	VoicePatternAnalyzer,
 	VoiceFingerprint,
 	WritingPattern,
@@ -61,7 +59,7 @@ logger = logging.getLogger(__name__)
 )
 
 # Validation components  
-from .validator import (
+from .field_validator import (
 	VoiceValidator,
 	ValidationResult,
 	VoiceDeviation,

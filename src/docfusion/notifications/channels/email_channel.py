@@ -19,7 +19,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from pydantic import EmailStr
 
 from ..delivery.notification_delivery import (
@@ -106,7 +106,8 @@ class EmailConfiguration(BaseModel):
 	enable_click_tracking: bool = Field(True, description="Enable click tracking")
 	enable_unsubscribe_tracking: bool = Field(True, description="Enable unsubscribe tracking")
 	
-	@validator('smtp_port')
+	@field_validator('smtp_port')
+	@classmethod
 	def validate_smtp_port(cls, v):
 		"""Validate SMTP port range."""
 		if not 1 <= v <= 65535:

@@ -1289,7 +1289,7 @@ class ContentAssembler:
 		# Initialize core components
 		self.assembly_engine = AssemblyEngine()
 		self.dependency_resolver = DependencyResolver()
-		self.content_validator = ContentValidator()
+		self.content_field_validator = ContentValidator()
 		self.assembly_optimizer = AssemblyOptimizer()
 		self.assembly_auditor = AssemblyAuditor()
 		
@@ -1379,7 +1379,7 @@ class ContentAssembler:
 			# Step 1: Validate all content blocks
 			validation_results = []
 			for block in content_blocks:
-				validation_result = await self.content_validator.validate_content_block(block)
+				validation_result = await self.content_field_validator.validate_content_block(block)
 				validation_results.append(validation_result)
 				
 				if not validation_result['is_valid']:
@@ -1522,7 +1522,7 @@ class ContentAssembler:
 		
 		validation_results = []
 		for block in content_blocks:
-			result = await self.content_validator.validate_content_block(block)
+			result = await self.content_field_validator.validate_content_block(block)
 			validation_results.append(result)
 		
 		return validation_results
@@ -1542,7 +1542,7 @@ class ContentAssembler:
 			},
 			'component_metrics': {
 				'dependency_resolver': self.dependency_resolver._resolution_metrics,
-				'content_validator': self.content_validator._validation_metrics,
+				'content_field_validator': self.content_field_validator._validation_metrics,
 				'assembly_engine': {
 					'cached_assemblies': len(self.assembly_engine._assembly_cache),
 					'performance_samples': len(self.assembly_engine._performance_metrics['assembly_time'])

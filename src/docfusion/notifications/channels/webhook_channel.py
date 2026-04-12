@@ -14,7 +14,7 @@ import json
 import hashlib
 import hmac
 
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from ..delivery.notification_delivery import (
 	NotificationChannel, NotificationMessage, DeliveryResult,
@@ -78,7 +78,8 @@ class WebhookConfiguration(BaseModel):
 	retry_delay_seconds: int = Field(5, description="Delay between retries")
 	retry_exponential_backoff: bool = Field(True, description="Use exponential backoff")
 	
-	@validator('webhook_url')
+	@field_validator('webhook_url')
+	@classmethod
 	def validate_webhook_url(cls, v):
 		"""Validate webhook URL format."""
 		if not v.startswith(('http://', 'https://')):

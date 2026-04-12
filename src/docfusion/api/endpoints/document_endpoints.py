@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Union
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from ...document_engine.secure_document_engine import SecureDocumentEngine
 from ...security import SecurityManager

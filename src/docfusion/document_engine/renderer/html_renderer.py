@@ -1045,10 +1045,10 @@ class HTMLRenderer:
 	def __init__(
 		self,
 		render_config: HTMLRenderConfiguration = None,
-		accessibility_validator: HTMLAccessibilityValidator = None
+		accessibility_field_validator: HTMLAccessibilityValidator = None
 	):
 		self.render_config = render_config or HTMLRenderConfiguration()
-		self.accessibility_validator = accessibility_validator or HTMLAccessibilityValidator()
+		self.accessibility_field_validator = accessibility_field_validator or HTMLAccessibilityValidator()
 		
 		# Core components
 		self.semantic_builder = SemanticHTMLBuilder()
@@ -1096,7 +1096,7 @@ class HTMLRenderer:
 			javascript_content = await self._generate_javascript(formatted_content, config)
 			
 			# Validate accessibility
-			accessibility_report = await self.accessibility_validator.validate_accessibility(
+			accessibility_report = await self.accessibility_field_validator.validate_accessibility(
 				html_content, css_content, config
 			)
 			
@@ -1570,7 +1570,7 @@ def validate_html_renderer_installation() -> dict[str, bool]:
 		'html_renderer_core': True,
 		'semantic_builder': True,
 		'css_generator': True,
-		'accessibility_validator': True,
+		'accessibility_field_validator': True,
 		'overall_status': True
 	}
 	

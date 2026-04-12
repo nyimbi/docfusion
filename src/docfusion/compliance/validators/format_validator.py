@@ -91,7 +91,7 @@ class FormatReport(BaseModel):
 
 class FormatValidator:
 	"""
-	Comprehensive document format validator.
+	Comprehensive document format field_validator.
 	
 	Validates documents against format requirements including:
 	- RFP format specifications
@@ -476,7 +476,7 @@ class FormatValidator:
 		violations = []
 		
 		try:
-			# Map validator functions to methods
+			# Map field_validator functions to methods
 			validator_methods = {
 				"validate_title_page": self._validate_title_page,
 				"validate_table_of_contents": self._validate_table_of_contents,

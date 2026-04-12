@@ -36,6 +36,10 @@ def get_cors_origins() -> list[str]:
 	return SecretsManager.get_cors_allowed_origins()
 
 
+# Alias for test compatibility
+_get_allowed_origins = get_cors_origins
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 	"""

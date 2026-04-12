@@ -20,7 +20,7 @@ from enum import Enum
 import statistics
 import hashlib
 
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from uuid import uuid4
 
 # Import voice analysis components

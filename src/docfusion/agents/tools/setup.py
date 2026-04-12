@@ -176,15 +176,15 @@ async def test_tool_functionality() -> Dict[str, bool]:
 			logger.warning(f"Web search test failed: {e}")
 			test_results["web_search"] = False
 	
-	# Test URL validator
-	url_validator_tool = registry.get_tool("url_validator")
+	# Test URL field_validator
+	url_validator_tool = registry.get_tool("url_field_validator")
 	if url_validator_tool:
 		try:
 			result = await url_validator_tool.safe_execute(url="https://example.com", check_availability=False)
-			test_results["url_validator"] = result.success
+			test_results["url_field_validator"] = result.success
 		except Exception as e:
-			logger.warning(f"URL validator test failed: {e}")
-			test_results["url_validator"] = False
+			logger.warning(f"URL field_validator test failed: {e}")
+			test_results["url_field_validator"] = False
 	
 	# Test JSON processor
 	json_tool = registry.get_tool("json_processor")

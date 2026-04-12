@@ -16,14 +16,14 @@ import resource
 import psutil
 import pytest
 
-from src.proposal_writer.discovery.models.opportunity_models import OpportunityData
-from src.proposal_writer.discovery.analyzers.opportunity_analyzer import OpportunityAnalyzer
-from src.proposal_writer.discovery.analyzers.qualification_analyzer import (
+from docfusion.discovery.models.opportunity_models import OpportunityData
+from docfusion.discovery.analyzers.opportunity_analyzer import OpportunityAnalyzer
+from docfusion.discovery.analyzers.qualification_analyzer import (
 	QualificationAnalyzer, OrganizationalCapabilities
 )
-from src.proposal_writer.discovery.matchers.capability_matcher import CapabilityMatcher
-from src.proposal_writer.discovery.integrations.nlp_integration import DiscoveryNLPService
-from src.proposal_writer.discovery.integrations.storage_integration import DiscoveryStorageService
+from docfusion.discovery.matchers.capability_matcher import CapabilityMatcher
+from docfusion.discovery.integrations.nlp_integration import DiscoveryNLPService
+from docfusion.discovery.integrations.storage_integration import DiscoveryStorageService
 
 
 class PerformanceMetrics:

@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Import existing document engine models
 from ...document_engine.document_engine import (
@@ -224,7 +224,8 @@ class WorkflowEnabledDocumentRequest(BaseModel):
     integration_webhooks: List[str] = Field(default_factory=list)
     external_system_ids: Dict[str, str] = Field(default_factory=dict)  # system -> id
 
-    @validator("workflow_config", pre=True, always=True)
+    @field_validator("workflow_config", mode="before")
+    @classmethod
     def set_default_workflow_config(cls, v, values):
         """Set default workflow configuration if none provided"""
         if v is None and values.get("requester_id"):
@@ -235,7 +236,8 @@ class WorkflowEnabledDocumentRequest(BaseModel):
             )
         return v
 
-    @validator("team_assignments", pre=True, always=True)
+    @field_validator("team_assignments", mode="before")
+    @classmethod
     def ensure_requester_assignment(cls, v, values):
         """Ensure requester is assigned as creator if no assignments provided"""
         if not v and values.get("requester_id"):

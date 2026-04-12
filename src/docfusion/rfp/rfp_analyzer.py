@@ -14,9 +14,10 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
+import time
+
 from ..core.utils import uuid7str
 from .requirement_extractor import (
-import time
 	RequirementExtractor,
 	Requirement,
 	RequirementCategory,

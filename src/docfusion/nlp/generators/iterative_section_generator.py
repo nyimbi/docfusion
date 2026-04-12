@@ -30,8 +30,8 @@ from ..prompting_strategies import (
     filter_thinking_tags,
 )
 from ...core.utils import uuid7str
-from .document_outline_generator import (
 import time
+from .document_outline_generator import (
     DocumentOutline,
     DocumentType,
     OutlineElement,

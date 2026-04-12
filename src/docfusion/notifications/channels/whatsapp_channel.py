@@ -12,7 +12,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Any
 import json
 
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from ..delivery.notification_delivery import (
 	NotificationChannel, NotificationMessage, DeliveryResult, 
@@ -52,7 +52,8 @@ class WhatsAppConfiguration(BaseModel):
 	# Template Configuration
 	default_template_namespace: Optional[str] = Field(None, description="Default template namespace")
 	
-	@validator('access_token')
+	@field_validator('access_token')
+	@classmethod
 	def validate_access_token(cls, v):
 		"""Validate access token format."""
 		if not v or len(v) < 50:

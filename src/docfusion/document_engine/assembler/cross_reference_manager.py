@@ -1156,7 +1156,7 @@ class CrossReferenceManager:
 	def __init__(self):
 		self.detector = ReferenceDetector()
 		self.numbering_engine = NumberingEngine()
-		self.validator = ReferenceValidator()
+		self.field_validator = ReferenceValidator()
 		self.citation_manager = CitationManager()
 		self.latex_generator = LaTeXReferenceGenerator()
 		
@@ -1294,7 +1294,7 @@ class CrossReferenceManager:
 		"""Validate all references in document"""
 		assert isinstance(graph, ReferenceGraph), "graph must be ReferenceGraph"
 		
-		result = await self.validator.validate_reference_graph(graph)
+		result = await self.field_validator.validate_reference_graph(graph)
 		
 		# Update graph validation score
 		graph.validation_score = 1.0 if result.valid else max(0.0, 1.0 - len(result.errors) * 0.1)

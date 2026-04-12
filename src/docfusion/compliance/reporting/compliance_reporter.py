@@ -19,10 +19,10 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 import asyncio
 
-from ..validators.regulatory_validator import (
+from ..validators.regulatory_field_validator import (
 	RegulatoryValidator, ComplianceReport, ComplianceStatus, ViolationSeverity
 )
-from ..validators.format_validator import FormatValidator, FormatReport
+from ..validators.format_field_validator import FormatValidator, FormatReport
 from ..frameworks.compliance_framework import ComplianceFramework
 from ..evidence.evidence_manager import (
 	EvidenceManager, EvidenceRecord, EvidenceStatus, EvidenceQuality
@@ -184,13 +184,13 @@ class ComplianceReporter:
 	def __init__(
 		self,
 		evidence_manager: Optional[EvidenceManager] = None,
-		regulatory_validator: Optional[RegulatoryValidator] = None,
-		format_validator: Optional[FormatValidator] = None,
+		regulatory_field_validator: Optional[RegulatoryValidator] = None,
+		format_field_validator: Optional[FormatValidator] = None,
 		compliance_integrator: Optional[DocumentComplianceIntegrator] = None
 	):
 		self.evidence_manager = evidence_manager or EvidenceManager()
-		self.regulatory_validator = regulatory_validator or RegulatoryValidator()
-		self.format_validator = format_validator or FormatValidator()
+		self.regulatory_field_validator = regulatory_field_validator or RegulatoryValidator()
+		self.format_field_validator = format_field_validator or FormatValidator()
 		self.compliance_integrator = compliance_integrator or DocumentComplianceIntegrator()
 		
 		# Report templates

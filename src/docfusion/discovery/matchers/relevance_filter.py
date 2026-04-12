@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from uuid import uuid4
 
 import numpy as np
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from ...core.models.base import BaseEntity
@@ -72,7 +72,8 @@ class ScoringModel(BaseModel):
 	normalization_method: str = Field(default="min_max", description="Score normalization method")
 	aggregation_method: str = Field(default="weighted_sum", description="Score aggregation method")
 	
-	@validator('criteria_weights')
+	@field_validator('criteria_weights')
+	@classmethod
 	def validate_weights(cls, v):
 		total_weight = sum(v.values())
 		if abs(total_weight - 1.0) > 0.001:  # Allow small floating point differences

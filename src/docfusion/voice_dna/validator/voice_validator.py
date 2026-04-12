@@ -126,7 +126,7 @@ class ValidationResult(BaseModel):
 
 class VoiceValidator:
 	"""
-	Real-time voice consistency validator
+	Real-time voice consistency field_validator
 	
 	Provides immediate validation of text content against established
 	organizational voice patterns, identifying deviations and providing
@@ -753,8 +753,8 @@ class VoiceValidator:
 async def create_sample_voice_validation():
 	"""Create sample voice validation for testing"""
 	
-	# Initialize validator
-	validator = VoiceValidator()
+	# Initialize field_validator
+	field_validator = VoiceValidator()
 	
 	# Create sample voice profile
 	from ..analyzer.voice_pattern_analyzer import VoiceFingerprint
@@ -794,7 +794,7 @@ async def create_sample_voice_validation():
 	)
 	
 	# Cache the profile
-	validator.cache_voice_profile("Professional Services Firm", sample_voice_profile)
+	field_validator.cache_voice_profile("Professional Services Firm", sample_voice_profile)
 	
 	# Sample text to validate (with some intentional deviations)
 	test_text = """
@@ -805,15 +805,15 @@ async def create_sample_voice_validation():
 	"""
 	
 	# Perform validation
-	validation_result = await validator.validate_voice_consistency(
+	validation_result = await field_validator.validate_voice_consistency(
 		test_text, "Professional Services Firm"
 	)
 	
-	return validation_result, validator.get_validation_statistics()
+	return validation_result, field_validator.get_validation_statistics()
 
 
 if __name__ == "__main__":
-	# Test the voice validator
+	# Test the voice field_validator
 	import asyncio
 	
 	async def main():

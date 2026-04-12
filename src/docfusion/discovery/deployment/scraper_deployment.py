@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from enum import Enum
 import tempfile
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from ...core.utils import uuid7str
 
 from ..crawlers.source_databases.global_source_db import GlobalSourceDB, ProcurementSource, SourceStatus

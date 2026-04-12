@@ -24,7 +24,7 @@ from fastapi import (
 )
 from fastapi import Path as PathParam
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 from ...document_engine.secure_document_engine import SecureDocumentEngine
 from ...security import SecurityManager

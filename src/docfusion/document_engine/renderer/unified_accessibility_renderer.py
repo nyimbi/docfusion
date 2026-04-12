@@ -147,7 +147,7 @@ class UnifiedAccessibilityRenderer(BaseRenderer):
 				self.legacy_renderer = None
 			
 			# Initialize accessibility components with safe imports
-			self.wcag_validator = WCAGValidator() if WCAGValidator else None
+			self.wcag_field_validator = WCAGValidator() if WCAGValidator else None
 			self.alt_text_generator = AlternativeTextGenerator() if AlternativeTextGenerator else None
 			self.aria_enhancer = ARIAEnhancer() if ARIAEnhancer else None
 			self.screen_reader_simulator = ScreenReaderSimulator() if ScreenReaderSimulator else None
@@ -158,7 +158,7 @@ class UnifiedAccessibilityRenderer(BaseRenderer):
 				logger.warning(f"Warning: Accessibility renderer initialization issue: {e}")
 			# Create minimal fallback
 			self.legacy_renderer = None
-			self.wcag_validator = None
+			self.wcag_field_validator = None
 			self.alt_text_generator = None
 			self.aria_enhancer = None
 			self.screen_reader_simulator = None
