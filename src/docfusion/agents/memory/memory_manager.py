@@ -609,10 +609,12 @@ class MemoryManager:
         return gzip.compress(pickle.dumps(content))
 
     def _decompress_content(self, compressed_content: bytes) -> Any:
-        """Decompress content for retrieval"""
-        import gzip
+        """Decompress content for retrieval (trusted internal data only)."""
+        import gzip  # noqa: S403 - trusted internal content only
+        import pickle  # noqa: S403 - trusted internal content only
 
-        return pickle.loads(gzip.decompress(compressed_content))
+        decompressed = gzip.decompress(compressed_content)
+        return pickle.loads(decompressed)
 
     def _matches_query(self, entry: MemoryEntry, query: str) -> bool:
         """Check if entry matches text query"""
