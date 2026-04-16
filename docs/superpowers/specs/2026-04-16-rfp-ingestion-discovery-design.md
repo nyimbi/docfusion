@@ -1,91 +1,119 @@
 # DocuFusion: RFP Ingestion + Opportunity Discovery Pipeline
 
 **Date**: 2026-04-16
-**Status**: Approved
-**Scope**: Wire existing RFP ingestion and discovery modules into working end-to-end pipelines
+**Status**: Draft v2 (updated with existing pipeline trace + AI enhancement scope)
+**Scope**: Enhance Python RFP modules with LiteLLM AI, unify requirements tables, wire end-to-end pipelines
 
 ---
 
 ## 1. Problem Statement
 
-DocuFusion has substantial real implementations for both RFP ingestion and opportunity discovery, but the pieces are disconnected:
+DocuFusion has substantial real implementations for both RFP ingestion and opportunity discovery, but critical gaps remain:
 
-- **Two separate extraction systems**: Next.js server actions call Azure OpenAI directly; Python modules use DoclingService. No bridge between them.
-- **Simulated parser**: The RFP parse route uses `simulateParsingJob` with random delays instead of real processing.
-- **Metadata-only uploads**: File upload stores metadata but doesn't persist actual files to storage.
-- **Dual requirements tables**: `requirements` (schema.ts, 15 fields) and `rfpRequirements` (schema-rfp.ts, 30+ fields) overlap with no clear ownership.
-- **No frontend pages for discovery**: Pipeline and opportunity components exist (10K+ lines) but no page routes.
-- **No Python API for RFP or discovery**: FastAPI has document/template/search endpoints but nothing for RFP analysis or scraping orchestration.
-- **Two parallel discovery modules**: `backend/discovery/` (operational, 7.5K lines) and `src/docfusion/discovery/` (advanced AI, 20K lines) with no interface boundary.
+### Architecture Gaps
+- **Python RFP modules have no AI**: `RequirementExtractor` uses regex/keywords only (`ai_enhancement: False`), `RFPAnalyzer` is pure rule-based, `ComplianceMatrixGenerator` is in-memory with no DB connection
+- **StakeholderMapper bypasses LiteLLM**: calls Ollama directly at `localhost:11434` instead of using the LiteLLM gateway
+- **Docling URL hardcoded**: `http://20.84.71.33:3600` is hardcoded in `requirement_extractor.py` instead of being in SecretsManager
+- **Simulated API route parser**: `rfp/[rfpId]/parse/route.ts` uses `simulateParsingJob` (fake 2s delays)
+- **Metadata-only uploads**: File upload route doesn't persist actual files
+
+### Data Model Gaps
+- **Dual requirements tables**: `requirements` (schema.ts, 15 fields, used by opportunities UI) and `rfpRequirements` (schema-rfp.ts, 30+ fields, used by RFP pipeline) are disconnected
+- **Discovery→Ingestion gap**: Downloaded opportunity documents can't flow into RFP pipeline without manual re-upload
+
+### Missing Infrastructure
+- **No FastAPI endpoints for RFP or discovery**: Python modules exist but aren't exposed via HTTP
+- **No frontend pages for discovery**: Components exist but no page routes
+- **Python compliance matrix is in-memory only**: Not connected to PostgreSQL tables
+
+### Existing Working Paths (don't break)
+- **Server action pipeline**: `rfp-parser.ts` → `processRfpParsingJob` reads real files, calls Azure OpenAI, stores to `rfpRequirements` — this WORKS
+- **Requirements UI dialog**: `RequirementExtractor.tsx` → `extractRequirements` with AI + heuristic fallback — this WORKS
+- **Document discovery agent**: 5-strategy AI document search — this WORKS
 
 ## 2. Architecture
 
-### 2.1 Bridge Pattern: Direct FastAPI
+### 2.1 Two-Tier Processing
 
-The Next.js frontend calls Python FastAPI directly for heavy operations (parsing, extraction, scraping). Next.js handles CRUD via Drizzle ORM. Auth is shared via Keycloak OIDC.
+The system has two processing tiers that must coexist:
 
-**Why direct (not proxied through Next.js)**: Lower latency, better for SSE streaming, both services already reference Keycloak, and the Drizzle schema is managed from Next.js for CRUD.
+| Tier | Location | AI Service | Storage | Status |
+|------|----------|------------|---------|--------|
+| Next.js | Server actions + API routes | Azure OpenAI (via ProviderManager) | Drizzle ORM | WORKING |
+| Python | FastAPI (new) | LiteLLM gateway (gpt-4o/claude-sonnet) + DoclingService | asyncpg + Drizzle reads | TO BUILD |
+
+**Rule**: Python FastAPI handles heavy/async processing (large document parsing, batch extraction, scraping). Next.js server actions remain for quick CRUD and the existing working paths. Both write to the same PostgreSQL tables.
 
 ### 2.2 Data Flow
 
-**RFP Ingestion**:
+**RFP Ingestion (Python-enhanced)**:
 
 ```
-Next.js Upload → SecureStorageService (S3/local)
-  → FastAPI /api/v1/rfp/{id}/parse
-  → RequirementExtractor → DoclingService
-  → RFPAnalyzer → pattern detection, confidence scoring
+Upload (Next.js) → SecureStorageService
+  → FastAPI POST /api/v1/rfp/{id}/parse
+  → DoclingService (document parsing)
+  → RequirementExtractor (regex patterns + LiteLLM AI enhancement)
+  → RFPAnalyzer (cross-refs, compliance, risk + LiteLLM recommendations)
   → PostgreSQL (rfpRequirements via asyncpg)
-  → SSE progress streaming to frontend
-  → ComplianceMatrixGenerator → compliance_matrices + compliance_entries
-  → Drizzle ORM reads in Next.js for UI
+  → SSE progress streaming
+  → ComplianceMatrixGenerator → compliance_matrices + compliance_entries (DB, not in-memory)
+  → Drizzle reads for UI
 ```
 
-**Discovery**:
+**Existing Next.js path (unchanged)**:
 
 ```
-FastAPI /api/v1/discovery/run/{source}
-  → ScrapingOrchestrator → 50+ scrapers
-  → Pipeline: transform → categorize → deduplicate
-  → DocFusionSync → PostgreSQL (opportunities via asyncpg)
-  → Drizzle ORM reads in Next.js for UI
-  → User: "Convert to RFP" → download docs → enters RFP ingestion
+uploadRfpDocument → processRfpParsingJob (fire-and-forget)
+  → pdf-parse/mammoth → Azure OpenAI → rfpRequirements
+  → (continues to work as-is)
 ```
 
-### 2.3 Discovery Module Boundaries
+### 2.3 AI Service Architecture
 
-- `backend/discovery/` = **operational engine**: scrapers, scheduling, pipeline processing, health monitoring. Called directly by FastAPI endpoints.
-- `src/docfusion/discovery/` = **AI enhancement**: universal scraping, computer vision, pattern recognition, qualification analysis. Called via FastAPI for AI-specific features only.
+```
+Python RFP modules
+  → LiteLLMClient (src/docfusion/infrastructure/)
+  → LLMFallbackChain (circuit breakers)
+  → LiteLLM gateway (http://84.247.181.100:4000)
+  → Models: gpt-4o (primary), gpt-4o-mini (fast), claude-sonnet (fallback)
+  → Embeddings: text-embedding-ada-002
+  → SecretsManager: get_litellm_url(), get_litellm_key(), get_litellm_timeout()
+```
+
+### 2.4 Discovery Module Boundaries
+
+- `backend/discovery/` = **operational engine**: scrapers, scheduling, pipeline. Called by FastAPI.
+- `src/docfusion/discovery/` = **AI enhancement**: universal scraping, vision, patterns. Called for AI features only.
 
 ## 3. API Design
 
-### 3.1 RFP Endpoints (FastAPI)
+### 3.1 RFP Endpoints (FastAPI — new)
 
-| Method | Path | Purpose | Python Module |
-|--------|------|---------|---------------|
-| POST | /api/v1/rfp/upload | File upload → SecureStorageService | SecureStorageService |
-| POST | /api/v1/rfp/{id}/parse | Trigger parsing pipeline | RequirementExtractor |
-| GET | /api/v1/rfp/{id}/status | SSE progress streaming | rfp_parsing_jobs read |
-| GET | /api/v1/rfp/{id}/requirements | List extracted requirements | rfpRequirements read |
-| POST | /api/v1/rfp/{id}/compliance-matrix | Generate compliance matrix | ComplianceMatrixGenerator |
-| PATCH | /api/v1/rfp/{id}/compliance-matrix/{mid} | Update compliance entry | ComplianceMatrixGenerator |
+| Method | Path | Purpose | Calls |
+|--------|------|---------|-------|
+| POST | /api/v1/rfp/upload | File upload → storage | SecureStorageService |
+| POST | /api/v1/rfp/{id}/parse | Trigger parsing | DoclingService → RequirementExtractor (AI-enhanced) |
+| GET | /api/v1/rfp/{id}/status | SSE progress | rfp_parsing_jobs read |
+| GET | /api/v1/rfp/{id}/requirements | List requirements | rfpRequirements read |
+| POST | /api/v1/rfp/{id}/compliance-matrix | Generate matrix | ComplianceMatrixGenerator → DB |
+| PATCH | /api/v1/rfp/{id}/compliance-matrix/{mid} | Update entry | compliance_entries write |
 
-### 3.2 Discovery Endpoints (FastAPI)
+### 3.2 Discovery Endpoints (FastAPI — new)
 
-| Method | Path | Purpose | Python Module |
-|--------|------|---------|---------------|
+| Method | Path | Purpose | Calls |
+|--------|------|---------|-------|
 | POST | /api/v1/discovery/run/{source} | Trigger scraper | ScrapingOrchestrator |
 | GET | /api/v1/discovery/opportunities | List opportunities | DocFusionSync |
-| GET | /api/v1/discovery/opportunities/{id} | Opportunity detail | DocFusionSync |
-| POST | /api/v1/discovery/opportunities/{id}/ingest | Convert to RFP | download + RFPAnalyzer |
+| GET | /api/v1/discovery/opportunities/{id} | Detail | DocFusionSync |
+| POST | /api/v1/discovery/opportunities/{id}/ingest | Convert to RFP | download → RFP pipeline |
 | GET | /api/v1/discovery/sources | Available sources | GlobalSourceDB |
 | GET | /api/v1/discovery/health | Pipeline health | HealthChecker |
 
 ## 4. Data Model
 
-### 4.1 Requirements Consolidation
+### 4.1 Requirements Table Unification
 
-Merge `requirements` table into `rfpRequirements`. The RFP table is a strict superset.
+Merge `requirements` (base schema) into `rfpRequirements` (RFP schema). Target: single source of truth.
 
 **Column mapping**:
 
@@ -107,121 +135,161 @@ Merge `requirements` table into `rfpRequirements`. The RFP table is a strict sup
 **Migration steps**:
 1. Add `aiAnalysis` jsonb column to `rfpRequirements`
 2. Copy `requirements` rows into `rfpRequirements` (column mapping)
-3. Update server actions and components to reference `rfpRequirements`
-4. Drop `requirements` table (deferred: only after all references migrated and verified in production)
+3. Update all server actions and components to reference `rfpRequirements`
+4. Drop `requirements` table (deferred: after production verification)
 
-### 4.2 Existing Schema (No Changes Needed)
+### 4.2 File Storage
 
-These tables already support the full pipeline:
-- `rfp_documents` — uploaded RFP files with parsing metadata
-- `rfp_parsing_jobs` — async job tracking with progress
-- `rfpRequirements` — extracted requirements with embeddings (pgvector)
-- `compliance_matrices` + `compliance_entries` — compliance tracking
-- `opportunities` — discovered opportunities
-- `opportunity_documents` — downloaded documents linked to opportunities
-- `saved_searches` — persistent discovery queries
-- `content_suggestions` — AI-powered content recommendations
+Use `SecureStorageService` (already has S3 support). Local filesystem fallback for dev.
 
-### 4.3 File Storage
+### 4.3 Centralize Docling Config
 
-Use existing `SecureStorageService` from `src/docfusion/storage/` (already has S3 support). Local filesystem fallback for development.
+Add to `SecretsManager`:
+- `get_docling_url()` → `http://20.84.71.33:3600` (from env with default)
+- `get_docling_timeout()` → 120 (from env with default)
 
-## 5. Implementation Plan
+## 5. Python AI Enhancement
 
-### Phase 1: RFP Ingestion (Steps 1-4)
+### 5.1 RequirementExtractor: Enable AI Enhancement
 
-**Step 1: File Storage Implementation**
-- Modify: `frontend/app/api/v1/rfp/upload/route.ts` — proxy file upload to FastAPI
-- Create: `src/docfusion/api/endpoints/rfp_endpoints.py` — upload endpoint using SecureStorageService
-- Modify: `src/docfusion/api/dependencies.py` — register RFP endpoints in ServiceContainer
-- Test: Upload PDF → verify file in storage → verify DB row
+Current state: `ai_enhancement: False`, no `_extract_with_ai()` method.
 
-**Step 2: Parse Bridge**
-- Add to `rfp_endpoints.py`: POST /api/v1/rfp/{id}/parse calling RequirementExtractor
-- Add to `rfp_endpoints.py`: GET /api/v1/rfp/{id}/status SSE endpoint
-- Modify: `frontend/app/api/v1/rfp/[rfpId]/parse/route.ts` — replace simulateParsingJob with FastAPI call
-- Wire: RequirementExtractor → DoclingService → rfp_documents update via asyncpg
-- Test: Upload → parse → verify extracted text + sections in DB
+**Implementation**:
+- Add `_extract_with_ai(text: str, sections: list)` method using `LiteLLMClient.chat_completion()`
+- AI enhances regex results by: classifying ambiguous requirements, improving confidence scores, detecting implicit requirements, identifying cross-references that pattern matching misses
+- Use `LLMFallbackChain` for resilient AI calls (Azure → Anthropic → Ollama)
+- Set `ai_enhancement: True` by default when LiteLLM is reachable
+- Regex extraction runs first (fast, deterministic), then AI refines results (slower, higher quality)
 
-**Step 3: Requirements Extraction**
-- Add to `rfp_endpoints.py`: GET /api/v1/rfp/{id}/requirements endpoint
-- Create: Drizzle migration adding `aiAnalysis` column to `rfpRequirements`
-- Modify: `frontend/lib/actions/requirements.ts` — redirect to rfpRequirements
-- Wire: Python extraction results → asyncpg write → Drizzle reads
-- Test: Parse → verify requirements in DB → verify frontend display
+### 5.2 RFPAnalyzer: Add AI-Powered Analysis
 
-**Step 4: Compliance Matrix**
-- Add to `rfp_endpoints.py`: compliance matrix endpoints
-- Wire: ComplianceMatrixGenerator → compliance_matrices + compliance_entries
-- Modify: `frontend/lib/actions/rfp-parser.ts` — FastAPI bridge for matrix generation
-- Test: Full pipeline: upload → parse → extract → compliance matrix with coverage scores
+Current state: Pure rule-based (keyword matching for compliance, risk, cross-refs).
 
-### Phase 2: Discovery (Steps 5-7)
+**Implementation**:
+- Add `_analyze_with_ai(requirements, text)` method using `LiteLLMClient.analyze_document()`
+- AI generates: nuanced compliance assessment, risk narratives, strategic recommendations
+- Rule-based analysis runs first, AI enriches with context-aware insights
+- LiteLLM model: `gpt-4o-mini` for speed, `gpt-4o` for complex documents
 
-**Step 5: Discovery API Bridge**
+### 5.3 ComplianceMatrixGenerator: Connect to Database
+
+Current state: In-memory dict only, not connected to PostgreSQL.
+
+**Implementation**:
+- Add async DB persistence: `save_to_db()` writes to `compliance_matrices` + `compliance_entries`
+- Add `load_from_db(matrix_id)` to read existing matrices
+- Keep in-memory generation for speed, persist after generation
+- Wire through FastAPI endpoints
+
+### 5.4 StakeholderMapper: Route Through LiteLLM
+
+Current state: Calls Ollama directly at `localhost:11434` with `llama3.2:3b`.
+
+**Implementation**:
+- Replace `httpx.AsyncClient(base_url="http://localhost:11434")` with `LiteLLMClient`
+- Change from Ollama-native `/api/generate` to OpenAI-compatible `/v1/chat/completions` format
+- Benefits: automatic failover, Redis caching, cost tracking, no local Ollama dependency
+
+## 6. Implementation Plan
+
+### Phase 1: Python AI Enhancement (Steps 1-3)
+
+**Step 1: Infrastructure Wiring**
+- Modify: `src/docfusion/config/secrets.py` — add `get_docling_url()`, `get_docling_timeout()`
+- Modify: `src/docfusion/rfp/requirement_extractor.py` — replace hardcoded Docling URL with SecretsManager
+- Modify: `src/docfusion/rfp/requirement_extractor.py` — add LiteLLMClient import, implement `_extract_with_ai()`
+- Test: Requirement extraction with AI enhancement on a real PDF
+
+**Step 2: RFPAnalyzer + ComplianceMatrix Enhancement**
+- Modify: `src/docfusion/rfp/rfp_analyzer.py` — add `_analyze_with_ai()` using LiteLLMClient
+- Modify: `src/docfusion/rfp/compliance_matrix.py` — add async DB persistence (save_to_db, load_from_db)
+- Modify: `src/docfusion/rfp/stakeholder_mapper.py` — route through LiteLLM instead of direct Ollama
+- Test: Full Python analysis pipeline with AI on a real RFP document
+
+**Step 3: Requirements Table Unification**
+- Create: Drizzle migration adding `aiAnalysis` jsonb column to `rfpRequirements`
+- Modify: `frontend/lib/actions/requirements.ts` — redirect all reads/writes to `rfpRequirements`
+- Modify: `frontend/app/(app)/opportunities/[id]/requirements/page.tsx` — use rfpRequirements
+- Modify: `frontend/app/(app)/opportunities/[id]/requirements/RequirementExtractor.tsx` — save to rfpRequirements
+- Test: Existing UI still works, new requirements go to unified table
+
+### Phase 2: FastAPI Bridge (Steps 4-5)
+
+**Step 4: RFP Endpoints**
+- Create: `src/docfusion/api/endpoints/rfp_endpoints.py` — all 6 RFP endpoints
+- Modify: `src/docfusion/api/dependencies.py` — register RFP endpoints
+- Modify: `frontend/app/api/v1/rfp/upload/route.ts` — proxy upload to FastAPI SecureStorageService
+- Modify: `frontend/app/api/v1/rfp/[rfpId]/parse/route.ts` — replace simulateParsingJob with FastAPI call (server action path in `rfp-parser.ts` remains as fallback)
+- Test: Upload → FastAPI parse → SSE progress → requirements in DB → frontend display
+
+**Step 5: Discovery Endpoints**
 - Create: `src/docfusion/api/endpoints/discovery_endpoints.py`
-- Wire: ScrapingOrchestrator → DocFusionSync → PostgreSQL
 - Modify: `src/docfusion/api/dependencies.py` — register discovery endpoints
-- Test: Trigger scrape → verify opportunities in DB
+- Wire: ScrapingOrchestrator → DocFusionSync → PostgreSQL
+- Test: Trigger scrape → opportunities in DB
+
+### Phase 3: Frontend + Integration (Steps 6-7)
 
 **Step 6: Frontend Pages**
-- Create: `frontend/app/(app)/opportunities/page.tsx` — list using existing OpportunityTable/Grid
-- Create: `frontend/app/(app)/opportunities/[id]/page.tsx` — detail using OpportunityDetailView
-- Create: `frontend/app/(app)/discovery/page.tsx` — dashboard with source management
-- Create: `frontend/app/(app)/pipeline/page.tsx` — board using PipelineBoard component
-- Test: Navigate pages → verify components render with real data
+- Create: `frontend/app/(app)/opportunities/page.tsx`
+- Create: `frontend/app/(app)/opportunities/[id]/page.tsx`
+- Create: `frontend/app/(app)/discovery/page.tsx`
+- Create: `frontend/app/(app)/pipeline/page.tsx`
+- Test: Pages render with real data
 
 **Step 7: Discovery → Ingestion Bridge**
 - Add to `discovery_endpoints.py`: POST /opportunities/{id}/ingest
-- Wire: opportunity_documents download → rfp_documents creation → trigger parse
+- Wire: opportunity_documents → rfp_documents → trigger parse pipeline
 - Modify: `frontend/components/opportunities/OpportunityHeaderActions.tsx` — add "Convert to RFP" button
-- Test: Discover → convert → full RFP pipeline
+- Test: End-to-end: discover → convert → parse → extract → compliance matrix
 
-## 6. Testing Strategy
+## 7. Testing Strategy
 
 Per CLAUDE.md: no mocks (except LLM calls), real objects, pytest fixtures.
 
-- **Python**: FastAPI TestClient for endpoint tests, real PostgreSQL for integration tests
-- **Frontend**: Server action tests against running FastAPI, Playwright for E2E
+- **Python AI enhancement**: Test with real LiteLLM gateway (gpt-4o-mini for speed), mock only for offline CI
+- **Python DB persistence**: Real PostgreSQL with asyncpg
+- **FastAPI endpoints**: TestClient for unit tests, real DB for integration
+- **Frontend**: Server actions against running FastAPI, Playwright E2E
 - **Tests location**: `tests/ci/` for CI auto-discovery
-- **Coverage target**: 80% minimum (per pyproject.toml)
+- **Coverage target**: 80% minimum
 
-## 7. Security Considerations
+## 8. Security
 
-- File uploads validated (type, size, extension) — existing validation in upload route
-- SecureStorageService handles file system isolation
+- File uploads validated (type, size, extension) — existing
+- SecureStorageService for file system isolation
 - Keycloak OIDC auth shared between Next.js and FastAPI
-- CORS already configured in FastAPI via SecretsManager
+- LiteLLM master key managed via SecretsManager
+- CORS via SecretsManager
 - Rate limiting via existing middleware
-- SSE connections timeout after 30 minutes
-- asyncpg connections use SecretsManager for DB credentials
+- Docling URL centralized (no more hardcoded IPs)
 
-## 8. Files Summary
+## 9. Files Summary
 
-### Create (5 files)
+### Create (7 files)
 1. `src/docfusion/api/endpoints/rfp_endpoints.py`
 2. `src/docfusion/api/endpoints/discovery_endpoints.py`
 3. `frontend/app/(app)/opportunities/page.tsx`
 4. `frontend/app/(app)/opportunities/[id]/page.tsx`
 5. `frontend/app/(app)/discovery/page.tsx`
+6. `frontend/app/(app)/pipeline/page.tsx`
+7. Drizzle migration for aiAnalysis column + requirements table merge
 
-### Modify (7 files)
-1. `src/docfusion/api/dependencies.py` — register endpoints
-2. `frontend/app/api/v1/rfp/upload/route.ts` — real storage
-3. `frontend/app/api/v1/rfp/[rfpId]/parse/route.ts` — real parser
-4. `frontend/lib/actions/requirements.ts` — use rfpRequirements
-5. `frontend/lib/actions/rfp-parser.ts` — FastAPI bridge
-6. `frontend/components/opportunities/OpportunityHeaderActions.tsx` — ingest button
-7. Drizzle migration for aiAnalysis column
+### Modify (9 files)
+1. `src/docfusion/config/secrets.py` — add get_docling_url(), get_docling_timeout()
+2. `src/docfusion/rfp/requirement_extractor.py` — AI enhancement via LiteLLM, centralized Docling config
+3. `src/docfusion/rfp/rfp_analyzer.py` — add AI-powered analysis
+4. `src/docfusion/rfp/compliance_matrix.py` — add DB persistence
+5. `src/docfusion/rfp/stakeholder_mapper.py` — route through LiteLLM
+6. `src/docfusion/api/dependencies.py` — register endpoints
+7. `frontend/lib/actions/requirements.ts` — use rfpRequirements
+8. `frontend/app/api/v1/rfp/upload/route.ts` — proxy to FastAPI
+9. `frontend/app/api/v1/rfp/[rfpId]/parse/route.ts` — call FastAPI instead of simulate
 
 ### Existing Code Leveraged (no changes)
-- `src/docfusion/rfp/rfp_analyzer.py` (612 lines)
-- `src/docfusion/rfp/requirement_extractor.py` (1,087 lines)
-- `src/docfusion/rfp/compliance_matrix.py` (1,080 lines)
-- `backend/discovery/pipeline/` (transformer, categorizer, deduplicator, sync)
-- `backend/discovery/scheduler/scraper_runner.py` (814 lines)
-- `backend/discovery/scrapers/` (50+ scrapers)
+- `src/docfusion/infrastructure/litellm_client.py` — LiteLLMClient with chat/stream/embeddings
+- `src/docfusion/infrastructure/llm_fallback.py` — LLMFallbackChain with circuit breakers
+- `backend/discovery/` — scrapers, pipeline, scheduler, sync
 - `frontend/components/opportunities/` (3,907 lines)
 - `frontend/components/pipeline/` (5,967 lines)
-- `frontend/lib/types/rfp.ts` (490 lines)
-- `frontend/lib/types/opportunity.ts` (1,825 lines)
+- `frontend/lib/actions/rfp-parser.ts` — existing working pipeline (kept as fallback)
