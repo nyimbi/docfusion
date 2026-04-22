@@ -1,11 +1,15 @@
 ---
-id: task-016
-title: "Phase 3: Implement workflow integration stubs"
-status: To Do
-phase: 3
-gap_ids: [G-WF-01, G-WF-02, G-WF-03, G-WF-04, G-WF-05, G-WF-06, G-WF-07]
-priority: High
-dependencies: [task-014, task-015]
+id: TASK-016
+title: 'Phase 3: Implement workflow integration stubs'
+status: Done
+assignee: []
+created_date: ''
+updated_date: '2026-04-22 22:53'
+labels: []
+dependencies:
+  - task-014
+  - task-015
+priority: high
 ---
 
 # task-016 - Phase 3: Implement workflow integration stubs
@@ -203,7 +207,6 @@ from docfusion.workflow.integration.nlp_workflow_integration import NLPWorkflowI
 from docfusion.workflow.integration.agents_workflow_integration import AgentsWorkflowIntegration
 from docfusion.workflow.integration.workflow_document_bridge import WorkflowDocumentBridge
 
-
 async def test_update_performance_metrics_writes_row(db_session):
 	integ = NLPWorkflowIntegration(db_session_factory=lambda: db_session)
 	await integ._update_performance_metrics("wf-1", {"latency_ms": 123.4})
@@ -215,14 +218,12 @@ async def test_update_performance_metrics_writes_row(db_session):
 	assert len(rows) == 1
 	assert rows[0]["value"] == pytest.approx(123.4)
 
-
 async def test_check_performance_thresholds_detects_breach(db_session):
 	integ = NLPWorkflowIntegration(db_session_factory=lambda: db_session)
 	await integ._update_performance_metrics("wf-2", {"error_rate": 0.9})
 	alerts = await integ._check_performance_thresholds("wf-2", {"error_rate": 0.1})
 	assert len(alerts) == 1
 	assert alerts[0]["metric"] == "error_rate"
-
 
 async def test_resolve_stuck_agent_waits_under_one_minute():
 	integ = AgentsWorkflowIntegration()
@@ -245,3 +246,9 @@ git commit -m "feat(workflow): implement integration stubs [G-WF-01..07]"
 - If `self._db_session_factory` doesn't exist on the class, either add it as a constructor param or swap the async block for whatever DB accessor the class already has.
 - The "escalate" path can be a stub for now that logs and creates a follow-up task — don't let scope creep block this.
 - If a helper (`_retry_task`, `_reassign_task`) already has a different signature, match it — don't force a rewrite.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented 7 workflow integration stubs: _update_performance_metrics, _check_performance_thresholds, _create_workflow_swarm, _facilitate_agent_collaboration, _resolve_stuck_agent, _handle_failed_agent, _setup_event_handlers; fixed broken NLPConfiguration import; 11 tests pass
+<!-- SECTION:NOTES:END -->

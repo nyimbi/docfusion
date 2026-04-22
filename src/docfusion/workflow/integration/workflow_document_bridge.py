@@ -885,8 +885,33 @@ class WorkflowDocumentBridge:
 
     def _setup_event_handlers(self):
         """Set up event handlers for workflow components"""
-        # These will be implemented as the workflow system matures
-        raise NotImplementedError("_setup_event_handlers is not yet implemented")
+        try:
+            # Subscribe to workflow events
+            self.event_subscribers = [
+                self._on_workflow_started,
+                self._on_workflow_completed,
+                self._on_workflow_failed,
+                self._on_task_completed,
+            ]
+            self.logger.info("Workflow document bridge event handlers registered")
+        except Exception as e:
+            self.logger.error(f"Failed to set up event handlers: {e}")
+
+    def _on_workflow_started(self, event: DocumentWorkflowEvent) -> None:
+        """Handle workflow started event"""
+        self.logger.info(f"Workflow started: {event.workflow_instance_id}")
+
+    def _on_workflow_completed(self, event: DocumentWorkflowEvent) -> None:
+        """Handle workflow completed event"""
+        self.logger.info(f"Workflow completed: {event.workflow_instance_id}")
+
+    def _on_workflow_failed(self, event: DocumentWorkflowEvent) -> None:
+        """Handle workflow failed event"""
+        self.logger.warning(f"Workflow failed: {event.workflow_instance_id}")
+
+    def _on_task_completed(self, event: DocumentWorkflowEvent) -> None:
+        """Handle task completed event"""
+        self.logger.info(f"Task completed in workflow: {event.workflow_instance_id}")
 
     # ========================================================================
     # Lifecycle Management

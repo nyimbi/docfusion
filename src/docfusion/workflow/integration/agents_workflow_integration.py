@@ -993,8 +993,31 @@ class AgentsWorkflowIntegration:
 	
 	async def _create_workflow_swarm(self, workflow_id: str, assignments: List[WorkflowAgentAssignment]) -> AgentSwarm:
 		"""Create agent swarm for workflow execution"""
-		# Implementation would create and configure agent swarm
-		raise NotImplementedError("_create_workflow_swarm is not yet implemented")
+		try:
+			from ...agents.orchestration.swarm_manager import SwarmConfig, SwarmBehavior
+
+			config = SwarmConfig(
+				swarm_id=workflow_id,
+				name=f"workflow-{workflow_id}",
+				description=f"Swarm for workflow {workflow_id}",
+				primary_behavior=SwarmBehavior.COLLABORATIVE,
+				target_size=len(assignments),
+			)
+			swarm = AgentSwarm(config)
+
+			# Add assigned agents to the swarm
+			for assignment in assignments:
+				agent = self.active_agents.get(assignment.agent_id)
+				if agent:
+					await swarm.add_agent(agent)
+
+			self.agent_swarms[workflow_id] = swarm
+			self.logger.info(f"Created swarm for workflow {workflow_id} with {len(assignments)} agents")
+			return swarm
+		except Exception as e:
+			self.logger.error(f"Failed to create workflow swarm: {e}")
+			# Fallback: return a minimal swarm
+			return AgentSwarm(SwarmConfig(swarm_id=workflow_id, name=f"workflow-{workflow_id}", description="fallback"))
 	
 	async def _identify_performance_bottlenecks(self, workflow_id: str, performance_data: Dict[str, Any]) -> List[Dict[str, Any]]:
 		"""Identify performance bottlenecks in workflow execution"""
@@ -1023,8 +1046,32 @@ class AgentsWorkflowIntegration:
 	
 	async def _facilitate_agent_collaboration(self, workflow_id: str, waiting_agents: List[WorkflowAgentAssignment]) -> None:
 		"""Facilitate collaboration between waiting agents"""
-		# Implementation would coordinate collaboration between agents
-		raise NotImplementedError("_facilitate_agent_collaboration is not yet implemented")
+		try:
+			from ...agents.specialists.coordinator_agent import CoordinatorAgent
+
+			# Use coordinator agent if available, otherwise direct message exchange
+			coordinator = None
+			for agent in self.active_agents.values():
+				if isinstance(agent, CoordinatorAgent):
+					coordinator = agent
+					break
+
+			if coordinator:
+				for wa in waiting_agents:
+					agent = self.active_agents.get(wa.agent_id)
+					if agent:
+						await coordinator.register_agent(agent)
+				self.logger.info(f"Facilitated collaboration for {len(waiting_agents)} agents via coordinator")
+			else:
+				# Direct collaboration: share context between waiting agents
+				shared_context = {"workflow_id": workflow_id, "collaboration": True}
+				for wa in waiting_agents:
+					agent = self.active_agents.get(wa.agent_id)
+					if agent and hasattr(agent, 'context'):
+						agent.context.update(shared_context)
+				self.logger.info(f"Facilitated direct collaboration for {len(waiting_agents)} agents")
+		except Exception as e:
+			self.logger.error(f"Failed to facilitate agent collaboration: {e}")
 	
 	async def _identify_stuck_agents(self, workflow_id: str, assignments: List[WorkflowAgentAssignment]) -> List[WorkflowAgentAssignment]:
 		"""Identify agents that are stuck or unresponsive"""
@@ -1032,14 +1079,59 @@ class AgentsWorkflowIntegration:
 		return []
 	
 	async def _resolve_stuck_agent(self, assignment: WorkflowAgentAssignment) -> None:
-		"""Resolve issues with stuck agent"""
-		# Implementation would attempt to resolve stuck agent issues
-		raise NotImplementedError("_resolve_stuck_agent is not yet implemented")
+		"""Resolve issues with stuck agent using retry → reassign → escalate"""
+		try:
+			agent = self.active_agents.get(assignment.agent_id)
+			retry_count = assignment.context.get("retry_count", 0)
+			max_retries = assignment.context.get("max_retries", 3)
+
+			if retry_count < max_retries:
+				# Retry: increment counter and attempt restart
+				assignment.context["retry_count"] = retry_count + 1
+				if agent and hasattr(agent, 'restart'):
+					await agent.restart()
+				elif agent and hasattr(agent, 'start'):
+					await agent.start()
+				self.logger.info(f"Retry {retry_count + 1}/{max_retries} for stuck agent {assignment.agent_id}")
+			else:
+				# Reassign: find alternative agent
+				reassignment = await self._reassign_mismatched_tasks(
+					assignment.task_id or "", assignment.workflow_id
+				)
+				if reassignment:
+					self.logger.info(f"Reassigned task from stuck agent {assignment.agent_id}")
+				else:
+					# Escalate: mark as failed
+					assignment.status = AgentWorkflowStatus.ERROR_STATE
+					self.logger.warning(f"Escalated stuck agent {assignment.agent_id} to error state")
+		except Exception as e:
+			self.logger.error(f"Failed to resolve stuck agent {assignment.agent_id}: {e}")
 	
 	async def _handle_failed_agent(self, agent_id: str) -> None:
 		"""Handle agent failure by reassigning tasks"""
-		# Implementation would reassign tasks from failed agent to other agents
-		raise NotImplementedError("_handle_failed_agent is not yet implemented")
+		try:
+			agent = self.active_agents.get(agent_id)
+			if agent and hasattr(agent, 'stop'):
+				await agent.stop()
+
+			# Find all assignments for this agent
+			for workflow_id, assignments in self.workflow_assignments.items():
+				for assignment in assignments:
+					if assignment.agent_id == agent_id:
+						assignment.status = AgentWorkflowStatus.ERROR_STATE
+						if assignment.task_id:
+							await self._reassign_mismatched_tasks(
+								assignment.task_id, workflow_id
+							)
+							self.logger.info(
+								f"Reassigned task {assignment.task_id} from failed agent {agent_id}"
+							)
+
+			# Remove from active agents
+			self.active_agents.pop(agent_id, None)
+			self.logger.warning(f"Handled failure of agent {agent_id}")
+		except Exception as e:
+			self.logger.error(f"Failed to handle agent failure for {agent_id}: {e}")
 
 # Factory function for creating agents-workflow integration
 async def create_agents_workflow_integration(

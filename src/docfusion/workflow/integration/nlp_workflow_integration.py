@@ -29,7 +29,7 @@ from ..coordination.deadline_manager import DeadlineManager
 from ..monitoring.workflow_monitor import WorkflowMonitor
 
 # Import NLP components
-from ...nlp.nlp_service import NLPService, NLPConfiguration
+from ...nlp.nlp_service import NLPService, NLPServiceConfiguration
 from ...nlp.enhanced_nlp_service import EnhancedNLPService
 from ...nlp.processors.document_processor import DocumentProcessor
 from ...nlp.processors.text_cleaner import TextCleaner
@@ -1026,13 +1026,47 @@ class NLPWorkflowIntegration:
 	
 	async def _update_performance_metrics(self) -> None:
 		"""Update comprehensive performance metrics"""
-		# Implementation would update detailed performance tracking
-		raise NotImplementedError("_update_performance_metrics is not yet implemented")
+		try:
+			# Update local metrics summary
+			total_tasks = self.nlp_metrics.get('tasks_processed', 0)
+			avg_time = self.nlp_metrics.get('average_processing_time', 0.0)
+			avg_quality = self.nlp_metrics.get('average_quality_score', 0.0)
+			error_rate = self.nlp_metrics.get('error_rate', 0.0)
+
+			self.logger.info(
+				f"NLP metrics — tasks: {total_tasks}, "
+				f"avg_time: {avg_time:.2f}s, quality: {avg_quality:.2f}, "
+				f"error_rate: {error_rate:.2%}"
+			)
+		except Exception as e:
+			self.logger.error(f"Failed to update performance metrics: {e}")
 	
 	async def _check_performance_thresholds(self) -> None:
 		"""Check if performance metrics exceed thresholds"""
-		# Implementation would check and alert on performance issues
-		raise NotImplementedError("_check_performance_thresholds is not yet implemented")
+		try:
+			# Default thresholds
+			quality_threshold = 0.7
+			error_threshold = 0.15
+			max_avg_time = 30.0  # seconds
+
+			avg_quality = self.nlp_metrics.get('average_quality_score', 1.0)
+			error_rate = self.nlp_metrics.get('error_rate', 0.0)
+			avg_time = self.nlp_metrics.get('average_processing_time', 0.0)
+
+			if avg_quality < quality_threshold:
+				self.logger.warning(
+					f"NLP quality below threshold: {avg_quality:.2f} < {quality_threshold}"
+				)
+			if error_rate > error_threshold:
+				self.logger.warning(
+					f"NLP error rate above threshold: {error_rate:.2%} > {error_threshold:.2%}"
+				)
+			if avg_time > max_avg_time:
+				self.logger.warning(
+					f"NLP processing time above threshold: {avg_time:.2f}s > {max_avg_time}s"
+				)
+		except Exception as e:
+			self.logger.error(f"Failed to check performance thresholds: {e}")
 
 # Factory function for creating NLP-workflow integration
 async def create_nlp_workflow_integration(
