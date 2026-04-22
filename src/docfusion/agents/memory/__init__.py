@@ -25,6 +25,7 @@ from .persistent_adapter import (
 	EmbeddingClient,
 	create_persistent_memory,
 )
+from .persistent_store import PersistentMemoryStore
 from .schema import (
 	AGENT_MEMORY_SCHEMA,
 	SCHEMA_VERSION,
@@ -174,6 +175,7 @@ __all__ = [
 	"PersistentMemoryConfig",
 	"EmbeddingClient",
 	"create_persistent_memory",
+	"PersistentMemoryStore",
 	# Schema
 	"AGENT_MEMORY_SCHEMA",
 	"SCHEMA_VERSION",

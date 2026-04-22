@@ -1,11 +1,14 @@
 ---
-id: task-017
-title: "Phase 3: Add persistent agent memory store"
-status: To Do
-phase: 3
-gap_ids: [G-MEM-01]
-priority: High
-dependencies: [task-014]
+id: TASK-017
+title: 'Phase 3: Add persistent agent memory store'
+status: Done
+assignee: []
+created_date: ''
+updated_date: '2026-04-22 23:04'
+labels: []
+dependencies:
+  - task-014
+priority: high
 ---
 
 # task-017 - Phase 3: Add persistent agent memory store
@@ -70,7 +73,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from docfusion.core.utils import uuid7str
-
 
 class PersistentMemoryStore:
 	"""Durable agent memory with TTL."""
@@ -176,7 +178,6 @@ import pytest
 
 from docfusion.agents.memory.persistent_store import PersistentMemoryStore
 
-
 async def test_put_and_get_roundtrips(db_session_factory):
 	store = PersistentMemoryStore(db_session_factory)
 	await store.put("agent-a", "note", {"content": "remember this"})
@@ -184,14 +185,12 @@ async def test_put_and_get_roundtrips(db_session_factory):
 	assert len(entries) == 1
 	assert entries[0]["payload"]["content"] == "remember this"
 
-
 async def test_expired_entries_not_returned(db_session_factory):
 	store = PersistentMemoryStore(db_session_factory)
 	await store.put("agent-b", "short", {"x": 1}, ttl_seconds=1)
 	await asyncio.sleep(1.5)
 	entries = await store.get("agent-b")
 	assert len(entries) == 0
-
 
 async def test_cleanup_removes_expired(db_session_factory):
 	store = PersistentMemoryStore(db_session_factory)
@@ -213,3 +212,9 @@ git commit -m "feat(agents): persistent memory store with TTL [G-MEM-01]"
 - Do NOT drop or rename existing in-process memory classes. Wrap them. Many callers rely on the old interface.
 - If `db_session_factory` fixture doesn't exist, add it to `tests/ci/conftest.py` — it should yield a per-test session that rolls back.
 - TTL cleanup should run nightly. That's a separate task (task-041 in Phase 6).
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Created PersistentMemoryStore with save/load/delete/flush/cleanup operations; created Alembic migration for agent_memories table; exported from agents.memory; 17 tests pass
+<!-- SECTION:NOTES:END -->
