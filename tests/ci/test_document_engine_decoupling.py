@@ -255,7 +255,7 @@ def test_inject_all_components():
 	assert engine.accessibility_renderer is overrides["accessibility_renderer"]
 
 
-def test_injected_assembler_is_called_during_generation():
+async def test_injected_assembler_is_called_during_generation():
 	"""Verify the injected content assembler is actually invoked in the pipeline."""
 	stub = StubContentAssembler()
 	config = DocumentGenerationConfiguration(
@@ -277,8 +277,7 @@ def test_injected_assembler_is_called_during_generation():
 	)
 	request.generation_config.document_title = "Injection Test"
 
-	loop = asyncio.get_event_loop()
-	result = loop.run_until_complete(engine.generate_document(request))
+	result = await engine.generate_document(request)
 
 	assert result.generation_successful
 	assert stub.called

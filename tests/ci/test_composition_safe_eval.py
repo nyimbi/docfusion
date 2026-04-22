@@ -54,8 +54,7 @@ def runner() -> CompositionRunner:
 def _eval_condition(runner, condition: str, variables: dict[str, Any] | None = None) -> bool:
 	"""Helper to synchronously evaluate a condition expression."""
 	ctx = _make_context(variables)
-	loop = asyncio.get_event_loop()
-	return loop.run_until_complete(runner._evaluate_condition(condition, ctx))
+	return asyncio.run(runner._evaluate_condition(condition, ctx))
 
 
 class TestSafeEvaluation:

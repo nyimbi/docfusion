@@ -293,7 +293,7 @@ def get_sync_db_session() -> Generator[Session, None, None]:
 			# Use db session
 			pass
 	"""
-	# Use ThreadPoolExecutor to avoid asyncio.get_event_loop() deprecation
+	# Use ThreadPoolExecutor to avoid deprecated loop access
 	# and asyncio.run() crashing in async contexts
 	with ThreadPoolExecutor(max_workers=1) as executor:
 		future = executor.submit(asyncio.run, get_database_session())

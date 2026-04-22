@@ -42,16 +42,11 @@ def engine():
 
 
 @pytest.fixture
-def engine_started(engine):
+async def engine_started(engine):
 	"""Create and start a WorkflowEngine instance."""
-	async def _start():
-		await engine.start_engine()
-		return engine
-
-	loop = asyncio.get_event_loop()
-	eng = loop.run_until_complete(_start())
-	yield eng
-	loop.run_until_complete(eng.stop_engine())
+	await engine.start_engine()
+	yield engine
+	await engine.stop_engine()
 
 
 # ============================================================================
