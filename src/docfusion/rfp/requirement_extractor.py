@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import httpx
 from pydantic import BaseModel, Field, ConfigDict
 from ..core.utils import uuid7str
+from ..config.secrets import SecretsManager
 import time
 
 class RequirementCategory(str, Enum):
@@ -151,8 +152,8 @@ class RequirementExtractor:
 		"""Get default configuration"""
 		return {
 			# DoclingService endpoint for document parsing
-			"docling_service_url": "http://20.84.71.33:3600",
-			"docling_timeout": 300.0,
+			"docling_service_url": SecretsManager.get_docling_url(),
+			"docling_timeout": SecretsManager.get_docling_timeout(),
 			# Classification patterns
 			"mandatory_indicators": [
 				"shall",

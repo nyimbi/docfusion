@@ -480,6 +480,11 @@ class SecretsManager:
 		return os.environ.get("LITELLM_URL", "http://84.247.181.100:4000")
 
 	@staticmethod
+	def get_docling_url() -> str:
+		"""Get Docling server URL."""
+		return os.environ.get("DOCLING_URL", "http://20.84.71.33:3600")
+
+	@staticmethod
 	def get_firecrawl_url() -> str:
 		"""Get Firecrawl server URL."""
 		return os.environ.get("FIRECRAWL_URL", "http://84.247.181.100:3002")
@@ -687,6 +692,11 @@ class SecretsManager:
 	def get_litellm_timeout() -> int:
 		"""Get LiteLLM request timeout in seconds."""
 		return int(os.environ.get("LITELLM_TIMEOUT", "120"))
+
+	@staticmethod
+	def get_docling_timeout() -> int:
+		"""Get Docling request timeout in seconds."""
+		return int(os.environ.get("DOCLING_TIMEOUT", "300"))
 
 	@staticmethod
 	def get_cors_allowed_origins() -> list[str]:
