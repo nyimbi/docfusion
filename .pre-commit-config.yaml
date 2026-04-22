@@ -209,7 +209,7 @@ repos:
         args:
           - --configfile=pyproject.toml
           - --format=custom
-          - --msg-template='{abspath}:{line}: [{test_id}:{severity}] {msg}'
+          - "--msg-template={abspath}:{line}: [{test_id}:{severity}] {msg}"
         additional_dependencies: ["bandit[toml]"]
         files: ^src/.*\.py$
         # Skip test files as they often contain intentionally insecure code
@@ -364,9 +364,9 @@ repos:
         
       - id: remove-tabs
         name: "Remove tabs"
-        description: "Replace tabs with spaces"
+        description: "Replace tabs with spaces (non-Python files only; Python uses tabs per project convention)"
         args: [--whitespaces-count=4]
-        files: \.(py|yaml|yml|json|md|txt)$
+        files: \.(yaml|yml|json|md|txt)$
 
   # ============================================================================
   # COMMIT MESSAGE VALIDATION
@@ -449,19 +449,18 @@ repos:
       - id: import-sorting-check
         name: "Import sorting validation"
         description: "Ensure imports are properly sorted"
-        entry: uv run python -c "
-          import ast, sys
-          from pathlib import Path
-          for file in sys.argv[1:]:
-              try:
-                  with open(file) as f:
-                      ast.parse(f.read())
-              except SyntaxError as e:
-                  print(f'Syntax error in {file}: {e}')
-                  sys.exit(1)
-          "
+        entry: uv run python -c "import ast, sys; [ast.parse(open(f).read()) for f in sys.argv[1:]]"
         language: system
         files: ^src/.*\.py$
+
+      # DocuFusion invariant checks (banned patterns + file size)
+      - id: docfusion-invariants
+        name: "DocuFusion invariants check"
+        description: "Enforce banned patterns and file-size limits on staged Python files"
+        entry: uv run python scripts/check_invariants.py
+        language: system
+        types: [python]
+        pass_filenames: true
 
 # ============================================================================
 # CI CONFIGURATION

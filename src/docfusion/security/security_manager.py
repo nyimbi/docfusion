@@ -10,8 +10,9 @@ and audit logging across the entire application.
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any, Union
 import logging
+import secrets
+from typing import Dict, List, Optional, Any, Union
 
 from .authentication.user_authentication import (
     UserAuthentication, UserCredentials, AuthenticationResult, SecurityConfiguration

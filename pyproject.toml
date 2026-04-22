@@ -507,8 +507,8 @@ single-line-exclusions = ["typing", "typing_extensions"]
 # Use single quotes for strings
 quote-style = "double"
 
-# Use spaces for indentation
-indent-style = "space"
+# Use tabs for indentation (project convention overrides default)
+indent-style = "tab"
 
 # Respect magic trailing comma
 skip-magic-trailing-comma = false
@@ -671,7 +671,7 @@ omit = [
 ]
 
 # Dynamic contexts for better coverage tracking
-dynamic_contexts = ["test_function"]
+dynamic_context = "test_function"
 
 [tool.coverage.paths]
 # Path mapping for consistent coverage across environments
@@ -873,6 +873,7 @@ rich_markup_mode = "rich"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.5.1",
     "types-cachetools>=6.2.0.20260317",
 ]
 # Example environment configurations:

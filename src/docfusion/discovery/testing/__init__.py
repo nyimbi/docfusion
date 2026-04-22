@@ -7,7 +7,7 @@ accuracy, data quality validation, and system performance verification.
 
 from .accuracy_tester import AccuracyTester, TestConfig, TestResult, AccuracyMetrics
 from .data_validator import DataValidator, ValidationConfig, ValidationResult, QualityMetrics
-# from .performance_tester import PerformanceTester, PerformanceConfig, PerformanceResult  # TODO: implement
+# from .performance_tester import PerformanceTester, PerformanceConfig, PerformanceResult
 
 __all__ = [
 	'AccuracyTester',

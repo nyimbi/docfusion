@@ -127,7 +127,7 @@ class SecurityConfiguration:
     progressive_delay: bool = True
 
     # JWT configuration
-    jwt_secret_key: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
+    jwt_secret_key: str = field(default_factory=lambda: secrets.token_urlsafe(32))
     jwt_algorithm: str = "HS256"
     access_token_expiry_minutes: int = 15
     refresh_token_expiry_days: int = 7

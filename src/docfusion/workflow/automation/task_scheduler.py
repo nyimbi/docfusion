@@ -9,7 +9,7 @@ scheduling, deadline-driven optimization, and schedule conflict resolution.
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Callable, Tuple
 from concurrent.futures import ThreadPoolExecutor
@@ -839,7 +839,7 @@ class TaskScheduler:
 		# Factor in deadline pressure
 		deadline_confidence = 1.0
 		if task.deadline:
-			time_to_deadline = (task.deadline - datetime.now()).total_seconds() / 3600  # hours
+			time_to_deadline = (task.deadline - datetime.now(timezone.utc)).total_seconds() / 3600  # hours
 			if task.estimated_duration_minutes:
 				required_hours = task.estimated_duration_minutes / 60
 				if time_to_deadline < required_hours * 1.5:  # Tight deadline
@@ -853,7 +853,7 @@ class TaskScheduler:
 		
 		# Add deadline urgency
 		if task.deadline:
-			time_to_deadline = (task.deadline - datetime.now()).total_seconds() / 3600  # hours
+			time_to_deadline = (task.deadline - datetime.now(timezone.utc)).total_seconds() / 3600  # hours
 			if time_to_deadline < 24:  # Within 24 hours
 				score += (24 - time_to_deadline) / 24 * 5  # Up to 5 bonus points
 		
@@ -888,7 +888,7 @@ class TaskScheduler:
 					return False
 		
 		# Check deadline is in future
-		if task.deadline and task.deadline <= datetime.now():
+		if task.deadline and task.deadline <= datetime.now(timezone.utc):
 			logger.warning(f"Task {task.task_id} has deadline in the past")
 			return False
 		
