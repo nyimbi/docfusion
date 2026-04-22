@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1775922381038,
+  "lastScanned": 1776877927075,
   "projectRoot": "/Users/nyimbiodero/src/pjs/docfusion",
   "techStack": {
     "languages": [
@@ -68,28 +68,28 @@
       "path": "artifacts",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1775922381000,
+      "lastAccessed": 1776877927065,
       "keyFiles": []
     },
     "backend": {
       "path": "backend",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1775922381001,
+      "lastAccessed": 1776877927065,
       "keyFiles": []
     },
     "config": {
       "path": "config",
       "purpose": "Configuration files",
       "fileCount": 0,
-      "lastAccessed": 1775922381002,
+      "lastAccessed": 1776877927066,
       "keyFiles": []
     },
     "data": {
       "path": "data",
       "purpose": "Data files",
       "fileCount": 4,
-      "lastAccessed": 1775922381003,
+      "lastAccessed": 1776877927066,
       "keyFiles": [
         "dedup.db",
         "docfusion.sql",
@@ -100,7 +100,7 @@
       "path": "deployment",
       "purpose": null,
       "fileCount": 2,
-      "lastAccessed": 1775922381006,
+      "lastAccessed": 1776877927067,
       "keyFiles": [
         "README.md",
         "servers.yaml"
@@ -110,7 +110,7 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 23,
-      "lastAccessed": 1775922381008,
+      "lastAccessed": 1776877927067,
       "keyFiles": [
         "API_REFERENCE.md",
         "CENTRALIZED_LLM_CONFIG.md",
@@ -123,7 +123,7 @@
       "path": "examples",
       "purpose": "Example code",
       "fileCount": 10,
-      "lastAccessed": 1775922381009,
+      "lastAccessed": 1776877927068,
       "keyFiles": [
         "complete_workflow_integration_example.py",
         "composition_example.py",
@@ -136,7 +136,7 @@
       "path": "frontend",
       "purpose": null,
       "fileCount": 27,
-      "lastAccessed": 1775922381009,
+      "lastAccessed": 1776877927069,
       "keyFiles": [
         "AI_CONFIG.md",
         "COMMENTS_WORKFLOW_README.md",
@@ -149,14 +149,14 @@
       "path": "infra",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1775922381010,
+      "lastAccessed": 1776877927069,
       "keyFiles": []
     },
     "migrations": {
       "path": "migrations",
       "purpose": "Database migrations",
       "fileCount": 3,
-      "lastAccessed": 1775922381014,
+      "lastAccessed": 1776877927069,
       "keyFiles": [
         "env.py",
         "script.py.mako"
@@ -166,14 +166,14 @@
       "path": "notebooks",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1775922381016,
+      "lastAccessed": 1776877927070,
       "keyFiles": []
     },
     "scripts": {
       "path": "scripts",
       "purpose": "Build/utility scripts",
       "fileCount": 2,
-      "lastAccessed": 1775922381016,
+      "lastAccessed": 1776877927070,
       "keyFiles": [
         "deploy.sh",
         "migrate-opportunities.py"
@@ -183,21 +183,21 @@
       "path": "src",
       "purpose": "Source code",
       "fileCount": 0,
-      "lastAccessed": 1775922381017,
+      "lastAccessed": 1776877927070,
       "keyFiles": []
     },
     "storage": {
       "path": "storage",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1775922381017,
+      "lastAccessed": 1776877927071,
       "keyFiles": []
     },
     "tests": {
       "path": "tests",
       "purpose": "Test files",
       "fileCount": 28,
-      "lastAccessed": 1775922381018,
+      "lastAccessed": 1776877927072,
       "keyFiles": [
         "conftest.py",
         "test_advanced_prompting.py",
@@ -210,28 +210,28 @@
       "path": "voice_profiles",
       "purpose": null,
       "fileCount": 0,
-      "lastAccessed": 1775922381019,
+      "lastAccessed": 1776877927072,
       "keyFiles": []
     },
     "artifacts/models": {
       "path": "artifacts/models",
       "purpose": "Data models",
       "fileCount": 1,
-      "lastAccessed": 1775922381020,
+      "lastAccessed": 1776877927072,
       "keyFiles": []
     },
     "deployment/config": {
       "path": "deployment/config",
       "purpose": "Configuration files",
       "fileCount": 0,
-      "lastAccessed": 1775922381023,
+      "lastAccessed": 1776877927073,
       "keyFiles": []
     },
     "deployment/scripts": {
       "path": "deployment/scripts",
       "purpose": "Build/utility scripts",
       "fileCount": 9,
-      "lastAccessed": 1775922381024,
+      "lastAccessed": 1776877927073,
       "keyFiles": [
         "01-configure-vps.sh",
         "02-install-postgresql.sh",
@@ -242,14 +242,14 @@
       "path": "scripts/data",
       "purpose": "Data files",
       "fileCount": 0,
-      "lastAccessed": 1775922381026,
+      "lastAccessed": 1776877927074,
       "keyFiles": []
     },
     "tests/fixtures": {
       "path": "tests/fixtures",
       "purpose": "Test fixtures",
       "fileCount": 1,
-      "lastAccessed": 1775922381037,
+      "lastAccessed": 1776877927074,
       "keyFiles": []
     }
   },
@@ -261,21 +261,27 @@
       "type": "directory"
     },
     {
+      "path": "",
+      "accessCount": 31,
+      "lastAccessed": 1776016350785,
+      "type": "directory"
+    },
+    {
+      "path": "src/docfusion/core/database/session.py",
+      "accessCount": 25,
+      "lastAccessed": 1776884282931,
+      "type": "file"
+    },
+    {
       "path": "src/docfusion/collaboration/editing/collaborative_editor.py",
       "accessCount": 24,
       "lastAccessed": 1775923793058,
       "type": "file"
     },
     {
-      "path": "src/docfusion/core/database/session.py",
-      "accessCount": 23,
-      "lastAccessed": 1775929908840,
-      "type": "file"
-    },
-    {
       "path": "src/docfusion/infrastructure/litellm_client.py",
-      "accessCount": 16,
-      "lastAccessed": 1775925729276,
+      "accessCount": 17,
+      "lastAccessed": 1776322511283,
       "type": "file"
     },
     {
@@ -295,12 +301,6 @@
       "accessCount": 7,
       "lastAccessed": 1775923877938,
       "type": "file"
-    },
-    {
-      "path": "",
-      "accessCount": 7,
-      "lastAccessed": 1775924706011,
-      "type": "directory"
     },
     {
       "path": "src/docfusion/infrastructure/firecrawl_client.py",
@@ -351,6 +351,18 @@
       "type": "file"
     },
     {
+      "path": "src/docfusion/api/app.py",
+      "accessCount": 4,
+      "lastAccessed": 1776192307075,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/infrastructure/llm_fallback.py",
+      "accessCount": 4,
+      "lastAccessed": 1776322512408,
+      "type": "file"
+    },
+    {
       "path": "src/docfusion/core/database/config.py",
       "accessCount": 3,
       "lastAccessed": 1775922780386,
@@ -387,21 +399,9 @@
       "type": "file"
     },
     {
-      "path": "src/docfusion/infrastructure/llm_fallback.py",
-      "accessCount": 3,
-      "lastAccessed": 1775925050671,
-      "type": "file"
-    },
-    {
       "path": "src/docfusion/core/types/intelligence.py",
       "accessCount": 3,
       "lastAccessed": 1775925174547,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/api/app.py",
-      "accessCount": 3,
-      "lastAccessed": 1775976895971,
       "type": "file"
     },
     {
@@ -459,6 +459,18 @@
       "type": "file"
     },
     {
+      "path": "src/docfusion/api/dependencies.py",
+      "accessCount": 2,
+      "lastAccessed": 1776192323996,
+      "type": "file"
+    },
+    {
+      "path": "src/docfusion/core/utils.py",
+      "accessCount": 2,
+      "lastAccessed": 1776885218280,
+      "type": "file"
+    },
+    {
       "path": "src/docfusion/composition/runner.py",
       "accessCount": 1,
       "lastAccessed": 1775922550813,
@@ -468,12 +480,6 @@
       "path": "src/docfusion/core/__init__.py",
       "accessCount": 1,
       "lastAccessed": 1775922609664,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/core/utils.py",
-      "accessCount": 1,
-      "lastAccessed": 1775922614541,
       "type": "file"
     },
     {
@@ -546,12 +552,6 @@
       "path": "src/docfusion/agents/llm/ollama_client.py",
       "accessCount": 1,
       "lastAccessed": 1775922753989,
-      "type": "file"
-    },
-    {
-      "path": "src/docfusion/api/dependencies.py",
-      "accessCount": 1,
-      "lastAccessed": 1775922821289,
       "type": "file"
     }
   ],

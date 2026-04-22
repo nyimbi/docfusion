@@ -742,3 +742,4 @@ temp/
 
 # Allow frontend lib directory (overrides lib/ ignore for Python)
 !frontend/lib/
+.superpowers/

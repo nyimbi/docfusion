@@ -337,3 +337,84 @@ class TestDocumentPermissions:
 			)
 		)
 		assert result["has_permission"] is False
+
+
+# ============================================================================
+# AuditLogger
+# ============================================================================
+
+from docfusion.security.audit.audit_logger import (
+	AuditLogger,
+	AuditConfiguration,
+	AuditEventType,
+	AuditSeverity,
+)
+
+
+class TestAuditLogger:
+	"""Happy and failure paths for AuditLogger."""
+
+	async def _test_log_and_query_async(self):
+		"""Happy path: log an event and query it back."""
+		audit = AuditLogger(AuditConfiguration())
+		event_id = await audit.log_event(
+			event_type=AuditEventType.LOGIN_SUCCESS,
+			action="login",
+			description="User logged in",
+			user_id="audit-user-1",
+		)
+		assert isinstance(event_id, str)
+		assert event_id != ""
+
+		events = await audit.query_events(user_id="audit-user-1")
+		assert len(events) >= 1
+
+	def test_log_and_query(self):
+		asyncio.run(self._test_log_and_query_async())
+
+	async def _test_log_below_minimum_severity_async(self):
+		"""Failure path: event below minimum severity is not logged."""
+		config = AuditConfiguration(minimum_severity=AuditSeverity.CRITICAL)
+		audit = AuditLogger(config)
+		await audit.log_event(
+			event_type=AuditEventType.LOGIN_SUCCESS,
+			action="login",
+			description="Low severity login",
+			user_id="audit-user-2",
+			severity=AuditSeverity.LOW,
+		)
+		events = await audit.query_events(user_id="audit-user-2")
+		assert len(events) == 0
+
+	def test_log_below_minimum_severity(self):
+		asyncio.run(self._test_log_below_minimum_severity_async())
+
+
+# ============================================================================
+# GDPRCompliance
+# ============================================================================
+
+from docfusion.security.compliance.gdpr_compliance import GDPRCompliance, GDPRConfiguration
+
+
+class TestGDPRCompliance:
+	"""Happy and failure paths for GDPRCompliance."""
+
+	async def _test_export_user_data_async(self):
+		"""Happy path: export user data."""
+		gdpr = GDPRCompliance(GDPRConfiguration())
+		result = await gdpr.export_user_data("gdpr-user-1")
+		assert result.user_id == "gdpr-user-1"
+		assert result.export_type == "full"
+
+	def test_export_user_data(self):
+		asyncio.run(self._test_export_user_data_async())
+
+	async def _test_delete_nonexistent_user_async(self):
+		"""Failure path: delete data for user with no registered sources."""
+		gdpr = GDPRCompliance(GDPRConfiguration())
+		result = await gdpr.delete_user_data("nonexistent-user")
+		assert result.deleted_from_sources == []
+
+	def test_delete_nonexistent_user(self):
+		asyncio.run(self._test_delete_nonexistent_user_async())

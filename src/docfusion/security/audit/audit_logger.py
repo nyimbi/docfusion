@@ -13,7 +13,7 @@ import hmac
 import json
 import logging
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
@@ -176,7 +176,7 @@ class AuditConfiguration:
 
     # Filtering
     log_all_events: bool = True
-    excluded_event_types: List[str] = Field(default_factory=list)
+    excluded_event_types: List[str] = field(default_factory=list)
     minimum_severity: AuditSeverity = AuditSeverity.LOW
 
 class AuditLogger:
