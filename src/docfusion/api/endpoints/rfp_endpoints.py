@@ -10,8 +10,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...core.database.session import get_async_db_session
 from ...core.utils import uuid7str
+from ...orchestration.proposal_orchestrator import ProposalOrchestrator
 from ...rfp.compliance_matrix import ComplianceMatrixGenerator
 from ...rfp.requirement_extractor import RequirementExtractor
 from ...rfp.rfp_analyzer import RFPAnalyzer
@@ -100,3 +103,19 @@ async def update_entry(
 ) -> dict[str, Any]:
 	"""Update a compliance matrix entry."""
 	return {"ok": True, "entry_id": entry_id, "updated": update}
+
+
+@router.post("/{rfp_id}/draft")
+async def draft_proposal(
+	rfp_id: str,
+	session: AsyncSession = Depends(get_async_db_session),
+) -> dict[str, Any]:
+	"""Generate a proposal draft from the RFP's compliance matrix."""
+	orchestrator = ProposalOrchestrator()
+	draft = await orchestrator.draft_proposal(rfp_id, session)
+	return {
+		"rfp_id": rfp_id,
+		"sections": draft.sections,
+		"review_feedback": draft.review_feedback,
+		"compliance_diff": draft.compliance_diff,
+	}

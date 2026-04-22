@@ -68,6 +68,35 @@ class AgentState(str, Enum):
     SUSPENDED = "suspended"
     TERMINATED = "terminated"
 
+
+class AgentStatus(str, Enum):
+    """Agent task execution status."""
+
+    COMPLETED = "completed"
+    ERROR = "error"
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+
+
+class AgentCapability(str, Enum):
+    """Agent capability descriptors."""
+
+    ANALYSIS = "analysis"
+    VALIDATION = "validation"
+    REPORTING = "reporting"
+    RESEARCH = "research"
+    QUALITY_ASSURANCE = "quality_assurance"
+
+
+@dataclass
+class AgentResponse:
+    """Standard agent response wrapper."""
+
+    status: AgentStatus
+    content: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
 class AgentPriority(str, Enum):
     """Agent priority levels for task assignment"""
 

@@ -22,8 +22,8 @@ from uuid import uuid4
 # Import Voice DNA components
 from ..analyzer.voice_pattern_analyzer import VoicePatternAnalyzer, VoiceFingerprint, WritingPattern
 from ..analyzer.style_pattern_extractor import StylePatternExtractor, StyleProfile, StylePattern
-from ..field_validator.voice_field_validator import VoiceValidator, ValidationResult, VoiceDeviation
-from ..field_validator.authenticity_scorer import AuthenticityScorer, AuthenticityReport, AuthenticityDimension
+from ..validator.voice_validator import VoiceValidator, ValidationResult, VoiceDeviation
+from ..validator.authenticity_scorer import AuthenticityScorer, AuthenticityReport, AuthenticityDimension
 from ..profiler.voice_profiler import VoiceProfiler, VoiceProfile, ProfileType
 from ..profiler.profile_manager import ProfileManager, ProfileVersion, ProfileComparison
 

@@ -12,10 +12,13 @@ from .workflow_engine import WorkflowEngine
 from .agent_composer import AgentComposer
 from .workflow_builder import WorkflowBuilder
 from .visual_editor import VisualWorkflowEditor
+from .proposal_orchestrator import ProposalOrchestrator, ProposalDraft
 
 __all__ = [
 	"WorkflowEngine",
-	"AgentComposer", 
+	"AgentComposer",
 	"WorkflowBuilder",
-	"VisualWorkflowEditor"
+	"VisualWorkflowEditor",
+	"ProposalOrchestrator",
+	"ProposalDraft",
 ]

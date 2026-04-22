@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional, Set, Union
 from datetime import datetime, timedelta
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import statistics
 from ..core.agent import Agent, AgentConfig, AgentCapabilities, AgentState
 from ..core.roles import AgentRole, get_role_definition
@@ -40,6 +40,7 @@ class WritingTask:
 	constraints: Dict[str, Any] = field(default_factory=dict)
 	source_materials: List[Dict[str, Any]] = field(default_factory=list)
 	quality_standards: Dict[str, float] = field(default_factory=dict)
+	context: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

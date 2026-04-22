@@ -15,10 +15,10 @@ from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 import asyncio
 
-from ..compliance.validators.regulatory_field_validator import (
+from ..compliance.validators.regulatory_validator import (
 	RegulatoryValidator, ComplianceReport, ComplianceStatus
 )
-from ..compliance.validators.format_field_validator import (
+from ..compliance.validators.format_validator import (
 	FormatValidator, FormatReport
 )
 from ..compliance.frameworks.compliance_framework import ComplianceFramework

@@ -19,10 +19,10 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 import asyncio
 
-from ..validators.regulatory_field_validator import (
+from ..validators.regulatory_validator import (
 	RegulatoryValidator, ComplianceReport, ComplianceStatus, ViolationSeverity
 )
-from ..validators.format_field_validator import FormatValidator, FormatReport
+from ..validators.format_validator import FormatValidator, FormatReport
 from ..frameworks.compliance_framework import ComplianceFramework
 from ..evidence.evidence_manager import (
 	EvidenceManager, EvidenceRecord, EvidenceStatus, EvidenceQuality

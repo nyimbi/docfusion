@@ -18,6 +18,8 @@ from enum import Enum
 import statistics
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 

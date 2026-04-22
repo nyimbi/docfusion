@@ -196,14 +196,18 @@ class StructureRecognizer:
 
     def _compile_patterns(self):
         """Compile regex patterns for efficiency"""
+        defaults = self._get_default_config()
         self.title_regexes = [
-            re.compile(p, re.MULTILINE) for p in self.config["title_patterns"]
+            re.compile(p, re.MULTILINE)
+            for p in self.config.get("title_patterns", defaults["title_patterns"])
         ]
         self.heading_regexes = [
-            re.compile(p, re.MULTILINE) for p in self.config["heading_patterns"]
+            re.compile(p, re.MULTILINE)
+            for p in self.config.get("heading_patterns", defaults["heading_patterns"])
         ]
         self.list_regexes = [
-            re.compile(p, re.MULTILINE) for p in self.config["list_patterns"]
+            re.compile(p, re.MULTILINE)
+            for p in self.config.get("list_patterns", defaults["list_patterns"])
         ]
 
         # Additional patterns

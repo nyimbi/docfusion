@@ -59,7 +59,7 @@ from .analyzer import (
 )
 
 # Validation components  
-from .field_validator import (
+from .validator import (
 	VoiceValidator,
 	ValidationResult,
 	VoiceDeviation,

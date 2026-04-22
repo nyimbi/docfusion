@@ -17,7 +17,7 @@ import json
 from ..agents.core.agent import Agent, AgentTask, AgentStatus
 from ..agents.specialists.compliance_agent import ComplianceAgent
 from ..agents.orchestration.workflow_engine import WorkflowEngine, WorkflowTemplate, WorkflowStep
-from ..compliance.validators.regulatory_field_validator import ComplianceStatus
+from ..compliance.validators.regulatory_validator import ComplianceStatus
 from ..compliance.evidence.evidence_manager import EvidenceManager, EvidenceType
 from ..compliance.reporting.compliance_reporter import ComplianceReporter, ReportType
 from ..document_engine.compliance_integration import DocumentComplianceIntegrator

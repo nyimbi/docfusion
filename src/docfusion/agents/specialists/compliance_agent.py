@@ -11,14 +11,15 @@ from datetime import datetime, date
 import json
 
 from ..core.agent import Agent, AgentCapability, AgentResponse, AgentStatus
-from ...compliance.validators.regulatory_field_validator import RegulatoryValidator, ComplianceReport
-from ...compliance.validators.format_field_validator import FormatValidator, FormatReport
+from ...compliance.validators.regulatory_validator import RegulatoryValidator
+from ...compliance.reporting.compliance_reporter import ComplianceReport
+from ...compliance.validators.format_validator import FormatValidator, FormatReport
 from ...compliance.frameworks.compliance_framework import ComplianceFramework
 from ...compliance.evidence.evidence_manager import EvidenceManager, EvidenceRecord
 from ...compliance.reporting.compliance_reporter import ComplianceReporter, ReportType
 from ...document_engine.compliance_integration import DocumentComplianceIntegrator
-from ...config.llm_config import LLMConfig, get_task_config
-from ...nlp.service import NLPService
+from ...config.llm_config import LLMConfiguration, LLMTask, get_llm_config
+from ...nlp.nlp_service import NLPService
 
 
 class ComplianceAgent(Agent):
@@ -39,23 +40,27 @@ class ComplianceAgent(Agent):
 		model_config: Optional[Dict[str, Any]] = None,
 		**kwargs
 	):
-		# Define compliance-specific capabilities
-		capabilities = [
-			AgentCapability.ANALYSIS,
-			AgentCapability.VALIDATION,
-			AgentCapability.REPORTING,
-			AgentCapability.RESEARCH,
-			AgentCapability.QUALITY_ASSURANCE
-		]
-		
-		# Initialize with compliance-specific configuration
-		super().__init__(
+		from ..core.agent import AgentCapabilities, AgentConfig
+
+		# Build AgentConfig from legacy kwargs
+		config = AgentConfig(
 			name=name,
 			description="AI agent specialized for compliance validation and analysis",
-			capabilities=capabilities,
-			model_config=model_config or get_task_config("compliance_analysis"),
+			primary_role="compliance",
+			capabilities=AgentCapabilities(
+				expertise_domains=["compliance", "regulatory", "risk_assessment"],
+				supported_task_types=["validate_document", "analyze_compliance", "check_evidence", "generate_report"],
+				quality_threshold=0.95,
+			),
 			**kwargs
 		)
+		# Apply any LLM overrides from model_config
+		if model_config:
+			for key, value in model_config.items():
+				if hasattr(config, key):
+					setattr(config, key, value)
+
+		super().__init__(config)
 		
 		# Initialize compliance components
 		self.regulatory_field_validator = RegulatoryValidator()
@@ -63,8 +68,9 @@ class ComplianceAgent(Agent):
 		self.evidence_manager = EvidenceManager()
 		self.compliance_reporter = ComplianceReporter()
 		self.compliance_integrator = DocumentComplianceIntegrator()
-		self.nlp_service = NLPService()
-		
+		self._nlp_service: Optional[NLPService] = None
+		self.task_handlers: Dict[str, Any] = {}
+
 		# Compliance-specific system message
 		self.system_message = """You are a Compliance Agent specialized in regulatory compliance validation and analysis.
 
@@ -105,7 +111,13 @@ Be thorough, accurate, and focused on regulatory compliance excellence."""
 			"recommend_fixes": self._handle_recommend_fixes,
 			"interpret_regulation": self._handle_interpret_regulation
 		})
-	
+
+	@property
+	def nlp_service(self) -> NLPService:
+		if self._nlp_service is None:
+			self._nlp_service = NLPService()
+		return self._nlp_service
+
 	async def _handle_validate_document(
 		self,
 		task_data: Dict[str, Any]
@@ -693,6 +705,46 @@ Make the interpretation practical and actionable for compliance professionals.""
 				"last_updated": datetime.now().isoformat()
 			}
 	
+	async def check_draft_against_matrix(
+		self,
+		draft_sections: Dict[str, str],
+		matrix: Any,
+	) -> Dict[str, Any]:
+		"""Check a proposal draft against a compliance matrix.
+
+		For each requirement in the matrix, verify that its requirement_text
+		(or a key phrase extracted from it) appears in at least one draft section.
+		Returns a diff report with coverage summary and per-requirement results.
+		"""
+		full_draft = "\n".join(draft_sections.values())
+		mappings = getattr(matrix, "mappings", [])
+		results: List[Dict[str, Any]] = []
+		covered = 0
+
+		for mapping in mappings:
+			req_text = getattr(mapping, "requirement_text", "") or ""
+			# Extract key phrase (first 20 chars or a significant word)
+			key_phrase = req_text[:60].strip() if req_text else ""
+			found = bool(key_phrase and key_phrase.lower() in full_draft.lower())
+			if found:
+				covered += 1
+
+			results.append({
+				"requirement_id": getattr(mapping, "requirement_id", ""),
+				"requirement_text": req_text[:200],
+				"category": getattr(getattr(mapping, "category", None), "value", "general"),
+				"found": found,
+			})
+
+		total = len(mappings) or 1
+		return {
+			"total_requirements": len(mappings),
+			"covered": covered,
+			"missing": len(mappings) - covered,
+			"coverage_ratio": round(covered / total, 3),
+			"results": results,
+		}
+
 	async def _generate_status_summary(
 		self,
 		evidence_stats: Dict[str, Any],
