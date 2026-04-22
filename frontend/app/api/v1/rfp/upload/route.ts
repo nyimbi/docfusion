@@ -12,6 +12,9 @@ import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 
+const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
+const USE_PYTHON_RFP = process.env.USE_PYTHON_RFP !== "false";
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -44,6 +47,17 @@ const ALLOWED_EXTENSIONS = new Set([".pdf", ".docx", ".doc", ".html", ".htm"]);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
 	try {
+		// Proxy to Python FastAPI when feature flag is enabled
+		if (USE_PYTHON_RFP) {
+			const formData = await request.formData();
+			const response = await fetch(`${FASTAPI_URL}/api/v1/rfp/upload`, {
+				method: "POST",
+				body: formData,
+			});
+			const data = await response.json();
+			return NextResponse.json(data, { status: response.status });
+		}
+
 		// Authenticate user
 		const session = await requireServerSession();
 		const userId = session.user?.id ?? session.user?.email ?? "unknown";

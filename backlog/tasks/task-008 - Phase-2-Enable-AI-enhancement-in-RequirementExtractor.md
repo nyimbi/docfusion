@@ -1,11 +1,14 @@
 ---
-id: task-008
-title: "Phase 2: Enable AI enhancement in RequirementExtractor"
-status: To Do
-phase: 2
-gap_ids: [G-RFP-01, G-FB-01]
-priority: High
-dependencies: [task-007]
+id: TASK-008
+title: 'Phase 2: Enable AI enhancement in RequirementExtractor'
+status: Done
+assignee: []
+created_date: ''
+updated_date: '2026-04-22 22:08'
+labels: []
+dependencies:
+  - task-007
+priority: high
 ---
 
 # task-008 - Phase 2: Enable AI enhancement in RequirementExtractor
@@ -130,7 +133,6 @@ def _chunk_text(self, text: str, max_chars: int) -> list[str]:
 		chunks.append(current)
 	return chunks
 
-
 def _build_extraction_prompt(self, chunk: str, sections: list[dict[str, Any]]) -> str:
 	return (
 		"You are analyzing a Request for Proposal document. Extract every "
@@ -140,7 +142,6 @@ def _build_extraction_prompt(self, chunk: str, sections: list[dict[str, Any]]) -
 		f"Known sections: {[s.get('title') for s in sections]}\n\n"
 		f"Text:\n{chunk}"
 	)
-
 
 def _parse_ai_response(self, response: Any) -> list[Requirement]:
 	import json
@@ -161,7 +162,6 @@ def _parse_ai_response(self, response: Any) -> list[Requirement]:
 		except (KeyError, ValueError, TypeError):
 			continue
 	return out
-
 
 def _log_ai_failure(self, exc: Exception, chunk_size: int) -> None:
 	import logging
@@ -197,7 +197,6 @@ def _merge_requirements(
 			merged.append(ai_req)
 	return merged
 
-
 def _find_duplicate(self, target: Requirement, pool: list[Requirement]) -> Requirement | None:
 	from difflib import SequenceMatcher
 	for candidate in pool:
@@ -217,14 +216,12 @@ import pytest
 
 from docfusion.rfp.requirement_extractor import RequirementExtractor, Requirement
 
-
 SAMPLE_RFP = """
 The vendor shall provide 24/7 support coverage.
 
 Additionally, a compliant solution must support single sign-on. SSO is
 mandatory and failure to meet this requirement will result in disqualification.
 """
-
 
 async def test_ai_finds_requirement_regex_misses(mock_litellm_gateway):
 	extractor = RequirementExtractor(ai_enhancement=True)
@@ -234,12 +231,10 @@ async def test_ai_finds_requirement_regex_misses(mock_litellm_gateway):
 	assert any("24/7" in t for t in texts)
 	assert any("sso" in t or "single sign-on" in t for t in texts)
 
-
 async def test_falls_back_to_regex_when_ai_down(monkeypatch):
 	extractor = RequirementExtractor(ai_enhancement=False)
 	results = await extractor.extract(SAMPLE_RFP)
 	assert len(results) >= 1  # regex alone still catches at least one
-
 
 async def test_merge_prefers_higher_confidence():
 	extractor = RequirementExtractor(ai_enhancement=False)
@@ -268,3 +263,9 @@ git commit -m "feat(rfp): AI enhancement via LiteLLM in RequirementExtractor [G-
 - If `LiteLLMClient` does not have `chat_completion` async, check the method name — it may be `complete` or `generate`. Adjust accordingly.
 - Do NOT change the `Requirement` Pydantic model in this task. If you need a field that doesn't exist, create a separate task to add it.
 - The merge threshold `0.85` is intentional. Lower values produce too many false merges.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+AI enhancement method _extract_with_ai added to RequirementExtractor with 7 passing tests
+<!-- SECTION:NOTES:END -->

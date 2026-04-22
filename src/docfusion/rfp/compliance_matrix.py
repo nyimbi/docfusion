@@ -17,8 +17,9 @@ Features:
 
 import asyncio
 import csv
+import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from io import BytesIO, StringIO
 from typing import Any
@@ -1066,6 +1067,199 @@ class ComplianceMatrixGenerator:
 				for sec_id, data in section_map.items()
 			},
 		}
+
+	# ------------------------------------------------------------------
+	# Database persistence (asyncpg via SQLAlchemy AsyncSession)
+	# ------------------------------------------------------------------
+
+	async def save_to_db(self, session: Any, matrix: ComplianceMatrix) -> str:
+		"""
+		Persist a compliance matrix and its mappings to the database.
+
+		Args:
+			session: SQLAlchemy AsyncSession or asyncpg connection
+			matrix: ComplianceMatrix to persist
+
+		Returns:
+			The matrix id (UUID string)
+		"""
+		from sqlalchemy import text
+
+		matrix_id = matrix.id or uuid7str()
+		now = datetime.now(timezone.utc)
+
+		# Calculate counts for the matrix row
+		status_counts: dict[str, int] = {}
+		for m in matrix.mappings:
+			status_counts[m.status.value] = status_counts.get(m.status.value, 0) + 1
+
+		mandatory_count = sum(
+			1 for m in matrix.mappings if m.category == RequirementCategory.MANDATORY
+		)
+		compliant_count = status_counts.get("addressed", 0) + status_counts.get("verified", 0)
+		partial_count = status_counts.get("in_progress", 0)
+		non_compliant_count = 0  # Not tracked by ComplianceStatus
+		not_addressed_count = status_counts.get("not_addressed", 0)
+		total = len(matrix.mappings)
+		compliance_score = round(compliant_count / total, 3) if total > 0 else None
+		mandatory_compliant = sum(
+			1 for m in matrix.mappings
+			if m.category == RequirementCategory.MANDATORY
+			and m.status in (ComplianceStatus.ADDRESSED, ComplianceStatus.VERIFIED)
+		)
+		mandatory_score = round(mandatory_compliant / mandatory_count, 3) if mandatory_count > 0 else None
+
+		# Upsert matrix
+		await session.execute(
+			text("""
+				INSERT INTO compliance_matrices (
+					id, opportunity_id, name, description, version, status,
+					total_requirements, mandatory_count, compliant_count, partial_count,
+					non_compliant_count, not_addressed_count,
+					compliance_score, mandatory_compliance_score,
+					metadata, created_by, created_at, updated_at
+				) VALUES (
+					:id, :opportunity_id, :name, :description, 1, 'draft',
+					:total_requirements, :mandatory_count, :compliant_count, :partial_count,
+					:non_compliant_count, :not_addressed_count,
+					:compliance_score, :mandatory_compliance_score,
+					CAST(:metadata AS JSONB), 'system', :created_at, :updated_at
+				)
+				ON CONFLICT (id) DO UPDATE SET
+					name = EXCLUDED.name,
+					description = EXCLUDED.description,
+					status = EXCLUDED.status,
+					total_requirements = EXCLUDED.total_requirements,
+					mandatory_count = EXCLUDED.mandatory_count,
+					compliant_count = EXCLUDED.compliant_count,
+					partial_count = EXCLUDED.partial_count,
+					non_compliant_count = EXCLUDED.non_compliant_count,
+					not_addressed_count = EXCLUDED.not_addressed_count,
+					compliance_score = EXCLUDED.compliance_score,
+					mandatory_compliance_score = EXCLUDED.mandatory_compliance_score,
+					metadata = EXCLUDED.metadata,
+					updated_at = EXCLUDED.updated_at
+			"""),
+			{
+				"id": matrix_id,
+				"opportunity_id": matrix.rfp_id,
+				"name": matrix.name,
+				"description": matrix.description or None,
+				"total_requirements": total,
+				"mandatory_count": mandatory_count,
+				"compliant_count": compliant_count,
+				"partial_count": partial_count,
+				"non_compliant_count": non_compliant_count,
+				"not_addressed_count": not_addressed_count,
+				"compliance_score": compliance_score,
+				"mandatory_compliance_score": mandatory_score,
+				"metadata": json.dumps(matrix.metadata),
+				"created_at": now,
+				"updated_at": now,
+			},
+		)
+
+		# Replace entries atomically
+		await session.execute(
+			text("DELETE FROM compliance_entries WHERE matrix_id = :mid"),
+			{"mid": matrix_id},
+		)
+
+		for mapping in matrix.mappings:
+			await session.execute(
+				text("""
+					INSERT INTO compliance_entries (
+						id, matrix_id, requirement_id,
+						compliance_status, response_summary,
+						reviewer_notes, assigned_to,
+						metadata, sort_order, created_at, updated_at
+					) VALUES (
+						:id, :matrix_id, :requirement_id,
+						:compliance_status, :response_summary,
+						:reviewer_notes, :assigned_to,
+						CAST(:metadata AS JSONB), :sort_order, :created_at, :updated_at
+					)
+				"""),
+				{
+					"id": mapping.id or uuid7str(),
+					"matrix_id": matrix_id,
+					"requirement_id": mapping.requirement_id,
+					"compliance_status": mapping.status.value,
+					"response_summary": mapping.section_title or None,
+					"reviewer_notes": mapping.notes or None,
+					"assigned_to": None,
+					"metadata": json.dumps({
+						"confidence": mapping.confidence,
+						"category": mapping.category.value,
+						"requirement_type": mapping.requirement_type.value,
+						"source_section": mapping.source_section,
+						"page_number": mapping.page_number,
+					}),
+					"sort_order": 0,
+					"created_at": now,
+					"updated_at": now,
+				},
+			)
+
+		await session.commit()
+		return matrix_id
+
+	@staticmethod
+	async def load_from_db(matrix_id: str, session: Any) -> ComplianceMatrix:
+		"""
+		Load a compliance matrix and its mappings from the database.
+
+		Args:
+			matrix_id: UUID of the matrix to load
+			session: SQLAlchemy AsyncSession or asyncpg connection
+
+		Returns:
+			Reconstructed ComplianceMatrix
+		"""
+		from sqlalchemy import text
+
+		row = (await session.execute(
+			text("SELECT * FROM compliance_matrices WHERE id = :id"),
+			{"id": matrix_id},
+		)).mappings().first()
+
+		if row is None:
+			raise ValueError(f"No compliance matrix with id {matrix_id}")
+
+		entries_rows = (await session.execute(
+			text("SELECT * FROM compliance_entries WHERE matrix_id = :mid ORDER BY sort_order, created_at"),
+			{"mid": matrix_id},
+		)).mappings().all()
+
+		matrix = ComplianceMatrix(
+			id=str(row["id"]),
+			rfp_id=str(row["opportunity_id"]),
+			name=row["name"],
+			description=row.get("description") or "",
+			metadata=row.get("metadata") or {},
+			created_at=row["created_at"],
+			updated_at=row["updated_at"],
+		)
+
+		for e in entries_rows:
+			meta = e.get("metadata") or {}
+			mapping = RequirementMapping(
+				id=str(e["id"]),
+				requirement_id=str(e["requirement_id"]),
+				requirement_text="",
+				section_id=None,
+				section_title=e.get("response_summary") or None,
+				status=ComplianceStatus(e["compliance_status"]),
+				confidence=meta.get("confidence", 0.0),
+				notes=e.get("reviewer_notes") or "",
+				category=RequirementCategory(meta.get("category", "mandatory")),
+				requirement_type=RequirementType(meta.get("requirement_type", "unknown")),
+				source_section=meta.get("source_section", ""),
+				page_number=meta.get("page_number"),
+			)
+			matrix.add_mapping(mapping)
+
+		return matrix
 
 def create_compliance_matrix_generator(config: dict[str, Any] | None = None) -> ComplianceMatrixGenerator:
 	"""

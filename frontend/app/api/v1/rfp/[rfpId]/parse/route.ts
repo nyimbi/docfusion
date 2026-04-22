@@ -9,6 +9,10 @@ import { requireServerSession } from "@/lib/auth-utils";
 import { db } from "@/lib/db";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import { eq } from "drizzle-orm";
+import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
+
+const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
+const USE_PYTHON_RFP = process.env.USE_PYTHON_RFP !== "false";
 
 // ============================================================================
 // Types
@@ -29,11 +33,20 @@ export async function POST(
 	context: { params: Promise<{ rfpId: string }> }
 ): Promise<NextResponse> {
 	try {
+		const { rfpId } = await context.params;
+
+		// Proxy to Python FastAPI when feature flag is enabled
+		if (USE_PYTHON_RFP) {
+			const response = await fetch(`${FASTAPI_URL}/api/v1/rfp/${rfpId}/parse`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+			});
+			return NextResponse.json(await response.json(), { status: response.status });
+		}
+
 		// Authenticate user
 		const session = await requireServerSession();
 		const userId = session.user?.id ?? session.user?.email ?? "unknown";
-
-		const { rfpId } = await context.params;
 
 		// Get RFP document
 		const rfpDocument = await db.query.rfpDocuments.findFirst({
@@ -97,13 +110,10 @@ export async function POST(
 			})
 			.returning();
 
-		// In production, trigger async parsing job here
-		// This would typically send a message to a queue (e.g., Redis, SQS)
-		// await triggerParsingJob(parsingJob.id);
-
-		// For demo purposes, simulate job processing in background
-		// In production, this would be handled by a separate worker
-		simulateParsingJob(parsingJob.id, rfpId);
+		// Trigger background parsing via server action
+		processRfpParsingJob(parsingJob.id, rfpId).catch((error) => {
+			console.error("Background parsing job failed:", error);
+		});
 
 		const response: ParseResponse = {
 			parsingJobId: parsingJob.id,
@@ -118,91 +128,5 @@ export async function POST(
 			{ error: "Internal server error" },
 			{ status: 500 }
 		);
-	}
-}
-
-// ============================================================================
-// Demo: Simulated parsing job (replace with actual implementation)
-// ============================================================================
-
-async function simulateParsingJob(jobId: string, documentId: string): Promise<void> {
-	const steps = [
-		{ step: "text_extraction", progress: 20 },
-		{ step: "section_detection", progress: 40 },
-		{ step: "requirement_extraction", progress: 60 },
-		{ step: "classification", progress: 80 },
-		{ step: "embedding", progress: 100 },
-	];
-
-	try {
-		for (const { step, progress } of steps) {
-			// Wait 2 seconds per step
-			await new Promise((resolve) => setTimeout(resolve, 2000));
-
-			// Update job progress
-			await db
-				.update(rfpParsingJobs)
-				.set({
-					status: "processing",
-					currentStep: step,
-					progress,
-					updatedAt: new Date(),
-				})
-				.where(eq(rfpParsingJobs.id, jobId));
-
-			// Update document progress
-			await db
-				.update(rfpDocuments)
-				.set({
-					parsingProgress: progress,
-					updatedAt: new Date(),
-				})
-				.where(eq(rfpDocuments.id, documentId));
-		}
-
-		// Mark as completed
-		await db
-			.update(rfpParsingJobs)
-			.set({
-				status: "completed",
-				currentStep: null,
-				progress: 100,
-				completedAt: new Date(),
-				processingTimeMs: 10000,
-				pagesProcessed: Math.floor(Math.random() * 50) + 10,
-				requirementsExtracted: Math.floor(Math.random() * 100) + 20,
-				updatedAt: new Date(),
-			})
-			.where(eq(rfpParsingJobs.id, jobId));
-
-		await db
-			.update(rfpDocuments)
-			.set({
-				parsingStatus: "completed",
-				parsingProgress: 100,
-				parsingCompletedAt: new Date(),
-				updatedAt: new Date(),
-			})
-			.where(eq(rfpDocuments.id, documentId));
-	} catch (error) {
-		// Mark as failed
-		await db
-			.update(rfpParsingJobs)
-			.set({
-				status: "failed",
-				errorMessage: error instanceof Error ? error.message : "Parsing failed",
-				completedAt: new Date(),
-				updatedAt: new Date(),
-			})
-			.where(eq(rfpParsingJobs.id, jobId));
-
-		await db
-			.update(rfpDocuments)
-			.set({
-				parsingStatus: "failed",
-				parsingError: error instanceof Error ? error.message : "Parsing failed",
-				updatedAt: new Date(),
-			})
-			.where(eq(rfpDocuments.id, documentId));
 	}
 }

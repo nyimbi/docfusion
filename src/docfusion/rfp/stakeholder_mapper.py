@@ -27,9 +27,9 @@ except ImportError:
 	Span = None  # type: ignore[misc,assignment]
 	HAS_SPACY_SUPPORT = False
 
-import httpx
 import json
 from ..core.utils import uuid7str
+from ..infrastructure import complete_with_fallback
 import time
 
 class StakeholderRole(str, Enum):
@@ -588,12 +588,6 @@ class StakeholderMapper:
 		self.matcher = None
 		self.phrase_matcher = None
 
-		# Initialize Ollama client
-		self.ollama_client = httpx.AsyncClient(
-			base_url=self.config["ollama_base_url"],
-			timeout=self.config["ollama_timeout"],
-		)
-
 		# Load patterns and initialize components
 		self._load_role_patterns()
 		self._initialize_nlp_components()
@@ -609,10 +603,9 @@ class StakeholderMapper:
 			"use_spacy_ner": HAS_SPACY_SUPPORT,
 			"use_custom_patterns": True,
 			"use_ai_enhancement": True,
-			# Ollama settings
-			"ollama_base_url": "http://localhost:11434",
-			"ollama_model": "llama3.2:3b",
-			"ollama_timeout": 120.0,
+			# AI settings (routed through LiteLLM + LLMFallbackChain)
+			"ai_model": "gpt-4o-mini",
+			"ai_timeout": 120.0,
 			# Extraction options
 			"extract_contact_info": True,
 			"extract_organizations": True,
@@ -937,30 +930,25 @@ class StakeholderMapper:
 		}}"""
 
 		try:
-			response = await self.ollama_client.post(
-				"/api/generate",
-				json={
-					"model": self.config["ollama_model"],
-					"prompt": prompt,
-					"stream": False,
-					"options": {"temperature": 0.1, "top_p": 0.9, "num_predict": 3000},
-				},
+			response = await complete_with_fallback(
+				messages=[{"role": "user", "content": prompt}],
+				model=self.config.get("ai_model", "gpt-4o-mini"),
+				temperature=0.1,
+				max_tokens=3000,
 			)
 
-			if response.status_code == 200:
-				ai_response = response.json()
-				response_text = ai_response.get("response", "").strip()
+			response_text = response.content.strip()
 
-				try:
-					ai_data = json.loads(response_text)
-					stakeholders = self._convert_ai_stakeholders(ai_data.get("stakeholders", []))
-					analysis = ai_data.get("analysis", {})
-					analysis["raw_response"] = response_text
-					return stakeholders, analysis
+			try:
+				ai_data = json.loads(response_text)
+				stakeholders = self._convert_ai_stakeholders(ai_data.get("stakeholders", []))
+				analysis = ai_data.get("analysis", {})
+				analysis["raw_response"] = response_text
+				return stakeholders, analysis
 
-				except json.JSONDecodeError:
-					stakeholders = self._parse_ai_text_stakeholders(response_text)
-					return stakeholders, {"raw_response": response_text, "parsing_method": "text_fallback"}
+			except json.JSONDecodeError:
+				stakeholders = self._parse_ai_text_stakeholders(response_text)
+				return stakeholders, {"raw_response": response_text, "parsing_method": "text_fallback"}
 
 		except Exception as e:
 			self.logger.warning(f"AI chunk stakeholder analysis failed: {e}")
@@ -1398,8 +1386,8 @@ class StakeholderMapper:
 		return graph.to_visualization_dict()
 
 	async def close(self):
-		"""Close the Ollama client"""
-		await self.ollama_client.aclose()
+		"""Close resources"""
+		pass
 
 	def get_mapper_info(self) -> Dict[str, Any]:
 		"""Get mapper information and capabilities"""
@@ -1409,7 +1397,7 @@ class StakeholderMapper:
 			"total_role_keywords": len(self._role_keyword_map),
 			"extraction_methods": ["pattern_matching", "spacy_ner", "ai_enhancement"],
 			"spacy_available": HAS_SPACY_SUPPORT,
-			"ai_model": self.config["ollama_model"],
+			"ai_model": self.config.get("ai_model", "gpt-4o-mini"),
 			"config": {k: v for k, v in self.config.items() if k not in ["role_patterns", "organization_patterns"]},
 			"version": "1.0.0",
 		}

@@ -8,6 +8,7 @@ with support for cross-reference detection, traceability, and confidence scoring
 """
 
 import asyncio
+import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ import httpx
 from pydantic import BaseModel, Field, ConfigDict
 from ..core.utils import uuid7str
 from ..config.secrets import SecretsManager
+from ..infrastructure import complete_with_fallback
 import time
 
 class RequirementCategory(str, Enum):
@@ -499,6 +501,8 @@ class RequirementExtractor:
 			result.document_metadata = document_metadata or {}
 			result.success = True
 			result.methods_used = ["pattern_matching", "section_analysis"]
+			if self.config.get("ai_enhancement", False):
+				result.methods_used.append("ai_enhancement")
 
 		except Exception as e:
 			result.errors.append(f"Text extraction failed: {str(e)}")
@@ -611,6 +615,10 @@ class RequirementExtractor:
 			if req.text not in seen_texts:
 				requirements.append(req)
 				seen_texts.add(req.text)
+
+		# Method 4: AI-enhanced refinement of ambiguous requirements
+		if self.config.get("ai_enhancement", False):
+			requirements = await self._extract_with_ai(text, requirements)
 
 		# Detect cross-references between requirements
 		if self.config["detect_cross_references"]:
@@ -770,6 +778,110 @@ class RequirementExtractor:
 			)
 
 			requirements.append(req)
+
+		return requirements
+
+	async def _extract_with_ai(
+		self,
+		text: str,
+		requirements: list[Requirement],
+	) -> list[Requirement]:
+		"""
+		Refine ambiguous requirements using AI.
+
+		Identifies low-confidence or borderline requirements and sends them
+		to an LLM for re-classification. Updates requirements in-place.
+
+		Args:
+			text: Full document text (for context)
+			requirements: Requirements extracted by regex methods
+
+		Returns:
+			Updated requirements list with AI-refined items
+		"""
+		threshold = self.config.get("ai_enhancement_threshold", 0.6)
+		ambiguous: list[tuple[int, Requirement]] = []
+
+		for idx, req in enumerate(requirements):
+			is_ambiguous = (
+				req.confidence < threshold
+				or req.requirement_type == RequirementType.UNKNOWN
+				or len(req.text) < 30
+				or len(req.text) > 500
+			)
+			if is_ambiguous:
+				ambiguous.append((idx, req))
+
+		if not ambiguous:
+			return requirements
+
+		# Build compact prompt with ambiguous candidates
+		candidates_json = []
+		for i, (_idx, req) in enumerate(ambiguous):
+			candidates_json.append({
+				"index": i,
+				"text": req.text[:300],  # Truncate very long text
+				"current_category": req.category.value,
+				"current_type": req.requirement_type.value,
+				"current_confidence": req.confidence,
+			})
+
+		prompt = (
+			"You are an expert RFP analyst. Review these requirement candidates "
+			"and classify each precisely.\n\n"
+			"Categories: mandatory, optional, conditional\n"
+			"Types: functional, technical, performance, security, compliance, "
+			"deliverable, evaluation, contract, administrative, unknown\n\n"
+			"Return ONLY a JSON array:\n"
+			'[{"index":0,"category":"...","requirement_type":"...",'
+			'"confidence":0.85,"reasoning":"..."},...]\n\n'
+			"Candidates:\n" + json.dumps(candidates_json, indent=2)
+		)
+
+		try:
+			response = await complete_with_fallback(
+				messages=[{"role": "user", "content": prompt}],
+				model="gpt-4o-mini",
+				temperature=0.2,
+				max_tokens=2048,
+			)
+
+			content = response.content.strip()
+			# Strip markdown code fences if present
+			if content.startswith("```"):
+				content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content, flags=re.MULTILINE)
+
+			refinements = json.loads(content)
+			if not isinstance(refinements, list):
+				refinements = [refinements]
+
+			for refinement in refinements:
+				ai_idx = refinement.get("index")
+				if ai_idx is None or not (0 <= ai_idx < len(ambiguous)):
+					continue
+				orig_idx, req = ambiguous[ai_idx]
+
+				# Update category if valid
+				cat_val = refinement.get("category", "").lower()
+				if cat_val in {c.value for c in RequirementCategory}:
+					req.category = RequirementCategory(cat_val)
+
+				# Update type if valid
+				type_val = refinement.get("requirement_type", "").lower()
+				if type_val in {t.value for t in RequirementType}:
+					req.requirement_type = RequirementType(type_val)
+
+				# Update confidence if valid
+				ai_conf = refinement.get("confidence")
+				if isinstance(ai_conf, (int, float)) and 0.0 <= float(ai_conf) <= 1.0:
+					req.confidence = float(ai_conf)
+
+				# Mark as AI-refined in metadata
+				req.metadata["ai_refined"] = True
+				req.metadata["ai_reasoning"] = refinement.get("reasoning", "")
+
+		except Exception as e:
+			self.logger.warning(f"AI enhancement failed: {e}")
 
 		return requirements
 

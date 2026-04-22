@@ -306,3 +306,61 @@ async def run_comprehensive_testing(
 			results['data_validation'] = validation_result
 
 	return results
+
+
+# Capability flags exposed to health check (task-013 / task-026)
+CAPABILITIES: dict[str, bool] = {
+	"playwright": False,
+	"crawl4ai": False,
+	"cloudscraper": False,
+	"vision": False,
+	"structure_learning": False,
+	"pattern_recognition": False,
+	"source_discovery": False,
+	"deployment": False,
+	"monitoring": False,
+}
+
+# Attempt to set capability flags based on import outcomes
+try:
+	from .crawlers.ai_driven.universal_scraper import UniversalScraper
+	CAPABILITIES["crawl4ai"] = True
+	CAPABILITIES["cloudscraper"] = True
+except Exception:
+	pass
+
+try:
+	from .crawlers.ai_driven.vision_scraper import VisionScraper
+	CAPABILITIES["vision"] = True
+except Exception:
+	pass
+
+try:
+	from .crawlers.ai_driven.structure_learner import StructureLearner
+	CAPABILITIES["structure_learning"] = True
+except Exception:
+	pass
+
+try:
+	from .crawlers.ai_driven.pattern_recognizer import PatternRecognizer
+	CAPABILITIES["pattern_recognition"] = True
+except Exception:
+	pass
+
+try:
+	from .crawlers.source_databases.source_discoverer import SourceDiscoverer
+	CAPABILITIES["source_discovery"] = True
+except Exception:
+	pass
+
+try:
+	from .deployment.scraper_deployment import ScraperDeployment
+	CAPABILITIES["deployment"] = True
+except Exception:
+	pass
+
+try:
+	from .deployment.deployment_monitor import DeploymentMonitor
+	CAPABILITIES["monitoring"] = True
+except Exception:
+	pass

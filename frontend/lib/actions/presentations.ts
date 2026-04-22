@@ -31,7 +31,8 @@ import {
 	type PresentationTeamMember,
 	type NewPresentationTeamMember,
 } from "@/lib/db/schema-presentations";
-import { opportunities, proposalDocuments, documents, requirements } from "@/lib/db/schema";
+import { opportunities, proposalDocuments, documents } from "@/lib/db/schema";
+import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { eq, and, or, ilike, desc, asc, sql, inArray, gte, lte } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
 import { logger } from "@/lib/utils/logger";
@@ -1142,8 +1143,8 @@ export async function anticipateQuestions(
 		if (presentation.opportunityId) {
 			const reqs = await db
 				.select()
-				.from(requirements)
-				.where(eq(requirements.opportunityId, presentation.opportunityId))
+				.from(rfpRequirements)
+				.where(eq(rfpRequirements.opportunityId, presentation.opportunityId))
 				.limit(20);
 
 			reqContext = reqs.map((r) => `- ${r.text}`).join("\n");

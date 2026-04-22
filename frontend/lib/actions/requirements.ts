@@ -8,7 +8,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { requirements } from "@/lib/db/schema";
+import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { eq, and, or, ilike, inArray, isNull, isNotNull, lt, sql, desc, asc } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
 import type {
@@ -40,8 +40,8 @@ import { logger } from "@/lib/utils/logger";
 export async function getRequirement(id: string): Promise<Requirement | null> {
 	const result = await db
 		.select()
-		.from(requirements)
-		.where(eq(requirements.id, id))
+		.from(rfpRequirements)
+		.where(eq(rfpRequirements.id, id))
 		.limit(1);
 
 	if (result.length === 0) return null;
@@ -58,50 +58,50 @@ export async function getRequirements(
 	sort?: RequirementSort,
 	pagination?: PaginationOptions
 ): Promise<PaginatedResponse<Requirement>> {
-	const conditions = [eq(requirements.opportunityId, opportunityId)];
+	const conditions = [eq(rfpRequirements.opportunityId, opportunityId)];
 
 	// Apply filters
 	if (filters) {
 		if (filters.search) {
 			conditions.push(
 				or(
-					ilike(requirements.text, `%${filters.search}%`),
-					ilike(requirements.requirementId, `%${filters.search}%`),
-					ilike(requirements.notes, `%${filters.search}%`)
+					ilike(rfpRequirements.requirementText, `%${filters.search}%`),
+					ilike(rfpRequirements.requirementNumber, `%${filters.search}%`),
+					ilike(rfpRequirements.notes, `%${filters.search}%`)
 				)!
 			);
 		}
 
 		if (filters.categories && filters.categories.length > 0) {
-			conditions.push(inArray(requirements.category, filters.categories));
+			conditions.push(inArray(rfpRequirements.category, filters.categories));
 		}
 
 		if (filters.priorities && filters.priorities.length > 0) {
-			conditions.push(inArray(requirements.priority, filters.priorities));
+			conditions.push(inArray(rfpRequirements.priority, filters.priorities));
 		}
 
 		if (filters.complianceStatuses && filters.complianceStatuses.length > 0) {
-			conditions.push(inArray(requirements.complianceStatus, filters.complianceStatuses));
+			conditions.push(inArray(rfpRequirements.complianceStatus, filters.complianceStatuses));
 		}
 
 		if (filters.riskLevels && filters.riskLevels.length > 0) {
-			conditions.push(inArray(requirements.riskLevel, filters.riskLevels));
+			conditions.push(inArray(rfpRequirements.riskLevel, filters.riskLevels));
 		}
 
 		if (filters.assignedTo) {
-			conditions.push(eq(requirements.assignedTo, filters.assignedTo));
+			conditions.push(eq(rfpRequirements.assignedTo, filters.assignedTo));
 		}
 
 		if (filters.hasDueDate === true) {
-			conditions.push(isNotNull(requirements.dueDate));
+			conditions.push(isNotNull(rfpRequirements.dueDate));
 		} else if (filters.hasDueDate === false) {
-			conditions.push(isNull(requirements.dueDate));
+			conditions.push(isNull(rfpRequirements.dueDate));
 		}
 
 		if (filters.isOverdue) {
-			conditions.push(lt(requirements.dueDate, new Date()));
+			conditions.push(lt(rfpRequirements.dueDate, new Date()));
 			conditions.push(
-				inArray(requirements.complianceStatus, ["not_addressed", "partial"])
+				inArray(rfpRequirements.complianceStatus, ["not_addressed", "partial"])
 			);
 		}
 	}
@@ -112,26 +112,26 @@ export async function getRequirements(
 	// Get total count
 	const countResult = await db
 		.select({ count: sql<number>`count(*)` })
-		.from(requirements)
+		.from(rfpRequirements)
 		.where(whereClause);
 	const total = Number(countResult[0]?.count ?? 0);
 
 	// Build sorted query
-	let query = db.select().from(requirements).where(whereClause);
+	let query = db.select().from(rfpRequirements).where(whereClause);
 
 	// Apply sorting
 	const sortField = sort?.field ?? "createdAt";
 	const sortDir = sort?.direction ?? "asc";
 
 	const sortColumn = {
-		requirementId: requirements.requirementId,
-		category: requirements.category,
-		priority: requirements.priority,
-		complianceStatus: requirements.complianceStatus,
-		riskLevel: requirements.riskLevel,
-		dueDate: requirements.dueDate,
-		createdAt: requirements.createdAt,
-		updatedAt: requirements.updatedAt,
+		requirementId: rfpRequirements.requirementNumber,
+		category: rfpRequirements.category,
+		priority: rfpRequirements.priority,
+		complianceStatus: rfpRequirements.complianceStatus,
+		riskLevel: rfpRequirements.riskLevel,
+		dueDate: rfpRequirements.dueDate,
+		createdAt: rfpRequirements.createdAt,
+		updatedAt: rfpRequirements.updatedAt,
 	}[sortField];
 
 	if (sortColumn) {
@@ -159,15 +159,15 @@ export async function getRequirements(
  */
 export async function createRequirement(input: RequirementInput): Promise<Requirement> {
 	const [result] = await db
-		.insert(requirements)
+		.insert(rfpRequirements)
 		.values({
 			opportunityId: input.opportunityId,
-			requirementId: input.requirementId ?? null,
+			requirementNumber: input.requirementId ?? null,
 			category: input.category ?? null,
 			subcategory: input.subcategory ?? null,
-			text: input.text,
-			source: input.source ?? null,
-			sourcePageRef: input.sourcePageRef ?? null,
+			requirementText: input.text,
+			sourceQuote: input.source ?? null,
+			sourcePage: input.sourcePageRef ? parseInt(input.sourcePageRef, 10) : null,
 			priority: input.priority ?? null,
 			complianceStatus: input.complianceStatus ?? "not_addressed",
 			responseStrategy: input.responseStrategy ?? null,
@@ -188,16 +188,16 @@ export async function createRequirements(inputs: RequirementInput[]): Promise<Re
 	if (inputs.length === 0) return [];
 
 	const results = await db
-		.insert(requirements)
+		.insert(rfpRequirements)
 		.values(
 			inputs.map((input) => ({
 				opportunityId: input.opportunityId,
-				requirementId: input.requirementId ?? null,
+				requirementNumber: input.requirementId ?? null,
 				category: input.category ?? null,
 				subcategory: input.subcategory ?? null,
-				text: input.text,
-				source: input.source ?? null,
-				sourcePageRef: input.sourcePageRef ?? null,
+				requirementText: input.text,
+				sourceQuote: input.source ?? null,
+				sourcePage: input.sourcePageRef ? parseInt(input.sourcePageRef, 10) : null,
 				priority: input.priority ?? null,
 				complianceStatus: input.complianceStatus ?? "not_addressed",
 				responseStrategy: input.responseStrategy ?? null,
@@ -223,12 +223,12 @@ export async function updateRequirement(
 		updatedAt: new Date(),
 	};
 
-	if (input.requirementId !== undefined) updateData.requirementId = input.requirementId;
+	if (input.requirementId !== undefined) updateData.requirementNumber = input.requirementId;
 	if (input.category !== undefined) updateData.category = input.category;
 	if (input.subcategory !== undefined) updateData.subcategory = input.subcategory;
-	if (input.text !== undefined) updateData.text = input.text;
-	if (input.source !== undefined) updateData.source = input.source;
-	if (input.sourcePageRef !== undefined) updateData.sourcePageRef = input.sourcePageRef;
+	if (input.text !== undefined) updateData.requirementText = input.text;
+	if (input.source !== undefined) updateData.sourceQuote = input.source;
+	if (input.sourcePageRef !== undefined) updateData.sourcePage = input.sourcePageRef ? parseInt(input.sourcePageRef, 10) : null;
 	if (input.priority !== undefined) updateData.priority = input.priority;
 	if (input.complianceStatus !== undefined) updateData.complianceStatus = input.complianceStatus;
 	if (input.responseStrategy !== undefined) updateData.responseStrategy = input.responseStrategy;
@@ -240,9 +240,9 @@ export async function updateRequirement(
 	}
 
 	const [result] = await db
-		.update(requirements)
+		.update(rfpRequirements)
 		.set(updateData)
-		.where(eq(requirements.id, id))
+		.where(eq(rfpRequirements.id, id))
 		.returning();
 
 	if (!result) return null;
@@ -272,10 +272,10 @@ export async function bulkUpdateRequirements(
 	}
 
 	const results = await db
-		.update(requirements)
+		.update(rfpRequirements)
 		.set(updateData)
-		.where(inArray(requirements.id, ids))
-		.returning({ id: requirements.id });
+		.where(inArray(rfpRequirements.id, ids))
+		.returning({ id: rfpRequirements.id });
 
 	return { updated: results.length };
 }
@@ -289,13 +289,13 @@ export async function assignRequirement(
 	dueDate?: Date | string
 ): Promise<Requirement | null> {
 	const [result] = await db
-		.update(requirements)
+		.update(rfpRequirements)
 		.set({
 			assignedTo,
 			dueDate: dueDate ? new Date(dueDate) : null,
 			updatedAt: new Date(),
 		})
-		.where(eq(requirements.id, id))
+		.where(eq(rfpRequirements.id, id))
 		.returning();
 
 	if (!result) return null;
@@ -307,9 +307,9 @@ export async function assignRequirement(
  */
 export async function deleteRequirement(id: string): Promise<boolean> {
 	const result = await db
-		.delete(requirements)
-		.where(eq(requirements.id, id))
-		.returning({ id: requirements.id });
+		.delete(rfpRequirements)
+		.where(eq(rfpRequirements.id, id))
+		.returning({ id: rfpRequirements.id });
 
 	return result.length > 0;
 }
@@ -321,9 +321,9 @@ export async function deleteRequirements(ids: string[]): Promise<{ deleted: numb
 	if (ids.length === 0) return { deleted: 0 };
 
 	const result = await db
-		.delete(requirements)
-		.where(inArray(requirements.id, ids))
-		.returning({ id: requirements.id });
+		.delete(rfpRequirements)
+		.where(inArray(rfpRequirements.id, ids))
+		.returning({ id: rfpRequirements.id });
 
 	return { deleted: result.length };
 }
@@ -338,8 +338,8 @@ export async function deleteRequirements(ids: string[]): Promise<{ deleted: numb
 export async function getRequirementStats(opportunityId: string): Promise<RequirementStats> {
 	const allRequirements = await db
 		.select()
-		.from(requirements)
-		.where(eq(requirements.opportunityId, opportunityId));
+		.from(rfpRequirements)
+		.where(eq(rfpRequirements.opportunityId, opportunityId));
 
 	const now = new Date();
 
@@ -433,8 +433,8 @@ export async function analyzeRequirementGaps(
 ): Promise<RequirementGapAnalysis> {
 	const allRequirements = await db
 		.select()
-		.from(requirements)
-		.where(eq(requirements.opportunityId, opportunityId));
+		.from(rfpRequirements)
+		.where(eq(rfpRequirements.opportunityId, opportunityId));
 
 	const gaps: RequirementGapAnalysis["gaps"] = [];
 	const recommendations: string[] = [];
@@ -815,16 +815,16 @@ export async function saveExtractedRequirements(
 /**
  * Map database row to Requirement type.
  */
-function mapDbToRequirement(row: typeof requirements.$inferSelect): Requirement {
+function mapDbToRequirement(row: typeof rfpRequirements.$inferSelect): Requirement {
 	return {
 		id: row.id,
 		opportunityId: row.opportunityId,
-		requirementId: row.requirementId,
+		requirementId: row.requirementNumber,
 		category: row.category as RequirementCategory | null,
 		subcategory: row.subcategory,
-		text: row.text,
-		source: row.source,
-		sourcePageRef: row.sourcePageRef,
+		text: row.requirementText,
+		source: row.sourceQuote,
+		sourcePageRef: row.sourcePage ? String(row.sourcePage) : null,
 		priority: row.priority as RequirementPriority | null,
 		complianceStatus: row.complianceStatus as ComplianceStatus,
 		responseStrategy: row.responseStrategy,

@@ -19,7 +19,8 @@ import {
 	type Project as DBProject,
 	type NewProject,
 } from "@/lib/db/schema-past-performance";
-import { opportunities, requirements } from "@/lib/db/schema";
+import { opportunities } from "@/lib/db/schema";
+import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
 import { logger } from "@/lib/utils/logger";
@@ -582,8 +583,8 @@ export async function calculateRelevanceScores(
 		// Fetch requirements for this opportunity
 		const oppRequirements = await db
 			.select()
-			.from(requirements)
-			.where(eq(requirements.opportunityId, opportunityId));
+			.from(rfpRequirements)
+			.where(eq(rfpRequirements.opportunityId, opportunityId));
 
 		// Fetch all active projects
 		const allProjects = await db
@@ -906,8 +907,8 @@ export async function generateRelevanceMatrix(
 		// Fetch requirements
 		const oppRequirements = await db
 			.select()
-			.from(requirements)
-			.where(eq(requirements.opportunityId, validatedInput.opportunityId));
+			.from(rfpRequirements)
+			.where(eq(rfpRequirements.opportunityId, validatedInput.opportunityId));
 
 		// Fetch selected projects with their relevance scores
 		const selectedProjects = await db
@@ -1900,8 +1901,8 @@ export async function analyzePortfolioGaps(
 
 		const oppRequirements = await db
 			.select()
-			.from(requirements)
-			.where(eq(requirements.opportunityId, opportunityId));
+			.from(rfpRequirements)
+			.where(eq(rfpRequirements.opportunityId, opportunityId));
 
 		// Fetch all active projects
 		const allProjects = await db

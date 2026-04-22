@@ -10,11 +10,17 @@ Copyright (c) 2025
 
 from .message_bus import MessageBus, CommunicationProtocol
 from .channels import AgentChannel, BroadcastChannel, DirectChannel
+from .inprocess_channel import InProcessChannel
+from .redis_channel import RedisChannel
+from .websocket_channel import WebSocketChannel
 
 __all__ = [
 	"MessageBus",
 	"CommunicationProtocol",
-	"AgentChannel", 
+	"AgentChannel",
 	"BroadcastChannel",
-	"DirectChannel"
+	"DirectChannel",
+	"InProcessChannel",
+	"RedisChannel",
+	"WebSocketChannel",
 ]

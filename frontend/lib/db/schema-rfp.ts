@@ -146,13 +146,13 @@ export const rfpRequirements = pgTable(
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		/** Source RFP document */
-		rfpDocumentId: uuid("rfp_document_id").notNull().references(() => rfpDocuments.id, { onDelete: "cascade" }),
+		rfpDocumentId: uuid("rfp_document_id").references(() => rfpDocuments.id, { onDelete: "cascade" }),
 		/** Link to opportunity for direct access */
 		opportunityId: uuid("opportunity_id").references(() => opportunities.id, { onDelete: "set null" }),
 
 		// Requirement Identification
 		/** Auto-generated requirement ID (e.g., REQ-001) */
-		requirementNumber: varchar("requirement_number", { length: 50 }).notNull(),
+		requirementNumber: varchar("requirement_number", { length: 50 }),
 		/** Human-readable short title */
 		title: varchar("title", { length: 500 }),
 		/** Full requirement text */
@@ -166,21 +166,23 @@ export const rfpRequirements = pgTable(
 
 		// Classification
 		/** Primary category: technical, management, past_performance, cost, administrative, personnel */
-		category: varchar("category", { length: 50 }).notNull(),
+		category: varchar("category", { length: 50 }),
 		/** Subcategory for finer classification */
 		subcategory: varchar("subcategory", { length: 100 }),
 		/** Requirement type: shall, should, may, will */
-		requirementType: varchar("requirement_type", { length: 20 }).notNull().default("shall"),
+		requirementType: varchar("requirement_type", { length: 20 }).default("shall"),
 		/** Priority: mandatory, preferred, optional */
-		priority: varchar("priority", { length: 20 }).notNull().default("mandatory"),
+		priority: varchar("priority", { length: 20 }).default("mandatory"),
 		/** Risk level if not addressed: critical, high, medium, low */
-		riskLevel: varchar("risk_level", { length: 20 }).notNull().default("medium"),
+		riskLevel: varchar("risk_level", { length: 20 }).default("medium"),
 		/** Evaluation weight (0-100) if specified in RFP */
 		evaluationWeight: real("evaluation_weight"),
 
 		// AI Analysis
 		/** AI confidence in extraction (0-100) */
 		extractionConfidence: real("extraction_confidence"),
+		/** AI analysis and suggestions */
+		aiAnalysis: jsonb("ai_analysis"),
 		/** Whether this is explicit or implicit requirement */
 		isImplicit: boolean("is_implicit").notNull().default(false),
 		/** AI-detected ambiguity level: clear, somewhat_ambiguous, very_ambiguous */

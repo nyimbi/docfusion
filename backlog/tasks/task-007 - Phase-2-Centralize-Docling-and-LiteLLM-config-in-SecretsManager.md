@@ -1,10 +1,13 @@
 ---
-id: task-007
-title: "Phase 2: Centralize Docling and LiteLLM config in SecretsManager"
-status: To Do
-phase: 2
-gap_ids: [G-RFP-01]
-priority: High
+id: TASK-007
+title: 'Phase 2: Centralize Docling and LiteLLM config in SecretsManager'
+status: Done
+assignee: []
+created_date: ''
+updated_date: '2026-04-22 21:24'
+labels: []
+dependencies: []
+priority: high
 ---
 
 # task-007 - Phase 2: Centralize Docling and LiteLLM config in SecretsManager
@@ -30,16 +33,6 @@ The RFP pipeline currently hardcodes Docling and LiteLLM URLs. We centralize the
 
 ## Implementation Notes
 
-Approach: Added two new static methods to `SecretsManager` and wired `RequirementExtractor` to use them.
-
-Files touched:
-- `src/docfusion/config/secrets.py` — added `get_docling_url()` (default `http://20.84.71.33:3600`) and `get_docling_timeout()` (default `300`)
-- `src/docfusion/rfp/requirement_extractor.py` — replaced hardcoded docling URL/timeout with `SecretsManager.get_docling_url()` / `SecretsManager.get_docling_timeout()`
-- `tests/ci/test_secrets_manager_docling.py` — smoke test verifying URL/timeout types and extractor wiring
-
-Unexpected findings:
-- `get_litellm_url()` and `get_litellm_timeout()` already existed in `SecretsManager`, so only Docling methods were missing.
-
-Deviations from plan: None.
-
-Follow-up tasks: None.
+<!-- SECTION:NOTES:BEGIN -->
+Added get_docling_url() and get_docling_timeout() to SecretsManager; wired RequirementExtractor to use them; removed hardcoded 20.84.71.33:3600
+<!-- SECTION:NOTES:END -->

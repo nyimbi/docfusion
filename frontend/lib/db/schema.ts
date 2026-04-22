@@ -529,50 +529,6 @@ export const opportunityAIScores = pgTable(
 // Requirements (extracted from RFP documents)
 // ============================================================================
 
-export const requirements = pgTable(
-	"requirements",
-	{
-		id: uuid("id").primaryKey().defaultRandom(),
-		opportunityId: uuid("opportunity_id").notNull().references(() => opportunities.id, { onDelete: "cascade" }),
-		/** Human-readable requirement ID (e.g., "REQ-001") */
-		requirementId: varchar("requirement_id", { length: 50 }),
-		/** Primary category */
-		category: varchar("category", { length: 100 }),
-		/** Subcategory for finer classification */
-		subcategory: varchar("subcategory", { length: 100 }),
-		/** Full requirement text */
-		text: text("text").notNull(),
-		/** Original quote from RFP */
-		source: text("source"),
-		/** Page/section reference in source document */
-		sourcePageRef: varchar("source_page_ref", { length: 50 }),
-		/** Priority: "mandatory", "preferred", "optional" */
-		priority: varchar("priority", { length: 20 }),
-		/** Compliance status */
-		complianceStatus: varchar("compliance_status", { length: 30 }).notNull().default("not_addressed"),
-		/** Strategy for addressing this requirement */
-		responseStrategy: text("response_strategy"),
-		/** User assigned to address this requirement */
-		assignedTo: varchar("assigned_to", { length: 200 }),
-		/** Due date for addressing */
-		dueDate: timestamp("due_date", { withTimezone: true }),
-		/** Internal notes */
-		notes: text("notes"),
-		/** Risk level: "low", "medium", "high", "critical" */
-		riskLevel: varchar("risk_level", { length: 20 }),
-		/** AI analysis and suggestions */
-		aiAnalysis: jsonb("ai_analysis"),
-		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-	},
-	(table) => [
-		index("requirements_opportunity_idx").on(table.opportunityId),
-		index("requirements_category_idx").on(table.category),
-		index("requirements_status_idx").on(table.complianceStatus),
-		index("requirements_priority_idx").on(table.priority),
-		index("requirements_assigned_idx").on(table.assignedTo),
-	]
-);
 
 // ============================================================================
 // Proposal Documents (link opportunities to documents)
@@ -804,7 +760,6 @@ export const opportunityPartners = pgTable(
 export const opportunitiesRelations = relations(opportunities, ({ many }) => ({
 	votes: many(opportunityVotes),
 	aiScores: many(opportunityAIScores),
-	requirements: many(requirements),
 	proposalDocuments: many(proposalDocuments),
 	submissions: many(submissions),
 	partners: many(opportunityPartners),
@@ -825,12 +780,6 @@ export const opportunityAIScoresRelations = relations(opportunityAIScores, ({ on
 	}),
 }));
 
-export const requirementsRelations = relations(requirements, ({ one }) => ({
-	opportunity: one(opportunities, {
-		fields: [requirements.opportunityId],
-		references: [opportunities.id],
-	}),
-}));
 
 export const proposalDocumentsRelations = relations(proposalDocuments, ({ one, many }) => ({
 	opportunity: one(opportunities, {
@@ -1111,10 +1060,6 @@ export type OpportunityVoteRow = typeof opportunityVotes.$inferSelect;
 export type NewOpportunityVote = typeof opportunityVotes.$inferInsert;
 
 export type OpportunityAIScoreRow = typeof opportunityAIScores.$inferSelect;
-export type NewOpportunityAIScore = typeof opportunityAIScores.$inferInsert;
-
-export type RequirementRow = typeof requirements.$inferSelect;
-export type NewRequirement = typeof requirements.$inferInsert;
 
 export type ProposalDocumentRow = typeof proposalDocuments.$inferSelect;
 export type NewProposalDocument = typeof proposalDocuments.$inferInsert;

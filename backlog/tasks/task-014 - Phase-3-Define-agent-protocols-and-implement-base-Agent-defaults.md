@@ -1,10 +1,12 @@
 ---
-id: task-014
-title: "Phase 3: Define agent protocols and implement base Agent defaults"
-status: To Do
-phase: 3
-gap_ids: [G-AG-01, G-AG-02, G-AG-03, G-AG-04, G-AG-05]
-priority: Critical
+id: TASK-014
+title: 'Phase 3: Define agent protocols and implement base Agent defaults'
+status: Done
+assignee: []
+created_date: ''
+updated_date: '2026-04-22 22:38'
+labels: []
+dependencies: []
 ---
 
 # task-014 - Phase 3: Define agent protocols and implement base Agent defaults
@@ -43,20 +45,17 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-
 @runtime_checkable
 class TaskHandler(Protocol):
 	"""An object that can accept and process a task."""
 
 	async def process_task(self, task: dict[str, Any]) -> dict[str, Any]: ...
 
-
 @runtime_checkable
 class MessageHandler(Protocol):
 	"""An object that can receive and respond to a message."""
 
 	async def handle_message(self, message: dict[str, Any]) -> dict[str, Any] | None: ...
-
 
 @runtime_checkable
 class CapabilityProvider(Protocol):
@@ -126,7 +125,6 @@ async def handle_message(self, message: dict[str, Any]) -> dict[str, Any] | None
 		return handler(message)
 	return await self._handle_custom_message(message)
 
-
 async def _handle_custom_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
 	"""Override in subclasses to handle domain-specific message types."""
 	self._log_unknown_message(message)
@@ -172,10 +170,8 @@ def evaluate_task_fit(self, task: dict[str, Any]) -> float:
 def _log_task_received(self, task: dict[str, Any]) -> None:
 	self.logger.info("Agent %s received task %s", self.agent_id, task.get("id"))
 
-
 def _log_task_failure(self, task: dict[str, Any], exc: Exception) -> None:
 	self.logger.warning("Agent %s failed task %s: %s", self.agent_id, task.get("id"), exc)
-
 
 def _log_unknown_message(self, message: dict[str, Any]) -> None:
 	self.logger.debug("Agent %s received unknown message type %s", self.agent_id, message.get("type"))
@@ -191,28 +187,23 @@ import pytest
 
 from docfusion.agents.core.agent import Agent
 
-
 class TinyAgent(Agent):
 	pass
-
 
 async def test_process_task_completes_on_stub(mock_litellm_gateway):
 	agent = TinyAgent(agent_id="tiny", capabilities=["demo"])
 	result = await agent.process_task({"id": "t1", "prompt": "say hi"})
 	assert result["status"] == "completed"
 
-
 async def test_handle_ping_returns_pong():
 	agent = TinyAgent(agent_id="tiny")
 	response = await agent.handle_message({"type": "ping"})
 	assert response == {"type": "pong", "sender": "tiny"}
 
-
 def test_capabilities_match_returns_fit_score():
 	agent = TinyAgent(agent_id="tiny", capabilities=["writer", "editor"])
 	score = agent.evaluate_task_fit({"required_capabilities": ["writer"]})
 	assert 0.0 < score <= 1.0
-
 
 def test_no_capability_overlap_returns_zero():
 	agent = TinyAgent(agent_id="tiny", capabilities=["writer"])
@@ -238,3 +229,9 @@ git commit -m "feat(agents): concrete defaults for BaseAgent; add protocols [G-A
 - The `Agent` constructor likely has many fields — do NOT change its signature. Only add new methods.
 - `self._fallback` may not exist on the base class. If it doesn't, either add it with `LiteLLMClient + LLMFallbackChain` in `__init__`, or accept that the default `process_task` requires subclasses to set `self._fallback`.
 - When you run the existing specialist tests, they should still pass. If they fail because they previously relied on `NotImplementedError` as a signal, those tests are broken — fix them.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Agent protocols defined, 5 NotImplementedError stubs replaced with concrete defaults, 13 tests pass
+<!-- SECTION:NOTES:END -->

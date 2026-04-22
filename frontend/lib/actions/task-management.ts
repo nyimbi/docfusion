@@ -23,7 +23,7 @@ import {
 	type WorkloadSnapshot,
 	type TaskActivity as TaskActivityType,
 } from "@/lib/db/schema-tasks";
-import { requirements } from "@/lib/db/schema";
+import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, isNull, count, sum, ne, lt, gt } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
 
@@ -686,8 +686,8 @@ export async function generateTasksFromCompliance(
 		// Fetch requirements from the compliance matrix
 		const reqs = await db
 			.select()
-			.from(requirements)
-			.where(eq(requirements.opportunityId, opportunityId));
+			.from(rfpRequirements)
+			.where(eq(rfpRequirements.opportunityId, opportunityId));
 
 		if (reqs.length === 0) {
 			return { success: true, data: { tasksCreated: 0, tasks: [] } };

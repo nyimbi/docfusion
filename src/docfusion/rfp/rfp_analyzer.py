@@ -8,6 +8,7 @@ Integrates with existing NLP pipeline for enhanced analysis.
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -17,6 +18,7 @@ from pydantic import BaseModel, Field, ConfigDict
 import time
 
 from ..core.utils import uuid7str
+from ..infrastructure import complete_with_fallback
 from .requirement_extractor import (
 	RequirementExtractor,
 	Requirement,
@@ -39,6 +41,9 @@ class RFPAnalysisResult(BaseModel):
 	compliance_indicators: list[dict[str, Any]] = Field(default_factory=list)
 	risk_assessment: dict[str, Any] = Field(default_factory=dict)
 	recommendations: list[str] = Field(default_factory=list)
+	compliance_narrative: str | None = None
+	risk_narrative: str | None = None
+	strategic_recommendations: str | None = None
 	errors: list[str] = Field(default_factory=list)
 	warnings: list[str] = Field(default_factory=list)
 	processing_time: float = Field(default=0.0)
@@ -68,7 +73,9 @@ class RFPAnalyzer:
 		Args:
 			config: Optional configuration dictionary
 		"""
-		self.config = config or self._get_default_config()
+		self.config = self._get_default_config()
+		if config:
+			self.config.update(config)
 		self.logger = logging.getLogger(__name__)
 
 		# Initialize requirement extractor
@@ -84,6 +91,7 @@ class RFPAnalyzer:
 			"analyze_compliance": True,
 			"assess_risks": True,
 			"generate_recommendations": True,
+			"ai_enhancement": False,
 			"min_confidence_threshold": 0.5,
 			"cross_reference_tolerance": 0.8,
 			"compliance_standards": [
@@ -174,6 +182,16 @@ class RFPAnalyzer:
 			await self._assess_risks(result)
 			await self._generate_recommendations(result)
 
+			# AI-enhanced narrative generation
+			if self.config.get("ai_enhancement", False):
+				narrative = await self._analyze_with_ai(
+					result.requirements,
+					extraction_result.document_metadata.get("text", ""),
+				)
+				result.compliance_narrative = narrative.get("compliance_narrative")
+				result.risk_narrative = narrative.get("risk_narrative")
+				result.strategic_recommendations = narrative.get("strategic_recommendations")
+
 			result.success = True
 
 		except Exception as e:
@@ -226,6 +244,16 @@ class RFPAnalyzer:
 			await self._analyze_compliance(result)
 			await self._assess_risks(result)
 			await self._generate_recommendations(result)
+
+			# AI-enhanced narrative generation
+			if self.config.get("ai_enhancement", False):
+				narrative = await self._analyze_with_ai(
+					result.requirements,
+					extraction_result.document_metadata.get("text", ""),
+				)
+				result.compliance_narrative = narrative.get("compliance_narrative")
+				result.risk_narrative = narrative.get("risk_narrative")
+				result.strategic_recommendations = narrative.get("strategic_recommendations")
 
 			result.success = True
 
@@ -280,6 +308,16 @@ class RFPAnalyzer:
 			await self._assess_risks(result)
 			await self._generate_recommendations(result)
 
+			# AI-enhanced narrative generation
+			if self.config.get("ai_enhancement", False):
+				narrative = await self._analyze_with_ai(
+					result.requirements,
+					text,
+				)
+				result.compliance_narrative = narrative.get("compliance_narrative")
+				result.risk_narrative = narrative.get("risk_narrative")
+				result.strategic_recommendations = narrative.get("strategic_recommendations")
+
 			result.success = True
 
 		except Exception as e:
@@ -290,6 +328,62 @@ class RFPAnalyzer:
 		self._log_analysis_complete(len(result.requirements), result.processing_time)
 
 		return result
+
+	async def _analyze_with_ai(
+		self,
+		requirements: list[Requirement],
+		document_text: str,
+	) -> dict[str, str]:
+		"""Run an AI pass over the analyzed requirements.
+
+		Returns a dict with `compliance_narrative`, `risk_narrative`,
+		`strategic_recommendations`. Missing keys if the call failed.
+		"""
+		if not requirements:
+			return {}
+
+		prompt = self._build_analysis_prompt(requirements, document_text)
+		try:
+			response = await complete_with_fallback(
+				messages=[{"role": "user", "content": prompt}],
+				model="gpt-4o-mini",
+				temperature=0.3,
+				max_tokens=1024,
+			)
+			content = response.content.strip()
+			if content.startswith("```"):
+				content = __import__("re").sub(r"^```(?:json)?\s*|\s*```$", "", content, flags=__import__("re").MULTILINE)
+			data = json.loads(content)
+			if not isinstance(data, dict):
+				return {}
+			return {
+				k: str(v)
+				for k, v in data.items()
+				if k in ("compliance_narrative", "risk_narrative", "strategic_recommendations")
+				and v is not None
+			}
+		except Exception as exc:
+			self.logger.warning(f"AI analysis failed: {exc}")
+			return {}
+
+	def _build_analysis_prompt(
+		self,
+		requirements: list[Requirement],
+		document_text: str,
+	) -> str:
+		preview = document_text[:3000]
+		requirement_summary = "\n".join(
+			f"- [{r.category.value}] {r.text[:200]}"
+			for r in requirements[:30]
+		)
+		return (
+			"Analyze this RFP. Return JSON with three string keys: "
+			"`compliance_narrative` (2-3 sentence summary of compliance landscape), "
+			"`risk_narrative` (2-3 sentences on risks), "
+			"`strategic_recommendations` (2-3 bulleted recommendations as a single string).\n\n"
+			f"Document excerpt:\n{preview}\n\n"
+			f"Extracted requirements:\n{requirement_summary}"
+		)
 
 	async def _analyze_requirements(self, result: RFPAnalysisResult) -> None:
 		"""Analyze extracted requirements and create summary"""

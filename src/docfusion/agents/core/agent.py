@@ -50,7 +50,7 @@ except ImportError:
             return False
 
         async def close(self):
-            raise NotImplementedError("close is not yet implemented")
+            pass
 
     class OllamaConfig:
         def __init__(self, **kwargs):
@@ -304,25 +304,76 @@ class Agent(ABC, Generic[T]):
 
     # Abstract methods for specialization
 
-    @abstractmethod
     async def process_task(self, task: Any) -> Any:
-        """Process a specific task - must be implemented by subclasses"""
-        raise NotImplementedError("process_task is not yet implemented")
+        """Default task processor. Subclasses override for domain logic.
 
-    @abstractmethod
+        The default records the task, invokes the LLM with the task prompt, and
+        returns the raw response wrapped as a success result. Callers that need
+        structured output MUST override this method.
+        """
+        assert isinstance(task, dict), "task must be a dict"
+        self._log_task_received(task)
+        prompt = task.get("prompt") or task.get("description") or str(task)
+
+        try:
+            if self.llm_client:
+                response = await self.llm_client.generate(prompt)
+                content = response.content if hasattr(response, "content") else str(response)
+            else:
+                content = "LLM client not available"
+        except Exception as exc:
+            self._log_task_failure(task, exc)
+            return {"status": "failed", "task_id": task.get("id"), "error": str(exc)}
+
+        return {"status": "completed", "task_id": task.get("id"), "result": content}
+
     async def handle_message(self, message: Any) -> Optional[Any]:
-        """Handle incoming message - must be implemented by subclasses"""
-        raise NotImplementedError("handle_message is not yet implemented")
+        """Default message handler. Dispatches by message type.
 
-    @abstractmethod
+        Subclasses extend by overriding `_handle_custom_message`.
+        """
+        assert isinstance(message, dict), "message must be a dict"
+        msg_type = message.get("type", "unknown")
+
+        handlers = {
+            "ping": lambda m: {"type": "pong", "sender": self.agent_id},
+            "capability_query": lambda m: {"type": "capability_response", "capabilities": self.get_capabilities()},
+            "task_assignment": lambda m: None,  # Subclass overrides to accept.
+        }
+        handler = handlers.get(msg_type)
+        if handler is not None:
+            return handler(message)
+        return await self._handle_custom_message(message)
+
+    async def _handle_custom_message(self, message: dict) -> Optional[Any]:
+        """Override in subclasses to handle domain-specific message types."""
+        self._log_unknown_message(message)
+        return None
+
     def get_capabilities(self) -> List[str]:
-        """Return list of agent capabilities"""
-        raise NotImplementedError("get_capabilities is not yet implemented")
+        """Return the capability names this agent advertises.
 
-    @abstractmethod
-    async def evaluate_task_fit(self, task: Any) -> float:
-        """Evaluate how well this agent fits a given task (0.0 to 1.0)"""
-        raise NotImplementedError("evaluate_task_fit is not yet implemented")
+        Default reads from `self.capabilities` if set during init; otherwise
+        returns an empty list. Subclasses may override for dynamic capabilities.
+        """
+        return list(getattr(self, "capabilities", []) or [])
+
+    def evaluate_task_fit(self, task: Any) -> float:
+        """Return a 0.0–1.0 score for how well this agent fits the task.
+
+        Default score: Jaccard similarity between the task's required capabilities
+        and this agent's declared capabilities. Subclasses override for smarter
+        routing.
+        """
+        required = set(task.get("required_capabilities", []) or [])
+        if not required:
+            return 0.5
+        mine = set(self.get_capabilities())
+        if not mine:
+            return 0.0
+        intersection = required & mine
+        union = required | mine
+        return len(intersection) / len(union) if union else 0.0
 
     # Task management
 
@@ -1161,6 +1212,17 @@ class Agent(ABC, Generic[T]):
             del self._knowledge_base[key]
 
         self.logger.info(f"Cleaned up {len(items_to_remove)} memory items")
+
+    # Logging helpers for default method implementations
+
+    def _log_task_received(self, task: dict) -> None:
+        self.logger.info("Agent %s received task %s", self.agent_id, task.get("id"))
+
+    def _log_task_failure(self, task: dict, exc: Exception) -> None:
+        self.logger.warning("Agent %s failed task %s: %s", self.agent_id, task.get("id"), exc)
+
+    def _log_unknown_message(self, message: dict) -> None:
+        self.logger.debug("Agent %s received unknown message type %s", self.agent_id, message.get("type"))
 
     def _setup_llm_client(self) -> None:
         """Initialize Ollama LLM client with agent configuration"""

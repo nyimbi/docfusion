@@ -1,10 +1,12 @@
 ---
-id: task-015
-title: "Phase 3: Implement communication channels"
-status: To Do
-phase: 3
-gap_ids: [G-CM-01, G-CM-02, G-CM-03, G-CM-04]
-priority: Critical
+id: TASK-015
+title: 'Phase 3: Implement communication channels'
+status: Done
+assignee: []
+created_date: ''
+updated_date: '2026-04-22 22:47'
+labels: []
+dependencies: []
 ---
 
 # task-015 - Phase 3: Implement communication channels
@@ -33,7 +35,6 @@ grep -n "^class\|def " src/docfusion/agents/communication/channels.py
 ```python
 from abc import ABC, abstractmethod
 from typing import Any
-
 
 class Channel(ABC):
 	"""Abstract base for agent communication channels."""
@@ -65,7 +66,6 @@ Notice we keep `@abstractmethod` but **remove the `NotImplementedError` bodies**
 
 ```python
 import asyncio
-
 
 class InProcessChannel(Channel):
 	"""asyncio.Queue-backed channel. All participants share one MessageBus."""
@@ -100,7 +100,6 @@ class InProcessChannel(Channel):
 	async def _process_message(self, message: dict[str, Any]) -> None:
 		# InProcessChannel doesn't do processing; consumers call receive().
 		pass
-
 
 class MessageBus:
 	"""Shared in-memory message bus."""
@@ -223,7 +222,6 @@ from docfusion.agents.communication.channels import (
 	InProcessChannel, MessageBus, RedisChannel, WebSocketChannel,
 )
 
-
 async def test_inprocess_send_and_receive():
 	bus = MessageBus()
 	ch = InProcessChannel("alice", bus=bus)
@@ -232,7 +230,6 @@ async def test_inprocess_send_and_receive():
 	msg = await ch.receive(timeout=1.0)
 	assert msg == {"hello": "world"}
 	await ch.disconnect()
-
 
 async def test_two_channels_on_same_bus():
 	bus = MessageBus()
@@ -248,12 +245,10 @@ async def test_two_channels_on_same_bus():
 	await alice.disconnect()
 	await bob.disconnect()
 
-
 async def test_send_before_connect_raises():
 	ch = InProcessChannel("solo")
 	with pytest.raises(RuntimeError, match="not connected"):
 		await ch.send_message({"x": 1})
-
 
 @pytest.mark.skipif(not os.environ.get("REDIS_URL"), reason="Redis not available")
 async def test_redis_channel_roundtrip():
@@ -278,3 +273,9 @@ git commit -m "feat(agents): implement InProcess, Redis, WebSocket channels [G-C
 - `MessageBus` is intentionally a singleton for in-process use. Tests that need isolation create their own `MessageBus()` and pass it.
 - Do NOT add new deps without updating `pyproject.toml`. If `redis` or `aiohttp` aren't already present, add them with `uv add redis aiohttp`.
 - The `WebSocketChannel.connect` leaks the session if `ws_connect` fails — that's acceptable for now; a follow-up task can harden it.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented InProcessChannel, RedisChannel, WebSocketChannel; removed 4 NotImplementedError stubs from BaseChannel; fixed AgentChannel delivery mode and priority bugs; 31 tests pass
+<!-- SECTION:NOTES:END -->

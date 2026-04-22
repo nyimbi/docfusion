@@ -8,7 +8,7 @@ from collections import deque
 from enum import Enum
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field, ConfigDict
-from ..core.messages import AgentMessage, MessageStatus, MessageType
+from ..core.messages import AgentMessage, MessageDeliveryMode, MessagePriority, MessageStatus, MessageType
 import re
 from ...core.utils import uuid7str
 
@@ -138,17 +138,17 @@ class BaseChannel(ABC):
 	@abstractmethod
 	async def send_message(self, message: AgentMessage, sender_id: Optional[str] = None, **kwargs) -> bool:
 		"""Send a message through this channel"""
-		raise NotImplementedError("send_message is not yet implemented")
+		return False
 	
 	@abstractmethod
 	async def connect(self, agent_id: str, connection_info: Dict[str, Any]) -> bool:
 		"""Connect an agent to this channel"""
-		raise NotImplementedError("connect is not yet implemented")
+		return False
 	
 	@abstractmethod
 	async def disconnect(self, agent_id: str) -> bool:
 		"""Disconnect an agent from this channel"""
-		raise NotImplementedError("disconnect is not yet implemented")
+		return False
 	
 	async def _message_processor(self) -> None:
 		"""Process messages in the queue"""
@@ -172,7 +172,7 @@ class BaseChannel(ABC):
 	@abstractmethod
 	async def _process_message(self, message: AgentMessage) -> None:
 		"""Process a single message"""
-		raise NotImplementedError("_process_message is not yet implemented")
+		pass
 	
 	def get_channel_status(self) -> Dict[str, Any]:
 		"""Get channel status and metrics"""
@@ -587,11 +587,11 @@ class AgentChannel(BaseChannel):
 			# Determine delivery mode
 			delivery_mode = message.header.delivery_mode
 			
-			if delivery_mode == "direct":
+			if delivery_mode == MessageDeliveryMode.DIRECT:
 				delivery_count = await self._deliver_direct(message)
-			elif delivery_mode == "broadcast":
+			elif delivery_mode == MessageDeliveryMode.BROADCAST:
 				delivery_count = await self._deliver_broadcast(message)
-			elif delivery_mode == "topic":
+			elif delivery_mode == MessageDeliveryMode.PUBLISH_SUBSCRIBE:
 				delivery_count = await self._deliver_topic(message)
 			else:
 				# Default to direct delivery
@@ -624,10 +624,19 @@ class AgentChannel(BaseChannel):
 		if not recipient_id or recipient_id not in self.connections:
 			return 0
 		
+		_priority_order = {
+			MessagePriority.CRITICAL: 4,
+			MessagePriority.HIGH: 3,
+			MessagePriority.MEDIUM: 2,
+			MessagePriority.LOW: 1,
+			MessagePriority.BACKGROUND: 0,
+		}
+		priority_value = _priority_order.get(message.header.priority, 0)
+		
 		try:
-			if self.config.priority_handling and message.header.priority > 0:
+			if self.config.priority_handling and priority_value > 1:
 				priority_queue = self.connections[recipient_id]["priority_queue"]
-				await priority_queue.put((message.header.priority, message))
+				await priority_queue.put((-priority_value, message))
 			else:
 				message_queue = self.connections[recipient_id]["message_queue"]
 				await message_queue.put(message)

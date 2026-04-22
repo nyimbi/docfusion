@@ -1,11 +1,15 @@
 ---
-id: task-009
-title: "Phase 2: Add AI-powered analysis to RFPAnalyzer"
-status: To Do
-phase: 2
-gap_ids: [G-RFP-02, G-FB-01]
-priority: High
-dependencies: [task-007, task-008]
+id: TASK-009
+title: 'Phase 2: Add AI-powered analysis to RFPAnalyzer'
+status: Done
+assignee: []
+created_date: ''
+updated_date: '2026-04-22 22:11'
+labels: []
+dependencies:
+  - task-007
+  - task-008
+priority: high
 ---
 
 # task-009 - Phase 2: Add AI-powered analysis to RFPAnalyzer
@@ -75,7 +79,6 @@ async def _analyze_with_ai(
 	except (json.JSONDecodeError, TypeError):
 		return {}
 
-
 def _build_analysis_prompt(
 	self,
 	requirements: list[Requirement],
@@ -118,7 +121,6 @@ import pytest
 from docfusion.rfp.rfp_analyzer import RFPAnalyzer
 from docfusion.rfp.requirement_extractor import Requirement
 
-
 @pytest.fixture
 def sample_requirements():
 	return [
@@ -126,13 +128,11 @@ def sample_requirements():
 		Requirement(text="Must support SSO via SAML", category="security", priority="critical", confidence=0.95, source="ai"),
 	]
 
-
 async def test_ai_populates_narratives(sample_requirements, mock_litellm_gateway):
 	analyzer = RFPAnalyzer(ai_enhancement=True)
 	result = await analyzer.analyze("RFP text about support and security.", sample_requirements)
 	assert result.compliance_narrative is not None
 	assert result.risk_narrative is not None
-
 
 async def test_narratives_none_when_ai_disabled(sample_requirements):
 	analyzer = RFPAnalyzer(ai_enhancement=False)
@@ -155,3 +155,9 @@ git commit -m "feat(rfp): AI-powered analysis in RFPAnalyzer [G-RFP-02]"
 - Do not add AI calls inside existing rule-based helpers. Rule-based pass runs first and fully; AI runs after, purely additive.
 - If `AnalysisResult` is a dataclass instead of Pydantic, still add the fields — but migrate to Pydantic in a separate task.
 - When the prompt grows past 4000 chars, truncate `document_text` aggressively. Keep requirements list intact.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+AI narratives added to RFPAnalyzer with 8 passing tests; fixed config merge bug
+<!-- SECTION:NOTES:END -->

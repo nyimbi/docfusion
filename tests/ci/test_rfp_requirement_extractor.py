@@ -6,6 +6,7 @@ Unit tests for the requirement extraction system with sample RFP content.
 """
 
 import asyncio
+import json
 import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -535,6 +536,167 @@ class TestIntegration:
 		"""Test closing extractor resources"""
 		await extractor.close()
 		# Should not raise any errors
+
+
+class TestAIEnhancement:
+	"""Tests for AI-enhanced requirement extraction"""
+
+	@pytest.fixture
+	def ai_extractor(self):
+		"""Create extractor with AI enhancement enabled"""
+		return create_requirement_extractor({"ai_enhancement": True, "ai_enhancement_threshold": 0.6})
+
+	@pytest.mark.asyncio
+	async def test_extract_with_ai_no_ambiguous(self, ai_extractor):
+		"""Test AI enhancement skips when no ambiguous requirements"""
+		req = Requirement(
+			text="The system must support 1000 concurrent users.",
+			category=RequirementCategory.MANDATORY,
+			requirement_type=RequirementType.PERFORMANCE,
+			confidence=0.95,
+		)
+
+		with patch("docfusion.rfp.requirement_extractor.complete_with_fallback") as mock_llm:
+			result = await ai_extractor._extract_with_ai("test text", [req])
+
+		assert len(result) == 1
+		assert result[0].confidence == 0.95
+		mock_llm.assert_not_called()
+
+	@pytest.mark.asyncio
+	async def test_extract_with_ai_refines_ambiguous(self, ai_extractor):
+		"""Test AI refinement updates ambiguous requirements"""
+		req = Requirement(
+			text="Short text.",
+			category=RequirementCategory.MANDATORY,
+			requirement_type=RequirementType.UNKNOWN,
+			confidence=0.4,
+		)
+
+		mock_response = MagicMock()
+		mock_response.content = json.dumps([
+			{
+				"index": 0,
+				"category": "optional",
+				"requirement_type": "technical",
+				"confidence": 0.72,
+				"reasoning": "Too short to be mandatory",
+			}
+		])
+
+		with patch("docfusion.rfp.requirement_extractor.complete_with_fallback", new_callable=AsyncMock) as mock_llm:
+			mock_llm.return_value = mock_response
+			result = await ai_extractor._extract_with_ai("test text", [req])
+
+		assert len(result) == 1
+		assert result[0].category == RequirementCategory.OPTIONAL
+		assert result[0].requirement_type == RequirementType.TECHNICAL
+		assert result[0].confidence == 0.72
+		assert result[0].metadata.get("ai_refined") is True
+		assert result[0].metadata.get("ai_reasoning") == "Too short to be mandatory"
+
+	@pytest.mark.asyncio
+	async def test_extract_with_ai_handles_failure(self, ai_extractor):
+		"""Test AI enhancement fails gracefully"""
+		req = Requirement(
+			text="Ambiguous text here.",
+			category=RequirementCategory.MANDATORY,
+			confidence=0.3,
+		)
+
+		with patch("docfusion.rfp.requirement_extractor.complete_with_fallback", new_callable=AsyncMock) as mock_llm:
+			mock_llm.side_effect = RuntimeError("LLM unavailable")
+			result = await ai_extractor._extract_with_ai("test text", [req])
+
+		# Should return original requirements unchanged
+		assert len(result) == 1
+		assert result[0].confidence == 0.3
+		assert result[0].category == RequirementCategory.MANDATORY
+
+	@pytest.mark.asyncio
+	async def test_extract_with_ai_parses_markdown_fences(self, ai_extractor):
+		"""Test AI response wrapped in markdown code fences"""
+		req = Requirement(
+			text="Some requirement text.",
+			category=RequirementCategory.MANDATORY,
+			requirement_type=RequirementType.UNKNOWN,
+			confidence=0.5,
+		)
+
+		mock_response = MagicMock()
+		mock_response.content = (
+			"```json\n"
+			+ json.dumps([
+				{
+					"index": 0,
+					"category": "conditional",
+					"requirement_type": "compliance",
+					"confidence": 0.68,
+					"reasoning": "Conditional language detected",
+				}
+			])
+			+ "\n```"
+		)
+
+		with patch("docfusion.rfp.requirement_extractor.complete_with_fallback", new_callable=AsyncMock) as mock_llm:
+			mock_llm.return_value = mock_response
+			result = await ai_extractor._extract_with_ai("test text", [req])
+
+		assert result[0].category == RequirementCategory.CONDITIONAL
+		assert result[0].requirement_type == RequirementType.COMPLIANCE
+		assert result[0].confidence == 0.68
+
+	@pytest.mark.asyncio
+	async def test_extract_from_text_with_ai_enabled(self):
+		"""Test extract_from_text reports ai_enhancement method"""
+		extractor = create_requirement_extractor({"ai_enhancement": True})
+
+		with patch("docfusion.rfp.requirement_extractor.complete_with_fallback", new_callable=AsyncMock) as mock_llm:
+			mock_response = MagicMock()
+			mock_response.content = "[]"
+			mock_llm.return_value = mock_response
+			result = await extractor.extract_from_text(SAMPLE_RFP_TEXT)
+
+		assert result.success
+		assert "ai_enhancement" in result.methods_used
+
+	@pytest.mark.asyncio
+	async def test_extract_from_text_without_ai(self):
+		"""Test extract_from_text does not include ai_enhancement when disabled"""
+		extractor = create_requirement_extractor({"ai_enhancement": False})
+		result = await extractor.extract_from_text(SAMPLE_RFP_TEXT)
+
+		assert result.success
+		assert "ai_enhancement" not in result.methods_used
+
+	@pytest.mark.asyncio
+	async def test_extract_with_ai_ignores_invalid_refinements(self, ai_extractor):
+		"""Test invalid refinement values are ignored"""
+		req = Requirement(
+			text="Valid requirement text here for testing.",
+			category=RequirementCategory.MANDATORY,
+			confidence=0.5,
+		)
+
+		mock_response = MagicMock()
+		mock_response.content = json.dumps([
+			{
+				"index": 0,
+				"category": "invalid_category",
+				"requirement_type": "invalid_type",
+				"confidence": 1.5,
+				"reasoning": "Invalid values",
+			}
+		])
+
+		with patch("docfusion.rfp.requirement_extractor.complete_with_fallback", new_callable=AsyncMock) as mock_llm:
+			mock_llm.return_value = mock_response
+			result = await ai_extractor._extract_with_ai("test text", [req])
+
+		# Original values preserved since AI returned invalid enums
+		assert result[0].category == RequirementCategory.MANDATORY
+		assert result[0].confidence == 0.5
+		assert result[0].metadata.get("ai_refined") is True  # Still marked as processed
 
 
 if __name__ == "__main__":
