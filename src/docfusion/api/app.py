@@ -211,7 +211,7 @@ def _register_routers(app: FastAPI, container: ServiceContainer) -> None:
 
 	# WebSocket endpoints (special handling)
 	if container.websocket_endpoints:
-		app.add_websocket_route("/ws", container.websocket_endpoints.websocket_endpoint)
+		app.add_api_websocket_route("/ws", container.websocket_endpoints.websocket_endpoint)
 		logger.info("WebSocket endpoint registered")
 
 

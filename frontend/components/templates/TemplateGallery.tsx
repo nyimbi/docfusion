@@ -1,3 +1,5 @@
+"use client";
+
 import Image from "next/image";
 
 /**
@@ -15,7 +17,6 @@ import Image from "next/image";
  * - Specimen cards with "collector's edition" aesthetic
  */
 
-"use client";
 
 import * as React from "react";
 import { useRouter } from "next/navigation";

@@ -217,6 +217,7 @@ export function useCreateFromTemplate() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
+		// eslint-disable-next-line react-hooks/rules-of-hooks
 		mutationFn: (input: UseTemplateInput) => useTemplateAction(input),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: queryKeys.documents });

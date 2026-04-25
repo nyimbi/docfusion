@@ -2,7 +2,7 @@
  * Calendar & Deadline Server Actions - DocFusion
  *
  * Server actions for managing deadlines, calendar views, and milestone tracking.
- * Aggregates deadlines from opportunities, requirements, proposal documents,
+ * Aggregates deadlines from opportunities, rfpRequirements, proposal documents,
  * and document sections into unified calendar views.
  */
 
@@ -11,7 +11,7 @@
 import { db } from "@/lib/db";
 import {
 	opportunities,
-	requirements,
+	rfpRequirements,
 	proposalDocuments,
 	documentSections,
 	documents,

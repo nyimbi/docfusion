@@ -5,8 +5,8 @@
 servers:
   # DataCraft Systems (Primary)
   datacraft-ours:
-    host: "84.247.166.219"
-    domain: "docfusion.datacraft.systems"
+    host: "37.60.225.7"
+    domain: "ours.datacraft.systems"
     user: "root"
     alias: "datacraft"
     roles:
@@ -15,7 +15,7 @@ servers:
       - scrapers
       - monitoring
     description: "Primary server at DataCraft Systems"
-    https_url: "https://docfusion.datacraft.systems"
+    https_url: "https://ours.datacraft.systems"
 
 # Deployment Configuration
 deployment:

@@ -6,7 +6,7 @@ Production deployment scripts for DocuFusion on Ubuntu 22.04/24.04 VPS.
 
 | Server | IP | Domain | Role |
 |--------|-----|--------|------|
-| DataCraft Systems | 84.247.166.219 | docfusion.datacraft.systems | Primary production |
+| DataCraft Systems | 37.60.225.7 | ours.datacraft.systems | Primary production |
 
 ## Quick Start
 
