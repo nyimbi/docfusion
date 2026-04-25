@@ -27,8 +27,8 @@ log_server() { echo -e "${CYAN}[SERVER]${NC} $1"; }
 
 # Server definitions
 declare -A SERVERS
-SERVERS["datacraft"]="root@37.60.225.7"
-SERVERS["datacraft-ours"]="root@37.60.225.7"
+SERVERS["datacraft"]="root@84.247.166.219"
+SERVERS["datacraft-ours"]="root@84.247.166.219"
 
 # Domain mapping
 declare -A DOMAINS
@@ -43,7 +43,7 @@ Usage: deploy-remote.sh [server] [action] [options]
 
 Servers:
   azure-primary    Primary Azure VPS (20.84.71.33)
-  datacraft        DataCraft Systems (37.60.225.7 / ours.datacraft.systems)
+  datacraft        DataCraft Systems (84.247.166.219 / docfusion.datacraft.systems)
   datacraft-ours   Alias for datacraft
   all              Deploy to all servers
 
