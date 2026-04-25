@@ -1,0 +1,45 @@
+{
+  "document_id": "09b87ff2-9572-411a-bb35-67e7841b2292",
+  "title": "PDF Test Document",
+  "content": "<h1>PDF Test Document</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 50,
+  "checksum": "23d34fb9ed54aa71f625d5b1671a982515477ca81c9f636b408ee0b5d0aa38c6",
+  "content_hash": "91e5f3330a59e4ca3f70d2fedb8dd598",
+  "indexed_at": "2026-04-23T15:35:18.669535",
+  "last_modified": "2026-04-23T15:35:18.669536",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 50,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "test",
+    "document",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T15:35:18.663152",
+    "processing_time": 0.0,
+    "quality_score": 0.8033333333333333,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": false,
+      "brand_compliance_enabled": false
+    }
+  }
+}

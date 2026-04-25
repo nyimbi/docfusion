@@ -1,0 +1,38 @@
+{
+  "document_id": "069e9f36-6934-7224-8000-45006487c379",
+  "title": "Component Flow Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f36-6934-7224-8000-45006487c379_1.0.0.txt",
+  "file_size": 52,
+  "checksum": "f9094aec010b95a46cc8e4d5eff8b56831a5103df1be70002a537f72d4320971",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:24:38.579378",
+  "updated_at": "2026-04-23T13:24:38.579381",
+  "accessed_at": "2026-04-23T13:24:38.579382",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "adcbe31866d540e24b9cc1d42cfd6f5f",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:24:38.575236",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

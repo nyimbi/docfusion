@@ -118,7 +118,11 @@ class DocumentTokenizer:
     """Advanced document tokenizer with spaCy and NLTK integration"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or self._get_default_config()
+        defaults = self._get_default_config()
+        if config:
+            self.config = {**defaults, **config}
+        else:
+            self.config = defaults
         self.logger = logging.getLogger(__name__)
 
         # spaCy model

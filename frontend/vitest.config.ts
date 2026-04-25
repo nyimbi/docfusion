@@ -32,6 +32,12 @@ export default defineConfig({
 				"**/*.d.ts",
 				"**/*.config.ts",
 			],
+			thresholds: {
+				lines: 15,
+				functions: 15,
+				branches: 10,
+				statements: 15,
+			},
 		},
 
 		// Test timeouts

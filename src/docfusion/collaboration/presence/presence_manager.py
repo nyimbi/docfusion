@@ -22,7 +22,8 @@ class PresenceStatus(str, Enum):
 	"""User presence status enumeration."""
 	ONLINE = "online"
 	EDITING = "editing"
-	VIEWING = "viewing" 
+	VIEWING = "viewing"
+	REVIEWING = "reviewing"
 	IDLE = "idle"
 	OFFLINE = "offline"
 

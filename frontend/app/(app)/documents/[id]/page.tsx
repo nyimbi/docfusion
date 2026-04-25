@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable jsx-a11y/no-autofocus -- Custom editor component, not native input */
+
 /**
  * Document Editor Page - DocFusion
  *
@@ -180,10 +182,12 @@ function DocumentEditor({ document }: DocumentEditorProps) {
 	const activePanel = useEditorStore((s) => s.activePanel);
 	const setActivePanel = useEditorStore((s) => s.setActivePanel);
 	const isFocusMode = useEditorStore((s) => s.preferences.focusMode);
+	const openAICommandPalette = useAIStore((s) => s.openCommandPalette);
 
 	// Collaboration
 	const collaborators = useCollaborationStore((s) => s.collaborators);
 	const userPresence = useCollaborationStore((s) => s.userPresence);
+	const currentUser = useCollaborationStore((s) => s.currentUser);
 	const positionToCoords = useEditorCoords(editor, editorContainerRef);
 
 	// Mutations
@@ -287,6 +291,25 @@ function DocumentEditor({ document }: DocumentEditorProps) {
 				e.preventDefault();
 				setShowSearchPanel(true);
 			}
+			// Ctrl/Cmd + K: Insert link
+			if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+				e.preventDefault();
+				if (editor && !editor.isDestroyed) {
+					const previousUrl = editor.getAttributes("link").href;
+					const url = window.prompt("Enter URL:", previousUrl || "https://");
+					if (url === null) return;
+					if (url === "") {
+						editor.chain().focus().extendMarkRange("link").unsetLink().run();
+					} else {
+						editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+					}
+				}
+			}
+			// Ctrl/Cmd + Shift + A: Open AI command palette
+			if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "A") {
+				e.preventDefault();
+				openAICommandPalette();
+			}
 			// Ctrl/Cmd + /: Toggle AI assistant
 			if ((e.ctrlKey || e.metaKey) && e.key === "/") {
 				e.preventDefault();
@@ -305,7 +328,7 @@ function DocumentEditor({ document }: DocumentEditorProps) {
 
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [editor, scheduleSave]);
+	}, [editor, scheduleSave, openAICommandPalette]);
 
 	// Calculate word count
 	const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
@@ -499,7 +522,13 @@ function DocumentEditor({ document }: DocumentEditorProps) {
 				)}
 
 				{/* Main editor */}
-				<main className="flex-1 flex flex-col min-w-0 bg-[var(--paper-background)] dark:bg-[var(--background)]">
+				<main
+					className={cn(
+						"flex-1 flex flex-col min-w-0 bg-[var(--paper-background)] dark:bg-[var(--background)]",
+						"transition-all duration-500",
+						isFocusMode && "bg-gradient-to-b from-background to-background-muted"
+					)}
+				>
 					{/* Toolbar */}
 					<div className="flex-shrink-0 z-20">
 						<DocumentToolbar
@@ -514,10 +543,21 @@ function DocumentEditor({ document }: DocumentEditorProps) {
 					</div>
 
 					{/* Editor with collaboration cursors */}
-					<div className="flex-1 overflow-hidden relative">
+					<div
+						className={cn(
+							"flex-1 overflow-hidden relative",
+							isFocusMode && "flex items-start justify-center pt-8"
+						)}
+					>
 						<SplitPane
 							leftPane={
-								<div ref={editorContainerRef} className="relative h-full">
+								<div
+									ref={editorContainerRef}
+									className={cn(
+										"relative h-full",
+										isFocusMode && "max-w-3xl mx-auto shadow-2xl rounded-lg bg-card border border-border/50"
+									)}
+								>
 									<TiptapEditor
 										content={content}
 										onContentChange={handleContentChange}
@@ -525,6 +565,16 @@ function DocumentEditor({ document }: DocumentEditorProps) {
 										onEditorReady={handleEditorReady}
 										showToolbar={false}
 										autoFocus
+										documentId={documentId}
+										enableCollaboration={true}
+										collaborationUser={
+											currentUser
+												? {
+														name: currentUser.name,
+														color: userPresence?.color ?? "#3b82f6",
+													}
+												: undefined
+										}
 									/>
 									<CollaboratorCursors
 										editorRef={editorContainerRef}
@@ -578,6 +628,8 @@ function DocumentEditor({ document }: DocumentEditorProps) {
 						<AIAssistantPanel
 							documentId={documentId}
 							editor={editor}
+							documentTitle={title}
+							documentMetadata={document.metadata}
 							onClose={() => setIsAIPanelOpen(false)}
 						/>
 					</SheetContent>

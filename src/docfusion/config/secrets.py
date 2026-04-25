@@ -739,6 +739,26 @@ class SecretsManager:
 		"""Get SMTP port as integer (alias for get_smtp_port)."""
 		return SecretsManager.get_smtp_port()
 
+	@staticmethod
+	def get_persistent_memory_enabled() -> str:
+		"""Get persistent memory enabled flag."""
+		return os.environ.get("PERSISTENT_MEMORY_ENABLED", "")
+
+	@staticmethod
+	def get_latex_engine() -> str:
+		"""Get LaTeX engine executable."""
+		return os.environ.get("LATEX_ENGINE", "pdflatex")
+
+	@staticmethod
+	def get_latex_timeout() -> int:
+		"""Get LaTeX compilation timeout in seconds."""
+		return int(os.environ.get("LATEX_TIMEOUT", "120"))
+
+	@staticmethod
+	def get_latex_cache_dir() -> str:
+		"""Get LaTeX output cache directory."""
+		return os.environ.get("LATEX_CACHE_DIR", "/tmp/docfusion-latex-cache")
+
 	# ========================================================================
 	# Utility Methods
 	# ========================================================================

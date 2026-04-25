@@ -1,0 +1,1 @@
+<h1>Component Flow Test</h1><p>Generated content</p>

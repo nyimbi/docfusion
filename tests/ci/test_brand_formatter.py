@@ -913,8 +913,8 @@ class TestBrandFormatter:
 		assert "\\RequirePackage{xcolor}" in latex_output
 		assert "\\definecolor{brandprimary}" in latex_output
 		assert "\\includegraphics" in latex_output
-		assert "\\RequirePackage{fontspec}" in latex_output
-		assert "\\setmainfont" in latex_output
+		assert "\\usepackage[T1]{fontenc}" in latex_output
+		assert "\\usepackage{lmodern}" in latex_output
 	
 	def test_generate_css_brand_output(self, brand_formatter):
 		"""Test CSS brand output generation"""

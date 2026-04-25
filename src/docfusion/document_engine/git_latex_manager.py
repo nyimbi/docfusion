@@ -48,8 +48,10 @@ try:
 	from ..renderer.pdf_renderer import CompilationResult as CanonicalCompilationResult  # type: ignore[import-not-found]
 	from ..renderer.pdf_renderer import LaTeXCompiler as CanonicalLaTeXCompiler  # type: ignore[import-not-found]
 except ImportError:
-	# Fallback for standalone use - define minimal versions
+	# Fallback: use the real async LaTeX compiler from document_engine.latex
 	from dataclasses import dataclass, field
+
+	from .latex.compiler import CompileResult, LatexCompiler
 
 	@dataclass
 	class CanonicalCompilationResult:
@@ -62,8 +64,17 @@ except ImportError:
 		compiled_content: bytes = b""
 
 	class CanonicalLaTeXCompiler:
+		def __init__(self) -> None:
+			self._compiler = LatexCompiler()
+
 		async def compile_to_pdf(self, content: str, filename: str = "") -> "CanonicalCompilationResult":
-			return CanonicalCompilationResult(success=False, errors=["LaTeX compiler not available"])
+			result = await self._compiler.compile(content)
+			return CanonicalCompilationResult(
+				success=result.success,
+				compilation_log=result.log,
+				compiled_content=result.pdf_bytes or b"",
+				errors=[e.message for e in result.errors],
+			)
 
 # Import from content_assembler if available, otherwise define minimal versions
 try:

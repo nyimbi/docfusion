@@ -364,7 +364,7 @@ class WorkflowTemplate:
 				template, use_case_description, user_id
 			)
 			
-			if relevance_score > 0.3:  # Threshold for relevance
+			if relevance_score > 0.2:  # Threshold for relevance
 				recommendation = TemplateRecommendation(
 					template_id=template.template_id,
 					relevance_score=relevance_score,
@@ -998,7 +998,7 @@ class WorkflowTemplate:
 			reasons.append("High user satisfaction rating")
 		
 		if template.industry != IndustryType.GENERIC:
-			reasons.append(f"Specifically designed for {template.industry.value} industry")
+			reasons.append(f"Specifically designed for {template.industry.value.title()} industry")
 		
 		if template.complexity_score < 5.0:
 			reasons.append("Straightforward workflow suitable for quick implementation")

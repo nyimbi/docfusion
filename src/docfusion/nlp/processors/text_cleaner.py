@@ -39,7 +39,11 @@ class OllamaTextCleaner:
     """AI-powered text cleaner using Ollama for intelligent preprocessing"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or self._get_default_config()
+        defaults = self._get_default_config()
+        if config:
+            self.config = {**defaults, **config}
+        else:
+            self.config = defaults
         self.logger = logging.getLogger(__name__)
 
         # Initialize Ollama client

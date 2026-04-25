@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from docfusion.agents.specialists.compliance_agent import ComplianceAgent
 from docfusion.agents.specialists.reviewer_agent import ReviewerAgent, ReviewTask
 from docfusion.agents.specialists.writer_agent import WriterAgent, WritingTask
+from docfusion.document_engine.document_engine import DocumentEngine, DocumentGenerationRequest, DocumentGenerationConfiguration
+from docfusion.document_engine.packager.rfp_packager import RFPResponsePackage
 from docfusion.rfp.compliance_matrix import (
     ComplianceMatrix,
     ComplianceMatrixGenerator,
@@ -137,6 +139,69 @@ class ProposalOrchestrator:
                 },
             })
         return feedback
+
+    async def compile_proposal_to_document(
+        self,
+        draft: ProposalDraft,
+        document_engine: DocumentEngine | None = None,
+        output_format: str = "pdf",
+    ) -> dict[str, Any]:
+        """Compile a drafted proposal into a rendered document package.
+
+        Args:
+            draft: The proposal draft produced by ``draft_proposal()``.
+            document_engine: Optional DocumentEngine instance. A default engine
+                is created if none is provided.
+            output_format: Target output format ("pdf", "docx", "html").
+
+        Returns:
+            A dict with ``packaging_result``, ``document_result``, and
+            ``format`` keys.
+        """
+        engine = document_engine or DocumentEngine()
+
+        # Flatten sections into a single content source for the engine
+        full_content = "\n\n".join(
+            f"## {category}\n\n{content}"
+            for category, content in draft.sections.items()
+        )
+
+        request = DocumentGenerationRequest(
+            generation_config=DocumentGenerationConfiguration(
+                output_formats=[output_format],
+                document_title=f"Proposal for {draft.rfp_id}",
+                document_type="proposal",
+            ),
+            content_sources=[{"content": full_content, "type": "text"}],
+        )
+
+        document_result = await engine.generate_document(request)
+
+        # Package as an RFP response
+        main_bytes = b""
+        if output_format.lower() == "pdf" and document_result.pdf_result:
+            main_bytes = getattr(document_result.pdf_result, "pdf_content", b"")
+        elif output_format.lower() == "docx" and document_result.docx_result:
+            main_bytes = getattr(document_result.docx_result, "docx_content", b"")
+        elif output_format.lower() == "html" and document_result.html_result:
+            html = getattr(document_result.html_result, "html_content", "")
+            main_bytes = html.encode("utf-8") if isinstance(html, str) else html
+
+        package = RFPResponsePackage(
+            main_proposal=main_bytes,
+        )
+
+        packaging_result = await engine.generate_rfp_response(
+            package=package,
+            format=output_format,
+            title=f"Proposal-{draft.rfp_id}",
+        )
+
+        return {
+            "packaging_result": packaging_result,
+            "document_result": document_result,
+            "format": output_format,
+        }
 
     def _category_for(self, entry: RequirementMapping) -> str:
         if entry.category:

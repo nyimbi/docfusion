@@ -1,0 +1,46 @@
+{
+  "document_id": "069e96d8-6f4b-79ec-8000-cba81b2d42e7",
+  "title": "Unified Renderer Test",
+  "content": "<h1>Unified Renderer Test</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 54,
+  "checksum": "258b166fc2667a324ad0b4bad28e22efa86a2ba0ade0b1982740c5356d4b8353",
+  "content_hash": "63a4717f81f310055277ac0586f98554",
+  "indexed_at": "2026-04-23T03:53:26.960871",
+  "last_modified": "2026-04-23T03:53:26.960873",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 54,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "unified",
+    "renderer",
+    "test",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T03:53:26.955970",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

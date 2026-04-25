@@ -207,17 +207,18 @@ class ActivityTracker:
 			
 			self.session_summaries[session_id] = summary
 			
-			# Log session start activity
-			await self.log_activity(
-				document_id=document_id,
-				user_id=user_id,
-				session_id=session_id,
-				activity_type=ActivityType.SESSION_START,
-				metadata={"session_start_time": start_time.isoformat()}
-			)
-			
 			logger.info(f"Started tracking session {session_id} for user {user_id}")
-			return summary
+		
+		# Log session start activity (outside lock to avoid deadlock)
+		await self.log_activity(
+			document_id=document_id,
+			user_id=user_id,
+			session_id=session_id,
+			activity_type=ActivityType.SESSION_START,
+			metadata={"session_start_time": start_time.isoformat()}
+		)
+		
+		return summary
 	
 	async def end_session(self, session_id: str) -> Optional[SessionSummary]:
 		"""
@@ -246,21 +247,22 @@ class ActivityTracker:
 			# Calculate final session metrics
 			await self._calculate_session_metrics(summary)
 			
-			# Log session end activity
-			await self.log_activity(
-				document_id=summary.document_id,
-				user_id=summary.user_id,
-				session_id=session_id,
-				activity_type=ActivityType.SESSION_END,
-				metadata={
-					"session_end_time": end_time.isoformat(),
-					"session_duration_minutes": summary.total_duration_minutes,
-					"total_activities": summary.total_activities
-				}
-			)
-			
 			logger.info(f"Ended tracking session {session_id}, duration: {summary.total_duration_minutes:.1f} minutes")
-			return summary
+		
+		# Log session end activity (outside lock to avoid deadlock)
+		await self.log_activity(
+			document_id=summary.document_id,
+			user_id=summary.user_id,
+			session_id=session_id,
+			activity_type=ActivityType.SESSION_END,
+			metadata={
+				"session_end_time": end_time.isoformat(),
+				"session_duration_minutes": summary.total_duration_minutes,
+				"total_activities": summary.total_activities
+			}
+		)
+		
+		return summary
 	
 	async def log_activity(
 		self,

@@ -1,0 +1,38 @@
+{
+  "document_id": "069e96d8-6eb4-7c1a-8000-ee2e6aa1cf11",
+  "title": "Error Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e96d8-6eb4-7c1a-8000-ee2e6aa1cf11_1.0.0.txt",
+  "file_size": 43,
+  "checksum": "8811da641a13dd6ce514b62ef3112206db8ca1ec0a92f728a54e9a5c0b0e365e",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T03:53:26.922520",
+  "updated_at": "2026-04-23T03:53:26.922523",
+  "accessed_at": "2026-04-23T03:53:26.922523",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "3c8dde6f73f63449b1bda50a780b7661",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T03:53:26.919141",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

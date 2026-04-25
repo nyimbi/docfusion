@@ -6,6 +6,7 @@ Comprehensive health monitoring system with dependency checks,
 status pages, and automated health reporting for all system components.
 """
 
+import abc
 import asyncio
 import logging
 import time
@@ -75,7 +76,7 @@ class SystemHealth:
 	uptime_seconds: float = 0.0
 	version: str = "1.0.0"
 
-class BaseHealthCheck:
+class BaseHealthCheck(abc.ABC):
 	"""Base class for health checks"""
 	
 	def __init__(self, name: str, component_type: ComponentType, timeout: float = 5.0):
@@ -138,9 +139,10 @@ class BaseHealthCheck:
 				error=str(e)
 			)
 	
+	@abc.abstractmethod
 	async def _perform_check(self) -> Any:
 		"""Override this method to implement specific health check logic"""
-		raise NotImplementedError
+		...
 
 class DatabaseHealthCheck(BaseHealthCheck):
 	"""Database connectivity and performance check"""

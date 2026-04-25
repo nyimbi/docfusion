@@ -51,6 +51,7 @@ class ScrapingConfiguration:
 	# Rate limiting
 	requests_per_second: float = 1.0
 	requests_per_minute: int = 30
+	rate_limit_requests_per_minute: int = 30
 	requests_per_hour: int = 1000
 	burst_size: int = 5
 	
@@ -60,6 +61,7 @@ class ScrapingConfiguration:
 	retry_delay_base: float = 1.0
 	retry_delay_max: float = 300.0
 	random_delay_range: tuple[float, float] = (0.5, 2.0)
+	request_delay_range: Optional[tuple[float, float]] = None
 	
 	# Retry configuration
 	max_retries: int = 3
@@ -69,6 +71,7 @@ class ScrapingConfiguration:
 	# Session management
 	session_duration: int = 3600  # 1 hour
 	max_concurrent_sessions: int = 10
+	max_concurrent: int = 5
 	
 	# User agent rotation
 	user_agents: List[str] = field(default_factory=lambda: [
@@ -76,6 +79,10 @@ class ScrapingConfiguration:
 		'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
 		'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
 	])
+	user_agent: Optional[str] = None
+	
+	# Robots.txt
+	respect_robots_txt: bool = True
 	
 	# Headers
 	default_headers: Dict[str, str] = field(default_factory=lambda: {
@@ -450,6 +457,7 @@ class ScrapingResult(BaseModel):
 	proxy_used: Optional[str] = None
 	user_agent_used: Optional[str] = None
 	retries_attempted: int = 0
+	method_used: Optional[str] = None
 	
 	# Error information
 	error_message: Optional[str] = None

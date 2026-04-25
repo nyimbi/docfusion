@@ -511,6 +511,45 @@ class TemplateExportRequest(BaseModel):
         False, description="Whether to include usage statistics"
     )
 
+class TemplatePopulateRequest(BaseModel):
+	"""Request model for populating a template with variables"""
+
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
+
+	variables: Dict[str, Any] = Field(
+		..., description="Variable values to populate template placeholders"
+	)
+
+	output_format: OutputFormat = Field(
+		OutputFormat.PDF, description="Desired output format"
+	)
+
+	metadata: Optional[Dict[str, Any]] = Field(
+		None, description="Optional metadata for document generation"
+	)
+
+
+class TemplatePopulateResponse(BaseModel):
+	"""Response model for populated template"""
+
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
+
+	success: bool = Field(..., description="Whether population succeeded")
+	template_id: str = Field(..., description="Source template ID")
+	document_id: str = Field(..., description="Generated document ID")
+	output_format: OutputFormat = Field(..., description="Output format")
+	content: Optional[str] = Field(None, description="Populated content (for HTML/text)")
+	file_path: Optional[str] = Field(None, description="Path to generated file")
+	generated_at: str = Field(..., description="ISO timestamp of generation")
+	variables_used: Dict[str, Any] = Field(
+		default_factory=dict, description="Variables that were substituted"
+	)
+	missing_variables: List[str] = Field(
+		default_factory=list, description="Required variables not provided"
+	)
+	errors: List[str] = Field(default_factory=list, description="Any errors")
+
+
 # ==================== UTILITY FUNCTIONS ====================
 
 def create_template_response(

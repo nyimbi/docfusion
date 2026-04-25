@@ -365,12 +365,31 @@ class ReferenceDetector:
 			)
 			references.append(reference)
 		
+		# Detect alpha text references (e.g., "Table A", "Section B.1")
+		alpha_pattern = re.compile(r'\b(?:Figure|Table|Section|Equation)\s+([A-Z](?:\.\d+)?)\b', re.IGNORECASE)
+		for match in alpha_pattern.finditer(content):
+			ref_text = match.group(0)
+			ref_number = match.group(1)
+			ref_type = self._classify_reference_type(ref_text.lower())
+			# Skip if already caught by generic_ref
+			if not any(r.reference_text == ref_text for r in references):
+				reference = CrossReference(
+					source_id=content_id,
+					target_id=f"{ref_type}_{ref_number}",
+					reference_type=ref_type,
+					reference_text=ref_text,
+					source_position=match.start(),
+					source_context=self._extract_context(content, match.start())
+				)
+				references.append(reference)
+		
 		return references
 	
 	async def _detect_citations(self, content: str, content_id: str) -> list[CrossReference]:
-		"""Detect LaTeX citations"""
+		"""Detect LaTeX and parenthetical citations"""
 		references = []
 		
+		# Detect LaTeX \cite{} references
 		for match in self.detection_patterns['latex_cite'].finditer(content):
 			cite_keys = match.group(1).split(',')
 			
@@ -385,6 +404,36 @@ class ReferenceDetector:
 					source_context=self._extract_context(content, match.start())
 				)
 				references.append(reference)
+		
+		# Detect parenthetical citations like (Author, Year) or Author et al. (Year)
+		parenthetical_pattern = re.compile(r'\b([A-Z][A-Za-z]+(?:\s+et\s+al\.)?)\s*\((\d{4})\)')
+		for match in parenthetical_pattern.finditer(content):
+			author_text = match.group(1).strip()
+			year = match.group(2)
+			reference = CrossReference(
+				source_id=content_id,
+				target_id=f"{author_text.replace(' ', '_')}_{year}",
+				reference_type="citation",
+				reference_text=match.group(0),
+				source_position=match.start(),
+				source_context=self._extract_context(content, match.start())
+			)
+			references.append(reference)
+		
+		# Detect (Author, Year) format
+		author_year_pattern = re.compile(r'\(([A-Z][A-Za-z]+),\s*(\d{4})\)')
+		for match in author_year_pattern.finditer(content):
+			author_text = match.group(1).strip()
+			year = match.group(2)
+			reference = CrossReference(
+				source_id=content_id,
+				target_id=f"{author_text.replace(' ', '_')}_{year}",
+				reference_type="citation",
+				reference_text=match.group(0),
+				source_position=match.start(),
+				source_context=self._extract_context(content, match.start())
+			)
+			references.append(reference)
 		
 		return references
 	
@@ -414,6 +463,21 @@ class ReferenceDetector:
 		
 		assert isinstance(targets, list), "Targets must be list"
 		return targets
+	
+	def classify_reference_type(self, reference_text: str) -> str:
+		"""Public wrapper for reference type classification"""
+		return self._classify_reference_type(reference_text)
+	
+	def extract_reference_context(self, content: str, position: int, window_size: int = 50) -> str:
+		"""Public wrapper for reference context extraction with configurable window"""
+		start = max(0, position - window_size)
+		end = min(len(content), position + window_size)
+		# Extend to word boundaries for cleaner context
+		while start > 0 and content[start - 1].isalnum():
+			start -= 1
+		while end < len(content) and content[end - 1].isalnum():
+			end += 1
+		return content[start:end].strip()
 	
 	async def _detect_latex_environments(self, content: str, content_id: str) -> list[ReferenceTarget]:
 		"""Detect LaTeX figure and table environments"""
@@ -665,6 +729,25 @@ class NumberingEngine:
 			result = chr(65 + (num % 26)) + result
 			num //= 26
 		return result
+	
+	def generate_number(self, target: ReferenceTarget, scheme: NumberingScheme, context: dict[str, Any] = None) -> str:
+		"""Generate a single number for a target"""
+		context = context or {}
+		if scheme.hierarchical:
+			section_number = context.get("section_numbers", {}).get(target.section_id, "1")
+			item_number = target.display_order or 1
+			return self._format_hierarchical_number(section_number, item_number, scheme)
+		return self._format_number(target.display_order or 1, scheme)
+	
+	def format_number(self, number: str, scheme: NumberingScheme, target_type: str = "") -> str:
+		"""Format a number with prefix and suffix"""
+		prefix = scheme.prefix or ""
+		suffix = scheme.suffix or ""
+		# Auto-prefix based on target type if no explicit prefix
+		if not prefix and target_type:
+			auto_prefixes = {"figure": "Figure ", "table": "Table ", "section": "Section ", "equation": "Equation "}
+			prefix = auto_prefixes.get(target_type, "")
+		return f"{prefix}{number}{suffix}"
 
 
 class ReferenceValidator:
@@ -734,7 +817,7 @@ class ReferenceValidator:
 		# Check if target exists
 		target_exists = reference.target_id in graph.targets
 		if not target_exists and reference.reference_type != "citation":
-			errors.append(f"Reference target not found: {reference.target_id}")
+			errors.append(f"Missing target: {reference.target_id}")
 			suggestions.extend(self._suggest_target_matches(reference.target_id, graph))
 		
 		# Check citation references
@@ -878,6 +961,15 @@ class ReferenceValidator:
 			return 0.0
 		
 		return len(common_chars) / len(total_chars)
+	
+	def suggest_repairs(self, broken_refs: list[str], graph: ReferenceGraph) -> dict[str, list[str]]:
+		"""Suggest repairs for broken references"""
+		suggestions = {}
+		for ref_id in broken_refs:
+			if ref_id in graph.references:
+				ref = graph.references[ref_id]
+				suggestions[ref_id] = self._suggest_target_matches(ref.target_id, graph)
+		return suggestions
 
 
 class CitationManager:
@@ -928,12 +1020,12 @@ class CitationManager:
 		for citation in sorted_citations:
 			formatted = await self.format_citation(citation, style, "bibliography")
 			if formatted:
-				bibliography_entries.append(formatted)
+				bibliography_entries.append((citation.citation_key, formatted))
 		
 		# Generate bibliography header and entries
 		bibliography = "\\begin{thebibliography}{99}\n"
-		for entry in bibliography_entries:
-			bibliography += f"\\bibitem{{{citation.citation_key}}} {entry}\n"
+		for cite_key, entry in bibliography_entries:
+			bibliography += f"\\bibitem{{{cite_key}}} {entry}\n"
 		bibliography += "\\end{thebibliography}"
 		
 		assert isinstance(bibliography, str), "Bibliography must be string"
@@ -991,16 +1083,28 @@ class CitationManager:
 		if not authors:
 			return "Anonymous"
 		
-		if len(authors) == 1:
-			return authors[0]
-		elif len(authors) == 2:
-			if style == "apa":
-				return f"{authors[0]} & {authors[1]}"
+		# Convert "First Last" to "Last, F." for APA bibliography
+		def _apa_name(name: str) -> str:
+			parts = name.strip().split()
+			if len(parts) >= 2:
+				last = parts[-1]
+				initials = "".join(p[0].upper() + "." for p in parts[:-1])
+				return f"{last}, {initials}"
+			return name
+		
+		if style == "apa":
+			formatted = [_apa_name(a) for a in authors]
+			if len(authors) == 1:
+				return formatted[0]
+			elif len(authors) == 2:
+				return f"{formatted[0]} & {formatted[1]}"
 			else:
-				return f"{authors[0]} and {authors[1]}"
+				return f"{formatted[0]} et al."
 		else:
-			if style == "apa":
-				return f"{authors[0]} et al."
+			if len(authors) == 1:
+				return authors[0]
+			elif len(authors) == 2:
+				return f"{authors[0]} and {authors[1]}"
 			else:
 				return f"{authors[0]} et al."
 	
@@ -1016,10 +1120,10 @@ class CitationManager:
 			errors.append("Citation missing title")
 		
 		if not citation.authors:
-			warnings.append("Citation missing authors")
+			errors.append("Citation missing authors")
 		
 		if not citation.publication_year and not citation.publication_date:
-			warnings.append("Citation missing publication date")
+			errors.append("Citation missing publication date")
 		
 		# Type-specific validation
 		if citation.citation_type == "article":
@@ -1032,6 +1136,10 @@ class CitationManager:
 			if not citation.url:
 				errors.append("Website citation missing URL")
 		
+		# Incomplete citation: if only title is present, mark as incomplete
+		if len(errors) == 0 and not citation.authors and not citation.publication_year:
+			errors.append("Citation incomplete: missing authors and publication year")
+		
 		result = ValidationResult(
 			valid=len(errors) == 0,
 			errors=errors,
@@ -1040,6 +1148,18 @@ class CitationManager:
 		
 		assert isinstance(result, ValidationResult), "Result must be ValidationResult"
 		return result
+	
+	def detect_duplicate_citations(self, citations: list[Citation]) -> list[list[str]]:
+		"""Detect duplicate citations based on title, authors, and year"""
+		seen = {}
+		duplicates = []
+		for citation in citations:
+			key = (citation.title.lower(), tuple(sorted(a.lower() for a in citation.authors)), citation.publication_year)
+			if key in seen:
+				duplicates.append([seen[key], citation.citation_key])
+			else:
+				seen[key] = citation.citation_key
+		return duplicates
 
 
 class LaTeXReferenceGenerator:
@@ -1060,9 +1180,13 @@ class LaTeXReferenceGenerator:
 		labels = {}
 		
 		for target in targets:
-			if target.label:
+			label = target.label
+			if not label and target.title:
+				# Auto-generate label from title
+				label = f"{target.target_type}:{target.title.lower().replace(' ', '-')}"
+			if label:
 				labels[target.target_id] = self.command_templates['label'].format(
-					label=target.label
+					label=label
 				)
 		
 		assert isinstance(labels, dict), "Labels must be dict"
@@ -1098,7 +1222,7 @@ class LaTeXReferenceGenerator:
 		assert isinstance(citations, dict), "Citations must be dict"
 		return citations
 	
-	def generate_latex_bibliography(self, citations: list[Citation]) -> str:
+	def generate_latex_bibliography(self, citations: list[Citation], style: str = "ieee") -> str:
 		"""Generate LaTeX bibliography from citations"""
 		assert isinstance(citations, list), "citations must be list"
 		
@@ -1339,14 +1463,61 @@ class CrossReferenceManager:
 		assert isinstance(style, str), "style must be string"
 		
 		if format == "latex":
-			result = self.latex_generator.generate_latex_bibliography(citations)
+			result = self.latex_generator.generate_latex_bibliography(citations, style)
 		else:
 			result = await self.citation_manager.generate_bibliography(citations, style)
 		
 		assert isinstance(result, str), "Bibliography must be string"
 		return result
 	
-	def get_reference_statistics(self, graph: ReferenceGraph) -> dict[str, Any]:
+	async def update_reference_numbering(self, graph: ReferenceGraph, scheme: NumberingScheme = None) -> ReferenceGraph:
+		"""Apply numbering to all targets in the graph"""
+		if scheme is None:
+			scheme = self.numbering_engine.numbering_schemes['decimal']
+		targets = list(graph.targets.values())
+		numbered = await self.numbering_engine.apply_numbering(targets, scheme)
+		for target in numbered:
+			graph.targets[target.target_id] = target
+		return graph
+	
+	async def validate_and_repair_references(self, graph: ReferenceGraph) -> dict[str, Any]:
+		"""Validate references and suggest repairs"""
+		result = await self.validate_document_references(graph)
+		repairs = {}
+		if not result.valid:
+			broken = self.field_validator.find_orphaned_references(graph)
+			repairs = self.field_validator.suggest_repairs(broken, graph)
+		return {
+			"valid": result.valid,
+			"errors": result.errors,
+			"warnings": result.warnings,
+			"suggestions": result.suggestions,
+			"repairs_suggested": repairs
+		}
+	
+	async def generate_latex_output(self, graph: ReferenceGraph) -> dict[str, Any]:
+		"""Generate complete LaTeX output for a graph"""
+		commands = await self.generate_latex_commands(graph)
+		labels = {}
+		references = {}
+		for cmd_id, cmd in commands.items():
+			if '\\label{' in cmd:
+				labels[cmd_id] = cmd
+			elif '\\ref{' in cmd:
+				references[cmd_id] = cmd
+		citations_list = list(graph.citations.values())
+		bibliography = self.latex_generator.generate_latex_bibliography(citations_list, "ieee") if citations_list else ""
+		return {
+			"labels": labels,
+			"references": references,
+			"bibliography": bibliography
+		}
+	
+	async def get_reference_statistics(self, graph: ReferenceGraph) -> dict[str, Any]:
+		"""Async wrapper for reference statistics"""
+		return self._get_reference_statistics_sync(graph)
+	
+	def _get_reference_statistics_sync(self, graph: ReferenceGraph) -> dict[str, Any]:
 		"""Get comprehensive reference statistics"""
 		assert isinstance(graph, ReferenceGraph), "graph must be ReferenceGraph"
 		
@@ -1355,8 +1526,8 @@ class CrossReferenceManager:
 			"total_targets": graph.total_targets,
 			"total_citations": graph.total_citations,
 			"validation_score": graph.validation_score,
-			"reference_types": {},
-			"target_types": {},
+			"references_by_type": {},
+			"targets_by_type": {},
 			"broken_references": 0,
 			"orphaned_targets": 0
 		}
@@ -1364,11 +1535,11 @@ class CrossReferenceManager:
 		# Count by type
 		for ref in graph.references.values():
 			ref_type = ref.reference_type
-			stats["reference_types"][ref_type] = stats["reference_types"].get(ref_type, 0) + 1
+			stats["references_by_type"][ref_type] = stats["references_by_type"].get(ref_type, 0) + 1
 		
 		for target in graph.targets.values():
 			target_type = target.target_type
-			stats["target_types"][target_type] = stats["target_types"].get(target_type, 0) + 1
+			stats["targets_by_type"][target_type] = stats["targets_by_type"].get(target_type, 0) + 1
 		
 		# Count broken references
 		for ref in graph.references.values():
@@ -1397,6 +1568,48 @@ class CrossReferenceManager:
 	def get_performance_stats(self) -> dict[str, Any]:
 		"""Get current performance statistics"""
 		return self.performance_stats.copy()
+	
+	async def export_reference_report(self, graph: ReferenceGraph, format: str = "json") -> str:
+		"""Export reference report in specified format"""
+		stats = self._get_reference_statistics_sync(graph)
+		validation = await self.validate_document_references(graph)
+		
+		report_data = {
+			"document_id": graph.document_id,
+			"summary": {
+				"total_references": stats["total_references"],
+				"total_targets": stats["total_targets"],
+				"validation_score": stats["validation_score"]
+			},
+			"references": [
+				{
+					"id": ref.reference_id,
+					"type": ref.reference_type,
+					"text": ref.reference_text,
+					"target": ref.target_id,
+					"status": ref.validation_status
+				}
+				for ref in graph.references.values()
+			],
+			"targets": [
+				{
+					"id": target.target_id,
+					"type": target.target_type,
+					"title": target.title,
+					"number": target.number
+				}
+				for target in graph.targets.values()
+			],
+			"validation_results": {
+				"valid": validation.valid,
+				"errors": validation.errors,
+				"warnings": validation.warnings
+			}
+		}
+		
+		if format.lower() == "json":
+			return json.dumps(report_data, indent=2, default=str)
+		return str(report_data)
 	
 	def clear_caches(self) -> None:
 		"""Clear all caches"""

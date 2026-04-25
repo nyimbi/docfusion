@@ -39,6 +39,8 @@ export interface OutlineItem {
 	collapsed: boolean;
 	/** Generated slug for URL/anchor linking */
 	slug: string;
+	/** Word count for this section (excluding subsections) */
+	wordCount?: number;
 }
 
 /**
@@ -190,6 +192,18 @@ function extractOutline(
 
 		return true;
 	});
+
+	// Compute word counts for each section
+	for (let i = 0; i < flat.length; i++) {
+		const item = flat[i];
+		const sectionStart = item.pos + item.size;
+		const sectionEnd =
+			i + 1 < flat.length ? flat[i + 1].pos : doc.content.size;
+		const sectionText = doc.textBetween(sectionStart, sectionEnd, " ");
+		item.wordCount = sectionText.trim()
+			? sectionText.trim().split(/\s+/).length
+			: 0;
+	}
 
 	return { items, roots, flat };
 }

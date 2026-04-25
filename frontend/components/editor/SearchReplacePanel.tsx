@@ -30,6 +30,7 @@ import {
 	Regex,
 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
+import { TextSelection } from "prosemirror-state";
 import { useToast } from "@/lib/hooks/use-toast";
 
 // ============================================================================
@@ -40,12 +41,6 @@ interface SearchReplacePanelProps {
 	editor: Editor;
 	isOpen: boolean;
 	onClose: () => void;
-}
-
-interface SearchMatch {
-	from: number;
-	to: number;
-	text: string;
 }
 
 // ============================================================================
@@ -90,36 +85,44 @@ export function SearchReplacePanel({
 		return () => document.removeEventListener("keydown", handleKeyDown);
 	}, [isOpen, onClose]);
 
-	// Search for matches
-	const findMatches = React.useCallback((): SearchMatch[] => {
-		if (!searchQuery.trim()) {
-			setMatchCount(0);
-			setCurrentMatchIndex(-1);
-			return [];
-		}
+	/**
+	 * Find all matches in the document and return them with document positions.
+	 * Uses ProseMirror document traversal to map text offsets to positions.
+	 */
+	const findMatchesWithPositions = React.useCallback((): Array<{ from: number; to: number; text: string }> => {
+		if (!searchQuery.trim()) return [];
 
-		const content = editor.getText();
-		const matches: SearchMatch[] = [];
+		const matches: Array<{ from: number; to: number; text: string }> = [];
+		const doc = editor.state.doc;
 
 		try {
 			let pattern: RegExp;
-			
 			if (useRegex) {
 				pattern = new RegExp(searchQuery, caseSensitive ? "g" : "gi");
 			} else {
-				// Escape special regex characters for literal search
-				const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+				const escaped = searchQuery.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
 				pattern = new RegExp(escaped, caseSensitive ? "g" : "gi");
 			}
 
-			let match;
-			while ((match = pattern.exec(content)) !== null) {
-				matches.push({
-					from: match.index,
-					to: match.index + match[0].length,
-					text: match[0],
-				});
-			}
+			// Traverse text nodes and find matches with document positions
+			doc.descendants((node, pos) => {
+				if (!node.isText || !node.text) return;
+
+				const text = node.text;
+				let match: RegExpExecArray | null;
+				// Reset lastIndex for each text node
+				pattern.lastIndex = 0;
+
+				while ((match = pattern.exec(text)) !== null) {
+					matches.push({
+						from: pos + match.index,
+						to: pos + match.index + match[0].length,
+						text: match[0],
+					});
+					// Prevent infinite loop on zero-width matches
+					if (match[0].length === 0) pattern.lastIndex++;
+				}
+			});
 
 			setError("");
 			return matches;
@@ -131,58 +134,57 @@ export function SearchReplacePanel({
 
 	// Update match count when search changes
 	React.useEffect(() => {
-		const matches = findMatches();
+		const matches = findMatchesWithPositions();
 		setMatchCount(matches.length);
 		if (matches.length > 0 && currentMatchIndex < 0) {
 			setCurrentMatchIndex(0);
+		} else if (matches.length === 0) {
+			setCurrentMatchIndex(-1);
 		}
-	}, [searchQuery, caseSensitive, useRegex, findMatches, currentMatchIndex]);
+	}, [searchQuery, caseSensitive, useRegex, findMatchesWithPositions]);
 
 	const navigateMatch = (direction: "next" | "prev") => {
-		if (matchCount === 0) return;
+		const matches = findMatchesWithPositions();
+		if (matches.length === 0) return;
 
 		let newIndex = currentMatchIndex;
 		if (direction === "next") {
-			newIndex = (currentMatchIndex + 1) % matchCount;
+			newIndex = (currentMatchIndex + 1) % matches.length;
 		} else {
 			newIndex = currentMatchIndex - 1;
-			if (newIndex < 0) newIndex = matchCount - 1;
+			if (newIndex < 0) newIndex = matches.length - 1;
 		}
 
 		setCurrentMatchIndex(newIndex);
 
-		// Scroll to match
-		const matches = findMatches();
+		// Actually navigate to the match
 		const match = matches[newIndex];
 		if (match) {
-			editor.chain().scrollIntoView().focus().run();
+			const tr = editor.state.tr;
+			const sel = TextSelection.create(tr.doc, match.from, match.to);
+			tr.setSelection(sel);
+			editor.view.dispatch(tr);
+			editor.chain().focus().scrollIntoView().run();
 		}
 	};
 
 	const handleReplace = () => {
 		if (!searchQuery.trim()) return;
 
-		const { from, to } = editor.state.selection;
-		const selectedText = editor.state.doc.textBetween(from, to);
+		const matches = findMatchesWithPositions();
+		if (matches.length === 0 || currentMatchIndex < 0) return;
 
-		// Only replace if current selection matches search query
-		let shouldReplace = false;
-		if (useRegex) {
-			const pattern = new RegExp(searchQuery, caseSensitive ? "" : "i");
-			shouldReplace = pattern.test(selectedText);
-		} else {
-			shouldReplace = caseSensitive
-				? selectedText === searchQuery
-				: selectedText.toLowerCase() === searchQuery.toLowerCase();
-		}
+		const match = matches[currentMatchIndex];
+		if (!match) return;
 
-		if (shouldReplace) {
-			editor.chain().insertContent(replaceQuery).focus().run();
-			// Find next
-			setTimeout(() => navigateMatch("next"), 50);
-		} else {
-			navigateMatch("next");
-		}
+		// Replace the current match
+		const tr = editor.state.tr;
+		tr.replaceWith(match.from, match.to, editor.schema.text(replaceQuery));
+		editor.view.dispatch(tr);
+
+		// Adjust index since document changed
+		setCurrentMatchIndex(-1);
+		setTimeout(() => navigateMatch("next"), 50);
 	};
 
 	const handleReplaceAll = () => {
@@ -190,24 +192,55 @@ export function SearchReplacePanel({
 
 		try {
 			let pattern: RegExp;
-			
 			if (useRegex) {
 				pattern = new RegExp(searchQuery, `g${caseSensitive ? "" : "i"}`);
 			} else {
-				const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+				const escaped = searchQuery.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
 				pattern = new RegExp(escaped, `g${caseSensitive ? "" : "i"}`);
 			}
 
-			const content = editor.getHTML();
-			const newContent = content.replace(pattern, replaceQuery);
+			const tr = editor.state.tr;
+			let replacedCount = 0;
 
-			editor.chain().setContent(newContent).focus().run();
-			
-			const replacedCount = matchCount;
+			// Traverse document and replace in text nodes
+			editor.state.doc.descendants((node, pos) => {
+				if (!node.isText || !node.text) return;
+
+				const text = node.text;
+				let match: RegExpExecArray | null;
+				pattern.lastIndex = 0;
+
+				// Collect replacements for this text node (process in reverse to maintain positions)
+				const nodeReplacements: Array<{ start: number; end: number; replacement: string }> = [];
+				while ((match = pattern.exec(text)) !== null) {
+					nodeReplacements.push({
+						start: match.index,
+						end: match.index + match[0].length,
+						replacement: replaceQuery,
+					});
+					replacedCount++;
+					if (match[0].length === 0) pattern.lastIndex++;
+				}
+
+				// Apply replacements in reverse order, tracking offset shifts
+				let offset = 0;
+				for (let i = nodeReplacements.length - 1; i >= 0; i--) {
+					const rep = nodeReplacements[i];
+					const docFrom = pos + rep.start + offset;
+					const docTo = pos + rep.end + offset;
+					const oldLen = rep.end - rep.start;
+					const newLen = rep.replacement.length;
+					tr.replaceWith(docFrom, docTo, editor.schema.text(rep.replacement));
+					offset += newLen - oldLen;
+				}
+			});
+
+			editor.view.dispatch(tr);
+			editor.chain().focus().run();
+
 			setMatchCount(0);
 			setCurrentMatchIndex(-1);
 
-			// Show success toast
 			toast(`Replaced ${replacedCount} occurrence${replacedCount !== 1 ? "s" : ""}`, { variant: "success" });
 		} catch (err) {
 			setError("Replace failed");

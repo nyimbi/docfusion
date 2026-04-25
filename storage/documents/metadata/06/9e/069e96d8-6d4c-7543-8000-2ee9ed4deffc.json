@@ -1,0 +1,38 @@
+{
+  "document_id": "069e96d8-6d4c-7543-8000-2ee9ed4deffc",
+  "title": "Formatting to Rendering Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e96d8-6d4c-7543-8000-2ee9ed4deffc_1.0.0.txt",
+  "file_size": 61,
+  "checksum": "0dbb9aa0e27d77dccb65c90ffe2867d091450778170541a524b44a3720488993",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T03:53:26.834317",
+  "updated_at": "2026-04-23T03:53:26.834318",
+  "accessed_at": "2026-04-23T03:53:26.834319",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "ed23a87df42c114f91838fc3f1ad8600",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T03:53:26.831146",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

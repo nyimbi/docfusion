@@ -7,6 +7,7 @@ updating, deletion, and rendering with comprehensive security integration.
 """
 
 import asyncio
+import io
 import logging
 from datetime import timezone, datetime
 from pathlib import Path
@@ -509,15 +510,10 @@ class DocumentEndpoints:
                     detail=generation_result.get("error", "Document generation failed"),
                 )
 
-            # Return file stream (simulated)
-            file_path = generation_result["file_path"]
-
-            def generate_file_content():
-                # In production, this would stream the actual generated file
-                yield f"Generated {request.output_format.upper()} content for document {document_id}\n"
-                yield f"Title: {document.get('title', '')}\n"
-                yield f"Generated at: {generation_result['generated_at']}\n"
-                yield f"Format: {request.output_format}\n"
+            # Return actual rendered bytes
+            rendered_bytes = generation_result.get("rendered_bytes", b"")
+            if not rendered_bytes:
+                raise HTTPException(status_code=500, detail="Rendered content is empty")
 
             headers = {
                 "Content-Disposition": f'attachment; filename="{document_id}.{request.output_format}"'
@@ -530,7 +526,7 @@ class DocumentEndpoints:
             }.get(request.output_format, "application/octet-stream")
 
             return StreamingResponse(
-                generate_file_content(), media_type=media_type, headers=headers
+                io.BytesIO(rendered_bytes), media_type=media_type, headers=headers
             )
 
         except HTTPException:

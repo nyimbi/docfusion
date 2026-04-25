@@ -1,0 +1,39 @@
+{
+  "document_id": "069e9f2c-99b8-7fbc-8000-4cfc9127786b",
+  "title": "Accessibility Test Document",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f2c-99b8-7fbc-8000-4cfc9127786b_1.0.0.txt",
+  "file_size": 60,
+  "checksum": "650f8ff3035ae68c95f3f753d983ab69e136f149a276eb0b868b25a57d19054e",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:22:01.611511",
+  "updated_at": "2026-04-23T13:22:01.611515",
+  "accessed_at": "2026-04-23T13:22:01.611516",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "pdf"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "d83369f696d75869532008289ae314a7",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:22:01.608159",
+    "processing_time": 0.0,
+    "quality_score": 0.76,
+    "output_formats": [
+      "html",
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": false
+    }
+  }
+}

@@ -25,22 +25,19 @@ import { cn } from "@/lib/utils";
 
 // Validation schema for single document creation
 const proposalDocumentSchema = z.object({
-	documentType: z.enum(
-		[
-			"cover_letter",
-			"executive_summary",
-			"technical_approach",
-			"management_plan",
-			"staffing_plan",
-			"past_performance",
-			"cost_proposal",
-			"quality_assurance",
-			"risk_mitigation",
-			"appendix",
-			"other",
-		],
-		{ required_error: "Please select a document type" }
-	),
+	documentType: z.enum([
+		"cover_letter",
+		"executive_summary",
+		"technical_approach",
+		"management_plan",
+		"staffing_plan",
+		"past_performance",
+		"cost_proposal",
+		"quality_assurance",
+		"risk_mitigation",
+		"appendix",
+		"other",
+	]),
 	title: z.string().max(500, "Title must be 500 characters or less").optional(),
 	assignedTo: z
 		.string()
@@ -160,6 +157,7 @@ export function CreateProposalDialog({
 			/>
 
 			{/* Dialog */}
+			{/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Dialog click capture */}
 			<div
 				role="dialog"
 				aria-modal="true"

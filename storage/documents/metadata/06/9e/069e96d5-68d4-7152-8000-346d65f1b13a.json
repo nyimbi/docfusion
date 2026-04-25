@@ -1,0 +1,41 @@
+{
+  "document_id": "069e96d5-68d4-7152-8000-346d65f1b13a",
+  "title": "Multi-Format Test Document",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e96d5-68d4-7152-8000-346d65f1b13a_1.0.0.txt",
+  "file_size": 59,
+  "checksum": "61da47206d636fc8424f328fe29826d212751268b57ef0b8f92c2bd2f6b89274",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T03:52:38.554989",
+  "updated_at": "2026-04-23T03:52:38.554991",
+  "accessed_at": "2026-04-23T03:52:38.554992",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "docx",
+    "html"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "7180f26a54da54f2ca510f73c0d938c5",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T03:52:38.551787",
+    "processing_time": 0.0,
+    "quality_score": 0.6877777777777778,
+    "output_formats": [
+      "pdf",
+      "docx",
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

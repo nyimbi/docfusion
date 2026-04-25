@@ -299,6 +299,33 @@ class RelevanceFilter:
 			scoring_model=self._create_risk_averse_model()
 		)
 		
+		# Balanced Profile (default)
+		balanced_rules = [
+			FilterRule(
+				criterion=FilterCriterion.CAPABILITY_MATCH,
+				operator=FilterOperator.GREATER_EQUAL,
+				value=0.5,
+				weight=2.0,
+				is_mandatory=False,
+				description="Moderate capability alignment"
+			),
+			FilterRule(
+				criterion=FilterCriterion.WIN_PROBABILITY,
+				operator=FilterOperator.GREATER_EQUAL,
+				value=0.2,
+				weight=1.5,
+				is_mandatory=False,
+				description="At least 20% win probability"
+			)
+		]
+		
+		profiles['balanced'] = FilterProfile(
+			profile_name="Balanced",
+			description="Balanced approach considering multiple factors",
+			filter_rules=balanced_rules,
+			scoring_model=self._create_balanced_scoring_model()
+		)
+		
 		return profiles
 	
 	def _create_balanced_scoring_model(self) -> ScoringModel:

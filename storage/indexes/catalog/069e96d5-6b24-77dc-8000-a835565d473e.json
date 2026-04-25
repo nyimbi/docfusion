@@ -1,0 +1,44 @@
+{
+  "document_id": "069e96d5-6b24-77dc-8000-a835565d473e",
+  "title": "Empty Content Test",
+  "content": "<h1>Empty Content Test</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 51,
+  "checksum": "37f27fdbd92fc1fd7bec7096ccf48907b2acbf695fc9cd10ce084f90e05a6cf7",
+  "content_hash": "39aea275273aa1c8d3e7fbed7fdc8338",
+  "indexed_at": "2026-04-23T03:52:38.701013",
+  "last_modified": "2026-04-23T03:52:38.701014",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 51,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "content",
+    "empty",
+    "test",
+    "generated"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T03:52:38.696417",
+    "processing_time": 0.0,
+    "quality_score": 0.7414285714285714,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

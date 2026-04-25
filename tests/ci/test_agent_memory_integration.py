@@ -75,6 +75,8 @@ class TestFeatureFlag:
 		os.environ.pop("PERSISTENT_MEMORY_ENABLED", None)
 		os.environ.pop("DATABASE_URL", None)
 		os.environ.pop("DEBUG", None)
+		os.environ.pop("ENVIRONMENT", None)
+		os.environ.pop("NODE_ENV", None)
 
 	def test_feature_flag_disabled_by_default_in_debug(self):
 		"""Test that persistent memory is disabled by default in debug mode."""
@@ -85,7 +87,7 @@ class TestFeatureFlag:
 
 	def test_feature_flag_enabled_by_default_in_production(self):
 		"""Test that persistent memory is enabled by default in production."""
-		os.environ["DEBUG"] = "false"
+		os.environ["ENVIRONMENT"] = "production"
 		reset_memory_manager()
 
 		assert is_persistent_memory_enabled() is True

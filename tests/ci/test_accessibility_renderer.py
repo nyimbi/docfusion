@@ -163,7 +163,7 @@ def accessibility_renderer(sample_render_config, wcag_validator, alt_text_genera
 	"""Create AccessibilityRenderer instance for testing"""
 	return AccessibilityRenderer(
 		render_config=sample_render_config,
-		wcag_validator=wcag_validator,
+		wcag_field_validator=wcag_validator,
 		alt_text_generator=alt_text_generator
 	)
 
@@ -612,7 +612,7 @@ class TestAccessibilityRenderer:
 	def test_accessibility_renderer_initialization(self, accessibility_renderer):
 		"""Test AccessibilityRenderer initialization"""
 		assert accessibility_renderer.render_config is not None
-		assert accessibility_renderer.wcag_validator is not None
+		assert accessibility_renderer.wcag_field_validator is not None
 		assert accessibility_renderer.alt_text_generator is not None
 		assert accessibility_renderer.aria_enhancer is not None
 		assert accessibility_renderer.screen_reader_simulator is not None
@@ -995,7 +995,7 @@ class TestUtilityFunctions:
 		validation_results = validate_accessibility_renderer_installation()
 		
 		assert "accessibility_renderer_core" in validation_results
-		assert "wcag_validator" in validation_results
+		assert "wcag_field_validator" in validation_results
 		assert "alt_text_generator" in validation_results
 		assert "aria_enhancer" in validation_results
 		assert "screen_reader_simulator" in validation_results
@@ -1004,7 +1004,7 @@ class TestUtilityFunctions:
 		
 		# Core components should always be available
 		assert validation_results["accessibility_renderer_core"] is True
-		assert validation_results["wcag_validator"] is True
+		assert validation_results["wcag_field_validator"] is True
 		assert validation_results["alt_text_generator"] is True
 		assert validation_results["aria_enhancer"] is True
 

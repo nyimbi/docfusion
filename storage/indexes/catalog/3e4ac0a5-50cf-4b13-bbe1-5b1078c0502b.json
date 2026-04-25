@@ -1,0 +1,46 @@
+{
+  "document_id": "3e4ac0a5-50cf-4b13-bbe1-5b1078c0502b",
+  "title": "Test Document",
+  "content": "<h1>Test Document</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 46,
+  "checksum": "fd67f55483f15fb5c179f815f7f1d49af854fb890d83671f1db32b51d994065d",
+  "content_hash": "25fc409463edf14e7171cf4352132617",
+  "indexed_at": "2026-04-23T15:35:18.750926",
+  "last_modified": "2026-04-23T15:35:18.750928",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "html"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 3,
+  "char_count": 46,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "test",
+    "document",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T15:35:18.744769",
+    "processing_time": 0.0,
+    "quality_score": 0.77375,
+    "output_formats": [
+      "pdf",
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

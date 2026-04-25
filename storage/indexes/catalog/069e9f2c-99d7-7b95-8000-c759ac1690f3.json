@@ -1,0 +1,45 @@
+{
+  "document_id": "069e9f2c-99d7-7b95-8000-c759ac1690f3",
+  "title": "Brand Test Document",
+  "content": "<h1>Brand Test Document</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 52,
+  "checksum": "6d114ed2012fd6eead808d4b5a3b1bc5a1fca81601e5720ac47ee0e8d89442b5",
+  "content_hash": "75f753135600c4786f18c9e0c7dd20e5",
+  "indexed_at": "2026-04-23T13:22:01.620717",
+  "last_modified": "2026-04-23T13:22:01.620718",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 52,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "brand",
+    "test",
+    "document",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T13:22:01.615744",
+    "processing_time": 0.0,
+    "quality_score": 0.7414285714285714,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": false,
+      "brand_compliance_enabled": true
+    }
+  }
+}

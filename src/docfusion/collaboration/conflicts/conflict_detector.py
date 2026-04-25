@@ -13,6 +13,7 @@ Simple API for intelligent conflict detection beyond simple text overlaps.
 
 import asyncio
 import difflib
+import hashlib
 import json
 import re
 import time

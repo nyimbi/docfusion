@@ -1,0 +1,45 @@
+{
+  "document_id": "069e9f36-6eb0-75d9-8000-8e4cfbb57a2c",
+  "title": "DOCX Test Document",
+  "content": "<h1>DOCX Test Document</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 51,
+  "checksum": "b8c23a251b579df3fad5df2d0f14cce64f78d2e516057f9ae9540249f6755cc3",
+  "content_hash": "d50b05e27f800a4a5b087d9f25126e11",
+  "indexed_at": "2026-04-23T13:24:38.923441",
+  "last_modified": "2026-04-23T13:24:38.923442",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "docx"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 51,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "docx",
+    "test",
+    "document",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T13:24:38.918067",
+    "processing_time": 0.0,
+    "quality_score": 0.7200000000000001,
+    "output_formats": [
+      "docx"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": false,
+      "brand_compliance_enabled": false
+    }
+  }
+}

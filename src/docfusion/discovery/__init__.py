@@ -72,66 +72,62 @@ except (ImportError, AttributeError) as _exc:
 	_SCRAPERS_AVAILABLE = False
 
 
+# Base exports always available
 __all__ = [
-	# Shared data models (always available)
 	'OpportunityData',
-
-	# Core infrastructure
-	'BaseScraper',
-	'ScrapingConfiguration',
-	'ScrapingResult',
-
-	# AI-driven scrapers
-	'UniversalScraper',
-	'ExtractionStrategy',
-	'ExtractionResult',
-	'VisionScraper',
-	'VisionAnalysisResult',
-	'UIElement',
-
-	# ML and pattern recognition
-	'StructureLearner',
-	'ExtractionAttempt',
-	'SitePattern',
-	'StrategyRecommendation',
-	'PatternRecognizer',
-	'PatternMatch',
-	'ProcurementPattern',
-
-	# Source management
-	'GlobalSourceDB',
-	'ProcurementSource',
-	'SourceType',
-	'SourceStatus',
-	'SourceDiscoverer',
-	'DiscoveryResult',
-	'SourcePattern',
-
-	# Deployment and orchestration
-	'ScraperDeployment',
-	'DeploymentConfig',
-	'DeploymentStatus',
-	'ScraperInstance',
-	'DeploymentMonitor',
-	'HealthCheck',
-	'Alert',
-	'MonitoringConfig',
-
-	# Performance monitoring
-	'PerformanceDashboard',
-	'DashboardConfig',
-	'DashboardMetrics',
-
-	# Testing and validation
-	'AccuracyTester',
-	'TestConfig',
-	'TestResult',
-	'AccuracyMetrics',
-	'DataValidator',
-	'ValidationConfig',
-	'ValidationResult',
-	'QualityMetrics',
+	'CAPABILITIES',
+	'create_discovery_engine',
+	'initialize_discovery_engine',
+	'deploy_scrapers_for_top_sources',
+	'run_comprehensive_testing',
 ]
+
+# Extend with scraper exports only when available
+if _SCRAPERS_AVAILABLE:
+	__all__.extend([
+		'BaseScraper',
+		'ScrapingConfiguration',
+		'ScrapingResult',
+		'UniversalScraper',
+		'ExtractionStrategy',
+		'ExtractionResult',
+		'VisionScraper',
+		'VisionAnalysisResult',
+		'UIElement',
+		'StructureLearner',
+		'ExtractionAttempt',
+		'SitePattern',
+		'StrategyRecommendation',
+		'PatternRecognizer',
+		'PatternMatch',
+		'ProcurementPattern',
+		'GlobalSourceDB',
+		'ProcurementSource',
+		'SourceType',
+		'SourceStatus',
+		'SourceDiscoverer',
+		'DiscoveryResult',
+		'SourcePattern',
+		'ScraperDeployment',
+		'DeploymentConfig',
+		'DeploymentStatus',
+		'ScraperInstance',
+		'DeploymentMonitor',
+		'HealthCheck',
+		'Alert',
+		'MonitoringConfig',
+		'PerformanceDashboard',
+		'DashboardConfig',
+		'DashboardMetrics',
+		'AccuracyTester',
+		'TestConfig',
+		'TestResult',
+		'AccuracyMetrics',
+		'DataValidator',
+		'ValidationConfig',
+		'ValidationResult',
+		'QualityMetrics',
+	])
 
 # Version information
 __version__ = "1.0.0"
@@ -326,6 +322,12 @@ try:
 	from .crawlers.ai_driven.universal_scraper import UniversalScraper
 	CAPABILITIES["crawl4ai"] = True
 	CAPABILITIES["cloudscraper"] = True
+except Exception:
+	pass
+
+try:
+	import playwright  # noqa: F401
+	CAPABILITIES["playwright"] = True
 except Exception:
 	pass
 

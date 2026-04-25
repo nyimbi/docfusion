@@ -245,6 +245,7 @@ class IntelligenceStorageService:
         try:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             data_file = self.base_path / "data" / f"historical_{data_type}" / f"data_{timestamp}.json"
+            data_file.parent.mkdir(parents=True, exist_ok=True)
             
             # Convert data to JSON-serializable format
             if hasattr(historical_data[0], 'model_dump'):

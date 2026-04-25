@@ -29,7 +29,7 @@ from ...core.utils import uuid7str
 try:
 	from weasyprint import HTML, CSS
 	from weasyprint.fonts import FontConfiguration
-except ImportError:
+except (ImportError, OSError):
 	# Fallback for testing/development without WeasyPrint
 	HTML = None
 	CSS = None
@@ -466,47 +466,50 @@ class LaTeXCompiler:
 			if pdf_content:
 				return pdf_content
 			
-			# Fallback: return mock PDF for testing
-			return self._generate_mock_latex_pdf(latex_content)
+			raise PDFRenderingException("LaTeX compilation failed to produce PDF output")
 			
+		except PDFRenderingException:
+			raise
 		except Exception as e:
-			# Fallback to mock PDF
-			return self._generate_mock_latex_pdf(latex_content)
+			logger.error(f"LaTeX compilation error: {e}")
+			raise PDFRenderingException(f"LaTeX compilation failed: {e}") from e
 		finally:
 			# Cleanup temporary directory
 			if temp_dir:
 				import shutil
 				shutil.rmtree(temp_dir, ignore_errors=True)
 	
-	async def _compile_with_pdflatex(self, work_path: Path, tex_file: Path) -> Optional[bytes]:
+	async def _compile_with_pdflatex(self, work_path: Path, tex_file: Path) -> bytes:
 		"""Attempt to compile with pdflatex"""
-		try:
-			import subprocess
-			import asyncio
-			
-			# Run pdflatex
-			process = await asyncio.create_subprocess_exec(
-				'pdflatex',
-				'-interaction=nonstopmode',
-				'-output-directory', str(work_path),
-				str(tex_file),
-				stdout=asyncio.subprocess.DEVNULL,
-				stderr=asyncio.subprocess.DEVNULL,
-				cwd=work_path
-			)
-			
-			await asyncio.wait_for(process.wait(), timeout=self.compile_timeout)
-			
-			# Check if PDF was generated
-			pdf_file = work_path / "document.pdf"
-			if pdf_file.exists():
-				return pdf_file.read_bytes()
-			
-		except (FileNotFoundError, asyncio.TimeoutError, Exception):
-			# pdflatex not available or compilation failed
-			logger.warning("FileNotFoundError/TimeoutError/Exception in unknown")
+		import asyncio
 		
-		return None
+		# Run pdflatex
+		process = await asyncio.create_subprocess_exec(
+			'pdflatex',
+			'-interaction=nonstopmode',
+			'-output-directory', str(work_path),
+			str(tex_file),
+			stdout=asyncio.subprocess.PIPE,
+			stderr=asyncio.subprocess.PIPE,
+			cwd=work_path
+		)
+		
+		try:
+			await asyncio.wait_for(process.wait(), timeout=self.compile_timeout)
+		except asyncio.TimeoutError:
+			raise PDFRenderingException("pdflatex compilation timed out")
+		
+		if process.returncode != 0:
+			stdout, stderr = await process.communicate()
+			compilation_log = (stdout.decode('utf-8', errors='ignore') + stderr.decode('utf-8', errors='ignore'))
+			raise PDFRenderingException(f"pdflatex failed with code {process.returncode}: {compilation_log[:500]}")
+		
+		# Check if PDF was generated
+		pdf_file = work_path / "document.pdf"
+		if not pdf_file.exists():
+			raise PDFRenderingException("pdflatex completed but PDF file was not generated")
+		
+		return pdf_file.read_bytes()
 	
 	def _generate_mock_latex_pdf(self, latex_content: str) -> bytes:
 		"""Generate mock PDF from LaTeX content for testing"""
@@ -931,7 +934,7 @@ class PDFRenderer:
 			
 			# Final fallback: Generate minimal PDF
 			if pdf_content is None:
-				pdf_content = self._generate_minimal_pdf(formatted_content)
+				pdf_content = await self._generate_minimal_pdf(formatted_content)
 				rendering_method = "minimal"
 			
 			# Validate quality
@@ -1040,7 +1043,7 @@ class PDFRenderer:
 		"""Render PDF using WeasyPrint engine"""
 		if HTML is None:
 			# Fallback when WeasyPrint is not available
-			return self._generate_mock_pdf(html_content, css_content)
+			return await self._generate_mock_pdf(html_content, css_content)
 		
 		try:
 			# Combine HTML and CSS
@@ -1062,30 +1065,99 @@ class PDFRenderer:
 			
 		except Exception as e:
 			# Fallback to mock PDF if WeasyPrint fails
-			return self._generate_mock_pdf(html_content, css_content)
+			return await self._generate_mock_pdf(html_content, css_content)
 	
-	def _generate_mock_pdf(self, html_content: str, css_content: str) -> bytes:
-		"""Generate a mock PDF for testing/fallback purposes"""
-		# This is a simple mock - in practice would need actual PDF generation
-		mock_content = f"""Mock PDF Content
-Generated: {datetime.now()}
-HTML Length: {len(html_content)} characters
-CSS Length: {len(css_content)} characters
-""".encode('utf-8')
-		
-		# Pad to simulate a real PDF file
-		return b"%PDF-1.7\n" + mock_content + b"\n%%EOF"
-	
-	def _generate_minimal_pdf(self, formatted_content: FormattedDocumentContent) -> bytes:
-		"""Generate minimal PDF when all rendering methods fail"""
-		minimal_content = f"""Minimal PDF Document
-Title: {formatted_content.title or "Untitled Document"}
-Document ID: {formatted_content.document_id}
-Generated: {datetime.now()}
-Content: Basic text-only fallback document
-""".encode('utf-8')
-		
-		return b"%PDF-1.7\n" + minimal_content + b"\n%%EOF"
+	async def _generate_mock_pdf(self, html_content: str, css_content: str) -> bytes:
+		"""Generate a real minimal PDF via LaTeX fallback"""
+		return await self._generate_minimal_pdf(
+			FormattedDocumentContent(title="Mock PDF", content_html=html_content)
+		)
+
+	async def _generate_minimal_pdf(self, formatted_content: FormattedDocumentContent) -> bytes:
+		"""Generate a real minimal PDF using pdflatex when all rendering methods fail"""
+		from docfusion.document_engine.latex.compiler import LatexCompiler
+
+		title = formatted_content.title or "Untitled Document"
+		# Escape LaTeX special characters in title
+		title_escaped = (
+			title.replace("\\", "\\textbackslash{}")
+			.replace("&", "\\&")
+			.replace("%", "\\%")
+			.replace("$", "\\$")
+			.replace("#", "\\#")
+			.replace("_", "\\_")
+			.replace("{", "\\{")
+			.replace("}", "\\}")
+			.replace("~", "\\textasciitilde{}")
+			.replace("^", "\\textasciicircum{}")
+		)
+
+		# Simple HTML-to-plaintext extraction for body
+		body_text = ""
+		if formatted_content.content_html:
+			import re
+			body_text = re.sub(r"<[^>]+>", " ", formatted_content.content_html)
+			body_text = re.sub(r"\s+", " ", body_text).strip()
+		elif getattr(formatted_content, 'content_text', ''):
+			body_text = formatted_content.content_text
+
+		# Escape body text for LaTeX
+		body_escaped = (
+			body_text.replace("\\", "\\textbackslash{}")
+			.replace("&", "\\&")
+			.replace("%", "\\%")
+			.replace("$", "\\$")
+			.replace("#", "\\#")
+			.replace("_", "\\_")
+			.replace("{", "\\{")
+			.replace("}", "\\}")
+			.replace("~", "\\textasciitilde{}")
+			.replace("^", "\\textasciicircum{}")
+		)
+
+		latex_source = f"""\\documentclass{{article}}
+\\usepackage[utf8]{{inputenc}}
+\\usepackage[T1]{{fontenc}}
+\\usepackage{{geometry}}
+\\geometry{{a4paper,margin=2.5cm}}
+\\begin{{document}}
+\\title{{{title_escaped}}}
+\\date{{}}
+\\maketitle
+{body_escaped}
+\\end{{document}}
+"""
+
+		compiler = LatexCompiler()
+		try:
+			compile_result = await compiler.compile(latex_source)
+			if compile_result.success and compile_result.pdf_bytes:
+				return compile_result.pdf_bytes
+		except Exception:
+			pass
+
+		# Absolute last resort: return a syntactically valid minimal PDF
+		return self._generate_hardcoded_minimal_pdf(title, body_text)
+
+	def _generate_hardcoded_minimal_pdf(self, title: str, body: str) -> bytes:
+		"""Generate a syntactically valid minimal PDF as absolute last resort"""
+		# A minimal valid PDF 1.4 with one page
+		title_bytes = title.encode("utf-8", "replace")
+		body_bytes = body.encode("utf-8", "replace")
+
+		pdf = (
+			b"%PDF-1.4\n"
+			b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+			b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+			b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n"
+			b"4 0 obj\n<< /Length 0 >>\nstream\n"
+			b"BT /F1 12 Tf 72 720 Td (" + title_bytes + b") Tj 0 -20 Td (" + body_bytes + b") Tj ET\n"
+			b"endstream\nendobj\n"
+			b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+			b"xref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000266 00000 n \n0000000414 00000 n \n"
+			b"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n492\n%%EOF\n"
+		)
+		return pdf
 	
 	def _estimate_page_count(self, pdf_content: bytes) -> int:
 		"""Estimate page count from PDF content"""

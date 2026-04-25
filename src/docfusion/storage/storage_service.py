@@ -11,7 +11,7 @@ import asyncio
 import logging
 logger = logging.getLogger(__name__)
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -517,6 +517,7 @@ class StorageService:
                         "updated_at": doc.updated_at.isoformat(),
                         "file_size": doc.file_size,
                         "access_count": doc.access_count,
+                        "metadata": asdict(doc),
                     }
                     results.append(doc_info)
 

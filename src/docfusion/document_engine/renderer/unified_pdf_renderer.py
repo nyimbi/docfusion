@@ -46,21 +46,16 @@ try:
 		PageMargins,
 		PDFMetadata
 	)
-	# Try to import optional components
-	try:
-		from .pdf_renderer import LaTeXRenderer, WeasyPrintRenderer
-	except ImportError:
-		LaTeXRenderer = None
-		WeasyPrintRenderer = None
-		
+	
 	# Create compatible FormattedDocumentContent
 	class LegacyFormattedDocumentContent:
-		def __init__(self, title="", content_html="", content_css="", content_latex="", latex_assets=None):
+		def __init__(self, title="", content_html="", content_css="", content_latex="", latex_assets=None, document_id=""):
 			self.title = title
 			self.content_html = content_html
 			self.content_css = content_css
 			self.content_latex = content_latex
 			self.latex_assets = latex_assets or {}
+			self.document_id = document_id or ""
 			
 except ImportError:
 	# Fallback classes if PDF renderer is not available
@@ -69,16 +64,15 @@ except ImportError:
 	PDFRenderResult = None
 	PageMargins = None
 	PDFMetadata = None
-	LaTeXRenderer = None
-	WeasyPrintRenderer = None
 	
 	class LegacyFormattedDocumentContent:
-		def __init__(self, title="", content_html="", content_css="", content_latex="", latex_assets=None):
+		def __init__(self, title="", content_html="", content_css="", content_latex="", latex_assets=None, document_id=""):
 			self.title = title
 			self.content_html = content_html
 			self.content_css = content_css
 			self.content_latex = content_latex
 			self.latex_assets = latex_assets or {}
+			self.document_id = document_id or ""
 
 
 # ============================================================================
@@ -161,17 +155,11 @@ class UnifiedPDFRenderer(BaseRenderer):
 			
 			self.legacy_renderer = LegacyPDFRenderer(legacy_config)
 			
-			# Initialize LaTeX and WeasyPrint renderers
-			self.latex_renderer = LaTeXRenderer()
-			self.weasyprint_renderer = WeasyPrintRenderer()
-			
 		except Exception as e:
 			if self.enable_logging:
 				logger.warning(f"Warning: PDF renderer initialization issue: {e}")
 			# Create minimal fallback
 			self.legacy_renderer = None
-			self.latex_renderer = None
-			self.weasyprint_renderer = None
 	
 	async def render(
 		self,
@@ -260,42 +248,13 @@ class UnifiedPDFRenderer(BaseRenderer):
 	) -> bytes:
 		"""Generate PDF using LaTeX-first approach with WeasyPrint fallback"""
 		
-		# Try LaTeX first if content available and enabled
-		if (content.content_latex and 
-			isinstance(config, PDFRenderConfiguration) and 
-			config.enable_latex_fallback and 
-			self.latex_renderer):
-			
-			try:
-				latex_result = await self.latex_renderer.render_latex_to_pdf(
-					content.content_latex,
-					assets=content.latex_assets
-				)
-				return latex_result.pdf_content
-			except Exception as e:
-				if self.enable_logging:
-					logger.error(f"LaTeX rendering failed, falling back to WeasyPrint: {e}")
-		
-		# Fallback to WeasyPrint using HTML content
-		if self.weasyprint_renderer:
-			try:
-				weasyprint_result = await self.weasyprint_renderer.render_html_to_pdf(
-					content.content_html,
-					css_content=content.content_css
-				)
-				return weasyprint_result.pdf_content
-			except Exception as e:
-				if self.enable_logging:
-					logger.error(f"WeasyPrint rendering failed: {e}")
-				raise ContentProcessingException(f"Both LaTeX and WeasyPrint rendering failed: {e}") from e
-		
-		# Final fallback: use legacy renderer if available
+		# Use legacy renderer directly
 		if self.legacy_renderer:
 			try:
 				legacy_result = await self.legacy_renderer.render_pdf(content)
 				return legacy_result.pdf_content
 			except Exception as e:
-				raise OutputGenerationException(f"All PDF rendering methods failed: {e}") from e
+				raise OutputGenerationException(f"PDF rendering failed: {e}") from e
 		
 		# No renderers available
 		raise RendererException("No PDF rendering engines available")
@@ -316,7 +275,8 @@ class UnifiedPDFRenderer(BaseRenderer):
 			content_html=html_content,
 			content_css=content.content_css,
 			content_latex=latex_content,
-			latex_assets=content.assets_map
+			latex_assets=content.assets_map,
+			document_id=content.document_id
 		)
 		
 		return legacy_content
@@ -416,6 +376,7 @@ class UnifiedPDFRenderer(BaseRenderer):
 		# Convert legacy input to unified format if needed
 		if isinstance(formatted_content, LegacyFormattedDocumentContent):
 			unified_content = UnifiedDocumentContent(
+				document_id=formatted_content.document_id,
 				title=formatted_content.title,
 				content_html=formatted_content.content_html,
 				content_css=formatted_content.content_css,

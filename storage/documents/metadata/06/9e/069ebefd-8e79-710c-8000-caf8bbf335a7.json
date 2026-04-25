@@ -1,0 +1,38 @@
+{
+  "document_id": "069ebefd-8e79-710c-8000-caf8bbf335a7",
+  "title": "Multi-Format Consistency Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069ebefd-8e79-710c-8000-caf8bbf335a7_1.0.0.txt",
+  "file_size": 1239,
+  "checksum": "c7df6f684675293bf1e07354aa0550fb4fee403cd295477262ea6568d3a343c4",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-25T01:34:00.969998",
+  "updated_at": "2026-04-25T01:34:00.970000",
+  "accessed_at": "2026-04-25T01:34:00.970000",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "66abe6dcf21221f52eeb6ce6cde85335",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-25T01:34:00.904578",
+    "processing_time": 0.0,
+    "quality_score": 0.8314285714285715,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

@@ -34,7 +34,7 @@ import {
 	Undo,
 	Redo,
 	Link,
-	Image,
+	Image as ImageIcon,
 	Table,
 	Minus,
 	AlignLeft,
@@ -58,6 +58,8 @@ import {
 	Minimize,
 	TypeOutline,
 	Highlighter,
+	AlertCircle,
+	BetweenHorizontalStart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button, IconButton } from "@/components/ui/Button";
@@ -87,19 +89,26 @@ import { toast } from "sonner";
 
 interface DocumentToolbarProps {
 	editor: Editor | null;
-	documentId: string;
+	/** Document ID. If not provided, document-specific features are hidden. */
+	documentId?: string;
 	onInsertDiagram?: () => void;
+	/** Callback for uploading images. If not provided, images are inserted as base64. */
+	onFileUpload?: (file: File) => Promise<string>;
 	className?: string;
 	/** Whether to show text labels alongside icons. Default: true */
 	showText?: boolean;
+	/** Minimal mode hides document-specific features (focus mode, comments, share, download). */
+	minimal?: boolean;
 }
 
 export function DocumentToolbar({
 	editor,
 	documentId,
 	onInsertDiagram,
+	onFileUpload,
 	className,
 	showText = true,
+	minimal = false,
 }: DocumentToolbarProps) {
 	const [isDiagramDialogOpen, setIsDiagramDialogOpen] = React.useState(false);
 	const [isAIToolbarOpen, setIsAIToolbarOpen] = React.useState(false);
@@ -164,26 +173,6 @@ export function DocumentToolbar({
 		openAICommandPalette(`tone:${tone}`);
 	};
 
-	// Insert handlers
-	const handleInsertLink = () => {
-		const previousUrl = editor.getAttributes("link").href;
-		const url = window.prompt("Enter URL:", previousUrl);
-		if (url === null) return;
-		
-		if (url === "") {
-			editor.chain().focus().extendMarkRange("link").unsetLink().run();
-		} else {
-			editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
-		}
-	};
-
-	const handleInsertImage = () => {
-		const url = window.prompt("Enter image URL:");
-		if (url) {
-			editor.chain().focus().setImage({ src: url }).run();
-		}
-	};
-
 	const handleInsertTable = () => {
 		editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
 	};
@@ -205,18 +194,22 @@ export function DocumentToolbar({
 			aria-label="Document formatting"
 		>
 			{/* Left: View & Structure */}
-			<ToolbarGroup>
-				<ToolbarButton
-					icon={focusMode ? Maximize2 : Minimize2}
-					label={focusMode ? "Exit focus mode" : "Focus mode"}
-					shortcut="Ctrl+Shift+F"
-					onClick={toggleFocusMode}
-					isActive={focusMode}
-					showText={showText}
-				/>
-			</ToolbarGroup>
+			{!minimal && (
+				<>
+					<ToolbarGroup>
+						<ToolbarButton
+							icon={focusMode ? Maximize2 : Minimize2}
+							label={focusMode ? "Exit focus mode" : "Focus mode"}
+							shortcut="Ctrl+Shift+F"
+							onClick={toggleFocusMode}
+							isActive={focusMode}
+							showText={showText}
+						/>
+					</ToolbarGroup>
 
-			<ToolbarDivider />
+					<ToolbarDivider />
+				</>
+			)}
 
 			{/* History */}
 			<ToolbarGroup>
@@ -345,6 +338,13 @@ export function DocumentToolbar({
 					onClick={() => editor.chain().focus().setHorizontalRule().run()}
 					showText={showText}
 				/>
+				<CalloutButton editor={editor} showText={showText} />
+				<ToolbarButton
+					icon={BetweenHorizontalStart}
+					label="Page break"
+					onClick={() => editor.chain().focus().setPageBreak().run()}
+					showText={showText}
+				/>
 			</ToolbarGroup>
 
 			<ToolbarDivider />
@@ -352,10 +352,9 @@ export function DocumentToolbar({
 			{/* Insert elements */}
 			<InsertDropdown
 				editor={editor}
-				onInsertLink={handleInsertLink}
-				onInsertImage={handleInsertImage}
 				onInsertTable={handleInsertTable}
 				onInsertDiagram={() => setIsDiagramDialogOpen(true)}
+				onFileUpload={onFileUpload}
 				showText={showText}
 			/>
 
@@ -376,19 +375,23 @@ export function DocumentToolbar({
 			<ToolbarDivider />
 
 			{/* Review tools */}
-			<ToolbarGroup>
-				<ToolbarButton
-					icon={MessageSquare}
-					label="Comments"
-					shortcut="Ctrl+Alt+M"
-					onClick={toggleComments}
-					isActive={isCommentsVisible}
-					showText={showText}
-				/>
-			</ToolbarGroup>
+			{!minimal && (
+				<>
+					<ToolbarGroup>
+						<ToolbarButton
+							icon={MessageSquare}
+							label="Comments"
+							shortcut="Ctrl+Alt+M"
+							onClick={toggleComments}
+							isActive={isCommentsVisible}
+							showText={showText}
+						/>
+					</ToolbarGroup>
 
-			{/* Spacer */}
-			<div className="flex-1" />
+					{/* Spacer */}
+					<div className="flex-1" />
+				</>
+			)}
 
 			{/* Diagram Dialog */}
 			<DiagramInsertDialog
@@ -554,6 +557,62 @@ function HeadingDropdown({ editor, showText = true }: HeadingDropdownProps) {
 	);
 }
 
+/**
+ * Callout/alert box insertion button.
+ */
+function CalloutButton({ editor, showText }: { editor: Editor; showText?: boolean }) {
+	const [isOpen, setIsOpen] = React.useState(false);
+
+	const variants = [
+		{ label: "Info", variant: "info" as const },
+		{ label: "Warning", variant: "warning" as const },
+		{ label: "Success", variant: "success" as const },
+		{ label: "Danger", variant: "danger" as const },
+	];
+
+	return (
+		<DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<DropdownMenuTrigger asChild>
+						<button
+							type="button"
+							className={cn(
+								"p-1.5 rounded transition-colors flex items-center gap-1",
+								"hover:bg-[var(--background-muted)]",
+								editor.isActive("callout") && "bg-[var(--background-muted)]"
+							)}
+							aria-label="Insert callout"
+						>
+							<AlertCircle className="h-4 w-4" />
+							{showText && <span className="text-xs">Callout</span>}
+						</button>
+					</DropdownMenuTrigger>
+				</TooltipTrigger>
+				<TooltipContent side="bottom">Insert callout</TooltipContent>
+			</Tooltip>
+			<DropdownMenuContent align="start" className="w-40">
+				{variants.map((v) => (
+					<DropdownMenuItem
+						key={v.variant}
+						onClick={() => {
+							editor
+								.chain()
+								.focus()
+								.toggleCallout({ variant: v.variant })
+								.run();
+							setIsOpen(false);
+						}}
+					>
+						<AlertCircle className="h-4 w-4 mr-2" />
+						{v.label}
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+}
+
 // ============================================================================
 // Alignment Dropdown
 // ============================================================================
@@ -628,21 +687,64 @@ function AlignmentDropdown({ editor, showText = true }: AlignmentDropdownProps) 
 
 interface InsertDropdownProps {
 	editor: Editor;
-	onInsertLink: () => void;
-	onInsertImage: () => void;
 	onInsertTable: () => void;
 	onInsertDiagram: () => void;
+	onFileUpload?: (file: File) => Promise<string>;
 	showText?: boolean;
 }
 
 function InsertDropdown({
 	editor,
-	onInsertLink,
-	onInsertImage,
 	onInsertTable,
 	onInsertDiagram,
+	onFileUpload,
 	showText = true,
 }: InsertDropdownProps) {
+	const [linkUrl, setLinkUrl] = React.useState("");
+	const [isLinkOpen, setIsLinkOpen] = React.useState(false);
+	const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+	const handleLinkSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+		if (!linkUrl) return;
+		editor.chain().focus().extendMarkRange("link").setLink({ href: linkUrl }).run();
+		setLinkUrl("");
+		setIsLinkOpen(false);
+	};
+
+	const handleLinkRemove = () => {
+		editor.chain().focus().extendMarkRange("link").unsetLink().run();
+		setIsLinkOpen(false);
+	};
+
+	const handleImageClick = () => {
+		fileInputRef.current?.click();
+	};
+
+	const handleImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+
+		try {
+			let url: string;
+			if (onFileUpload) {
+				url = await onFileUpload(file);
+			} else {
+				url = await new Promise<string>((resolve, reject) => {
+					const reader = new FileReader();
+					reader.onload = () => resolve(reader.result as string);
+					reader.onerror = reject;
+					reader.readAsDataURL(file);
+				});
+			}
+			editor.chain().focus().setImage({ src: url }).run();
+		} catch {
+			toast.error("Failed to insert image");
+		}
+		// Reset input so the same file can be selected again
+		e.target.value = "";
+	};
+
 	return (
 		<DropdownMenu>
 			<Tooltip>
@@ -682,18 +784,58 @@ function InsertDropdown({
 
 				<DropdownMenuSeparator />
 
-				<DropdownMenuItem onClick={onInsertLink}>
-					<Link className="h-4 w-4 mr-2" />
-					Link
-					<kbd className="ml-auto text-[10px] px-1 py-0.5 bg-[var(--background-muted)] rounded">
-						Ctrl+K
-					</kbd>
-				</DropdownMenuItem>
+				<DropdownMenuSub open={isLinkOpen} onOpenChange={setIsLinkOpen}>
+					<DropdownMenuSubTrigger>
+						<Link className="h-4 w-4 mr-2" />
+						Link
+						<kbd className="ml-auto text-[10px] px-1 py-0.5 bg-[var(--background-muted)] rounded">
+							Ctrl+K
+						</kbd>
+					</DropdownMenuSubTrigger>
+					<DropdownMenuSubContent className="w-72 p-2">
+						<form onSubmit={handleLinkSubmit}>
+							<input
+								type="url"
+								value={linkUrl}
+								onChange={(e) => setLinkUrl(e.target.value)}
+								placeholder="https://example.com"
+								className={cn(
+									"w-full px-2 py-1.5 text-sm border rounded",
+									"focus:outline-none focus:ring-2 focus:ring-blue-500"
+								)}
+								// eslint-disable-next-line jsx-a11y/no-autofocus -- Intentional focus for dropdown form UX
+							autoFocus
+							/>
+							<div className="flex justify-end gap-2 mt-2">
+								{editor.isActive("link") && (
+									<Button
+										type="button"
+										variant="secondary"
+										size="sm"
+										onClick={handleLinkRemove}
+									>
+										Remove
+									</Button>
+								)}
+								<Button type="submit" size="sm" disabled={!linkUrl}>
+									{editor.isActive("link") ? "Update" : "Insert"}
+								</Button>
+							</div>
+						</form>
+					</DropdownMenuSubContent>
+				</DropdownMenuSub>
 
-				<DropdownMenuItem onClick={onInsertImage}>
-					<Image className="h-4 w-4 mr-2" />
+				<DropdownMenuItem onClick={handleImageClick}>
+					<ImageIcon className="h-4 w-4 mr-2" aria-hidden="true" />
 					Image
 				</DropdownMenuItem>
+				<input
+					ref={fileInputRef}
+					type="file"
+					accept="image/*"
+					className="hidden"
+					onChange={handleImageFile}
+				/>
 
 				<DropdownMenuSeparator />
 

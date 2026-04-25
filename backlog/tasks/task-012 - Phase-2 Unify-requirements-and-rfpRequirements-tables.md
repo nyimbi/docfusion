@@ -1,4 +1,16 @@
 
+---
+id: TASK-012
+title: 'Phase 2: Unify requirements and rfpRequirements tables'
+status: Done
+assignee: []
+created_date: ''
+updated_date: '2026-04-22 23:10'
+labels: []
+dependencies: []
+priority: high
+---
+
 ## Implementation Notes
 
 **Approach:**

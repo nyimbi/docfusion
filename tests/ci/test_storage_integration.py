@@ -231,7 +231,7 @@ class TestStorageComponentsIntegration:
 		assert full_document is not None
 		assert full_document['document_id'] == target_doc_id
 		assert 'content' in full_document
-		assert len(full_document['content']) > len(search_results[0].content)  # Full content vs. snippet
+		assert len(full_document['content']) >= len(search_results[0].content)  # Full content vs. snippet (search stores full content)
 	
 	async def test_indexing_and_search_consistency(self, populated_storage_system):
 		"""Test that indexer and search engine produce consistent results"""
@@ -536,7 +536,7 @@ class TestErrorHandlingIntegration:
 		content = "This document tests error handling across components."
 		
 		await components['search_engine'].index_document(doc_id, title, content)
-		await components['document_retrieval'].store_document(content, title, doc_id)
+		await components['document_retrieval'].store_document(content=content, title=title, document_id=doc_id)
 		await components['document_indexer'].index_document(
 			document_id=doc_id, title=title, content=content
 		)
@@ -578,7 +578,7 @@ class TestErrorHandlingIntegration:
 		
 		# Add to search engine and document retrieval
 		await components['search_engine'].index_document(doc_id, title, content)
-		await components['document_retrieval'].store_document(content, title, doc_id)
+		await components['document_retrieval'].store_document(content=content, title=title, document_id=doc_id)
 		
 		# Don't add to indexer (simulate partial failure)
 		
@@ -743,7 +743,7 @@ async def test_integration_performance_benchmark(populated_storage_system):
 		components['search_engine'].search(SearchQuery(query="machine learning")),
 		components['search_engine'].search(SearchQuery(query="technical architecture")),
 		components['search_engine'].search(SearchQuery(query="project management")),
-		components['indexer'].search_by_keywords(["data", "science"]),
+		components['document_indexer'].search_by_keywords(["data", "science"]),
 		components['document_indexer'].search_by_category("proposal"),
 		components['document_indexer'].search_by_tags(["technical"])
 	]

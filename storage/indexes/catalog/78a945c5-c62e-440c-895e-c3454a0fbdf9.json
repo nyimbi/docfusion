@@ -1,0 +1,46 @@
+{
+  "document_id": "78a945c5-c62e-440c-895e-c3454a0fbdf9",
+  "title": "Quality Test Document",
+  "content": "<h1>Quality Test Document</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 54,
+  "checksum": "6d075d0de0d3b53868316ae4ce1a10ccb3f967e47bfbbaf9301ab594bfd3d862",
+  "content_hash": "69587257d112eb8be29e1fba1c14491a",
+  "indexed_at": "2026-04-23T15:35:18.760014",
+  "last_modified": "2026-04-23T15:35:18.760015",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 54,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "quality",
+    "test",
+    "document",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T15:35:18.754362",
+    "processing_time": 0.0,
+    "quality_score": 0.812857142857143,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

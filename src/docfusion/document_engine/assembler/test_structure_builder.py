@@ -303,8 +303,11 @@ class TestStructureManager:
 		for section in numbered_sections:
 			if section.level > 0:  # Skip title pages
 				assert section.section_number != ""
-				# Should be decimal format for default
-				assert all(c.isdigit() or c == '.' for c in section.section_number)
+					# Default is decimal format; appendix sections use alphabetical
+				if section.section_type == "appendix":
+					assert section.section_number.startswith("Appendix ")
+				else:
+					assert all(c.isdigit() or c == '.' for c in section.section_number)
 	
 	async def test_content_block_mapping(self, structure_manager, compiled_template, mock_content_blocks):
 		"""Test mapping content blocks to sections"""
@@ -605,7 +608,11 @@ class TestStructureBuilder:
 		structure = await structure_builder.create_document_structure(
 			template_name="proposal",
 			document_id="test_toc_doc",
-			content_blocks=mock_content_blocks
+			content_blocks=mock_content_blocks,
+			template_variables={
+				"client_name": "Test Client",
+				"rfp_number": "TEST-001"
+			}
 		)
 		
 		# Test LaTeX format
@@ -639,7 +646,11 @@ class TestStructureBuilder:
 		structure = await structure_builder.create_document_structure(
 			template_name="proposal",
 			document_id="test_outline_doc",
-			content_blocks=mock_content_blocks
+			content_blocks=mock_content_blocks,
+			template_variables={
+				"client_name": "Test Client",
+				"rfp_number": "TEST-001"
+			}
 		)
 		
 		content_dict = {block.block_id: block for block in mock_content_blocks}
@@ -669,7 +680,11 @@ class TestStructureBuilder:
 		structure = await structure_builder.create_document_structure(
 			template_name="proposal",
 			document_id="test_validation_doc",
-			content_blocks=mock_content_blocks
+			content_blocks=mock_content_blocks,
+			template_variables={
+				"client_name": "Test Client",
+				"rfp_number": "TEST-001"
+			}
 		)
 		
 		result = await structure_builder.validate_document_structure(structure)

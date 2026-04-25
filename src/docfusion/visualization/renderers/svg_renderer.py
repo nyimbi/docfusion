@@ -735,29 +735,137 @@ class SVGRenderer:
             await self._round_coordinates(child, precision)
 
     async def _merge_similar_elements(self, element: SVGElement):
-        """Merge similar elements to reduce redundancy"""
-        # This would implement logic to merge similar elements
-        raise NotImplementedError("_merge_similar_elements is not yet implemented")
+        """Merge adjacent similar elements to reduce redundancy.
+
+        Groups children by (tag, frozen attributes) signature and replaces
+        adjacent runs with a single merged element when safe.
+        """
+        if not element.children:
+            return
+
+        merged_children: List[SVGElement] = []
+        current_run: List[SVGElement] = []
+
+        def _signature(child: SVGElement) -> tuple:
+            attrs = tuple(sorted(child.attributes.items()))
+            return (child.tag, attrs)
+
+        def _flush_run():
+            if not current_run:
+                return
+            if len(current_run) == 1:
+                merged_children.append(current_run[0])
+            else:
+                # Merge into first element's tag/attributes, concatenate content
+                base = current_run[0]
+                merged_content = "".join(c.content for c in current_run)
+                merged = SVGElement(
+                    tag=base.tag,
+                    attributes=dict(base.attributes),
+                    content=merged_content,
+                    children=[],
+                )
+                merged_children.append(merged)
+            current_run.clear()
+
+        for child in element.children:
+            if child.children:
+                # Recursive merge on descendants first
+                await self._merge_similar_elements(child)
+                merged_children.append(child)
+                continue
+
+            if not current_run:
+                current_run.append(child)
+            elif _signature(child) == _signature(current_run[0]):
+                current_run.append(child)
+            else:
+                _flush_run()
+                current_run.append(child)
+
+        _flush_run()
+        element.children = merged_children
 
     async def _optimize_paths(self, element: SVGElement):
-        """Optimize SVG path elements"""
-        # This would implement path optimization logic
-        raise NotImplementedError("_optimize_paths is not yet implemented")
+        """Optimize SVG path 'd' attributes by collapsing redundant commands."""
+        import re
+
+        if element.tag == "path" and "d" in element.attributes:
+            d = element.attributes["d"]
+            # Collapse repeated spaces and redundant command separators
+            d = re.sub(r"([MmLlHhVvCcSsQqTtAaZz])\s+", r"\1", d)
+            d = re.sub(r"\s+", " ", d).strip()
+            # Collapse zero-length line segments: L x y followed by L x y → keep one
+            d = re.sub(r"(L\s+[^\s]+\s+[^\s]+)\s+\1", r"\1", d, flags=re.IGNORECASE)
+            element.attributes["d"] = d
+
+        for child in element.children:
+            await self._optimize_paths(child)
 
     async def _remove_default_attributes(self, element: SVGElement):
-        """Remove attributes that have default values"""
-        # This would remove attributes with default values
-        raise NotImplementedError("_remove_default_attributes is not yet implemented")
+        """Remove attributes that have SVG default values."""
+        # Per-element SVG defaults (subset of common elements)
+        defaults: Dict[str, Dict[str, str]] = {
+            "svg": {"version": "1.1", "xmlns": "http://www.w3.org/2000/svg"},
+            "rect": {"x": "0", "y": "0", "rx": "0", "ry": "0"},
+            "circle": {"cx": "0", "cy": "0", "r": "0"},
+            "ellipse": {"cx": "0", "cy": "0", "rx": "0", "ry": "0"},
+            "line": {"x1": "0", "y1": "0", "x2": "0", "y2": "0"},
+            "path": {"d": ""},
+            "text": {"x": "0", "y": "0", "font-size": "16"},
+            "g": {"transform": ""},
+            "polygon": {},
+            "polyline": {},
+        }
+
+        tag_defaults = defaults.get(element.tag, {})
+        element.attributes = {
+            k: v
+            for k, v in element.attributes.items()
+            if k not in tag_defaults or v != tag_defaults[k]
+        }
+
+        for child in element.children:
+            await self._remove_default_attributes(child)
 
     async def _compress_styles(self, element: SVGElement):
-        """Compress style attributes"""
-        # This would compress CSS styles
-        raise NotImplementedError("_compress_styles is not yet implemented")
+        """Compress inline style attributes by removing redundant declarations."""
+        if "style" in element.attributes:
+            style = element.attributes["style"]
+            # Split declarations, dedupe by property (last wins), strip whitespace
+            declarations: Dict[str, str] = {}
+            for decl in style.split(";"):
+                decl = decl.strip()
+                if ":" in decl:
+                    prop, val = decl.split(":", 1)
+                    declarations[prop.strip()] = val.strip()
+            # Rebuild compressed style string
+            if declarations:
+                element.attributes["style"] = ";".join(
+                    f"{k}:{v}" for k, v in declarations.items()
+                ) + ";"
+            else:
+                del element.attributes["style"]
+
+        for child in element.children:
+            await self._compress_styles(child)
 
     async def _xml_to_svg_element(self, xml_element, svg_element: SVGElement):
-        """Convert XML element to SVG element"""
-        # This would convert ElementTree elements to SVGElement
-        raise NotImplementedError("_xml_to_svg_element is not yet implemented")
+        """Convert an xml.etree.ElementTree element into SVGElement children."""
+        import xml.etree.ElementTree as ET
+
+        if not hasattr(xml_element, "tag"):
+            return
+
+        svg_element.tag = xml_element.tag.split("}")[-1]  # strip namespace
+        svg_element.attributes = dict(xml_element.attrib)
+        svg_element.content = (xml_element.text or "").strip()
+        svg_element.children = []
+
+        for child_xml in xml_element:
+            child_svg = SVGElement(tag="")
+            await self._xml_to_svg_element(child_xml, child_svg)
+            svg_element.children.append(child_svg)
 
     def _initialize_optimization_patterns(self) -> Dict[str, Any]:
         """Initialize optimization patterns"""

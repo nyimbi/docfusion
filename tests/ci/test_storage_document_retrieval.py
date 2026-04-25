@@ -273,6 +273,7 @@ class TestDocumentRetrieval:
 		# Get initial access count
 		initial_metadata = document_retrieval.document_index[doc_id]
 		initial_count = initial_metadata.access_count
+		initial_accessed_at = initial_metadata.accessed_at
 		
 		# Retrieve document
 		await document_retrieval.retrieve_document(doc_id, update_access_time=True)
@@ -280,7 +281,7 @@ class TestDocumentRetrieval:
 		# Check updated access count
 		updated_metadata = document_retrieval.document_index[doc_id]
 		assert updated_metadata.access_count == initial_count + 1
-		assert updated_metadata.accessed_at > initial_metadata.accessed_at
+		assert updated_metadata.accessed_at > initial_accessed_at
 	
 	async def test_retrieve_without_access_tracking(self, populated_retrieval):
 		"""Test retrieving without updating access statistics"""

@@ -1,0 +1,38 @@
+{
+  "document_id": "069e9f33-0f48-7b86-8000-5cbb7a8d9d78",
+  "title": "Large Content Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f33-0f48-7b86-8000-5cbb7a8d9d78_1.0.0.txt",
+  "file_size": 51,
+  "checksum": "d349a6236b50d4b05bb962ff46ce40ce11f5b449b40d29fda9f33eff09f9c3a2",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:23:44.959937",
+  "updated_at": "2026-04-23T13:23:44.959939",
+  "accessed_at": "2026-04-23T13:23:44.959939",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "92f777dccaaacf2c8ac45e12ba01643d",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:23:44.955263",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

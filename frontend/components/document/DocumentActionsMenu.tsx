@@ -139,8 +139,24 @@ export function DocumentActionsMenu({
 				URL.revokeObjectURL(url);
 				toast.success("Exported as JSON");
 			} else if (format === "pdf" || format === "docx") {
-				// PDF and DOCX require server-side conversion
-				toast.error(`${format.toUpperCase()} export requires server configuration`);
+				// Server-side conversion via backend DocumentEngine
+				const response = await fetch(`/api/v1/documents/${document.id}/render`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ output_format: format }),
+				});
+				if (!response.ok) {
+					const errorText = await response.text().catch(() => "Unknown error");
+					throw new Error(`Server error: ${errorText}`);
+				}
+				const blob = await response.blob();
+				const url = URL.createObjectURL(blob);
+				const a = window.document.createElement("a");
+				a.href = url;
+				a.download = `${document.title}.${format}`;
+				a.click();
+				URL.revokeObjectURL(url);
+				toast.success(`Exported as ${format.toUpperCase()}`);
 			}
 		} catch (error) {
 			toast.error("Export failed");

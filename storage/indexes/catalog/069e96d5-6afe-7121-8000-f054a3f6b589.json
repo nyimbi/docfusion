@@ -1,0 +1,44 @@
+{
+  "document_id": "069e96d5-6afe-7121-8000-f054a3f6b589",
+  "title": "Memory Test 3",
+  "content": "<h1>Memory Test 3</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 46,
+  "checksum": "a8d09f377d96047482381bfce8bff4fe8c5aea89899be7762e8c7e617558fae7",
+  "content_hash": "f280e28bf73eb524945cab3917a82cc1",
+  "indexed_at": "2026-04-23T03:52:38.689903",
+  "last_modified": "2026-04-23T03:52:38.689903",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 46,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "memory",
+    "test",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T03:52:38.687048",
+    "processing_time": 0.0,
+    "quality_score": 0.7414285714285714,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

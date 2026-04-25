@@ -626,10 +626,10 @@ class DOCXRenderer:
 	def __init__(
 		self,
 		render_config: DOCXRenderConfiguration = None,
-		quality_field_validator: DOCXQualityValidator = None
+		quality_validator: DOCXQualityValidator = None
 	):
 		self.render_config = render_config or DOCXRenderConfiguration()
-		self.quality_field_validator = quality_field_validator or DOCXQualityValidator()
+		self.quality_validator = quality_validator or DOCXQualityValidator()
 		
 		# Core components
 		self.document_builder = DocumentBuilder()
@@ -687,7 +687,7 @@ class DOCXRenderer:
 			file_size = len(docx_content)
 			
 			# Validate quality
-			quality_report = await self.quality_field_validator.validate_docx_quality(
+			quality_report = await self.quality_validator.validate_docx_quality(
 				docx_content, config
 			)
 			
@@ -795,25 +795,158 @@ class DOCXRenderer:
 		document_structure: dict[str, Any],
 		config: DOCXRenderConfiguration
 	) -> bytes:
-		"""Generate mock DOCX binary content"""
+		"""Generate valid DOCX binary content as an OPC package."""
+		import io
+		import zipfile
+		from xml.etree.ElementTree import Element, SubElement, tostring
 		
-		# Create a mock DOCX-like binary content for testing
-		# In real implementation, this would use python-docx library
+		def _ns_tag(tag: str, ns_map: dict[str, str]) -> str:
+			if ':' in tag:
+				prefix, local = tag.split(':', 1)
+				return f"{{{ns_map[prefix]}}}{local}"
+			return tag
 		
-		docx_header = b"PK\x03\x04"  # ZIP file signature (DOCX is a ZIP file)
-		document_content = f"""
-		Document Title: {document_structure.get('title', 'Untitled')}
-		Author: {config.document_metadata.author}
-		Content: {document_structure.get('content', '')[:500]}...
-		Styles Applied: {document_structure.get('styles_applied', 0)}
-		Images Embedded: {document_structure.get('images', 0)}
-		Page Setup: {config.page_size} {config.page_orientation}
-		""".encode('utf-8')
+		# Namespace URIs
+		ns = {
+			'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+			'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+			'cp': 'http://schemas.openxmlformats.org/package/2006/content-types',
+			'rel': 'http://schemas.openxmlformats.org/package/2006/relationships',
+		}
 		
-		# Simulate compressed content
-		mock_docx_content = docx_header + document_content + b"\x00" * 1000
+		# Build word/document.xml
+		body = Element(_ns_tag('w:body', ns))
 		
-		return mock_docx_content
+		# Title paragraph
+		title = document_structure.get('title', 'Untitled')
+		if title:
+			p = SubElement(body, _ns_tag('w:p', ns))
+			r = SubElement(p, _ns_tag('w:r', ns))
+			t = SubElement(r, _ns_tag('w:t', ns))
+			t.text = title
+		
+		# Content paragraphs
+		content = document_structure.get('content', '')
+		if content:
+			# Simple HTML tag stripping for plain text paragraphs
+			import re
+			plain = re.sub(r'<[^>]+>', '\n', content).strip()
+			for para_text in plain.split('\n'):
+				para_text = para_text.strip()
+				if para_text:
+					p = SubElement(body, _ns_tag('w:p', ns))
+					r = SubElement(p, _ns_tag('w:r', ns))
+					t = SubElement(r, _ns_tag('w:t', ns))
+					t.text = para_text
+		
+		# Section paragraphs
+		sections = document_structure.get('sections', [])
+		if isinstance(sections, int):
+			sections = []
+		for section in sections:
+			if isinstance(section, dict):
+				sec_title = section.get('title', '')
+				sec_content = section.get('content', '')
+			else:
+				sec_title = getattr(section, 'title', '')
+				sec_content = getattr(section, 'content', '')
+			if sec_title:
+				p = SubElement(body, _ns_tag('w:p', ns))
+				r = SubElement(p, _ns_tag('w:r', ns))
+				t = SubElement(r, _ns_tag('w:t', ns))
+				t.text = sec_title
+			if sec_content:
+				import re
+				plain = re.sub(r'<[^>]+>', '\n', sec_content).strip()
+				for para_text in plain.split('\n'):
+					para_text = para_text.strip()
+					if para_text:
+						p = SubElement(body, _ns_tag('w:p', ns))
+						r = SubElement(p, _ns_tag('w:r', ns))
+						t = SubElement(r, _ns_tag('w:t', ns))
+						t.text = para_text
+		
+		document_el = Element(_ns_tag('w:document', ns))
+		document_el.append(body)
+		document_xml = (
+			b"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+			+ tostring(document_el, encoding='utf-8')
+		)
+		
+		# Build [Content_Types].xml
+		ct_root = Element(_ns_tag('Types', ns))
+		ct_root.set('xmlns', ns['cp'])
+		
+		ct_default = SubElement(ct_root, _ns_tag('Default', ns))
+		ct_default.set('Extension', 'rels')
+		ct_default.set('ContentType', 'application/vnd.openxmlformats-package.relationships+xml')
+		
+		ct_default_xml = SubElement(ct_root, _ns_tag('Default', ns))
+		ct_default_xml.set('Extension', 'xml')
+		ct_default_xml.set('ContentType', 'application/xml')
+		
+		ct_override = SubElement(ct_root, _ns_tag('Override', ns))
+		ct_override.set('PartName', '/word/document.xml')
+		ct_override.set('ContentType', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml')
+		
+		content_types_xml = (
+			b"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+			+ tostring(ct_root, encoding='utf-8')
+		)
+		
+		# Build _rels/.rels
+		rels_root = Element(_ns_tag('Relationships', ns))
+		rels_root.set('xmlns', ns['rel'])
+		
+		rel_doc = SubElement(rels_root, _ns_tag('Relationship', ns))
+		rel_doc.set('Id', 'rId1')
+		rel_doc.set('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument')
+		rel_doc.set('Target', 'word/document.xml')
+		
+		rels_xml = (
+			b"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+			+ tostring(rels_root, encoding='utf-8')
+		)
+		
+		# Build word/_rels/document.xml.rels
+		doc_rels_root = Element(_ns_tag('Relationships', ns))
+		doc_rels_root.set('xmlns', ns['rel'])
+
+		doc_rel = SubElement(doc_rels_root, _ns_tag('Relationship', ns))
+		doc_rel.set('Id', 'rId1')
+		doc_rel.set('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles')
+		doc_rel.set('Target', 'styles.xml')
+
+		doc_rels_xml = (
+			b"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
+			+ tostring(doc_rels_root, encoding='utf-8')
+		)
+
+		# Build minimal word/styles.xml
+		styles_xml = (
+			b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+			b'<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+			b'<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:eastAsia="Calibri" w:hAnsi="Calibri" w:cs="Times New Roman"/>'
+			b'<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault>'
+			b'<w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="259" w:lineRule="auto"/></w:pPr></w:pPrDefault>'
+			b'</w:docDefaults>'
+			b'<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="160" w:line="259" w:lineRule="auto"/></w:pPr>'
+			b'<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:style>'
+			b'<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="240" w:after="0"/>'
+			b'<w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:bCs/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr></w:style>'
+			b'</w:styles>'
+		)
+
+		# Assemble ZIP package
+		buffer = io.BytesIO()
+		with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+			zf.writestr('[Content_Types].xml', content_types_xml)
+			zf.writestr('_rels/.rels', rels_xml)
+			zf.writestr('word/_rels/document.xml.rels', doc_rels_xml)
+			zf.writestr('word/document.xml', document_xml)
+			zf.writestr('word/styles.xml', styles_xml)
+
+		return buffer.getvalue()
 	
 	def _estimate_memory_usage(self) -> float:
 		"""Estimate current memory usage in MB"""
@@ -909,7 +1042,7 @@ def validate_docx_renderer_installation() -> dict[str, bool]:
 		'docx_renderer_core': True,
 		'style_translator': True,
 		'asset_embedder': True,
-		'quality_field_validator': True,
+		'quality_validator': True,
 		'document_builder': True,
 		'overall_status': True
 	}

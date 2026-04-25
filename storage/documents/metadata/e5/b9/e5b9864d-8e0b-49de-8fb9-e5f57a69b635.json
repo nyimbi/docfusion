@@ -1,0 +1,37 @@
+{
+  "document_id": "e5b9864d-8e0b-49de-8fb9-e5f57a69b635",
+  "title": "Empty Content Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/e5/b9/e5b9864d-8e0b-49de-8fb9-e5f57a69b635_1.0.0.txt",
+  "file_size": 2,
+  "checksum": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-25T01:53:30.581062",
+  "updated_at": "2026-04-25T01:53:30.581065",
+  "accessed_at": "2026-04-25T01:53:30.581065",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "99914b932bd37a50b983c5e7c90ae93b",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-25T01:53:30.523574",
+    "processing_time": 0.0,
+    "quality_score": 0.7671428571428571,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "document_id": "069ea19c-2211-7915-8000-16b4c7da3415",
+  "title": "Strategic Business Analysis",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069ea19c-2211-7915-8000-16b4c7da3415_1.0.0.txt",
+  "file_size": 1239,
+  "checksum": "c7df6f684675293bf1e07354aa0550fb4fee403cd295477262ea6568d3a343c4",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T16:08:18.155450",
+  "updated_at": "2026-04-23T16:08:18.155453",
+  "accessed_at": "2026-04-23T16:08:18.155454",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "66abe6dcf21221f52eeb6ce6cde85335",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T16:08:18.130031",
+    "processing_time": 0.0,
+    "quality_score": 0.8525,
+    "output_formats": [
+      "pdf",
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

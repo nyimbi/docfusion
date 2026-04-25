@@ -58,7 +58,7 @@ class SearchQuery:
     max_fuzzy_distance: int = 2
     highlight_fragments: int = 3
     result_limit: int = 50
-    min_relevance_threshold: float = 0.1
+    min_relevance_threshold: float = 0.0
 
 @dataclass
 class DocumentIndex:
@@ -164,7 +164,7 @@ class TextSearchEngine:
 
             # Inverse document frequency
             doc_freq = self.document_frequencies.get(token, 1)
-            idf = math.log(self.total_documents / doc_freq) if doc_freq > 0 else 0
+            idf = math.log(1 + self.total_documents / doc_freq) if doc_freq > 0 and self.total_documents > 0 else 0
 
             # TF-IDF score
             tf_idf_scores[token] = tf * idf
@@ -199,7 +199,7 @@ class TextSearchEngine:
         current_operator = "AND"  # Default
 
         for part in parts:
-            part = part.strip()
+            part = part.strip().strip("()")
             if part in ["AND", "OR", "NOT"]:
                 current_operator = part
             elif part:
@@ -294,10 +294,11 @@ class TextSearchEngine:
         self.document_indexes[document_id] = doc_index
         self._update_inverted_index(document_id, stems)
 
+        # Update total_documents BEFORE calculating TF-IDF
+        self.total_documents = len(self.document_indexes)
+
         # Calculate TF-IDF scores
         self.tf_idf_scores[document_id] = self._calculate_tf_idf(document_id, stems)
-
-        self.total_documents = len(self.document_indexes)
 
         # Save updated indexes
         await self._save_indexes()
@@ -424,7 +425,7 @@ class TextSearchEngine:
             if len(query_stems) > 0:
                 relevance_score /= len(query_stems)
 
-            if relevance_score > 0:
+            if relevance_score >= 0:
                 results.append(
                     SearchResult(
                         document_id=doc_id,
@@ -575,7 +576,8 @@ class TextSearchEngine:
 
     async def get_search_stats(self) -> SearchStats:
         """Get search engine statistics"""
-        return self.stats
+        from dataclasses import replace
+        return replace(self.stats)
 
     async def suggest_queries(
         self, partial_query: str, max_suggestions: int = 10

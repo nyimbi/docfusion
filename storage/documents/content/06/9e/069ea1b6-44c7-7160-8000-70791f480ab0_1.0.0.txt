@@ -1,0 +1,201 @@
+<style>
+.element-element_0 {
+  font-family: serif;
+  font-size: 13.2pt;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.5;
+  color: #000000;
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  display: block;
+}
+
+.element-element_1 {
+  font-family: serif;
+  font-size: 13.2pt;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.5;
+  color: #000000;
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  display: block;
+}
+
+.element-element_2 {
+  font-family: serif;
+  font-size: 13.2pt;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.5;
+  color: #000000;
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  display: block;
+}
+
+.element-element_3 {
+  font-family: serif;
+  font-size: 13.2pt;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.5;
+  color: #000000;
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  display: block;
+}
+
+.element-element_4 {
+  font-family: serif;
+  font-size: 13.2pt;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.5;
+  color: #000000;
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  display: block;
+}
+
+.element-element_5 {
+  font-family: serif;
+  font-size: 13.2pt;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.5;
+  color: #000000;
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  display: block;
+}
+
+.element-element_6 {
+  font-family: serif;
+  font-size: 13.2pt;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.5;
+  color: #000000;
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  display: block;
+}
+
+.element-element_7 {
+  font-family: serif;
+  font-size: 13.2pt;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.5;
+  color: #000000;
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  display: block;
+}
+
+.element-element_8 {
+  font-family: serif;
+  font-size: 13.2pt;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.5;
+  color: #000000;
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  display: block;
+}
+
+.element-element_9 {
+  font-family: serif;
+  font-size: 13.2pt;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.5;
+  color: #000000;
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  display: block;
+}
+</style>
+<div class="element-element_0"><!-- Content for element_0 --></div>
+<div class="element-element_1"><!-- Content for element_1 --></div>
+<div class="element-element_2"><!-- Content for element_2 --></div>
+<div class="element-element_3"><!-- Content for element_3 --></div>
+<div class="element-element_4"><!-- Content for element_4 --></div>
+<div class="element-element_5"><!-- Content for element_5 --></div>
+<div class="element-element_6"><!-- Content for element_6 --></div>
+<div class="element-element_7"><!-- Content for element_7 --></div>
+<div class="element-element_8"><!-- Content for element_8 --></div>
+<div class="element-element_9"><!-- Content for element_9 --></div>

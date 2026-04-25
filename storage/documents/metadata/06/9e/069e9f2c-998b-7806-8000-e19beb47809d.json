@@ -1,0 +1,37 @@
+{
+  "document_id": "069e9f2c-998b-7806-8000-e19beb47809d",
+  "title": "Test Doc 1",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f2c-998b-7806-8000-e19beb47809d_1.0.0.txt",
+  "file_size": 43,
+  "checksum": "1a8fea8e39fe0ecd23bf6909870df41a2f19bce190802a85a729bc9b0eac8244",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:22:01.604193",
+  "updated_at": "2026-04-23T13:22:01.604194",
+  "accessed_at": "2026-04-23T13:22:01.604195",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "7b8a81ecb654877aa77c1e89573fd290",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:22:01.598935",
+    "processing_time": 0.0,
+    "quality_score": 0.7414285714285714,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

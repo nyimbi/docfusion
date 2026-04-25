@@ -42,18 +42,12 @@ try:
 		DOCXRenderConfiguration as LegacyDOCXRenderConfiguration,
 		DOCXRenderResult,
 		FormattedDocumentContent as LegacyFormattedDocumentContent,
-		DocumentProcessor,
-		StyleProcessor,
-		ContentConverter
 	)
 except ImportError:
 	# Fallback classes if DOCX renderer is not available
 	LegacyDOCXRenderer = None
 	LegacyDOCXRenderConfiguration = None
 	DOCXRenderResult = None
-	DocumentProcessor = None
-	StyleProcessor = None
-	ContentConverter = None
 	
 	# Create compatible LegacyFormattedDocumentContent
 	class LegacyFormattedDocumentContent:
@@ -142,29 +136,19 @@ class UnifiedDOCXRenderer(BaseRenderer):
 			# Initialize legacy DOCX renderer for existing functionality
 			if LegacyDOCXRenderer and LegacyDOCXRenderConfiguration:
 				legacy_config = LegacyDOCXRenderConfiguration(
-					template_path=self.docx_config.template_path,
-					default_font=self.docx_config.default_font,
+					default_font_family=self.docx_config.default_font,
 					default_font_size=self.docx_config.default_font_size,
-					preserve_html_structure=self.docx_config.preserve_html_structure
 				)
 				
 				self.legacy_renderer = LegacyDOCXRenderer(legacy_config)
 			else:
 				self.legacy_renderer = None
 			
-			# Initialize processors with safe imports
-			self.document_processor = DocumentProcessor() if DocumentProcessor else None
-			self.style_processor = StyleProcessor() if StyleProcessor else None
-			self.content_converter = ContentConverter() if ContentConverter else None
-			
 		except Exception as e:
 			if self.enable_logging:
 				logger.warning(f"Warning: DOCX renderer initialization issue: {e}")
 			# Create minimal fallback
 			self.legacy_renderer = None
-			self.document_processor = None
-			self.style_processor = None
-			self.content_converter = None
 	
 	async def render(
 		self,

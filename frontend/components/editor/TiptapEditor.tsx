@@ -4,10 +4,11 @@ import * as React from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { cn } from "@/lib/utils";
 import { createExtensions } from "./extensions";
-import { EditorToolbar } from "./EditorToolbar";
+import { DocumentToolbar } from "@/components/document/DocumentToolbar";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useAIStore } from "@/lib/stores/ai-store";
 import type { DocumentContent } from "@/lib/types/document";
+import { getYjsDocument, releaseYjsDocument } from "@/lib/collaboration/yjs-provider";
 
 /**
  * Props for the TiptapEditor component.
@@ -31,6 +32,14 @@ interface TiptapEditorProps {
 	showToolbar?: boolean;
 	/** Whether to auto-focus on mount */
 	autoFocus?: boolean;
+	/** Callback for uploading images from the toolbar */
+	onFileUpload?: (file: File) => Promise<string>;
+	/** Document ID for collaboration (creates Yjs document when provided) */
+	documentId?: string;
+	/** Whether to enable Yjs collaboration */
+	enableCollaboration?: boolean;
+	/** Current user info for collaboration cursors */
+	collaborationUser?: { name: string; color: string };
 }
 
 /**
@@ -59,19 +68,44 @@ export const TiptapEditor = React.memo(function TiptapEditor({
 	className,
 	showToolbar = true,
 	autoFocus = false,
+	onFileUpload,
+	documentId,
+	enableCollaboration = false,
+	collaborationUser,
 }: TiptapEditorProps) {
 	const openAICommandPalette = useAIStore((s) => s.openCommandPalette);
 	const setSelection = useEditorStore((s) => s.setSelection);
 	const preferences = useEditorStore((s) => s.preferences);
+
+	// Manage Yjs document for collaboration
+	const yjsInstanceRef = React.useRef<ReturnType<typeof getYjsDocument> | null>(null);
+
+	const yjsDoc = React.useMemo(() => {
+		if (!enableCollaboration || !documentId) return undefined;
+		const instance = getYjsDocument(documentId, { enablePersistence: true });
+		yjsInstanceRef.current = instance;
+		return instance.doc;
+	}, [enableCollaboration, documentId]);
+
+	React.useEffect(() => {
+		return () => {
+			if (yjsInstanceRef.current) {
+				releaseYjsDocument(yjsInstanceRef.current.documentId);
+				yjsInstanceRef.current = null;
+			}
+		};
+	}, []);
 
 	// Create editor instance
 	const editor = useEditor({
 		extensions: createExtensions({
 			placeholder,
 			onSlashCommand: openAICommandPalette,
-			enableCollaboration: false, // Enable when adding Yjs
+			onFileUpload,
+			yjsDoc,
+			user: collaborationUser,
 		}),
-		content: content ?? { type: "doc", content: [{ type: "paragraph" }] },
+		content: yjsDoc ? undefined : (content ?? { type: "doc", content: [{ type: "paragraph" }] }),
 		editable: !readOnly,
 		autofocus: autoFocus ? "end" : false,
 		editorProps: {
@@ -85,9 +119,11 @@ export const TiptapEditor = React.memo(function TiptapEditor({
 			},
 		},
 		onUpdate: ({ editor }) => {
-			// Emit content changes
-			const json = editor.getJSON();
-			onContentChange?.(json);
+			// Emit content changes (skip if using Yjs to avoid conflicts)
+			if (!yjsDoc) {
+				const json = editor.getJSON();
+				onContentChange?.(json);
+			}
 
 			// Emit plain text for word count
 			const text = editor.getText();
@@ -135,7 +171,14 @@ export const TiptapEditor = React.memo(function TiptapEditor({
 	return (
 		<div className={cn("flex flex-col h-full bg-white dark:bg-gray-950", className)}>
 			{/* Toolbar */}
-			{showToolbar && <EditorToolbar editor={editor} />}
+			{showToolbar && (
+				<DocumentToolbar
+					editor={editor}
+					onFileUpload={onFileUpload}
+					minimal
+					showText={false}
+				/>
+			)}
 
 			{/* Editor content */}
 			<div className="flex-1 overflow-auto">
@@ -194,6 +237,10 @@ export function useEditorContextSafe() {
 
 /**
  * Utility to convert Tiptap JSON to plain text.
+ *
+ * Correctly handles Tiptap's JSON structure where:
+ * - Text nodes have a `text` property (not `content`)
+ * - Container nodes have a `content` array (not `children`)
  */
 export function contentToText(content: DocumentContent): string {
 	if (!content.content) return "";
@@ -201,10 +248,11 @@ export function contentToText(content: DocumentContent): string {
 	function extractText(nodes: DocumentContent["content"]): string {
 		return (nodes ?? [])
 			.map((node) => {
-				if (node.type === "text") return node.content ?? "";
-				if (node.type === "paragraph") return extractText(node.children) + "\n";
-				if (node.type === "heading") return extractText(node.children) + "\n\n";
-				if (node.children) return extractText(node.children);
+				if (node.type === "text") return (node as { text?: string }).text ?? "";
+				if (node.type === "paragraph") return extractText(node.content) + "\n";
+				if (node.type === "heading") return extractText(node.content) + "\n\n";
+				if (node.type === "hardBreak") return "\n";
+				if (node.content) return extractText(node.content);
 				return "";
 			})
 			.join("");

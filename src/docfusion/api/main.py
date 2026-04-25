@@ -26,6 +26,7 @@ from .endpoints.document_endpoints import DocumentEndpoints, create_document_end
 from .endpoints.template_endpoints import TemplateEndpoints, create_template_endpoints
 from .endpoints.rfp_endpoints import router as rfp_router
 from .endpoints.discovery_endpoints import router as discovery_router
+from .endpoints.opportunity_endpoints import router as opportunity_router
 from .middleware.authentication_middleware import (
 	AuthenticationMiddleware, initialize_auth_middleware, get_current_user
 )
@@ -237,6 +238,7 @@ class APIApplication:
 		# Include RFP and discovery routers (always available)
 		app.include_router(rfp_router)
 		app.include_router(discovery_router)
+		app.include_router(opportunity_router)
 
 	def _add_documentation_routes(self, app: FastAPI):
 		"""Add custom documentation routes"""

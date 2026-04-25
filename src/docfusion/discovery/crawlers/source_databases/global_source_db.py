@@ -290,6 +290,7 @@ class GlobalSourceDB:
 			
 			# Load sources from different categories
 			await self._load_government_sources()
+			await self._load_african_sources()
 			await self._load_corporate_sources()
 			await self._load_international_sources()
 			await self._load_foundation_sources()
@@ -575,7 +576,25 @@ class GlobalSourceDB:
 				base_domain=urlparse(source_data["url"]).netloc,
 				**source_data
 			))
-	
+
+	async def _load_african_sources(self):
+		"""Load African procurement sources (regional + national + fallbacks)."""
+		from .african_sources import (
+			get_regional_sources,
+			get_national_sources,
+			get_country_fallbacks,
+		)
+
+		all_sources = get_regional_sources() + get_national_sources() + get_country_fallbacks()
+		for source_data in all_sources:
+			try:
+				await self.add_source(ProcurementSource(
+					base_domain=urlparse(source_data["url"]).netloc,
+					**source_data
+				))
+			except Exception:
+				self.logger.debug("Skipping African source %s", source_data.get("name"))
+
 	async def _load_corporate_sources(self):
 		"""Load corporate procurement sources"""
 		corporate_sources = [

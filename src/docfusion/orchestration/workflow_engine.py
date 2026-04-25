@@ -145,6 +145,31 @@ class Workflow:
     version: str = "1.0"
     tags: List[str] = field(default_factory=list)
 
+@dataclass
+class WorkflowStep:
+	"""Step in a compliance workflow template."""
+	name: str = ""
+	agent_type: str = ""
+	task: str = ""
+	description: str = ""
+	depends_on: List[str] = field(default_factory=list)
+	condition: Optional[str] = None
+
+
+@dataclass
+class WorkflowTemplate:
+	"""Template for compliance-aware workflows."""
+	name: str = ""
+	description: str = ""
+	category: str = "general"
+	steps: List[WorkflowStep] = field(default_factory=list)
+	input_schema: Dict[str, Any] = field(default_factory=dict)
+	output_schema: Dict[str, Any] = field(default_factory=dict)
+	compliance_frameworks: List[str] = field(default_factory=list)
+	validation_rules: List[str] = field(default_factory=list)
+	success_criteria: Dict[str, Any] = field(default_factory=dict)
+
+
 class WorkflowEngine:
     """
     Advanced workflow execution engine
@@ -157,6 +182,7 @@ class WorkflowEngine:
         self.logger = logging.getLogger("workflow_engine")
         self.running_workflows: Dict[str, Dict[str, Any]] = {}
         self.execution_history: List[Dict[str, Any]] = []
+        self.templates: Dict[str, WorkflowTemplate] = {}
 
         # Built-in condition evaluators
         self.condition_evaluators = {

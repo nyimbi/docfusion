@@ -1,0 +1,46 @@
+{
+  "document_id": "069e9f36-6a6b-79b2-8000-5ed124ce59a5",
+  "title": "Invalid Directory Test",
+  "content": "<h1>Invalid Directory Test</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 55,
+  "checksum": "8877a1f16f21486999d861b8d5fac22e6a6b49818e0ba2f623ef47c376c46cf7",
+  "content_hash": "3dc4104d95d139c70d8750deca9d6738",
+  "indexed_at": "2026-04-23T13:24:38.656750",
+  "last_modified": "2026-04-23T13:24:38.656751",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 55,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "invalid",
+    "directory",
+    "test",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T13:24:38.651278",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

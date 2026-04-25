@@ -1,0 +1,38 @@
+{
+  "document_id": "069e9f33-0e0d-764d-8000-7294024eb48f",
+  "title": "Minimal Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f33-0e0d-764d-8000-7294024eb48f_1.0.0.txt",
+  "file_size": 45,
+  "checksum": "516af88063dd3bc1fabe26a1a430b0c55e4c8aab2f55f5a4050a41d8ec652115",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:23:44.882117",
+  "updated_at": "2026-04-23T13:23:44.882118",
+  "accessed_at": "2026-04-23T13:23:44.882119",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "f30972321c7c0d0ed32c416ab87bae21",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:23:44.878278",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

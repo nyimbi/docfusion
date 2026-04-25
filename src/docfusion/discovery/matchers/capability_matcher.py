@@ -559,7 +559,7 @@ class CapabilityMatcher:
 		# Semantic similarity matching
 		for org_cap, proficiency in org_capabilities.items():
 			if org_cap in self.knowledge_base.capability_definitions:
-				similarity = await self.semantic_matcher.calculate_similarity(
+				similarity = self.semantic_matcher.match(
 					capability, self.knowledge_base.capability_definitions[org_cap].description
 				)
 				

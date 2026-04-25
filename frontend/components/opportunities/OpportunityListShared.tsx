@@ -33,6 +33,7 @@ export const statusColors: Record<
 	submitted: { bg: "bg-amber-500/10", text: "text-amber-500", dot: "bg-amber-500" },
 	won: { bg: "bg-green-500/10", text: "text-green-500", dot: "bg-green-500" },
 	lost: { bg: "bg-red-500/10", text: "text-red-500", dot: "bg-red-500" },
+	shortlisted: { bg: "bg-teal-500/10", text: "text-teal-500", dot: "bg-teal-500" },
 	declined: { bg: "bg-muted", text: "text-muted-foreground", dot: "bg-muted-foreground" },
 	expired: { bg: "bg-destructive/10", text: "text-destructive", dot: "bg-destructive" },
 };

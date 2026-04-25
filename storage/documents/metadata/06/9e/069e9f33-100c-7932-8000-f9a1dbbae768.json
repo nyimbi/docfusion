@@ -1,0 +1,38 @@
+{
+  "document_id": "069e9f33-100c-7932-8000-f9a1dbbae768",
+  "title": "Unsupported Format Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f33-100c-7932-8000-f9a1dbbae768_1.0.0.txt",
+  "file_size": 56,
+  "checksum": "7d454d306a0b2973b90e2eada8f12157dc2f71425614a5fe2c26c053ab34a174",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:23:45.007062",
+  "updated_at": "2026-04-23T13:23:45.007064",
+  "accessed_at": "2026-04-23T13:23:45.007064",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "3997faa91cc237cd61d3c63468f55aea",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:23:45.003079",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

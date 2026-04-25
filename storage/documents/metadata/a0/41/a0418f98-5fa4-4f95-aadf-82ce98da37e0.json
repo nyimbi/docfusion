@@ -1,0 +1,38 @@
+{
+  "document_id": "a0418f98-5fa4-4f95-aadf-82ce98da37e0",
+  "title": "Brand Style Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/a0/41/a0418f98-5fa4-4f95-aadf-82ce98da37e0_1.0.0.txt",
+  "file_size": 1239,
+  "checksum": "c7df6f684675293bf1e07354aa0550fb4fee403cd295477262ea6568d3a343c4",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-25T01:46:52.934649",
+  "updated_at": "2026-04-25T01:46:52.934652",
+  "accessed_at": "2026-04-25T01:46:52.934652",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "66abe6dcf21221f52eeb6ce6cde85335",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-25T01:46:52.868029",
+    "processing_time": 0.0,
+    "quality_score": 0.8385714285714286,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

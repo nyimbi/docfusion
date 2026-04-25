@@ -55,6 +55,9 @@ class DocumentSection:
 	
 	# Template configuration
 	template_section: str = ""
+	
+	# Layout / pagination
+	page_number: int | None = None
 	template_variables: dict[str, Any] = Field(default_factory=dict)
 	styling_rules: dict[str, str] = Field(default_factory=dict)
 	
@@ -85,7 +88,7 @@ class TOCConfiguration:
 	# Content filtering
 	include_sections: list[str] = Field(default_factory=list)
 	exclude_sections: list[str] = Field(default_factory=list)
-	section_types: list[str] = Field(default_factory=lambda: ["heading", "content"])
+	section_types: list[str] = Field(default_factory=lambda: ["heading", "content", "appendix"])
 	
 	# Styling and presentation
 	title: str = "Table of Contents"
@@ -526,12 +529,14 @@ class TemplateEngine:
 					name="client_name",
 					variable_type="string",
 					required=True,
+					default_value="Valued Client",
 					description="Name of the client organization"
 				),
 				"rfp_number": TemplateVariable(
 					name="rfp_number",
 					variable_type="string",
 					required=True,
+					default_value="RFP-XXXX",
 					description="RFP identification number"
 				),
 				"submission_date": TemplateVariable(
@@ -988,7 +993,10 @@ class StructureManager:
 				parent_counters[parent_number] += 1
 				counter = parent_counters[parent_number]
 				
-				if parent_number:
+				if section.section_type == "appendix":
+					# Alphabetical appendix numbering: Appendix A, Appendix B, …
+					section_number = f"Appendix {chr(64 + counter)}"
+				elif parent_number:
 					section_number = f"{parent_number}.{counter}"
 				else:
 					section_number = str(counter)
@@ -1074,7 +1082,8 @@ class TOCGenerator:
 					level=section.level,
 					section_number=section.section_number,
 					anchor_id=section.anchor_id,
-					indent_level=section.level - config.min_depth
+					indent_level=section.level - config.min_depth,
+					page_number=section.page_number
 				)
 				toc_entries.append(entry)
 		
@@ -1093,6 +1102,58 @@ class TOCGenerator:
 		self.toc_cache[cache_key] = toc
 		
 		assert isinstance(toc, TableOfContents), "Result must be TableOfContents"
+		return toc
+	
+	def populate_page_numbers(
+		self,
+		toc: TableOfContents,
+		section_page_map: dict[str, int] | None = None,
+		*,
+		lines_per_page: int = 45,
+		chars_per_line: int = 80
+	) -> TableOfContents:
+		"""Populate page numbers for TOC entries.
+
+		.. note::
+			Page numbers are estimated heuristically (default ~45 lines/page,
+			~80 chars/line) when no ``section_page_map`` is provided. For
+			accurate pagination, supply a rendered layout-aware
+			``section_page_map`` (section_id -> actual page_number).
+
+		Args:
+			toc: The table of contents to populate.
+			section_page_map: Optional explicit mapping of section_id -> page_number.
+			lines_per_page: Approximate lines per page for estimation fallback.
+			chars_per_line: Approximate characters per line for estimation fallback.
+
+		Returns:
+			The same TOC instance with page_numbers populated.
+		"""
+		assert isinstance(toc, TableOfContents), "toc must be TableOfContents"
+
+		if section_page_map:
+			for entry in toc.entries:
+				entry.page_number = section_page_map.get(entry.section_id)
+			return toc
+
+		# Estimate page numbers based on cumulative content length
+		current_page = 1
+		cumulative_lines = 0
+		# Assume TOC itself takes ~1 page per 20 entries
+		toc_pages = max(1, len(toc.entries) // 20)
+		current_page = toc_pages + 1
+
+		for entry in toc.entries:
+			if entry.page_number is not None:
+				continue
+			# Heuristic: each entry heading + some content = ~10 lines
+			entry_lines = 10
+			cumulative_lines += entry_lines
+			if cumulative_lines >= lines_per_page:
+				current_page += 1
+				cumulative_lines = cumulative_lines % lines_per_page
+			entry.page_number = current_page
+
 		return toc
 	
 	def _filter_sections_for_toc(
@@ -1173,6 +1234,31 @@ class TOCGenerator:
 		result = "\n".join(lines)
 		assert isinstance(result, str), "Formatted TOC must be string"
 		return result
+	
+	def format_toc_html(self, toc: TableOfContents) -> str:
+		"""Format TOC as an HTML nav element for injection into rendered output."""
+		assert isinstance(toc, TableOfContents), "toc must be TableOfContents"
+		
+		lines = [
+			'<nav class="docufusion-toc">',
+			f'  <h2 class="toc-title">{toc.title}</h2>',
+			'  <ul class="toc-list">',
+		]
+		
+		for entry in toc.entries:
+			indent_class = f"toc-level-{entry.level}"
+			anchor = f' id="{entry.anchor_id}"' if entry.anchor_id else ''
+			page_info = f' <span class="toc-page">{entry.page_number}</span>' if entry.page_number is not None else ''
+			
+			if toc.configuration.clickable_links and entry.anchor_id:
+				link = f'<a href="#{entry.anchor_id}">{entry.section_number} {entry.title}</a>' if entry.section_number else f'<a href="#{entry.anchor_id}">{entry.title}</a>'
+			else:
+				link = f'{entry.section_number} {entry.title}' if entry.section_number else entry.title
+			
+			lines.append(f'    <li class="toc-entry {indent_class}"{anchor}>{link}{page_info}</li>')
+		
+		lines.extend(['  </ul>', '</nav>'])
+		return "\n".join(lines)
 
 
 class OutlineBuilder:

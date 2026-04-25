@@ -1664,19 +1664,26 @@ class BrandFormatter:
 		# Add brand color definitions
 		latex_parts.append("% Brand Colors")
 		latex_parts.append("\\RequirePackage{xcolor}")
-		latex_parts.append(f"\\definecolor{{brandprimary}}{{HTML}}{{{self.brand_spec.color_system.primary_color[1:]}}}")
-		latex_parts.append(f"\\definecolor{{brandsecondary}}{{HTML}}{{{self.brand_spec.color_system.secondary_color[1:]}}}")
+		color_system = getattr(self.brand_spec, 'color_system', None)
+		primary_color = getattr(color_system, 'primary_color', '#000000') if color_system else '#000000'
+		secondary_color = getattr(color_system, 'secondary_color', '#666666') if color_system else '#666666'
+		latex_parts.append(f"\\definecolor{{brandprimary}}{{HTML}}{{{primary_color[1:]}}}")
+		latex_parts.append(f"\\definecolor{{brandsecondary}}{{HTML}}{{{secondary_color[1:]}}}")
 		
 		# Add logo placements
 		latex_parts.append("% Logo Placements")
 		for placement in formatting_result.logo_placements:
-			if placement.latex_placement:
+			if getattr(placement, 'latex_placement', None):
 				latex_parts.append(placement.latex_placement)
 		
-		# Add brand typography
+		# Add brand typography (pdflatex-safe by default)
 		latex_parts.append("% Brand Typography")
-		latex_parts.append("\\RequirePackage{fontspec}")
-		latex_parts.append(f"\\setmainfont{{{self.brand_spec.typography_system.primary_font}}}")
+		latex_parts.append("\\usepackage[T1]{fontenc}")
+		latex_parts.append("\\usepackage{lmodern}")
+		typography_system = getattr(self.brand_spec, 'typography_system', None)
+		primary_font = getattr(typography_system, 'primary_font', '') if typography_system else ''
+		if primary_font:
+			latex_parts.append(f"\\renewcommand{{\\rmdefault}}{{{primary_font}}}")
 		
 		return '\n'.join(latex_parts)
 	

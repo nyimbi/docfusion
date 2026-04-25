@@ -283,7 +283,7 @@ class ScoringPredictor:
 		performance_metrics['xgboost'] = xgb_metrics
 		
 		# Store models and select best
-		self.section_models[section_type] = models
+		# (actual sklearn models are already stored by _train_* methods with keys like rf_model, gb_model)
 		self.model_performance[section_type] = performance_metrics
 		self._select_primary_model_for_section(section_type)
 		
@@ -526,7 +526,7 @@ class ScoringPredictor:
 			
 			# Get model and make prediction
 			primary_model_key = self.primary_models[section_type]
-			model_key = f"{primary_model_key.replace('rf', 'random_forest').replace('gb', 'gradient_boosting').replace('xgb', 'xgboost')}_model"
+			model_key = f"{primary_model_key}_model"
 			model = self.section_models[section_type][model_key]
 			
 			predicted_score = float(model.predict(feature_vector_scaled)[0])

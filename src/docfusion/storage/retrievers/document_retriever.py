@@ -739,7 +739,17 @@ class DocumentRetriever:
 
     async def get_retrieval_stats(self) -> RetrievalStats:
         """Get retrieval system statistics"""
-        return self.stats
+        return RetrievalStats(
+            total_retrievals=self.stats.total_retrievals,
+            block_retrievals=self.stats.block_retrievals,
+            template_retrievals=self.stats.template_retrievals,
+            recommendation_requests=self.stats.recommendation_requests,
+            cache_hits=self.stats.cache_hits,
+            cache_misses=self.stats.cache_misses,
+            average_retrieval_time=self.stats.average_retrieval_time,
+            most_used_content=self.stats.most_used_content.copy(),
+            performance_metrics=self.stats.performance_metrics.copy(),
+        )
 
     async def clear_cache(self) -> None:
         """Clear recommendation cache"""

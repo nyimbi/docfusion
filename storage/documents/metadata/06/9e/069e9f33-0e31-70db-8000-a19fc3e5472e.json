@@ -1,0 +1,38 @@
+{
+  "document_id": "069e9f33-0e31-70db-8000-a19fc3e5472e",
+  "title": "Single Format Test",
+  "content_type": "report",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f33-0e31-70db-8000-a19fc3e5472e_1.0.0.txt",
+  "file_size": 51,
+  "checksum": "604609e4df2e1fdeef37733a1c8d93f365e583a3a11463de43d284e748c92ac0",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:23:44.891016",
+  "updated_at": "2026-04-23T13:23:44.891018",
+  "accessed_at": "2026-04-23T13:23:44.891018",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "report",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "911615ca081c6e54fc52d4ac16817a9a",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:23:44.886984",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "report",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

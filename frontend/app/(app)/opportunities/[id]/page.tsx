@@ -19,6 +19,7 @@ import { OpportunityDocumentsPanel } from "@/components/opportunities/Opportunit
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/Button";
 import { OpportunityHeaderActions } from "@/components/opportunities/OpportunityHeaderActions";
+import { ShortlistButton } from "@/components/opportunities/ShortlistButton";
 
 interface PageProps {
 	params: Promise<{ id: string }>;
@@ -102,6 +103,10 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 						{/* Status badge and actions */}
 						<div className="flex items-center gap-3 flex-wrap">
 							<StatusBadge status={opportunity.decisionStatus} />
+							<ShortlistButton
+								opportunityId={id}
+								isShortlisted={opportunity.decisionStatus === "shortlisted"}
+							/>
 							<OpportunityHeaderActions
 								opportunityId={id}
 								opportunityTitle={opportunity.title}

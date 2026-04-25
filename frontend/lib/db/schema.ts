@@ -9,24 +9,47 @@
 export * from "./auth-schema";
 
 // ============================================================================
-// Domain Schema Re-exports (consolidated)
+// Domain Schema Re-exports (consolidated into 5 domains)
 // ============================================================================
+// Individual schema files are preserved for backward compatibility.
+// New code should prefer importing from "./domains" for a stable surface.
 
-// Core domain: RFP intelligence, template additions, quality assessments
+// Domain 1: Core — Documents, RFP, Templates, Content Library
 export * from "./schema-rfp";
 export * from "./schema-additions";
+export * from "./schema-content-library";
+export * from "./schema-graphics";
+export * from "./schema-formatting";
 
-// CRM domain: accounts, contacts, activities, deals, documents
+// Domain 2: CRM — Accounts, Contacts, Companies, Partners, Pipeline
 export * from "./schema-crm";
+export * from "./schema-company";
+export * from "./schema-partners";
+export * from "./schema-pipeline";
 
-// Workflow domain: pipeline, reviews, comments, tasks, presentations
-export * from "./schema-workflow";
-
-// Intelligence & Analysis
+// Domain 3: Intelligence — Evidence, Competitors, Win Themes, PWin
 export * from "./schema-intelligence";
+export * from "./schema-evidence";
+export * from "./schema-competitors";
+export * from "./schema-win-themes";
+export * from "./schema-pwin";
+export * from "./schema-past-performance";
 
-// Integration & External Systems
+// Domain 4: Workflow — Tasks, Reviews, Comments, Presentations
+export * from "./schema-workflow";
+export * from "./schema-tasks";
+export * from "./schema-reviews";
+export * from "./schema-comments-workflow";
+export * from "./schema-presentations";
+export * from "./schema-winloss";
+
+// Domain 5: Integration — Import, Scraper, Bibliography, Pricing, Personnel
 export * from "./schema-integration";
+export * from "./schema-import";
+export * from "./schema-scraper";
+export * from "./schema-bibliography";
+export * from "./schema-pricing";
+export * from "./schema-personnel";
 
 import { user } from "./auth-schema";
 
@@ -417,8 +440,11 @@ export const savedSearches = pgTable(
 		id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
 		userId: text("user_id").notNull(),
 		name: text("name").notNull(),
-		/** JSONB payload containing filters, sort, description, isDefault */
+		/** JSONB payload containing filters */
 		filters: jsonb("filters").notNull(),
+		sort: jsonb("sort"),
+		description: text("description"),
+		isDefault: boolean("is_default").default(false).notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 	},

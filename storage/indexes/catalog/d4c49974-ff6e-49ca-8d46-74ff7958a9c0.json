@@ -1,0 +1,45 @@
+{
+  "document_id": "d4c49974-ff6e-49ca-8d46-74ff7958a9c0",
+  "title": "Batch Document 2",
+  "content": "<h1>Batch Document 2</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 49,
+  "checksum": "d4c82ee9386429f03f90b2770a1746c4476bdfe56461405e18bbcf4180e14b50",
+  "content_hash": "33fa73de280c68fc59f36f1e2c23f500",
+  "indexed_at": "2026-04-23T15:35:18.793313",
+  "last_modified": "2026-04-23T15:35:18.793314",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 49,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "batch",
+    "document",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T15:35:18.788727",
+    "processing_time": 0.0,
+    "quality_score": 0.812857142857143,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

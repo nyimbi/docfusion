@@ -1,0 +1,46 @@
+{
+  "document_id": "069e9f36-690b-7c9c-8000-2d836606283e",
+  "title": "Formatting to Rendering Test",
+  "content": "<h1>Formatting to Rendering Test</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 61,
+  "checksum": "0dbb9aa0e27d77dccb65c90ffe2867d091450778170541a524b44a3720488993",
+  "content_hash": "ed23a87df42c114f91838fc3f1ad8600",
+  "indexed_at": "2026-04-23T13:24:38.572229",
+  "last_modified": "2026-04-23T13:24:38.572230",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 5,
+  "char_count": 61,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "formatting",
+    "rendering",
+    "test",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T13:24:38.565386",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

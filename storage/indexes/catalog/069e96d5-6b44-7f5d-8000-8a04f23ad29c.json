@@ -1,0 +1,45 @@
+{
+  "document_id": "069e96d5-6b44-7f5d-8000-8a04f23ad29c",
+  "title": "Invalid Format Test",
+  "content": "<h1>Invalid Format Test</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 52,
+  "checksum": "f5c4794769a85f22808511e4598086d5d65eb2b71ff7575280b404bdb1342716",
+  "content_hash": "64b9c5f1e84b644ab3e28049f51d11e0",
+  "indexed_at": "2026-04-23T03:52:38.708923",
+  "last_modified": "2026-04-23T03:52:38.708924",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 52,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "invalid",
+    "format",
+    "test",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T03:52:38.704347",
+    "processing_time": 0.0,
+    "quality_score": 0.7414285714285714,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "document_id": "069e9f33-104f-7451-8000-f571ef14a5c5",
+  "title": "Invalid Directory Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f33-104f-7451-8000-f571ef14a5c5_1.0.0.txt",
+  "file_size": 55,
+  "checksum": "8877a1f16f21486999d861b8d5fac22e6a6b49818e0ba2f623ef47c376c46cf7",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:23:45.024419",
+  "updated_at": "2026-04-23T13:23:45.024421",
+  "accessed_at": "2026-04-23T13:23:45.024421",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "3dc4104d95d139c70d8750deca9d6738",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:23:45.019362",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "document_id": "dd48014e-fe8c-43fd-842d-d8b2116b5f81",
+  "title": "Memory Test 4",
+  "content": "<style>\n.element-element_0 {\n  font-family: serif;\n  font-size: 13.2pt;\n  font-weight: normal;\n  font-style: normal;\n  line-height: 1.5;\n  color: #000000;\n  text-align: left;\n  margin-top: 0;\n  margin-bottom: 0;\n  margin-left: 0;\n  margin-right: 0;\n  padding-top: 0;\n  padding-bottom: 0;\n  padding-left: 0;\n  padding-right: 0;\n  display: block;\n}\n</style>\n<div class=\"element-element_0\"><!-- Content for element_0 --></div>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 423,
+  "checksum": "109ec3524d17c326b2d76be2cca072de0a3398155a1976652b84a6f5f72ff43c",
+  "content_hash": "9a5658d93c309b941fc0cbc9e912dd1f",
+  "indexed_at": "2026-04-25T01:51:56.619513",
+  "last_modified": "2026-04-25T01:51:56.619514",
+  "last_updated": "2026-04-25T01:51:56.619515",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 43,
+  "char_count": 423,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "font",
+    "margin",
+    "padding",
+    "style",
+    "left",
+    "element",
+    "normal",
+    "bottom",
+    "family",
+    "serif",
+    "size",
+    "weight",
+    "line",
+    "height",
+    "color",
+    "text",
+    "align",
+    "display",
+    "block",
+    "class"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-25T01:51:56.566720",
+    "processing_time": 0.0,
+    "quality_score": 0.8242857142857144,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

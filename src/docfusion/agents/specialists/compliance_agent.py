@@ -118,6 +118,22 @@ Be thorough, accurate, and focused on regulatory compliance excellence."""
 			self._nlp_service = NLPService()
 		return self._nlp_service
 
+	async def process_task(self, task_data: Dict[str, Any]) -> AgentResponse:
+		"""Process a compliance task by dispatching to the appropriate handler."""
+		task_type = task_data.get("task_type", "")
+		handler = self.task_handlers.get(task_type)
+		if handler:
+			return await handler(task_data)
+		# Fallback to base implementation
+		result = await super().process_task(task_data)
+		if isinstance(result, dict):
+			return AgentResponse(
+				status=AgentStatus.COMPLETED if result.get("status") == "completed" else AgentStatus.ERROR,
+				content=result.get("result", "") or result.get("error", ""),
+				metadata=result
+			)
+		return result
+
 	async def _handle_validate_document(
 		self,
 		task_data: Dict[str, Any]

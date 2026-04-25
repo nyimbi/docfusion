@@ -227,6 +227,13 @@ class AssemblyEngine:
 			# Record performance metrics
 			self._performance_metrics['assembly_time'].append(assembly_duration)
 			
+			# Record completion in audit trail before creating result
+			audit_trail.append({
+				'timestamp': datetime.now().isoformat(),
+				'action': 'assembly_completed',
+				'quality_score': quality_score
+			})
+			
 			# Create assembly result
 			result = AssemblyResult(
 				assembly_context=context,
@@ -240,13 +247,6 @@ class AssemblyEngine:
 			
 			# Cache result for performance
 			self._assembly_cache[result.result_id] = result
-			
-			audit_trail.append({
-				'timestamp': datetime.now().isoformat(),
-				'action': 'assembly_completed',
-				'result_id': result.result_id,
-				'quality_score': quality_score
-			})
 			
 			return result
 			
@@ -567,11 +567,9 @@ class DependencyResolver:
 		block_map = {block.block_id: block for block in blocks}
 		in_degree = {block_id: 0 for block_id in dependency_map}
 		
-		# Calculate in-degrees
-		for dependencies in dependency_map.values():
-			for dep in dependencies:
-				if dep in in_degree:
-					in_degree[dep] += 1
+		# Calculate in-degrees: how many dependencies each block has
+		for block_id, dependencies in dependency_map.items():
+			in_degree[block_id] = len(dependencies)
 		
 		# Start with blocks that have no dependencies
 		queue = [block_id for block_id, degree in in_degree.items() if degree == 0]
@@ -581,7 +579,7 @@ class DependencyResolver:
 			current_id = queue.pop(0)
 			sorted_blocks.append(block_map[current_id])
 			
-			# Update in-degrees for dependent blocks
+			# Update in-degrees for blocks that depend on current
 			for block_id, dependencies in dependency_map.items():
 				if current_id in dependencies:
 					in_degree[block_id] -= 1

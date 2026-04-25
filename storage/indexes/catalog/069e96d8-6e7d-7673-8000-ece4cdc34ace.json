@@ -1,0 +1,49 @@
+{
+  "document_id": "069e96d8-6e7d-7673-8000-ece4cdc34ace",
+  "title": "Integration Test Document",
+  "content": "<h1>Integration Test Document</h1><p>Generated content</p>",
+  "content_type": "report",
+  "file_path": "",
+  "file_size": 58,
+  "checksum": "0e99b2e70e595abb3fa5025db12295033a23d3a470d505986e123f6d92b50266",
+  "content_hash": "56e6d7102dc2a5869c51a74b225ffc33",
+  "indexed_at": "2026-04-23T03:53:26.911116",
+  "last_modified": "2026-04-23T03:53:26.911118",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "report",
+    "html",
+    "pdf",
+    "docx"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 58,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "integration",
+    "test",
+    "document",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T03:53:26.905625",
+    "processing_time": 0.0,
+    "quality_score": 0.6877777777777778,
+    "output_formats": [
+      "html",
+      "pdf",
+      "docx"
+    ],
+    "generation_configuration": {
+      "document_type": "report",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

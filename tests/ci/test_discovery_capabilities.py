@@ -1,0 +1,26 @@
+"""Tests for discovery capability flags exposure."""
+
+from __future__ import annotations
+
+from docfusion.discovery import CAPABILITIES
+
+
+def test_capabilities_is_dict():
+	assert isinstance(CAPABILITIES, dict)
+	assert all(isinstance(k, str) for k in CAPABILITIES.keys())
+	assert all(isinstance(v, bool) for v in CAPABILITIES.values())
+
+
+def test_capabilities_has_expected_keys():
+	expected = {
+		"playwright",
+		"crawl4ai",
+		"cloudscraper",
+		"vision",
+		"structure_learning",
+		"pattern_recognition",
+		"source_discovery",
+		"deployment",
+		"monitoring",
+	}
+	assert expected.issubset(set(CAPABILITIES.keys()))

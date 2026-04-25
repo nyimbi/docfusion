@@ -41,12 +41,17 @@ import {
 } from "lucide-react";
 import { useAIStore } from "@/lib/stores/ai-store";
 import type { AICommand, AIContext, AIStreamChunk } from "@/lib/types/ai";
+import type { DocumentMetadata } from "@/lib/types/document";
 import { AI_COMMANDS, getAICommand, parseSlashCommand } from "@/lib/types/ai";
 import { generateId } from "@/lib/utils";
 
 interface AIAssistantPanelProps {
 	documentId: string;
 	editor: Editor | null;
+	/** Document title for context */
+	documentTitle?: string;
+	/** Document metadata (RFP info, client, due date, etc.) */
+	documentMetadata?: DocumentMetadata;
 	onClose?: () => void;
 	className?: string;
 }
@@ -63,6 +68,8 @@ interface AIMessage {
 export function AIAssistantPanel({
 	documentId,
 	editor,
+	documentTitle,
+	documentMetadata,
 	onClose,
 	className,
 }: AIAssistantPanelProps) {
@@ -116,8 +123,10 @@ export function AIAssistantPanel({
 		if (!editor) {
 			return {
 				documentId,
+				documentTitle,
 				textBefore: "",
 				textAfter: "",
+				metadata: documentMetadata as Record<string, unknown> | undefined,
 			};
 		}
 
@@ -128,12 +137,14 @@ export function AIAssistantPanel({
 
 		return {
 			documentId,
+			documentTitle,
 			textBefore,
 			textAfter,
 			selectedText: selectedText || undefined,
 			blockType: selection.$from.parent.type.name,
+			metadata: documentMetadata as Record<string, unknown> | undefined,
 		};
-	}, [editor, documentId]);
+	}, [editor, documentId, documentTitle, documentMetadata]);
 
 	const handleSend = async () => {
 		if (!input.trim() || isLoading) return;

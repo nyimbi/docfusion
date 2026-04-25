@@ -53,11 +53,16 @@ import {
 	Briefcase,
 	MapPin,
 	CheckCircle,
+	BookmarkCheck,
 } from "lucide-react";
+import { useSession } from "@/lib/auth-client";
 
 import { StatsBanner } from "@/components/opportunities/OpportunityStats";
 import { FilterDropdown, ViewToggle, SortDropdown } from "@/components/opportunities/OpportunityFilters";
 import { BulkActionBar } from "@/components/opportunities/BulkActionBar";
+import { SavedSearches } from "@/components/opportunities/SavedSearches";
+import { ShortlistPanel } from "@/components/opportunities/ShortlistPanel";
+import { OpportunityCompare } from "@/components/opportunities/OpportunityCompare";
 import { OpportunityTable } from "@/components/opportunities/OpportunityTable";
 import { OpportunityGrid } from "@/components/opportunities/OpportunityGrid";
 import {
@@ -108,6 +113,8 @@ export default function OpportunitiesPage() {
 
 function OpportunitiesContent() {
 	const queryClient = useQueryClient();
+	const { data: session } = useSession();
+	const userId = session?.user?.id;
 
 	// View & selection state
 	const [viewMode, setViewMode] = React.useState<"grid" | "list">("list");
@@ -115,6 +122,7 @@ function OpportunitiesContent() {
 
 	// Filter state
 	const [searchQuery, setSearchQuery] = React.useState("");
+	const [debouncedSearch, setDebouncedSearch] = React.useState("");
 	const [filters, setFilters] = React.useState<OpportunityFiltersType>({});
 	const [sort, setSort] = React.useState<OpportunitySort>({
 		field: "deadline",
@@ -124,18 +132,29 @@ function OpportunitiesContent() {
 	const pageSize = 25;
 	const [showExpired, setShowExpired] = React.useState(false);
 	const [voteStatusFilter, setVoteStatusFilter] = React.useState<string[]>([]);
+	const [showShortlistPanel, setShowShortlistPanel] = React.useState(false);
+	const [compareIds, setCompareIds] = React.useState<string[]>([]);
+	const [showCompare, setShowCompare] = React.useState(false);
+
+	// Debounce search input (300ms)
+	React.useEffect(() => {
+		const timer = setTimeout(() => {
+			setDebouncedSearch(searchQuery);
+		}, 300);
+		return () => clearTimeout(timer);
+	}, [searchQuery]);
 
 	// Build query filters
 	const queryFilters: OpportunityFiltersType = React.useMemo(() => {
 		const result: OpportunityFiltersType = {
 			...filters,
-			search: searchQuery || undefined,
+			search: debouncedSearch || undefined,
 		};
 		if (!showExpired) {
 			result.isExpired = false;
 		}
 		return result;
-	}, [filters, searchQuery, showExpired]);
+	}, [filters, debouncedSearch, showExpired]);
 
 	// ========================================================================
 	// Queries
@@ -379,6 +398,9 @@ function OpportunitiesContent() {
 				case "mark-declined":
 					await updateStatusMutation.mutateAsync({ ids, status: "declined" });
 					break;
+				case "add-shortlist":
+					await updateStatusMutation.mutateAsync({ ids, status: "shortlisted" });
+					break;
 				case "priority-high":
 					await updatePriorityMutation.mutateAsync({ ids, priority: 5 });
 					break;
@@ -450,6 +472,14 @@ function OpportunitiesContent() {
 							<span className="hidden sm:inline">Sources</span>
 						</Button>
 					</Link>
+					<Button
+						variant="outline"
+						onClick={() => setShowShortlistPanel(true)}
+						className="gap-1.5"
+					>
+						<BookmarkCheck className="h-4 w-4 text-amber-500" />
+						<span className="hidden sm:inline">Shortlist</span>
+					</Button>
 					<Link href="/opportunities/import">
 						<Button>
 							<Upload className="h-4 w-4" />
@@ -496,7 +526,8 @@ function OpportunitiesContent() {
 							{ value: "submitted", label: "Submitted" },
 							{ value: "won", label: "Won" },
 							{ value: "lost", label: "Lost" },
-							{ value: "declined", label: "Declined" },
+							{ value: "shortlisted", label: "Shortlisted" },
+						{ value: "declined", label: "Declined" },
 						]}
 						selected={filters.statuses || []}
 						onChange={(values) =>
@@ -588,6 +619,19 @@ function OpportunitiesContent() {
 						Africa
 					</button>
 
+					{userId && (
+						<SavedSearches
+							userId={userId}
+							currentFilters={queryFilters}
+							currentSort={sort}
+							onLoadSearch={(loadedFilters, loadedSort) => {
+								setFilters(loadedFilters);
+								if (loadedSort) setSort(loadedSort);
+								setPage(1);
+							}}
+						/>
+					)}
+
 					<div className="flex-1" />
 
 					<ViewToggle mode={viewMode} onChange={setViewMode} />
@@ -642,6 +686,24 @@ function OpportunitiesContent() {
 					/>
 				)}
 			</div>
+
+			{/* Shortlist Panel */}
+			<ShortlistPanel
+				isOpen={showShortlistPanel}
+				onClose={() => setShowShortlistPanel(false)}
+				onCompare={(ids) => {
+					setCompareIds(ids);
+					setShowCompare(true);
+					setShowShortlistPanel(false);
+				}}
+			/>
+
+			{/* Compare Modal */}
+			<OpportunityCompare
+				opportunityIds={compareIds}
+				isOpen={showCompare}
+				onClose={() => setShowCompare(false)}
+			/>
 		</div>
 	);
 }

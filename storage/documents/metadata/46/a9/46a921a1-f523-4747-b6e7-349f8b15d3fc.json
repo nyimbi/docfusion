@@ -1,0 +1,38 @@
+{
+  "document_id": "46a921a1-f523-4747-b6e7-349f8b15d3fc",
+  "title": "Batch Document 2",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/46/a9/46a921a1-f523-4747-b6e7-349f8b15d3fc_1.0.0.txt",
+  "file_size": 49,
+  "checksum": "d4c82ee9386429f03f90b2770a1746c4476bdfe56461405e18bbcf4180e14b50",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T15:35:18.812130",
+  "updated_at": "2026-04-23T15:35:18.812130",
+  "accessed_at": "2026-04-23T15:35:18.812131",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "33fa73de280c68fc59f36f1e2c23f500",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T15:35:18.805416",
+    "processing_time": 0.0,
+    "quality_score": 0.812857142857143,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

@@ -51,16 +51,10 @@ export function buildOpportunityConditions(
 
 	const exclude = options?.excludeFilter;
 
-	// ── Free-text search (ILIKE across multiple columns) ──────────────────
+	// ── Full-text search (PostgreSQL tsvector) ────────────────────────────
 	if (filters.search) {
-		const searchTerm = `%${filters.search}%`;
 		conditions.push(
-			or(
-				like(opportunities.title, searchTerm),
-				like(opportunities.organization, searchTerm),
-				like(opportunities.projectSummary, searchTerm),
-				like(opportunities.keyRequirements, searchTerm)
-			)!
+			sql`${opportunities.searchVector} @@ plainto_tsquery('english', ${filters.search})`
 		);
 	}
 

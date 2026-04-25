@@ -808,9 +808,17 @@ main[role="main"] { padding: 2rem 0; }
 		return critical_css.strip()
 	
 	async def _generate_print_styles(self, config: HTMLRenderConfiguration) -> str:
-		"""Generate print-optimized CSS"""
+		"""Generate print-optimized CSS with page numbers"""
 		print_css = """
 /* Print Styles */
+@page {
+    margin: 2.5cm;
+    @bottom-center {
+        content: counter(page);
+        font-size: 10pt;
+    }
+}
+
 @media print {
     body {
         font-size: 12pt;
@@ -1337,12 +1345,24 @@ class HTMLRenderer:
 		return main_html
 	
 	def _compile_aside_section(self, aside_data: dict[str, Any]) -> str:
-		"""Compile aside/sidebar section"""
+		"""Compile aside/sidebar section with serialized table of contents"""
 		role = aside_data.get('role', 'complementary')
+		toc_items = []
+		nav_content = aside_data.get('content', {}).get('nav', {}).get('content', {})
+		sections = nav_content.get('sections', [])
+		for section in sections:
+			title = section.get('title', 'Untitled')
+			anchor = section.get('anchor', '')
+			level = section.get('level', 2)
+			indent = "  " * (level - 1)
+			toc_items.append(f'{indent}<li><a href="#{anchor}">{title}</a></li>')
+		toc_html = "\n".join(toc_items)
 		return f'''    <aside role="{role}" class="sidebar">
         <nav aria-label="Page contents">
             <h2>Contents</h2>
-            <!-- Table of contents would be generated here -->
+            <ul>
+{toc_html}
+            </ul>
         </nav>
     </aside>'''
 	

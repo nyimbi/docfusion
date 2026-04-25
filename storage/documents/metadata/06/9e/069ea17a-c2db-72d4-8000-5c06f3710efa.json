@@ -1,0 +1,41 @@
+{
+  "document_id": "069ea17a-c2db-72d4-8000-5c06f3710efa",
+  "title": "Integration Test Document",
+  "content_type": "report",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069ea17a-c2db-72d4-8000-5c06f3710efa_1.0.0.txt",
+  "file_size": 1239,
+  "checksum": "c7df6f684675293bf1e07354aa0550fb4fee403cd295477262ea6568d3a343c4",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T15:59:24.213854",
+  "updated_at": "2026-04-23T15:59:24.213858",
+  "accessed_at": "2026-04-23T15:59:24.213859",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "report",
+    "html",
+    "pdf",
+    "docx"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "66abe6dcf21221f52eeb6ce6cde85335",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T15:59:24.178525",
+    "processing_time": 0.0,
+    "quality_score": 0.758888888888889,
+    "output_formats": [
+      "html",
+      "pdf",
+      "docx"
+    ],
+    "generation_configuration": {
+      "document_type": "report",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

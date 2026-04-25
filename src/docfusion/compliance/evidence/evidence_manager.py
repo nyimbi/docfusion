@@ -216,6 +216,12 @@ class EvidenceManager:
 	organization, quality assessment, linking to requirements, and archival.
 	"""
 	
+	# Expose enums as class attributes for backward compatibility
+	EvidenceSource = EvidenceSource
+	EvidenceType = EvidenceType
+	EvidenceStatus = EvidenceStatus
+	EvidenceQuality = EvidenceQuality
+	
 	def __init__(self, storage_path: Optional[str] = None):
 		self.evidence_database: Dict[str, EvidenceRecord] = {}
 		self.storage_path = Path(storage_path) if storage_path else Path("./evidence_storage")

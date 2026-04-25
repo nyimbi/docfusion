@@ -1,0 +1,38 @@
+{
+  "document_id": "069ea19c-1df4-77e8-8000-a0b28312c8d3",
+  "title": "DOCX Test Document",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069ea19c-1df4-77e8-8000-a0b28312c8d3_1.0.0.txt",
+  "file_size": 423,
+  "checksum": "109ec3524d17c326b2d76be2cca072de0a3398155a1976652b84a6f5f72ff43c",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T16:08:17.896326",
+  "updated_at": "2026-04-23T16:08:17.896330",
+  "accessed_at": "2026-04-23T16:08:17.896331",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "docx",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "9a5658d93c309b941fc0cbc9e912dd1f",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T16:08:17.872210",
+    "processing_time": 0.0,
+    "quality_score": 0.8083333333333332,
+    "output_formats": [
+      "docx"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": false,
+      "brand_compliance_enabled": false
+    }
+  }
+}

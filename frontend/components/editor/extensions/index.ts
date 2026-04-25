@@ -26,12 +26,19 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import { Extension, type AnyExtension } from "@tiptap/core";
+import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCursor from "@tiptap/extension-collaboration-cursor";
 
 // Import custom extensions
 import { Outline, type OutlineOptions } from "@/lib/editor/extensions/outline";
 import { DragDrop, type DragDropOptions, type DropPosition } from "@/lib/editor/extensions/drag-drop";
 import { Equation, InlineEquation } from "@/lib/editor/extensions/equation";
 import { ExternalFile, type ExternalFileAttributes } from "@/lib/editor/extensions/external-file";
+import { SnippetExpansion } from "./snippet-expansion";
+import { Callout } from "./callout";
+import { PageBreak } from "./page-break";
+import type { SnippetSummary } from "@/lib/types/snippets";
+import type { DocumentContent } from "@/lib/types/document";
 
 /**
  * Custom extension to handle slash command trigger.
@@ -90,6 +97,14 @@ export interface EditorExtensionOptions {
 	onDrop?: (source: Parameters<NonNullable<DragDropOptions["onDrop"]>>[0], target: DropPosition) => boolean;
 	/** Callback for handling file uploads - receives File, returns URL */
 	onFileUpload?: (file: File) => Promise<string>;
+	/** Callback to resolve a shortcut to a snippet */
+	onSnippetResolve?: (shortcut: string) => Promise<SnippetSummary | null>;
+	/** Callback to get snippet content by ID */
+	onSnippetContent?: (snippet: SnippetSummary) => Promise<DocumentContent | null>;
+	/** Yjs document for collaboration. If provided, enables collaboration features. */
+	yjsDoc?: import("yjs").Doc;
+	/** User data for collaboration cursors */
+	user?: { name: string; color: string };
 }
 
 // Re-export for convenience
@@ -109,6 +124,8 @@ export function createExtensions(options: EditorExtensionOptions = {}) {
 		onOutlineChange,
 		onDrop,
 		onFileUpload,
+		yjsDoc,
+		user,
 	} = options;
 
 	const extensions: AnyExtension[] = [
@@ -234,7 +251,31 @@ export function createExtensions(options: EditorExtensionOptions = {}) {
 		SlashCommandTrigger.configure({
 			onSlashCommand,
 		}),
+
+		// Snippet expansion (/shortcut + space/enter)
+		SnippetExpansion.configure({
+			onShortcutResolve: options.onSnippetResolve ?? (async () => null),
+			onGetSnippetContent: options.onSnippetContent ?? (async () => null),
+		}),
+
+		// Callout/alert boxes for RFP responses
+		Callout,
+
+		// Page breaks for export formatting
+		PageBreak,
 	];
+
+	// Add collaboration extensions if Yjs document is provided
+	if (yjsDoc) {
+		extensions.push(
+			Collaboration.configure({
+				document: yjsDoc,
+			}),
+			CollaborationCursor.configure({
+				user: user ?? { name: "Anonymous", color: "#888888" },
+			})
+		);
+	}
 
 	// Add outline extension if enabled
 	if (enableOutline) {
@@ -286,6 +327,8 @@ export {
 	ExternalFile,
 	Outline,
 	DragDrop,
+	Callout,
+	PageBreak,
 };
 
 export type { ExternalFileAttributes };

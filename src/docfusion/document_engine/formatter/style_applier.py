@@ -837,9 +837,17 @@ class StyleApplier:
 		self._log_initialization()
 	
 	def _log_initialization(self) -> None:
-		"""Log initialization status"""
-		# Placeholder for initialization logging
-		raise NotImplementedError("_log_initialization is not yet implemented")
+		"""Log initialization status with structured context."""
+		logger.info(
+			"StyleApplier initialized",
+			extra={
+				"color_manager": self.color_manager is not None,
+				"typography_manager": self.typography_manager is not None,
+				"brand_compliance": self.brand_compliance is not None,
+				"cache_size": len(self.style_cache),
+				"metrics": self.metrics,
+			},
+		)
 	
 	async def apply_brand_styles(
 		self,

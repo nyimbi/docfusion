@@ -148,7 +148,7 @@ def html_renderer(sample_render_config, html_accessibility_validator):
 	"""Create HTMLRenderer instance for testing"""
 	return HTMLRenderer(
 		render_config=sample_render_config,
-		accessibility_validator=html_accessibility_validator
+		accessibility_field_validator=html_accessibility_validator
 	)
 
 
@@ -483,7 +483,7 @@ class TestHTMLRenderer:
 	def test_html_renderer_initialization(self, html_renderer):
 		"""Test HTMLRenderer initialization"""
 		assert html_renderer.render_config is not None
-		assert html_renderer.accessibility_validator is not None
+		assert html_renderer.accessibility_field_validator is not None
 		assert html_renderer.semantic_builder is not None
 		assert html_renderer.css_generator is not None
 		assert html_renderer.metrics['documents_rendered'] == 0
@@ -901,14 +901,14 @@ class TestUtilityFunctions:
 		assert "html_renderer_core" in validation_results
 		assert "semantic_builder" in validation_results
 		assert "css_generator" in validation_results
-		assert "accessibility_validator" in validation_results
+		assert "accessibility_field_validator" in validation_results
 		assert "overall_status" in validation_results
 		
 		# Core components should always be available
 		assert validation_results["html_renderer_core"] is True
 		assert validation_results["semantic_builder"] is True
 		assert validation_results["css_generator"] is True
-		assert validation_results["accessibility_validator"] is True
+		assert validation_results["accessibility_field_validator"] is True
 
 
 # ============================================================================

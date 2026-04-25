@@ -7,6 +7,9 @@ import {
 	Star,
 	Target,
 	X,
+	BookmarkPlus,
+	ArrowUp,
+	ArrowDown,
 } from "lucide-react";
 
 // ============================================================================
@@ -65,6 +68,9 @@ export const BulkActionBar = React.memo(function BulkActionBar({
 				>
 					Reviewed
 				</ActionButton>
+				<ActionButton onClick={() => onAction("add-shortlist")} icon={<BookmarkPlus className="w-4 h-4" />}>
+					Shortlist
+				</ActionButton>
 				<ActionButton onClick={() => onAction("mark-interested")} icon={<Star className="w-4 h-4" />}>
 					Interested
 				</ActionButton>
@@ -73,6 +79,13 @@ export const BulkActionBar = React.memo(function BulkActionBar({
 				</ActionButton>
 				<ActionButton onClick={() => onAction("mark-declined")} icon={<X className="w-4 h-4" />}>
 					Decline
+				</ActionButton>
+				<div className="w-px h-5 bg-border mx-1" />
+				<ActionButton onClick={() => onAction("priority-high")} icon={<ArrowUp className="w-4 h-4" />}>
+					High
+				</ActionButton>
+				<ActionButton onClick={() => onAction("priority-low")} icon={<ArrowDown className="w-4 h-4" />}>
+					Low
 				</ActionButton>
 			</div>
 

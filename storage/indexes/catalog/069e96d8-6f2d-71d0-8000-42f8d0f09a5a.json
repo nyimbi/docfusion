@@ -1,0 +1,47 @@
+{
+  "document_id": "069e96d8-6f2d-71d0-8000-42f8d0f09a5a",
+  "title": "Multi-Format Consistency Test",
+  "content": "<h1>Multi-Format Consistency Test</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 62,
+  "checksum": "eff6859dea28a602e43941dd3c2390ce73e8a2c0f45e90ec23864fad27c3baf7",
+  "content_hash": "6bec4a31479ef621b589bd1bea42a434",
+  "indexed_at": "2026-04-23T03:53:26.953087",
+  "last_modified": "2026-04-23T03:53:26.953088",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 62,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "multi",
+    "format",
+    "consistency",
+    "test",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T03:53:26.948522",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

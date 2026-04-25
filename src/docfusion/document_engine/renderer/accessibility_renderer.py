@@ -292,7 +292,7 @@ class WCAGValidator:
 		compliance_level: str = "AA"
 	) -> Dict[str, Any]:
 		"""Validate full WCAG 2.1 compliance"""
-		start_time = time.time()
+		start_time = time.perf_counter()
 		
 		compliance_results = {
 			'compliance_level': compliance_level,
@@ -324,7 +324,7 @@ class WCAGValidator:
 				compliance_results['compliance_status'] = 'non_compliant'
 			
 			self.validation_metrics['validations_performed'] += 1
-			validation_time = time.time() - start_time
+			validation_time = time.perf_counter() - start_time
 			
 			return compliance_results
 			
@@ -409,7 +409,7 @@ class AlternativeTextGenerator:
 		alt_text_type: str = "descriptive"
 	) -> Dict[str, Any]:
 		"""Generate appropriate alternative text for images"""
-		start_time = time.time()
+		start_time = time.perf_counter()
 		
 		try:
 			# Simulate AI-powered alt text generation
@@ -422,7 +422,7 @@ class AlternativeTextGenerator:
 			else:  # descriptive
 				alt_text = self._generate_descriptive_alt_text(image_context)
 			
-			generation_time = time.time() - start_time
+			generation_time = time.perf_counter() - start_time
 			
 			result = {
 				'alt_text': alt_text,
@@ -482,7 +482,7 @@ class ARIAEnhancer:
 		enhancement_level: str = "comprehensive"
 	) -> Dict[str, Any]:
 		"""Add appropriate ARIA attributes to HTML content"""
-		start_time = time.time()
+		start_time = time.perf_counter()
 		
 		try:
 			enhanced_html = html_content
@@ -504,7 +504,7 @@ class ARIAEnhancer:
 			enhanced_html = self._add_aria_states(enhanced_html)
 			enhancements_applied.append("ARIA states and properties")
 			
-			enhancement_time = time.time() - start_time
+			enhancement_time = time.perf_counter() - start_time
 			
 			result = {
 				'enhanced_html': enhanced_html,
@@ -612,7 +612,7 @@ class ScreenReaderSimulator:
 		screen_reader: str = "NVDA"
 	) -> Dict[str, Any]:
 		"""Simulate how content is experienced by screen reader users"""
-		start_time = time.time()
+		start_time = time.perf_counter()
 		
 		try:
 			simulation_result = {
@@ -633,7 +633,7 @@ class ScreenReaderSimulator:
 				'overall_compatibility_score': 0.90
 			}
 			
-			simulation_time = time.time() - start_time
+			simulation_time = time.perf_counter() - start_time
 			simulation_result['simulation_time'] = simulation_time
 			
 			self.simulation_metrics['simulations_run'] += 1
@@ -664,7 +664,7 @@ class ColorContrastAnalyzer:
 		document_format: str
 	) -> Dict[str, Any]:
 		"""Analyze color contrast ratios throughout document"""
-		start_time = time.time()
+		start_time = time.perf_counter()
 		
 		try:
 			contrast_results = {
@@ -702,7 +702,7 @@ class ColorContrastAnalyzer:
 				]
 			}
 			
-			analysis_time = time.time() - start_time
+			analysis_time = time.perf_counter() - start_time
 			contrast_results['analysis_time'] = analysis_time
 			
 			self.analysis_metrics['contrasts_analyzed'] += contrast_results['color_combinations_analyzed']

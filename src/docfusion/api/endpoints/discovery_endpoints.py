@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""FastAPI endpoints for opportunity discovery."""
+"""FastAPI endpoints for opportunity discovery.
+
+Opportunity CRUD endpoints have been moved to opportunity_endpoints.py.
+This module retains discovery-specific operations: source running, source listing,
+and health checks.
+"""
 
 from __future__ import annotations
 
@@ -27,19 +32,6 @@ async def run_source(source: str) -> dict[str, Any]:
 	except Exception as exc:
 		logger.warning(f"Discovery run failed for {source}: {exc}")
 		return {"source": source, "opportunities_found": 0, "error": str(exc)}
-
-
-@router.get("/opportunities")
-async def list_opportunities() -> list[dict[str, Any]]:
-	"""List discovered opportunities."""
-	# In production this queries the opportunities table.
-	return []
-
-
-@router.get("/opportunities/{opportunity_id}")
-async def get_opportunity(opportunity_id: str) -> dict[str, Any]:
-	"""Get a single opportunity by ID."""
-	raise HTTPException(404, "Not found")
 
 
 @router.post("/opportunities/{opportunity_id}/ingest")

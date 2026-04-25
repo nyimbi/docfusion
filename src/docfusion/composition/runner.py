@@ -576,7 +576,7 @@ class CompositionRunner:
         else:
             try:
                 return simple_eval(condition, names={"context": context.variables})
-            except (InvalidExpression, NameNotDefined, FunctionNotDefined, TypeError, ValueError) as e:
+            except (InvalidExpression, NameNotDefined, FunctionNotDefined, TypeError, ValueError, SyntaxError) as e:
                 self.logger.warning(f"Condition evaluation failed for '{condition}': {e}")
                 return False
 

@@ -70,6 +70,7 @@ class RetrievalStats:
     cache_misses: int = 0
     average_retrieval_time: float = 0.0
     most_accessed_documents: Dict[str, int] = field(default_factory=dict)
+    most_used_content: Dict[str, int] = field(default_factory=dict)
     performance_metrics: Dict[str, float] = field(default_factory=dict)
 
 class LRUCache:
@@ -273,7 +274,7 @@ class DocumentRetrieval:
 
             try:
                 # Store document content
-                async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
+                async with aiofiles.open(file_path, "w", encoding="utf-8", newline="") as f:
                     await f.write(content)
 
                 # Create metadata
@@ -299,9 +300,13 @@ class DocumentRetrieval:
                 # Store version information
                 await self._store_version_info(metadata)
 
+                # Update document index
+                self.document_index[document_id] = metadata
+
                 # Invalidate cache for this document
-                if document_id in self.cache.cache:
-                    del self.cache.cache[document_id]
+                cache_key = f"{document_id}:latest"
+                if cache_key in self.cache.cache:
+                    del self.cache.cache[cache_key]
 
                 return document_id
 
@@ -395,8 +400,13 @@ class DocumentRetrieval:
             if not file_path.exists():
                 return None
 
-            async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
+            async with aiofiles.open(file_path, "r", encoding="utf-8", newline="") as f:
                 content = await f.read()
+
+            # Track most used content
+            self.stats.most_used_content[document_id] = (
+                self.stats.most_used_content.get(document_id, 0) + 1
+            )
 
             # Update access tracking
             if update_access_time:

@@ -1,0 +1,45 @@
+{
+  "document_id": "069e9f33-0da1-7262-8000-2bd4e83661b6",
+  "title": "Performance Test",
+  "content": "<h1>Performance Test</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 49,
+  "checksum": "0378fce88491778bd0f945dac622502b0fd6593b59f31210a7279168aae25188",
+  "content_hash": "09026a18a527da7781005bc548aee31a",
+  "indexed_at": "2026-04-23T13:23:44.857596",
+  "last_modified": "2026-04-23T13:23:44.857597",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 3,
+  "char_count": 49,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "performance",
+    "test",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T13:23:44.851851",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

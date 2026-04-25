@@ -397,6 +397,12 @@ class StrategyRecommender:
 			elif portfolio_analysis.resource_utilization_rate <= 0.6:
 				supporting_factors.append("Available portfolio capacity")
 		
+		# Ensure at least one factor in each list
+		if not supporting_factors:
+			supporting_factors.append("Opportunity aligns with business objectives")
+		if not opposing_factors:
+			opposing_factors.append("Standard competitive risks apply")
+		
 		return supporting_factors, opposing_factors
 	
 	def _generate_resource_allocation(self, context: OpportunityContext) -> ResourceAllocation:

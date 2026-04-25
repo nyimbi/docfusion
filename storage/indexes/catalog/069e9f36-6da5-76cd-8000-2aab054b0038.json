@@ -1,0 +1,47 @@
+{
+  "document_id": "069e9f36-6da5-76cd-8000-2aab054b0038",
+  "title": "Strategic Business Analysis",
+  "content": "<h1>Strategic Business Analysis</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 60,
+  "checksum": "81a98ef9407c08431b22279e4b90476117dbde2845a3159f768779f0581a3db3",
+  "content_hash": "7a4155b0d89f2950cb9ece0bd8f5edf9",
+  "indexed_at": "2026-04-23T13:24:38.858656",
+  "last_modified": "2026-04-23T13:24:38.858657",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "html"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 60,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "strategic",
+    "business",
+    "analysis",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T13:24:38.853404",
+    "processing_time": 0.0,
+    "quality_score": 0.77375,
+    "output_formats": [
+      "pdf",
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

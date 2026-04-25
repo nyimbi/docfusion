@@ -467,9 +467,10 @@ class QualificationAnalyzer:
 		
 		for capability in requirements.get('capabilities', []):
 			# Use semantic matching to find closest organizational capability
-			best_match = await self.semantic_matcher.find_best_match(
-				capability, list(org_capabilities.core_competencies.keys())
+			matches = self.semantic_matcher.find_matches(
+				capability, list(org_capabilities.core_competencies.keys()), threshold=0.3
 			)
+			best_match = matches[0]["text"] if matches else None
 			
 			if best_match:
 				current_level = org_capabilities.core_competencies.get(best_match, 0.0)
@@ -511,7 +512,7 @@ class QualificationAnalyzer:
 			# Find matching domain experience
 			domain_matches = []
 			for domain, years_available in org_capabilities.industry_experience.items():
-				similarity = await self.semantic_matcher.calculate_similarity(
+				similarity = self.semantic_matcher.match(
 					str(experience_req), domain
 				)
 				if similarity > 0.7:  # High similarity threshold
@@ -552,7 +553,7 @@ class QualificationAnalyzer:
 			# Find matching certifications
 			matching_certs = []
 			for cert_type, holders in org_capabilities.certifications.items():
-				similarity = await self.semantic_matcher.calculate_similarity(
+				similarity = self.semantic_matcher.match(
 					str(cert_req), cert_type
 				)
 				if similarity > 0.8:  # Very high similarity for certifications
@@ -592,7 +593,7 @@ class QualificationAnalyzer:
 			# Find matching technical skills
 			best_match_score = 0.0
 			for skill, level in org_capabilities.technical_skills.items():
-				similarity = await self.semantic_matcher.calculate_similarity(
+				similarity = self.semantic_matcher.match(
 					str(tech), skill
 				)
 				if similarity > best_match_score:
@@ -660,7 +661,7 @@ class QualificationAnalyzer:
 			req_str = str(req)
 			# Check if we have compliance for this requirement
 			is_compliant = any(
-				await self.semantic_matcher.calculate_similarity(req_str, comp) > 0.8
+				self.semantic_matcher.match(req_str, comp) > 0.8
 				for comp in org_capabilities.compliance_status.keys()
 			)
 			current_compliance[req_str] = is_compliant

@@ -19,6 +19,7 @@
  */
 
 import { useCallback, useState } from "react";
+import JSZip from "jszip";
 import type { HDSINode } from "./types";
 import type { BibliographyEntry, PageLayout, Watermark } from "./publishing";
 import { generateAutoIndex, generateTableOfDiagrams, formatIndex, type AutoIndexOptions } from "./auto-index";
@@ -144,7 +145,7 @@ export function exportToHTML(
     : "";
 
   const pageStyle = options.pageLayout
-    ? `@page { size: ${options.pageLayout.size} ${options.pageLayout.orientation}; margin: ${options.pageLayout.margins.top}mm ${options.pageLayout.margins.right}mm ${options.pageLayout.margins.bottom}mm ${options.pageLayout.margins.left}mm; }`
+    ? `@page { size: ${options.pageLayout.size} ${options.pageLayout.orientation}; margin: ${options.pageLayout.margins.top}mm ${options.pageLayout.margins.right}mm ${options.pageLayout.margins.bottom}mm ${options.pageLayout.margins.left}mm; @bottom-center { content: counter(page); font-size: 10pt; } }`
     : "";
 
   let html = `<!DOCTYPE html>
@@ -416,36 +417,23 @@ export function exportToJSON(nodes: HDSINode[], title: string): string {
 // DOCX Export (Simplified - generates basic OOXML)
 // ============================================================================
 
-export function exportToDOCX(
+export async function exportToDOCX(
   nodes: HDSINode[],
   title: string
-): Blob {
-  // Simplified DOCX generation using basic OOXML
-  // For production, consider using libraries like docx.js
+): Promise<Blob> {
+  const zip = new JSZip();
 
-  const docxHeader = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:body>`;
-
-  const docxFooter = `
-    <w:sectPr>
-      <w:pgSz w:w="12240" w:h="15840"/>
-      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
-    </w:sectPr>
-  </w:body>
-</w:document>`;
-
-  let content = `<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>${escapeXml(title)}</w:t></w:r></w:p>`;
+  // Build document.xml
+  let bodyXml = `<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>${escapeXml(title)}</w:t></w:r></w:p>`;
 
   const processNode = (node: HDSINode, depth: number) => {
     const style = depth === 0 ? "Heading1" : depth === 1 ? "Heading2" : "Heading3";
-
-    content += `<w:p><w:pPr><w:pStyle w:val="${style}"/></w:pPr><w:r><w:t>${escapeXml(node.title)}</w:t></w:r></w:p>`;
+    bodyXml += `<w:p><w:pPr><w:pStyle w:val="${style}"/></w:pPr><w:r><w:t>${escapeXml(node.title)}</w:t></w:r></w:p>`;
 
     if (node.generatedContent) {
       const paragraphs = node.generatedContent.split("\n\n").filter(p => p.trim());
       paragraphs.forEach(para => {
-        content += `<w:p><w:r><w:t>${escapeXml(para.replace(/\n/g, " "))}</w:t></w:r></w:p>`;
+        bodyXml += `<w:p><w:r><w:t>${escapeXml(para.replace(/\n/g, " "))}</w:t></w:r></w:p>`;
       });
     }
 
@@ -456,9 +444,59 @@ export function exportToDOCX(
 
   nodes.forEach(node => processNode(node, 0));
 
-  const docx = docxHeader + content + docxFooter;
+  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>${bodyXml}
+    <w:sectPr>
+      <w:pgSz w:w="12240" w:h="15840"/>
+      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
 
-  return new Blob([docx], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  // Minimal styles.xml
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Times New Roman"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:rPrDefault>
+    <w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="259" w:lineRule="auto"/></w:pPr></w:pPrDefault>
+  </w:docDefaults>
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="0"/></w:pPr><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="200" w:after="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="160" w:after="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:rPr><w:b/><w:sz w:val="56"/><w:szCs w:val="56"/></w:rPr></w:style>
+</w:styles>`;
+
+  // [Content_Types].xml
+  const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>`;
+
+  // _rels/.rels
+  const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+  // word/_rels/document.xml.rels
+  const docRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+
+  zip.file("[Content_Types].xml", contentTypesXml);
+  zip.file("_rels/.rels", relsXml);
+  zip.file("word/document.xml", documentXml);
+  zip.file("word/styles.xml", stylesXml);
+  zip.file("word/_rels/document.xml.rels", docRelsXml);
+
+  const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  return blob;
 }
 
 function escapeXml(text: string): string {
@@ -541,7 +579,7 @@ export async function exportDocument(
         break;
 
       case "docx":
-        blob = exportToDOCX(nodes, title);
+        blob = await exportToDOCX(nodes, title);
         break;
 
       case "pdf":

@@ -1014,6 +1014,13 @@ class NLPService:
             "processing_time": analysis.processing_time,
         }
 
+    async def extract_requirements(self, text: str) -> List[str]:
+        """Extract requirements from text (convenience alias)."""
+        result = await self.extract_requirements_only(text)
+        if result.get("success"):
+            return [req.get("text", "") for req in result.get("requirements", [])]
+        return []
+
     async def extract_requirements_only(self, text: str) -> Dict[str, Any]:
         """Extract only requirements (optimized method)"""
         if not self.requirement_extractor:

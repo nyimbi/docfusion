@@ -724,6 +724,14 @@ class CollaborativeEditor:
 			}
 		}
 
+	async def cleanup(self) -> None:
+		"""Clean up collaborative editor resources."""
+		self.subscribers.clear()
+		self.operation_history.clear()
+		self.undo_stack.clear()
+		self.redo_stack.clear()
+		self._operation_cache.clear()
+
 class CollaborativeSession:
 	"""
 	Simple session manager for collaborative editing.

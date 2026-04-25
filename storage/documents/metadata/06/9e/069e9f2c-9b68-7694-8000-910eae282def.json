@@ -1,0 +1,37 @@
+{
+  "document_id": "069e9f2c-9b68-7694-8000-910eae282def",
+  "title": "Invalid Format Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f2c-9b68-7694-8000-910eae282def_1.0.0.txt",
+  "file_size": 52,
+  "checksum": "f5c4794769a85f22808511e4598086d5d65eb2b71ff7575280b404bdb1342716",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:22:01.716385",
+  "updated_at": "2026-04-23T13:22:01.716386",
+  "accessed_at": "2026-04-23T13:22:01.716386",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "64b9c5f1e84b644ab3e28049f51d11e0",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:22:01.713001",
+    "processing_time": 0.0,
+    "quality_score": 0.7414285714285714,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

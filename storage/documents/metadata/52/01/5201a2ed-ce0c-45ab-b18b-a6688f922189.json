@@ -1,0 +1,38 @@
+{
+  "document_id": "5201a2ed-ce0c-45ab-b18b-a6688f922189",
+  "title": "Performance Test Document",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/52/01/5201a2ed-ce0c-45ab-b18b-a6688f922189_1.0.0.txt",
+  "file_size": 4095,
+  "checksum": "d414b985e956e81f3c107425b70cafb2fbddc9ddfbc33755859d6a3c9e2a9af0",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-25T01:59:21.800712",
+  "updated_at": "2026-04-25T01:59:21.800716",
+  "accessed_at": "2026-04-25T01:59:21.800716",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "64dc44acaec60b728772c8f817bbd74f",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-25T01:59:21.707184",
+    "processing_time": 0.0,
+    "quality_score": 0.8166666666666668,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": false,
+      "brand_compliance_enabled": false
+    }
+  }
+}

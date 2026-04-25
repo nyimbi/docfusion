@@ -37,6 +37,7 @@ class IndexedDocument:
 	content_hash: str
 	indexed_at: datetime = field(default_factory=datetime.now)
 	last_modified: datetime = field(default_factory=datetime.now)
+	last_updated: datetime = field(default_factory=datetime.now)
 	author: str = "system"
 	tags: List[str] = field(default_factory=list)
 	category: str = "general"
@@ -253,10 +254,10 @@ class DocumentIndexer:
 					self.file_to_document[str(file_path)] = document_id
 				
 				# Validate required fields
-				if not content and not file_path:
+				if content is None and not file_path:
 					raise ValueError("Either content or file_path must be provided")
 				
-				content = content or ""
+				content = content if content is not None else ""
 				title = title or f"Document {document_id[:8]}"
 				content_type = content_type or "text"
 				
@@ -304,6 +305,8 @@ class DocumentIndexer:
 				
 				return document_id
 				
+			except ValueError:
+				raise
 			except Exception as e:
 				self.stats.index_errors.append(f"Error indexing document: {e}")
 				raise RuntimeError(f"Failed to index document: {e}") from e
@@ -602,8 +605,8 @@ class DocumentIndexer:
 			doc_dict = asdict(doc)
 			
 			# Convert datetime objects to ISO strings
-			for field in ['indexed_at', 'last_modified']:
-				if isinstance(doc_dict[field], datetime):
+			for field in ['indexed_at', 'last_modified', 'last_updated']:
+				if field in doc_dict and isinstance(doc_dict[field], datetime):
 					doc_dict[field] = doc_dict[field].isoformat()
 			
 			async with aiofiles.open(doc_file, 'w') as f:

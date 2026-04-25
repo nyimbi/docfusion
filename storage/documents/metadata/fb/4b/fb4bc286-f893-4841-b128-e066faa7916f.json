@@ -1,0 +1,38 @@
+{
+  "document_id": "fb4bc286-f893-4841-b128-e066faa7916f",
+  "title": "Batch Document 1",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/fb/4b/fb4bc286-f893-4841-b128-e066faa7916f_1.0.0.txt",
+  "file_size": 49,
+  "checksum": "d14c28ceef58c56bb2ab67c0a22dbd9568dfa9b49d945f0794d40471fe67f775",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T15:35:18.786123",
+  "updated_at": "2026-04-23T15:35:18.786125",
+  "accessed_at": "2026-04-23T15:35:18.786126",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "140302212fb2483a99c0d48f8a9ec825",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T15:35:18.781584",
+    "processing_time": 0.0,
+    "quality_score": 0.812857142857143,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

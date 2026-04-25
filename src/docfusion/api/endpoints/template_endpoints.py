@@ -21,10 +21,13 @@ from ...document_engine.secure_document_engine import SecureDocumentEngine
 from ...security import SecurityManager
 from ...storage.secure_storage_service import SecureStorageService
 from ..middleware.authentication_middleware import get_api_key_user, get_current_user
+from ...composition.runner import CompositionRunner
 from ...core.utils import uuid7str
 from ..serializers.template_serializers import (
     TemplateCreateRequest,
     TemplateListResponse,
+    TemplatePopulateRequest,
+    TemplatePopulateResponse,
     TemplatePreviewRequest,
     TemplateResponse,
     TemplateSearchRequest,
@@ -44,6 +47,7 @@ class TemplateEndpoints:
         self.document_engine = document_engine
         self.security = security_manager
         self.logger = logging.getLogger(__name__)
+        self.composition_runner = CompositionRunner()
 
         # Create FastAPI router
         self.router = APIRouter(prefix="/api/v1/templates", tags=["templates"])
@@ -118,6 +122,17 @@ class TemplateEndpoints:
         ):
             """Generate template preview with sample data"""
             return await self.preview_template_handler(
+                template_id, request, current_user
+            )
+
+        @self.router.post("/{template_id}/populate", response_model=TemplatePopulateResponse)
+        async def populate_template(
+            template_id: str = PathParam(..., description="Template ID"),
+            request: TemplatePopulateRequest = ...,
+            current_user: Dict[str, Any] = Depends(get_current_user),
+        ):
+            """Populate template with variables using composition runner"""
+            return await self.populate_template_handler(
                 template_id, request, current_user
             )
 
@@ -500,6 +515,103 @@ class TemplateEndpoints:
             raise
         except Exception as e:
             self.logger.error(f"Template preview failed: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    async def populate_template_handler(
+        self,
+        template_id: str,
+        request: TemplatePopulateRequest,
+        current_user: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Handle template population with variables via composition runner"""
+        try:
+            user_id = current_user["user_id"]
+            context = self._build_request_context(current_user)
+
+            # Get template info
+            template_info = await self.document_engine.get_template_info(
+                template_id=template_id, user_id=user_id, context=context
+            )
+
+            if not template_info.get("success"):
+                raise HTTPException(
+                    status_code=404,
+                    detail=template_info.get("error", "Template not found"),
+                )
+
+            template = template_info.get("template", {})
+            template_content = template.get("content", "")
+            template_fields = template.get("fields", [])
+
+            # Validate required variables
+            required_fields = [
+                f["name"] for f in template_fields if f.get("required", False)
+            ]
+            provided_vars = set(request.variables.keys())
+            missing = [f for f in required_fields if f not in provided_vars]
+
+            if missing:
+                return {
+                    "success": False,
+                    "template_id": template_id,
+                    "document_id": "",
+                    "output_format": request.output_format,
+                    "content": None,
+                    "file_path": None,
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "variables_used": request.variables,
+                    "missing_variables": missing,
+                    "errors": [f"Missing required variables: {', '.join(missing)}"],
+                }
+
+            # Perform variable substitution on template content
+            populated_content = template_content
+            for key, value in request.variables.items():
+                populated_content = populated_content.replace(f"{{{key}}}", str(value))
+
+            # Generate document through composition runner if complex workflow,
+            # otherwise use direct document engine
+            document_id = uuid7str()
+            generation_result = await self.document_engine.generate_document(
+                template_id=template_id,
+                content_data={**request.variables, "_populated_content": populated_content},
+                user_id=user_id,
+                output_format=request.output_format.value,
+                metadata=request.metadata,
+                context=context,
+            )
+
+            if not generation_result["success"]:
+                return {
+                    "success": False,
+                    "template_id": template_id,
+                    "document_id": document_id,
+                    "output_format": request.output_format,
+                    "content": populated_content if request.output_format.value == "html" else None,
+                    "file_path": None,
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "variables_used": request.variables,
+                    "missing_variables": [],
+                    "errors": [generation_result.get("error", "Document generation failed")],
+                }
+
+            return {
+                "success": True,
+                "template_id": template_id,
+                "document_id": generation_result.get("document_id", document_id),
+                "output_format": request.output_format,
+                "content": populated_content if request.output_format.value in ("html", "txt") else None,
+                "file_path": generation_result.get("file_path"),
+                "generated_at": generation_result.get("generated_at", datetime.now(timezone.utc).isoformat()),
+                "variables_used": request.variables,
+                "missing_variables": [],
+                "errors": [],
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            self.logger.error(f"Template population failed: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
 
     async def search_templates_handler(

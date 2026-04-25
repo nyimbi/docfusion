@@ -230,6 +230,25 @@ export const OutlineItem = React.memo(function OutlineItem({
 					/>
 				)}
 
+				{/* Section status dot */}
+				{item.wordCount !== undefined && (
+					<span
+						className={cn(
+							"h-1.5 w-1.5 rounded-full shrink-0",
+							item.wordCount === 0 && "bg-muted-foreground/30",
+							item.wordCount > 0 && item.wordCount < 50 && "bg-amber-400",
+							item.wordCount >= 50 && "bg-green-400"
+						)}
+						title={
+							item.wordCount === 0
+								? "Empty section"
+								: item.wordCount < 50
+									? "Draft"
+									: "Substantial content"
+						}
+					/>
+				)}
+
 				{/* Section title */}
 				<span 
 					className={cn(
@@ -239,6 +258,13 @@ export const OutlineItem = React.memo(function OutlineItem({
 					title={item.text}>
 					{item.slug || item.text}
 				</span>
+
+				{/* Word count badge */}
+				{item.wordCount !== undefined && item.wordCount > 0 && (
+					<span className="text-[10px] tabular-nums text-muted-foreground/60 ml-1">
+						{item.wordCount}w
+					</span>
+				)}
 
 				{/* Content count indicator (if has children) */}
 				{hasChildren && (

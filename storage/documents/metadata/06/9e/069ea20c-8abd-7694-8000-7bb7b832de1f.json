@@ -1,0 +1,38 @@
+{
+  "document_id": "069ea20c-8abd-7694-8000-7bb7b832de1f",
+  "title": "Concurrent Test 0",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069ea20c-8abd-7694-8000-7bb7b832de1f_1.0.0.txt",
+  "file_size": 423,
+  "checksum": "109ec3524d17c326b2d76be2cca072de0a3398155a1976652b84a6f5f72ff43c",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T16:38:16.746868",
+  "updated_at": "2026-04-23T16:38:16.746871",
+  "accessed_at": "2026-04-23T16:38:16.746872",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "9a5658d93c309b941fc0cbc9e912dd1f",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T16:38:16.671301",
+    "processing_time": 0.0,
+    "quality_score": 0.8242857142857144,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

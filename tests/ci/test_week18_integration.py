@@ -213,14 +213,14 @@ class TestActivityTrackerIntegration:
 		completed_session = await activity_tracker.end_session("session_001")
 		assert completed_session is not None
 		assert completed_session.end_time is not None
-		assert completed_session.total_activities == 5
+		assert completed_session.total_activities == 7  # 5 logged + session_start + session_end
 		assert completed_session.characters_added == 50
 		assert completed_session.characters_deleted == 10
 		
 		# Get productivity metrics
 		metrics = await activity_tracker.get_user_productivity_metrics(user_id)
 		assert metrics.user_id == user_id
-		assert metrics.total_activities == 5
+		assert metrics.total_activities == 7  # 5 logged + session_start + session_end
 		assert metrics.total_characters_added == 50
 		assert metrics.total_characters_deleted == 10
 		assert metrics.net_contribution == 40

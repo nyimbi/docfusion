@@ -1,0 +1,38 @@
+{
+  "document_id": "069e9f33-0e74-7ff8-8000-42a380a05685",
+  "title": "Unified Renderer Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f33-0e74-7ff8-8000-42a380a05685_1.0.0.txt",
+  "file_size": 54,
+  "checksum": "258b166fc2667a324ad0b4bad28e22efa86a2ba0ade0b1982740c5356d4b8353",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:23:44.907568",
+  "updated_at": "2026-04-23T13:23:44.907570",
+  "accessed_at": "2026-04-23T13:23:44.907570",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "63a4717f81f310055277ac0586f98554",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:23:44.903573",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

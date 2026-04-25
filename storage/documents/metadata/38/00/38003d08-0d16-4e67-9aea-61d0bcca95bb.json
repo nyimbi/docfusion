@@ -1,0 +1,38 @@
+{
+  "document_id": "38003d08-0d16-4e67-9aea-61d0bcca95bb",
+  "title": "Concurrent Test 2",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/38/00/38003d08-0d16-4e67-9aea-61d0bcca95bb_1.0.0.txt",
+  "file_size": 423,
+  "checksum": "109ec3524d17c326b2d76be2cca072de0a3398155a1976652b84a6f5f72ff43c",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T15:57:20.537248",
+  "updated_at": "2026-04-23T15:57:20.537250",
+  "accessed_at": "2026-04-23T15:57:20.537250",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "9a5658d93c309b941fc0cbc9e912dd1f",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T15:57:20.520776",
+    "processing_time": 0.0,
+    "quality_score": 0.8385714285714286,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

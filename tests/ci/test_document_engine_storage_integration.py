@@ -40,7 +40,7 @@ async def storage_service(temp_storage):
 
 
 @pytest.fixture
-async def document_engine_with_storage(temp_storage):
+async def document_engine_with_storage(temp_storage, storage_service):
 	"""Create DocumentEngine with integrated storage"""
 	config = DocumentGenerationConfiguration(
 		enable_storage=True,
@@ -48,12 +48,6 @@ async def document_engine_with_storage(temp_storage):
 		output_formats=["html", "pdf"],
 		enable_accessibility=True,
 		enable_brand_compliance=True
-	)
-	
-	# Create storage service
-	storage_service = await create_storage_service(
-		temp_storage / "engine_storage",
-		enable_all_components=True
 	)
 	
 	engine = DocumentEngine(

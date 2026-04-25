@@ -318,6 +318,10 @@ class OpportunityAnalyzer:
 		start_time = datetime.now(timezone.utc)
 		
 		try:
+			# Convert Pydantic model to dict if needed
+			if hasattr(opportunity_data, 'model_dump'):
+				opportunity_data = opportunity_data.model_dump()
+			
 			# Extract key content for analysis
 			content = self._extract_analysis_content(opportunity_data)
 			
@@ -338,10 +342,37 @@ class OpportunityAnalyzer:
 				return_exceptions=True
 			)
 			
-			# Handle any exceptions
-			for result in [classification, competitive_assessment, timeline_analysis, value_estimation, eligibility_analysis]:
-				if isinstance(result, Exception):
-					self.logger.error(f"Analysis component failed: {result}")
+			# Handle any exceptions by substituting default values
+			if isinstance(classification, Exception):
+				self.logger.error(f"Classification failed: {classification}")
+				classification = OpportunityClassification(
+					type=OpportunityType.UNKNOWN,
+					sector=OpportunitySector.UNKNOWN,
+					complexity="unknown",
+					geographic_scope="unknown",
+					confidence_score=0.0
+				)
+			if isinstance(competitive_assessment, Exception):
+				self.logger.error(f"Competitive assessment failed: {competitive_assessment}")
+				competitive_assessment = CompetitiveAssessment(
+					competition_level=CompetitionLevel.UNKNOWN,
+					expected_competitors=0,
+					assessment_confidence=0.0
+				)
+			if isinstance(timeline_analysis, Exception):
+				self.logger.error(f"Timeline analysis failed: {timeline_analysis}")
+				timeline_analysis = TimelineAnalysis(timeline_confidence=0.0)
+			if isinstance(value_estimation, Exception):
+				self.logger.error(f"Value estimation failed: {value_estimation}")
+				value_estimation = ValueEstimation(
+					value_confidence=0.0,
+					value_source="unknown",
+					funding_type="unknown",
+					pricing_model="unknown"
+				)
+			if isinstance(eligibility_analysis, Exception):
+				self.logger.error(f"Eligibility analysis failed: {eligibility_analysis}")
+				eligibility_analysis = EligibilityAnalysis(eligibility_score=0.0)
 			
 			# Calculate overall scores
 			overall_attractiveness = self._calculate_attractiveness(
@@ -1590,7 +1621,7 @@ class OpportunityAnalyzer:
 		alignment_factors = []
 		
 		# Sector alignment (example preferences)
-		preferred_sectors = [OpportunitySector.TECHNOLOGY, OpportunitySector.CONSULTING]
+		preferred_sectors = [OpportunitySector.TECHNOLOGY]
 		if classification.sector in preferred_sectors:
 			alignment_factors.append(0.9)
 		else:

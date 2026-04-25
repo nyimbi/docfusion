@@ -1,0 +1,38 @@
+{
+  "document_id": "069e96d8-6e22-7d62-8000-ffe979d91533",
+  "title": "Metrics Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e96d8-6e22-7d62-8000-ffe979d91533_1.0.0.txt",
+  "file_size": 45,
+  "checksum": "d26cd605aab656e7cb0ba0d43ec6bef03189e80e78693083fe2bab0351207932",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T03:53:26.886223",
+  "updated_at": "2026-04-23T03:53:26.886224",
+  "accessed_at": "2026-04-23T03:53:26.886224",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "0557d7cfca80328bd3e8bf05e0094867",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T03:53:26.883512",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

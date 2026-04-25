@@ -415,6 +415,49 @@ export interface PageFooter {
 }
 
 // ============================================================================
+// Page Footer / Header Rendering
+// ============================================================================
+
+export function renderPageFooterHTML(footer: PageFooter): string {
+  const parts: { left?: string; center?: string; right?: string } = {
+    left: footer.left || "",
+    center: footer.center || "",
+    right: footer.right || "",
+  };
+
+  if (footer.includePageNumber) {
+    const pageCounter = `<span class="page-number" data-style="${footer.pageNumberStyle}"></span>`;
+    parts[footer.pageNumberPosition] = [parts[footer.pageNumberPosition], pageCounter]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  return `<div class="page-footer" data-pages="${footer.pages}" data-start-page="${footer.startPage}">
+    <span class="footer-left">${parts.left}</span>
+    <span class="footer-center">${parts.center}</span>
+    <span class="footer-right">${parts.right}</span>
+  </div>`;
+}
+
+export function renderPageHeaderHTML(header: PageHeader): string {
+  return `<div class="page-header" data-pages="${header.pages}">
+    <span class="header-left">${header.left || ""}</span>
+    <span class="header-center">${header.center || ""}</span>
+    <span class="header-right">${header.right || ""}</span>
+  </div>`;
+}
+
+export function generatePrintFooterCSS(): string {
+  return `
+    @media print {
+      .page-footer { display: flex; justify-content: space-between; width: 100%; font-size: 10pt; }
+      .page-header { display: flex; justify-content: space-between; width: 100%; font-size: 10pt; margin-bottom: 1em; }
+      .page-number::after { content: counter(page); }
+    }
+  `;
+}
+
+// ============================================================================
 // React Hook: Publishing
 // ============================================================================
 

@@ -426,13 +426,114 @@ class CompositionInterpreter:
 		await self._add_join_nodes(graph)
 	
 	async def _merge_sequential_nodes(self, graph: ExecutionGraph):
-		"""Merge sequential nodes that can be combined"""
-		# This is a placeholder for optimization logic
-		# In practice, you might merge nodes that:
-		# - Have no branching between them
-		# - Use the same execution environment
-		# - Have compatible resource requirements
-		raise NotImplementedError("_merge_sequential_nodes is not yet implemented")
+		"""Merge sequential nodes of the same type to reduce graph size.
+
+		Merges adjacent nodes when:
+		- They share the same node type
+		- There is no branching (single predecessor, single successor)
+		- They have compatible execution modes
+		- They are not entry or exit points
+		"""
+		merged_any = True
+		while merged_any:
+			merged_any = False
+			nodes = graph.nodes
+			edges = graph.edges
+
+			# Build adjacency maps
+			predecessors: Dict[str, List[str]] = {nid: [] for nid in nodes}
+			successors: Dict[str, List[str]] = {nid: [] for nid in nodes}
+			for src, dst in edges:
+				predecessors[dst].append(src)
+				successors[src].append(dst)
+
+			for node_id in list(nodes.keys()):
+				if node_id not in nodes:
+					continue
+
+				node = nodes[node_id]
+				succs = successors.get(node_id, [])
+
+				# Only merge if this node has exactly one successor
+				if len(succs) != 1:
+					continue
+
+				succ_id = succs[0]
+				if succ_id not in nodes:
+					continue
+
+				succ_node = nodes[succ_id]
+				preds = predecessors.get(succ_id, [])
+
+				# Only merge if successor has exactly one predecessor
+				if len(preds) != 1 or preds[0] != node_id:
+					continue
+
+				# Skip if node is an exit point (nothing after it to merge)
+				if node_id in graph.exit_points:
+					continue
+
+				# Require same node type and compatible execution mode
+				if node.node_type != succ_node.node_type:
+					continue
+
+				if node.execution_mode != succ_node.execution_mode:
+					continue
+
+				# Merge successor into current node
+				merged_id = f"{node_id}_{succ_id}"
+				merged_node = ExecutionNode(
+					node_id=merged_id,
+					node_type=node.node_type,
+					agent_id=node.agent_id or succ_node.agent_id,
+					function_name=node.function_name or succ_node.function_name,
+					condition=node.condition or succ_node.condition,
+					parameters={**node.parameters, **succ_node.parameters},
+					dependencies=list(set(node.dependencies + succ_node.dependencies)),
+					successors=succ_node.successors.copy(),
+					execution_mode=node.execution_mode,
+					retry_config=node.retry_config if node.retry_config else succ_node.retry_config,
+					timeout=node.timeout or succ_node.timeout,
+					position=node.position,
+					metadata={
+						"merged_from": [node_id, succ_id],
+						**node.metadata,
+						**succ_node.metadata,
+					},
+				)
+
+				# Update graph
+				nodes[merged_id] = merged_node
+				del nodes[node_id]
+				del nodes[succ_id]
+
+				# Update edges: redirect any edges pointing to node_id or succ_id
+				new_edges = []
+				for src, dst in edges:
+					if src == node_id or src == succ_id:
+						new_edges.append((merged_id, dst))
+					elif dst == node_id or dst == succ_id:
+						new_edges.append((src, merged_id))
+					else:
+						new_edges.append((src, dst))
+
+				# Remove self-loops, duplicates, and edges referencing deleted nodes
+				valid_nodes = set(nodes.keys())
+				graph.edges = list(dict.fromkeys(
+					(s, d) for s, d in new_edges
+					if s != d and s in valid_nodes and d in valid_nodes
+				))
+
+				# Update entry/exit points
+				graph.entry_points = [
+					merged_id if nid == node_id else nid for nid in graph.entry_points
+				]
+				graph.exit_points = [
+					merged_id if nid == succ_id else nid for nid in graph.exit_points
+				]
+
+				merged_any = True
+				break
 	
 	async def _optimize_parallel_execution(self, graph: ExecutionGraph):
 		"""Optimize parallel execution groups"""

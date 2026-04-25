@@ -790,7 +790,7 @@ export async function exportComplianceMatrix(matrixId: string): Promise<{
  * Process an RFP parsing job asynchronously.
  * This function handles the actual parsing, extraction, and storage of requirements.
  */
-async function processRfpParsingJob(jobId: string, rfpDocumentId: string): Promise<void> {
+export async function processRfpParsingJob(jobId: string, rfpDocumentId: string): Promise<void> {
 	logger.debug(`[RFP Parser] Starting job ${jobId} for document ${rfpDocumentId}`);
 
 	try {

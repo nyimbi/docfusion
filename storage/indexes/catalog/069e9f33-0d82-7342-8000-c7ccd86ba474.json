@@ -1,0 +1,45 @@
+{
+  "document_id": "069e9f33-0d82-7342-8000-c7ccd86ba474",
+  "title": "Accessibility Test",
+  "content": "<h1>Accessibility Test</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 51,
+  "checksum": "2ff6a79bef155617c26a3528ba4142e35e4a6f0fdc43aef9e20aa7b8b08b7e56",
+  "content_hash": "fd04a1cd729fa11996d877f6d5da1cf2",
+  "indexed_at": "2026-04-23T13:23:44.849148",
+  "last_modified": "2026-04-23T13:23:44.849149",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 3,
+  "char_count": 51,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "accessibility",
+    "test",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T13:23:44.844296",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

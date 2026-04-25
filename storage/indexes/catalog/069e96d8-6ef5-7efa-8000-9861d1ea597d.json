@@ -1,0 +1,45 @@
+{
+  "document_id": "069e96d8-6ef5-7efa-8000-9861d1ea597d",
+  "title": "Low Quality Test",
+  "content": "<h1>Low Quality Test</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 49,
+  "checksum": "8ab37d7bd8fed66e66915f4a41787f668c97531368fa59a6de8d33c711dbea08",
+  "content_hash": "70585d05157e032a80724789fc1760c8",
+  "indexed_at": "2026-04-23T03:53:26.939373",
+  "last_modified": "2026-04-23T03:53:26.939374",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 49,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "quality",
+    "test",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T03:53:26.935051",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

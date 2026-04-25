@@ -9,7 +9,8 @@
 
 import { db } from "@/lib/db";
 import { opportunities, opportunityImports, savedSearches } from "@/lib/db/schema";
-import { eq, and, or, gte, lte, inArray, isNull, desc, asc, sql, count, SQL } from "drizzle-orm";
+import { eq, and, or, gte, lte, inArray, isNull, desc, asc, sql, count } from "drizzle-orm";
+
 import { buildOpportunityConditions } from "./opportunity-filters";
 import type {
 	Opportunity,
@@ -195,6 +196,7 @@ export async function createOpportunity(input: OpportunityInput): Promise<Opport
 			isReviewed: input.isReviewed ?? false,
 			tags: input.tags ?? [],
 			metadata: input.metadata,
+			// searchVector is auto-populated by PostgreSQL trigger
 		})
 		.returning();
 
@@ -223,6 +225,8 @@ export async function updateOpportunity(id: string, input: Partial<OpportunityIn
 		const isExpired = deadline ? deadline < now : false;
 		updateData = { ...updateData, deadline, daysLeft, isExpired };
 	}
+
+	// searchVector is auto-populated by PostgreSQL trigger on update
 
 	const [row] = await db
 		.update(opportunities)
@@ -427,6 +431,7 @@ export async function getOpportunityStats(filters?: OpportunityFilters): Promise
 	const byStatus: Record<DecisionStatus, number> = {
 		pending: 0,
 		interested: 0,
+		shortlisted: 0,
 		pursuing: 0,
 		submitted: 0,
 		won: 0,
@@ -655,6 +660,8 @@ export async function searchOpportunities(
 			budgetNumeric: opportunities.budgetNumeric,
 			title: opportunities.title,
 			organization: opportunities.organization,
+			category: opportunities.category,
+			countryRegion: opportunities.countryRegion,
 			createdAt: opportunities.createdAt,
 			updatedAt: opportunities.updatedAt,
 		}[sortField] ?? opportunities.deadline;
@@ -739,7 +746,7 @@ export async function getSearchSuggestions(
 		LIMIT ${limit}
 	`);
 
-	return results.rows.map((row: { word: string }) => row.word);
+	return (results.rows as { word: string }[]).map((row) => row.word);
 }
 
 /**
@@ -809,7 +816,7 @@ export async function getFilterOptionsWithCounts(
 				.from(opportunities)
 				.where(and(...buildConditions("categories"), sql`${opportunities.category} IS NOT NULL`))
 				.groupBy(opportunities.category)
-				.orderBy(desc(count()))),
+				.orderBy(desc(count())),
 
 			// Sectors with counts
 			db
@@ -820,7 +827,7 @@ export async function getFilterOptionsWithCounts(
 				.from(opportunities)
 				.where(and(...buildConditions("sectors"), sql`${opportunities.sector} IS NOT NULL`))
 				.groupBy(opportunities.sector)
-				.orderBy(desc(count()))),
+				.orderBy(desc(count())),
 
 			// Countries with counts
 			db

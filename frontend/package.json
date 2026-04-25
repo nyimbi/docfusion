@@ -86,6 +86,7 @@
     "js-yaml": "^4.1.1",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",
+    "jszip": "^3.10.1",
     "katex": "^0.16.28",
     "lucide-react": "^0.563.0",
     "mermaid": "^11.12.2",

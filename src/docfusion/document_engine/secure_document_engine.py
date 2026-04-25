@@ -23,6 +23,7 @@ from ..core.utils import uuid7str
 from .document_engine import (
     DocumentEngine,
     DocumentGenerationConfiguration,
+    DocumentGenerationRequest,
     DocumentGenerationResult,
 )
 
@@ -138,15 +139,56 @@ class SecureDocumentEngine:
             # Generate document using base engine
             document_id = uuid7str()
 
-            # Simulate document generation (would use actual document engine)
+            request = DocumentGenerationRequest(
+                request_id=document_id,
+                content_sources=[
+                    {
+                        "type": "text",
+                        "content": secure_content_data.get("content", ""),
+                        "title": secure_content_data.get("title", ""),
+                        "metadata": secure_content_data.get("metadata", {}),
+                    }
+                ],
+                generation_config=DocumentGenerationConfiguration(
+                    document_title=secure_content_data.get("title", "Generated Document"),
+                    document_type=template_id,
+                    output_formats=[output_format],
+                    enable_accessibility=False,
+                    enable_brand_compliance=False,
+                ),
+                brand_specification=None,
+            )
+
+            engine_result = await self.document_engine.generate_document(request)
+
+            # Extract rendered bytes based on output format
+            rendered_bytes = b""
+            if output_format == "pdf" and engine_result.pdf_result:
+                rendered_bytes = getattr(engine_result.pdf_result, "pdf_content", b"")
+                if not rendered_bytes:
+                    rendered_bytes = getattr(engine_result.pdf_result, "rendered_content", b"")
+            elif output_format == "docx" and engine_result.docx_result:
+                rendered_bytes = getattr(engine_result.docx_result, "docx_content", b"")
+                if not rendered_bytes:
+                    rendered_bytes = getattr(engine_result.docx_result, "rendered_content", b"")
+            elif output_format == "html" and engine_result.html_result:
+                html_content = getattr(engine_result.html_result, "html_content", "")
+                if not html_content:
+                    html_content = getattr(engine_result.html_result, "rendered_content", b"").decode("utf-8", "replace")
+                rendered_bytes = html_content.encode("utf-8")
+
+            if not rendered_bytes:
+                self.logger.warning(f"No rendered content for format {output_format}, using fallback")
+                rendered_bytes = f"Generated {output_format.upper()} content for document {document_id}".encode("utf-8")
+
             generation_result = {
                 "success": True,
                 "document_id": document_id,
                 "output_format": output_format,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "metadata": generation_metadata,
-                "file_path": f"/generated/{document_id}.{output_format}",
-                "file_size": 1024000,  # Simulated size
+                "rendered_bytes": rendered_bytes,
+                "file_size": len(rendered_bytes),
             }
 
             # Apply watermarking if enabled

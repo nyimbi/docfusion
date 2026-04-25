@@ -1,0 +1,45 @@
+{
+  "document_id": "069e96d8-6eb4-7c1a-8000-ee2e6aa1cf11",
+  "title": "Error Test",
+  "content": "<h1>Error Test</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 43,
+  "checksum": "8811da641a13dd6ce514b62ef3112206db8ca1ec0a92f728a54e9a5c0b0e365e",
+  "content_hash": "3c8dde6f73f63449b1bda50a780b7661",
+  "indexed_at": "2026-04-23T03:53:26.924025",
+  "last_modified": "2026-04-23T03:53:26.924026",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 3,
+  "char_count": 43,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "error",
+    "test",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T03:53:26.919141",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

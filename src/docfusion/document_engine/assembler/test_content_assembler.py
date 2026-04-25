@@ -957,7 +957,7 @@ class TestErrorHandlingAndEdgeCases:
 			organization_id="org"
 		)
 		
-		with pytest.raises(AssertionError):
+		with pytest.raises(AssemblerException):
 			await content_assembler.assemble_document(sample_content_blocks, invalid_context)
 
 

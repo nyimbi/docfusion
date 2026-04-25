@@ -21,7 +21,7 @@ from ...storage.models.storage_models import StorageQuery, StorageResult
 from ..models.opportunity_models import OpportunityData
 from ..analyzers.opportunity_analyzer import OpportunityAnalysis
 from ..analyzers.qualification_analyzer import QualificationAssessment
-from ..analyzers.competitive_analyzer import CompetitiveAnalysis
+from ...intelligence.analyzers.competitive_analyzer import CompetitiveAnalysis
 from .nlp_integration import NLPAnalysisResult
 
 

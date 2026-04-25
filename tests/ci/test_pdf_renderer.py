@@ -211,7 +211,7 @@ def pdf_renderer(sample_render_config, pdf_quality_validator, font_manager, late
 	"""Create PDFRenderer instance for testing"""
 	return PDFRenderer(
 		render_config=sample_render_config,
-		quality_validator=pdf_quality_validator,
+		quality_field_validator=pdf_quality_validator,
 		font_manager=font_manager,
 		latex_compiler=latex_compiler
 	)
@@ -249,12 +249,13 @@ Hello LaTeX!
 		"""Test LaTeX compilation with assets"""
 		latex_content = """
 \\documentclass{article}
+\\usepackage{graphicx}
 \\begin{document}
 \\includegraphics{test.png}
 \\end{document}
 		"""
 		assets = {
-			"test.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77mgAAAABJRU5ErkJggg=="
+			"test.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAAE0lEQVR4nGP8z4APMOGVZRip0gBBLAETee26JgAAAABJRU5ErkJggg=="
 		}
 		
 		pdf_content = await latex_compiler.compile_latex_to_pdf(latex_content, assets)
@@ -467,7 +468,7 @@ class TestPDFRenderer:
 	def test_pdf_renderer_initialization(self, pdf_renderer):
 		"""Test PDFRenderer initialization"""
 		assert pdf_renderer.render_config is not None
-		assert pdf_renderer.quality_validator is not None
+		assert pdf_renderer.quality_field_validator is not None
 		assert pdf_renderer.font_manager is not None
 		assert pdf_renderer.html_css_generator is not None
 		assert pdf_renderer.metrics["documents_rendered"] == 0
@@ -901,7 +902,7 @@ Quick LaTeX rendering test.
 		assert "pdf_renderer_core" in validation_results
 		assert "html_css_generator" in validation_results
 		assert "font_manager" in validation_results
-		assert "quality_validator" in validation_results
+		assert "quality_field_validator" in validation_results
 		assert "overall_status" in validation_results
 		
 		# Core components should always be available
@@ -909,7 +910,7 @@ Quick LaTeX rendering test.
 		assert validation_results["latex_compiler"] is True
 		assert validation_results["html_css_generator"] is True
 		assert validation_results["font_manager"] is True
-		assert validation_results["quality_validator"] is True
+		assert validation_results["quality_field_validator"] is True
 
 
 # ============================================================================

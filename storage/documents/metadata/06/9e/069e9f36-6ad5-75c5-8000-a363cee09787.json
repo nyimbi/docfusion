@@ -1,0 +1,38 @@
+{
+  "document_id": "069e9f36-6ad5-75c5-8000-a363cee09787",
+  "title": "Rapid Test 1",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f36-6ad5-75c5-8000-a363cee09787_1.0.0.txt",
+  "file_size": 45,
+  "checksum": "dfd8248fdf8176afc143d6f5f12f49f59042353d43cd15a7d86878f4a78fbb2c",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:24:38.684148",
+  "updated_at": "2026-04-23T13:24:38.684152",
+  "accessed_at": "2026-04-23T13:24:38.684153",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "55f6d0953042b08653c1aa7cf4a024b0",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:24:38.677135",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

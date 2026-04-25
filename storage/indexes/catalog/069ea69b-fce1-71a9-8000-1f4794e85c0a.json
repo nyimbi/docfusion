@@ -1,0 +1,63 @@
+{
+  "document_id": "069ea69b-fce1-71a9-8000-1f4794e85c0a",
+  "title": "Test Document",
+  "content": "<style>\n.element-element_0 {\n  font-family: serif;\n  font-size: 13.2pt;\n  font-weight: normal;\n  font-style: normal;\n  line-height: 1.5;\n  color: #000000;\n  text-align: left;\n  margin-top: 0;\n  margin-bottom: 0;\n  margin-left: 0;\n  margin-right: 0;\n  padding-top: 0;\n  padding-bottom: 0;\n  padding-left: 0;\n  padding-right: 0;\n  display: block;\n}\n\n.element-element_1 {\n  font-family: serif;\n  font-size: 13.2pt;\n  font-weight: normal;\n  font-style: normal;\n  line-height: 1.5;\n  color: #000000;\n  text-align: left;\n  margin-top: 0;\n  margin-bottom: 0;\n  margin-left: 0;\n  margin-right: 0;\n  padding-top: 0;\n  padding-bottom: 0;\n  padding-left: 0;\n  padding-right: 0;\n  display: block;\n}\n\n.element-element_2 {\n  font-family: serif;\n  font-size: 13.2pt;\n  font-weight: normal;\n  font-style: normal;\n  line-height: 1.5;\n  color: #000000;\n  text-align: left;\n  margin-top: 0;\n  margin-bottom: 0;\n  margin-left: 0;\n  margin-right: 0;\n  padding-top: 0;\n  padding-bottom: 0;\n  padding-left: 0;\n  padding-right: 0;\n  display: block;\n}\n</style>\n<div class=\"element-element_0\"><!-- Content for element_0 --></div>\n<div class=\"element-element_1\"><!-- Content for element_1 --></div>\n<div class=\"element-element_2\"><!-- Content for element_2 --></div>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 1239,
+  "checksum": "c7df6f684675293bf1e07354aa0550fb4fee403cd295477262ea6568d3a343c4",
+  "content_hash": "66abe6dcf21221f52eeb6ce6cde85335",
+  "indexed_at": "2026-04-23T21:49:35.866561",
+  "last_modified": "2026-04-23T21:49:35.866564",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 125,
+  "char_count": 1239,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "font",
+    "margin",
+    "padding",
+    "left",
+    "element",
+    "normal",
+    "bottom",
+    "style",
+    "family",
+    "serif",
+    "size",
+    "weight",
+    "line",
+    "height",
+    "color",
+    "text",
+    "align",
+    "display",
+    "block",
+    "class"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T21:49:35.805363",
+    "processing_time": 0.0,
+    "quality_score": 0.8462500000000001,
+    "output_formats": [
+      "pdf",
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

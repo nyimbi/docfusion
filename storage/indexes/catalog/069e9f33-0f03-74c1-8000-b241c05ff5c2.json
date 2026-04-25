@@ -1,0 +1,45 @@
+{
+  "document_id": "069e9f33-0f03-74c1-8000-b241c05ff5c2",
+  "title": "Rapid Test 2",
+  "content": "<h1>Rapid Test 2</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 45,
+  "checksum": "7f55c5c7edb0fd46ef2d5934afae7efeac9e58367e7f60ae57f730249d229258",
+  "content_hash": "cc60c412cbb1671f8a5e38365b7195be",
+  "indexed_at": "2026-04-23T13:23:44.948852",
+  "last_modified": "2026-04-23T13:23:44.948853",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 45,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "rapid",
+    "test",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T13:23:44.941012",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

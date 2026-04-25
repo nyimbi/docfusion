@@ -1,0 +1,21 @@
+<style>
+.element-element_0 {
+  font-family: serif;
+  font-size: 13.2pt;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.5;
+  color: #000000;
+  text-align: left;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  display: block;
+}
+</style>
+<div class="element-element_0"><!-- Content for element_0 --></div>

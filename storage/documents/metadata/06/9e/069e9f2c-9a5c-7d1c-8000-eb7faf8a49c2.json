@@ -1,0 +1,37 @@
+{
+  "document_id": "069e9f2c-9a5c-7d1c-8000-eb7faf8a49c2",
+  "title": "Memory Test 3",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f2c-9a5c-7d1c-8000-eb7faf8a49c2_1.0.0.txt",
+  "file_size": 46,
+  "checksum": "a8d09f377d96047482381bfce8bff4fe8c5aea89899be7762e8c7e617558fae7",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:22:01.649848",
+  "updated_at": "2026-04-23T13:22:01.649849",
+  "accessed_at": "2026-04-23T13:22:01.649849",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "f280e28bf73eb524945cab3917a82cc1",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:22:01.647671",
+    "processing_time": 0.0,
+    "quality_score": 0.7414285714285714,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

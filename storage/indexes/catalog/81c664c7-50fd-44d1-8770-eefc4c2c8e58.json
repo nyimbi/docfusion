@@ -1,0 +1,40 @@
+{
+  "document_id": "81c664c7-50fd-44d1-8770-eefc4c2c8e58",
+  "title": "Empty Content Test",
+  "content": "{}",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 2,
+  "checksum": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "content_hash": "99914b932bd37a50b983c5e7c90ae93b",
+  "indexed_at": "2026-04-25T01:46:51.390923",
+  "last_modified": "2026-04-25T01:46:51.390924",
+  "last_updated": "2026-04-25T01:46:51.390925",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "pdf"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 1,
+  "char_count": 2,
+  "extracted_entities": [],
+  "extracted_keywords": [],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-25T01:46:51.341246",
+    "processing_time": 0.0,
+    "quality_score": 0.7671428571428571,
+    "output_formats": [
+      "pdf"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

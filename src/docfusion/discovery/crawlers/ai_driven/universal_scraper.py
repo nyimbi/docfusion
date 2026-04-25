@@ -28,14 +28,46 @@ import re
 
 # Optional AI and crawler dependencies - imported with fallbacks
 try:
-	from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode
+	from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, CacheMode, LLMConfig
 	from crawl4ai.extraction_strategy import LLMExtractionStrategy, CosineStrategy
 	HAS_CRAWL4AI = True
 except ImportError:
 	HAS_CRAWL4AI = False
 	AsyncWebCrawler = None
+	LLMConfig = None
 	LLMExtractionStrategy = None
 	CosineStrategy = None
+
+# Monkey-patch transformers to strip resume_download (removed in transformers>=5.0)
+# Only patch specific from_pretrained entry points; do NOT patch PreTrainedModel
+# base class because transformers 5.0 dispatching is fragile.
+try:
+	from transformers import AutoModel, AutoTokenizer, AutoModelForSequenceClassification
+	from transformers import BertModel, RobertaForSequenceClassification
+
+	_TO_PATCH = [
+		(AutoModel, 'AutoModel'),
+		(AutoTokenizer, 'AutoTokenizer'),
+		(AutoModelForSequenceClassification, 'AutoModelForSequenceClassification'),
+		(BertModel, 'BertModel'),
+		(RobertaForSequenceClassification, 'RobertaForSequenceClassification'),
+	]
+
+	for _cls, _name in _TO_PATCH:
+		try:
+			_orig = _cls.from_pretrained
+
+			def _make_patched(original):
+				def _patched(cls, *args, **kwargs):
+					kwargs.pop('resume_download', None)
+					return original(*args, **kwargs)
+				return _patched
+
+			_cls.from_pretrained = classmethod(_make_patched(_orig))
+		except Exception:
+			pass
+except Exception:
+	pass
 
 try:
 	from crawlee import PlaywrightCrawler, Request
@@ -185,6 +217,9 @@ class UniversalScraper(BaseScraper):
 			'total_extractions': 0,
 			'successful_extractions': 0,
 			'crawlee_extractions': 0,
+			'cloudscraper_extractions': 0,
+			'crawl4ai_extractions': 0,
+			'playwright_extractions': 0,
 			'llm_extractions': 0,
 			'css_extractions': 0,
 			'vision_extractions': 0,
@@ -195,7 +230,7 @@ class UniversalScraper(BaseScraper):
 		"""Initialize all components"""
 		try:
 			# Initialize Crawlee crawler - primary robust scraper
-			if HAS_CRAWLEE:
+			if PlaywrightCrawler is not None:
 				self.crawlee_crawler = PlaywrightCrawler(
 					# Basic configuration
 					max_requests_per_crawl=1,  # Single page for targeted scraping
@@ -232,10 +267,12 @@ class UniversalScraper(BaseScraper):
 			)
 			
 			# Initialize Crawl4AI strategies
-			if HAS_CRAWL4AI:
+			if LLMExtractionStrategy is not None:
 				self.llm_strategy = LLMExtractionStrategy(
-					provider="openai/gpt-4o-mini",
-					api_key=SecretsManager.get_openai_api_key(),  # Uses centralized secrets management
+					llm_config=LLMConfig(
+						provider="openai/gpt-4o-mini",
+						api_token=SecretsManager.get_openai_api_key(),
+					),
 					instruction="""
 					Extract procurement opportunities from this webpage. For each opportunity, extract:
 					- title: The title or name of the opportunity
@@ -289,6 +326,7 @@ class UniversalScraper(BaseScraper):
 		
 		extraction_result = ExtractionResult()
 		scraping_result = None
+		all_errors = []
 		
 		try:
 			# Try multiple extraction strategies in order of preference
@@ -299,30 +337,45 @@ class UniversalScraper(BaseScraper):
 					self.logger.info(f"Trying extraction strategy: {strategy}")
 					
 					if strategy == "crawlee":
-						scraping_result, extraction_result = await self._extract_with_crawlee(url)
+						strategy_scraping, strategy_extraction = await self._extract_with_crawlee(url)
 					elif strategy == "cloudscraper":
-						scraping_result, extraction_result = await self._extract_with_cloudscraper(url)
+						strategy_scraping, strategy_extraction = await self._extract_with_cloudscraper(url)
 					elif strategy == "crawl4ai_llm":
-						scraping_result, extraction_result = await self._extract_with_crawl4ai_llm(url)
+						strategy_scraping, strategy_extraction = await self._extract_with_crawl4ai_llm(url)
 					elif strategy == "crawl4ai_cosine":
-						scraping_result, extraction_result = await self._extract_with_crawl4ai_cosine(url)
+						strategy_scraping, strategy_extraction = await self._extract_with_crawl4ai_cosine(url)
 					elif strategy == "playwright_stealth":
-						scraping_result, extraction_result = await self._extract_with_playwright(url, stealth=True)
+						strategy_scraping, strategy_extraction = await self._extract_with_playwright(url, stealth=True)
 					elif strategy == "playwright_css":
-						scraping_result, extraction_result = await self._extract_with_playwright_css(url, site_structure)
+						strategy_scraping, strategy_extraction = await self._extract_with_playwright_css(url, site_structure)
 					elif strategy == "vision_analysis":
-						scraping_result, extraction_result = await self._extract_with_vision(url)
+						strategy_scraping, strategy_extraction = await self._extract_with_vision(url)
+					
+					# Accumulate errors from strategies that handle failures internally
+					for error in strategy_extraction.errors:
+						error_str = f"{strategy}: {error}"
+						if error_str not in all_errors:
+							all_errors.append(error_str)
 					
 					# Check if extraction was successful
-					if extraction_result.valid_items_found > 0:
+					if strategy_extraction.valid_items_found > 0:
+						scraping_result = strategy_scraping
+						extraction_result = strategy_extraction
 						extraction_result.extraction_method = strategy
 						self.extraction_stats[f'{strategy.split("_")[0]}_extractions'] += 1
 						break
 						
 				except Exception as e:
 					self.logger.warning(f"Strategy {strategy} failed: {e}")
-					extraction_result.errors.append(f"{strategy}: {str(e)}")
+					error_str = f"{strategy}: {str(e)}"
+					if error_str not in all_errors:
+						all_errors.append(error_str)
 					continue
+			
+			# Merge all accumulated errors into the final extraction_result
+			for error in all_errors:
+				if error not in extraction_result.errors:
+					extraction_result.errors.append(error)
 			
 			# Update statistics
 			self.extraction_stats['total_extractions'] += 1
@@ -411,7 +464,7 @@ class UniversalScraper(BaseScraper):
 	
 	async def _extract_with_crawlee(self, url: str) -> Tuple[ScrapingResult, ExtractionResult]:
 		"""Extract using Crawlee - primary robust crawler with built-in anti-detection"""
-		if not HAS_CRAWLEE or self.crawlee_crawler is None:
+		if self.crawlee_crawler is None:
 			return ScrapingResult(
 				url=url,
 				status=ScrapingStatus.FAILED,
@@ -461,7 +514,10 @@ class UniversalScraper(BaseScraper):
 					self.logger.error(f"Crawlee request handler failed: {e}")
 			
 			# Configure and run Crawlee
-			await self.crawlee_crawler.add_requests([Request.from_url(url)])
+			if Request is not None:
+				await self.crawlee_crawler.add_requests([Request.from_url(url)])
+			else:
+				await self.crawlee_crawler.add_requests([url])
 			await self.crawlee_crawler.run(request_handler)
 			
 			# Process results
@@ -660,7 +716,7 @@ class UniversalScraper(BaseScraper):
 	
 	async def _extract_with_crawl4ai_llm(self, url: str) -> Tuple[ScrapingResult, ExtractionResult]:
 		"""Extract using Crawl4AI with LLM strategy"""
-		if not HAS_CRAWL4AI or self.llm_strategy is None:
+		if self.llm_strategy is None:
 			return ScrapingResult(
 				url=url,
 				status=ScrapingStatus.FAILED,
@@ -684,7 +740,8 @@ class UniversalScraper(BaseScraper):
 					url=url,
 					status=ScrapingStatus.SUCCESS if result.success else ScrapingStatus.FAILED,
 					html_content=result.cleaned_html,
-					text_content=result.markdown
+					text_content=result.markdown,
+					method_used="crawl4ai_llm"
 				)
 				
 				if not result.success:
@@ -720,7 +777,7 @@ class UniversalScraper(BaseScraper):
 	
 	async def _extract_with_crawl4ai_cosine(self, url: str) -> Tuple[ScrapingResult, ExtractionResult]:
 		"""Extract using Crawl4AI with Cosine clustering strategy"""
-		if not HAS_CRAWL4AI or self.cosine_strategy is None:
+		if self.cosine_strategy is None:
 			return ScrapingResult(
 				url=url,
 				status=ScrapingStatus.FAILED,
@@ -743,7 +800,8 @@ class UniversalScraper(BaseScraper):
 					url=url,
 					status=ScrapingStatus.SUCCESS if result.success else ScrapingStatus.FAILED,
 					html_content=result.cleaned_html,
-					text_content=result.markdown
+					text_content=result.markdown,
+					method_used="crawl4ai_cosine"
 				)
 				
 				if not result.success:
@@ -1062,7 +1120,7 @@ class UniversalScraper(BaseScraper):
 				try:
 					elements = soup.select(pattern)
 					for element in elements[:20]:  # Limit to avoid too much data
-						opportunity = self._extract_opportunity_from_element(element)
+						opportunity = self._extract_opportunity_from_html_element(element)
 						if opportunity and opportunity.get('title'):
 							opportunities.append(opportunity)
 				except Exception as e:
@@ -1091,7 +1149,7 @@ class UniversalScraper(BaseScraper):
 				extraction_method=method
 			)
 	
-	def _extract_opportunity_from_element(self, element) -> Dict[str, Any]:
+	def _extract_opportunity_from_html_element(self, element) -> Dict[str, Any]:
 		"""Extract opportunity data from a BeautifulSoup element"""
 		opportunity = {}
 		
@@ -1282,7 +1340,7 @@ class UniversalScraper(BaseScraper):
 		structure = self.site_structures[domain]
 		
 		# Update confidence based on extraction success
-		if extraction_result.valid_items_found > 0:
+		if extraction_result.valid_items_found > 0 and extraction_result.total_items_found > 0:
 			structure.extraction_success_rate = (
 				(structure.extraction_success_rate * 0.8) + 
 				(extraction_result.valid_items_found / extraction_result.total_items_found * 0.2)
@@ -1386,6 +1444,8 @@ def create_universal_scraper(
 	"""Create a configured UniversalScraper instance"""
 	config = ScrapingConfiguration(
 		requests_per_second=requests_per_second,
+		requests_per_minute=int(requests_per_second * 60),
+		rate_limit_requests_per_minute=int(requests_per_second * 60),
 		max_retries=max_retries,
 		enable_proxy_rotation=use_proxies,
 		request_timeout=45,

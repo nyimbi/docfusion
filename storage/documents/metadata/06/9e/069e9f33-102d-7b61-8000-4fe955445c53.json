@@ -1,0 +1,38 @@
+{
+  "document_id": "069e9f33-102d-7b61-8000-4fe955445c53",
+  "title": "Low Quality Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f33-102d-7b61-8000-4fe955445c53_1.0.0.txt",
+  "file_size": 49,
+  "checksum": "8ab37d7bd8fed66e66915f4a41787f668c97531368fa59a6de8d33c711dbea08",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:23:45.015212",
+  "updated_at": "2026-04-23T13:23:45.015214",
+  "accessed_at": "2026-04-23T13:23:45.015214",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "70585d05157e032a80724789fc1760c8",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:23:45.011169",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}

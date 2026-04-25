@@ -18,6 +18,7 @@ export type { DeadlineUrgency };
 export type DecisionStatus =
 	| "pending"
 	| "interested"
+	| "shortlisted"
 	| "pursuing"
 	| "submitted"
 	| "won"

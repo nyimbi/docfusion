@@ -846,7 +846,16 @@ class CausalAnalyzer:
 
 # Factory function
 def create_causal_analyzer(
-    confidence_level: ConfidenceLevel = ConfidenceLevel.MEDIUM, **kwargs
+    confidence_level: Union[ConfidenceLevel, Dict[str, Any]] = ConfidenceLevel.MEDIUM, **kwargs
 ) -> CausalAnalyzer:
     """Create CausalAnalyzer instance with configuration"""
+    if isinstance(confidence_level, dict):
+        config = dict(confidence_level)
+        level = config.pop("confidence_level", ConfidenceLevel.MEDIUM)
+        if isinstance(level, str):
+            level = ConfidenceLevel(level)
+        # Filter out keys not accepted by CausalAnalyzer.__init__
+        valid_keys = {"min_sample_size", "effect_size_threshold", "enable_robustness_checks", "max_lag_order"}
+        config = {k: v for k, v in config.items() if k in valid_keys}
+        return CausalAnalyzer(confidence_level=level, **config)
     return CausalAnalyzer(confidence_level=confidence_level, **kwargs)

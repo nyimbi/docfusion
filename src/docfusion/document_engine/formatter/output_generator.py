@@ -29,7 +29,25 @@ class LaTeXStyleGenerator:
 
 	def __init__(self):
 		"""Initialize LaTeX style generator"""
-		pass
+		self.packages: set[str] = set()
+		self.commands: list[str] = []
+
+	def add_package(self, package: str, options: str = "") -> None:
+		"""Add a LaTeX package to the preamble"""
+		cmd = f"\\usepackage[{options}]{{{package}}}" if options else f"\\usepackage{{{package}}}"
+		self.packages.add(cmd)
+
+	def add_command(self, command: str) -> None:
+		"""Add a raw LaTeX command"""
+		self.commands.append(command)
+
+	def generate_preamble(self) -> str:
+		"""Generate the LaTeX preamble fragment"""
+		lines = list(self.packages)
+		if self.commands:
+			lines.append("")
+			lines.extend(self.commands)
+		return "\n".join(lines)
 
 
 class HTMLStyleGenerator:
@@ -37,7 +55,28 @@ class HTMLStyleGenerator:
 
 	def __init__(self):
 		"""Initialize HTML style generator"""
-		pass
+		self.css_rules: list[str] = []
+		self.html_elements: list[str] = []
+
+	def add_css_rule(self, selector: str, properties: dict[str, str]) -> None:
+		"""Add a CSS rule"""
+		props = ";\n  ".join(f"{k}: {v}" for k, v in properties.items())
+		self.css_rules.append(f"{selector} {{\n  {props};\n}}")
+
+	def add_html_element(self, tag: str, content: str, attrs: dict[str, str] | None = None) -> None:
+		"""Add an HTML element"""
+		attr_str = ""
+		if attrs:
+			attr_str = " " + " ".join(f'{k}="{v}"' for k, v in attrs.items())
+		self.html_elements.append(f"<{tag}{attr_str}>{content}</{tag}>")
+
+	def generate_css(self) -> str:
+		"""Generate the CSS stylesheet"""
+		return "\n\n".join(self.css_rules)
+
+	def generate_html(self) -> str:
+		"""Generate the HTML markup"""
+		return "\n".join(self.html_elements)
 
 
 class PDFStyleGenerator:
@@ -45,7 +84,15 @@ class PDFStyleGenerator:
 
 	def __init__(self):
 		"""Initialize PDF style generator"""
-		pass
+		self.instructions: list[str] = []
+
+	def add_instruction(self, instruction: str) -> None:
+		"""Add a PDF formatting instruction"""
+		self.instructions.append(instruction)
+
+	def generate_instructions(self) -> str:
+		"""Generate PDF formatting instruction block"""
+		return "\n".join(self.instructions)
 
 
 # ============================================================================

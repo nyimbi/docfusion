@@ -1,0 +1,46 @@
+{
+  "document_id": "069e9f36-6ed2-7fb1-8000-16e53b8dfa65",
+  "title": "HTML Test Document",
+  "content": "<h1>HTML Test Document</h1><p>Generated content</p>",
+  "content_type": "proposal",
+  "file_path": "",
+  "file_size": 51,
+  "checksum": "e0aace3364f036b711e7978b6fdf06d66ae03edcb752b054449b085c3bc81474",
+  "content_hash": "0df883503b23fee5ac78b6d1ea5cbd04",
+  "indexed_at": "2026-04-23T13:24:38.932443",
+  "last_modified": "2026-04-23T13:24:38.932447",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "language": "en",
+  "word_count": 4,
+  "char_count": 51,
+  "extracted_entities": [],
+  "extracted_keywords": [
+    "html",
+    "test",
+    "document",
+    "generated",
+    "content"
+  ],
+  "custom_fields": {
+    "generation_timestamp": "2026-04-23T13:24:38.926516",
+    "processing_time": 0.0,
+    "quality_score": 0.8866666666666667,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": false
+    }
+  }
+}

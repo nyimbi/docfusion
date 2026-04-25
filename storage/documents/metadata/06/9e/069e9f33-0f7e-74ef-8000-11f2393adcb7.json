@@ -1,0 +1,38 @@
+{
+  "document_id": "069e9f33-0f7e-74ef-8000-11f2393adcb7",
+  "title": "Component Timing Test",
+  "content_type": "proposal",
+  "file_path": "/Users/nyimbiodero/src/pjs/docfusion/storage/documents/content/06/9e/069e9f33-0f7e-74ef-8000-11f2393adcb7_1.0.0.txt",
+  "file_size": 54,
+  "checksum": "8728fa5140126434bc4b9c7828207cc05b2d8bb14f2f68a715412be8c0dd882e",
+  "version": "1.0.0",
+  "parent_version": null,
+  "created_at": "2026-04-23T13:23:44.988097",
+  "updated_at": "2026-04-23T13:23:44.988099",
+  "accessed_at": "2026-04-23T13:23:44.988100",
+  "author": "document_engine",
+  "tags": [
+    "generated",
+    "document_engine",
+    "proposal",
+    "html",
+    "good_quality"
+  ],
+  "category": "generated",
+  "access_count": 0,
+  "content_hash": "f908632228777e9ccf79a5cfa8227bd6",
+  "custom_metadata": {
+    "generation_timestamp": "2026-04-23T13:23:44.968345",
+    "processing_time": 0.0,
+    "quality_score": 0.8842857142857143,
+    "output_formats": [
+      "html"
+    ],
+    "generation_configuration": {
+      "document_type": "proposal",
+      "document_version": "1.0",
+      "accessibility_enabled": true,
+      "brand_compliance_enabled": true
+    }
+  }
+}
