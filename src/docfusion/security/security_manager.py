@@ -1521,16 +1521,12 @@ class SecurityManager:
     async def _create_nyimbi_user(self):
         """Create nyimbi user account"""
         try:
-            # Temporarily lower min password length for this user
-            old_min = self.user_auth.config.min_password_length
-            self.user_auth.config.min_password_length = 8
             user_id = await self.user_auth.create_user(
                 username='nyimbi',
-                password='Abcd1234.',
+                password='AbcdAbcd1234!',
                 email='nyimbi@gmail.com',
                 require_mfa=False
             )
-            self.user_auth.config.min_password_length = old_min
             self.logger.info(f'Created nyimbi user account: {user_id}')
         except ValueError as e:
             if 'already exists' in str(e):
