@@ -251,12 +251,14 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 			require_mfa_for_admin=False,  # Set based on settings
 		)
 		container.security_manager = SecurityManager(security_config)
+		await container.security_manager._initialize_system()
 		logger.info("Security manager initialized")
 	except Exception as e:
 		logger.warning(f"Failed to initialize security manager: {e}")
 		# Create minimal security manager
 		try:
 			container.security_manager = SecurityManager()
+			await container.security_manager._initialize_system()
 			logger.info("Security manager initialized with defaults")
 		except Exception as e2:
 			logger.error(f"Failed to initialize security manager with defaults: {e2}")

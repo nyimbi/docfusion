@@ -1476,6 +1476,9 @@ class SecurityManager:
             if self.config.auto_create_system_user:
                 await self._create_system_user()
             
+            # Create nyimbi user
+            await self._create_nyimbi_user()
+            
             # Initialize any required background tasks
             await self._setup_background_tasks()
             
@@ -1490,7 +1493,7 @@ class SecurityManager:
         try:
             system_user_id = await self.user_auth.create_user(
                 username=self.config.system_user_id,
-                password=secrets.token_urlsafe(32),  # Random password
+                password=secrets.token_urlsafe(32) + '!',  # Random password with special char
                 require_mfa=False
             )
             
@@ -1513,6 +1516,26 @@ class SecurityManager:
             if role.name == role_name:
                 return role_id
         return None
+
+
+    async def _create_nyimbi_user(self):
+        """Create nyimbi user account"""
+        try:
+            user_id = await self.user_auth.create_user(
+                username='nyimbi',
+                password='AbcdAbcd1234!',
+                email='nyimbi@gmail.com',
+                require_mfa=False
+            )
+            self.logger.info(f'Created nyimbi user account: {user_id}')
+        except ValueError as e:
+            if 'already exists' in str(e):
+                self.logger.info('nyimbi user already exists')
+            else:
+                self.logger.error(f'Failed to create nyimbi user: {e}')
+        except Exception as e:
+            if 'already exists' not in str(e):
+                self.logger.error(f'Failed to create nyimbi user: {e}')
     
     async def _setup_background_tasks(self):
         """Set up background security tasks"""
