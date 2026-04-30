@@ -8,6 +8,7 @@
 "use client";
 
 import { useState, useEffect, useTransition, useRef } from "react";
+import { useSession } from "next-auth/react";
 import type {
 	Requirement,
 	RequirementUpdateInput,
@@ -15,7 +16,11 @@ import type {
 	RequirementPriority,
 	RiskLevel,
 } from "@/lib/types/opportunity";
-import { updateRequirement, assignRequirement } from "@/lib/actions/requirements";
+import {
+	updateRequirement,
+	assignRequirement,
+	transitionRequirementWorkflow,
+} from "@/lib/actions/requirements";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +39,15 @@ export function RequirementDetail({
 }: RequirementDetailProps) {
 	const [editMode, setEditMode] = useState(false);
 	const [formData, setFormData] = useState<RequirementUpdateInput>({});
+	const [workflowReason, setWorkflowReason] = useState("");
+	const [workflowError, setWorkflowError] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
+	const { data: session } = useSession();
+	const currentUserId = session?.user?.id ?? session?.user?.email ?? null;
+	const currentUserName = session?.user?.name ?? session?.user?.email ?? undefined;
+	const workflowGateStatus = requirement
+		? getWorkflowGateStatus(requirement, formData, currentUserId)
+		: [];
 	const panelRef = useRef<HTMLDivElement>(null);
 
 	// Reset form when requirement changes
@@ -50,9 +63,13 @@ export function RequirementDetail({
 				riskLevel: requirement.riskLevel ?? undefined,
 				assignedTo: requirement.assignedTo ?? undefined,
 				dueDate: requirement.dueDate ? requirement.dueDate.toISOString().split("T")[0] : undefined,
+				source: requirement.source ?? undefined,
+				sourcePageRef: requirement.sourcePageRef ?? undefined,
 			});
 		}
 		setEditMode(false);
+		setWorkflowReason("");
+		setWorkflowError(null);
 	}, [requirement]);
 
 	// Handle escape key
@@ -92,6 +109,34 @@ export function RequirementDetail({
 				}
 			} catch (error) {
 				console.error("Failed to update requirement:", error);
+			}
+		});
+	};
+
+	const handleWorkflowTransition = (
+		action: "accept" | "reject" | "reopen"
+	) => {
+		if (!requirement) return;
+
+		startTransition(async () => {
+			try {
+					setWorkflowError(null);
+					const result = await transitionRequirementWorkflow({
+						requirementId: requirement.id,
+						action,
+						actorId: currentUserId ?? "unknown-user",
+						actorName: currentUserName,
+						reason: workflowReason,
+						assignedTo: formData.assignedTo ?? requirement.assignedTo ?? currentUserId ?? undefined,
+						dueDate: formData.dueDate ?? requirement.dueDate ?? undefined,
+					});
+
+				if (result) {
+					onUpdate?.(result.requirement);
+					setWorkflowReason("");
+				}
+			} catch (error) {
+				setWorkflowError(error instanceof Error ? error.message : "Workflow transition failed.");
 			}
 		});
 	};
@@ -179,7 +224,22 @@ export function RequirementDetail({
 									}}
 									disabled={isPending}
 								/>
-								<PriorityBadge priority={requirement.priority} />
+								{editMode ? (
+									<>
+										<CategorySelect
+											value={formData.category ?? requirement.category}
+											onChange={(category) => setFormData((f) => ({ ...f, category: category ?? undefined }))}
+											disabled={isPending}
+										/>
+										<PrioritySelect
+											value={formData.priority ?? requirement.priority}
+											onChange={(priority) => setFormData((f) => ({ ...f, priority: priority ?? undefined }))}
+											disabled={isPending}
+										/>
+									</>
+								) : (
+									<PriorityBadge priority={requirement.priority} />
+								)}
 								<RiskBadge level={requirement.riskLevel} />
 							</div>
 
@@ -200,19 +260,38 @@ export function RequirementDetail({
 							</Section>
 
 							{/* Source Quote */}
-							{requirement.source && (
+							{(editMode || requirement.source) && (
 								<Section title="Source Quote">
-									<div className="relative">
-										<div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--accent-500)] rounded-full" />
-										<blockquote className="pl-4 text-sm text-[var(--foreground-muted)] italic">
-											"{requirement.source}"
-										</blockquote>
-										{requirement.sourcePageRef && (
-											<p className="pl-4 mt-2 text-xs text-[var(--foreground-muted)]">
-												Page: {requirement.sourcePageRef}
-											</p>
-										)}
-									</div>
+									{editMode ? (
+										<div className="space-y-2">
+											<textarea
+												value={formData.source ?? requirement.source ?? ""}
+												onChange={(e) => setFormData((f) => ({ ...f, source: e.target.value }))}
+												rows={3}
+												placeholder="Source quote or trace"
+												className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+											/>
+											<input
+												type="text"
+												value={formData.sourcePageRef ?? requirement.sourcePageRef ?? ""}
+												onChange={(e) => setFormData((f) => ({ ...f, sourcePageRef: e.target.value }))}
+												placeholder="Page or section reference"
+												className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+											/>
+										</div>
+									) : (
+										<div className="relative">
+											<div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--accent-500)] rounded-full" />
+											<blockquote className="pl-4 text-sm text-[var(--foreground-muted)] italic">
+												"{requirement.source}"
+											</blockquote>
+											{requirement.sourcePageRef && (
+												<p className="pl-4 mt-2 text-xs text-[var(--foreground-muted)]">
+													Page: {requirement.sourcePageRef}
+												</p>
+											)}
+										</div>
+									)}
 								</Section>
 							)}
 
@@ -266,27 +345,119 @@ export function RequirementDetail({
 									<Button
 										variant="outline"
 										size="sm"
-										onClick={() => handleAssign("current-user")}
-										disabled={isPending}
+										onClick={() => currentUserId && handleAssign(currentUserId)}
+										disabled={isPending || !currentUserId}
 									>
-										{requirement.assignedTo === "current-user" ? "Reassign" : "Assign to Me"}
+										{currentUserId && requirement.assignedTo === currentUserId ? "Reassign" : "Assign to Me"}
 									</Button>
 								</div>
 
 								{/* Due Date in Edit Mode */}
 								{editMode && (
 									<div className="mt-3">
-										<label className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
+										<span className="block text-xs font-medium text-[var(--foreground-muted)] mb-1">
 											Due Date
-										</label>
+										</span>
 										<input
 											type="date"
 											value={formData.dueDate?.toString().split("T")[0] ?? ""}
 											onChange={(e) => setFormData((f) => ({ ...f, dueDate: e.target.value || null }))}
 											className="px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+											aria-label="Due Date"
 										/>
 									</div>
 								)}
+							</Section>
+
+							{/* Workflow */}
+							<Section title="Workflow">
+								<div className="space-y-3">
+									<div className="flex items-center gap-2 flex-wrap">
+										<WorkflowBadge state={requirement.workflowState ?? "review"} />
+										{requirement.projectedTaskId && (
+											<span className="text-xs text-[var(--foreground-muted)]">
+												Task {requirement.projectedTaskId.slice(0, 8)}
+											</span>
+										)}
+									</div>
+									{requirement.workflowReason && (
+										<p className="text-sm text-[var(--foreground-muted)]">
+											{requirement.workflowReason}
+										</p>
+									)}
+									<div className="grid grid-cols-2 gap-2 text-xs">
+										{workflowGateStatus.map((gate) => (
+											<div
+												key={gate.label}
+												className={cn(
+													"rounded border px-2 py-1",
+													gate.ready
+														? "border-green-200 text-green-700 dark:border-green-800 dark:text-green-300"
+														: "border-red-200 text-red-700 dark:border-red-900 dark:text-red-300"
+												)}
+											>
+												{gate.ready ? "Ready" : "Missing"}: {gate.label}
+											</div>
+										))}
+									</div>
+									<textarea
+										value={workflowReason}
+										onChange={(e) => setWorkflowReason(e.target.value)}
+										rows={2}
+										placeholder="Decision reason"
+										className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+									/>
+									{workflowError && (
+										<p className="text-sm text-[var(--error-500)]">{workflowError}</p>
+									)}
+									<div className="flex items-center gap-2 flex-wrap">
+										{(requirement.workflowState ?? "review") === "review" ? (
+											<>
+												<Button
+													variant="primary"
+													size="sm"
+													onClick={() => handleWorkflowTransition("accept")}
+													disabled={isPending || !workflowReason.trim() || !currentUserId}
+												>
+													Accept
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => handleWorkflowTransition("reject")}
+													disabled={isPending || !workflowReason.trim() || !currentUserId}
+												>
+													Reject
+												</Button>
+											</>
+										) : (
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => handleWorkflowTransition("reopen")}
+												disabled={isPending || !workflowReason.trim() || !currentUserId}
+											>
+												Reopen
+											</Button>
+										)}
+									</div>
+									{requirement.workflowHistory && requirement.workflowHistory.length > 0 && (
+										<div className="space-y-2">
+											<p className="text-xs font-medium text-[var(--foreground-muted)]">
+												History
+											</p>
+											{requirement.workflowHistory.slice(-3).reverse().map((entry) => (
+												<div key={`${entry.action}-${entry.at.toISOString()}`} className="text-xs text-[var(--foreground-muted)]">
+													<span className="font-medium text-[var(--foreground)]">
+														{entry.action}
+													</span>{" "}
+													{entry.from} to {entry.to} by {entry.actorName ?? entry.actorId} on{" "}
+													{formatDateTime(entry.at)}
+												</div>
+											))}
+										</div>
+									)}
+								</div>
 							</Section>
 
 							{/* Notes */}
@@ -465,6 +636,20 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 	);
 }
 
+function WorkflowBadge({ state }: { state: "review" | "accepted" | "rejected" }) {
+	const styles = {
+		review: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+		accepted: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+		rejected: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+	};
+
+	return (
+		<span className={cn("px-2 py-0.5 text-xs font-medium rounded capitalize", styles[state])}>
+			{state}
+		</span>
+	);
+}
+
 function StatusSelect({
 	value,
 	onChange,
@@ -491,6 +676,58 @@ function StatusSelect({
 			<option value="compliant">Compliant</option>
 			<option value="non_compliant">Non-Compliant</option>
 			<option value="not_applicable">N/A</option>
+		</select>
+	);
+}
+
+function CategorySelect({
+	value,
+	onChange,
+	disabled,
+}: {
+	value: Requirement["category"];
+	onChange: (category: Requirement["category"]) => void;
+	disabled: boolean;
+}) {
+	return (
+		<select
+			value={value ?? ""}
+			onChange={(e) => onChange((e.target.value || null) as Requirement["category"])}
+			disabled={disabled}
+			className="px-3 py-1.5 text-sm rounded-md border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+		>
+			<option value="">Category</option>
+			{CATEGORY_OPTIONS.map((option) => (
+				<option key={option.value} value={option.value}>
+					{option.label}
+				</option>
+			))}
+		</select>
+	);
+}
+
+function PrioritySelect({
+	value,
+	onChange,
+	disabled,
+}: {
+	value: RequirementPriority | null;
+	onChange: (priority: RequirementPriority | null) => void;
+	disabled: boolean;
+}) {
+	return (
+		<select
+			value={value ?? ""}
+			onChange={(e) => onChange((e.target.value || null) as RequirementPriority | null)}
+			disabled={disabled}
+			className="px-3 py-1.5 text-sm rounded-md border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+		>
+			<option value="">Priority</option>
+			{PRIORITY_OPTIONS.map((option) => (
+				<option key={option.value} value={option.value}>
+					{option.label}
+				</option>
+			))}
 		</select>
 	);
 }
@@ -564,6 +801,42 @@ const STATUS_STYLES: Record<ComplianceStatus, string> = {
 	non_compliant: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
 	not_applicable: "bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-500",
 };
+
+const CATEGORY_OPTIONS: { value: NonNullable<Requirement["category"]>; label: string }[] = [
+	{ value: "technical", label: "Technical" },
+	{ value: "legal", label: "Legal" },
+	{ value: "financial", label: "Financial" },
+	{ value: "experience", label: "Experience" },
+	{ value: "administrative", label: "Administrative" },
+	{ value: "personnel", label: "Personnel" },
+	{ value: "security", label: "Security" },
+	{ value: "compliance", label: "Compliance" },
+	{ value: "other", label: "Other" },
+];
+
+const PRIORITY_OPTIONS: { value: RequirementPriority; label: string }[] = [
+	{ value: "mandatory", label: "Mandatory" },
+	{ value: "preferred", label: "Preferred" },
+	{ value: "optional", label: "Optional" },
+];
+
+export function getWorkflowGateStatus(
+	requirement: Requirement,
+	formData: RequirementUpdateInput,
+	currentUserId: string | null
+) {
+	const assignedTo = formData.assignedTo ?? requirement.assignedTo ?? currentUserId;
+	const dueDate = formData.dueDate ?? requirement.dueDate;
+	const source = formData.source ?? requirement.source ?? requirement.sourcePageRef;
+
+	return [
+		{ label: "source trace", ready: Boolean(source) },
+		{ label: "category", ready: Boolean(formData.category ?? requirement.category) },
+		{ label: "priority", ready: Boolean(formData.priority ?? requirement.priority) },
+		{ label: "owner", ready: Boolean(assignedTo) },
+		{ label: "due date", ready: Boolean(dueDate) },
+	];
+}
 
 function formatDate(date: Date): string {
 	return new Intl.DateTimeFormat("en-US", {

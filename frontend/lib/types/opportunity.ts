@@ -567,6 +567,22 @@ export type ComplianceStatus =
 /** Risk level */
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 
+/** Requirement workflow review state */
+export type RequirementWorkflowState = "review" | "accepted" | "rejected";
+
+/** Requirement workflow history entry */
+export interface RequirementWorkflowHistoryItem {
+	action: "accept" | "reject" | "reopen";
+	from: RequirementWorkflowState;
+	to: RequirementWorkflowState;
+	actorId: string;
+	actorName?: string;
+	reason: string;
+	at: Date;
+	projectedTaskId?: string | null;
+	evidenceLinks?: string[];
+}
+
 /**
  * AI analysis for a requirement.
  */
@@ -599,6 +615,11 @@ export interface Requirement {
 	notes: string | null;
 	riskLevel: RiskLevel | null;
 	aiAnalysis: RequirementAIAnalysis | null;
+	workflowState?: RequirementWorkflowState;
+	workflowReason?: string | null;
+	workflowUpdatedAt?: Date | null;
+	projectedTaskId?: string | null;
+	workflowHistory?: RequirementWorkflowHistoryItem[];
 	createdAt: Date;
 	updatedAt: Date;
 }
