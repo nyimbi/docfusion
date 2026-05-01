@@ -141,6 +141,11 @@ function getChecklistProgress(checklist: Array<{ completed: boolean }> | null): 
 	return Math.round((completed / checklist.length) * 100);
 }
 
+function getGateQuorum(reviewerCount: number): number {
+	if (reviewerCount === 0) return 0;
+	return Math.min(2, reviewerCount);
+}
+
 // ============================================================================
 // Gate Review Card Component
 // ============================================================================
@@ -159,9 +164,23 @@ function GateReviewCard({ gate, onUpdate, isExpanded, onToggle }: GateReviewCard
 	const [rationale, setRationale] = useState("");
 	const [conditions, setConditions] = useState<string[]>([]);
 	const [newCondition, setNewCondition] = useState("");
+	const [reviewerVotes, setReviewerVotes] = useState<Record<string, "approve" | "conditional" | "reject">>({});
+	const [reviewerComments, setReviewerComments] = useState<Record<string, string>>({});
 
 	const statusConfig = STATUS_CONFIG[gate.status as GateStatus] || STATUS_CONFIG.scheduled;
 	const checklistProgress = getChecklistProgress(gate.checklistItems);
+	const requiredChecklistComplete = (gate.checklistItems || [])
+		.filter((item) => item.required)
+		.every((item) => item.completed);
+	const quorum = getGateQuorum(gate.reviewers?.length ?? 0);
+	const voteCount = Object.keys(reviewerVotes).length;
+	const needsChecklistForDecision = decision === "pass" || decision === "conditional_pass";
+	const canRecordDecision = Boolean(decision) &&
+		Boolean(rationale.trim()) &&
+		(!needsChecklistForDecision || requiredChecklistComplete) &&
+		(decision !== "conditional_pass" || conditions.length > 0) &&
+		(quorum === 0 || voteCount >= quorum) &&
+		!(decision === "pass" && Object.values(reviewerVotes).includes("reject"));
 
 	// Handle checklist item toggle
 	const handleChecklistToggle = useCallback(
@@ -195,6 +214,11 @@ function GateReviewCard({ gate, onUpdate, isExpanded, onToggle }: GateReviewCard
 				conditions: decision === "conditional_pass"
 					? conditions.map((c) => ({ condition: c }))
 					: undefined,
+				reviewerVotes: gate.reviewers?.map((reviewer) => ({
+					name: reviewer.name,
+					vote: reviewerVotes[reviewer.name],
+					comments: reviewerComments[reviewer.name],
+				})).filter((vote) => vote.vote),
 			};
 
 			const result = await conductGateReview(gate.id, decisionData);
@@ -204,9 +228,11 @@ function GateReviewCard({ gate, onUpdate, isExpanded, onToggle }: GateReviewCard
 				setDecision("");
 				setRationale("");
 				setConditions([]);
+				setReviewerVotes({});
+				setReviewerComments({});
 			}
 		});
-	}, [gate.id, decision, rationale, conditions, onUpdate]);
+	}, [gate.id, gate.reviewers, decision, rationale, conditions, reviewerVotes, reviewerComments, onUpdate]);
 
 	// Add condition
 	const handleAddCondition = useCallback(() => {
@@ -375,7 +401,7 @@ function GateReviewCard({ gate, onUpdate, isExpanded, onToggle }: GateReviewCard
 											Record the decision and rationale for {gate.gateName}
 										</DialogDescription>
 									</DialogHeader>
-									<div className="space-y-4 py-4">
+										<div className="space-y-4 py-4">
 										{/* Decision */}
 										<div className="space-y-2">
 											<Label>Decision</Label>
@@ -396,6 +422,65 @@ function GateReviewCard({ gate, onUpdate, isExpanded, onToggle }: GateReviewCard
 												))}
 											</div>
 										</div>
+
+										{needsChecklistForDecision && !requiredChecklistComplete && (
+											<div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+												Complete all required checklist items before recording a pass.
+											</div>
+										)}
+
+										{gate.reviewers && gate.reviewers.length > 0 && (
+											<div className="space-y-3">
+												<div className="flex items-center justify-between">
+													<Label>Reviewer votes</Label>
+													<span className="text-xs text-muted-foreground">
+														{voteCount}/{quorum} quorum
+													</span>
+												</div>
+												<div className="space-y-2">
+													{gate.reviewers.map((reviewer) => (
+														<div key={reviewer.name} className="rounded-md border p-3 space-y-2">
+															<div className="flex items-center justify-between gap-2">
+																<span className="text-sm font-medium">{reviewer.name}</span>
+																<Select
+																	value={reviewerVotes[reviewer.name] ?? ""}
+																	onValueChange={(value) =>
+																		setReviewerVotes((current) => ({
+																			...current,
+																			[reviewer.name]: value as "approve" | "conditional" | "reject",
+																		}))
+																	}
+																>
+																	<SelectTrigger className="w-[140px]">
+																		<SelectValue placeholder="Vote" />
+																	</SelectTrigger>
+																	<SelectContent>
+																		<SelectItem value="approve">Approve</SelectItem>
+																		<SelectItem value="conditional">Conditional</SelectItem>
+																		<SelectItem value="reject">Reject</SelectItem>
+																	</SelectContent>
+																</Select>
+															</div>
+															<Input
+																value={reviewerComments[reviewer.name] ?? ""}
+																onChange={(event) =>
+																	setReviewerComments((current) => ({
+																		...current,
+																		[reviewer.name]: event.target.value,
+																	}))
+																}
+																placeholder="Optional vote comment"
+															/>
+														</div>
+													))}
+												</div>
+												{decision === "pass" && Object.values(reviewerVotes).includes("reject") && (
+													<div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+														A pass decision cannot include a reject vote.
+													</div>
+												)}
+											</div>
+										)}
 
 										{/* Rationale */}
 										<div className="space-y-2">
@@ -447,6 +532,11 @@ function GateReviewCard({ gate, onUpdate, isExpanded, onToggle }: GateReviewCard
 												)}
 											</div>
 										)}
+										{decision === "conditional_pass" && conditions.length === 0 && (
+											<div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
+												Add at least one condition before recording a conditional pass.
+											</div>
+										)}
 									</div>
 									<DialogFooter>
 										<Button variant="ghost" onClick={() => setConductDialogOpen(false)}>
@@ -455,7 +545,7 @@ function GateReviewCard({ gate, onUpdate, isExpanded, onToggle }: GateReviewCard
 										<Button
 											variant="primary"
 											onClick={handleConductReview}
-											disabled={!decision || !rationale || isPending}
+											disabled={!canRecordDecision || isPending}
 											isLoading={isPending}
 										>
 											Record Decision

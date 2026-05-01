@@ -62,6 +62,13 @@ export type GateDecision = {
 	reviewerVotes?: Array<{ name: string; vote: string; comments?: string }>;
 };
 
+type GateReviewer = {
+	name: string;
+	role: string;
+	vote?: "approve" | "conditional" | "reject";
+	comments?: string;
+};
+
 export type BidDecisionPackage = {
 	opportunityName: string;
 	contractValue: number;
@@ -224,6 +231,56 @@ const updateGateReviewSchema = z.object({
 });
 
 type UpdateGateReviewInput = z.infer<typeof updateGateReviewSchema>;
+
+function getGateQuorum(reviewers: GateReviewer[] | null | undefined): number {
+	const reviewerCount = reviewers?.length ?? 0;
+	if (reviewerCount === 0) return 0;
+	return Math.min(2, reviewerCount);
+}
+
+function validateGateReviewDecision(review: GateReview, decision: GateDecision): string | null {
+	if (review.status === "completed") {
+		return "Gate review has already been completed";
+	}
+	if (review.status === "cancelled") {
+		return "Cancelled gate reviews cannot be conducted";
+	}
+	if (!decision.decision) {
+		return "A gate decision is required";
+	}
+	if (!decision.rationale?.trim()) {
+		return "Decision rationale is required";
+	}
+
+	const requiredItems = review.checklistItems?.filter((item) => item.required) ?? [];
+	const missingRequiredItems = requiredItems.filter((item) => !item.completed);
+	if (
+		(decision.decision === "pass" || decision.decision === "conditional_pass") &&
+		missingRequiredItems.length > 0
+	) {
+		return `Required checklist items must be completed before a gate can pass: ${missingRequiredItems
+			.map((item) => item.item)
+			.join(", ")}`;
+	}
+
+	if (decision.decision === "conditional_pass" && !decision.conditions?.length) {
+		return "Conditional pass requires at least one condition";
+	}
+
+	const reviewers = review.reviewers ?? [];
+	const quorum = getGateQuorum(reviewers);
+	if (quorum > 0) {
+		const votes = decision.reviewerVotes ?? reviewers.filter((reviewer) => reviewer.vote);
+		if (votes.length < quorum) {
+			return `Gate decision requires at least ${quorum} reviewer vote${quorum === 1 ? "" : "s"}`;
+		}
+		if (decision.decision === "pass" && votes.some((vote) => vote.vote === "reject")) {
+			return "Gate cannot pass while a reviewer vote rejects the decision";
+		}
+	}
+
+	return null;
+}
 
 // ============================================================================
 // Helper Functions
@@ -1182,6 +1239,11 @@ export async function conductGateReview(
 			return { success: false, error: "Gate review not found" };
 		}
 
+		const gateError = validateGateReviewDecision(review, decision);
+		if (gateError) {
+			return { success: false, error: gateError };
+		}
+
 		const now = new Date();
 
 		// Format conditions with status
@@ -1196,7 +1258,7 @@ export async function conductGateReview(
 			role: "reviewer",
 			vote: v.vote as "approve" | "conditional" | "reject",
 			comments: v.comments,
-		}));
+		})) ?? review.reviewers ?? undefined;
 
 		// Update the gate review
 		const [updated] = await db
