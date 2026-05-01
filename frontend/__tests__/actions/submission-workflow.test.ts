@@ -1,0 +1,177 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/actions/document-render", () => ({
+	preSubmissionAudit: vi.fn(),
+}));
+
+interface ChainConfig {
+	result?: unknown[];
+	onValues?: (value: Record<string, unknown>) => void;
+	onSet?: (value: Record<string, unknown>) => void;
+}
+
+function createChain(config: ChainConfig = {}) {
+	const chain: Record<string, any> = {};
+	for (const method of ["from", "innerJoin", "where", "orderBy", "limit"]) {
+		chain[method] = vi.fn(() => chain);
+	}
+	chain.values = vi.fn((value: Record<string, unknown>) => {
+		config.onValues?.(value);
+		return chain;
+	});
+	chain.set = vi.fn((value: Record<string, unknown>) => {
+		config.onSet?.(value);
+		return chain;
+	});
+	chain.returning = vi.fn(async () => config.result ?? []);
+	chain.then = (resolve: (value: unknown[]) => void) =>
+		Promise.resolve(config.result ?? []).then(resolve);
+	return chain;
+}
+
+var dbMock: any;
+
+vi.mock("@/lib/db", () => {
+	dbMock = {
+		select: vi.fn(() => createChain()),
+		insert: vi.fn(() => createChain()),
+		update: vi.fn(() => createChain()),
+	};
+	return { db: dbMock };
+});
+
+import { preSubmissionAudit } from "@/lib/actions/document-render";
+import { createSubmission } from "@/lib/actions/submissions";
+
+const readyAudit = {
+	opportunityId: "opp-1",
+	isReady: true,
+	readinessScore: 100,
+	checks: [],
+	documents: [],
+	missingDocuments: [],
+	issues: [],
+	recommendations: [],
+	auditedAt: new Date("2026-04-01T00:00:00.000Z"),
+};
+
+const submissionRow = {
+	id: "submission-1",
+	opportunityId: "opp-1",
+	submittedAt: new Date("2026-04-01T00:00:00.000Z"),
+	submittedBy: "Proposal Lead",
+	submissionMethod: "portal",
+	confirmationNumber: "PORTAL-123",
+	attachments: [],
+	notes: null,
+	status: "submitted",
+	outcome: null,
+	outcomeDate: null,
+	outcomeNotes: null,
+	evaluatorFeedback: null,
+	lessonsLearned: null,
+	contractValue: null,
+	contractDuration: null,
+	createdAt: new Date("2026-04-01T00:00:00.000Z"),
+	updatedAt: new Date("2026-04-01T00:00:00.000Z"),
+};
+
+beforeEach(() => {
+	vi.clearAllMocks();
+	vi.mocked(preSubmissionAudit).mockResolvedValue(readyAudit);
+});
+
+describe("submission workflow gates", () => {
+	it("requires a receipt or confirmation before recording submission", async () => {
+		await expect(
+			createSubmission({
+				opportunityId: "opp-1",
+				submittedBy: "Proposal Lead",
+				submissionMethod: "portal",
+				attachmentIds: ["doc-1"],
+			})
+		).rejects.toThrow("confirmation number");
+
+		expect(preSubmissionAudit).not.toHaveBeenCalled();
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
+	it("blocks submission when pre-submission audit is not ready", async () => {
+		vi.mocked(preSubmissionAudit).mockResolvedValueOnce({
+			...readyAudit,
+			isReady: false,
+			readinessScore: 60,
+			issues: ["Missing required documents"],
+		});
+
+		await expect(
+			createSubmission({
+				opportunityId: "opp-1",
+				submittedBy: "Proposal Lead",
+				submissionMethod: "portal",
+				confirmationNumber: "PORTAL-123",
+				attachmentIds: ["doc-1"],
+			})
+		).rejects.toThrow("Pre-submission audit is not ready");
+
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
+	it("locks submitted attachments with artifact hashes", async () => {
+		let insertedSubmission: Record<string, unknown> | undefined;
+		let opportunityUpdate: Record<string, unknown> | undefined;
+
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				id: "proposal-doc-1",
+				documentId: "doc-1",
+				documentType: "technical_approach",
+				status: "final",
+				title: "Technical Approach",
+				content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Final text" }] }] },
+				updatedAt: new Date("2026-04-01T00:00:00.000Z"),
+			}],
+		}));
+		dbMock.insert.mockReturnValueOnce(createChain({
+			onValues: (value) => {
+				insertedSubmission = value;
+			},
+			result: [{
+				...submissionRow,
+				attachments: [],
+			}],
+		}));
+		dbMock.update.mockReturnValueOnce(createChain({
+			onSet: (value) => {
+				opportunityUpdate = value;
+			},
+		}));
+
+		await createSubmission({
+			opportunityId: "opp-1",
+			submittedBy: " Proposal Lead ",
+			submissionMethod: "portal",
+			confirmationNumber: " PORTAL-123 ",
+			attachmentIds: ["doc-1"],
+		});
+
+		expect(insertedSubmission).toMatchObject({
+			opportunityId: "opp-1",
+			submittedBy: "Proposal Lead",
+			confirmationNumber: "PORTAL-123",
+			status: "submitted",
+		});
+		const attachments = insertedSubmission?.attachments as Array<Record<string, unknown>>;
+		expect(attachments).toHaveLength(1);
+		expect(attachments[0]).toMatchObject({
+			documentId: "doc-1",
+			documentTitle: "Technical Approach",
+			documentType: "technical_approach",
+		});
+		expect(attachments[0].artifactHash).toMatch(/^[a-f0-9]{64}$/);
+		expect(attachments[0].lockedAt).toEqual(expect.any(String));
+		expect(opportunityUpdate).toMatchObject({
+			decisionStatus: "submitted",
+		});
+	});
+});

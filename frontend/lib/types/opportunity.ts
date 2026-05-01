@@ -1405,6 +1405,8 @@ export interface SubmissionAttachment {
 	documentTitle: string;
 	documentType: ProposalDocumentType;
 	fileSize?: number;
+	artifactHash?: string;
+	lockedAt?: string;
 }
 
 /**
