@@ -17,8 +17,9 @@ import {
 	complianceEntries,
 	rfpDocuments,
 } from "@/lib/db/schema-rfp";
+import type { ComplianceEntryRow } from "@/lib/db/schema-rfp";
 import { documents } from "@/lib/db/schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireUserContext } from "@/lib/auth-utils";
 
 // ============================================================================
@@ -131,9 +132,454 @@ export interface AutoLinkResult {
 	}[];
 }
 
+export type ComplianceEntryWorkflowAction =
+	| "submit_for_review"
+	| "approve"
+	| "reject"
+	| "waive"
+	| "reopen";
+
+export type ComplianceEntryWorkflowState =
+	| "draft"
+	| "review"
+	| "approved"
+	| "rejected"
+	| "waived";
+
+export interface ComplianceEntryWorkflowInput {
+	matrixId: string;
+	entryId: string;
+	action: ComplianceEntryWorkflowAction;
+	reason: string;
+}
+
+export interface ComplianceEntryWorkflowResult {
+	matrixId: string;
+	entryId: string;
+	state: ComplianceEntryWorkflowState;
+	status: string;
+	complianceStatus: string;
+	matrixStats: MatrixStats;
+}
+
+interface MatrixStats {
+	totalRequirements: number;
+	mandatoryCount: number;
+	compliantCount: number;
+	partialCount: number;
+	nonCompliantCount: number;
+	notAddressedCount: number;
+	complianceScore: number;
+	mandatoryComplianceScore: number;
+}
+
+interface ComplianceWorkflowMetadata {
+	state?: ComplianceEntryWorkflowState;
+	history?: ComplianceWorkflowHistoryEvent[];
+	waiver?: {
+		reason: string;
+		actorId: string;
+		waivedAt: string;
+	};
+	[key: string]: unknown;
+}
+
+interface ComplianceEntryMetadata {
+	complianceWorkflow?: ComplianceWorkflowMetadata;
+	[key: string]: unknown;
+}
+
+interface ComplianceWorkflowHistoryEvent {
+	action: ComplianceEntryWorkflowAction;
+	from: ComplianceEntryWorkflowState;
+	to: ComplianceEntryWorkflowState;
+	actorId: string;
+	reason: string;
+	createdAt: string;
+}
+
+type ComplianceEntryPatch = {
+	metadata: ComplianceEntryMetadata;
+	updatedAt: Date;
+	reviewerNotes: string;
+	status: string;
+	complianceStatus?: string;
+	complianceJustification?: string | null;
+	reviewedBy?: string | null;
+	reviewedAt?: Date | null;
+	approvedBy?: string | null;
+	approvedAt?: Date | null;
+	completionPercent?: number;
+};
+
+type ComplianceWorkflowDb = Pick<typeof db, "select" | "update" | "execute">;
+
 // ============================================================================
 // Main Validation Functions
 // ============================================================================
+
+export async function transitionComplianceEntryWorkflow(
+	input: ComplianceEntryWorkflowInput
+): Promise<ComplianceEntryWorkflowResult> {
+	const userContext = await requireUserContext();
+	const reason = input.reason?.trim();
+
+	if (!input.matrixId || !input.entryId) {
+		throw new Error("Compliance matrix and entry are required");
+	}
+	if (!reason) {
+		throw new Error("A workflow reason is required");
+	}
+
+	return db.transaction(async (tx) => {
+		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.entryId}))`);
+
+		const [row] = await tx
+			.select({
+				entry: complianceEntries,
+				requirement: rfpRequirements,
+			})
+			.from(complianceEntries)
+			.innerJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
+			.where(and(
+				eq(complianceEntries.id, input.entryId),
+				eq(complianceEntries.matrixId, input.matrixId)
+			))
+			.limit(1);
+
+		if (!row) {
+			throw new Error("Compliance entry not found");
+		}
+
+		const now = new Date();
+		const currentState = getComplianceWorkflowState(row.entry);
+		const nextState = getNextComplianceWorkflowState(currentState, input.action);
+
+		validateComplianceWorkflowGate(row.entry, input.action);
+
+		const metadata = buildComplianceWorkflowMetadata({
+			entry: row.entry,
+			action: input.action,
+			from: currentState,
+			to: nextState,
+			actorId: userContext.userId,
+			reason,
+			now,
+		});
+		const entryPatch = buildComplianceWorkflowEntryPatch({
+			entry: row.entry,
+			action: input.action,
+			state: nextState,
+			actorId: userContext.userId,
+			reason,
+			now,
+			metadata,
+		});
+
+		await tx
+			.update(complianceEntries)
+			.set(entryPatch)
+			.where(eq(complianceEntries.id, input.entryId));
+
+		const matrixStats = await recalculateComplianceMatrixStats(tx, input.matrixId);
+
+		return {
+			matrixId: input.matrixId,
+			entryId: input.entryId,
+			state: nextState,
+			status: entryPatch.status,
+			complianceStatus: entryPatch.complianceStatus ?? row.entry.complianceStatus,
+			matrixStats,
+		};
+	});
+}
+
+function getComplianceWorkflowState(entry: ComplianceEntryRow): ComplianceEntryWorkflowState {
+	const metadata = getComplianceWorkflowMetadata(entry);
+	if (metadata.state) return metadata.state;
+
+	if (entry.status === "review") return "review";
+	if (entry.status === "approved") return "approved";
+	if (entry.status === "rejected") return "rejected";
+	return "draft";
+}
+
+function getNextComplianceWorkflowState(
+	currentState: ComplianceEntryWorkflowState,
+	action: ComplianceEntryWorkflowAction
+): ComplianceEntryWorkflowState {
+	const allowed: Record<
+		ComplianceEntryWorkflowAction,
+		Partial<Record<ComplianceEntryWorkflowState, ComplianceEntryWorkflowState>>
+	> = {
+		submit_for_review: {
+			draft: "review",
+			rejected: "review",
+		},
+		approve: {
+			review: "approved",
+		},
+		reject: {
+			review: "rejected",
+		},
+		waive: {
+			draft: "waived",
+			review: "waived",
+			rejected: "waived",
+		},
+		reopen: {
+			approved: "draft",
+			rejected: "draft",
+			waived: "draft",
+		},
+	};
+
+	const next = allowed[action][currentState];
+	if (!next) {
+		throw new Error(`Cannot ${action.replaceAll("_", " ")} compliance entry from ${currentState} state`);
+	}
+	return next;
+}
+
+function validateComplianceWorkflowGate(
+	entry: ComplianceEntryRow,
+	action: ComplianceEntryWorkflowAction
+) {
+	if (action === "submit_for_review" && !hasComplianceEvidence(entry)) {
+		throw new Error("Submit for review requires a response reference, summary, justification, or evidence reference");
+	}
+
+	if (action !== "approve") return;
+
+	if (!hasComplianceEvidence(entry) && entry.complianceStatus !== "not_applicable") {
+		throw new Error("Approval requires a response reference, summary, justification, or evidence reference");
+	}
+
+	if (["pending", "not_addressed", "non_compliant"].includes(entry.complianceStatus)) {
+		throw new Error("Unresolved compliance gaps must be waived or rejected before approval");
+	}
+}
+
+function hasComplianceEvidence(entry: ComplianceEntryRow): boolean {
+	const evidenceReferences = Array.isArray(entry.evidenceReferences)
+		? entry.evidenceReferences
+		: [];
+
+	return Boolean(
+		entry.responseReference ||
+		entry.responseSummary ||
+		entry.complianceJustification ||
+		evidenceReferences.length > 0
+	);
+}
+
+function buildComplianceWorkflowMetadata(input: {
+	entry: ComplianceEntryRow;
+	action: ComplianceEntryWorkflowAction;
+	from: ComplianceEntryWorkflowState;
+	to: ComplianceEntryWorkflowState;
+	actorId: string;
+	reason: string;
+	now: Date;
+}): ComplianceEntryMetadata {
+	const entryMetadata = getComplianceEntryMetadata(input.entry);
+	const workflowMetadata = getComplianceWorkflowMetadata(input.entry);
+	const history = workflowMetadata.history ?? [];
+	const event: ComplianceWorkflowHistoryEvent = {
+		action: input.action,
+		from: input.from,
+		to: input.to,
+		actorId: input.actorId,
+		reason: input.reason,
+		createdAt: input.now.toISOString(),
+	};
+
+	return {
+		...entryMetadata,
+		complianceWorkflow: {
+			...workflowMetadata,
+			state: input.to,
+			history: [event, ...history].slice(0, 100),
+			...(input.action === "waive" && {
+				waiver: {
+					reason: input.reason,
+					actorId: input.actorId,
+					waivedAt: input.now.toISOString(),
+				},
+			}),
+			...(input.action === "reopen" && { waiver: undefined }),
+		},
+	};
+}
+
+function buildComplianceWorkflowEntryPatch(input: {
+	entry: ComplianceEntryRow;
+	action: ComplianceEntryWorkflowAction;
+	state: ComplianceEntryWorkflowState;
+	actorId: string;
+	reason: string;
+	now: Date;
+	metadata: ComplianceEntryMetadata;
+}): ComplianceEntryPatch {
+	const basePatch = {
+		metadata: input.metadata,
+		updatedAt: input.now,
+		reviewerNotes: input.reason,
+	};
+
+	switch (input.action) {
+		case "submit_for_review":
+			return {
+				...basePatch,
+				status: "review",
+				reviewedBy: input.actorId,
+				reviewedAt: input.now,
+				completionPercent: Math.max(input.entry.completionPercent ?? 0, 50),
+			};
+		case "approve":
+			return {
+				...basePatch,
+				status: "approved",
+				approvedBy: input.actorId,
+				approvedAt: input.now,
+				reviewedBy: input.entry.reviewedBy ?? input.actorId,
+				reviewedAt: input.entry.reviewedAt ?? input.now,
+				completionPercent: 100,
+			};
+		case "reject":
+			return {
+				...basePatch,
+				status: "rejected",
+				reviewedBy: input.actorId,
+				reviewedAt: input.now,
+			};
+		case "waive":
+			return {
+				...basePatch,
+				status: "approved",
+				complianceStatus: "not_applicable",
+				complianceJustification: input.entry.complianceJustification ?? input.reason,
+				approvedBy: input.actorId,
+				approvedAt: input.now,
+				reviewedBy: input.actorId,
+				reviewedAt: input.now,
+				completionPercent: 100,
+			};
+		case "reopen":
+			return {
+				...basePatch,
+				status: "draft",
+				approvedBy: null,
+				approvedAt: null,
+				reviewedBy: null,
+				reviewedAt: null,
+				completionPercent: Math.min(input.entry.completionPercent ?? 0, 50),
+			};
+		default:
+			return {
+				...basePatch,
+				status: input.state,
+			};
+	}
+}
+
+function getComplianceWorkflowMetadata(entry: ComplianceEntryRow): ComplianceWorkflowMetadata {
+	return getComplianceEntryMetadata(entry).complianceWorkflow ?? {};
+}
+
+function getComplianceEntryMetadata(entry: ComplianceEntryRow): ComplianceEntryMetadata {
+	const rawMetadata = entry.metadata;
+	if (!rawMetadata || typeof rawMetadata !== "object" || Array.isArray(rawMetadata)) {
+		return {};
+	}
+	return rawMetadata as ComplianceEntryMetadata;
+}
+
+async function recalculateComplianceMatrixStats(
+	tx: ComplianceWorkflowDb,
+	matrixId: string
+): Promise<MatrixStats> {
+	const entries = await tx
+		.select({
+			entry: complianceEntries,
+			requirement: rfpRequirements,
+		})
+		.from(complianceEntries)
+		.leftJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
+		.where(eq(complianceEntries.matrixId, matrixId));
+
+	const stats = calculateMatrixStats(entries);
+
+	await tx
+		.update(complianceMatrices)
+		.set({
+			totalRequirements: stats.totalRequirements,
+			mandatoryCount: stats.mandatoryCount,
+			compliantCount: stats.compliantCount,
+			partialCount: stats.partialCount,
+			nonCompliantCount: stats.nonCompliantCount,
+			notAddressedCount: stats.notAddressedCount,
+			complianceScore: stats.complianceScore,
+			mandatoryComplianceScore: stats.mandatoryComplianceScore,
+			updatedAt: new Date(),
+		})
+		.where(eq(complianceMatrices.id, matrixId));
+
+	return stats;
+}
+
+function calculateMatrixStats(
+	entries: {
+		entry: Pick<ComplianceEntryRow, "complianceStatus">;
+		requirement: { priority: string | null } | null;
+	}[]
+): MatrixStats {
+	let compliantCount = 0;
+	let partialCount = 0;
+	let nonCompliantCount = 0;
+	let notAddressedCount = 0;
+	let mandatoryCount = 0;
+	let mandatoryCoveragePoints = 0;
+	let coveragePoints = 0;
+
+	for (const row of entries) {
+		const status = row.entry.complianceStatus;
+		const isMandatory = row.requirement?.priority === "mandatory";
+
+		if (isMandatory) mandatoryCount++;
+
+		if (["compliant", "addressed", "full", "not_applicable"].includes(status)) {
+			compliantCount++;
+			coveragePoints += 1;
+			if (isMandatory) mandatoryCoveragePoints += 1;
+		} else if (status === "partial" || status === "in_progress") {
+			partialCount++;
+			coveragePoints += 0.5;
+			if (isMandatory) mandatoryCoveragePoints += 0.5;
+		} else if (status === "non_compliant") {
+			nonCompliantCount++;
+		} else {
+			notAddressedCount++;
+		}
+	}
+
+	const totalRequirements = entries.length;
+
+	return {
+		totalRequirements,
+		mandatoryCount,
+		compliantCount,
+		partialCount,
+		nonCompliantCount,
+		notAddressedCount,
+		complianceScore: totalRequirements > 0
+			? Math.round((coveragePoints / totalRequirements) * 100)
+			: 0,
+		mandatoryComplianceScore: mandatoryCount > 0
+			? Math.round((mandatoryCoveragePoints / mandatoryCount) * 100)
+			: 100,
+	};
+}
 
 /**
  * Validates compliance for an opportunity, checking all requirements against
