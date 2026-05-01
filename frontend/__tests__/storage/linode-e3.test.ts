@@ -52,7 +52,7 @@ describe("Linode E3 storage helper", () => {
 
 		const result = await uploadToLinodeE3(
 			{
-				endpoint: "https://mansa.gb-lon-1.linodeobjects.com",
+				endpoint: "https://gb-lon-1.linodeobjects.com",
 				region: "gb-lon-1",
 				bucket: "rfps",
 				accessKeyId: "access-key",
@@ -75,9 +75,9 @@ describe("Linode E3 storage helper", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
 		const headers = init.headers as Record<string, string>;
-		expect(url).toBe("https://mansa.gb-lon-1.linodeobjects.com/rfps/rfp/opp/doc/file.pdf");
+		expect(url).toBe("https://gb-lon-1.linodeobjects.com/rfps/rfp/opp/doc/file.pdf");
 		expect(init.method).toBe("PUT");
 		expect(headers.authorization).toContain("AWS4-HMAC-SHA256 Credential=access-key/");
-		expect(headers.host).toBe("mansa.gb-lon-1.linodeobjects.com");
+		expect(headers.host).toBe("gb-lon-1.linodeobjects.com");
 	});
 });

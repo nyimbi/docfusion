@@ -43,7 +43,7 @@ Acceptance criteria:
 
 ## Future P0 Slices
 
-1. RFP intake parse lifecycle and exception queue. Pilot implemented with metadata-backed retry/reject/manual-extraction/cancel transitions plus optional server-side Linode E3 RFP storage; security scan, SSE, notifications, live object-store validation, and global exception queue remain.
+1. RFP intake parse lifecycle and exception queue. Pilot implemented with metadata-backed retry/reject/manual-extraction/cancel transitions plus optional server-side Linode E3 RFP storage; security scan, SSE, notifications, and global exception queue remain.
 2. Compliance matrix row governance and waiver gates.
 3. Gate review and approval enforcement.
 4. Production/render/submission workflow.

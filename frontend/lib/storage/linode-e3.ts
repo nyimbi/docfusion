@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-const DEFAULT_ENDPOINT = "https://mansa.gb-lon-1.linodeobjects.com";
+const DEFAULT_ENDPOINT = "https://gb-lon-1.linodeobjects.com";
 const DEFAULT_REGION = "gb-lon-1";
 
 export interface LinodeE3Config {
