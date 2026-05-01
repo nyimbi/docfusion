@@ -63,6 +63,7 @@ Desired behavior:
 - Parse API retries failed documents through the workflow action rather than bypassing lifecycle history.
 - The uploader polls parse status and exposes failed parse retry separately from upload retry.
 - RFP binaries are stored server-side in Linode E3 object storage when configured; browser uploads never depend on object-store CORS.
+- Fetched opportunity/RFP documents are stored in Linode E3 when configured, and later processing reads from the stored `s3://` path.
 
 Acceptance criteria:
 - Server action exposes retry, reject, manual extraction, and cancel transitions.
@@ -71,6 +72,7 @@ Acceptance criteria:
 - Parse completion/failure records terminal metadata history.
 - Uploader displays parse progress/current step, terminal parse errors, and parse retry.
 - Linode E3 storage configuration is server-only, uses placeholder env vars, and writes a storage receipt into existing document metadata.
+- Discovered-document fetch stores the downloaded binary in the bucket and text extraction can re-fetch it from the bucket.
 
 ## Non-Goals For Initial Slice
 

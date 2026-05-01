@@ -16,6 +16,12 @@ import { mkdir, writeFile, readFile, access, unlink } from "fs/promises";
 import { join, basename, extname } from "path";
 import { createHash } from "crypto";
 import { processRfpDocument, isSupportedFileType } from "@/lib/services/docling-client";
+import {
+  buildRfpObjectKey,
+  downloadFromLinodeE3,
+  getLinodeE3ConfigFromEnv,
+  uploadToLinodeE3,
+} from "@/lib/storage/linode-e3";
 import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
@@ -48,6 +54,7 @@ export interface DownloadResult {
   success: boolean;
   documentId?: string;
   localPath?: string;
+  storagePath?: string;
   fileSize?: number;
   mimeType?: string;
   error?: string;
@@ -504,17 +511,17 @@ export async function downloadDocument(
     // Calculate hash
     const fileHash = createHash("sha256").update(buffer).digest("hex");
 
-    // Generate storage path
-    const opportunityDir = join(DOCUMENT_STORAGE_PATH, doc.opportunityId);
-    const fileExt = extname(doc.sourceUrl) || ".bin";
-    const safeName = `${doc.id}${fileExt}`;
-    const localPath = join(opportunityDir, safeName);
-
-    // Ensure directory exists
-    await mkdir(opportunityDir, { recursive: true });
-
-    // Write file
-    await writeFile(localPath, buffer);
+    // Store the fetched binary server-side. Linode E3 has no browser CORS,
+    // so fetched RFPs are uploaded from this server process when configured.
+    const localPath = await storeFetchedRfpDocument({
+      documentId: doc.id,
+      opportunityId: doc.opportunityId,
+      filename: doc.documentName,
+      sourceUrl: doc.sourceUrl,
+      buffer,
+      mimeType,
+      userId,
+    });
 
     // Process document with DocLing for text extraction
     let extractedText: string | undefined;
@@ -557,6 +564,7 @@ export async function downloadDocument(
       success: true,
       documentId,
       localPath,
+      storagePath: localPath,
       fileSize: buffer.length,
       mimeType,
     };
@@ -655,10 +663,7 @@ export async function getDocumentFile(documentId: string): Promise<{
   }
 
   try {
-    // Verify file exists
-    await access(doc.localPath);
-    
-    const buffer = await readFile(doc.localPath);
+    const buffer = await readDocumentBuffer(doc.localPath);
     
     return {
       buffer,
@@ -679,7 +684,7 @@ export async function deleteDocument(documentId: string): Promise<boolean> {
       where: eq(opportunityDocuments.id, documentId),
     });
 
-    if (doc?.localPath) {
+    if (doc?.localPath && !doc.localPath.startsWith("s3://")) {
       try {
         await unlink(doc.localPath);
       } catch {
@@ -723,8 +728,8 @@ export async function extractDocumentText(documentId: string): Promise<string | 
   }
 
   try {
-    // Read file and process with DocLing
-    const buffer = await readFile(doc.localPath);
+    // Read file from Linode E3 or legacy local storage and process with DocLing.
+    const buffer = await readDocumentBuffer(doc.localPath);
     
     if (!isSupportedFileType(doc.documentName)) {
       logger.debug(`[DocLing] File type not supported for extraction: ${doc.documentName}`);
@@ -750,4 +755,62 @@ export async function extractDocumentText(documentId: string): Promise<string | 
     logger.error(`[DocLing] Text extraction failed for ${documentId}:`, error);
     return null;
   }
+}
+
+async function storeFetchedRfpDocument(params: {
+  documentId: string;
+  opportunityId: string;
+  filename: string;
+  sourceUrl: string;
+  buffer: Buffer;
+  mimeType: string;
+  userId?: string;
+}): Promise<string> {
+  const objectStoreConfig = getLinodeE3ConfigFromEnv();
+  if (objectStoreConfig) {
+    const objectKey = buildRfpObjectKey({
+      documentId: params.documentId,
+      filename: params.filename || extractDocumentName(params.sourceUrl, ""),
+      opportunityId: params.opportunityId,
+      prefix: objectStoreConfig.prefix,
+    });
+    const upload = await uploadToLinodeE3(objectStoreConfig, {
+      key: objectKey,
+      body: params.buffer,
+      contentType: params.mimeType || "application/octet-stream",
+      contentLength: params.buffer.length,
+      metadata: {
+        "document-id": params.documentId,
+        "opportunity-id": params.opportunityId,
+        "source-url-sha256": createHash("sha256").update(params.sourceUrl).digest("hex"),
+        "downloaded-by": params.userId || "system",
+      },
+    });
+
+    return upload.storagePath;
+  }
+
+  const opportunityDir = join(DOCUMENT_STORAGE_PATH, params.opportunityId);
+  const fileExt = extname(new URL(params.sourceUrl).pathname) || extname(params.filename) || ".bin";
+  const safeName = `${params.documentId}${fileExt}`;
+  const localPath = join(opportunityDir, safeName);
+
+  await mkdir(opportunityDir, { recursive: true });
+  await writeFile(localPath, params.buffer);
+
+  return localPath;
+}
+
+async function readDocumentBuffer(storagePath: string): Promise<Buffer> {
+  if (storagePath.startsWith("s3://")) {
+    const objectStoreConfig = getLinodeE3ConfigFromEnv();
+    if (!objectStoreConfig) {
+      throw new Error("Linode E3 storage is not configured");
+    }
+    const object = await downloadFromLinodeE3(objectStoreConfig, storagePath);
+    return object.body;
+  }
+
+  await access(storagePath);
+  return readFile(storagePath);
 }

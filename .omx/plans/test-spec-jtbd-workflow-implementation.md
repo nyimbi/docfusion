@@ -60,9 +60,15 @@ Required cases:
 - Stored `s3://bucket/key` paths parse back into bucket/key.
 - Uploads use a server-side AWS v4 signed PUT request against the Linode E3 endpoint.
 
+Fetched-document target file: `frontend/__tests__/services/rfp-document-service.test.ts`
+
+Required cases:
+- Downloading a discovered RFP stores the fetched binary in Linode E3 and records the `s3://` storage path.
+- Later text extraction re-fetches bytes from Linode E3 before Docling processing.
+
 Verification command:
-- `cd frontend && npm test -- rfp-parse-workflow.test.ts linode-e3.test.ts`
+- `cd frontend && npm test -- rfp-parse-workflow.test.ts linode-e3.test.ts rfp-document-service.test.ts`
 
 Additional checks:
 - `cd frontend && npx tsc --noEmit --pretty false`
-- Targeted lint for `lib/actions/rfp-parser.ts`, `app/api/v1/rfp/[rfpId]/parse/route.ts`, `app/api/v1/rfp/upload/route.ts`, `components/rfp/RFPUploader.tsx`, `lib/storage/linode-e3.ts`, and the workflow/storage tests.
+- Targeted lint for `lib/actions/rfp-parser.ts`, `lib/services/rfp-document-service.ts`, `app/api/v1/rfp/[rfpId]/parse/route.ts`, `app/api/v1/rfp/upload/route.ts`, `components/rfp/RFPUploader.tsx`, `lib/storage/linode-e3.ts`, and the workflow/storage/fetch tests.
