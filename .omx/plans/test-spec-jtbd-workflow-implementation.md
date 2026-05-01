@@ -41,3 +41,28 @@ Where practical:
 ## Evidence Requirements
 
 Final report must include exact commands run and results read. If broad lint/build is skipped or fails for unrelated dirty-tree issues, record the limitation in `docs/jtbd-workflow-implementation-plan.md`.
+
+## Slice P0-B: RFP Intake Parse Lifecycle
+
+Target file: `frontend/__tests__/actions/rfp-parse-workflow.test.ts`
+
+Required cases:
+- Latest parse lifecycle reports document/job state, progress, step, and error.
+- Retry from failed state creates a new queued job, resets document status/progress, and writes metadata history.
+- Reject from failed state records terminal workflow state and reason.
+- Retry from processing state fails before creating or updating jobs.
+
+Storage helper target file: `frontend/__tests__/storage/linode-e3.test.ts`
+
+Required cases:
+- Object storage remains disabled unless bucket, access key ID, and secret access key are all configured.
+- RFP object keys are stable and sanitize unsafe filename characters.
+- Stored `s3://bucket/key` paths parse back into bucket/key.
+- Uploads use a server-side AWS v4 signed PUT request against the Linode E3 endpoint.
+
+Verification command:
+- `cd frontend && npm test -- rfp-parse-workflow.test.ts linode-e3.test.ts`
+
+Additional checks:
+- `cd frontend && npx tsc --noEmit --pretty false`
+- Targeted lint for `lib/actions/rfp-parser.ts`, `app/api/v1/rfp/[rfpId]/parse/route.ts`, `app/api/v1/rfp/upload/route.ts`, `components/rfp/RFPUploader.tsx`, `lib/storage/linode-e3.ts`, and the workflow/storage tests.

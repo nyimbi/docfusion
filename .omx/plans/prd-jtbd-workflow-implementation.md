@@ -43,11 +43,34 @@ Acceptance criteria:
 
 ## Future P0 Slices
 
-1. RFP intake parse lifecycle and exception queue.
+1. RFP intake parse lifecycle and exception queue. Pilot implemented with metadata-backed retry/reject/manual-extraction/cancel transitions plus optional server-side Linode E3 RFP storage; security scan, SSE, notifications, live object-store validation, and global exception queue remain.
 2. Compliance matrix row governance and waiver gates.
 3. Gate review and approval enforcement.
 4. Production/render/submission workflow.
 5. Runtime transition/audit normalization.
+
+### Slice P0-B: RFP Intake Parse Lifecycle
+
+Related JTBDs: JTBD-011, JTBD-012, JTBD-072.
+
+Problem:
+RFP upload and parse tables/routes exist, but failed parsing did not have a governed remediation path and the uploader treated upload completion as if parsing were complete.
+
+Desired behavior:
+- Failed or cancelled parse jobs can be retried with reason and audit history.
+- Operators can reject a failed parse or mark it for manual extraction with reason.
+- Retry creates a fresh queued parsing job and resets document parse status.
+- Parse API retries failed documents through the workflow action rather than bypassing lifecycle history.
+- The uploader polls parse status and exposes failed parse retry separately from upload retry.
+- RFP binaries are stored server-side in Linode E3 object storage when configured; browser uploads never depend on object-store CORS.
+
+Acceptance criteria:
+- Server action exposes retry, reject, manual extraction, and cancel transitions.
+- Invalid transitions fail before creating or updating jobs.
+- Retry records attempt history in existing metadata and creates one queued job.
+- Parse completion/failure records terminal metadata history.
+- Uploader displays parse progress/current step, terminal parse errors, and parse retry.
+- Linode E3 storage configuration is server-only, uses placeholder env vars, and writes a storage receipt into existing document metadata.
 
 ## Non-Goals For Initial Slice
 

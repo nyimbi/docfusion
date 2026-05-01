@@ -9,6 +9,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireServerSession } from "@/lib/auth-utils";
 import { db } from "@/lib/db";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
+import {
+	buildRfpObjectKey,
+	getLinodeE3ConfigFromEnv,
+	uploadToLinodeE3,
+} from "@/lib/storage/linode-e3";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 
@@ -47,8 +52,12 @@ const ALLOWED_EXTENSIONS = new Set([".pdf", ".docx", ".doc", ".html", ".htm"]);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
 	try {
-		// Proxy to Python FastAPI when feature flag is enabled
-		if (USE_PYTHON_RFP) {
+		const objectStoreConfig = getLinodeE3ConfigFromEnv();
+
+		// Proxy to Python FastAPI when feature flag is enabled and local object
+		// storage is not configured. Browser uploads cannot go direct to Linode E3
+		// because this endpoint does not depend on object-store CORS support.
+		if (USE_PYTHON_RFP && !objectStoreConfig) {
 			const formData = await request.formData();
 			const response = await fetch(`${FASTAPI_URL}/api/v1/rfp/upload`, {
 				method: "POST",
@@ -90,6 +99,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				{ status: 400 }
 			);
 		}
+		if (file.type && !ALLOWED_TYPES.has(file.type)) {
+			return NextResponse.json(
+				{ error: `Unsupported content type: ${file.type}` },
+				{ status: 400 }
+			);
+		}
 
 		// Determine file type
 		let fileType = "unknown";
@@ -118,13 +133,40 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			);
 		}
 
-		// Generate storage path (in production, upload to S3/cloud storage)
 		const documentId = uuidv4();
-		const storagePath = `/uploads/rfp/${documentId}/${file.name}`;
+		let storagePath = `/uploads/rfp/${documentId}/${file.name}`;
+		let storageMetadata: Record<string, unknown> = {
+			provider: "metadata_only",
+			storagePending: true,
+		};
 
-		// Store file (in production, upload to S3/cloud storage)
-		// For now, we'll store metadata only - actual storage implementation TBD
-		// await uploadToStorage(buffer, storagePath);
+		if (objectStoreConfig) {
+			const objectKey = buildRfpObjectKey({
+				documentId,
+				filename: file.name,
+				opportunityId,
+				prefix: objectStoreConfig.prefix,
+			});
+			const upload = await uploadToLinodeE3(objectStoreConfig, {
+				key: objectKey,
+				body: buffer,
+				contentType: file.type || "application/octet-stream",
+				contentLength: file.size,
+				metadata: {
+					"document-id": documentId,
+					"uploaded-by": userId,
+				},
+			});
+
+			storagePath = upload.storagePath;
+			storageMetadata = {
+				provider: "linode_e3",
+				bucket: upload.bucket,
+				key: upload.key,
+				endpoint: upload.endpoint,
+				etag: upload.etag,
+			};
+		}
 
 		// Create RFP document record
 		const [rfpDocument] = await db
@@ -140,6 +182,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				parsingStatus: "pending",
 				parsingProgress: 0,
 				uploadedBy: userId,
+				metadata: {
+					storage: storageMetadata,
+				},
 			})
 			.returning();
 

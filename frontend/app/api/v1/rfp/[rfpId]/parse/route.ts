@@ -9,7 +9,10 @@ import { requireServerSession } from "@/lib/auth-utils";
 import { db } from "@/lib/db";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import { eq } from "drizzle-orm";
-import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
+import {
+	processRfpParsingJob,
+	transitionRfpParseWorkflow,
+} from "@/lib/actions/rfp-parser";
 
 const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
 const USE_PYTHON_RFP = process.env.USE_PYTHON_RFP !== "false";
@@ -66,6 +69,27 @@ export async function POST(
 				{ error: "Document is already being parsed" },
 				{ status: 409 }
 			);
+		}
+
+		if (rfpDocument.parsingStatus === "failed") {
+			const retry = await transitionRfpParseWorkflow({
+				rfpDocumentId: rfpId,
+				action: "retry",
+				reason: "Retry requested from parse API.",
+			});
+
+			if (!retry?.jobId) {
+				return NextResponse.json(
+					{ error: "Unable to retry parsing" },
+					{ status: 409 }
+				);
+			}
+
+			return NextResponse.json({
+				parsingJobId: retry.jobId,
+				status: retry.state,
+				message: "Parsing retry queued successfully",
+			}, { status: 202 });
 		}
 
 		// Parse request body for options

@@ -35,6 +35,10 @@ import {
 	batchExtractRequirements,
 	type ExtractedRequirement,
 } from "@/lib/ai/rfp-parser";
+import {
+	downloadFromLinodeE3,
+	getLinodeE3ConfigFromEnv,
+} from "@/lib/storage/linode-e3";
 import type {
 	RfpFormat,
 	RfpRequirementCategory,
@@ -49,6 +53,53 @@ import type {
 	UpdateComplianceEntryInput,
 } from "@/lib/types/rfp";
 import { logger } from "@/lib/utils/logger";
+
+type RfpParseWorkflowAction = "retry" | "reject" | "manual_extraction" | "cancel";
+type RfpParseWorkflowState =
+	| "queued"
+	| "processing"
+	| "completed"
+	| "failed"
+	| "cancelled"
+	| "rejected"
+	| "manual_extraction";
+
+interface RfpParseWorkflowInput {
+	rfpDocumentId: string;
+	action: RfpParseWorkflowAction;
+	reason: string;
+	startProcessing?: boolean;
+}
+
+interface RfpParseWorkflowResult {
+	rfpDocumentId: string;
+	jobId?: string;
+	state: RfpParseWorkflowState;
+	progress: number;
+	currentStep?: string;
+	error?: string;
+}
+
+interface RfpParseWorkflowMetadata {
+	state: RfpParseWorkflowState;
+	reason?: string;
+	at?: string;
+	actorId?: string;
+	activeJobId?: string;
+	attempt: number;
+	history: RfpParseWorkflowHistoryEntry[];
+}
+
+interface RfpParseWorkflowHistoryEntry {
+	action: RfpParseWorkflowAction | "created" | "completed" | "failed";
+	from: RfpParseWorkflowState;
+	to: RfpParseWorkflowState;
+	actorId: string;
+	reason: string;
+	at: string;
+	jobId?: string;
+	error?: string;
+}
 
 // ============================================================================
 // RFP Document Actions
@@ -667,6 +718,183 @@ export async function cancelParsingJob(jobId: string): Promise<{ success: boolea
 	}
 }
 
+/**
+ * Get the latest parse lifecycle state for an RFP document.
+ */
+export async function getRfpParseLifecycle(
+	rfpDocumentId: string
+): Promise<RfpParseWorkflowResult | null> {
+	try {
+		const doc = await db.query.rfpDocuments.findFirst({
+			where: eq(rfpDocuments.id, rfpDocumentId),
+		});
+		if (!doc) return null;
+
+		const latestJob = await db.query.rfpParsingJobs.findFirst({
+			where: eq(rfpParsingJobs.rfpDocumentId, rfpDocumentId),
+			orderBy: desc(rfpParsingJobs.createdAt),
+		});
+		const workflow = normalizeRfpParseWorkflowMetadata(doc.metadata);
+		const state = workflow.state ?? parseWorkflowStateFromStatus(
+			latestJob?.status ?? doc.parsingStatus
+		);
+
+		return {
+			rfpDocumentId,
+			jobId: latestJob?.id,
+			state,
+			progress: latestJob?.progress ?? doc.parsingProgress ?? 0,
+			currentStep: latestJob?.currentStep ?? undefined,
+			error: latestJob?.errorMessage ?? doc.parsingError ?? undefined,
+		};
+	} catch (error) {
+		logger.error("Error getting RFP parse lifecycle:", error);
+		return null;
+	}
+}
+
+/**
+ * Transition a parse lifecycle when automated parsing needs operator action.
+ */
+export async function transitionRfpParseWorkflow(
+	input: RfpParseWorkflowInput
+): Promise<RfpParseWorkflowResult | null> {
+	const reason = input.reason.trim();
+	if (!reason) {
+		throw new Error("RFP parse workflow transition requires a reason.");
+	}
+
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Not authenticated");
+	}
+
+	return db.transaction(async (tx) => {
+		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.rfpDocumentId}))`);
+
+		const doc = await tx.query.rfpDocuments.findFirst({
+			where: eq(rfpDocuments.id, input.rfpDocumentId),
+		});
+		if (!doc) return null;
+
+		const latestJob = await tx.query.rfpParsingJobs.findFirst({
+			where: eq(rfpParsingJobs.rfpDocumentId, input.rfpDocumentId),
+			orderBy: desc(rfpParsingJobs.createdAt),
+		});
+
+		const currentState = parseWorkflowStateFromStatus(
+			latestJob?.status ?? doc.parsingStatus,
+			normalizeRfpParseWorkflowMetadata(doc.metadata).state
+		);
+		const now = new Date();
+		const workflow = normalizeRfpParseWorkflowMetadata(doc.metadata);
+		const nextState = getNextRfpParseWorkflowState(currentState, input.action);
+		let activeJobId = latestJob?.id;
+		let progress = latestJob?.progress ?? doc.parsingProgress ?? 0;
+		let currentStep = latestJob?.currentStep ?? undefined;
+		let error: string | undefined;
+
+		if (input.action === "retry") {
+			const [newJob] = await tx.insert(rfpParsingJobs).values({
+				rfpDocumentId: input.rfpDocumentId,
+				status: "queued",
+				currentStep: "Queued for retry",
+				progress: 0,
+				initiatedBy: userId,
+				parsingOptions: latestJob?.parsingOptions ?? {
+					extractRequirements: true,
+					generateEmbeddings: true,
+					detectSections: true,
+					classifyRequirements: true,
+				},
+				metadata: {
+					retryOfJobId: latestJob?.id,
+					retryReason: reason,
+				},
+			}).returning();
+
+			activeJobId = newJob?.id;
+			progress = 0;
+			currentStep = "Queued for retry";
+		}
+
+		if (input.action === "cancel" && latestJob) {
+			await tx.update(rfpParsingJobs).set({
+				status: "cancelled",
+				completedAt: now,
+				updatedAt: now,
+				metadata: mergeRecordMetadata(latestJob.metadata, {
+					cancelReason: reason,
+					cancelledBy: userId,
+				}),
+			}).where(eq(rfpParsingJobs.id, latestJob.id));
+			progress = latestJob.progress ?? doc.parsingProgress ?? 0;
+			currentStep = "Cancelled";
+		}
+
+		if (input.action === "reject" && latestJob) {
+			await tx.update(rfpParsingJobs).set({
+				status: "failed",
+				errorMessage: reason,
+				completedAt: now,
+				updatedAt: now,
+				metadata: mergeRecordMetadata(latestJob.metadata, {
+					rejectedBy: userId,
+					rejectReason: reason,
+				}),
+			}).where(eq(rfpParsingJobs.id, latestJob.id));
+			error = reason;
+			currentStep = "Rejected";
+		}
+
+		if (input.action === "manual_extraction") {
+			error = reason;
+			currentStep = "Manual extraction required";
+		}
+
+		const nextWorkflow = appendRfpParseWorkflowHistory(workflow, {
+			action: input.action,
+			from: currentState,
+			to: nextState,
+			actorId: userId,
+			reason,
+			at: now.toISOString(),
+			jobId: activeJobId,
+			error,
+		});
+
+		await tx.update(rfpDocuments).set({
+			parsingStatus: mapWorkflowStateToDocumentStatus(nextState),
+			parsingProgress: progress,
+			parsingError: error ?? (nextState === "queued" ? null : doc.parsingError),
+			parsingStartedAt: nextState === "queued" ? null : doc.parsingStartedAt,
+			parsingCompletedAt: ["failed", "cancelled", "rejected", "manual_extraction"].includes(nextState)
+				? now
+				: null,
+			metadata: {
+				...mergeRecordMetadata(doc.metadata),
+				parseWorkflow: nextWorkflow,
+			},
+			updatedAt: now,
+		}).where(eq(rfpDocuments.id, input.rfpDocumentId));
+
+		if (input.action === "retry" && activeJobId && input.startProcessing !== false) {
+			processRfpParsingJob(activeJobId, input.rfpDocumentId).catch((error) => {
+				logger.error("[RFP Parser] Retry background job failed:", error);
+			});
+		}
+
+		return {
+			rfpDocumentId: input.rfpDocumentId,
+			jobId: activeJobId,
+			state: nextState,
+			progress,
+			currentStep,
+			error,
+		};
+	});
+}
+
 // ============================================================================
 // Statistics Actions
 // ============================================================================
@@ -704,9 +932,12 @@ export async function getRfpStats(opportunityId?: string): Promise<{
 		const byStatus: Record<string, number> = {};
 
 		for (const req of requirements) {
-			byCategory[req.category] = (byCategory[req.category] || 0) + 1;
-			byPriority[req.priority] = (byPriority[req.priority] || 0) + 1;
-			byStatus[req.complianceStatus] = (byStatus[req.complianceStatus] || 0) + 1;
+			const category = req.category ?? "other";
+			const priority = req.priority ?? "medium";
+			const status = req.complianceStatus ?? "not_assessed";
+			byCategory[category] = (byCategory[category] || 0) + 1;
+			byPriority[priority] = (byPriority[priority] || 0) + 1;
+			byStatus[status] = (byStatus[status] || 0) + 1;
 		}
 
 		return {
@@ -785,6 +1016,146 @@ export async function exportComplianceMatrix(matrixId: string): Promise<{
 // ============================================================================
 // Background Processing Functions
 // ============================================================================
+
+function normalizeRfpParseWorkflowMetadata(metadata: unknown): RfpParseWorkflowMetadata {
+	const record = mergeRecordMetadata(metadata);
+	const workflow = record.parseWorkflow;
+	if (!workflow || typeof workflow !== "object" || Array.isArray(workflow)) {
+		return {
+			state: "queued",
+			attempt: 0,
+			history: [],
+		};
+	}
+
+	const candidate = workflow as Partial<RfpParseWorkflowMetadata>;
+	return {
+		state: isRfpParseWorkflowState(candidate.state) ? candidate.state : "queued",
+		reason: candidate.reason,
+		at: candidate.at,
+		actorId: candidate.actorId,
+		activeJobId: candidate.activeJobId,
+		attempt: typeof candidate.attempt === "number" ? candidate.attempt : 0,
+		history: Array.isArray(candidate.history) ? candidate.history : [],
+	};
+}
+
+function mergeRecordMetadata(
+	metadata: unknown,
+	patch: Record<string, unknown> = {}
+): Record<string, unknown> {
+	if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+		return { ...patch };
+	}
+	return {
+		...(metadata as Record<string, unknown>),
+		...patch,
+	};
+}
+
+function isRfpParseWorkflowState(value: unknown): value is RfpParseWorkflowState {
+	return (
+		value === "queued" ||
+		value === "processing" ||
+		value === "completed" ||
+		value === "failed" ||
+		value === "cancelled" ||
+		value === "rejected" ||
+		value === "manual_extraction"
+	);
+}
+
+function parseWorkflowStateFromStatus(
+	status: string | null | undefined,
+	metadataState?: RfpParseWorkflowState
+): RfpParseWorkflowState {
+	if (metadataState === "rejected" || metadataState === "manual_extraction") {
+		return metadataState;
+	}
+	if (isRfpParseWorkflowState(status)) {
+		return status;
+	}
+	if (status === "pending") {
+		return "queued";
+	}
+	return "queued";
+}
+
+function getNextRfpParseWorkflowState(
+	currentState: RfpParseWorkflowState,
+	action: RfpParseWorkflowAction
+): RfpParseWorkflowState {
+	const legalTransitions: Record<
+		RfpParseWorkflowState,
+		Partial<Record<RfpParseWorkflowAction, RfpParseWorkflowState>>
+	> = {
+		queued: {
+			cancel: "cancelled",
+		},
+		processing: {
+			cancel: "cancelled",
+		},
+		completed: {},
+		failed: {
+			retry: "queued",
+			reject: "rejected",
+			manual_extraction: "manual_extraction",
+		},
+		cancelled: {
+			retry: "queued",
+			reject: "rejected",
+		},
+		rejected: {
+			retry: "queued",
+			manual_extraction: "manual_extraction",
+		},
+		manual_extraction: {
+			retry: "queued",
+			reject: "rejected",
+		},
+	};
+
+	const nextState = legalTransitions[currentState][action];
+	if (!nextState) {
+		throw new Error(`Cannot ${action} RFP parse from ${currentState} state.`);
+	}
+
+	return nextState;
+}
+
+function mapWorkflowStateToDocumentStatus(
+	state: RfpParseWorkflowState
+): "pending" | "processing" | "completed" | "failed" {
+	switch (state) {
+		case "queued":
+			return "pending";
+		case "processing":
+			return "processing";
+		case "completed":
+			return "completed";
+		case "failed":
+		case "cancelled":
+		case "rejected":
+		case "manual_extraction":
+			return "failed";
+	}
+}
+
+function appendRfpParseWorkflowHistory(
+	workflow: RfpParseWorkflowMetadata,
+	entry: RfpParseWorkflowHistoryEntry
+): RfpParseWorkflowMetadata {
+	return {
+		...workflow,
+		state: entry.to,
+		reason: entry.reason,
+		at: entry.at,
+		actorId: entry.actorId,
+		activeJobId: entry.jobId,
+		attempt: entry.action === "retry" ? workflow.attempt + 1 : workflow.attempt,
+		history: [...workflow.history, entry],
+	};
+}
 
 /**
  * Process an RFP parsing job asynchronously.
@@ -919,6 +1290,22 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			parsingStatus: "completed",
 			parsingProgress: 100,
 			parsingCompletedAt: now,
+			parsingError: null,
+			metadata: {
+				...mergeRecordMetadata(rfpDoc.metadata),
+				parseWorkflow: appendRfpParseWorkflowHistory(
+					normalizeRfpParseWorkflowMetadata(rfpDoc.metadata),
+					{
+						action: "completed",
+						from: parseWorkflowStateFromStatus(rfpDoc.parsingStatus),
+						to: "completed",
+						actorId: "system",
+						reason: "Parsing completed successfully.",
+						at: now.toISOString(),
+						jobId,
+					}
+				),
+			},
 			updatedAt: now,
 		}).where(eq(rfpDocuments.id, rfpDocumentId));
 
@@ -928,19 +1315,40 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 		logger.error(`[RFP Parser] Job ${jobId} failed:`, error);
 
 		const errorMessage = error instanceof Error ? error.message : "Unknown error";
+		const failedDoc = await db.query.rfpDocuments.findFirst({
+			where: eq(rfpDocuments.id, rfpDocumentId),
+		});
+		const failedAt = new Date();
 
 		// Update job and document with error status
 		await db.update(rfpParsingJobs).set({
 			status: "failed",
 			errorMessage,
-			completedAt: new Date(),
-			updatedAt: new Date(),
+			completedAt: failedAt,
+			updatedAt: failedAt,
 		}).where(eq(rfpParsingJobs.id, jobId));
 
 		await db.update(rfpDocuments).set({
 			parsingStatus: "failed",
 			parsingError: errorMessage,
-			updatedAt: new Date(),
+			parsingCompletedAt: failedAt,
+			metadata: {
+				...mergeRecordMetadata(failedDoc?.metadata),
+				parseWorkflow: appendRfpParseWorkflowHistory(
+					normalizeRfpParseWorkflowMetadata(failedDoc?.metadata),
+					{
+						action: "failed",
+						from: parseWorkflowStateFromStatus(failedDoc?.parsingStatus),
+						to: "failed",
+						actorId: "system",
+						reason: errorMessage,
+						at: failedAt.toISOString(),
+						jobId,
+						error: errorMessage,
+					}
+				),
+			},
+			updatedAt: failedAt,
 		}).where(eq(rfpDocuments.id, rfpDocumentId));
 	}
 }
@@ -982,7 +1390,14 @@ async function extractTextFromDocument(
 		// Determine the actual file path (local or remote)
 		let fileBuffer: Buffer;
 
-		if (storagePath.startsWith("/") || storagePath.startsWith("./")) {
+		if (storagePath.startsWith("s3://")) {
+			const objectStoreConfig = getLinodeE3ConfigFromEnv();
+			if (!objectStoreConfig) {
+				throw new Error("Linode E3 storage is not configured");
+			}
+			const object = await downloadFromLinodeE3(objectStoreConfig, storagePath);
+			fileBuffer = object.body;
+		} else if (storagePath.startsWith("/") || storagePath.startsWith("./")) {
 			// Local file system
 			fileBuffer = await fs.readFile(storagePath);
 		} else if (storagePath.startsWith("http://") || storagePath.startsWith("https://")) {
@@ -1016,7 +1431,6 @@ async function extractTextFromDocument(
 				// Use pdf-parse for PDF extraction
 				try {
 					// Dynamic import with type assertion for optional dependency
-					// eslint-disable-next-line @typescript-eslint/no-require-imports
 					const pdfParse = require("pdf-parse") as (buffer: Buffer) => Promise<{ text: string }>;
 					const data = await pdfParse(fileBuffer);
 					return data.text;
@@ -1031,7 +1445,6 @@ async function extractTextFromDocument(
 				// Use mammoth for DOCX extraction
 				try {
 					// Dynamic import with type assertion for optional dependency
-					// eslint-disable-next-line @typescript-eslint/no-require-imports
 					const mammoth = require("mammoth") as {
 						extractRawText: (options: { buffer: Buffer }) => Promise<{ value: string }>;
 					};
