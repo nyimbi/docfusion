@@ -30,6 +30,7 @@ import { eq, and, desc, asc, sql, gte, lte, inArray, isNull, count, avg, sum } f
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/utils/logger";
+import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 
 // ============================================================================
 // Types
@@ -1308,11 +1309,82 @@ export async function conductGateReview(
 				.where(eq(gateReviews.id, gateReviewId));
 		}
 
+		try {
+			const runtimeInstance = await recordWorkflowRuntimeTransition({
+				workflowKey: "capture_gate_review",
+				subjectType: "gate_review",
+				subjectId: gateReviewId,
+				fromState: review.status ?? "scheduled",
+				toState: decision.decision,
+				eventType: `gate_${decision.decision}`,
+				actorId: review.chairperson ?? review.createdBy ?? "system",
+				actorName: review.chairperson ?? review.createdBy ?? "System",
+				reason: decision.rationale,
+				priority: decision.decision === "fail" ? "critical" : decision.decision === "conditional_pass" ? "high" : "medium",
+				assignedTo: decision.decision === "conditional_pass" ? review.chairperson ?? null : null,
+				assignedRole: "capture_manager",
+				dueAt: decision.decision === "conditional_pass" ? earliestConditionDueDate(decision.conditions) : null,
+				visibility: "internal",
+				authorityPolicy: {
+					requiredRoles: ["executive", "capture_manager"],
+					minApprovers: getGateQuorum(review.reviewers),
+					escalationRole: "executive",
+				},
+				metadata: {
+					pipelineId: review.pipelineId,
+					gateType: review.gateType,
+					reviewerVotes,
+					conditions: formattedConditions ?? [],
+				},
+				terminal: decision.decision === "pass" || decision.decision === "fail" || decision.decision === "defer",
+				notificationRecipients: collectGateNotificationRecipients(review, decision),
+			});
+
+			if (decision.decision === "conditional_pass" && decision.conditions?.length) {
+				for (const [index, condition] of decision.conditions.entries()) {
+					await upsertWorkflowRuntimeTask({
+						workflowInstanceId: runtimeInstance.id,
+						taskKey: `gate-condition:${gateReviewId}:${index}`,
+						title: condition.condition,
+						description: `Condition for ${review.gateName ?? review.gateType}`,
+						state: "open",
+						priority: "high",
+						assignedTo: condition.assignee ?? review.chairperson ?? null,
+						assignedRole: "capture_manager",
+						dueAt: condition.dueDate ?? null,
+						metadata: { gateReviewId, pipelineId: review.pipelineId, gateType: review.gateType },
+					});
+				}
+			}
+		} catch (error) {
+			logger.warn("[Pipeline] Workflow runtime persistence failed:", error);
+		}
+
 		return { success: true, data: updated };
 	} catch (error) {
 		logger.error("[Pipeline] Error conducting gate review:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to conduct gate review" };
 	}
+}
+
+function earliestConditionDueDate(conditions?: Array<{ dueDate?: string }>): Date | null {
+	const dates = (conditions ?? [])
+		.map((condition) => condition.dueDate ? new Date(condition.dueDate) : null)
+		.filter((date): date is Date => date instanceof Date && !Number.isNaN(date.getTime()))
+		.sort((a, b) => a.getTime() - b.getTime());
+	return dates[0] ?? null;
+}
+
+function collectGateNotificationRecipients(
+	review: GateReview,
+	decision: GateDecision
+): string[] {
+	const recipients = new Set<string>();
+	if (review.chairperson) recipients.add(review.chairperson);
+	for (const condition of decision.conditions ?? []) {
+		if (condition.assignee) recipients.add(condition.assignee);
+	}
+	return [...recipients];
 }
 
 /**

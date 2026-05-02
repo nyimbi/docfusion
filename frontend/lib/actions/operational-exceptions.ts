@@ -9,6 +9,7 @@ import {
 } from "@/lib/db/schema";
 import { desc, eq, inArray } from "drizzle-orm";
 import { transitionRfpParseWorkflow } from "@/lib/actions/rfp-parser";
+import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 
 export type OperationalExceptionSubjectType = "rfp_parse" | "scraper_run";
 export type OperationalExceptionSeverity = "critical" | "high" | "medium";
@@ -134,6 +135,60 @@ export async function remediateOperationalException(
 	});
 }
 
+export async function syncOperationalExceptionWorkflows(
+	filters: OperationalExceptionFilters = {}
+): Promise<{ synced: number }> {
+	const exceptions = await listOperationalExceptions(filters);
+
+	for (const exception of exceptions) {
+		const instance = await recordWorkflowRuntimeTransition({
+			workflowKey: "operations_exception_queue",
+			subjectType: exception.subjectType,
+			subjectId: exception.subjectId,
+			opportunityId: typeof exception.metadata.opportunityId === "string"
+				? exception.metadata.opportunityId
+				: null,
+			toState: exception.status,
+			eventType: "operational_exception_detected",
+			actorId: "system",
+			actorName: "System",
+			reason: exception.lastError ?? exception.title,
+			priority: exception.severity,
+			assignedTo: exception.ownerHint,
+			assignedRole: exception.subjectType === "rfp_parse" ? "proposal_manager" : "operations",
+			dueAt: addHours(exception.detectedAt, exception.severity === "critical" ? 4 : 24),
+			escalatedTo: exception.severity === "critical" ? "operations_lead" : null,
+			visibility: "internal",
+			authorityPolicy: {
+				requiredRoles: ["operations", "proposal_manager"],
+				escalationRole: "operations_lead",
+			},
+			metadata: exception.metadata,
+			terminal: exception.status === "rejected",
+			notificationRecipients: exception.ownerHint ? [exception.ownerHint] : [],
+		});
+
+		await upsertWorkflowRuntimeTask({
+			workflowInstanceId: instance.id,
+			taskKey: `exception:${exception.id}`,
+			title: exception.title,
+			description: exception.lastError ?? undefined,
+			state: exception.status === "rejected" ? "completed" : "open",
+			priority: exception.severity,
+			assignedTo: exception.ownerHint,
+			assignedRole: exception.subjectType === "rfp_parse" ? "proposal_manager" : "operations",
+			dueAt: addHours(exception.detectedAt, exception.severity === "critical" ? 4 : 24),
+			metadata: {
+				subjectType: exception.subjectType,
+				subjectId: exception.subjectId,
+				workflowActionHint: exception.workflowActionHint,
+			},
+		});
+	}
+
+	return { synced: exceptions.length };
+}
+
 function getRfpExceptionStatus(metadata: unknown): OperationalExceptionStatus {
 	if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
 		return "open";
@@ -144,4 +199,8 @@ function getRfpExceptionStatus(metadata: unknown): OperationalExceptionStatus {
 	if (workflow?.state === "rejected") return "rejected";
 	if (workflow?.state === "queued" || workflow?.state === "processing") return "retrying";
 	return "open";
+}
+
+function addHours(date: Date, hours: number): Date {
+	return new Date(date.getTime() + hours * 60 * 60 * 1000);
 }

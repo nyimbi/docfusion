@@ -12,6 +12,7 @@ import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { proposalTasks, taskActivity } from "@/lib/db/schema-tasks";
 import { eq, and, or, ilike, inArray, isNull, isNotNull, lt, sql, desc, asc } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
+import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import type {
 	Requirement,
 	RequirementInput,
@@ -498,6 +499,63 @@ export async function transitionRequirementWorkflow(
 					evidenceLinks: input.evidenceLinks ?? [],
 				},
 			});
+		}
+
+		try {
+			const runtimeInstance = await recordWorkflowRuntimeTransition({
+				workflowKey: "requirement_acceptance",
+				subjectType: "requirement",
+				subjectId: row.id,
+				opportunityId: row.opportunityId,
+				fromState,
+				toState,
+				eventType: `requirement_${input.action}`,
+				actorId: input.actorId,
+				actorName: input.actorName,
+				reason,
+				evidenceLinks: input.evidenceLinks ?? [],
+				priority: mapRequirementPriorityToTaskPriority(row.priority, row.riskLevel),
+				assignedTo,
+				assignedRole: "writer",
+				assignedBy: input.actorId,
+				dueAt: dueDate,
+				visibility: "portal",
+				portalVisibility: {
+					visibleToPortal: toState === "accepted",
+					portalRole: "contributor",
+					summary: `Requirement ${row.requirementNumber ?? row.id} is ${toState}`,
+					actionLabel: toState === "accepted" ? "Draft response" : undefined,
+					actionUrl: `/opportunities/${row.opportunityId}/requirements`,
+				},
+				authorityPolicy: {
+					requiredRoles: input.action === "accept" ? ["proposal_manager", "capture_manager"] : undefined,
+					escalationRole: "proposal_manager",
+				},
+				metadata: {
+					requirementNumber: row.requirementNumber,
+					projectedTaskId,
+					complianceStatus: updated.complianceStatus,
+				},
+				terminal: toState === "accepted" || toState === "rejected",
+				notificationRecipients: assignedTo ? [assignedTo] : [],
+			}, tx);
+
+			if (projectedTaskId && toState === "accepted") {
+				await upsertWorkflowRuntimeTask({
+					workflowInstanceId: runtimeInstance.id,
+					taskKey: `requirement-writing:${row.id}`,
+					title: `Draft response for ${row.requirementNumber ?? "requirement"}`,
+					description: row.requirementText,
+					state: "open",
+					priority: mapRequirementPriorityToTaskPriority(row.priority, row.riskLevel),
+					assignedTo,
+					assignedRole: "writer",
+					dueAt: dueDate,
+					metadata: { projectedTaskId, requirementId: row.id },
+				}, tx);
+			}
+		} catch (error) {
+			logger.warn("Requirement workflow runtime persistence failed:", error);
 		}
 
 		return {

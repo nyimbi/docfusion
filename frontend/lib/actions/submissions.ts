@@ -17,6 +17,8 @@ import {
 } from "@/lib/db/schema";
 import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
 import { preSubmissionAudit } from "@/lib/actions/document-render";
+import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
+import { logger } from "@/lib/utils/logger";
 import type {
 	Submission,
 	SubmissionAttachment,
@@ -173,6 +175,37 @@ export async function createSubmission(
 			updatedAt: new Date(),
 		})
 		.where(eq(opportunities.id, input.opportunityId));
+
+	try {
+		await recordWorkflowRuntimeTransition({
+			workflowKey: "production_submission",
+			subjectType: "submission",
+			subjectId: row.id,
+			opportunityId: input.opportunityId,
+			fromState: "final_review",
+			toState: "submitted",
+			eventType: "submission_dispatched",
+			actorId: input.submittedBy.trim(),
+			actorName: input.submittedBy.trim(),
+			reason: `Submission receipt ${input.confirmationNumber.trim()} recorded`,
+			evidenceLinks: [input.confirmationNumber.trim()],
+			priority: "critical",
+			visibility: "internal",
+			authorityPolicy: {
+				requiredRoles: ["proposal_manager", "executive"],
+				escalationRole: "executive",
+			},
+			metadata: {
+				attachmentCount: attachments.length,
+				attachments,
+				auditReadinessScore: audit.readinessScore,
+				submissionMethod: input.submissionMethod,
+			},
+			terminal: true,
+		});
+	} catch (error) {
+		logger.warn("Submission workflow runtime persistence failed:", error);
+	}
 
 	return transformSubmission(row);
 }

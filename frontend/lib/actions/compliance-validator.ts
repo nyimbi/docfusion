@@ -21,6 +21,8 @@ import type { ComplianceEntryRow } from "@/lib/db/schema-rfp";
 import { documents } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireUserContext } from "@/lib/auth-utils";
+import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
+import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // Types
@@ -282,6 +284,59 @@ export async function transitionComplianceEntryWorkflow(
 			.where(eq(complianceEntries.id, input.entryId));
 
 		const matrixStats = await recalculateComplianceMatrixStats(tx, input.matrixId);
+		try {
+			const runtimeInstance = await recordWorkflowRuntimeTransition({
+				workflowKey: "compliance_matrix_governance",
+				subjectType: "compliance_entry",
+				subjectId: input.entryId,
+				opportunityId: row.requirement.opportunityId,
+				fromState: currentState,
+				toState: nextState,
+				eventType: `compliance_${input.action}`,
+				actorId: userContext.userId,
+				actorName: userContext.userId,
+				reason,
+				evidenceLinks: collectComplianceEvidenceLinks(row.entry),
+				priority: row.requirement.priority === "mandatory" || row.requirement.riskLevel === "high" ? "high" : "medium",
+				assignedTo: nextState === "rejected" ? row.entry.assignedTo ?? row.requirement.assignedTo ?? null : null,
+				assignedRole: nextState === "review" ? "compliance_officer" : nextState === "rejected" ? "writer" : null,
+				assignedBy: userContext.userId,
+				dueAt: nextState === "rejected" ? addDays(now, 1) : null,
+				visibility: "internal",
+				authorityPolicy: {
+					requiredRoles: ["compliance_officer", "proposal_manager"],
+					escalationRole: "proposal_manager",
+				},
+				metadata: {
+					matrixId: input.matrixId,
+					requirementId: row.requirement.id,
+					requirementNumber: row.requirement.requirementNumber,
+					complianceStatus: entryPatch.complianceStatus ?? row.entry.complianceStatus,
+					matrixStats,
+				},
+				terminal: nextState === "approved" || nextState === "waived",
+				notificationRecipients: nextState === "rejected" && (row.entry.assignedTo ?? row.requirement.assignedTo)
+					? [row.entry.assignedTo ?? row.requirement.assignedTo!]
+					: [],
+			}, tx);
+
+			if (nextState === "rejected") {
+				await upsertWorkflowRuntimeTask({
+					workflowInstanceId: runtimeInstance.id,
+					taskKey: `compliance-gap:${input.entryId}`,
+					title: `Resolve compliance gap for ${row.requirement.requirementNumber ?? "requirement"}`,
+					description: reason,
+					state: "open",
+					priority: row.requirement.priority === "mandatory" || row.requirement.riskLevel === "high" ? "high" : "medium",
+					assignedTo: row.entry.assignedTo ?? row.requirement.assignedTo ?? null,
+					assignedRole: "writer",
+					dueAt: addDays(now, 1),
+					metadata: { matrixId: input.matrixId, entryId: input.entryId },
+				}, tx);
+			}
+		} catch (error) {
+			logger.warn("Compliance workflow runtime persistence failed:", error);
+		}
 
 		return {
 			matrixId: input.matrixId,
@@ -371,6 +426,19 @@ function hasComplianceEvidence(entry: ComplianceEntryRow): boolean {
 		entry.complianceJustification ||
 		evidenceReferences.length > 0
 	);
+}
+
+function collectComplianceEvidenceLinks(entry: ComplianceEntryRow): string[] {
+	const links: string[] = [];
+	if (entry.responseReference) links.push(entry.responseReference);
+	if (Array.isArray(entry.evidenceReferences)) {
+		links.push(...entry.evidenceReferences.filter((value): value is string => typeof value === "string"));
+	}
+	return links;
+}
+
+function addDays(date: Date, days: number): Date {
+	return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
 function buildComplianceWorkflowMetadata(input: {

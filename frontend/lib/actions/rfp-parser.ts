@@ -39,6 +39,7 @@ import {
 	downloadFromLinodeE3,
 	getLinodeE3ConfigFromEnv,
 } from "@/lib/storage/linode-e3";
+import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import type {
 	RfpFormat,
 	RfpRequirementCategory,
@@ -878,6 +879,55 @@ export async function transitionRfpParseWorkflow(
 			updatedAt: now,
 		}).where(eq(rfpDocuments.id, input.rfpDocumentId));
 
+		try {
+			const runtimeInstance = await recordWorkflowRuntimeTransition({
+				workflowKey: "rfp_intake_parse",
+				subjectType: "rfp_parse",
+				subjectId: input.rfpDocumentId,
+				opportunityId: doc.opportunityId,
+				fromState: currentState,
+				toState: nextState,
+				eventType: `rfp_parse_${input.action}`,
+				actorId: userId,
+				reason,
+				priority: nextState === "manual_extraction" || nextState === "failed" ? "high" : "medium",
+				assignedTo: nextState === "manual_extraction" || nextState === "rejected" ? userId : null,
+				assignedRole: nextState === "manual_extraction" ? "proposal_manager" : null,
+				assignedBy: userId,
+				dueAt: nextState === "manual_extraction" ? addHours(now, 24) : null,
+				visibility: "internal",
+				authorityPolicy: {
+					requiredRoles: input.action === "reject" ? ["proposal_manager", "operations"] : undefined,
+					escalationRole: "operations",
+				},
+				metadata: {
+					activeJobId,
+					filename: doc.filename,
+					error,
+					attempt: nextWorkflow.attempt,
+				},
+				terminal: ["cancelled", "rejected"].includes(nextState),
+				notificationRecipients: nextState === "manual_extraction" ? [userId] : [],
+			}, tx);
+
+			if (nextState === "manual_extraction") {
+				await upsertWorkflowRuntimeTask({
+					workflowInstanceId: runtimeInstance.id,
+					taskKey: `manual-extraction:${input.rfpDocumentId}`,
+					title: `Manually extract ${doc.filename}`,
+					description: reason,
+					state: "open",
+					priority: "high",
+					assignedTo: userId,
+					assignedRole: "proposal_manager",
+					dueAt: addHours(now, 24),
+					metadata: { rfpDocumentId: input.rfpDocumentId, activeJobId },
+				}, tx);
+			}
+		} catch (error) {
+			logger.warn("[RFP Parser] Workflow runtime persistence failed:", error);
+		}
+
 		if (input.action === "retry" && activeJobId && input.startProcessing !== false) {
 			processRfpParsingJob(activeJobId, input.rfpDocumentId).catch((error) => {
 				logger.error("[RFP Parser] Retry background job failed:", error);
@@ -893,6 +943,10 @@ export async function transitionRfpParseWorkflow(
 			error,
 		};
 	});
+}
+
+function addHours(date: Date, hours: number): Date {
+	return new Date(date.getTime() + hours * 60 * 60 * 1000);
 }
 
 // ============================================================================
