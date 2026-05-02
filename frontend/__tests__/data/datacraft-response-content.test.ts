@@ -34,7 +34,7 @@ describe("Datacraft response content", () => {
 	});
 
 	it("provides reusable response snippets with searchable metadata", () => {
-		expect(DATACRAFT_RESPONSE_SNIPPETS.length).toBeGreaterThanOrEqual(35);
+		expect(DATACRAFT_RESPONSE_SNIPPETS.length).toBeGreaterThanOrEqual(85);
 
 		const shortcuts = new Set(DATACRAFT_RESPONSE_SNIPPETS.map((snippet) => snippet.shortcut));
 		expect(shortcuts.size).toBe(DATACRAFT_RESPONSE_SNIPPETS.length);
@@ -72,6 +72,36 @@ describe("Datacraft response content", () => {
 				"/dc-ux",
 				"/dc-roadmap",
 				"/dc-portfolio",
+				"/dc-cover-letter",
+				"/dc-scope-deliverables",
+				"/dc-workplan",
+				"/dc-acceptance-handover",
+				"/dc-deployment-hosting",
+				"/dc-devsecops",
+				"/dc-privacy",
+				"/dc-bcdr",
+				"/dc-performance",
+				"/dc-observability",
+				"/dc-legal-commercial",
+				"/dc-ethics",
+				"/dc-esg-impact",
+				"/dc-demo-oral",
+				"/dc-consulting-discovery",
+				"/dc-pmo",
+				"/dc-raci",
+				"/dc-raid",
+				"/dc-change-control",
+				"/dc-current-state",
+				"/dc-future-state",
+				"/dc-gap-roadmap",
+				"/dc-maturity",
+				"/dc-bpr",
+				"/dc-benefits",
+				"/dc-kpis",
+				"/dc-readiness",
+				"/dc-cutover",
+				"/dc-hypercare",
+				"/dc-operating-model",
 			])
 		);
 
@@ -115,6 +145,56 @@ describe("Datacraft response content", () => {
 				"User Experience",
 				"Roadmap",
 				"Portfolio",
+				"Transmittal",
+				"Requirements",
+				"Scope",
+				"Schedule",
+				"Acceptance",
+				"Communications",
+				"Stakeholders",
+				"Deployment",
+				"Release Management",
+				"Privacy",
+				"Business Continuity",
+				"Performance",
+				"Observability",
+				"Interoperability",
+				"Knowledge Management",
+				"Legal",
+				"Ethics",
+				"ESG",
+				"Demonstration",
+				"Clarifications",
+				"Discovery",
+				"PMO",
+				"Decision Rights",
+				"RAID",
+				"Change Control",
+				"Delivery Controls",
+				"Current State",
+				"Future State",
+				"Gap Analysis",
+				"Maturity",
+				"Process Reengineering",
+				"Facilitation",
+				"Requirements Elicitation",
+				"Options Analysis",
+				"Benefits Realization",
+				"Measurement",
+				"Vendor Management",
+				"Procurement Support",
+				"Migration Governance",
+				"Readiness",
+				"Cutover",
+				"Hypercare",
+				"Lessons Learned",
+				"Executive Advisory",
+				"Programme Assurance",
+				"Delivery Method",
+				"Capacity Planning",
+				"Risk-Adjusted Roadmap",
+				"Decision Briefing",
+				"Operating Model",
 			])
 		);
 
@@ -126,6 +206,11 @@ describe("Datacraft response content", () => {
 		expect(allText).toContain("service levels");
 		expect(allText).toContain("total cost of ownership");
 		expect(allText).toContain("knowledge transfer");
+		expect(allText).toContain("RAID register");
+		expect(allText).toContain("target operating model");
+		expect(allText).toContain("go-live");
+		expect(allText).toMatch(/benefits realization/i);
+		expect(allText).toContain("change request");
 	});
 
 	it("prepopulates standard proposal document types with Datacraft response sections", () => {
