@@ -4,6 +4,10 @@ vi.mock("@/lib/auth-utils", () => ({
 	requireUserContext: vi.fn(async () => ({ userId: "compliance-lead" })),
 }));
 
+vi.mock("@/lib/actions/workflow-runtime", () => ({
+	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "workflow-instance-1" })),
+}));
+
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;

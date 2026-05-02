@@ -4,6 +4,10 @@ vi.mock("@/lib/actions/document-render", () => ({
 	preSubmissionAudit: vi.fn(),
 }));
 
+vi.mock("@/lib/actions/workflow-runtime", () => ({
+	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "workflow-instance-1" })),
+}));
+
 interface ChainConfig {
 	result?: unknown[];
 	onValues?: (value: Record<string, unknown>) => void;

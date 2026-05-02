@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 interface ChainConfig {
 	onSet?: (value: Record<string, unknown>) => void;
+	onValues?: (value: Record<string, unknown>) => void;
 	result?: unknown[];
 }
 
@@ -12,6 +13,10 @@ function createChain(config: ChainConfig = {}) {
 	}
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
+		return chain;
+	});
+	chain.values = vi.fn((value: Record<string, unknown>) => {
+		config.onValues?.(value);
 		return chain;
 	});
 	chain.then = (resolve: (value: unknown[]) => void) =>
@@ -47,7 +52,11 @@ const dbMock = vi.hoisted(() => ({
 			findFirst: vi.fn(),
 			findMany: vi.fn(),
 		},
+		rfpDocuments: {
+			findFirst: vi.fn(),
+		},
 	},
+	insert: vi.fn(),
 	update: vi.fn(),
 	delete: vi.fn(),
 	$count: vi.fn(),
@@ -68,6 +77,9 @@ const doclingMock = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 vi.mock("@/lib/services/docling-client", () => doclingMock);
 vi.mock("@/lib/storage/linode-e3", () => storageMock);
+vi.mock("@/lib/actions/rfp-parser", () => ({
+	processRfpParsingJob: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/utils/logger", () => ({
 	logger: {
 		debug: vi.fn(),
@@ -81,10 +93,13 @@ import {
 	downloadDocument,
 	extractDocumentText,
 } from "@/lib/services/rfp-document-service";
+import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
 
 beforeEach(() => {
 	vi.clearAllMocks();
 	dbMock.$count.mockResolvedValue(1);
+	dbMock.query.rfpDocuments.findFirst.mockResolvedValue(null);
+	dbMock.insert.mockImplementation(() => createChain());
 	dbMock.update.mockImplementation(() => createChain());
 	dbMock.delete.mockImplementation(() => createChain());
 	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue(storageConfig);
@@ -118,7 +133,17 @@ beforeEach(() => {
 describe("RFP document fetch storage", () => {
 	it("stores fetched RFP downloads in Linode E3 and records the s3 storage path", async () => {
 		const updates: Record<string, unknown>[] = [];
+		const insertedValues: Record<string, unknown>[] = [];
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
 		dbMock.update.mockImplementation(() => createChain({
 			onSet: (value) => {
 				updates.push(value);
@@ -150,6 +175,24 @@ describe("RFP document fetch storage", () => {
 			extractedText: "Extracted RFP text",
 			pageCount: 3,
 		}));
+		expect(insertedValues[0]).toMatchObject({
+			opportunityId: baseDocument.opportunityId,
+			filename: "Main RFP.pdf",
+			fileType: "pdf",
+			storagePath: "s3://mansa/rfp/opportunity/document/Main-RFP.pdf",
+			fileHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+			extractedText: "Extracted RFP text",
+			pageCount: 3,
+		});
+		expect(insertedValues[1]).toMatchObject({
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			status: "queued",
+			currentStep: "Queued from discovered RFP download",
+		});
+		expect(processRfpParsingJob).toHaveBeenCalledWith(
+			"00000000-0000-4000-8000-000000000501",
+			"00000000-0000-4000-8000-000000000401"
+		);
 	});
 
 	it("fetches downloaded RFP bytes from Linode E3 during later text extraction", async () => {

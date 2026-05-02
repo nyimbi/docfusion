@@ -13,6 +13,7 @@ import {
 	processRfpParsingJob,
 	transitionRfpParseWorkflow,
 } from "@/lib/actions/rfp-parser";
+import { getLinodeE3ConfigFromEnv } from "@/lib/storage/linode-e3";
 
 const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
 const USE_PYTHON_RFP = process.env.USE_PYTHON_RFP !== "false";
@@ -37,15 +38,7 @@ export async function POST(
 ): Promise<NextResponse> {
 	try {
 		const { rfpId } = await context.params;
-
-		// Proxy to Python FastAPI when feature flag is enabled
-		if (USE_PYTHON_RFP) {
-			const response = await fetch(`${FASTAPI_URL}/api/v1/rfp/${rfpId}/parse`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-			});
-			return NextResponse.json(await response.json(), { status: response.status });
-		}
+		const objectStoreConfig = getLinodeE3ConfigFromEnv();
 
 		// Authenticate user
 		const session = await requireServerSession();
@@ -57,6 +50,16 @@ export async function POST(
 		});
 
 		if (!rfpDocument) {
+			// Preserve the legacy Python service path for externally-owned RFP IDs,
+			// but never proxy frontend/E3-backed documents away from this runtime.
+			if (USE_PYTHON_RFP && !objectStoreConfig) {
+				const response = await fetch(`${FASTAPI_URL}/api/v1/rfp/${rfpId}/parse`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+				});
+				return NextResponse.json(await response.json(), { status: response.status });
+			}
+
 			return NextResponse.json(
 				{ error: "RFP document not found" },
 				{ status: 404 }

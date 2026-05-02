@@ -14,7 +14,6 @@ import {
 	getLinodeE3ConfigFromEnv,
 	uploadToLinodeE3,
 } from "@/lib/storage/linode-e3";
-import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 
 const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
@@ -133,7 +132,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			);
 		}
 
-		const documentId = uuidv4();
+		const documentId = crypto.randomUUID();
 		let storagePath = `/uploads/rfp/${documentId}/${file.name}`;
 		let storageMetadata: Record<string, unknown> = {
 			provider: "metadata_only",

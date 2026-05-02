@@ -11,11 +11,13 @@
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { db } from "@/lib/db";
 import { opportunityDocuments, opportunities, type NewOpportunityDocument } from "@/lib/db/schema";
+import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import { eq, and } from "drizzle-orm";
 import { mkdir, writeFile, readFile, access, unlink } from "fs/promises";
 import { join, basename, extname } from "path";
 import { createHash } from "crypto";
 import { processRfpDocument, isSupportedFileType } from "@/lib/services/docling-client";
+import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
 import {
   buildRfpObjectKey,
   downloadFromLinodeE3,
@@ -148,10 +150,14 @@ Return direct document URLs only.`,
       }>;
       
       documents = extractedDocs
+        .map((doc) => ({
+          ...doc,
+          url: resolveUrl(doc.url, sourceUrl),
+        }))
         .filter((doc) => isValidDocumentUrl(doc.url))
         .map((doc) => ({
           name: sanitizeFilename(doc.name),
-          url: resolveUrl(doc.url, sourceUrl),
+          url: doc.url,
           type: validateDocumentType(doc.type),
           description: doc.description,
         }));
@@ -560,6 +566,17 @@ export async function downloadDocument(
     // Update opportunity download count
     await updateOpportunityDownloadCount(doc.opportunityId);
 
+    await queueRfpParsingFromDownloadedDocument({
+      document: doc,
+      storagePath: localPath,
+      fileSize: buffer.length,
+      mimeType,
+      fileHash,
+      extractedText,
+      pageCount,
+      userId: userId || "system",
+    });
+
     return {
       success: true,
       documentId,
@@ -813,4 +830,89 @@ async function readDocumentBuffer(storagePath: string): Promise<Buffer> {
 
   await access(storagePath);
   return readFile(storagePath);
+}
+
+async function queueRfpParsingFromDownloadedDocument(params: {
+  document: typeof opportunityDocuments.$inferSelect;
+  storagePath: string;
+  fileSize: number;
+  mimeType: string;
+  fileHash: string;
+  extractedText?: string;
+  pageCount?: number;
+  userId: string;
+}): Promise<void> {
+  const fileType = inferRfpParserFileType(params.document.documentName, params.mimeType);
+  if (!fileType) {
+    return;
+  }
+
+  try {
+    const existing = await db.query.rfpDocuments.findFirst({
+      where: eq(rfpDocuments.fileHash, params.fileHash),
+    });
+
+    if (existing) {
+      return;
+    }
+
+    const [rfpDocument] = await db.insert(rfpDocuments).values({
+      opportunityId: params.document.opportunityId,
+      filename: params.document.documentName,
+      fileType,
+      fileSize: params.fileSize,
+      storagePath: params.storagePath,
+      fileHash: params.fileHash,
+      parsingStatus: "pending",
+      parsingProgress: 0,
+      extractedText: params.extractedText,
+      pageCount: params.pageCount,
+      uploadedBy: params.userId,
+      metadata: {
+        source: "opportunity_document_download",
+        sourceOpportunityDocumentId: params.document.id,
+        sourceUrl: params.document.sourceUrl,
+      },
+    }).returning();
+
+    const [parsingJob] = await db.insert(rfpParsingJobs).values({
+      rfpDocumentId: rfpDocument.id,
+      status: "queued",
+      currentStep: "Queued from discovered RFP download",
+      progress: 0,
+      initiatedBy: params.userId,
+      parsingOptions: {
+        extractRequirements: true,
+        generateEmbeddings: true,
+        detectSections: true,
+        classifyRequirements: true,
+      },
+      metadata: {
+        sourceOpportunityDocumentId: params.document.id,
+      },
+    }).returning();
+
+    processRfpParsingJob(parsingJob.id, rfpDocument.id).catch((error) => {
+      logger.error("[RFP Document Service] Background parse failed:", error);
+    });
+  } catch (error) {
+    logger.warn("[RFP Document Service] Failed to queue downloaded document for parsing:", error);
+  }
+}
+
+function inferRfpParserFileType(
+  filename: string,
+  mimeType?: string | null
+): "pdf" | "docx" | "doc" | "html" | null {
+  const extension = extname(filename).toLowerCase();
+  if (extension === ".pdf" || mimeType === "application/pdf") return "pdf";
+  if (
+    extension === ".docx" ||
+    mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    return "docx";
+  }
+  if (extension === ".doc" || mimeType === "application/msword") return "doc";
+  if (extension === ".html" || extension === ".htm" || mimeType === "text/html") return "html";
+  return null;
 }

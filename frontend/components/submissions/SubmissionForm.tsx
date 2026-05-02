@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type {
 	PreSubmissionChecklistItem,
 	SubmissionMethod,
@@ -62,11 +62,11 @@ export function SubmissionForm({
 	const [error, setError] = useState<string | null>(null);
 
 	// Load checklist if not provided
-	useState(() => {
+	useEffect(() => {
 		if (!initialChecklist) {
 			getPreSubmissionChecklist(opportunityId).then(setChecklist);
 		}
-	});
+	}, [initialChecklist, opportunityId]);
 
 	const toggleChecklistItem = (itemId: string) => {
 		setChecklist((prev) =>

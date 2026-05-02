@@ -245,15 +245,21 @@ async function searchPrimaryPortal(context: DiscoveryContext): Promise<Discovere
       description?: string;
     }>;
 
-    return docs.map(doc => ({
-      url: resolveUrl(doc.url, context.sourceUrl!),
-      name: doc.name,
-      type: validateDocumentType(doc.type),
-      confidence: 95,
-      source: "primary_portal",
-      discoveryMethod: "firecrawl_llm_extraction",
-      description: doc.description,
-    }));
+    return docs
+      .map(doc => ({
+        ...doc,
+        url: resolveUrl(doc.url, context.sourceUrl!),
+      }))
+      .filter(doc => isDocumentUrl(doc.url))
+      .map(doc => ({
+        url: doc.url,
+        name: doc.name,
+        type: validateDocumentType(doc.type),
+        confidence: 95,
+        source: "primary_portal",
+        discoveryMethod: "firecrawl_llm_extraction",
+        description: doc.description,
+      }));
   } catch (error) {
     logger.error("[Discovery Agent] Primary portal search failed:", error);
     return [];
@@ -529,7 +535,8 @@ Based on common patterns for tender portals, construct likely direct download UR
 
 export async function discoverDocumentsWithAgent(
   opportunityId: string,
-  maxStrategies: number = 5
+  maxStrategies: number = 5,
+  sourceUrlOverride?: string | null
 ): Promise<DiscoveryResult> {
   logger.debug(`[Discovery Agent] Starting discovery for opportunity: ${opportunityId}`);
   
@@ -552,7 +559,7 @@ export async function discoverDocumentsWithAgent(
     opportunityId,
     title: opportunity.title,
     organization: opportunity.organization,
-    sourceUrl: opportunity.portalUrl || opportunity.rfpLink,
+    sourceUrl: sourceUrlOverride || opportunity.portalUrl || opportunity.rfpLink,
     noticeId: opportunity.noticeId || opportunity.sourceId,
     country: opportunity.countryRegion,
     deadline: opportunity.deadline,
@@ -743,14 +750,16 @@ function extractFromLinks(links: string[], markdown: string, baseUrl: string): D
   const seen = new Set<string>();
   
   for (const link of links) {
-    if (seen.has(link)) continue;
-    if (!isDocumentUrl(link)) continue;
+    const resolvedUrl = resolveUrl(link, baseUrl);
+    const normalized = resolvedUrl.toLowerCase().replace(/\?.*$/, "");
+    if (seen.has(normalized)) continue;
+    if (!isDocumentUrl(resolvedUrl)) continue;
     
-    seen.add(link);
+    seen.add(normalized);
     sources.push({
-      url: resolveUrl(link, baseUrl),
-      name: extractFilenameFromUrl(link),
-      type: classifyDocumentFromUrl(link),
+      url: resolvedUrl,
+      name: extractFilenameFromUrl(resolvedUrl),
+      type: classifyDocumentFromUrl(resolvedUrl),
       confidence: 75,
       source: "primary_portal",
       discoveryMethod: "link_extraction",
