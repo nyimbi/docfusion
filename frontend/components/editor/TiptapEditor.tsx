@@ -8,6 +8,8 @@ import { DocumentToolbar } from "@/components/document/DocumentToolbar";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useAIStore } from "@/lib/stores/ai-store";
 import type { DocumentContent } from "@/lib/types/document";
+import type { ShortcutExpansion, SnippetSummary } from "@/lib/types/snippets";
+import { expandShortcut } from "@/lib/actions/snippets";
 import { getYjsDocument, releaseYjsDocument } from "@/lib/collaboration/yjs-provider";
 
 /**
@@ -36,6 +38,12 @@ interface TiptapEditorProps {
 	onFileUpload?: (file: File) => Promise<string>;
 	/** Document ID for collaboration (creates Yjs document when provided) */
 	documentId?: string;
+	/** Opportunity context for resolving snippet placeholders */
+	opportunityId?: string;
+	/** Optional override for resolving snippets before insertion */
+	onSnippetExpand?: (shortcut: string) => Promise<ShortcutExpansion | null>;
+	/** Called after a snippet is inserted */
+	onSnippetExpanded?: (shortcut: string, snippet: SnippetSummary, expansion?: ShortcutExpansion) => void;
 	/** Whether to enable Yjs collaboration */
 	enableCollaboration?: boolean;
 	/** Current user info for collaboration cursors */
@@ -70,10 +78,14 @@ export const TiptapEditor = React.memo(function TiptapEditor({
 	autoFocus = false,
 	onFileUpload,
 	documentId,
+	opportunityId,
+	onSnippetExpand,
+	onSnippetExpanded,
 	enableCollaboration = false,
 	collaborationUser,
 }: TiptapEditorProps) {
 	const openAICommandPalette = useAIStore((s) => s.openCommandPalette);
+	const closeAICommandPalette = useAIStore((s) => s.closeCommandPalette);
 	const setSelection = useEditorStore((s) => s.setSelection);
 	const preferences = useEditorStore((s) => s.preferences);
 
@@ -102,6 +114,18 @@ export const TiptapEditor = React.memo(function TiptapEditor({
 			placeholder,
 			onSlashCommand: openAICommandPalette,
 			onFileUpload,
+			onSnippetExpand:
+				onSnippetExpand ??
+				(async (shortcut) =>
+					expandShortcut({
+						shortcut,
+						documentId,
+						opportunityId,
+					})),
+			onSnippetExpanded: (shortcut, snippet, expansion) => {
+				closeAICommandPalette();
+				onSnippetExpanded?.(shortcut, snippet, expansion);
+			},
 			yjsDoc,
 			user: collaborationUser,
 		}),

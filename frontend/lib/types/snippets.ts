@@ -26,6 +26,8 @@ export interface TemplateSnippet {
 	shortcut: string;
 	/** Content stored as Tiptap JSON */
 	content: DocumentContent;
+	/** Placeholder definitions for context resolution */
+	placeholders: SnippetPlaceholder[];
 	description?: string;
 	/** Tags for categorization and search */
 	tags: string[];
@@ -50,6 +52,7 @@ export interface SnippetSummary {
 	description?: string;
 	category?: string;
 	tags: string[];
+	placeholders: SnippetPlaceholder[];
 	useCount: number;
 	isPublic: boolean;
 	createdBy: string;
@@ -82,6 +85,8 @@ export interface TemplatePartial {
 export interface SnippetPlaceholder {
 	id: string;
 	name: string;
+	/** Canonical raw key, e.g. client_name. Legacy values may include moustaches at read boundaries. */
+	key?: string;
 	variableName: string;
 	description?: string;
 	type: SnippetPlaceholderType;
@@ -180,6 +185,11 @@ export interface ShortcutExpansion {
 	snippet: SnippetSummary;
 	/** Resolved content after placeholder substitution */
 	content: DocumentContent;
+	plainTextPreview?: string;
+	unresolvedPlaceholders?: SnippetUnresolvedPlaceholder[];
+	resolvedValues?: Record<string, string | number | boolean | string[]>;
+	valueSources?: Record<string, string>;
+	diagnostics?: SnippetResolutionDiagnostic[];
 }
 
 /**
@@ -189,6 +199,7 @@ export interface CreateSnippetInput {
 	name: string;
 	shortcut: string;
 	content: DocumentContent;
+	placeholders?: SnippetPlaceholder[];
 	description?: string;
 	tags?: string[];
 	category?: string;
@@ -202,6 +213,7 @@ export interface UpdateSnippetInput {
 	name?: string;
 	shortcut?: string;
 	content?: DocumentContent;
+	placeholders?: SnippetPlaceholder[];
 	description?: string;
 	tags?: string[];
 	category?: string;
@@ -261,7 +273,81 @@ export interface SnippetListResponse {
 export interface SnippetExpansionRequest {
 	shortcut: string;
 	/** Optional placeholder values to fill in */
-	placeholderValues?: Record<string, string | number | boolean | string[]>;
+	placeholderValues?: Record<string, string | number | boolean | string[] | null>;
+	documentId?: string;
+	opportunityId?: string;
+	requirementId?: string;
+	requirementText?: string;
+	sectionTitle?: string;
+	surroundingText?: string;
+	proposalTone?: string;
+	useAI?: boolean;
+}
+
+export interface NormalizedSnippetContent {
+	content: DocumentContent;
+	plainTextPreview: string;
+}
+
+export interface SnippetUnresolvedPlaceholder {
+	token: string;
+	key: string;
+	path: string;
+}
+
+export interface SnippetResolutionDiagnostic {
+	code:
+		| "ambiguousOpportunityLink"
+		| "explicitOpportunityLinkMismatch"
+		| "aiAdaptationUnavailable";
+	message: string;
+	details?: Record<string, unknown>;
+}
+
+export interface ResolveSnippetContentRequest {
+	snippetId?: string;
+	shortcut?: string;
+	content?: DocumentContent | string;
+	placeholders?: SnippetPlaceholder[];
+	placeholderValues?: Record<string, string | number | boolean | string[] | null>;
+	documentId?: string;
+	opportunityId?: string;
+	requirementId?: string;
+	requirementText?: string;
+	sectionTitle?: string;
+	surroundingText?: string;
+}
+
+export interface ResolveSnippetContentResult {
+	snippetId?: string;
+	shortcut?: string;
+	originalContent: DocumentContent;
+	resolvedContent: DocumentContent;
+	plainTextPreview: string;
+	unresolvedPlaceholders: SnippetUnresolvedPlaceholder[];
+	resolvedValues: Record<string, string | number | boolean | string[]>;
+	valueSources: Record<string, string>;
+	placeholderMetadata: SnippetPlaceholder[];
+	diagnostics: SnippetResolutionDiagnostic[];
+}
+
+export interface AdaptResolvedSnippetRequest {
+	resolved: ResolveSnippetContentResult;
+	richContext: {
+		requirementText?: string;
+		sectionTitle?: string;
+		surroundingText?: string;
+		proposalTone?: string;
+	};
+	useAI?: boolean;
+}
+
+export interface AdaptResolvedSnippetResult {
+	adaptedContent: DocumentContent;
+	plainTextPreview: string;
+	unresolvedPlaceholders: SnippetUnresolvedPlaceholder[];
+	adaptationNotes: string[];
+	diagnostics: SnippetResolutionDiagnostic[];
 }
 
 /**

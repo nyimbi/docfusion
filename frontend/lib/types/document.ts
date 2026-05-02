@@ -135,6 +135,8 @@ export interface Document {
 export interface DocumentMetadata {
 	/** RFP-specific fields */
 	rfpNumber?: string;
+	/** Opportunity context fallback when no canonical proposal-document link exists. */
+	opportunityId?: string;
 	dueDate?: string;
 	clientName?: string;
 	projectValue?: number;

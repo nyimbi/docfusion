@@ -10,7 +10,6 @@
 import { db, templateSnippets } from "@/lib/db";
 import { eq, desc, asc, ilike, and, or, sql, SQL, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { nanoid } from "nanoid"; // Assuming nanoid is available
 import type {
 	TemplateSnippet,
 	SnippetSummary,
@@ -19,9 +18,13 @@ import type {
 	CreateSnippetInput,
 	UpdateSnippetInput,
 	ShortcutExpansion,
+	SnippetExpansionRequest,
+	SnippetPlaceholder,
 } from "@/lib/types/snippets";
 import type { DocumentContent } from "@/lib/types/document";
 import { getServerSession } from "@/lib/auth-utils";
+import { normalizePlaceholderDefinitions } from "@/lib/placeholders/substitution";
+import { adaptResolvedSnippet, resolveSnippetContent } from "@/lib/snippets/resolve-snippet-content";
 
 // ============================================================================
 // Helper Functions
@@ -61,6 +64,7 @@ function mapRowToSnippet(row: typeof templateSnippets.$inferSelect): TemplateSni
 		name: row.name,
 		shortcut: row.shortcut,
 		content: row.content as DocumentContent,
+		placeholders: normalizePlaceholderDefinitions((row.placeholders ?? []) as SnippetPlaceholder[]),
 		description: row.description ?? undefined,
 		tags: (row.tags as string[]) || [],
 		category: row.category ?? undefined,
@@ -83,6 +87,7 @@ function mapRowToSummary(row: typeof templateSnippets.$inferSelect): SnippetSumm
 		shortcut: row.shortcut,
 		description: row.description ?? undefined,
 		tags: (row.tags as string[]) || [],
+		placeholders: normalizePlaceholderDefinitions((row.placeholders ?? []) as SnippetPlaceholder[]),
 		category: row.category ?? undefined,
 		useCount: row.useCount,
 		isPublic: row.isPublic,
@@ -282,10 +287,10 @@ export async function createSnippet(
 	const [row] = await db
 		.insert(templateSnippets)
 		.values({
-			id: nanoid(),
 			name: input.name,
 			shortcut: formatShortcut(input.shortcut),
 			content: input.content,
+			placeholders: normalizePlaceholderDefinitions(input.placeholders ?? []),
 			description: input.description,
 			tags: input.tags || [],
 			category: input.category,
@@ -311,6 +316,7 @@ export async function createSnippetFromSelection(
 		description?: string;
 		tags?: string[];
 		category?: string;
+		placeholders?: SnippetPlaceholder[];
 		isPublic?: boolean;
 	}
 ): Promise<TemplateSnippet> {
@@ -318,6 +324,7 @@ export async function createSnippetFromSelection(
 		name,
 		shortcut,
 		content,
+		placeholders: options?.placeholders,
 		description: options?.description,
 		tags: options?.tags,
 		category: options?.category,
@@ -385,6 +392,9 @@ export async function updateSnippet(
 	if (input.name !== undefined) updateData.name = input.name;
 	if (input.shortcut !== undefined) updateData.shortcut = formatShortcut(input.shortcut);
 	if (input.content !== undefined) updateData.content = input.content;
+	if (input.placeholders !== undefined) {
+		updateData.placeholders = normalizePlaceholderDefinitions(input.placeholders);
+	}
 	if (input.description !== undefined) updateData.description = input.description;
 	if (input.tags !== undefined) updateData.tags = input.tags;
 	if (input.category !== undefined) updateData.category = input.category;
@@ -498,12 +508,35 @@ export async function searchSnippets(
  * This is the main operation for the shortcut expansion feature.
  */
 export async function expandShortcut(
-	shortcut: string
+	shortcutOrRequest: string | SnippetExpansionRequest
 ): Promise<ShortcutExpansion | null> {
+	const request =
+		typeof shortcutOrRequest === "string"
+			? { shortcut: shortcutOrRequest }
+			: shortcutOrRequest;
+	const shortcut = request.shortcut;
 	const formattedShortcut = formatShortcut(shortcut);
 	const snippet = await getSnippetByShortcut(formattedShortcut);
 	
 	if (!snippet) return null;
+
+	const resolved = await resolveSnippetContent({
+		...request,
+		snippetId: snippet.id,
+		shortcut: snippet.shortcut,
+		content: snippet.content,
+		placeholders: snippet.placeholders,
+	});
+	const adapted = await adaptResolvedSnippet({
+		resolved,
+		richContext: {
+			requirementText: request.requirementText,
+			sectionTitle: request.sectionTitle,
+			surroundingText: request.surroundingText,
+			proposalTone: request.proposalTone,
+		},
+		useAI: request.useAI,
+	});
 
 	// Increment use count
 	await incrementSnippetUseCount(snippet.id);
@@ -515,6 +548,7 @@ export async function expandShortcut(
 			shortcut: snippet.shortcut,
 			description: snippet.description,
 			tags: snippet.tags,
+			placeholders: snippet.placeholders,
 			category: snippet.category,
 			useCount: snippet.useCount,
 			isPublic: snippet.isPublic,
@@ -522,7 +556,12 @@ export async function expandShortcut(
 			createdAt: snippet.createdAt,
 			updatedAt: snippet.updatedAt,
 		},
-		content: snippet.content,
+		content: adapted.adaptedContent,
+		plainTextPreview: adapted.plainTextPreview,
+		unresolvedPlaceholders: adapted.unresolvedPlaceholders,
+		resolvedValues: resolved.resolvedValues,
+		valueSources: resolved.valueSources,
+		diagnostics: adapted.diagnostics,
 	};
 }
 
