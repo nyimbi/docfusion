@@ -8,6 +8,7 @@ import { opportunities, opportunityPartners, submissions } from "@/lib/db/schema
 import { documentApprovals } from "@/lib/db/schema-comments-workflow";
 import { gateReviews } from "@/lib/db/schema-pipeline";
 import { complianceEntries, rfpDocuments, rfpParsingJobs, rfpRequirements } from "@/lib/db/schema-rfp";
+import { scraperRuns } from "@/lib/db/schema-scraper";
 import { proposalReviews, reviewComments } from "@/lib/db/schema-reviews";
 import { proposalTasks } from "@/lib/db/schema-tasks";
 import {
@@ -27,6 +28,43 @@ import {
 import { and, desc, eq } from "drizzle-orm";
 
 type DomainWorkflowAction = "start" | "transition" | "reopen" | "cancel" | "resolve";
+type CompensationAction = "reopen" | "cancel" | "resolve";
+
+const WORKFLOW_MANAGED_SUBJECT_STATE_MODELS = {
+	ai_governance_event: {
+		handler: "workflow_managed_ai_governance_event",
+		storage: "workflow_instances.metadata.domainState",
+		states: ["detected", "triage", "eval_required", "human_review", "approved", "rejected", "rolled_back"],
+		terminalStates: ["approved", "rejected", "rolled_back"],
+		actionStates: {
+			reopen: "triage",
+			cancel: "rejected",
+			resolve: "approved",
+		},
+	},
+	audit_report_package: {
+		handler: "workflow_managed_audit_report_package",
+		storage: "workflow_instances.metadata.domainState",
+		states: ["draft", "snapshot_ready", "review", "approved", "published", "rejected", "retained"],
+		terminalStates: ["published", "rejected", "retained"],
+		actionStates: {
+			reopen: "review",
+			cancel: "rejected",
+			resolve: "published",
+		},
+	},
+	offline_action_batch: {
+		handler: "workflow_managed_offline_action_batch",
+		storage: "workflow_instances.metadata.domainState",
+		states: ["cached", "syncing", "conflict_review", "merged", "rejected", "superseded"],
+		terminalStates: ["merged", "rejected", "superseded"],
+		actionStates: {
+			reopen: "cached",
+			cancel: "rejected",
+			resolve: "merged",
+		},
+	},
+} as const;
 
 export interface StartDomainWorkflowInput {
 	templateKey: string;
@@ -230,7 +268,7 @@ async function applyDomainStateProjection(input: {
 
 async function applyDomainCompensation(input: {
 	instance: WorkflowInstanceRow;
-	action: "reopen" | "cancel" | "resolve";
+	action: CompensationAction;
 	actorId: string;
 	reason: string;
 }) {
@@ -532,6 +570,33 @@ async function applyDomainCompensation(input: {
 			await db.update(submissions).set(patch).where(eq(submissions.id, input.instance.subjectId));
 			break;
 		}
+		case "scraper_run": {
+			handler = "scraper_run";
+			patch = input.action === "reopen"
+				? {
+					status: "pending",
+					progress: 0,
+					errorMessage: null,
+					errorType: null,
+					completedAt: null,
+				}
+				: input.action === "cancel"
+					? {
+						status: "cancelled",
+						errorMessage: `Cancelled by workflow compensation: ${input.reason}`,
+						errorType: "workflow_cancelled",
+						completedAt: now,
+					}
+					: {
+						status: "success",
+						progress: 100,
+						errorMessage: null,
+						errorType: null,
+						completedAt: now,
+					};
+			await db.update(scraperRuns).set(patch).where(eq(scraperRuns.id, input.instance.subjectId));
+			break;
+		}
 		case "evidence_claim": {
 			handler = "claim_analysis";
 			patch = input.action === "reopen"
@@ -592,8 +657,34 @@ async function applyDomainCompensation(input: {
 			await db.update(opportunityPartners).set(patch).where(eq(opportunityPartners.id, input.instance.subjectId));
 			break;
 		}
-		default:
+		default: {
+			const workflowManagedState = getWorkflowManagedSubjectState({
+				instance: input.instance,
+				action: input.action,
+				actorId: input.actorId,
+				reason: input.reason,
+				now,
+			});
+			if (workflowManagedState) {
+				handler = workflowManagedState.handler;
+				patch = {
+					domainStateModel: workflowManagedState.domainStateModel,
+					domainState: workflowManagedState.domainState,
+				};
+				await db
+					.update(workflowInstances)
+					.set({
+						metadata: {
+							...(isRecord(input.instance.metadata) ? input.instance.metadata : {}),
+							domainStateModel: workflowManagedState.domainStateModel,
+							domainState: workflowManagedState.domainState,
+						},
+						updatedAt: now,
+					})
+					.where(eq(workflowInstances.id, input.instance.id));
+			}
 			break;
+		}
 	}
 
 	await db.insert(workflowAuditEvents).values({
@@ -650,6 +741,46 @@ function rfpDocumentPatch(action: "reopen" | "cancel" | "resolve", reason: strin
 		parsingError: null,
 		parsingCompletedAt: now,
 		updatedAt: now,
+	};
+}
+
+function getWorkflowManagedSubjectState(input: {
+	instance: WorkflowInstanceRow;
+	action: CompensationAction;
+	actorId: string;
+	reason: string;
+	now: Date;
+}) {
+	const model = WORKFLOW_MANAGED_SUBJECT_STATE_MODELS[
+		input.instance.subjectType as keyof typeof WORKFLOW_MANAGED_SUBJECT_STATE_MODELS
+	];
+	if (!model) return null;
+
+	const states: readonly string[] = model.states;
+	const status = states.includes(input.instance.state)
+		? input.instance.state
+		: model.actionStates[input.action];
+	const updatedAt = input.now.toISOString();
+
+	return {
+		handler: model.handler,
+		domainStateModel: {
+			subjectType: input.instance.subjectType,
+			storage: model.storage,
+			states: model.states,
+			terminalStates: model.terminalStates,
+			reasonField: "domainState.reason",
+			actorField: "domainState.actorId",
+			updatedAtField: "domainState.updatedAt",
+			version: 1,
+		},
+		domainState: {
+			status,
+			action: input.action,
+			reason: input.reason,
+			actorId: input.actorId,
+			updatedAt,
+		},
 	};
 }
 

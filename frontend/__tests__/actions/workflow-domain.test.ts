@@ -333,6 +333,73 @@ describe("workflow domain integrations", () => {
 				isReviewed: true,
 			},
 		},
+		{
+			subjectType: "scraper_run",
+			action: "cancel",
+			reason: "Source disabled after repeated failures",
+			expectedPatch: {
+				status: "cancelled",
+				errorMessage: "Cancelled by workflow compensation: Source disabled after repeated failures",
+				errorType: "workflow_cancelled",
+			},
+		},
+		{
+			subjectType: "ai_governance_event",
+			action: "resolve",
+			reason: "Evaluation accepted",
+			expectedPatch: {
+				metadata: {
+					domainStateModel: {
+						subjectType: "ai_governance_event",
+						storage: "workflow_instances.metadata.domainState",
+					},
+					domainState: {
+						status: "approved",
+						action: "resolve",
+						reason: "Evaluation accepted",
+						actorId: "owner-1",
+					},
+				},
+			},
+		},
+		{
+			subjectType: "audit_report_package",
+			action: "resolve",
+			reason: "Audit package published",
+			expectedPatch: {
+				metadata: {
+					domainStateModel: {
+						subjectType: "audit_report_package",
+						storage: "workflow_instances.metadata.domainState",
+					},
+					domainState: {
+						status: "published",
+						action: "resolve",
+						reason: "Audit package published",
+						actorId: "owner-1",
+					},
+				},
+			},
+		},
+		{
+			subjectType: "offline_action_batch",
+			action: "cancel",
+			reason: "Offline edits superseded",
+			expectedPatch: {
+				metadata: {
+					domainStateModel: {
+						subjectType: "offline_action_batch",
+						storage: "workflow_instances.metadata.domainState",
+					},
+					domainState: {
+						status: "rejected",
+						action: "cancel",
+						reason: "Offline edits superseded",
+						actorId: "owner-1",
+					},
+				},
+			},
+		},
 	])("projects $subjectType workflow compensation into durable domain state", async ({ subjectType, action, reason, expectedPatch }) => {
 		const existing = {
 			id: "workflow-1",
