@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { GitBranch, PlayCircle, ShieldCheck, Workflow } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
-import { listWorkflowTemplates, simulateWorkflowTemplate } from "@/lib/actions/workflow-runtime";
+import { listWorkflowTemplates } from "@/lib/actions/workflow-runtime";
+import { simulateWorkflowTemplate } from "@/lib/workflows/simulation";
 
 export const metadata: Metadata = {
 	title: "Workflow Templates | DocFusion",

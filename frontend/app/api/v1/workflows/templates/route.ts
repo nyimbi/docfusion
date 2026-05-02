@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
 	createWorkflowTemplateDraft,
 	listWorkflowTemplates,
-	simulateWorkflowTemplate,
 	type WorkflowTemplateInput,
 } from "@/lib/actions/workflow-runtime";
 import { isWorkflowApiResponse, requireWorkflowApiActor } from "@/lib/workflows/api-auth";
+import { simulateWorkflowTemplate } from "@/lib/workflows/simulation";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
 	try {
