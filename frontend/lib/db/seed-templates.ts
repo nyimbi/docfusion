@@ -6,12 +6,17 @@
  */
 
 import { db } from "@/lib/db";
-import { templates, templateCategories } from "@/lib/db/schema";
+import { templates, templateCategories, templateSnippets, snippetAnalytics } from "@/lib/db/schema";
 import { sql, eq } from "drizzle-orm";
 import { EXTENDED_TEMPLATES } from "./seed-templates-extended";
 import { logger } from "@/lib/utils/logger";
 import { ALL_PROFESSIONAL_TEMPLATES } from "./seed-templates-professional";
 import { randomUUID } from "crypto";
+import {
+	DATACRAFT_RESPONSE_SNIPPETS,
+	DATACRAFT_RESPONSE_TEMPLATE_INPUTS,
+	getDatacraftSnippetWordCount,
+} from "@/lib/data/datacraft-response-content";
 
 // ============================================================================
 // Template Categories
@@ -2592,10 +2597,120 @@ export async function seedTemplates() {
 		count++;
 	}
 
+	for (const template of DATACRAFT_RESPONSE_TEMPLATE_INPUTS) {
+		await db
+			.insert(templates)
+			.values({
+				name: template.name,
+				description: template.description,
+				content: template.content,
+				status: "published",
+				visibility: template.visibility ?? "organization",
+				createdBy: "system",
+				categoryIds: getCategoryUUIDs(template.categoryIds ?? []),
+				tags: template.tags ?? [],
+				placeholders: template.placeholders ?? [],
+				aiInstructions: template.aiInstructions ?? [],
+				complianceRequirements: template.complianceRequirements ?? [],
+				useCount: 0,
+				rating: null,
+				ratingCount: 0,
+				estimatedTime: template.estimatedTime,
+				difficulty: template.difficulty,
+				defaultMetadata: {
+					...(template.defaultMetadata ?? {}),
+					source: "datacraft_response_content",
+				},
+			})
+			.onConflictDoNothing();
+
+		count++;
+	}
+
+	let snippetCount = 0;
+	for (const snippet of DATACRAFT_RESPONSE_SNIPPETS) {
+		const [existing] = await db
+			.select({ id: templateSnippets.id })
+			.from(templateSnippets)
+			.where(eq(templateSnippets.shortcut, snippet.shortcut))
+			.limit(1);
+
+		const snippetValues = {
+			name: snippet.name,
+			shortcut: snippet.shortcut,
+			content: snippet.content,
+			description: snippet.description,
+			tags: snippet.tags,
+			category: snippet.category,
+			createdBy: "system",
+			organizationId: null,
+			isPublic: true,
+			updatedAt: new Date(),
+		};
+
+		const snippetId = existing
+			? existing.id
+			: (
+					await db
+						.insert(templateSnippets)
+						.values(snippetValues)
+						.returning({ id: templateSnippets.id })
+			  )[0].id;
+
+		if (existing) {
+			await db
+				.update(templateSnippets)
+				.set(snippetValues)
+				.where(eq(templateSnippets.id, snippetId));
+		}
+
+		await db
+			.insert(snippetAnalytics)
+			.values({
+				snippetId,
+				aiTags: snippet.tags,
+				keyTerms: snippet.keyTerms,
+				contentType: snippet.contentType,
+				topicCategory: snippet.topicCategory,
+				sectors: snippet.sectors,
+				technologies: snippet.technologies,
+				complianceFrameworks: snippet.complianceFrameworks,
+				topicScores: {},
+				freshnessStatus: "current",
+				lastReviewedAt: new Date(),
+				qualityScore: 95,
+				wordCount: getDatacraftSnippetWordCount(snippet),
+				winCount: 0,
+				lossCount: 0,
+				winRate: null,
+				updatedAt: new Date(),
+			})
+			.onConflictDoUpdate({
+				target: snippetAnalytics.snippetId,
+				set: {
+					aiTags: snippet.tags,
+					keyTerms: snippet.keyTerms,
+					contentType: snippet.contentType,
+					topicCategory: snippet.topicCategory,
+					sectors: snippet.sectors,
+					technologies: snippet.technologies,
+					complianceFrameworks: snippet.complianceFrameworks,
+					freshnessStatus: "current",
+					lastReviewedAt: new Date(),
+					qualityScore: 95,
+					wordCount: getDatacraftSnippetWordCount(snippet),
+					updatedAt: new Date(),
+				},
+			});
+
+		snippetCount++;
+	}
+
 	logger.debug(`Seeded ${count} templates`);
+	logger.debug(`Seeded ${snippetCount} Datacraft response snippets`);
 	logger.debug("Template seed complete!");
 
-	return { categories: CATEGORIES.length, templates: count };
+	return { categories: CATEGORIES.length, templates: count, snippets: snippetCount };
 }
 
 // Export for use in seed script

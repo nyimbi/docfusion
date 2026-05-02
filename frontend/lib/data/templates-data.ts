@@ -7,6 +7,7 @@
  */
 
 import type { Template, CreateTemplateInput } from "@/lib/types/template";
+import { DATACRAFT_RESPONSE_TEMPLATE_INPUTS } from "@/lib/data/datacraft-response-content";
 
 // Helper function to create rich document content
 function createContent(nodes: Array<{ type: string; attrs?: Record<string, unknown>; content?: unknown[] }>): Record<string, unknown> {
@@ -3795,6 +3796,9 @@ const internalMemoTemplate: CreateTemplateInput = {
  * These can be used to create Template objects in your system.
  */
 export const PREMIUM_TEMPLATE_INPUTS: CreateTemplateInput[] = [
+	// Datacraft response templates populated with real company/platform content
+	...DATACRAFT_RESPONSE_TEMPLATE_INPUTS,
+
 	// Government RFPs (8)
 	federalRfpTemplate,
 	stateRfpTemplate,

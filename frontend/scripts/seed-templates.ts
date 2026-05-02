@@ -22,6 +22,9 @@ async function main() {
 		console.log("Seeding Complete!");
 		console.log(`  Categories: ${result.categories}`);
 		console.log(`  Templates:  ${result.templates}`);
+		if ("snippets" in result) {
+			console.log(`  Snippets:   ${result.snippets}`);
+		}
 		console.log("=".repeat(60));
 
 		process.exit(0);
