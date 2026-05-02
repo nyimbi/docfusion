@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getWorkflowDashboard, type WorkflowRuntimeStatus } from "@/lib/actions/workflow-runtime";
+import { isWorkflowApiResponse, requireWorkflowApiActor } from "@/lib/workflows/api-auth";
 
 const VALID_STATUSES = new Set<WorkflowRuntimeStatus>([
 	"active",
@@ -12,6 +13,9 @@ const VALID_STATUSES = new Set<WorkflowRuntimeStatus>([
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
 	try {
+		const actor = await requireWorkflowApiActor(request, { permission: "read" });
+		if (isWorkflowApiResponse(actor)) return actor;
+
 		const searchParams = request.nextUrl.searchParams;
 		const statuses = splitParam(searchParams.get("statuses"))
 			.filter((status): status is WorkflowRuntimeStatus => VALID_STATUSES.has(status as WorkflowRuntimeStatus));

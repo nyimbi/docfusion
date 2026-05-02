@@ -1,12 +1,17 @@
 "use server";
 
+import net from "node:net";
+import tls from "node:tls";
 import { db } from "@/lib/db";
+import { user } from "@/lib/db/auth-schema";
 import {
 	workflowAuditEvents,
 	workflowInstances,
 	workflowNotifications,
 	workflowRuntimeTasks,
+	workflowTemplates,
 	type WorkflowInstanceRow,
+	type WorkflowTemplateRow,
 } from "@/lib/db/schema-workflow-runtime";
 import { and, asc, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 
@@ -92,6 +97,32 @@ export interface WorkflowDashboardSummary {
 	bySubjectType: Record<string, number>;
 	dueSoon: WorkflowInstanceRow[];
 	items: WorkflowInstanceRow[];
+}
+
+export interface WorkflowTemplateInput {
+	templateKey: string;
+	name: string;
+	description?: string;
+	subjectType: string;
+	states: string[];
+	transitions: Array<{
+		action: string;
+		from: string[];
+		to: string;
+		requiredRoles?: string[];
+		requiresReason?: boolean;
+	}>;
+	slaPolicy?: WorkflowTemplateRow["slaPolicy"];
+	notificationPolicy?: WorkflowTemplateRow["notificationPolicy"];
+	portalPolicy?: WorkflowTemplateRow["portalPolicy"];
+	metadata?: Record<string, unknown>;
+}
+
+export interface WorkflowSimulationResult {
+	valid: boolean;
+	errors: string[];
+	reachableStates: string[];
+	terminalStates: string[];
 }
 
 const TERMINAL_STATES = new Set([
@@ -393,6 +424,305 @@ export async function assertWorkflowAuthority(input: {
 	}
 }
 
+export async function reverseWorkflowRuntimeState(input: {
+	workflowInstanceId: string;
+	action: "reopen" | "cancel" | "resolve";
+	actorId: string;
+	actorName?: string;
+	reason: string;
+	targetState?: string;
+	evidenceLinks?: string[];
+	metadata?: Record<string, unknown>;
+}): Promise<WorkflowInstanceRow> {
+	const reason = input.reason.trim();
+	if (!reason) {
+		throw new Error("Workflow reversal requires a reason");
+	}
+
+	const [instance] = await db
+		.select()
+		.from(workflowInstances)
+		.where(eq(workflowInstances.id, input.workflowInstanceId))
+		.limit(1);
+	if (!instance) {
+		throw new Error("Workflow instance not found");
+	}
+
+	const now = new Date();
+	const toState = input.targetState
+		?? (input.action === "reopen" ? "active" : input.action === "cancel" ? "cancelled" : "resolved");
+	const status: WorkflowRuntimeStatus = input.action === "reopen"
+		? "active"
+		: input.action === "cancel"
+			? "cancelled"
+			: "completed";
+	const metadata = {
+		...(isRecord(instance.metadata) ? instance.metadata : {}),
+		...(input.metadata ?? {}),
+		reversal: {
+			action: input.action,
+			reason,
+			actorId: input.actorId,
+			at: now.toISOString(),
+			previousState: instance.state,
+			previousStatus: instance.status,
+		},
+	};
+
+	const [updated] = await db
+		.update(workflowInstances)
+		.set({
+			state: toState,
+			status,
+			metadata,
+			completedAt: status === "completed" || status === "cancelled" ? now : null,
+			updatedAt: now,
+		})
+		.where(eq(workflowInstances.id, input.workflowInstanceId))
+		.returning();
+	if (!updated) {
+		throw new Error("Failed to reverse workflow state");
+	}
+
+	await db.insert(workflowAuditEvents).values({
+		workflowInstanceId: updated.id,
+		subjectType: updated.subjectType,
+		subjectId: updated.subjectId,
+		eventType: `workflow_${input.action}`,
+		fromState: instance.state,
+		toState,
+		actorId: input.actorId,
+		actorName: input.actorName ?? input.actorId,
+		reason,
+		evidenceLinks: input.evidenceLinks ?? [],
+		metadata,
+	});
+
+	if (input.action === "cancel") {
+		await db
+			.update(workflowRuntimeTasks)
+			.set({ state: "cancelled", updatedAt: now })
+			.where(eq(workflowRuntimeTasks.workflowInstanceId, updated.id));
+	}
+
+	return updated;
+}
+
+export async function createWorkflowTemplateDraft(
+	input: WorkflowTemplateInput,
+	actorId: string
+): Promise<WorkflowTemplateRow> {
+	const simulation = simulateWorkflowTemplate(input);
+	if (!simulation.valid) {
+		throw new Error(`Workflow template is invalid: ${simulation.errors.join("; ")}`);
+	}
+
+	const [latest] = await db
+		.select()
+		.from(workflowTemplates)
+		.where(eq(workflowTemplates.templateKey, input.templateKey))
+		.orderBy(desc(workflowTemplates.version))
+		.limit(1);
+	const version = (latest?.version ?? 0) + 1;
+	const [created] = await db
+		.insert(workflowTemplates)
+		.values({
+			templateKey: input.templateKey,
+			name: input.name,
+			description: input.description ?? null,
+			subjectType: input.subjectType,
+			version,
+			status: "draft",
+			states: input.states,
+			transitions: input.transitions,
+			slaPolicy: input.slaPolicy ?? {},
+			notificationPolicy: input.notificationPolicy ?? {},
+			portalPolicy: input.portalPolicy ?? {},
+			metadata: {
+				...(input.metadata ?? {}),
+				simulation,
+			},
+			createdBy: actorId,
+		})
+		.returning();
+	if (!created) {
+		throw new Error("Failed to create workflow template");
+	}
+	return created;
+}
+
+export async function publishWorkflowTemplate(
+	templateId: string,
+	actorId: string
+): Promise<WorkflowTemplateRow> {
+	const [template] = await db
+		.select()
+		.from(workflowTemplates)
+		.where(eq(workflowTemplates.id, templateId))
+		.limit(1);
+	if (!template) {
+		throw new Error("Workflow template not found");
+	}
+	const simulation = simulateWorkflowTemplate(template);
+	if (!simulation.valid) {
+		throw new Error(`Workflow template is invalid: ${simulation.errors.join("; ")}`);
+	}
+
+	await db
+		.update(workflowTemplates)
+		.set({
+			status: "deprecated",
+			deprecatedAt: new Date(),
+			deprecatedBy: actorId,
+			updatedAt: new Date(),
+		})
+		.where(and(
+			eq(workflowTemplates.templateKey, template.templateKey),
+			eq(workflowTemplates.status, "active")
+		));
+
+	const [updated] = await db
+		.update(workflowTemplates)
+		.set({
+			status: "active",
+			publishedAt: new Date(),
+			publishedBy: actorId,
+			metadata: {
+				...(isRecord(template.metadata) ? template.metadata : {}),
+				simulation,
+			},
+			updatedAt: new Date(),
+		})
+		.where(eq(workflowTemplates.id, templateId))
+		.returning();
+	if (!updated) {
+		throw new Error("Failed to publish workflow template");
+	}
+	return updated;
+}
+
+export async function listWorkflowTemplates(filters: {
+	status?: string;
+	subjectType?: string;
+	limit?: number;
+} = {}): Promise<WorkflowTemplateRow[]> {
+	const conditions = [];
+	if (filters.status) conditions.push(eq(workflowTemplates.status, filters.status));
+	if (filters.subjectType) conditions.push(eq(workflowTemplates.subjectType, filters.subjectType));
+	return db
+		.select()
+		.from(workflowTemplates)
+		.where(conditions.length ? and(...conditions) : sql`true`)
+		.orderBy(desc(workflowTemplates.updatedAt))
+		.limit(filters.limit ?? 100);
+}
+
+export function simulateWorkflowTemplate(input: Pick<WorkflowTemplateInput, "states" | "transitions">): WorkflowSimulationResult {
+	const errors: string[] = [];
+	const states = new Set(input.states);
+	if (states.size === 0) {
+		errors.push("At least one state is required");
+	}
+
+	for (const transition of input.transitions) {
+		if (!transition.action.trim()) {
+			errors.push("Transition action is required");
+		}
+		for (const from of transition.from) {
+			if (!states.has(from)) errors.push(`Transition ${transition.action} references unknown from-state ${from}`);
+		}
+		if (!states.has(transition.to)) {
+			errors.push(`Transition ${transition.action} references unknown to-state ${transition.to}`);
+		}
+	}
+
+	const reachable = new Set<string>();
+	const initial = input.states[0];
+	if (initial) reachable.add(initial);
+	let changed = true;
+	while (changed) {
+		changed = false;
+		for (const transition of input.transitions) {
+			if (transition.from.some((state) => reachable.has(state)) && !reachable.has(transition.to)) {
+				reachable.add(transition.to);
+				changed = true;
+			}
+		}
+	}
+
+	for (const state of states) {
+		if (!reachable.has(state)) errors.push(`State ${state} is unreachable`);
+	}
+
+	const fromStates = new Set(input.transitions.flatMap((transition) => transition.from));
+	const terminalStates = [...states].filter((state) => !fromStates.has(state));
+	if (terminalStates.length === 0 && states.size > 0) {
+		errors.push("At least one terminal state is required");
+	}
+
+	return {
+		valid: errors.length === 0,
+		errors,
+		reachableStates: [...reachable],
+		terminalStates,
+	};
+}
+
+export async function deliverWorkflowNotifications(options: {
+	limit?: number;
+	now?: Date;
+} = {}): Promise<{ attempted: number; delivered: number; failed: number; skipped: number }> {
+	const rows = await db
+		.select({
+			notification: workflowNotifications,
+			instance: workflowInstances,
+			recipient: user,
+		})
+		.from(workflowNotifications)
+		.innerJoin(workflowInstances, eq(workflowNotifications.workflowInstanceId, workflowInstances.id))
+		.innerJoin(user, eq(workflowNotifications.recipientId, user.id))
+		.where(eq(workflowNotifications.deliveryStatus, "queued"))
+		.orderBy(asc(workflowNotifications.createdAt))
+		.limit(options.limit ?? 50);
+
+	let delivered = 0;
+	let failed = 0;
+	let skipped = 0;
+	for (const row of rows) {
+		if (row.notification.channel !== "email") {
+			skipped += 1;
+			continue;
+		}
+		if (!row.recipient.email) {
+			failed += 1;
+			await markNotificationFailed(row.notification.id, "Recipient email is missing");
+			continue;
+		}
+
+		try {
+			await sendStalwartEmail({
+				to: row.recipient.email,
+				toName: row.recipient.name ?? row.recipient.email,
+				subject: workflowEmailSubject(row.instance),
+				text: workflowEmailBody(row.instance, row.notification.actionUrl),
+			});
+			delivered += 1;
+			await db
+				.update(workflowNotifications)
+				.set({
+					deliveryStatus: "delivered",
+					deliveredAt: options.now ?? new Date(),
+				})
+				.where(eq(workflowNotifications.id, row.notification.id));
+		} catch (error) {
+			failed += 1;
+			await markNotificationFailed(row.notification.id, error instanceof Error ? error.message : "Delivery failed");
+		}
+	}
+
+	return { attempted: rows.length, delivered, failed, skipped };
+}
+
 async function findWorkflowInstance(
 	input: Pick<WorkflowRuntimeTransitionInput, "workflowKey" | "subjectType" | "subjectId">,
 	client: WorkflowClient
@@ -423,10 +753,166 @@ async function enqueueWorkflowNotifications(
 	await client.insert(workflowNotifications).values(input.recipients.map((recipientId) => ({
 		workflowInstanceId: input.instanceId,
 		recipientId,
+		channel: "email",
 		eventType: input.eventType,
 		actionUrl: input.actionUrl ?? null,
 		metadata: input.metadata,
 	})));
+}
+
+async function markNotificationFailed(notificationId: string, error: string) {
+	await db
+		.update(workflowNotifications)
+		.set({
+			deliveryStatus: "failed",
+			metadata: { error },
+		})
+		.where(eq(workflowNotifications.id, notificationId));
+}
+
+async function sendStalwartEmail(input: {
+	to: string;
+	toName?: string;
+	subject: string;
+	text: string;
+}) {
+	const config = getStalwartSmtpConfig();
+	const message = [
+		`From: ${formatAddress(config.fromName, config.from)}`,
+		`To: ${formatAddress(input.toName, input.to)}`,
+		`Subject: ${sanitizeHeader(input.subject)}`,
+		"MIME-Version: 1.0",
+		"Content-Type: text/plain; charset=utf-8",
+		"",
+		input.text,
+	].join("\r\n");
+	await smtpSend({
+		host: config.host,
+		port: config.port,
+		secure: config.secure,
+		username: config.username,
+		password: config.password,
+		from: config.from,
+		to: input.to,
+		message,
+	});
+}
+
+function getStalwartSmtpConfig() {
+	const host = process.env.STALWART_SMTP_HOST ?? process.env.SMTP_HOST ?? "mail.lindela.io";
+	const port = Number(process.env.STALWART_SMTP_PORT ?? process.env.SMTP_PORT ?? 587);
+	const username = process.env.STALWART_SMTP_USER ?? process.env.SMTP_USER;
+	const password = process.env.STALWART_SMTP_PASSWORD ?? process.env.SMTP_PASSWORD;
+	const from = process.env.WORKFLOW_EMAIL_FROM ?? process.env.SMTP_FROM ?? "alerts@lindela.io";
+	if (!username || !password) {
+		throw new Error("Stalwart SMTP credentials are not configured");
+	}
+	return {
+		host,
+		port,
+		username,
+		password,
+		from,
+		fromName: process.env.WORKFLOW_EMAIL_FROM_NAME ?? "DocFusion Workflows",
+		secure: String(process.env.STALWART_SMTP_SECURE ?? process.env.SMTP_SECURE ?? "false") === "true" || port === 465,
+	};
+}
+
+async function smtpSend(input: {
+	host: string;
+	port: number;
+	secure: boolean;
+	username: string;
+	password: string;
+	from: string;
+	to: string;
+	message: string;
+}) {
+	let socket: net.Socket | tls.TLSSocket = input.secure
+		? tls.connect({ host: input.host, port: input.port, servername: input.host })
+		: net.connect({ host: input.host, port: input.port });
+	let buffer = "";
+	const read = () => new Promise<string>((resolve, reject) => {
+		const onData = (chunk: Buffer) => {
+			buffer += chunk.toString("utf8");
+			const lines = buffer.split(/\r?\n/);
+			const last = lines[lines.length - 2] ?? "";
+			if (/^\d{3}\s/.test(last)) {
+				socket.off("data", onData);
+				socket.off("error", reject);
+				const response = buffer;
+				buffer = "";
+				resolve(response);
+			}
+		};
+		socket.on("data", onData);
+		socket.once("error", reject);
+	});
+	const write = async (command: string, expected: number[]) => {
+		socket.write(`${command}\r\n`);
+		const response = await read();
+		const code = Number(response.slice(0, 3));
+		if (!expected.includes(code)) {
+			throw new Error(`SMTP command failed (${command.split(" ")[0]}): ${response.trim()}`);
+		}
+	};
+
+	await read();
+	await write(`EHLO ${input.host}`, [250]);
+	if (!input.secure) {
+		await write("STARTTLS", [220]);
+		const secureSocket = tls.connect({ socket, servername: input.host });
+		await waitForSecureConnect(secureSocket);
+		socket = secureSocket;
+		buffer = "";
+		await write(`EHLO ${input.host}`, [250]);
+	}
+	await write("AUTH LOGIN", [334]);
+	await write(Buffer.from(input.username).toString("base64"), [334]);
+	await write(Buffer.from(input.password).toString("base64"), [235]);
+	await write(`MAIL FROM:<${input.from}>`, [250]);
+	await write(`RCPT TO:<${input.to}>`, [250, 251]);
+	await write("DATA", [354]);
+	socket.write(`${input.message}\r\n.\r\n`);
+	const dataResponse = await read();
+	const dataCode = Number(dataResponse.slice(0, 3));
+	if (dataCode !== 250) {
+		throw new Error(`SMTP DATA failed: ${dataResponse.trim()}`);
+	}
+	socket.write("QUIT\r\n");
+	socket.end();
+}
+
+function waitForSecureConnect(socket: tls.TLSSocket): Promise<void> {
+	return new Promise((resolve, reject) => {
+		socket.once("secureConnect", resolve);
+		socket.once("error", reject);
+	});
+}
+
+function workflowEmailSubject(instance: WorkflowInstanceRow): string {
+	return `Workflow ${instance.status}: ${instance.subjectType} ${instance.subjectId}`;
+}
+
+function workflowEmailBody(instance: WorkflowInstanceRow, actionUrl: string | null): string {
+	const lines = [
+		`Workflow: ${instance.workflowKey}`,
+		`Subject: ${instance.subjectType} ${instance.subjectId}`,
+		`State: ${instance.state}`,
+		`Status: ${instance.status}`,
+		`Priority: ${instance.priority}`,
+	];
+	if (instance.dueAt) lines.push(`Due: ${instance.dueAt.toISOString()}`);
+	if (actionUrl) lines.push(`Action: ${actionUrl}`);
+	return lines.join("\n");
+}
+
+function formatAddress(name: string | undefined, email: string): string {
+	return name ? `"${sanitizeHeader(name)}" <${email}>` : email;
+}
+
+function sanitizeHeader(value: string): string {
+	return value.replace(/[\r\n]/g, " ").trim();
 }
 
 function deriveRuntimeStatus(input: {

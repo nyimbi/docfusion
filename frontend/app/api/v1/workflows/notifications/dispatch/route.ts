@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-	syncOperationalExceptionWorkflows,
-	type OperationalExceptionSubjectType,
-} from "@/lib/actions/operational-exceptions";
+import { deliverWorkflowNotifications } from "@/lib/actions/workflow-runtime";
 import { isWorkflowApiResponse, requireWorkflowApiActor } from "@/lib/workflows/api-auth";
-
-const VALID_SUBJECT_TYPES = new Set<OperationalExceptionSubjectType>(["rfp_parse", "scraper_run"]);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
 	try {
@@ -16,19 +11,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		if (isWorkflowApiResponse(actor)) return actor;
 
 		const body = await request.json().catch(() => ({}));
-		const subjectTypes = Array.isArray(body.subjectTypes)
-			? body.subjectTypes.filter((item: unknown): item is OperationalExceptionSubjectType =>
-				typeof item === "string" && VALID_SUBJECT_TYPES.has(item as OperationalExceptionSubjectType)
-			)
-			: undefined;
-		const result = await syncOperationalExceptionWorkflows({
+		const result = await deliverWorkflowNotifications({
 			limit: typeof body.limit === "number" ? body.limit : undefined,
-			subjectTypes,
 		});
-
 		return NextResponse.json({ ...result, actorId: actor.userId });
 	} catch (error) {
-		const message = error instanceof Error ? error.message : "Failed to sync operational exceptions";
+		const message = error instanceof Error ? error.message : "Failed to dispatch workflow notifications";
 		return NextResponse.json({ error: message }, { status: 500 });
 	}
 }

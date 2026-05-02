@@ -8,7 +8,7 @@ interface ChainConfig {
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit", "orderBy"]) {
+	for (const method of ["from", "where", "limit", "orderBy", "innerJoin"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	chain.set = vi.fn((value: Record<string, unknown>) => {
@@ -46,9 +46,15 @@ import {
 	evaluateWorkflowSla,
 	getWorkflowDashboard,
 	listPortalWorkflowItems,
+	createWorkflowTemplateDraft,
+	deliverWorkflowNotifications,
+	publishWorkflowTemplate,
 	recordWorkflowRuntimeTransition,
+	reverseWorkflowRuntimeState,
+	simulateWorkflowTemplate,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
+import { WORKFLOW_TEMPLATE_CATALOG } from "@/lib/workflows/default-templates";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -245,5 +251,176 @@ describe("workflow runtime", () => {
 			policy: { allowedActorIds: ["exec-1"], requiredRoles: ["executive"] },
 			action: "approve",
 		})).resolves.toBeUndefined();
+	});
+
+	it("records workflow reversals and cancels open runtime tasks", async () => {
+		const existing = {
+			id: "workflow-1",
+			subjectType: "compliance_entry",
+			subjectId: "entry-1",
+			state: "escalated",
+			status: "escalated",
+			metadata: { source: "sla" },
+		};
+		const updated = { ...existing, state: "cancelled", status: "cancelled" };
+		let instancePatch: Record<string, unknown> | undefined;
+		let auditInsert: Record<string, unknown> | undefined;
+		let taskPatch: Record<string, unknown> | undefined;
+
+		dbMock.select.mockReturnValueOnce(createChain({ result: [existing] }));
+		dbMock.update
+			.mockReturnValueOnce(createChain({
+				result: [updated],
+				onSet: (value) => {
+					instancePatch = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				onSet: (value) => {
+					taskPatch = value;
+				},
+			}));
+		dbMock.insert.mockReturnValueOnce(createChain({
+			onValues: (value) => {
+				auditInsert = value as Record<string, unknown>;
+			},
+		}));
+
+		const result = await reverseWorkflowRuntimeState({
+			workflowInstanceId: "workflow-1",
+			action: "cancel",
+			actorId: "ops-1",
+			reason: "Duplicate exception",
+		});
+
+		expect(result).toEqual(updated);
+		expect(instancePatch).toMatchObject({
+			state: "cancelled",
+			status: "cancelled",
+		});
+		expect(auditInsert).toMatchObject({
+			workflowInstanceId: "workflow-1",
+			eventType: "workflow_cancel",
+			fromState: "escalated",
+			toState: "cancelled",
+			actorId: "ops-1",
+			reason: "Duplicate exception",
+		});
+		expect(taskPatch).toMatchObject({ state: "cancelled" });
+	});
+
+	it("simulates, drafts, and publishes workflow templates with version governance", async () => {
+		const templateInput = {
+			templateKey: "evidence_gate",
+			name: "Evidence Gate",
+			subjectType: "evidence_claim",
+			states: ["draft", "review", "approved"],
+			transitions: [
+				{ action: "submit", from: ["draft"], to: "review" },
+				{ action: "approve", from: ["review"], to: "approved", requiredRoles: ["approver"] },
+			],
+		};
+		const simulation = simulateWorkflowTemplate(templateInput);
+		expect(simulation).toMatchObject({
+			valid: true,
+			reachableStates: ["draft", "review", "approved"],
+			terminalStates: ["approved"],
+		});
+
+		let draftInsert: Record<string, unknown> | undefined;
+		dbMock.select.mockReturnValueOnce(createChain({ result: [{ version: 2 }] }));
+		dbMock.insert.mockReturnValueOnce(createChain({
+			result: [{ id: "template-3", version: 3, status: "draft" }],
+			onValues: (value) => {
+				draftInsert = value as Record<string, unknown>;
+			},
+		}));
+
+		await expect(createWorkflowTemplateDraft(templateInput, "admin-1")).resolves.toMatchObject({
+			id: "template-3",
+			version: 3,
+			status: "draft",
+		});
+		expect(draftInsert).toMatchObject({
+			templateKey: "evidence_gate",
+			version: 3,
+			status: "draft",
+			createdBy: "admin-1",
+		});
+
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				id: "template-3",
+				templateKey: "evidence_gate",
+				name: "Evidence Gate",
+				subjectType: "evidence_claim",
+				version: 3,
+				status: "draft",
+				states: templateInput.states,
+				transitions: templateInput.transitions,
+				metadata: {},
+			}],
+		}));
+		dbMock.update
+			.mockReturnValueOnce(createChain())
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "template-3", status: "active" }],
+			}));
+
+		await expect(publishWorkflowTemplate("template-3", "admin-1")).resolves.toMatchObject({
+			id: "template-3",
+			status: "active",
+		});
+	});
+
+	it("marks email notifications failed when recipients cannot receive delivery", async () => {
+		let failurePatch: Record<string, unknown> | undefined;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				notification: {
+					id: "notification-1",
+					channel: "email",
+					actionUrl: "/workflows",
+				},
+				instance: {
+					workflowKey: "requirement_acceptance",
+					subjectType: "requirement",
+					subjectId: "req-1",
+					state: "accepted",
+					status: "active",
+					priority: "high",
+					dueAt: null,
+				},
+				recipient: {
+					id: "user-1",
+					email: null,
+				},
+			}],
+		}));
+		dbMock.update.mockReturnValueOnce(createChain({
+			onSet: (value) => {
+				failurePatch = value;
+			},
+		}));
+
+		const result = await deliverWorkflowNotifications();
+
+		expect(result).toEqual({ attempted: 1, delivered: 0, failed: 1, skipped: 0 });
+		expect(failurePatch).toMatchObject({
+			deliveryStatus: "failed",
+			metadata: { error: "Recipient email is missing" },
+		});
+	});
+
+	it("keeps default workflow templates simulation-valid across P1, P2, and strategic domains", () => {
+		const keys = new Set<string>();
+		for (const template of WORKFLOW_TEMPLATE_CATALOG) {
+			expect(keys.has(template.templateKey)).toBe(false);
+			keys.add(template.templateKey);
+
+			const simulation = simulateWorkflowTemplate(template);
+			expect(simulation.valid, `${template.templateKey}: ${simulation.errors.join("; ")}`).toBe(true);
+			expect(template.metadata?.jtbdIds).toBeInstanceOf(Array);
+		}
 	});
 });

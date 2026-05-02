@@ -18,6 +18,55 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+export const workflowTemplates = pgTable(
+	"workflow_templates",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		templateKey: varchar("template_key", { length: 120 }).notNull(),
+		name: varchar("name", { length: 240 }).notNull(),
+		description: text("description"),
+		subjectType: varchar("subject_type", { length: 100 }).notNull(),
+		version: integer("version").notNull().default(1),
+		status: varchar("status", { length: 40 }).notNull().default("draft"),
+		states: jsonb("states").$type<string[]>().notNull().default([]),
+		transitions: jsonb("transitions").$type<Array<{
+			action: string;
+			from: string[];
+			to: string;
+			requiredRoles?: string[];
+			requiresReason?: boolean;
+		}>>().notNull().default([]),
+		slaPolicy: jsonb("sla_policy").$type<{
+			defaultHours?: number;
+			escalationRole?: string;
+			priorityHours?: Record<string, number>;
+		}>().default({}),
+		notificationPolicy: jsonb("notification_policy").$type<{
+			onTransition?: string[];
+			onBreach?: string[];
+			onEscalation?: string[];
+		}>().default({}),
+		portalPolicy: jsonb("portal_policy").$type<{
+			visibleStates?: string[];
+			portalRole?: string;
+		}>().default({}),
+		publishedAt: timestamp("published_at", { withTimezone: true }),
+		publishedBy: varchar("published_by", { length: 200 }),
+		deprecatedAt: timestamp("deprecated_at", { withTimezone: true }),
+		deprecatedBy: varchar("deprecated_by", { length: 200 }),
+		metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+		createdBy: varchar("created_by", { length: 200 }).notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		uniqueIndex("workflow_templates_key_version_idx").on(table.templateKey, table.version),
+		index("workflow_templates_key_idx").on(table.templateKey),
+		index("workflow_templates_subject_idx").on(table.subjectType),
+		index("workflow_templates_status_idx").on(table.status),
+	]
+);
+
 export const workflowInstances = pgTable(
 	"workflow_instances",
 	{
@@ -146,6 +195,7 @@ export const workflowNotifications = pgTable(
 
 export type WorkflowInstanceRow = typeof workflowInstances.$inferSelect;
 export type NewWorkflowInstance = typeof workflowInstances.$inferInsert;
+export type WorkflowTemplateRow = typeof workflowTemplates.$inferSelect;
 export type WorkflowRuntimeTaskRow = typeof workflowRuntimeTasks.$inferSelect;
 export type WorkflowAuditEventRow = typeof workflowAuditEvents.$inferSelect;
 export type WorkflowNotificationRow = typeof workflowNotifications.$inferSelect;
