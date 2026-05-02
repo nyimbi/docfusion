@@ -230,4 +230,155 @@ describe("workflow domain integrations", () => {
 		});
 		expect(claimPatch?.resolvedAt).toBeInstanceOf(Date);
 	});
+
+	it.each([
+		{
+			subjectType: "rfp_parse",
+			action: "cancel",
+			reason: "Parser output was invalid",
+			expectedPatch: {
+				parsingStatus: "failed",
+				parsingProgress: 0,
+				parsingError: "Cancelled by workflow compensation: Parser output was invalid",
+			},
+		},
+		{
+			subjectType: "requirement",
+			action: "resolve",
+			reason: "Requirement accepted into the response plan",
+			expectedPatch: {
+				complianceStatus: "addressed",
+			},
+		},
+		{
+			subjectType: "compliance_entry",
+			action: "resolve",
+			reason: "Compliance evidence approved",
+			expectedPatch: {
+				status: "approved",
+				complianceStatus: "full",
+				reviewerNotes: "Resolved by workflow: Compliance evidence approved",
+				reviewedBy: "owner-1",
+				approvedBy: "owner-1",
+				completionPercent: 100,
+			},
+		},
+		{
+			subjectType: "gate_review",
+			action: "cancel",
+			reason: "Gate deferred pending customer amendment",
+			expectedPatch: {
+				status: "cancelled",
+				decision: "defer",
+				rationale: "Cancelled by workflow compensation: Gate deferred pending customer amendment",
+			},
+		},
+		{
+			subjectType: "proposal_task",
+			action: "resolve",
+			reason: "Assigned work accepted",
+			expectedPatch: {
+				status: "completed",
+				completedBy: "owner-1",
+				progress: 100,
+			},
+		},
+		{
+			subjectType: "proposal_review",
+			action: "resolve",
+			reason: "Color review closed",
+			expectedPatch: {
+				status: "completed",
+				recommendation: "ready_to_submit",
+			},
+		},
+		{
+			subjectType: "review_comment",
+			action: "resolve",
+			reason: "Critical finding fixed and verified",
+			expectedPatch: {
+				resolutionStatus: "resolved",
+				resolutionAction: "revised",
+				resolvedBy: "owner-1",
+				verifiedBy: "owner-1",
+				verificationNotes: "Verified by workflow: Critical finding fixed and verified",
+			},
+		},
+		{
+			subjectType: "document_approval",
+			action: "cancel",
+			reason: "Approval package withdrawn",
+			expectedPatch: {
+				status: "rejected",
+				notes: "Cancelled by workflow compensation: Approval package withdrawn",
+				rejectionReason: "Approval package withdrawn",
+			},
+		},
+		{
+			subjectType: "submission",
+			action: "resolve",
+			reason: "Receipt confirmed",
+			expectedPatch: {
+				status: "submitted",
+				outcomeNotes: "Resolved by workflow: Receipt confirmed",
+			},
+		},
+		{
+			subjectType: "opportunity",
+			action: "resolve",
+			reason: "Pursuit accepted",
+			expectedPatch: {
+				decisionStatus: "go",
+				decisionReason: "Resolved by workflow: Pursuit accepted",
+				isReviewed: true,
+			},
+		},
+	])("projects $subjectType workflow compensation into durable domain state", async ({ subjectType, action, reason, expectedPatch }) => {
+		const existing = {
+			id: "workflow-1",
+			workflowKey: `${subjectType}_workflow`,
+			subjectType,
+			subjectId: "subject-1",
+			state: "review",
+			status: "active",
+			metadata: {},
+		};
+		const updated = {
+			...existing,
+			state: action === "cancel" ? "cancelled" : "resolved",
+			status: action === "cancel" ? "cancelled" : "completed",
+		};
+		let domainPatch: Record<string, unknown> | undefined;
+
+		dbMock.select.mockReturnValueOnce(createChain({ result: [existing] }));
+		dbMock.update
+			.mockReturnValueOnce(createChain({ result: [updated] }))
+			.mockReturnValueOnce(createChain({
+				onSet: (value) => {
+					if (action === "cancel") return;
+					domainPatch = value;
+				},
+			}));
+		if (action === "cancel") {
+			dbMock.update
+				.mockReturnValueOnce(createChain({
+					onSet: (value) => {
+						domainPatch = value;
+					},
+				}));
+		}
+		dbMock.insert
+			.mockReturnValueOnce(createChain())
+			.mockReturnValueOnce(createChain());
+
+		await expect(transitionDomainWorkflow({
+			workflowInstanceId: "workflow-1",
+			action,
+			actorId: "owner-1",
+			actorRoles: ["proposal_manager"],
+			reason,
+		})).resolves.toEqual(updated);
+
+		expect(domainPatch).toMatchObject(expectedPatch);
+	});
 });

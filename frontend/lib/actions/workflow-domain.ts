@@ -4,7 +4,12 @@ import { db } from "@/lib/db";
 import { claimAnalysis } from "@/lib/db/schema-evidence";
 import { dataImports } from "@/lib/db/schema-import";
 import { costElements } from "@/lib/db/schema-pricing";
-import { opportunityPartners } from "@/lib/db/schema";
+import { opportunities, opportunityPartners, submissions } from "@/lib/db/schema";
+import { documentApprovals } from "@/lib/db/schema-comments-workflow";
+import { gateReviews } from "@/lib/db/schema-pipeline";
+import { complianceEntries, rfpDocuments, rfpParsingJobs, rfpRequirements } from "@/lib/db/schema-rfp";
+import { proposalReviews, reviewComments } from "@/lib/db/schema-reviews";
+import { proposalTasks } from "@/lib/db/schema-tasks";
 import {
 	workflowAuditEvents,
 	workflowInstances,
@@ -234,6 +239,299 @@ async function applyDomainCompensation(input: {
 	let patch: Record<string, unknown> = {};
 
 	switch (input.instance.subjectType) {
+		case "opportunity": {
+			handler = "opportunity_decision";
+			patch = input.action === "reopen"
+				? {
+					decisionStatus: "pending",
+					decisionReason: `Reopened by workflow: ${input.reason}`,
+					isReviewed: false,
+					updatedAt: now,
+				}
+				: input.action === "cancel"
+					? {
+						decisionStatus: "no_bid",
+						decisionReason: `Cancelled by workflow compensation: ${input.reason}`,
+						isReviewed: true,
+						updatedAt: now,
+					}
+					: {
+						decisionStatus: "go",
+						decisionReason: `Resolved by workflow: ${input.reason}`,
+						isReviewed: true,
+						updatedAt: now,
+					};
+			await db.update(opportunities).set(patch).where(eq(opportunities.id, input.instance.subjectId));
+			break;
+		}
+		case "rfp_parse":
+		case "rfp_document": {
+			handler = "rfp_document_parse";
+			patch = rfpDocumentPatch(input.action, input.reason, now);
+			await db.update(rfpDocuments).set(patch).where(eq(rfpDocuments.id, input.instance.subjectId));
+			break;
+		}
+		case "rfp_parsing_job": {
+			handler = "rfp_parsing_job";
+			patch = input.action === "reopen"
+				? {
+					status: "queued",
+					currentStep: "queued",
+					progress: 0,
+					errorMessage: null,
+					errorStack: null,
+					startedAt: null,
+					completedAt: null,
+					updatedAt: now,
+				}
+				: input.action === "cancel"
+					? {
+						status: "cancelled",
+						errorMessage: `Cancelled by workflow compensation: ${input.reason}`,
+						completedAt: now,
+						updatedAt: now,
+					}
+					: {
+						status: "completed",
+						progress: 100,
+						errorMessage: null,
+						errorStack: null,
+						completedAt: now,
+						updatedAt: now,
+					};
+			await db.update(rfpParsingJobs).set(patch).where(eq(rfpParsingJobs.id, input.instance.subjectId));
+			break;
+		}
+		case "requirement":
+		case "rfp_requirement": {
+			handler = "rfp_requirement";
+			patch = input.action === "reopen"
+				? {
+					complianceStatus: "not_addressed",
+					updatedAt: now,
+				}
+				: input.action === "cancel"
+					? {
+						complianceStatus: "non_compliant",
+						updatedAt: now,
+					}
+					: {
+						complianceStatus: "addressed",
+						updatedAt: now,
+					};
+			await db.update(rfpRequirements).set(patch).where(eq(rfpRequirements.id, input.instance.subjectId));
+			break;
+		}
+		case "compliance_entry": {
+			handler = "compliance_entry";
+			patch = input.action === "reopen"
+				? {
+					status: "draft",
+					complianceStatus: "pending",
+					reviewerNotes: `Reopened by workflow: ${input.reason}`,
+					reviewedBy: null,
+					reviewedAt: null,
+					approvedBy: null,
+					approvedAt: null,
+					completionPercent: 0,
+					updatedAt: now,
+				}
+				: input.action === "cancel"
+					? {
+						status: "rejected",
+						complianceStatus: "non_compliant",
+						reviewerNotes: `Cancelled by workflow compensation: ${input.reason}`,
+						reviewedBy: input.actorId,
+						reviewedAt: now,
+						approvedBy: null,
+						approvedAt: null,
+						updatedAt: now,
+					}
+					: {
+						status: "approved",
+						complianceStatus: "full",
+						reviewerNotes: `Resolved by workflow: ${input.reason}`,
+						reviewedBy: input.actorId,
+						reviewedAt: now,
+						approvedBy: input.actorId,
+						approvedAt: now,
+						completionPercent: 100,
+						updatedAt: now,
+					};
+			await db.update(complianceEntries).set(patch).where(eq(complianceEntries.id, input.instance.subjectId));
+			break;
+		}
+		case "gate_review": {
+			handler = "gate_review";
+			patch = input.action === "reopen"
+				? {
+					status: "in_progress",
+					decision: null,
+					conductedDate: null,
+					rationale: `Reopened by workflow: ${input.reason}`,
+					updatedAt: now,
+				}
+				: input.action === "cancel"
+					? {
+						status: "cancelled",
+						decision: "defer",
+						conductedDate: now,
+						rationale: `Cancelled by workflow compensation: ${input.reason}`,
+						updatedAt: now,
+					}
+					: {
+						status: "completed",
+						decision: "pass",
+						conductedDate: now,
+						rationale: `Resolved by workflow: ${input.reason}`,
+						updatedAt: now,
+					};
+			await db.update(gateReviews).set(patch).where(eq(gateReviews.id, input.instance.subjectId));
+			break;
+		}
+		case "proposal_task": {
+			handler = "proposal_task";
+			patch = input.action === "reopen"
+				? {
+					status: "in_progress",
+					completedAt: null,
+					completedBy: null,
+					progress: 50,
+					updatedAt: now,
+				}
+				: input.action === "cancel"
+					? {
+						status: "cancelled",
+						completedAt: now,
+						completedBy: input.actorId,
+						updatedAt: now,
+					}
+					: {
+						status: "completed",
+						completedAt: now,
+						completedBy: input.actorId,
+						progress: 100,
+						updatedAt: now,
+					};
+			await db.update(proposalTasks).set(patch).where(eq(proposalTasks.id, input.instance.subjectId));
+			break;
+		}
+		case "proposal_review": {
+			handler = "proposal_review";
+			patch = input.action === "reopen"
+				? {
+					status: "in_progress",
+					completedAt: null,
+					recommendation: null,
+					updatedAt: now,
+				}
+				: input.action === "cancel"
+					? {
+						status: "cancelled",
+						completedAt: now,
+						recommendation: "not_ready",
+						updatedAt: now,
+					}
+					: {
+						status: "completed",
+						completedAt: now,
+						recommendation: "ready_to_submit",
+						updatedAt: now,
+					};
+			await db.update(proposalReviews).set(patch).where(eq(proposalReviews.id, input.instance.subjectId));
+			break;
+		}
+		case "review_comment": {
+			handler = "review_comment";
+			patch = input.action === "reopen"
+				? {
+					resolutionStatus: "open",
+					resolutionNotes: `Reopened by workflow: ${input.reason}`,
+					resolutionAction: null,
+					resolvedBy: null,
+					resolvedAt: null,
+					verifiedBy: null,
+					verifiedAt: null,
+					verificationNotes: null,
+					updatedAt: now,
+				}
+				: input.action === "cancel"
+					? {
+						resolutionStatus: "wont_fix",
+						resolutionNotes: `Cancelled by workflow compensation: ${input.reason}`,
+						resolutionAction: "kept",
+						resolvedBy: input.actorId,
+						resolvedAt: now,
+						updatedAt: now,
+					}
+					: {
+						resolutionStatus: "resolved",
+						resolutionNotes: `Resolved by workflow: ${input.reason}`,
+						resolutionAction: "revised",
+						resolvedBy: input.actorId,
+						resolvedAt: now,
+						verifiedBy: input.actorId,
+						verifiedAt: now,
+						verificationNotes: `Verified by workflow: ${input.reason}`,
+						updatedAt: now,
+					};
+			await db.update(reviewComments).set(patch).where(eq(reviewComments.id, input.instance.subjectId));
+			break;
+		}
+		case "document_approval": {
+			handler = "document_approval";
+			patch = input.action === "reopen"
+				? {
+					status: "in_review",
+					completedAt: null,
+					notes: `Reopened by workflow: ${input.reason}`,
+					rejectionReason: null,
+					updatedAt: now,
+				}
+				: input.action === "cancel"
+					? {
+						status: "rejected",
+						completedAt: now,
+						notes: `Cancelled by workflow compensation: ${input.reason}`,
+						rejectionReason: input.reason,
+						updatedAt: now,
+					}
+					: {
+						status: "approved",
+						completedAt: now,
+						notes: `Resolved by workflow: ${input.reason}`,
+						rejectionReason: null,
+						updatedAt: now,
+					};
+			await db.update(documentApprovals).set(patch).where(eq(documentApprovals.id, input.instance.subjectId));
+			break;
+		}
+		case "submission": {
+			handler = "submission";
+			patch = input.action === "reopen"
+				? {
+					status: "reopened",
+					outcome: null,
+					outcomeDate: null,
+					outcomeNotes: `Reopened by workflow: ${input.reason}`,
+					updatedAt: now,
+				}
+				: input.action === "cancel"
+					? {
+						status: "cancelled",
+						outcome: null,
+						outcomeDate: now,
+						outcomeNotes: `Cancelled by workflow compensation: ${input.reason}`,
+						updatedAt: now,
+					}
+					: {
+						status: "submitted",
+						outcomeNotes: `Resolved by workflow: ${input.reason}`,
+						updatedAt: now,
+					};
+			await db.update(submissions).set(patch).where(eq(submissions.id, input.instance.subjectId));
+			break;
+		}
 		case "evidence_claim": {
 			handler = "claim_analysis";
 			patch = input.action === "reopen"
@@ -326,10 +624,80 @@ function pricingPatch(action: "reopen" | "cancel" | "resolve", actorId: string, 
 	return { status: "approved", approvedBy: actorId, approvedAt: now, updatedAt: now };
 }
 
+function rfpDocumentPatch(action: "reopen" | "cancel" | "resolve", reason: string, now: Date) {
+	if (action === "reopen") {
+		return {
+			parsingStatus: "pending",
+			parsingProgress: 0,
+			parsingError: null,
+			parsingStartedAt: null,
+			parsingCompletedAt: null,
+			updatedAt: now,
+		};
+	}
+	if (action === "cancel") {
+		return {
+			parsingStatus: "failed",
+			parsingProgress: 0,
+			parsingError: `Cancelled by workflow compensation: ${reason}`,
+			parsingCompletedAt: now,
+			updatedAt: now,
+		};
+	}
+	return {
+		parsingStatus: "completed",
+		parsingProgress: 100,
+		parsingError: null,
+		parsingCompletedAt: now,
+		updatedAt: now,
+	};
+}
+
 function normalizeProjectionAction(state: string): "reopen" | "cancel" | "resolve" {
-	if (["rejected", "removed", "expired", "rolled_back", "failed", "superseded"].includes(state)) return "cancel";
-	if (["draft", "detected", "mapped", "invited", "cached", "reopened"].includes(state)) return "reopen";
-	if (["resolved", "waived", "approved", "locked", "committed", "accepted_final", "published", "retained", "merged"].includes(state)) return "resolve";
+	if ([
+		"cancelled",
+		"deferred",
+		"failed",
+		"no_bid",
+		"rejected",
+		"removed",
+		"rolled_back",
+		"superseded",
+		"wont_fix",
+	].includes(state)) return "cancel";
+	if ([
+		"accepted",
+		"accepted_final",
+		"addressed",
+		"approved",
+		"completed",
+		"committed",
+		"go",
+		"locked",
+		"merged",
+		"pass",
+		"published",
+		"ready_to_submit",
+		"resolved",
+		"retained",
+		"submitted",
+		"won",
+		"waived",
+	].includes(state)) return "resolve";
+	if ([
+		"cached",
+		"detected",
+		"draft",
+		"in_progress",
+		"in_review",
+		"invited",
+		"mapped",
+		"open",
+		"pending",
+		"queued",
+		"reopened",
+		"scheduled",
+	].includes(state)) return "reopen";
 	return "reopen";
 }
 
