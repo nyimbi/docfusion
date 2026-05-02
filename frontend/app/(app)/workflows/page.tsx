@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
+import { WorkflowActionPanel } from "@/components/workflows/WorkflowActionPanel";
 import { getWorkflowDashboard, listWorkflowTemplates } from "@/lib/actions/workflow-runtime";
 import type { WorkflowInstanceRow } from "@/lib/db/schema-workflow-runtime";
 
@@ -62,6 +63,24 @@ export default async function WorkflowDashboardPage() {
 			</div>
 
 			<main className="space-y-6 p-6">
+				<WorkflowActionPanel
+					templates={templates.map((template) => ({
+						id: template.id,
+						templateKey: template.templateKey,
+						name: template.name,
+						subjectType: template.subjectType,
+						status: template.status,
+					}))}
+					instances={dashboard.items.map((item) => ({
+						id: item.id,
+						workflowKey: item.workflowKey,
+						subjectType: item.subjectType,
+						subjectId: item.subjectId,
+						state: item.state,
+						status: item.status,
+					}))}
+				/>
+
 				<section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
 					<Metric label="Total" value={dashboard.total} icon={LayoutDashboard} tone="neutral" />
 					<Metric label="Active" value={dashboard.active} icon={Activity} tone="active" />

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { reverseWorkflowRuntimeState } from "@/lib/actions/workflow-runtime";
+import { transitionDomainWorkflow } from "@/lib/actions/workflow-domain";
 import { isWorkflowApiResponse, requireWorkflowApiActor } from "@/lib/workflows/api-auth";
-
-const REVERSAL_ACTIONS = new Set(["reopen", "cancel", "resolve"]);
 
 export async function POST(
 	request: NextRequest,
@@ -18,19 +16,19 @@ export async function POST(
 		if (isWorkflowApiResponse(actor)) return actor;
 
 		const body = await request.json();
-		if (!REVERSAL_ACTIONS.has(body.action)) {
-			return NextResponse.json({ error: "Unsupported workflow transition action" }, { status: 400 });
+		if (typeof body.action !== "string") {
+			return NextResponse.json({ error: "Workflow transition action is required" }, { status: 400 });
 		}
 
-		const result = await reverseWorkflowRuntimeState({
+		const result = await transitionDomainWorkflow({
 			workflowInstanceId: workflowId,
 			action: body.action,
 			actorId: actor.userId,
-			actorName: actor.userId,
+			actorRoles: actor.roles,
 			reason: typeof body.reason === "string" ? body.reason : "",
 			targetState: typeof body.targetState === "string" ? body.targetState : undefined,
 			evidenceLinks: Array.isArray(body.evidenceLinks) ? body.evidenceLinks : undefined,
-			metadata: { apiActorRoles: actor.roles },
+			notificationRecipients: Array.isArray(body.notificationRecipients) ? body.notificationRecipients : undefined,
 		});
 
 		return NextResponse.json(result);
