@@ -34,7 +34,7 @@ describe("Datacraft response content", () => {
 	});
 
 	it("provides reusable response snippets with searchable metadata", () => {
-		expect(DATACRAFT_RESPONSE_SNIPPETS.length).toBeGreaterThanOrEqual(12);
+		expect(DATACRAFT_RESPONSE_SNIPPETS.length).toBeGreaterThanOrEqual(35);
 
 		const shortcuts = new Set(DATACRAFT_RESPONSE_SNIPPETS.map((snippet) => snippet.shortcut));
 		expect(shortcuts.size).toBe(DATACRAFT_RESPONSE_SNIPPETS.length);
@@ -43,12 +43,89 @@ describe("Datacraft response content", () => {
 		expect(names).toContain("Executive Summary");
 		expect(names).toContain("Security");
 		expect(names).toContain("Past Performance");
+		expect(names).toContain("Solution Architecture");
+		expect(names).toContain("AI Governance");
+		expect(names).toContain("Commercial and Pricing");
+		expect(names).toContain("Mobilization and Transition");
+
+		expect(Array.from(shortcuts)).toEqual(
+			expect.arrayContaining([
+				"/dc-traceability",
+				"/dc-win-themes",
+				"/dc-architecture",
+				"/dc-integration-migration",
+				"/dc-data-governance",
+				"/dc-ai-governance",
+				"/dc-project-governance",
+				"/dc-staffing",
+				"/dc-training",
+				"/dc-qa-testing",
+				"/dc-risk",
+				"/dc-service-management",
+				"/dc-sla",
+				"/dc-reporting",
+				"/dc-pricing",
+				"/dc-assumptions",
+				"/dc-transition",
+				"/dc-local-capacity",
+				"/dc-teaming",
+				"/dc-ux",
+				"/dc-roadmap",
+				"/dc-portfolio",
+			])
+		);
 
 		for (const snippet of DATACRAFT_RESPONSE_SNIPPETS) {
 			expect(snippet.shortcut).toMatch(/^\/dc-/);
 			expect(snippet.tags).toContain("datacraft");
-			expect(flattenText(snippet.content).length).toBeGreaterThan(200);
+			const text = flattenText(snippet.content);
+			expect(text.length).toBeGreaterThan(500);
+			expect(text).not.toContain("[AI will generate content");
 		}
+	});
+
+	it("covers the major sections evaluators expect in a complete RFP response", () => {
+		const topicCategories = new Set(DATACRAFT_RESPONSE_SNIPPETS.map((snippet) => snippet.topicCategory));
+
+		expect(Array.from(topicCategories)).toEqual(
+			expect.arrayContaining([
+				"Executive",
+				"Company",
+				"Understanding",
+				"Technical",
+				"Security",
+				"Compliance",
+				"Architecture",
+				"Integration",
+				"Data Governance",
+				"AI Governance",
+				"Governance",
+				"Staffing",
+				"Adoption",
+				"Quality",
+				"Risk",
+				"Support",
+				"Service Levels",
+				"Reporting",
+				"Commercial",
+				"Assumptions",
+				"Transition",
+				"Sustainability",
+				"Partnerships",
+				"User Experience",
+				"Roadmap",
+				"Portfolio",
+			])
+		);
+
+		const allText = DATACRAFT_RESPONSE_SNIPPETS.map((snippet) => flattenText(snippet.content)).join(" ");
+
+		expect(allText).toContain("acceptance criteria");
+		expect(allText).toContain("data governance");
+		expect(allText).toMatch(/human control/i);
+		expect(allText).toContain("service levels");
+		expect(allText).toContain("total cost of ownership");
+		expect(allText).toContain("knowledge transfer");
 	});
 
 	it("prepopulates standard proposal document types with Datacraft response sections", () => {
