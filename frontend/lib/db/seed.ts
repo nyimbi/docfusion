@@ -9,10 +9,20 @@
  */
 
 import { db } from "@/lib/db";
-import { organization, user, templates, templateCategories } from "@/lib/db/schema";
+import {
+	organization,
+	templates,
+	templateCategories,
+	templateSnippets,
+	snippetAnalytics,
+} from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { PREMIUM_TEMPLATE_INPUTS } from "@/lib/data/templates-data";
 import { logger } from "@/lib/utils/logger";
+import {
+	DATACRAFT_RESPONSE_SNIPPETS,
+	getDatacraftSnippetWordCount,
+} from "@/lib/data/datacraft-response-content";
 
 // ============================================================================
 // Seed Configuration
@@ -23,12 +33,12 @@ const SEED_CONFIG = {
 	organization: {
 		name: "Datacraft",
 		slug: "datacraft",
-		description: "Datacraft Consulting & Technology",
-		website: "https://datacraft.co.za",
-		industry: "Technology & Consulting",
+		description: "Nairobi-based African technology company building enterprise-grade institutional software.",
+		website: "https://www.datacraft.co.ke",
+		industry: "Sovereign institutional software",
 		size: "small",
-		location: "South Africa",
-		contactEmail: "info@datacraft.co.za",
+		location: "Nairobi, Kenya",
+		contactEmail: "hello@datacraft.co.ke",
 		settings: {
 			branding: {
 				primaryColor: "#3b82f6",
@@ -178,6 +188,91 @@ async function seedTemplates(categoryIds: string[], orgId: string) {
 }
 
 /**
+ * Seed Datacraft response snippets.
+ */
+async function seedDatacraftResponseSnippets() {
+	logger.debug("🧩 Seeding Datacraft response snippets...");
+
+	for (const snippet of DATACRAFT_RESPONSE_SNIPPETS) {
+		const [existing] = await db
+			.select({ id: templateSnippets.id })
+			.from(templateSnippets)
+			.where(eq(templateSnippets.shortcut, snippet.shortcut))
+			.limit(1);
+
+		const snippetValues = {
+			name: snippet.name,
+			shortcut: snippet.shortcut,
+			content: snippet.content,
+			description: snippet.description,
+			tags: snippet.tags,
+			category: snippet.category,
+			createdBy: "system",
+			organizationId: null,
+			isPublic: true,
+			updatedAt: new Date(),
+		};
+
+		const snippetId = existing
+			? existing.id
+			: (
+					await db
+						.insert(templateSnippets)
+						.values(snippetValues)
+						.returning({ id: templateSnippets.id })
+			  )[0].id;
+
+		if (existing) {
+			await db
+				.update(templateSnippets)
+				.set(snippetValues)
+				.where(eq(templateSnippets.id, snippetId));
+		}
+
+		await db
+			.insert(snippetAnalytics)
+			.values({
+				snippetId,
+				aiTags: snippet.tags,
+				keyTerms: snippet.keyTerms,
+				contentType: snippet.contentType,
+				topicCategory: snippet.topicCategory,
+				sectors: snippet.sectors,
+				technologies: snippet.technologies,
+				complianceFrameworks: snippet.complianceFrameworks,
+				topicScores: {},
+				freshnessStatus: "current",
+				lastReviewedAt: new Date(),
+				qualityScore: 95,
+				wordCount: getDatacraftSnippetWordCount(snippet),
+				winCount: 0,
+				lossCount: 0,
+				winRate: null,
+				updatedAt: new Date(),
+			})
+			.onConflictDoUpdate({
+				target: snippetAnalytics.snippetId,
+				set: {
+					aiTags: snippet.tags,
+					keyTerms: snippet.keyTerms,
+					contentType: snippet.contentType,
+					topicCategory: snippet.topicCategory,
+					sectors: snippet.sectors,
+					technologies: snippet.technologies,
+					complianceFrameworks: snippet.complianceFrameworks,
+					freshnessStatus: "current",
+					lastReviewedAt: new Date(),
+					qualityScore: 95,
+					wordCount: getDatacraftSnippetWordCount(snippet),
+					updatedAt: new Date(),
+				},
+			});
+	}
+
+	logger.debug(`✅ Seeded ${DATACRAFT_RESPONSE_SNIPPETS.length} Datacraft response snippets`);
+}
+
+/**
  * Main seed function
  */
 export async function seedDatabase(adminEmail?: string, adminPassword?: string) {
@@ -192,6 +287,9 @@ export async function seedDatabase(adminEmail?: string, adminPassword?: string) 
 		
 		// 3. Seed templates
 		await seedTemplates(categoryIds, orgId);
+
+		// 4. Seed Datacraft response snippets
+		await seedDatacraftResponseSnippets();
 		
 		logger.debug("\n✅ Database seed completed successfully!");
 		return { orgId, categoryIds };

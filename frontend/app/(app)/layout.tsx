@@ -54,6 +54,7 @@ import {
 	ClipboardCheck,
 	Swords,
 	BarChart3,
+	Workflow,
 } from "lucide-react";
 import {
 	DropdownMenu,
@@ -197,6 +198,12 @@ const NAV_SECTIONS: NavSection[] = [
 				href: "/reviews",
 				icon: ClipboardCheck,
 				description: "Color team reviews",
+			},
+			{
+				label: "Workflows",
+				href: "/workflows",
+				icon: Workflow,
+				description: "Runtime control & governance",
 			},
 			{
 				label: "Calendar",

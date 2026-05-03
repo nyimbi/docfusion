@@ -38,9 +38,18 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
 	Search,
 	Download,
-	Upload,
 	RefreshCw,
 	MoreHorizontal,
 	CheckCircle2,
@@ -55,6 +64,10 @@ import {
 	ChevronDown,
 	ChevronRight,
 	Columns,
+	RotateCcw,
+	Send,
+	ShieldCheck,
+	XCircle,
 } from "lucide-react";
 import type {
 	RequirementCategory,
@@ -88,6 +101,7 @@ export interface ComplianceEntry {
 	dueDate: string | null;
 	completionPercent: number;
 	status: "draft" | "review" | "approved" | "rejected";
+	workflowState?: "draft" | "review" | "approved" | "rejected" | "waived";
 }
 
 export interface ComplianceMatrixData {
@@ -223,6 +237,44 @@ const DEFAULT_COLUMNS: ColumnKey[] = [
 	"completionPercent",
 ];
 
+type ComplianceWorkflowAction =
+	| "submit_for_review"
+	| "approve"
+	| "reject"
+	| "waive"
+	| "reopen";
+
+const WORKFLOW_ACTION_CONFIG: Record<
+	ComplianceWorkflowAction,
+	{ label: string; description: string; icon: React.ReactNode }
+> = {
+	submit_for_review: {
+		label: "Submit for Review",
+		description: "Move this entry into reviewer queue after response evidence is attached.",
+		icon: <Send className="h-4 w-4 mr-2" />,
+	},
+	approve: {
+		label: "Approve",
+		description: "Approve this entry after review gates pass.",
+		icon: <ShieldCheck className="h-4 w-4 mr-2" />,
+	},
+	reject: {
+		label: "Reject",
+		description: "Return this entry with reviewer notes.",
+		icon: <XCircle className="h-4 w-4 mr-2" />,
+	},
+	waive: {
+		label: "Waive Gap",
+		description: "Record an approved exception and mark the entry not applicable.",
+		icon: <AlertTriangle className="h-4 w-4 mr-2" />,
+	},
+	reopen: {
+		label: "Reopen",
+		description: "Move an approved, rejected, or waived entry back to draft.",
+		icon: <RotateCcw className="h-4 w-4 mr-2" />,
+	},
+};
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -249,6 +301,13 @@ export function ComplianceMatrix({
 	const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 	const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(DEFAULT_COLUMNS));
 	const [groupByCategory, setGroupByCategory] = useState(false);
+	const [workflowDialog, setWorkflowDialog] = useState<{
+		entry: ComplianceEntry;
+		action: ComplianceWorkflowAction;
+	} | null>(null);
+	const [workflowReason, setWorkflowReason] = useState("");
+	const [workflowError, setWorkflowError] = useState<string | null>(null);
+	const [isWorkflowSubmitting, setIsWorkflowSubmitting] = useState(false);
 
 	// Fetch matrix data
 	const fetchMatrix = useCallback(async () => {
@@ -351,6 +410,46 @@ export function ComplianceMatrix({
 		});
 	}, []);
 
+	const openWorkflowDialog = useCallback((entry: ComplianceEntry, action: ComplianceWorkflowAction) => {
+		setWorkflowDialog({ entry, action });
+		setWorkflowReason("");
+		setWorkflowError(null);
+	}, []);
+
+	const submitWorkflowAction = useCallback(async () => {
+		if (!workflowDialog) return;
+
+		setIsWorkflowSubmitting(true);
+		setWorkflowError(null);
+
+		try {
+			const response = await fetch(
+				`/api/v1/compliance-matrix/${matrixId}/entries/${workflowDialog.entry.id}/workflow`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						action: workflowDialog.action,
+						reason: workflowReason,
+					}),
+				}
+			);
+			const payload = await response.json().catch(() => ({}));
+
+			if (!response.ok) {
+				throw new Error(payload.error ?? "Workflow transition failed");
+			}
+
+			setWorkflowDialog(null);
+			setWorkflowReason("");
+			await fetchMatrix();
+		} catch (err) {
+			setWorkflowError(err instanceof Error ? err.message : "Workflow transition failed");
+		} finally {
+			setIsWorkflowSubmitting(false);
+		}
+	}, [fetchMatrix, matrixId, workflowDialog, workflowReason]);
+
 	// Calculate overall progress
 	const overallProgress = matrix
 		? Math.round(
@@ -365,39 +464,54 @@ export function ComplianceMatrix({
 		  )
 		: 0;
 
+	const getWorkflowActions = (entry: ComplianceEntry): ComplianceWorkflowAction[] => {
+		const state = entry.workflowState ?? entry.status;
+
+		if (state === "review") return ["approve", "reject", "waive"];
+		if (state === "approved" || state === "waived") return ["reopen"];
+		if (state === "rejected") return ["submit_for_review", "waive", "reopen"];
+		return ["submit_for_review", "waive"];
+	};
+
 	// Render status cell
 	const renderStatusCell = (entry: ComplianceEntry) => {
 		const config = COMPLIANCE_STATUS_CONFIG[entry.complianceStatus];
+		const workflowState = entry.workflowState ?? entry.status;
 		return (
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						variant="ghost"
-						size="sm"
-						className={cn(
-							"h-7 px-2 gap-1 font-normal",
-							config.bgColor,
-							config.color
-						)}
-					>
-						{config.icon}
-						{config.label}
-						<ChevronDown className="h-3 w-3 ml-1" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent>
-					{Object.entries(COMPLIANCE_STATUS_CONFIG).map(([status, cfg]) => (
-						<DropdownMenuItem
-							key={status}
-							onClick={() => onEntryStatusChange?.(entry.id, status as ComplianceStatus)}
-							className={cn("gap-2", cfg.color)}
+			<div className="flex flex-col items-start gap-1">
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="sm"
+							className={cn(
+								"h-7 px-2 gap-1 font-normal",
+								config.bgColor,
+								config.color
+							)}
 						>
-							{cfg.icon}
-							{cfg.label}
-						</DropdownMenuItem>
-					))}
-				</DropdownMenuContent>
-			</DropdownMenu>
+							{config.icon}
+							{config.label}
+							<ChevronDown className="h-3 w-3 ml-1" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent>
+						{Object.entries(COMPLIANCE_STATUS_CONFIG).map(([status, cfg]) => (
+							<DropdownMenuItem
+								key={status}
+								onClick={() => onEntryStatusChange?.(entry.id, status as ComplianceStatus)}
+								className={cn("gap-2", cfg.color)}
+							>
+								{cfg.icon}
+								{cfg.label}
+							</DropdownMenuItem>
+						))}
+					</DropdownMenuContent>
+				</DropdownMenu>
+				<Badge variant="outline" className="h-5 text-[10px] capitalize">
+					{workflowState.replace("_", " ")}
+				</Badge>
+			</div>
 		);
 	};
 
@@ -526,6 +640,19 @@ export function ComplianceMatrix({
 									View Response
 								</DropdownMenuItem>
 							)}
+							<DropdownMenuSeparator />
+							{getWorkflowActions(entry).map((action) => {
+								const config = WORKFLOW_ACTION_CONFIG[action];
+								return (
+									<DropdownMenuItem
+										key={action}
+										onClick={() => openWorkflowDialog(entry, action)}
+									>
+										{config.icon}
+										{config.label}
+									</DropdownMenuItem>
+								);
+							})}
 						</DropdownMenuContent>
 					</DropdownMenu>
 				</div>
@@ -861,6 +988,80 @@ export function ComplianceMatrix({
 					</div>
 				)}
 			</CardContent>
+
+			<Dialog
+				open={workflowDialog !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setWorkflowDialog(null);
+						setWorkflowError(null);
+					}
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>
+							{workflowDialog
+								? WORKFLOW_ACTION_CONFIG[workflowDialog.action].label
+								: "Compliance Workflow"}
+						</DialogTitle>
+						<DialogDescription>
+							{workflowDialog
+								? WORKFLOW_ACTION_CONFIG[workflowDialog.action].description
+								: ""}
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="space-y-3">
+						{workflowDialog && (
+							<div className="rounded-md border p-3 text-sm">
+								<p className="font-medium">
+									{workflowDialog.entry.requirementNumber}
+								</p>
+								<p className="mt-1 text-muted-foreground line-clamp-2">
+									{workflowDialog.entry.requirementTitle ??
+										workflowDialog.entry.requirementText}
+								</p>
+							</div>
+						)}
+
+						<div className="space-y-2">
+							<Label htmlFor="compliance-workflow-reason">Reason</Label>
+							<Textarea
+								id="compliance-workflow-reason"
+								value={workflowReason}
+								onChange={(event) => setWorkflowReason(event.target.value)}
+								placeholder="Record the decision basis, gate exception, or reviewer instruction."
+							/>
+						</div>
+
+						{workflowError && (
+							<div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+								{workflowError}
+							</div>
+						)}
+					</div>
+
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setWorkflowDialog(null)}
+							disabled={isWorkflowSubmitting}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={submitWorkflowAction}
+							disabled={isWorkflowSubmitting || workflowReason.trim().length === 0}
+						>
+							{isWorkflowSubmitting && (
+								<RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+							)}
+							Apply
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</Card>
 	);
 }

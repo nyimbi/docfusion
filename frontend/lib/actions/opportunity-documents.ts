@@ -58,7 +58,7 @@ export async function discoverOpportunityDocuments(
     }
 
     // Use the AI discovery agent
-    const result = await discoverDocumentsWithAgent(opportunityId);
+    const result = await discoverDocumentsWithAgent(opportunityId, 5, sourceUrl);
 
     if (result.success) {
       revalidatePath(`/opportunities/${opportunityId}`);

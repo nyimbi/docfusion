@@ -36,6 +36,16 @@ interface UploadedFile {
 	progress: number;
 	error?: string;
 	rfpDocumentId?: string;
+	parsingJobId?: string;
+	currentStep?: string;
+}
+
+interface RfpParsingStatusResponse {
+	status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+	currentStep: string | null;
+	progress: number;
+	errorMessage: string | null;
+	documentId: string;
 }
 
 interface RFPUploaderProps {
@@ -79,6 +89,49 @@ export function RFPUploader({
 	const [isDragging, setIsDragging] = useState(false);
 	const inputRef = React.useRef<HTMLInputElement>(null);
 
+	const pollParsingStatus = useCallback(async (fileId: string, rfpDocumentId: string) => {
+		let shouldContinue = true;
+		let attempts = 0;
+
+		while (shouldContinue && attempts < 80) {
+			attempts += 1;
+			await new Promise((resolve) => setTimeout(resolve, 1500));
+
+			const response = await fetch(`/api/v1/rfp/${rfpDocumentId}/status`);
+			if (!response.ok) {
+				throw new Error("Failed to load parsing status");
+			}
+
+			const status = await response.json() as RfpParsingStatusResponse;
+			const nextStatus: UploadedFile["status"] =
+				status.status === "completed"
+					? "completed"
+					: status.status === "failed" || status.status === "cancelled"
+						? "error"
+						: "processing";
+
+			setFiles((prev) =>
+				prev.map((f) =>
+					f.id === fileId
+						? {
+								...f,
+								status: nextStatus,
+								progress: status.progress,
+								currentStep: status.currentStep ?? undefined,
+								error: nextStatus === "error" ? status.errorMessage ?? "Parsing failed" : undefined,
+						  }
+						: f
+				)
+			);
+
+			shouldContinue = status.status === "queued" || status.status === "processing";
+		}
+
+		if (shouldContinue) {
+			throw new Error("Parsing status timed out");
+		}
+	}, []);
+
 	// Validate file
 	const validateFile = useCallback(
 		(file: File): string | null => {
@@ -98,38 +151,8 @@ export function RFPUploader({
 		[maxFileSize]
 	);
 
-	// Add files to upload queue
-	const addFiles = useCallback(
-		(newFiles: FileList | File[]) => {
-			const filesToAdd: UploadedFile[] = [];
-
-			for (const file of Array.from(newFiles)) {
-				const error = validateFile(file);
-				filesToAdd.push({
-					file,
-					id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-					status: error ? "error" : "pending",
-					progress: 0,
-					error: error ?? undefined,
-				});
-			}
-
-			if (!multiple && filesToAdd.length > 0) {
-				setFiles([filesToAdd[0]]);
-			} else {
-				setFiles((prev) => [...prev, ...filesToAdd]);
-			}
-
-			// Auto-start upload for valid files
-			filesToAdd
-				.filter((f) => f.status === "pending")
-				.forEach((f) => uploadFile(f));
-		},
-		[multiple, validateFile]
-	);
-
 	// Upload a single file
-	const uploadFile = async (uploadedFile: UploadedFile) => {
+	const uploadFile = useCallback(async (uploadedFile: UploadedFile) => {
 		const formData = new FormData();
 		formData.append("file", uploadedFile.file);
 		if (opportunityId) {
@@ -160,15 +183,18 @@ export function RFPUploader({
 					f.id === uploadedFile.id
 						? {
 								...f,
-								status: "completed" as const,
-								progress: 100,
+								status: "processing" as const,
+								progress: 10,
 								rfpDocumentId: result.rfpDocumentId,
+								parsingJobId: result.parsingJobId,
+								currentStep: "Queued for parsing",
 						  }
 						: f
 				)
 			);
 
 			onUploadComplete?.(result.rfpDocumentId, uploadedFile.file.name);
+			await pollParsingStatus(uploadedFile.id, result.rfpDocumentId);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : "Upload failed";
 
@@ -182,7 +208,37 @@ export function RFPUploader({
 
 			onUploadError?.(errorMessage, uploadedFile.file.name);
 		}
-	};
+	}, [onUploadComplete, onUploadError, opportunityId, pollParsingStatus]);
+
+	// Add files to upload queue
+	const addFiles = useCallback(
+		(newFiles: FileList | File[]) => {
+			const filesToAdd: UploadedFile[] = [];
+
+			for (const file of Array.from(newFiles)) {
+				const error = validateFile(file);
+				filesToAdd.push({
+					file,
+					id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+					status: error ? "error" : "pending",
+					progress: 0,
+					error: error ?? undefined,
+				});
+			}
+
+			if (!multiple && filesToAdd.length > 0) {
+				setFiles([filesToAdd[0]]);
+			} else {
+				setFiles((prev) => [...prev, ...filesToAdd]);
+			}
+
+			// Auto-start upload for valid files
+			filesToAdd
+				.filter((f) => f.status === "pending")
+				.forEach((f) => uploadFile(f));
+		},
+		[multiple, uploadFile, validateFile]
+	);
 
 	// Remove file from list
 	const removeFile = useCallback((fileId: string) => {
@@ -200,7 +256,40 @@ export function RFPUploader({
 		if (file) {
 			uploadFile({ ...file, status: "pending", error: undefined, progress: 0 });
 		}
-	}, [files]);
+	}, [files, uploadFile]);
+
+	const retryParsing = useCallback(async (fileId: string) => {
+		const file = files.find((f) => f.id === fileId);
+		if (!file?.rfpDocumentId) return;
+
+		setFiles((prev) =>
+			prev.map((f) =>
+				f.id === fileId
+					? { ...f, status: "processing" as const, error: undefined, progress: 0, currentStep: "Retry queued" }
+					: f
+			)
+		);
+
+		try {
+			const response = await fetch(`/api/v1/rfp/${file.rfpDocumentId}/parse`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+			});
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.error || "Failed to retry parsing");
+			}
+			await pollParsingStatus(fileId, file.rfpDocumentId);
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : "Failed to retry parsing";
+			setFiles((prev) =>
+				prev.map((f) =>
+					f.id === fileId ? { ...f, status: "error" as const, error: errorMessage } : f
+				)
+			);
+			onUploadError?.(errorMessage, file.file.name);
+		}
+	}, [files, onUploadError, pollParsingStatus]);
 
 	// Handle drag events
 	const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -303,7 +392,10 @@ export function RFPUploader({
 							? "border-primary bg-primary/5"
 							: "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
 					)}
-				>
+
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 					<input
 						ref={inputRef}
 						type="file"
@@ -342,7 +434,7 @@ export function RFPUploader({
 										{uploadedFile.file.name}
 									</p>
 									<div className="flex items-center gap-2 mt-1">
-										{uploadedFile.status === "uploading" && (
+										{(uploadedFile.status === "uploading" || uploadedFile.status === "processing") && (
 											<Progress value={uploadedFile.progress} className="h-1 flex-1" />
 										)}
 										{uploadedFile.error && (
@@ -350,9 +442,14 @@ export function RFPUploader({
 												{uploadedFile.error}
 											</p>
 										)}
+										{uploadedFile.status === "processing" && uploadedFile.currentStep && (
+											<p className="text-xs text-muted-foreground truncate">
+												{uploadedFile.currentStep}
+											</p>
+										)}
 										{uploadedFile.status === "completed" && (
 											<p className="text-xs text-green-600">
-												Uploaded successfully
+												Parsing completed
 											</p>
 										)}
 									</div>
@@ -360,16 +457,30 @@ export function RFPUploader({
 								<div className="flex items-center gap-2">
 									{getStatusIcon(uploadedFile.status)}
 									{uploadedFile.status === "error" && (
-										<Button
-											variant="ghost"
-											size="sm"
-											onClick={(e) => {
-												e.stopPropagation();
-												retryUpload(uploadedFile.id);
-											}}
-										>
-											Retry
-										</Button>
+										<>
+											{uploadedFile.rfpDocumentId && (
+												<Button
+													variant="ghost"
+													size="sm"
+													onClick={(e) => {
+														e.stopPropagation();
+														retryParsing(uploadedFile.id);
+													}}
+												>
+													Retry Parse
+												</Button>
+											)}
+											<Button
+												variant="ghost"
+												size="sm"
+												onClick={(e) => {
+													e.stopPropagation();
+													retryUpload(uploadedFile.id);
+												}}
+											>
+												Retry Upload
+											</Button>
+										</>
 									)}
 									<Button
 										variant="ghost"

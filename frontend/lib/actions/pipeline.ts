@@ -30,6 +30,7 @@ import { eq, and, desc, asc, sql, gte, lte, inArray, isNull, count, avg, sum } f
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/utils/logger";
+import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 
 // ============================================================================
 // Types
@@ -60,6 +61,13 @@ export type GateDecision = {
 		overall?: string;
 	};
 	reviewerVotes?: Array<{ name: string; vote: string; comments?: string }>;
+};
+
+type GateReviewer = {
+	name: string;
+	role: string;
+	vote?: "approve" | "conditional" | "reject";
+	comments?: string;
 };
 
 export type BidDecisionPackage = {
@@ -224,6 +232,56 @@ const updateGateReviewSchema = z.object({
 });
 
 type UpdateGateReviewInput = z.infer<typeof updateGateReviewSchema>;
+
+function getGateQuorum(reviewers: GateReviewer[] | null | undefined): number {
+	const reviewerCount = reviewers?.length ?? 0;
+	if (reviewerCount === 0) return 0;
+	return Math.min(2, reviewerCount);
+}
+
+function validateGateReviewDecision(review: GateReview, decision: GateDecision): string | null {
+	if (review.status === "completed") {
+		return "Gate review has already been completed";
+	}
+	if (review.status === "cancelled") {
+		return "Cancelled gate reviews cannot be conducted";
+	}
+	if (!decision.decision) {
+		return "A gate decision is required";
+	}
+	if (!decision.rationale?.trim()) {
+		return "Decision rationale is required";
+	}
+
+	const requiredItems = review.checklistItems?.filter((item) => item.required) ?? [];
+	const missingRequiredItems = requiredItems.filter((item) => !item.completed);
+	if (
+		(decision.decision === "pass" || decision.decision === "conditional_pass") &&
+		missingRequiredItems.length > 0
+	) {
+		return `Required checklist items must be completed before a gate can pass: ${missingRequiredItems
+			.map((item) => item.item)
+			.join(", ")}`;
+	}
+
+	if (decision.decision === "conditional_pass" && !decision.conditions?.length) {
+		return "Conditional pass requires at least one condition";
+	}
+
+	const reviewers = review.reviewers ?? [];
+	const quorum = getGateQuorum(reviewers);
+	if (quorum > 0) {
+		const votes = decision.reviewerVotes ?? reviewers.filter((reviewer) => reviewer.vote);
+		if (votes.length < quorum) {
+			return `Gate decision requires at least ${quorum} reviewer vote${quorum === 1 ? "" : "s"}`;
+		}
+		if (decision.decision === "pass" && votes.some((vote) => vote.vote === "reject")) {
+			return "Gate cannot pass while a reviewer vote rejects the decision";
+		}
+	}
+
+	return null;
+}
 
 // ============================================================================
 // Helper Functions
@@ -1182,6 +1240,11 @@ export async function conductGateReview(
 			return { success: false, error: "Gate review not found" };
 		}
 
+		const gateError = validateGateReviewDecision(review, decision);
+		if (gateError) {
+			return { success: false, error: gateError };
+		}
+
 		const now = new Date();
 
 		// Format conditions with status
@@ -1196,7 +1259,7 @@ export async function conductGateReview(
 			role: "reviewer",
 			vote: v.vote as "approve" | "conditional" | "reject",
 			comments: v.comments,
-		}));
+		})) ?? review.reviewers ?? undefined;
 
 		// Update the gate review
 		const [updated] = await db
@@ -1246,11 +1309,82 @@ export async function conductGateReview(
 				.where(eq(gateReviews.id, gateReviewId));
 		}
 
+		try {
+			const runtimeInstance = await recordWorkflowRuntimeTransition({
+				workflowKey: "capture_gate_review",
+				subjectType: "gate_review",
+				subjectId: gateReviewId,
+				fromState: review.status ?? "scheduled",
+				toState: decision.decision,
+				eventType: `gate_${decision.decision}`,
+				actorId: review.chairperson ?? review.createdBy ?? "system",
+				actorName: review.chairperson ?? review.createdBy ?? "System",
+				reason: decision.rationale,
+				priority: decision.decision === "fail" ? "critical" : decision.decision === "conditional_pass" ? "high" : "medium",
+				assignedTo: decision.decision === "conditional_pass" ? review.chairperson ?? null : null,
+				assignedRole: "capture_manager",
+				dueAt: decision.decision === "conditional_pass" ? earliestConditionDueDate(decision.conditions) : null,
+				visibility: "internal",
+				authorityPolicy: {
+					requiredRoles: ["executive", "capture_manager"],
+					minApprovers: getGateQuorum(review.reviewers),
+					escalationRole: "executive",
+				},
+				metadata: {
+					pipelineId: review.pipelineId,
+					gateType: review.gateType,
+					reviewerVotes,
+					conditions: formattedConditions ?? [],
+				},
+				terminal: decision.decision === "pass" || decision.decision === "fail" || decision.decision === "defer",
+				notificationRecipients: collectGateNotificationRecipients(review, decision),
+			});
+
+			if (decision.decision === "conditional_pass" && decision.conditions?.length) {
+				for (const [index, condition] of decision.conditions.entries()) {
+					await upsertWorkflowRuntimeTask({
+						workflowInstanceId: runtimeInstance.id,
+						taskKey: `gate-condition:${gateReviewId}:${index}`,
+						title: condition.condition,
+						description: `Condition for ${review.gateName ?? review.gateType}`,
+						state: "open",
+						priority: "high",
+						assignedTo: condition.assignee ?? review.chairperson ?? null,
+						assignedRole: "capture_manager",
+						dueAt: condition.dueDate ?? null,
+						metadata: { gateReviewId, pipelineId: review.pipelineId, gateType: review.gateType },
+					});
+				}
+			}
+		} catch (error) {
+			logger.warn("[Pipeline] Workflow runtime persistence failed:", error);
+		}
+
 		return { success: true, data: updated };
 	} catch (error) {
 		logger.error("[Pipeline] Error conducting gate review:", error);
 		return { success: false, error: error instanceof Error ? error.message : "Failed to conduct gate review" };
 	}
+}
+
+function earliestConditionDueDate(conditions?: Array<{ dueDate?: string }>): Date | null {
+	const dates = (conditions ?? [])
+		.map((condition) => condition.dueDate ? new Date(condition.dueDate) : null)
+		.filter((date): date is Date => date instanceof Date && !Number.isNaN(date.getTime()))
+		.sort((a, b) => a.getTime() - b.getTime());
+	return dates[0] ?? null;
+}
+
+function collectGateNotificationRecipients(
+	review: GateReview,
+	decision: GateDecision
+): string[] {
+	const recipients = new Set<string>();
+	if (review.chairperson) recipients.add(review.chairperson);
+	for (const condition of decision.conditions ?? []) {
+		if (condition.assignee) recipients.add(condition.assignee);
+	}
+	return [...recipients];
 }
 
 /**

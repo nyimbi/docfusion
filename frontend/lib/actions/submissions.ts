@@ -6,6 +6,7 @@
 
 "use server";
 
+import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import {
 	submissions,
@@ -15,6 +16,9 @@ import {
 	type SubmissionRow,
 } from "@/lib/db/schema";
 import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
+import { preSubmissionAudit } from "@/lib/actions/document-render";
+import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
+import { logger } from "@/lib/utils/logger";
 import type {
 	Submission,
 	SubmissionAttachment,
@@ -59,14 +63,53 @@ function transformSubmission(row: SubmissionRow): Submission {
 // CRUD Operations
 // ============================================================================
 
+function buildAttachmentHash(input: {
+	documentId: string;
+	documentTitle: string;
+	documentType: ProposalDocumentType;
+	status: string | null;
+	content: unknown;
+	updatedAt: Date | null;
+}): string {
+	return createHash("sha256")
+		.update(JSON.stringify({
+			documentId: input.documentId,
+			documentTitle: input.documentTitle,
+			documentType: input.documentType,
+			status: input.status,
+			content: input.content,
+			updatedAt: input.updatedAt?.toISOString() ?? null,
+		}))
+		.digest("hex");
+}
+
 /**
  * Create a new submission record.
  */
 export async function createSubmission(
 	input: CreateSubmissionInput
 ): Promise<Submission> {
+	if (!input.submittedBy.trim()) {
+		throw new Error("Submitted-by identity is required");
+	}
+	if (input.attachmentIds.length === 0) {
+		throw new Error("At least one submission attachment is required");
+	}
+	if (!input.confirmationNumber?.trim()) {
+		throw new Error("Submission confirmation number or receipt reference is required");
+	}
+
+	const audit = await preSubmissionAudit(input.opportunityId);
+	if (!audit.isReady) {
+		const auditSummary = audit.issues.length > 0
+			? audit.issues.join("; ")
+			: `readiness score ${audit.readinessScore}%`;
+		throw new Error(`Pre-submission audit is not ready: ${auditSummary}`);
+	}
+
 	// Get attached document details
 	const attachments: SubmissionAttachment[] = [];
+	const lockedAt = new Date().toISOString();
 
 	if (input.attachmentIds.length > 0) {
 		const proposalDocs = await db
@@ -74,7 +117,10 @@ export async function createSubmission(
 				id: proposalDocuments.id,
 				documentId: proposalDocuments.documentId,
 				documentType: proposalDocuments.documentType,
+				status: proposalDocuments.status,
 				title: documents.title,
+				content: documents.content,
+				updatedAt: documents.updatedAt,
 			})
 			.from(proposalDocuments)
 			.innerJoin(documents, eq(documents.id, proposalDocuments.documentId))
@@ -90,8 +136,21 @@ export async function createSubmission(
 				documentId: doc.documentId,
 				documentTitle: doc.title,
 				documentType: doc.documentType as ProposalDocumentType,
+				artifactHash: buildAttachmentHash({
+					documentId: doc.documentId,
+					documentTitle: doc.title,
+					documentType: doc.documentType as ProposalDocumentType,
+					status: doc.status,
+					content: doc.content,
+					updatedAt: doc.updatedAt,
+				}),
+				lockedAt,
 			});
 		}
+	}
+
+	if (attachments.length !== input.attachmentIds.length) {
+		throw new Error("All selected submission attachments must belong to the opportunity");
 	}
 
 	const [row] = await db
@@ -99,9 +158,9 @@ export async function createSubmission(
 		.values({
 			opportunityId: input.opportunityId,
 			submittedAt: new Date(),
-			submittedBy: input.submittedBy,
+			submittedBy: input.submittedBy.trim(),
 			submissionMethod: input.submissionMethod,
-			confirmationNumber: input.confirmationNumber,
+			confirmationNumber: input.confirmationNumber.trim(),
 			attachments,
 			notes: input.notes,
 			status: "submitted",
@@ -116,6 +175,37 @@ export async function createSubmission(
 			updatedAt: new Date(),
 		})
 		.where(eq(opportunities.id, input.opportunityId));
+
+	try {
+		await recordWorkflowRuntimeTransition({
+			workflowKey: "production_submission",
+			subjectType: "submission",
+			subjectId: row.id,
+			opportunityId: input.opportunityId,
+			fromState: "final_review",
+			toState: "submitted",
+			eventType: "submission_dispatched",
+			actorId: input.submittedBy.trim(),
+			actorName: input.submittedBy.trim(),
+			reason: `Submission receipt ${input.confirmationNumber.trim()} recorded`,
+			evidenceLinks: [input.confirmationNumber.trim()],
+			priority: "critical",
+			visibility: "internal",
+			authorityPolicy: {
+				requiredRoles: ["proposal_manager", "executive"],
+				escalationRole: "executive",
+			},
+			metadata: {
+				attachmentCount: attachments.length,
+				attachments,
+				auditReadinessScore: audit.readinessScore,
+				submissionMethod: input.submissionMethod,
+			},
+			terminal: true,
+		});
+	} catch (error) {
+		logger.warn("Submission workflow runtime persistence failed:", error);
+	}
 
 	return transformSubmission(row);
 }

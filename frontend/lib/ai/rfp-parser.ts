@@ -325,7 +325,7 @@ export async function parseRFPWithAI(
 		return parseJsonResponse<ParsedRFP>(content);
 	} catch (error) {
 		logger.error("Error parsing RFP with AI:", error);
-		throw new Error(`Failed to parse RFP: ${error instanceof Error ? error.message : "Unknown error"}`);
+		return buildFallbackParsedRfp(text);
 	}
 }
 
@@ -368,7 +368,7 @@ export async function extractRequirementsWithAI(
 		return parsed.requirements;
 	} catch (error) {
 		logger.error("Error extracting requirements with AI:", error);
-		throw new Error(`Failed to extract requirements: ${error instanceof Error ? error.message : "Unknown error"}`);
+		return extractRequirementsHeuristicForRfp(text);
 	}
 }
 
@@ -592,7 +592,13 @@ export async function batchExtractRequirements(
 				return { sectionId: section.id, requirements: withPageNumbers };
 			} catch (error) {
 				logger.error(`Error extracting from section ${section.id}:`, error);
-				return { sectionId: section.id, requirements: [] };
+				return {
+					sectionId: section.id,
+					requirements: extractRequirementsHeuristicForRfp(section.text).map((req) => ({
+						...req,
+						pageNumber: req.pageNumber ?? section.pageNumber,
+					})),
+				};
 			}
 		});
 
@@ -603,6 +609,152 @@ export async function batchExtractRequirements(
 	}
 
 	return results;
+}
+
+function buildFallbackParsedRfp(text: string): ParsedRFP {
+	const normalizedText = text.trim();
+	const sections = splitFallbackSections(normalizedText);
+	return {
+		issuingAgency: findMetadataValue(normalizedText, [
+			/(?:issuing\s+(?:agency|organization)|buyer|client|procuring\s+entity)[:\s]+([^\n]+)/i,
+		]),
+		solicitationNumber: findMetadataValue(normalizedText, [
+			/(?:solicitation|rfp|tender|bid|reference|notice)\s*(?:no\.?|number|id)?[:\s#-]+([A-Z0-9][A-Z0-9._/-]{2,})/i,
+		]),
+		responseDeadline: findDeadline(normalizedText, [
+			/(?:proposal|response|submission|closing)\s+(?:deadline|due date|date)[:\s]+([^\n]+)/i,
+			/(?:deadline|due)[:\s]+([^\n]+)/i,
+		]),
+		questionDeadline: findDeadline(normalizedText, [
+			/(?:questions?|clarifications?|inquir(?:y|ies))\s+(?:deadline|due date|date)[:\s]+([^\n]+)/i,
+		]),
+		contractType: findMetadataValue(normalizedText, [
+			/(?:contract\s+type|type\s+of\s+contract)[:\s]+([^\n]+)/i,
+		]),
+		naicsCode: findMetadataValue(normalizedText, [/\bNAICS[:\s]+(\d{4,6})\b/i]),
+		sections,
+		confidence: sections.length > 0 ? 0.45 : 0.25,
+	};
+}
+
+function splitFallbackSections(text: string): ParsedRFP["sections"] {
+	if (!text) {
+		return [{ sectionId: "section-1", title: "Document", pageStart: 1, pageEnd: 1, content: "" }];
+	}
+
+	const headingPattern = /^(?:section\s+)?([A-Z]|\d+(?:\.\d+)*)[.)\s-]+(.{3,120})$/gim;
+	const matches = [...text.matchAll(headingPattern)]
+		.filter((match) => (match.index ?? 0) >= 0)
+		.slice(0, 40);
+
+	if (matches.length === 0) {
+		return chunkText(text, 6000).map((content, index) => ({
+			sectionId: `section-${index + 1}`,
+			title: index === 0 ? "Document" : `Document Part ${index + 1}`,
+			pageStart: index + 1,
+			pageEnd: index + 1,
+			content,
+		}));
+	}
+
+	return matches.map((match, index) => {
+		const start = match.index ?? 0;
+		const end = matches[index + 1]?.index ?? text.length;
+		const title = `${match[1]} ${match[2]}`.trim();
+		return {
+			sectionId: `section-${index + 1}`,
+			title,
+			pageStart: index + 1,
+			pageEnd: index + 1,
+			content: text.slice(start, end).trim(),
+		};
+	});
+}
+
+function extractRequirementsHeuristicForRfp(text: string): ExtractedRequirement[] {
+	const lines = text.split(/\r?\n/);
+	const requirements: ExtractedRequirement[] = [];
+	let currentSection = "Document";
+
+	for (const rawLine of lines) {
+		const line = rawLine.replace(/\s+/g, " ").trim();
+		if (!line) continue;
+
+		if (/^(?:section\s+)?(?:[A-Z]|\d+(?:\.\d+)*)[.)\s-]+.{3,120}$/i.test(line) && line.length < 140) {
+			currentSection = line;
+			continue;
+		}
+
+		const lower = line.toLowerCase();
+		const isRequirement =
+			/\b(shall|must|required|requires|mandatory|should|may|will provide|contractor will|offeror will)\b/i.test(line) ||
+			/^(?:\d+(?:\.\d+)*|[a-z])[.)]\s+/.test(line) ||
+			/^[-*]\s+/.test(line);
+
+		if (!isRequirement || line.length < 24) continue;
+
+		const cleaned = line.replace(/^(?:\d+(?:\.\d+)*|[a-z])[.)]\s+|^[-*]\s+/i, "").trim();
+		const requirementType: RfpRequirementType = /\bshall|must|required|requires|mandatory\b/i.test(cleaned)
+			? "shall"
+			: /\bshould|preferred|recommended\b/i.test(cleaned)
+				? "should"
+				: /\bmay|optional\b/i.test(cleaned)
+					? "may"
+					: "will";
+		const priority: RfpRequirementPriority =
+			requirementType === "shall" ? "mandatory" : requirementType === "should" ? "preferred" : "optional";
+
+		requirements.push({
+			requirementNumber: `REQ-${String(requirements.length + 1).padStart(3, "0")}`,
+			sectionReference: currentSection,
+			title: cleaned.slice(0, 100),
+			fullText: cleaned,
+			summary: cleaned.slice(0, 220),
+			category: classifyFallbackCategory(cleaned),
+			requirementType,
+			priority,
+			confidenceScore: 0.55,
+			relatedRequirements: [],
+		});
+	}
+
+	return requirements;
+}
+
+function classifyFallbackCategory(text: string): RfpRequirementCategory {
+	const lower = text.toLowerCase();
+	if (/\btechnical|system|software|platform|architecture|integration|security control\b/.test(lower)) return "technical";
+	if (/\bmanage|management|staffing|work plan|schedule|risk\b/.test(lower)) return "management";
+	if (/\bpast performance|experience|qualification|reference\b/.test(lower)) return "past_performance";
+	if (/\bcost|price|pricing|budget|financial\b/.test(lower)) return "cost";
+	if (/\bpersonnel|resume|cv|key staff|team member\b/.test(lower)) return "personnel";
+	if (/\bsecurity|cyber|privacy|encryption|access control\b/.test(lower)) return "security";
+	if (/\bcompliance|certification|regulation|legal|contract\b/.test(lower)) return "compliance";
+	if (/\bform|submission|deadline|instruction|format|page limit\b/.test(lower)) return "administrative";
+	return "other";
+}
+
+function chunkText(text: string, maxLength: number): string[] {
+	const chunks: string[] = [];
+	for (let index = 0; index < text.length; index += maxLength) {
+		chunks.push(text.slice(index, index + maxLength));
+	}
+	return chunks.length > 0 ? chunks : [text];
+}
+
+function findMetadataValue(text: string, patterns: RegExp[]): string | undefined {
+	for (const pattern of patterns) {
+		const match = text.match(pattern);
+		if (match?.[1]) return match[1].trim().slice(0, 500);
+	}
+	return undefined;
+}
+
+function findDeadline(text: string, patterns: RegExp[]): string | undefined {
+	const value = findMetadataValue(text, patterns);
+	if (!value) return undefined;
+	const timestamp = Date.parse(value);
+	return Number.isNaN(timestamp) ? undefined : new Date(timestamp).toISOString();
 }
 
 /**

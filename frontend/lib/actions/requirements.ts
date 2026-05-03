@@ -9,8 +9,10 @@
 
 import { db } from "@/lib/db";
 import { rfpRequirements } from "@/lib/db/schema-rfp";
+import { proposalTasks, taskActivity } from "@/lib/db/schema-tasks";
 import { eq, and, or, ilike, inArray, isNull, isNotNull, lt, sql, desc, asc } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
+import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import type {
 	Requirement,
 	RequirementInput,
@@ -23,12 +25,61 @@ import type {
 	RequirementGapAnalysis,
 	RequirementCategory,
 	RequirementPriority,
+	RequirementWorkflowHistoryItem,
+	RequirementWorkflowState,
 	ComplianceStatus,
 	RiskLevel,
 	PaginatedResponse,
 	PaginationOptions,
 } from "@/lib/types/opportunity";
 import { logger } from "@/lib/utils/logger";
+
+type RequirementWorkflowAction = "accept" | "reject" | "reopen";
+
+interface RequirementWorkflowTransitionInput {
+	requirementId: string;
+	action: RequirementWorkflowAction;
+	actorId: string;
+	actorName?: string;
+	reason: string;
+	assignedTo?: string;
+	assignedToEmail?: string;
+	dueDate?: Date | string;
+	evidenceLinks?: string[];
+}
+
+interface RequirementWorkflowTransitionResult {
+	requirement: Requirement;
+	workflowState: RequirementWorkflowState;
+	projectedTaskId?: string;
+}
+
+interface RequirementWorkflowMetadata {
+	state: RequirementWorkflowState;
+	reason?: string;
+	acceptedAt?: string;
+	acceptedBy?: string;
+	rejectedAt?: string;
+	rejectedBy?: string;
+	reopenedAt?: string;
+	reopenedBy?: string;
+	updatedAt?: string;
+	projectedTaskId?: string;
+	evidenceLinks?: string[];
+	history?: RequirementWorkflowHistoryEntry[];
+}
+
+interface RequirementWorkflowHistoryEntry {
+	action: RequirementWorkflowAction;
+	from: RequirementWorkflowState;
+	to: RequirementWorkflowState;
+	actorId: string;
+	actorName?: string;
+	reason: string;
+	at: string;
+	projectedTaskId?: string;
+	evidenceLinks?: string[];
+}
 
 // ============================================================================
 // CRUD Operations
@@ -300,6 +351,219 @@ export async function assignRequirement(
 
 	if (!result) return null;
 	return mapDbToRequirement(result);
+}
+
+/**
+ * Move a requirement through the acceptance workflow.
+ *
+ * Acceptance is intentionally stricter than a plain status edit: it gates on
+ * traceability, categorization, priority, owner, due date, and rationale before
+ * projecting a writing task for proposal execution.
+ */
+export async function transitionRequirementWorkflow(
+	input: RequirementWorkflowTransitionInput
+): Promise<RequirementWorkflowTransitionResult | null> {
+	const reason = input.reason.trim();
+	if (!reason) {
+		throw new Error("Requirement workflow transition requires a reason.");
+	}
+
+	return db.transaction(async (tx) => {
+		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.requirementId}))`);
+
+		const [row] = await tx
+			.select()
+			.from(rfpRequirements)
+			.where(eq(rfpRequirements.id, input.requirementId))
+			.limit(1);
+
+		if (!row) return null;
+
+		const metadata = normalizeRequirementMetadata(row.metadata);
+		const currentWorkflow = metadata.workflow;
+		const fromState = currentWorkflow?.state ?? "review";
+		const toState = getNextRequirementWorkflowState(fromState, input.action);
+		const now = new Date();
+		const assignedTo = input.assignedTo ?? row.assignedTo;
+		const dueDate = input.dueDate ? new Date(input.dueDate) : row.dueDate;
+
+		if (input.action === "accept") {
+			const missing = getAcceptanceGateFailures(row, assignedTo, dueDate);
+			if (missing.length > 0) {
+				throw new Error(`Requirement acceptance blocked: missing ${missing.join(", ")}.`);
+			}
+		}
+
+		let projectedTaskId = currentWorkflow?.projectedTaskId;
+
+		if (input.action === "accept") {
+			const [existingTask] = await tx
+				.select()
+				.from(proposalTasks)
+				.where(
+					and(
+						eq(proposalTasks.requirementId, row.id),
+						eq(proposalTasks.sourceType, "requirement_workflow")
+					)
+				)
+				.limit(1);
+
+			const taskSyncData = {
+				assignedTo,
+				assignedToEmail: input.assignedToEmail ?? existingTask?.assignedToEmail ?? null,
+				assignedBy: input.actorId,
+				assignedAt: now,
+				dueDate,
+				status: assignedTo ? "assigned" : "pending",
+				priority: mapRequirementPriorityToTaskPriority(row.priority, row.riskLevel),
+				updatedAt: now,
+			};
+
+			if (existingTask) {
+				projectedTaskId = existingTask.id;
+				await tx
+					.update(proposalTasks)
+					.set(taskSyncData)
+					.where(eq(proposalTasks.id, existingTask.id));
+			} else {
+				const [createdTask] = await tx
+					.insert(proposalTasks)
+					.values({
+						opportunityId: row.opportunityId!,
+						taskNumber: makeRequirementTaskNumber(row),
+						title: `Draft response for ${row.requirementNumber ?? "requirement"}`,
+						description: row.requirementText,
+						taskType: "writing",
+						taskCategory: row.category ?? "technical",
+						requirementId: row.id,
+						...taskSyncData,
+						complianceRequirements: [row.requirementNumber ?? row.id],
+						sourceType: "requirement_workflow",
+						sourceId: row.id,
+						createdBy: input.actorId,
+					})
+					.returning();
+
+				projectedTaskId = createdTask?.id;
+			}
+		}
+
+		const nextWorkflow = buildRequirementWorkflowMetadata({
+			currentWorkflow,
+			action: input.action,
+			fromState,
+			toState,
+			input,
+			now,
+			projectedTaskId,
+			reason,
+		});
+
+		const updateData: Record<string, unknown> = {
+			metadata: {
+				...metadata,
+				workflow: nextWorkflow,
+			},
+			updatedAt: now,
+		};
+
+		if (input.action === "accept") {
+			updateData.assignedTo = assignedTo;
+			updateData.dueDate = dueDate;
+			if (row.complianceStatus === "not_addressed") {
+				updateData.complianceStatus = "partial";
+			}
+		}
+
+		const [updated] = await tx
+			.update(rfpRequirements)
+			.set(updateData)
+			.where(eq(rfpRequirements.id, input.requirementId))
+			.returning();
+
+		if (!updated) return null;
+
+		if (projectedTaskId) {
+			await tx.insert(taskActivity).values({
+				taskId: projectedTaskId,
+				activityType: "requirement_workflow_transition",
+				description: `Requirement ${input.action}ed: ${reason}`,
+				previousValue: fromState,
+				newValue: toState,
+				changeField: "requirement.workflow.state",
+				userId: input.actorId,
+				userName: input.actorName ?? input.actorId,
+				metadata: {
+					requirementId: row.id,
+					action: input.action,
+					evidenceLinks: input.evidenceLinks ?? [],
+				},
+			});
+		}
+
+		try {
+			const runtimeInstance = await recordWorkflowRuntimeTransition({
+				workflowKey: "requirement_acceptance",
+				subjectType: "requirement",
+				subjectId: row.id,
+				opportunityId: row.opportunityId,
+				fromState,
+				toState,
+				eventType: `requirement_${input.action}`,
+				actorId: input.actorId,
+				actorName: input.actorName,
+				reason,
+				evidenceLinks: input.evidenceLinks ?? [],
+				priority: mapRequirementPriorityToTaskPriority(row.priority, row.riskLevel),
+				assignedTo,
+				assignedRole: "writer",
+				assignedBy: input.actorId,
+				dueAt: dueDate,
+				visibility: "portal",
+				portalVisibility: {
+					visibleToPortal: toState === "accepted",
+					portalRole: "contributor",
+					summary: `Requirement ${row.requirementNumber ?? row.id} is ${toState}`,
+					actionLabel: toState === "accepted" ? "Draft response" : undefined,
+					actionUrl: `/opportunities/${row.opportunityId}/requirements`,
+				},
+				authorityPolicy: {
+					requiredRoles: input.action === "accept" ? ["proposal_manager", "capture_manager"] : undefined,
+					escalationRole: "proposal_manager",
+				},
+				metadata: {
+					requirementNumber: row.requirementNumber,
+					projectedTaskId,
+					complianceStatus: updated.complianceStatus,
+				},
+				terminal: toState === "accepted" || toState === "rejected",
+				notificationRecipients: assignedTo ? [assignedTo] : [],
+			}, tx);
+
+			if (projectedTaskId && toState === "accepted") {
+				await upsertWorkflowRuntimeTask({
+					workflowInstanceId: runtimeInstance.id,
+					taskKey: `requirement-writing:${row.id}`,
+					title: `Draft response for ${row.requirementNumber ?? "requirement"}`,
+					description: row.requirementText,
+					state: "open",
+					priority: mapRequirementPriorityToTaskPriority(row.priority, row.riskLevel),
+					assignedTo,
+					assignedRole: "writer",
+					dueAt: dueDate,
+					metadata: { projectedTaskId, requirementId: row.id },
+				}, tx);
+			}
+		} catch (error) {
+			logger.warn("Requirement workflow runtime persistence failed:", error);
+		}
+
+		return {
+			requirement: mapDbToRequirement(updated),
+			workflowState: toState,
+			projectedTaskId,
+		};
+	});
 }
 
 /**
@@ -812,13 +1076,185 @@ export async function saveExtractedRequirements(
 // Helpers
 // ============================================================================
 
+function normalizeRequirementMetadata(
+	metadata: unknown
+): Record<string, unknown> & { workflow?: RequirementWorkflowMetadata } {
+	if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+		return {};
+	}
+
+	const record = metadata as Record<string, unknown>;
+	const workflow = record.workflow;
+	if (!workflow || typeof workflow !== "object" || Array.isArray(workflow)) {
+		return { ...record };
+	}
+
+	const candidate = workflow as Partial<RequirementWorkflowMetadata>;
+	const state = isRequirementWorkflowState(candidate.state) ? candidate.state : "review";
+	return {
+		...record,
+		workflow: {
+			...candidate,
+			state,
+			history: Array.isArray(candidate.history) ? candidate.history : [],
+		},
+	};
+}
+
+function isRequirementWorkflowState(value: unknown): value is RequirementWorkflowState {
+	return value === "review" || value === "accepted" || value === "rejected";
+}
+
+function getNextRequirementWorkflowState(
+	currentState: RequirementWorkflowState,
+	action: RequirementWorkflowAction
+): RequirementWorkflowState {
+	const legalTransitions: Record<
+		RequirementWorkflowState,
+		Partial<Record<RequirementWorkflowAction, RequirementWorkflowState>>
+	> = {
+		review: {
+			accept: "accepted",
+			reject: "rejected",
+		},
+		accepted: {
+			reopen: "review",
+		},
+		rejected: {
+			reopen: "review",
+		},
+	};
+
+	const nextState = legalTransitions[currentState][action];
+	if (!nextState) {
+		throw new Error(`Cannot ${action} requirement from ${currentState} state.`);
+	}
+
+	return nextState;
+}
+
+function getAcceptanceGateFailures(
+	row: typeof rfpRequirements.$inferSelect,
+	assignedTo: string | null,
+	dueDate: Date | null
+): string[] {
+	const missing: string[] = [];
+
+	if (!row.opportunityId) missing.push("opportunity");
+	if (!row.sourceQuote && !row.sourceSection && row.sourcePage == null && !row.rfpDocumentId) {
+		missing.push("source trace");
+	}
+	if (!row.category) missing.push("category");
+	if (!row.priority) missing.push("priority");
+	if (!assignedTo) missing.push("owner");
+	if (!dueDate || Number.isNaN(dueDate.getTime())) missing.push("due date");
+
+	return missing;
+}
+
+function buildRequirementWorkflowMetadata({
+	currentWorkflow,
+	action,
+	fromState,
+	toState,
+	input,
+	now,
+	projectedTaskId,
+	reason,
+}: {
+	currentWorkflow?: RequirementWorkflowMetadata;
+	action: RequirementWorkflowAction;
+	fromState: RequirementWorkflowState;
+	toState: RequirementWorkflowState;
+	input: RequirementWorkflowTransitionInput;
+	now: Date;
+	projectedTaskId?: string;
+	reason: string;
+}): RequirementWorkflowMetadata {
+	const at = now.toISOString();
+	const historyEntry: RequirementWorkflowHistoryEntry = {
+		action,
+		from: fromState,
+		to: toState,
+		actorId: input.actorId,
+		actorName: input.actorName,
+		reason,
+		at,
+		projectedTaskId,
+		evidenceLinks: input.evidenceLinks ?? [],
+	};
+
+	const next: RequirementWorkflowMetadata = {
+		...currentWorkflow,
+		state: toState,
+		reason,
+		updatedAt: at,
+		projectedTaskId,
+		evidenceLinks: input.evidenceLinks ?? currentWorkflow?.evidenceLinks ?? [],
+		history: [...(currentWorkflow?.history ?? []), historyEntry],
+	};
+
+	if (action === "accept") {
+		next.acceptedAt = at;
+		next.acceptedBy = input.actorId;
+	}
+	if (action === "reject") {
+		next.rejectedAt = at;
+		next.rejectedBy = input.actorId;
+	}
+	if (action === "reopen") {
+		next.reopenedAt = at;
+		next.reopenedBy = input.actorId;
+	}
+
+	return next;
+}
+
+function makeRequirementTaskNumber(row: typeof rfpRequirements.$inferSelect): string {
+	const source = row.requirementNumber ?? row.id.slice(0, 8);
+	return `REQ-${source}-WRITING`;
+}
+
+function mapRequirementPriorityToTaskPriority(
+	priority: string | null,
+	riskLevel: string | null
+): "critical" | "high" | "medium" | "low" {
+	if (riskLevel === "critical") return "critical";
+	if (priority === "mandatory" || riskLevel === "high") return "high";
+	if (priority === "optional" || riskLevel === "low") return "low";
+	return "medium";
+}
+
+function mapRequirementWorkflowHistory(
+	workflow?: RequirementWorkflowMetadata
+): RequirementWorkflowHistoryItem[] {
+	return (workflow?.history ?? []).map((entry) => {
+		const at = new Date(entry.at);
+		return {
+			action: entry.action,
+			from: entry.from,
+			to: entry.to,
+			actorId: entry.actorId,
+			actorName: entry.actorName,
+			reason: entry.reason,
+			at: Number.isNaN(at.getTime()) ? new Date(0) : at,
+			projectedTaskId: entry.projectedTaskId ?? null,
+			evidenceLinks: entry.evidenceLinks ?? [],
+		};
+	});
+}
+
 /**
  * Map database row to Requirement type.
  */
 function mapDbToRequirement(row: typeof rfpRequirements.$inferSelect): Requirement {
+	const metadata = normalizeRequirementMetadata(row.metadata);
+	const workflow = metadata.workflow;
+	const workflowUpdatedAt = workflow?.updatedAt ? new Date(workflow.updatedAt) : null;
+
 	return {
 		id: row.id,
-		opportunityId: row.opportunityId,
+		opportunityId: row.opportunityId ?? "",
 		requirementId: row.requirementNumber,
 		category: row.category as RequirementCategory | null,
 		subcategory: row.subcategory,
@@ -833,6 +1269,13 @@ function mapDbToRequirement(row: typeof rfpRequirements.$inferSelect): Requireme
 		notes: row.notes,
 		riskLevel: row.riskLevel as RiskLevel | null,
 		aiAnalysis: row.aiAnalysis as Requirement["aiAnalysis"],
+		workflowState: workflow?.state ?? "review",
+		workflowReason: workflow?.reason ?? null,
+		workflowUpdatedAt: workflowUpdatedAt && !Number.isNaN(workflowUpdatedAt.getTime())
+			? workflowUpdatedAt
+			: null,
+		projectedTaskId: workflow?.projectedTaskId ?? null,
+		workflowHistory: mapRequirementWorkflowHistory(workflow),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};

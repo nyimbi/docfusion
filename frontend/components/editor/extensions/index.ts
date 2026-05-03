@@ -35,9 +35,10 @@ import { DragDrop, type DragDropOptions, type DropPosition } from "@/lib/editor/
 import { Equation, InlineEquation } from "@/lib/editor/extensions/equation";
 import { ExternalFile, type ExternalFileAttributes } from "@/lib/editor/extensions/external-file";
 import { SnippetExpansion } from "./snippet-expansion";
+import { UnresolvedPlaceholders } from "./unresolved-placeholders";
 import { Callout } from "./callout";
 import { PageBreak } from "./page-break";
-import type { SnippetSummary } from "@/lib/types/snippets";
+import type { ShortcutExpansion, SnippetSummary } from "@/lib/types/snippets";
 import type { DocumentContent } from "@/lib/types/document";
 
 /**
@@ -99,10 +100,16 @@ export interface EditorExtensionOptions {
 	onFileUpload?: (file: File) => Promise<string>;
 	/** Callback to resolve a shortcut to a snippet */
 	onSnippetResolve?: (shortcut: string) => Promise<SnippetSummary | null>;
+	/** Callback to expand a shortcut to resolved snippet content */
+	onSnippetExpand?: (shortcut: string) => Promise<ShortcutExpansion | null>;
 	/** Callback to get snippet content by ID */
-	onSnippetContent?: (snippet: SnippetSummary) => Promise<DocumentContent | null>;
+	onSnippetContent?: (snippet: SnippetSummary) => Promise<DocumentContent | ShortcutExpansion | null>;
+	/** Callback after a snippet is expanded */
+	onSnippetExpanded?: (shortcut: string, snippet: SnippetSummary, expansion?: ShortcutExpansion) => void;
 	/** Yjs document for collaboration. If provided, enables collaboration features. */
 	yjsDoc?: import("yjs").Doc;
+	/** Optional provider with awareness support for rendering remote collaboration cursors */
+	collaborationProvider?: { awareness: unknown } | null;
 	/** User data for collaboration cursors */
 	user?: { name: string; color: string };
 }
@@ -125,6 +132,7 @@ export function createExtensions(options: EditorExtensionOptions = {}) {
 		onDrop,
 		onFileUpload,
 		yjsDoc,
+		collaborationProvider,
 		user,
 	} = options;
 
@@ -254,9 +262,14 @@ export function createExtensions(options: EditorExtensionOptions = {}) {
 
 		// Snippet expansion (/shortcut + space/enter)
 		SnippetExpansion.configure({
+			onShortcutExpand: options.onSnippetExpand,
 			onShortcutResolve: options.onSnippetResolve ?? (async () => null),
 			onGetSnippetContent: options.onSnippetContent ?? (async () => null),
+			onExpand: options.onSnippetExpanded,
 		}),
+
+		// Highlight unresolved {{placeholders}} without mutating document text
+		UnresolvedPlaceholders,
 
 		// Callout/alert boxes for RFP responses
 		Callout,
@@ -267,14 +280,16 @@ export function createExtensions(options: EditorExtensionOptions = {}) {
 
 	// Add collaboration extensions if Yjs document is provided
 	if (yjsDoc) {
-		extensions.push(
-			Collaboration.configure({
-				document: yjsDoc,
-			}),
-			CollaborationCursor.configure({
-				user: user ?? { name: "Anonymous", color: "#888888" },
-			})
-		);
+		extensions.push(Collaboration.configure({ document: yjsDoc }));
+
+		if (collaborationProvider?.awareness) {
+			extensions.push(
+				CollaborationCursor.configure({
+					provider: collaborationProvider,
+					user: user ?? { name: "Anonymous", color: "#888888" },
+				})
+			);
+		}
 	}
 
 	// Add outline extension if enabled

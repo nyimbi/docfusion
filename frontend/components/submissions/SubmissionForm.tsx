@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type {
 	PreSubmissionChecklistItem,
 	SubmissionMethod,
@@ -62,11 +62,11 @@ export function SubmissionForm({
 	const [error, setError] = useState<string | null>(null);
 
 	// Load checklist if not provided
-	useState(() => {
+	useEffect(() => {
 		if (!initialChecklist) {
 			getPreSubmissionChecklist(opportunityId).then(setChecklist);
 		}
-	});
+	}, [initialChecklist, opportunityId]);
 
 	const toggleChecklistItem = (itemId: string) => {
 		setChecklist((prev) =>
@@ -102,6 +102,11 @@ export function SubmissionForm({
 
 		if (selectedDocuments.length === 0) {
 			setError("Please select at least one document to submit");
+			return;
+		}
+
+		if (!confirmationNumber.trim()) {
+			setError("Please enter a confirmation number or receipt reference");
 			return;
 		}
 
@@ -227,28 +232,28 @@ export function SubmissionForm({
 
 				{/* Submitted By */}
 				<div>
-					<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+					<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 						Submitted By <span className="text-red-500">*</span>
-					</label>
+					</span>
 					<input
 						type="text"
 						value={submittedBy}
 						onChange={(e) => setSubmittedBy(e.target.value)}
 						placeholder="Your name"
 						className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-					/>
+					 aria-label="Submitted By"/>
 				</div>
 
 				{/* Submission Method */}
 				<div>
-					<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+					<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 						Submission Method
-					</label>
+					</span>
 					<select
 						value={submissionMethod}
 						onChange={(e) => setSubmissionMethod(e.target.value as SubmissionMethod)}
 						className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-					>
+					 aria-label="Submission Method">
 						<option value="portal">Online Portal</option>
 						<option value="email">Email</option>
 						<option value="physical">Physical Mail</option>
@@ -259,30 +264,30 @@ export function SubmissionForm({
 
 				{/* Confirmation Number */}
 				<div>
-					<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
-						Confirmation Number
-					</label>
+					<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
+						Confirmation Number <span className="text-red-500">*</span>
+					</span>
 					<input
 						type="text"
 						value={confirmationNumber}
 						onChange={(e) => setConfirmationNumber(e.target.value)}
 						placeholder="Portal confirmation or tracking number"
 						className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-					/>
+					 aria-label="Confirmation Number"/>
 				</div>
 
 				{/* Notes */}
 				<div>
-					<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+					<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 						Notes
-					</label>
+					</span>
 					<textarea
 						value={notes}
 						onChange={(e) => setNotes(e.target.value)}
 						placeholder="Any additional notes about this submission..."
 						rows={3}
 						className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-					/>
+					 aria-label="Notes"/>
 				</div>
 			</div>
 

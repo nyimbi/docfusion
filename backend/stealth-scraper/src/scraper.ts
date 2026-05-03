@@ -208,7 +208,7 @@ export async function stealthScrape(
 							: originalQuery(parameters);
 
 					// Add chrome object (Chromium browsers have this)
-					(window as Record<string, unknown>).chrome = {
+					(window as unknown as Record<string, unknown>).chrome = {
 						runtime: {},
 					};
 				});

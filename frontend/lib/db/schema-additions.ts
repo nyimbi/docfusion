@@ -37,6 +37,8 @@ export const templateSnippets = pgTable(
 		shortcut: varchar("shortcut", { length: 50 }).notNull(),
 		/** Content stored as Tiptap JSON */
 		content: jsonb("content").notNull(),
+		/** Placeholder definitions used by snippet context resolution */
+		placeholders: jsonb("placeholders").notNull().default([]),
 		/** Description of what this snippet contains */
 		description: text("description"),
 		/** Tags for categorization and search */

@@ -11,11 +11,19 @@
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { db } from "@/lib/db";
 import { opportunityDocuments, opportunities, type NewOpportunityDocument } from "@/lib/db/schema";
+import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import { eq, and } from "drizzle-orm";
 import { mkdir, writeFile, readFile, access, unlink } from "fs/promises";
 import { join, basename, extname } from "path";
 import { createHash } from "crypto";
 import { processRfpDocument, isSupportedFileType } from "@/lib/services/docling-client";
+import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
+import {
+  buildRfpObjectKey,
+  downloadFromLinodeE3,
+  getLinodeE3ConfigFromEnv,
+  uploadToLinodeE3,
+} from "@/lib/storage/linode-e3";
 import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
@@ -48,6 +56,7 @@ export interface DownloadResult {
   success: boolean;
   documentId?: string;
   localPath?: string;
+  storagePath?: string;
   fileSize?: number;
   mimeType?: string;
   error?: string;
@@ -141,10 +150,14 @@ Return direct document URLs only.`,
       }>;
       
       documents = extractedDocs
+        .map((doc) => ({
+          ...doc,
+          url: resolveUrl(doc.url, sourceUrl),
+        }))
         .filter((doc) => isValidDocumentUrl(doc.url))
         .map((doc) => ({
           name: sanitizeFilename(doc.name),
-          url: resolveUrl(doc.url, sourceUrl),
+          url: doc.url,
           type: validateDocumentType(doc.type),
           description: doc.description,
         }));
@@ -504,17 +517,17 @@ export async function downloadDocument(
     // Calculate hash
     const fileHash = createHash("sha256").update(buffer).digest("hex");
 
-    // Generate storage path
-    const opportunityDir = join(DOCUMENT_STORAGE_PATH, doc.opportunityId);
-    const fileExt = extname(doc.sourceUrl) || ".bin";
-    const safeName = `${doc.id}${fileExt}`;
-    const localPath = join(opportunityDir, safeName);
-
-    // Ensure directory exists
-    await mkdir(opportunityDir, { recursive: true });
-
-    // Write file
-    await writeFile(localPath, buffer);
+    // Store the fetched binary server-side. Linode E3 has no browser CORS,
+    // so fetched RFPs are uploaded from this server process when configured.
+    const localPath = await storeFetchedRfpDocument({
+      documentId: doc.id,
+      opportunityId: doc.opportunityId,
+      filename: doc.documentName,
+      sourceUrl: doc.sourceUrl,
+      buffer,
+      mimeType,
+      userId,
+    });
 
     // Process document with DocLing for text extraction
     let extractedText: string | undefined;
@@ -553,10 +566,22 @@ export async function downloadDocument(
     // Update opportunity download count
     await updateOpportunityDownloadCount(doc.opportunityId);
 
+    await queueRfpParsingFromDownloadedDocument({
+      document: doc,
+      storagePath: localPath,
+      fileSize: buffer.length,
+      mimeType,
+      fileHash,
+      extractedText,
+      pageCount,
+      userId: userId || "system",
+    });
+
     return {
       success: true,
       documentId,
       localPath,
+      storagePath: localPath,
       fileSize: buffer.length,
       mimeType,
     };
@@ -655,10 +680,7 @@ export async function getDocumentFile(documentId: string): Promise<{
   }
 
   try {
-    // Verify file exists
-    await access(doc.localPath);
-    
-    const buffer = await readFile(doc.localPath);
+    const buffer = await readDocumentBuffer(doc.localPath);
     
     return {
       buffer,
@@ -679,7 +701,7 @@ export async function deleteDocument(documentId: string): Promise<boolean> {
       where: eq(opportunityDocuments.id, documentId),
     });
 
-    if (doc?.localPath) {
+    if (doc?.localPath && !doc.localPath.startsWith("s3://")) {
       try {
         await unlink(doc.localPath);
       } catch {
@@ -723,8 +745,8 @@ export async function extractDocumentText(documentId: string): Promise<string | 
   }
 
   try {
-    // Read file and process with DocLing
-    const buffer = await readFile(doc.localPath);
+    // Read file from Linode E3 or legacy local storage and process with DocLing.
+    const buffer = await readDocumentBuffer(doc.localPath);
     
     if (!isSupportedFileType(doc.documentName)) {
       logger.debug(`[DocLing] File type not supported for extraction: ${doc.documentName}`);
@@ -750,4 +772,147 @@ export async function extractDocumentText(documentId: string): Promise<string | 
     logger.error(`[DocLing] Text extraction failed for ${documentId}:`, error);
     return null;
   }
+}
+
+async function storeFetchedRfpDocument(params: {
+  documentId: string;
+  opportunityId: string;
+  filename: string;
+  sourceUrl: string;
+  buffer: Buffer;
+  mimeType: string;
+  userId?: string;
+}): Promise<string> {
+  const objectStoreConfig = getLinodeE3ConfigFromEnv();
+  if (objectStoreConfig) {
+    const objectKey = buildRfpObjectKey({
+      documentId: params.documentId,
+      filename: params.filename || extractDocumentName(params.sourceUrl, ""),
+      opportunityId: params.opportunityId,
+      prefix: objectStoreConfig.prefix,
+    });
+    const upload = await uploadToLinodeE3(objectStoreConfig, {
+      key: objectKey,
+      body: params.buffer,
+      contentType: params.mimeType || "application/octet-stream",
+      contentLength: params.buffer.length,
+      metadata: {
+        "document-id": params.documentId,
+        "opportunity-id": params.opportunityId,
+        "source-url-sha256": createHash("sha256").update(params.sourceUrl).digest("hex"),
+        "downloaded-by": params.userId || "system",
+      },
+    });
+
+    return upload.storagePath;
+  }
+
+  const opportunityDir = join(DOCUMENT_STORAGE_PATH, params.opportunityId);
+  const fileExt = extname(new URL(params.sourceUrl).pathname) || extname(params.filename) || ".bin";
+  const safeName = `${params.documentId}${fileExt}`;
+  const localPath = join(opportunityDir, safeName);
+
+  await mkdir(opportunityDir, { recursive: true });
+  await writeFile(localPath, params.buffer);
+
+  return localPath;
+}
+
+async function readDocumentBuffer(storagePath: string): Promise<Buffer> {
+  if (storagePath.startsWith("s3://")) {
+    const objectStoreConfig = getLinodeE3ConfigFromEnv();
+    if (!objectStoreConfig) {
+      throw new Error("Linode E3 storage is not configured");
+    }
+    const object = await downloadFromLinodeE3(objectStoreConfig, storagePath);
+    return object.body;
+  }
+
+  await access(storagePath);
+  return readFile(storagePath);
+}
+
+async function queueRfpParsingFromDownloadedDocument(params: {
+  document: typeof opportunityDocuments.$inferSelect;
+  storagePath: string;
+  fileSize: number;
+  mimeType: string;
+  fileHash: string;
+  extractedText?: string;
+  pageCount?: number;
+  userId: string;
+}): Promise<void> {
+  const fileType = inferRfpParserFileType(params.document.documentName, params.mimeType);
+  if (!fileType) {
+    return;
+  }
+
+  try {
+    const existing = await db.query.rfpDocuments.findFirst({
+      where: eq(rfpDocuments.fileHash, params.fileHash),
+    });
+
+    if (existing) {
+      return;
+    }
+
+    const [rfpDocument] = await db.insert(rfpDocuments).values({
+      opportunityId: params.document.opportunityId,
+      filename: params.document.documentName,
+      fileType,
+      fileSize: params.fileSize,
+      storagePath: params.storagePath,
+      fileHash: params.fileHash,
+      parsingStatus: "pending",
+      parsingProgress: 0,
+      extractedText: params.extractedText,
+      pageCount: params.pageCount,
+      uploadedBy: params.userId,
+      metadata: {
+        source: "opportunity_document_download",
+        sourceOpportunityDocumentId: params.document.id,
+        sourceUrl: params.document.sourceUrl,
+      },
+    }).returning();
+
+    const [parsingJob] = await db.insert(rfpParsingJobs).values({
+      rfpDocumentId: rfpDocument.id,
+      status: "queued",
+      currentStep: "Queued from discovered RFP download",
+      progress: 0,
+      initiatedBy: params.userId,
+      parsingOptions: {
+        extractRequirements: true,
+        generateEmbeddings: true,
+        detectSections: true,
+        classifyRequirements: true,
+      },
+      metadata: {
+        sourceOpportunityDocumentId: params.document.id,
+      },
+    }).returning();
+
+    processRfpParsingJob(parsingJob.id, rfpDocument.id).catch((error) => {
+      logger.error("[RFP Document Service] Background parse failed:", error);
+    });
+  } catch (error) {
+    logger.warn("[RFP Document Service] Failed to queue downloaded document for parsing:", error);
+  }
+}
+
+function inferRfpParserFileType(
+  filename: string,
+  mimeType?: string | null
+): "pdf" | "docx" | "doc" | "html" | null {
+  const extension = extname(filename).toLowerCase();
+  if (extension === ".pdf" || mimeType === "application/pdf") return "pdf";
+  if (
+    extension === ".docx" ||
+    mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    return "docx";
+  }
+  if (extension === ".doc" || mimeType === "application/msword") return "doc";
+  if (extension === ".html" || extension === ".htm" || mimeType === "text/html") return "html";
+  return null;
 }

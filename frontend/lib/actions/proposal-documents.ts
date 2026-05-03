@@ -26,6 +26,10 @@ import type {
 	DocumentSectionStatus,
 } from "@/lib/types/opportunity";
 import { getDocumentTypeLabel } from "@/lib/utils/proposal-labels";
+import {
+	getDatacraftProposalDocumentContent,
+	getDatacraftProposalSectionSeeds,
+} from "@/lib/data/datacraft-response-content";
 
 // ============================================================================
 // Helper Functions
@@ -85,6 +89,29 @@ function mapDocumentSection(row: typeof documentSections.$inferSelect): Document
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};
+}
+
+function extractPlainText(content: unknown): string {
+	if (typeof content === "string") {
+		return content;
+	}
+
+	if (Array.isArray(content)) {
+		return content.map(extractPlainText).filter(Boolean).join(" ");
+	}
+
+	if (content && typeof content === "object") {
+		const record = content as Record<string, unknown>;
+		const ownText = typeof record.text === "string" ? record.text : "";
+		const childText = extractPlainText(record.content);
+		return [ownText, childText].filter(Boolean).join(" ");
+	}
+
+	return "";
+}
+
+function countWords(text: string): number {
+	return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
 // Label utility functions are in @/lib/utils/proposal-labels.ts
@@ -160,14 +187,25 @@ export async function createProposalDocument(
 	const nextOrder = (existingDocs[0]?.maxOrder ?? -1) + 1;
 
 	// Create the underlying document first
+	const defaultContent = getDatacraftProposalDocumentContent(documentType);
+	const plainText = extractPlainText(defaultContent);
+	const wordCount = countWords(plainText);
 	const [newDoc] = await db
 		.insert(documents)
 		.values({
 			title: documentTitle,
-			content: { type: "doc", content: [{ type: "paragraph" }] },
+			content: defaultContent,
+			plainText,
 			templateId: templateId || null,
 			status: "draft",
 			ownerId: assignedTo || "system",
+			tags: ["datacraft", "proposal-response", documentType],
+			wordCount,
+			characterCount: plainText.length,
+			metadata: {
+				source: "datacraft_response_sections",
+				documentType,
+			},
 		})
 		.returning();
 
@@ -185,6 +223,24 @@ export async function createProposalDocument(
 			notes: notes || null,
 		})
 		.returning();
+
+	const sectionSeeds = getDatacraftProposalSectionSeeds(documentType);
+	if (sectionSeeds.length > 0) {
+		const estimatedSectionWords = Math.round(wordCount / sectionSeeds.length);
+		await db.insert(documentSections).values(
+			sectionSeeds.map((section, index) => ({
+				proposalDocumentId: proposalDoc.id,
+				sectionName: section.sectionName,
+				sectionOrder: index,
+				status: estimatedSectionWords > 0 ? "drafting" : "not_started",
+				wordCount: estimatedSectionWords,
+				targetWordCount: section.targetWordCount,
+				assignedTo: assignedTo || null,
+				dueDate: dueDate ? new Date(dueDate) : null,
+				requirementIds: [],
+			}))
+		);
+	}
 
 	return mapProposalDocument(proposalDoc, newDoc);
 }
