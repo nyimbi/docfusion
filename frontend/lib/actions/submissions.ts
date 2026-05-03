@@ -15,7 +15,7 @@ import {
 	opportunities,
 	type SubmissionRow,
 } from "@/lib/db/schema";
-import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, count, inArray } from "drizzle-orm";
 import { preSubmissionAudit } from "@/lib/actions/document-render";
 import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
 import { logger } from "@/lib/utils/logger";
@@ -127,7 +127,7 @@ export async function createSubmission(
 			.where(
 				and(
 					eq(proposalDocuments.opportunityId, input.opportunityId),
-					sql`${proposalDocuments.documentId} = ANY(${input.attachmentIds})`
+					inArray(proposalDocuments.documentId, input.attachmentIds)
 				)
 			);
 

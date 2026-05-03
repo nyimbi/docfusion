@@ -23,6 +23,18 @@ Run namespace: `e2e_20260503_docfusion`
 | Health/monitoring | Unit/integration health tests and route checks | App health/API route probes | Live app/service probes | `/opt/docfusion/monitoring/*`, scraper status, worker logs if accessible | Deployment runbooks | Operator tier required for real monitoring proof. |
 | Backup/restore | Not normally local | Not normally local | Requires live backup system and restore sandbox | `pgbackrest`/deployment commands, restore smoke | Deployment README | `credential-missing` until operator backup credentials/sandbox are available. |
 
+## Phase 1 Resolutions
+
+| Concern | Resolution evidence | Remaining gap |
+|---|---|---|
+| Auth/session | Signed Auth.js session cookie accepted by `/api/auth/session`; protected workflow API read returned `200`; unauthenticated dashboard returned `401`. | Real Keycloak browser login was not exercised. |
+| Authorization | Workflow API auth tests passed; scheduler endpoints rejected without a configured secret and returned `200` after `WORKFLOW_CRON_SECRET` was configured. | Broader resource-specific SpiceDB checks remain covered by tests, not live SpiceDB policy data. |
+| Database | `db.lindela.io` validation now covers workflow runtime, RFP core, compliance core, scraper tables, and `opportunities.search_vector`. | Backup/restore sandbox remains unavailable. |
+| Object storage | Linode E3 signed PUT/GET readback passed in bucket `mansa`; RFP upload stored to `s3://mansa/rfp/unassigned/...`. | Proof objects are retained under `rfp/e2e` and the RFP fixture namespace until cleanup is explicitly scheduled. |
+| Mail/notifications | Notification route and worker path execute with zero queued notifications. | No Stalwart mailbox delivery proof because there were no queued notification rows to dispatch. |
+| Workflow runtime | Strict worker completed; browser workflow action panel passed; live submission emitted a `production_submission` workflow transition. | Reversal/compensation remains covered by unit/domain tests, not a live browser reversal fixture in this phase. |
+| RFP intake/parse | Upload, E3 storage, parse kickoff, status polling, and completed requirement extraction passed after rewrite and migration repairs. | Failed-parse remediation remains partial; happy path is proven. |
+
 ## Topology Tiers
 
 | Tier | Meaning | Counts as validated coverage? |
@@ -33,10 +45,8 @@ Run namespace: `e2e_20260503_docfusion`
 | `operator` | Service timers, backup, health, worker, external service probes. | Yes only with operator proof artifacts and cleanup status. |
 | `legacy-reference` | Historical/planned documentation only. | No. |
 
-## Immediate Blockers To Resolve Before Live/Destructive Runs
+## Remaining Blockers
 
-- Confirm current live auth route: real Keycloak test login or approved signed Auth.js test session for non-auth facility proof.
-- Confirm Linode E3 bucket/prefix and cleanup permissions for `e2e_20260503_docfusion_*`.
 - Confirm Stalwart test mailbox/sink and dispatch credentials.
 - Confirm whether operator backup/restore smoke has a safe restore sandbox. Until then, `O-011` remains `credential-missing`.
 - Confirm scraper/admin scheduler secret and service reachability before O-009/O-014.

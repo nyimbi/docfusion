@@ -7,6 +7,14 @@ const REQUIRED_TABLES = [
 	"workflow_audit_events",
 	"workflow_notifications",
 	"workflow_templates",
+	"rfp_documents",
+	"rfp_parsing_jobs",
+	"rfp_requirements",
+	"compliance_matrices",
+	"compliance_entries",
+	"scraper_runs",
+	"scraper_sources",
+	"opportunities",
 ];
 
 const REQUIRED_COLUMNS: Record<string, string[]> = {
@@ -51,6 +59,61 @@ const REQUIRED_COLUMNS: Record<string, string[]> = {
 		"states",
 		"transitions",
 		"published_at",
+	],
+	rfp_documents: [
+		"opportunity_id",
+		"filename",
+		"storage_path",
+		"parsing_status",
+		"parsing_error",
+		"uploaded_by",
+	],
+	rfp_parsing_jobs: [
+		"rfp_document_id",
+		"status",
+		"current_step",
+		"error_message",
+		"initiated_by",
+	],
+	rfp_requirements: [
+		"rfp_document_id",
+		"opportunity_id",
+		"requirement_text",
+		"ai_analysis",
+		"compliance_status",
+	],
+	compliance_matrices: [
+		"opportunity_id",
+		"rfp_document_id",
+		"status",
+		"total_requirements",
+		"created_by",
+	],
+	compliance_entries: [
+		"matrix_id",
+		"requirement_id",
+		"compliance_status",
+		"response_document_id",
+		"assigned_to",
+	],
+	scraper_runs: [
+		"source_id",
+		"run_id",
+		"status",
+		"source_key",
+		"error_message",
+	],
+	scraper_sources: [
+		"source_id",
+		"name",
+		"source_type",
+		"enabled",
+		"health_status",
+	],
+	opportunities: [
+		"title",
+		"decision_status",
+		"search_vector",
 	],
 };
 
