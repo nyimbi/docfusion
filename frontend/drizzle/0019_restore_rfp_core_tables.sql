@@ -1,3 +1,7 @@
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+--> statement-breakpoint
+CREATE EXTENSION IF NOT EXISTS "vector";
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "rfp_documents" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"opportunity_id" uuid REFERENCES "public"."opportunities"("id") ON DELETE set null ON UPDATE no action,
