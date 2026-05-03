@@ -108,6 +108,8 @@ export interface EditorExtensionOptions {
 	onSnippetExpanded?: (shortcut: string, snippet: SnippetSummary, expansion?: ShortcutExpansion) => void;
 	/** Yjs document for collaboration. If provided, enables collaboration features. */
 	yjsDoc?: import("yjs").Doc;
+	/** Optional provider with awareness support for rendering remote collaboration cursors */
+	collaborationProvider?: { awareness: unknown } | null;
 	/** User data for collaboration cursors */
 	user?: { name: string; color: string };
 }
@@ -130,6 +132,7 @@ export function createExtensions(options: EditorExtensionOptions = {}) {
 		onDrop,
 		onFileUpload,
 		yjsDoc,
+		collaborationProvider,
 		user,
 	} = options;
 
@@ -277,14 +280,16 @@ export function createExtensions(options: EditorExtensionOptions = {}) {
 
 	// Add collaboration extensions if Yjs document is provided
 	if (yjsDoc) {
-		extensions.push(
-			Collaboration.configure({
-				document: yjsDoc,
-			}),
-			CollaborationCursor.configure({
-				user: user ?? { name: "Anonymous", color: "#888888" },
-			})
-		);
+		extensions.push(Collaboration.configure({ document: yjsDoc }));
+
+		if (collaborationProvider?.awareness) {
+			extensions.push(
+				CollaborationCursor.configure({
+					provider: collaborationProvider,
+					user: user ?? { name: "Anonymous", color: "#888888" },
+				})
+			);
+		}
 	}
 
 	// Add outline extension if enabled

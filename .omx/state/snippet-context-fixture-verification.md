@@ -101,14 +101,29 @@ Production build/start did register the document route:
 - `npm run start -- -p 32132` served the built app.
 - `curl -I /documents/53c4e667-95f1-4487-8e97-779dff133008` returned `307` to `/auth/sign-in?callbackUrl=...`, proving the built route exists and is protected by middleware.
 
-Authenticated editor interaction was not completed in this run because no browser session credentials were introduced for this fixture proof.
+## Authenticated Browser Proof
 
-Because the route proof did not reach the editor, no snippet analytics mutation was accepted and no persisted fixture document content/version mutation was observed from browser insertion.
+Follow-up authenticated coverage was added in `frontend/e2e/snippet-fixture-authenticated.live.spec.ts` and run against `next start` on port `32133` with:
+
+- `E2E_BASE_URL=http://localhost:32133 RUN_LIVE_SNIPPET_FIXTURE_E2E=1 npx playwright test e2e/snippet-fixture-authenticated.live.spec.ts --workers=1 --reporter=line`
+
+The test injects a signed Auth.js `authjs.session-token` cookie using the local `NEXTAUTH_SECRET`/`AUTH_SECRET`, proves `/api/auth/session` resolves to `fixture-e2e@datacraft.local`, queries the live database for the three reserved fixture documents, and drives the real `/documents/{id}` editor page.
+
+The first authenticated attempt reached the app shell but the editor crashed with `Cannot read properties of null (reading 'awareness')`. The cause was `CollaborationCursor` being registered without a provider that exposes Yjs awareness. The editor extension bundle now keeps the Yjs collaboration document extension active and only registers remote cursor presence when an awareness provider is present.
+
+The passing browser proof covered all three fixture document IDs:
+
+- `53c4e667-95f1-4487-8e97-779dff133008`: authenticated route, editor visible, `/dc-exec-summary` inserted through `/shortcut + Space`, no unresolved `{{opportunity_name}}`.
+- `5b06aae8-fa43-4324-bc2b-665523122b5d`: authenticated route, editor visible, `/dc-exec-summary` inserted through `/shortcut + Space`, no unresolved `{{opportunity_name}}`.
+- `a830f4f1-0099-4b41-b03e-5b346483be08`: authenticated route, editor visible, `/dc-exec-summary` inserted through `/shortcut + Space`, one highlighted unresolved `{{opportunity_name}}` token as expected for ambiguous links.
+
+The final post-browser audit still showed the expected fixture topology and no duplicate rows or duplicate `proposal_documents` pairs.
 
 ## Final Quality Gates
 
 - `npm test -- --run __tests__/actions/snippet-placeholder-context.test.ts __tests__/actions/snippet-context-fixtures.test.ts`: 12 tests passed.
 - `npm run test:e2e -- e2e/snippet-expansion.spec.ts`: 2 tests passed.
+- `RUN_LIVE_SNIPPET_FIXTURE_E2E=1 npx playwright test e2e/snippet-fixture-authenticated.live.spec.ts --workers=1 --reporter=line`: 1 authenticated live browser test passed against `next start`.
 - `npx tsc --noEmit`: passed.
 - `npm run lint`: passed with no ESLint warnings or errors.
 - `npm run build`: passed and listed `/documents/[id]` as a dynamic route.
