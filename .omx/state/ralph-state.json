@@ -1,32 +1,21 @@
 {
-  "active": false,
-  "iteration": 3,
+  "active": true,
+  "iteration": 1,
   "max_iterations": 10,
-  "current_phase": "complete",
-  "started_at": "2026-05-03T04:24:22+03:00",
-  "task_description": "Execute .omx/plans/proposal-document-fixtures-plan.md",
-  "context_snapshot_path": ".omx/context/proposal-document-fixtures-20260502T234959Z.md",
-  "plan_path": ".omx/plans/proposal-document-fixtures-plan.md",
-  "verification_note_path": ".omx/state/snippet-context-fixture-verification.md",
-  "verification": [
-    "npm test -- --run __tests__/actions/snippet-placeholder-context.test.ts __tests__/actions/snippet-context-fixtures.test.ts",
-    "npm run test:e2e -- e2e/snippet-expansion.spec.ts",
-    "npx tsc --noEmit",
-    "npm run lint",
-    "npm run build",
-    "git diff --check -- scoped Ralph files",
-    "npx tsx scripts/ensure-snippet-context-fixtures.ts --audit",
-    "npx tsx scripts/ensure-snippet-context-fixtures.ts --apply --confirm-host db.lindela.io",
-    "concurrent fixture apply proof against db.lindela.io",
-    "direct resolveSnippetContent proof for canonical, metadata fallback, and ambiguous fixtures"
-  ],
-  "deslop": "Scoped cleanup pass found no dead code or unnecessary abstraction to remove; file-scoped ESLint passed.",
-  "architect_review": "APPROVED after duplicate proposal_documents pair apply guard was added.",
-  "manual_evidence_caveat": "Local next dev route proof was blocked by Watchpack EMFILE route discovery; production build/start proved /documents/[id] is registered and protected, and live direct resolver proof validated placeholder behavior.",
-  "completed_at": "2026-05-03T04:49:56+03:00",
-  "last_turn_at": "2026-05-03T04:49:56+03:00",
+  "current_phase": "executing",
+  "started_at": "2026-05-03T12:20:00Z",
+  "task_description": "Execute the approved DocFusion platform E2E exercise plan: facility-ledger-first, topology-gated, evidence-strict campaign covering product J1-J9 and operator/control-plane O1.",
+  "context_snapshot_path": ".omx/context/platform-e2e-exercise-20260503T121602Z.md",
+  "plan_path": ".omx/plans/prd-platform-e2e-exercise.md",
+  "test_spec_path": ".omx/plans/test-spec-platform-e2e-exercise.md",
+  "facility_ledger_path": ".omx/state/platform-e2e-facility-ledger.md",
+  "topology_matrix_path": ".omx/state/platform-e2e-topology-matrix.md",
+  "last_turn_at": "2026-05-03T12:20:00Z",
   "notes": [
-    "docs/shared/agent-tiers.md is absent in this checkout; used available Ralph role types for architect review.",
-    "Kept fixture implementation scoped and left unrelated dirty worktree changes untouched."
-  ]
+    "docs/shared/agent-tiers.md is absent in this checkout; using AGENTS.md role table and scoped local verification.",
+    "Codex native subagents returned Azure deployment 404 during Phase 0; continuing locally and will retry architect verification later.",
+    "Keep unrelated dirty worktree changes untouched."
+  ],
+  "approved_plan": "facility-ledger-first topology-gated evidence-strict E2E campaign",
+  "phase": "phase_0_prd_and_inventory"
 }
