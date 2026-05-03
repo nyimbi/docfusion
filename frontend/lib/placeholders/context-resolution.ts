@@ -17,6 +17,11 @@ export interface SnippetPlaceholderContext {
 	documentMetadata?: Record<string, unknown>;
 }
 
+type OpportunityPlaceholderRow = Pick<
+	typeof opportunities.$inferSelect,
+	"id" | "organization" | "title" | "deadline" | "rfpLink" | "budgetValue" | "metadata"
+>;
+
 function asRecord(value: unknown): Record<string, unknown> {
 	return value && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
@@ -140,10 +145,18 @@ export async function loadSnippetPlaceholderContext(
 		resolvedOpportunityId = requirementOpportunityId;
 	}
 
-	let opportunityRow: typeof opportunities.$inferSelect | null = null;
+	let opportunityRow: OpportunityPlaceholderRow | null = null;
 	if (resolvedOpportunityId) {
 		const [row] = await db
-			.select()
+			.select({
+				id: opportunities.id,
+				organization: opportunities.organization,
+				title: opportunities.title,
+				deadline: opportunities.deadline,
+				rfpLink: opportunities.rfpLink,
+				budgetValue: opportunities.budgetValue,
+				metadata: opportunities.metadata,
+			})
 			.from(opportunities)
 			.where(eq(opportunities.id, resolvedOpportunityId))
 			.limit(1);
