@@ -1,8 +1,8 @@
 {
-  "active": true,
-  "iteration": 1,
+  "active": false,
+  "iteration": 4,
   "max_iterations": 10,
-  "current_phase": "executing",
+  "current_phase": "completed",
   "started_at": "2026-05-03T12:20:00Z",
   "task_description": "Execute the approved DocFusion platform E2E exercise plan: facility-ledger-first, topology-gated, evidence-strict campaign covering product J1-J9 and operator/control-plane O1.",
   "context_snapshot_path": ".omx/context/platform-e2e-exercise-20260503T121602Z.md",
@@ -10,12 +10,14 @@
   "test_spec_path": ".omx/plans/test-spec-platform-e2e-exercise.md",
   "facility_ledger_path": ".omx/state/platform-e2e-facility-ledger.md",
   "topology_matrix_path": ".omx/state/platform-e2e-topology-matrix.md",
-  "last_turn_at": "2026-05-03T12:20:00Z",
+  "last_turn_at": "2026-05-03T21:35:00.000Z",
+  "completed_at": "2026-05-03T21:35:00.000Z",
   "notes": [
     "docs/shared/agent-tiers.md is absent in this checkout; using AGENTS.md role table and scoped local verification.",
-    "Codex native subagents returned Azure deployment 404 during Phase 0; continuing locally and will retry architect verification later.",
-    "Keep unrelated dirty worktree changes untouched."
+    "Codex native subagents returned Azure deployment 404 during Phase 0; architect verification later completed successfully.",
+    "Keep unrelated dirty worktree changes untouched.",
+    "Architect verifier accepted the search-vector repair and evidence-ledger cleanup corrections; remaining broad platform rows stay blocked/partial where not exercised."
   ],
   "approved_plan": "facility-ledger-first topology-gated evidence-strict E2E campaign",
-  "phase": "phase_0_prd_and_inventory"
+  "phase": "completed"
 }
