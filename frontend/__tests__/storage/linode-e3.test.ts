@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildRfpObjectKey,
+	deleteFromLinodeE3,
 	getLinodeE3ConfigFromEnv,
 	parseS3StoragePath,
 	uploadToLinodeE3,
@@ -77,6 +78,37 @@ describe("Linode E3 storage helper", () => {
 		const headers = init.headers as Record<string, string>;
 		expect(url).toBe("https://gb-lon-1.linodeobjects.com/rfps/rfp/opp/doc/file.pdf");
 		expect(init.method).toBe("PUT");
+		expect(headers.authorization).toContain("AWS4-HMAC-SHA256 Credential=access-key/");
+		expect(headers.host).toBe("gb-lon-1.linodeobjects.com");
+	});
+
+	it("deletes stored objects with an AWS v4 signed DELETE request", async () => {
+		const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, {
+			status: 204,
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await deleteFromLinodeE3(
+			{
+				endpoint: "https://gb-lon-1.linodeobjects.com",
+				region: "gb-lon-1",
+				bucket: "rfps",
+				accessKeyId: "access-key",
+				secretAccessKey: "secret-key",
+			},
+			"s3://rfps/rfp/opp/doc/file.pdf"
+		);
+
+		expect(result).toEqual({
+			bucket: "rfps",
+			key: "rfp/opp/doc/file.pdf",
+			deleted: true,
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+		const headers = init.headers as Record<string, string>;
+		expect(url).toBe("https://gb-lon-1.linodeobjects.com/rfps/rfp/opp/doc/file.pdf");
+		expect(init.method).toBe("DELETE");
 		expect(headers.authorization).toContain("AWS4-HMAC-SHA256 Credential=access-key/");
 		expect(headers.host).toBe("gb-lon-1.linodeobjects.com");
 	});

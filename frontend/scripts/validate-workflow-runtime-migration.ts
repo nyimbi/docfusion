@@ -117,6 +117,23 @@ const REQUIRED_COLUMNS: Record<string, string[]> = {
 	],
 };
 
+const REQUIRED_INDEXES = [
+	"opportunities_search_vector_idx",
+	"opportunities_title_trgm_idx",
+	"opportunities_organization_trgm_idx",
+];
+
+const REQUIRED_TRIGGERS = [
+	{
+		tableName: "opportunities",
+		triggerName: "opportunities_search_vector_update",
+	},
+];
+
+const REQUIRED_FUNCTIONS = [
+	"update_opportunity_search_vector",
+];
+
 async function main() {
 	const databaseUrl = process.env.DATABASE_URL;
 	if (!databaseUrl) {
@@ -150,12 +167,65 @@ async function main() {
 			}
 		}
 
+		for (const indexName of REQUIRED_INDEXES) {
+			const index = await pool.query(
+				"select to_regclass($1) as index_name",
+				[`public.${indexName}`]
+			);
+			if (!index.rows[0]?.index_name) missing.push(`missing index ${indexName}`);
+		}
+
+		for (const trigger of REQUIRED_TRIGGERS) {
+			const result = await pool.query(
+				"select 1 from information_schema.triggers where event_object_schema = 'public' and event_object_table = $1 and trigger_name = $2 limit 1",
+				[trigger.tableName, trigger.triggerName]
+			);
+			if (result.rowCount === 0) {
+				missing.push(`missing trigger ${trigger.tableName}.${trigger.triggerName}`);
+			}
+		}
+
+		for (const functionName of REQUIRED_FUNCTIONS) {
+			const result = await pool.query(
+				"select to_regprocedure($1) as function_name",
+				[`${functionName}()`]
+			);
+			if (!result.rows[0]?.function_name) missing.push(`missing function ${functionName}()`);
+		}
+
+		const staleSearchVectors = await pool.query<{ stale_count: string }>(
+			`
+				select count(*)::text as stale_count
+				from public.opportunities
+				where search_vector is null
+					and (
+						title is not null
+						or organization is not null
+						or project_summary is not null
+						or key_requirements is not null
+						or country_region is not null
+						or category is not null
+						or sector is not null
+					)
+			`
+		);
+		if (Number(staleSearchVectors.rows[0]?.stale_count ?? 0) > 0) {
+			missing.push(`stale opportunity search vectors ${staleSearchVectors.rows[0].stale_count}`);
+		}
+
 		if (missing.length > 0) {
 			console.error(JSON.stringify({ ok: false, missing }, null, 2));
 			process.exit(1);
 		}
 
-		console.log(JSON.stringify({ ok: true, tables: REQUIRED_TABLES }, null, 2));
+		console.log(JSON.stringify({
+			ok: true,
+			tables: REQUIRED_TABLES,
+			indexes: REQUIRED_INDEXES,
+			triggers: REQUIRED_TRIGGERS.map((trigger) => `${trigger.tableName}.${trigger.triggerName}`),
+			functions: REQUIRED_FUNCTIONS.map((functionName) => `${functionName}()`),
+			staleSearchVectors: Number(staleSearchVectors.rows[0]?.stale_count ?? 0),
+		}, null, 2));
 	} finally {
 		await pool.end();
 	}
