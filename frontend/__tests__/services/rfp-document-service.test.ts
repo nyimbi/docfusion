@@ -8,7 +8,7 @@ interface ChainConfig {
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["where", "returning"]) {
+	for (const method of ["from", "innerJoin", "where", "limit", "returning"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	chain.set = vi.fn((value: Record<string, unknown>) => {
@@ -56,6 +56,7 @@ const dbMock = vi.hoisted(() => ({
 			findFirst: vi.fn(),
 		},
 	},
+	select: vi.fn(),
 	insert: vi.fn(),
 	update: vi.fn(),
 	delete: vi.fn(),
@@ -92,12 +93,15 @@ vi.mock("@/lib/utils/logger", () => ({
 import {
 	downloadDocument,
 	extractDocumentText,
+	getOpportunityDocumentFileForActor,
+	OpportunityDocumentAccessError,
 } from "@/lib/services/rfp-document-service";
 import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
 
 beforeEach(() => {
 	vi.clearAllMocks();
 	dbMock.$count.mockResolvedValue(1);
+	dbMock.select.mockImplementation(() => createChain({ result: [] }));
 	dbMock.query.rfpDocuments.findFirst.mockResolvedValue(null);
 	dbMock.insert.mockImplementation(() => createChain());
 	dbMock.update.mockImplementation(() => createChain());
@@ -214,5 +218,96 @@ describe("RFP document fetch storage", () => {
 			Buffer.from("downloaded-pdf"),
 			"Main RFP.pdf"
 		);
+	});
+});
+
+describe("opportunity document scoped access", () => {
+	it("requires the route opportunity id to match the document", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({ result: [] }));
+
+		const result = await getOpportunityDocumentFileForActor(
+			{ userId: "user-1", roles: ["writer"] },
+			"00000000-0000-4000-8000-000000000999",
+			baseDocument.id
+		);
+
+		expect(result).toBeNull();
+		expect(storageMock.downloadFromLinodeE3).not.toHaveBeenCalled();
+	});
+
+	it("denies matched documents when the actor has no row-local permission", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				document: {
+					...baseDocument,
+					localPath: "s3://mansa/rfp/opportunity/document/Main-RFP.pdf",
+					mimeType: "application/pdf",
+					downloadedBy: "capture-user",
+				},
+				opportunity: {
+					id: baseDocument.opportunityId,
+					assignedTo: "other-user",
+				},
+			}],
+		}));
+
+		await expect(getOpportunityDocumentFileForActor(
+			{ userId: "user-1", roles: ["writer"] },
+			baseDocument.opportunityId,
+			baseDocument.id
+		)).rejects.toBeInstanceOf(OpportunityDocumentAccessError);
+		expect(storageMock.downloadFromLinodeE3).not.toHaveBeenCalled();
+	});
+
+	it("allows assigned users and admins to read the scoped document bytes", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				document: {
+					...baseDocument,
+					localPath: "s3://mansa/rfp/opportunity/document/Main-RFP.pdf",
+					mimeType: "application/pdf",
+					downloadedBy: "capture-user",
+				},
+				opportunity: {
+					id: baseDocument.opportunityId,
+					assignedTo: "assigned-user",
+				},
+			}],
+		}));
+
+		const assignedResult = await getOpportunityDocumentFileForActor(
+			{ userId: "assigned-user", roles: ["writer"] },
+			baseDocument.opportunityId,
+			baseDocument.id
+		);
+
+		expect(assignedResult).toMatchObject({
+			buffer: Buffer.from("downloaded-pdf"),
+			mimeType: "application/pdf",
+			filename: "Main RFP.pdf",
+		});
+
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				document: {
+					...baseDocument,
+					localPath: "s3://mansa/rfp/opportunity/document/Main-RFP.pdf",
+					mimeType: "application/pdf",
+					downloadedBy: "capture-user",
+				},
+				opportunity: {
+					id: baseDocument.opportunityId,
+					assignedTo: "other-user",
+				},
+			}],
+		}));
+
+		const adminResult = await getOpportunityDocumentFileForActor(
+			{ userId: "admin-1", roles: ["admin"] },
+			baseDocument.opportunityId,
+			baseDocument.id
+		);
+
+		expect(adminResult?.buffer).toEqual(Buffer.from("downloaded-pdf"));
 	});
 });

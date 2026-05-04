@@ -7,7 +7,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getDocumentFile } from "@/lib/services/rfp-document-service";
+import {
+	getOpportunityDocumentFileForActor,
+	OpportunityDocumentAccessError,
+} from "@/lib/services/rfp-document-service";
 
 export async function GET(
   request: NextRequest,
@@ -20,10 +23,14 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { documentId } = await params;
-    
-    // Get file from storage
-    const file = await getDocumentFile(documentId);
+	    const { id, documentId } = await params;
+	    
+	    // Get file from storage
+	    const file = await getOpportunityDocumentFileForActor({
+	      userId: session.user.id,
+	      role: (session.user as { role?: string }).role,
+	      roles: (session.user as { roles?: string[] }).roles,
+	    }, id, documentId);
     
     if (!file) {
       return new NextResponse("Document not found or not downloaded", { status: 404 });
@@ -40,8 +47,11 @@ export async function GET(
     });
 
     return response;
-  } catch (error) {
-    console.error("Failed to serve document:", error);
+	  } catch (error) {
+	    if (error instanceof OpportunityDocumentAccessError) {
+	      return new NextResponse(error.message, { status: error.status });
+	    }
+	    console.error("Failed to serve document:", error);
     return new NextResponse(
       error instanceof Error ? error.message : "Internal server error",
       { status: 500 }

@@ -62,6 +62,22 @@ export interface DownloadResult {
   error?: string;
 }
 
+export interface OpportunityDocumentAccessActor {
+	userId: string;
+	role?: string;
+	roles?: string[];
+}
+
+export class OpportunityDocumentAccessError extends Error {
+	status: number;
+
+	constructor(message: string, status: number) {
+		super(message);
+		this.name = "OpportunityDocumentAccessError";
+		this.status = status;
+	}
+}
+
 // ============================================================================
 // Document Discovery
 // ============================================================================
@@ -690,6 +706,57 @@ export async function getDocumentFile(documentId: string): Promise<{
   } catch {
     return null;
   }
+}
+
+export async function getOpportunityDocumentFileForActor(
+	actor: OpportunityDocumentAccessActor,
+	opportunityId: string,
+	documentId: string
+): Promise<{
+	buffer: Buffer;
+	mimeType: string;
+	filename: string;
+} | null> {
+	const [row] = await db
+		.select({
+			document: opportunityDocuments,
+			opportunity: opportunities,
+		})
+		.from(opportunityDocuments)
+		.innerJoin(opportunities, eq(opportunities.id, opportunityDocuments.opportunityId))
+		.where(and(
+			eq(opportunityDocuments.id, documentId),
+			eq(opportunityDocuments.opportunityId, opportunityId)
+		))
+		.limit(1);
+
+	if (!row) return null;
+	if (!canReadOpportunityDocument(actor, row.document.downloadedBy, row.opportunity.assignedTo)) {
+		throw new OpportunityDocumentAccessError("Forbidden", 403);
+	}
+	if (!row.document.localPath) return null;
+
+	try {
+		const buffer = await readDocumentBuffer(row.document.localPath);
+		return {
+			buffer,
+			mimeType: row.document.mimeType || "application/octet-stream",
+			filename: row.document.documentName,
+		};
+	} catch {
+		return null;
+	}
+}
+
+function canReadOpportunityDocument(
+	actor: OpportunityDocumentAccessActor,
+	downloadedBy: string | null,
+	opportunityAssignedTo: string | null
+): boolean {
+	const roles = new Set([actor.role, ...(actor.roles ?? [])].filter(Boolean));
+	if (roles.has("admin") || roles.has("operations")) return true;
+	if (downloadedBy && downloadedBy === actor.userId) return true;
+	return Boolean(opportunityAssignedTo && opportunityAssignedTo === actor.userId);
 }
 
 /**

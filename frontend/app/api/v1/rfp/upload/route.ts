@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireServerSession } from "@/lib/auth-utils";
+import { isRouteSessionResponse, requireRouteSessionOr401 } from "@/lib/auth/route-session";
 import { db } from "@/lib/db";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import {
@@ -51,26 +51,12 @@ const ALLOWED_EXTENSIONS = new Set([".pdf", ".docx", ".doc", ".html", ".htm"]);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
 	try {
-		const objectStoreConfig = getLinodeE3ConfigFromEnv();
-
-		// Proxy to Python FastAPI when feature flag is enabled and local object
-		// storage is not configured. Browser uploads cannot go direct to Linode E3
-		// because this endpoint does not depend on object-store CORS support.
-		if (USE_PYTHON_RFP && !objectStoreConfig) {
-			const formData = await request.formData();
-			const response = await fetch(`${FASTAPI_URL}/api/v1/rfp/upload`, {
-				method: "POST",
-				body: formData,
-			});
-			const data = await response.json();
-			return NextResponse.json(data, { status: response.status });
-		}
-
-		// Authenticate user
-		const session = await requireServerSession();
+		const authResult = await requireRouteSessionOr401();
+		if (isRouteSessionResponse(authResult)) return authResult;
+		const session = authResult.session;
 		const userId = session.user?.id ?? session.user?.email ?? "unknown";
 
-		// Parse form data
+		// Parse form data only after authentication.
 		const formData = await request.formData();
 		const file = formData.get("file") as File | null;
 		const opportunityId = formData.get("opportunityId") as string | null;
@@ -103,6 +89,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				{ error: `Unsupported content type: ${file.type}` },
 				{ status: 400 }
 			);
+		}
+
+		const objectStoreConfig = getLinodeE3ConfigFromEnv();
+
+		// Proxy to Python FastAPI when feature flag is enabled and local object
+		// storage is not configured. Browser uploads cannot go direct to Linode E3
+		// because this endpoint does not depend on object-store CORS support.
+		if (USE_PYTHON_RFP && !objectStoreConfig) {
+			const response = await fetch(`${FASTAPI_URL}/api/v1/rfp/upload`, {
+				method: "POST",
+				headers: {
+					"x-docfusion-user-id": userId,
+				},
+				body: formData,
+			});
+			const data = await response.json();
+			return NextResponse.json(data, { status: response.status });
 		}
 
 		// Determine file type

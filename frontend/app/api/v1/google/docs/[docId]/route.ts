@@ -6,6 +6,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import {
+	isRouteSessionResponse,
+	requireRouteSessionOr401,
+} from "@/lib/auth/route-session";
+import {
+	getBoundGoogleTokens,
+	setBoundGoogleTokenCookies,
+} from "@/lib/google/bound-tokens";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -168,7 +176,12 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ docId: string }> }
 ) {
-  const { docId } = await params;
+	const sessionResult = await requireRouteSessionOr401();
+	if (isRouteSessionResponse(sessionResult)) {
+		return sessionResult;
+	}
+
+	const { docId } = await params;
 
   if (!docId) {
     return NextResponse.json(
@@ -177,9 +190,9 @@ export async function GET(
     );
   }
 
-  // Get access token from cookies
-  let accessToken = request.cookies.get("google_access_token")?.value;
-  const refreshToken = request.cookies.get("google_refresh_token")?.value;
+	const tokens = getBoundGoogleTokens(request, sessionResult.session.user.id);
+	let accessToken = tokens?.accessToken;
+	const refreshToken = tokens?.refreshToken;
 
   // If no access token but have refresh token, try to refresh
   if (!accessToken && refreshToken) {
@@ -239,13 +252,12 @@ export async function GET(
                 characterCount: content.length,
               });
 
-              // Update the access token cookie
-              response.cookies.set("google_access_token", newToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                sameSite: "lax",
-                maxAge: 3600,
-              });
+							setBoundGoogleTokenCookies(response, {
+								sessionUserId: sessionResult.session.user.id,
+								accessToken: newToken,
+								refreshToken,
+								userEmail: tokens?.userEmail,
+							});
 
               return response;
             }
