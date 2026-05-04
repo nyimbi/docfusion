@@ -53,6 +53,7 @@ import {
 	reverseWorkflowRuntimeState,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 import { WORKFLOW_TEMPLATE_CATALOG } from "@/lib/workflows/default-templates";
 import { simulateWorkflowTemplate } from "@/lib/workflows/simulation";
 import type { WorkflowViewerScope } from "@/lib/workflows/viewer-scope";
@@ -337,12 +338,24 @@ describe("workflow runtime", () => {
 	});
 
 	it("enforces role-based workflow authority", async () => {
-		await expect(assertWorkflowAuthority({
-			actorId: "writer-1",
-			actorRoles: ["writer"],
-			policy: { requiredRoles: ["executive"] },
+		let denial: unknown;
+		try {
+			await assertWorkflowAuthority({
+				actorId: "writer-1",
+				actorRoles: ["writer"],
+				policy: { requiredRoles: ["executive"] },
+				action: "approve",
+			});
+			throw new Error("Expected authority denial");
+		} catch (error) {
+			denial = error;
+		}
+		expect(denial).toBeInstanceOf(WorkflowAuthorityDeniedError);
+		expect(denial).toMatchObject({
+			kind: "workflow_authority_denied",
 			action: "approve",
-		})).rejects.toThrow("requires executive");
+			requiredRoles: ["executive"],
+		});
 
 		await expect(assertWorkflowAuthority({
 			actorId: "exec-1",

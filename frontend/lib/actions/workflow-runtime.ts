@@ -14,6 +14,7 @@ import {
 	type WorkflowTemplateRow,
 } from "@/lib/db/schema-workflow-runtime";
 import { opportunities } from "@/lib/db/schema";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 import { simulateWorkflowTemplate } from "@/lib/workflows/simulation";
 import type { WorkflowViewerScope } from "@/lib/workflows/viewer-scope";
 import { and, asc, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
@@ -426,7 +427,10 @@ export async function assertWorkflowAuthority(input: {
 	const actorRoles = new Set(input.actorRoles ?? []);
 	const hasRole = (policy.requiredRoles ?? []).some((role) => actorRoles.has(role));
 	if (policy.requiredRoles?.length && !hasRole) {
-		throw new Error(`Workflow authority denied${input.action ? ` for ${input.action}` : ""}: requires ${policy.requiredRoles.join(" or ")}`);
+		throw new WorkflowAuthorityDeniedError({
+			action: input.action,
+			requiredRoles: policy.requiredRoles,
+		});
 	}
 }
 

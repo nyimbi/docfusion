@@ -55,6 +55,13 @@ interface GoogleDoc {
   };
 }
 
+interface GoogleDocSuccessCookieInput {
+	sessionUserId: string;
+	accessToken: string;
+	refreshToken: string;
+	userEmail?: string;
+}
+
 /**
  * Extract plain text from Google Docs JSON structure
  */
@@ -172,16 +179,41 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
   }
 }
 
+function createGoogleDocSuccessResponse(
+	doc: GoogleDoc,
+	refreshedToken?: GoogleDocSuccessCookieInput
+): NextResponse {
+	const content = extractTextFromDoc(doc);
+	const response = NextResponse.json({
+		success: true,
+		title: doc.title || "Untitled Document",
+		content,
+		wordCount: content.split(/\s+/).filter(Boolean).length,
+		characterCount: content.length,
+	});
+
+	if (refreshedToken) {
+		setBoundGoogleTokenCookies(response, {
+			sessionUserId: refreshedToken.sessionUserId,
+			accessToken: refreshedToken.accessToken,
+			refreshToken: refreshedToken.refreshToken,
+			userEmail: refreshedToken.userEmail,
+		});
+	}
+
+	return response;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ docId: string }> }
 ) {
-	const sessionResult = await requireRouteSessionOr401();
-	if (isRouteSessionResponse(sessionResult)) {
-		return sessionResult;
-	}
+  const sessionResult = await requireRouteSessionOr401();
+  if (isRouteSessionResponse(sessionResult)) {
+    return sessionResult;
+  }
 
-	const { docId } = await params;
+  const { docId } = await params;
 
   if (!docId) {
     return NextResponse.json(
@@ -190,13 +222,15 @@ export async function GET(
     );
   }
 
-	const tokens = getBoundGoogleTokens(request, sessionResult.session.user.id);
-	let accessToken = tokens?.accessToken;
-	const refreshToken = tokens?.refreshToken;
+  const tokens = getBoundGoogleTokens(request, sessionResult.session.user.id);
+  let accessToken = tokens?.accessToken;
+  const refreshToken = tokens?.refreshToken;
+  let refreshedAccessToken: string | undefined;
 
   // If no access token but have refresh token, try to refresh
   if (!accessToken && refreshToken) {
-    accessToken = await refreshAccessToken(refreshToken) || undefined;
+    refreshedAccessToken = await refreshAccessToken(refreshToken) || undefined;
+    accessToken = refreshedAccessToken;
   }
 
   if (!accessToken) {
@@ -242,24 +276,12 @@ export async function GET(
 
             if (retryResponse.ok) {
               const doc = await retryResponse.json();
-              const content = extractTextFromDoc(doc);
-
-              const response = NextResponse.json({
-                success: true,
-                title: doc.title || "Untitled Document",
-                content,
-                wordCount: content.split(/\s+/).filter(Boolean).length,
-                characterCount: content.length,
+              return createGoogleDocSuccessResponse(doc, {
+                sessionUserId: sessionResult.session.user.id,
+                accessToken: newToken,
+                refreshToken,
+                userEmail: tokens?.userEmail,
               });
-
-							setBoundGoogleTokenCookies(response, {
-								sessionUserId: sessionResult.session.user.id,
-								accessToken: newToken,
-								refreshToken,
-								userEmail: tokens?.userEmail,
-							});
-
-              return response;
             }
           }
         }
@@ -307,15 +329,17 @@ export async function GET(
     }
 
     const doc: GoogleDoc = await docResponse.json();
-    const content = extractTextFromDoc(doc);
-
-    return NextResponse.json({
-      success: true,
-      title: doc.title || "Untitled Document",
-      content,
-      wordCount: content.split(/\s+/).filter(Boolean).length,
-      characterCount: content.length,
-    });
+    return createGoogleDocSuccessResponse(
+      doc,
+      refreshedAccessToken && refreshToken
+        ? {
+            sessionUserId: sessionResult.session.user.id,
+            accessToken: refreshedAccessToken,
+            refreshToken,
+            userEmail: tokens?.userEmail,
+          }
+        : undefined
+    );
   } catch (error) {
     console.error("Error fetching Google Doc:", error);
     return NextResponse.json(

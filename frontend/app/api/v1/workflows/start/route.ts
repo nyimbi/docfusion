@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { startDomainWorkflowFromTemplate } from "@/lib/actions/workflow-domain";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 import { isWorkflowApiResponse, requireWorkflowApiActor } from "@/lib/workflows/api-auth";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -28,6 +29,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
 		return NextResponse.json({ workflow }, { status: 201 });
 	} catch (error) {
+		if (error instanceof WorkflowAuthorityDeniedError) {
+			return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+		}
 		const message = error instanceof Error ? error.message : "Failed to start workflow";
 		return NextResponse.json({ error: message }, { status: 400 });
 	}
