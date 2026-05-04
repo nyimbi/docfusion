@@ -55,9 +55,17 @@ import {
 } from "@/lib/actions/workflow-runtime";
 import { WORKFLOW_TEMPLATE_CATALOG } from "@/lib/workflows/default-templates";
 import { simulateWorkflowTemplate } from "@/lib/workflows/simulation";
+import type { WorkflowViewerScope } from "@/lib/workflows/viewer-scope";
+
+const adminWorkflowScope: WorkflowViewerScope = {
+	userId: "admin-1",
+	roles: ["admin"],
+	portalRoles: [],
+	isGlobalWorkflowViewer: true,
+};
 
 beforeEach(() => {
-	vi.clearAllMocks();
+	vi.resetAllMocks();
 });
 
 describe("workflow runtime", () => {
@@ -217,7 +225,7 @@ describe("workflow runtime", () => {
 		];
 		dbMock.select.mockReturnValueOnce(createChain({ result: rows }));
 
-		const dashboard = await getWorkflowDashboard();
+		const dashboard = await getWorkflowDashboard(adminWorkflowScope);
 
 		expect(dashboard.total).toBe(2);
 		expect(dashboard.active).toBe(1);
@@ -232,9 +240,100 @@ describe("workflow runtime", () => {
 			],
 		}));
 
-		const portalItems = await listPortalWorkflowItems({ portalRole: "partner" });
+		const portalItems = await listPortalWorkflowItems(adminWorkflowScope, { portalRole: "partner" });
 		expect(portalItems).toHaveLength(1);
 		expect(portalItems[0].id).toBe("portal-1");
+	});
+
+	it("fails closed without scope and prevents portal role escalation", async () => {
+		await expect(getWorkflowDashboard(undefined as unknown as WorkflowViewerScope))
+			.rejects.toThrow("Workflow viewer scope is required");
+
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [
+				{
+					id: "portal-1",
+					assignedTo: "partner-1",
+					portalVisibility: { visibleToPortal: true, portalRole: "partner" },
+				},
+				{
+					id: "portal-2",
+					assignedTo: "partner-1",
+					portalVisibility: { visibleToPortal: true, portalRole: "reviewer" },
+				},
+			],
+		}));
+
+		const scoped = await listPortalWorkflowItems({
+			userId: "partner-1",
+			roles: ["partner"],
+			portalRoles: ["partner"],
+			isGlobalWorkflowViewer: false,
+		}, { portalRole: "reviewer" });
+
+		expect(scoped).toHaveLength(1);
+		expect(scoped[0].id).toBe("portal-1");
+	});
+
+	it("does not expose role-assigned rows without a concrete actor or opportunity link", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					{
+						id: "workflow-role-only",
+						subjectType: "requirement",
+						subjectId: "req-1",
+						status: "active",
+						assignedRole: "reviewer",
+						assignedTo: null,
+						opportunityId: null,
+						authorityPolicy: null,
+						updatedAt: new Date(),
+					},
+				],
+			}))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		const dashboard = await getWorkflowDashboard({
+			userId: "reviewer-1",
+			roles: ["reviewer"],
+			portalRoles: ["reviewer"],
+			isGlobalWorkflowViewer: false,
+		});
+
+		expect(dashboard.total).toBe(0);
+	});
+
+	it("allows non-global workflow visibility through linked opportunity assignment", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					{
+						id: "workflow-opportunity",
+						subjectType: "requirement",
+						subjectId: "req-1",
+						status: "active",
+						assignedRole: "reviewer",
+						assignedTo: null,
+						opportunityId: "00000000-0000-4000-8000-000000000777",
+						authorityPolicy: null,
+						updatedAt: new Date(),
+					},
+				],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000777" }],
+			}));
+
+		const dashboard = await getWorkflowDashboard({
+			userId: "owner-1",
+			roles: ["reviewer"],
+			portalRoles: ["reviewer"],
+			isGlobalWorkflowViewer: false,
+		});
+
+		expect(dashboard.total).toBe(1);
+		expect(dashboard.items[0].id).toBe("workflow-opportunity");
 	});
 
 	it("enforces role-based workflow authority", async () => {
@@ -290,6 +389,7 @@ describe("workflow runtime", () => {
 			workflowInstanceId: "workflow-1",
 			action: "cancel",
 			actorId: "ops-1",
+			authorityChecked: true,
 			reason: "Duplicate exception",
 		});
 

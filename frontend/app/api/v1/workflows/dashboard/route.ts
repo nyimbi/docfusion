@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getWorkflowDashboard, type WorkflowRuntimeStatus } from "@/lib/actions/workflow-runtime";
 import { isWorkflowApiResponse, requireWorkflowApiActor } from "@/lib/workflows/api-auth";
+import { buildWorkflowViewerScope } from "@/lib/workflows/viewer-scope";
 
 const VALID_STATUSES = new Set<WorkflowRuntimeStatus>([
 	"active",
@@ -19,13 +20,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 		const searchParams = request.nextUrl.searchParams;
 		const statuses = splitParam(searchParams.get("statuses"))
 			.filter((status): status is WorkflowRuntimeStatus => VALID_STATUSES.has(status as WorkflowRuntimeStatus));
-		const subjectTypes = splitParam(searchParams.get("subjectTypes"));
-		const limit = Number(searchParams.get("limit") ?? 100);
+			const subjectTypes = splitParam(searchParams.get("subjectTypes"));
+			const limit = Number(searchParams.get("limit") ?? 100);
+			const scope = buildWorkflowViewerScope(actor);
 
-		const dashboard = await getWorkflowDashboard({
-			statuses: statuses.length ? statuses : undefined,
-			subjectTypes: subjectTypes.length ? subjectTypes : undefined,
-			assignedTo: searchParams.get("assignedTo") ?? undefined,
+			const dashboard = await getWorkflowDashboard(scope, {
+				statuses: statuses.length ? statuses : undefined,
+				subjectTypes: subjectTypes.length ? subjectTypes : undefined,
+				assignedTo: searchParams.get("assignedTo") ?? undefined,
 			opportunityId: searchParams.get("opportunityId") ?? undefined,
 			limit: Number.isFinite(limit) ? limit : 100,
 		});

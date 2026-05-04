@@ -64,6 +64,21 @@ describe("workflow API auth", () => {
 		}
 	});
 
+	it("does not treat proposal managers as workflow admins", async () => {
+		authMock.mockResolvedValueOnce({ user: { id: "pm-1", role: "proposal_manager" } });
+
+		const result = await requireWorkflowApiActor(
+			new NextRequest("https://app.test/api/v1/workflows/templates"),
+			{ permission: "admin" }
+		);
+
+		expect(isWorkflowApiResponse(result)).toBe(true);
+		if (isWorkflowApiResponse(result)) {
+			expect(result.status).toBe(403);
+		}
+	});
+
+
 	it("requires SpiceDB permission or an admin override when a resource is supplied", async () => {
 		authMock.mockResolvedValueOnce({ user: { id: "user-1", role: "writer" } });
 		checkPermissionMock.mockResolvedValueOnce(false);

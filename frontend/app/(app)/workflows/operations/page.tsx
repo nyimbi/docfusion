@@ -4,13 +4,17 @@ import { AlertTriangle, BellRing, Clock, RotateCcw, TimerReset } from "lucide-re
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { getWorkflowDashboard } from "@/lib/actions/workflow-runtime";
+import { getWorkflowViewerScopeFromSession } from "@/lib/workflows/viewer-scope";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
 	title: "Workflow Operations | DocFusion",
 };
 
 export default async function WorkflowOperationsPage() {
-	const dashboard = await getWorkflowDashboard({
+	const scope = await getWorkflowViewerScopeFromSession();
+	if (!scope) redirect("/auth/sign-in");
+	const dashboard = await getWorkflowDashboard(scope, {
 		statuses: ["active", "waiting", "breached", "escalated"],
 		limit: 120,
 	});

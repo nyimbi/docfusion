@@ -15,14 +15,18 @@ import { Button } from "@/components/ui/Button";
 import { WorkflowActionPanel } from "@/components/workflows/WorkflowActionPanel";
 import { getWorkflowDashboard, listWorkflowTemplates } from "@/lib/actions/workflow-runtime";
 import type { WorkflowInstanceRow } from "@/lib/db/schema-workflow-runtime";
+import { getWorkflowViewerScopeFromSession } from "@/lib/workflows/viewer-scope";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
 	title: "Workflows | DocFusion",
 };
 
 export default async function WorkflowDashboardPage() {
+	const scope = await getWorkflowViewerScopeFromSession();
+	if (!scope) redirect("/auth/sign-in");
 	const [dashboard, templates] = await Promise.all([
-		getWorkflowDashboard({ limit: 80 }),
+		getWorkflowDashboard(scope, { limit: 80 }),
 		listWorkflowTemplates({ limit: 10 }),
 	]);
 

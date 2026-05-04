@@ -13,7 +13,9 @@ import {
 	type WorkflowInstanceRow,
 	type WorkflowTemplateRow,
 } from "@/lib/db/schema-workflow-runtime";
+import { opportunities } from "@/lib/db/schema";
 import { simulateWorkflowTemplate } from "@/lib/workflows/simulation";
+import type { WorkflowViewerScope } from "@/lib/workflows/viewer-scope";
 import { and, asc, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 
 type WorkflowClient = Pick<typeof db, "select" | "insert" | "update" | "execute">;
@@ -337,8 +339,10 @@ export async function evaluateWorkflowSla(
 }
 
 export async function getWorkflowDashboard(
+	scope: WorkflowViewerScope,
 	filters: WorkflowDashboardFilters = {}
 ): Promise<WorkflowDashboardSummary> {
+	assertWorkflowViewerScope(scope);
 	const conditions = [];
 	if (filters.statuses?.length) {
 		conditions.push(inArray(workflowInstances.status, filters.statuses));
@@ -359,7 +363,8 @@ export async function getWorkflowDashboard(
 		.where(conditions.length ? and(...conditions) : sql`true`)
 		.orderBy(desc(workflowInstances.updatedAt))
 		.limit(filters.limit ?? 100);
-	const items = await query;
+	const rows = await query;
+	const items = await filterWorkflowInstancesForScope(scope, rows);
 	const dueSoonThreshold = Date.now() + 48 * 60 * 60 * 1000;
 
 	return {
@@ -382,8 +387,10 @@ export async function getWorkflowDashboard(
 }
 
 export async function listPortalWorkflowItems(
+	scope: WorkflowViewerScope,
 	options: { portalRole?: string; limit?: number } = {}
 ): Promise<WorkflowInstanceRow[]> {
+	assertWorkflowViewerScope(scope);
 	const rows = await db
 		.select()
 		.from(workflowInstances)
@@ -391,12 +398,17 @@ export async function listPortalWorkflowItems(
 		.orderBy(asc(workflowInstances.dueAt), desc(workflowInstances.updatedAt))
 		.limit(options.limit ?? 50);
 
-	if (!options.portalRole) return rows;
-
-	return rows.filter((row) => {
+	const scopedRows = await filterWorkflowInstancesForScope(scope, rows);
+	return scopedRows.filter((row) => {
 		const visibility = row.portalVisibility;
-		return visibility?.visibleToPortal !== false
-			&& (!visibility?.portalRole || visibility.portalRole === options.portalRole);
+		if (visibility?.visibleToPortal !== true) return false;
+		if (visibility.portalRole && !scope.isGlobalWorkflowViewer && !scope.portalRoles.includes(visibility.portalRole)) {
+			return false;
+		}
+		if (options.portalRole && scope.isGlobalWorkflowViewer) {
+			return visibility.portalRole === options.portalRole;
+		}
+		return true;
 	});
 }
 
@@ -427,7 +439,11 @@ export async function reverseWorkflowRuntimeState(input: {
 	targetState?: string;
 	evidenceLinks?: string[];
 	metadata?: Record<string, unknown>;
+	authorityChecked: true;
 }): Promise<WorkflowInstanceRow> {
+	if (input.authorityChecked !== true) {
+		throw new Error("Workflow reversal requires prior authority verification");
+	}
 	const reason = input.reason.trim();
 	if (!reason) {
 		throw new Error("Workflow reversal requires a reason");
@@ -500,6 +516,43 @@ export async function reverseWorkflowRuntimeState(input: {
 	}
 
 	return updated;
+}
+
+function assertWorkflowViewerScope(scope: WorkflowViewerScope | null | undefined): asserts scope is WorkflowViewerScope {
+	if (!scope?.userId) {
+		throw new Error("Workflow viewer scope is required");
+	}
+}
+
+async function filterWorkflowInstancesForScope(
+	scope: WorkflowViewerScope,
+	rows: WorkflowInstanceRow[]
+): Promise<WorkflowInstanceRow[]> {
+	if (scope.isGlobalWorkflowViewer) return rows;
+	if (!rows.length) return [];
+
+	const opportunityIds = rows
+		.map((row) => row.opportunityId ?? (row.subjectType === "opportunity" ? row.subjectId : null))
+		.filter((value): value is string => Boolean(value && isUuid(value)));
+	const assignedOpportunityIds = new Set<string>();
+	if (opportunityIds.length) {
+		const uniqueIds = [...new Set(opportunityIds)];
+		const assignedRows = await db
+			.select({ id: opportunities.id })
+			.from(opportunities)
+			.where(and(
+				inArray(opportunities.id, uniqueIds),
+				eq(opportunities.assignedTo, scope.userId)
+			));
+		for (const row of assignedRows) assignedOpportunityIds.add(row.id);
+	}
+
+	return rows.filter((row) => {
+		if (row.assignedTo === scope.userId) return true;
+		if (row.authorityPolicy?.allowedActorIds?.includes(scope.userId)) return true;
+		const opportunityId = row.opportunityId ?? (row.subjectType === "opportunity" ? row.subjectId : null);
+		return Boolean(opportunityId && assignedOpportunityIds.has(opportunityId));
+	});
 }
 
 export async function createWorkflowTemplateDraft(
@@ -886,4 +939,8 @@ function getEscalationRole(policy: unknown): string | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isUuid(value: string): boolean {
+	return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }

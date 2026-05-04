@@ -99,6 +99,12 @@ export async function startDomainWorkflowFromTemplate(
 	if (!initialState) {
 		throw new Error(`Workflow template ${input.templateKey} does not define an initial state`);
 	}
+	await assertWorkflowAuthority({
+		actorId: input.actorId,
+		actorRoles: input.actorRoles,
+		policy: getStartAuthorityPolicy(template, initialState),
+		action: "start",
+	});
 
 	const dueAt = computeDueAt(template.slaPolicy);
 	const instance = await recordWorkflowRuntimeTransition({
@@ -158,6 +164,14 @@ export async function transitionDomainWorkflow(
 	input: TransitionDomainWorkflowInput
 ): Promise<WorkflowInstanceRow> {
 	if (isReversalAction(input.action)) {
+		const instance = await getWorkflowInstance(input.workflowInstanceId);
+		const template = await getTemplateForInstance(instance);
+		await assertWorkflowAuthority({
+			actorId: input.actorId,
+			actorRoles: input.actorRoles,
+			policy: getReversalAuthorityPolicy(input.action, instance, template),
+			action: input.action,
+		});
 		const updated = await reverseWorkflowRuntimeState({
 			workflowInstanceId: input.workflowInstanceId,
 			action: input.action,
@@ -165,6 +179,7 @@ export async function transitionDomainWorkflow(
 			reason: input.reason ?? "",
 			targetState: input.targetState,
 			evidenceLinks: input.evidenceLinks,
+			authorityChecked: true,
 			metadata: {
 				domainCompensation: true,
 				apiActorRoles: input.actorRoles ?? [],
@@ -906,8 +921,41 @@ function getTemplateAuthorityPolicy(template: WorkflowTemplateRow) {
 	};
 }
 
+function getStartAuthorityPolicy(template: WorkflowTemplateRow, initialState: string) {
+	const metadata = isRecord(template.metadata) ? template.metadata : {};
+	const metadataStartRoles = Array.isArray(metadata.startRequiredRoles)
+		? metadata.startRequiredRoles.filter((role): role is string => typeof role === "string" && role.length > 0)
+		: [];
+	const initialTransitionRoles = template.transitions
+		.filter((transition) => transition.from.includes(initialState))
+		.flatMap((transition) => transition.requiredRoles ?? []);
+	const requiredRoles = unique([
+		...metadataStartRoles,
+		...initialTransitionRoles,
+	]);
+	return {
+		requiredRoles: requiredRoles.length ? requiredRoles : ["admin", "workflow_admin"],
+	};
+}
+
 function isReversalAction(action: string): action is "reopen" | "cancel" | "resolve" {
 	return action === "reopen" || action === "cancel" || action === "resolve";
+}
+
+function getReversalAuthorityPolicy(
+	action: "reopen" | "cancel" | "resolve",
+	instance: WorkflowInstanceRow,
+	template: WorkflowTemplateRow
+) {
+	const explicitTransition = template.transitions.find((candidate) =>
+		candidate.action === action && candidate.from.includes(instance.state)
+	);
+	return {
+		requiredRoles: explicitTransition?.requiredRoles?.length
+			? explicitTransition.requiredRoles
+			: ["admin", "workflow_admin"],
+		allowedActorIds: instance.authorityPolicy?.allowedActorIds,
+	};
 }
 
 function compact(values: Array<string | null | undefined>): string[] {

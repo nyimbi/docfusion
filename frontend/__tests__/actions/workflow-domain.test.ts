@@ -123,6 +123,33 @@ describe("workflow domain integrations", () => {
 		expect(partnerPatch).toMatchObject({ status: "invited" });
 	});
 
+	it("denies workflow starts when the actor lacks template start authority", async () => {
+		const template = {
+			id: "template-1",
+			templateKey: "pricing_approval",
+			name: "Pricing Approval",
+			subjectType: "pricing_package",
+			version: 1,
+			status: "active",
+			states: ["draft", "authority_review", "locked"],
+			transitions: [
+				{ action: "submit", from: ["draft"], to: "authority_review", requiredRoles: ["finance_approver"] },
+			],
+			slaPolicy: {},
+			portalPolicy: {},
+			metadata: {},
+		};
+		dbMock.select.mockReturnValueOnce(createChain({ result: [template] }));
+
+		await expect(startDomainWorkflowFromTemplate({
+			templateKey: "pricing_approval",
+			subjectId: "pricing-1",
+			actorId: "writer-1",
+			actorRoles: ["writer"],
+		})).rejects.toThrow("requires finance_approver");
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
 	it("applies template transitions and resolves pricing packages into approved cost elements", async () => {
 		const instance = {
 			id: "workflow-1",
@@ -199,9 +226,20 @@ describe("workflow domain integrations", () => {
 			metadata: {},
 		};
 		const cancelled = { ...existing, state: "cancelled", status: "cancelled" };
+		const template = {
+			templateKey: existing.workflowKey,
+			version: 1,
+			status: "active",
+			transitions: [
+				{ action: "cancel", from: ["review"], to: "cancelled", requiredRoles: ["reviewer"] },
+			],
+		};
 		let claimPatch: Record<string, unknown> | undefined;
 
-		dbMock.select.mockReturnValueOnce(createChain({ result: [existing] }));
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [existing] }))
+			.mockReturnValueOnce(createChain({ result: [template] }))
+			.mockReturnValueOnce(createChain({ result: [existing] }));
 		dbMock.update
 			.mockReturnValueOnce(createChain({ result: [cancelled] }))
 			.mockReturnValueOnce(createChain())
@@ -415,9 +453,20 @@ describe("workflow domain integrations", () => {
 			state: action === "cancel" ? "cancelled" : "resolved",
 			status: action === "cancel" ? "cancelled" : "completed",
 		};
+		const template = {
+			templateKey: existing.workflowKey,
+			version: 1,
+			status: "active",
+			transitions: [
+				{ action, from: ["review"], to: updated.state, requiredRoles: ["proposal_manager"] },
+			],
+		};
 		let domainPatch: Record<string, unknown> | undefined;
 
-		dbMock.select.mockReturnValueOnce(createChain({ result: [existing] }));
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [existing] }))
+			.mockReturnValueOnce(createChain({ result: [template] }))
+			.mockReturnValueOnce(createChain({ result: [existing] }));
 		dbMock.update
 			.mockReturnValueOnce(createChain({ result: [updated] }))
 			.mockReturnValueOnce(createChain({

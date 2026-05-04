@@ -4,13 +4,17 @@ import { ExternalLink, Eye, LockKeyhole, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { listPortalWorkflowItems } from "@/lib/actions/workflow-runtime";
+import { getWorkflowViewerScopeFromSession } from "@/lib/workflows/viewer-scope";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
 	title: "Portal Workflows | DocFusion",
 };
 
 export default async function PortalWorkflowsPage() {
-	const items = await listPortalWorkflowItems({ limit: 100 });
+	const scope = await getWorkflowViewerScopeFromSession();
+	if (!scope) redirect("/auth/sign-in");
+	const items = await listPortalWorkflowItems(scope, { limit: 100 });
 
 	return (
 		<div className="h-full overflow-auto bg-background">
