@@ -1,0 +1,3 @@
+- [ ] Confirm which live credentials are available in CI versus operator-only environments for `db.lindela.io`, Linode E3, Stalwart, and authenticated UI flows.
+- [ ] Confirm whether the deployed `db.lindela.io` schema already contains the latest workflow-runtime and related migrations needed for the proof tranche.
+- [ ] Confirm whether any real submission path in scope requires provider-backed e-signature before receipt capture can be considered complete.
