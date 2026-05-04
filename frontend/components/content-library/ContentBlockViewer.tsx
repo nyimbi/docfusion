@@ -397,7 +397,10 @@ export function ContentBlockViewer({
 										key={version.id}
 										className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
 										onClick={() => onViewVersion?.(version.id)}
-									>
+
+				role="button"
+				tabIndex={0}
+				onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 										<div className="flex items-center justify-between mb-1">
 											<div className="flex items-center gap-2">
 												<span className="font-medium text-sm">
@@ -449,7 +452,10 @@ export function ContentBlockViewer({
 											key={usage.id}
 											className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer flex items-center justify-between"
 											onClick={() => onViewDocument?.(usage.documentId)}
-										>
+
+					role="button"
+					tabIndex={0}
+					onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 											<div className="flex items-center gap-3">
 												<FileText className="w-5 h-5 text-gray-400" />
 												<div>
@@ -496,7 +502,10 @@ export function ContentBlockViewer({
 										key={related.id}
 										className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer flex items-center justify-between"
 										onClick={() => onViewRelated?.(related.id)}
-									>
+
+				role="button"
+				tabIndex={0}
+				onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 										<div className="flex items-center gap-3">
 											<FileText className="w-5 h-5 text-gray-400" />
 											<div>

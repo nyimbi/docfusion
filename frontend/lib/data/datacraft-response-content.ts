@@ -1,5 +1,6 @@
 import type { DocumentContent } from "@/lib/types/document";
 import type { ProposalDocumentType } from "@/lib/types/opportunity";
+import type { SnippetPlaceholder } from "@/lib/types/snippets";
 import type { CreateTemplateInput } from "@/lib/types/template";
 
 type ContentNode = NonNullable<DocumentContent["content"]>[number];
@@ -11,6 +12,7 @@ export interface DatacraftResponseSnippetInput {
 	category: string;
 	tags: string[];
 	content: DocumentContent;
+	placeholders: SnippetPlaceholder[];
 	contentType: string;
 	topicCategory: string;
 	sectors: string[];
@@ -74,10 +76,10 @@ function words(content: DocumentContent): number {
 }
 
 const commonPlaceholders = [
-	{ id: "client_name", name: "Client Name", variableName: "client_name", type: "text" as const, required: true },
-	{ id: "opportunity_name", name: "Opportunity Name", variableName: "opportunity_name", type: "text" as const, required: true },
-	{ id: "solicitation_number", name: "Solicitation Number", variableName: "solicitation_number", type: "text" as const, required: false },
-	{ id: "submission_date", name: "Submission Date", variableName: "submission_date", type: "date" as const, required: false },
+	{ id: "client_name", key: "client_name", name: "Client Name", variableName: "client_name", type: "text" as const, required: true },
+	{ id: "opportunity_name", key: "opportunity_name", name: "Opportunity Name", variableName: "opportunity_name", type: "text" as const, required: true },
+	{ id: "solicitation_number", key: "solicitation_number", name: "Solicitation Number", variableName: "solicitation_number", type: "text" as const, required: false },
+	{ id: "submission_date", key: "submission_date", name: "Submission Date", variableName: "submission_date", type: "date" as const, required: false },
 ];
 
 export const DATACRAFT_RESPONSE_PROFILE = {
@@ -718,15 +720,23 @@ const operatingModelContent = doc([
 	p("For Datacraft, the target operating model is as important as the software because institutional value depends on repeated use. When the operating model is clear, users know where work belongs, administrators know how to govern it, leaders know how to measure it, and the platform can mature without constant reinvention."),
 ]);
 
-function dcSnippet(input: Omit<DatacraftResponseSnippetInput, "category" | "tags"> & { tags: string[] }): DatacraftResponseSnippetInput {
+function dcSnippet(
+	input: Omit<DatacraftResponseSnippetInput, "category" | "tags" | "placeholders"> & {
+		tags: string[];
+		placeholders?: SnippetPlaceholder[];
+	}
+): DatacraftResponseSnippetInput {
 	return {
 		...input,
 		category: "Datacraft Response",
 		tags: ["datacraft", ...input.tags.filter((tag) => tag !== "datacraft")],
+		placeholders: input.placeholders ?? commonPlaceholders,
 	};
 }
 
-export const DATACRAFT_RESPONSE_SNIPPETS: DatacraftResponseSnippetInput[] = [
+const DATACRAFT_RESPONSE_SNIPPET_DEFINITIONS: Array<
+	Omit<DatacraftResponseSnippetInput, "placeholders"> & { placeholders?: SnippetPlaceholder[] }
+> = [
 	{
 		name: "Datacraft Executive Summary",
 		shortcut: "/dc-exec-summary",
@@ -1868,6 +1878,12 @@ export const DATACRAFT_RESPONSE_SNIPPETS: DatacraftResponseSnippetInput[] = [
 		keyTerms: ["target operating model", "steady state", "ownership"],
 	}),
 ];
+
+export const DATACRAFT_RESPONSE_SNIPPETS: DatacraftResponseSnippetInput[] =
+	DATACRAFT_RESPONSE_SNIPPET_DEFINITIONS.map((snippet) => ({
+		...snippet,
+		placeholders: snippet.placeholders ?? commonPlaceholders,
+	}));
 
 const fullInstitutionalTemplateContent = doc([
 	h(1, "Proposal Response: {{opportunity_name}}"),

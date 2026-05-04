@@ -246,7 +246,6 @@ export function CollectionManager({
 							}
 							placeholder="Collection name"
 							className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-							autoFocus
 						/>
 						<textarea
 							value={newCollection.description}
@@ -260,7 +259,7 @@ export function CollectionManager({
 
 						{/* Color Selection */}
 						<div>
-							<label className="text-xs text-gray-500 mb-1 block">Color</label>
+							<span className="text-xs text-gray-500 mb-1 block">Color</span>
 							<div className="flex gap-2">
 								{COLOR_OPTIONS.map((color) => (
 									<button
@@ -280,7 +279,7 @@ export function CollectionManager({
 
 						{/* Visibility */}
 						<div>
-							<label className="text-xs text-gray-500 mb-1 block">Visibility</label>
+							<span className="text-xs text-gray-500 mb-1 block">Visibility</span>
 							<div className="flex gap-2">
 								{VISIBILITY_OPTIONS.map((option) => (
 									<button
@@ -426,7 +425,10 @@ export function CollectionManager({
 			{/* Delete Confirmation Modal */}
 			{deleteConfirmId && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center">
-					<div className="absolute inset-0 bg-black/50" onClick={() => setDeleteConfirmId(null)} />
+					<div className="absolute inset-0 bg-black/50" onClick={() => setDeleteConfirmId(null)}
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}/>
 					<div className="relative bg-white rounded-lg p-6 max-w-md shadow-xl">
 						<div className="flex items-center gap-3 mb-4">
 							<div className="p-2 bg-red-100 rounded-full">
@@ -501,7 +503,10 @@ function CollectionRow({
 			<div
 				className="p-3 flex items-center gap-2 hover:bg-gray-50 cursor-pointer"
 				onClick={onToggleExpand}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				<button className="p-1" onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}>
 					{isExpanded ? (
 						<ChevronDown className="w-4 h-4 text-gray-400" />

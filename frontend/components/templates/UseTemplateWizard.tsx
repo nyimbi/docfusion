@@ -959,7 +959,7 @@ function GeneratingStep({ template }: GeneratingStepProps) {
 		}, 500);
 
 		return () => clearInterval(interval);
-	}, []);
+	}, [steps.length]);
 
 	return (
 		<div className="flex flex-col items-center justify-center py-12">

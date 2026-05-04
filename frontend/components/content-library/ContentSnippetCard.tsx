@@ -39,6 +39,8 @@ import {
 	BookmarkCheck,
 } from "lucide-react";
 import type { ContentType, FreshnessStatus } from "@/lib/db/schema-content-library";
+import type { DocumentContent } from "@/lib/types/document";
+import type { SnippetPlaceholder } from "@/lib/types/snippets";
 
 // ============================================================================
 // Types
@@ -47,7 +49,9 @@ import type { ContentType, FreshnessStatus } from "@/lib/db/schema-content-libra
 export interface ContentSnippet {
 	id: string;
 	name: string;
-	content: string;
+	content: DocumentContent;
+	plainTextPreview: string;
+	placeholders: SnippetPlaceholder[];
 	description: string | null;
 	category: string | null;
 	tags: string[];
@@ -175,9 +179,9 @@ export function ContentSnippetCard({
 	};
 
 	// Truncate content for preview
-	const previewContent = snippet.content.length > 300
-		? snippet.content.slice(0, 300) + "..."
-		: snippet.content;
+	const previewContent = snippet.plainTextPreview.length > 300
+		? snippet.plainTextPreview.slice(0, 300) + "..."
+		: snippet.plainTextPreview;
 
 	return (
 		<Card
@@ -319,8 +323,11 @@ export function ContentSnippetCard({
 						e.stopPropagation();
 						onExpand?.(snippet.id);
 					}}
-				>
-					{isExpanded ? snippet.content : previewContent}
+
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
+					{isExpanded ? snippet.plainTextPreview : previewContent}
 				</div>
 
 				{/* Win/Loss stats */}

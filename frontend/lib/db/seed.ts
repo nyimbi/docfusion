@@ -23,6 +23,7 @@ import {
 	DATACRAFT_RESPONSE_SNIPPETS,
 	getDatacraftSnippetWordCount,
 } from "@/lib/data/datacraft-response-content";
+import { normalizePlaceholderDefinitions } from "@/lib/placeholders/substitution";
 
 // ============================================================================
 // Seed Configuration
@@ -204,6 +205,7 @@ async function seedDatacraftResponseSnippets() {
 			name: snippet.name,
 			shortcut: snippet.shortcut,
 			content: snippet.content,
+			placeholders: normalizePlaceholderDefinitions(snippet.placeholders),
 			description: snippet.description,
 			tags: snippet.tags,
 			category: snippet.category,

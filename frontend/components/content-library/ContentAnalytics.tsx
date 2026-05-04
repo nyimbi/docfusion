@@ -253,7 +253,10 @@ export function ContentAnalytics({
 							key={block.id}
 							className="py-2 flex items-center justify-between hover:bg-gray-50 cursor-pointer px-2 rounded"
 							onClick={() => onBlockClick?.(block.id)}
-						>
+
+			role="button"
+			tabIndex={0}
+			onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 							<div className="flex items-center gap-3">
 								<span className="w-6 h-6 flex items-center justify-center bg-green-100 text-green-700 rounded-full text-xs font-medium">
 									{index + 1}
@@ -291,7 +294,10 @@ export function ContentAnalytics({
 							key={block.id}
 							className="py-2 flex items-center justify-between hover:bg-gray-50 cursor-pointer px-2 rounded"
 							onClick={() => onBlockClick?.(block.id)}
-						>
+
+			role="button"
+			tabIndex={0}
+			onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 							<div className="flex items-center gap-3">
 								<span className="w-6 h-6 flex items-center justify-center bg-red-100 text-red-700 rounded-full text-xs font-medium">
 									{index + 1}

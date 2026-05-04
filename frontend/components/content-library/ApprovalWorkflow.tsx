@@ -634,7 +634,10 @@ export function ApprovalWorkflow({
 			{/* Reject Dialog */}
 			{showRejectDialog && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center">
-					<div className="absolute inset-0 bg-black/50" onClick={() => setShowRejectDialog(false)} />
+					<div className="absolute inset-0 bg-black/50" onClick={() => setShowRejectDialog(false)}
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}/>
 					<div className="relative bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
 						<h3 className="font-semibold mb-2">Reject Content</h3>
 						<p className="text-sm text-gray-500 mb-4">
@@ -646,7 +649,6 @@ export function ApprovalWorkflow({
 							placeholder="Enter rejection reason..."
 							className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
 							rows={3}
-							autoFocus
 						/>
 						<div className="flex justify-end gap-2 mt-4">
 							<Button variant="ghost" onClick={() => setShowRejectDialog(false)}>
