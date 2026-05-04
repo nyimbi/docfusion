@@ -10,6 +10,13 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import type { DocumentId } from "@/lib/types/document";
 
+const getLocalStorage = () => {
+	if (typeof window === "undefined") {
+		throw new Error("localStorage is not available during server rendering");
+	}
+	return window.localStorage;
+};
+
 /** Active panel in split view */
 export type ActivePanel = "editor" | "markdown" | "both";
 
@@ -387,7 +394,7 @@ export const useEditorStore = create<EditorState & EditorActions>()(
 		})),
 		{
 			name: "docfusion-editor",
-			storage: createJSONStorage(() => localStorage),
+			storage: createJSONStorage(getLocalStorage),
 			partialize: (state) => ({
 				preferences: state.preferences,
 				sidebarWidth: state.sidebarWidth,

@@ -639,7 +639,10 @@ function Badge({
 				onClick && "cursor-pointer hover:opacity-80",
 				className
 			)}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			{children}
 		</span>
 	);

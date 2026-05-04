@@ -161,7 +161,7 @@ export function DocumentActionsMenu({
 		} catch (error) {
 			toast.error("Export failed");
 		}
-	}, [document.title, editor]);
+	}, [document.id, document.title, editor]);
 
 	const handleShare = React.useCallback(async () => {
 		try {
@@ -313,7 +313,7 @@ export function DocumentActionsMenu({
 						</Select>
 
 						<div>
-							<label className="text-sm font-medium">Merge Mode</label>
+							<span className="text-sm font-medium">Merge Mode</span>
 							<div className="mt-2 space-y-2">
 								<button
 									type="button"

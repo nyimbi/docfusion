@@ -75,7 +75,10 @@ export function QualityScoreCard({
 				onClick && "cursor-pointer hover:border-[var(--accent-500)]",
 				className
 			)}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			{compact ? (
 				<CompactView assessment={assessment} />
 			) : (
@@ -201,7 +204,10 @@ function EmptyState({
 				compact ? "p-4" : "p-8",
 				className
 			)}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			<SparkleIcon className={cn("mx-auto text-[var(--foreground-muted)]", compact ? "h-6 w-6 mb-2" : "h-10 w-10 mb-3")} />
 			<p className="text-sm text-[var(--foreground-muted)] font-medium">Run Assessment</p>
 			{!compact && <p className="text-xs text-[var(--foreground-muted)] mt-1">Analyze 35+ quality factors</p>}

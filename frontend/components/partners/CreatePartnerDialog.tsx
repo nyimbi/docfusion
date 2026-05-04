@@ -109,7 +109,10 @@ export function CreatePartnerDialog({
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center p-4">
 			{/* Backdrop */}
-			<div className="absolute inset-0 bg-black/50" onClick={onClose} />
+			<div className="absolute inset-0 bg-black/50" onClick={onClose}
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}/>
 
 			{/* Dialog */}
 			<div className="relative w-full max-w-lg max-h-[90vh] bg-[var(--background)] rounded-lg shadow-xl flex flex-col">
@@ -124,9 +127,9 @@ export function CreatePartnerDialog({
 				<form id="create-partner-form" onSubmit={handleFormSubmit(onValidSubmit)} className="flex-1 overflow-y-auto p-6 space-y-4">
 					{/* Name */}
 					<div>
-						<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+						<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 							Partner Name <span className="text-red-500">*</span>
-						</label>
+						</span>
 						<input
 							type="text"
 							{...register("name")}
@@ -135,7 +138,7 @@ export function CreatePartnerDialog({
 								"w-full px-3 py-2 rounded-lg border bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent",
 								errors.name ? "border-red-500" : "border-[var(--border)]"
 							)}
-						/>
+						 aria-label="Partner Name"/>
 						{errors.name && (
 							<p className="text-sm text-red-500 mt-1">{errors.name.message}</p>
 						)}
@@ -143,13 +146,13 @@ export function CreatePartnerDialog({
 
 					{/* Type */}
 					<div>
-						<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+						<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 							Partner Type
-						</label>
+						</span>
 						<select
 							{...register("type")}
 							className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-						>
+						 aria-label="Partner Type">
 							<option value="">Select type...</option>
 							<option value="prime">Prime Contractor</option>
 							<option value="sub">Subcontractor</option>
@@ -169,15 +172,15 @@ export function CreatePartnerDialog({
 						</p>
 
 						<div>
-							<label className="block text-xs text-[var(--foreground-muted)] mb-1">
+							<span className="block text-xs text-[var(--foreground-muted)] mb-1">
 								Contact Name
-							</label>
+							</span>
 							<input
 								type="text"
 								{...register("contactName")}
 								placeholder="Primary contact name"
 								className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-							/>
+							 aria-label="Contact Name"/>
 							{errors.contactName && (
 								<p className="text-sm text-red-500 mt-1">{errors.contactName.message}</p>
 							)}
@@ -185,9 +188,9 @@ export function CreatePartnerDialog({
 
 						<div className="grid grid-cols-2 gap-3">
 							<div>
-								<label className="block text-xs text-[var(--foreground-muted)] mb-1">
+								<span className="block text-xs text-[var(--foreground-muted)] mb-1">
 									Email
-								</label>
+								</span>
 								<input
 									type="email"
 									{...register("contactEmail")}
@@ -196,21 +199,21 @@ export function CreatePartnerDialog({
 										"w-full px-3 py-2 rounded-lg border bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent",
 										errors.contactEmail ? "border-red-500" : "border-[var(--border)]"
 									)}
-								/>
+								 aria-label="Email"/>
 								{errors.contactEmail && (
 									<p className="text-sm text-red-500 mt-1">{errors.contactEmail.message}</p>
 								)}
 							</div>
 							<div>
-								<label className="block text-xs text-[var(--foreground-muted)] mb-1">
+								<span className="block text-xs text-[var(--foreground-muted)] mb-1">
 									Phone
-								</label>
+								</span>
 								<input
 									type="tel"
 									{...register("contactPhone")}
 									placeholder="+1 (555) 000-0000"
 									className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-								/>
+								 aria-label="Phone"/>
 								{errors.contactPhone && (
 									<p className="text-sm text-red-500 mt-1">{errors.contactPhone.message}</p>
 								)}
@@ -220,9 +223,9 @@ export function CreatePartnerDialog({
 
 					{/* Capabilities */}
 					<div>
-						<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+						<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 							Capabilities
-						</label>
+						</span>
 						<div className="flex gap-2">
 							<input
 								type="text"
@@ -231,7 +234,7 @@ export function CreatePartnerDialog({
 								onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCapability())}
 								placeholder="Add a capability..."
 								className="flex-1 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-							/>
+							 aria-label="Capabilities"/>
 							<Button type="button" variant="secondary" onClick={addCapability}>
 								Add
 							</Button>
@@ -259,15 +262,15 @@ export function CreatePartnerDialog({
 
 					{/* Notes */}
 					<div>
-						<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+						<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 							Notes
-						</label>
+						</span>
 						<textarea
 							{...register("notes")}
 							placeholder="Additional notes about this partner..."
 							rows={3}
 							className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-						/>
+						 aria-label="Notes"/>
 						{errors.notes && (
 							<p className="text-sm text-red-500 mt-1">{errors.notes.message}</p>
 						)}

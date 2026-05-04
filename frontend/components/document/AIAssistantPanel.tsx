@@ -92,6 +92,9 @@ export function AIAssistantPanel({
 	const [isExpanded, setIsExpanded] = React.useState(false);
 	const messagesEndRef = React.useRef<HTMLDivElement>(null);
 	const inputRef = React.useRef<HTMLInputElement>(null);
+	const handleCommandExecutionRef = React.useRef<
+		((command: AICommand, args?: string[]) => Promise<void>) | null
+	>(null);
 
 	const isCommandPaletteOpen = useAIStore((s) => s.isCommandPaletteOpen);
 	const openCommandPalette = useAIStore((s) => s.openCommandPalette);
@@ -112,8 +115,8 @@ export function AIAssistantPanel({
 
 	// Handle pending command from store
 	React.useEffect(() => {
-		if (pendingCommand) {
-			handleCommandExecution(pendingCommand);
+		if (pendingCommand && handleCommandExecutionRef.current) {
+			handleCommandExecutionRef.current(pendingCommand);
 			closeCommandPalette();
 		}
 	}, [pendingCommand, closeCommandPalette]);
@@ -217,6 +220,7 @@ export function AIAssistantPanel({
 				break;
 		}
 	};
+	handleCommandExecutionRef.current = handleCommandExecution;
 
 	const handleImproveCommand = async () => {
 		if (!editor) {

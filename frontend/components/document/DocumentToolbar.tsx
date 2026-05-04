@@ -448,7 +448,7 @@ function ToolbarButton({
 					onClick={onClick}
 					disabled={disabled}
 					className={cn(
-						"flex items-center gap-1.5 px-2 py-1.5 rounded-[var(--radius-sm)] transition-all duration-[var(--transition-fast)]",
+						"flex items-center gap-1.5 px-2 py-1.5 rounded-[var(--radius-sm)] transition-all duration-&lsqb;var(--transition-fast)&rsqb;",
 						"text-[var(--foreground-muted)]",
 						isActive
 							? "bg-[var(--accent-100)] text-[var(--accent-700)] dark:bg-[var(--accent-900)] dark:text-[var(--accent-200)]"
@@ -504,7 +504,7 @@ function HeadingDropdown({ editor, showText = true }: HeadingDropdownProps) {
 							className={cn(
 								"flex items-center gap-1 px-2 py-1.5 rounded-[var(--radius-sm)]",
 								"text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background-muted)]",
-								"transition-all duration-[var(--transition-fast)]"
+								"transition-all duration-&lsqb;var(--transition-fast)&rsqb;"
 							)}
 						>
 							{activeLevel ? (
@@ -646,7 +646,7 @@ function AlignmentDropdown({ editor, showText = true }: AlignmentDropdownProps) 
 							className={cn(
 								"flex items-center gap-1 px-2 py-1.5 rounded-[var(--radius-sm)]",
 								"text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background-muted)]",
-								"transition-all duration-[var(--transition-fast)]"
+								"transition-all duration-&lsqb;var(--transition-fast)&rsqb;"
 							)}
 						>
 							<CurrentIcon className="h-4 w-4" />
@@ -904,7 +904,7 @@ function AIToolbarDropdown({
 								"bg-gradient-to-r from-blue-500/10 to-purple-500/10",
 								"border border-blue-500/20",
 								"text-blue-600 dark:text-blue-400 hover:bg-blue-500/20",
-								"transition-all duration-[var(--transition-fast)]"
+								"transition-all duration-&lsqb;var(--transition-fast)&rsqb;"
 							)}
 						>
 							<Sparkles className="h-4 w-4" />

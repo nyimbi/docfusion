@@ -386,11 +386,11 @@ export function FormatTemplateSelector({
 
 				{/* Template Selector */}
 				<div className="space-y-2">
-					<label className="text-sm font-medium text-foreground">
+					<span className="text-sm font-medium text-foreground">
 						Select Template
-					</label>
+					</span>
 					<Select value={selectedTemplateId} onValueChange={handleTemplateChange}>
-						<SelectTrigger className="w-full">
+						<SelectTrigger className="w-full" aria-label="Select Template">
 							<SelectValue placeholder="Choose a format template..." />
 						</SelectTrigger>
 						<SelectContent>

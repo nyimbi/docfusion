@@ -726,7 +726,10 @@ function AIAssignmentSuggestions({
 							key={suggestion.userId}
 							className="flex items-center justify-between p-2 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
 							onClick={() => onAssign(suggestion.userId, suggestion.userName, suggestion.userEmail)}
-						>
+
+			role="button"
+			tabIndex={0}
+			onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 							<div className="flex-1">
 								<div className="flex items-center gap-2">
 									<p className="text-sm font-medium">{suggestion.userName}</p>

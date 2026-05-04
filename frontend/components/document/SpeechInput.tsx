@@ -69,7 +69,7 @@ export function SpeechInput(props: SpeechInputProps) {
     if (value !== bind.value && !speech.isListening && !isInjecting) {
       bind.onChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
     }
-  }, [value]);
+  }, [bind, isInjecting, speech.isListening, value]);
 
   const indicator = getListeningIndicatorState(speech.isListening, speech.isSupported, speech.error);
 
@@ -251,7 +251,7 @@ export function SpeechTextField(props: SpeechTextFieldProps) {
     if (value !== bind.value && !speech.isListening && !isInjecting) {
       bind.onChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
     }
-  }, [value]);
+  }, [bind, isInjecting, speech.isListening, value]);
 
   const inputClasses = cn(
     "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm",

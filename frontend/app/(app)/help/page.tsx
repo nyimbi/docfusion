@@ -654,7 +654,7 @@ export default function HelpPage() {
 					</DialogHeader>
 					<div className="space-y-4 mt-4">
 						<div>
-							<label className="text-sm font-medium mb-1.5 block">Subject</label>
+							<span className="text-sm font-medium mb-1.5 block">Subject</span>
 							<input
 								type="text"
 								placeholder="Brief description of your issue"
@@ -666,10 +666,10 @@ export default function HelpPage() {
 									"text-foreground placeholder:text-muted-foreground",
 									"focus:outline-none focus:ring-2 focus:ring-ring"
 								)}
-							/>
+							 aria-label="Subject"/>
 						</div>
 						<div>
-							<label className="text-sm font-medium mb-1.5 block">Message</label>
+							<span className="text-sm font-medium mb-1.5 block">Message</span>
 							<textarea
 								placeholder="Describe your issue in detail..."
 								value={contactForm.message}
@@ -681,7 +681,7 @@ export default function HelpPage() {
 									"text-foreground placeholder:text-muted-foreground",
 									"focus:outline-none focus:ring-2 focus:ring-ring"
 								)}
-							/>
+							 aria-label="Message"/>
 						</div>
 						<div className="flex justify-end gap-2 pt-2">
 							<Button variant="outline" onClick={() => setShowContactForm(false)}>

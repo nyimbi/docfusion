@@ -117,6 +117,7 @@ export function PracticeRecorder({
 	const analyserRef = useRef<AnalyserNode | null>(null);
 	const mediaStreamRef = useRef<MediaStream | null>(null);
 	const recordedChunksRef = useRef<Blob[]>([]);
+	const startMediaRecordingRef = useRef<(() => Promise<void>) | null>(null);
 
 	// Derived state
 	const currentSlide = slides[currentSlideIndex];
@@ -171,7 +172,7 @@ export function PracticeRecorder({
 					startTime: 0,
 				}]);
 				setRecordingState("recording");
-				startMediaRecording();
+				startMediaRecordingRef.current?.();
 			}
 		}
 
@@ -241,6 +242,7 @@ export function PracticeRecorder({
 			console.error("Failed to start media recording:", error);
 		}
 	};
+	startMediaRecordingRef.current = startMediaRecording;
 
 	const stopMediaRecording = () => {
 		if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
@@ -687,12 +689,12 @@ export function PracticeRecorder({
 
 						<div className="space-y-4 py-4">
 							<div>
-								<label className="text-sm font-medium">Recording Name</label>
+								<span className="text-sm font-medium">Recording Name</span>
 								<Input
 									value={recordingName}
 									onChange={(e) => setRecordingName(e.target.value)}
 									className="mt-1"
-								/>
+								 aria-label="Recording Name"/>
 							</div>
 
 							<div className="grid grid-cols-2 gap-4 text-sm">

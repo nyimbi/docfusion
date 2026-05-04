@@ -190,7 +190,10 @@ export function ComplianceValidator({
 				key={`${issue.requirementId}-${issue.type}`}
 				className="p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
 				onClick={() => onNavigateToRequirement?.(issue.requirementId)}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				<div className="flex items-start gap-3">
 					<Badge className={cn("shrink-0", config.color)}>
 						{config.icon}

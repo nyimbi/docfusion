@@ -431,7 +431,10 @@ export function AccountResearchPanel({
 														: "border-border hover:bg-muted/50"
 												}`}
 												onClick={() => toggleCategory(category.id)}
-											>
+
+					role="button"
+					tabIndex={0}
+					onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 												<Checkbox
 													checked={isSelected}
 													onCheckedChange={() => toggleCategory(category.id)}

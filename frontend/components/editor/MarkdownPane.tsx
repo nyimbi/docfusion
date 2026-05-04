@@ -104,7 +104,7 @@ export const MarkdownPane = React.memo(function MarkdownPane({
 			setMarkdown(initialMarkdown);
 			setEditedMarkdown(initialMarkdown);
 		}
-	}, []);
+	}, [content]);
 
 	// Handle entering edit mode
 	const handleStartEdit = React.useCallback(() => {

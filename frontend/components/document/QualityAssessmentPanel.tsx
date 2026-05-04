@@ -171,12 +171,12 @@ export function QualityAssessmentPanel({
 	const [priorityFilter, setPriorityFilter] = useState<IssuePriority | "all">("all");
 	const [selectedCategories, setSelectedCategories] = useState<QualityFactorCategory[]>([]);
 
-	const priorityOrder: Record<IssuePriority, number> = {
+	const priorityOrder = useMemo<Record<IssuePriority, number>>(() => ({
 		critical: 0,
 		high: 1,
 		medium: 2,
 		low: 3,
-	};
+	}), []);
 
 	// Memoized values
 	const sortedIssues = useMemo(() => {
@@ -186,7 +186,7 @@ export function QualityAssessmentPanel({
 			issues = issues.filter((i) => i.priority === priorityFilter);
 		}
 		return issues.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
-	}, [assessment, priorityFilter]);
+	}, [assessment, priorityFilter, priorityOrder]);
 
 	const priorityCounts = useMemo(() => {
 		if (!assessment) return { critical: 0, high: 0, medium: 0, low: 0 };

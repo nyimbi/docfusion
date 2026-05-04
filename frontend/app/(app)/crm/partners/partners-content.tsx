@@ -100,7 +100,7 @@ export function PartnersContent({ groupedPartners, stats }: PartnersContentProps
 	};
 
 	// Filter partners based on search and filters
-	const filterPartner = (partner: ExtendedPartnerListItem): boolean => {
+	const filterPartner = React.useCallback((partner: ExtendedPartnerListItem): boolean => {
 		if (searchQuery) {
 			const query = searchQuery.toLowerCase();
 			const matchesSearch =
@@ -117,7 +117,7 @@ export function PartnersContent({ groupedPartners, stats }: PartnersContentProps
 		if (selectedTier && partner.tier !== selectedTier) return false;
 
 		return true;
-	};
+	}, [searchQuery, selectedCountry, selectedRegion, selectedTier]);
 
 	// Get all partners as flat list for grid view
 	const allPartners = React.useMemo(() => {
@@ -129,7 +129,7 @@ export function PartnersContent({ groupedPartners, stats }: PartnersContentProps
 		}
 		partners.push(...groupedPartners.ungrouped);
 		return partners.filter(filterPartner);
-	}, [groupedPartners, searchQuery, selectedRegion, selectedCountry, selectedTier]);
+	}, [groupedPartners.ungrouped, groupedPartners.regions, filterPartner]);
 
 	// Clear all filters
 	const clearFilters = () => {

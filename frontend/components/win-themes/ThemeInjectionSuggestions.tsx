@@ -324,9 +324,9 @@ function InjectionCard({
 
 						{/* Rationale */}
 						<div>
-							<label className="text-xs font-medium text-muted-foreground">
+							<span className="text-xs font-medium text-muted-foreground">
 								Rationale
-							</label>
+							</span>
 							<p className="text-sm mt-1 text-muted-foreground">
 								{injection.rationale}
 							</p>
@@ -724,7 +724,7 @@ export function ThemeInjectionSuggestions({
 						<div className="space-y-4">
 							{/* Original Context */}
 							<div>
-								<label className="text-sm font-medium">Original Text</label>
+								<span className="text-sm font-medium">Original Text</span>
 								<div className="mt-1 p-3 bg-muted/50 rounded text-sm max-h-24 overflow-y-auto">
 									{modifyDialog.injection.originalText}
 								</div>
@@ -732,7 +732,7 @@ export function ThemeInjectionSuggestions({
 
 							{/* Modified Text */}
 							<div>
-								<label className="text-sm font-medium">Modified Injection</label>
+								<span className="text-sm font-medium">Modified Injection</span>
 								<Textarea
 									value={modifyDialog.modifiedText}
 									onChange={(e) =>
@@ -742,7 +742,7 @@ export function ThemeInjectionSuggestions({
 									}
 									rows={6}
 									className="mt-1"
-								/>
+								 aria-label="Modified Injection"/>
 							</div>
 						</div>
 					)}

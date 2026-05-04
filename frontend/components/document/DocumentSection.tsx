@@ -215,7 +215,7 @@ export const DocumentSection = React.memo(function DocumentSection({
 			openCommandPalette("compliance");
 			toast.info(`Evaluating section: ${item.text}`);
 		},
-		[editor, getSectionRange, item.id, item.text, openCommandPalette]
+		[editor, getSectionRange, item.text, openCommandPalette]
 	);
 
 	/**
@@ -251,7 +251,10 @@ export const DocumentSection = React.memo(function DocumentSection({
 			onClick={handleClick}
 			data-section-id={item.id}
 			data-section-level={item.level}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			{/* Section header with AI actions */}
 			<div
 				className={cn(

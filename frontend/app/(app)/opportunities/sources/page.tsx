@@ -188,7 +188,7 @@ export default function ScraperSourcesPage() {
 			loadData(1);
 		}, 300);
 		return () => clearTimeout(timer);
-	}, [searchTerm]);
+	}, [loadData, searchTerm]);
 
 	// Handle toggle enabled
 	const handleToggleEnabled = async (id: string, currentEnabled: boolean) => {

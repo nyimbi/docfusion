@@ -166,7 +166,10 @@ export function ActivityWidget({
 											overdue && "bg-red-50"
 										)}
 										onClick={() => onActivityClick?.(activity)}
-									>
+
+				role="button"
+				tabIndex={0}
+				onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 										<div
 											className={cn(
 												"h-8 w-8 rounded-full flex items-center justify-center shrink-0",

@@ -23,4 +23,4 @@ export * from "./core";
 export * from "./ai";
 export * from "./collab";
 export * from "./content";
-export * from "./publishing";
+export * from "./publishing/index";

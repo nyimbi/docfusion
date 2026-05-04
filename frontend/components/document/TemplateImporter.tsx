@@ -416,7 +416,10 @@ The AI will analyze the structure and create appropriate prompts for each sectio
             onDragLeave={() => setDragActive(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-          >
+
+					role="button"
+					tabIndex={0}
+					onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
             <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <p className="text-lg font-medium mb-2">Drop your document here</p>
             <p className="text-sm text-muted-foreground mb-4">
@@ -522,14 +525,14 @@ GOOGLE_CLIENT_SECRET=your_client_secret`}
 
               {/* Document URL input */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Google Docs URL</label>
+                <span className="text-sm font-medium">Google Docs URL</span>
                 <div className="flex gap-2">
                   <Input
                     value={googleDocUrl}
                     onChange={(e) => setGoogleDocUrl(e.target.value)}
                     placeholder="https://docs.google.com/document/d/..."
                     className="font-mono text-sm"
-                  />
+                   aria-label="Google Docs URL"/>
                   <Button
                     onClick={handleFetchGoogleDoc}
                     disabled={!googleDocUrl.trim() || isFetchingDoc}
@@ -565,13 +568,13 @@ GOOGLE_CLIENT_SECRET=your_client_secret`}
               {/* Preview area */}
               {content && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Document Preview</label>
+                  <span className="text-sm font-medium">Document Preview</span>
                   <Textarea
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
                     className="min-h-[200px] font-mono text-sm resize-none"
                     placeholder="Document content will appear here..."
-                  />
+                   aria-label="Document Preview"/>
                 </div>
               )}
             </div>
@@ -926,30 +929,30 @@ function SectionEditDialog({
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Title</label>
+            <span className="text-sm font-medium">Title</span>
             <Input
               value={edited.title}
               onChange={(e) => setEdited({ ...edited, title: e.target.value })}
-            />
+             aria-label="Title"/>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Purpose</label>
+            <span className="text-sm font-medium">Purpose</span>
             <Textarea
               value={edited.purpose}
               onChange={(e) => setEdited({ ...edited, purpose: e.target.value })}
               rows={2}
-            />
+             aria-label="Purpose"/>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">AI Generation Prompt</label>
+            <span className="text-sm font-medium">AI Generation Prompt</span>
             <Textarea
               value={edited.generatedPrompt}
               onChange={(e) => setEdited({ ...edited, generatedPrompt: e.target.value })}
               rows={6}
               className="font-mono text-sm"
-            />
+             aria-label="AI Generation Prompt"/>
             <p className="text-xs text-muted-foreground">
               Use {"{{placeholders}}"} for dynamic content like {"{{company_name}}"}, {"{{project_scope}}"}, etc.
             </p>
@@ -957,15 +960,15 @@ function SectionEditDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Token Budget</label>
+              <span className="text-sm font-medium">Token Budget</span>
               <Input
                 type="number"
                 value={edited.suggestedTokenBudget}
                 onChange={(e) => setEdited({ ...edited, suggestedTokenBudget: parseInt(e.target.value) || 500 })}
-              />
+               aria-label="Token Budget"/>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Density Target</label>
+              <span className="text-sm font-medium">Density Target</span>
               <Input
                 type="number"
                 step="0.1"
@@ -973,7 +976,7 @@ function SectionEditDialog({
                 max="1"
                 value={edited.suggestedDensity}
                 onChange={(e) => setEdited({ ...edited, suggestedDensity: parseFloat(e.target.value) || 0.7 })}
-              />
+               aria-label="Density Target"/>
             </div>
           </div>
         </div>
@@ -1068,67 +1071,67 @@ function EditingStage({
           {/* Basic info */}
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Template Name *</label>
+              <span className="text-sm font-medium">Template Name *</span>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Technical Proposal Template"
-              />
+               aria-label="Template Name"/>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Description *</label>
+              <span className="text-sm font-medium">Description *</span>
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="A brief description of what this template is for..."
                 rows={3}
-              />
+               aria-label="Description"/>
             </div>
           </div>
 
           {/* Audience & Purpose */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
+              <span className="text-sm font-medium flex items-center gap-2">
                 <Target className="h-4 w-4" />
                 Purpose
-              </label>
+              </span>
               <Textarea
                 value={purpose}
                 onChange={(e) => setPurpose(e.target.value)}
                 placeholder="What is this template designed to accomplish?"
                 rows={3}
-              />
+               aria-label="Purpose"/>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
+              <span className="text-sm font-medium flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Target Audience
-              </label>
+              </span>
               <Textarea
                 value={audience}
                 onChange={(e) => setAudience(e.target.value)}
                 placeholder="Who should use this template?"
                 rows={3}
-              />
+               aria-label="Target Audience"/>
             </div>
           </div>
 
           {/* Usage advice */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Usage Advice</label>
+            <span className="text-sm font-medium">Usage Advice</span>
             <Textarea
               value={usageAdvice}
               onChange={(e) => setUsageAdvice(e.target.value)}
               placeholder="When and how should users employ this template?"
               rows={3}
-            />
+             aria-label="Usage Advice"/>
           </div>
 
           {/* Best practices */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Best Practices</label>
+            <span className="text-sm font-medium">Best Practices</span>
             {bestPractices.map((practice, i) => (
               <div key={i} className="flex gap-2">
                 <Input
@@ -1162,10 +1165,10 @@ function EditingStage({
 
           {/* Color picker */}
           <div className="space-y-2">
-            <label className="text-sm font-medium flex items-center gap-2">
+            <span className="text-sm font-medium flex items-center gap-2">
               <Palette className="h-4 w-4" />
               Template Color
-            </label>
+            </span>
             <div className="flex flex-wrap gap-2">
               {colorOptions.map(opt => (
                 <button

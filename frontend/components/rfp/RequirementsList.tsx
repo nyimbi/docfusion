@@ -504,7 +504,7 @@ export function RequirementsList({
 						<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 							{/* Category filter */}
 							<div className="space-y-2">
-								<label className="text-xs font-medium text-muted-foreground">Category</label>
+								<span className="text-xs font-medium text-muted-foreground">Category</span>
 								<Select
 									value={filters.categories[0] ?? ""}
 									onValueChange={(value) =>
@@ -514,7 +514,7 @@ export function RequirementsList({
 										}))
 									}
 								>
-									<SelectTrigger>
+									<SelectTrigger aria-label="Category">
 										<SelectValue placeholder="All categories" />
 									</SelectTrigger>
 									<SelectContent>
@@ -530,7 +530,7 @@ export function RequirementsList({
 
 							{/* Priority filter */}
 							<div className="space-y-2">
-								<label className="text-xs font-medium text-muted-foreground">Priority</label>
+								<span className="text-xs font-medium text-muted-foreground">Priority</span>
 								<Select
 									value={filters.priorities[0] ?? ""}
 									onValueChange={(value) =>
@@ -540,7 +540,7 @@ export function RequirementsList({
 										}))
 									}
 								>
-									<SelectTrigger>
+									<SelectTrigger aria-label="Priority">
 										<SelectValue placeholder="All priorities" />
 									</SelectTrigger>
 									<SelectContent>
@@ -556,7 +556,7 @@ export function RequirementsList({
 
 							{/* Status filter */}
 							<div className="space-y-2">
-								<label className="text-xs font-medium text-muted-foreground">Status</label>
+								<span className="text-xs font-medium text-muted-foreground">Status</span>
 								<Select
 									value={filters.statuses[0] ?? ""}
 									onValueChange={(value) =>
@@ -566,7 +566,7 @@ export function RequirementsList({
 										}))
 									}
 								>
-									<SelectTrigger>
+									<SelectTrigger aria-label="Status">
 										<SelectValue placeholder="All statuses" />
 									</SelectTrigger>
 									<SelectContent>
@@ -582,7 +582,7 @@ export function RequirementsList({
 
 							{/* Risk level filter */}
 							<div className="space-y-2">
-								<label className="text-xs font-medium text-muted-foreground">Risk Level</label>
+								<span className="text-xs font-medium text-muted-foreground">Risk Level</span>
 								<Select
 									value={filters.riskLevels[0] ?? ""}
 									onValueChange={(value) =>
@@ -592,7 +592,7 @@ export function RequirementsList({
 										}))
 									}
 								>
-									<SelectTrigger>
+									<SelectTrigger aria-label="Risk Level">
 										<SelectValue placeholder="All risk levels" />
 									</SelectTrigger>
 									<SelectContent>

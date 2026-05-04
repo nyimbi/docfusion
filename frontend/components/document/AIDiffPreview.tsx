@@ -111,7 +111,7 @@ export function AIDiffPreview(props: AIDiffPreviewProps) {
     return () => {
       if (session.id) closeSession(session.id);
     };
-  }, [generatedText]);
+  }, [closeSession, createSession, generatedText, granularity, nodeId, nodeTitle, originalText]);
 
   // Generate AI suggestions using the completion API
   const handleGenerate = React.useCallback(async () => {

@@ -204,7 +204,7 @@ export function useEyeTracking(config?: Partial<EyeTrackingConfig>) {
     return () => {
       managerRef.current?.destroy();
     };
-  }, []);
+  }, [config]);
 
   useEffect(() => {
     const interval = setInterval(() => {

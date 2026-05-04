@@ -83,7 +83,7 @@ interface DeleteConfirmation {
 // Initialize structure with proper depth
 function initializeStructure(input?: any[]): HDSINode[] {
   if (!input || input.length === 0) return [];
-  
+
   const setDepth = (nodes: HDSINode[], depth: number = 0): HDSINode[] => {
     return nodes.map((node, index) => ({
       id: node.id || `node-${index}`,
@@ -101,7 +101,7 @@ function initializeStructure(input?: any[]): HDSINode[] {
       generatedContent: node.generatedContent,
     }));
   };
-  
+
   return setDepth(input as HDSINode[]);
 }
 
@@ -442,7 +442,7 @@ export function HDSIEnhanced({
           children: moveInArray(n.children)
         }));
       }
-      
+
       if (direction === "up" && index > 0) {
         const newNodes = [...nodes];
         [newNodes[index - 1], newNodes[index]] = [newNodes[index], newNodes[index - 1]];
@@ -468,15 +468,15 @@ export function HDSIEnhanced({
           children: doIndent(n.children)
         }));
       }
-      
+
       if (index === 0) return nodes; // Can't indent first item
-      
+
       const nodeToIndent = nodes[index];
       const newParent = nodes[index - 1];
-      
+
       // Remove from current position and add as child
       const remaining = nodes.filter((_, i) => i !== index);
-      
+
       return remaining.map(n => {
         if (n.id === newParent.id) {
           return {
@@ -503,10 +503,10 @@ export function HDSIEnhanced({
 
     const doOutdent = (nodes: HDSINode[]): HDSINode[] => {
       const result: HDSINode[] = [];
-      
+
       for (const node of nodes) {
         const childIndex = node.children.findIndex(c => c.id === id);
-        
+
         if (childIndex !== -1) {
           // Found it in children
           const nodeToOutdent = node.children[childIndex];
@@ -523,7 +523,7 @@ export function HDSIEnhanced({
           });
         }
       }
-      
+
       return result;
     };
 
@@ -567,7 +567,7 @@ export function HDSIEnhanced({
     // Prevent dropping into own children
     const draggedNode = findNode(structure, draggedNodeId);
     const targetNode = findNode(structure, targetId);
-    
+
     if (!draggedNode || !targetNode) {
       setDraggedNodeId(null);
       setDragOverNodeId(null);
@@ -635,7 +635,7 @@ export function HDSIEnhanced({
 
     try {
       const content = await onGenerateNode(nodeId, node);
-      setStructure(prev => updateNode(prev, nodeId, { 
+      setStructure(prev => updateNode(prev, nodeId, {
         status: "generated",
         generatedContent: content
       }));
@@ -1141,7 +1141,8 @@ function TreeView({
                 marginLeft: depth * 16,
                 ...(hasDebt ? { "--pulse-duration": `${Math.round(1000 / (0.5 + (0.6 - node.coherenceScore) * 5))}ms` } as React.CSSProperties : {}),
               }}
-            >
+
+						onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
               {/* Expand/Collapse Toggle */}
               {node.children.length > 0 ? (
                 <button
@@ -1317,17 +1318,22 @@ function TreeView({
               e.preventDefault();
               onCloseContextMenu?.();
             }}
-          />
+
+					role="button"
+					tabIndex={0}
+					onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}/>
           {/* Context Menu */}
           <div
             className="fixed z-50 min-w-[180px] bg-popover border rounded-md shadow-lg p-1 animate-in fade-in-0 zoom-in-95"
             style={{
               left: contextMenu.x,
               top: contextMenu.y,
-            }}
-            role="menu"
-            onClick={(e) => e.stopPropagation()}
-          >
+	            }}
+	            role="menu"
+	            tabIndex={-1}
+	            onClick={(e) => e.stopPropagation()}
+
+					onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
             {/* Generate */}
             {onGenerate && (
               <button

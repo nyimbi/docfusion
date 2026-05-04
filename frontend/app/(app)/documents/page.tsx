@@ -574,13 +574,13 @@ function BlankDocumentCreator({ title, onTitleChange, onCreate, isCreating }: Bl
 			</div>
 
 			<div className="space-y-2">
-				<label className="text-sm font-medium">Document Title</label>
+				<span className="text-sm font-medium">Document Title</span>
 				<Input
 					placeholder="Enter document title..."
 					value={localTitle}
 					onChange={(e) => handleChange(e.target.value)}
 					disabled={isCreating}
-				/>
+				 aria-label="Document Title"/>
 			</div>
 
 			<div className="flex justify-end">

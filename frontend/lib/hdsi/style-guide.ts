@@ -492,7 +492,7 @@ export function useRealtimeStyleGuide(debounceMs: number = 500) {
     }, debounceMs);
     
     return () => clearTimeout(timer);
-  }, [text, debounceMs]);
+  }, [debounceMs, text, styleGuide]);
 
   return {
     ...styleGuide,

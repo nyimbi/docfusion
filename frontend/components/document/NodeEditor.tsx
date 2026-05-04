@@ -91,7 +91,7 @@ export function NodeEditor({
 	React.useEffect(() => {
 		setLocalPrompt(node.metadata.customPrompt);
 		setHasChanges(false);
-	}, [node.uuid]);
+	}, [node.metadata.customPrompt, node.uuid]);
 
 	// Derived values
 	const wordCount = estimateWordCount(node.metadata.tokenBudget);

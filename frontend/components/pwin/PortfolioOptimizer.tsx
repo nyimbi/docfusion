@@ -502,7 +502,10 @@ function OptimizationResults({
 											onOpportunitySelect && "cursor-pointer hover:bg-muted/50"
 										)}
 										onClick={() => onOpportunitySelect?.(opp.opportunityId)}
-									>
+
+				role="button"
+				tabIndex={0}
+				onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 										{/* Rank Badge */}
 										<div className={cn(
 											"flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold",

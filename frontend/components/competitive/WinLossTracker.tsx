@@ -91,23 +91,6 @@ export function WinLossTracker({
 	const [recordOutcome, setRecordOutcome] = useState<"win" | "loss">("win");
 	const [recordNotes, setRecordNotes] = useState("");
 
-	// Load competitors
-	useEffect(() => {
-		async function load() {
-			const result = await listCompetitors();
-			if (result.success) {
-				setCompetitors(result.data);
-
-				// If initialCompetitorId provided, load analysis immediately
-				if (initialCompetitorId) {
-					await loadAnalysis(initialCompetitorId);
-				}
-			}
-			setIsLoading(false);
-		}
-		load();
-	}, [initialCompetitorId]);
-
 	/**
 	 * Load win/loss analysis for a competitor
 	 */
@@ -126,6 +109,23 @@ export function WinLossTracker({
 		}
 		setIsLoadingAnalysis(false);
 	}, []);
+
+	// Load competitors
+	useEffect(() => {
+		async function load() {
+			const result = await listCompetitors();
+			if (result.success) {
+				setCompetitors(result.data);
+
+				// If initialCompetitorId provided, load analysis immediately
+				if (initialCompetitorId) {
+					await loadAnalysis(initialCompetitorId);
+				}
+			}
+			setIsLoading(false);
+		}
+		load();
+	}, [initialCompetitorId, loadAnalysis]);
 
 	/**
 	 * Handle competitor selection change

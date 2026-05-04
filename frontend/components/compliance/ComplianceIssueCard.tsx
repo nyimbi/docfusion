@@ -139,7 +139,10 @@ export function ComplianceIssueCard({
 					className
 				)}
 				onClick={onNavigate}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				<SeverityIcon className={cn("w-5 h-5 flex-shrink-0", severityConfig.color)} />
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2">

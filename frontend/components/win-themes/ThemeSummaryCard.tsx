@@ -277,10 +277,10 @@ function FullView({ summary }: FullViewProps) {
 
 				{/* Theme Types Breakdown */}
 				<div className="space-y-2">
-					<label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+					<span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
 						<BarChart3 className="h-3 w-3" />
 						By Type
-					</label>
+					</span>
 					<div className="flex gap-2">
 						{(Object.entries(summary.byType) as [WinThemeType, number][]).map(
 							([type, count]) => (
@@ -352,10 +352,10 @@ function FullView({ summary }: FullViewProps) {
 
 				{/* Mini Heat Map */}
 				<div className="space-y-1">
-					<label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+					<span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
 						<Grid3X3 className="h-3 w-3" />
 						Coverage Preview
-					</label>
+					</span>
 					<MiniHeatMap
 						byType={summary.byType}
 						coveragePercentage={summary.coveragePercentage}

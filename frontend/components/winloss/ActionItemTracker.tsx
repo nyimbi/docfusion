@@ -376,34 +376,34 @@ export function ActionItemTracker({
 								</DialogHeader>
 								<div className="space-y-4 py-4">
 									<div className="space-y-2">
-										<label className="text-sm font-medium">Description</label>
+										<span className="text-sm font-medium">Description</span>
 										<Input
 											placeholder="What needs to be done?"
 											value={newItem.item}
 											onChange={(e) =>
 												setNewItem({ ...newItem, item: e.target.value })
 											}
-										/>
+										 aria-label="Description"/>
 									</div>
 									<div className="space-y-2">
-										<label className="text-sm font-medium">Assignee</label>
+										<span className="text-sm font-medium">Assignee</span>
 										<Input
 											placeholder="Who is responsible?"
 											value={newItem.assignee}
 											onChange={(e) =>
 												setNewItem({ ...newItem, assignee: e.target.value })
 											}
-										/>
+										 aria-label="Assignee"/>
 									</div>
 									<div className="space-y-2">
-										<label className="text-sm font-medium">Due Date</label>
+										<span className="text-sm font-medium">Due Date</span>
 										<Input
 											type="date"
 											value={newItem.dueDate}
 											onChange={(e) =>
 												setNewItem({ ...newItem, dueDate: e.target.value })
 											}
-										/>
+										 aria-label="Due Date"/>
 									</div>
 								</div>
 								<DialogFooter>

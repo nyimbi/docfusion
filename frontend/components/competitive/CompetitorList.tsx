@@ -142,13 +142,6 @@ export function CompetitorList({
 	const [editingCompetitor, setEditingCompetitor] = useState<Competitor | null>(null);
 	const [deletingId, setDeletingId] = useState<string | null>(null);
 
-	// Load competitors on mount if not provided
-	React.useEffect(() => {
-		if (initialCompetitors.length === 0) {
-			loadCompetitors();
-		}
-	}, [organizationId]);
-
 	/**
 	 * Load competitors from server
 	 */
@@ -163,6 +156,13 @@ export function CompetitorList({
 			setIsLoading(false);
 		}
 	}, [organizationId]);
+
+	// Load competitors on mount if not provided
+	React.useEffect(() => {
+		if (initialCompetitors.length === 0) {
+			loadCompetitors();
+		}
+	}, [initialCompetitors.length, loadCompetitors]);
 
 	/**
 	 * Search competitors with debounce

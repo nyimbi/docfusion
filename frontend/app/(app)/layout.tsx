@@ -15,7 +15,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useTheme } from "@/lib/theme-provider";
 import { useSession, signOut } from "@/lib/auth-client";
 import {
@@ -842,7 +842,6 @@ NotificationBell.displayName = "NotificationBell";
 function UserMenu() {
 	const { theme, setTheme } = useTheme();
 	const { data: session } = useSession();
-	const router = useRouter();
 
 	// Memoize user initials
 	const userInitials = React.useMemo(() => {
@@ -861,14 +860,8 @@ function UserMenu() {
 	}, [session?.user?.name, session?.user?.email]);
 
 	const handleSignOut = React.useCallback(async () => {
-		await signOut({
-			fetchOptions: {
-				onSuccess: () => {
-					router.push("/auth/sign-in");
-				},
-			},
-		});
-	}, [router]);
+		await signOut({ callbackUrl: "/auth/sign-in" });
+	}, []);
 
 	return (
 		<DropdownMenu>

@@ -173,9 +173,9 @@ export function GoNoGoPanel({
 
 						{/* Justification */}
 						<div>
-							<label className="text-xs font-medium text-muted-foreground block mb-2">
+							<span className="text-xs font-medium text-muted-foreground block mb-2">
 								Justification (optional)
-							</label>
+							</span>
 							<textarea
 								value={justification}
 								onChange={(e) => setJustification(e.target.value)}
@@ -188,7 +188,7 @@ export function GoNoGoPanel({
 								}
 								rows={2}
 								className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-							/>
+							 aria-label="Justification (optional)"/>
 						</div>
 
 						{/* Submit Button */}

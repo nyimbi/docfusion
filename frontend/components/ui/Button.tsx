@@ -161,7 +161,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
 				className
 			),
-		[variant, size, className]
+		[variant, active, size, className]
 	);
 
 	// Loading spinner component

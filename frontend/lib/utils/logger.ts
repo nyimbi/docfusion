@@ -1,5 +1,3 @@
-import { captureException } from "@/lib/monitoring/sentry";
-
 type LogLevel = "debug" | "info" | "warn" | "error";
 
 const LOG_LEVELS: Record<LogLevel, number> = {
@@ -45,6 +43,5 @@ export function reportError(
 	error: unknown,
 	context?: Record<string, unknown>,
 ): void {
-	logger.error(error);
-	captureException(error, context);
+	logger.error(error, context);
 }

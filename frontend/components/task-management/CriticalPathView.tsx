@@ -247,7 +247,10 @@ function TaskBar({ task, onClick }: TaskBarProps) {
 							transform: "translateY(-50%)",
 						}}
 						onClick={onClick}
-					>
+
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 						{/* Progress fill */}
 						{progress > 0 && (
 							<div
@@ -581,7 +584,10 @@ export function CriticalPathView({
 																task.isCritical && "font-medium text-red-700"
 															)}
 															onClick={() => onTaskClick?.(task)}
-														>
+
+							role="button"
+							tabIndex={0}
+							onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 															{task.title}
 														</span>
 													</TooltipTrigger>

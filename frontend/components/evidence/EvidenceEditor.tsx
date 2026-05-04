@@ -671,7 +671,10 @@ export function EvidenceEditor({
 											selectedCapabilities.includes(cap.id) && "bg-primary/10"
 										)}
 										onClick={() => handleToggleCapability(cap.id)}
-									>
+
+				role="button"
+				tabIndex={0}
+				onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 										<div
 											className={cn(
 												"h-4 w-4 border rounded flex items-center justify-center",

@@ -101,14 +101,7 @@ export function SourceDetailModal({ source, onClose, onUpdate }: SourceDetailMod
 	const [editedTier, setEditedTier] = React.useState(source.scheduleTier);
 	const [editedPriority, setEditedPriority] = React.useState(source.priority);
 
-	// Load run history when switching to history tab
-	React.useEffect(() => {
-		if (activeTab === "history" && runs.length === 0) {
-			loadRuns();
-		}
-	}, [activeTab]);
-
-	const loadRuns = async () => {
+	const loadRuns = React.useCallback(async () => {
 		setIsLoadingRuns(true);
 		try {
 			const data = await getSourceRuns(source.id, { limit: 50 });
@@ -118,7 +111,14 @@ export function SourceDetailModal({ source, onClose, onUpdate }: SourceDetailMod
 		} finally {
 			setIsLoadingRuns(false);
 		}
-	};
+	}, [source.id]);
+
+	// Load run history when switching to history tab
+	React.useEffect(() => {
+		if (activeTab === "history" && runs.length === 0) {
+			loadRuns();
+		}
+	}, [activeTab, loadRuns, runs.length]);
 
 	const handleSave = async () => {
 		setIsSaving(true);
@@ -150,7 +150,10 @@ export function SourceDetailModal({ source, onClose, onUpdate }: SourceDetailMod
 			<div
 				className="absolute inset-0 bg-black/60 backdrop-blur-sm"
 				onClick={onClose}
-			/>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}/>
 
 			{/* Modal */}
 			<div className="relative w-full max-w-4xl max-h-[90vh] bg-card rounded-2xl shadow-2xl border overflow-hidden flex flex-col">
@@ -520,7 +523,7 @@ function ConfigTab({
 			<div className="grid md:grid-cols-2 gap-6">
 				{/* URL */}
 				<div className="md:col-span-2 space-y-2">
-					<label className="text-sm font-medium text-foreground">URL</label>
+					<span className="text-sm font-medium text-foreground">URL</span>
 					{isEditing ? (
 						<input
 							type="url"
@@ -537,7 +540,7 @@ function ConfigTab({
 
 				{/* Rate Limit */}
 				<div className="space-y-2">
-					<label className="text-sm font-medium text-foreground">Rate Limit (req/s)</label>
+					<span className="text-sm font-medium text-foreground">Rate Limit (req/s)</span>
 					{isEditing ? (
 						<input
 							type="number"
@@ -555,7 +558,7 @@ function ConfigTab({
 
 				{/* Timeout */}
 				<div className="space-y-2">
-					<label className="text-sm font-medium text-foreground">Timeout (seconds)</label>
+					<span className="text-sm font-medium text-foreground">Timeout (seconds)</span>
 					{isEditing ? (
 						<input
 							type="number"
@@ -572,7 +575,7 @@ function ConfigTab({
 
 				{/* Max Pages */}
 				<div className="space-y-2">
-					<label className="text-sm font-medium text-foreground">Max Pages</label>
+					<span className="text-sm font-medium text-foreground">Max Pages</span>
 					{isEditing ? (
 						<input
 							type="number"
@@ -589,7 +592,7 @@ function ConfigTab({
 
 				{/* Schedule Tier */}
 				<div className="space-y-2">
-					<label className="text-sm font-medium text-foreground">Schedule Tier</label>
+					<span className="text-sm font-medium text-foreground">Schedule Tier</span>
 					{isEditing ? (
 						<select
 							value={editedTier}
@@ -609,7 +612,7 @@ function ConfigTab({
 
 				{/* Priority */}
 				<div className="space-y-2">
-					<label className="text-sm font-medium text-foreground">Priority</label>
+					<span className="text-sm font-medium text-foreground">Priority</span>
 					{isEditing ? (
 						<select
 							value={editedPriority}

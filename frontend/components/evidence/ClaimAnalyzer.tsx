@@ -216,12 +216,13 @@ function ClaimItem({
 								</Badge>
 							)}
 						</div>
-						<p
-							className="text-sm cursor-pointer hover:text-primary transition-colors line-clamp-2"
+						<button
+							type="button"
+							className="text-left text-sm cursor-pointer hover:text-primary transition-colors line-clamp-2"
 							onClick={onClick}
 						>
 							"{claim.claimText}"
-						</p>
+						</button>
 					</div>
 
 					{/* Evidence Strength */}

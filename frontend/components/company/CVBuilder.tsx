@@ -100,7 +100,6 @@ export function CVBuilder() {
 		}
 	};
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const handleSave = async (data: any) => {
 		try {
 			if (selectedPersonnel) {
@@ -146,7 +145,6 @@ export function CVBuilder() {
 		setViewMode("parser");
 	};
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const handleParsedResume = async (data: any) => {
 		// Create new personnel from parsed data
 		try {
@@ -185,7 +183,6 @@ export function CVBuilder() {
 	if (viewMode === "editor") {
 		return (
 			<PersonnelEditor
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				personnel={selectedPersonnel as any}
 				onSave={handleSave}
 				onCancel={() => {
@@ -217,7 +214,6 @@ export function CVBuilder() {
 				>
 					← Back to Team
 				</Button>
-				{/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
 				<ResumeGenerator personnel={selectedPersonnel as any} />
 			</div>
 		);
@@ -239,7 +235,6 @@ export function CVBuilder() {
 				</TabsList>
 
 				<TabsContent value="team" className="mt-6">
-					{/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
 					<PersonnelDatabase
 						personnel={personnel as any}
 						onCreateNew={handleCreateNew}
@@ -252,7 +247,6 @@ export function CVBuilder() {
 				</TabsContent>
 
 				<TabsContent value="certifications" className="mt-6">
-					{/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
 					<CertificationTracker personnel={personnel as any} />
 				</TabsContent>
 			</Tabs>

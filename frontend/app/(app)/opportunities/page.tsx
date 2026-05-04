@@ -301,7 +301,10 @@ function OpportunitiesContent() {
 	// Derived state
 	// ========================================================================
 
-	const rawOpportunities = opportunitiesData?.data ?? [];
+	const rawOpportunities = React.useMemo(
+		() => opportunitiesData?.data ?? [],
+		[opportunitiesData?.data]
+	);
 	const totalPages = opportunitiesData?.totalPages ?? 1;
 	const isLoading = isOpportunitiesLoading;
 

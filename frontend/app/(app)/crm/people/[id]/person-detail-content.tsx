@@ -580,9 +580,9 @@ export default function PersonDetailContent({ contact, userContext }: PersonDeta
 					</DialogHeader>
 
 					<div className="py-4">
-						<label className="text-sm font-medium mb-2 block">Select Account</label>
+						<span className="text-sm font-medium mb-2 block">Select Account</span>
 						<Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-							<SelectTrigger>
+							<SelectTrigger aria-label="Select Account">
 								<SelectValue placeholder="Search for an account..." />
 							</SelectTrigger>
 							<SelectContent>

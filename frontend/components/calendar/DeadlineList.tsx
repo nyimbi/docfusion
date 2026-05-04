@@ -331,9 +331,9 @@ function FilterBar({
 		<div className="space-y-3 p-3 bg-[var(--background-muted)] rounded-lg">
 			{/* Type filters */}
 			<div>
-				<label className="text-xs font-medium text-[var(--foreground-muted)] uppercase tracking-wide mb-2 block">
+				<span className="text-xs font-medium text-[var(--foreground-muted)] uppercase tracking-wide mb-2 block">
 					Type
-				</label>
+				</span>
 				<div className="flex flex-wrap gap-1.5">
 					{(Object.keys(TYPE_LABELS) as DeadlineType[]).map((type) => {
 						const isActive = localFilters.types?.includes(type);
@@ -358,9 +358,9 @@ function FilterBar({
 
 			{/* Urgency filters */}
 			<div>
-				<label className="text-xs font-medium text-[var(--foreground-muted)] uppercase tracking-wide mb-2 block">
+				<span className="text-xs font-medium text-[var(--foreground-muted)] uppercase tracking-wide mb-2 block">
 					Urgency
-				</label>
+				</span>
 				<div className="flex flex-wrap gap-1.5">
 					{(["overdue", "critical", "urgent", "upcoming", "normal"] as DeadlineUrgency[]).map(
 						(urgency) => {

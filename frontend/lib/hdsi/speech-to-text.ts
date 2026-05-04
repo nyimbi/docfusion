@@ -20,52 +20,52 @@ import { useState, useCallback, useEffect, useRef } from "react";
 // Browser Speech Recognition API type declarations
 // ============================================================================
 
-interface SpeechRecognitionResultAlternative {
+interface HDSISpeechRecognitionResultAlternative {
   readonly transcript: string;
   readonly confidence: number;
 }
 
-interface SpeechRecognitionResult {
+interface HDSISpeechRecognitionResult {
   readonly isFinal: boolean;
   readonly length: number;
-  readonly [index: number]: SpeechRecognitionResultAlternative;
+  readonly [index: number]: HDSISpeechRecognitionResultAlternative;
 }
 
-interface SpeechRecognitionResultList {
+interface HDSISpeechRecognitionResultList {
   readonly length: number;
-  readonly [index: number]: SpeechRecognitionResult;
+  readonly [index: number]: HDSISpeechRecognitionResult;
 }
 
-interface SpeechRecognitionEvent extends Event {
+interface HDSISpeechRecognitionEvent extends Event {
   readonly resultIndex: number;
-  readonly results: SpeechRecognitionResultList;
+  readonly results: HDSISpeechRecognitionResultList;
 }
 
-interface SpeechRecognitionErrorEvent extends Event {
+interface HDSISpeechRecognitionErrorEvent extends Event {
   readonly error: string;
   readonly message: string;
 }
 
-interface SpeechRecognitionInstance extends EventTarget {
+interface HDSISpeechRecognitionInstance extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
   onstart: (() => void) | null;
   onend: (() => void) | null;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onresult: ((event: HDSISpeechRecognitionEvent) => void) | null;
+  onerror: ((event: HDSISpeechRecognitionErrorEvent) => void) | null;
   start(): void;
   stop(): void;
   abort(): void;
 }
 
-type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+type HDSISpeechRecognitionConstructor = new () => HDSISpeechRecognitionInstance;
 
-// Augment Window for SpeechRecognition vendors
-interface WindowWithSpeechRecognition extends Window {
-  SpeechRecognition?: SpeechRecognitionConstructor;
-  webkitSpeechRecognition?: SpeechRecognitionConstructor;
-}
+// Narrow browser SpeechRecognition vendors without altering the DOM Window contract.
+type WindowWithSpeechRecognition = Window & {
+  SpeechRecognition?: HDSISpeechRecognitionConstructor;
+  webkitSpeechRecognition?: HDSISpeechRecognitionConstructor;
+};
 
 // ============================================================================
 // Types
@@ -164,7 +164,7 @@ export function useSpeechToText(options?: {
     onCommand,
   } = options || {};
 
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const recognitionRef = useRef<HDSISpeechRecognitionInstance | null>(null);
   
   const [state, setState] = useState<SpeechState>({
     isListening: false,
@@ -179,7 +179,9 @@ export function useSpeechToText(options?: {
   // Check for support
   useEffect(() => {
     const w = window as WindowWithSpeechRecognition;
-    const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
+    const SpeechRecognition = (w.SpeechRecognition || w.webkitSpeechRecognition) as
+      | HDSISpeechRecognitionConstructor
+      | undefined;
     if (SpeechRecognition) {
       setState(prev => ({ ...prev, isSupported: true }));
     } else {
@@ -190,7 +192,9 @@ export function useSpeechToText(options?: {
   // Initialize recognition
   useEffect(() => {
     const w = window as WindowWithSpeechRecognition;
-    const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
+    const SpeechRecognition = (w.SpeechRecognition || w.webkitSpeechRecognition) as
+      | HDSISpeechRecognitionConstructor
+      | undefined;
     if (!SpeechRecognition) return;
 
     const recognition = new SpeechRecognition();
@@ -206,7 +210,7 @@ export function useSpeechToText(options?: {
       setState(prev => ({ ...prev, isListening: false }));
     };
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event: HDSISpeechRecognitionEvent) => {
       let finalTranscript = "";
       let interimTranscript = "";
 
@@ -246,7 +250,7 @@ export function useSpeechToText(options?: {
       }));
     };
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+    recognition.onerror = (event: HDSISpeechRecognitionErrorEvent) => {
       setState(prev => ({
         ...prev,
         error: event.error || "Speech recognition error",

@@ -71,6 +71,19 @@ export function SearchReplacePanel({
 		}
 	}, [open]);
 
+	const highlightMatch = React.useCallback((match: MatchResult, totalMatches: number) => {
+		if (!editor) return;
+
+		// Try to select the match in the editor
+		try {
+			// Convert text position to editor position
+			// This is a simplified approach - in production, you'd use proper ProseMirror
+			toast.info(`Match ${match.index + 1}/${totalMatches}`);
+		} catch {
+			// Position not found
+		}
+	}, [editor]);
+
 	// Perform search
 	React.useEffect(() => {
 		if (!searchQuery || !editor) {
@@ -120,35 +133,21 @@ export function SearchReplacePanel({
 			// Highlight first match
 			if (results.length > 0) {
 				setCurrentMatchIndex(0);
-				highlightMatch(results[0]);
+				highlightMatch(results[0], results.length);
 			}
 			setError(null);
 		} catch (err) {
 			setError("Invalid regex pattern");
 			setMatches([]);
 		}
-	}, [searchQuery, isCaseSensitive, isRegex, editor]);
-
-	const highlightMatch = (match: MatchResult) => {
-		if (!editor) return;
-
-		// Try to select the match in the editor
-		try {
-			const { from, to } = match;
-			// Convert text position to editor position
-			// This is a simplified approach - in production, you'd use proper ProseMirror
-			toast.info(`Match ${match.index + 1}/${matches.length}`);
-		} catch {
-			// Position not found
-		}
-	};
+	}, [searchQuery, isCaseSensitive, isRegex, editor, highlightMatch]);
 
 	const handleNext = () => {
 		if (matches.length === 0) return;
 
 		const nextIndex = (currentMatchIndex + 1) % matches.length;
 		setCurrentMatchIndex(nextIndex);
-		highlightMatch(matches[nextIndex]);
+		highlightMatch(matches[nextIndex], matches.length);
 	};
 
 	const handlePrevious = () => {
@@ -157,7 +156,7 @@ export function SearchReplacePanel({
 		const prevIndex =
 			currentMatchIndex === 0 ? matches.length - 1 : currentMatchIndex - 1;
 		setCurrentMatchIndex(prevIndex);
-		highlightMatch(matches[prevIndex]);
+		highlightMatch(matches[prevIndex], matches.length);
 	};
 
 	const handleReplace = () => {
@@ -174,7 +173,7 @@ export function SearchReplacePanel({
 			if (currentMatchIndex >= remainingMatches.length) {
 				setCurrentMatchIndex(0);
 			}
-			highlightMatch(remainingMatches[currentMatchIndex]);
+			highlightMatch(remainingMatches[currentMatchIndex], remainingMatches.length);
 		} else {
 			setCurrentMatchIndex(-1);
 		}

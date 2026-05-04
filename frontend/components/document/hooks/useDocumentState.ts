@@ -140,7 +140,7 @@ export function useDocumentState(options: UseDocumentStateOptions = {}): UseDocu
     return () => {
       autoSaveRef.current?.dispose();
     };
-  }, [docId, structure.length > 0, enableAutoSave, autoSaveInterval]);
+  }, [docId, enableAutoSave, autoSaveInterval, structure.length]);
 
   // Trigger auto-save on structure changes
   useEffect(() => {

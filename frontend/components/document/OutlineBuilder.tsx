@@ -437,7 +437,10 @@ function TreeNode({
 				)}
 				style={{ paddingLeft: `${level * 12 + 8}px` }}
 				onClick={() => onSelect(node.uuid)}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				{/* Drag handle */}
 				<GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-50 cursor-grab active:cursor-grabbing" />
 
@@ -481,7 +484,6 @@ function TreeNode({
 							onKeyDown={handleKeyDown}
 							className="h-6 py-0 text-sm"
 							onClick={(e) => e.stopPropagation()}
-							autoFocus
 						/>
 					) : (
 						<span

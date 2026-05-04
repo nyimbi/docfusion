@@ -45,7 +45,8 @@ const Checkbox = React.forwardRef<
 	React.ElementRef<typeof CheckboxPrimitive.Root>,
 	CheckboxProps
 >(function Checkbox({ className, checked, label, description, id, ...props }, ref) {
-	const checkboxId = id ?? React.useId();
+	const generatedId = React.useId();
+	const checkboxId = id ?? generatedId;
 
 	// Convert boolean/indeterminate to Radix's expected type
 	const checkedState = checked === "indeterminate" ? "indeterminate" : checked;

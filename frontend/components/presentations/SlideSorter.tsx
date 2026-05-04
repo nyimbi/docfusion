@@ -235,7 +235,10 @@ export function SlideSorter({
 					isDragging && "opacity-50 scale-95",
 					isDragOver && "ring-2 ring-primary ring-offset-2"
 				)}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				<Card
 					className={cn(
 						"overflow-hidden transition-all",

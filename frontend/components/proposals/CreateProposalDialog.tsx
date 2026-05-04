@@ -157,7 +157,6 @@ export function CreateProposalDialog({
 			/>
 
 			{/* Dialog */}
-			{/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Dialog click capture */}
 			<div
 				role="dialog"
 				aria-modal="true"
@@ -169,7 +168,6 @@ export function CreateProposalDialog({
 					"animate-in fade-in-0 zoom-in-95",
 					"flex flex-col"
 				)}
-				onClick={(e) => e.stopPropagation()}
 			>
 				{/* Header */}
 				<div className="px-6 py-4 border-b border-[var(--border)]">
@@ -227,9 +225,9 @@ export function CreateProposalDialog({
 						<form id="create-proposal-form" onSubmit={handleFormSubmit(handleCreateSingle)} className="space-y-6">
 							{/* Document Type Selection */}
 							<div>
-								<label className="block text-sm font-medium text-[var(--foreground)] mb-3">
+								<span className="block text-sm font-medium text-[var(--foreground)] mb-3">
 									Document Type <span className="text-red-500">*</span>
-								</label>
+								</span>
 								<div className="grid grid-cols-2 gap-2">
 									{DOCUMENT_TYPES.map(({ type, description }) => (
 										<button
@@ -264,9 +262,9 @@ export function CreateProposalDialog({
 								<div className="space-y-4 pt-4 border-t border-[var(--border)]">
 									{/* Custom Title */}
 									<div>
-										<label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
+										<span className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
 											Custom Title (optional)
-										</label>
+										</span>
 										<input
 											type="text"
 											{...register("title")}
@@ -275,7 +273,7 @@ export function CreateProposalDialog({
 												"w-full px-3 py-2 text-sm border rounded-lg bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]",
 												errors.title ? "border-red-500" : "border-[var(--border)]"
 											)}
-										/>
+										 aria-label="Custom Title (optional)"/>
 										{errors.title && (
 											<p className="text-sm text-red-500 mt-1">{errors.title.message}</p>
 										)}
@@ -283,21 +281,21 @@ export function CreateProposalDialog({
 
 									{/* Due Date */}
 									<div>
-										<label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
+										<span className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
 											Due Date (optional)
-										</label>
+										</span>
 										<input
 											type="date"
 											{...register("dueDate")}
 											className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-										/>
+										 aria-label="Due Date (optional)"/>
 									</div>
 
 									{/* Assigned To */}
 									<div>
-										<label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
+										<span className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
 											Assign To (optional)
-										</label>
+										</span>
 										<input
 											type="text"
 											{...register("assignedTo")}
@@ -306,7 +304,7 @@ export function CreateProposalDialog({
 												"w-full px-3 py-2 text-sm border rounded-lg bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]",
 												errors.assignedTo ? "border-red-500" : "border-[var(--border)]"
 											)}
-										/>
+										 aria-label="Assign To (optional)"/>
 										{errors.assignedTo && (
 											<p className="text-sm text-red-500 mt-1">{errors.assignedTo.message}</p>
 										)}

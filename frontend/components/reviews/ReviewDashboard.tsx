@@ -628,7 +628,10 @@ export function ReviewDashboard({
 													key={review.id}
 													className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer"
 													onClick={() => onViewReview?.(review.id)}
-												>
+
+						role="button"
+						tabIndex={0}
+						onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 													<Badge
 														variant="secondary"
 														className={cn(config.bgColor, config.color)}

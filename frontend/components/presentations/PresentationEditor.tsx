@@ -345,7 +345,10 @@ export function PresentationEditor({
 						? "border-primary bg-primary/5"
 						: "border-transparent hover:border-border hover:bg-muted/50"
 				)}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				<div className="flex items-start gap-2">
 					<span className="text-xs font-medium text-muted-foreground w-4">
 						{index + 1}
@@ -634,9 +637,9 @@ export function PresentationEditor({
 											</CardHeader>
 											<CardContent className="space-y-3">
 												<div>
-													<label className="text-xs font-medium text-muted-foreground">
+													<span className="text-xs font-medium text-muted-foreground">
 														Title
-													</label>
+													</span>
 													<Input
 														value={selectedSlide.title ?? ""}
 														onChange={(e) =>
@@ -645,12 +648,12 @@ export function PresentationEditor({
 															})
 														}
 														className="mt-1"
-													/>
+													 aria-label="Title"/>
 												</div>
 												<div>
-													<label className="text-xs font-medium text-muted-foreground">
+													<span className="text-xs font-medium text-muted-foreground">
 														Duration (seconds)
-													</label>
+													</span>
 													<Input
 														type="number"
 														value={selectedSlide.estimatedDuration ?? 60}
@@ -660,12 +663,12 @@ export function PresentationEditor({
 															})
 														}
 														className="mt-1"
-													/>
+													 aria-label="Duration (seconds)"/>
 												</div>
 												<div>
-													<label className="text-xs font-medium text-muted-foreground">
+													<span className="text-xs font-medium text-muted-foreground">
 														Type
-													</label>
+													</span>
 													<div className="mt-1">
 														<Badge variant="outline">
 															{selectedSlide.slideType ?? "content"}

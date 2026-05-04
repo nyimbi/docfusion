@@ -430,7 +430,7 @@ function RelevanceCalculatorPlaceholder() {
 			<CardContent>
 				<div className="space-y-4">
 					<div>
-						<label className="text-sm font-medium">Target Opportunity</label>
+						<span className="text-sm font-medium">Target Opportunity</span>
 						{isLoadingOpps ? (
 							<Skeleton className="h-10 w-full mt-1" />
 						) : (
@@ -588,9 +588,9 @@ function RelevanceMatrixPlaceholder() {
 			<CardContent>
 				<div className="space-y-4">
 					<div>
-						<label className="text-sm font-medium">Target Opportunity</label>
+						<span className="text-sm font-medium">Target Opportunity</span>
 						<Select value={selectedOpportunityId} onValueChange={setSelectedOpportunityId}>
-							<SelectTrigger className="mt-1">
+							<SelectTrigger className="mt-1" aria-label="Target Opportunity">
 								<SelectValue placeholder="Select an opportunity" />
 							</SelectTrigger>
 							<SelectContent>
@@ -720,7 +720,7 @@ function NarrativeGeneratorPlaceholder() {
 				<CardContent>
 					<div className="space-y-4">
 						<div>
-							<label className="text-sm font-medium">Select Project</label>
+							<span className="text-sm font-medium">Select Project</span>
 							{isLoadingProjects ? (
 								<Skeleton className="h-10 w-full mt-1" />
 							) : (
@@ -1021,44 +1021,44 @@ function ProjectEditorPlaceholder({
 			</div>
 			<div className="space-y-4">
 				<div>
-					<label className="text-sm font-medium">Project Name</label>
-					<Input placeholder="Enter project name" className="mt-1" />
+					<span className="text-sm font-medium">Project Name</span>
+					<Input placeholder="Enter project name" className="mt-1"  aria-label="Project Name"/>
 				</div>
 				<div>
-					<label className="text-sm font-medium">Customer</label>
-					<Input placeholder="Enter customer name" className="mt-1" />
+					<span className="text-sm font-medium">Customer</span>
+					<Input placeholder="Enter customer name" className="mt-1"  aria-label="Customer"/>
 				</div>
 				<div>
-					<label className="text-sm font-medium">Contract Number</label>
-					<Input placeholder="Enter contract number" className="mt-1" />
+					<span className="text-sm font-medium">Contract Number</span>
+					<Input placeholder="Enter contract number" className="mt-1"  aria-label="Contract Number"/>
 				</div>
 				<div className="grid grid-cols-2 gap-4">
 					<div>
-						<label className="text-sm font-medium">Contract Value</label>
-						<Input type="text" placeholder="$0" className="mt-1" />
+						<span className="text-sm font-medium">Contract Value</span>
+						<Input type="text" placeholder="$0" className="mt-1"  aria-label="Contract Value"/>
 					</div>
 					<div>
-						<label className="text-sm font-medium">CPAR Rating</label>
-						<Input placeholder="Select rating" className="mt-1" />
+						<span className="text-sm font-medium">CPAR Rating</span>
+						<Input placeholder="Select rating" className="mt-1"  aria-label="CPAR Rating"/>
 					</div>
 				</div>
 				<div className="grid grid-cols-2 gap-4">
 					<div>
-						<label className="text-sm font-medium">Start Date</label>
-						<Input type="date" className="mt-1" />
+						<span className="text-sm font-medium">Start Date</span>
+						<Input type="date" className="mt-1"  aria-label="Start Date"/>
 					</div>
 					<div>
-						<label className="text-sm font-medium">End Date</label>
-						<Input type="date" className="mt-1" />
+						<span className="text-sm font-medium">End Date</span>
+						<Input type="date" className="mt-1"  aria-label="End Date"/>
 					</div>
 				</div>
 				<div>
-					<label className="text-sm font-medium">Description</label>
+					<span className="text-sm font-medium">Description</span>
 					<textarea
 						className="w-full mt-1 p-2 border rounded-md text-sm"
 						rows={4}
 						placeholder="Enter project description..."
-					/>
+					 aria-label="Description"/>
 				</div>
 			</div>
 			<div className="flex justify-end gap-2 mt-6">

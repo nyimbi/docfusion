@@ -166,7 +166,10 @@ function EvidenceItem({
 			onClick={onSelect}
 			draggable={enableDragDrop}
 			onDragStart={handleDragStart}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			{/* Drag handle */}
 			{enableDragDrop && (
 				<div className="flex items-center h-full pt-1 opacity-0 group-hover:opacity-50 cursor-grab">

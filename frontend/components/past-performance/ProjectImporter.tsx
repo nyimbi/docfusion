@@ -612,7 +612,6 @@ export function ProjectImporter({
 		const projectsToImport = parsedData
 			.filter((p) => selectedRows.has(p._rowNumber!) && p._status !== "error")
 			.map((p) => {
-				// eslint-disable-next-line @typescript-eslint/no-unused-vars
 				const { _rowNumber, _status, _errors, _warnings, ...project } = p;
 				return project as NewProject;
 			});

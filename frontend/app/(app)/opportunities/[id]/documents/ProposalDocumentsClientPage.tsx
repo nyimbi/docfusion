@@ -27,25 +27,6 @@ export function ProposalDocumentsClientPage({
 	const [progress, setProgress] = useState(initialProgress);
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-	const handleDocumentUpdate = useCallback((updated: ProposalDocument) => {
-		setDocuments((prev) =>
-			prev.map((doc) => (doc.id === updated.id ? updated : doc))
-		);
-		// Recalculate progress (simplified - in production would refetch)
-		recalculateProgress();
-	}, []);
-
-	const handleDocumentRemove = useCallback((id: string) => {
-		setDocuments((prev) => prev.filter((doc) => doc.id !== id));
-		recalculateProgress();
-	}, []);
-
-	const handleDocumentsCreated = useCallback((newDocs: ProposalDocument[]) => {
-		setDocuments((prev) => [...prev, ...newDocs]);
-		setShowCreateDialog(false);
-		recalculateProgress();
-	}, []);
-
 	const recalculateProgress = useCallback(() => {
 		// Simplified progress recalculation
 		setProgress((prev) => {
@@ -82,6 +63,25 @@ export function ProposalDocumentsClientPage({
 			};
 		});
 	}, [documents]);
+
+	const handleDocumentUpdate = useCallback((updated: ProposalDocument) => {
+		setDocuments((prev) =>
+			prev.map((doc) => (doc.id === updated.id ? updated : doc))
+		);
+		// Recalculate progress (simplified - in production would refetch)
+		recalculateProgress();
+	}, [recalculateProgress]);
+
+	const handleDocumentRemove = useCallback((id: string) => {
+		setDocuments((prev) => prev.filter((doc) => doc.id !== id));
+		recalculateProgress();
+	}, [recalculateProgress]);
+
+	const handleDocumentsCreated = useCallback((newDocs: ProposalDocument[]) => {
+		setDocuments((prev) => [...prev, ...newDocs]);
+		setShowCreateDialog(false);
+		recalculateProgress();
+	}, [recalculateProgress]);
 
 	return (
 		<>

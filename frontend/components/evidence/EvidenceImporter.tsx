@@ -273,7 +273,7 @@ export function EvidenceImporter({
 		}
 
 		setIsProcessing(false);
-	}, [rawData, mappings, columns]);
+	}, [rawData, columns]);
 
 	// Execute import
 	const handleExecuteImport = useCallback(async () => {
@@ -369,7 +369,10 @@ export function EvidenceImporter({
 								isProcessing && "pointer-events-none opacity-50"
 							)}
 							onClick={() => fileInputRef.current?.click()}
-						>
+
+			role="button"
+			tabIndex={0}
+			onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 							<input
 								ref={fileInputRef}
 								type="file"

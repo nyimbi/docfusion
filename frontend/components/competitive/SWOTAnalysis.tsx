@@ -222,7 +222,6 @@ export function SWOTAnalysis({
 										setNewItemInput("");
 									}
 								}}
-								autoFocus
 							/>
 							<Button size="sm" onClick={() => handleAddItem(quadrant)}>
 								<Check className="h-4 w-4" />

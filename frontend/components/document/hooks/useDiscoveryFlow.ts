@@ -207,7 +207,7 @@ export function useDiscoveryFlow(options: UseDiscoveryFlowOptions): UseDiscovery
     } finally {
       setIsGenerating(false);
     }
-  }, [analysis, initialBrief, outlinePrompt, onDocumentCreated]);
+  }, [analysis, initialBrief, onDocumentCreated]);
 
   // Reset flow
   const reset = useCallback(() => {

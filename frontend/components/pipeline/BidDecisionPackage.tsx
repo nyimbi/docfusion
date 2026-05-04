@@ -207,13 +207,6 @@ export function BidDecisionPackage({
 		initialPackage || null
 	);
 
-	// Generate package on mount if not provided
-	useEffect(() => {
-		if (!initialPackage && !packageData) {
-			handleGeneratePackage();
-		}
-	}, [initialPackage]);
-
 	// Generate package
 	const handleGeneratePackage = useCallback(async () => {
 		setIsGenerating(true);
@@ -228,6 +221,13 @@ export function BidDecisionPackage({
 			setIsGenerating(false);
 		}
 	}, [pipelineId]);
+
+	// Generate package on mount if not provided
+	useEffect(() => {
+		if (!initialPackage && !packageData) {
+			handleGeneratePackage();
+		}
+	}, [handleGeneratePackage, initialPackage, packageData]);
 
 	// Record decision
 	const handleRecordDecision = useCallback(async () => {

@@ -339,7 +339,10 @@ export function OpportunityComparison({
 													onOpportunitySelect && "cursor-pointer"
 												)}
 												onClick={() => onOpportunitySelect?.(opp.opportunityId)}
-											>
+
+					role="button"
+					tabIndex={0}
+					onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 												<h4 className="font-semibold truncate">
 													{opp.opportunityName}
 												</h4>

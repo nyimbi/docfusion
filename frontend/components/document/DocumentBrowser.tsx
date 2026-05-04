@@ -2,7 +2,7 @@
 
 /**
  * Document Browser Component
- * 
+ *
  * Provides comprehensive document organization with:
  * - Smart views (Active Work, Urgent, By Opportunity, etc.)
  * - Folder/workspace navigation
@@ -107,20 +107,20 @@ interface DocumentBrowserProps {
 export function DocumentBrowser(props: DocumentBrowserProps) {
   const { initialViewId = "active", onSelectDocument, onCreateDocument, className } = props;
   const router = useRouter();
-  
+
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("list");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
   const [selectedDocs, setSelectedDocs] = React.useState<Set<string>>(new Set());
   const [groupBy, setGroupBy] = React.useState<GroupByOption | null>("folder");
   const [sortBy, setSortBy] = React.useState<SortOption>("updated-desc");
-  
+
   // Initialize document browser hook with smart view
-  const initialView = React.useMemo(() => 
+  const initialView = React.useMemo(() =>
     SMART_VIEWS.find(v => v.id === initialViewId) || SMART_VIEWS[0],
     [initialViewId]
   );
-  
+
   const {
     documents,
     folders,
@@ -136,12 +136,12 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
     filteredCount,
     totalCount,
   } = useDocumentBrowser({ initialView });
-  
+
   // Apply search query to filters
   React.useEffect(() => {
     setCustomFilters(prev => ({ ...prev, searchQuery }));
-  }, [searchQuery]);
-  
+  }, [searchQuery, setCustomFilters]);
+
   // Handle document selection
   const handleSelect = (docId: string) => {
     if (onSelectDocument) {
@@ -150,28 +150,28 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
       router.push(`/hdsi?id=${docId}`);
     }
   };
-  
+
   // Bulk actions
   const handleBulkArchive = () => {
     selectedDocs.forEach(id => archiveDocument(id));
     setSelectedDocs(new Set());
     toast.success(`Archived ${selectedDocs.size} documents`);
   };
-  
+
   return (
     <div className={cn("flex h-full bg-background", className)}>
       {/* Sidebar: Views & Folders */}
       <div className="w-64 border-r flex flex-col bg-muted/20">
         <div className="p-4">
-          <Button 
-            className="w-full" 
+          <Button
+            className="w-full"
             onClick={onCreateDocument}
           >
             <Plus className="h-4 w-4 mr-2" />
             New Document
           </Button>
         </div>
-        
+
         <ScrollArea className="flex-1">
           {/* Smart Views */}
           <div className="px-3 py-2">
@@ -201,9 +201,9 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
               ))}
             </div>
           </div>
-          
+
           <Separator className="my-2" />
-          
+
           {/* Folders */}
           <div className="px-3 py-2">
             <div className="flex items-center justify-between mb-2">
@@ -232,31 +232,31 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
               )}
             </div>
           </div>
-          
+
           <Separator className="my-2" />
-          
+
           {/* Quick Tags */}
           <div className="px-3 py-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Quick Filters
             </h3>
             <div className="flex flex-wrap gap-1">
-              <Badge 
-                variant="outline" 
+              <Badge
+                variant="outline"
                 className="cursor-pointer hover:bg-primary/10"
                 onClick={() => setCustomFilters(prev => ({ ...prev, isFavorite: true }))}
               >
                 <Star className="h-3 w-3 mr-1" /> Favorites
               </Badge>
-              <Badge 
-                variant="outline" 
+              <Badge
+                variant="outline"
                 className="cursor-pointer hover:bg-primary/10"
                 onClick={() => setCustomFilters(prev => ({ ...prev, isPinned: true }))}
               >
                 <Zap className="h-3 w-3 mr-1" /> Pinned
               </Badge>
-              <Badge 
-                variant="outline" 
+              <Badge
+                variant="outline"
                 className="cursor-pointer hover:bg-primary/10"
                 onClick={() => setCustomFilters(prev => ({ ...prev, priority: ["high", "urgent"] }))}
               >
@@ -266,7 +266,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
           </div>
         </ScrollArea>
       </div>
-      
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Toolbar */}
@@ -281,7 +281,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          
+
           {/* View Toggle */}
           <div className="flex items-center border rounded-md">
             <Button
@@ -301,7 +301,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
               <LayoutGrid className="h-4 w-4" />
             </Button>
           </div>
-          
+
           {/* Sort */}
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
             <SelectTrigger className="w-40">
@@ -316,7 +316,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
               <SelectItem value="priority-desc">Priority</SelectItem>
             </SelectContent>
           </Select>
-          
+
           {/* Group By */}
           <Select value={groupBy || "none"} onValueChange={(v) => setGroupBy(v === "none" ? null : v as GroupByOption)}>
             <SelectTrigger className="w-36">
@@ -333,7 +333,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
               <SelectItem value="due-date">Due Date</SelectItem>
             </SelectContent>
           </Select>
-          
+
           {/* Filter Button */}
           <Button
             variant={showFilters ? "secondary" : "outline"}
@@ -344,29 +344,29 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
             Filters
           </Button>
         </div>
-        
+
         {/* Active Filters Display */}
-        {(customFilters.types?.length || customFilters.objectives?.length || 
+        {(customFilters.types?.length || customFilters.objectives?.length ||
           customFilters.tags?.length || customFilters.clients?.length) && (
           <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-2 flex-wrap">
             <span className="text-xs text-muted-foreground">Active filters:</span>
             {customFilters.types?.map(type => (
               <Badge key={type} variant="secondary" className="text-xs">
                 Type: {type}
-                <button 
+                <button
                   className="ml-1 hover:text-destructive"
-                  onClick={() => setCustomFilters(prev => ({ 
-                    ...prev, 
-                    types: prev.types?.filter(t => t !== type) 
+                  onClick={() => setCustomFilters(prev => ({
+                    ...prev,
+                    types: prev.types?.filter(t => t !== type)
                   }))}
                 >
                   ×
                 </button>
               </Badge>
             ))}
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="h-6 text-xs"
               onClick={() => setCustomFilters({})}
             >
@@ -374,7 +374,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
             </Button>
           </div>
         )}
-        
+
         {/* Results Count */}
         <div className="px-4 py-2 border-b bg-background">
           <p className="text-sm text-muted-foreground">
@@ -385,7 +385,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
             )}
           </p>
         </div>
-        
+
         {/* Document List */}
         <div className="flex-1 overflow-auto">
           {isLoading ? (
@@ -413,9 +413,9 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
                       <span className="text-xs font-normal">({docs.length})</span>
                     </h3>
                   )}
-                  
+
                   <div className={cn(
-                    viewMode === "grid" 
+                    viewMode === "grid"
                       ? "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
                       : "space-y-2"
                   )}>
@@ -442,7 +442,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
             </div>
           )}
         </div>
-        
+
         {/* Footer with bulk actions */}
         {selectedDocs.size > 0 && (
           <div className="border-t px-4 py-2 bg-muted/30 flex items-center justify-between">
@@ -461,7 +461,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
           </div>
         )}
       </div>
-      
+
       {/* Filters Sidebar (collapsible) */}
       {showFilters && (
         <div className="w-72 border-l bg-muted/20 flex flex-col">
@@ -471,7 +471,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
               Reset
             </Button>
           </div>
-          
+
           <ScrollArea className="flex-1 p-4">
             {/* Document Type */}
             <FilterSection title="Document Type">
@@ -496,7 +496,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
                 ))}
               </div>
             </FilterSection>
-            
+
             {/* Objectives */}
             <FilterSection title="Objective">
               <div className="space-y-1">
@@ -520,7 +520,7 @@ export function DocumentBrowser(props: DocumentBrowserProps) {
                 ))}
               </div>
             </FilterSection>
-            
+
             {/* Status */}
             <FilterSection title="Status">
               <div className="space-y-1">
@@ -591,9 +591,9 @@ interface DocumentCardProps {
 
 function DocumentCard(props: DocumentCardProps) {
   const { doc, viewMode, isSelected, onSelect, onToggleSelect, onToggleFavorite, onArchive } = props;
-  
+
   const [showActions, setShowActions] = React.useState(false);
-  
+
   if (viewMode === "grid") {
     return (
       <div
@@ -602,7 +602,10 @@ function DocumentCard(props: DocumentCardProps) {
           "group p-4 rounded-lg border cursor-pointer transition-all",
           isSelected ? "border-primary bg-primary/5" : "hover:border-primary/50 hover:shadow-sm"
         )}
-      >
+
+			role="button"
+			tabIndex={0}
+			onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded bg-primary/10">
@@ -634,19 +637,19 @@ function DocumentCard(props: DocumentCardProps) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        
+
         <h4 className="font-medium text-sm truncate mb-1">{doc.title}</h4>
-        
+
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className="capitalize">{doc.type.replace("-", " ")}</span>
           <span>•</span>
           <span>{formatRelativeTime(doc.updatedAt)}</span>
         </div>
-        
+
         {doc.completionPercentage > 0 && (
           <div className="mt-3">
             <div className="h-1 bg-muted rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-primary transition-all"
                 style={{ width: `${doc.completionPercentage}%` }}
               />
@@ -654,7 +657,7 @@ function DocumentCard(props: DocumentCardProps) {
             <span className="text-xs text-muted-foreground mt-1">{doc.completionPercentage}% complete</span>
           </div>
         )}
-        
+
         {doc.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-3">
             {doc.tags.slice(0, 3).map(tag => (
@@ -670,7 +673,7 @@ function DocumentCard(props: DocumentCardProps) {
       </div>
     );
   }
-  
+
   // List view
   return (
     <div
@@ -679,7 +682,10 @@ function DocumentCard(props: DocumentCardProps) {
         "group flex items-center gap-3 px-4 py-3 rounded-md border cursor-pointer transition-all",
         isSelected ? "border-primary bg-primary/5" : "hover:border-primary/50 hover:bg-muted/30"
       )}
-    >
+
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
       <input
         type="checkbox"
         checked={isSelected}
@@ -687,11 +693,11 @@ function DocumentCard(props: DocumentCardProps) {
         onChange={onToggleSelect}
         className="rounded border-gray-300"
       />
-      
+
       <div className="p-2 rounded bg-primary/10">
         <DocumentTypeIcon type={doc.type} className="h-4 w-4" />
       </div>
-      
+
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <h4 className="font-medium text-sm truncate">{doc.title}</h4>
@@ -723,11 +729,11 @@ function DocumentCard(props: DocumentCardProps) {
           )}
         </div>
       </div>
-      
+
       {doc.completionPercentage > 0 && (
         <div className="w-24">
           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-primary transition-all"
               style={{ width: `${doc.completionPercentage}%` }}
             />
@@ -735,11 +741,11 @@ function DocumentCard(props: DocumentCardProps) {
           <span className="text-xs text-muted-foreground">{doc.completionPercentage}%</span>
         </div>
       )}
-      
+
       <div className="text-xs text-muted-foreground">
         {formatRelativeTime(doc.updatedAt)}
       </div>
-      
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
           <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100">
@@ -790,7 +796,7 @@ function formatRelativeTime(date: Date): string {
   const minutes = Math.floor(diff / (1000 * 60));
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  
+
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;
@@ -803,7 +809,7 @@ function formatRelativeDate(date: Date): string {
   const target = new Date(date);
   const diff = target.getTime() - now.getTime();
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-  
+
   if (days === 0) return "Today";
   if (days === 1) return "Tomorrow";
   if (days < 0) return `${Math.abs(days)} days overdue`;

@@ -349,7 +349,10 @@ export function PersonnelCard({
 					className
 				)}
 				onClick={() => onSelect?.(personnel.id, !selected)}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				<Avatar className="h-10 w-10">
 					<AvatarImage src={personnel.photoUrl || undefined} />
 					<AvatarFallback className="bg-primary/10 text-primary text-sm">

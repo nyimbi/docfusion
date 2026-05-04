@@ -330,38 +330,38 @@ export function DebriefList({
 					<CardContent className="pt-4">
 						<div className="grid grid-cols-4 gap-4">
 							<div className="space-y-2">
-								<label className="text-sm font-medium">From Date</label>
+								<span className="text-sm font-medium">From Date</span>
 								<Input
 									type="date"
 									value={dateFrom}
 									onChange={(e) => setDateFrom(e.target.value)}
-								/>
+								 aria-label="From Date"/>
 							</div>
 							<div className="space-y-2">
-								<label className="text-sm font-medium">To Date</label>
+								<span className="text-sm font-medium">To Date</span>
 								<Input
 									type="date"
 									value={dateTo}
 									onChange={(e) => setDateTo(e.target.value)}
-								/>
+								 aria-label="To Date"/>
 							</div>
 							<div className="space-y-2">
-								<label className="text-sm font-medium">Min Value</label>
+								<span className="text-sm font-medium">Min Value</span>
 								<Input
 									type="number"
 									placeholder="$0"
 									value={minValue}
 									onChange={(e) => setMinValue(e.target.value)}
-								/>
+								 aria-label="Min Value"/>
 							</div>
 							<div className="space-y-2">
-								<label className="text-sm font-medium">Max Value</label>
+								<span className="text-sm font-medium">Max Value</span>
 								<Input
 									type="number"
 									placeholder="$10,000,000"
 									value={maxValue}
 									onChange={(e) => setMaxValue(e.target.value)}
-								/>
+								 aria-label="Max Value"/>
 							</div>
 						</div>
 						<div className="flex justify-end mt-4">

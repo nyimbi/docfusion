@@ -230,12 +230,13 @@ function OccurrenceCard({
 							</div>
 
 							{/* Text excerpt */}
-							<p
-								className="text-sm line-clamp-2 cursor-pointer hover:text-primary"
+							<button
+								type="button"
+								className="text-left text-sm line-clamp-2 cursor-pointer hover:text-primary"
 								onClick={onNavigate}
 							>
 								{occurrence.text}
-							</p>
+							</button>
 						</div>
 
 						{/* Navigate button */}
@@ -255,9 +256,9 @@ function OccurrenceCard({
 					<div className="px-3 pb-3 space-y-3 border-t pt-3 ml-12">
 						{/* Full text */}
 						<div>
-							<label className="text-xs font-medium text-muted-foreground">
+							<span className="text-xs font-medium text-muted-foreground">
 								Full Text
-							</label>
+							</span>
 							<p className="text-sm mt-1 p-2 bg-muted/50 rounded">
 								{occurrence.text}
 							</p>
@@ -285,16 +286,16 @@ function OccurrenceCard({
 
 						{/* Notes */}
 						<div>
-							<label className="text-xs font-medium text-muted-foreground">
+							<span className="text-xs font-medium text-muted-foreground">
 								Notes
-							</label>
+							</span>
 							<Textarea
 								value={notes}
 								onChange={(e) => setNotes(e.target.value)}
 								placeholder="Add notes about this occurrence..."
 								rows={2}
 								className="mt-1"
-							/>
+							 aria-label="Notes"/>
 						</div>
 
 						{/* Verification info */}

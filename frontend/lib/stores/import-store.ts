@@ -31,6 +31,13 @@ import type {
 import { getTableSchema } from "@/lib/import/table-schemas";
 import { detectMappings } from "@/lib/import/column-detector";
 
+const getLocalStorage = () => {
+	if (typeof window === "undefined") {
+		throw new Error("localStorage is not available during server rendering");
+	}
+	return window.localStorage;
+};
+
 // ============================================================================
 // Default Values
 // ============================================================================
@@ -492,7 +499,7 @@ export const useImportStore = create<ImportWizardState & ImportWizardActions>()(
 		})),
 		{
 			name: "docfusion-import",
-			storage: createJSONStorage(() => localStorage),
+			storage: createJSONStorage(getLocalStorage),
 			// Only persist options and last used template
 			partialize: (state) => ({
 				options: state.options,

@@ -285,26 +285,26 @@ export function ClarificationGenerator({
 					<div className="p-4 border-b bg-blue-50">
 						<div className="space-y-3">
 							<div>
-								<label className="block text-sm font-medium mb-1">Question</label>
+								<span className="block text-sm font-medium mb-1">Question</span>
 								<textarea
 									value={newQuestion}
 									onChange={(e) => setNewQuestion(e.target.value)}
 									rows={2}
 									className="w-full px-3 py-2 border rounded-md"
 									placeholder="Enter your clarification question..."
-								/>
+								 aria-label="Question"/>
 							</div>
 							<div>
-								<label className="block text-sm font-medium mb-1">
+								<span className="block text-sm font-medium mb-1">
 									Rationale (optional)
-								</label>
+								</span>
 								<textarea
 									value={newRationale}
 									onChange={(e) => setNewRationale(e.target.value)}
 									rows={2}
 									className="w-full px-3 py-2 border rounded-md"
 									placeholder="Why is this clarification needed?"
-								/>
+								 aria-label="Rationale (optional)"/>
 							</div>
 							<div className="flex items-center gap-2">
 								<Button variant="primary" size="sm" onClick={handleAddQuestion}>

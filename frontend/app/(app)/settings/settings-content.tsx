@@ -445,55 +445,55 @@ function ProfileSection({ showToast }: { showToast: (msg: string, type: "success
 			{/* Form Fields */}
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 				<div>
-					<label className="block text-sm font-medium text-foreground mb-2">
+					<span className="block text-sm font-medium text-foreground mb-2">
 						Full Name
-					</label>
+					</span>
 					<Input
 						type="text"
 						value={formData.name}
 						onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
-					/>
+					 aria-label="Full Name"/>
 				</div>
 				<div>
-					<label className="block text-sm font-medium text-foreground mb-2">
+					<span className="block text-sm font-medium text-foreground mb-2">
 						Email Address
-					</label>
-					<Input type="email" value={profile?.email ?? ""} disabled className="bg-muted" />
+					</span>
+					<Input type="email" value={profile?.email ?? ""} disabled className="bg-muted"  aria-label="Email Address"/>
 					<p className="text-xs text-muted-foreground mt-1">Contact support to change email</p>
 				</div>
 				<div>
-					<label className="block text-sm font-medium text-foreground mb-2">
+					<span className="block text-sm font-medium text-foreground mb-2">
 						Job Title
-					</label>
+					</span>
 					<Input
 						type="text"
 						value={formData.jobTitle}
 						onChange={(e) => setFormData((p) => ({ ...p, jobTitle: e.target.value }))}
 						placeholder="e.g., Proposal Manager"
-					/>
+					 aria-label="Job Title"/>
 				</div>
 				<div>
-					<label className="block text-sm font-medium text-foreground mb-2">
+					<span className="block text-sm font-medium text-foreground mb-2">
 						Phone Number
-					</label>
+					</span>
 					<Input
 						type="tel"
 						value={formData.phone}
 						onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
 						placeholder="+1 (555) 000-0000"
-					/>
+					 aria-label="Phone Number"/>
 				</div>
 				<div className="md:col-span-2">
-					<label className="block text-sm font-medium text-foreground mb-2">
+					<span className="block text-sm font-medium text-foreground mb-2">
 						Bio
-					</label>
+					</span>
 					<textarea
 						rows={3}
 						value={formData.bio}
 						onChange={(e) => setFormData((p) => ({ ...p, bio: e.target.value }))}
 						placeholder="Brief description for your profile..."
 						className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-					/>
+					 aria-label="Bio"/>
 				</div>
 			</div>
 
@@ -830,20 +830,20 @@ function NotificationsSection({ showToast }: { showToast: (msg: string, type: "s
 						{quietHoursEnabled && (
 							<div className="grid grid-cols-2 gap-4">
 								<div>
-									<label className="block text-sm font-medium mb-2">Start Time</label>
+									<span className="block text-sm font-medium mb-2">Start Time</span>
 									<Input
 										type="time"
 										value={quietHoursStart}
 										onChange={(e) => setQuietHoursStart(e.target.value)}
-									/>
+									 aria-label="Start Time"/>
 								</div>
 								<div>
-									<label className="block text-sm font-medium mb-2">End Time</label>
+									<span className="block text-sm font-medium mb-2">End Time</span>
 									<Input
 										type="time"
 										value={quietHoursEnd}
 										onChange={(e) => setQuietHoursEnd(e.target.value)}
-									/>
+									 aria-label="End Time"/>
 								</div>
 							</div>
 						)}
@@ -994,16 +994,16 @@ function SecuritySection({ showToast }: { showToast: (msg: string, type: "succes
 
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-2">
 					<div className="relative">
-						<label className="block text-sm font-medium text-foreground mb-2">
+						<span className="block text-sm font-medium text-foreground mb-2">
 							Current Password
-						</label>
+						</span>
 						<div className="relative">
 							<Input
 								type={showCurrentPassword ? "text" : "password"}
 								placeholder="Enter current password"
 								value={currentPassword}
 								onChange={(e) => setCurrentPassword(e.target.value)}
-							/>
+							 aria-label="Current Password"/>
 							<button
 								type="button"
 								onClick={() => setShowCurrentPassword(!showCurrentPassword)}
@@ -1014,16 +1014,16 @@ function SecuritySection({ showToast }: { showToast: (msg: string, type: "succes
 						</div>
 					</div>
 					<div className="relative">
-						<label className="block text-sm font-medium text-foreground mb-2">
+						<span className="block text-sm font-medium text-foreground mb-2">
 							New Password
-						</label>
+						</span>
 						<div className="relative">
 							<Input
 								type={showNewPassword ? "text" : "password"}
 								placeholder="Enter new password"
 								value={newPassword}
 								onChange={(e) => setNewPassword(e.target.value)}
-							/>
+							 aria-label="New Password"/>
 							<button
 								type="button"
 								onClick={() => setShowNewPassword(!showNewPassword)}

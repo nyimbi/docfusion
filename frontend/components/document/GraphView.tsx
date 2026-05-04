@@ -311,7 +311,7 @@ export function GraphView(props: GraphViewProps) {
     return () => {
       simulation.stop();
     };
-  }, [filteredGraphData, dimensions, viewState.zoom]);
+  }, [filteredGraphData, dimensions, viewState.zoom, viewState.centerX, viewState.centerY, viewState.selectedNodeId, initialNodeId, zoomTo, selectNode, onNodeClick, router, hoverNode, focusOnNode]);
 
   // Get selected node details
   const selectedNode = React.useMemo(() => {
@@ -362,7 +362,24 @@ export function GraphView(props: GraphViewProps) {
         {/* Main Graph Area */}
         <div 
           ref={containerRef}
+          role="button"
+          tabIndex={0}
+          aria-label="Interactive document graph"
           className="flex-1 relative overflow-hidden"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              selectNode(null);
+            } else if (event.key === "0") {
+              event.preventDefault();
+              resetView();
+            } else if (event.key === "+" || event.key === "=") {
+              event.preventDefault();
+              zoomTo(Math.min(viewState.zoom * 1.2, DEFAULT_GRAPH_PHYSICS.maxZoom), viewState.centerX, viewState.centerY);
+            } else if (event.key === "-") {
+              event.preventDefault();
+              zoomTo(Math.max(viewState.zoom / 1.2, DEFAULT_GRAPH_PHYSICS.minZoom), viewState.centerX, viewState.centerY);
+            }
+          }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -678,4 +695,3 @@ export function GraphView(props: GraphViewProps) {
     </TooltipProvider>
   );
 }
-

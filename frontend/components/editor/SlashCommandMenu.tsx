@@ -157,8 +157,9 @@ export const SlashCommandMenu = React.memo(function SlashCommandMenu({
 	return (
 		<div
 			ref={menuRef}
-			role="listbox"
-			aria-label="AI command suggestions"
+				role="listbox"
+				tabIndex={0}
+				aria-label="AI command suggestions"
 			aria-activedescendant={commands[selectedIndex] ? `slash-cmd-${commands[selectedIndex].id}` : undefined}
 			className="absolute z-50 w-72 max-h-80 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
 			style={{

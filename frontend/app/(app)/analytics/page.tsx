@@ -525,7 +525,10 @@ function DebriefListPlaceholder({ onSelect }: { onSelect: (id: string) => void }
 							key={debrief.id}
 							className="p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors"
 							onClick={() => onSelect(debrief.id)}
-						>
+
+			role="button"
+			tabIndex={0}
+			onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 							<div className="flex items-center justify-between mb-1">
 								<span className="text-sm font-medium">{debrief.opportunityTitle ?? "Unknown Opportunity"}</span>
 								<Badge variant={debrief.outcome === "win" ? "default" : "destructive"}>

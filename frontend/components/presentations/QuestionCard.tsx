@@ -189,7 +189,7 @@ export function QuestionCard({
 		} finally {
 			setIsGenerating(false);
 		}
-	}, [qa.id, qa.supportingEvidence, onUpdate]);
+	}, [qa.id, onUpdate]);
 
 	const handleSaveEdit = useCallback(() => {
 		onUpdate({
@@ -340,9 +340,9 @@ export function QuestionCard({
 							{/* Answer */}
 							<div>
 								<div className="flex items-center justify-between mb-1">
-									<label className="text-xs font-medium text-muted-foreground">
+									<span className="text-xs font-medium text-muted-foreground">
 										Answer
-									</label>
+									</span>
 									<Button
 										variant="ghost"
 										size="sm"

@@ -45,13 +45,6 @@ export function SavedSearches({ userId, currentFilters, currentSort, onLoadSearc
 	const [saveName, setSaveName] = React.useState("");
 	const dropdownRef = React.useRef<HTMLDivElement>(null);
 
-	// Load saved searches on mount and when dropdown opens
-	React.useEffect(() => {
-		if (isOpen) {
-			loadSearches();
-		}
-	}, [isOpen]);
-
 	// Close dropdown on click outside
 	React.useEffect(() => {
 		function handleClickOutside(event: MouseEvent) {
@@ -64,7 +57,7 @@ export function SavedSearches({ userId, currentFilters, currentSort, onLoadSearc
 		return () => document.removeEventListener("mousedown", handleClickOutside);
 	}, []);
 
-	const loadSearches = async () => {
+	const loadSearches = React.useCallback(async () => {
 		setIsLoading(true);
 		try {
 			const data = await listSavedSearches(userId);
@@ -74,7 +67,14 @@ export function SavedSearches({ userId, currentFilters, currentSort, onLoadSearc
 		} finally {
 			setIsLoading(false);
 		}
-	};
+	}, [userId]);
+
+	// Load saved searches on mount and when dropdown opens
+	React.useEffect(() => {
+		if (isOpen) {
+			loadSearches();
+		}
+	}, [isOpen, loadSearches]);
 
 	const handleSave = async () => {
 		if (!saveName.trim()) return;
@@ -180,7 +180,6 @@ export function SavedSearches({ userId, currentFilters, currentSort, onLoadSearc
 										"text-foreground placeholder:text-muted-foreground",
 										"focus:outline-none focus:ring-1 focus:ring-ring"
 									)}
-									autoFocus
 								/>
 								<Button
 									size="sm"
