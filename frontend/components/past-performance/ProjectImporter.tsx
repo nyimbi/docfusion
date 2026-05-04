@@ -1,8 +1,7 @@
 /**
  * Project Importer Component
  *
- * Bulk import of past performance projects from various sources
- * including CPARS, spreadsheets, and legacy systems.
+ * Bulk import of past performance projects from CPARS exports, CSV files, and legacy systems.
  */
 
 "use client";
@@ -64,13 +63,12 @@ import {
 } from "lucide-react";
 import type { NewProject } from "@/lib/db/schema-past-performance";
 import Papa from "papaparse";
-import * as XLSX from "xlsx";
 
 // ============================================================================
 // Types
 // ============================================================================
 
-type ImportSource = "cpars" | "excel" | "csv" | "api" | "manual";
+type ImportSource = "cpars" | "csv" | "api" | "manual";
 
 interface ImportField {
 	sourceField: string;
@@ -271,7 +269,7 @@ function FileUploadZone({
 					<Upload className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
 					<p className="font-medium mb-1">Drop file here or click to browse</p>
 					<p className="text-sm text-muted-foreground mb-4">
-						Supports Excel (.xlsx, .xls) and CSV files
+						Supports CSV files
 					</p>
 					<input
 						ref={inputRef}
@@ -368,7 +366,7 @@ export function ProjectImporter({
 	existingProjects = [],
 }: ProjectImporterProps) {
 	// State
-	const [source, setSource] = useState<ImportSource>("excel");
+	const [source, setSource] = useState<ImportSource>("csv");
 	const [step, setStep] = useState<"source" | "upload" | "mapping" | "preview" | "importing" | "complete">("source");
 	const [file, setFile] = useState<File | null>(null);
 	const [sourceColumns, setSourceColumns] = useState<string[]>([]);
@@ -391,7 +389,6 @@ export function ProjectImporter({
 		const fileType = fileToProcess.name.toLowerCase();
 
 		if (fileType.endsWith(".csv")) {
-			// Parse CSV with papaparse
 			return new Promise((resolve, reject) => {
 				Papa.parse(fileToProcess, {
 					header: true,
@@ -404,45 +401,8 @@ export function ProjectImporter({
 					error: (error: Error) => reject(error),
 				});
 			});
-		} else if (fileType.endsWith(".xlsx") || fileType.endsWith(".xls")) {
-			// Parse Excel with xlsx
-			return new Promise((resolve, reject) => {
-				const reader = new FileReader();
-				reader.onload = (e) => {
-					try {
-						const data = new Uint8Array(e.target?.result as ArrayBuffer);
-						const workbook = XLSX.read(data, { type: "array" });
-						const firstSheetName = workbook.SheetNames[0];
-						const worksheet = workbook.Sheets[firstSheetName];
-						const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][];
-
-						if (jsonData.length < 2) {
-							resolve({ columns: [], rows: [] });
-							return;
-						}
-
-						// First row is headers
-						const columns = (jsonData[0] as string[]).map(c => String(c || "").trim());
-						// Rest is data
-						const rows = jsonData.slice(1).map((row) => {
-							const rowArr = row as unknown[];
-							const obj: Record<string, unknown> = {};
-							columns.forEach((col, i) => {
-								obj[col] = rowArr[i] ?? "";
-							});
-							return obj;
-						});
-
-						resolve({ columns, rows });
-					} catch (err) {
-						reject(err);
-					}
-				};
-				reader.onerror = () => reject(new Error("Failed to read file"));
-				reader.readAsArrayBuffer(fileToProcess);
-			});
 		} else {
-			throw new Error("Unsupported file type. Please use .csv, .xlsx, or .xls files.");
+			throw new Error("Unsupported file type. Please use .csv files.");
 		}
 	}, []);
 
@@ -676,12 +636,12 @@ export function ProjectImporter({
 					<CardContent>
 						<div className="grid gap-4 md:grid-cols-2">
 							<ImportSourceCard
-								source="excel"
+								source="csv"
 								icon={FileSpreadsheet}
-								title="Excel / CSV"
-								description="Import from spreadsheet files"
-								isSelected={source === "excel"}
-								onClick={() => setSource("excel")}
+								title="CSV"
+								description="Import from delimited project files"
+								isSelected={source === "csv"}
+								onClick={() => setSource("csv")}
 							/>
 							<ImportSourceCard
 								source="cpars"
@@ -728,13 +688,13 @@ export function ProjectImporter({
 					<CardHeader>
 						<CardTitle>Upload File</CardTitle>
 						<CardDescription>
-							Upload your Excel or CSV file containing past performance data
+							Upload your CSV file containing past performance data
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
 						<FileUploadZone
 							onFileSelect={handleFileSelect}
-							accept=".xlsx,.xls,.csv"
+							accept=".csv"
 							isUploading={isProcessing}
 						/>
 

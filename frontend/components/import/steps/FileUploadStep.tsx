@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { useImportStore } from "@/lib/stores/import-store";
 import {
 	Upload,
-	FileSpreadsheet,
 	FileText,
 	AlertCircle,
 	CheckCircle2,
@@ -30,8 +29,6 @@ import {
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 const ACCEPTED_FILE_TYPES = {
-	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-	"application/vnd.ms-excel": [".xls"],
 	"text/csv": [".csv"],
 	"text/tab-separated-values": [".tsv"],
 	"text/plain": [".txt", ".csv", ".tsv"],
@@ -46,9 +43,6 @@ function formatFileSize(bytes: number): string {
 function getFileIcon(filename: string): React.ComponentType<{ className?: string }> {
 	const ext = filename.split(".").pop()?.toLowerCase();
 	switch (ext) {
-		case "xlsx":
-		case "xls":
-			return FileSpreadsheet;
 		case "csv":
 		case "tsv":
 		case "txt":
@@ -61,10 +55,6 @@ function getFileIcon(filename: string): React.ComponentType<{ className?: string
 function getFileTypeBadge(filename: string): { label: string; variant: "default" | "secondary" | "outline" } {
 	const ext = filename.split(".").pop()?.toLowerCase();
 	switch (ext) {
-		case "xlsx":
-			return { label: "Excel (.xlsx)", variant: "default" };
-		case "xls":
-			return { label: "Excel (.xls)", variant: "default" };
 		case "csv":
 			return { label: "CSV", variant: "secondary" };
 		case "tsv":
@@ -241,10 +231,6 @@ export function FileUploadStep() {
 
 						<div className="flex items-center gap-4 text-xs text-muted-foreground">
 							<span className="flex items-center gap-1">
-								<FileSpreadsheet className="h-4 w-4" />
-								Excel (.xlsx, .xls)
-							</span>
-							<span className="flex items-center gap-1">
 								<FileText className="h-4 w-4" />
 								CSV, TSV
 							</span>
@@ -292,10 +278,10 @@ export function FileUploadStep() {
 					<div className="p-4 bg-muted rounded-lg">
 						<div className="flex items-center gap-2 text-muted-foreground mb-1">
 							<Table2 className="h-4 w-4" />
-							<span className="text-sm font-medium">Sheet</span>
+							<span className="text-sm font-medium">File Type</span>
 						</div>
 						<p className="text-2xl font-bold truncate">
-							{parsedData.metadata?.sheetName || "Default"}
+							{parsedData.metadata?.fileType?.toUpperCase() || "CSV"}
 						</p>
 					</div>
 				</div>

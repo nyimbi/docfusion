@@ -164,10 +164,10 @@ const helpArticles: Record<string, { title: string; content: React.ReactNode }> 
 		title: "Importing from Spreadsheets",
 		content: (
 			<div className="space-y-4">
-				<p>Import opportunities from Excel or CSV files:</p>
+				<p>Import opportunities from CSV or TSV files:</p>
 				<ol className="list-decimal list-inside space-y-2">
 					<li>Go to Opportunities → Import</li>
-					<li>Upload your Excel (.xlsx) or CSV file</li>
+					<li>Upload your CSV or TSV file</li>
 					<li>Map columns to DocFusion fields</li>
 					<li>Preview and validate the data</li>
 					<li>Click Import to create opportunities</li>

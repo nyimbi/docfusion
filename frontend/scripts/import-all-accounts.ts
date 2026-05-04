@@ -9,7 +9,7 @@
  * Usage: npx tsx scripts/import-all-accounts.ts
  */
 
-import * as XLSX from "xlsx";
+import * as XLSX from "./lib/xlsx-reader";
 import { db } from "../lib/db";
 import { accounts } from "../lib/db/schema-crm";
 import { eq, and } from "drizzle-orm";

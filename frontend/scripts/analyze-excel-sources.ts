@@ -4,7 +4,7 @@
  * Reads the Excel file and shows statistics about tender sources.
  */
 
-import * as XLSX from 'xlsx';
+import * as XLSX from './lib/xlsx-reader';
 import * as path from 'path';
 
 const excelPath = path.resolve(

@@ -1,7 +1,7 @@
 /**
  * Opportunity Import Server Actions - DocFusion
  *
- * Server-side actions for importing opportunities from Excel spreadsheets.
+ * Server-side actions for importing opportunities from delimited files.
  * Handles file parsing, format detection, and database insertion.
  */
 
@@ -10,7 +10,7 @@
 import { db } from "@/lib/db";
 import { opportunities, opportunityImports } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import * as XLSX from "xlsx";
+import Papa from "papaparse";
 import path from "path";
 import fs from "fs/promises";
 import {
@@ -39,29 +39,37 @@ import {
 // ============================================================================
 
 /**
- * Read and parse an Excel file.
+ * Read and parse a delimited file.
  */
-async function parseExcelFile(filePath: string): Promise<{
+async function parseDelimitedFile(filePath: string): Promise<{
 	sheets: { name: string; data: RawSpreadsheetRow[] }[];
 	filename: string;
 }> {
-	const buffer = await fs.readFile(filePath);
-	const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
-
-	const sheets = workbook.SheetNames.map((name) => {
-		const sheet = workbook.Sheets[name];
-		const data = XLSX.utils.sheet_to_json<RawSpreadsheetRow>(sheet, {
-			defval: null,
-			raw: false,
-			dateNF: "yyyy-mm-dd",
-		});
-		return { name, data };
-	});
+	const content = await fs.readFile(filePath, "utf-8");
 
 	return {
-		sheets,
+		sheets: [{ name: "Data", data: parseDelimitedRows(content, filePath) }],
 		filename: path.basename(filePath),
 	};
+}
+
+function parseDelimitedRows(content: string, filename: string): RawSpreadsheetRow[] {
+	if (!/\.(csv|tsv)$/i.test(filename)) {
+		throw new Error("Only CSV and TSV opportunity imports are supported in the deployed importer");
+	}
+
+	const parsed = Papa.parse<Record<string, unknown>>(content, {
+		header: true,
+		skipEmptyLines: true,
+		delimiter: filename.toLowerCase().endsWith(".tsv") ? "\t" : undefined,
+		transformHeader: (header) => header.trim(),
+	});
+
+	if (parsed.errors.length > 0) {
+		throw new Error(`Delimited import parse failed: ${parsed.errors[0].message}`);
+	}
+
+	return parsed.data as RawSpreadsheetRow[];
 }
 
 /**
@@ -279,7 +287,7 @@ export async function importFromFile(
 	filePath: string,
 	config?: Partial<ImportConfig>
 ): Promise<SpreadsheetImportResult> {
-	const { sheets, filename } = await parseExcelFile(filePath);
+	const { sheets, filename } = await parseDelimitedFile(filePath);
 	return executeSpreadsheetImport(sheets, filename, config);
 }
 
@@ -291,19 +299,11 @@ export async function importFromBuffer(
 	filename: string,
 	config?: Partial<ImportConfig>
 ): Promise<SpreadsheetImportResult> {
-	const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
-
-	const sheets = workbook.SheetNames.map((name) => {
-		const sheet = workbook.Sheets[name];
-		const data = XLSX.utils.sheet_to_json<RawSpreadsheetRow>(sheet, {
-			defval: null,
-			raw: false,
-			dateNF: "yyyy-mm-dd",
-		});
-		return { name, data };
-	});
-
-	return executeSpreadsheetImport(sheets, filename, config);
+	return executeSpreadsheetImport(
+		[{ name: "Data", data: parseDelimitedRows(buffer.toString("utf-8"), filename) }],
+		filename,
+		config
+	);
 }
 
 /**
@@ -318,7 +318,7 @@ export async function previewImport(
 	preview: NormalizedOpportunity[];
 	totalRows: number;
 }> {
-	const { sheets, filename } = await parseExcelFile(filePath);
+	const { sheets, filename } = await parseDelimitedFile(filePath);
 	const sheetFormats = detectSheetFormats(sheets);
 
 	if (sheetFormats.length === 0) {
@@ -619,12 +619,10 @@ export async function importFromDirectory(
 	}[];
 }> {
 	const files = await fs.readdir(dirPath);
-	const excelFiles = files.filter(
-		(f) => f.endsWith(".xlsx") || f.endsWith(".xls") || f.endsWith(".csv")
-	);
+	const delimitedFiles = files.filter((f) => f.endsWith(".csv") || f.endsWith(".tsv"));
 
 	const results = {
-		totalFiles: excelFiles.length,
+		totalFiles: delimitedFiles.length,
 		processedFiles: 0,
 		totalImported: 0,
 		totalUpdated: 0,
@@ -639,7 +637,7 @@ export async function importFromDirectory(
 		}[],
 	};
 
-	for (const file of excelFiles) {
+	for (const file of delimitedFiles) {
 		const filePath = path.join(dirPath, file);
 
 		try {

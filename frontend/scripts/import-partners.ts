@@ -5,7 +5,7 @@
  * Run with: npx tsx scripts/import-partners.ts
  */
 
-import * as XLSX from "xlsx";
+import * as XLSX from "./lib/xlsx-reader";
 import * as fs from "fs";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";

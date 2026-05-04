@@ -6,7 +6,7 @@
  */
 
 import { Pool } from "pg";
-import * as XLSX from "xlsx";
+import * as XLSX from "./lib/xlsx-reader";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -200,10 +200,7 @@ async function importFile(
 	console.log(`\nProcessing: ${filename} (format: ${format})`);
 
 	// Read Excel file
-	const workbook = XLSX.read(fs.readFileSync(filePath), {
-		type: "buffer",
-		cellDates: true,
-	});
+	const workbook = XLSX.readFile(filePath);
 
 	// Find the data sheet (first non-summary sheet)
 	const dataSheet = workbook.SheetNames.find(
