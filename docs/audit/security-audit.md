@@ -37,18 +37,17 @@ This security audit identified **2 CRITICAL**, **4 HIGH**, **6 MEDIUM**, and **3
 | File | Exposed Secrets |
 |------|-----------------|
 | `frontend/.env.local` | `AZURE_OPENAI_API_KEY`, `DATABASE_URL`, `SMTP_PASS`, `LITELLM_KEY`, `PUSHER_APP_SECRET` |
-| `frontend/.env` | `BETTER_AUTH_SECRET`, `AZURE_OPENAI_API_KEY`, `DATABASE_URL`, `PUSHER_APP_SECRET` |
+| `frontend/.env` | legacy auth secret, `AZURE_OPENAI_API_KEY`, `DATABASE_URL`, `PUSHER_APP_SECRET` |
 | `.env` (root) | `AZURE_OPENAI_API_KEY`, `DATABASE_URL`, `SECRET_KEY` |
 
-**Specific Leaked Credentials:**
+**Specific Leaked Credentials (redacted):**
 
 ```
-AZURE_OPENAI_API_KEY=1qTgOdaDaJUgfgkSllTJlmTptKNv2wdRpRHLoipIh2nWCWBP2qDaJQQJ99BLACYeBjFXJ3w3AAABACOGNs03
-DATABASE_URL=postgresql://docfusion:docfusion123@db.lindela.io:5432/docfusion
-DATABASE_URL=postgresql://azureuser:Abcd1234.@lindela16.postgres.database.azure.com:5432/docfusion
-BETTER_AUTH_SECRET=9VhA9d7bTDrqQskExESpJtbGSngcH2CA90fZrVhcmJ/V1ICkMthJ624t
-SMTP_PASS=Car3Ana1234
-LITELLM_KEY=sk-pjs-litellm-master-key
+AZURE_OPENAI_API_KEY=<redacted>
+DATABASE_URL=postgresql://<user>:<password>@<host>:5432/<database>
+AUTH_SECRET=<redacted>
+SMTP_PASS=<redacted>
+LITELLM_KEY=<redacted>
 ```
 
 **Remediation:**
@@ -94,7 +93,7 @@ git push origin --force --all
 **Issue:**
 
 ```ini
-sqlalchemy.url = postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb
+sqlalchemy.url = postgresql://<user>:<password>@<host>:5432/<database>
 ```
 
 **Remediation:**

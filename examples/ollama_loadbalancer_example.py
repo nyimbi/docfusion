@@ -18,6 +18,7 @@ Setup:
 """
 
 import asyncio
+import os
 import time
 from pathlib import Path
 from datetime import datetime
@@ -240,7 +241,7 @@ async def demonstrate_rag_with_load_balancing():
     
     # Configure RAG with load-balanced Ollama
     rag_config = RAGConfiguration(
-        connection_string="postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb",
+        connection_string=os.environ.get("DATABASE_URL", "postgresql://postgres@localhost:5432/docfusion"),
         schema_name="loadbalancer_demo_rag",
         embedding_provider="ollama",
         

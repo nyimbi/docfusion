@@ -16,14 +16,11 @@ import os
 from datetime import datetime
 
 # Database URLs
-SOURCE_URL = os.environ.get(
-    'SOURCE_DB_URL',
-    'postgresql://azureuser:Abcd1234.@lindela16.postgres.database.azure.com:5432/docfusion?sslmode=require'
-)
-TARGET_URL = os.environ.get(
-    'TARGET_DB_URL',
-    'postgresql://docfusion:docfusion123@db.lindela.io/docfusion'
-)
+SOURCE_URL = os.environ.get('SOURCE_DB_URL')
+TARGET_URL = os.environ.get('TARGET_DB_URL')
+
+if not SOURCE_URL or not TARGET_URL:
+    raise SystemExit("SOURCE_DB_URL and TARGET_DB_URL are required")
 
 
 async def migrate_opportunities():

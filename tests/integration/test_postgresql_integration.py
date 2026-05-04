@@ -34,41 +34,43 @@ from docfusion.core.database.models import (
 	WorkflowTemplate, WorkflowInstance
 )
 
+TEST_DATABASE_URL = "postgresql://postgres@localhost:5432/docfusion"
+
 
 class TestPostgreSQLConfiguration:
 	"""Test database configuration management."""
 	
 	def test_database_config_creation(self):
 		"""Test creating database configuration."""
-		config = DatabaseConfig()
+		config = DatabaseConfig(connection_url=TEST_DATABASE_URL)
 		
 		# Verify default connection string
-		assert config.connection_url == "postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb"
+		assert config.connection_url == TEST_DATABASE_URL
 		assert config.pool_size == 10
 		assert config.default_schema == "public"
 	
 	def test_connection_url_parsing(self):
 		"""Test PostgreSQL URL parsing."""
-		config = DatabaseConfig()
+		config = DatabaseConfig(connection_url=TEST_DATABASE_URL)
 		conn_info = config.connection_info
 		
-		assert conn_info.host == "172.236.30.103"
+		assert conn_info.host == "localhost"
 		assert conn_info.port == 5432
-		assert conn_info.database == "docdb"
-		assert conn_info.username == "nyimbi"
-		assert conn_info.password == "Abcd1234."
+		assert conn_info.database == "docfusion"
+		assert conn_info.username == "postgres"
+		assert conn_info.password == ""
 	
 	def test_sqlalchemy_url_generation(self):
 		"""Test SQLAlchemy URL generation."""
-		config = DatabaseConfig()
+		config = DatabaseConfig(connection_url=TEST_DATABASE_URL)
 		
 		sync_url = config.sqlalchemy_url
 		async_url = config.async_sqlalchemy_url
 		
 		assert sync_url.startswith("postgresql+psycopg2://")
 		assert async_url.startswith("postgresql+asyncpg://")
-		assert "172.236.30.103:5432/docdb" in sync_url
-		assert "172.236.30.103:5432/docdb" in async_url
+		assert "localhost:5432/docfusion" in sync_url
+		assert "localhost:5432/docfusion" in async_url
 	
 	def test_database_options(self):
 		"""Test database engine options."""

@@ -110,7 +110,7 @@ class ServiceSettings:
 	searxng_url: str = "http://84.247.181.100:8888"
 	firecrawl_url: str = "http://84.247.181.100:3002"
 	litellm_url: str = "http://84.247.181.100:4000"
-	litellm_key: str = "sk-pjs-litellm-master-key"
+	litellm_key: str = ""
 
 	# CORS
 	cors_allowed_origins: list[str] = field(default_factory=lambda: ["http://localhost:3000"])

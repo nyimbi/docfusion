@@ -19,7 +19,7 @@ from typing import List, Dict, Any
 from unittest.mock import patch, MagicMock
 
 # Skip tests if requirements not available
-DATABASE_URL = "postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb"
+DATABASE_URL = os.getenv("DATABASE_URL")
 SKIP_PERFORMANCE_TESTS = not os.getenv('OPENAI_API_KEY') or not DATABASE_URL
 
 pytestmark = pytest.mark.skipif(SKIP_PERFORMANCE_TESTS, reason="Performance tests require database and OpenAI API key")

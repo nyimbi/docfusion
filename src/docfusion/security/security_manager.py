@@ -11,6 +11,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
+import os
 import secrets
 from typing import Dict, List, Optional, Any, Union
 
@@ -1520,10 +1521,15 @@ class SecurityManager:
 
     async def _create_nyimbi_user(self):
         """Create nyimbi user account"""
+        password = os.getenv("DOCFUSION_NYIMBI_INITIAL_PASSWORD")
+        if not password:
+            self.logger.info("Skipping nyimbi user creation; DOCFUSION_NYIMBI_INITIAL_PASSWORD is not set")
+            return
+
         try:
             user_id = await self.user_auth.create_user(
                 username='nyimbi',
-                password='AbcdAbcd1234!',
+                password=password,
                 email='nyimbi@gmail.com',
                 require_mfa=False
             )

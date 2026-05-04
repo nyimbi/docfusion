@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Successfully implemented comprehensive PostgreSQL integration for DocuFusion using the specified connection string `postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb`. The implementation provides enterprise-grade database capabilities with both synchronous and asynchronous support, ORM models, migration management, and full integration with all DocuFusion components.
+Successfully implemented comprehensive PostgreSQL integration for DocuFusion using the configured `DATABASE_URL`. The implementation provides enterprise-grade database capabilities with both synchronous and asynchronous support, ORM models, migration management, and full integration with all DocuFusion components.
 
 ## Connection Validation Results
 
@@ -33,7 +33,7 @@ Successfully implemented comprehensive PostgreSQL integration for DocuFusion usi
 **Configuration Options:**
 ```python
 DatabaseConfig(
-    connection_url="postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb",
+    connection_url=os.environ["DATABASE_URL"],
     pool_size=10,
     max_overflow=20,
     async_pool_size=10,
@@ -232,7 +232,7 @@ alembic current
 ### Environment Configuration
 ```bash
 # Environment variables
-export DATABASE_URL="postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb"
+export DATABASE_URL="postgresql://<user>:<password>@<host>:5432/<database>"
 export DB_POOL_SIZE=20
 export DB_DEBUG=false
 ```
@@ -281,6 +281,6 @@ The DocuFusion PostgreSQL integration provides a robust, scalable foundation for
 
 ---
 
-**Database Connection Validated**: `postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb`  
+**Database Connection Validated**: `DATABASE_URL`
 **Implementation Version**: 1.0.0  
 **Documentation Date**: July 2024

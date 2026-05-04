@@ -13,6 +13,8 @@ Usage:
         pass
 """
 
+import os
+
 from .config import (
     DatabaseConfig, 
     get_database_config,
@@ -99,8 +101,8 @@ __all__ = [
 ]
 
 # PostgreSQL Connection Details
-DATABASE_URL = "postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb"
-DATABASE_HOST = "172.236.30.103"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres@localhost:5432/docfusion")
+DATABASE_HOST = os.getenv("DATABASE_HOST", "localhost")
 DATABASE_PORT = 5432
-DATABASE_NAME = "docdb"
-DATABASE_USER = "nyimbi"
+DATABASE_NAME = os.getenv("DATABASE_NAME", "docfusion")
+DATABASE_USER = os.getenv("DATABASE_USER", "postgres")

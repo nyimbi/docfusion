@@ -31,7 +31,7 @@ from docfusion.storage.rag_storage_service import (
 
 
 # Database configuration
-DATABASE_URL = "postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb"
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres@localhost:5432/docfusion")
 
 
 async def check_ollama_availability():

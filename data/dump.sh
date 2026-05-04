@@ -1,1 +1,6 @@
-pg_dump "postgresql://azureuser:Abcd1234.@lindela16.postgres.database.azure.com:5432/docfusion?sslmode=require" > docfusion.sql
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${DATABASE_URL:?DATABASE_URL is required}"
+
+pg_dump "$DATABASE_URL" > docfusion.sql
