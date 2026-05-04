@@ -21,9 +21,13 @@ import { scraperSources, scraperSchedules } from "@/lib/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 import { scraperQueue } from "@/lib/scrapers/queue";
 import { initializeScraperQueue } from "@/lib/scrapers/runtime";
+import { requireScraperAccess } from "@/lib/scrapers/api-auth";
 
-// UUID v4 generation - inline for serverless compatibility
 function generateBatchId(): string {
+	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+		return crypto.randomUUID();
+	}
+
 	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
 		const r = (Math.random() * 16) | 0;
 		const v = c === "x" ? r : (r & 0x3) | 0x8;
@@ -36,17 +40,8 @@ initializeScraperQueue();
 
 export async function POST(request: NextRequest) {
 	try {
-		// Optional: API key authentication for production
-		const apiKey = process.env.SCRAPER_API_KEY;
-		if (apiKey) {
-			const authHeader = request.headers.get("authorization");
-			if (!authHeader || authHeader !== `Bearer ${apiKey}`) {
-				return NextResponse.json(
-					{ success: false, message: "Unauthorized" },
-					{ status: 401 }
-				);
-			}
-		}
+		const unauthorized = await requireScraperAccess(request, { allowApiKey: true });
+		if (unauthorized) return unauthorized;
 
 		const { searchParams } = new URL(request.url);
 		const tierParam = searchParams.get("tier");
@@ -163,8 +158,11 @@ export async function POST(request: NextRequest) {
 /**
  * Get schedule tier configurations and status.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
 	try {
+		const unauthorized = await requireScraperAccess(request, { allowApiKey: true });
+		if (unauthorized) return unauthorized;
+
 		const schedules = await db
 			.select()
 			.from(scraperSchedules)
@@ -195,7 +193,7 @@ export async function GET() {
 		}
 
 		// Get queue stats
-		const queueStats = scraperQueue.getStats();
+		const queueStats = await scraperQueue.getStats();
 
 		return NextResponse.json({
 			success: true,

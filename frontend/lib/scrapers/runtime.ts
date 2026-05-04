@@ -24,8 +24,11 @@ export type { ScrapedPage } from "./fetcher";
 // Types
 // ============================================================================
 
-// UUID generation - inline for serverless compatibility
 function generateUUID(): string {
+	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+		return crypto.randomUUID();
+	}
+
 	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
 		const r = (Math.random() * 16) | 0;
 		const v = c === "x" ? r : (r & 0x3) | 0x8;
@@ -107,6 +110,7 @@ export class ScraperRuntime {
 			runId,
 			batchId: job.batchId,
 		});
+		await scraperQueue.attachRun(job.id, dbRun.id);
 
 		const result: ScraperJobResult = {
 			runId: dbRun.id,
@@ -118,6 +122,7 @@ export class ScraperRuntime {
 			pagesScraped: 0,
 			durationSeconds: 0,
 			success: false,
+			warnings: [],
 		};
 
 		try {
@@ -133,10 +138,16 @@ export class ScraperRuntime {
 			await withTimeout(
 				scrapingPromise,
 				timeoutMs * source.maxPages, // Scale timeout by pages
-				`Scraper timed out after ${source.timeout}s per page`
+				`Scraper timed out after ${source.timeout}s per page`,
+				() => abortController.abort()
 			);
 
+			if (result.pagesScraped === 0) {
+				throw new Error("No pages were scraped");
+			}
+
 			result.success = true;
+			result.partial = result.opportunitiesFailed > 0 || (result.warnings?.length ?? 0) > 0;
 			result.durationSeconds = (Date.now() - startTime) / 1000;
 
 			await finaliseRunSuccess(dbRun.id, source.id, result);
@@ -179,8 +190,21 @@ export class ScraperRuntime {
 		const maxPages = source.maxPages || 10;
 		let currentUrl: string | undefined = source.url;
 		let pageNum = 0;
+		let consecutivePageErrors = 0;
+		const visitedUrls = new Set<string>();
 
 		while (currentUrl && pageNum < maxPages && !signal.aborted) {
+			if (await scraperQueue.isCancelled(job.id)) {
+				throw new Error("Job cancelled");
+			}
+
+			const normalisedUrl = normalizeUrl(currentUrl);
+			if (visitedUrls.has(normalisedUrl)) {
+				result.warnings?.push(`Stopped pagination loop at already visited URL: ${currentUrl}`);
+				break;
+			}
+			visitedUrls.add(normalisedUrl);
+
 			await rateLimiter.wait();
 
 			if (signal.aborted) {
@@ -189,7 +213,7 @@ export class ScraperRuntime {
 
 			// Update progress
 			const progress = Math.round((pageNum / maxPages) * 100);
-			scraperQueue.updateProgress(job.id, progress);
+			await scraperQueue.setJobProgress(job.id, progress);
 
 			this.emitProgress({
 				jobId: job.id,
@@ -204,11 +228,18 @@ export class ScraperRuntime {
 			// Scrape the page
 			const page = await scrapePage(currentUrl, source, signal);
 
+			if (await scraperQueue.isCancelled(job.id)) {
+				throw new Error("Job cancelled");
+			}
+
 			result.pagesScraped++;
 
 			if (page.error) {
+				consecutivePageErrors++;
+				result.warnings?.push(`Page ${pageNum + 1} (${currentUrl}) failed: ${page.error}`);
 				logger.error(`Page scrape error: ${page.error}`);
 			} else {
+				consecutivePageErrors = 0;
 				// Deduplicate and persist each opportunity
 				for (const opp of page.opportunities) {
 					try {
@@ -225,13 +256,28 @@ export class ScraperRuntime {
 						}
 					} catch (error) {
 						result.opportunitiesFailed++;
+						result.warnings?.push(
+							`Opportunity processing failed on page ${pageNum + 1}: ${error instanceof Error ? error.message : String(error)}`
+						);
 						logger.error("Opportunity processing error:", error);
 					}
 				}
 			}
 
-			currentUrl = page.nextPageUrl;
+			const nextUrl = page.nextPageUrl ? normalizeUrl(page.nextPageUrl) : undefined;
+			if (nextUrl && visitedUrls.has(nextUrl)) {
+				result.warnings?.push(`Stopped pagination loop before revisiting URL: ${page.nextPageUrl}`);
+				currentUrl = undefined;
+			} else {
+				currentUrl = page.nextPageUrl;
+			}
 			pageNum++;
+		}
+
+		if (result.pagesScraped > 0 && consecutivePageErrors === result.pagesScraped) {
+			throw new Error(
+				result.warnings?.[result.warnings.length - 1] || "Every scraped page failed"
+			);
 		}
 
 		// Final progress update
@@ -256,6 +302,16 @@ export class ScraperRuntime {
 			return true;
 		}
 		return false;
+	}
+}
+
+function normalizeUrl(url: string): string {
+	try {
+		const parsed = new URL(url);
+		parsed.hash = "";
+		return parsed.toString();
+	} catch {
+		return url.trim();
 	}
 }
 

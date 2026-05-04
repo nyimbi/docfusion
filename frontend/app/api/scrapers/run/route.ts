@@ -23,18 +23,29 @@ import { scraperSources } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { scraperQueue } from "@/lib/scrapers/queue";
 import { initializeScraperQueue } from "@/lib/scrapers/runtime";
+import { requireScraperAccess } from "@/lib/scrapers/api-auth";
 
 // Initialize queue executor on module load
 initializeScraperQueue();
 
 export async function POST(request: NextRequest) {
 	try {
+		const unauthorized = await requireScraperAccess(request);
+		if (unauthorized) return unauthorized;
+
 		const body = await request.json();
 		const { sourceId, priority } = body;
 
 		if (!sourceId) {
 			return NextResponse.json(
 				{ success: false, message: "sourceId is required" },
+				{ status: 400 }
+			);
+		}
+
+		if (priority !== undefined && ![1, 2, 3].includes(priority)) {
+			return NextResponse.json(
+				{ success: false, message: "priority must be 1, 2, or 3" },
 				{ status: 400 }
 			);
 		}
@@ -90,10 +101,13 @@ export async function POST(request: NextRequest) {
  *
  * Get all running and queued jobs.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
 	try {
-		const jobs = scraperQueue.getAllJobs();
-		const stats = scraperQueue.getStats();
+		const unauthorized = await requireScraperAccess(request);
+		if (unauthorized) return unauthorized;
+
+		const jobs = await scraperQueue.getAllJobs();
+		const stats = await scraperQueue.getStats();
 
 		return NextResponse.json({
 			success: true,

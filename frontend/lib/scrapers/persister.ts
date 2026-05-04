@@ -54,7 +54,7 @@ export async function finaliseRunSuccess(
 	result: ScraperJobResult
 ): Promise<void> {
 	await updateScraperRun(runId, {
-		status: "success",
+		status: result.partial ? "partial" : "success",
 		completedAt: new Date(),
 		durationSeconds: result.durationSeconds,
 		progress: 100,
@@ -64,6 +64,7 @@ export async function finaliseRunSuccess(
 		opportunitiesSkipped: result.opportunitiesSkipped,
 		opportunitiesFailed: result.opportunitiesFailed,
 		pagesScraped: result.pagesScraped,
+		warnings: result.warnings ?? null,
 	});
 
 	await updateSourceMetrics(sourceId, {
@@ -97,7 +98,11 @@ export async function finaliseRunFailure(
 		errorType: options.errorType,
 		opportunitiesFound: result.opportunitiesFound,
 		opportunitiesNew: result.opportunitiesNew,
+		opportunitiesUpdated: result.opportunitiesUpdated,
+		opportunitiesSkipped: result.opportunitiesSkipped,
+		opportunitiesFailed: result.opportunitiesFailed,
 		pagesScraped: result.pagesScraped,
+		warnings: result.warnings ?? null,
 	});
 
 	await updateSourceMetrics(sourceId, {

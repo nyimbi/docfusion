@@ -23,6 +23,7 @@ import {
 	gte,
 	lte,
 	inArray,
+	ilike,
 	isNull,
 	sql,
 	count,
@@ -30,6 +31,18 @@ import {
 	avg,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+
+function escapeLikePattern(value: string): string {
+	return value.replace(/[\\%_]/g, "\\$&");
+}
+
+function safeRevalidatePath(path: string): void {
+	try {
+		revalidatePath(path);
+	} catch {
+		// Scraper workers can run outside a Next request/static-generation store.
+	}
+}
 
 // ============================================================================
 // Types
@@ -184,6 +197,19 @@ export async function getScraperRuns(
 		conditions.push(lte(scraperRuns.startedAt, filters.startedBefore));
 	}
 
+	if (filters?.search?.trim()) {
+		const pattern = `%${escapeLikePattern(filters.search.trim())}%`;
+		const searchClause = or(
+			ilike(scraperRuns.runId, pattern),
+			ilike(scraperRuns.sourceKey, pattern),
+			ilike(scraperRuns.batchId, pattern),
+			ilike(scraperRuns.errorMessage, pattern),
+		);
+		if (searchClause) {
+			conditions.push(searchClause as ReturnType<typeof eq>);
+		}
+	}
+
 	// Build ORDER BY
 	const sortField = sort?.field ?? "startedAt";
 	const sortDir = sort?.direction ?? "desc";
@@ -335,8 +361,8 @@ export async function createScraperRun(
 		})
 		.returning();
 
-	revalidatePath("/opportunities/sources");
-	revalidatePath("/opportunities/runs");
+	safeRevalidatePath("/opportunities/sources");
+	safeRevalidatePath("/opportunities/runs");
 
 	return run;
 }
@@ -354,8 +380,8 @@ export async function updateScraperRun(
 		.where(eq(scraperRuns.id, id))
 		.returning();
 
-	revalidatePath("/opportunities/sources");
-	revalidatePath("/opportunities/runs");
+	safeRevalidatePath("/opportunities/sources");
+	safeRevalidatePath("/opportunities/runs");
 
 	return updated ?? null;
 }
@@ -416,8 +442,8 @@ export async function completeScraperRun(
 		await updateSourceHealthAfterRun(updated.sourceId);
 	}
 
-	revalidatePath("/opportunities/sources");
-	revalidatePath("/opportunities/runs");
+	safeRevalidatePath("/opportunities/sources");
+	safeRevalidatePath("/opportunities/runs");
 
 	return updated ?? null;
 }
@@ -462,8 +488,8 @@ export async function failScraperRun(
 		await updateSourceHealthAfterRun(existingRun.sourceId);
 	}
 
-	revalidatePath("/opportunities/sources");
-	revalidatePath("/opportunities/runs");
+	safeRevalidatePath("/opportunities/sources");
+	safeRevalidatePath("/opportunities/runs");
 
 	return updated ?? null;
 }
@@ -802,8 +828,8 @@ export async function cancelScraperRun(id: string): Promise<ScraperRun | null> {
 		)
 		.returning();
 
-	revalidatePath("/opportunities/sources");
-	revalidatePath("/opportunities/runs");
+	safeRevalidatePath("/opportunities/sources");
+	safeRevalidatePath("/opportunities/runs");
 
 	return updated ?? null;
 }

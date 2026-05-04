@@ -13,12 +13,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { scraperQueue } from "@/lib/scrapers/queue";
 import { scraperRuntime } from "@/lib/scrapers/runtime";
+import { requireScraperAccess } from "@/lib/scrapers/api-auth";
 
 export async function POST(
 	request: NextRequest,
 	{ params }: { params: Promise<{ runId: string }> }
 ) {
 	try {
+		const unauthorized = await requireScraperAccess(request);
+		if (unauthorized) return unauthorized;
+
 		const { runId } = await params;
 
 		if (!runId) {

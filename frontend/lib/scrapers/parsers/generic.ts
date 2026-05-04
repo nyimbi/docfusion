@@ -156,10 +156,12 @@ function extractContextMetadata(context: string): {
 }
 
 function generateId(title: string): string {
-	return `gen-${title
+	const slug = title
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, "-")
-		.substring(0, 60)}`;
+		.replace(/^-+|-+$/g, "")
+		.substring(0, 60);
+	return `gen-${slug || "unknown"}`;
 }
 
 function extractFromStructuredMarkdown(markdown: string, sourceUrl: string): OpportunityData[] {
@@ -262,14 +264,24 @@ function findNextPage(content: ParseInput): string | undefined {
 	const links = content.links || [];
 	const markdown = content.markdown || "";
 
-	const nextLink = links.find(
-		(l) => /next|›|»/i.test(l) || /page=\d+/i.test(l)
-	);
-
-	if (nextLink) {
+	for (const nextLink of links) {
+		if (!/next|›|»/i.test(nextLink) && !/page=\d+/i.test(nextLink)) {
+			continue;
+		}
 		try {
 			const url = new URL(nextLink, content.url);
-			return url.toString();
+			const current = new URL(content.url);
+			url.hash = "";
+			current.hash = "";
+			const currentPage = getPageNumber(current) ?? 1;
+			const linkPage = getPageNumber(url);
+			const isExplicitNext = /next|›|»/i.test(nextLink);
+			if (!isExplicitNext && linkPage !== undefined && linkPage <= currentPage) {
+				continue;
+			}
+			if (url.hostname === current.hostname && url.toString() !== current.toString()) {
+				return url.toString();
+			}
 		} catch {
 			// Invalid URL
 		}
@@ -279,10 +291,35 @@ function findNextPage(content: ParseInput): string | undefined {
 		/\[(?:Next|›|»|\d+)\]\((https?:\/\/[^\s)]+page[=\/]\d+[^\s)]*)\)/i
 	);
 	if (paginationMatch) {
-		return paginationMatch[1];
+		try {
+			const url = new URL(paginationMatch[1], content.url);
+			const current = new URL(content.url);
+			url.hash = "";
+			current.hash = "";
+			const currentPage = getPageNumber(current) ?? 1;
+			const linkPage = getPageNumber(url);
+			if (linkPage !== undefined && linkPage <= currentPage) {
+				return undefined;
+			}
+			if (url.hostname === current.hostname && url.toString() !== current.toString()) {
+				return url.toString();
+			}
+		} catch {
+			// Invalid URL
+		}
 	}
 
 	return undefined;
+}
+
+function getPageNumber(url: URL): number | undefined {
+	const pageParam = url.searchParams.get("page") ?? url.searchParams.get("p");
+	if (pageParam && /^\d+$/.test(pageParam)) {
+		return Number(pageParam);
+	}
+
+	const pathMatch = url.pathname.match(/\/page\/(\d+)(?:\/|$)/i);
+	return pathMatch ? Number(pathMatch[1]) : undefined;
 }
 
 // ============================================================================

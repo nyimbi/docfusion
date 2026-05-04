@@ -32,6 +32,7 @@ import { scraperSources } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { scraperQueue } from "@/lib/scrapers/queue";
 import { initializeScraperQueue } from "@/lib/scrapers/runtime";
+import { requireScraperAccess } from "@/lib/scrapers/api-auth";
 import { revalidatePath } from "next/cache";
 
 // Initialize queue executor
@@ -56,6 +57,9 @@ interface BatchResult {
 
 export async function POST(request: NextRequest) {
 	try {
+		const unauthorized = await requireScraperAccess(request);
+		if (unauthorized) return unauthorized;
+
 		const body: BatchRequest = await request.json();
 		const { operation, sourceIds, options } = body;
 
@@ -66,9 +70,23 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
+		if (!["run", "enable", "disable", "delete"].includes(operation)) {
+			return NextResponse.json(
+				{ success: false, message: "operation must be run, enable, disable, or delete" },
+				{ status: 400 }
+			);
+		}
+
 		if (sourceIds.length === 0) {
 			return NextResponse.json(
 				{ success: false, message: "sourceIds array cannot be empty" },
+				{ status: 400 }
+			);
+		}
+
+		if (options?.priority !== undefined && ![1, 2, 3].includes(options.priority)) {
+			return NextResponse.json(
+				{ success: false, message: "priority must be 1, 2, or 3" },
 				{ status: 400 }
 			);
 		}
@@ -202,6 +220,9 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
 	try {
+		const unauthorized = await requireScraperAccess(request);
+		if (unauthorized) return unauthorized;
+
 		const { searchParams } = new URL(request.url);
 		const batchId = searchParams.get("batchId");
 
@@ -212,7 +233,7 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const jobs = scraperQueue.getBatchJobs(batchId);
+		const jobs = await scraperQueue.getBatchJobs(batchId);
 
 		const summary = {
 			total: jobs.length,

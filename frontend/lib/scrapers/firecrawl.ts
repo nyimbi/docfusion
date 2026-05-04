@@ -34,6 +34,8 @@ export interface ScrapeOptions {
 	skipTlsVerification?: boolean;
 	/** Timeout in milliseconds */
 	timeout?: number;
+	/** Optional cancellation signal for the outbound Firecrawl request */
+	signal?: AbortSignal;
 	/** Extract structured data with LLM */
 	extract?: {
 		schema: Record<string, unknown>;
@@ -130,11 +132,30 @@ export class FirecrawlClient {
 		this.baseUrl = this.baseUrl.replace(/\/$/, "");
 	}
 
+	private combineSignals(signals: AbortSignal[]): AbortSignal {
+		const controller = new AbortController();
+		const abort = () => {
+			if (!controller.signal.aborted) {
+				controller.abort();
+			}
+		};
+
+		for (const signal of signals) {
+			if (signal.aborted) {
+				abort();
+				break;
+			}
+			signal.addEventListener("abort", abort, { once: true });
+		}
+
+		return controller.signal;
+	}
+
 	/**
 	 * Check if Firecrawl is configured
 	 */
 	isConfigured(): boolean {
-		return !!this.baseUrl && !!this.apiKey;
+		return !!this.baseUrl;
 	}
 
 	/**
@@ -143,19 +164,23 @@ export class FirecrawlClient {
 	private async request<T>(
 		endpoint: string,
 		options: RequestInit = {},
-		requestTimeout?: number
+		requestTimeout?: number,
+		externalSignal?: AbortSignal
 	): Promise<T> {
 		const url = `${this.baseUrl}${endpoint}`;
 		const timeout = requestTimeout || this.timeout;
+		const timeoutSignal = AbortSignal.timeout(timeout);
 
 		const response = await fetch(url, {
 			...options,
 			headers: {
 				"Content-Type": "application/json",
-				"Authorization": `Bearer ${this.apiKey}`,
+				...(this.apiKey ? { "Authorization": `Bearer ${this.apiKey}` } : {}),
 				...options.headers,
 			},
-			signal: AbortSignal.timeout(timeout),
+			signal: externalSignal
+				? this.combineSignals([externalSignal, timeoutSignal])
+				: timeoutSignal,
 		});
 
 		if (!response.ok) {
@@ -171,13 +196,14 @@ export class FirecrawlClient {
 	 */
 	async scrape(url: string, options?: ScrapeOptions): Promise<ScrapeResult> {
 		try {
+			const { signal, ...scrapeOptions } = options ?? {};
 			const result = await this.request<ScrapeResult>("/v1/scrape", {
 				method: "POST",
 				body: JSON.stringify({
 					url,
-					...options,
+					...scrapeOptions,
 				}),
-			}, options?.timeout);
+			}, options?.timeout, signal);
 
 			return result;
 		} catch (error) {
