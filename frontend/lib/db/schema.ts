@@ -28,7 +28,6 @@ export * from "./schema-partners";
 export * from "./schema-pipeline";
 
 // Domain 3: Intelligence — Evidence, Competitors, Win Themes, PWin
-export * from "./schema-intelligence";
 export * from "./schema-evidence";
 export * from "./schema-competitors";
 export * from "./schema-win-themes";
@@ -36,7 +35,6 @@ export * from "./schema-pwin";
 export * from "./schema-past-performance";
 
 // Domain 4: Workflow — Tasks, Reviews, Comments, Presentations
-export * from "./schema-workflow";
 export * from "./schema-tasks";
 export * from "./schema-reviews";
 export * from "./schema-comments-workflow";
@@ -45,7 +43,6 @@ export * from "./schema-presentations";
 export * from "./schema-winloss";
 
 // Domain 5: Integration — Import, Scraper, Bibliography, Pricing, Personnel
-export * from "./schema-integration";
 export * from "./schema-import";
 export * from "./schema-scraper";
 export * from "./schema-bibliography";
@@ -410,7 +407,7 @@ export const opportunities = pgTable(
 
 		// Full-Text Search
 		/** Pre-computed tsvector for full-text search */
-		searchVector: text("search_vector", { mode: "tsvector" }),
+		searchVector: text("search_vector"),
 	},
 	(table) => [
 		index("opportunities_deadline_idx").on(table.deadline),

@@ -707,6 +707,7 @@ export async function validateCompliance(opportunityId: string): Promise<Validat
 
 	for (const { entry, requirement } of entries) {
 		const isMandatory = requirement.priority === "mandatory";
+		const requirementNumber = requirement.requirementNumber ?? requirement.id;
 
 		// Check for missing/incomplete compliance
 		if (entry.complianceStatus === "not_addressed" || entry.complianceStatus === "pending") {
@@ -714,15 +715,15 @@ export async function validateCompliance(opportunityId: string): Promise<Validat
 				type: "missing",
 				severity: isMandatory ? "critical" : "high",
 				requirementId: requirement.id,
-				requirementNumber: requirement.requirementNumber,
-				description: `Requirement ${requirement.requirementNumber} has not been addressed`,
+				requirementNumber,
+				description: `Requirement ${requirementNumber} has not been addressed`,
 				suggestion: requirement.suggestedApproach ?? undefined,
 			});
 
 			suggestions.push({
 				requirementId: requirement.id,
 				type: "add_reference",
-				description: `Address ${isMandatory ? "mandatory " : ""}requirement ${requirement.requirementNumber}`,
+				description: `Address ${isMandatory ? "mandatory " : ""}requirement ${requirementNumber}`,
 				priority: isMandatory ? "high" : "medium",
 			});
 		} else if (entry.complianceStatus === "partial") {
@@ -730,8 +731,8 @@ export async function validateCompliance(opportunityId: string): Promise<Validat
 				type: "partial",
 				severity: isMandatory ? "high" : "medium",
 				requirementId: requirement.id,
-				requirementNumber: requirement.requirementNumber,
-				description: `Requirement ${requirement.requirementNumber} is only partially addressed`,
+				requirementNumber,
+				description: `Requirement ${requirementNumber} is only partially addressed`,
 				location: entry.responseReference ?? undefined,
 			});
 
@@ -739,7 +740,7 @@ export async function validateCompliance(opportunityId: string): Promise<Validat
 				suggestions.push({
 					requirementId: requirement.id,
 					type: "improve_coverage",
-					description: `Strengthen response to mandatory requirement ${requirement.requirementNumber}`,
+					description: `Strengthen response to mandatory requirement ${requirementNumber}`,
 					priority: "high",
 				});
 			}
@@ -751,8 +752,8 @@ export async function validateCompliance(opportunityId: string): Promise<Validat
 				type: "mismatch",
 				severity: isMandatory ? "critical" : "high",
 				requirementId: requirement.id,
-				requirementNumber: requirement.requirementNumber,
-				description: `Requirement ${requirement.requirementNumber} response is non-compliant`,
+				requirementNumber,
+				description: `Requirement ${requirementNumber} response is non-compliant`,
 				location: entry.responseReference ?? undefined,
 			});
 		} else if (
@@ -770,8 +771,8 @@ export async function validateCompliance(opportunityId: string): Promise<Validat
 				type: "weak",
 				severity: isMandatory ? "high" : "medium",
 				requirementId: requirement.id,
-				requirementNumber: requirement.requirementNumber,
-				description: `Response to ${requirement.requirementNumber} is assessed as ${entry.strengthAssessment}`,
+				requirementNumber,
+				description: `Response to ${requirementNumber} is assessed as ${entry.strengthAssessment}`,
 				location: entry.responseReference ?? undefined,
 			});
 
@@ -851,10 +852,10 @@ export async function validateBidirectional(matrixId: string): Promise<Bidirecti
 		)
 		.map((e) => ({
 			requirementId: e.requirement.id,
-			requirementNumber: e.requirement.requirementNumber,
+			requirementNumber: e.requirement.requirementNumber ?? e.requirement.id,
 			requirementText: e.requirement.requirementText,
-			category: e.requirement.category,
-			priority: e.requirement.priority,
+			category: e.requirement.category ?? "other",
+			priority: e.requirement.priority ?? "medium",
 			suggestedSections: [], // Would be populated by AI in production
 		}));
 
@@ -900,7 +901,7 @@ export async function generateComplianceHeatMap(matrixId: string): Promise<HeatM
 	}>();
 
 	for (const entry of entries) {
-		const category = entry.requirement.category;
+		const category = entry.requirement.category ?? "other";
 		const subcategory = entry.requirement.subcategory ?? "General";
 
 		if (!categoryMap.has(category)) {
@@ -1040,10 +1041,10 @@ export async function detectMissingCrossReferences(
 
 	return requirements.map((req) => ({
 		requirementId: req.id,
-		requirementNumber: req.requirementNumber,
+		requirementNumber: req.requirementNumber ?? req.id,
 		requirementText: req.requirementText,
-		category: req.category,
-		priority: req.priority,
+		category: req.category ?? "other",
+		priority: req.priority ?? "medium",
 		suggestedSections: [],
 	}));
 }

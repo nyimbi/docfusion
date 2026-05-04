@@ -4,13 +4,12 @@
  */
 
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { loadAzureConfigFromEnv } from "@/lib/ai/config";
 
 export async function GET() {
 	// Verify authentication - debug endpoints should require auth
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) {
 		return NextResponse.json(
 			{ error: "Authentication required" },

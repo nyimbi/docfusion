@@ -60,7 +60,7 @@ function createChainableQuery(returnValue: unknown = []) {
 	return chain;
 }
 
-let dbMock: ReturnType<typeof createDbMock>;
+var dbMock: ReturnType<typeof createDbMock>;
 
 function createDbMock() {
 	return {

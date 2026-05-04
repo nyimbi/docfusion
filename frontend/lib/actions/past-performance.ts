@@ -616,11 +616,11 @@ export async function calculateRelevanceScores(
 					const matchStrength = calculateRequirementMatch(
 						project.description ?? "",
 						project.technicalAreas ?? [],
-						req.text
+						req.requirementText
 					);
 					return {
 						requirementId: req.id,
-						requirementText: req.text,
+						requirementText: req.requirementText,
 						matchStrength,
 						matchReason: matchStrength > 0.7
 							? `Strong match based on technical areas and project scope`
@@ -848,7 +848,7 @@ function calculateRequirementMatch(
  */
 function identifyGaps(
 	project: DBProject,
-	oppRequirements: { id: string; text: string; category?: string | null }[]
+	oppRequirements: { id: string; requirementText: string; category?: string | null }[]
 ): { area: string; severity: "critical" | "moderate" | "minor" }[] {
 	const gaps: { area: string; severity: "critical" | "moderate" | "minor" }[] = [];
 	const projectText = (
@@ -861,7 +861,7 @@ function identifyGaps(
 		const matchStrength = calculateRequirementMatch(
 			project.description ?? "",
 			project.technicalAreas ?? [],
-			req.text
+			req.requirementText
 		);
 
 		if (matchStrength < 0.2) {
@@ -1936,10 +1936,10 @@ export async function analyzePortfolioGaps(
 
 		// Check requirement coverage
 		for (const req of oppRequirements) {
-			const reqText = req.text.toLowerCase();
-			const reqWords = reqText.split(/\W+/).filter(w => w.length > 4);
+			const reqText = req.requirementText.toLowerCase();
+			const reqWords = reqText.split(/\W+/).filter((w: string) => w.length > 4);
 
-			const isCovered = reqWords.some(word =>
+			const isCovered = reqWords.some((word: string) =>
 				Array.from(portfolioCapabilities).some(cap => cap.includes(word))
 			);
 
@@ -1947,14 +1947,14 @@ export async function analyzePortfolioGaps(
 				gaps.push({
 					area: req.category ?? "Technical Requirements",
 					severity: "critical",
-					description: `No direct experience with: ${req.text.substring(0, 100)}...`,
+					description: `No direct experience with: ${req.requirementText.substring(0, 100)}...`,
 					suggestedMitigation: `Highlight transferable experience or consider teaming partner with ${req.category ?? "this capability"}`,
 				});
 			} else if (!isCovered) {
 				gaps.push({
 					area: req.category ?? "Technical Requirements",
 					severity: "moderate",
-					description: `Limited experience with: ${req.text.substring(0, 80)}...`,
+					description: `Limited experience with: ${req.requirementText.substring(0, 80)}...`,
 					suggestedMitigation: "Emphasize methodology and learning agility",
 				});
 			}

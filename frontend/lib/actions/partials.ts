@@ -20,6 +20,7 @@ import type {
   PartialId,
 } from "@/lib/types/snippets";
 import type { DocumentContent } from "@/lib/types/document";
+import { substitutePlaceholders } from "@/lib/placeholders/substitution";
 
 // ============================================================================
 // Helper Functions
@@ -381,27 +382,7 @@ export async function applyPartialPlaceholders(
   const partial = await getPartial(partialId);
   if (!partial) return null;
 
-  const processNode = (node: DocumentContent): DocumentContent => {
-    if (node.type === "text" && node.text) {
-      let text = node.text;
-      for (const [key, value] of Object.entries(placeholderValues)) {
-        const pattern = new RegExp(`{{\\s*${key}\\s*}}`, "g");
-        const replacement = Array.isArray(value) ? value.join(", ") : String(value);text = text.replace(pattern, replacement);
-      }
-      return { ...node, text };
-    }
-
-    if (node.content && Array.isArray(node.content)) {
-      return {
-        ...node,
-        content: node.content.map(processNode),
-      };
-    }
-
-    return node;
-  };
-
-  return processNode(partial.content);
+  return substitutePlaceholders(partial.content, placeholderValues).content;
 }
 
 // ============================================================================

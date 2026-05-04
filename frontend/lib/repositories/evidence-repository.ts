@@ -186,7 +186,7 @@ export class EvidenceRepository extends BaseRepository<
 
 		if (!usages.length) return [];
 
-		const ids = usages.map((u) => u.evidenceId);
+		const ids = usages.map((u: { evidenceId: string }) => u.evidenceId);
 		return this.db
 			.select()
 			.from(evidenceLibrary)
@@ -268,13 +268,13 @@ export class EvidenceRepository extends BaseRepository<
 			totalEvidence: totals?.total ?? 0,
 			averageStrength: Number((totals?.avgStrength ?? 0).toFixed(1)),
 			byType: typeBreakdown
-				.filter((r) => r.type)
-				.map((r) => ({
+				.filter((r: { type: string | null }) => r.type)
+				.map((r: { type: string | null; count: number; avgStrength: number }) => ({
 					type: r.type!,
 					count: r.count,
 					avgStrength: Number(r.avgStrength.toFixed(1)),
 				})),
-			byTier: tierRows.map((r) => ({
+			byTier: tierRows.map((r: { tier: string; count: number }) => ({
 				tier: r.tier as EvidenceTier,
 				count: r.count,
 			})),
@@ -356,14 +356,13 @@ export class EvidenceRepository extends BaseRepository<
 	): Promise<DBClaimAnalysis | null> {
 		const [row] = await this.db
 			.update(claimAnalysis)
-			.set({
-				resolution: resolution as any,
-				resolvedBy,
-				resolvedAt: new Date(),
-				resolutionNotes: notes,
-				status: "resolved" as any,
-				updatedAt: new Date(),
-			})
+				.set({
+					resolution: resolution as any,
+					resolvedBy,
+					resolvedAt: new Date(),
+					resolutionNotes: notes,
+					status: "resolved" as any,
+				})
 			.where(eq(claimAnalysis.id, id))
 			.returning();
 		return row ?? null;
@@ -381,7 +380,7 @@ export class EvidenceRepository extends BaseRepository<
 			.select()
 			.from(evidenceMatrices)
 			.where(eq(evidenceMatrices.opportunityId, opportunityId))
-			.orderBy(desc(evidenceMatrices.updatedAt))
+			.orderBy(desc(evidenceMatrices.createdAt))
 			.limit(1);
 		return row ?? null;
 	}
@@ -397,7 +396,7 @@ export class EvidenceRepository extends BaseRepository<
 		if (existing) {
 			const [row] = await this.db
 				.update(evidenceMatrices)
-				.set({ ...data, updatedAt: new Date() })
+				.set(data)
 				.where(eq(evidenceMatrices.id, existing.id))
 				.returning();
 			return row;

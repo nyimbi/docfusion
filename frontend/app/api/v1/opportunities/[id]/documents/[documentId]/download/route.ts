@@ -6,7 +6,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getDocumentFile } from "@/lib/services/rfp-document-service";
 
@@ -16,7 +15,7 @@ export async function GET(
 ) {
   try {
     // Verify authentication using Better Auth API
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await auth();
     if (!session?.user) {
       return new NextResponse("Unauthorized", { status: 401 });
     }

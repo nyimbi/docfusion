@@ -1147,7 +1147,7 @@ export async function anticipateQuestions(
 				.where(eq(rfpRequirements.opportunityId, presentation.opportunityId))
 				.limit(20);
 
-			reqContext = reqs.map((r) => `- ${r.text}`).join("\n");
+			reqContext = reqs.map((r) => `- ${r.requirementText}`).join("\n");
 		}
 
 		const slideContext = slides

@@ -55,7 +55,7 @@ export abstract class BaseRepository<
 	/**
 	 * Database instance accessor. Override in tests to inject a mock/stub.
 	 */
-	protected get db() {
+	protected get db(): any {
 		return defaultDb;
 	}
 

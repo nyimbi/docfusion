@@ -61,7 +61,7 @@ function createQueryTableMock() {
 	};
 }
 
-let dbMock: ReturnType<typeof createDbMock>;
+var dbMock: any;
 
 function createDbMock() {
 	return {
@@ -184,9 +184,11 @@ import {
 // Helpers
 // ============================================================================
 
-const UUID = "00000000-0000-0000-0000-000000000001";
-const UUID2 = "00000000-0000-0000-0000-000000000002";
-const UUID3 = "00000000-0000-0000-0000-000000000003";
+const UUID = "00000000-0000-4000-8000-000000000001";
+const UUID2 = "00000000-0000-4000-8000-000000000002";
+const UUID3 = "00000000-0000-4000-8000-000000000003";
+const UUID4 = "00000000-0000-4000-8000-000000000004";
+const UUID5 = "00000000-0000-4000-8000-000000000005";
 
 function makeReviewRow(overrides: Record<string, unknown> = {}) {
 	return {
@@ -932,7 +934,7 @@ describe("Comment Management", () => {
 		});
 
 		test("increments parent reply count for threaded comments", async () => {
-			const parentId = "00000000-0000-0000-0000-000000000099";
+			const parentId = "00000000-0000-4000-8000-000000000099";
 			dbMock.query.reviewers.findFirst.mockResolvedValue(makeReviewerRow());
 			const newReply = makeCommentRow({ id: "reply-1", parentCommentId: parentId });
 			dbMock.insert.mockImplementation(() => createChainableQuery([newReply]));
@@ -1247,7 +1249,7 @@ describe("Scoring", () => {
 
 			const result = await submitReviewerScores(UUID3, [
 				{
-					evaluationCriteriaId: "crit-1",
+					evaluationCriteriaId: UUID4,
 					evaluationCriteriaName: "Technical Approach",
 					score: 85,
 					maxScore: 100,
@@ -1256,7 +1258,7 @@ describe("Scoring", () => {
 					confidence: 0.9,
 				},
 				{
-					evaluationCriteriaId: "crit-2",
+					evaluationCriteriaId: UUID5,
 					evaluationCriteriaName: "Management",
 					score: 70,
 					maxScore: 100,

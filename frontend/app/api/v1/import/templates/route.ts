@@ -6,7 +6,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { importMappingTemplates } from "@/lib/db/schema";
@@ -18,7 +17,7 @@ import type { ColumnMappingConfig } from "@/lib/db/schema-import";
  * Get authenticated user context.
  */
 async function getUserContext() {
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) return null;
 	return {
 		userId: session.user.id,

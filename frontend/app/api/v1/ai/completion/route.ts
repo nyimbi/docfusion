@@ -5,7 +5,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import {
 	getProviderManager,
@@ -68,7 +67,7 @@ function isSimpleRequest(body: unknown): body is SimpleCompletionRequest {
  */
 export async function POST(request: NextRequest) {
 	// Verify authentication
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) {
 		return NextResponse.json(
 			{ error: "Authentication required" },

@@ -51,10 +51,10 @@ import {
 	publishWorkflowTemplate,
 	recordWorkflowRuntimeTransition,
 	reverseWorkflowRuntimeState,
-	simulateWorkflowTemplate,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
 import { WORKFLOW_TEMPLATE_CATALOG } from "@/lib/workflows/default-templates";
+import { simulateWorkflowTemplate } from "@/lib/workflows/simulation";
 
 beforeEach(() => {
 	vi.clearAllMocks();

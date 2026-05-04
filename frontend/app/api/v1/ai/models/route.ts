@@ -5,7 +5,6 @@
  */
 
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getProviderManager, type AIProvider } from "@/lib/ai/providers";
 import { testProviderConnections } from "@/lib/ai/providers";
@@ -16,7 +15,7 @@ import { testProviderConnections } from "@/lib/ai/providers";
  */
 export async function GET() {
 	// Verify authentication
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) {
 		return NextResponse.json(
 			{ error: "Authentication required" },

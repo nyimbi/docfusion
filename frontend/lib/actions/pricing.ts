@@ -1007,7 +1007,6 @@ export async function duplicateCostElement(
 		}
 
 		// Remove id and timestamps
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { id: _id, createdAt, updatedAt, approvedBy, approvedAt, ...rest } = original;
 
 		const newElement: NewCostElement = {

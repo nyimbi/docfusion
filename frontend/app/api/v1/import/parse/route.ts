@@ -10,7 +10,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { parseFile, getExcelSheets } from "@/lib/import/universal-parser";
 
@@ -20,9 +19,7 @@ import { parseFile, getExcelSheets } from "@/lib/import/universal-parser";
  */
 async function getUserContext() {
 	try {
-		const session = await auth.api.getSession({
-			headers: await headers(),
-		});
+		const session = await auth();
 
 		if (!session?.user) return null;
 		return {

@@ -55,7 +55,7 @@ function createChainableQuery(returnValue: unknown = []) {
 	return chain;
 }
 
-let dbMock: ReturnType<typeof createDbMock>;
+var dbMock: ReturnType<typeof createDbMock>;
 
 function createDbMock() {
 	return {
@@ -640,7 +640,7 @@ describe("Ghost Themes", () => {
 			dbMock.select.mockImplementation(() => createChainableQuery([comp]));
 			const theme = {
 				id: "gt-001",
-				competitorId: "00000000-0000-0000-0000-000000000001",
+				competitorId: "00000000-0000-4000-8000-000000000001",
 				weakness: "Poor response time",
 				ghostLanguage: "Our team emphasizes rapid response...",
 				isEthical: true,
@@ -649,7 +649,7 @@ describe("Ghost Themes", () => {
 			dbMock.insert.mockImplementation(() => createChainableQuery([theme]));
 
 			const result = await createGhostTheme({
-				competitorId: "00000000-0000-0000-0000-000000000001",
+				competitorId: "00000000-0000-4000-8000-000000000001",
 				weakness: "Poor response time",
 				ghostLanguage: "Our team emphasizes rapid response...",
 			});
@@ -660,7 +660,7 @@ describe("Ghost Themes", () => {
 			dbMock.select.mockImplementation(() => createChainableQuery([]));
 
 			const result = await createGhostTheme({
-				competitorId: "00000000-0000-0000-0000-000000000001",
+				competitorId: "00000000-0000-4000-8000-000000000001",
 				weakness: "Test",
 				ghostLanguage: "Test language",
 			});
@@ -672,7 +672,7 @@ describe("Ghost Themes", () => {
 
 		test("rejects empty weakness", async () => {
 			const result = await createGhostTheme({
-				competitorId: "00000000-0000-0000-0000-000000000001",
+				competitorId: "00000000-0000-4000-8000-000000000001",
 				weakness: "",
 				ghostLanguage: "Some language",
 			});
@@ -684,7 +684,7 @@ describe("Ghost Themes", () => {
 
 		test("rejects empty ghost language", async () => {
 			const result = await createGhostTheme({
-				competitorId: "00000000-0000-0000-0000-000000000001",
+				competitorId: "00000000-0000-4000-8000-000000000001",
 				weakness: "Some weakness",
 				ghostLanguage: "",
 			});
@@ -706,12 +706,12 @@ describe("Ghost Themes", () => {
 		test("accepts valid category values", async () => {
 			const comp = makeCompetitor();
 			dbMock.select.mockImplementation(() => createChainableQuery([comp]));
-			const theme = { id: "gt-002", competitorId: "00000000-0000-0000-0000-000000000001", weakness: "w", ghostLanguage: "g", isEthical: true, useCount: 0 };
+			const theme = { id: "gt-002", competitorId: "00000000-0000-4000-8000-000000000001", weakness: "w", ghostLanguage: "g", isEthical: true, useCount: 0 };
 			dbMock.insert.mockImplementation(() => createChainableQuery([theme]));
 
 			for (const cat of ["technical", "management", "past_performance", "cost", "schedule", "risk"] as const) {
 				const result = await createGhostTheme({
-					competitorId: "00000000-0000-0000-0000-000000000001",
+					competitorId: "00000000-0000-4000-8000-000000000001",
 					weakness: "Some weakness",
 					ghostLanguage: "Some language",
 					category: cat,
@@ -757,14 +757,14 @@ describe("Competitor-Opportunity Linking", () => {
 			dbMock.select.mockReturnValueOnce(createChainableQuery([]) as never);
 			const link = {
 				id: "link-001",
-				competitorId: "00000000-0000-0000-0000-000000000001",
-				opportunityId: "00000000-0000-0000-0000-000000000002",
+				competitorId: "00000000-0000-4000-8000-000000000001",
+				opportunityId: "00000000-0000-4000-8000-000000000002",
 			};
 			dbMock.insert.mockImplementation(() => createChainableQuery([link]));
 
 			const result = await addCompetitorToOpportunity({
-				competitorId: "00000000-0000-0000-0000-000000000001",
-				opportunityId: "00000000-0000-0000-0000-000000000002",
+				competitorId: "00000000-0000-4000-8000-000000000001",
+				opportunityId: "00000000-0000-4000-8000-000000000002",
 			});
 			expect(result.success).toBe(true);
 		});
@@ -772,14 +772,14 @@ describe("Competitor-Opportunity Linking", () => {
 		test("rejects duplicate link", async () => {
 			const existing = {
 				id: "link-001",
-				competitorId: "00000000-0000-0000-0000-000000000001",
-				opportunityId: "00000000-0000-0000-0000-000000000002",
+				competitorId: "00000000-0000-4000-8000-000000000001",
+				opportunityId: "00000000-0000-4000-8000-000000000002",
 			};
 			dbMock.select.mockReturnValueOnce(createChainableQuery([existing]) as never);
 
 			const result = await addCompetitorToOpportunity({
-				competitorId: "00000000-0000-0000-0000-000000000001",
-				opportunityId: "00000000-0000-0000-0000-000000000002",
+				competitorId: "00000000-0000-4000-8000-000000000001",
+				opportunityId: "00000000-0000-4000-8000-000000000002",
 			});
 			expect(result.success).toBe(false);
 			if (!result.success) {
@@ -790,14 +790,14 @@ describe("Competitor-Opportunity Linking", () => {
 		test("rejects invalid competitor ID format", async () => {
 			const result = await addCompetitorToOpportunity({
 				competitorId: "not-a-uuid",
-				opportunityId: "00000000-0000-0000-0000-000000000002",
+				opportunityId: "00000000-0000-4000-8000-000000000002",
 			});
 			expect(result.success).toBe(false);
 		});
 
 		test("rejects invalid opportunity ID format", async () => {
 			const result = await addCompetitorToOpportunity({
-				competitorId: "00000000-0000-0000-0000-000000000001",
+				competitorId: "00000000-0000-4000-8000-000000000001",
 				opportunityId: "not-a-uuid",
 			});
 			expect(result.success).toBe(false);
@@ -807,16 +807,16 @@ describe("Competitor-Opportunity Linking", () => {
 			dbMock.select.mockReturnValueOnce(createChainableQuery([]) as never);
 			const link = {
 				id: "link-002",
-				competitorId: "00000000-0000-0000-0000-000000000001",
-				opportunityId: "00000000-0000-0000-0000-000000000002",
+				competitorId: "00000000-0000-4000-8000-000000000001",
+				opportunityId: "00000000-0000-4000-8000-000000000002",
 				likelihoodToBid: "likely",
 				role: "prime",
 			};
 			dbMock.insert.mockImplementation(() => createChainableQuery([link]));
 
 			const result = await addCompetitorToOpportunity({
-				competitorId: "00000000-0000-0000-0000-000000000001",
-				opportunityId: "00000000-0000-0000-0000-000000000002",
+				competitorId: "00000000-0000-4000-8000-000000000001",
+				opportunityId: "00000000-0000-4000-8000-000000000002",
 				likelihoodToBid: "likely",
 				role: "prime",
 				notes: "Strong competitor",
@@ -830,8 +830,8 @@ describe("Competitor-Opportunity Linking", () => {
 				dbMock.insert.mockImplementation(() => createChainableQuery([{ id: `link-${likelihood}` }]));
 
 				const result = await addCompetitorToOpportunity({
-					competitorId: "00000000-0000-0000-0000-000000000001",
-					opportunityId: "00000000-0000-0000-0000-000000000002",
+					competitorId: "00000000-0000-4000-8000-000000000001",
+					opportunityId: "00000000-0000-4000-8000-000000000002",
 					likelihoodToBid: likelihood,
 				});
 				expect(result.success).toBe(true);

@@ -11,8 +11,11 @@ import * as fs from "fs";
 import * as path from "path";
 
 const OPPORTUNITIES_DIR = "/Users/nyimbiodero/src/pjs/work_docs/Business/Opportunities";
-const DATABASE_URL =
-	"postgresql://azureuser:Abcd1234.@lindela16.postgres.database.azure.com:5432/docfusion?sslmode=require";
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+	throw new Error("DATABASE_URL is required to import opportunities");
+}
 
 // Database connection
 const pool = new Pool({

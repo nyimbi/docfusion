@@ -6,8 +6,11 @@
 import pg from "pg";
 
 const connectionString =
-	process.env.DATABASE_URL ||
-	"postgresql://azureuser:Abcd1234.@lindela16.postgres.database.azure.com:5432/docfusion?sslmode=require";
+	process.env.DATABASE_URL;
+
+if (!connectionString) {
+	throw new Error("DATABASE_URL is required to run auth migrations");
+}
 
 const pool = new pg.Pool({
 	connectionString,

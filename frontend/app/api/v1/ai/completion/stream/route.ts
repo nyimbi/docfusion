@@ -5,7 +5,6 @@
  */
 
 import { NextRequest } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import {
 	getProviderManager,
@@ -42,7 +41,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
  */
 export async function POST(request: NextRequest) {
 	// Verify authentication
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) {
 		return new Response(
 			JSON.stringify({ error: "Authentication required" }),

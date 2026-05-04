@@ -720,8 +720,8 @@ export async function generateTasksFromCompliance(
 			const taskData: NewProposalTask = {
 				opportunityId,
 				taskNumber,
-				title: `Address Requirement ${req.requirementId ?? req.id.slice(0, 8)} - ${req.category ?? "General"}`,
-				description: req.text,
+				title: `Address Requirement ${req.requirementNumber ?? req.id.slice(0, 8)} - ${req.category ?? "General"}`,
+				description: req.requirementText,
 				taskType: "writing",
 				taskCategory,
 				requirementId: req.id,
@@ -741,7 +741,7 @@ export async function generateTasksFromCompliance(
 			await logTaskActivity(
 				task.id,
 				"created",
-				`Task auto-generated from compliance matrix requirement ${req.requirementId ?? req.id}`,
+				`Task auto-generated from compliance matrix requirement ${req.requirementNumber ?? req.id}`,
 				undefined,
 				"pending"
 			);

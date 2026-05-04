@@ -152,7 +152,7 @@ export class OpportunityRepository extends BaseRepository<
 		const total = totalResult[0]?.count ?? 0;
 		const now = new Date();
 
-		const data: OpportunityListItem[] = rows.map((row) => {
+		const data: OpportunityListItem[] = rows.map((row: any) => {
 			const deadline = row.deadline ? new Date(row.deadline) : null;
 			const daysLeft = deadline
 				? Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
@@ -230,7 +230,7 @@ export class OpportunityRepository extends BaseRepository<
 		const total = totalResult[0]?.count ?? 0;
 		const now = new Date();
 
-		const data = rows.map((row) => ({
+		const data = rows.map((row: any) => ({
 			...row,
 			daysLeft: row.deadline
 				? Math.ceil((new Date(row.deadline).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
@@ -261,7 +261,7 @@ export class OpportunityRepository extends BaseRepository<
 			LIMIT ${limit}
 		`);
 
-		return results.rows.map((row: { word: string }) => row.word);
+		return results.rows.map((row: Record<string, unknown>) => String(row.word ?? ""));
 	}
 
 	/**
@@ -370,6 +370,7 @@ export class OpportunityRepository extends BaseRepository<
 		const byStatus: Record<DecisionStatus, number> = {
 			pending: 0,
 			interested: 0,
+			shortlisted: 0,
 			pursuing: 0,
 			submitted: 0,
 			won: 0,
@@ -395,16 +396,16 @@ export class OpportunityRepository extends BaseRepository<
 			byStatus,
 			byPriority,
 			byCategory: categoryCounts
-				.filter((r) => r.category)
-				.map((r) => ({ category: r.category!, count: r.count })),
+				.filter((r: { category: string | null }) => r.category)
+				.map((r: { category: string | null; count: number }) => ({ category: r.category!, count: r.count })),
 			byCountry: countryCounts
-				.filter((r) => r.country)
-				.map((r) => ({ country: r.country!, count: r.count })),
+				.filter((r: { country: string | null }) => r.country)
+				.map((r: { country: string | null; count: number }) => ({ country: r.country!, count: r.count })),
 			expiredCount: aggregates?.expired ?? 0,
 			activeCount: aggregates?.active ?? 0,
 			upcomingDeadlines: upcomingDeadlines
-				.filter((r) => r.date)
-				.map((r) => ({ date: r.date!, count: r.count })),
+				.filter((r: { date: Date | null }) => r.date)
+				.map((r: { date: Date | null; count: number }) => ({ date: r.date!, count: r.count })),
 			totalEstimatedValue: aggregates?.totalValue ?? 0,
 			averageFitScore: aggregates?.avgFit ?? null,
 		};
@@ -454,11 +455,11 @@ export class OpportunityRepository extends BaseRepository<
 			]);
 
 		return {
-			categories: categories.map((r) => r.value!).filter(Boolean),
-			sectors: sectors.map((r) => r.value!).filter(Boolean),
-			countries: countries.map((r) => r.value!).filter(Boolean),
-			organizations: organizations.map((r) => r.value!).filter(Boolean),
-			sourceFiles: sourceFiles.map((r) => r.value!).filter(Boolean),
+			categories: categories.map((r: { value: string | null }) => r.value!).filter(Boolean),
+			sectors: sectors.map((r: { value: string | null }) => r.value!).filter(Boolean),
+			countries: countries.map((r: { value: string | null }) => r.value!).filter(Boolean),
+			organizations: organizations.map((r: { value: string | null }) => r.value!).filter(Boolean),
+			sourceFiles: sourceFiles.map((r: { value: string | null }) => r.value!).filter(Boolean),
 		};
 	}
 
@@ -528,13 +529,13 @@ export class OpportunityRepository extends BaseRepository<
 			]);
 
 		return {
-			categories: categories.map((r) => ({ value: r.value!, count: r.count })),
-			sectors: sectors.map((r) => ({ value: r.value!, count: r.count })),
-			countries: countries.map((r) => ({ value: r.value!, count: r.count })),
-			organizations: organizations.map((r) => ({ value: r.value!, count: r.count })),
-			sourceFiles: sourceFiles.map((r) => ({ value: r.value!, count: r.count })),
-			statuses: statuses.map((r) => ({ value: r.value as string, count: r.count })),
-			priorityRanks: priorityRanks.map((r) => ({ value: String(r.value), count: r.count })),
+			categories: categories.map((r: { value: string | null; count: number }) => ({ value: r.value!, count: r.count })),
+			sectors: sectors.map((r: { value: string | null; count: number }) => ({ value: r.value!, count: r.count })),
+			countries: countries.map((r: { value: string | null; count: number }) => ({ value: r.value!, count: r.count })),
+			organizations: organizations.map((r: { value: string | null; count: number }) => ({ value: r.value!, count: r.count })),
+			sourceFiles: sourceFiles.map((r: { value: string | null; count: number }) => ({ value: r.value!, count: r.count })),
+			statuses: statuses.map((r: { value: string | null; count: number }) => ({ value: r.value as string, count: r.count })),
+			priorityRanks: priorityRanks.map((r: { value: number | null; count: number }) => ({ value: String(r.value), count: r.count })),
 		};
 	}
 
@@ -631,7 +632,7 @@ export class OpportunityRepository extends BaseRepository<
 			.orderBy(desc(opportunityImports.startedAt))
 			.limit(limit);
 
-		return rows.map((row) => ({
+		return rows.map((row: any) => ({
 			...row,
 			errors: (row.errors as OpportunityImport["errors"]) ?? [],
 			config: row.config as OpportunityImport["config"],
