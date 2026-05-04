@@ -717,7 +717,7 @@ export async function batchProcessDiagrams(
 			try {
 				switch (operation) {
 					case "format": {
-						const { formatDiagram } = await import("../diagrams/renderer");
+						const { formatDiagram } = await import("../diagrams/code-tools");
 						const formatted = formatDiagram(diagram.code, diagram.format);
 						return {
 							id: diagram.id,
@@ -727,7 +727,7 @@ export async function batchProcessDiagrams(
 					}
 
 					case "validate": {
-						const { validateDiagram } = await import("../diagrams/renderer");
+						const { validateDiagram } = await import("../diagrams/code-tools");
 						const errors = validateDiagram(diagram.code, diagram.format);
 						return {
 							id: diagram.id,

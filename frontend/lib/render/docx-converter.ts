@@ -42,6 +42,52 @@ export interface DocxTextRun {
 	superscript?: boolean;
 }
 
+type DocxHighlightColor =
+	| "none"
+	| "black"
+	| "blue"
+	| "cyan"
+	| "darkBlue"
+	| "darkCyan"
+	| "darkGray"
+	| "darkGreen"
+	| "darkMagenta"
+	| "darkRed"
+	| "darkYellow"
+	| "green"
+	| "lightGray"
+	| "magenta"
+	| "red"
+	| "white"
+	| "yellow";
+
+const DOCX_HIGHLIGHT_COLORS = new Set<DocxHighlightColor>([
+	"none",
+	"black",
+	"blue",
+	"cyan",
+	"darkBlue",
+	"darkCyan",
+	"darkGray",
+	"darkGreen",
+	"darkMagenta",
+	"darkRed",
+	"darkYellow",
+	"green",
+	"lightGray",
+	"magenta",
+	"red",
+	"white",
+	"yellow",
+]);
+
+function toDocxHighlightColor(value: string | undefined): DocxHighlightColor | undefined {
+	if (!value) return undefined;
+	return DOCX_HIGHLIGHT_COLORS.has(value as DocxHighlightColor)
+		? (value as DocxHighlightColor)
+		: "yellow";
+}
+
 export interface DocxTableRow {
 	cells: DocxTableCell[];
 	isHeader?: boolean;
@@ -376,7 +422,7 @@ export async function generateDocxBuffer(doc: DocxDocument): Promise<Buffer> {
 				underline: run.underline ? {} : undefined,
 				strike: run.strike,
 				font: run.code ? "Courier New" : undefined,
-				highlight: run.highlight as unknown as string,
+				highlight: toDocxHighlightColor(run.highlight),
 				subScript: run.subscript,
 				superScript: run.superscript,
 			});

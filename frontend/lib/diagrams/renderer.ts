@@ -14,229 +14,28 @@ import type {
 	RenderResult,
 	StructurizrRenderOptions,
 	ViewTransform,
-	ParseResult,
-	ParsedPlantUmlDiagram,
-	ParsedStructurizrWorkspace,
-	ParsedD2Diagram,
 } from "./types";
 import {
 	renderPlantUML,
-	parsePlantUML,
-	formatPlantUML,
-	validatePlantUML,
-	getPlantUmlSuggestions,
-	PLANTUML_TEMPLATES,
-	PLANTUML_SNIPPETS,
 	encodePlantUML,
 	DEFAULT_PLANTUML_SERVER,
 } from "./plantuml";
 import {
-	parseStructurizr,
-	formatStructurizr,
-	validateStructurizr,
-	getStructurizrSuggestions,
 	structurizrToMermaid,
-	STRUCTURIZR_TEMPLATES,
-	STRUCTURIZR_SNIPPETS,
 } from "./structurizr";
 import {
-	parseD2,
-	formatD2,
-	validateD2,
-	getD2Suggestions,
 	d2ToMermaid,
-	D2_TEMPLATES,
-	D2_SNIPPETS,
 } from "./d2";
-import mermaid from "mermaid";
-
-// =============================================================================
-// Format Detection
-// =============================================================================
-
-/**
- * Detect diagram format from code content
- */
-export function detectDiagramFormat(code: string): DiagramFormat {
-	const trimmed = code.trim().toLowerCase();
-	
-	// Check for PlantUML
-	if (trimmed.match(/^@(start|end)(uml|mindmap|gantt|salt|wbs)/)) {
-		return "plantuml";
-	}
-	
-	// Check for Structurizr
-	if (trimmed.match(/^workspace\s*\{/)) {
-		return "structurizr";
-	}
-	
-	// Check for D2
-	if (trimmed.match(/^direction:\s*(up|down|left|right)/)) {
-		return "d2";
-	}
-	if (trimmed.match(/\w+:\s*[^->]+$/m)) {
-		return "d2";
-	}
-	
-	// Default to Mermaid
-	return "mermaid";
-}
-
-// =============================================================================
-// Unified Parsing
-// =============================================================================
-
-/**
- * Parse diagram code based on format
- */
-export function parseDiagram(
-	code: string,
-	format: DiagramFormat
-): ParseResult<ParsedPlantUmlDiagram | ParsedStructurizrWorkspace | ParsedD2Diagram> {
-	switch (format) {
-		case "plantuml": {
-			const { parsed, errors } = parsePlantUML(code);
-			return {
-				success: errors.length === 0,
-				data: parsed || undefined,
-				errors: errors.length > 0 ? errors : undefined,
-			};
-		}
-		case "structurizr": {
-			const { parsed, errors } = parseStructurizr(code);
-			return {
-				success: errors.length === 0,
-				data: parsed || undefined,
-				errors: errors.length > 0 ? errors : undefined,
-			};
-		}
-		case "d2": {
-			const { parsed, errors } = parseD2(code);
-			return {
-				success: errors.length === 0,
-				data: parsed || undefined,
-				errors: errors.length > 0 ? errors : undefined,
-			};
-		}
-		case "mermaid":
-			// Mermaid is handled by the library directly
-			return { success: true };
-		default:
-			return { success: false, errors: [{ line: 0, column: 0, message: "Unknown format" }] };
-	}
-}
-
-// =============================================================================
-// Unified Formatting
-// =============================================================================
-
-/**
- * Format diagram code based on format
- */
-export function formatDiagram(code: string, format: DiagramFormat): string {
-	switch (format) {
-		case "plantuml":
-			return formatPlantUML(code);
-		case "structurizr":
-			return formatStructurizr(code);
-		case "d2":
-			return formatD2(code);
-		case "mermaid":
-			// Mermaid doesn't need special formatting
-			return code;
-		default:
-			return code;
-	}
-}
-
-// =============================================================================
-// Unified Validation
-// =============================================================================
-
-/**
- * Validate diagram code and return errors
- */
-export function validateDiagram(code: string, format: DiagramFormat) {
-	switch (format) {
-		case "plantuml":
-			return validatePlantUML(code);
-		case "structurizr":
-			return validateStructurizr(code);
-		case "d2":
-			return validateD2(code);
-		case "mermaid":
-			// Mermaid validation is done client-side
-			return [];
-		default:
-			return [];
-	}
-}
-
-// =============================================================================
-// Auto-complete
-// =============================================================================
-
-/**
- * Get auto-complete suggestions for the given format
- */
-export function getAutocompleteSuggestions(
-	code: string,
-	format: DiagramFormat,
-	position: { line: number; column: number }
-) {
-	switch (format) {
-		case "plantuml":
-			return getPlantUmlSuggestions(code, position);
-		case "structurizr":
-			return getStructurizrSuggestions(code, position);
-		case "d2":
-			return getD2Suggestions(code, position);
-		case "mermaid":
-			return [];
-		default:
-			return [];
-	}
-}
-
-// =============================================================================
-// Templates and Snippets
-// =============================================================================
-
-/**
- * Get templates for the given format
- */
-export function getDiagramTemplates(format: DiagramFormat) {
-	switch (format) {
-		case "plantuml":
-			return PLANTUML_TEMPLATES;
-		case "structurizr":
-			return STRUCTURIZR_TEMPLATES;
-		case "d2":
-			return D2_TEMPLATES;
-		case "mermaid":
-			return [];
-		default:
-			return [];
-	}
-}
-
-/**
- * Get code snippets for the given format
- */
-export function getDiagramSnippets(format: DiagramFormat) {
-	switch (format) {
-		case "plantuml":
-			return PLANTUML_SNIPPETS;
-		case "structurizr":
-			return STRUCTURIZR_SNIPPETS;
-		case "d2":
-			return D2_SNIPPETS;
-		case "mermaid":
-			return [];
-		default:
-			return [];
-	}
-}
+export {
+	detectDiagramFormat,
+	formatDiagram,
+	getAutocompleteSuggestions,
+	getDiagramSnippets,
+	getDiagramStats,
+	getDiagramTemplates,
+	parseDiagram,
+	validateDiagram,
+} from "./code-tools";
 
 // =============================================================================
 // Rendering
@@ -284,6 +83,8 @@ export async function renderMermaid(
 	theme: DiagramTheme = "default"
 ): Promise<RenderResult> {
 	try {
+		const { default: mermaid } = await import("mermaid");
+
 		// Configure mermaid
 		mermaid.initialize({
 			startOnLoad: false,
@@ -636,58 +437,4 @@ export function getExportExtension(format: DiagramFormat, type: "svg" | "png" | 
 		dsl: ".dsl",
 	};
 	return extensions[type] || ".txt";
-}
-
-// =============================================================================
-// Stats and Analysis
-// =============================================================================
-
-/**
- * Get diagram statistics
- */
-export function getDiagramStats(
-	code: string,
-	format: DiagramFormat
-): {
-	lineCount: number;
-	charCount: number;
-	elementCount?: number;
-	relationshipCount?: number;
-} {
-	const lines = code.split("\n").filter((l) => l.trim());
-	const parsed = parseDiagram(code, format);
-
-	let elementCount = 0;
-	let relationshipCount = 0;
-
-	if (parsed.success && parsed.data) {
-		if ("elements" in parsed.data) {
-			elementCount = parsed.data.elements.length;
-			relationshipCount = parsed.data.relationships.length;
-		} else if ("model" in parsed.data) {
-			const model = parsed.data.model as {
-				people: unknown[];
-				softwareSystems: unknown[];
-				containers: unknown[];
-				components: unknown[];
-				relationships: unknown[];
-			};
-			elementCount =
-				model.people.length +
-				model.softwareSystems.length +
-				model.containers.length +
-				model.components.length;
-			relationshipCount = model.relationships.length;
-		} else if ("objects" in parsed.data) {
-			elementCount = parsed.data.objects.length;
-			relationshipCount = parsed.data.connections.length;
-		}
-	}
-	
-	return {
-		lineCount: lines.length,
-		charCount: code.length,
-		elementCount,
-		relationshipCount,
-	};
 }

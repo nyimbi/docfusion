@@ -553,10 +553,38 @@ export function GraphicPreview({
 
 			<div
 				ref={containerRef}
+				role="button"
+				tabIndex={0}
+				aria-label="Interactive graphic preview"
 				className={cn(
 					"flex-1 overflow-hidden relative",
 					shouldShowControls && "cursor-grab"
 				)}
+				onKeyDown={(event) => {
+					const panStep = 24;
+					if (event.key === "ArrowUp") {
+						event.preventDefault();
+						setTransform((prev: ViewTransform) => calculatePan(prev, 0, panStep));
+					} else if (event.key === "ArrowDown") {
+						event.preventDefault();
+						setTransform((prev: ViewTransform) => calculatePan(prev, 0, -panStep));
+					} else if (event.key === "ArrowLeft") {
+						event.preventDefault();
+						setTransform((prev: ViewTransform) => calculatePan(prev, panStep, 0));
+					} else if (event.key === "ArrowRight") {
+						event.preventDefault();
+						setTransform((prev: ViewTransform) => calculatePan(prev, -panStep, 0));
+					} else if (event.key === "+" || event.key === "=") {
+						event.preventDefault();
+						handleZoomIn();
+					} else if (event.key === "-") {
+						event.preventDefault();
+						handleZoomOut();
+					} else if (event.key === "0") {
+						event.preventDefault();
+						handleReset();
+					}
+				}}
 				onMouseDown={shouldShowControls ? handleMouseDown : undefined}
 				onMouseMove={shouldShowControls ? handleMouseMove : undefined}
 				onMouseUp={shouldShowControls ? handleMouseUp : undefined}

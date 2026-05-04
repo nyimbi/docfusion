@@ -299,7 +299,35 @@ export function DiagramPreview({
 
 			{/* Preview Area */}
 			<div
+				role="button"
+				tabIndex={0}
+				aria-label="Interactive diagram preview"
 				className="flex-1 overflow-hidden flex items-center justify-center bg-muted/20 relative cursor-grab active:cursor-grabbing"
+				onKeyDown={(event) => {
+					const panStep = 24;
+					if (event.key === "ArrowUp") {
+						event.preventDefault();
+						setPan((prev) => ({ ...prev, y: prev.y + panStep }));
+					} else if (event.key === "ArrowDown") {
+						event.preventDefault();
+						setPan((prev) => ({ ...prev, y: prev.y - panStep }));
+					} else if (event.key === "ArrowLeft") {
+						event.preventDefault();
+						setPan((prev) => ({ ...prev, x: prev.x + panStep }));
+					} else if (event.key === "ArrowRight") {
+						event.preventDefault();
+						setPan((prev) => ({ ...prev, x: prev.x - panStep }));
+					} else if (event.key === "+" || event.key === "=") {
+						event.preventDefault();
+						handleZoomIn();
+					} else if (event.key === "-") {
+						event.preventDefault();
+						handleZoomOut();
+					} else if (event.key === "0") {
+						event.preventDefault();
+						handleZoomReset();
+					}
+				}}
 				onMouseDown={handleMouseDown}
 				onMouseMove={handleMouseMove}
 				onMouseUp={handleMouseUp}

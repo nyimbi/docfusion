@@ -102,19 +102,7 @@ export function DiagramInsertDialog({
 	const [isCopied, setIsCopied] = React.useState(false);
 	const previewRef = React.useRef<HTMLDivElement>(null);
 
-	// Validate code when content changes
-	React.useEffect(() => {
-		validateCode();
-	}, [state.code, state.type]);
-
-	// Render preview when switching to preview tab
-	React.useEffect(() => {
-		if (activeTab === "preview" && state.isValid) {
-			renderPreview();
-		}
-	}, [activeTab, state.code, state.isValid]);
-
-	const validateCode = () => {
+	const validateCode = React.useCallback(() => {
 		let isValid = true;
 		let error: string | undefined;
 
@@ -154,9 +142,9 @@ export function DiagramInsertDialog({
 			isValid,
 			error,
 		}));
-	};
+	}, [state.code, state.type]);
 
-	const renderPreview = async () => {
+	const renderPreview = React.useCallback(async () => {
 		try {
 			// For Mermaid, we use the browser bundle
 			const mermaidLib = (window as Window & { mermaid?: { render: (id: string, code: string) => Promise<{ svg: string }> } }).mermaid;
@@ -178,7 +166,19 @@ export function DiagramInsertDialog({
 			console.error("Preview error:", err);
 			setState((prev) => ({ ...prev, error: "Preview failed" }));
 		}
-	};
+	}, [state.code, state.type]);
+
+	// Validate code when content changes
+	React.useEffect(() => {
+		validateCode();
+	}, [validateCode]);
+
+	// Render preview when switching to preview tab
+	React.useEffect(() => {
+		if (activeTab === "preview" && state.isValid) {
+			renderPreview();
+		}
+	}, [activeTab, renderPreview, state.isValid]);
 
 	const handleInsert = () => {
 		if (!editor || !state.isValid) return;
