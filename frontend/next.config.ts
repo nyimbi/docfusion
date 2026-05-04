@@ -77,13 +77,7 @@ const withPWA = withPWAInit({
 const nextConfig: NextConfig = {
 	// Enable React strict mode
 	reactStrictMode: true,
-	// Transpile auth packages that may have ESM/CJS issues
-	transpilePackages: [
-		"better-auth",
-		"@daveyplate/better-auth-ui",
-		"@better-auth/passkey",
-		"@daveyplate/better-auth-tanstack",
-	],
+	serverExternalPackages: ["pdf-parse"],
 	// Webpack configuration to handle Node.js modules
 	webpack: (config, { isServer }) => {
 		// Handle node: prefixed modules - only for client builds

@@ -1,103 +1,235 @@
 /**
  * DocFusion Authentication System
  *
- * Better Auth configuration with Datacraft organization enforcement.
- * All users are members of the Datacraft organization.
+ * Next-Auth (Auth.js v5) with Keycloak OIDC provider.
+ * Replaces better-auth for SSO integration with PJS infrastructure.
  */
 
-import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { nextCookies } from "better-auth/next-js";
+import NextAuth from "next-auth";
+import Keycloak from "next-auth/providers/keycloak";
+import type { JWT } from "next-auth/jwt";
 import { db } from "@/lib/db";
-import { user, session, account, verification, organization } from "@/lib/db/auth-schema";
+import { user, organization } from "@/lib/db/auth-schema";
 import { eq } from "drizzle-orm";
 
-// Get database connection
-import { Pool } from "pg";
+function decodeJwtPayload(token: string): Record<string, unknown> {
+	return JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+}
 
-// PostgreSQL pool for Better Auth
-const pgPool = new Pool({
-	connectionString: process.env.DATABASE_URL,
-});
+function stringClaim(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim().length > 0
+		? value
+		: undefined;
+}
 
-// ============================================================================
-// Better Auth Configuration
-// ============================================================================
+async function ensureDatacraftOrganization() {
+	const existing = await getDatacraftOrganization();
+	if (existing) return existing;
 
-export const auth = betterAuth({
-	// Database adapter using Drizzle
-	database: drizzleAdapter(db, { 
-			provider: "pg", 
-			schema: { user, session, account, verification, organization }
+	const [created] = await db
+		.insert(organization)
+		.values({
+			id: crypto.randomUUID(),
+			name: "Datacraft",
+			slug: "datacraft",
+			description: "Datacraft Consulting & Technology",
+			industry: "Technology & Consulting",
+			size: "small",
+			location: "South Africa",
+			contactEmail: "info@datacraft.co.za",
+			isActive: true,
+		})
+		.returning();
+
+	return created;
+}
+
+async function syncKeycloakUser(decoded: Record<string, unknown>) {
+	const keycloakSub = stringClaim(decoded.sub);
+	if (!keycloakSub) {
+		throw new Error("Keycloak token is missing sub");
+	}
+
+	const email =
+		stringClaim(decoded.email) ??
+		`${keycloakSub}@keycloak.local`;
+	const name =
+		stringClaim(decoded.name) ??
+		(
+			[stringClaim(decoded.given_name), stringClaim(decoded.family_name)]
+				.filter(Boolean)
+				.join(" ") || email
+		);
+	const image = stringClaim(decoded.picture);
+	const datacraft = await ensureDatacraftOrganization();
+
+	const existing =
+		(await db.query.user.findFirst({
+			where: eq(user.keycloakId, keycloakSub),
+		})) ??
+		(await db.query.user.findFirst({
+			where: eq(user.email, email),
+		}));
+
+	if (existing) {
+		const [updated] = await db
+			.update(user)
+			.set({
+				keycloakId: keycloakSub,
+				name,
+				email,
+				image,
+				emailVerified: decoded.email_verified === true,
+				organizationId: existing.organizationId ?? datacraft.id,
+				isActive: true,
+				updatedAt: new Date(),
+			})
+			.where(eq(user.id, existing.id))
+			.returning();
+		return updated;
+	}
+
+	const [created] = await db
+		.insert(user)
+		.values({
+			id: crypto.randomUUID(),
+			keycloakId: keycloakSub,
+			name,
+			email,
+			image,
+			emailVerified: decoded.email_verified === true,
+			organizationId: datacraft.id,
+			role: "member",
+			isActive: true,
+		})
+		.returning();
+	return created;
+}
+
+async function refreshAccessToken(token: JWT): Promise<JWT> {
+	try {
+		const res = await fetch(
+			`${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/x-www-form-urlencoded" },
+				body: new URLSearchParams({
+					client_id: process.env.KEYCLOAK_CLIENT_ID!,
+					client_secret: process.env.KEYCLOAK_CLIENT_SECRET!,
+					grant_type: "refresh_token",
+					refresh_token: token.refreshToken as string,
+				}),
+				cache: "no-store",
+			},
+		);
+		if (!res.ok) throw new Error("Refresh failed");
+		const data = await res.json();
+		const decoded = decodeJwtPayload(data.access_token);
+		const roles = (decoded.realm_access as { roles?: string[] })?.roles ?? [];
+		const localUser = await syncKeycloakUser(decoded);
+
+		return {
+			...token,
+			accessToken: data.access_token,
+			refreshToken: data.refresh_token ?? token.refreshToken,
+			idToken: data.id_token ?? token.idToken,
+			accessTokenExpires: Date.now() + data.expires_in * 1000,
+			keycloakSub: decoded.sub as string,
+			localUserId: localUser.id,
+			organizationId: localUser.organizationId,
+			role: localUser.role,
+			roles,
+			error: undefined,
+		};
+	} catch {
+		return { ...token, error: "RefreshAccessTokenError" };
+	}
+}
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+	providers: [
+		Keycloak({
+			clientId: process.env.KEYCLOAK_CLIENT_ID!,
+			clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
+			issuer: process.env.KEYCLOAK_ISSUER!,
 		}),
-	
-	// User schema with organization fields
-	user: {
-		modelName: "user",
-		additionalFields: {
-			organizationId: {
-				type: "string",
-				required: false,
-			},
-			role: {
-				type: "string",
-				required: false,
-			},
-			department: {
-				type: "string",
-				required: false,
-			},
-			jobTitle: {
-				type: "string",
-				required: false,
-			},
-			skills: {
-				type: "string",
-				required: false,
-			},
-			bio: {
-				type: "string",
-				required: false,
-			},
-		},
-	},
-	
-	// Email and password authentication
-	emailAndPassword: {
-		enabled: true,
-		autoSignIn: true, // Auto sign in after registration
-	},
-	
-	// Session configuration
-	session: {
-		expiresIn: 60 * 60 * 24, // 24 hours
-		updateAge: 60 * 60, // 1 hour
-	},
-	
-	// Cookie configuration
-	cookies: {
-		sessionToken: {
-			httpOnly: true,
-			secure: process.env.NODE_ENV === "production",
-			sameSite: "lax",
-			maxAge: 60 * 60 * 24 * 7, // 7 days
-		},
-	},
-
-	// Plugins
-	plugins: [
-		// nextCookies plugin for proper cookie handling in Next.js
-		// Automatically sets cookies when Set-Cookie headers are present
-		nextCookies(),
 	],
+	session: { strategy: "jwt" },
+	pages: { signIn: "/auth/sign-in" },
+	trustHost: true,
+	callbacks: {
+		jwt: async ({ token, account }) => {
+			if (account) {
+				const decoded = decodeJwtPayload(account.access_token!);
+				const roles = (decoded.realm_access as { roles?: string[] })?.roles ?? [];
+				const localUser = await syncKeycloakUser(decoded);
+				return {
+					...token,
+					accessToken: account.access_token,
+					refreshToken: account.refresh_token,
+					idToken: account.id_token,
+					accessTokenExpires: account.expires_at
+						? account.expires_at * 1000
+						: Date.now() + 300_000,
+					keycloakSub: decoded.sub as string,
+					localUserId: localUser.id,
+					organizationId: localUser.organizationId,
+					role: localUser.role,
+					roles,
+				};
+			}
+			if (
+				token.accessTokenExpires &&
+				Date.now() < (token.accessTokenExpires as number) - 30_000
+			) {
+				return token;
+			}
+			return refreshAccessToken(token);
+		},
+		session: async ({ session, token }) => {
+			if (token.localUserId) session.user.id = token.localUserId as string;
+			if (token.keycloakSub) {
+				session.user.keycloakId = token.keycloakSub;
+			}
+			if (token.organizationId) {
+				session.user.organizationId = token.organizationId;
+			}
+			if (token.role) {
+				session.user.role = token.role;
+			}
+			if (token.roles) {
+				session.user.roles = token.roles;
+			}
+			if (token.error) {
+				session.error = token.error;
+			}
+			return session;
+		},
+	},
+	events: {
+		// Backchannel logout — end Keycloak SSO session on sign out
+		signOut: async (message) => {
+			const token = "token" in message ? message.token : null;
+			if (!token?.idToken) return;
+			try {
+				await fetch(
+					`${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/logout`,
+					{
+						method: "POST",
+						headers: { "Content-Type": "application/x-www-form-urlencoded" },
+						body: new URLSearchParams({
+							id_token_hint: token.idToken as string,
+							client_id: process.env.KEYCLOAK_CLIENT_ID!,
+							client_secret: process.env.KEYCLOAK_CLIENT_SECRET!,
+						}),
+					},
+				);
+			} catch {
+				// Ignore logout errors
+			}
+		},
+	},
 });
-
-// ============================================================================
-// Type Exports
-// ============================================================================
-
-export type AuthUser = typeof auth.$Infer.Session.user;
-export type AuthSession = typeof auth.$Infer.Session;
 
 // ============================================================================
 // Organization Helper Functions
@@ -122,7 +254,7 @@ export async function isDatacraftMember(userId: string): Promise<boolean> {
 			organization: true,
 		},
 	});
-	
+
 	return userRecord?.organization?.slug === "datacraft";
 }
 
@@ -133,7 +265,7 @@ export async function getUserRole(userId: string): Promise<string | null> {
 	const userRecord = await db.query.user.findFirst({
 		where: eq(user.id, userId),
 	});
-	
+
 	return userRecord?.role ?? null;
 }
 

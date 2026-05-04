@@ -46,6 +46,8 @@ export const user = pgTable(
 		email: text("email").notNull().unique(),
 		emailVerified: boolean("email_verified").default(false).notNull(),
 		image: text("image"),
+		// Keycloak identity mapping
+		keycloakId: text("keycloak_id").unique(),
 		// Organization membership
 		organizationId: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
 		// Role within the organization
@@ -68,6 +70,7 @@ export const user = pgTable(
 	(table) => [
 		index("user_org_idx").on(table.organizationId),
 		index("user_email_idx").on(table.email),
+		index("user_keycloak_idx").on(table.keycloakId),
 	]
 );
 

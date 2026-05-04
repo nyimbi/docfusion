@@ -1,7 +1,7 @@
 /**
  * Next.js Middleware for Route Protection and API Rate Limiting
  *
- * Protects application routes by checking for valid session cookies.
+ * Protects application routes by checking for valid Next-Auth session.
  * Redirects unauthenticated users to sign-in and authenticated users
  * away from auth pages.
  *
@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionCookie } from "better-auth/cookies";
+import { getToken } from "next-auth/jwt";
 
 // ---------------------------------------------------------------------------
 // Rate limiting configuration and store
@@ -145,20 +145,25 @@ export async function middleware(request: NextRequest) {
 		return response;
 	}
 
-	// ---- Auth route protection (existing logic) ----
-	const sessionCookie = getSessionCookie(request);
+	// ---- Auth route protection ----
+	// Check for Next-Auth JWT token in cookies
+	const token = await getToken({
+		req: request,
+		secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+	});
+	const isAuthenticated = !!token;
 
 	// Allow public paths and static assets
 	if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
 		// Redirect authenticated users away from auth pages to main app
-		if (sessionCookie && AUTH_PATHS.some((p) => pathname.startsWith(p))) {
+		if (isAuthenticated && AUTH_PATHS.some((p) => pathname.startsWith(p))) {
 			return NextResponse.redirect(new URL("/documents", request.url));
 		}
 		return NextResponse.next();
 	}
 
 	// Redirect unauthenticated users to sign-in
-	if (!sessionCookie) {
+	if (!isAuthenticated) {
 		const signInUrl = new URL("/auth/sign-in", request.url);
 		signInUrl.searchParams.set("callbackUrl", pathname);
 		return NextResponse.redirect(signInUrl);

@@ -8,12 +8,12 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { user, session } from "@/lib/db/auth-schema";
+import { user } from "@/lib/db/auth-schema";
 import { opportunities, documents, templates } from "@/lib/db/schema";
 import { contacts, accounts } from "@/lib/db/schema-crm";
 import { rfpDocuments } from "@/lib/db/schema-rfp";
 import { templateSnippets } from "@/lib/db/schema-additions";
-import { eq, and, ne, count, sql, sum } from "drizzle-orm";
+import { eq, and, count, sql, sum } from "drizzle-orm";
 import { requireServerSession, getServerSession } from "@/lib/auth-utils";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -337,34 +337,21 @@ export async function getUserSessions(): Promise<UserSession[]> {
 	if (!sessionData?.user?.id) return [];
 
 	const headersList = await headers();
-	const currentSessionToken = headersList.get("cookie")?.match(/better-auth\.session_token=([^;]+)/)?.[1];
+	const ua = headersList.get("user-agent") ?? "Unknown device";
+	const ipAddress =
+		headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+		headersList.get("x-real-ip");
 
-	const sessions = await db
-		.select({
-			id: session.id,
-			token: session.token,
-			userAgent: session.userAgent,
-			ipAddress: session.ipAddress,
-			createdAt: session.createdAt,
-			updatedAt: session.updatedAt,
-		})
-		.from(session)
-		.where(eq(session.userId, sessionData.user.id));
-
-	return sessions.map((s) => {
-		const ua = s.userAgent ?? "Unknown device";
-		const device = parseUserAgent(ua);
-		const isCurrent = s.token === currentSessionToken;
-
-		return {
-			id: s.id,
-			device,
-			location: "Unknown", // Would need IP geolocation service
-			current: isCurrent,
-			lastActive: isCurrent ? "Now" : formatRelativeTime(s.updatedAt),
-			ipAddress: s.ipAddress,
-		};
-	});
+	return [
+		{
+			id: "current",
+			device: parseUserAgent(ua),
+			location: "Unknown",
+			current: true,
+			lastActive: "Now",
+			ipAddress,
+		},
+	];
 }
 
 /**
@@ -372,22 +359,11 @@ export async function getUserSessions(): Promise<UserSession[]> {
  */
 export async function revokeSession(sessionId: string): Promise<{ success: boolean; error?: string }> {
 	try {
-		const sessionData = await requireServerSession();
-
-		// Verify the session belongs to the current user
-		const [targetSession] = await db
-			.select({ userId: session.userId })
-			.from(session)
-			.where(eq(session.id, sessionId));
-
-		if (!targetSession || targetSession.userId !== sessionData.user.id) {
-			return { success: false, error: "Session not found" };
-		}
-
-		await db.delete(session).where(eq(session.id, sessionId));
-
-		revalidatePath("/settings");
-		return { success: true };
+		await requireServerSession();
+		return {
+			success: false,
+			error: "Sessions are managed by Keycloak. Sign out from Keycloak to revoke active sessions.",
+		};
 	} catch (error) {
 		logger.error("Failed to revoke session:", error);
 		return { success: false, error: "Failed to revoke session" };
@@ -402,49 +378,13 @@ export async function changePassword(
 	newPassword: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		const sessionData = await requireServerSession();
-
-		// Validate new password requirements
-		if (newPassword.length < 8) {
-			return { success: false, error: "New password must be at least 8 characters" };
-		}
-
-		// Get user's current password hash
-		const [userData] = await db
-			.select({ id: user.id, password: sql<string>`password` })
-			.from(sql`"user"`)
-			.where(eq(user.id, sessionData.user.id));
-
-		if (!userData) {
-			return { success: false, error: "User not found" };
-		}
-
-		// Verify current password using bcryptjs comparison (pure JS, works in serverless)
-		const bcrypt = await import("bcryptjs");
-		const isValidPassword = await bcrypt.compare(currentPassword, userData.password || "");
-
-		if (!isValidPassword) {
-			return { success: false, error: "Current password is incorrect" };
-		}
-
-		// Hash new password
-		const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-		// Update password in database
-		await db
-			.update(user)
-			.set({
-				updatedAt: new Date(),
-			})
-			.where(eq(user.id, sessionData.user.id));
-
-		// Update the password hash directly (Better Auth stores it in user table)
-		await db.execute(
-			sql`UPDATE "user" SET password = ${hashedPassword} WHERE id = ${sessionData.user.id}`
-		);
-
-		revalidatePath("/settings");
-		return { success: true };
+		await requireServerSession();
+		void currentPassword;
+		void newPassword;
+		return {
+			success: false,
+			error: "Passwords are managed by Keycloak. Use the Keycloak account settings flow to change your password.",
+		};
 	} catch (error) {
 		logger.error("Failed to change password:", error);
 		return { success: false, error: "Failed to change password" };
@@ -456,26 +396,11 @@ export async function changePassword(
  */
 export async function revokeAllOtherSessions(): Promise<{ success: boolean; error?: string }> {
 	try {
-		const sessionData = await requireServerSession();
-
-		const headersList = await headers();
-		const currentSessionToken = headersList.get("cookie")?.match(/better-auth\.session_token=([^;]+)/)?.[1];
-
-		if (!currentSessionToken) {
-			return { success: false, error: "Could not identify current session" };
-		}
-
-		await db
-			.delete(session)
-			.where(
-				and(
-					eq(session.userId, sessionData.user.id),
-					ne(session.token, currentSessionToken)
-				)
-			);
-
-		revalidatePath("/settings");
-		return { success: true };
+		await requireServerSession();
+		return {
+			success: false,
+			error: "Sessions are managed by Keycloak. Use Keycloak account settings to revoke other sessions.",
+		};
 	} catch (error) {
 		logger.error("Failed to revoke sessions:", error);
 		return { success: false, error: "Failed to revoke sessions" };
@@ -877,10 +802,7 @@ export async function deleteUserAccount(): Promise<{ success: boolean; error?: s
 			return { success: false, error: dataResult.error || "Failed to delete user data" };
 		}
 
-		// 2. Delete all sessions for this user
-		await db.delete(session).where(eq(session.userId, userId));
-
-		// 3. Delete the user account
+		// 2. Delete the local user account. Keycloak remains the identity owner.
 		await db.delete(user).where(eq(user.id, userId));
 
 		logger.debug(`[DANGER] Account deleted for user: ${userId}`);
