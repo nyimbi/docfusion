@@ -1,6 +1,6 @@
 "use client";
 
-type SentryBrowserModule = typeof import("@sentry/nextjs");
+type SentryBrowserModule = typeof import("@sentry/browser");
 
 let sentry: SentryBrowserModule | null = null;
 let initPromise: Promise<SentryBrowserModule | null> | null = null;
@@ -11,7 +11,7 @@ async function getSentry(): Promise<SentryBrowserModule | null> {
 
 	if (sentry) return sentry;
 	if (!initPromise) {
-		initPromise = import("@sentry/nextjs")
+		initPromise = import("@sentry/browser")
 			.then((mod) => {
 				mod.init({
 					dsn,
