@@ -102,6 +102,26 @@ interface RfpParseWorkflowHistoryEntry {
 	error?: string;
 }
 
+type RfpAmendmentImpactMode = "supersede" | "supplement" | "clarify";
+
+interface ApplyRfpAmendmentInput {
+	amendmentDocumentId: string;
+	targetDocumentId: string;
+	reason: string;
+	impactMode?: RfpAmendmentImpactMode;
+	impactedRequirementIds?: string[];
+}
+
+interface ApplyRfpAmendmentResult {
+	success: boolean;
+	amendmentDocumentId: string;
+	targetDocumentId: string;
+	impactMode: RfpAmendmentImpactMode;
+	impactedRequirementIds: string[];
+	workflowInstanceId?: string;
+	error?: string;
+}
+
 // ============================================================================
 // RFP Document Actions
 // ============================================================================
@@ -891,6 +911,216 @@ export async function reviewRfpParseConfidence(input: {
 	} catch (error) {
 		logger.error("Error reviewing RFP parse confidence:", error);
 		return { success: false, error: "Failed to review parser output" };
+	}
+}
+
+/**
+ * Apply an amendment against an existing RFP document and push affected
+ * requirements back into impact review.
+ */
+export async function applyRfpAmendmentSupersession(
+	input: ApplyRfpAmendmentInput
+): Promise<ApplyRfpAmendmentResult> {
+	const reason = input.reason.trim();
+	const impactMode = input.impactMode ?? "supplement";
+	if (!reason) {
+		return {
+			success: false,
+			amendmentDocumentId: input.amendmentDocumentId,
+			targetDocumentId: input.targetDocumentId,
+			impactMode,
+			impactedRequirementIds: [],
+			error: "Amendment impact reason is required",
+		};
+	}
+
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		return {
+			success: false,
+			amendmentDocumentId: input.amendmentDocumentId,
+			targetDocumentId: input.targetDocumentId,
+			impactMode,
+			impactedRequirementIds: [],
+			error: "Not authenticated",
+		};
+	}
+
+	try {
+		return await db.transaction(async (tx) => {
+			await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.amendmentDocumentId}))`);
+
+			const amendment = await tx.query.rfpDocuments.findFirst({
+				where: eq(rfpDocuments.id, input.amendmentDocumentId),
+			});
+			const target = await tx.query.rfpDocuments.findFirst({
+				where: eq(rfpDocuments.id, input.targetDocumentId),
+			});
+			if (!amendment || !target) {
+				return {
+					success: false,
+					amendmentDocumentId: input.amendmentDocumentId,
+					targetDocumentId: input.targetDocumentId,
+					impactMode,
+					impactedRequirementIds: [],
+					error: !amendment ? "Amendment document not found" : "Target RFP document not found",
+				};
+			}
+			if (amendment.opportunityId && target.opportunityId && amendment.opportunityId !== target.opportunityId) {
+				return {
+					success: false,
+					amendmentDocumentId: amendment.id,
+					targetDocumentId: target.id,
+					impactMode,
+					impactedRequirementIds: [],
+					error: "Amendment and target RFP belong to different opportunities",
+				};
+			}
+
+			const impactedRows = await tx
+				.select()
+				.from(rfpRequirements)
+				.where(input.impactedRequirementIds?.length
+					? inArray(rfpRequirements.id, input.impactedRequirementIds)
+					: eq(rfpRequirements.rfpDocumentId, target.id));
+
+			const now = new Date();
+			const impactedRequirementIds = impactedRows.map((row) => row.id);
+			for (const row of impactedRows) {
+				const metadata = mergeRecordMetadata(row.metadata);
+				const workflow = metadata.workflow && typeof metadata.workflow === "object" && !Array.isArray(metadata.workflow)
+					? metadata.workflow as Record<string, unknown>
+					: {};
+				const previousWorkflowState = typeof workflow.state === "string" ? workflow.state : "review";
+				await tx.update(rfpRequirements).set({
+					complianceStatus: row.complianceStatus === "compliant" ? "partial" : row.complianceStatus,
+					metadata: {
+						...metadata,
+						workflow: {
+							...workflow,
+							state: "review",
+							reason: `Amendment ${amendment.filename} requires impact review: ${reason}`,
+							updatedAt: now.toISOString(),
+						},
+						amendmentImpact: {
+							state: "impact_review",
+							impactMode,
+							amendmentDocumentId: amendment.id,
+							targetDocumentId: target.id,
+							previousWorkflowState,
+							previousComplianceStatus: row.complianceStatus,
+							reason,
+							actorId: userId,
+							at: now.toISOString(),
+						},
+					},
+					updatedAt: now,
+				}).where(eq(rfpRequirements.id, row.id));
+			}
+
+			const amendmentMetadata = mergeRecordMetadata(amendment.metadata);
+			const targetMetadata = mergeRecordMetadata(target.metadata);
+			await tx.update(rfpDocuments).set({
+				metadata: {
+					...amendmentMetadata,
+					documentRole: "amendment",
+					amendmentWorkflow: {
+						state: "impact_review",
+						impactMode,
+						targetDocumentId: target.id,
+						impactedRequirementIds,
+						reason,
+						actorId: userId,
+						at: now.toISOString(),
+					},
+				},
+				updatedAt: now,
+			}).where(eq(rfpDocuments.id, amendment.id));
+
+			await tx.update(rfpDocuments).set({
+				metadata: {
+					...targetMetadata,
+					supersession: {
+						state: impactMode === "supersede" ? "superseded_by_amendment" : "amended",
+						amendmentDocumentId: amendment.id,
+						impactMode,
+						impactedRequirementCount: impactedRequirementIds.length,
+						reason,
+						actorId: userId,
+						at: now.toISOString(),
+					},
+				},
+				updatedAt: now,
+			}).where(eq(rfpDocuments.id, target.id));
+
+			const runtimeInstance = await recordWorkflowRuntimeTransition({
+				workflowKey: "rfp_amendment_supersession",
+				subjectType: "rfp_document",
+				subjectId: amendment.id,
+				opportunityId: amendment.opportunityId ?? target.opportunityId,
+				fromState: "uploaded",
+				toState: "impact_review",
+				eventType: "rfp_amendment_applied",
+				actorId: userId,
+				reason,
+				priority: impactMode === "supersede" ? "critical" : "high",
+				assignedRole: "proposal_manager",
+				dueAt: addHours(now, impactMode === "supersede" ? 4 : 12),
+				visibility: "internal",
+				authorityPolicy: {
+					requiredRoles: ["proposal_manager", "capture_manager"],
+					escalationRole: "operations",
+				},
+				metadata: {
+					amendmentFilename: amendment.filename,
+					targetDocumentId: target.id,
+					targetFilename: target.filename,
+					impactMode,
+					impactedRequirementIds,
+					impactedRequirementCount: impactedRequirementIds.length,
+				},
+				actionUrl: target.opportunityId
+					? `/opportunities/${target.opportunityId}/requirements`
+					: undefined,
+			}, tx);
+
+			await upsertWorkflowRuntimeTask({
+				workflowInstanceId: runtimeInstance.id,
+				taskKey: `rfp-amendment-impact:${amendment.id}`,
+				title: `Review amendment impact for ${amendment.filename}`,
+				description: `${impactedRequirementIds.length} requirement${impactedRequirementIds.length === 1 ? "" : "s"} need impact review: ${reason}`,
+				state: "open",
+				priority: impactMode === "supersede" ? "critical" : "high",
+				assignedRole: "proposal_manager",
+				dueAt: addHours(now, impactMode === "supersede" ? 4 : 12),
+				metadata: {
+					amendmentDocumentId: amendment.id,
+					targetDocumentId: target.id,
+					impactMode,
+					impactedRequirementIds,
+				},
+			}, tx);
+
+			revalidatePath(target.opportunityId ? `/opportunities/${target.opportunityId}/requirements` : "/requirements");
+			return {
+				success: true,
+				amendmentDocumentId: amendment.id,
+				targetDocumentId: target.id,
+				impactMode,
+				impactedRequirementIds,
+				workflowInstanceId: runtimeInstance.id,
+			};
+		});
+	} catch (error) {
+		logger.error("Error applying RFP amendment supersession:", error);
+		return {
+			success: false,
+			amendmentDocumentId: input.amendmentDocumentId,
+			targetDocumentId: input.targetDocumentId,
+			impactMode,
+			impactedRequirementIds: [],
+			error: error instanceof Error ? error.message : "Failed to apply amendment impact",
+		};
 	}
 }
 

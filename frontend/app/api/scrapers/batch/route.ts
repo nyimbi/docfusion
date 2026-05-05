@@ -30,13 +30,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { scraperSources } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
-import { scraperQueue } from "@/lib/scrapers/queue";
-import { initializeScraperQueue } from "@/lib/scrapers/runtime";
 import { requireScraperAccess } from "@/lib/scrapers/api-auth";
 import { revalidatePath } from "next/cache";
-
-// Initialize queue executor
-initializeScraperQueue();
+import { scraperQueue, type ScraperJob } from "@/lib/scrapers/queue";
+import {
+	startScraperSourceRunWorkflow,
+	transitionScraperSourceEnabledWorkflow,
+} from "@/lib/actions/scraper-workflows";
 
 type BatchOperation = "run" | "enable" | "disable" | "delete";
 
@@ -123,46 +123,42 @@ export async function POST(request: NextRequest) {
 			try {
 				switch (operation) {
 					case "run":
-						if (!source.enabled) {
-							results.push({
-								sourceId,
-								success: false,
-								error: "Source is disabled",
-							});
-						} else {
-							const jobId = await scraperQueue.add({
-								sourceId: source.id,
-								sourceKey: source.sourceId,
-								sourceName: source.name,
-								priority: options?.priority ?? (source.priority as 1 | 2 | 3),
-								tier: source.scheduleTier,
-							});
-							results.push({ sourceId, success: true, jobId });
-						}
+						const runResult = await startScraperSourceRunWorkflow(sourceId, {
+							priority: options?.priority,
+							reason: "Bulk scraper run requested by operator.",
+						});
+						results.push({
+							sourceId,
+							success: runResult.success,
+							jobId: runResult.jobId,
+							error: runResult.error,
+						});
 						break;
 
 					case "enable":
-						await db
-							.update(scraperSources)
-							.set({
-								enabled: true,
-								healthStatus: "unknown",
-								updatedAt: new Date(),
-							})
-							.where(eq(scraperSources.id, sourceId));
-						results.push({ sourceId, success: true });
+						const enableResult = await transitionScraperSourceEnabledWorkflow(
+							sourceId,
+							true,
+							"Bulk enable requested by operator."
+						);
+						results.push({
+							sourceId,
+							success: enableResult.success,
+							error: enableResult.error,
+						});
 						break;
 
 					case "disable":
-						await db
-							.update(scraperSources)
-							.set({
-								enabled: false,
-								healthStatus: "disabled",
-								updatedAt: new Date(),
-							})
-							.where(eq(scraperSources.id, sourceId));
-						results.push({ sourceId, success: true });
+						const disableResult = await transitionScraperSourceEnabledWorkflow(
+							sourceId,
+							false,
+							"Bulk disable requested by operator."
+						);
+						results.push({
+							sourceId,
+							success: disableResult.success,
+							error: disableResult.error,
+						});
 						break;
 
 					case "delete":
@@ -233,7 +229,7 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const jobs = await scraperQueue.getBatchJobs(batchId);
+		const jobs: ScraperJob[] = await scraperQueue.getBatchJobs(batchId);
 
 		const summary = {
 			total: jobs.length,

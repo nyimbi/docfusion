@@ -18,15 +18,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { scraperSources } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { scraperQueue } from "@/lib/scrapers/queue";
-import { initializeScraperQueue } from "@/lib/scrapers/runtime";
 import { requireScraperAccess } from "@/lib/scrapers/api-auth";
-
-// Initialize queue executor on module load
-initializeScraperQueue();
+import { scraperQueue } from "@/lib/scrapers/queue";
+import { startScraperSourceRunWorkflow } from "@/lib/actions/scraper-workflows";
 
 export async function POST(request: NextRequest) {
 	try {
@@ -50,38 +44,26 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		// Fetch the source
-		const source = await db.query.scraperSources.findFirst({
-			where: eq(scraperSources.id, sourceId),
+		const result = await startScraperSourceRunWorkflow(sourceId, {
+			priority,
+			reason: "Manual scraper run requested through the scraper source API.",
 		});
-
-		if (!source) {
+		if (!result.success) {
+			const status =
+				result.state === "not_found" ? 404 :
+					result.state === "blocked_disabled" || result.state === "duplicate_active" ? 409 :
+						500;
 			return NextResponse.json(
-				{ success: false, message: "Source not found" },
-				{ status: 404 }
+				{ ...result, message: result.error ?? "Unable to trigger scraper run" },
+				{ status }
 			);
 		}
-
-		if (!source.enabled) {
-			return NextResponse.json(
-				{ success: false, message: "Source is disabled" },
-				{ status: 400 }
-			);
-		}
-
-		// Add job to queue
-		const jobId = await scraperQueue.add({
-			sourceId: source.id,
-			sourceKey: source.sourceId,
-			sourceName: source.name,
-			priority: priority ?? (source.priority as 1 | 2 | 3),
-			tier: source.scheduleTier,
-		});
 
 		return NextResponse.json({
 			success: true,
-			jobId,
-			message: `Scraper job queued for ${source.name}`,
+			jobId: result.jobId,
+			state: result.state,
+			message: "Scraper job queued",
 		});
 
 	} catch (error) {

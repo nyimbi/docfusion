@@ -39,7 +39,7 @@ interface ChainConfig {
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["where", "orderBy", "limit"]) {
+	for (const method of ["from", "where", "orderBy", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	chain.set = vi.fn((value: Record<string, unknown>) => {
@@ -121,6 +121,7 @@ vi.mock("@/lib/db", () => {
 });
 
 import {
+	applyRfpAmendmentSupersession,
 	getRfpParseLifecycle,
 	reviewRfpParseConfidence,
 	transitionRfpParseWorkflow,
@@ -330,5 +331,146 @@ describe("RFP parse workflow", () => {
 			error: "Parser output can only be reviewed after parsing completes",
 		});
 		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("applies amendment supersession and projects impact review work", async () => {
+		const amendmentDocument = {
+			...documentRow,
+			id: "00000000-0000-4000-8000-000000000701",
+			filename: "amendment-01.pdf",
+			opportunityId: documentRow.opportunityId,
+			metadata: null,
+		};
+		const targetDocument = {
+			...documentRow,
+			id: "00000000-0000-4000-8000-000000000702",
+			filename: "base-rfp.pdf",
+			opportunityId: documentRow.opportunityId,
+			metadata: null,
+		};
+		const impactedRequirement = {
+			id: "00000000-0000-4000-8000-000000000801",
+			rfpDocumentId: targetDocument.id,
+			opportunityId: documentRow.opportunityId,
+			requirementNumber: "REQ-001",
+			title: "Staffing plan",
+			requirementText: "Submit a staffing plan.",
+			sourceQuote: "Staffing plan required.",
+			sourcePage: 4,
+			sourceSection: "L.4",
+			category: "management",
+			subcategory: null,
+			requirementType: "shall",
+			priority: "mandatory",
+			riskLevel: "high",
+			evaluationWeight: null,
+			extractionConfidence: 90,
+			aiAnalysis: null,
+			isImplicit: false,
+			ambiguityLevel: null,
+			clarificationQuestions: [],
+			relatedRequirements: [],
+			keyTerms: [],
+			suggestedApproach: null,
+			embedding: null,
+			complianceStatus: "compliant",
+			responseStrategy: null,
+			assignedTo: "writer-1",
+			dueDate: new Date("2026-05-15T00:00:00.000Z"),
+			responseDocumentId: null,
+			responseSection: null,
+			notes: null,
+			tags: [],
+			metadata: {
+				workflow: {
+					state: "accepted",
+					history: [],
+				},
+			},
+			createdAt: new Date("2026-04-01T00:00:00.000Z"),
+			updatedAt: new Date("2026-04-01T00:00:00.000Z"),
+		};
+		const updates: Record<string, unknown>[] = [];
+
+		dbMock.query.rfpDocuments.findFirst
+			.mockResolvedValueOnce(amendmentDocument)
+			.mockResolvedValueOnce(targetDocument);
+		dbMock.select.mockReturnValueOnce(createChain({ result: [impactedRequirement] }));
+		dbMock.update.mockReturnValue(createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+
+		const result = await applyRfpAmendmentSupersession({
+			amendmentDocumentId: amendmentDocument.id,
+			targetDocumentId: targetDocument.id,
+			impactMode: "supersede",
+			reason: "Amendment changes staffing submission instructions",
+		});
+
+		expect(result.error).toBeUndefined();
+		expect(result).toMatchObject({
+			success: true,
+			amendmentDocumentId: amendmentDocument.id,
+			targetDocumentId: targetDocument.id,
+			impactMode: "supersede",
+			impactedRequirementIds: [impactedRequirement.id],
+			workflowInstanceId: "00000000-0000-4000-8000-000000000901",
+		});
+		expect(updates[0]).toMatchObject({
+			complianceStatus: "partial",
+			metadata: {
+				workflow: expect.objectContaining({
+					state: "review",
+				}),
+				amendmentImpact: expect.objectContaining({
+					state: "impact_review",
+					impactMode: "supersede",
+					previousWorkflowState: "accepted",
+					previousComplianceStatus: "compliant",
+				}),
+			},
+		});
+		expect(updates[1]).toMatchObject({
+			metadata: {
+				documentRole: "amendment",
+				amendmentWorkflow: expect.objectContaining({
+					state: "impact_review",
+					targetDocumentId: targetDocument.id,
+					impactedRequirementIds: [impactedRequirement.id],
+				}),
+			},
+		});
+		expect(updates[2]).toMatchObject({
+			metadata: {
+				supersession: expect.objectContaining({
+					state: "superseded_by_amendment",
+					amendmentDocumentId: amendmentDocument.id,
+					impactedRequirementCount: 1,
+				}),
+			},
+		});
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				workflowKey: "rfp_amendment_supersession",
+				subjectType: "rfp_document",
+				subjectId: amendmentDocument.id,
+				toState: "impact_review",
+				priority: "critical",
+			}),
+			dbMock
+		);
+		expect(workflowRuntimeMock.upsertWorkflowRuntimeTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskKey: `rfp-amendment-impact:${amendmentDocument.id}`,
+				state: "open",
+				priority: "critical",
+				metadata: expect.objectContaining({
+					impactedRequirementIds: [impactedRequirement.id],
+				}),
+			}),
+			dbMock
+		);
 	});
 });
