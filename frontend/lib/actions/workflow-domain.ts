@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { claimAnalysis } from "@/lib/db/schema-evidence";
 import { dataImports } from "@/lib/db/schema-import";
 import { costElements } from "@/lib/db/schema-pricing";
-import { opportunities, opportunityPartners, submissions } from "@/lib/db/schema";
+import { documents, opportunities, opportunityPartners, proposalDocuments, submissions } from "@/lib/db/schema";
 import { documentApprovals } from "@/lib/db/schema-comments-workflow";
 import { gateReviews } from "@/lib/db/schema-pipeline";
 import { complianceEntries, rfpDocuments, rfpParsingJobs, rfpRequirements } from "@/lib/db/schema-rfp";
@@ -318,6 +318,30 @@ async function applyDomainCompensation(input: {
 						updatedAt: now,
 					};
 			await db.update(opportunities).set(patch).where(eq(opportunities.id, input.instance.subjectId));
+			break;
+		}
+		case "document": {
+			handler = "document_finalization";
+			const [document] = await db
+				.select()
+				.from(documents)
+				.where(eq(documents.id, input.instance.subjectId))
+				.limit(1);
+			if (!document) {
+				throw new Error("Document not found for workflow compensation");
+			}
+			patch = documentFinalizationPatch({
+				action: input.action,
+				actorId: input.actorId,
+				reason: input.reason,
+				now,
+				metadata: document.metadata,
+			});
+			await db.update(documents).set(patch).where(eq(documents.id, input.instance.subjectId));
+			await db
+				.update(proposalDocuments)
+				.set(proposalDocumentFinalizationPatch(input.action, input.actorId, input.reason, now))
+				.where(eq(proposalDocuments.documentId, input.instance.subjectId));
 			break;
 		}
 		case "rfp_parse":
@@ -731,6 +755,104 @@ function pricingPatch(action: "reopen" | "cancel" | "resolve", actorId: string, 
 		return { status: "draft", approvedBy: null, approvedAt: null, updatedAt: now };
 	}
 	return { status: "approved", approvedBy: actorId, approvedAt: now, updatedAt: now };
+}
+
+function documentFinalizationPatch(input: {
+	action: "reopen" | "cancel" | "resolve";
+	actorId: string;
+	reason: string;
+	now: Date;
+	metadata: unknown;
+}) {
+	const metadata = isRecord(input.metadata) ? input.metadata : {};
+	if (input.action === "reopen") {
+		return {
+			status: "draft",
+			metadata: {
+				...metadata,
+				finalArtifact: null,
+				finalArtifactWorkflow: {
+					state: "artifact_reopened",
+					reopenedAt: input.now.toISOString(),
+					reopenedBy: input.actorId,
+					reason: input.reason,
+				},
+				finalizationCompensation: {
+					action: input.action,
+					reason: input.reason,
+					actorId: input.actorId,
+					at: input.now.toISOString(),
+				},
+			},
+			updatedAt: input.now,
+		};
+	}
+	if (input.action === "cancel") {
+		return {
+			status: "draft",
+			metadata: {
+				...metadata,
+				finalArtifact: null,
+				finalArtifactWorkflow: {
+					state: "artifact_cancelled",
+					cancelledAt: input.now.toISOString(),
+					cancelledBy: input.actorId,
+					reason: input.reason,
+				},
+				finalizationCompensation: {
+					action: input.action,
+					reason: input.reason,
+					actorId: input.actorId,
+					at: input.now.toISOString(),
+				},
+			},
+			updatedAt: input.now,
+		};
+	}
+	return {
+		status: "final",
+		metadata: {
+			...metadata,
+			finalArtifactWorkflow: {
+				...(isRecord(metadata.finalArtifactWorkflow) ? metadata.finalArtifactWorkflow : {}),
+				state: "artifact_approved",
+				resolvedAt: input.now.toISOString(),
+				resolvedBy: input.actorId,
+				reason: input.reason,
+			},
+			finalizationCompensation: {
+				action: input.action,
+				reason: input.reason,
+				actorId: input.actorId,
+				at: input.now.toISOString(),
+			},
+		},
+		updatedAt: input.now,
+	};
+}
+
+function proposalDocumentFinalizationPatch(
+	action: "reopen" | "cancel" | "resolve",
+	actorId: string,
+	reason: string,
+	now: Date
+) {
+	if (action === "resolve") {
+		return {
+			status: "final",
+			approvedBy: actorId,
+			approvedAt: now,
+			notes: `Resolved by workflow compensation: ${reason}`,
+			updatedAt: now,
+		};
+	}
+	return {
+		status: "in_review",
+		approvedBy: null,
+		approvedAt: null,
+		notes: `${action === "reopen" ? "Reopened" : "Cancelled"} by workflow compensation: ${reason}`,
+		updatedAt: now,
+	};
 }
 
 function rfpDocumentPatch(action: "reopen" | "cancel" | "resolve", reason: string, now: Date) {

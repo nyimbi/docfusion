@@ -284,6 +284,89 @@ describe("workflow domain integrations", () => {
 		expect(claimPatch?.resolvedAt).toBeInstanceOf(Date);
 	});
 
+	it("reopens final document artifacts through domain compensation", async () => {
+		const existing = {
+			id: "workflow-1",
+			workflowKey: "final_artifact_render_export",
+			subjectType: "document",
+			subjectId: "doc-1",
+			state: "artifact_approved",
+			status: "completed",
+			metadata: {},
+		};
+		const reopened = { ...existing, state: "artifact_reopened", status: "active" };
+		const template = {
+			templateKey: existing.workflowKey,
+			version: 1,
+			status: "active",
+			transitions: [
+				{ action: "reopen", from: ["artifact_approved"], to: "artifact_reopened", requiredRoles: ["proposal_manager"] },
+			],
+		};
+		const document = {
+			id: "doc-1",
+			status: "final",
+			metadata: {
+				finalArtifact: { artifactHash: "a".repeat(64), filename: "proposal.docx" },
+			},
+		};
+		let documentPatch: Record<string, unknown> | undefined;
+		let proposalPatch: Record<string, unknown> | undefined;
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [existing] }))
+			.mockReturnValueOnce(createChain({ result: [template] }))
+			.mockReturnValueOnce(createChain({ result: [existing] }))
+			.mockReturnValueOnce(createChain({ result: [document] }));
+		dbMock.update
+			.mockReturnValueOnce(createChain({ result: [reopened] }))
+			.mockReturnValueOnce(createChain({
+				onSet: (value) => {
+					documentPatch = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				onSet: (value) => {
+					proposalPatch = value;
+				},
+			}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain())
+			.mockReturnValueOnce(createChain());
+
+		await expect(transitionDomainWorkflow({
+			workflowInstanceId: "workflow-1",
+			action: "reopen",
+			actorId: "pm-1",
+			actorRoles: ["proposal_manager"],
+			reason: "Customer correction changed the final artifact",
+			targetState: "artifact_reopened",
+		})).resolves.toEqual(reopened);
+
+		expect(documentPatch).toMatchObject({
+			status: "draft",
+			metadata: {
+				finalArtifact: null,
+				finalArtifactWorkflow: {
+					state: "artifact_reopened",
+					reopenedBy: "pm-1",
+					reason: "Customer correction changed the final artifact",
+				},
+				finalizationCompensation: {
+					action: "reopen",
+					reason: "Customer correction changed the final artifact",
+					actorId: "pm-1",
+				},
+			},
+		});
+		expect(proposalPatch).toMatchObject({
+			status: "in_review",
+			approvedBy: null,
+			approvedAt: null,
+			notes: "Reopened by workflow compensation: Customer correction changed the final artifact",
+		});
+	});
+
 	it.each([
 		{
 			subjectType: "rfp_parse",
