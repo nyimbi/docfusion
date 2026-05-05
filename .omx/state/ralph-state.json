@@ -1,6 +1,6 @@
 {
   "active": true,
-  "iteration": 14,
+  "iteration": 15,
   "max_iterations": 20,
   "current_phase": "executing",
   "started_at": "2026-05-05T09:50:00Z",
@@ -10,7 +10,7 @@
   "test_spec_path": ".omx/plans/test-spec-full-jtbd-enhancements-implementation.md",
   "facility_ledger_path": ".omx/state/platform-e2e-facility-ledger.md",
   "topology_matrix_path": ".omx/state/platform-e2e-topology-matrix.md",
-  "last_turn_at": "2026-05-05T16:23:27.855Z",
+  "last_turn_at": "2026-05-05T18:49:48.414Z",
   "notes": [
     "docs/shared/agent-tiers.md is absent in this checkout; using AGENTS.md role table and scoped local verification.",
     "Codex native subagents returned Azure deployment 404 during Phase 0; architect verification later completed successfully.",
