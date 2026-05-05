@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 			console.error("[AI Completion] No provider available");
 			return NextResponse.json(
 				{
-					error: "No AI provider available. Configure Azure OpenAI or Ollama, or use development mock mode.",
+					error: "No AI provider available. Configure LiteLLM, Azure OpenAI, or Ollama.",
 				},
 				{ status: 503 }
 			);

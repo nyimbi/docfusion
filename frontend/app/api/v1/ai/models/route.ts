@@ -36,6 +36,9 @@ export async function GET() {
 
 		// Check environment variables
 		const envVars = {
+			LITELLM_URL: !!(process.env.LITELLM_URL || process.env.LITELLM_BASE_URL),
+			LITELLM_API_KEY: !!(process.env.LITELLM_API_KEY || process.env.LITELLM_KEY),
+			LLM_MODEL: !!(process.env.LLM_MODEL || process.env.LITELLM_MODEL),
 			AZURE_OPENAI_API_KEY: !!process.env.AZURE_OPENAI_API_KEY,
 			AZURE_OPENAI_ENDPOINT: !!process.env.AZURE_OPENAI_ENDPOINT,
 			AZURE_OPENAI_DEPLOYMENT_NAME: !!process.env.AZURE_OPENAI_DEPLOYMENT_NAME,
@@ -48,7 +51,9 @@ export async function GET() {
 			const result = connectionResults[provider as keyof typeof connectionResults];
 			return {
 				provider,
-				configured: envVars.AZURE_OPENAI_API_KEY || provider === "ollama",
+				configured: provider === "litellm"
+					? envVars.LITELLM_API_KEY
+					: envVars.AZURE_OPENAI_API_KEY || provider === "ollama",
 				available: result?.success ?? null,
 				message: result?.message || "Status unknown",
 				models: result?.models,
@@ -67,6 +72,9 @@ export async function GET() {
 		
 		// Return config status even on error
 		const envVars = {
+			LITELLM_URL: !!(process.env.LITELLM_URL || process.env.LITELLM_BASE_URL),
+			LITELLM_API_KEY: !!(process.env.LITELLM_API_KEY || process.env.LITELLM_KEY),
+			LLM_MODEL: !!(process.env.LLM_MODEL || process.env.LITELLM_MODEL),
 			AZURE_OPENAI_API_KEY: !!process.env.AZURE_OPENAI_API_KEY,
 			AZURE_OPENAI_ENDPOINT: !!process.env.AZURE_OPENAI_ENDPOINT,
 			AZURE_OPENAI_DEPLOYMENT_NAME: !!process.env.AZURE_OPENAI_DEPLOYMENT_NAME,

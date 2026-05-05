@@ -37,6 +37,22 @@ export interface OllamaConfig {
 }
 
 /**
+ * LiteLLM gateway configuration settings.
+ */
+export interface LiteLLMConfig {
+	/** OpenAI-compatible LiteLLM base URL, normalized to include /v1 */
+	baseUrl: string;
+	/** Bearer token for the LiteLLM gateway */
+	apiKey: string;
+	/** Default model alias routed by LiteLLM */
+	defaultModel: string;
+	/** Fast/low-cost model alias routed by LiteLLM */
+	fastModel?: string;
+	/** Embedding model alias routed by LiteLLM */
+	embeddingModel?: string;
+}
+
+/**
  * Provider task mapping - which model to use for different tasks.
  */
 export interface ProviderTaskMapping {
@@ -57,7 +73,7 @@ export interface ProviderTaskMapping {
 /**
  * AI provider preference saved by user.
  */
-export type AIProviderPreference = "azure-openai" | "ollama" | "auto";
+export type AIProviderPreference = "litellm" | "azure-openai" | "ollama" | "auto";
 
 /**
  * User's AI configuration preferences.
@@ -71,6 +87,13 @@ export interface UserAIConfig {
 		/** Custom Ollama endpoint URL */
 		baseUrl?: string;
 		/** Preferred model */
+		model?: string;
+	};
+	/** LiteLLM-specific settings */
+	litellm?: {
+		/** Custom LiteLLM endpoint URL */
+		baseUrl?: string;
+		/** Preferred model alias */
 		model?: string;
 	};
 	/** Default modelOverrides by provider */
@@ -207,6 +230,8 @@ export interface AIStreamChunk {
 export interface AIGlobalConfig {
 	/** Environment-based Azure config */
 	azure?: AzureOpenAIConfig;
+	/** Environment-based LiteLLM gateway config */
+	litellm?: LiteLLMConfig;
 	/** Environment-based Ollama defaults */
 	ollama?: OllamaConfig;
 	/** Default provider preference */
@@ -292,6 +317,14 @@ export const AI_CONFIG_DEFAULTS = {
 	OLLAMA_BASE_URL: "http://localhost:11434",
 	/** Default Ollama model */
 	OLLAMA_DEFAULT_MODEL: "gpt-oss",
+	/** Default LiteLLM URL from infra docs */
+	LITELLM_BASE_URL: "http://84.247.181.100:4000/v1",
+	/** Default LiteLLM model alias from infra docs */
+	LITELLM_DEFAULT_MODEL: "gpt-4o",
+	/** Default LiteLLM fast model alias from infra docs */
+	LITELLM_FAST_MODEL: "gpt-4o-mini",
+	/** Default LiteLLM embedding model alias from infra docs */
+	LITELLM_EMBEDDING_MODEL: "text-embedding-ada-002",
 	/** Default temperature */
 	DEFAULT_TEMPERATURE: 0.7,
 	/** Default max tokens */
@@ -308,6 +341,14 @@ export const AI_CONFIG_DEFAULTS = {
  * Provider metadata for UI.
  */
 export const PROVIDER_METADATA: Record<AIProviderType, ProviderMetadata> = {
+	litellm: {
+		type: "litellm",
+		name: "LiteLLM Gateway",
+		description: "Central Lindela AI gateway with OpenAI-compatible routing, cache, and fallback",
+		icon: "Network",
+		isConfigurable: false,
+		supportsLocal: false,
+	},
 	"azure-openai": {
 		type: "azure-openai",
 		name: "Azure OpenAI",

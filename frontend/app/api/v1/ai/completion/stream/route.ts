@@ -55,10 +55,10 @@ export async function POST(request: NextRequest) {
 		const manager = getProviderManager();
 		await manager.initialize();
 
-		if (!manager.isAvailable()) {
+		if (!await manager.isAvailable()) {
 			return new Response(
 				JSON.stringify({
-					error: "No AI provider available. Check your configuration.",
+					error: "No AI provider available. Configure LiteLLM, Azure OpenAI, or Ollama.",
 				}),
 				{
 					status: 503,

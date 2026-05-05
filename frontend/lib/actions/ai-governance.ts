@@ -49,7 +49,7 @@ export interface AIModelGovernanceStatus {
 	hasCostMetadata: boolean;
 }
 
-const GOVERNED_PROVIDERS: AIProviderType[] = ["azure-openai", "ollama"];
+const GOVERNED_PROVIDERS: AIProviderType[] = ["litellm", "azure-openai", "ollama"];
 
 export async function getAIProviderGovernanceSnapshot(): Promise<AIProviderGovernanceSnapshot> {
 	const userContext = await requireUserContext();
@@ -150,6 +150,9 @@ function buildDiagnostics(
 
 function redactedConfigurationStatus(): Record<string, boolean> {
 	return {
+		LITELLM_URL: Boolean(process.env.LITELLM_URL || process.env.LITELLM_BASE_URL),
+		LITELLM_API_KEY: Boolean(process.env.LITELLM_API_KEY || process.env.LITELLM_KEY),
+		LLM_MODEL: Boolean(process.env.LLM_MODEL || process.env.LITELLM_MODEL),
 		AZURE_OPENAI_API_KEY: Boolean(process.env.AZURE_OPENAI_API_KEY),
 		AZURE_OPENAI_ENDPOINT: Boolean(process.env.AZURE_OPENAI_ENDPOINT),
 		AZURE_OPENAI_DEPLOYMENT_NAME: Boolean(process.env.AZURE_OPENAI_DEPLOYMENT_NAME),
@@ -158,6 +161,6 @@ function redactedConfigurationStatus(): Record<string, boolean> {
 	};
 }
 
-function isGovernedProvider(provider: AIProviderType): provider is "azure-openai" | "ollama" {
+function isGovernedProvider(provider: AIProviderType): provider is "litellm" | "azure-openai" | "ollama" {
 	return GOVERNED_PROVIDERS.includes(provider);
 }

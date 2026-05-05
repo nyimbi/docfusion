@@ -14,6 +14,7 @@ import {
 	type AIGlobalConfig,
 	type AISettingsFormData,
 	type AzureOpenAIConfig,
+	type LiteLLMConfig,
 	type OllamaConfig,
 	type UserAIConfig,
 	type AIProviderPreference,
@@ -96,6 +97,59 @@ export function loadOllamaConfigFromEnv(): ConfigEntry<OllamaConfig> {
 	};
 }
 
+/**
+ * Load LiteLLM gateway configuration from environment.
+ */
+export function loadLiteLLMConfigFromEnv(): ConfigEntry<LiteLLMConfig | undefined> {
+	const rawBaseUrl =
+		process.env.LITELLM_URL ||
+		process.env.LITELLM_BASE_URL ||
+		AI_CONFIG_DEFAULTS.LITELLM_BASE_URL;
+	const apiKey = process.env.LITELLM_API_KEY || process.env.LITELLM_KEY;
+	const defaultModel =
+		process.env.LLM_MODEL ||
+		process.env.LITELLM_MODEL ||
+		AI_CONFIG_DEFAULTS.LITELLM_DEFAULT_MODEL;
+	const fastModel =
+		process.env.LLM_FAST_MODEL ||
+		process.env.LITELLM_FAST_MODEL ||
+		AI_CONFIG_DEFAULTS.LITELLM_FAST_MODEL;
+	const embeddingModel =
+		process.env.LLM_EMBEDDING_MODEL ||
+		process.env.LITELLM_EMBEDDING_MODEL ||
+		AI_CONFIG_DEFAULTS.LITELLM_EMBEDDING_MODEL;
+
+	debugLog("[AI Config] Loading LiteLLM gateway config from environment...");
+	debugLog("[AI Config] LiteLLM environment variables present:", {
+		LITELLM_URL: rawBaseUrl,
+		LITELLM_API_KEY: apiKey ? `Yes (${apiKey.length} chars)` : "Missing",
+		LLM_MODEL: defaultModel,
+		LLM_FAST_MODEL: fastModel,
+	});
+
+	if (!apiKey) {
+		console.warn("[AI Config] LiteLLM not configured. Missing: LITELLM_API_KEY or LITELLM_KEY");
+		return {
+			value: undefined,
+			source: "env",
+			userConfigurable: false,
+			missingVars: ["LITELLM_API_KEY"],
+		} as ConfigEntry<LiteLLMConfig | undefined>;
+	}
+
+	return {
+		value: {
+			baseUrl: normalizeLiteLLMBaseUrl(rawBaseUrl),
+			apiKey,
+			defaultModel,
+			fastModel,
+			embeddingModel,
+		},
+		source: "env",
+		userConfigurable: false,
+	};
+}
+
 // ============================================================================
 // User Preference Loading
 // ============================================================================
@@ -175,13 +229,15 @@ class AIConfigManager {
 
 		debugLog("[AI Config] Lazy loading configuration...");
 		const azure = loadAzureConfigFromEnv();
+		const litellm = loadLiteLLMConfigFromEnv();
 		const ollama = loadOllamaConfigFromEnv();
 
 		// Determine default provider
-		const defaultProvider = this.getDefaultProvider(azure.value, ollama.value);
+		const defaultProvider = this.getDefaultProvider(litellm.value, azure.value, ollama.value);
 
 		this.config = {
 			azure: azure.value,
+			litellm: litellm.value,
 			ollama: ollama.value,
 			defaultProvider,
 			fallbackProviders: this.buildFallbackChain(),
@@ -200,6 +256,7 @@ class AIConfigManager {
 		this.configLoaded = true;
 		debugLog("[AI Config] Configuration loaded:", {
 			hasAzure: !!this.config.azure,
+			hasLiteLLM: !!this.config.litellm,
 			hasOllama: !!this.config.ollama,
 			defaultProvider: this.config.defaultProvider,
 			fallbackProviders: this.config.fallbackProviders,
@@ -237,6 +294,23 @@ class AIConfigManager {
 	}
 
 	/**
+	 * Get the LiteLLM gateway configuration.
+	 */
+	getLiteLLMConfig(): LiteLLMConfig | undefined {
+		this.ensureConfigLoaded();
+		const envConfig = this.config?.litellm;
+		if (!envConfig) return undefined;
+
+		return {
+			...envConfig,
+			baseUrl: this.userConfig?.litellm?.baseUrl
+				? normalizeLiteLLMBaseUrl(this.userConfig.litellm.baseUrl)
+				: envConfig.baseUrl,
+			defaultModel: this.userConfig?.litellm?.model || envConfig.defaultModel,
+		};
+	}
+
+	/**
 	 * Get the Azure OpenAI configuration.
 	 */
 	getAzureConfig(): AzureOpenAIConfig | undefined {
@@ -264,14 +338,17 @@ class AIConfigManager {
 
 		// Check preferred provider availability
 		switch (preference) {
+			case "litellm":
+				return config.litellm ? "litellm" : null;
 			case "azure-openai":
 				return config.azure ? "azure-openai" : null;
 			case "ollama":
 				return "ollama"; // Ollama can always be attempted
 			case "auto":
 			default:
-				// Prefer Azure if configured, else Ollama
-				return config.azure ? "azure-openai" : "ollama";
+				if (config.litellm) return "litellm";
+				if (config.azure) return "azure-openai";
+				return "ollama";
 		}
 	}
 
@@ -350,6 +427,7 @@ class AIConfigManager {
 				baseUrl: settings.ollamaUrl,
 				model: settings.ollamaModel,
 			},
+			litellm: this.userConfig?.litellm,
 			temperature: settings.temperature,
 			maxTokens: settings.maxTokens,
 			streamEnabled: settings.streamEnabled,
@@ -364,9 +442,13 @@ class AIConfigManager {
 	 * Determine default provider based on what's configured.
 	 */
 	private getDefaultProvider(
+		litellmConfig?: LiteLLMConfig,
 		azureConfig?: AzureOpenAIConfig,
 		ollamaConfig?: OllamaConfig
 	): AIProviderPreference {
+		if (litellmConfig) {
+			return "auto";
+		}
 		if (azureConfig) {
 			return "auto";
 		}
@@ -381,8 +463,12 @@ class AIConfigManager {
 	 */
 	private buildFallbackChain(): AIProviderType[] {
 		const chain: AIProviderType[] = [];
+		const litellm = loadLiteLLMConfigFromEnv().value;
 		const azure = loadAzureConfigFromEnv().value;
 
+		if (litellm) {
+			chain.push("litellm");
+		}
 		if (azure) {
 			chain.push("azure-openai");
 		}
@@ -396,6 +482,9 @@ class AIConfigManager {
 	 */
 	isProviderConfigured(type: AIProviderType): boolean {
 		this.ensureConfigLoaded();
+		if (type === "litellm") {
+			return !!this.config?.litellm;
+		}
 		if (type === "azure-openai") {
 			return !!this.config?.azure;
 		}
@@ -457,6 +546,10 @@ export function getOllamaConfig(): OllamaConfig {
 	return getAIConfig().getOllamaConfig();
 }
 
+export function getLiteLLMConfig(): LiteLLMConfig | undefined {
+	return getAIConfig().getLiteLLMConfig();
+}
+
 export function getAzureConfig(): AzureOpenAIConfig | undefined {
 	return getAIConfig().getAzureConfig();
 }
@@ -483,6 +576,11 @@ export function getTimeouts() {
 
 export function isProviderConfigured(type: AIProviderType): boolean {
 	return getAIConfig().isProviderConfigured(type);
+}
+
+function normalizeLiteLLMBaseUrl(baseUrl: string): string {
+	const trimmed = baseUrl.trim().replace(/\/$/, "");
+	return trimmed.endsWith("/v1") ? trimmed : `${trimmed}/v1`;
 }
 
 export function getUserSettings(): AISettingsFormData {
