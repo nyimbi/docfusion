@@ -9,6 +9,7 @@ import type { DecisionStatus } from "@/lib/types/opportunity";
 import { eq } from "drizzle-orm";
 
 export type OpportunityTriageAction =
+	| "mark_interested"
 	| "shortlist"
 	| "qualify"
 	| "reject"
@@ -32,6 +33,7 @@ const TRIAGE_STATE_BY_ACTION: Record<OpportunityTriageAction, {
 	isReviewed: boolean;
 	terminal?: boolean;
 }> = {
+	mark_interested: { state: "interested", status: "interested", isReviewed: true },
 	shortlist: { state: "shortlisted", status: "shortlisted", isReviewed: true },
 	qualify: { state: "qualified", status: "pursuing", isReviewed: true },
 	reject: { state: "rejected", status: "declined", isReviewed: true, terminal: true },

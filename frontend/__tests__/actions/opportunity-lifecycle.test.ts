@@ -115,6 +115,38 @@ describe("opportunity lifecycle actions", () => {
 		}));
 	});
 
+	it("marks an opportunity interested through the triage workflow", async () => {
+		let patch: Record<string, unknown> | undefined;
+		dbMock.select.mockReturnValueOnce(createChain({ result: [opportunity] }));
+		dbMock.update.mockReturnValueOnce(createChain({
+			onSet: (value) => {
+				patch = value;
+			},
+		}));
+
+		const result = await transitionOpportunityTriage({
+			opportunityId: opportunity.id,
+			action: "mark_interested",
+			reason: "Worth tracking for capture planning",
+		});
+
+		expect(result).toMatchObject({ success: true, state: "interested" });
+		expect(patch).toMatchObject({
+			decisionStatus: "interested",
+			decisionReason: "Worth tracking for capture planning",
+			isReviewed: true,
+		});
+		expect(recordTransitionMock).toHaveBeenCalledWith(expect.objectContaining({
+			workflowKey: "opportunity_triage",
+			toState: "interested",
+			eventType: "opportunity_mark_interested",
+		}));
+		expect(upsertTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+			taskKey: "opportunity_triage:interested",
+			assignedRole: "capture_manager",
+		}));
+	});
+
 	it("records analysis acceptance with confidence and evidence", async () => {
 		let patch: Record<string, unknown> | undefined;
 		dbMock.select.mockReturnValueOnce(createChain({ result: [opportunity] }));
