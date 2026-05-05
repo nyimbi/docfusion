@@ -18,6 +18,7 @@ import { GoNoGoPanel } from "@/components/opportunities/GoNoGoPanel";
 import { AIScoreCard } from "@/components/opportunities/AIScoreCard";
 import { OpportunityDocumentsPanel } from "@/components/opportunities/OpportunityDocumentsPanel";
 import { OpportunityCommandCenter } from "@/components/opportunities/OpportunityCommandCenter";
+import { OpportunityLifecyclePanel } from "@/components/opportunities/OpportunityLifecyclePanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/Button";
 import { OpportunityHeaderActions } from "@/components/opportunities/OpportunityHeaderActions";
@@ -127,6 +128,19 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 			<main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 				<div className="mb-6">
 					<OpportunityCommandCenter projection={commandCenter} />
+				</div>
+				<div className="mb-6">
+					<OpportunityLifecyclePanel
+						opportunity={{
+							id: opportunity.id,
+							title: opportunity.title,
+							decisionStatus: opportunity.decisionStatus,
+							assignedTo: opportunity.assignedTo,
+							deadline: opportunity.deadline,
+							fitScore: opportunity.fitScore,
+							winProbability: opportunity.winProbability,
+						}}
+					/>
 				</div>
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 					{/* Left column - Details & Documents */}

@@ -1,0 +1,26 @@
+{
+  "run_id": "wave2-20260505T115633Z",
+  "scope": "Wave 2 opportunity lifecycle foundation",
+  "disposition": "code_verified_not_live_promoted",
+  "implemented_capabilities": [
+    "Opportunity triage workflow transitions for shortlist, qualify, reject, archive, stale, promote, and reopen",
+    "Opportunity analysis acceptance with confidence, evidence links, and workflow audit transition",
+    "Deadline acceptance/change/rejection with deadline protection task projection",
+    "Opportunity detail lifecycle controls surfaced beside the command center"
+  ],
+  "verification": {
+    "git_diff_check": "pass",
+    "frontend_typecheck": "npx tsc --noEmit: pass",
+    "frontend_lint": "npm run lint: pass",
+    "focused_tests": {
+      "command": "npm test -- --run __tests__/actions/opportunity-lifecycle.test.ts __tests__/actions/workflow-runtime.test.ts __tests__/actions/workflow-domain.test.ts __tests__/work-items/projections.test.ts",
+      "result": "4 files passed, 37 tests passed"
+    }
+  },
+  "facility_rows_touched": {
+    "F-003": "blocked until authenticated browser proof exercises triage state transitions and cleanup",
+    "F-004A": "blocked until PWin/analysis actionability is proven from sourced opportunity data",
+    "F-007": "blocked until requirement extraction and acceptance browser proof completes",
+    "O-005": "not promoted by this slice; deadline tasks are projected but scheduled worker proof remains separate"
+  }
+}

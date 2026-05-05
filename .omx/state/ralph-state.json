@@ -1,6 +1,6 @@
 {
   "active": true,
-  "iteration": 4,
+  "iteration": 6,
   "max_iterations": 10,
   "current_phase": "executing",
   "started_at": "2026-05-05T09:50:00Z",
@@ -10,47 +10,63 @@
   "test_spec_path": ".omx/plans/test-spec-full-jtbd-enhancements-implementation.md",
   "facility_ledger_path": ".omx/state/platform-e2e-facility-ledger.md",
   "topology_matrix_path": ".omx/state/platform-e2e-topology-matrix.md",
-  "last_turn_at": "2026-05-05T11:37:46.627Z",
+  "last_turn_at": "2026-05-05T12:06:56.446Z",
   "completed_at": null,
   "notes": [
     "docs/shared/agent-tiers.md is absent in this checkout; using AGENTS.md role table and scoped local verification.",
     "Codex native subagents returned Azure deployment 404 during Phase 0; architect verification later completed successfully.",
     "Keep unrelated dirty worktree changes untouched.",
     "Architect verifier accepted the search-vector repair and evidence-ledger cleanup corrections; remaining broad platform rows stay blocked/partial where not exercised.",
-    "Wave 1 first implementation slice added command center projections, operational inbox, audit explorer, notification acknowledgement/preferences, operations remediation buttons, template publish/deprecate/rollback actions, and sandbox labeling."
+    "Wave 1 first implementation slice added command center projections, operational inbox, audit explorer, notification acknowledgement/preferences, operations remediation buttons, template publish/deprecate/rollback actions, and sandbox labeling.",
+    "Wave 2 first implementation slice added workflow-backed opportunity triage, analysis acceptance, deadline acceptance, lifecycle controls, and regression tests."
   ],
   "approved_plan": "facility-ledger-first topology-gated evidence-strict E2E campaign",
-  "phase": "wave_1_in_progress",
+  "phase": "wave_2_in_progress",
   "approved_plan_path": ".omx/plans/full-jtbd-enhancements-implementation-plan.md",
   "target_rows": [
-    "F-006",
-    "O-006",
-    "O-003",
-    "O-004"
+    "F-001",
+    "F-002",
+    "F-003",
+    "F-004A",
+    "F-005B",
+    "F-006B",
+    "F-006C",
+    "F-007",
+    "O-009"
   ],
   "required_pass_rows": [
-    "F-006",
-    "O-006"
+    "F-001",
+    "F-002",
+    "F-003",
+    "F-007"
   ],
   "conditional_pass_rows": [
-    "O-003",
-    "O-004"
+    "F-004A",
+    "F-005B",
+    "F-006B",
+    "F-006C",
+    "O-009"
   ],
   "note": "docs/shared/agent-tiers.md absent; using AGENTS.md/native role roster.",
-  "run_id": "phase1_20260505T041149Z",
+  "run_id": "wave2-20260505T115633Z",
   "facilities": {
-    "F-006": "pass",
-    "O-006": "pass",
-    "O-004": "pass",
-    "O-003": "blocked"
+    "F-001": "blocked",
+    "F-002": "blocked",
+    "F-003": "blocked",
+    "F-004A": "blocked",
+    "F-005B": "blocked",
+    "F-006B": "blocked",
+    "F-006C": "blocked",
+    "F-007": "blocked",
+    "O-009": "blocked"
   },
-  "verification": "git diff --check; frontend npm test -- --run workflow/work-item focused suite 41 tests; npx tsc --noEmit; npm run lint; npm run build",
-  "architect_status": "approved_wave_1_slice",
+  "verification": "git diff --check; frontend opportunity/workflow focused suite 36 tests; npx tsc --noEmit; npm run lint",
+  "architect_status": "approved_wave_2_slice",
   "closeout": null,
   "closeout_verification": null,
   "skill_active_marker": "active",
-  "phase_detail": "wave_1_control_plane_ux_shell",
-  "current_wave": "1",
+  "phase_detail": "wave_2_opportunity_lifecycle_foundation",
+  "current_wave": "2",
   "missing_agent_tiers_doc": true,
   "planned_next_files": [
     ".omx/plans/prd-full-jtbd-enhancements-implementation.md",
@@ -107,5 +123,19 @@
       "Opportunity command-center audit only exposes direct subject audit to global/direct opportunity owners and otherwise uses visible workflow IDs.",
       "Workflow reversals recompute target-state portal visibility and clear stale portal visibility for non-portal target states."
     ]
+  },
+  "wave_2_artifacts": [
+    "frontend/lib/actions/opportunity-lifecycle.ts",
+    "frontend/components/opportunities/OpportunityLifecyclePanel.tsx",
+    "frontend/app/(app)/opportunities/[id]/page.tsx",
+    "frontend/__tests__/actions/opportunity-lifecycle.test.ts",
+    ".omx/logs/platform-completion/wave2-20260505T115633Z/opportunity-lifecycle-proof.json"
+  ],
+  "wave_2_verification": {
+    "git_diff_check": "pass",
+    "frontend_typecheck": "pass",
+    "frontend_lint": "pass",
+    "focused_tests": "37 passed",
+    "architect_review": "APPROVE after fixing header shortlist workflow bypass, analysis state persistence, timezone-explicit deadlines, and stale Wave 2 state rows."
   }
 }
