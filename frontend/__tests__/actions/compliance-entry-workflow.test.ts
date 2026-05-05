@@ -40,7 +40,10 @@ vi.mock("@/lib/db", () => {
 	return { db: dbMock };
 });
 
-import { transitionComplianceEntryWorkflow } from "@/lib/actions/compliance-validator";
+import {
+	transitionComplianceEntryWorkflow,
+	transitionComplianceMatrixWorkflow,
+} from "@/lib/actions/compliance-validator";
 
 const baseEntry: Record<string, any> = {
 	id: "entry-1",
@@ -66,7 +69,40 @@ const baseEntry: Record<string, any> = {
 
 const baseRequirement = {
 	id: "req-1",
+	requirementNumber: "REQ-001",
 	priority: "mandatory",
+	riskLevel: "high",
+	opportunityId: "opp-1",
+};
+
+const baseMatrix: Record<string, any> = {
+	id: "matrix-1",
+	opportunityId: "opp-1",
+	rfpDocumentId: "rfp-1",
+	name: "Compliance Matrix",
+	description: null,
+	version: 1,
+	status: "review",
+	totalRequirements: 1,
+	mandatoryCount: 1,
+	compliantCount: 1,
+	partialCount: 0,
+	nonCompliantCount: 0,
+	notAddressedCount: 0,
+	complianceScore: 100,
+	mandatoryComplianceScore: 100,
+	reviewedBy: "compliance-lead",
+	reviewedAt: new Date("2026-04-01T00:00:00.000Z"),
+	reviewNotes: null,
+	approvedBy: null,
+	approvedAt: null,
+	categoryGroups: {},
+	displayColumns: [],
+	exportSettings: {},
+	createdBy: "compliance-lead",
+	metadata: null,
+	createdAt: new Date("2026-04-01T00:00:00.000Z"),
+	updatedAt: new Date("2026-04-01T00:00:00.000Z"),
 };
 
 function mockEntryLookup(entry = baseEntry, requirement = baseRequirement) {
@@ -85,6 +121,10 @@ function mockEntryLookup(entry = baseEntry, requirement = baseRequirement) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	dbMock.select.mockReset();
+	dbMock.update.mockReset();
+	dbMock.execute.mockReset();
+	dbMock.transaction.mockReset();
 	dbMock.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(dbMock));
 	dbMock.execute.mockResolvedValue([]);
 });
@@ -215,6 +255,93 @@ describe("compliance entry workflow", () => {
 		expect((entryUpdate?.metadata as any).complianceWorkflow.waiver).toMatchObject({
 			reason: "Customer instruction excludes this requirement",
 			actorId: "compliance-lead",
+		});
+	});
+
+	it("blocks final matrix lock when mandatory entries are unresolved", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [baseMatrix] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					entry: {
+						...baseEntry,
+						status: "review",
+						complianceStatus: "non_compliant",
+					},
+					requirement: baseRequirement,
+				}],
+			}));
+
+		await expect(
+			transitionComplianceMatrixWorkflow({
+				matrixId: "matrix-1",
+				action: "lock_final",
+				reason: "Ready for submission lock",
+			})
+		).rejects.toThrow("Compliance matrix final lock blocked");
+
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("locks a compliant matrix and records final lock workflow", async () => {
+		let matrixUpdate: Record<string, unknown> | undefined;
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [baseMatrix] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					entry: {
+						...baseEntry,
+						status: "approved",
+						complianceStatus: "compliant",
+					},
+					requirement: baseRequirement,
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					entry: {
+						...baseEntry,
+						status: "approved",
+						complianceStatus: "compliant",
+					},
+					requirement: baseRequirement,
+				}],
+			}));
+		dbMock.update
+			.mockReturnValueOnce(createChain({
+				onSet: (value) => {
+					matrixUpdate = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain());
+
+		const result = await transitionComplianceMatrixWorkflow({
+			matrixId: "matrix-1",
+			action: "lock_final",
+			reason: "All mandatory entries approved",
+		});
+
+		expect(result).toMatchObject({
+			matrixId: "matrix-1",
+			state: "locked",
+			status: "final",
+			blockers: [],
+			matrixStats: {
+				totalRequirements: 1,
+				mandatoryCount: 1,
+				compliantCount: 1,
+				complianceScore: 100,
+				mandatoryComplianceScore: 100,
+			},
+		});
+		expect(matrixUpdate).toMatchObject({
+			status: "final",
+			approvedBy: "compliance-lead",
+			reviewNotes: "All mandatory entries approved",
+		});
+		expect((matrixUpdate?.metadata as any).complianceMatrixWorkflow).toMatchObject({
+			state: "locked",
+			reason: "All mandatory entries approved",
 		});
 	});
 });

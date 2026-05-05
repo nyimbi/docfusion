@@ -17,7 +17,7 @@ import {
 	complianceEntries,
 	rfpDocuments,
 } from "@/lib/db/schema-rfp";
-import type { ComplianceEntryRow } from "@/lib/db/schema-rfp";
+import type { ComplianceEntryRow, ComplianceMatrixRow } from "@/lib/db/schema-rfp";
 import { documents } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireUserContext } from "@/lib/auth-utils";
@@ -148,11 +148,36 @@ export type ComplianceEntryWorkflowState =
 	| "rejected"
 	| "waived";
 
+export type ComplianceMatrixWorkflowAction =
+	| "submit_for_review"
+	| "lock_final"
+	| "reopen";
+
+export type ComplianceMatrixWorkflowState =
+	| "draft"
+	| "review"
+	| "locked"
+	| "reopened";
+
 export interface ComplianceEntryWorkflowInput {
 	matrixId: string;
 	entryId: string;
 	action: ComplianceEntryWorkflowAction;
 	reason: string;
+}
+
+export interface ComplianceMatrixWorkflowInput {
+	matrixId: string;
+	action: ComplianceMatrixWorkflowAction;
+	reason: string;
+}
+
+export interface ComplianceMatrixWorkflowResult {
+	matrixId: string;
+	state: ComplianceMatrixWorkflowState;
+	status: string;
+	matrixStats: MatrixStats;
+	blockers: string[];
 }
 
 export interface ComplianceEntryWorkflowResult {
@@ -349,6 +374,107 @@ export async function transitionComplianceEntryWorkflow(
 	});
 }
 
+export async function transitionComplianceMatrixWorkflow(
+	input: ComplianceMatrixWorkflowInput
+): Promise<ComplianceMatrixWorkflowResult> {
+	const userContext = await requireUserContext();
+	const reason = input.reason?.trim();
+	if (!input.matrixId) {
+		throw new Error("Compliance matrix is required");
+	}
+	if (!reason) {
+		throw new Error("A workflow reason is required");
+	}
+
+	return db.transaction(async (tx) => {
+		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.matrixId}))`);
+
+		const [matrix] = await tx
+			.select()
+			.from(complianceMatrices)
+			.where(eq(complianceMatrices.id, input.matrixId))
+			.limit(1);
+		if (!matrix) {
+			throw new Error("Compliance matrix not found");
+		}
+
+		const currentState = getComplianceMatrixWorkflowState(matrix);
+		const nextState = getNextComplianceMatrixWorkflowState(currentState, input.action);
+		const entries = await tx
+			.select({
+				entry: complianceEntries,
+				requirement: rfpRequirements,
+			})
+			.from(complianceEntries)
+			.innerJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
+			.where(eq(complianceEntries.matrixId, input.matrixId));
+		const blockers = input.action === "lock_final" ? getMatrixFinalLockBlockers(entries) : [];
+		if (blockers.length > 0) {
+			throw new Error(`Compliance matrix final lock blocked: ${blockers.join("; ")}`);
+		}
+
+		const now = new Date();
+		const status = nextState === "locked" ? "final" : nextState === "review" ? "review" : "draft";
+		const metadata = buildComplianceMatrixWorkflowMetadata({
+			matrix,
+			action: input.action,
+			from: currentState,
+			to: nextState,
+			actorId: userContext.userId,
+			reason,
+			now,
+			blockers,
+		});
+		await tx.update(complianceMatrices).set({
+			status,
+			reviewedBy: nextState === "review" ? userContext.userId : matrix.reviewedBy,
+			reviewedAt: nextState === "review" ? now : matrix.reviewedAt,
+			approvedBy: nextState === "locked" ? userContext.userId : nextState === "reopened" ? null : matrix.approvedBy,
+			approvedAt: nextState === "locked" ? now : nextState === "reopened" ? null : matrix.approvedAt,
+			reviewNotes: reason,
+			metadata,
+			updatedAt: now,
+		}).where(eq(complianceMatrices.id, input.matrixId));
+
+		const matrixStats = await recalculateComplianceMatrixStats(tx, input.matrixId);
+		await recordWorkflowRuntimeTransition({
+			workflowKey: "compliance_matrix_final_lock",
+			subjectType: "compliance_matrix",
+			subjectId: input.matrixId,
+			opportunityId: matrix.opportunityId,
+			fromState: currentState,
+			toState: nextState,
+			eventType: `compliance_matrix_${input.action}`,
+			actorId: userContext.userId,
+			actorName: userContext.userId,
+			reason,
+			priority: nextState === "locked" ? "high" : "medium",
+			assignedRole: nextState === "review" ? "compliance_officer" : null,
+			visibility: "internal",
+			authorityPolicy: {
+				requiredRoles: nextState === "locked" ? ["proposal_manager", "compliance_officer"] : ["compliance_officer"],
+				escalationRole: "proposal_manager",
+			},
+			metadata: {
+				matrixId: input.matrixId,
+				matrixStats,
+				blockers,
+				status,
+			},
+			terminal: nextState === "locked",
+			actionUrl: `/compliance-matrix/${input.matrixId}`,
+		}, tx);
+
+		return {
+			matrixId: input.matrixId,
+			state: nextState,
+			status,
+			matrixStats,
+			blockers,
+		};
+	});
+}
+
 function getComplianceWorkflowState(entry: ComplianceEntryRow): ComplianceEntryWorkflowState {
 	const metadata = getComplianceWorkflowMetadata(entry);
 	if (metadata.state) return metadata.state;
@@ -357,6 +483,66 @@ function getComplianceWorkflowState(entry: ComplianceEntryRow): ComplianceEntryW
 	if (entry.status === "approved") return "approved";
 	if (entry.status === "rejected") return "rejected";
 	return "draft";
+}
+
+function getComplianceMatrixWorkflowState(matrix: ComplianceMatrixRow): ComplianceMatrixWorkflowState {
+	const metadata = getComplianceMatrixMetadata(matrix);
+	const workflow = metadata.complianceMatrixWorkflow;
+	if (workflow && typeof workflow === "object" && !Array.isArray(workflow)) {
+		const state = (workflow as Record<string, unknown>).state;
+		if (state === "draft" || state === "review" || state === "locked" || state === "reopened") {
+			return state;
+		}
+	}
+
+	if (matrix.status === "final" || matrix.status === "submitted") return "locked";
+	if (matrix.status === "review") return "review";
+	return "draft";
+}
+
+function getNextComplianceMatrixWorkflowState(
+	currentState: ComplianceMatrixWorkflowState,
+	action: ComplianceMatrixWorkflowAction
+): ComplianceMatrixWorkflowState {
+	const allowed: Record<
+		ComplianceMatrixWorkflowAction,
+		Partial<Record<ComplianceMatrixWorkflowState, ComplianceMatrixWorkflowState>>
+	> = {
+		submit_for_review: {
+			draft: "review",
+			reopened: "review",
+		},
+		lock_final: {
+			review: "locked",
+		},
+		reopen: {
+			locked: "reopened",
+			review: "reopened",
+		},
+	};
+
+	const next = allowed[action][currentState];
+	if (!next) {
+		throw new Error(`Cannot ${action.replaceAll("_", " ")} compliance matrix from ${currentState} state`);
+	}
+	return next;
+}
+
+function getMatrixFinalLockBlockers(rows: Array<{ entry: ComplianceEntryRow; requirement: typeof rfpRequirements.$inferSelect }>): string[] {
+	const blockers: string[] = [];
+	for (const row of rows) {
+		const requirementNumber = row.requirement.requirementNumber ?? row.requirement.id;
+		const isMandatory = row.requirement.priority === "mandatory";
+		const unresolvedStatus = ["pending", "not_addressed", "non_compliant"].includes(row.entry.complianceStatus);
+		if (isMandatory && unresolvedStatus) {
+			blockers.push(`${requirementNumber} has unresolved compliance status ${row.entry.complianceStatus}`);
+			continue;
+		}
+		if (isMandatory && row.entry.status !== "approved") {
+			blockers.push(`${requirementNumber} is not approved`);
+		}
+	}
+	return blockers;
 }
 
 function getNextComplianceWorkflowState(
@@ -480,6 +666,43 @@ function buildComplianceWorkflowMetadata(input: {
 	};
 }
 
+function buildComplianceMatrixWorkflowMetadata(input: {
+	matrix: ComplianceMatrixRow;
+	action: ComplianceMatrixWorkflowAction;
+	from: ComplianceMatrixWorkflowState;
+	to: ComplianceMatrixWorkflowState;
+	actorId: string;
+	reason: string;
+	now: Date;
+	blockers: string[];
+}): Record<string, unknown> {
+	const metadata = getComplianceMatrixMetadata(input.matrix);
+	const workflow = metadata.complianceMatrixWorkflow && typeof metadata.complianceMatrixWorkflow === "object" && !Array.isArray(metadata.complianceMatrixWorkflow)
+		? metadata.complianceMatrixWorkflow as Record<string, unknown>
+		: {};
+	const history = Array.isArray(workflow.history) ? workflow.history : [];
+	const event = {
+		action: input.action,
+		from: input.from,
+		to: input.to,
+		actorId: input.actorId,
+		reason: input.reason,
+		blockers: input.blockers,
+		createdAt: input.now.toISOString(),
+	};
+	return {
+		...metadata,
+		complianceMatrixWorkflow: {
+			...workflow,
+			state: input.to,
+			reason: input.reason,
+			updatedAt: input.now.toISOString(),
+			blockers: input.blockers,
+			history: [event, ...history].slice(0, 100),
+		},
+	};
+}
+
 function buildComplianceWorkflowEntryPatch(input: {
 	entry: ComplianceEntryRow;
 	action: ComplianceEntryWorkflowAction;
@@ -561,6 +784,14 @@ function getComplianceEntryMetadata(entry: ComplianceEntryRow): ComplianceEntryM
 		return {};
 	}
 	return rawMetadata as ComplianceEntryMetadata;
+}
+
+function getComplianceMatrixMetadata(matrix: ComplianceMatrixRow): Record<string, unknown> {
+	const rawMetadata = matrix.metadata;
+	if (!rawMetadata || typeof rawMetadata !== "object" || Array.isArray(rawMetadata)) {
+		return {};
+	}
+	return rawMetadata as Record<string, unknown>;
 }
 
 async function recalculateComplianceMatrixStats(
