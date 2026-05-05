@@ -1,0 +1,78 @@
+{
+  "run_id": "wave2-20260505T122152Z",
+  "wave": 2,
+  "scope": "discovery-linked RFP intake hardening",
+  "timestamp_utc": "2026-05-05T12:21:52Z",
+  "implemented_capabilities": [
+    "Discovered opportunity document downloads now return durable RFP document IDs, parser job IDs, storage paths, storage receipts, and provenance to callers.",
+    "Downloaded RFP binaries persist storage receipts that identify Linode E3 bucket/key/endpoint/etag plus sha256, byte length, and content type.",
+    "Discovery-linked RFP records persist ingest workflow metadata, source opportunity document IDs, source URLs, storage receipts, parser policy, confidence gate threshold, and parse queue provenance.",
+    "Discovery-to-RFP ingest now records workflow runtime transitions for queued parse, duplicate-link, unsupported-file, download-failed, and parse-queue-failed outcomes.",
+    "Failed or unsupported intake paths project remediation tasks through the workflow runtime rather than disappearing into document status only.",
+    "Parser completion now records parse confidence review metadata and opens a workflow task when parser confidence is below the review gate.",
+    "Human parser confidence review is exposed through a server action and requirements-page controls to accept parser output or request correction.",
+    "Requirement rows inserted by the parser now use canonical RFP requirement schema fields and include source-trace workflow metadata for later requirement acceptance.",
+    "Opportunity document panels now show an intake stepper for discover, select, store, and parse progress and update in place after ingest.",
+    "Parser confidence review workflow tasks are now created only after parse completion, human review actions close the original review task, and failed/incomplete parses cannot be accepted from the UI or server action.",
+    "The requirements review panel now fetches the opportunity's RFP documents without a server-side cap, prioritizes every actionable low-confidence parse review, and only truncates non-actionable filler documents."
+  ],
+  "facility_coverage": {
+    "F-005B": {
+      "status": "partial",
+      "reason": "Code and unit proof now cover discovery-linked server-side storage receipts, RFP record creation, parser job creation, provenance, and workflow runtime audit. Live Linode E3/browser fixture proof is still required before pass."
+    },
+    "F-006B": {
+      "status": "partial",
+      "reason": "Code and unit proof now cover parser confidence gate metadata, low-confidence workflow task projection, and human accept/correction actions. Browser proof and versioned artifact review fixtures are still required before pass."
+    },
+    "F-007": {
+      "status": "partial",
+      "reason": "Parser-created requirements now carry source-trace workflow metadata and existing requirement acceptance gates remain tested. End-to-end browser acceptance/reopen proof is still required before pass."
+    },
+    "O-007": {
+      "status": "covered_by_prior_live_e3_proof",
+      "reason": "This slice consumes the existing Linode E3 upload/download implementation and adds receipt propagation; prior live E3 readback remains the only live object-store proof."
+    },
+    "O-015A": {
+      "status": "partial",
+      "reason": "New runtime transitions and audit events are emitted for intake and parser review paths, but audit explorer reconstruction was not rerun for this run."
+    }
+  },
+  "verification": [
+    {
+      "command": "npm test -- --run __tests__/services/rfp-document-service.test.ts __tests__/actions/rfp-parse-workflow.test.ts __tests__/actions/requirements-workflow.test.ts __tests__/actions/opportunity-lifecycle.test.ts",
+      "cwd": "frontend",
+      "result": "pass",
+      "summary": "4 files, 22 tests passed"
+    },
+    {
+      "command": "npm run lint",
+      "cwd": "frontend",
+      "result": "pass",
+      "summary": "No ESLint warnings or errors"
+    },
+    {
+      "command": "npm run build",
+      "cwd": "frontend",
+      "result": "pass",
+      "summary": "Next.js production build completed successfully"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "cwd": "frontend",
+      "result": "pass",
+      "summary": "No TypeScript diagnostics after build regenerated .next/types"
+    },
+    {
+      "command": "git diff --check",
+      "cwd": ".",
+      "result": "pass",
+      "summary": "No whitespace errors"
+    }
+  ],
+  "known_limitations": [
+    "The facility ledger remains blocked for F-005B, F-006B, and F-007 until an authenticated browser/live storage fixture proves the complete discovery-to-requirement path.",
+    "This slice does not yet complete scraper source governance, O-009, parser amendment supersession, or the full Wave 2 golden-path browser test.",
+    "No live Linode E3 object was created in this slice; live object-store proof remains the prior O-007 fixture."
+  ]
+}

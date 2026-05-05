@@ -22,6 +22,15 @@ vi.mock("@/lib/utils/logger", () => ({
 	},
 }));
 
+const workflowRuntimeMock = vi.hoisted(() => ({
+	recordWorkflowRuntimeTransition: vi.fn(async () => ({
+		id: "00000000-0000-4000-8000-000000000901",
+	})),
+	upsertWorkflowRuntimeTask: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/lib/actions/workflow-runtime", () => workflowRuntimeMock);
+
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
@@ -113,6 +122,7 @@ vi.mock("@/lib/db", () => {
 
 import {
 	getRfpParseLifecycle,
+	reviewRfpParseConfidence,
 	transitionRfpParseWorkflow,
 } from "@/lib/actions/rfp-parser";
 
@@ -247,6 +257,78 @@ describe("RFP parse workflow", () => {
 		).rejects.toThrow("Cannot retry RFP parse from processing state");
 
 		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("records human parse confidence acceptance metadata", async () => {
+		let documentUpdate: Record<string, unknown> | undefined;
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			...documentRow,
+			parsingStatus: "completed",
+			parsingConfidence: 55,
+			metadata: {
+				parseReview: {
+					state: "needs_review",
+					confidence: 55,
+					threshold: 80,
+				},
+			},
+		});
+		dbMock.update.mockReturnValueOnce(createChain({
+			onSet: (value) => {
+				documentUpdate = value;
+			},
+		}));
+
+		const result = await reviewRfpParseConfidence({
+			rfpDocumentId: documentRow.id,
+			action: "accept",
+			reason: "Reviewed source text and accepted parser output",
+		});
+
+		expect(result).toMatchObject({ success: true, state: "accepted" });
+		expect((documentUpdate?.metadata as any).parseReview).toMatchObject({
+			state: "accepted",
+			confidence: 55,
+			threshold: 80,
+			reviewedBy: "capture-lead",
+			reason: "Reviewed source text and accepted parser output",
+		});
+		expect(workflowRuntimeMock.upsertWorkflowRuntimeTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskKey: `rfp-parse-confidence:${documentRow.id}`,
+				state: "completed",
+				metadata: expect.objectContaining({
+					reviewState: "accepted",
+				}),
+			})
+		);
+	});
+
+	it("blocks parser confidence review until parsing is completed", async () => {
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			...documentRow,
+			parsingStatus: "failed",
+			parsingConfidence: 55,
+			metadata: {
+				parseReview: {
+					state: "needs_review",
+					confidence: 55,
+					threshold: 80,
+				},
+			},
+		});
+
+		const result = await reviewRfpParseConfidence({
+			rfpDocumentId: documentRow.id,
+			action: "accept",
+			reason: "Cannot accept failed parse",
+		});
+
+		expect(result).toMatchObject({
+			success: false,
+			error: "Parser output can only be reviewed after parsing completes",
+		});
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 });

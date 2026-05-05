@@ -81,6 +81,11 @@ vi.mock("@/lib/storage/linode-e3", () => storageMock);
 vi.mock("@/lib/actions/rfp-parser", () => ({
 	processRfpParsingJob: vi.fn(async () => undefined),
 }));
+const workflowRuntimeMock = vi.hoisted(() => ({
+	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "00000000-0000-4000-8000-000000000601" })),
+	upsertWorkflowRuntimeTask: vi.fn(async () => undefined),
+}));
+vi.mock("@/lib/actions/workflow-runtime", () => workflowRuntimeMock);
 vi.mock("@/lib/utils/logger", () => ({
 	logger: {
 		debug: vi.fn(),
@@ -159,8 +164,17 @@ describe("RFP document fetch storage", () => {
 		expect(result).toMatchObject({
 			success: true,
 			documentId: baseDocument.id,
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			parsingJobId: "00000000-0000-4000-8000-000000000501",
 			localPath: "s3://mansa/rfp/opportunity/document/Main-RFP.pdf",
 			storagePath: "s3://mansa/rfp/opportunity/document/Main-RFP.pdf",
+			storageReceipt: {
+				provider: "linode_e3",
+				bucket: "mansa",
+				key: "rfp/opportunity/document/Main-RFP.pdf",
+				sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+				byteLength: 14,
+			},
 			fileSize: 14,
 			mimeType: "application/pdf",
 		});
@@ -187,6 +201,20 @@ describe("RFP document fetch storage", () => {
 			fileHash: expect.stringMatching(/^[a-f0-9]{64}$/),
 			extractedText: "Extracted RFP text",
 			pageCount: 3,
+			metadata: expect.objectContaining({
+				ingestWorkflow: expect.objectContaining({
+					state: "queued_for_parse",
+					sourceOpportunityDocumentId: baseDocument.id,
+				}),
+				storage: expect.objectContaining({
+					provider: "linode_e3",
+					sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+				}),
+				parserPolicy: expect.objectContaining({
+					parser: "next_rfp_parser",
+					confidenceGateThreshold: 80,
+				}),
+			}),
 		});
 		expect(insertedValues[1]).toMatchObject({
 			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
@@ -196,6 +224,18 @@ describe("RFP document fetch storage", () => {
 		expect(processRfpParsingJob).toHaveBeenCalledWith(
 			"00000000-0000-4000-8000-000000000501",
 			"00000000-0000-4000-8000-000000000401"
+		);
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				workflowKey: "discovery_rfp_ingest",
+				subjectType: "opportunity_document",
+				subjectId: baseDocument.id,
+				toState: "queued_for_parse",
+				metadata: expect.objectContaining({
+					rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+					parsingJobId: "00000000-0000-4000-8000-000000000501",
+				}),
+			})
 		);
 	});
 
@@ -218,6 +258,24 @@ describe("RFP document fetch storage", () => {
 			Buffer.from("downloaded-pdf"),
 			"Main RFP.pdf"
 		);
+	});
+
+	it("blocks download when the caller opportunity does not match the document", async () => {
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			"00000000-0000-4000-8000-000000000999"
+		);
+
+		expect(result).toMatchObject({
+			success: false,
+			documentId: baseDocument.id,
+			error: "Document does not belong to this opportunity",
+		});
+		expect(global.fetch).not.toHaveBeenCalled();
+		expect(storageMock.uploadToLinodeE3).not.toHaveBeenCalled();
 	});
 });
 

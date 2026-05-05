@@ -1,6 +1,6 @@
 {
   "active": true,
-  "iteration": 6,
+  "iteration": 9,
   "max_iterations": 10,
   "current_phase": "executing",
   "started_at": "2026-05-05T09:50:00Z",
@@ -10,7 +10,7 @@
   "test_spec_path": ".omx/plans/test-spec-full-jtbd-enhancements-implementation.md",
   "facility_ledger_path": ".omx/state/platform-e2e-facility-ledger.md",
   "topology_matrix_path": ".omx/state/platform-e2e-topology-matrix.md",
-  "last_turn_at": "2026-05-05T12:06:56.446Z",
+  "last_turn_at": "2026-05-05T12:41:10.811Z",
   "completed_at": null,
   "notes": [
     "docs/shared/agent-tiers.md is absent in this checkout; using AGENTS.md role table and scoped local verification.",
@@ -18,7 +18,8 @@
     "Keep unrelated dirty worktree changes untouched.",
     "Architect verifier accepted the search-vector repair and evidence-ledger cleanup corrections; remaining broad platform rows stay blocked/partial where not exercised.",
     "Wave 1 first implementation slice added command center projections, operational inbox, audit explorer, notification acknowledgement/preferences, operations remediation buttons, template publish/deprecate/rollback actions, and sandbox labeling.",
-    "Wave 2 first implementation slice added workflow-backed opportunity triage, analysis acceptance, deadline acceptance, lifecycle controls, and regression tests."
+    "Wave 2 first implementation slice added workflow-backed opportunity triage, analysis acceptance, deadline acceptance, lifecycle controls, and regression tests.",
+    "Wave 2 discovery-linked RFP intake slice added storage receipt/provenance propagation, workflow runtime/audit transitions, parser confidence review, parser source-trace requirement metadata, intake UI progress, and regression tests."
   ],
   "approved_plan": "facility-ledger-first topology-gated evidence-strict E2E campaign",
   "phase": "wave_2_in_progress",
@@ -48,7 +49,7 @@
     "O-009"
   ],
   "note": "docs/shared/agent-tiers.md absent; using AGENTS.md/native role roster.",
-  "run_id": "wave2-20260505T115633Z",
+  "run_id": "wave2-20260505T122152Z",
   "facilities": {
     "F-001": "blocked",
     "F-002": "blocked",
@@ -65,7 +66,7 @@
   "closeout": null,
   "closeout_verification": null,
   "skill_active_marker": "active",
-  "phase_detail": "wave_2_opportunity_lifecycle_foundation",
+  "phase_detail": "wave_2_discovery_rfp_intake_foundation",
   "current_wave": "2",
   "missing_agent_tiers_doc": true,
   "planned_next_files": [
@@ -126,16 +127,27 @@
   },
   "wave_2_artifacts": [
     "frontend/lib/actions/opportunity-lifecycle.ts",
+    "frontend/lib/actions/opportunity-documents.ts",
+    "frontend/lib/actions/rfp-parser.ts",
+    "frontend/lib/services/rfp-document-service.ts",
     "frontend/components/opportunities/OpportunityLifecyclePanel.tsx",
+    "frontend/components/opportunities/DocumentManager.tsx",
+    "frontend/components/opportunities/OpportunityDocumentsPanel.tsx",
     "frontend/app/(app)/opportunities/[id]/page.tsx",
+    "frontend/app/(app)/opportunities/[id]/requirements/page.tsx",
+    "frontend/app/(app)/opportunities/[id]/requirements/RequirementsClientPage.tsx",
     "frontend/__tests__/actions/opportunity-lifecycle.test.ts",
-    ".omx/logs/platform-completion/wave2-20260505T115633Z/opportunity-lifecycle-proof.json"
+    "frontend/__tests__/actions/rfp-parse-workflow.test.ts",
+    "frontend/__tests__/services/rfp-document-service.test.ts",
+    ".omx/logs/platform-completion/wave2-20260505T115633Z/opportunity-lifecycle-proof.json",
+    ".omx/logs/platform-completion/wave2-20260505T122152Z/discovery-rfp-proof.json"
   ],
   "wave_2_verification": {
     "git_diff_check": "pass",
     "frontend_typecheck": "pass",
     "frontend_lint": "pass",
-    "focused_tests": "37 passed",
-    "architect_review": "APPROVE after fixing header shortlist workflow bypass, analysis state persistence, timezone-explicit deadlines, and stale Wave 2 state rows."
+    "frontend_build": "pass",
+    "focused_tests": "22 passed in discovery-RFP slice; 37 passed in opportunity lifecycle slice",
+    "architect_review": "APPROVE after fixing early confidence-review task creation, completing/cancelling review tasks on human action, blocking failed/incomplete parse review, rendering every actionable low-confidence parse review, and removing the server-side newest-N fetch cap. Opportunity lifecycle slice approved after fixing header shortlist workflow bypass, analysis state persistence, timezone-explicit deadlines, and stale Wave 2 state rows."
   }
 }

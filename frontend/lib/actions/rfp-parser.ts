@@ -187,25 +187,29 @@ export async function getRfpDocument(id: string): Promise<RfpDocumentRow | null>
 export async function listRfpDocuments(params?: {
 	opportunityId?: string;
 	parsingStatus?: string;
-	limit?: number;
+	limit?: number | null;
 	offset?: number;
 }): Promise<{ documents: RfpDocumentRow[]; total: number }> {
 	try {
-		const { opportunityId, parsingStatus, limit = 20, offset = 0 } = params ?? {};
+		const { opportunityId, parsingStatus, offset = 0 } = params ?? {};
+		const limit = params && "limit" in params ? params.limit : 20;
 
 		const conditions = [];
 		if (opportunityId) conditions.push(eq(rfpDocuments.opportunityId, opportunityId));
 		if (parsingStatus) conditions.push(eq(rfpDocuments.parsingStatus, parsingStatus));
 
 		const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+		const findManyOptions: Parameters<typeof db.query.rfpDocuments.findMany>[0] = {
+			where: whereClause,
+			orderBy: [desc(rfpDocuments.createdAt)],
+			offset,
+		};
+		if (limit !== null) {
+			findManyOptions.limit = limit;
+		}
 
 		const [documents, [{ count }]] = await Promise.all([
-			db.query.rfpDocuments.findMany({
-				where: whereClause,
-				orderBy: [desc(rfpDocuments.createdAt)],
-				limit,
-				offset,
-			}),
+			db.query.rfpDocuments.findMany(findManyOptions),
 			db.select({ count: sql<number>`count(*)` }).from(rfpDocuments).where(whereClause),
 		]);
 
@@ -754,6 +758,142 @@ export async function getRfpParseLifecycle(
 	}
 }
 
+export async function reviewRfpParseConfidence(input: {
+	rfpDocumentId: string;
+	action: "accept" | "request_correction";
+	reason: string;
+	corrections?: Record<string, unknown>;
+}): Promise<{ success: boolean; state?: ParseConfidenceReviewMetadata["state"]; error?: string }> {
+	const reason = input.reason.trim();
+	if (!reason) {
+		return { success: false, error: "Review reason is required" };
+	}
+
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		return { success: false, error: "Not authenticated" };
+	}
+
+	try {
+		const doc = await db.query.rfpDocuments.findFirst({
+			where: eq(rfpDocuments.id, input.rfpDocumentId),
+		});
+		if (!doc) {
+			return { success: false, error: "RFP document not found" };
+		}
+		if (doc.parsingStatus !== "completed") {
+			return { success: false, error: "Parser output can only be reviewed after parsing completes" };
+		}
+
+		const metadata = mergeRecordMetadata(doc.metadata);
+		const currentReview = normalizeParseConfidenceReviewMetadata(metadata.parseReview, doc.parsingConfidence);
+		const nextState = input.action === "accept" ? "accepted" : "correction_requested";
+		const nextReview: ParseConfidenceReviewMetadata = {
+			...currentReview,
+			state: nextState,
+			reviewedAt: new Date().toISOString(),
+			reviewedBy: userId,
+			reason,
+			corrections: input.corrections,
+		};
+
+		await db.update(rfpDocuments).set({
+			metadata: {
+				...metadata,
+				parseReview: nextReview,
+			},
+			updatedAt: new Date(),
+		}).where(eq(rfpDocuments.id, input.rfpDocumentId));
+
+		try {
+			const instance = await recordWorkflowRuntimeTransition({
+				workflowKey: "rfp_parse_confidence_review",
+				subjectType: "rfp_parse",
+				subjectId: doc.id,
+				opportunityId: doc.opportunityId,
+				fromState: currentReview.state,
+				toState: nextState,
+				eventType: `rfp_parse_review_${input.action}`,
+				actorId: userId,
+				reason,
+				priority: nextState === "correction_requested" ? "high" : "medium",
+				assignedTo: nextState === "correction_requested" ? userId : null,
+				assignedRole: "proposal_manager",
+				assignedBy: userId,
+				dueAt: nextState === "correction_requested" ? addHours(new Date(), 12) : null,
+				visibility: "internal",
+				authorityPolicy: {
+					requiredRoles: ["proposal_manager", "capture_manager"],
+					escalationRole: "operations",
+				},
+				metadata: {
+					filename: doc.filename,
+					confidence: currentReview.confidence,
+					threshold: currentReview.threshold,
+					corrections: input.corrections,
+				},
+				terminal: nextState === "accepted",
+				actionUrl: doc.opportunityId ? `/opportunities/${doc.opportunityId}/requirements` : undefined,
+			});
+
+			if (nextState === "correction_requested") {
+				await upsertWorkflowRuntimeTask({
+					workflowInstanceId: instance.id,
+					taskKey: `rfp-parse-confidence:${doc.id}`,
+					title: `Review parser output for ${doc.filename}`,
+					description: reason,
+					state: "completed",
+					priority: "medium",
+					assignedTo: userId,
+					assignedRole: "proposal_manager",
+					metadata: {
+						rfpDocumentId: doc.id,
+						reviewState: nextState,
+					},
+				});
+				await upsertWorkflowRuntimeTask({
+					workflowInstanceId: instance.id,
+					taskKey: `rfp-parse-correction:${doc.id}`,
+					title: `Correct parser output for ${doc.filename}`,
+					description: reason,
+					state: "open",
+					priority: "high",
+					assignedTo: userId,
+					assignedRole: "proposal_manager",
+					dueAt: addHours(new Date(), 12),
+					metadata: {
+						rfpDocumentId: doc.id,
+						corrections: input.corrections,
+					},
+				});
+			} else {
+				await upsertWorkflowRuntimeTask({
+					workflowInstanceId: instance.id,
+					taskKey: `rfp-parse-confidence:${doc.id}`,
+					title: `Review parser output for ${doc.filename}`,
+					description: reason,
+					state: "completed",
+					priority: "medium",
+					assignedTo: userId,
+					assignedRole: "proposal_manager",
+					metadata: {
+						rfpDocumentId: doc.id,
+						reviewState: nextState,
+					},
+				});
+			}
+		} catch (error) {
+			logger.warn("[RFP Parser] Parse confidence review workflow persistence failed:", error);
+		}
+
+		revalidatePath(doc.opportunityId ? `/opportunities/${doc.opportunityId}/requirements` : "/requirements");
+		return { success: true, state: nextState };
+	} catch (error) {
+		logger.error("Error reviewing RFP parse confidence:", error);
+		return { success: false, error: "Failed to review parser output" };
+	}
+}
+
 /**
  * Transition a parse lifecycle when automated parsing needs operator action.
  */
@@ -947,6 +1087,130 @@ export async function transitionRfpParseWorkflow(
 
 function addHours(date: Date, hours: number): Date {
 	return new Date(date.getTime() + hours * 60 * 60 * 1000);
+}
+
+interface ParseConfidenceReviewMetadata {
+	state: "auto_accepted" | "needs_review" | "accepted" | "correction_requested";
+	confidence: number;
+	threshold: number;
+	reviewedAt?: string;
+	reviewedBy?: string;
+	reason?: string;
+	corrections?: Record<string, unknown>;
+}
+
+function buildParseConfidenceReviewMetadata(confidence: number): ParseConfidenceReviewMetadata {
+	const threshold = getParseConfidenceGateThreshold();
+	return {
+		state: confidence >= threshold ? "auto_accepted" : "needs_review",
+		confidence,
+		threshold,
+	};
+}
+
+function normalizeParseConfidenceReviewMetadata(
+	value: unknown,
+	fallbackConfidence: number | null | undefined
+): ParseConfidenceReviewMetadata {
+	const record = value && typeof value === "object" && !Array.isArray(value)
+		? value as Partial<ParseConfidenceReviewMetadata>
+		: {};
+	const confidence = typeof record.confidence === "number"
+		? record.confidence
+		: fallbackConfidence ?? 0;
+	const threshold = typeof record.threshold === "number"
+		? record.threshold
+		: getParseConfidenceGateThreshold();
+	const state = record.state === "accepted" ||
+		record.state === "correction_requested" ||
+		record.state === "auto_accepted" ||
+		record.state === "needs_review"
+		? record.state
+		: confidence >= threshold ? "auto_accepted" : "needs_review";
+
+	return {
+		state,
+		confidence,
+		threshold,
+		reviewedAt: record.reviewedAt,
+		reviewedBy: record.reviewedBy,
+		reason: record.reason,
+		corrections: record.corrections,
+	};
+}
+
+async function recordParseConfidenceReviewWorkflow(params: {
+	rfpDocument: RfpDocumentRow;
+	jobId: string;
+	confidence: number;
+	parseReview: ParseConfidenceReviewMetadata;
+}): Promise<void> {
+	const needsReview = params.parseReview.state === "needs_review";
+	const toState = needsReview ? "needs_confidence_review" : "confidence_auto_accepted";
+	const dueAt = needsReview ? addHours(new Date(), 12) : null;
+
+	try {
+		const instance = await recordWorkflowRuntimeTransition({
+			workflowKey: "rfp_parse_confidence_review",
+			subjectType: "rfp_parse",
+			subjectId: params.rfpDocument.id,
+			opportunityId: params.rfpDocument.opportunityId,
+			fromState: "completed",
+			toState,
+			eventType: `rfp_parse_${toState}`,
+			actorId: "system",
+			reason: needsReview
+				? `Parser confidence ${Math.round(params.confidence)}% is below the ${params.parseReview.threshold}% review gate.`
+				: `Parser confidence ${Math.round(params.confidence)}% met the ${params.parseReview.threshold}% review gate.`,
+			priority: needsReview ? "high" : "low",
+			assignedRole: needsReview ? "proposal_manager" : null,
+			dueAt,
+			visibility: "internal",
+			authorityPolicy: {
+				requiredRoles: needsReview ? ["proposal_manager", "capture_manager"] : undefined,
+				escalationRole: "operations",
+			},
+			metadata: {
+				filename: params.rfpDocument.filename,
+				parseJobId: params.jobId,
+				confidence: params.confidence,
+				threshold: params.parseReview.threshold,
+				reviewState: params.parseReview.state,
+			},
+			terminal: !needsReview,
+			actionUrl: params.rfpDocument.opportunityId
+				? `/opportunities/${params.rfpDocument.opportunityId}/requirements`
+				: undefined,
+		});
+
+		if (needsReview) {
+			await upsertWorkflowRuntimeTask({
+				workflowInstanceId: instance.id,
+				taskKey: `rfp-parse-confidence:${params.rfpDocument.id}`,
+				title: `Review parser output for ${params.rfpDocument.filename}`,
+				description: `Parser confidence is ${Math.round(params.confidence)}%, below the ${params.parseReview.threshold}% gate. Review extracted metadata and requirements before acceptance.`,
+				state: "open",
+				priority: "high",
+				assignedRole: "proposal_manager",
+				dueAt,
+				metadata: {
+					rfpDocumentId: params.rfpDocument.id,
+					parseJobId: params.jobId,
+					confidence: params.confidence,
+					threshold: params.parseReview.threshold,
+				},
+			});
+		}
+	} catch (error) {
+		logger.warn("[RFP Parser] Parse confidence workflow persistence failed:", error);
+	}
+}
+
+function getParseConfidenceGateThreshold(): number {
+	const raw = process.env.RFP_PARSE_CONFIDENCE_GATE;
+	if (!raw) return 80;
+	const parsed = Number(raw);
+	return Number.isFinite(parsed) && parsed > 0 && parsed <= 100 ? parsed : 80;
 }
 
 // ============================================================================
@@ -1264,6 +1528,8 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 		const parsedRFP = await parseRFPWithAI(extractedText);
 
 		// Update document with parsed metadata
+		const parsingConfidence = parsedRFP.confidence * 100;
+		const parseReview = buildParseConfidenceReviewMetadata(parsingConfidence);
 		await db.update(rfpDocuments).set({
 			extractedText,
 			extractedTitle: parsedRFP.sections[0]?.title,
@@ -1276,8 +1542,12 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			setAsideType: parsedRFP.setAside,
 			estimatedValue: parsedRFP.estimatedValue,
 			detectedSections: parsedRFP.sections.map((s) => s.title),
-			parsingConfidence: parsedRFP.confidence * 100,
+			parsingConfidence,
 			parsingProgress: 50,
+			metadata: {
+				...mergeRecordMetadata(rfpDoc.metadata),
+				parseReview,
+			},
 			updatedAt: new Date(),
 		}).where(eq(rfpDocuments.id, rfpDocumentId));
 
@@ -1306,21 +1576,35 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 				rfpDocumentId,
 				opportunityId: rfpDoc.opportunityId,
 				requirementNumber: req.requirementNumber || `REQ-${String(index + 1).padStart(3, "0")}`,
-				sectionReference: req.sectionReference || undefined,
+				sourceSection: req.sectionReference || null,
 				title: req.title || req.fullText.slice(0, 100),
 				requirementText: req.fullText,
-				summary: req.summary || undefined,
 				category: req.category,
-				subcategory: req.subcategory || undefined,
+				subcategory: req.subcategory || null,
 				requirementType: req.requirementType,
 				priority: req.priority,
-				evaluationWeight: req.evaluationWeight || undefined,
-				scoringMethod: req.scoringMethod || undefined,
-				confidenceScore: req.confidenceScore,
+				evaluationWeight: req.evaluationWeight || null,
+				extractionConfidence: req.confidenceScore * 100,
 				relatedRequirements: req.relatedRequirements || [],
-				pageNumber: req.pageNumber || undefined,
+				sourcePage: req.pageNumber || null,
+				aiAnalysis: {
+					summary: req.summary,
+					scoringMethod: req.scoringMethod,
+					source: "rfp_parser",
+				},
 				complianceStatus: "pending" as const,
 				riskLevel: "medium" as const,
+				metadata: {
+					workflow: {
+						state: "review",
+						sourceTrace: {
+							rfpDocumentId,
+							parseJobId: jobId,
+							sectionReference: req.sectionReference,
+							pageNumber: req.pageNumber,
+						},
+					},
+				},
 			}));
 
 			await db.insert(rfpRequirements).values(requirementsToInsert);
@@ -1347,6 +1631,7 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			parsingError: null,
 			metadata: {
 				...mergeRecordMetadata(rfpDoc.metadata),
+				parseReview,
 				parseWorkflow: appendRfpParseWorkflowHistory(
 					normalizeRfpParseWorkflowMetadata(rfpDoc.metadata),
 					{
@@ -1362,6 +1647,17 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			},
 			updatedAt: now,
 		}).where(eq(rfpDocuments.id, rfpDocumentId));
+
+		await recordParseConfidenceReviewWorkflow({
+			rfpDocument: {
+				...rfpDoc,
+				parsingStatus: "completed",
+				parsingConfidence,
+			},
+			jobId,
+			confidence: parsingConfidence,
+			parseReview,
+		});
 
 		logger.debug(`[RFP Parser] Job ${jobId} completed successfully. Extracted ${allExtractedRequirements.length} requirements.`);
 

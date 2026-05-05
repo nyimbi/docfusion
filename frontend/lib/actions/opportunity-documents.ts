@@ -22,6 +22,7 @@ import {
   getDocumentFile,
   deleteDocument,
   extractDocumentText,
+  type DownloadResult,
 } from "@/lib/services/rfp-document-service";
 import { discoverDocumentsWithAgent } from "@/lib/services/document-discovery-agent";
 import { logger } from "@/lib/utils/logger";
@@ -178,7 +179,7 @@ export async function downloadOpportunityDocument(
       return { success: false, error: "Unauthorized" };
     }
 
-    const result = await downloadDocument(documentId, session.user.id);
+    const result = await downloadDocument(documentId, session.user.id, opportunityId);
 
     if (result.success) {
       revalidatePath(`/opportunities/${opportunityId}`);
@@ -202,11 +203,12 @@ export async function downloadSelectedOpportunityDocuments(opportunityId: string
   error?: string;
   downloaded: number;
   failed: number;
+  results: DownloadResult[];
 }> {
   try {
     const session = await requireServerSession();
     if (!session?.user) {
-      return { success: false, error: "Unauthorized", downloaded: 0, failed: 0 };
+      return { success: false, error: "Unauthorized", downloaded: 0, failed: 0, results: [] };
     }
 
     const result = await downloadSelectedDocuments(opportunityId, session.user.id);
@@ -217,6 +219,7 @@ export async function downloadSelectedOpportunityDocuments(opportunityId: string
       success: true,
       downloaded: result.success,
       failed: result.failed,
+      results: result.results,
     };
   } catch (error) {
     logger.error("Failed to download selected documents:", error);
@@ -225,6 +228,7 @@ export async function downloadSelectedOpportunityDocuments(opportunityId: string
       error: error instanceof Error ? error.message : "Download failed",
       downloaded: 0,
       failed: 0,
+      results: [],
     };
   }
 }

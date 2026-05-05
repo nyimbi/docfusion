@@ -27,6 +27,7 @@ import {
   File,
   ChevronDown,
   ChevronUp,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,15 @@ interface OpportunityDocument {
   pageCount: number | null;
 }
 
+interface IntakeResult {
+  documentId?: string;
+  rfpDocumentId?: string;
+  parsingJobId?: string;
+  storagePath?: string;
+  error?: string;
+  success: boolean;
+}
+
 interface OpportunityDocumentsPanelProps {
   opportunityId: string;
   opportunityTitle: string;
@@ -89,6 +99,7 @@ export function OpportunityDocumentsPanel({
   const [discoveryAnalysis, setDiscoveryAnalysis] = useState<string>("");
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
+  const [lastIntakeResults, setLastIntakeResults] = useState<IntakeResult[]>([]);
 
   // Calculate stats
   const discoveredCount = documents.length;
@@ -171,7 +182,14 @@ export function OpportunityDocumentsPanel({
     try {
       const result = await downloadOpportunityDocument(opportunityId, documentId);
       if (result.success) {
-        toast.success(`Downloaded: ${result.documentId}`);
+        toast.success(result.parsingJobId ? "RFP ingested and parser queued" : `Downloaded: ${result.documentId}`);
+        setLastIntakeResults([{
+          success: true,
+          documentId: result.documentId,
+          rfpDocumentId: result.rfpDocumentId,
+          parsingJobId: result.parsingJobId,
+          storagePath: result.storagePath,
+        }]);
         setDocuments((prev) => prev.map((doc) =>
           doc.id === documentId ? { ...doc, status: "downloaded" } : doc
         ));
@@ -200,16 +218,30 @@ export function OpportunityDocumentsPanel({
     }
 
     setIsDownloading(true);
-    toast.loading(`Downloading ${selectedDocs.length} documents...`, { id: "bulk-download" });
+    toast.loading(`Ingesting ${selectedDocs.length} document${selectedDocs.length === 1 ? "" : "s"}...`, { id: "bulk-download" });
 
     try {
       const result = await downloadSelectedOpportunityDocuments(opportunityId);
       if (result.success) {
         toast.success(
-          `Downloaded ${result.downloaded} documents${result.failed > 0 ? `, ${result.failed} failed` : ""}`,
+          `Ingested ${result.downloaded} document${result.downloaded === 1 ? "" : "s"}${result.failed > 0 ? `, ${result.failed} failed` : ""}`,
           { id: "bulk-download" }
         );
-        window.location.reload();
+        setLastIntakeResults(result.results.map((item) => ({
+          success: item.success,
+          documentId: item.documentId,
+          rfpDocumentId: item.rfpDocumentId,
+          parsingJobId: item.parsingJobId,
+          storagePath: item.storagePath,
+          error: item.error,
+        })));
+        const succeeded = new Set(result.results.filter((item) => item.success).map((item) => item.documentId));
+        const failed = new Set(result.results.filter((item) => !item.success).map((item) => item.documentId));
+        setDocuments((prev) => prev.map((doc) => {
+          if (succeeded.has(doc.id)) return { ...doc, status: "downloaded" };
+          if (failed.has(doc.id)) return { ...doc, status: "failed" };
+          return doc;
+        }));
       } else {
         toast.error(result.error || "Bulk download failed", { id: "bulk-download" });
       }
@@ -318,6 +350,13 @@ export function OpportunityDocumentsPanel({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        <RfpIntakeSteps
+          discoveredCount={discoveredCount}
+          selectedCount={selectedCount}
+          downloadedCount={downloadedCount}
+          lastResults={lastIntakeResults}
+        />
+
         {/* Bulk Actions */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -343,7 +382,7 @@ export function OpportunityDocumentsPanel({
             ) : (
               <Download className="h-4 w-4" />
             )}
-            Download Selected ({selectedCount})
+            Ingest Selected ({selectedCount})
           </Button>
         </div>
 
@@ -364,6 +403,42 @@ export function OpportunityDocumentsPanel({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function RfpIntakeSteps({
+  discoveredCount,
+  selectedCount,
+  downloadedCount,
+  lastResults,
+}: {
+  discoveredCount: number;
+  selectedCount: number;
+  downloadedCount: number;
+  lastResults: IntakeResult[];
+}) {
+  const stored = lastResults.filter((result) => result.storagePath).length;
+  const queued = lastResults.filter((result) => result.parsingJobId).length;
+
+  return (
+    <div className="grid grid-cols-2 gap-2 rounded-lg border bg-background p-3 text-xs sm:grid-cols-4">
+      <IntakeStep label="Discover" value={`${discoveredCount} found`} active={discoveredCount > 0} />
+      <IntakeStep label="Select" value={`${selectedCount} selected`} active={selectedCount > 0} />
+      <IntakeStep label="Store" value={stored > 0 ? `${stored} stored` : `${downloadedCount} ready`} active={downloadedCount > 0 || stored > 0} />
+      <IntakeStep label="Parse" value={queued > 0 ? `${queued} queued` : "awaiting ingest"} active={queued > 0} />
+    </div>
+  );
+}
+
+function IntakeStep({ label, value, active }: { label: string; value: string; active: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      <CheckCircle2 className={cn("h-4 w-4", active ? "text-green-600" : "text-muted-foreground")} />
+      <div className="min-w-0">
+        <div className="font-medium">{label}</div>
+        <div className="truncate text-muted-foreground">{value}</div>
+      </div>
+    </div>
   );
 }
 
