@@ -1,0 +1,103 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/auth-utils", () => ({
+	requireUserContext: vi.fn(async () => ({ userId: "security-reviewer-1" })),
+}));
+
+vi.mock("@/lib/actions/workflow-runtime", () => ({
+	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "dlp-workflow-1" })),
+	upsertWorkflowRuntimeTask: vi.fn(async () => ({ id: "dlp-task-1" })),
+}));
+
+function createChain(result: unknown[] = []) {
+	const chain: Record<string, any> = {};
+	for (const method of ["from", "innerJoin", "where"]) {
+		chain[method] = vi.fn(() => chain);
+	}
+	chain.then = (resolve: (value: unknown[]) => void) => Promise.resolve(result).then(resolve);
+	return chain;
+}
+
+var dbMock: any;
+
+vi.mock("@/lib/db", () => {
+	dbMock = {
+		select: vi.fn(() => createChain()),
+	};
+	return { db: dbMock };
+});
+
+import { evaluateDlpExportPolicyWorkflow } from "@/lib/actions/dlp-policy";
+import {
+	recordWorkflowRuntimeTransition,
+	upsertWorkflowRuntimeTask,
+} from "@/lib/actions/workflow-runtime";
+
+beforeEach(() => {
+	vi.clearAllMocks();
+	dbMock.select.mockReset();
+});
+
+describe("DLP export policy workflow", () => {
+	it("records a cleared terminal scan when no findings exist", async () => {
+		dbMock.select.mockReturnValueOnce(createChain([{
+			documentId: "doc-1",
+			title: "Management Plan",
+			content: "Clean proposal content with no sensitive tokens.",
+		}]));
+
+		const result = await evaluateDlpExportPolicyWorkflow("opp-1");
+
+		expect(result).toMatchObject({
+			opportunityId: "opp-1",
+			allowed: true,
+			findings: [],
+			blockingCount: 0,
+			workflowInstanceIds: ["dlp-workflow-1"],
+		});
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
+			workflowKey: "privacy_dlp_export_gate",
+			subjectType: "opportunity_dlp_scan",
+			subjectId: "opp-1",
+			toState: "cleared",
+			terminal: true,
+		}));
+		expect(upsertWorkflowRuntimeTask).not.toHaveBeenCalled();
+	});
+
+	it("blocks export and projects a security review task for classified findings", async () => {
+		dbMock.select.mockReturnValueOnce(createChain([{
+			documentId: "doc-2",
+			title: "Technical Volume",
+			content: "This appendix is marked TOP SECRET and must not be exported.",
+		}]));
+
+		const result = await evaluateDlpExportPolicyWorkflow("opp-2");
+
+		expect(result.allowed).toBe(false);
+		expect(result.blockingCount).toBe(1);
+		expect(result.findings[0]).toMatchObject({
+			documentId: "doc-2",
+			severity: "high",
+			label: "Restricted classification marking",
+		});
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
+			workflowKey: "privacy_dlp_export_gate",
+			subjectType: "dlp_finding",
+			opportunityId: "opp-2",
+			toState: "review_required",
+			eventType: "dlp_finding_detected",
+			priority: "high",
+			assignedRole: "security_reviewer",
+			terminal: false,
+			actionUrl: "/documents/doc-2",
+		}));
+		expect(upsertWorkflowRuntimeTask).toHaveBeenCalledWith(expect.objectContaining({
+			workflowInstanceId: "dlp-workflow-1",
+			title: "Review Restricted classification marking",
+			state: "blocked",
+			priority: "high",
+			assignedRole: "security_reviewer",
+		}));
+	});
+});

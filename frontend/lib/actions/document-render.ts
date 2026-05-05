@@ -24,6 +24,12 @@ import type {
 import { tiptapToLatex, tiptapToPlainText } from "@/lib/render/latex-converter";
 import { tiptapToDocx } from "@/lib/render/docx-converter";
 import { tiptapToPptx, estimateSlideCount } from "@/lib/render/pptx-converter";
+import {
+	hasBlockingDlpFindings,
+	scanDocumentForDlpFindings,
+	summarizeDlpFindings,
+	type DlpSeverity,
+} from "@/lib/security/dlp-policy";
 
 // ============================================================================
 // Constants
@@ -712,6 +718,33 @@ export async function preSubmissionAudit(
 			isReady = false;
 		}
 
+		const dlpFindings = scanDocumentForDlpFindings({
+			documentId: doc.documentId,
+			title: doc.documentTitle,
+			content: doc.content,
+		});
+		if (dlpFindings.length) {
+			const summary = summarizeDlpFindings(dlpFindings);
+			if (hasBlockingDlpFindings(dlpFindings)) {
+				docIssues.push(`Blocking DLP findings: ${summary}`);
+				issues.push(`${doc.documentTitle}: blocking DLP findings (${summary})`);
+				isReady = false;
+			} else {
+				recommendations.push(`${doc.documentTitle}: review advisory DLP findings (${summary})`);
+			}
+			for (const finding of dlpFindings) {
+				checks.push({
+					id: `dlp-${finding.id}`,
+					name: `${doc.documentTitle}: ${finding.label}`,
+					category: "compliance",
+					passed: !isBlockingDlpSeverity(finding.severity),
+					severity: auditSeverityForDlp(finding.severity),
+					message: `${finding.excerpt} - ${finding.recommendation}`,
+					documentId: doc.documentId,
+				});
+			}
+		}
+
 		documentResults.push({
 			id: doc.id,
 			title: doc.documentTitle,
@@ -797,6 +830,14 @@ export async function preSubmissionAudit(
 		recommendations,
 		auditedAt: new Date(),
 	};
+}
+
+function isBlockingDlpSeverity(severity: DlpSeverity): boolean {
+	return severity === "critical" || severity === "high";
+}
+
+function auditSeverityForDlp(severity: DlpSeverity): AuditCheck["severity"] {
+	return severity === "critical" || severity === "high" ? "error" : "warning";
 }
 
 /**
