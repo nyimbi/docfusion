@@ -6,12 +6,14 @@ import {
 	CheckCircle2,
 	Clock,
 	ExternalLink,
+	History,
 	LayoutDashboard,
 	ShieldCheck,
 	Workflow,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
+import { SandboxModeBanner } from "@/components/workflows/SandboxModeBanner";
 import { WorkflowActionPanel } from "@/components/workflows/WorkflowActionPanel";
 import { getWorkflowDashboard, listWorkflowTemplates } from "@/lib/actions/workflow-runtime";
 import type { WorkflowInstanceRow } from "@/lib/db/schema-workflow-runtime";
@@ -57,6 +59,12 @@ export default async function WorkflowDashboardPage() {
 							</Link>
 						</Button>
 						<Button asChild variant="outline" size="sm">
+							<Link href="/workflows/audit">
+								<History className="h-4 w-4" />
+								Audit
+							</Link>
+						</Button>
+						<Button asChild variant="outline" size="sm">
 							<Link href="/workflows/templates">
 								<ShieldCheck className="h-4 w-4" />
 								Templates
@@ -67,6 +75,8 @@ export default async function WorkflowDashboardPage() {
 			</div>
 
 			<main className="space-y-6 p-6">
+				<SandboxModeBanner />
+
 				<WorkflowActionPanel
 					templates={templates.map((template) => ({
 						id: template.id,

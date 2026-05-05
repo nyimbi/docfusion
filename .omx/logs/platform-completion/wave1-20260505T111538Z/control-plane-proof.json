@@ -1,0 +1,39 @@
+{
+  "run_id": "wave1-20260505T111538Z",
+  "scope": "Wave 1 control-plane and UX-shell implementation slice",
+  "disposition": "code_verified_not_live_promoted",
+  "implemented_capabilities": [
+    "Opportunity command-center projection and page surfacing",
+    "Operational inbox and work-item projection",
+    "Notification acknowledgement, quiet-hours preference update, and failed-delivery retry actions",
+    "Workflow audit explorer with run reconstruction by workflow instance and subject filters",
+    "Workflow operations remediation actions for resolve, reopen, and cancel with reason capture",
+    "Template studio publish, deprecate, and rollback actions",
+    "Visible sandbox/live run-scope labeling"
+  ],
+  "verification": {
+    "git_diff_check": "pass",
+    "frontend_typecheck": "npx tsc --noEmit: pass",
+    "frontend_lint": "npm run lint: pass",
+    "frontend_build": "npm run build: pass",
+    "focused_tests": {
+      "command": "npm test -- --run __tests__/work-items/projections.test.ts __tests__/actions/workflow-runtime.test.ts __tests__/actions/workflow-domain.test.ts __tests__/workflows/api-auth.test.ts __tests__/api/workflow-start-route.test.ts",
+      "result": "5 files passed, 41 tests passed"
+    }
+  },
+  "architect_review": {
+    "status": "APPROVE",
+    "reviewer": "Halley",
+    "resolved_findings": [
+      "Dashboard and portal queries now apply workflow viewer scope before pagination and compute dashboard totals from all authorized rows.",
+      "Opportunity command-center audit projection now avoids direct audit reads unless the viewer is global or directly assigned to the opportunity, and otherwise uses visible workflow IDs.",
+      "Workflow reversal now persists target-state visibility and clears stale portal visibility for cancelled/resolved/reopened states that are not portal-visible."
+    ]
+  },
+  "facility_rows_touched": {
+    "O-003A": "blocked until authenticated browser/live-mutating proof records workflow instance, runtime task, audit, cleanup, and denial evidence",
+    "O-004B": "blocked until browser proof exercises template studio publication/deprecation/rollback against disposable fixture",
+    "O-006B": "blocked until browser/live-safe proof exercises acknowledgement, quiet hours, retry, and delivery transcript",
+    "O-015A": "blocked until authenticated audit explorer proof reconstructs a real run by run ID and subject"
+  }
+}

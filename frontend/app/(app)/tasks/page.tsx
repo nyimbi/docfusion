@@ -29,6 +29,7 @@ import {
 	Target,
 	AlertCircle,
 	FileText,
+	Inbox,
 } from "lucide-react";
 import {
 	Select,
@@ -45,6 +46,7 @@ import { WorkloadDashboard } from "@/components/task-management/WorkloadDashboar
 import { WorkloadHeatMap } from "@/components/task-management/WorkloadHeatMap";
 import { CriticalPathView } from "@/components/task-management/CriticalPathView";
 import { TaskGenerator } from "@/components/task-management/TaskGenerator";
+import { OperationalInbox } from "@/components/tasks/OperationalInbox";
 import {
 	listAllTasks,
 	listTasks,
@@ -57,6 +59,7 @@ import {
 	generateProgressReport,
 } from "@/lib/actions/task-management";
 import { getOpportunities } from "@/lib/actions/opportunities";
+import { getOperationalInboxProjection, type OperationalInboxProjection } from "@/lib/actions/work-items";
 import type { ProposalTask, AuthorExpertise } from "@/lib/db/schema-tasks";
 import type { OpportunityListItem } from "@/lib/types/opportunity";
 
@@ -112,7 +115,7 @@ interface ProgressReport {
 }
 
 export default function TasksPage() {
-	const [activeTab, setActiveTab] = useState("board");
+	const [activeTab, setActiveTab] = useState("inbox");
 	const [viewMode, setViewMode] = useState<"board" | "list">("board");
 	const [selectedOpportunityId, setSelectedOpportunityId] = useState<string | null>(null);
 	const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -122,11 +125,13 @@ export default function TasksPage() {
 	const [opportunities, setOpportunities] = useState<OpportunityListItem[]>([]);
 	const [criticalPath, setCriticalPath] = useState<string[]>([]);
 	const [progressReport, setProgressReport] = useState<ProgressReport | null>(null);
+	const [operationalInbox, setOperationalInbox] = useState<OperationalInboxProjection | null>(null);
 	const [assignmentSuggestions, setAssignmentSuggestions] = useState<AssignmentSuggestion[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isLoadingCriticalPath, setIsLoadingCriticalPath] = useState(false);
 	const [isLoadingReport, setIsLoadingReport] = useState(false);
 	const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+	const [isLoadingInbox, setIsLoadingInbox] = useState(false);
 	const [selectedTask, setSelectedTask] = useState<ProposalTask | null>(null);
 
 	// Fetch opportunities
@@ -192,6 +197,22 @@ export default function TasksPage() {
 		}
 	}, [selectedOpportunityId]);
 
+	const fetchOperationalInbox = useCallback(async () => {
+		setIsLoadingInbox(true);
+		try {
+			const result = await getOperationalInboxProjection({
+				opportunityId: selectedOpportunityId,
+				limit: 120,
+			});
+			setOperationalInbox(result);
+		} catch (error) {
+			console.error("Failed to fetch operational inbox:", error);
+			setOperationalInbox(null);
+		} finally {
+			setIsLoadingInbox(false);
+		}
+	}, [selectedOpportunityId]);
+
 	// Fetch progress report when on analytics tab
 	const fetchProgressReport = useCallback(async () => {
 		if (!selectedOpportunityId) {
@@ -237,7 +258,8 @@ export default function TasksPage() {
 	useEffect(() => {
 		fetchTasks();
 		fetchCriticalPath();
-	}, [fetchTasks, fetchCriticalPath]);
+		fetchOperationalInbox();
+	}, [fetchTasks, fetchCriticalPath, fetchOperationalInbox]);
 
 	useEffect(() => {
 		if (activeTab === "analytics" && selectedOpportunityId) {
@@ -371,6 +393,13 @@ export default function TasksPage() {
 						<div className="flex items-center justify-between">
 							<TabsList className="h-12 bg-transparent border-b-0">
 								<TabsTrigger
+									value="inbox"
+									className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none"
+								>
+									<Inbox className="h-4 w-4 mr-2" />
+									Inbox
+								</TabsTrigger>
+								<TabsTrigger
 									value="board"
 									className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none"
 								>
@@ -422,6 +451,18 @@ export default function TasksPage() {
 					</div>
 
 					<div className="flex-1 overflow-auto">
+						<TabsContent value="inbox" className="h-full m-0 p-6">
+							{isLoadingInbox ? (
+								<div className="flex items-center justify-center h-64">
+									<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+								</div>
+							) : (
+								<OperationalInbox
+									initialProjection={operationalInbox}
+									onRefresh={fetchOperationalInbox}
+								/>
+							)}
+						</TabsContent>
 						<TabsContent value="board" className="h-full m-0">
 							{isLoading ? (
 								<div className="flex items-center justify-center h-64">

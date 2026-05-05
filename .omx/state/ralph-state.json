@@ -1,26 +1,27 @@
 {
-  "active": false,
-  "iteration": 1,
+  "active": true,
+  "iteration": 4,
   "max_iterations": 10,
-  "current_phase": "complete",
-  "started_at": "2026-05-05T03:49:05Z",
-  "task_description": "Execute Phase 0 and Phase 1 from .omx/plans/platform-completion-next-phase-plan.md.",
-  "context_snapshot_path": ".omx/context/platform-completion-ralph-execution-20260505T034905Z.md",
-  "plan_path": ".omx/plans/prd-platform-e2e-exercise.md",
-  "test_spec_path": ".omx/plans/test-spec-platform-e2e-exercise.md",
+  "current_phase": "executing",
+  "started_at": "2026-05-05T09:50:00Z",
+  "task_description": "Implement .omx/plans/full-jtbd-enhancements-implementation-plan.md exhaustively using Ralph.",
+  "context_snapshot_path": ".omx/context/full-jtbd-enhancements-implementation-20260505T083507Z.md",
+  "plan_path": ".omx/plans/full-jtbd-enhancements-implementation-plan.md",
+  "test_spec_path": ".omx/plans/test-spec-full-jtbd-enhancements-implementation.md",
   "facility_ledger_path": ".omx/state/platform-e2e-facility-ledger.md",
   "topology_matrix_path": ".omx/state/platform-e2e-topology-matrix.md",
-  "last_turn_at": "2026-05-05T04:23:20.596Z",
-  "completed_at": "2026-05-05T05:12:08Z",
+  "last_turn_at": "2026-05-05T11:37:46.627Z",
+  "completed_at": null,
   "notes": [
     "docs/shared/agent-tiers.md is absent in this checkout; using AGENTS.md role table and scoped local verification.",
     "Codex native subagents returned Azure deployment 404 during Phase 0; architect verification later completed successfully.",
     "Keep unrelated dirty worktree changes untouched.",
-    "Architect verifier accepted the search-vector repair and evidence-ledger cleanup corrections; remaining broad platform rows stay blocked/partial where not exercised."
+    "Architect verifier accepted the search-vector repair and evidence-ledger cleanup corrections; remaining broad platform rows stay blocked/partial where not exercised.",
+    "Wave 1 first implementation slice added command center projections, operational inbox, audit explorer, notification acknowledgement/preferences, operations remediation buttons, template publish/deprecate/rollback actions, and sandbox labeling."
   ],
   "approved_plan": "facility-ledger-first topology-gated evidence-strict E2E campaign",
-  "phase": "completed",
-  "approved_plan_path": ".omx/plans/platform-completion-next-phase-plan.md",
+  "phase": "wave_1_in_progress",
+  "approved_plan_path": ".omx/plans/full-jtbd-enhancements-implementation-plan.md",
   "target_rows": [
     "F-006",
     "O-006",
@@ -43,9 +44,68 @@
     "O-004": "pass",
     "O-003": "blocked"
   },
-  "verification": "git diff --check; vitest 38/531; tsc; lint; build; architect approved",
-  "architect_status": "approved",
-  "closeout": "verified_and_closed",
-  "closeout_verification": "git diff --check; npm test -- --run 38 files/531 tests; npx tsc --noEmit; npm run lint; npm run build; architect closeout approved",
-  "skill_active_marker": "terminalized"
+  "verification": "git diff --check; frontend npm test -- --run workflow/work-item focused suite 41 tests; npx tsc --noEmit; npm run lint; npm run build",
+  "architect_status": "approved_wave_1_slice",
+  "closeout": null,
+  "closeout_verification": null,
+  "skill_active_marker": "active",
+  "phase_detail": "wave_1_control_plane_ux_shell",
+  "current_wave": "1",
+  "missing_agent_tiers_doc": true,
+  "planned_next_files": [
+    ".omx/plans/prd-full-jtbd-enhancements-implementation.md",
+    ".omx/plans/test-spec-full-jtbd-enhancements-implementation.md",
+    "docs/jtbd-implementation-ledger.md",
+    "docs/platform-jtbd-catalogue.md",
+    ".omx/state/platform-e2e-facility-ledger.md"
+  ],
+  "wave_0_artifacts": [
+    ".omx/plans/prd-full-jtbd-enhancements-implementation.md",
+    ".omx/plans/test-spec-full-jtbd-enhancements-implementation.md",
+    "docs/jtbd-implementation-ledger.md",
+    "docs/platform-jtbd-catalogue.md",
+    ".omx/state/platform-e2e-facility-ledger.md"
+  ],
+  "mechanical_checks": {
+    "jtbd_ledger_rows": 75,
+    "ux_ledger_rows": 25,
+    "proof_targets_missing_from_facility_register": 0,
+    "git_diff_check": "pass"
+  },
+  "wave_1_artifacts": [
+    "frontend/lib/work-items/projections.ts",
+    "frontend/lib/actions/work-items.ts",
+    "frontend/lib/actions/workflow-audit.ts",
+    "frontend/lib/actions/workflow-template-governance.ts",
+    "frontend/app/(app)/opportunities/[id]/page.tsx",
+    "frontend/app/(app)/tasks/page.tsx",
+    "frontend/app/(app)/workflows/audit/page.tsx",
+    "frontend/app/(app)/workflows/operations/page.tsx",
+    "frontend/app/(app)/workflows/templates/page.tsx",
+    "frontend/components/opportunities/OpportunityCommandCenter.tsx",
+    "frontend/components/tasks/OperationalInbox.tsx",
+    "frontend/components/work-items/NextActionPanel.tsx",
+    "frontend/components/workflows/SandboxModeBanner.tsx",
+    "frontend/components/workflows/WorkflowOperationsActions.tsx",
+    "frontend/components/workflows/WorkflowTemplateGovernanceActions.tsx",
+    "frontend/__tests__/work-items/projections.test.ts",
+    "frontend/__tests__/actions/workflow-runtime.test.ts",
+    ".omx/logs/platform-completion/wave1-20260505T111538Z/control-plane-proof.json"
+  ],
+  "wave_1_verification": {
+    "git_diff_check": "pass",
+    "frontend_typecheck": "pass",
+    "frontend_lint": "pass",
+    "frontend_build": "pass",
+    "focused_tests": "41 passed"
+  },
+  "architect_review": {
+    "reviewer": "Halley",
+    "status": "APPROVE",
+    "rejection_fixes": [
+      "Workflow dashboard and portal visibility SQL scope filtering now happens before pagination.",
+      "Opportunity command-center audit only exposes direct subject audit to global/direct opportunity owners and otherwise uses visible workflow IDs.",
+      "Workflow reversals recompute target-state portal visibility and clear stale portal visibility for non-portal target states."
+    ]
+  }
 }

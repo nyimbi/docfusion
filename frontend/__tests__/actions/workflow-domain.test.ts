@@ -223,6 +223,8 @@ describe("workflow domain integrations", () => {
 			subjectId: "claim-1",
 			state: "review",
 			status: "active",
+			visibility: "portal",
+			portalVisibility: { visibleToPortal: true, portalRole: "partner" },
 			metadata: {},
 		};
 		const cancelled = { ...existing, state: "cancelled", status: "cancelled" };
@@ -230,10 +232,12 @@ describe("workflow domain integrations", () => {
 			templateKey: existing.workflowKey,
 			version: 1,
 			status: "active",
+			portalPolicy: { visibleStates: ["review"], portalRole: "partner" },
 			transitions: [
 				{ action: "cancel", from: ["review"], to: "cancelled", requiredRoles: ["reviewer"] },
 			],
 		};
+		let workflowPatch: Record<string, unknown> | undefined;
 		let claimPatch: Record<string, unknown> | undefined;
 
 		dbMock.select
@@ -241,7 +245,12 @@ describe("workflow domain integrations", () => {
 			.mockReturnValueOnce(createChain({ result: [template] }))
 			.mockReturnValueOnce(createChain({ result: [existing] }));
 		dbMock.update
-			.mockReturnValueOnce(createChain({ result: [cancelled] }))
+			.mockReturnValueOnce(createChain({
+				result: [cancelled],
+				onSet: (value) => {
+					workflowPatch = value;
+				},
+			}))
 			.mockReturnValueOnce(createChain())
 			.mockReturnValueOnce(createChain({
 				onSet: (value) => {
@@ -260,6 +269,12 @@ describe("workflow domain integrations", () => {
 			reason: "Claim removed from proposal",
 		})).resolves.toEqual(cancelled);
 
+		expect(workflowPatch).toMatchObject({
+			state: "cancelled",
+			status: "cancelled",
+			visibility: "internal",
+			portalVisibility: null,
+		});
 		expect(claimPatch).toMatchObject({
 			status: "resolved",
 			resolution: "claim_removed",

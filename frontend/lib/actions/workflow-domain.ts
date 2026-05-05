@@ -166,6 +166,7 @@ export async function transitionDomainWorkflow(
 	if (isReversalAction(input.action)) {
 		const instance = await getWorkflowInstance(input.workflowInstanceId);
 		const template = await getTemplateForInstance(instance);
+		const targetState = input.targetState ?? getDefaultReversalTargetState(input.action);
 		await assertWorkflowAuthority({
 			actorId: input.actorId,
 			actorRoles: input.actorRoles,
@@ -177,7 +178,9 @@ export async function transitionDomainWorkflow(
 			action: input.action,
 			actorId: input.actorId,
 			reason: input.reason ?? "",
-			targetState: input.targetState,
+			targetState,
+			visibility: getTemplateVisibility(template, targetState),
+			portalVisibility: getTemplatePortalVisibility(template, targetState) ?? null,
 			evidenceLinks: input.evidenceLinks,
 			authorityChecked: true,
 			metadata: {
@@ -940,6 +943,12 @@ function getStartAuthorityPolicy(template: WorkflowTemplateRow, initialState: st
 
 function isReversalAction(action: string): action is "reopen" | "cancel" | "resolve" {
 	return action === "reopen" || action === "cancel" || action === "resolve";
+}
+
+function getDefaultReversalTargetState(action: "reopen" | "cancel" | "resolve") {
+	if (action === "reopen") return "active";
+	if (action === "cancel") return "cancelled";
+	return "resolved";
 }
 
 function getReversalAuthorityPolicy(

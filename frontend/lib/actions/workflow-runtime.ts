@@ -17,7 +17,7 @@ import { opportunities } from "@/lib/db/schema";
 import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 import { simulateWorkflowTemplate } from "@/lib/workflows/simulation";
 import type { WorkflowViewerScope } from "@/lib/workflows/viewer-scope";
-import { and, asc, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 
 type WorkflowClient = Pick<typeof db, "select" | "insert" | "update" | "execute">;
 
@@ -357,28 +357,31 @@ export async function getWorkflowDashboard(
 	if (filters.opportunityId) {
 		conditions.push(eq(workflowInstances.opportunityId, filters.opportunityId));
 	}
+	const scopeCondition = await getWorkflowScopeCondition(scope, filters.opportunityId);
+	if (scopeCondition) {
+		conditions.push(scopeCondition);
+	}
 
-	const query = db
+	const rows = await db
 		.select()
 		.from(workflowInstances)
 		.where(conditions.length ? and(...conditions) : sql`true`)
-		.orderBy(desc(workflowInstances.updatedAt))
-		.limit(filters.limit ?? 100);
-	const rows = await query;
-	const items = await filterWorkflowInstancesForScope(scope, rows);
+		.orderBy(desc(workflowInstances.updatedAt));
+	const limit = filters.limit ?? 100;
+	const items = rows.slice(0, limit);
 	const dueSoonThreshold = Date.now() + 48 * 60 * 60 * 1000;
 
 	return {
-		total: items.length,
-		active: items.filter((item) => item.status === "active" || item.status === "waiting").length,
-		breached: items.filter((item) => item.status === "breached").length,
-		escalated: items.filter((item) => item.status === "escalated").length,
-		completed: items.filter((item) => item.status === "completed").length,
-		bySubjectType: items.reduce<Record<string, number>>((acc, item) => {
+		total: rows.length,
+		active: rows.filter((item) => item.status === "active" || item.status === "waiting").length,
+		breached: rows.filter((item) => item.status === "breached").length,
+		escalated: rows.filter((item) => item.status === "escalated").length,
+		completed: rows.filter((item) => item.status === "completed").length,
+		bySubjectType: rows.reduce<Record<string, number>>((acc, item) => {
 			acc[item.subjectType] = (acc[item.subjectType] ?? 0) + 1;
 			return acc;
 		}, {}),
-		dueSoon: items.filter((item) => {
+		dueSoon: rows.filter((item) => {
 			if (!item.dueAt) return false;
 			const time = new Date(item.dueAt).getTime();
 			return time <= dueSoonThreshold && time >= Date.now() && item.status !== "completed";
@@ -392,15 +395,18 @@ export async function listPortalWorkflowItems(
 	options: { portalRole?: string; limit?: number } = {}
 ): Promise<WorkflowInstanceRow[]> {
 	assertWorkflowViewerScope(scope);
+	const conditions = [inArray(workflowInstances.visibility, ["portal", "external"])];
+	const scopeCondition = await getWorkflowScopeCondition(scope);
+	if (scopeCondition) {
+		conditions.push(scopeCondition);
+	}
 	const rows = await db
 		.select()
 		.from(workflowInstances)
-		.where(inArray(workflowInstances.visibility, ["portal", "external"]))
-		.orderBy(asc(workflowInstances.dueAt), desc(workflowInstances.updatedAt))
-		.limit(options.limit ?? 50);
+		.where(and(...conditions))
+		.orderBy(asc(workflowInstances.dueAt), desc(workflowInstances.updatedAt));
 
-	const scopedRows = await filterWorkflowInstancesForScope(scope, rows);
-	return scopedRows.filter((row) => {
+	return rows.filter((row) => {
 		const visibility = row.portalVisibility;
 		if (visibility?.visibleToPortal !== true) return false;
 		if (visibility.portalRole && !scope.isGlobalWorkflowViewer && !scope.portalRoles.includes(visibility.portalRole)) {
@@ -410,7 +416,7 @@ export async function listPortalWorkflowItems(
 			return visibility.portalRole === options.portalRole;
 		}
 		return true;
-	});
+	}).slice(0, options.limit ?? 50);
 }
 
 export async function assertWorkflowAuthority(input: {
@@ -441,6 +447,8 @@ export async function reverseWorkflowRuntimeState(input: {
 	actorName?: string;
 	reason: string;
 	targetState?: string;
+	visibility?: "internal" | "portal" | "external";
+	portalVisibility?: WorkflowPortalVisibility | null;
 	evidenceLinks?: string[];
 	metadata?: Record<string, unknown>;
 	authorityChecked: true;
@@ -488,6 +496,8 @@ export async function reverseWorkflowRuntimeState(input: {
 		.set({
 			state: toState,
 			status,
+			visibility: input.visibility ?? instance.visibility,
+			portalVisibility: input.portalVisibility === undefined ? instance.portalVisibility : input.portalVisibility,
 			metadata,
 			completedAt: status === "completed" || status === "cancelled" ? now : null,
 			updatedAt: now,
@@ -528,35 +538,37 @@ function assertWorkflowViewerScope(scope: WorkflowViewerScope | null | undefined
 	}
 }
 
-async function filterWorkflowInstancesForScope(
-	scope: WorkflowViewerScope,
-	rows: WorkflowInstanceRow[]
-): Promise<WorkflowInstanceRow[]> {
-	if (scope.isGlobalWorkflowViewer) return rows;
-	if (!rows.length) return [];
-
-	const opportunityIds = rows
-		.map((row) => row.opportunityId ?? (row.subjectType === "opportunity" ? row.subjectId : null))
-		.filter((value): value is string => Boolean(value && isUuid(value)));
-	const assignedOpportunityIds = new Set<string>();
-	if (opportunityIds.length) {
-		const uniqueIds = [...new Set(opportunityIds)];
-		const assignedRows = await db
-			.select({ id: opportunities.id })
-			.from(opportunities)
-			.where(and(
-				inArray(opportunities.id, uniqueIds),
-				eq(opportunities.assignedTo, scope.userId)
-			));
-		for (const row of assignedRows) assignedOpportunityIds.add(row.id);
+async function getWorkflowScopeCondition(scope: WorkflowViewerScope, opportunityId?: string) {
+	if (scope.isGlobalWorkflowViewer) return null;
+	const assignedOpportunityIds = await getAssignedOpportunityIdsForScope(scope.userId, opportunityId);
+	const actorCondition = sql`coalesce(${workflowInstances.authorityPolicy}, '{}'::jsonb) @> ${JSON.stringify({ allowedActorIds: [scope.userId] })}::jsonb`;
+	const conditions = [
+		eq(workflowInstances.assignedTo, scope.userId),
+		actorCondition,
+	];
+	if (assignedOpportunityIds.length) {
+		conditions.push(inArray(workflowInstances.opportunityId, assignedOpportunityIds));
+		const subjectOpportunityCondition = and(
+			eq(workflowInstances.subjectType, "opportunity"),
+			inArray(workflowInstances.subjectId, assignedOpportunityIds)
+		);
+		if (subjectOpportunityCondition) {
+			conditions.push(subjectOpportunityCondition);
+		}
 	}
+	return or(...conditions);
+}
 
-	return rows.filter((row) => {
-		if (row.assignedTo === scope.userId) return true;
-		if (row.authorityPolicy?.allowedActorIds?.includes(scope.userId)) return true;
-		const opportunityId = row.opportunityId ?? (row.subjectType === "opportunity" ? row.subjectId : null);
-		return Boolean(opportunityId && assignedOpportunityIds.has(opportunityId));
-	});
+async function getAssignedOpportunityIdsForScope(userId: string, opportunityId?: string): Promise<string[]> {
+	const conditions = [eq(opportunities.assignedTo, userId)];
+	if (opportunityId && isUuid(opportunityId)) {
+		conditions.push(eq(opportunities.id, opportunityId));
+	}
+	const rows = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(and(...conditions));
+	return rows.map((row) => row.id);
 }
 
 export async function createWorkflowTemplateDraft(
@@ -648,6 +660,87 @@ export async function publishWorkflowTemplate(
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to publish workflow template");
+	}
+	return updated;
+}
+
+export async function deprecateWorkflowTemplate(
+	templateId: string,
+	actorId: string
+): Promise<WorkflowTemplateRow> {
+	const [updated] = await db
+		.update(workflowTemplates)
+		.set({
+			status: "deprecated",
+			deprecatedAt: new Date(),
+			deprecatedBy: actorId,
+			updatedAt: new Date(),
+		})
+		.where(eq(workflowTemplates.id, templateId))
+		.returning();
+	if (!updated) {
+		throw new Error("Workflow template not found");
+	}
+	return updated;
+}
+
+export async function rollbackWorkflowTemplate(
+	input: {
+		templateKey: string;
+		targetVersion: number;
+		actorId: string;
+	}
+): Promise<WorkflowTemplateRow> {
+	const [target] = await db
+		.select()
+		.from(workflowTemplates)
+		.where(and(
+			eq(workflowTemplates.templateKey, input.templateKey),
+			eq(workflowTemplates.version, input.targetVersion)
+		))
+		.limit(1);
+	if (!target) {
+		throw new Error(`Workflow template ${input.templateKey} v${input.targetVersion} was not found`);
+	}
+	const simulation = simulateWorkflowTemplate(target);
+	if (!simulation.valid) {
+		throw new Error(`Workflow template rollback target is invalid: ${simulation.errors.join("; ")}`);
+	}
+
+	await db
+		.update(workflowTemplates)
+		.set({
+			status: "deprecated",
+			deprecatedAt: new Date(),
+			deprecatedBy: input.actorId,
+			updatedAt: new Date(),
+		})
+		.where(and(
+			eq(workflowTemplates.templateKey, input.templateKey),
+			eq(workflowTemplates.status, "active")
+		));
+
+	const [updated] = await db
+		.update(workflowTemplates)
+		.set({
+			status: "active",
+			publishedAt: new Date(),
+			publishedBy: input.actorId,
+			metadata: {
+				...(isRecord(target.metadata) ? target.metadata : {}),
+				rollback: {
+					rolledBackBy: input.actorId,
+					rolledBackAt: new Date().toISOString(),
+					targetVersion: input.targetVersion,
+				},
+				simulation,
+			},
+			updatedAt: new Date(),
+		})
+		.where(eq(workflowTemplates.id, target.id))
+		.returning();
+	if (!updated) {
+		throw new Error("Failed to rollback workflow template");
 	}
 	return updated;
 }
