@@ -11,7 +11,7 @@
   "facility_ledger_path": ".omx/state/platform-e2e-facility-ledger.md",
   "topology_matrix_path": ".omx/state/platform-e2e-topology-matrix.md",
   "last_turn_at": "2026-05-05T04:23:20.596Z",
-  "completed_at": "2026-05-05T04:22:30Z",
+  "completed_at": "2026-05-05T05:12:08Z",
   "notes": [
     "docs/shared/agent-tiers.md is absent in this checkout; using AGENTS.md role table and scoped local verification.",
     "Codex native subagents returned Azure deployment 404 during Phase 0; architect verification later completed successfully.",
@@ -44,5 +44,8 @@
     "O-003": "blocked"
   },
   "verification": "git diff --check; vitest 38/531; tsc; lint; build; architect approved",
-  "architect_status": "approved"
+  "architect_status": "approved",
+  "closeout": "verified_and_closed",
+  "closeout_verification": "git diff --check; npm test -- --run 38 files/531 tests; npx tsc --noEmit; npm run lint; npm run build; architect closeout approved",
+  "skill_active_marker": "terminalized"
 }
