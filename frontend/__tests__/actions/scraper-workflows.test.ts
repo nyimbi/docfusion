@@ -96,6 +96,7 @@ vi.mock("@/lib/db", () => {
 
 import {
 	cancelScraperJobWorkflow,
+	evaluateScraperSourceHealthWorkflow,
 	startScraperSourceRunWorkflow,
 	transitionScraperSourceEnabledWorkflow,
 } from "@/lib/actions/scraper-workflows";
@@ -250,6 +251,62 @@ describe("scraper source workflows", () => {
 				toState: "cancelled",
 				eventType: "scraper_job_cancelled",
 				terminal: true,
+			})
+		);
+	});
+
+	it("projects stale source freshness remediation tasks", async () => {
+		const now = new Date("2026-05-05T13:10:00.000Z");
+		const staleSource = {
+			...sourceRow,
+			lastRunAt: new Date("2026-05-03T00:00:00.000Z"),
+			lastSuccessAt: new Date("2026-05-03T00:00:00.000Z"),
+			failedRuns: 0,
+			successRate: 95,
+			dataQualityScore: 85,
+		};
+		let updatePayload: Record<string, unknown> | undefined;
+		dbMock.query.scraperSources.findFirst.mockResolvedValue(staleSource);
+		dbMock.update.mockReturnValueOnce(createChain({
+			result: [{ ...staleSource, healthStatus: "degraded" }],
+			onSet: (value) => {
+				updatePayload = value;
+			},
+		}));
+
+		const result = await evaluateScraperSourceHealthWorkflow(staleSource.id, { now });
+
+		expect(result).toMatchObject({
+			success: true,
+			sourceId: staleSource.id,
+			state: "stale",
+		});
+		expect(updatePayload).toMatchObject({
+			healthStatus: "degraded",
+			updatedAt: now,
+		});
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				workflowKey: "scraper_source_health",
+				subjectType: "scraper_source",
+				toState: "stale",
+				eventType: "scraper_source_health_stale",
+				priority: "critical",
+				assignedRole: "operations",
+				metadata: expect.objectContaining({
+					freshnessSlaHours: 8,
+					sourceHealthStatus: "degraded",
+				}),
+			})
+		);
+		expect(workflowRuntimeMock.upsertWorkflowRuntimeTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskKey: `scraper-source-health:${staleSource.id}`,
+				state: "open",
+				assignedRole: "operations",
+				metadata: expect.objectContaining({
+					workflowState: "stale",
+				}),
 			})
 		);
 	});

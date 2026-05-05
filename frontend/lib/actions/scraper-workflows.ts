@@ -21,6 +21,13 @@ export interface ScraperRunWorkflowResult {
 	error?: string;
 }
 
+export interface ScraperSourceHealthWorkflowResult {
+	success: boolean;
+	sourceId: string;
+	state: "healthy" | "stale" | "degraded" | "failing" | "disabled" | "not_found" | "error";
+	error?: string;
+}
+
 export async function startScraperSourceRunWorkflow(
 	sourceId: string,
 	options: { priority?: 1 | 2 | 3; reason?: string } = {}
@@ -250,6 +257,96 @@ export async function cancelScraperJobWorkflow(
 	return { success: true, jobId };
 }
 
+export async function evaluateScraperSourceHealthWorkflow(
+	sourceId: string,
+	options: { now?: Date; reason?: string } = {}
+): Promise<ScraperSourceHealthWorkflowResult> {
+	const actorId = await requireWorkflowActor();
+	const source = await db.query.scraperSources.findFirst({
+		where: eq(scraperSources.id, sourceId),
+	});
+	if (!source) {
+		return { success: false, sourceId, state: "not_found", error: "Source not found" };
+	}
+
+	const now = options.now ?? new Date();
+	const evaluation = evaluateSourceHealth(source, now);
+	try {
+		const [updated] = await db.update(scraperSources).set({
+			healthStatus: evaluation.sourceHealthStatus,
+			updatedAt: now,
+		}).where(eq(scraperSources.id, source.id)).returning();
+
+		const workflow = await recordWorkflowRuntimeTransition({
+			workflowKey: "scraper_source_health",
+			subjectType: "scraper_source",
+			subjectId: source.id,
+			fromState: source.healthStatus,
+			toState: evaluation.workflowState,
+			eventType: `scraper_source_health_${evaluation.workflowState}`,
+			actorId,
+			reason: options.reason ?? evaluation.reason,
+			priority: evaluation.priority,
+			assignedRole: evaluation.workflowState === "healthy" || evaluation.workflowState === "disabled"
+				? null
+				: "operations",
+			dueAt: evaluation.dueAt,
+			visibility: "internal",
+			authorityPolicy: {
+				requiredRoles: ["operations", "admin"],
+				escalationRole: "operations",
+			},
+			metadata: {
+				sourceId: source.id,
+				sourceKey: source.sourceId,
+				sourceName: source.name,
+				scheduleTier: source.scheduleTier,
+				lastRunAt: source.lastRunAt?.toISOString() ?? null,
+				lastSuccessAt: source.lastSuccessAt?.toISOString() ?? null,
+				successRate: source.successRate,
+				failedRuns: source.failedRuns,
+				dataQualityScore: source.dataQualityScore,
+				freshnessSlaHours: evaluation.freshnessSlaHours,
+				sourceHealthStatus: evaluation.sourceHealthStatus,
+			},
+			terminal: evaluation.workflowState === "healthy" || evaluation.workflowState === "disabled",
+			actionUrl: "/opportunities/sources",
+		});
+
+		if (evaluation.workflowState !== "healthy" && evaluation.workflowState !== "disabled") {
+			await upsertWorkflowRuntimeTask({
+				workflowInstanceId: workflow.id,
+				taskKey: `scraper-source-health:${source.id}`,
+				title: `Remediate ${evaluation.workflowState} source: ${source.name}`,
+				description: options.reason ?? evaluation.reason,
+				state: "open",
+				priority: evaluation.priority,
+				assignedRole: "operations",
+				dueAt: evaluation.dueAt,
+				metadata: {
+					sourceId: source.id,
+					workflowState: evaluation.workflowState,
+					sourceHealthStatus: evaluation.sourceHealthStatus,
+				},
+			});
+		}
+
+		revalidateSourcePages();
+		return {
+			success: true,
+			sourceId: source.id,
+			state: evaluation.workflowState,
+		};
+	} catch (error) {
+		return {
+			success: false,
+			sourceId,
+			state: "error",
+			error: error instanceof Error ? error.message : "Failed to evaluate source health",
+		};
+	}
+}
+
 async function requireWorkflowActor(): Promise<string> {
 	const userId = await getCurrentUserId();
 	if (!userId) {
@@ -319,6 +416,70 @@ function mapSourcePriority(priority: number | null): ScraperWorkflowPriority {
 	if (priority === 1) return "critical";
 	if (priority === 2) return "high";
 	return "medium";
+}
+
+function evaluateSourceHealth(source: ScraperSource, now: Date): {
+	workflowState: ScraperSourceHealthWorkflowResult["state"];
+	sourceHealthStatus: ScraperSource["healthStatus"];
+	reason: string;
+	priority: ScraperWorkflowPriority;
+	dueAt: Date | null;
+	freshnessSlaHours: number;
+} {
+	const freshnessSlaHours = source.scheduleTier === 1 ? 8 : source.scheduleTier === 2 ? 16 : 32;
+	if (!source.enabled) {
+		return {
+			workflowState: "disabled",
+			sourceHealthStatus: "disabled",
+			reason: "Source is disabled and excluded from freshness evaluation.",
+			priority: "low",
+			dueAt: null,
+			freshnessSlaHours,
+		};
+	}
+
+	const lastSuccessAt = source.lastSuccessAt ?? source.lastRunAt;
+	const hoursSinceSuccess = lastSuccessAt
+		? (now.getTime() - lastSuccessAt.getTime()) / (60 * 60 * 1000)
+		: Number.POSITIVE_INFINITY;
+	if ((source.failedRuns ?? 0) >= 3 || (source.successRate !== null && source.successRate < 50) || source.healthStatus === "failing") {
+		return {
+			workflowState: "failing",
+			sourceHealthStatus: "failing",
+			reason: "Source has repeated failures or low success rate and needs operator remediation.",
+			priority: mapSourcePriority(source.priority),
+			dueAt: addHours(now, 4),
+			freshnessSlaHours,
+		};
+	}
+	if (hoursSinceSuccess > freshnessSlaHours) {
+		return {
+			workflowState: "stale",
+			sourceHealthStatus: "degraded",
+			reason: `Source has no successful run inside the ${freshnessSlaHours} hour freshness SLA.`,
+			priority: mapSourcePriority(source.priority),
+			dueAt: addHours(now, 6),
+			freshnessSlaHours,
+		};
+	}
+	if (source.dataQualityScore !== null && source.dataQualityScore < 60) {
+		return {
+			workflowState: "degraded",
+			sourceHealthStatus: "degraded",
+			reason: "Source data quality is below the 60% remediation threshold.",
+			priority: "medium",
+			dueAt: addHours(now, 12),
+			freshnessSlaHours,
+		};
+	}
+	return {
+		workflowState: "healthy",
+		sourceHealthStatus: "healthy",
+		reason: "Source is inside freshness and quality thresholds.",
+		priority: "low",
+		dueAt: null,
+		freshnessSlaHours,
+	};
 }
 
 function addHours(date: Date, hours: number): Date {
