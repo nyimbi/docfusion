@@ -1,0 +1,37 @@
+{
+  "runId": "phase1_20260505T041149Z",
+  "recordedAt": "2026-05-05T04:21:56Z",
+  "checks": [
+    {
+      "command": "git diff --check",
+      "workingDirectory": "/Users/nyimbiodero/src/pjs/docfusion",
+      "status": "passed",
+      "evidence": "Exited 0 with no whitespace errors."
+    },
+    {
+      "command": "npm test -- --run",
+      "workingDirectory": "/Users/nyimbiodero/src/pjs/docfusion/frontend",
+      "status": "passed",
+      "evidence": "Vitest passed 38 test files and 531 tests."
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "workingDirectory": "/Users/nyimbiodero/src/pjs/docfusion/frontend",
+      "status": "passed",
+      "evidence": "Exited 0 with no TypeScript errors."
+    },
+    {
+      "command": "npm run lint",
+      "workingDirectory": "/Users/nyimbiodero/src/pjs/docfusion/frontend",
+      "status": "passed",
+      "evidence": "Next lint reported no warnings or errors."
+    },
+    {
+      "command": "npm run build",
+      "workingDirectory": "/Users/nyimbiodero/src/pjs/docfusion/frontend",
+      "status": "passed",
+      "evidence": "Next production build completed successfully and generated 71 static pages."
+    }
+  ],
+  "notes": "Recorded after the Phase 1 proof run to make fresh post-diff verification explicit in the evidence set."
+}

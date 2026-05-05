@@ -671,7 +671,12 @@ export async function listWorkflowTemplates(filters: {
 export async function deliverWorkflowNotifications(options: {
 	limit?: number;
 	now?: Date;
+	notificationIds?: string[];
 } = {}): Promise<{ attempted: number; delivered: number; failed: number; skipped: number }> {
+	const conditions = [eq(workflowNotifications.deliveryStatus, "queued")];
+	if (options.notificationIds?.length) {
+		conditions.push(inArray(workflowNotifications.id, options.notificationIds));
+	}
 	const rows = await db
 		.select({
 			notification: workflowNotifications,
@@ -681,7 +686,7 @@ export async function deliverWorkflowNotifications(options: {
 		.from(workflowNotifications)
 		.innerJoin(workflowInstances, eq(workflowNotifications.workflowInstanceId, workflowInstances.id))
 		.innerJoin(user, eq(workflowNotifications.recipientId, user.id))
-		.where(eq(workflowNotifications.deliveryStatus, "queued"))
+		.where(and(...conditions))
 		.orderBy(asc(workflowNotifications.createdAt))
 		.limit(options.limit ?? 50);
 
@@ -802,11 +807,15 @@ function getStalwartSmtpConfig() {
 	const host = process.env.STALWART_SMTP_HOST ?? process.env.SMTP_HOST ?? "mail.lindela.io";
 	const port = Number(process.env.STALWART_SMTP_PORT ?? process.env.SMTP_PORT ?? 587);
 	const username = process.env.STALWART_SMTP_USER ?? process.env.SMTP_USER;
-	const password = process.env.STALWART_SMTP_PASSWORD ?? process.env.SMTP_PASSWORD;
+	const password = process.env.STALWART_SMTP_PASSWORD ?? process.env.SMTP_PASSWORD ?? process.env.SMTP_PASS;
 	const from = process.env.WORKFLOW_EMAIL_FROM ?? process.env.SMTP_FROM ?? "alerts@lindela.io";
 	if (!username || !password) {
 		throw new Error("Stalwart SMTP credentials are not configured");
 	}
+	const secureSetting = process.env.STALWART_SMTP_SECURE
+		?? process.env.SMTP_SECURE
+		?? process.env.SMTP_USE_TLS
+		?? "false";
 	return {
 		host,
 		port,
@@ -814,7 +823,7 @@ function getStalwartSmtpConfig() {
 		password,
 		from,
 		fromName: process.env.WORKFLOW_EMAIL_FROM_NAME ?? "DocFusion Workflows",
-		secure: String(process.env.STALWART_SMTP_SECURE ?? process.env.SMTP_SECURE ?? "false") === "true" || port === 465,
+		secure: String(secureSetting) === "true" || port === 465,
 	};
 }
 
@@ -828,25 +837,40 @@ async function smtpSend(input: {
 	to: string;
 	message: string;
 }) {
+	const timeoutMs = Number(process.env.STALWART_SMTP_TIMEOUT_MS ?? process.env.SMTP_TIMEOUT_MS ?? 15_000);
 	let socket: net.Socket | tls.TLSSocket = input.secure
 		? tls.connect({ host: input.host, port: input.port, servername: input.host })
 		: net.connect({ host: input.host, port: input.port });
+	socket.on("error", () => undefined);
 	let buffer = "";
 	const read = () => new Promise<string>((resolve, reject) => {
+		const timer = setTimeout(() => {
+			cleanup();
+			socket.destroy();
+			reject(new Error(`SMTP response timed out after ${timeoutMs}ms`));
+		}, timeoutMs);
+		const cleanup = () => {
+			clearTimeout(timer);
+			socket.off("data", onData);
+			socket.off("error", onError);
+		};
+		const onError = (error: Error) => {
+			cleanup();
+			reject(error);
+		};
 		const onData = (chunk: Buffer) => {
 			buffer += chunk.toString("utf8");
 			const lines = buffer.split(/\r?\n/);
 			const last = lines[lines.length - 2] ?? "";
 			if (/^\d{3}\s/.test(last)) {
-				socket.off("data", onData);
-				socket.off("error", reject);
+				cleanup();
 				const response = buffer;
 				buffer = "";
 				resolve(response);
 			}
 		};
 		socket.on("data", onData);
-		socket.once("error", reject);
+		socket.once("error", onError);
 	});
 	const write = async (command: string, expected: number[]) => {
 		socket.write(`${command}\r\n`);
@@ -862,6 +886,7 @@ async function smtpSend(input: {
 	if (!input.secure) {
 		await write("STARTTLS", [220]);
 		const secureSocket = tls.connect({ socket, servername: input.host });
+		secureSocket.on("error", () => undefined);
 		await waitForSecureConnect(secureSocket);
 		socket = secureSocket;
 		buffer = "";

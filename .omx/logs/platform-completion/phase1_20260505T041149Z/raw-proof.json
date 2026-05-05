@@ -1,0 +1,16 @@
+{
+  "runId": "phase1_20260505T041149Z",
+  "baseUrl": "http://127.0.0.1:32133",
+  "startedAt": "2026-05-05T04:11:49.843Z",
+  "preflight": {
+    "database": "ok",
+    "databaseNow": "2026-05-05 04:11:51.945725+00",
+    "baseUrl": "http://127.0.0.1:32133",
+    "stalwartConfigured": true,
+    "mailRecipientConfigured": true
+  },
+  "completedAt": "2026-05-05T04:12:11.774Z",
+  "cleanup": {
+    "cleanup_status": "restored"
+  }
+}

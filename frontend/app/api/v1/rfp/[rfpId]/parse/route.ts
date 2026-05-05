@@ -28,6 +28,12 @@ interface ParseResponse {
 	message: string;
 }
 
+const RFP_PARSE_WORKFLOW_ACTIONS = new Set(["retry", "reject", "manual_extraction", "cancel"]);
+
+function isRfpParseWorkflowAction(value: unknown): value is "retry" | "reject" | "manual_extraction" | "cancel" {
+	return typeof value === "string" && RFP_PARSE_WORKFLOW_ACTIONS.has(value);
+}
+
 // ============================================================================
 // Handler
 // ============================================================================
@@ -48,6 +54,13 @@ export async function POST(
 		const rfpDocument = await db.query.rfpDocuments.findFirst({
 			where: eq(rfpDocuments.id, rfpId),
 		});
+		const body = await request.json().catch(() => ({}));
+		const requestedAction = isRfpParseWorkflowAction(body.action) ? body.action : undefined;
+		const transitionReason = typeof body.reason === "string" && body.reason.trim()
+			? body.reason
+			: requestedAction
+				? `${requestedAction} requested from parse API.`
+				: "Retry requested from parse API.";
 
 		if (!rfpDocument) {
 			// Preserve the legacy Python service path for externally-owned RFP IDs,
@@ -74,24 +87,28 @@ export async function POST(
 			);
 		}
 
-		if (rfpDocument.parsingStatus === "failed") {
-			const retry = await transitionRfpParseWorkflow({
+		if (requestedAction || rfpDocument.parsingStatus === "failed") {
+			const action = requestedAction ?? "retry";
+			const transition = await transitionRfpParseWorkflow({
 				rfpDocumentId: rfpId,
-				action: "retry",
-				reason: "Retry requested from parse API.",
+				action,
+				reason: transitionReason,
+				startProcessing: body.startProcessing === false ? false : undefined,
 			});
 
-			if (!retry?.jobId) {
+			if (!transition) {
 				return NextResponse.json(
-					{ error: "Unable to retry parsing" },
+					{ error: "Unable to update parsing workflow" },
 					{ status: 409 }
 				);
 			}
 
 			return NextResponse.json({
-				parsingJobId: retry.jobId,
-				status: retry.state,
-				message: "Parsing retry queued successfully",
+				parsingJobId: transition.jobId,
+				status: transition.state,
+				message: action === "retry"
+					? "Parsing retry queued successfully"
+					: `Parsing workflow ${action} recorded successfully`,
 			}, { status: 202 });
 		}
 
@@ -103,13 +120,8 @@ export async function POST(
 			classifyRequirements: true,
 		};
 
-		try {
-			const body = await request.json();
-			if (body.options) {
-				parsingOptions = { ...parsingOptions, ...body.options };
-			}
-		} catch {
-			// No body or invalid JSON - use defaults
+		if (body.options) {
+			parsingOptions = { ...parsingOptions, ...body.options };
 		}
 
 		// Update document status

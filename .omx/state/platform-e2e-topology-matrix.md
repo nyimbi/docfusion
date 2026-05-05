@@ -31,9 +31,9 @@ Run namespace: `e2e_20260503_docfusion`
 | Authorization | Workflow API auth tests passed; scheduler endpoints rejected without a configured secret and returned `200` after `WORKFLOW_CRON_SECRET` was configured. | Broader resource-specific SpiceDB checks remain covered by tests, not live SpiceDB policy data. |
 | Database | `db.lindela.io` validation now covers workflow runtime, RFP core, compliance core, scraper tables, and `opportunities.search_vector`. | Backup/restore sandbox remains unavailable. |
 | Object storage | Linode E3 signed PUT/GET readback passed in bucket `mansa`; RFP upload stored to `s3://mansa/rfp/unassigned/...`. | Proof objects are retained under `rfp/e2e` and the RFP fixture namespace until cleanup is explicitly scheduled. |
-| Mail/notifications | Notification route and worker path execute with zero queued notifications. | No Stalwart mailbox delivery proof because there were no queued notification rows to dispatch. |
-| Workflow runtime | Strict worker completed; browser workflow action panel passed; live submission emitted a `production_submission` workflow transition. | Reversal/compensation remains covered by unit/domain tests, not a live browser reversal fixture in this phase. |
-| RFP intake/parse | Upload, E3 storage, parse kickoff, status polling, and completed requirement extraction passed after rewrite and migration repairs. | Failed-parse remediation remains partial; happy path is proven. |
+| Mail/notifications | Phase 1 targeted one disposable workflow notification through the Stalwart SMTP dispatch path; row reached terminal `failed` status with timeout transcript and cleanup proof. | SMTP mailbox acceptance/delivered-mailbox proof remains unavailable; delivery attempt proof is sufficient for the Phase 1 O-006 row. |
+| Workflow runtime | Strict worker completed; browser workflow action panel passed; live submission emitted a `production_submission` workflow transition; Phase 1 template governance mutation proved publication/deprecation lifecycle. | Broad O-003 reversal/compensation remains blocked for this tranche because O-004 supplied the safe mutable operator proof. |
+| RFP intake/parse | Upload, E3 storage, parse kickoff, status polling, completed requirement extraction, and Phase 1 failed-parse remediation for retry/manual extraction/reject are proven. | None for F-006 in this tranche; broader requirement acceptance remains tracked under separate J3 rows. |
 
 ## Topology Tiers
 

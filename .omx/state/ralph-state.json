@@ -1,17 +1,17 @@
 {
   "active": false,
-  "iteration": 4,
+  "iteration": 1,
   "max_iterations": 10,
-  "current_phase": "completed",
-  "started_at": "2026-05-03T12:20:00Z",
-  "task_description": "Execute the approved DocFusion platform E2E exercise plan: facility-ledger-first, topology-gated, evidence-strict campaign covering product J1-J9 and operator/control-plane O1.",
-  "context_snapshot_path": ".omx/context/platform-e2e-exercise-20260503T121602Z.md",
+  "current_phase": "complete",
+  "started_at": "2026-05-05T03:49:05Z",
+  "task_description": "Execute Phase 0 and Phase 1 from .omx/plans/platform-completion-next-phase-plan.md.",
+  "context_snapshot_path": ".omx/context/platform-completion-ralph-execution-20260505T034905Z.md",
   "plan_path": ".omx/plans/prd-platform-e2e-exercise.md",
   "test_spec_path": ".omx/plans/test-spec-platform-e2e-exercise.md",
   "facility_ledger_path": ".omx/state/platform-e2e-facility-ledger.md",
   "topology_matrix_path": ".omx/state/platform-e2e-topology-matrix.md",
-  "last_turn_at": "2026-05-03T21:35:00.000Z",
-  "completed_at": "2026-05-03T21:35:00.000Z",
+  "last_turn_at": "2026-05-05T04:23:20.596Z",
+  "completed_at": "2026-05-05T04:22:30Z",
   "notes": [
     "docs/shared/agent-tiers.md is absent in this checkout; using AGENTS.md role table and scoped local verification.",
     "Codex native subagents returned Azure deployment 404 during Phase 0; architect verification later completed successfully.",
@@ -19,5 +19,30 @@
     "Architect verifier accepted the search-vector repair and evidence-ledger cleanup corrections; remaining broad platform rows stay blocked/partial where not exercised."
   ],
   "approved_plan": "facility-ledger-first topology-gated evidence-strict E2E campaign",
-  "phase": "completed"
+  "phase": "completed",
+  "approved_plan_path": ".omx/plans/platform-completion-next-phase-plan.md",
+  "target_rows": [
+    "F-006",
+    "O-006",
+    "O-003",
+    "O-004"
+  ],
+  "required_pass_rows": [
+    "F-006",
+    "O-006"
+  ],
+  "conditional_pass_rows": [
+    "O-003",
+    "O-004"
+  ],
+  "note": "docs/shared/agent-tiers.md absent; using AGENTS.md/native role roster.",
+  "run_id": "phase1_20260505T041149Z",
+  "facilities": {
+    "F-006": "pass",
+    "O-006": "pass",
+    "O-004": "pass",
+    "O-003": "blocked"
+  },
+  "verification": "git diff --check; vitest 38/531; tsc; lint; build; architect approved",
+  "architect_status": "approved"
 }
