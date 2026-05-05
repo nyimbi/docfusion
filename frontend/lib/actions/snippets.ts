@@ -20,6 +20,7 @@ import type {
 	ShortcutExpansion,
 	SnippetExpansionRequest,
 	SnippetPlaceholder,
+	SnippetInsertionProvenance,
 } from "@/lib/types/snippets";
 import type { DocumentContent } from "@/lib/types/document";
 import { getServerSession } from "@/lib/auth-utils";
@@ -562,6 +563,47 @@ export async function expandShortcut(
 		resolvedValues: resolved.resolvedValues,
 		valueSources: resolved.valueSources,
 		diagnostics: adapted.diagnostics,
+		adaptationNotes: adapted.adaptationNotes,
+		provenance: buildSnippetInsertionProvenance({
+			request,
+			resolved,
+			adaptationNotes: adapted.adaptationNotes,
+			diagnostics: adapted.diagnostics,
+			usedAI: request.useAI !== false && adapted.adaptationNotes.some((note) => note.includes("Adapted after")),
+		}),
+	};
+}
+
+function buildSnippetInsertionProvenance(input: {
+	request: SnippetExpansionRequest;
+	resolved: Awaited<ReturnType<typeof resolveSnippetContent>>;
+	adaptationNotes: string[];
+	diagnostics: Awaited<ReturnType<typeof adaptResolvedSnippet>>["diagnostics"];
+	usedAI: boolean;
+}): SnippetInsertionProvenance {
+	return {
+		snippetId: input.resolved.snippetId,
+		shortcut: input.resolved.shortcut,
+		resolvedAt: new Date().toISOString(),
+		placeholderCount: input.resolved.placeholderMetadata.length,
+		resolvedKeys: Object.keys(input.resolved.resolvedValues).sort(),
+		unresolvedKeys: input.resolved.unresolvedPlaceholders
+			.map((placeholder) => placeholder.key)
+			.sort(),
+		valueSources: input.resolved.valueSources,
+		diagnostics: input.diagnostics,
+		adaptation: {
+			usedAI: input.usedAI,
+			notes: input.adaptationNotes,
+		},
+		context: {
+			documentId: input.request.documentId,
+			opportunityId: input.request.opportunityId,
+			requirementId: input.request.requirementId,
+			hasRequirementText: Boolean(input.request.requirementText),
+			hasSurroundingText: Boolean(input.request.surroundingText),
+			sectionTitle: input.request.sectionTitle,
+		},
 	};
 }
 
