@@ -62,6 +62,20 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: ["playwright:wave1-control-plane"],
 	},
 	{
+		id: "wave1-audit-export-api",
+		wave: 1,
+		title: "Wave 1 audit export API coverage",
+		kind: "integration",
+		proofTargets: ["O-015A", "UX-021"],
+		requiresLiveServices: false,
+		description: "Validates scoped workflow audit CSV export and authorization failure handling.",
+		command: {
+			command: "npm",
+			args: ["test", "--", "workflow-audit-export.test.ts", "workflow-audit-export-route.test.ts"],
+		},
+		expectedArtifacts: ["vitest:workflow-audit-export", "vitest:workflow-audit-export-route"],
+	},
+	{
 		id: "phase1-live-safe-control-plane",
 		wave: 1,
 		title: "Phase 1 live-safe control-plane proof",
@@ -108,4 +122,3 @@ export function validateProofScenarioManifest(
 	}
 	return errors;
 }
-

@@ -33,6 +33,11 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["O-003A", "O-006B"]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["wave1-audit-export-api"] })).toEqual([
+			expect.objectContaining({
+				id: "wave1-audit-export-api",
+				proofTargets: expect.arrayContaining(["O-015A", "UX-021"]),
+			}),
+		]);
 	});
 });
-
