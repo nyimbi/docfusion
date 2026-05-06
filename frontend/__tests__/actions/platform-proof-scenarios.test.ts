@@ -45,5 +45,11 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["F-005B", "UX-002"]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["wave6-final-submission-gate"] })).toEqual([
+			expect.objectContaining({
+				id: "wave6-final-submission-gate",
+				proofTargets: expect.arrayContaining(["F-021B", "UX-025"]),
+			}),
+		]);
 	});
 });

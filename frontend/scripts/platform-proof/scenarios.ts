@@ -90,6 +90,20 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: ["vitest:rfp-upload-validation", "vitest:rfp-upload-route"],
 	},
 	{
+		id: "wave6-final-submission-gate",
+		wave: 6,
+		title: "Wave 6 final submission hard gate coverage",
+		kind: "integration",
+		proofTargets: ["F-020", "F-021B", "O-016B", "UX-005", "UX-025"],
+		requiresLiveServices: false,
+		description: "Validates final checklist blockers for required documents, approvals, artifact hashes, signatures, compliance lock, DLP, and submission creation.",
+		command: {
+			command: "npm",
+			args: ["test", "--", "final-submission-checklist-workflow.test.ts", "submission-workflow.test.ts"],
+		},
+		expectedArtifacts: ["vitest:final-submission-checklist-workflow", "vitest:submission-workflow"],
+	},
+	{
 		id: "phase1-live-safe-control-plane",
 		wave: 1,
 		title: "Phase 1 live-safe control-plane proof",
