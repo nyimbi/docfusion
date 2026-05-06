@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, Clock, FileText, ListChecks, ShieldCheck, Workflow } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NextActionPanel } from "@/components/work-items/NextActionPanel";
 import type { OpportunityCommandCenterProjection } from "@/lib/actions/work-items";
@@ -89,6 +90,23 @@ export function OpportunityCommandCenter({
 			<Card>
 				<CardHeader className="pb-3">
 					<CardTitle className="flex items-center gap-2 text-base">
+						<Workflow className="h-4 w-4 text-primary" />
+						Workflow Surfaces
+					</CardTitle>
+				</CardHeader>
+				<CardContent className="flex flex-wrap gap-2">
+					<SurfaceLink href={`/opportunities/${projection.opportunityId}/requirements`} label="Requirements" />
+					<SurfaceLink href={`/opportunities/${projection.opportunityId}/documents`} label="Documents" />
+					<SurfaceLink href={`/opportunities/${projection.opportunityId}/submission`} label="Submission" />
+					<SurfaceLink href={`/tasks?opportunityId=${projection.opportunityId}`} label="Inbox" />
+					<SurfaceLink href={`/workflows?opportunityId=${projection.opportunityId}`} label="Workflows" />
+					<SurfaceLink href="/workflows/audit" label="Audit" />
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader className="pb-3">
+					<CardTitle className="flex items-center gap-2 text-base">
 						<Clock className="h-4 w-4 text-primary" />
 						Recent Audit
 					</CardTitle>
@@ -111,6 +129,14 @@ export function OpportunityCommandCenter({
 				</CardContent>
 			</Card>
 		</section>
+	);
+}
+
+function SurfaceLink({ href, label }: { href: string; label: string }) {
+	return (
+		<Button asChild variant="outline" size="sm">
+			<Link href={href}>{label}</Link>
+		</Button>
 	);
 }
 

@@ -9,6 +9,7 @@
 
 import * as React from "react";
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,9 +116,11 @@ interface ProgressReport {
 }
 
 export default function TasksPage() {
+	const searchParams = useSearchParams();
+	const initialOpportunityId = searchParams.get("opportunityId");
 	const [activeTab, setActiveTab] = useState("inbox");
 	const [viewMode, setViewMode] = useState<"board" | "list">("board");
-	const [selectedOpportunityId, setSelectedOpportunityId] = useState<string | null>(null);
+	const [selectedOpportunityId, setSelectedOpportunityId] = useState<string | null>(initialOpportunityId);
 	const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 	const [showTaskGenerator, setShowTaskGenerator] = useState(false);
 	const [tasks, setTasks] = useState<ProposalTask[]>([]);
@@ -133,6 +136,10 @@ export default function TasksPage() {
 	const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
 	const [isLoadingInbox, setIsLoadingInbox] = useState(false);
 	const [selectedTask, setSelectedTask] = useState<ProposalTask | null>(null);
+
+	useEffect(() => {
+		setSelectedOpportunityId(initialOpportunityId);
+	}, [initialOpportunityId]);
 
 	// Fetch opportunities
 	const fetchOpportunities = useCallback(async () => {
