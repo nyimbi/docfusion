@@ -104,6 +104,20 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: ["playwright:role-homepage"],
 	},
 	{
+		id: "wave1-portal-workflows-browser",
+		wave: 1,
+		title: "Wave 1 portal workflow browser coverage",
+		kind: "browser",
+		proofTargets: ["UX-010", "P-001", "P-002"],
+		requiresLiveServices: false,
+		description: "Validates portal-visible workflow summaries, scoped action labels, and partner action links in the portal queue.",
+		command: {
+			command: "npm",
+			args: ["run", "test:e2e", "--", "portal-workflows.spec.ts"],
+		},
+		expectedArtifacts: ["playwright:portal-workflows"],
+	},
+	{
 		id: "wave2-rfp-upload-preflight",
 		wave: 2,
 		title: "Wave 2 RFP upload preflight coverage",
