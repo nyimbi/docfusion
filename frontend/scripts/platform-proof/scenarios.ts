@@ -211,9 +211,9 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		description: "Validates import preview/execute/rollback governance, scraper workflow exceptions, operational exception sync, and admin route authorization.",
 		command: {
 			command: "npm",
-			args: ["test", "--", "import-governance-workflow.test.ts", "scraper-workflows.test.ts", "operational-exceptions.test.ts", "competitive-import-route.test.ts", "scraper-admin-routes.test.ts"],
+			args: ["test", "--", "import-governance-workflow.test.ts", "import-execute-route.test.ts", "sandbox-runtime.test.ts", "scraper-workflows.test.ts", "operational-exceptions.test.ts", "competitive-import-route.test.ts", "scraper-admin-routes.test.ts"],
 		},
-		expectedArtifacts: ["vitest:import-governance-workflow", "vitest:scraper-workflows", "vitest:operational-exceptions", "vitest:competitive-import-route", "vitest:scraper-admin-routes"],
+		expectedArtifacts: ["vitest:import-governance-workflow", "vitest:import-execute-route", "vitest:sandbox-runtime", "vitest:scraper-workflows", "vitest:operational-exceptions", "vitest:competitive-import-route", "vitest:scraper-admin-routes"],
 	},
 	{
 		id: "wave8-strategic-capability-workflows",
