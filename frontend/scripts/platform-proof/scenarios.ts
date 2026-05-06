@@ -76,6 +76,20 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: ["vitest:workflow-audit-export", "vitest:workflow-audit-export-route"],
 	},
 	{
+		id: "wave2-rfp-upload-preflight",
+		wave: 2,
+		title: "Wave 2 RFP upload preflight coverage",
+		kind: "integration",
+		proofTargets: ["F-005B", "F-006", "O-007", "UX-002"],
+		requiresLiveServices: false,
+		description: "Validates RFP upload metadata checks, security preflight findings, SHA-256 receipt metadata, and E3 handoff behavior.",
+		command: {
+			command: "npm",
+			args: ["test", "--", "rfp-upload-validation.test.ts", "rfp-upload-route.test.ts"],
+		},
+		expectedArtifacts: ["vitest:rfp-upload-validation", "vitest:rfp-upload-route"],
+	},
+	{
 		id: "phase1-live-safe-control-plane",
 		wave: 1,
 		title: "Phase 1 live-safe control-plane proof",
