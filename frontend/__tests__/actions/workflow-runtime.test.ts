@@ -595,6 +595,62 @@ describe("workflow runtime", () => {
 		});
 	});
 
+	it("defers queued email notifications during recipient quiet hours", async () => {
+		let deferredPatch: Record<string, unknown> | undefined;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				notification: {
+					id: "notification-quiet",
+					channel: "email",
+					actionUrl: "/workflows",
+					metadata: { existing: true },
+				},
+				instance: {
+					workflowKey: "requirement_acceptance",
+					subjectType: "requirement",
+					subjectId: "req-1",
+					state: "accepted",
+					status: "active",
+					priority: "high",
+					dueAt: null,
+				},
+				recipient: {
+					id: "user-1",
+					email: "user@example.test",
+					preferences: {
+						notifications: {
+							quietHours: {
+								enabled: true,
+								start: "22:00",
+								end: "08:00",
+							},
+						},
+					},
+				},
+			}],
+		}));
+		dbMock.update.mockReturnValueOnce(createChain({
+			onSet: (value) => {
+				deferredPatch = value;
+			},
+		}));
+
+		const result = await deliverWorkflowNotifications({
+			now: new Date("2026-05-06T23:30:00.000Z"),
+		});
+
+		expect(result).toEqual({ attempted: 1, delivered: 0, failed: 0, skipped: 1 });
+		expect(deferredPatch).toEqual({
+			metadata: {
+				existing: true,
+				quietHoursDeferred: {
+					deferredAt: "2026-05-06T23:30:00.000Z",
+					reason: "Recipient notification quiet hours are active",
+				},
+			},
+		});
+	});
+
 	it("keeps default workflow templates simulation-valid across P1, P2, and strategic domains", () => {
 		const keys = new Set<string>();
 		for (const template of WORKFLOW_TEMPLATE_CATALOG) {

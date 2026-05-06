@@ -11,6 +11,7 @@ import {
 	workflowRuntimeTasks,
 	workflowTemplates,
 	type WorkflowInstanceRow,
+	type WorkflowNotificationRow,
 	type WorkflowTemplateRow,
 } from "@/lib/db/schema-workflow-runtime";
 import { opportunities } from "@/lib/db/schema";
@@ -786,9 +787,15 @@ export async function deliverWorkflowNotifications(options: {
 	let delivered = 0;
 	let failed = 0;
 	let skipped = 0;
+	const now = options.now ?? new Date();
 	for (const row of rows) {
 		if (row.notification.channel !== "email") {
 			skipped += 1;
+			continue;
+		}
+		if (isWithinNotificationQuietHours(row.recipient.preferences, now)) {
+			skipped += 1;
+			await markNotificationDeferredForQuietHours(row.notification, now);
 			continue;
 		}
 		if (!row.recipient.email) {
@@ -809,7 +816,7 @@ export async function deliverWorkflowNotifications(options: {
 				.update(workflowNotifications)
 				.set({
 					deliveryStatus: "delivered",
-					deliveredAt: options.now ?? new Date(),
+					deliveredAt: now,
 				})
 				.where(eq(workflowNotifications.id, row.notification.id));
 		} catch (error) {
@@ -819,6 +826,24 @@ export async function deliverWorkflowNotifications(options: {
 	}
 
 	return { attempted: rows.length, delivered, failed, skipped };
+}
+
+async function markNotificationDeferredForQuietHours(
+	notification: WorkflowNotificationRow,
+	now: Date
+) {
+	await db
+		.update(workflowNotifications)
+		.set({
+			metadata: {
+				...(isRecord(notification.metadata) ? notification.metadata : {}),
+				quietHoursDeferred: {
+					deferredAt: now.toISOString(),
+					reason: "Recipient notification quiet hours are active",
+				},
+			},
+		})
+		.where(eq(workflowNotifications.id, notification.id));
 }
 
 async function findWorkflowInstance(
@@ -866,6 +891,28 @@ async function markNotificationFailed(notificationId: string, error: string) {
 			metadata: { error },
 		})
 		.where(eq(workflowNotifications.id, notificationId));
+}
+
+function isWithinNotificationQuietHours(preferences: unknown, now: Date): boolean {
+	const notifications = isRecord(preferences) ? preferences.notifications : null;
+	const quietHours = isRecord(notifications) ? notifications.quietHours : null;
+	if (!isRecord(quietHours) || quietHours.enabled !== true) return false;
+	const start = parseTimeOfDayMinutes(quietHours.start);
+	const end = parseTimeOfDayMinutes(quietHours.end);
+	if (start === null || end === null || start === end) return false;
+	const current = now.getUTCHours() * 60 + now.getUTCMinutes();
+	if (start < end) return current >= start && current < end;
+	return current >= start || current < end;
+}
+
+function parseTimeOfDayMinutes(value: unknown): number | null {
+	if (typeof value !== "string") return null;
+	const match = /^(\d{2}):(\d{2})$/.exec(value);
+	if (!match) return null;
+	const hours = Number(match[1]);
+	const minutes = Number(match[2]);
+	if (hours > 23 || minutes > 59) return null;
+	return hours * 60 + minutes;
 }
 
 async function sendStalwartEmail(input: {
