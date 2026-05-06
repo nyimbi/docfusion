@@ -14,6 +14,7 @@ import {
 	getLinodeE3ConfigFromEnv,
 	uploadToLinodeE3,
 } from "@/lib/storage/linode-e3";
+import { scanRfpUploadBuffer, validateRfpUploadMetadata } from "@/lib/rfp/upload-validation";
 import crypto from "crypto";
 
 const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
@@ -31,19 +32,6 @@ interface UploadResponse {
 	parsingJobId: string;
 	message: string;
 }
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-const ALLOWED_TYPES = new Set([
-	"application/pdf",
-	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-	"application/msword",
-	"text/html",
-]);
-const ALLOWED_EXTENSIONS = new Set([".pdf", ".docx", ".doc", ".html", ".htm"]);
 
 // ============================================================================
 // Handler
@@ -68,25 +56,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			);
 		}
 
-		// Validate file size
-		if (file.size > MAX_FILE_SIZE) {
+		const metadataValidation = validateRfpUploadMetadata({
+			filename: file.name,
+			contentType: file.type,
+			size: file.size,
+		});
+		if (!metadataValidation.valid) {
 			return NextResponse.json(
-				{ error: `File exceeds maximum size of ${MAX_FILE_SIZE / 1024 / 1024}MB` },
+				{ error: metadataValidation.errors[0] },
 				{ status: 400 }
 			);
 		}
-
-		// Validate file type
-		const extension = `.${file.name.split(".").pop()?.toLowerCase()}`;
-		if (!ALLOWED_EXTENSIONS.has(extension)) {
+		const extension = metadataValidation.extension;
+		const fileType = metadataValidation.fileType ?? "unknown";
+		const arrayBuffer = await file.arrayBuffer();
+		const buffer = Buffer.from(arrayBuffer);
+		const securityScan = scanRfpUploadBuffer(buffer, metadataValidation.fileType);
+		if (securityScan.status === "failed") {
 			return NextResponse.json(
-				{ error: `Unsupported file type. Allowed: ${Array.from(ALLOWED_EXTENSIONS).join(", ")}` },
-				{ status: 400 }
-			);
-		}
-		if (file.type && !ALLOWED_TYPES.has(file.type)) {
-			return NextResponse.json(
-				{ error: `Unsupported content type: ${file.type}` },
+				{ error: "Uploaded file failed security preflight", findings: securityScan.findings },
 				{ status: 400 }
 			);
 		}
@@ -108,17 +96,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			return NextResponse.json(data, { status: response.status });
 		}
 
-		// Determine file type
-		let fileType = "unknown";
-		if (extension === ".pdf") fileType = "pdf";
-		else if (extension === ".docx") fileType = "docx";
-		else if (extension === ".doc") fileType = "doc";
-		else if (extension === ".html" || extension === ".htm") fileType = "html";
-
-		// Read file content for hashing
-		const arrayBuffer = await file.arrayBuffer();
-		const buffer = Buffer.from(arrayBuffer);
 		const fileHash = crypto.createHash("md5").update(buffer).digest("hex");
+		const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
 
 		// Check for duplicate file
 		const existingDoc = await db.query.rfpDocuments.findFirst({
@@ -157,6 +136,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				metadata: {
 					"document-id": documentId,
 					"uploaded-by": userId,
+					"sha256": sha256,
 				},
 			});
 
@@ -167,6 +147,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				key: upload.key,
 				endpoint: upload.endpoint,
 				etag: upload.etag,
+				sha256,
+				byteLength: buffer.length,
+				securityScan,
 			};
 		}
 
@@ -186,6 +169,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				uploadedBy: userId,
 				metadata: {
 					storage: storageMetadata,
+					securityScan,
+					sha256,
 				},
 			})
 			.returning();

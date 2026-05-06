@@ -139,7 +139,10 @@ describe("RFP upload route", () => {
 			expect.objectContaining({
 				key: "rfp/opportunity/document.pdf",
 				contentType: "application/pdf",
-				metadata: expect.objectContaining({ "uploaded-by": "user-1" }),
+				metadata: expect.objectContaining({
+					"uploaded-by": "user-1",
+					"sha256": expect.any(String),
+				}),
 			})
 		);
 		expect(inserted[0]).toMatchObject({
@@ -147,6 +150,13 @@ describe("RFP upload route", () => {
 			fileType: "pdf",
 			storagePath: "s3://mansa/rfp/opportunity/document.pdf",
 			uploadedBy: "user-1",
+			metadata: expect.objectContaining({
+				sha256: expect.any(String),
+				securityScan: {
+					status: "warning",
+					findings: ["pdf_signature_not_confirmed"],
+				},
+			}),
 		});
 		expect(inserted[1]).toMatchObject({
 			rfpDocumentId: expect.any(String),
