@@ -10,6 +10,7 @@ interface CliOptions {
 	json: boolean;
 	list: boolean;
 	dryRun: boolean;
+	runAll: boolean;
 	includeLiveSafe: boolean;
 	continueOnFailure: boolean;
 	wave?: number;
@@ -25,7 +26,7 @@ async function main() {
 
 	const scenarios = listProofScenarios({
 		wave: options.wave,
-		ids: options.runIds,
+		ids: options.runAll ? undefined : options.runIds,
 		includeLiveSafe: options.includeLiveSafe,
 	});
 
@@ -34,15 +35,17 @@ async function main() {
 		return;
 	}
 
-	if (options.list || !options.runIds.length) {
+	const shouldExecute = options.runAll || options.runIds.length > 0;
+
+	if (options.list || !shouldExecute) {
 		printScenarioList(scenarios);
-		if (!options.runIds.length) {
-			console.log("\nUse --run <scenario-id> to execute a scenario. Add --include-live-safe for deployed-service proofs.");
+		if (!shouldExecute) {
+			console.log("\nUse --run <scenario-id> or --all to execute scenarios. Add --include-live-safe for deployed-service proofs.");
 		}
 		if (options.list) return;
 	}
 
-	if (!options.runIds.length) return;
+	if (!shouldExecute) return;
 	if (!scenarios.length) {
 		throw new Error("No proof scenarios matched the requested filters.");
 	}
@@ -64,6 +67,7 @@ function parseArgs(args: string[]): CliOptions {
 		json: false,
 		list: false,
 		dryRun: false,
+		runAll: false,
 		includeLiveSafe: false,
 		continueOnFailure: false,
 		runIds: [],
@@ -74,6 +78,7 @@ function parseArgs(args: string[]): CliOptions {
 		if (arg === "--json") options.json = true;
 		else if (arg === "--list") options.list = true;
 		else if (arg === "--dry-run") options.dryRun = true;
+		else if (arg === "--all") options.runAll = true;
 		else if (arg === "--include-live-safe") options.includeLiveSafe = true;
 		else if (arg === "--continue-on-failure") options.continueOnFailure = true;
 		else if (arg === "--wave") {
@@ -132,4 +137,3 @@ main().catch((error) => {
 	console.error(error instanceof Error ? error.message : error);
 	process.exit(1);
 });
-
