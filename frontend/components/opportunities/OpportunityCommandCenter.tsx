@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Clock, FileText, ListChecks, ShieldCheck, Workflow } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, FileText, ListChecks, ShieldCheck, Workflow, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,6 +107,38 @@ export function OpportunityCommandCenter({
 			<Card>
 				<CardHeader className="pb-3">
 					<CardTitle className="flex items-center gap-2 text-base">
+						<ShieldCheck className="h-4 w-4 text-primary" />
+						Response Readiness
+					</CardTitle>
+				</CardHeader>
+				<CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+					{projection.readinessDimensions.map((dimension) => (
+						<div key={dimension.key} className="rounded-md border p-3">
+							<div className="flex items-center justify-between gap-2">
+								<div className="min-w-0">
+									<p className="truncate text-sm font-medium">{dimension.label}</p>
+									<p className="mt-1 text-xs text-muted-foreground">
+										{dimension.blockerCount} blockers, {dimension.warningCount} warnings
+									</p>
+								</div>
+								<ReadinessStatus status={dimension.status} />
+							</div>
+							<div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+								<span>{dimension.owner ?? "No owner"}</span>
+								{dimension.actionUrl && (
+									<Link href={dimension.actionUrl} className="text-primary hover:underline">
+										Resolve
+									</Link>
+								)}
+							</div>
+						</div>
+					))}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader className="pb-3">
+					<CardTitle className="flex items-center gap-2 text-base">
 						<Clock className="h-4 w-4 text-primary" />
 						Recent Audit
 					</CardTitle>
@@ -129,6 +161,31 @@ export function OpportunityCommandCenter({
 				</CardContent>
 			</Card>
 		</section>
+	);
+}
+
+function ReadinessStatus({ status }: { status: "pass" | "warn" | "block" }) {
+	if (status === "block") {
+		return (
+			<span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs text-red-700">
+				<XCircle className="h-3 w-3" />
+				block
+			</span>
+		);
+	}
+	if (status === "warn") {
+		return (
+			<span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-700">
+				<AlertTriangle className="h-3 w-3" />
+				warn
+			</span>
+		);
+	}
+	return (
+		<span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-xs text-green-700">
+			<CheckCircle2 className="h-3 w-3" />
+			pass
+		</span>
 	);
 }
 

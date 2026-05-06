@@ -18,11 +18,13 @@ import { getWorkflowViewerScopeFromSession } from "@/lib/workflows/viewer-scope"
 import {
 	deriveCommandCenterBlockers,
 	deriveCommandCenterNextActions,
+	deriveReadinessDimensions,
 	deriveReadinessScore,
 	normalizeWorkItems,
 	summarizeWorkItems,
 	type CommandCenterBlocker,
 	type CommandCenterNextAction,
+	type ReadinessDimension,
 	type ReadinessScore,
 	type WorkItem,
 	type WorkItemPriority,
@@ -40,6 +42,7 @@ export interface OperationalInboxProjection {
 export interface OpportunityCommandCenterProjection {
 	opportunityId: string;
 	readiness: ReadinessScore;
+	readinessDimensions: ReadinessDimension[];
 	nextActions: CommandCenterNextAction[];
 	blockers: CommandCenterBlocker[];
 	workSummary: WorkItemSummary;
@@ -165,6 +168,7 @@ export async function getOpportunityCommandCenterProjection(
 	return {
 		opportunityId,
 		readiness: deriveReadinessScore(allItems),
+		readinessDimensions: deriveReadinessDimensions(allItems),
 		nextActions: deriveCommandCenterNextActions(allItems),
 		blockers: deriveCommandCenterBlockers(allItems),
 		workSummary: summarizeWorkItems(allItems),

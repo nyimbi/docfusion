@@ -65,6 +65,19 @@ export interface ReadinessScore {
 	reasons: string[];
 }
 
+export type ReadinessDimensionStatus = "pass" | "warn" | "block";
+
+export interface ReadinessDimension {
+	key: string;
+	label: string;
+	status: ReadinessDimensionStatus;
+	scoreImpact: number;
+	blockerCount: number;
+	warningCount: number;
+	owner?: string | null;
+	actionUrl?: string | null;
+}
+
 const PRIORITY_SCORE: Record<WorkItemPriority, number> = {
 	critical: 0,
 	high: 1,
@@ -186,6 +199,31 @@ export function deriveReadinessScore(items: WorkItem[], now = new Date()): Readi
 	};
 }
 
+export function deriveReadinessDimensions(items: WorkItem[], now = new Date()): ReadinessDimension[] {
+	const normalized = normalizeWorkItems(items, now);
+	return READINESS_DIMENSIONS.map((dimension) => {
+		const matches = normalized.filter((item) => itemMatchesDimension(item, dimension));
+		const blockers = matches.filter((item) => item.blocker || BLOCKED_STATUSES.has(item.status.toLowerCase()) || isOverdue(item, now));
+		const warnings = matches.filter((item) => !blockers.includes(item) && (OPEN_STATUSES.has(item.status.toLowerCase()) || item.disabledReason));
+		const status: ReadinessDimensionStatus = blockers.length > 0
+			? "block"
+			: warnings.length > 0
+				? "warn"
+				: "pass";
+		const mostUrgent = blockers[0] ?? warnings[0] ?? matches[0];
+		return {
+			key: dimension.key,
+			label: dimension.label,
+			status,
+			scoreImpact: blockers.length * 18 + warnings.length * 4,
+			blockerCount: blockers.length,
+			warningCount: warnings.length,
+			owner: mostUrgent?.owner ?? mostUrgent?.role ?? null,
+			actionUrl: mostUrgent?.actionUrl ?? null,
+		};
+	});
+}
+
 function deriveItemBlocker(item: WorkItem, now: Date): string | null {
 	const status = item.status.toLowerCase();
 	if (status === "blocked") return "Blocked work item";
@@ -194,6 +232,65 @@ function deriveItemBlocker(item: WorkItem, now: Date): string | null {
 	if (status === "failed") return "Failed delivery or job";
 	if (isOverdue(item, now)) return "Past due";
 	return null;
+}
+
+const READINESS_DIMENSIONS = [
+	{
+		key: "requirements",
+		label: "Requirement coverage",
+		tokens: ["requirement", "rfp_parse", "compliance_entry"],
+	},
+	{
+		key: "compliance",
+		label: "Compliance matrix",
+		tokens: ["compliance", "waiver", "matrix"],
+	},
+	{
+		key: "evidence",
+		label: "Evidence and claims",
+		tokens: ["evidence", "claim", "past_performance"],
+	},
+	{
+		key: "drafting",
+		label: "Drafting and sections",
+		tokens: ["document", "section", "draft", "proposal_task"],
+	},
+	{
+		key: "reviews",
+		label: "Reviews and approvals",
+		tokens: ["review", "approval", "gate", "pricing"],
+	},
+	{
+		key: "production",
+		label: "Production package",
+		tokens: ["artifact", "render", "signature", "submission_checklist"],
+	},
+	{
+		key: "privacy",
+		label: "Privacy and DLP",
+		tokens: ["dlp", "privacy", "redaction", "security"],
+	},
+	{
+		key: "dispatch",
+		label: "Dispatch and receipt",
+		tokens: ["dispatch", "receipt", "notification", "submission"],
+	},
+] as const;
+
+function itemMatchesDimension(
+	item: WorkItem,
+	dimension: (typeof READINESS_DIMENSIONS)[number]
+): boolean {
+	const text = [
+		item.kind,
+		item.title,
+		item.description,
+		item.status,
+		item.subjectType,
+		item.source,
+		item.blocker,
+	].filter(Boolean).join(" ").toLowerCase();
+	return dimension.tokens.some((token) => text.includes(token));
 }
 
 function isOverdue(item: WorkItem, now: Date): boolean {

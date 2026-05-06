@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	deriveCommandCenterBlockers,
 	deriveCommandCenterNextActions,
+	deriveReadinessDimensions,
 	deriveReadinessScore,
 	normalizeWorkItems,
 	summarizeWorkItems,
@@ -98,5 +99,58 @@ describe("work item projections", () => {
 		expect(readiness.label).toBe("blocked");
 		expect(readiness.reasons).toContain("1 blocker");
 		expect(readiness.reasons).toContain("1 overdue item");
+	});
+
+	it("breaks response readiness into explainable workflow dimensions", () => {
+		const items: WorkItem[] = [
+			{
+				id: "task:evidence",
+				kind: "task",
+				title: "Resolve unsupported evidence claim",
+				status: "blocked",
+				priority: "critical",
+				owner: "Compliance officer",
+				actionUrl: "/tasks?task=evidence",
+				source: "proposal_task",
+			},
+			{
+				id: "workflow:approval",
+				kind: "workflow",
+				title: "Pricing approval waiting",
+				status: "waiting",
+				priority: "high",
+				role: "pricing_approver",
+				actionUrl: "/workflows",
+				source: "workflow_runtime",
+			},
+			{
+				id: "workflow:dispatch",
+				kind: "workflow",
+				title: "Submission receipt captured",
+				status: "completed",
+				priority: "medium",
+				source: "workflow_runtime",
+			},
+		];
+
+		const dimensions = deriveReadinessDimensions(items, now);
+
+		expect(dimensions).toContainEqual(expect.objectContaining({
+			key: "evidence",
+			status: "block",
+			blockerCount: 1,
+			owner: "Compliance officer",
+			actionUrl: "/tasks?task=evidence",
+		}));
+		expect(dimensions).toContainEqual(expect.objectContaining({
+			key: "reviews",
+			status: "warn",
+			warningCount: 1,
+			owner: "pricing_approver",
+		}));
+		expect(dimensions).toContainEqual(expect.objectContaining({
+			key: "dispatch",
+			status: "pass",
+		}));
 	});
 });

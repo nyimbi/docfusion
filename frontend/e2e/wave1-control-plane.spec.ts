@@ -71,6 +71,9 @@ test.describe("Wave 1 control-plane interactions", () => {
 		await page.goto("http://wave1-control.test/command-center");
 		expect(runtimeErrors).toEqual([]);
 		await expect(page.getByText("Workflow Surfaces")).toBeVisible();
+		await expect(page.getByText("Response Readiness")).toBeVisible();
+		await expect(page.getByText("Evidence and claims")).toBeVisible();
+		await expect(page.getByText("Compliance matrix")).toBeVisible();
 		await expect(page.getByRole("link", { name: "Requirements" })).toHaveAttribute(
 			"href",
 			"/opportunities/opp-1/requirements",
@@ -183,6 +186,38 @@ function commandCenterHarness() {
 				label: "watch",
 				reasons: ["1 blocker"],
 			},
+			readinessDimensions: [
+				{
+					key: "evidence",
+					label: "Evidence and claims",
+					status: "block",
+					scoreImpact: 18,
+					blockerCount: 1,
+					warningCount: 0,
+					owner: "Proposal manager",
+					actionUrl: "/tasks?opportunityId=opp-1",
+				},
+				{
+					key: "compliance",
+					label: "Compliance matrix",
+					status: "warn",
+					scoreImpact: 4,
+					blockerCount: 0,
+					warningCount: 1,
+					owner: "Compliance officer",
+					actionUrl: "/workflows",
+				},
+				{
+					key: "dispatch",
+					label: "Dispatch and receipt",
+					status: "pass",
+					scoreImpact: 0,
+					blockerCount: 0,
+					warningCount: 0,
+					owner: null,
+					actionUrl: null,
+				},
+			],
 			nextActions: [
 				{
 					id: "task:evidence",
