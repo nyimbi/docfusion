@@ -52,12 +52,48 @@ test.describe("Wave 1 control-plane interactions", () => {
 			reason: "Operator cleared failed parse",
 		});
 	});
+
+	test("surfaces command-center workflow links for an opportunity", async ({ page }) => {
+		const script = await bundleHarness("command-center");
+		const runtimeErrors: string[] = [];
+		page.on("pageerror", (error) => runtimeErrors.push(error.message));
+		page.on("console", (message) => {
+			if (message.type() === "error") runtimeErrors.push(message.text());
+		});
+
+		await page.route("http://wave1-control.test/command-center", async (route) => {
+			await route.fulfill({
+				contentType: "text/html",
+				body: harnessHtml(script),
+			});
+		});
+
+		await page.goto("http://wave1-control.test/command-center");
+		expect(runtimeErrors).toEqual([]);
+		await expect(page.getByText("Workflow Surfaces")).toBeVisible();
+		await expect(page.getByRole("link", { name: "Requirements" })).toHaveAttribute(
+			"href",
+			"/opportunities/opp-1/requirements",
+		);
+		await expect(page.getByRole("link", { name: "Documents" })).toHaveAttribute(
+			"href",
+			"/opportunities/opp-1/documents",
+		);
+		await expect(page.getByRole("link", { name: "Inbox" })).toHaveAttribute(
+			"href",
+			"/tasks?opportunityId=opp-1",
+		);
+	});
 });
 
-async function bundleHarness(kind: "inbox" | "operations") {
+async function bundleHarness(kind: "inbox" | "operations" | "command-center") {
 	const result = await build({
 		stdin: {
-			contents: kind === "inbox" ? inboxHarness() : operationsHarness(),
+			contents: kind === "inbox"
+				? inboxHarness()
+				: kind === "operations"
+					? operationsHarness()
+					: commandCenterHarness(),
 			resolveDir: FRONTEND_ROOT,
 			loader: "tsx",
 		},
@@ -66,6 +102,8 @@ async function bundleHarness(kind: "inbox" | "operations") {
 		format: "iife",
 		platform: "browser",
 		target: "es2020",
+		jsx: "automatic",
+		jsxImportSource: "react",
 		plugins: [frontendAliasPlugin()],
 	});
 
@@ -129,6 +167,77 @@ function inboxHarness() {
 		}
 
 		createRoot(document.getElementById("root")).render(React.createElement(App));
+	`;
+}
+
+function commandCenterHarness() {
+	return `
+		import React from "react";
+		import { createRoot } from "react-dom/client";
+		import { OpportunityCommandCenter } from "@/components/opportunities/OpportunityCommandCenter";
+
+		const projection = {
+			opportunityId: "opp-1",
+			readiness: {
+				score: 62,
+				label: "watch",
+				reasons: ["1 blocker"],
+			},
+			nextActions: [
+				{
+					id: "task:evidence",
+					label: "Add evidence",
+					priority: "high",
+					actionUrl: "/tasks?opportunityId=opp-1",
+					source: "proposal_task",
+				},
+			],
+			blockers: [
+				{
+					id: "task:evidence",
+					label: "Blocked work item",
+					severity: "high",
+					owner: "Proposal manager",
+					dueAt: "2026-05-07T00:00:00.000Z",
+					actionUrl: "/tasks?opportunityId=opp-1",
+				},
+			],
+			workSummary: {
+				total: 2,
+				open: 2,
+				blocked: 1,
+				overdue: 0,
+				dueSoon: 1,
+				critical: 0,
+				byKind: { task: 2 },
+			},
+			documentSummary: {
+				total: 1,
+				downloaded: 1,
+				failed: 0,
+			},
+			workflowSummary: {
+				total: 2,
+				active: 1,
+				breached: 0,
+				escalated: 0,
+				completed: 1,
+			},
+			auditEvents: [
+				{
+					id: "audit-1",
+					eventType: "requirement.accepted",
+					actorName: "Proposal Manager",
+					reason: "Ready for writing",
+					createdAt: "2026-05-06T00:00:00.000Z",
+				},
+			],
+			generatedAt: "2026-05-06T00:00:00.000Z",
+		};
+
+		createRoot(document.getElementById("root")).render(
+			React.createElement(OpportunityCommandCenter, { projection })
+		);
 	`;
 }
 
