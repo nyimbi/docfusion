@@ -21,29 +21,23 @@ import {
 	publishWorkflowTemplate,
 	recordWorkflowRuntimeTransition,
 } from "@/lib/actions/workflow-runtime";
+import {
+	appendEvidenceRecords,
+	createProofLogDir,
+	createProofRunId,
+	writeProofJson,
+	type EvidenceRecord,
+} from "./platform-proof/core";
 
-type EvidenceRecord = {
-	facility: string;
-	journey: string;
-	run_id: string;
-	artifact_ids: string[];
-	topology_tier: string;
-	verification_bucket: string;
-	timestamp: string;
-	operator: string;
-	cleanup_status: "not-applicable" | "idempotent-noop" | "restored" | "cleanup-pending" | "cleanup-failed";
-	disposition: "pass" | "partial" | "blocked" | "fail";
-	notes: string;
-};
-
-const RUN_ID = process.env.PLATFORM_PHASE1_RUN_ID ?? `phase1_${new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15)}Z`;
+const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
+const RUN_ID = process.env.PLATFORM_PHASE1_RUN_ID ?? createProofRunId("phase1");
 const BASE_URL = process.env.E2E_BASE_URL ?? process.env.PLATFORM_PHASE1_BASE_URL ?? "http://127.0.0.1:32133";
 const OPERATOR_ID = `${RUN_ID}_operator`;
 const OPERATOR_EMAIL = `phase1-${RUN_ID}@lindela.local`;
 const MAIL_RECIPIENT_ID = `${RUN_ID}_mail_recipient`;
 const MAIL_RECIPIENT_EMAIL = process.env.WORKFLOW_PROOF_TO_EMAIL ?? `phase1-${RUN_ID}@lindela.io`;
-const LOG_DIR = path.resolve(process.cwd(), "..", ".omx", "logs", "platform-completion", RUN_ID);
-const EVIDENCE_PATH = path.resolve(process.cwd(), "..", ".omx", "state", "platform-completion-phase1-evidence.md");
+const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID });
+const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-completion-phase1-evidence.md");
 
 const created = {
 	rfpDocumentIds: [] as string[],
@@ -494,30 +488,13 @@ async function cleanupRunId(runId: string) {
 }
 
 async function writeJson(filename: string, data: unknown) {
-	await fs.writeFile(path.join(LOG_DIR, filename), `${JSON.stringify(data, null, 2)}\n`, "utf8");
+	await writeProofJson(LOG_DIR, filename, data);
 }
 
 async function appendEvidence(records: EvidenceRecord[]) {
-	if (!records.length) return;
-	await fs.mkdir(path.dirname(EVIDENCE_PATH), { recursive: true });
-	const existing = await fs.readFile(EVIDENCE_PATH, "utf8").catch(() => "");
-	const header = existing.trim()
-		? ""
-		: "# Platform Completion Phase 1 Evidence\n\n| facility | journey | run_id | artifact_ids | topology_tier | verification_bucket | timestamp | operator | cleanup_status | disposition | notes |\n|---|---|---|---|---|---|---|---|---|---|---|\n";
-	const rows = records.map((record) => [
-		record.facility,
-		record.journey,
-		`\`${record.run_id}\``,
-		record.artifact_ids.map((id) => `\`${id}\``).join(", "),
-		record.topology_tier,
-		record.verification_bucket,
-		record.timestamp,
-		record.operator,
-		record.cleanup_status,
-		record.disposition,
-		record.notes.replace(/\|/g, "/"),
-	].join(" | "));
-	await fs.appendFile(EVIDENCE_PATH, `${header}${rows.map((row) => `| ${row} |`).join("\n")}\n`, "utf8");
+	await appendEvidenceRecords(EVIDENCE_PATH, records, {
+		title: "Platform Completion Phase 1 Evidence",
+	});
 }
 
 main().catch(async (error) => {
