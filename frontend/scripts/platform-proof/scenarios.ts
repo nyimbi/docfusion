@@ -76,6 +76,20 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: ["vitest:workflow-audit-export", "vitest:workflow-audit-export-route"],
 	},
 	{
+		id: "wave1-role-homepage",
+		wave: 1,
+		title: "Wave 1 role homepage coverage",
+		kind: "browser",
+		proofTargets: ["UX-010", "UX-011"],
+		requiresLiveServices: false,
+		description: "Validates persona selection, role-focused work projection, quick links, and browser rendering for role homepages.",
+		command: {
+			command: "npm",
+			args: ["run", "test:e2e", "--", "role-homepage.spec.ts"],
+		},
+		expectedArtifacts: ["playwright:role-homepage"],
+	},
+	{
 		id: "wave2-rfp-upload-preflight",
 		wave: 2,
 		title: "Wave 2 RFP upload preflight coverage",

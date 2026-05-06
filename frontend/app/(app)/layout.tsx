@@ -99,6 +99,17 @@ interface NavSection {
  */
 const NAV_SECTIONS: NavSection[] = [
 	{
+		title: "Home",
+		items: [
+			{
+				label: "Role Home",
+				href: "/home",
+				icon: Home,
+				description: "Role-based work surface",
+			},
+		],
+	},
+	{
 		title: "Discover",
 		items: [
 			{
@@ -575,7 +586,7 @@ const SidebarNavigation = React.memo(function SidebarNavigation({
 			{/* Home link for mobile */}
 			{isMobile && (
 				<Link
-					href="/"
+					href="/home"
 					className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-all mb-2"
 					onClick={handleNavClick}
 				>
@@ -584,7 +595,7 @@ const SidebarNavigation = React.memo(function SidebarNavigation({
 					</div>
 					<div className="flex-1">
 						<div className="text-sm font-medium">Home</div>
-						<div className="text-xs text-muted-foreground/70">Back to homepage</div>
+						<div className="text-xs text-muted-foreground/70">Role work surface</div>
 					</div>
 				</Link>
 			)}

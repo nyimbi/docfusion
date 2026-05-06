@@ -39,6 +39,12 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["O-015A", "UX-021"]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["wave1-role-homepage"] })).toEqual([
+			expect.objectContaining({
+				id: "wave1-role-homepage",
+				proofTargets: expect.arrayContaining(["UX-010", "UX-011"]),
+			}),
+		]);
 		expect(listProofScenarios({ ids: ["wave2-rfp-upload-preflight"] })).toEqual([
 			expect.objectContaining({
 				id: "wave2-rfp-upload-preflight",
