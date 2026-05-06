@@ -116,6 +116,14 @@ interface ProgressReport {
 }
 
 export default function TasksPage() {
+	return (
+		<React.Suspense fallback={<TasksPageLoading />}>
+			<TasksPageContent />
+		</React.Suspense>
+	);
+}
+
+function TasksPageContent() {
 	const searchParams = useSearchParams();
 	const initialOpportunityId = searchParams.get("opportunityId");
 	const [activeTab, setActiveTab] = useState("inbox");
@@ -631,6 +639,23 @@ export default function TasksPage() {
 					)}
 				</div>
 			)}
+		</div>
+	);
+}
+
+function TasksPageLoading() {
+	return (
+		<div className="min-h-screen bg-background p-6">
+			<div className="mx-auto max-w-7xl space-y-4">
+				<div className="h-8 w-48 rounded bg-muted" />
+				<div className="grid gap-4 md:grid-cols-4">
+					<div className="h-24 rounded-lg border bg-card" />
+					<div className="h-24 rounded-lg border bg-card" />
+					<div className="h-24 rounded-lg border bg-card" />
+					<div className="h-24 rounded-lg border bg-card" />
+				</div>
+				<div className="h-96 rounded-lg border bg-card" />
+			</div>
 		</div>
 	);
 }
