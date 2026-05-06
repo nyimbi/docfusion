@@ -8,7 +8,7 @@ import {
 	type WorkflowInstanceRow,
 } from "@/lib/db/schema-workflow-runtime";
 import { getWorkflowDashboard } from "@/lib/actions/workflow-runtime";
-import { getWorkflowViewerScopeFromSession } from "@/lib/workflows/viewer-scope";
+import { getWorkflowViewerScopeFromSession, type WorkflowViewerScope } from "@/lib/workflows/viewer-scope";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 export interface WorkflowAuditExplorerFilters {
@@ -70,9 +70,14 @@ export async function getWorkflowAuditExplorerProjection(
 	filters: WorkflowAuditExplorerFilters = {}
 ): Promise<WorkflowAuditExplorerProjection> {
 	const scope = await getWorkflowViewerScopeFromSession();
-	if (!scope) {
-		return emptyProjection(filters);
-	}
+	return getWorkflowAuditExplorerProjectionForScope(scope, filters);
+}
+
+export async function getWorkflowAuditExplorerProjectionForScope(
+	scope: WorkflowViewerScope | null,
+	filters: WorkflowAuditExplorerFilters = {}
+): Promise<WorkflowAuditExplorerProjection> {
+	if (!scope) return emptyProjection(filters);
 
 	const limit = normalizeLimit(filters.limit);
 	const visibleRunIds = await resolveVisibleRunIds(filters.runId, scope);

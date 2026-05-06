@@ -85,6 +85,11 @@ export default async function WorkflowAuditPage({ searchParams }: AuditPageProps
 							Search
 						</Button>
 						<Button asChild type="button" variant="outline" size="sm">
+							<Link href={`/api/v1/workflows/audit/export?${buildAuditExportQuery(projection.filters)}`}>
+								Export CSV
+							</Link>
+						</Button>
+						<Button asChild type="button" variant="outline" size="sm">
 							<Link href="/workflows/audit">Clear</Link>
 						</Button>
 					</div>
@@ -219,6 +224,17 @@ function AuditEventRow({
 function clean(value?: string) {
 	const trimmed = value?.trim();
 	return trimmed ? trimmed : null;
+}
+
+function buildAuditExportQuery(filters: Awaited<ReturnType<typeof getWorkflowAuditExplorerProjection>>["filters"]) {
+	const params = new URLSearchParams();
+	if (filters.runId) params.set("runId", filters.runId);
+	if (filters.subjectType) params.set("subjectType", filters.subjectType);
+	if (filters.subjectId) params.set("subjectId", filters.subjectId);
+	if (filters.eventType) params.set("eventType", filters.eventType);
+	if (filters.actorId) params.set("actorId", filters.actorId);
+	params.set("limit", String(filters.limit));
+	return params.toString();
 }
 
 function formatDate(value: string) {
