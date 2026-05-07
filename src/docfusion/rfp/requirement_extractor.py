@@ -24,11 +24,32 @@ from ..infrastructure import complete_with_fallback
 import time
 
 class RequirementModality(str, Enum):
-	"""Classification categories for RFP requirements"""
+	"""Compliance posture of an RFP requirement.
 
-	MANDATORY = "mandatory"  # Must be met - "shall", "must", "required"
-	OPTIONAL = "optional"  # Nice to have - "may", "should", "preferred"
-	CONDITIONAL = "conditional"  # Depends on conditions - "if", "when", "where applicable"
+	The orthogonal subject-domain axis (technical/management/cost/...)
+	lives in `RequirementCategory` below.
+	"""
+
+	MANDATORY = "mandatory"  # "shall", "must", "required"
+	OPTIONAL = "optional"  # "may", "should", "preferred"
+	CONDITIONAL = "conditional"  # "if", "when", "where applicable"
+
+class RequirementCategory(str, Enum):
+	"""Subject-domain classification — matches TS REQUIREMENT_CATEGORIES.
+
+	Values MUST stay in sync with frontend/lib/db/schema-rfp.ts:598-608.
+	A unit test enforces equality.
+	"""
+
+	TECHNICAL = "technical"
+	MANAGEMENT = "management"
+	PAST_PERFORMANCE = "past_performance"
+	COST = "cost"
+	ADMINISTRATIVE = "administrative"
+	PERSONNEL = "personnel"
+	SECURITY = "security"
+	COMPLIANCE = "compliance"
+	OTHER = "other"
 
 class RequirementType(str, Enum):
 	"""Types of requirements in RFP documents"""
