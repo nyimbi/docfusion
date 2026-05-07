@@ -6,7 +6,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { generatePreview } from "@/lib/actions/import";
 import type { ImportTargetTable, ColumnMapping } from "@/lib/types/import";
@@ -15,7 +14,7 @@ import type { ImportTargetTable, ColumnMapping } from "@/lib/types/import";
  * Get authenticated user context.
  */
 async function getUserContext() {
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) return null;
 	return {
 		userId: session.user.id,

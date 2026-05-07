@@ -6,23 +6,33 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { isRouteSessionResponse, requireRouteSessionOr401 } from "@/lib/auth/route-session";
+import {
+	parseGoogleOAuthState,
+	sanitizeGoogleReturnUrl,
+	setBoundGoogleTokenCookies,
+} from "@/lib/google/bound-tokens";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/v1/google/callback`;
 
 export async function GET(request: NextRequest) {
+  const authResult = await requireRouteSessionOr401();
+  if (isRouteSessionResponse(authResult)) {
+    return NextResponse.redirect(new URL("/hdsi?google_error=app_auth_required", request.url));
+  }
+  const sessionUserId = authResult.session.user.id;
   const searchParams = request.nextUrl.searchParams;
   const code = searchParams.get("code");
   const state = searchParams.get("state");
+  const parsedState = parseGoogleOAuthState(state);
   const error = searchParams.get("error");
 
   // Handle errors from Google
   if (error) {
-    const returnUrl = state?.split(":")[1] || "/hdsi";
-    return NextResponse.redirect(
-      new URL(`${decodeURIComponent(returnUrl)}?google_error=${encodeURIComponent(error)}`, request.url)
-    );
+    const returnUrl = parsedState.returnUrl || "/hdsi";
+    return NextResponse.redirect(buildGoogleRedirect(request, returnUrl, "google_error", error));
   }
 
   if (!code) {
@@ -33,9 +43,15 @@ export async function GET(request: NextRequest) {
 
   // Verify state
   const storedState = request.cookies.get("google_oauth_state")?.value;
-  const [receivedState, returnUrl] = (state || "").split(":");
+  const storedAppUser = request.cookies.get("google_oauth_app_user")?.value;
 
-  if (!storedState || storedState !== receivedState) {
+  if (
+    !storedState ||
+    storedState !== parsedState.state ||
+    !storedAppUser ||
+    storedAppUser !== sessionUserId ||
+    parsedState.appUserId !== sessionUserId
+  ) {
     return NextResponse.redirect(
       new URL("/hdsi?google_error=invalid_state", request.url)
     );
@@ -89,41 +105,23 @@ export async function GET(request: NextRequest) {
       userEmail = userInfo.email || "Unknown";
     }
 
-    // Create response with redirect
-    const decodedReturnUrl = returnUrl ? decodeURIComponent(returnUrl) : "/hdsi";
-    const response = NextResponse.redirect(
-      new URL(`${decodedReturnUrl}?google_connected=true`, request.url)
-    );
+	    // Create response with redirect
+	    const decodedReturnUrl = parsedState.returnUrl || "/hdsi";
+	    const response = NextResponse.redirect(
+	      buildGoogleRedirect(request, decodedReturnUrl, "google_connected", "true")
+	    );
+	
+	    setBoundGoogleTokenCookies(response, {
+	      sessionUserId,
+	      accessToken: tokens.access_token,
+	      refreshToken: tokens.refresh_token,
+	      userEmail,
+	      accessTokenMaxAge: tokens.expires_in || 3600,
+	    });
 
-    // Store tokens in secure cookies
-    // Access token - used for API calls
-    response.cookies.set("google_access_token", tokens.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: tokens.expires_in || 3600, // Usually 1 hour
-    });
-
-    // Refresh token - used to get new access tokens
-    if (tokens.refresh_token) {
-      response.cookies.set("google_refresh_token", tokens.refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 30, // 30 days
-      });
-    }
-
-    // Store user email for display (not sensitive)
-    response.cookies.set("google_user_email", userEmail, {
-      httpOnly: false, // Accessible from client
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-    });
-
-    // Clear the state cookie
-    response.cookies.delete("google_oauth_state");
+	    // Clear the state cookie
+	    response.cookies.delete("google_oauth_state");
+	    response.cookies.delete("google_oauth_app_user");
 
     return response;
   } catch (error) {
@@ -132,4 +130,15 @@ export async function GET(request: NextRequest) {
       new URL("/hdsi?google_error=callback_failed", request.url)
     );
   }
+}
+
+function buildGoogleRedirect(
+	request: NextRequest,
+	returnUrl: string,
+	key: string,
+	value: string
+): URL {
+	const redirect = new URL(sanitizeGoogleReturnUrl(returnUrl), request.url);
+	redirect.searchParams.set(key, value);
+	return redirect;
 }

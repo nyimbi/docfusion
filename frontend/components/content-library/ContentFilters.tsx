@@ -399,7 +399,7 @@ export function ContentFilters({
 				>
 					<div className="space-y-2">
 						<div>
-							<label className="text-xs text-gray-500">From</label>
+							<span className="text-xs text-gray-500">From</span>
 							<input
 								type="date"
 								value={filters.dateRange?.start ?? ""}
@@ -412,10 +412,10 @@ export function ContentFilters({
 									})
 								}
 								className="w-full px-2 py-1 text-sm border rounded"
-							/>
+							 aria-label="From"/>
 						</div>
 						<div>
-							<label className="text-xs text-gray-500">To</label>
+							<span className="text-xs text-gray-500">To</span>
 							<input
 								type="date"
 								value={filters.dateRange?.end ?? ""}
@@ -428,7 +428,7 @@ export function ContentFilters({
 									})
 								}
 								className="w-full px-2 py-1 text-sm border rounded"
-							/>
+							 aria-label="To"/>
 						</div>
 					</div>
 				</FilterSection>

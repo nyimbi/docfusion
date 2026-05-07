@@ -28,6 +28,7 @@ import {
   Globe,
   Archive,
   Sparkles,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,15 @@ interface OpportunityDocument {
   downloadedAt: Date | null;
 }
 
+interface IntakeResult {
+  documentId?: string;
+  rfpDocumentId?: string;
+  parsingJobId?: string;
+  storagePath?: string;
+  error?: string;
+  success: boolean;
+}
+
 interface DocumentManagerProps {
   opportunityId: string;
   sourceUrl: string | null;
@@ -84,6 +94,7 @@ export function DocumentManager({
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [lastIntakeResults, setLastIntakeResults] = useState<IntakeResult[]>([]);
 
   // Calculate stats
   const discoveredCount = documents.length;
@@ -183,7 +194,14 @@ export function DocumentManager({
       const result = await downloadOpportunityDocument(opportunityId, documentId);
 
       if (result.success) {
-        toast.success(`Downloaded: ${result.documentId}`);
+        toast.success(result.parsingJobId ? "RFP ingested and parser queued" : `Downloaded: ${result.documentId}`);
+        setLastIntakeResults([{
+          success: true,
+          documentId: result.documentId,
+          rfpDocumentId: result.rfpDocumentId,
+          parsingJobId: result.parsingJobId,
+          storagePath: result.storagePath,
+        }]);
         // Update local state
         setDocuments((prev) =>
           prev.map((doc) =>
@@ -223,18 +241,31 @@ export function DocumentManager({
     }
 
     setIsDownloading(true);
-    toast.loading(`Downloading ${selectedDocs.length} documents...`, { id: "bulk-download" });
+    toast.loading(`Ingesting ${selectedDocs.length} document${selectedDocs.length === 1 ? "" : "s"}...`, { id: "bulk-download" });
 
     try {
       const result = await downloadSelectedOpportunityDocuments(opportunityId);
 
       if (result.success) {
         toast.success(
-          `Downloaded ${result.downloaded} documents${result.failed > 0 ? `, ${result.failed} failed` : ""}`,
+          `Ingested ${result.downloaded} document${result.downloaded === 1 ? "" : "s"}${result.failed > 0 ? `, ${result.failed} failed` : ""}`,
           { id: "bulk-download" }
         );
-        // Refresh page to show updated status
-        window.location.reload();
+        setLastIntakeResults(result.results.map((item) => ({
+          success: item.success,
+          documentId: item.documentId,
+          rfpDocumentId: item.rfpDocumentId,
+          parsingJobId: item.parsingJobId,
+          storagePath: item.storagePath,
+          error: item.error,
+        })));
+        const succeeded = new Set(result.results.filter((item) => item.success).map((item) => item.documentId));
+        const failed = new Set(result.results.filter((item) => !item.success).map((item) => item.documentId));
+        setDocuments((prev) => prev.map((doc) => {
+          if (succeeded.has(doc.id)) return { ...doc, status: "downloaded" };
+          if (failed.has(doc.id)) return { ...doc, status: "failed" };
+          return doc;
+        }));
       } else {
         toast.error(result.error || "Bulk download failed", { id: "bulk-download" });
       }
@@ -329,6 +360,13 @@ export function DocumentManager({
         </span>
       </div>
 
+      <RfpIntakeSteps
+        discoveredCount={discoveredCount}
+        selectedCount={selectedCount}
+        downloadedCount={downloadedCount}
+        lastResults={lastIntakeResults}
+      />
+
       {/* Header with stats and actions */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-4 text-sm">
@@ -368,7 +406,7 @@ export function DocumentManager({
             ) : (
               <Download className="h-4 w-4" />
             )}
-            Download Selected ({selectedCount})
+            Ingest Selected ({selectedCount})
           </Button>
         </div>
       </div>
@@ -401,6 +439,42 @@ export function DocumentManager({
             onDelete={handleDelete}
           />
         ))}
+      </div>
+    </div>
+  );
+}
+
+function RfpIntakeSteps({
+  discoveredCount,
+  selectedCount,
+  downloadedCount,
+  lastResults,
+}: {
+  discoveredCount: number;
+  selectedCount: number;
+  downloadedCount: number;
+  lastResults: IntakeResult[];
+}) {
+  const queued = lastResults.filter((result) => result.parsingJobId).length;
+  const stored = lastResults.filter((result) => result.storagePath).length;
+
+  return (
+    <div className="grid grid-cols-2 gap-2 rounded-lg border bg-background p-3 text-xs sm:grid-cols-4">
+      <IntakeStep label="Discover" value={`${discoveredCount} found`} active={discoveredCount > 0} />
+      <IntakeStep label="Select" value={`${selectedCount} selected`} active={selectedCount > 0} />
+      <IntakeStep label="Store" value={stored > 0 ? `${stored} stored` : `${downloadedCount} ready`} active={downloadedCount > 0 || stored > 0} />
+      <IntakeStep label="Parse" value={queued > 0 ? `${queued} queued` : "awaiting ingest"} active={queued > 0} />
+    </div>
+  );
+}
+
+function IntakeStep({ label, value, active }: { label: string; value: string; active: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      <CheckCircle2 className={cn("h-4 w-4", active ? "text-green-600" : "text-muted-foreground")} />
+      <div className="min-w-0">
+        <div className="font-medium">{label}</div>
+        <div className="truncate text-muted-foreground">{value}</div>
       </div>
     </div>
   );

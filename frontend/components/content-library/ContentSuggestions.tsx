@@ -185,7 +185,10 @@ export function ContentSuggestions({
 								<div
 									className="p-3 flex items-start gap-3 cursor-pointer hover:bg-gray-50"
 									onClick={() => toggleExpand(suggestion.id)}
-								>
+
+				role="button"
+				tabIndex={0}
+				onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 									<div className="mt-0.5">
 										{isExpanded ? (
 											<ChevronDown className="w-4 h-4 text-gray-400" />

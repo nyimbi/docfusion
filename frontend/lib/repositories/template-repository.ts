@@ -97,9 +97,9 @@ export class TemplateRepository extends BaseRepository<
 			.where(eq(templates.status, "published"))
 			.groupBy(sql`jsonb_array_elements_text(${templates.categoryIds})`);
 
-		const countMap = new Map(categoryCounts.map((c) => [c.categoryId, c.count]));
+		const countMap = new Map(categoryCounts.map((c: { categoryId: string; count: number }) => [c.categoryId, c.count]));
 
-		return rows.map((row) => ({
+		return rows.map((row: any) => ({
 			...row,
 			templateCount: countMap.get(row.id) ?? 0,
 		}));
@@ -298,7 +298,7 @@ export class TemplateRepository extends BaseRepository<
 			.from(templates)
 			.where(eq(templates.status, "published"));
 
-		return result.map((r) => r.tag).sort();
+		return result.map((r: { tag: string }) => r.tag).sort();
 	}
 
 	// ──────────────────────────────────────────────────────────────────────

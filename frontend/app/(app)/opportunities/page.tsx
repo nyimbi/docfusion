@@ -28,6 +28,10 @@ import {
 	bulkUpdatePriority,
 	markAsReviewed,
 } from "@/lib/actions/opportunities";
+import {
+	transitionOpportunityTriage,
+	type OpportunityTriageAction,
+} from "@/lib/actions/opportunity-lifecycle";
 import { getVoteSummariesBulk } from "@/lib/actions/opportunity-votes";
 import type { VoteSummary } from "@/lib/types/opportunity";
 import type {
@@ -301,7 +305,10 @@ function OpportunitiesContent() {
 	// Derived state
 	// ========================================================================
 
-	const rawOpportunities = opportunitiesData?.data ?? [];
+	const rawOpportunities = React.useMemo(
+		() => opportunitiesData?.data ?? [],
+		[opportunitiesData?.data]
+	);
 	const totalPages = opportunitiesData?.totalPages ?? 1;
 	const isLoading = isOpportunitiesLoading;
 
@@ -390,16 +397,16 @@ function OpportunitiesContent() {
 					await markAsReviewedMutation.mutateAsync({ ids, reviewed: true });
 					break;
 				case "mark-interested":
-					await updateStatusMutation.mutateAsync({ ids, status: "interested" });
+					await runBulkTriage(ids, "mark_interested", "Marked interested from the opportunities bulk action bar.");
 					break;
 				case "mark-pursuing":
-					await updateStatusMutation.mutateAsync({ ids, status: "pursuing" });
+					await runBulkTriage(ids, "qualify", "Qualified for pursuit from the opportunities bulk action bar.");
 					break;
 				case "mark-declined":
-					await updateStatusMutation.mutateAsync({ ids, status: "declined" });
+					await runBulkTriage(ids, "reject", "Declined from the opportunities bulk action bar.");
 					break;
 				case "add-shortlist":
-					await updateStatusMutation.mutateAsync({ ids, status: "shortlisted" });
+					await runBulkTriage(ids, "shortlist", "Added to shortlist from the opportunities bulk action bar.");
 					break;
 				case "priority-high":
 					await updatePriorityMutation.mutateAsync({ ids, priority: 5 });
@@ -415,6 +422,24 @@ function OpportunitiesContent() {
 		} catch (err) {
 			console.error("Bulk action failed:", err);
 		}
+	};
+
+	const runBulkTriage = async (
+		ids: string[],
+		triageAction: OpportunityTriageAction,
+		reason: string
+	) => {
+		await Promise.all(ids.map(async (opportunityId) => {
+			const result = await transitionOpportunityTriage({
+				opportunityId,
+				action: triageAction,
+				reason,
+			});
+			if (!result.success) {
+				throw new Error(result.error ?? `Failed to ${triageAction} opportunity ${opportunityId}`);
+			}
+		}));
+		await queryClient.invalidateQueries({ queryKey: opportunitiesKeys.all });
 	};
 
 	const handleToggleExpired = () => {

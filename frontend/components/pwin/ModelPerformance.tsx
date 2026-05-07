@@ -186,7 +186,7 @@ export function ModelPerformance({
 		}
 
 		setIsLoading(false);
-	}, [organizationId]);
+	}, []);
 
 	// Load on mount
 	useEffect(() => {

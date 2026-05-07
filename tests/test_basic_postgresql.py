@@ -5,13 +5,20 @@ Simple test to validate PostgreSQL connection and basic operations.
 """
 
 import asyncio
+import os
 import asyncpg
+import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 # Connection details
-POSTGRES_URL = "postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb"
-ASYNCPG_URL = "postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb"
+POSTGRES_URL = os.getenv("DATABASE_URL")
+ASYNCPG_URL = POSTGRES_URL
+
+pytestmark = pytest.mark.skipif(
+    not POSTGRES_URL,
+    reason="PostgreSQL connection tests require DATABASE_URL",
+)
 
 async def test_asyncpg_connection():
     """Test direct asyncpg connection."""
@@ -180,6 +187,10 @@ def test_database_extensions():
 
 async def main():
     """Run all PostgreSQL tests."""
+    if not POSTGRES_URL:
+        print("DATABASE_URL is required to run PostgreSQL connection tests")
+        return False
+
     print("🚀 DocuFusion PostgreSQL Basic Connection Tests")
     print("=" * 50)
     

@@ -170,6 +170,7 @@ export function useDocumentSynthesis(
 
 	// Refs for cancellation
 	const abortRef = React.useRef(false);
+	const generateAllRef = React.useRef<(() => Promise<void>) | null>(null);
 
 	// Derived state
 	const currentPhase = dso?.progress?.phase ?? "outline";
@@ -263,7 +264,7 @@ export function useDocumentSynthesis(
 
 				if (autoStart && !abortRef.current) {
 					setIsInitializing(false);
-					await generateAll();
+					await generateAllRef.current?.();
 				}
 			} catch (err) {
 				const error = err instanceof Error ? err : new Error(String(err));
@@ -359,6 +360,7 @@ export function useDocumentSynthesis(
 			setIsGenerating(false);
 		}
 	}, [dso, synthOptions, parallelGeneration, onComplete, onError]);
+	generateAllRef.current = generateAll;
 
 	/**
 	 * Regenerate a specific node.

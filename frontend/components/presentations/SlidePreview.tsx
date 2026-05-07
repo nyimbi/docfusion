@@ -116,6 +116,21 @@ export function SlidePreview({
 		};
 	}, [slideStartTime]);
 
+	// Handlers
+	const handlePrev = useCallback(() => {
+		if (slideIndex > 0) {
+			setTransition("slide-right");
+			onNavigate("prev");
+		}
+	}, [slideIndex, onNavigate]);
+
+	const handleNext = useCallback(() => {
+		if (slideIndex < totalSlides - 1) {
+			setTransition("slide-left");
+			onNavigate("next");
+		}
+	}, [slideIndex, totalSlides, onNavigate]);
+
 	// Auto-play
 	useEffect(() => {
 		if (isAutoPlay && slide) {
@@ -134,12 +149,12 @@ export function SlidePreview({
 				clearTimeout(autoPlayRef.current);
 			}
 		};
-	}, [isAutoPlay, slide, slideIndex, totalSlides]);
+	}, [handleNext, isAutoPlay, slide, slideIndex, totalSlides]);
 
 	// Reset timer on slide change
 	useEffect(() => {
 		setElapsedTime(0);
-		setSlideStartTime(slideStartTime ? Date.now() : null);
+		setSlideStartTime((startedAt) => (startedAt ? Date.now() : null));
 		setSlideKey((k) => k + 1); // Trigger transition
 	}, [slideIndex]);
 
@@ -161,22 +176,7 @@ export function SlidePreview({
 
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [isFullscreen, slideIndex, totalSlides]);
-
-	// Handlers
-	const handlePrev = useCallback(() => {
-		if (slideIndex > 0) {
-			setTransition("slide-right");
-			onNavigate("prev");
-		}
-	}, [slideIndex, onNavigate]);
-
-	const handleNext = useCallback(() => {
-		if (slideIndex < totalSlides - 1) {
-			setTransition("slide-left");
-			onNavigate("next");
-		}
-	}, [slideIndex, totalSlides, onNavigate]);
+	}, [handleNext, handlePrev, isFullscreen]);
 
 	const handleToggleTimer = useCallback(() => {
 		if (slideStartTime) {

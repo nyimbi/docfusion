@@ -65,6 +65,51 @@ export interface DeduplicationResult {
 // Fingerprint Generation
 // ============================================================================
 
+function cleanString(value: string | null | undefined): string | undefined {
+	const cleaned = value?.replace(/\s+/g, " ").trim();
+	return cleaned || undefined;
+}
+
+function parseOptionalDate(value: Date | string | null | undefined): Date | null {
+	if (!value) return null;
+	const date = typeof value === "string" ? new Date(value) : value;
+	return !isNaN(date.getTime()) ? date : null;
+}
+
+function normalizeOpportunity(data: OpportunityData): OpportunityData {
+	const title = cleanString(data.title);
+	if (!title) {
+		throw new Error("Opportunity title is required");
+	}
+
+	return {
+		...data,
+		title,
+		organization: cleanString(data.organization),
+		source: cleanString(data.source) || "unknown",
+		sourceId: cleanString(data.sourceId),
+		noticeId: cleanString(data.noticeId),
+		portalUrl: cleanString(data.portalUrl),
+		documentUrl: cleanString(data.documentUrl),
+		category: cleanString(data.category),
+		itCategory: cleanString(data.itCategory),
+		sector: cleanString(data.sector),
+		countryRegion: cleanString(data.countryRegion),
+		funder: cleanString(data.funder),
+		budgetValue: cleanString(data.budgetValue),
+		budgetCurrency: cleanString(data.budgetCurrency),
+		projectSummary: cleanString(data.projectSummary),
+		projectScope: cleanString(data.projectScope),
+		keyRequirements: cleanString(data.keyRequirements),
+		technicalRequirements: cleanString(data.technicalRequirements),
+		submissionMethod: cleanString(data.submissionMethod),
+		submissionRequirements: cleanString(data.submissionRequirements),
+		rfpLink: cleanString(data.rfpLink),
+		deadline: parseOptionalDate(data.deadline),
+		publishedDate: parseOptionalDate(data.publishedDate),
+	};
+}
+
 /**
  * Generate a SHA256 fingerprint for deduplication.
  * Fingerprint = SHA256(lowercase(title) + org + deadline_date)
@@ -146,24 +191,15 @@ export async function deduplicateOpportunity(
 	data: OpportunityData,
 	scraperSourceId: string
 ): Promise<DeduplicationResult> {
+	const normalized = normalizeOpportunity(data);
 	const fingerprint = generateFingerprint({
-		title: data.title,
-		organization: data.organization,
-		deadline: data.deadline,
+		title: normalized.title,
+		organization: normalized.organization,
+		deadline: normalized.deadline,
 	});
 
-	// Parse deadline if string
-	const deadline = data.deadline
-		? typeof data.deadline === "string"
-			? new Date(data.deadline)
-			: data.deadline
-		: null;
-
-	const publishedDate = data.publishedDate
-		? typeof data.publishedDate === "string"
-			? new Date(data.publishedDate)
-			: data.publishedDate
-		: null;
+	const deadline = parseOptionalDate(normalized.deadline);
+	const publishedDate = parseOptionalDate(normalized.publishedDate);
 
 	// Check for existing by fingerprint
 	const existingByFingerprint = await db.query.opportunities.findFirst({
@@ -188,12 +224,20 @@ export async function deduplicateOpportunity(
 		};
 	}
 
-	// Check for existing by source + noticeId (if we have noticeId)
-	if (data.noticeId) {
+	// Check for existing by source + source identifiers when available.
+	const sourceIdentifierConditions = [];
+	if (normalized.noticeId) {
+		sourceIdentifierConditions.push(eq(opportunities.noticeId, normalized.noticeId));
+	}
+	if (normalized.sourceId) {
+		sourceIdentifierConditions.push(eq(opportunities.sourceId, normalized.sourceId));
+	}
+
+	if (sourceIdentifierConditions.length > 0) {
 		const existingBySourceId = await db.query.opportunities.findFirst({
 			where: and(
-				eq(opportunities.source, data.source),
-				eq(opportunities.noticeId, data.noticeId)
+				eq(opportunities.source, normalized.source),
+				or(...sourceIdentifierConditions)
 			),
 		});
 
@@ -202,27 +246,27 @@ export async function deduplicateOpportunity(
 			await db
 				.update(opportunities)
 				.set({
-					title: data.title,
-					organization: data.organization,
+					title: normalized.title,
+					organization: normalized.organization,
 					deadline: deadline,
 					fingerprint, // Update fingerprint in case data changed
-					category: data.category ?? existingBySourceId.category,
-					itCategory: data.itCategory ?? existingBySourceId.itCategory,
-					sector: data.sector ?? existingBySourceId.sector,
-					countryRegion: data.countryRegion ?? existingBySourceId.countryRegion,
-					funder: data.funder ?? existingBySourceId.funder,
-					budgetValue: data.budgetValue ?? existingBySourceId.budgetValue,
-					budgetNumeric: data.budgetNumeric ?? existingBySourceId.budgetNumeric,
-					budgetCurrency: data.budgetCurrency ?? existingBySourceId.budgetCurrency,
-					projectSummary: data.projectSummary ?? existingBySourceId.projectSummary,
-					projectScope: data.projectScope ?? existingBySourceId.projectScope,
-					keyRequirements: data.keyRequirements ?? existingBySourceId.keyRequirements,
-					technicalRequirements: data.technicalRequirements ?? existingBySourceId.technicalRequirements,
-					submissionMethod: data.submissionMethod ?? existingBySourceId.submissionMethod,
-					submissionRequirements: data.submissionRequirements ?? existingBySourceId.submissionRequirements,
-					rfpLink: data.rfpLink ?? existingBySourceId.rfpLink,
-					portalUrl: data.portalUrl ?? existingBySourceId.portalUrl,
-					documentUrl: data.documentUrl ?? existingBySourceId.documentUrl,
+					category: normalized.category ?? existingBySourceId.category,
+					itCategory: normalized.itCategory ?? existingBySourceId.itCategory,
+					sector: normalized.sector ?? existingBySourceId.sector,
+					countryRegion: normalized.countryRegion ?? existingBySourceId.countryRegion,
+					funder: normalized.funder ?? existingBySourceId.funder,
+					budgetValue: normalized.budgetValue ?? existingBySourceId.budgetValue,
+					budgetNumeric: normalized.budgetNumeric ?? existingBySourceId.budgetNumeric,
+					budgetCurrency: normalized.budgetCurrency ?? existingBySourceId.budgetCurrency,
+					projectSummary: normalized.projectSummary ?? existingBySourceId.projectSummary,
+					projectScope: normalized.projectScope ?? existingBySourceId.projectScope,
+					keyRequirements: normalized.keyRequirements ?? existingBySourceId.keyRequirements,
+					technicalRequirements: normalized.technicalRequirements ?? existingBySourceId.technicalRequirements,
+					submissionMethod: normalized.submissionMethod ?? existingBySourceId.submissionMethod,
+					submissionRequirements: normalized.submissionRequirements ?? existingBySourceId.submissionRequirements,
+					rfpLink: normalized.rfpLink ?? existingBySourceId.rfpLink,
+					portalUrl: normalized.portalUrl ?? existingBySourceId.portalUrl,
+					documentUrl: normalized.documentUrl ?? existingBySourceId.documentUrl,
 					publishedDate: publishedDate ?? existingBySourceId.publishedDate,
 					scrapedAt: new Date(),
 					updatedAt: new Date(),
@@ -233,7 +277,7 @@ export async function deduplicateOpportunity(
 				action: "updated",
 				opportunityId: existingBySourceId.id,
 				fingerprint,
-				reason: "Source + noticeId match - updated existing record",
+				reason: "Source identifier match - updated existing record",
 			};
 		}
 	}
@@ -252,38 +296,48 @@ export async function deduplicateOpportunity(
 	const [inserted] = await db
 		.insert(opportunities)
 		.values({
-			title: data.title,
-			organization: data.organization,
+			title: normalized.title,
+			organization: normalized.organization,
 			deadline,
 			daysLeft,
 			isExpired,
 			fingerprint,
-			source: data.source,
-			sourceId: data.sourceId,
-			noticeId: data.noticeId,
-			portalUrl: data.portalUrl,
-			documentUrl: data.documentUrl,
-			category: data.category,
-			itCategory: data.itCategory,
-			sector: data.sector,
-			countryRegion: data.countryRegion,
-			funder: data.funder,
-			budgetValue: data.budgetValue,
-			budgetNumeric: data.budgetNumeric,
-			budgetCurrency: data.budgetCurrency,
-			projectSummary: data.projectSummary,
-			projectScope: data.projectScope,
-			keyRequirements: data.keyRequirements,
-			technicalRequirements: data.technicalRequirements,
-			submissionMethod: data.submissionMethod,
-			submissionRequirements: data.submissionRequirements,
-			rfpLink: data.rfpLink,
-			opportunityType: data.opportunityType || "rfp",
+			source: normalized.source,
+			sourceId: normalized.sourceId,
+			noticeId: normalized.noticeId,
+			portalUrl: normalized.portalUrl,
+			documentUrl: normalized.documentUrl,
+			category: normalized.category,
+			itCategory: normalized.itCategory,
+			sector: normalized.sector,
+			countryRegion: normalized.countryRegion,
+			funder: normalized.funder,
+			budgetValue: normalized.budgetValue,
+			budgetNumeric: normalized.budgetNumeric,
+			budgetCurrency: normalized.budgetCurrency,
+			projectSummary: normalized.projectSummary,
+			projectScope: normalized.projectScope,
+			keyRequirements: normalized.keyRequirements,
+			technicalRequirements: normalized.technicalRequirements,
+			submissionMethod: normalized.submissionMethod,
+			submissionRequirements: normalized.submissionRequirements,
+			rfpLink: normalized.rfpLink,
+			opportunityType: normalized.opportunityType || "rfp",
 			publishedDate,
 			scrapedAt: new Date(),
-			tags: data.tags || [],
-			metadata: data.metadata,
-			sourcePlatform: data.source,
+			tags: normalized.tags || [],
+			metadata: {
+				...(normalized.metadata ?? {}),
+				scraperSourceId,
+			},
+			sourcePlatform: normalized.source,
+		})
+		.onConflictDoUpdate({
+			target: opportunities.fingerprint,
+			set: {
+				scrapedAt: new Date(),
+				updatedAt: new Date(),
+			},
 		})
 		.returning({ id: opportunities.id });
 

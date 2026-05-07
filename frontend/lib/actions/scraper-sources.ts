@@ -20,6 +20,32 @@ import {
 import { eq, desc, asc, and, gte, lte, sql, count, avg, sum, ilike, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+function escapeLikePattern(value: string): string {
+	return value.replace(/[\\%_]/g, "\\$&");
+}
+
+function buildSourceSearchCondition(search?: string) {
+	const term = search?.trim();
+	if (!term) return undefined;
+
+	const pattern = `%${escapeLikePattern(term)}%`;
+	return or(
+		ilike(scraperSources.name, pattern),
+		ilike(scraperSources.sourceId, pattern),
+		ilike(scraperSources.url, pattern),
+		sql`${scraperSources.coverage}::text ILIKE ${pattern}`,
+		sql`${scraperSources.notes} ILIKE ${pattern}`,
+	);
+}
+
+function safeRevalidatePath(path: string): void {
+	try {
+		revalidatePath(path);
+	} catch {
+		// Scraper workers can run outside a Next request/static-generation store.
+	}
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -94,6 +120,10 @@ export async function getScraperSources(options?: {
 	if (options?.healthStatus) {
 		conditions.push(eq(scraperSources.healthStatus, options.healthStatus as typeof scraperSources.healthStatus.enumValues[number]));
 	}
+	const searchCondition = buildSourceSearchCondition(options?.search);
+	if (searchCondition) {
+		conditions.push(searchCondition);
+	}
 
 	const query = db
 		.select()
@@ -159,6 +189,10 @@ export async function getPaginatedScraperSources(options: {
 	if (filters.healthStatus) {
 		conditions.push(eq(scraperSources.healthStatus, filters.healthStatus as typeof scraperSources.healthStatus.enumValues[number]));
 	}
+	const searchCondition = buildSourceSearchCondition(search);
+	if (searchCondition) {
+		conditions.push(searchCondition);
+	}
 
 	// Get total count
 	const countResult = await db
@@ -169,27 +203,13 @@ export async function getPaginatedScraperSources(options: {
 	const total = countResult[0]?.count ?? 0;
 
 	// Get paginated results
-	let sources = await db
+	const sources = await db
 		.select()
 		.from(scraperSources)
 		.where(conditions.length > 0 ? and(...conditions) : undefined)
 		.orderBy(asc(scraperSources.priority), asc(scraperSources.scheduleTier), asc(scraperSources.name))
 		.limit(pageSize)
 		.offset(offset);
-
-	// Apply search filter (client-side for now, could be optimized with pg_trgm)
-	if (search) {
-		const term = search.toLowerCase();
-		sources = sources.filter(s => {
-			const coverage = s.coverage as string[] || [];
-			return (
-				s.name.toLowerCase().includes(term) ||
-				s.sourceId.toLowerCase().includes(term) ||
-				s.url.toLowerCase().includes(term) ||
-				coverage.some((c: string) => c.toLowerCase().includes(term))
-			);
-		});
-	}
 
 	const totalPages = Math.ceil(total / pageSize);
 
@@ -251,7 +271,7 @@ export async function createScraperSource(
 		})
 		.returning();
 
-	revalidatePath("/opportunities/sources");
+	safeRevalidatePath("/opportunities/sources");
 	return source;
 }
 
@@ -271,7 +291,7 @@ export async function updateScraperSource(
 		.where(eq(scraperSources.id, id))
 		.returning();
 
-	revalidatePath("/opportunities/sources");
+	safeRevalidatePath("/opportunities/sources");
 	return updated || null;
 }
 
@@ -293,7 +313,7 @@ export async function toggleSourceEnabled(
 			.where(eq(scraperSources.id, id))
 			.returning();
 
-		revalidatePath("/opportunities/sources");
+		safeRevalidatePath("/opportunities/sources");
 		return { success: true, source };
 	} catch (error) {
 		return { success: false, error: String(error) };
@@ -308,7 +328,7 @@ export async function deleteScraperSource(id: string): Promise<boolean> {
 		.delete(scraperSources)
 		.where(eq(scraperSources.id, id));
 
-	revalidatePath("/opportunities/sources");
+	safeRevalidatePath("/opportunities/sources");
 	return true;
 }
 
@@ -423,7 +443,7 @@ export async function updateSourceMetrics(
 		})
 		.where(eq(scraperSources.id, sourceId));
 
-	revalidatePath("/opportunities/sources");
+	safeRevalidatePath("/opportunities/sources");
 }
 
 // ============================================================================
@@ -597,7 +617,7 @@ export async function bulkCreateSources(
 		})
 		.returning();
 
-	revalidatePath("/opportunities/sources");
+	safeRevalidatePath("/opportunities/sources");
 	return created;
 }
 

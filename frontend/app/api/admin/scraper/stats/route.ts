@@ -10,9 +10,16 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getScraperStats } from "@/lib/actions/scraper-runs";
+import { isControlPlaneResponse, requireControlPlaneAdmin } from "@/lib/auth/control-plane";
 
 export async function GET(request: NextRequest) {
 	try {
+		const authz = await requireControlPlaneAdmin(request, {
+			allowedRoles: ["admin", "operations"],
+			allowApiKeyEnv: "SCRAPER_API_KEY",
+		});
+		if (isControlPlaneResponse(authz)) return authz;
+
 		// Get stats for last 24 hours
 		const now = new Date();
 		const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);

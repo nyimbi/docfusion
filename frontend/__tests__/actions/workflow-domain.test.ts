@@ -123,6 +123,33 @@ describe("workflow domain integrations", () => {
 		expect(partnerPatch).toMatchObject({ status: "invited" });
 	});
 
+	it("denies workflow starts when the actor lacks template start authority", async () => {
+		const template = {
+			id: "template-1",
+			templateKey: "pricing_approval",
+			name: "Pricing Approval",
+			subjectType: "pricing_package",
+			version: 1,
+			status: "active",
+			states: ["draft", "authority_review", "locked"],
+			transitions: [
+				{ action: "submit", from: ["draft"], to: "authority_review", requiredRoles: ["finance_approver"] },
+			],
+			slaPolicy: {},
+			portalPolicy: {},
+			metadata: {},
+		};
+		dbMock.select.mockReturnValueOnce(createChain({ result: [template] }));
+
+		await expect(startDomainWorkflowFromTemplate({
+			templateKey: "pricing_approval",
+			subjectId: "pricing-1",
+			actorId: "writer-1",
+			actorRoles: ["writer"],
+		})).rejects.toThrow("requires finance_approver");
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
 	it("applies template transitions and resolves pricing packages into approved cost elements", async () => {
 		const instance = {
 			id: "workflow-1",
@@ -196,14 +223,34 @@ describe("workflow domain integrations", () => {
 			subjectId: "claim-1",
 			state: "review",
 			status: "active",
+			visibility: "portal",
+			portalVisibility: { visibleToPortal: true, portalRole: "partner" },
 			metadata: {},
 		};
 		const cancelled = { ...existing, state: "cancelled", status: "cancelled" };
+		const template = {
+			templateKey: existing.workflowKey,
+			version: 1,
+			status: "active",
+			portalPolicy: { visibleStates: ["review"], portalRole: "partner" },
+			transitions: [
+				{ action: "cancel", from: ["review"], to: "cancelled", requiredRoles: ["reviewer"] },
+			],
+		};
+		let workflowPatch: Record<string, unknown> | undefined;
 		let claimPatch: Record<string, unknown> | undefined;
 
-		dbMock.select.mockReturnValueOnce(createChain({ result: [existing] }));
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [existing] }))
+			.mockReturnValueOnce(createChain({ result: [template] }))
+			.mockReturnValueOnce(createChain({ result: [existing] }));
 		dbMock.update
-			.mockReturnValueOnce(createChain({ result: [cancelled] }))
+			.mockReturnValueOnce(createChain({
+				result: [cancelled],
+				onSet: (value) => {
+					workflowPatch = value;
+				},
+			}))
 			.mockReturnValueOnce(createChain())
 			.mockReturnValueOnce(createChain({
 				onSet: (value) => {
@@ -222,6 +269,12 @@ describe("workflow domain integrations", () => {
 			reason: "Claim removed from proposal",
 		})).resolves.toEqual(cancelled);
 
+		expect(workflowPatch).toMatchObject({
+			state: "cancelled",
+			status: "cancelled",
+			visibility: "internal",
+			portalVisibility: null,
+		});
 		expect(claimPatch).toMatchObject({
 			status: "resolved",
 			resolution: "claim_removed",
@@ -229,6 +282,89 @@ describe("workflow domain integrations", () => {
 			resolutionNotes: "Cancelled by workflow compensation: Claim removed from proposal",
 		});
 		expect(claimPatch?.resolvedAt).toBeInstanceOf(Date);
+	});
+
+	it("reopens final document artifacts through domain compensation", async () => {
+		const existing = {
+			id: "workflow-1",
+			workflowKey: "final_artifact_render_export",
+			subjectType: "document",
+			subjectId: "doc-1",
+			state: "artifact_approved",
+			status: "completed",
+			metadata: {},
+		};
+		const reopened = { ...existing, state: "artifact_reopened", status: "active" };
+		const template = {
+			templateKey: existing.workflowKey,
+			version: 1,
+			status: "active",
+			transitions: [
+				{ action: "reopen", from: ["artifact_approved"], to: "artifact_reopened", requiredRoles: ["proposal_manager"] },
+			],
+		};
+		const document = {
+			id: "doc-1",
+			status: "final",
+			metadata: {
+				finalArtifact: { artifactHash: "a".repeat(64), filename: "proposal.docx" },
+			},
+		};
+		let documentPatch: Record<string, unknown> | undefined;
+		let proposalPatch: Record<string, unknown> | undefined;
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [existing] }))
+			.mockReturnValueOnce(createChain({ result: [template] }))
+			.mockReturnValueOnce(createChain({ result: [existing] }))
+			.mockReturnValueOnce(createChain({ result: [document] }));
+		dbMock.update
+			.mockReturnValueOnce(createChain({ result: [reopened] }))
+			.mockReturnValueOnce(createChain({
+				onSet: (value) => {
+					documentPatch = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				onSet: (value) => {
+					proposalPatch = value;
+				},
+			}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain())
+			.mockReturnValueOnce(createChain());
+
+		await expect(transitionDomainWorkflow({
+			workflowInstanceId: "workflow-1",
+			action: "reopen",
+			actorId: "pm-1",
+			actorRoles: ["proposal_manager"],
+			reason: "Customer correction changed the final artifact",
+			targetState: "artifact_reopened",
+		})).resolves.toEqual(reopened);
+
+		expect(documentPatch).toMatchObject({
+			status: "draft",
+			metadata: {
+				finalArtifact: null,
+				finalArtifactWorkflow: {
+					state: "artifact_reopened",
+					reopenedBy: "pm-1",
+					reason: "Customer correction changed the final artifact",
+				},
+				finalizationCompensation: {
+					action: "reopen",
+					reason: "Customer correction changed the final artifact",
+					actorId: "pm-1",
+				},
+			},
+		});
+		expect(proposalPatch).toMatchObject({
+			status: "in_review",
+			approvedBy: null,
+			approvedAt: null,
+			notes: "Reopened by workflow compensation: Customer correction changed the final artifact",
+		});
 	});
 
 	it.each([
@@ -415,9 +551,20 @@ describe("workflow domain integrations", () => {
 			state: action === "cancel" ? "cancelled" : "resolved",
 			status: action === "cancel" ? "cancelled" : "completed",
 		};
+		const template = {
+			templateKey: existing.workflowKey,
+			version: 1,
+			status: "active",
+			transitions: [
+				{ action, from: ["review"], to: updated.state, requiredRoles: ["proposal_manager"] },
+			],
+		};
 		let domainPatch: Record<string, unknown> | undefined;
 
-		dbMock.select.mockReturnValueOnce(createChain({ result: [existing] }));
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [existing] }))
+			.mockReturnValueOnce(createChain({ result: [template] }))
+			.mockReturnValueOnce(createChain({ result: [existing] }));
 		dbMock.update
 			.mockReturnValueOnce(createChain({ result: [updated] }))
 			.mockReturnValueOnce(createChain({

@@ -74,7 +74,7 @@ export function AccountKanban({
 	const [overId, setOverId] = useState<string | null>(null);
 
 	// Get stages configuration for this account type
-	const stagesConfig = ACCOUNT_STAGES[accountType] || {};
+	const stagesConfig = useMemo(() => ACCOUNT_STAGES[accountType] || {}, [accountType]);
 
 	// Build columns from stages
 	const columns: KanbanColumn[] = useMemo(() => {

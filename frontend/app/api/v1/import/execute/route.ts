@@ -6,16 +6,16 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { executeImport } from "@/lib/actions/import";
+import { executeImport, generatePreview } from "@/lib/actions/import";
+import { decideSandboxMutation } from "@/lib/sandbox/runtime";
 import type { ImportTargetTable, ColumnMapping, ImportOptions } from "@/lib/types/import";
 
 /**
  * Get authenticated user context.
  */
 async function getUserContext() {
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) return null;
 	return {
 		userId: session.user.id,
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
 			targetTable,
 			mappings,
 			options,
+			sandboxMode,
 		} = body as {
 			parsedData: {
 				sampleRows: Record<string, unknown>[];
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
 			targetTable: ImportTargetTable;
 			mappings: ColumnMapping[];
 			options: ImportOptions;
+			sandboxMode?: "live" | "sandbox" | "preview";
 		};
 
 		// Validate required fields
@@ -80,6 +82,40 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
+		const sandboxDecision = decideSandboxMutation({
+			requestedMode: request.headers.get("x-docfusion-sandbox-mode") ?? sandboxMode,
+			operation: "import_execute",
+		});
+		if (!sandboxDecision.mutationAllowed) {
+			const preview = await generatePreview(
+				{
+					headers: Object.keys(parsedData.sampleRows[0] ?? {}),
+					sampleRows: parsedData.sampleRows,
+					totalRows: parsedData.totalRows,
+				},
+				targetTable,
+				mappings,
+				Math.min(parsedData.sampleRows.length || 20, 50)
+			);
+			return NextResponse.json({
+				success: true,
+				result: {
+					importId: null,
+					success: true,
+					totalRows: parsedData.totalRows,
+					importedRows: 0,
+					updatedRows: 0,
+					skippedRows: parsedData.totalRows,
+					failedRows: 0,
+					importedIds: [],
+					errors: [],
+					durationMs: 0,
+				},
+				preview,
+				sandbox: sandboxDecision,
+			});
+		}
+
 		// Execute import
 		const result = await executeImport(
 			parsedData,
@@ -92,6 +128,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json({
 			success: result.success,
 			result,
+			sandbox: sandboxDecision,
 		});
 	} catch (error) {
 		console.error("Execute error:", error);

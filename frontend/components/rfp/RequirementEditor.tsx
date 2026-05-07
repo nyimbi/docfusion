@@ -215,46 +215,46 @@ export function RequirementEditor({
 						{/* Requirement Number and Title */}
 						<div className="grid grid-cols-2 gap-4">
 							<div>
-								<label className="block text-sm font-medium mb-1">
+								<span className="block text-sm font-medium mb-1">
 									Requirement Number
-								</label>
+								</span>
 								<Input
 									value={formData.requirementNumber}
 									onChange={(e) => updateField("requirementNumber", e.target.value)}
-								/>
+								 aria-label="Requirement Number"/>
 							</div>
 							<div>
-								<label className="block text-sm font-medium mb-1">Title</label>
+								<span className="block text-sm font-medium mb-1">Title</span>
 								<Input
 									value={formData.title ?? ""}
 									onChange={(e) => updateField("title", e.target.value || null)}
 									placeholder="Optional title..."
-								/>
+								 aria-label="Title"/>
 							</div>
 						</div>
 
 						{/* Requirement Text */}
 						<div>
-							<label className="block text-sm font-medium mb-1">
+							<span className="block text-sm font-medium mb-1">
 								Requirement Text
-							</label>
+							</span>
 							<textarea
 								value={formData.requirementText}
 								onChange={(e) => updateField("requirementText", e.target.value)}
 								rows={5}
 								className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-							/>
+							 aria-label="Requirement Text"/>
 						</div>
 
 						{/* Category and Subcategory */}
 						<div className="grid grid-cols-2 gap-4">
 							<div>
-								<label className="block text-sm font-medium mb-1">Category</label>
+								<span className="block text-sm font-medium mb-1">Category</span>
 								<select
 									value={formData.category}
 									onChange={(e) => updateField("category", e.target.value)}
 									className="w-full px-3 py-2 border rounded-md"
-								>
+								 aria-label="Category">
 									{categories.map((cat) => (
 										<option key={cat.value} value={cat.value}>
 											{cat.label}
@@ -263,28 +263,28 @@ export function RequirementEditor({
 								</select>
 							</div>
 							<div>
-								<label className="block text-sm font-medium mb-1">
+								<span className="block text-sm font-medium mb-1">
 									Subcategory
-								</label>
+								</span>
 								<Input
 									value={formData.subcategory ?? ""}
 									onChange={(e) =>
 										updateField("subcategory", e.target.value || null)
 									}
 									placeholder="Optional subcategory..."
-								/>
+								 aria-label="Subcategory"/>
 							</div>
 						</div>
 
 						{/* Priority and Compliance Status */}
 						<div className="grid grid-cols-2 gap-4">
 							<div>
-								<label className="block text-sm font-medium mb-1">Priority</label>
+								<span className="block text-sm font-medium mb-1">Priority</span>
 								<select
 									value={formData.priority}
 									onChange={(e) => updateField("priority", e.target.value)}
 									className="w-full px-3 py-2 border rounded-md"
-								>
+								 aria-label="Priority">
 									{priorities.map((p) => (
 										<option key={p.value} value={p.value}>
 											{p.label}
@@ -293,14 +293,14 @@ export function RequirementEditor({
 								</select>
 							</div>
 							<div>
-								<label className="block text-sm font-medium mb-1">
+								<span className="block text-sm font-medium mb-1">
 									Compliance Status
-								</label>
+								</span>
 								<select
 									value={formData.complianceStatus}
 									onChange={(e) => updateField("complianceStatus", e.target.value)}
 									className="w-full px-3 py-2 border rounded-md"
-								>
+								 aria-label="Compliance Status">
 									{complianceStatuses.map((s) => (
 										<option key={s.value} value={s.value}>
 											{s.label}
@@ -313,21 +313,21 @@ export function RequirementEditor({
 						{/* Source Section and Page Number */}
 						<div className="grid grid-cols-2 gap-4">
 							<div>
-								<label className="block text-sm font-medium mb-1">
+								<span className="block text-sm font-medium mb-1">
 									Source Section
-								</label>
+								</span>
 								<Input
 									value={formData.sourceSection ?? ""}
 									onChange={(e) =>
 										updateField("sourceSection", e.target.value || null)
 									}
 									placeholder="e.g., Section L.5.2.1"
-								/>
+								 aria-label="Source Section"/>
 							</div>
 							<div>
-								<label className="block text-sm font-medium mb-1">
+								<span className="block text-sm font-medium mb-1">
 									Page Number
-								</label>
+								</span>
 								<Input
 									type="number"
 									value={formData.pageNumber ?? ""}
@@ -338,15 +338,15 @@ export function RequirementEditor({
 										)
 									}
 									placeholder="Page #"
-								/>
+								 aria-label="Page Number"/>
 							</div>
 						</div>
 
 						{/* Evaluation Weight */}
 						<div>
-							<label className="block text-sm font-medium mb-1">
+							<span className="block text-sm font-medium mb-1">
 								Evaluation Weight (%)
-							</label>
+							</span>
 							<Input
 								type="number"
 								min="0"
@@ -359,15 +359,15 @@ export function RequirementEditor({
 									)
 								}
 								placeholder="Weight if known..."
-							/>
+							 aria-label="Evaluation Weight (%)"/>
 						</div>
 
 						{/* Related Requirements */}
 						<div>
-							<label className="block text-sm font-medium mb-1 flex items-center gap-2">
+							<span className="block text-sm font-medium mb-1 flex items-center gap-2">
 								<Link className="w-4 h-4" />
 								Related Requirements
-							</label>
+							</span>
 							<div className="flex flex-wrap gap-2 mb-2">
 								{formData.relatedRequirements.map((relId) => {
 									const rel = availableRequirements.find((r) => r.id === relId);
@@ -448,9 +448,9 @@ export function RequirementEditor({
 							</div>
 							{formData.ambiguityFlag && (
 								<div className="mt-2">
-									<label className="block text-sm font-medium mb-1">
+									<span className="block text-sm font-medium mb-1">
 										Ambiguity Reason
-									</label>
+									</span>
 									<textarea
 										value={formData.ambiguityReason ?? ""}
 										onChange={(e) =>
@@ -459,7 +459,7 @@ export function RequirementEditor({
 										rows={2}
 										className="w-full px-3 py-2 border rounded-md text-sm"
 										placeholder="Describe why this requirement is ambiguous..."
-									/>
+									 aria-label="Ambiguity Reason"/>
 								</div>
 							)}
 						</div>
@@ -467,10 +467,10 @@ export function RequirementEditor({
 						{/* Suggested Approach */}
 						<div>
 							<div className="flex items-center justify-between mb-1">
-								<label className="block text-sm font-medium flex items-center gap-2">
+								<span className="block text-sm font-medium flex items-center gap-2">
 									<Sparkles className="w-4 h-4 text-purple-600" />
 									Suggested Approach
-								</label>
+								</span>
 								{onGenerateSuggestion && (
 									<Button
 										variant="ghost"

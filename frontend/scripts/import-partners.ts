@@ -5,7 +5,7 @@
  * Run with: npx tsx scripts/import-partners.ts
  */
 
-import * as XLSX from "xlsx";
+import * as XLSX from "./lib/xlsx-reader";
 import * as fs from "fs";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -15,8 +15,11 @@ import { eq } from "drizzle-orm";
 const EXCEL_PATH = "/Users/nyimbiodero/src/pjs/work_docs/Business/Partnerships/Datacraft_Africa_Partner_Prospects_Master.xlsx";
 
 // Database connection (matching drizzle.config.ts)
-const DATABASE_URL = process.env.DATABASE_URL ||
-	"postgresql://azureuser:Abcd1234.@lindela16.postgres.database.azure.com:5432/docfusion?sslmode=require";
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+	throw new Error("DATABASE_URL is required to import partners");
+}
 
 const pool = new Pool({
 	connectionString: DATABASE_URL,

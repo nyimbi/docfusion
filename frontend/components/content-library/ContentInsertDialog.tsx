@@ -198,7 +198,10 @@ export function ContentInsertDialog({
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center">
 			{/* Backdrop */}
-			<div className="absolute inset-0 bg-black/50" onClick={onClose} />
+			<div className="absolute inset-0 bg-black/50" onClick={onClose}
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}/>
 
 			{/* Dialog */}
 			<div
@@ -240,7 +243,6 @@ export function ContentInsertDialog({
 										onKeyDown={handleKeyDown}
 										placeholder="Search content blocks..."
 										className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-										autoFocus
 									/>
 								</div>
 								<Button
@@ -269,9 +271,9 @@ export function ContentInsertDialog({
 								<div className="mt-3 p-3 bg-gray-50 rounded-lg">
 									<div className="grid grid-cols-2 gap-4">
 										<div>
-											<label className="text-sm font-medium text-gray-700 mb-2 block">
+											<span className="text-sm font-medium text-gray-700 mb-2 block">
 												Categories
-											</label>
+											</span>
 											<div className="flex flex-wrap gap-2">
 												{categories.slice(0, 6).map((cat) => (
 													<button
@@ -290,9 +292,9 @@ export function ContentInsertDialog({
 											</div>
 										</div>
 										<div>
-											<label className="text-sm font-medium text-gray-700 mb-2 block">
+											<span className="text-sm font-medium text-gray-700 mb-2 block">
 												Min Win Rate
-											</label>
+											</span>
 											<input
 												type="range"
 												min="0"
@@ -306,7 +308,7 @@ export function ContentInsertDialog({
 													}))
 												}
 												className="w-full"
-											/>
+											 aria-label="Min Win Rate"/>
 											<div className="flex justify-between text-xs text-gray-500">
 												<span>Any</span>
 												<span>{filters.minWinRate ?? 0}%+</span>

@@ -300,18 +300,18 @@ function ThemeCard({
 					<div className="px-3 pb-3 pt-0 space-y-3 border-t">
 						{/* Full Statement */}
 						<div className="mt-3">
-							<label className="text-xs font-medium text-muted-foreground">
+							<span className="text-xs font-medium text-muted-foreground">
 								Full Statement
-							</label>
+							</span>
 							<p className="text-sm mt-1">{theme.statement}</p>
 						</div>
 
 						{/* Supporting Evidence */}
 						{theme.supportingEvidence.length > 0 && (
 							<div>
-								<label className="text-xs font-medium text-muted-foreground">
+								<span className="text-xs font-medium text-muted-foreground">
 									Supporting Evidence
-								</label>
+								</span>
 								<ul className="mt-1 space-y-1">
 									{theme.supportingEvidence.map((evidence, idx) => (
 										<li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
@@ -326,9 +326,9 @@ function ThemeCard({
 						{/* Keywords */}
 						{theme.keywords.length > 0 && (
 							<div>
-								<label className="text-xs font-medium text-muted-foreground">
+								<span className="text-xs font-medium text-muted-foreground">
 									Keywords
-								</label>
+								</span>
 								<div className="flex flex-wrap gap-1 mt-1">
 									{theme.keywords.map((keyword, idx) => (
 										<Badge key={idx} variant="outline" className="text-xs">

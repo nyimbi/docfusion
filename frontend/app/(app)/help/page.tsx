@@ -164,10 +164,10 @@ const helpArticles: Record<string, { title: string; content: React.ReactNode }> 
 		title: "Importing from Spreadsheets",
 		content: (
 			<div className="space-y-4">
-				<p>Import opportunities from Excel or CSV files:</p>
+				<p>Import opportunities from CSV or TSV files:</p>
 				<ol className="list-decimal list-inside space-y-2">
 					<li>Go to Opportunities → Import</li>
-					<li>Upload your Excel (.xlsx) or CSV file</li>
+					<li>Upload your CSV or TSV file</li>
 					<li>Map columns to DocFusion fields</li>
 					<li>Preview and validate the data</li>
 					<li>Click Import to create opportunities</li>
@@ -654,7 +654,7 @@ export default function HelpPage() {
 					</DialogHeader>
 					<div className="space-y-4 mt-4">
 						<div>
-							<label className="text-sm font-medium mb-1.5 block">Subject</label>
+							<span className="text-sm font-medium mb-1.5 block">Subject</span>
 							<input
 								type="text"
 								placeholder="Brief description of your issue"
@@ -666,10 +666,10 @@ export default function HelpPage() {
 									"text-foreground placeholder:text-muted-foreground",
 									"focus:outline-none focus:ring-2 focus:ring-ring"
 								)}
-							/>
+							 aria-label="Subject"/>
 						</div>
 						<div>
-							<label className="text-sm font-medium mb-1.5 block">Message</label>
+							<span className="text-sm font-medium mb-1.5 block">Message</span>
 							<textarea
 								placeholder="Describe your issue in detail..."
 								value={contactForm.message}
@@ -681,7 +681,7 @@ export default function HelpPage() {
 									"text-foreground placeholder:text-muted-foreground",
 									"focus:outline-none focus:ring-2 focus:ring-ring"
 								)}
-							/>
+							 aria-label="Message"/>
 						</div>
 						<div className="flex justify-end gap-2 pt-2">
 							<Button variant="outline" onClick={() => setShowContactForm(false)}>

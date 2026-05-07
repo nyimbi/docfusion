@@ -669,9 +669,9 @@ export function CriteriaThemeMapping({
 				{/* Draggable Themes Pool */}
 				{themes.length > 0 && (
 					<div className="p-3 border rounded-lg bg-muted/30">
-						<label className="text-xs font-medium text-muted-foreground mb-2 block">
+						<span className="text-xs font-medium text-muted-foreground mb-2 block">
 							Drag themes to criteria:
-						</label>
+						</span>
 						<div className="flex flex-wrap gap-2">
 							{themes.map((theme) => (
 								<ThemeTag

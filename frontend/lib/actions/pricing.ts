@@ -1007,7 +1007,6 @@ export async function duplicateCostElement(
 		}
 
 		// Remove id and timestamps
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { id: _id, createdAt, updatedAt, approvedBy, approvedAt, ...rest } = original;
 
 		const newElement: NewCostElement = {
@@ -2571,16 +2570,25 @@ export async function generateCostRealismNarrative(
 // Export Operations
 // ============================================================================
 
+function toCsvRow(values: unknown[]): string {
+	return values
+		.map((value) => {
+			const text = value === null || value === undefined ? "" : String(value);
+			return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+		})
+		.join(",");
+}
+
 /**
- * Export cost volume to XLSX or PDF format.
+ * Export cost volume to CSV or PDF format.
  *
  * @param opportunityId - Opportunity ID
- * @param format - Export format (xlsx or pdf)
+ * @param format - Export format (csv or pdf)
  * @returns Base64 encoded file content and filename
  */
 export async function exportCostVolume(
 	opportunityId: string,
-	format: "xlsx" | "pdf"
+	format: "csv" | "pdf"
 ): Promise<ActionResult<{ content: string; filename: string; mimeType: string }>> {
 	try {
 		await requireUserContext();
@@ -2608,13 +2616,9 @@ export async function exportCostVolume(
 
 		const filename = `cost-volume-${opportunityId.substring(0, 8)}.${format}`;
 
-		if (format === "xlsx") {
-			// Dynamic import for xlsx to avoid bundling issues
-			const XLSX = await import("xlsx");
-
+		if (format === "csv") {
 			const totals = priceResult.data.grandTotals;
 
-			// Prepare data for Excel
 			const summaryData = [
 				["Cost Volume Summary"],
 				["Generated", new Date().toISOString()],
@@ -2655,26 +2659,19 @@ export async function exportCostVolume(
 				];
 			});
 
-			// Create workbook
-			const workbook = XLSX.utils.book_new();
-
-			// Summary sheet
-			const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-			XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
-
-			// Detail sheet
-			const detailSheet = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailData]);
-			XLSX.utils.book_append_sheet(workbook, detailSheet, "Cost Elements");
-
-			// Generate buffer
-			const buffer = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
+			const csv = [
+				...summaryData,
+				[],
+				detailHeaders,
+				...detailData,
+			].map(toCsvRow).join("\n");
 
 			return {
 				success: true,
 				data: {
-					content: buffer,
+					content: Buffer.from(csv, "utf-8").toString("base64"),
 					filename,
-					mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+					mimeType: "text/csv",
 				},
 			};
 		} else {

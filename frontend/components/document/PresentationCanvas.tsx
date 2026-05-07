@@ -2,7 +2,7 @@
 
 /**
  * Presentation Canvas - Interactive slide editor and preview
- * 
+ *
  * McKinsey-grade presentation interface:
  * - Slide sorter view
  * - Slide editor with real-time preview
@@ -93,7 +93,7 @@ type ViewMode = "grid" | "split" | "preview";
 
 export function PresentationCanvas(props: PresentationCanvasProps) {
   const { documentNodes, documentTitle, onExportPPTX, className } = props;
-  
+
   const {
     activePresentation,
     currentSlide,
@@ -105,21 +105,21 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
     goToSlide,
     validatePresentation,
   } = usePresentations();
-  
+
   const [viewMode, setViewMode] = React.useState<ViewMode>("split");
   const [showValidation, setShowValidation] = React.useState(true);
   const [selectedFramework, setSelectedFramework] = React.useState<StorylineFramework>("SCR");
-  
+
   // Create presentation on mount
   React.useEffect(() => {
     if (!activePresentation && documentNodes.length > 0) {
       createFromDocument(documentNodes, documentTitle, selectedFramework);
     }
-  }, [documentNodes, documentTitle]);
-  
+  }, [activePresentation, createFromDocument, documentNodes, documentTitle, selectedFramework]);
+
   // Validation
   const validation = validatePresentation();
-  
+
   if (!activePresentation) {
     return (
       <div className={cn("flex flex-col items-center justify-center h-full p-8", className)}>
@@ -141,7 +141,7 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
               <option value="pyramid">Pyramid Principle</option>
               <option value="problem-solution-benefit">Problem-Solution-Benefit</option>
             </select>
-            <Button 
+            <Button
               onClick={() => createFromDocument(documentNodes, documentTitle, selectedFramework)}
             >
               <Sparkles className="h-4 w-4 mr-2" />
@@ -152,7 +152,7 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
       </div>
     );
   }
-  
+
   return (
     <div className={cn("flex h-full bg-background", className)}>
       {/* Sidebar - Slide Thumbnails */}
@@ -166,7 +166,7 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
               </Button>
             </div>
           </div>
-          
+
           <ScrollArea className="flex-1">
             <div className="p-2 space-y-2">
               {activePresentation.slides.map((slide, idx) => (
@@ -182,7 +182,7 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
               ))}
             </div>
           </ScrollArea>
-          
+
           {/* Overall Score */}
           {showValidation && (
             <div className="p-3 border-t">
@@ -206,7 +206,7 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
           )}
         </div>
       )}
-      
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Toolbar */}
@@ -236,9 +236,9 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
                 <Play className="h-4 w-4" />
               </Button>
             </div>
-            
+
             <Separator orientation="vertical" className="h-6" />
-            
+
             {/* Navigation */}
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="icon" onClick={prevSlide}>
@@ -252,7 +252,7 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
               </Button>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             {/* Theme Switcher */}
             <DropdownMenu>
@@ -270,9 +270,9 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
                 <DropdownMenuItem>Bain</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            
+
             <Separator orientation="vertical" className="h-6" />
-            
+
             {/* Validation Toggle */}
             <Button
               variant={showValidation ? "secondary" : "ghost"}
@@ -282,7 +282,7 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
               {showValidation ? <CheckCircle2 className="h-4 w-4 mr-2" /> : <AlertCircle className="h-4 w-4 mr-2" />}
               Validation
             </Button>
-            
+
             {/* Export */}
             <Button onClick={() => onExportPPTX?.(activePresentation)}>
               <Download className="h-4 w-4 mr-2" />
@@ -290,7 +290,7 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
             </Button>
           </div>
         </div>
-        
+
         {/* Slide Editor / Preview */}
         <div className="flex-1 overflow-hidden flex">
           {viewMode === "grid" ? (
@@ -302,7 +302,10 @@ export function PresentationCanvas(props: PresentationCanvasProps) {
                     key={slide.id}
                     onClick={() => goToSlide(idx)}
                     className="cursor-pointer"
-                  >
+
+									role="button"
+									tabIndex={0}
+									onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
                     <SlideCard slide={slide} theme={activePresentation.theme} />
                   </div>
                 ))}
@@ -365,12 +368,15 @@ function SlideThumbnail({
       onClick={onClick}
       className={cn(
         "p-3 rounded-lg cursor-pointer transition-all border-2",
-        isActive 
-          ? "border-primary bg-primary/5" 
+        isActive
+          ? "border-primary bg-primary/5"
           : "border-transparent hover:bg-accent",
         isHidden && "opacity-50"
       )}
-    >
+
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
       <div className="flex items-start gap-2">
         <span className="text-xs text-muted-foreground font-mono min-w-5">
           {index + 1}
@@ -392,7 +398,7 @@ function SlideThumbnail({
           </div>
         </div>
       </div>
-      
+
       {validation && validation.score < 70 && (
         <div className="mt-2 flex items-center gap-1 text-xs text-amber-600">
           <AlertCircle className="h-3 w-3" />
@@ -407,25 +413,25 @@ function SlideThumbnail({
 // Slide Card (Grid View)
 // ============================================================================
 
-function SlideCard({ 
-  slide, 
-  theme 
-}: { 
-  slide: Slide; 
+function SlideCard({
+  slide,
+  theme
+}: {
+  slide: Slide;
   theme: { name: string; colors: any; fonts: any };
 }) {
   return (
-    <div 
+    <div
       className="aspect-video bg-white rounded-lg shadow-sm border overflow-hidden p-4"
       style={{ fontFamily: theme.fonts.body }}
     >
-      <p 
+      <p
         className="text-sm font-bold leading-tight mb-2"
         style={{ color: theme.colors.primary, fontFamily: theme.fonts.title }}
       >
         {slide.actionTitle}
       </p>
-      
+
       {slide.bullets && slide.bullets.length > 0 && (
         <ul className="text-xs space-y-1">
           {slide.bullets.slice(0, 3).map((bullet, i) => (
@@ -438,7 +444,7 @@ function SlideCard({
           )}
         </ul>
       )}
-      
+
       {slide.chart && (
         <div className="mt-2 h-8 bg-accent/10 rounded flex items-center justify-center">
           <BarChart3 className="h-4 w-4 text-accent" />
@@ -463,7 +469,7 @@ function SlideEditor({
 }) {
   const [localTitle, setLocalTitle] = React.useState(slide.actionTitle);
   const [localBullets, setLocalBullets] = React.useState(slide.bullets?.join("\n") || "");
-  
+
   // Update parent when local changes (debounced)
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -473,8 +479,8 @@ function SlideEditor({
       });
     }, 300);
     return () => clearTimeout(timer);
-  }, [localTitle, localBullets]);
-  
+  }, [localTitle, localBullets, onUpdate]);
+
   return (
     <div className="p-6 space-y-6">
       {/* Action Title */}
@@ -488,8 +494,8 @@ function SlideEditor({
               validation.score >= 60 ? "text-yellow-600" :
               "text-red-600"
             )}>
-              {validation.score >= 80 ? "✓ Strong" : 
-               validation.score >= 60 ? "⚠ Okay" : 
+              {validation.score >= 80 ? "✓ Strong" :
+               validation.score >= 60 ? "⚠ Okay" :
                "✗ Needs Work"}
             </span>
           )}
@@ -512,7 +518,7 @@ function SlideEditor({
           </div>
         ))}
       </div>
-      
+
       {/* Bullets */}
       <div className="space-y-2">
         <label className="text-sm font-medium flex items-center justify-between">
@@ -528,28 +534,28 @@ function SlideEditor({
           rows={8}
         />
       </div>
-      
+
       {/* Speaker Notes */}
       <div className="space-y-2">
-        <label className="text-sm font-medium">Speaker Notes</label>
+        <span className="text-sm font-medium">Speaker Notes</span>
         <Textarea
           value={slide.speakerNotes || ""}
           onChange={(e) => onUpdate({ speakerNotes: e.target.value })}
           placeholder="What to say when presenting this slide..."
           className="text-sm"
           rows={3}
-        />
+         aria-label="Speaker Notes"/>
       </div>
-      
+
       {/* Slide Type */}
       <div className="flex items-center gap-4">
         <div className="flex-1">
-          <label className="text-sm font-medium">Slide Type</label>
+          <span className="text-sm font-medium">Slide Type</span>
           <select
             className="w-full mt-1 p-2 rounded border"
             value={slide.type}
             onChange={(e) => onUpdate({ type: e.target.value as SlideType })}
-          >
+           aria-label="Slide Type">
             <option value="executive-summary">Executive Summary</option>
             <option value="situation">Situation</option>
             <option value="complication">Complication</option>
@@ -558,14 +564,14 @@ function SlideEditor({
             <option value="next-steps">Next Steps</option>
           </select>
         </div>
-        
+
         <div className="flex-1">
-          <label className="text-sm font-medium">Layout</label>
+          <span className="text-sm font-medium">Layout</span>
           <select
             className="w-full mt-1 p-2 rounded border"
             value={slide.layout}
             onChange={(e) => onUpdate({ layout: e.target.value as Slide['layout'] })}
-          >
+           aria-label="Layout">
             <option value="title-only">Title Only</option>
             <option value="title-content">Title + Content</option>
             <option value="title-chart">Title + Chart</option>
@@ -574,15 +580,15 @@ function SlideEditor({
           </select>
         </div>
       </div>
-      
+
       {/* Actions */}
       <div className="flex items-center gap-2 pt-4 border-t">
         <Button variant="outline" size="sm">
           <BarChart3 className="h-4 w-4 mr-2" />
           Add Chart
         </Button>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           size="sm"
           onClick={() => onUpdate({ hidden: !slide.hidden })}
         >
@@ -635,14 +641,14 @@ function SlidePreview({
       >
         {slide.actionTitle}
       </h2>
-      
+
       {/* Content */}
       {slide.bullets && slide.bullets.length > 0 && (
         <ul style={{ fontSize: `${20 * scale}px`, lineHeight: 1.4 }}>
           {slide.bullets.map((bullet, i) => (
-            <li 
+            <li
               key={i}
-              style={{ 
+              style={{
                 marginBottom: `${0.15 * scale}in`,
                 color: theme.colors.text,
               }}
@@ -652,7 +658,7 @@ function SlidePreview({
           ))}
         </ul>
       )}
-      
+
       {/* Chart Placeholder */}
       {slide.chart && (
         <div
@@ -677,9 +683,9 @@ function SlidePreview({
 // PowerPoint Export Button
 // ============================================================================
 
-export function ExportPPTXButton({ 
-  presentation 
-}: { 
+export function ExportPPTXButton({
+  presentation
+}: {
   presentation: Presentation;
 }) {
   const handleExport = () => {
@@ -693,10 +699,10 @@ export function ExportPPTXButton({
     a.download = `${presentation.title.replace(/\s+/g, '_')}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    
+
     toast.success('Presentation exported (JSON format)');
   };
-  
+
   return (
     <Button onClick={handleExport}>
       <Download className="h-4 w-4 mr-2" />

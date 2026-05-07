@@ -421,7 +421,6 @@ function NewQuestionForm({ onSubmit, onCancel }: NewQuestionFormProps) {
 				placeholder="Enter anticipated question..."
 				value={question}
 				onChange={(e) => setQuestion(e.target.value)}
-				autoFocus
 			/>
 
 			<div className="flex items-center gap-2">

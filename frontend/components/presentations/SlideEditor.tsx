@@ -39,7 +39,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	Type,
-	Image,
+	Image as ImageIcon,
 	BarChart2,
 	Table,
 	List,
@@ -105,7 +105,7 @@ interface ContentBlockProps {
 const CONTENT_TYPES: Record<string, { label: string; icon: typeof Type; description: string }> = {
 	text: { label: "Text", icon: Type, description: "Plain text paragraph" },
 	bullet: { label: "Bullet List", icon: List, description: "Bulleted list" },
-	image: { label: "Image", icon: Image, description: "Image or graphic" },
+	image: { label: "Image", icon: ImageIcon, description: "Image or graphic" },
 	chart: { label: "Chart", icon: BarChart2, description: "Data visualization" },
 	table: { label: "Table", icon: Table, description: "Data table" },
 	quote: { label: "Quote", icon: Quote, description: "Highlighted quote" },
@@ -155,7 +155,10 @@ function ContentBlock({
 					? "border-primary bg-primary/5 ring-1 ring-primary"
 					: "border-border hover:border-primary/50"
 			)}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			{/* Drag Handle */}
 			<div className="absolute left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab">
 				<GripVertical className="h-4 w-4 text-muted-foreground" />
@@ -238,7 +241,7 @@ function ContentBlock({
 				) : element.type === "image" ? (
 					<div className="aspect-video bg-muted rounded-lg border-2 border-dashed flex items-center justify-center">
 						<div className="text-center text-muted-foreground">
-							<Image className="h-8 w-8 mx-auto mb-2" />
+							<ImageIcon className="h-8 w-8 mx-auto mb-2" />
 							<p className="text-xs">Click to upload image</p>
 						</div>
 					</div>
@@ -504,7 +507,10 @@ export function SlideEditor({
 															: "border-transparent hover:border-border"
 													)}
 													onClick={() => setSelectedElementIndex(index)}
-												>
+
+						role="button"
+						tabIndex={0}
+						onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 													{element.type === "text" || element.type === "bullet" ? (
 														<p className="text-sm whitespace-pre-wrap">
 															{(element.data as string) || "(empty text)"}

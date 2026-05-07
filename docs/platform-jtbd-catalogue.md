@@ -13,6 +13,24 @@ Static inspection date: 2026-05-01. Status labels are based on repository eviden
 | `Strategic` | Future ecosystem or long-term capability. |
 | `Missing` | Should exist based on adjacent capabilities or risk, but no clear implementation or plan was found. |
 
+## Live Promotion Checklist
+
+A JTBD may be promoted to `Live` only when the implementation ledger shows all applicable items complete:
+
+- canonical subject type and owning domain are explicit;
+- state model and allowed transitions are implemented or a non-workflow rationale is recorded;
+- server-side mutation path enforces authentication, organization/resource scope, and role/authority;
+- human work projects to tasks or work items with owner, due date, status, and blocker state;
+- SLA, escalation, and notification behavior is implemented or explicitly not applicable;
+- portal visibility and external actor boundaries are defined where relevant;
+- audit events include actor, reason, before/after state, subject, evidence, correlation ID, and timestamp;
+- reversal, retry, cancellation, compensation, or audit-only semantics are documented and tested;
+- relevant UI surfaces expose current state, next allowed actions, disabled-action reasons, blockers, owner, due date, and history;
+- tests cover happy path, invalid transition, authority denial, blocked gate, and reversal/retry where applicable;
+- facility-ledger proof is `pass` with run ID, artifact IDs, and cleanup evidence for mutating flows.
+
+Historical `pass` evidence cannot be reused for expanded behavior. Expanded or split proof obligations must pass through their own subrows in `.omx/state/platform-e2e-facility-ledger.md`.
+
 ## Platform Capability Map
 
 Major domains found: opportunity discovery, capture pipeline, RFP intake, requirements, compliance, proposal planning, task management, document authoring, collaboration, comments, approvals, color-team reviews, evidence, content library, templates, company knowledge, personnel, past performance, pricing, competitive intelligence, win themes, PWin/analytics, CRM, partners, presentations, graphics, formatting, rendering, submission, e-signature, notifications, calendar/deadlines, imports, search/RAG, AI agents, workflow runtime, security, audit, integrations, API/webhooks, operations, data quality, model governance, accessibility, privacy, support, configuration, migration, and strategic ecosystem expansion.

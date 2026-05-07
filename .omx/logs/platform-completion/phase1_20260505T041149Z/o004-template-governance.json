@@ -1,0 +1,49 @@
+[
+  {
+    "id": "70e72a60-6e74-4fb5-a915-9040d1418004",
+    "version": 1,
+    "status": "deprecated",
+    "publishedAt": "2026-05-05T04:12:10.484Z",
+    "deprecatedAt": "2026-05-05T04:12:11.221Z",
+    "metadata": {
+      "runId": "phase1_20260505T041149Z",
+      "fixture": true,
+      "simulation": {
+        "valid": true,
+        "errors": [],
+        "terminalStates": [
+          "published"
+        ],
+        "reachableStates": [
+          "drafted",
+          "review",
+          "published"
+        ]
+      }
+    }
+  },
+  {
+    "id": "19400c06-0a44-4d34-b665-1f4dc4c129c3",
+    "version": 2,
+    "status": "active",
+    "publishedAt": "2026-05-05T04:12:11.401Z",
+    "deprecatedAt": null,
+    "metadata": {
+      "runId": "phase1_20260505T041149Z",
+      "fixture": true,
+      "successor": true,
+      "simulation": {
+        "valid": true,
+        "errors": [],
+        "terminalStates": [
+          "published"
+        ],
+        "reachableStates": [
+          "drafted",
+          "review",
+          "published"
+        ]
+      }
+    }
+  }
+]

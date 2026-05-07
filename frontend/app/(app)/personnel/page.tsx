@@ -960,7 +960,10 @@ function ResumeParserPlaceholder({ onClose, onSuccess }: { onClose: () => void; 
 							onDragLeave={handleDragLeave}
 							onDrop={handleDrop}
 							onClick={() => fileInputRef.current?.click()}
-						>
+
+			role="button"
+			tabIndex={0}
+			onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 							<input
 								ref={fileInputRef}
 								type="file"
@@ -1016,19 +1019,19 @@ function ResumeParserPlaceholder({ onClose, onSuccess }: { onClose: () => void; 
 							<div className="space-y-3">
 								{parsedData.name && (
 									<div>
-										<label className="text-xs text-muted-foreground">Name</label>
+										<span className="text-xs text-muted-foreground">Name</span>
 										<p className="font-medium">{parsedData.name}</p>
 									</div>
 								)}
 								{parsedData.email && (
 									<div>
-										<label className="text-xs text-muted-foreground">Email</label>
+										<span className="text-xs text-muted-foreground">Email</span>
 										<p className="text-sm">{parsedData.email}</p>
 									</div>
 								)}
 								{parsedData.skills && parsedData.skills.length > 0 && (
 									<div>
-										<label className="text-xs text-muted-foreground">Skills Extracted</label>
+										<span className="text-xs text-muted-foreground">Skills Extracted</span>
 										<div className="flex flex-wrap gap-1 mt-1">
 											{parsedData.skills.slice(0, 10).map((skill: string, idx: number) => (
 												<Badge key={idx} variant="secondary" className="text-xs">
@@ -1045,7 +1048,7 @@ function ResumeParserPlaceholder({ onClose, onSuccess }: { onClose: () => void; 
 								)}
 								{parsedData.certifications && parsedData.certifications.length > 0 && (
 									<div>
-										<label className="text-xs text-muted-foreground">Certifications</label>
+										<span className="text-xs text-muted-foreground">Certifications</span>
 										<div className="flex flex-wrap gap-1 mt-1">
 											{parsedData.certifications.map((cert: any, idx: number) => (
 												<Badge key={idx} variant="outline" className="text-xs">
@@ -1245,74 +1248,74 @@ function PersonnelEditorPlaceholder({
 			<div className="space-y-4">
 				<div className="grid grid-cols-2 gap-4">
 					<div>
-						<label className="text-sm font-medium">First Name *</label>
+						<span className="text-sm font-medium">First Name *</span>
 						<Input
 							placeholder="Enter first name"
 							className="mt-1"
 							value={formData.firstName}
 							onChange={(e) => handleChange("firstName", e.target.value)}
-						/>
+						 aria-label="First Name"/>
 					</div>
 					<div>
-						<label className="text-sm font-medium">Last Name *</label>
+						<span className="text-sm font-medium">Last Name *</span>
 						<Input
 							placeholder="Enter last name"
 							className="mt-1"
 							value={formData.lastName}
 							onChange={(e) => handleChange("lastName", e.target.value)}
-						/>
+						 aria-label="Last Name"/>
 					</div>
 				</div>
 
 				<div className="grid grid-cols-2 gap-4">
 					<div>
-						<label className="text-sm font-medium">Email</label>
+						<span className="text-sm font-medium">Email</span>
 						<Input
 							type="email"
 							placeholder="Enter email"
 							className="mt-1"
 							value={formData.email}
 							onChange={(e) => handleChange("email", e.target.value)}
-						/>
+						 aria-label="Email"/>
 					</div>
 					<div>
-						<label className="text-sm font-medium">Phone</label>
+						<span className="text-sm font-medium">Phone</span>
 						<Input
 							type="tel"
 							placeholder="Enter phone number"
 							className="mt-1"
 							value={formData.phone}
 							onChange={(e) => handleChange("phone", e.target.value)}
-						/>
+						 aria-label="Phone"/>
 					</div>
 				</div>
 
 				<div className="grid grid-cols-2 gap-4">
 					<div>
-						<label className="text-sm font-medium">Job Title</label>
+						<span className="text-sm font-medium">Job Title</span>
 						<Input
 							placeholder="Enter job title"
 							className="mt-1"
 							value={formData.currentTitle}
 							onChange={(e) => handleChange("currentTitle", e.target.value)}
-						/>
+						 aria-label="Job Title"/>
 					</div>
 					<div>
-						<label className="text-sm font-medium">Department</label>
+						<span className="text-sm font-medium">Department</span>
 						<Input
 							placeholder="Enter department"
 							className="mt-1"
 							value={formData.department}
 							onChange={(e) => handleChange("department", e.target.value)}
-						/>
+						 aria-label="Department"/>
 					</div>
 				</div>
 
 				<div className="grid grid-cols-2 gap-4">
 					<div>
-						<label className="text-sm font-medium">Employment Type</label>
+						<span className="text-sm font-medium">Employment Type</span>
 						<Select value={formData.employmentType} onValueChange={(v) => handleChange("employmentType", v)}>
-							<SelectTrigger className="mt-1">
+							<SelectTrigger className="mt-1" aria-label="Employment Type">
 								<SelectValue placeholder="Select type" />
 							</SelectTrigger>
 							<SelectContent>
@@ -1324,22 +1327,22 @@ function PersonnelEditorPlaceholder({
 						</Select>
 					</div>
 					<div>
-						<label className="text-sm font-medium">Years of Experience</label>
+						<span className="text-sm font-medium">Years of Experience</span>
 						<Input
 							type="number"
 							placeholder="Enter years"
 							className="mt-1"
 							value={formData.yearsOfExperience || ""}
 							onChange={(e) => handleChange("yearsOfExperience", parseInt(e.target.value) || 0)}
-						/>
+						 aria-label="Years of Experience"/>
 					</div>
 				</div>
 
 				<div className="grid grid-cols-2 gap-4">
 					<div>
-						<label className="text-sm font-medium">Clearance Level</label>
+						<span className="text-sm font-medium">Clearance Level</span>
 						<Select value={formData.clearanceLevel} onValueChange={(v) => handleChange("clearanceLevel", v)}>
-							<SelectTrigger className="mt-1">
+							<SelectTrigger className="mt-1" aria-label="Clearance Level">
 								<SelectValue placeholder="Select clearance" />
 							</SelectTrigger>
 							<SelectContent>
@@ -1352,9 +1355,9 @@ function PersonnelEditorPlaceholder({
 						</Select>
 					</div>
 					<div>
-						<label className="text-sm font-medium">Clearance Status</label>
+						<span className="text-sm font-medium">Clearance Status</span>
 						<Select value={formData.clearanceStatus} onValueChange={(v) => handleChange("clearanceStatus", v)}>
-							<SelectTrigger className="mt-1">
+							<SelectTrigger className="mt-1" aria-label="Clearance Status">
 								<SelectValue placeholder="Select status" />
 							</SelectTrigger>
 							<SelectContent>
@@ -1369,9 +1372,9 @@ function PersonnelEditorPlaceholder({
 				</div>
 
 				<div>
-					<label className="text-sm font-medium">Availability</label>
+					<span className="text-sm font-medium">Availability</span>
 					<Select value={formData.availability} onValueChange={(v) => handleChange("availability", v)}>
-						<SelectTrigger className="mt-1">
+						<SelectTrigger className="mt-1" aria-label="Availability">
 							<SelectValue placeholder="Select availability" />
 						</SelectTrigger>
 						<SelectContent>
@@ -1384,14 +1387,14 @@ function PersonnelEditorPlaceholder({
 				</div>
 
 				<div>
-					<label className="text-sm font-medium">Professional Summary</label>
+					<span className="text-sm font-medium">Professional Summary</span>
 					<Textarea
 						placeholder="Enter professional summary..."
 						className="mt-1"
 						rows={4}
 						value={formData.professionalSummary}
 						onChange={(e) => handleChange("professionalSummary", e.target.value)}
-					/>
+					 aria-label="Professional Summary"/>
 				</div>
 			</div>
 

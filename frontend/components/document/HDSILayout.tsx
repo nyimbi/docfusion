@@ -125,7 +125,7 @@ export function HDSILayout({
 				contextBufferRef.current.expand();
 			}
 		}
-	}, [isContextBufferCollapsed, onContextBufferToggle]);
+	}, [contextBufferRef, isContextBufferCollapsed, onContextBufferToggle]);
 
 	// Calculate default sizes based on whether context buffer is shown
 	const getDefaultSizes = () => {

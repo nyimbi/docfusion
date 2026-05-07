@@ -176,7 +176,7 @@ export function PresentationExporter({
 		} finally {
 			setIsExporting(false);
 		}
-	}, [presentation, slides, format, quality, options]);
+	}, [presentation, format]);
 
 	const handleOptionChange = (key: keyof typeof options, value: boolean | string) => {
 		setOptions((prev) => ({ ...prev, [key]: value }));
@@ -289,9 +289,9 @@ export function PresentationExporter({
 
 									{/* Quality Selection */}
 									<div>
-										<label className="text-sm font-medium mb-2 block">Quality</label>
+										<span className="text-sm font-medium mb-2 block">Quality</span>
 										<Select value={quality} onValueChange={(v) => setQuality(v as ExportQuality)}>
-											<SelectTrigger>
+											<SelectTrigger aria-label="Quality">
 												<SelectValue placeholder="Select quality" />
 											</SelectTrigger>
 											<SelectContent>

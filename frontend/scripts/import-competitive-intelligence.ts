@@ -15,8 +15,11 @@ import * as fs from "fs";
 import * as path from "path";
 
 // Database connection
-const connectionString = process.env.DATABASE_URL ||
-	"postgresql://azureuser:Abcd1234.@lindela16.postgres.database.azure.com:5432/docfusion?sslmode=require";
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+	throw new Error("DATABASE_URL is required to import competitive intelligence");
+}
 
 const pool = new Pool({
 	connectionString,

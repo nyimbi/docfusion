@@ -18,11 +18,13 @@ import { join, basename, extname } from "path";
 import { createHash } from "crypto";
 import { processRfpDocument, isSupportedFileType } from "@/lib/services/docling-client";
 import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
+import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import {
   buildRfpObjectKey,
   downloadFromLinodeE3,
   getLinodeE3ConfigFromEnv,
   uploadToLinodeE3,
+  type LinodeE3UploadResult,
 } from "@/lib/storage/linode-e3";
 import { logger } from "@/lib/utils/logger";
 
@@ -55,11 +57,62 @@ export interface DocumentDiscoveryResult {
 export interface DownloadResult {
   success: boolean;
   documentId?: string;
+  rfpDocumentId?: string;
+  parsingJobId?: string;
   localPath?: string;
   storagePath?: string;
+  storageReceipt?: RfpStorageReceipt;
   fileSize?: number;
   mimeType?: string;
+  provenance?: RfpIngestProvenance;
   error?: string;
+}
+
+export interface RfpStorageReceipt {
+  provider: "linode_e3" | "local";
+  storagePath: string;
+  bucket?: string;
+  key?: string;
+  endpoint?: string;
+  etag?: string | null;
+  sha256: string;
+  byteLength: number;
+  contentType: string;
+}
+
+export interface RfpIngestProvenance {
+  source: "opportunity_document_download";
+  sourceOpportunityDocumentId: string;
+  sourceUrl: string;
+  downloadedBy: string;
+  downloadedAt: string;
+}
+
+interface StoredFetchedRfpDocument {
+  storagePath: string;
+  receipt: RfpStorageReceipt;
+}
+
+interface QueuedRfpParsing {
+  rfpDocumentId?: string;
+  parsingJobId?: string;
+  duplicateOfRfpDocumentId?: string;
+}
+
+export interface OpportunityDocumentAccessActor {
+	userId: string;
+	role?: string;
+	roles?: string[];
+}
+
+export class OpportunityDocumentAccessError extends Error {
+	status: number;
+
+	constructor(message: string, status: number) {
+		super(message);
+		this.name = "OpportunityDocumentAccessError";
+		this.status = status;
+	}
 }
 
 // ============================================================================
@@ -463,7 +516,8 @@ export async function updateAllDocumentSelections(
  */
 export async function downloadDocument(
   documentId: string,
-  userId?: string
+  userId?: string,
+  expectedOpportunityId?: string
 ): Promise<DownloadResult> {
   try {
     // Get document from database
@@ -473,6 +527,10 @@ export async function downloadDocument(
 
     if (!doc) {
       return { success: false, error: "Document not found" };
+    }
+
+    if (expectedOpportunityId && doc.opportunityId !== expectedOpportunityId) {
+      return { success: false, documentId, error: "Document does not belong to this opportunity" };
     }
 
     if (!doc.sourceUrl) {
@@ -519,7 +577,7 @@ export async function downloadDocument(
 
     // Store the fetched binary server-side. Linode E3 has no browser CORS,
     // so fetched RFPs are uploaded from this server process when configured.
-    const localPath = await storeFetchedRfpDocument({
+    const stored = await storeFetchedRfpDocument({
       documentId: doc.id,
       opportunityId: doc.opportunityId,
       filename: doc.documentName,
@@ -528,6 +586,7 @@ export async function downloadDocument(
       mimeType,
       userId,
     });
+    const localPath = stored.storagePath;
 
     // Process document with DocLing for text extraction
     let extractedText: string | undefined;
@@ -566,9 +625,18 @@ export async function downloadDocument(
     // Update opportunity download count
     await updateOpportunityDownloadCount(doc.opportunityId);
 
-    await queueRfpParsingFromDownloadedDocument({
+    const provenance: RfpIngestProvenance = {
+      source: "opportunity_document_download",
+      sourceOpportunityDocumentId: doc.id,
+      sourceUrl: doc.sourceUrl,
+      downloadedBy: userId || "system",
+      downloadedAt: new Date().toISOString(),
+    };
+    const queued = await queueRfpParsingFromDownloadedDocument({
       document: doc,
       storagePath: localPath,
+      storageReceipt: stored.receipt,
+      provenance,
       fileSize: buffer.length,
       mimeType,
       fileHash,
@@ -580,10 +648,14 @@ export async function downloadDocument(
     return {
       success: true,
       documentId,
+      rfpDocumentId: queued.rfpDocumentId ?? queued.duplicateOfRfpDocumentId,
+      parsingJobId: queued.parsingJobId,
       localPath,
       storagePath: localPath,
+      storageReceipt: stored.receipt,
       fileSize: buffer.length,
       mimeType,
+      provenance,
     };
   } catch (error) {
     logger.error(`Download failed for document ${documentId}:`, error);
@@ -596,6 +668,22 @@ export async function downloadDocument(
         updatedAt: new Date(),
       })
       .where(eq(opportunityDocuments.id, documentId));
+
+    const failedDoc = await db.query.opportunityDocuments.findFirst({
+      where: eq(opportunityDocuments.id, documentId),
+    }).catch(() => null);
+
+    if (failedDoc) {
+      await recordOpportunityDocumentIngestWorkflow({
+        document: failedDoc,
+        userId: userId || "system",
+        toState: "download_failed",
+        reason: error instanceof Error ? error.message : "Download failed",
+        priority: "high",
+      }).catch((workflowError) => {
+        logger.warn("[RFP Document Service] Failed to persist failed ingest workflow:", workflowError);
+      });
+    }
 
     return {
       success: false,
@@ -692,6 +780,57 @@ export async function getDocumentFile(documentId: string): Promise<{
   }
 }
 
+export async function getOpportunityDocumentFileForActor(
+	actor: OpportunityDocumentAccessActor,
+	opportunityId: string,
+	documentId: string
+): Promise<{
+	buffer: Buffer;
+	mimeType: string;
+	filename: string;
+} | null> {
+	const [row] = await db
+		.select({
+			document: opportunityDocuments,
+			opportunity: opportunities,
+		})
+		.from(opportunityDocuments)
+		.innerJoin(opportunities, eq(opportunities.id, opportunityDocuments.opportunityId))
+		.where(and(
+			eq(opportunityDocuments.id, documentId),
+			eq(opportunityDocuments.opportunityId, opportunityId)
+		))
+		.limit(1);
+
+	if (!row) return null;
+	if (!canReadOpportunityDocument(actor, row.document.downloadedBy, row.opportunity.assignedTo)) {
+		throw new OpportunityDocumentAccessError("Forbidden", 403);
+	}
+	if (!row.document.localPath) return null;
+
+	try {
+		const buffer = await readDocumentBuffer(row.document.localPath);
+		return {
+			buffer,
+			mimeType: row.document.mimeType || "application/octet-stream",
+			filename: row.document.documentName,
+		};
+	} catch {
+		return null;
+	}
+}
+
+function canReadOpportunityDocument(
+	actor: OpportunityDocumentAccessActor,
+	downloadedBy: string | null,
+	opportunityAssignedTo: string | null
+): boolean {
+	const roles = new Set([actor.role, ...(actor.roles ?? [])].filter(Boolean));
+	if (roles.has("admin") || roles.has("operations")) return true;
+	if (downloadedBy && downloadedBy === actor.userId) return true;
+	return Boolean(opportunityAssignedTo && opportunityAssignedTo === actor.userId);
+}
+
 /**
  * Delete a document from storage and database
  */
@@ -782,7 +921,8 @@ async function storeFetchedRfpDocument(params: {
   buffer: Buffer;
   mimeType: string;
   userId?: string;
-}): Promise<string> {
+}): Promise<StoredFetchedRfpDocument> {
+  const sha256 = createHash("sha256").update(params.buffer).digest("hex");
   const objectStoreConfig = getLinodeE3ConfigFromEnv();
   if (objectStoreConfig) {
     const objectKey = buildRfpObjectKey({
@@ -804,7 +944,10 @@ async function storeFetchedRfpDocument(params: {
       },
     });
 
-    return upload.storagePath;
+    return {
+      storagePath: upload.storagePath,
+      receipt: buildLinodeStorageReceipt(upload, params, sha256),
+    };
   }
 
   const opportunityDir = join(DOCUMENT_STORAGE_PATH, params.opportunityId);
@@ -815,7 +958,37 @@ async function storeFetchedRfpDocument(params: {
   await mkdir(opportunityDir, { recursive: true });
   await writeFile(localPath, params.buffer);
 
-  return localPath;
+  return {
+    storagePath: localPath,
+    receipt: {
+      provider: "local",
+      storagePath: localPath,
+      sha256,
+      byteLength: params.buffer.length,
+      contentType: params.mimeType || "application/octet-stream",
+    },
+  };
+}
+
+function buildLinodeStorageReceipt(
+  upload: LinodeE3UploadResult,
+  params: {
+    buffer: Buffer;
+    mimeType: string;
+  },
+  sha256: string
+): RfpStorageReceipt {
+  return {
+    provider: "linode_e3",
+    storagePath: upload.storagePath,
+    bucket: upload.bucket,
+    key: upload.key,
+    endpoint: upload.endpoint,
+    etag: upload.etag,
+    sha256,
+    byteLength: params.buffer.length,
+    contentType: params.mimeType || "application/octet-stream",
+  };
 }
 
 async function readDocumentBuffer(storagePath: string): Promise<Buffer> {
@@ -835,16 +1008,26 @@ async function readDocumentBuffer(storagePath: string): Promise<Buffer> {
 async function queueRfpParsingFromDownloadedDocument(params: {
   document: typeof opportunityDocuments.$inferSelect;
   storagePath: string;
+  storageReceipt: RfpStorageReceipt;
+  provenance: RfpIngestProvenance;
   fileSize: number;
   mimeType: string;
   fileHash: string;
   extractedText?: string;
   pageCount?: number;
   userId: string;
-}): Promise<void> {
+}): Promise<QueuedRfpParsing> {
   const fileType = inferRfpParserFileType(params.document.documentName, params.mimeType);
   if (!fileType) {
-    return;
+    await recordOpportunityDocumentIngestWorkflow({
+      document: params.document,
+      userId: params.userId,
+      toState: "stored_unparseable",
+      reason: "Downloaded document was stored, but its file type is not supported by the RFP parser.",
+      priority: "medium",
+      storageReceipt: params.storageReceipt,
+    });
+    return {};
   }
 
   try {
@@ -853,7 +1036,16 @@ async function queueRfpParsingFromDownloadedDocument(params: {
     });
 
     if (existing) {
-      return;
+      await recordOpportunityDocumentIngestWorkflow({
+        document: params.document,
+        userId: params.userId,
+        toState: "duplicate_linked",
+        reason: `Downloaded document matched existing RFP ${existing.id}.`,
+        priority: "low",
+        storageReceipt: params.storageReceipt,
+        rfpDocumentId: existing.id,
+      });
+      return { duplicateOfRfpDocumentId: existing.id };
     }
 
     const [rfpDocument] = await db.insert(rfpDocuments).values({
@@ -869,9 +1061,22 @@ async function queueRfpParsingFromDownloadedDocument(params: {
       pageCount: params.pageCount,
       uploadedBy: params.userId,
       metadata: {
-        source: "opportunity_document_download",
-        sourceOpportunityDocumentId: params.document.id,
-        sourceUrl: params.document.sourceUrl,
+        source: params.provenance.source,
+        sourceOpportunityDocumentId: params.provenance.sourceOpportunityDocumentId,
+        sourceUrl: params.provenance.sourceUrl,
+        ingestWorkflow: {
+          state: "queued_for_parse",
+          source: params.provenance.source,
+          sourceOpportunityDocumentId: params.provenance.sourceOpportunityDocumentId,
+          downloadedBy: params.provenance.downloadedBy,
+          downloadedAt: params.provenance.downloadedAt,
+        },
+        storage: params.storageReceipt,
+        parserPolicy: {
+          parser: "next_rfp_parser",
+          confidenceGateThreshold: getParseConfidenceGateThreshold(),
+          queuedAt: new Date().toISOString(),
+        },
       },
     }).returning();
 
@@ -889,15 +1094,128 @@ async function queueRfpParsingFromDownloadedDocument(params: {
       },
       metadata: {
         sourceOpportunityDocumentId: params.document.id,
+        storagePath: params.storagePath,
+        parser: "next_rfp_parser",
       },
     }).returning();
+
+    await recordOpportunityDocumentIngestWorkflow({
+      document: params.document,
+      userId: params.userId,
+      toState: "queued_for_parse",
+      reason: "Discovered RFP document was fetched server-side, stored, linked to an RFP record, and queued for parsing.",
+      priority: "high",
+      storageReceipt: params.storageReceipt,
+      rfpDocumentId: rfpDocument.id,
+      parsingJobId: parsingJob.id,
+    });
 
     processRfpParsingJob(parsingJob.id, rfpDocument.id).catch((error) => {
       logger.error("[RFP Document Service] Background parse failed:", error);
     });
+
+    return {
+      rfpDocumentId: rfpDocument.id,
+      parsingJobId: parsingJob.id,
+    };
   } catch (error) {
     logger.warn("[RFP Document Service] Failed to queue downloaded document for parsing:", error);
+    await recordOpportunityDocumentIngestWorkflow({
+      document: params.document,
+      userId: params.userId,
+      toState: "parse_queue_failed",
+      reason: error instanceof Error ? error.message : "Failed to queue parser",
+      priority: "high",
+      storageReceipt: params.storageReceipt,
+    }).catch((workflowError) => {
+      logger.warn("[RFP Document Service] Failed to persist parse queue failure workflow:", workflowError);
+    });
+    return {};
   }
+}
+
+async function recordOpportunityDocumentIngestWorkflow(params: {
+  document: typeof opportunityDocuments.$inferSelect;
+  userId: string;
+  toState:
+    | "download_failed"
+    | "stored_unparseable"
+    | "duplicate_linked"
+    | "queued_for_parse"
+    | "parse_queue_failed";
+  reason: string;
+  priority: "critical" | "high" | "medium" | "low";
+  storageReceipt?: RfpStorageReceipt;
+  rfpDocumentId?: string;
+  parsingJobId?: string;
+}): Promise<void> {
+  const dueAt = ["download_failed", "parse_queue_failed"].includes(params.toState)
+    ? new Date(Date.now() + 12 * 60 * 60 * 1000)
+    : new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  const instance = await recordWorkflowRuntimeTransition({
+    workflowKey: "discovery_rfp_ingest",
+    subjectType: "opportunity_document",
+    subjectId: params.document.id,
+    opportunityId: params.document.opportunityId,
+    fromState: params.document.status,
+    toState: params.toState,
+    eventType: `rfp_ingest_${params.toState}`,
+    actorId: params.userId,
+    reason: params.reason,
+    priority: params.priority,
+    assignedTo: ["download_failed", "parse_queue_failed", "stored_unparseable"].includes(params.toState)
+      ? params.userId
+      : null,
+    assignedRole: "proposal_manager",
+    assignedBy: params.userId,
+    dueAt,
+    visibility: "internal",
+    authorityPolicy: {
+      requiredRoles: ["proposal_manager", "capture_manager"],
+      escalationRole: "operations",
+    },
+    metadata: {
+      documentName: params.document.documentName,
+      documentType: params.document.documentType,
+      sourceUrl: params.document.sourceUrl,
+      storageReceipt: params.storageReceipt,
+      rfpDocumentId: params.rfpDocumentId,
+      parsingJobId: params.parsingJobId,
+    },
+    terminal: params.toState === "duplicate_linked",
+    actionUrl: `/opportunities/${params.document.opportunityId}`,
+    notificationRecipients: ["download_failed", "parse_queue_failed", "stored_unparseable"].includes(params.toState)
+      ? [params.userId]
+      : [],
+  });
+
+  if (["download_failed", "parse_queue_failed", "stored_unparseable"].includes(params.toState)) {
+    await upsertWorkflowRuntimeTask({
+      workflowInstanceId: instance.id,
+      taskKey: `rfp-ingest-remediation:${params.document.id}`,
+      title: `Remediate RFP intake for ${params.document.documentName}`,
+      description: params.reason,
+      state: "open",
+      priority: params.priority,
+      assignedTo: params.userId,
+      assignedRole: "proposal_manager",
+      dueAt,
+      metadata: {
+        opportunityDocumentId: params.document.id,
+        sourceUrl: params.document.sourceUrl,
+        rfpDocumentId: params.rfpDocumentId,
+        parsingJobId: params.parsingJobId,
+      },
+    });
+  }
+}
+
+function getParseConfidenceGateThreshold(): number {
+  const raw = process.env.RFP_PARSE_CONFIDENCE_GATE;
+  if (!raw) return 80;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 && parsed <= 100 ? parsed : 80;
 }
 
 function inferRfpParserFileType(

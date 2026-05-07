@@ -63,6 +63,14 @@ function parseRequest(rfpId = "00000000-0000-4000-8000-000000000601") {
 	});
 }
 
+function parseWorkflowRequest(body: Record<string, unknown>, rfpId = "00000000-0000-4000-8000-000000000601") {
+	return new NextRequest(`http://localhost/api/v1/rfp/${rfpId}/parse`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify(body),
+	});
+}
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue({
@@ -132,6 +140,40 @@ describe("RFP parse route", () => {
 			"http://localhost:8000/api/v1/rfp/external-rfp/parse",
 			expect.objectContaining({ method: "POST" })
 		);
+		expect(parserMock.processRfpParsingJob).not.toHaveBeenCalled();
+	});
+
+	it("records explicit failed-parse remediation actions without starting background processing when requested", async () => {
+		parserMock.transitionRfpParseWorkflow.mockResolvedValueOnce({
+			rfpDocumentId: "00000000-0000-4000-8000-000000000601",
+			jobId: "00000000-0000-4000-8000-000000000702",
+			state: "manual_extraction",
+			progress: 42,
+		});
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			id: "00000000-0000-4000-8000-000000000601",
+			parsingStatus: "failed",
+		});
+
+		const response = await POST(parseWorkflowRequest({
+			action: "manual_extraction",
+			reason: "OCR output requires human review",
+			startProcessing: false,
+		}), {
+			params: Promise.resolve({ rfpId: "00000000-0000-4000-8000-000000000601" }),
+		});
+
+		expect(response.status).toBe(202);
+		expect(await response.json()).toMatchObject({
+			parsingJobId: "00000000-0000-4000-8000-000000000702",
+			status: "manual_extraction",
+		});
+		expect(parserMock.transitionRfpParseWorkflow).toHaveBeenCalledWith({
+			rfpDocumentId: "00000000-0000-4000-8000-000000000601",
+			action: "manual_extraction",
+			reason: "OCR output requires human review",
+			startProcessing: false,
+		});
 		expect(parserMock.processRfpParsingJob).not.toHaveBeenCalled();
 	});
 });

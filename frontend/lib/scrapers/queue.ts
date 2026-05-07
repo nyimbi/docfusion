@@ -1,33 +1,27 @@
 /**
- * Scraper Job Queue
+ * Durable Scraper Job Queue
  *
- * In-memory job queue with concurrency control for serverless environments.
- * Supports priority scheduling, retry logic, and progress callbacks.
- *
- * Architecture:
- * - Max 3 concurrent jobs (configurable)
- * - Priority: tier1 > tier2 > tier3
- * - Exponential backoff retry (3 attempts)
- * - Event-driven progress updates
- *
- * Production path: Replace with Redis + BullMQ for persistence and
- * multi-instance coordination.
+ * PostgreSQL-backed queue with row-level claiming, retry scheduling, and
+ * leases. This replaces process-local queue state so queued/running jobs
+ * survive app restarts and multiple app instances can safely compete for work.
  */
 
 import { EventEmitter } from "events";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { scraperJobs } from "@/lib/db/schema-scraper";
 
-// UUID v4 generation - inline for serverless compatibility
 function uuidv4(): string {
+	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+		return crypto.randomUUID();
+	}
+
 	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
 		const r = (Math.random() * 16) | 0;
 		const v = c === "x" ? r : (r & 0x3) | 0x8;
 		return v.toString(16);
 	});
 }
-
-// ============================================================================
-// Types
-// ============================================================================
 
 export type JobStatus =
 	| "queued"
@@ -51,11 +45,17 @@ export interface ScraperJob {
 	attempt: number;
 	maxAttempts: number;
 	batchId?: string;
+	runDbId?: string | null;
 	createdAt: Date;
-	startedAt?: Date;
-	completedAt?: Date;
-	error?: string;
-	result?: ScraperJobResult;
+	startedAt?: Date | null;
+	completedAt?: Date | null;
+	error?: string | null;
+	result?: ScraperJobResult | null;
+	lockedBy?: string | null;
+	lockedAt?: Date | null;
+	leaseExpiresAt?: Date | null;
+	nextRunAt?: Date | null;
+	updatedAt?: Date | null;
 }
 
 export interface ScraperJobResult {
@@ -68,7 +68,9 @@ export interface ScraperJobResult {
 	pagesScraped: number;
 	durationSeconds: number;
 	success: boolean;
+	partial?: boolean;
 	error?: string;
+	warnings?: string[];
 }
 
 export interface AddJobOptions {
@@ -86,14 +88,12 @@ export interface QueueConfig {
 	defaultMaxAttempts: number;
 	baseRetryDelayMs: number;
 	maxRetryDelayMs: number;
+	leaseMs: number;
+	maxRetainedTerminalJobs: number;
 }
 
 export type ProgressCallback = (job: ScraperJob) => void;
 export type JobExecutor = (job: ScraperJob) => Promise<ScraperJobResult>;
-
-// ============================================================================
-// Queue Events
-// ============================================================================
 
 export type QueueEventType =
 	| "job:queued"
@@ -108,85 +108,68 @@ export type QueueEventType =
 
 export interface QueueEvent {
 	type: QueueEventType;
-	job: ScraperJob;
+	job: ScraperJob | null;
 	timestamp: Date;
 }
 
-// ============================================================================
-// Scraper Queue Implementation
-// ============================================================================
-
-/**
- * In-memory job queue with priority scheduling and retry logic.
- * Singleton pattern ensures single queue instance per process.
- */
 class ScraperQueueImpl {
 	private config: QueueConfig = {
 		maxConcurrent: 3,
 		defaultMaxAttempts: 3,
 		baseRetryDelayMs: 1000,
 		maxRetryDelayMs: 60000,
+		leaseMs: 30 * 60 * 1000,
+		maxRetainedTerminalJobs: 500,
 	};
 
-	private queue: Map<string, ScraperJob> = new Map();
 	private running: Set<string> = new Set();
 	private events: EventEmitter = new EventEmitter();
 	private executor: JobExecutor | null = null;
 	private processing = false;
+	private workerId = `scraper-${process.pid}-${uuidv4()}`;
 
-	// -------------------------------------------------------------------------
-	// Configuration
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Configure queue settings
-	 */
 	configure(config: Partial<QueueConfig>): void {
 		this.config = { ...this.config, ...config };
 	}
 
-	/**
-	 * Set the job executor function
-	 */
 	setExecutor(executor: JobExecutor): void {
 		this.executor = executor;
+		if (this.shouldStartWorker()) {
+			this.processQueue();
+		}
 	}
 
-	// -------------------------------------------------------------------------
-	// Job Management
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Add a job to the queue
-	 */
 	async add(options: AddJobOptions): Promise<string> {
-		const job: ScraperJob = {
-			id: uuidv4(),
-			sourceId: options.sourceId,
-			sourceKey: options.sourceKey,
-			sourceName: options.sourceName,
-			priority: options.priority ?? 2,
-			tier: options.tier ?? 3,
-			status: "queued",
-			progress: 0,
-			attempt: 0,
-			maxAttempts: options.maxAttempts ?? this.config.defaultMaxAttempts,
-			batchId: options.batchId,
-			createdAt: new Date(),
-		};
+		const priority = this.normalizePriority(options.priority);
+		const tier = this.normalizeTier(options.tier);
+		const maxAttempts = Math.max(
+			1,
+			Math.min(10, Math.floor(options.maxAttempts ?? this.config.defaultMaxAttempts)),
+		);
 
-		this.queue.set(job.id, job);
+		const [row] = await db
+			.insert(scraperJobs)
+			.values({
+				sourceId: options.sourceId,
+				sourceKey: options.sourceKey,
+				sourceName: options.sourceName,
+				priority,
+				tier,
+				status: "queued",
+				progress: 0,
+				attempt: 0,
+				maxAttempts,
+				batchId: options.batchId,
+				nextRunAt: new Date(),
+			})
+			.returning();
+
+		const job = this.toJob(row);
 		this.emit("job:queued", job);
-
-		// Trigger processing if not already running
 		this.processQueue();
-
 		return job.id;
 	}
 
-	/**
-	 * Add multiple jobs as a batch
-	 */
 	async addBatch(jobs: AddJobOptions[]): Promise<string[]> {
 		const batchId = uuidv4();
 		const jobIds: string[] = [];
@@ -199,114 +182,117 @@ class ScraperQueueImpl {
 		return jobIds;
 	}
 
-	/**
-	 * Cancel a job
-	 */
 	async cancel(jobId: string): Promise<boolean> {
-		const job = this.queue.get(jobId);
-		if (!job) return false;
+		const [cancelled] = await db
+			.update(scraperJobs)
+			.set({
+				status: "cancelled",
+				completedAt: new Date(),
+				leaseExpiresAt: null,
+				lockedBy: null,
+				lockedAt: null,
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(scraperJobs.id, jobId),
+					inArray(scraperJobs.status, ["queued", "retrying", "running"]),
+				)
+			)
+			.returning();
 
-		// Can only cancel queued or retrying jobs
-		if (job.status === "queued" || job.status === "retrying") {
-			job.status = "cancelled";
-			job.completedAt = new Date();
-			this.emit("job:cancelled", job);
-			this.queue.delete(jobId);
-			return true;
-		}
-
-		// For running jobs, mark as cancelled (executor should check)
-		if (job.status === "running") {
-			job.status = "cancelled";
-			return true;
-		}
-
-		return false;
+		if (!cancelled) return false;
+		const job = this.toJob(cancelled);
+		this.emit("job:cancelled", job);
+		return true;
 	}
 
-	/**
-	 * Cancel all jobs in a batch
-	 */
 	async cancelBatch(batchId: string): Promise<number> {
-		let cancelled = 0;
-		for (const job of this.queue.values()) {
-			if (job.batchId === batchId) {
-				if (await this.cancel(job.id)) {
-					cancelled++;
-				}
-			}
+		const rows = await db
+			.update(scraperJobs)
+			.set({
+				status: "cancelled",
+				completedAt: new Date(),
+				leaseExpiresAt: null,
+				lockedBy: null,
+				lockedAt: null,
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(scraperJobs.batchId, batchId),
+					inArray(scraperJobs.status, ["queued", "retrying", "running"]),
+				)
+			)
+			.returning();
+
+		for (const row of rows) {
+			this.emit("job:cancelled", this.toJob(row));
 		}
-		return cancelled;
+		return rows.length;
 	}
 
-	/**
-	 * Get job status
-	 */
-	getStatus(jobId: string): ScraperJob | null {
-		return this.queue.get(jobId) ?? null;
+	async getStatus(jobId: string): Promise<ScraperJob | null> {
+		const row = await db.query.scraperJobs.findFirst({
+			where: eq(scraperJobs.id, jobId),
+		});
+		return row ? this.toJob(row) : null;
 	}
 
-	/**
-	 * Get all jobs for a batch
-	 */
-	getBatchJobs(batchId: string): ScraperJob[] {
-		return Array.from(this.queue.values())
-			.filter(job => job.batchId === batchId);
+	async getBatchJobs(batchId: string): Promise<ScraperJob[]> {
+		const rows = await db
+			.select()
+			.from(scraperJobs)
+			.where(eq(scraperJobs.batchId, batchId))
+			.orderBy(scraperJobs.createdAt);
+		return rows.map((row) => this.toJob(row));
 	}
 
-	/**
-	 * Update job progress
-	 */
 	updateProgress(jobId: string, progress: number): void {
-		const job = this.queue.get(jobId);
-		if (job && job.status === "running") {
-			job.progress = Math.min(100, Math.max(0, progress));
-			this.emit("job:progress", job);
+		void this.setJobProgress(jobId, progress);
+	}
+
+	async setJobProgress(jobId: string, progress: number): Promise<void> {
+		const clamped = Math.min(100, Math.max(0, progress));
+		const [row] = await db
+			.update(scraperJobs)
+			.set({
+				progress: clamped,
+				leaseExpiresAt: new Date(Date.now() + this.config.leaseMs),
+				updatedAt: new Date(),
+			})
+			.where(and(eq(scraperJobs.id, jobId), eq(scraperJobs.status, "running")))
+			.returning();
+
+		if (row) {
+			this.emit("job:progress", this.toJob(row));
 		}
 	}
 
-	// -------------------------------------------------------------------------
-	// Queue Processing
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Get the next job to process based on priority
-	 */
-	private getNextJob(): ScraperJob | null {
-		const queuedJobs = Array.from(this.queue.values())
-			.filter(job => job.status === "queued")
-			.sort((a, b) => {
-				// Sort by priority (1 > 2 > 3)
-				if (a.priority !== b.priority) {
-					return a.priority - b.priority;
-				}
-				// Then by tier (1 > 2 > 3)
-				if (a.tier !== b.tier) {
-					return a.tier - b.tier;
-				}
-				// Then by creation time (oldest first)
-				return a.createdAt.getTime() - b.createdAt.getTime();
-			});
-
-		return queuedJobs[0] ?? null;
+	async attachRun(jobId: string, runDbId: string): Promise<void> {
+		await db
+			.update(scraperJobs)
+			.set({ runDbId, updatedAt: new Date() })
+			.where(eq(scraperJobs.id, jobId));
 	}
 
-	/**
-	 * Process the queue - runs continuously while jobs exist
-	 */
+	async isCancelled(jobId: string): Promise<boolean> {
+		const row = await db.query.scraperJobs.findFirst({
+			where: eq(scraperJobs.id, jobId),
+			columns: { status: true },
+		});
+		return row?.status === "cancelled";
+	}
+
 	private async processQueue(): Promise<void> {
-		if (this.processing) return;
+		if (!this.executor || this.processing) return;
 		this.processing = true;
 
 		try {
-			while (true) {
-				// Check if we can run more jobs
-				if (this.running.size >= this.config.maxConcurrent) {
-					break;
-				}
+			await this.recoverExpiredLeases();
 
-				// Get next job
-				const job = this.getNextJob();
+			while (this.running.size < this.config.maxConcurrent) {
+				const job = await this.claimNextJob();
 				if (!job) {
 					if (this.running.size === 0) {
 						this.emit("queue:empty", null);
@@ -314,202 +300,348 @@ class ScraperQueueImpl {
 					break;
 				}
 
-				// Start job execution (non-blocking)
-				this.executeJob(job);
+				void this.executeJob(job);
 			}
 		} finally {
 			this.processing = false;
 		}
 	}
 
-	/**
-	 * Execute a single job
-	 */
 	private async executeJob(job: ScraperJob): Promise<void> {
 		if (!this.executor) {
 			throw new Error("No executor set. Call setExecutor() first.");
 		}
 
-		job.status = "running";
-		job.attempt++;
-		job.startedAt = new Date();
 		this.running.add(job.id);
 		this.emit("job:started", job);
 
 		try {
 			const result = await this.executor(job);
+			const current = await this.getStatus(job.id);
 
-			// Check if cancelled during execution (status can be changed by cancel() method)
-			if ((job.status as JobStatus) === "cancelled") {
+			if (current?.status === "cancelled") {
 				this.running.delete(job.id);
-				this.queue.delete(job.id);
+				this.emit("job:cancelled", current);
 				return;
 			}
 
-			job.result = result;
-			job.status = result.success ? "completed" : "failed";
-			job.completedAt = new Date();
-			job.progress = 100;
-
 			if (result.success) {
-				this.emit("job:completed", job);
+				const [completed] = await db
+					.update(scraperJobs)
+					.set({
+						status: "completed",
+						progress: 100,
+						result: result as unknown as Record<string, unknown>,
+						error: null,
+						completedAt: new Date(),
+						leaseExpiresAt: null,
+						lockedBy: null,
+						lockedAt: null,
+						updatedAt: new Date(),
+					})
+					.where(eq(scraperJobs.id, job.id))
+					.returning();
+				if (completed) this.emit("job:completed", this.toJob(completed));
 			} else {
-				job.error = result.error;
-				await this.handleFailure(job);
+				await this.handleFailure(job.id, result.error || "Scraper job failed", result);
 			}
 		} catch (error) {
-			job.error = error instanceof Error ? error.message : String(error);
-			job.status = "failed";
-			await this.handleFailure(job);
+			await this.handleFailure(
+				job.id,
+				error instanceof Error ? error.message : String(error),
+			);
 		} finally {
 			this.running.delete(job.id);
-			// Continue processing queue
-			this.processQueue();
+			void this.trimTerminalJobs();
+			void this.processQueue();
 		}
 	}
 
-	/**
-	 * Handle job failure with retry logic
-	 */
-	private async handleFailure(job: ScraperJob): Promise<void> {
-		if (job.attempt < job.maxAttempts) {
-			// Calculate exponential backoff delay
+	private async handleFailure(
+		jobId: string,
+		error: string,
+		result?: ScraperJobResult
+	): Promise<void> {
+		const current = await this.getStatus(jobId);
+		if (!current || current.status === "cancelled") {
+			if (current) this.emit("job:cancelled", current);
+			return;
+		}
+
+		if (current.attempt < current.maxAttempts) {
 			const delay = Math.min(
-				this.config.baseRetryDelayMs * Math.pow(2, job.attempt - 1),
-				this.config.maxRetryDelayMs
+				this.config.baseRetryDelayMs * Math.pow(2, current.attempt - 1),
+				this.config.maxRetryDelayMs,
 			);
+			const [retrying] = await db
+				.update(scraperJobs)
+				.set({
+					status: "retrying",
+					error,
+					result: result as unknown as Record<string, unknown> | undefined,
+					nextRunAt: new Date(Date.now() + delay),
+					leaseExpiresAt: null,
+					lockedBy: null,
+					lockedAt: null,
+					updatedAt: new Date(),
+				})
+				.where(eq(scraperJobs.id, jobId))
+				.returning();
 
-			job.status = "retrying";
-			this.emit("job:retrying", job);
-
-			// Schedule retry
-			setTimeout(() => {
-				if (job.status === "retrying") {
-					job.status = "queued";
-					this.processQueue();
-				}
-			}, delay);
-		} else {
-			job.status = "failed";
-			job.completedAt = new Date();
-			this.emit("job:failed", job);
-			this.queue.delete(job.id);
+			if (retrying) this.emit("job:retrying", this.toJob(retrying));
+			setTimeout(() => void this.processQueue(), delay);
+			return;
 		}
+
+		const [failed] = await db
+			.update(scraperJobs)
+			.set({
+				status: "failed",
+				error,
+				result: result as unknown as Record<string, unknown> | undefined,
+				completedAt: new Date(),
+				leaseExpiresAt: null,
+				lockedBy: null,
+				lockedAt: null,
+				updatedAt: new Date(),
+			})
+			.where(eq(scraperJobs.id, jobId))
+			.returning();
+
+		if (failed) this.emit("job:failed", this.toJob(failed));
 	}
 
-	// -------------------------------------------------------------------------
-	// Event Handling
-	// -------------------------------------------------------------------------
+	private async recoverExpiredLeases(): Promise<void> {
+		await db.execute(sql`
+			UPDATE scraper_jobs
+			SET
+				status = 'retrying',
+				next_run_at = now(),
+				lease_expires_at = NULL,
+				locked_by = NULL,
+				locked_at = NULL,
+				error = COALESCE(error, 'Worker lease expired'),
+				updated_at = now()
+			WHERE status = 'running'
+				AND lease_expires_at IS NOT NULL
+				AND lease_expires_at < now()
+				AND attempt < max_attempts
+		`);
 
-	/**
-	 * Subscribe to queue events
-	 */
-	on(event: QueueEventType, callback: (job: ScraperJob) => void): void {
+		await db.execute(sql`
+			UPDATE scraper_jobs
+			SET
+				status = 'failed',
+				completed_at = now(),
+				lease_expires_at = NULL,
+				locked_by = NULL,
+				locked_at = NULL,
+				error = COALESCE(error, 'Worker lease expired after maximum attempts'),
+				updated_at = now()
+			WHERE status = 'running'
+				AND lease_expires_at IS NOT NULL
+				AND lease_expires_at < now()
+				AND attempt >= max_attempts
+		`);
+	}
+
+	private async claimNextJob(): Promise<ScraperJob | null> {
+		const claimed = await db.execute(sql`
+			WITH candidate AS (
+				SELECT id
+				FROM scraper_jobs
+				WHERE status IN ('queued', 'retrying')
+					AND next_run_at <= now()
+				ORDER BY priority ASC, tier ASC, created_at ASC
+				FOR UPDATE SKIP LOCKED
+				LIMIT 1
+			)
+			UPDATE scraper_jobs
+			SET
+				status = 'running',
+				attempt = attempt + 1,
+				started_at = COALESCE(started_at, now()),
+				locked_by = ${this.workerId},
+				locked_at = now(),
+				lease_expires_at = now() + (${this.config.leaseMs} * interval '1 millisecond'),
+				updated_at = now()
+			FROM candidate
+			WHERE scraper_jobs.id = candidate.id
+			RETURNING
+				scraper_jobs.id,
+				scraper_jobs.source_id,
+				scraper_jobs.source_key,
+				scraper_jobs.source_name,
+				scraper_jobs.priority,
+				scraper_jobs.tier,
+				scraper_jobs.status,
+				scraper_jobs.progress,
+				scraper_jobs.attempt,
+				scraper_jobs.max_attempts,
+				scraper_jobs.batch_id,
+				scraper_jobs.run_db_id,
+				scraper_jobs.error,
+				scraper_jobs.result,
+				scraper_jobs.locked_by,
+				scraper_jobs.locked_at,
+				scraper_jobs.lease_expires_at,
+				scraper_jobs.next_run_at,
+				scraper_jobs.created_at,
+				scraper_jobs.started_at,
+				scraper_jobs.completed_at,
+				scraper_jobs.updated_at
+		`) as { rows?: unknown[] };
+
+		const row = claimed.rows?.[0];
+		return row ? this.toJob(row) : null;
+	}
+
+	on(event: QueueEventType, callback: (job: ScraperJob | null) => void): void {
 		this.events.on(event, callback);
 	}
 
-	/**
-	 * Unsubscribe from queue events
-	 */
-	off(event: QueueEventType, callback: (job: ScraperJob) => void): void {
+	off(event: QueueEventType, callback: (job: ScraperJob | null) => void): void {
 		this.events.off(event, callback);
 	}
 
-	/**
-	 * Subscribe to progress updates for a specific job
-	 */
 	onProgress(callback: ProgressCallback): () => void {
-		const handler = (job: ScraperJob) => callback(job);
+		const handler = (job: ScraperJob | null) => {
+			if (job) callback(job);
+		};
 		this.events.on("job:progress", handler);
 		return () => this.events.off("job:progress", handler);
 	}
 
-	/**
-	 * Emit an event
-	 */
 	private emit(type: QueueEventType, job: ScraperJob | null): void {
 		const event: QueueEvent = {
 			type,
-			job: job!,
+			job,
 			timestamp: new Date(),
 		};
 		this.events.emit(type, job);
-		this.events.emit("*", event); // Wildcard for all events
+		this.events.emit("*", event);
 	}
 
-	// -------------------------------------------------------------------------
-	// Queue State
-	// -------------------------------------------------------------------------
-
-	/**
-	 * Get queue statistics
-	 */
-	getStats(): {
+	async getStats(): Promise<{
 		queued: number;
 		running: number;
 		completed: number;
 		failed: number;
 		total: number;
-	} {
-		const jobs = Array.from(this.queue.values());
-		return {
-			queued: jobs.filter(j => j.status === "queued" || j.status === "retrying").length,
-			running: jobs.filter(j => j.status === "running").length,
-			completed: jobs.filter(j => j.status === "completed").length,
-			failed: jobs.filter(j => j.status === "failed").length,
-			total: jobs.length,
-		};
-	}
+	}> {
+		const rows = await db
+			.select({
+				status: scraperJobs.status,
+				count: sql<number>`count(*)::int`,
+			})
+			.from(scraperJobs)
+			.groupBy(scraperJobs.status);
 
-	/**
-	 * Get all jobs
-	 */
-	getAllJobs(): ScraperJob[] {
-		return Array.from(this.queue.values());
-	}
-
-	/**
-	 * Get running jobs
-	 */
-	getRunningJobs(): ScraperJob[] {
-		return Array.from(this.queue.values())
-			.filter(job => job.status === "running");
-	}
-
-	/**
-	 * Clear completed jobs from memory
-	 */
-	clearCompleted(): number {
-		let cleared = 0;
-		for (const [id, job] of this.queue.entries()) {
-			if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
-				this.queue.delete(id);
-				cleared++;
-			}
+		const stats = { queued: 0, running: 0, completed: 0, failed: 0, total: 0 };
+		for (const row of rows) {
+			const count = Number(row.count ?? 0);
+			stats.total += count;
+			if (row.status === "queued" || row.status === "retrying") stats.queued += count;
+			else if (row.status === "running") stats.running += count;
+			else if (row.status === "completed") stats.completed += count;
+			else if (row.status === "failed" || row.status === "cancelled") stats.failed += count;
 		}
-		return cleared;
+		return stats;
 	}
 
-	/**
-	 * Reset queue (for testing)
-	 */
-	reset(): void {
-		this.queue.clear();
+	async getAllJobs(limit = 500): Promise<ScraperJob[]> {
+		const rows = await db
+			.select()
+			.from(scraperJobs)
+			.orderBy(sql`${scraperJobs.createdAt} DESC`)
+			.limit(limit);
+		return rows.map((row) => this.toJob(row));
+	}
+
+	async getRunningJobs(): Promise<ScraperJob[]> {
+		const rows = await db
+			.select()
+			.from(scraperJobs)
+			.where(eq(scraperJobs.status, "running"))
+			.orderBy(scraperJobs.startedAt);
+		return rows.map((row) => this.toJob(row));
+	}
+
+	async clearCompleted(): Promise<number> {
+		const rows = await db
+			.delete(scraperJobs)
+			.where(inArray(scraperJobs.status, ["completed", "failed", "cancelled"]))
+			.returning({ id: scraperJobs.id });
+		return rows.length;
+	}
+
+	async reset(): Promise<void> {
+		await db.delete(scraperJobs);
 		this.running.clear();
 		this.events.removeAllListeners();
 	}
+
+	private async trimTerminalJobs(): Promise<void> {
+		if (this.config.maxRetainedTerminalJobs <= 0) return;
+
+		await db.execute(sql`
+			DELETE FROM scraper_jobs
+			WHERE id IN (
+				SELECT id
+				FROM scraper_jobs
+				WHERE status IN ('completed', 'failed', 'cancelled')
+				ORDER BY completed_at DESC NULLS LAST, updated_at DESC
+				OFFSET ${this.config.maxRetainedTerminalJobs}
+			)
+		`);
+	}
+
+	private normalizePriority(priority: number | undefined): JobPriority {
+		return [1, 2, 3].includes(priority ?? 2) ? (priority as JobPriority) ?? 2 : 2;
+	}
+
+	private normalizeTier(tier: number | undefined): number {
+		return [1, 2, 3].includes(tier ?? 3) ? tier ?? 3 : 3;
+	}
+
+	private shouldStartWorker(): boolean {
+		return (
+			process.env.NEXT_PHASE !== "phase-production-build" &&
+			process.env.npm_lifecycle_event !== "build"
+		);
+	}
+
+	private toJob(row: unknown): ScraperJob {
+		const value = row as Record<string, unknown>;
+		const get = <T>(camel: string, snake: string): T | undefined =>
+			(value[camel] ?? value[snake]) as T | undefined;
+
+		return {
+			id: get<string>("id", "id")!,
+			sourceId: get<string>("sourceId", "source_id")!,
+			sourceKey: get<string>("sourceKey", "source_key")!,
+			sourceName: get<string>("sourceName", "source_name")!,
+			priority: this.normalizePriority(get<number>("priority", "priority")),
+			tier: get<number>("tier", "tier") ?? 3,
+			status: get<JobStatus>("status", "status") ?? "queued",
+			progress: get<number>("progress", "progress") ?? 0,
+			attempt: get<number>("attempt", "attempt") ?? 0,
+			maxAttempts: get<number>("maxAttempts", "max_attempts") ?? this.config.defaultMaxAttempts,
+			batchId: get<string>("batchId", "batch_id"),
+			runDbId: get<string | null>("runDbId", "run_db_id"),
+			error: get<string | null>("error", "error"),
+			result: get<ScraperJobResult | null>("result", "result"),
+			lockedBy: get<string | null>("lockedBy", "locked_by"),
+			lockedAt: get<Date | null>("lockedAt", "locked_at"),
+			leaseExpiresAt: get<Date | null>("leaseExpiresAt", "lease_expires_at"),
+			nextRunAt: get<Date | null>("nextRunAt", "next_run_at"),
+			createdAt: get<Date>("createdAt", "created_at") ?? new Date(),
+			startedAt: get<Date | null>("startedAt", "started_at"),
+			completedAt: get<Date | null>("completedAt", "completed_at"),
+			updatedAt: get<Date | null>("updatedAt", "updated_at"),
+		};
+	}
 }
 
-// ============================================================================
-// Singleton Export
-// ============================================================================
-
-/**
- * Global scraper queue instance
- */
 export const scraperQueue = new ScraperQueueImpl();
-
-/**
- * Export class for testing
- */
 export { ScraperQueueImpl };

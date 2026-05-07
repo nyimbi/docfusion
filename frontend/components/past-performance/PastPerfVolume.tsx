@@ -608,7 +608,10 @@ export function PastPerfVolume({
 											key={project.id}
 											className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
 											onClick={() => handleAddProject(project.id)}
-										>
+
+					role="button"
+					tabIndex={0}
+					onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 											<div className="flex items-start justify-between">
 												<div>
 													<p className="font-medium text-sm">{project.name}</p>

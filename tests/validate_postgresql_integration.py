@@ -13,6 +13,7 @@ Complete validation of PostgreSQL integration including:
 import asyncio
 import sys
 import time
+from urllib.parse import urlparse
 from pathlib import Path
 
 # Add src to path
@@ -40,15 +41,16 @@ async def validate_configuration():
         config = get_database_config()
         
         # Validate connection URL
-        assert config.connection_url == "postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb"
-        print(f"   ✅ Connection URL: {config.connection_url}")
+        parsed_url = urlparse(config.connection_url)
+        assert parsed_url.scheme in ("postgresql", "postgres")
+        print("   ✅ Connection URL configured")
         
         # Validate connection info
         conn_info = config.connection_info
-        assert conn_info.host == "172.236.30.103"
+        assert conn_info.host
         assert conn_info.port == 5432
-        assert conn_info.database == "docdb"
-        assert conn_info.username == "nyimbi"
+        assert conn_info.database
+        assert conn_info.username
         print(f"   ✅ Host: {conn_info.host}:{conn_info.port}")
         print(f"   ✅ Database: {conn_info.database}")
         print(f"   ✅ User: {conn_info.username}")
@@ -416,11 +418,13 @@ async def main():
     print("\n" + "=" * 60)
     
     # Connection summary
+    config = get_database_config()
+    conn_info = config.connection_info
     print("🔗 PostgreSQL Connection Details:")
-    print(f"   Host: 172.236.30.103:5432")
-    print(f"   Database: docdb") 
-    print(f"   User: nyimbi")
-    print(f"   URL: postgresql://nyimbi:***@172.236.30.103:5432/docdb")
+    print(f"   Host: {conn_info.host}:{conn_info.port}")
+    print(f"   Database: {conn_info.database}")
+    print(f"   User: {conn_info.username}")
+    print("   URL: configured via DATABASE_URL")
     
     return success_rate == 100
 

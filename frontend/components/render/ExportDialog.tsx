@@ -204,7 +204,6 @@ export function ExportDialog({
 					"animate-in fade-in-0 zoom-in-95",
 					"flex flex-col"
 				)}
-				onClick={(e) => e.stopPropagation()}
 			>
 				{/* Header */}
 				<div className="px-6 py-4 border-b border-[var(--border)]">
@@ -234,9 +233,9 @@ export function ExportDialog({
 				<div className="flex-1 overflow-y-auto p-6 space-y-6">
 					{/* Format Selection */}
 					<div>
-						<label className="block text-sm font-medium text-[var(--foreground)] mb-3">
+						<span className="block text-sm font-medium text-[var(--foreground)] mb-3">
 							Export Format
-						</label>
+						</span>
 						<div className="grid grid-cols-3 gap-2">
 							{FORMATS.map(({ value, label, icon: Icon, description }) => (
 								<button
@@ -278,14 +277,14 @@ export function ExportDialog({
 							{/* Paper Size & Orientation */}
 							<div className="grid grid-cols-2 gap-4">
 								<div>
-									<label className="block text-xs text-[var(--foreground-muted)] mb-1.5">
+									<span className="block text-xs text-[var(--foreground-muted)] mb-1.5">
 										Paper Size
-									</label>
+									</span>
 									<select
 										value={paperSize}
 										onChange={(e) => setPaperSize(e.target.value as PaperSize)}
 										className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)]"
-									>
+									 aria-label="Paper Size">
 										{PAPER_SIZES.map(({ value, label }) => (
 											<option key={value} value={value}>
 												{label}
@@ -294,9 +293,9 @@ export function ExportDialog({
 									</select>
 								</div>
 								<div>
-									<label className="block text-xs text-[var(--foreground-muted)] mb-1.5">
+									<span className="block text-xs text-[var(--foreground-muted)] mb-1.5">
 										Orientation
-									</label>
+									</span>
 									<div className="flex gap-2">
 										<button
 											onClick={() => setOrientation("portrait")}
@@ -350,16 +349,16 @@ export function ExportDialog({
 
 							{/* Watermark */}
 							<div>
-								<label className="block text-xs text-[var(--foreground-muted)] mb-1.5">
+								<span className="block text-xs text-[var(--foreground-muted)] mb-1.5">
 									Watermark (optional)
-								</label>
+								</span>
 								<input
 									type="text"
 									value={watermark}
 									onChange={(e) => setWatermark(e.target.value)}
 									placeholder="e.g., DRAFT, CONFIDENTIAL"
 									className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)]"
-								/>
+								 aria-label="Watermark (optional)"/>
 							</div>
 						</div>
 					)}
@@ -367,9 +366,9 @@ export function ExportDialog({
 					{/* Slide Options */}
 					{showSlideOptions && (
 						<div>
-							<label className="block text-sm font-medium text-[var(--foreground)] mb-3">
+							<span className="block text-sm font-medium text-[var(--foreground)] mb-3">
 								Slide Template
-							</label>
+							</span>
 							<div className="grid grid-cols-2 gap-2">
 								{SLIDE_TEMPLATES.map(({ value, label, description }) => (
 									<button
@@ -397,9 +396,9 @@ export function ExportDialog({
 					{/* Branding */}
 					{brandingConfigs.length > 0 && (
 						<div>
-							<label className="block text-sm font-medium text-[var(--foreground)] mb-3">
+							<span className="block text-sm font-medium text-[var(--foreground)] mb-3">
 								Branding
-							</label>
+							</span>
 							<div className="flex gap-2">
 								{brandingConfigs.map((config) => (
 									<button

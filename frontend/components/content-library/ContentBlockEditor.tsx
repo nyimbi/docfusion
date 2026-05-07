@@ -194,15 +194,15 @@ export function ContentBlockEditor({
 					<>
 						{/* Title */}
 						<div>
-							<label className="block text-sm font-medium mb-1">
+							<span className="block text-sm font-medium mb-1">
 								Title <span className="text-red-500">*</span>
-							</label>
+							</span>
 							<Input
 								value={formData.title}
 								onChange={(e) => updateField("title", e.target.value)}
 								placeholder="Enter content block title..."
 								className={cn(errors.title && "border-red-500")}
-							/>
+							 aria-label="Title"/>
 							{errors.title && (
 								<p className="text-xs text-red-500 mt-1">{errors.title}</p>
 							)}
@@ -210,19 +210,19 @@ export function ContentBlockEditor({
 
 						{/* Description */}
 						<div>
-							<label className="block text-sm font-medium mb-1">Description</label>
+							<span className="block text-sm font-medium mb-1">Description</span>
 							<Input
 								value={formData.description ?? ""}
 								onChange={(e) => updateField("description", e.target.value || undefined)}
 								placeholder="Brief description of this content..."
-							/>
+							 aria-label="Description"/>
 						</div>
 
 						{/* Content */}
 						<div>
-							<label className="block text-sm font-medium mb-1">
+							<span className="block text-sm font-medium mb-1">
 								Content <span className="text-red-500">*</span>
-							</label>
+							</span>
 							<textarea
 								value={formData.content}
 								onChange={(e) => updateField("content", e.target.value)}
@@ -232,7 +232,7 @@ export function ContentBlockEditor({
 									"w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm",
 									errors.content && "border-red-500"
 								)}
-							/>
+							 aria-label="Content"/>
 							{errors.content && (
 								<p className="text-xs text-red-500 mt-1">{errors.content}</p>
 							)}
@@ -246,10 +246,10 @@ export function ContentBlockEditor({
 						{/* Category and Type */}
 						<div className="grid grid-cols-2 gap-4">
 							<div>
-								<label className="block text-sm font-medium mb-1">
+								<span className="block text-sm font-medium mb-1">
 									<Folder className="w-4 h-4 inline mr-1" />
 									Category <span className="text-red-500">*</span>
-								</label>
+								</span>
 								<select
 									value={formData.category}
 									onChange={(e) => {
@@ -260,7 +260,7 @@ export function ContentBlockEditor({
 										"w-full px-3 py-2 border rounded-md",
 										errors.category && "border-red-500"
 									)}
-								>
+								 aria-label="Category">
 									{categories.map((cat) => (
 										<option key={cat.value} value={cat.value}>
 											{cat.label}
@@ -270,14 +270,14 @@ export function ContentBlockEditor({
 							</div>
 							{selectedCategory?.subcategories && (
 								<div>
-									<label className="block text-sm font-medium mb-1">
+									<span className="block text-sm font-medium mb-1">
 										Subcategory
-									</label>
+									</span>
 									<select
 										value={formData.subcategory ?? ""}
 										onChange={(e) => updateField("subcategory", e.target.value || undefined)}
 										className="w-full px-3 py-2 border rounded-md"
-									>
+									 aria-label="Subcategory">
 										<option value="">None</option>
 										{selectedCategory.subcategories.map((sub) => (
 											<option key={sub.value} value={sub.value}>
@@ -291,14 +291,14 @@ export function ContentBlockEditor({
 
 						<div className="grid grid-cols-2 gap-4">
 							<div>
-								<label className="block text-sm font-medium mb-1">
+								<span className="block text-sm font-medium mb-1">
 									Content Type
-								</label>
+								</span>
 								<select
 									value={formData.contentType}
 									onChange={(e) => updateField("contentType", e.target.value)}
 									className="w-full px-3 py-2 border rounded-md"
-								>
+								 aria-label="Content Type">
 									{contentTypes.map((type) => (
 										<option key={type.value} value={type.value}>
 											{type.label}
@@ -307,12 +307,12 @@ export function ContentBlockEditor({
 								</select>
 							</div>
 							<div>
-								<label className="block text-sm font-medium mb-1">Status</label>
+								<span className="block text-sm font-medium mb-1">Status</span>
 								<select
 									value={formData.status}
 									onChange={(e) => updateField("status", e.target.value as ContentBlock["status"])}
 									className="w-full px-3 py-2 border rounded-md"
-								>
+								 aria-label="Status">
 									<option value="draft">Draft</option>
 									<option value="pending_approval">Pending Approval</option>
 									<option value="approved">Approved</option>
@@ -324,10 +324,10 @@ export function ContentBlockEditor({
 						{/* Tags */}
 						<div>
 							<div className="flex items-center justify-between mb-1">
-								<label className="block text-sm font-medium">
+								<span className="block text-sm font-medium">
 									<Tag className="w-4 h-4 inline mr-1" />
 									Tags
-								</label>
+								</span>
 								{onAutoTag && (
 									<Button
 										variant="ghost"

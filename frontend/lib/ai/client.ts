@@ -221,9 +221,14 @@ export class AIClient {
 			dimensions: options.dimensions ?? 1536, // Default for OpenAI compatibility
 		};
 
-		// Get the provider - prefer Azure for embeddings
+		// Get the provider - prefer the shared LiteLLM gateway for embeddings.
 		const providers = await this.getAvailableProviders();
-		const preferredProvider = options.provider || (providers.includes("azure-openai") ? "azure-openai" : providers[0]);
+		const preferredProvider = options.provider
+			|| (providers.includes("litellm")
+				? "litellm"
+				: providers.includes("azure-openai")
+					? "azure-openai"
+					: providers[0]);
 
 		if (!preferredProvider) {
 			throw new Error("No AI provider available for embeddings");
@@ -403,11 +408,18 @@ export class AISettingsManager {
 			}
 		}
 
-		// Test Azure if selected
-		if (settings.provider === "azure-openai" || settings.provider === "auto") {
+		// Test shared/hosted providers if selected.
+		if (settings.provider === "litellm" || settings.provider === "azure-openai" || settings.provider === "auto") {
 			const results = await testProviderConnections();
+			connectionTests.litellm = results.litellm;
 			connectionTests["azure-openai"] = results["azure-openai"];
 
+			if (
+				!results.litellm.success &&
+				settings.provider === "litellm"
+			) {
+				errors.provider = "LiteLLM gateway is not configured or unavailable";
+			}
 			if (
 				!results["azure-openai"].success &&
 				settings.provider === "azure-openai"
@@ -451,6 +463,11 @@ export class AISettingsManager {
 				value: "azure-openai",
 				label: "Azure OpenAI",
 				description: "Enterprise AI through Microsoft Azure",
+			},
+			{
+				value: "litellm",
+				label: "LiteLLM Gateway",
+				description: "Shared Lindela AI gateway with routing and caching",
 			},
 			{
 				value: "ollama",

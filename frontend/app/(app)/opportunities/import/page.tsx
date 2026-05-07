@@ -81,8 +81,8 @@ export default function ImportOpportunitiesPage() {
 
 	// Handle file selection
 	const handleFileSelect = async (file: File) => {
-		if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
-			setState((prev) => ({ ...prev, error: "Please upload an Excel or CSV file" }));
+		if (!file.name.match(/\.(csv|tsv)$/i)) {
+			setState((prev) => ({ ...prev, error: "Please upload a CSV or TSV file" }));
 			return;
 		}
 
@@ -189,7 +189,7 @@ export default function ImportOpportunitiesPage() {
 						Import Opportunities
 					</h1>
 					<p className="text-sm text-muted-foreground">
-						Upload Excel spreadsheets to import RFPs, EOIs, and tenders
+						Upload CSV or TSV files to import RFPs, EOIs, and tenders
 					</p>
 				</div>
 			</div>
@@ -254,7 +254,7 @@ export default function ImportOpportunitiesPage() {
 						<input
 							ref={fileInputRef}
 							type="file"
-							accept=".xlsx,.xls,.csv"
+							accept=".csv,.tsv"
 							onChange={(e) => {
 								const files = e.target.files;
 								if (files && files.length > 0) {
@@ -276,7 +276,7 @@ export default function ImportOpportunitiesPage() {
 								{isDragging ? "Drop your file here" : "Upload Spreadsheet"}
 							</h3>
 							<p className="text-muted-foreground mb-4">
-								Drag and drop an Excel file, or click to browse
+								Drag and drop a CSV or TSV file, or click to browse
 							</p>
 							<Button
 								variant="outline"
@@ -286,7 +286,7 @@ export default function ImportOpportunitiesPage() {
 								Choose File
 							</Button>
 							<p className="text-xs text-muted-foreground mt-4">
-								Supports .xlsx, .xls, and .csv files
+								Supports .csv and .tsv files
 							</p>
 						</div>
 					</div>
@@ -297,7 +297,7 @@ export default function ImportOpportunitiesPage() {
 							Supported Formats
 						</h3>
 						<p className="text-sm text-muted-foreground mb-4">
-							DocFusion automatically detects these spreadsheet formats:
+							DocFusion automatically detects these column formats:
 						</p>
 						<ul className="space-y-2 text-sm">
 							{[

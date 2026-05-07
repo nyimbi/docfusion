@@ -16,7 +16,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 # Skip all RAG tests if database connection is not available
-DATABASE_URL = "postgresql://nyimbi:Abcd1234.@172.236.30.103:5432/docdb"
+DATABASE_URL = os.getenv("DATABASE_URL")
 SKIP_RAG_TESTS = not os.getenv('OPENAI_API_KEY') or not DATABASE_URL
 
 pytestmark = pytest.mark.skipif(SKIP_RAG_TESTS, reason="RAG tests require database and OpenAI API key")

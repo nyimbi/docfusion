@@ -11,10 +11,14 @@ import {
 	workflowRuntimeTasks,
 	workflowTemplates,
 	type WorkflowInstanceRow,
+	type WorkflowNotificationRow,
 	type WorkflowTemplateRow,
 } from "@/lib/db/schema-workflow-runtime";
+import { opportunities } from "@/lib/db/schema";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 import { simulateWorkflowTemplate } from "@/lib/workflows/simulation";
-import { and, asc, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import type { WorkflowViewerScope } from "@/lib/workflows/viewer-scope";
+import { and, asc, desc, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 
 type WorkflowClient = Pick<typeof db, "select" | "insert" | "update" | "execute">;
 
@@ -337,8 +341,10 @@ export async function evaluateWorkflowSla(
 }
 
 export async function getWorkflowDashboard(
+	scope: WorkflowViewerScope,
 	filters: WorkflowDashboardFilters = {}
 ): Promise<WorkflowDashboardSummary> {
+	assertWorkflowViewerScope(scope);
 	const conditions = [];
 	if (filters.statuses?.length) {
 		conditions.push(inArray(workflowInstances.status, filters.statuses));
@@ -352,27 +358,31 @@ export async function getWorkflowDashboard(
 	if (filters.opportunityId) {
 		conditions.push(eq(workflowInstances.opportunityId, filters.opportunityId));
 	}
+	const scopeCondition = await getWorkflowScopeCondition(scope, filters.opportunityId);
+	if (scopeCondition) {
+		conditions.push(scopeCondition);
+	}
 
-	const query = db
+	const rows = await db
 		.select()
 		.from(workflowInstances)
 		.where(conditions.length ? and(...conditions) : sql`true`)
-		.orderBy(desc(workflowInstances.updatedAt))
-		.limit(filters.limit ?? 100);
-	const items = await query;
+		.orderBy(desc(workflowInstances.updatedAt));
+	const limit = filters.limit ?? 100;
+	const items = rows.slice(0, limit);
 	const dueSoonThreshold = Date.now() + 48 * 60 * 60 * 1000;
 
 	return {
-		total: items.length,
-		active: items.filter((item) => item.status === "active" || item.status === "waiting").length,
-		breached: items.filter((item) => item.status === "breached").length,
-		escalated: items.filter((item) => item.status === "escalated").length,
-		completed: items.filter((item) => item.status === "completed").length,
-		bySubjectType: items.reduce<Record<string, number>>((acc, item) => {
+		total: rows.length,
+		active: rows.filter((item) => item.status === "active" || item.status === "waiting").length,
+		breached: rows.filter((item) => item.status === "breached").length,
+		escalated: rows.filter((item) => item.status === "escalated").length,
+		completed: rows.filter((item) => item.status === "completed").length,
+		bySubjectType: rows.reduce<Record<string, number>>((acc, item) => {
 			acc[item.subjectType] = (acc[item.subjectType] ?? 0) + 1;
 			return acc;
 		}, {}),
-		dueSoon: items.filter((item) => {
+		dueSoon: rows.filter((item) => {
 			if (!item.dueAt) return false;
 			const time = new Date(item.dueAt).getTime();
 			return time <= dueSoonThreshold && time >= Date.now() && item.status !== "completed";
@@ -382,22 +392,32 @@ export async function getWorkflowDashboard(
 }
 
 export async function listPortalWorkflowItems(
+	scope: WorkflowViewerScope,
 	options: { portalRole?: string; limit?: number } = {}
 ): Promise<WorkflowInstanceRow[]> {
+	assertWorkflowViewerScope(scope);
+	const conditions = [inArray(workflowInstances.visibility, ["portal", "external"])];
+	const scopeCondition = await getWorkflowScopeCondition(scope);
+	if (scopeCondition) {
+		conditions.push(scopeCondition);
+	}
 	const rows = await db
 		.select()
 		.from(workflowInstances)
-		.where(inArray(workflowInstances.visibility, ["portal", "external"]))
-		.orderBy(asc(workflowInstances.dueAt), desc(workflowInstances.updatedAt))
-		.limit(options.limit ?? 50);
-
-	if (!options.portalRole) return rows;
+		.where(and(...conditions))
+		.orderBy(asc(workflowInstances.dueAt), desc(workflowInstances.updatedAt));
 
 	return rows.filter((row) => {
 		const visibility = row.portalVisibility;
-		return visibility?.visibleToPortal !== false
-			&& (!visibility?.portalRole || visibility.portalRole === options.portalRole);
-	});
+		if (visibility?.visibleToPortal !== true) return false;
+		if (visibility.portalRole && !scope.isGlobalWorkflowViewer && !scope.portalRoles.includes(visibility.portalRole)) {
+			return false;
+		}
+		if (options.portalRole && scope.isGlobalWorkflowViewer) {
+			return visibility.portalRole === options.portalRole;
+		}
+		return true;
+	}).slice(0, options.limit ?? 50);
 }
 
 export async function assertWorkflowAuthority(input: {
@@ -414,7 +434,10 @@ export async function assertWorkflowAuthority(input: {
 	const actorRoles = new Set(input.actorRoles ?? []);
 	const hasRole = (policy.requiredRoles ?? []).some((role) => actorRoles.has(role));
 	if (policy.requiredRoles?.length && !hasRole) {
-		throw new Error(`Workflow authority denied${input.action ? ` for ${input.action}` : ""}: requires ${policy.requiredRoles.join(" or ")}`);
+		throw new WorkflowAuthorityDeniedError({
+			action: input.action,
+			requiredRoles: policy.requiredRoles,
+		});
 	}
 }
 
@@ -425,9 +448,15 @@ export async function reverseWorkflowRuntimeState(input: {
 	actorName?: string;
 	reason: string;
 	targetState?: string;
+	visibility?: "internal" | "portal" | "external";
+	portalVisibility?: WorkflowPortalVisibility | null;
 	evidenceLinks?: string[];
 	metadata?: Record<string, unknown>;
+	authorityChecked: true;
 }): Promise<WorkflowInstanceRow> {
+	if (input.authorityChecked !== true) {
+		throw new Error("Workflow reversal requires prior authority verification");
+	}
 	const reason = input.reason.trim();
 	if (!reason) {
 		throw new Error("Workflow reversal requires a reason");
@@ -468,6 +497,8 @@ export async function reverseWorkflowRuntimeState(input: {
 		.set({
 			state: toState,
 			status,
+			visibility: input.visibility ?? instance.visibility,
+			portalVisibility: input.portalVisibility === undefined ? instance.portalVisibility : input.portalVisibility,
 			metadata,
 			completedAt: status === "completed" || status === "cancelled" ? now : null,
 			updatedAt: now,
@@ -500,6 +531,45 @@ export async function reverseWorkflowRuntimeState(input: {
 	}
 
 	return updated;
+}
+
+function assertWorkflowViewerScope(scope: WorkflowViewerScope | null | undefined): asserts scope is WorkflowViewerScope {
+	if (!scope?.userId) {
+		throw new Error("Workflow viewer scope is required");
+	}
+}
+
+async function getWorkflowScopeCondition(scope: WorkflowViewerScope, opportunityId?: string) {
+	if (scope.isGlobalWorkflowViewer) return null;
+	const assignedOpportunityIds = await getAssignedOpportunityIdsForScope(scope.userId, opportunityId);
+	const actorCondition = sql`coalesce(${workflowInstances.authorityPolicy}, '{}'::jsonb) @> ${JSON.stringify({ allowedActorIds: [scope.userId] })}::jsonb`;
+	const conditions = [
+		eq(workflowInstances.assignedTo, scope.userId),
+		actorCondition,
+	];
+	if (assignedOpportunityIds.length) {
+		conditions.push(inArray(workflowInstances.opportunityId, assignedOpportunityIds));
+		const subjectOpportunityCondition = and(
+			eq(workflowInstances.subjectType, "opportunity"),
+			inArray(workflowInstances.subjectId, assignedOpportunityIds)
+		);
+		if (subjectOpportunityCondition) {
+			conditions.push(subjectOpportunityCondition);
+		}
+	}
+	return or(...conditions);
+}
+
+async function getAssignedOpportunityIdsForScope(userId: string, opportunityId?: string): Promise<string[]> {
+	const conditions = [eq(opportunities.assignedTo, userId)];
+	if (opportunityId && isUuid(opportunityId)) {
+		conditions.push(eq(opportunities.id, opportunityId));
+	}
+	const rows = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(and(...conditions));
+	return rows.map((row) => row.id);
 }
 
 export async function createWorkflowTemplateDraft(
@@ -595,6 +665,87 @@ export async function publishWorkflowTemplate(
 	return updated;
 }
 
+export async function deprecateWorkflowTemplate(
+	templateId: string,
+	actorId: string
+): Promise<WorkflowTemplateRow> {
+	const [updated] = await db
+		.update(workflowTemplates)
+		.set({
+			status: "deprecated",
+			deprecatedAt: new Date(),
+			deprecatedBy: actorId,
+			updatedAt: new Date(),
+		})
+		.where(eq(workflowTemplates.id, templateId))
+		.returning();
+	if (!updated) {
+		throw new Error("Workflow template not found");
+	}
+	return updated;
+}
+
+export async function rollbackWorkflowTemplate(
+	input: {
+		templateKey: string;
+		targetVersion: number;
+		actorId: string;
+	}
+): Promise<WorkflowTemplateRow> {
+	const [target] = await db
+		.select()
+		.from(workflowTemplates)
+		.where(and(
+			eq(workflowTemplates.templateKey, input.templateKey),
+			eq(workflowTemplates.version, input.targetVersion)
+		))
+		.limit(1);
+	if (!target) {
+		throw new Error(`Workflow template ${input.templateKey} v${input.targetVersion} was not found`);
+	}
+	const simulation = simulateWorkflowTemplate(target);
+	if (!simulation.valid) {
+		throw new Error(`Workflow template rollback target is invalid: ${simulation.errors.join("; ")}`);
+	}
+
+	await db
+		.update(workflowTemplates)
+		.set({
+			status: "deprecated",
+			deprecatedAt: new Date(),
+			deprecatedBy: input.actorId,
+			updatedAt: new Date(),
+		})
+		.where(and(
+			eq(workflowTemplates.templateKey, input.templateKey),
+			eq(workflowTemplates.status, "active")
+		));
+
+	const [updated] = await db
+		.update(workflowTemplates)
+		.set({
+			status: "active",
+			publishedAt: new Date(),
+			publishedBy: input.actorId,
+			metadata: {
+				...(isRecord(target.metadata) ? target.metadata : {}),
+				rollback: {
+					rolledBackBy: input.actorId,
+					rolledBackAt: new Date().toISOString(),
+					targetVersion: input.targetVersion,
+				},
+				simulation,
+			},
+			updatedAt: new Date(),
+		})
+		.where(eq(workflowTemplates.id, target.id))
+		.returning();
+	if (!updated) {
+		throw new Error("Failed to rollback workflow template");
+	}
+	return updated;
+}
+
 export async function listWorkflowTemplates(filters: {
 	status?: string;
 	subjectType?: string;
@@ -614,7 +765,12 @@ export async function listWorkflowTemplates(filters: {
 export async function deliverWorkflowNotifications(options: {
 	limit?: number;
 	now?: Date;
+	notificationIds?: string[];
 } = {}): Promise<{ attempted: number; delivered: number; failed: number; skipped: number }> {
+	const conditions = [eq(workflowNotifications.deliveryStatus, "queued")];
+	if (options.notificationIds?.length) {
+		conditions.push(inArray(workflowNotifications.id, options.notificationIds));
+	}
 	const rows = await db
 		.select({
 			notification: workflowNotifications,
@@ -624,16 +780,22 @@ export async function deliverWorkflowNotifications(options: {
 		.from(workflowNotifications)
 		.innerJoin(workflowInstances, eq(workflowNotifications.workflowInstanceId, workflowInstances.id))
 		.innerJoin(user, eq(workflowNotifications.recipientId, user.id))
-		.where(eq(workflowNotifications.deliveryStatus, "queued"))
+		.where(and(...conditions))
 		.orderBy(asc(workflowNotifications.createdAt))
 		.limit(options.limit ?? 50);
 
 	let delivered = 0;
 	let failed = 0;
 	let skipped = 0;
+	const now = options.now ?? new Date();
 	for (const row of rows) {
 		if (row.notification.channel !== "email") {
 			skipped += 1;
+			continue;
+		}
+		if (isWithinNotificationQuietHours(row.recipient.preferences, now)) {
+			skipped += 1;
+			await markNotificationDeferredForQuietHours(row.notification, now);
 			continue;
 		}
 		if (!row.recipient.email) {
@@ -654,7 +816,7 @@ export async function deliverWorkflowNotifications(options: {
 				.update(workflowNotifications)
 				.set({
 					deliveryStatus: "delivered",
-					deliveredAt: options.now ?? new Date(),
+					deliveredAt: now,
 				})
 				.where(eq(workflowNotifications.id, row.notification.id));
 		} catch (error) {
@@ -664,6 +826,24 @@ export async function deliverWorkflowNotifications(options: {
 	}
 
 	return { attempted: rows.length, delivered, failed, skipped };
+}
+
+async function markNotificationDeferredForQuietHours(
+	notification: WorkflowNotificationRow,
+	now: Date
+) {
+	await db
+		.update(workflowNotifications)
+		.set({
+			metadata: {
+				...(isRecord(notification.metadata) ? notification.metadata : {}),
+				quietHoursDeferred: {
+					deferredAt: now.toISOString(),
+					reason: "Recipient notification quiet hours are active",
+				},
+			},
+		})
+		.where(eq(workflowNotifications.id, notification.id));
 }
 
 async function findWorkflowInstance(
@@ -713,6 +893,28 @@ async function markNotificationFailed(notificationId: string, error: string) {
 		.where(eq(workflowNotifications.id, notificationId));
 }
 
+function isWithinNotificationQuietHours(preferences: unknown, now: Date): boolean {
+	const notifications = isRecord(preferences) ? preferences.notifications : null;
+	const quietHours = isRecord(notifications) ? notifications.quietHours : null;
+	if (!isRecord(quietHours) || quietHours.enabled !== true) return false;
+	const start = parseTimeOfDayMinutes(quietHours.start);
+	const end = parseTimeOfDayMinutes(quietHours.end);
+	if (start === null || end === null || start === end) return false;
+	const current = now.getUTCHours() * 60 + now.getUTCMinutes();
+	if (start < end) return current >= start && current < end;
+	return current >= start || current < end;
+}
+
+function parseTimeOfDayMinutes(value: unknown): number | null {
+	if (typeof value !== "string") return null;
+	const match = /^(\d{2}):(\d{2})$/.exec(value);
+	if (!match) return null;
+	const hours = Number(match[1]);
+	const minutes = Number(match[2]);
+	if (hours > 23 || minutes > 59) return null;
+	return hours * 60 + minutes;
+}
+
 async function sendStalwartEmail(input: {
 	to: string;
 	toName?: string;
@@ -745,11 +947,15 @@ function getStalwartSmtpConfig() {
 	const host = process.env.STALWART_SMTP_HOST ?? process.env.SMTP_HOST ?? "mail.lindela.io";
 	const port = Number(process.env.STALWART_SMTP_PORT ?? process.env.SMTP_PORT ?? 587);
 	const username = process.env.STALWART_SMTP_USER ?? process.env.SMTP_USER;
-	const password = process.env.STALWART_SMTP_PASSWORD ?? process.env.SMTP_PASSWORD;
+	const password = process.env.STALWART_SMTP_PASSWORD ?? process.env.SMTP_PASSWORD ?? process.env.SMTP_PASS;
 	const from = process.env.WORKFLOW_EMAIL_FROM ?? process.env.SMTP_FROM ?? "alerts@lindela.io";
 	if (!username || !password) {
 		throw new Error("Stalwart SMTP credentials are not configured");
 	}
+	const secureSetting = process.env.STALWART_SMTP_SECURE
+		?? process.env.SMTP_SECURE
+		?? process.env.SMTP_USE_TLS
+		?? "false";
 	return {
 		host,
 		port,
@@ -757,7 +963,7 @@ function getStalwartSmtpConfig() {
 		password,
 		from,
 		fromName: process.env.WORKFLOW_EMAIL_FROM_NAME ?? "DocFusion Workflows",
-		secure: String(process.env.STALWART_SMTP_SECURE ?? process.env.SMTP_SECURE ?? "false") === "true" || port === 465,
+		secure: String(secureSetting) === "true" || port === 465,
 	};
 }
 
@@ -771,25 +977,40 @@ async function smtpSend(input: {
 	to: string;
 	message: string;
 }) {
+	const timeoutMs = Number(process.env.STALWART_SMTP_TIMEOUT_MS ?? process.env.SMTP_TIMEOUT_MS ?? 15_000);
 	let socket: net.Socket | tls.TLSSocket = input.secure
 		? tls.connect({ host: input.host, port: input.port, servername: input.host })
 		: net.connect({ host: input.host, port: input.port });
+	socket.on("error", () => undefined);
 	let buffer = "";
 	const read = () => new Promise<string>((resolve, reject) => {
+		const timer = setTimeout(() => {
+			cleanup();
+			socket.destroy();
+			reject(new Error(`SMTP response timed out after ${timeoutMs}ms`));
+		}, timeoutMs);
+		const cleanup = () => {
+			clearTimeout(timer);
+			socket.off("data", onData);
+			socket.off("error", onError);
+		};
+		const onError = (error: Error) => {
+			cleanup();
+			reject(error);
+		};
 		const onData = (chunk: Buffer) => {
 			buffer += chunk.toString("utf8");
 			const lines = buffer.split(/\r?\n/);
 			const last = lines[lines.length - 2] ?? "";
 			if (/^\d{3}\s/.test(last)) {
-				socket.off("data", onData);
-				socket.off("error", reject);
+				cleanup();
 				const response = buffer;
 				buffer = "";
 				resolve(response);
 			}
 		};
 		socket.on("data", onData);
-		socket.once("error", reject);
+		socket.once("error", onError);
 	});
 	const write = async (command: string, expected: number[]) => {
 		socket.write(`${command}\r\n`);
@@ -805,6 +1026,7 @@ async function smtpSend(input: {
 	if (!input.secure) {
 		await write("STARTTLS", [220]);
 		const secureSocket = tls.connect({ socket, servername: input.host });
+		secureSocket.on("error", () => undefined);
 		await waitForSecureConnect(secureSocket);
 		socket = secureSocket;
 		buffer = "";
@@ -886,4 +1108,8 @@ function getEscalationRole(policy: unknown): string | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isUuid(value: string): boolean {
+	return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }

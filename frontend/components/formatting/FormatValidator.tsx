@@ -224,7 +224,10 @@ function IssueItem({ issue, showDetails, onClick, onAutoFix, isFixing }: IssueIt
 				onClick && "cursor-pointer hover:bg-accent/50"
 			)}
 			onClick={onClick}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			<div className="flex items-start gap-3">
 				<div className={cn("mt-0.5", config.color)}>
 					<Icon className="h-5 w-5" />

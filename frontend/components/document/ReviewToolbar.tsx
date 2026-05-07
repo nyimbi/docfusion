@@ -352,9 +352,9 @@ export function ReviewToolbar({
 
 								{/* Quick responses */}
 								<div>
-									<label className="text-xs font-medium text-gray-500 mb-2 block">
+									<span className="text-xs font-medium text-gray-500 mb-2 block">
 										Quick responses
-									</label>
+									</span>
 									<div className="flex flex-wrap gap-2">
 										{quickResponses[selectedAction]?.map((response, index) => (
 											<QuickResponseButton
@@ -369,14 +369,14 @@ export function ReviewToolbar({
 								{/* Rejection reason (only for reject) */}
 								{selectedAction === "reject" && (
 									<div>
-										<label className="text-sm font-medium text-gray-700 mb-2 block">
+										<span className="text-sm font-medium text-gray-700 mb-2 block">
 											Rejection Category
-										</label>
+										</span>
 										<select
 											value={rejectionReason}
 											onChange={(e) => setRejectionReason(e.target.value)}
 											className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-										>
+										 aria-label="Rejection Category">
 											<option value="">Select a reason...</option>
 											<option value="Does not meet requirements">
 												Does not meet requirements

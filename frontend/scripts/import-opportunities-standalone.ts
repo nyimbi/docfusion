@@ -6,13 +6,16 @@
  */
 
 import { Pool } from "pg";
-import * as XLSX from "xlsx";
+import * as XLSX from "./lib/xlsx-reader";
 import * as fs from "fs";
 import * as path from "path";
 
 const OPPORTUNITIES_DIR = "/Users/nyimbiodero/src/pjs/work_docs/Business/Opportunities";
-const DATABASE_URL =
-	"postgresql://azureuser:Abcd1234.@lindela16.postgres.database.azure.com:5432/docfusion?sslmode=require";
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+	throw new Error("DATABASE_URL is required to import opportunities");
+}
 
 // Database connection
 const pool = new Pool({
@@ -197,10 +200,7 @@ async function importFile(
 	console.log(`\nProcessing: ${filename} (format: ${format})`);
 
 	// Read Excel file
-	const workbook = XLSX.read(fs.readFileSync(filePath), {
-		type: "buffer",
-		cellDates: true,
-	});
+	const workbook = XLSX.readFile(filePath);
 
 	// Find the data sheet (first non-summary sheet)
 	const dataSheet = workbook.SheetNames.find(

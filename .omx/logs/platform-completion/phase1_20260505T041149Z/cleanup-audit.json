@@ -1,0 +1,10 @@
+{
+  "runId": "phase1_20260505T041149Z",
+  "checkedAt": "2026-05-05T04:13:00Z",
+  "cleanup": {
+    "workflowInstances": 0,
+    "rfpDocuments": "deleted-by-run-id",
+    "workflowTemplates": "deleted-by-run-id",
+    "users": "deleted-by-run-id"
+  }
+}

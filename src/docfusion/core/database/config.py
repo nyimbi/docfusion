@@ -58,7 +58,10 @@ class DatabaseConfig(BaseModel):
 	
 	# Connection settings
 	connection_url: str = Field(
-		default="postgresql://azureuser:Abcd1234.@db.lindela.io:5432/docfusion",
+		default_factory=lambda: os.getenv(
+			"DATABASE_URL",
+			"postgresql://postgres@localhost:5432/docfusion",
+		),
 		description="PostgreSQL connection URL"
 	)
 	
@@ -260,7 +263,10 @@ def reset_database_config() -> None:
 def create_development_config() -> DatabaseConfig:
 	"""Create development environment database configuration."""
 	return DatabaseConfig(
-		connection_url="postgresql://azureuser:Abcd1234.@db.lindela.io:5432/docfusion",
+		connection_url=os.getenv(
+			"DATABASE_URL",
+			"postgresql://postgres@localhost:5432/docfusion",
+		),
 		pool_size=5,
 		max_overflow=10,
 		echo_sql=True,
@@ -272,7 +278,10 @@ def create_development_config() -> DatabaseConfig:
 def create_testing_config() -> DatabaseConfig:
 	"""Create testing environment database configuration."""
 	return DatabaseConfig(
-		connection_url="postgresql://azureuser:Abcd1234.@db.lindela.io:5432/docfusion_test",
+		connection_url=os.getenv(
+			"TEST_DATABASE_URL",
+			"postgresql://postgres@localhost:5432/docfusion_test",
+		),
 		pool_size=3,
 		max_overflow=5,
 		echo_sql=False,
@@ -283,8 +292,11 @@ def create_testing_config() -> DatabaseConfig:
 
 def create_production_config() -> DatabaseConfig:
 	"""Create production environment database configuration."""
+	if not os.getenv("DATABASE_URL"):
+		raise ValueError("DATABASE_URL is required for production database configuration")
+
 	return DatabaseConfig(
-		connection_url="postgresql://azureuser:Abcd1234.@db.lindela.io:5432/docfusion",
+		connection_url=os.environ["DATABASE_URL"],
 		pool_size=20,
 		max_overflow=40,
 		pool_timeout=60,

@@ -319,7 +319,10 @@ function CategoryScoreCard({
 				onClick && "cursor-pointer hover:bg-accent/50"
 			)}
 			onClick={onClick}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			<div className="flex items-center gap-2 mb-2">
 				<Icon className="h-4 w-4 text-muted-foreground" />
 				<span className="text-sm font-medium">{config.label}</span>
@@ -358,7 +361,10 @@ function IssueItem({ issue, onClick }: IssueItemProps) {
 				onClick && "cursor-pointer hover:bg-accent/50"
 			)}
 			onClick={onClick}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			<div className="flex items-start gap-3">
 				<div className={cn("mt-0.5", impactConfig.color)}>
 					<ImpactIcon className="h-5 w-5" />

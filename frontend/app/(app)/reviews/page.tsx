@@ -1025,20 +1025,20 @@ function CommentEditForm({
 	return (
 		<div className="space-y-4">
 			<div>
-				<label className="text-sm font-medium block mb-1">Comment</label>
+				<span className="text-sm font-medium block mb-1">Comment</span>
 				<textarea
 					value={text}
 					onChange={(e) => setText(e.target.value)}
 					className="w-full min-h-[120px] p-3 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
 					placeholder="Enter comment text..."
-				/>
+				 aria-label="Comment"/>
 			</div>
 
 			<div className="grid grid-cols-2 gap-4">
 				<div>
-					<label className="text-sm font-medium block mb-1">Severity</label>
+					<span className="text-sm font-medium block mb-1">Severity</span>
 					<Select value={severity} onValueChange={setSeverity}>
-						<SelectTrigger>
+						<SelectTrigger aria-label="Severity">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -1050,9 +1050,9 @@ function CommentEditForm({
 					</Select>
 				</div>
 				<div>
-					<label className="text-sm font-medium block mb-1">Category</label>
+					<span className="text-sm font-medium block mb-1">Category</span>
 					<Select value={category} onValueChange={setCategory}>
-						<SelectTrigger>
+						<SelectTrigger aria-label="Category">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -1068,14 +1068,14 @@ function CommentEditForm({
 			</div>
 
 			<div>
-				<label className="text-sm font-medium block mb-1">Tags (comma-separated)</label>
+				<span className="text-sm font-medium block mb-1">Tags (comma-separated)</span>
 				<input
 					type="text"
 					value={tagsInput}
 					onChange={(e) => setTagsInput(e.target.value)}
 					className="w-full p-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
 					placeholder="e.g., pricing, scope, team"
-				/>
+				 aria-label="Tags (comma-separated)"/>
 			</div>
 
 			<div className="flex items-center justify-end gap-2 pt-4 border-t">

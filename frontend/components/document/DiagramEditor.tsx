@@ -585,7 +585,35 @@ function DiagramEditorContent({
 					{/* SVG Preview */}
 					<div
 						ref={svgContainerRef}
+						role="button"
+						tabIndex={0}
+						aria-label="Interactive diagram preview"
 						className="flex-1 overflow-hidden bg-muted/30 relative cursor-grab active:cursor-grabbing"
+						onKeyDown={(event) => {
+							const panStep = 24;
+							if (event.key === "ArrowUp") {
+								event.preventDefault();
+								setViewTransform((prev) => ({ ...prev, translateY: prev.translateY + panStep }));
+							} else if (event.key === "ArrowDown") {
+								event.preventDefault();
+								setViewTransform((prev) => ({ ...prev, translateY: prev.translateY - panStep }));
+							} else if (event.key === "ArrowLeft") {
+								event.preventDefault();
+								setViewTransform((prev) => ({ ...prev, translateX: prev.translateX + panStep }));
+							} else if (event.key === "ArrowRight") {
+								event.preventDefault();
+								setViewTransform((prev) => ({ ...prev, translateX: prev.translateX - panStep }));
+							} else if (event.key === "+" || event.key === "=") {
+								event.preventDefault();
+								handleZoomIn();
+							} else if (event.key === "-") {
+								event.preventDefault();
+								handleZoomOut();
+							} else if (event.key === "0") {
+								event.preventDefault();
+								handleZoomReset();
+							}
+						}}
 						onMouseDown={handleMouseDown}
 						onMouseUp={handleMouseUp}
 						onMouseLeave={handleMouseUp}

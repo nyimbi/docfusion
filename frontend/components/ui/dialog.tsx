@@ -246,7 +246,6 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
 						"sm:rounded-lg",
 						className
 					)}
-					onClick={(e) => e.stopPropagation()}
 					{...props}
 					>
 						{children}
@@ -299,7 +298,7 @@ DialogFooter.displayName = "DialogFooter";
 const DialogTitle = React.forwardRef<
 	HTMLHeadingElement,
 	React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => {
+>(({ className, children, ...props }, ref) => {
 	const ariaContext = useDialogAriaContext();
 	return (
 		<h2
@@ -310,7 +309,9 @@ const DialogTitle = React.forwardRef<
 				className
 			)}
 			{...props}
-		/>
+		>
+			{children}
+		</h2>
 	);
 });
 DialogTitle.displayName = "DialogTitle";

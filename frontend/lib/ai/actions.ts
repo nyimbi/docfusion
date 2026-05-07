@@ -8,7 +8,6 @@
 
 import { logger } from "@/lib/utils/logger";
 import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import {
 	getAISettingsManager,
 	initializeAI,
@@ -28,7 +27,7 @@ export async function loadAISettings(): Promise<{
 	error?: string;
 }> {
 	try {
-		const session = await auth.api.getSession({ headers: await headers() });
+		const session = await auth();
 		if (!session?.user) {
 			return { success: false, error: "Not authenticated" };
 		}
@@ -59,7 +58,7 @@ export async function saveAISettings(
 	error?: string;
 }> {
 	try {
-		const session = await auth.api.getSession({ headers: await headers() });
+		const session = await auth();
 		if (!session?.user) {
 			return { success: false, error: "Not authenticated" };
 		}
@@ -103,7 +102,7 @@ export async function testAIConnections(): Promise<{
 	error?: string;
 }> {
 	try {
-		const session = await auth.api.getSession({ headers: await headers() });
+		const session = await auth();
 		if (!session?.user) {
 			return { success: false, error: "Not authenticated" };
 		}
@@ -193,7 +192,7 @@ export async function listAvailableAIModels(): Promise<{
 	error?: string;
 }> {
 	try {
-		const session = await auth.api.getSession({ headers: await headers() });
+		const session = await auth();
 		if (!session?.user) {
 			return { success: false, error: "Not authenticated" };
 		}

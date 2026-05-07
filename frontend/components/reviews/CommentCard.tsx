@@ -307,7 +307,10 @@ export function CommentCard({
 					className
 				)}
 				onClick={handleClick}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				<div className={cn("p-1.5 rounded", typeConfig.bgColor)}>
 					<TypeIcon className={cn("h-4 w-4", typeConfig.color)} />
 				</div>
@@ -461,7 +464,10 @@ export function CommentCard({
 							e.stopPropagation();
 							onNavigateToLocation?.(comment);
 						}}
-					>
+
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 						<Link2 className="h-3 w-3" />
 						{comment.sectionName && <span>{comment.sectionName}</span>}
 						{comment.pageNumber && (

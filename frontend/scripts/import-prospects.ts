@@ -25,7 +25,7 @@
  *   --sheet=NAME Import from a specific sheet (default: "All Prospects")
  */
 
-import * as XLSX from "xlsx";
+import * as XLSX from "./lib/xlsx-reader";
 import * as fs from "fs";
 import { db } from "../lib/db";
 import { accounts, type NewAccount } from "../lib/db/schema-crm";

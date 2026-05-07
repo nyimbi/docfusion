@@ -357,7 +357,10 @@ function SensitivityBar({
 				onClick && "cursor-pointer"
 			)}
 			onClick={onClick}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			{/* Header Row */}
 			<div className="flex items-center justify-between mb-2">
 				<div className="flex items-center gap-2">

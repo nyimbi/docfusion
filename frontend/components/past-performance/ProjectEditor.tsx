@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
 	Card,
 	CardContent,
@@ -392,13 +392,13 @@ export function ProjectEditor({
 	);
 
 	// CPAR ratings helpers
-	const cparRatings = (formData.cparRatings || {
+	const cparRatings = useMemo(() => (formData.cparRatings || {
 		quality: 3,
 		schedule: 3,
 		cost: 3,
 		management: 3,
 		overall: 3,
-	}) as CPARRatings;
+	}) as CPARRatings, [formData.cparRatings]);
 
 	const updateCPARRating = useCallback(
 		(field: keyof CPARRatings, value: number) => {

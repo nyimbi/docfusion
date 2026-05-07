@@ -7,7 +7,7 @@
 /**
  * Supported AI providers.
  */
-export type AIProviderType = "azure-openai" | "ollama" | "openai";
+export type AIProviderType = "litellm" | "azure-openai" | "ollama" | "openai";
 
 /**
  * Available models by provider.
@@ -120,6 +120,13 @@ export interface AIProvider {
  * Provider configuration from environment.
  */
 export interface AIProviderConfig {
+	litellm?: {
+		baseUrl: string;
+		apiKey: string;
+		defaultModel: string;
+		fastModel?: string;
+		embeddingModel?: string;
+	};
 	azure?: {
 		apiKey: string;
 		endpoint: string;

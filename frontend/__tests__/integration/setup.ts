@@ -8,7 +8,7 @@
 import { vi, beforeAll, afterAll } from "vitest";
 
 // Set test environment flag
-process.env.NODE_ENV = "test";
+Object.assign(process.env, { NODE_ENV: "test" });
 
 // Mock console methods for cleaner test output (optional)
 beforeAll(() => {

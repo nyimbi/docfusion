@@ -137,7 +137,10 @@ function SearchResult({ result, onSelect }: SearchResultProps) {
 		<div
 			className="p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
 			onClick={onSelect}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			<div className="flex items-start justify-between gap-2 mb-2">
 				<div className="flex items-center gap-2 flex-1 min-w-0">
 					<TypeIcon className="h-4 w-4 text-muted-foreground shrink-0" />

@@ -744,3 +744,9 @@ temp/
 !frontend/lib/
 .superpowers/
 .omc/
+
+# OMX runtime noise. Durable plans/context snapshots are committed selectively.
+.omx/metrics.json
+.omx/tmux-hook.json
+.omx/state/*.json
+.serena/

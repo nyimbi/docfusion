@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { scraperSources } from "@/lib/db/schema";
+import { isControlPlaneResponse, requireControlPlaneAdmin } from "@/lib/auth/control-plane";
 import { asc, eq } from "drizzle-orm";
 
 interface SourceHealthWithTier {
@@ -34,6 +35,12 @@ interface SourceHealthWithTier {
 
 export async function GET(request: NextRequest) {
 	try {
+		const authz = await requireControlPlaneAdmin(request, {
+			allowedRoles: ["admin", "operations"],
+			allowApiKeyEnv: "SCRAPER_API_KEY",
+		});
+		if (isControlPlaneResponse(authz)) return authz;
+
 		// Fetch all sources with their tier information
 		const sources = await db
 			.select({

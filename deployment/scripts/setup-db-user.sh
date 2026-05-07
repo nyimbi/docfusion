@@ -6,12 +6,14 @@
 
 set -e
 
+: "${DOCFUSION_DB_PASSWORD:?DOCFUSION_DB_PASSWORD is required}"
+
 echo "Creating docfusion database user..."
 
 # Connect to PostgreSQL as postgres user
-sudo -u postgres psql << 'EOF'
+sudo -u postgres psql -v docfusion_password="$DOCFUSION_DB_PASSWORD" << 'EOF'
 -- Create docfusion user with password
-CREATE USER docfusion WITH PASSWORD 'docfusion123' SUPERUSER CREATEDB CREATEROLE;
+CREATE USER docfusion WITH PASSWORD :'docfusion_password' SUPERUSER CREATEDB CREATEROLE;
 
 -- Grant database access
 GRANT ALL PRIVILEGES ON DATABASE docfusion TO docfusion;
@@ -36,7 +38,7 @@ EOF
 echo "✓ DocFusion user created successfully"
 echo ""
 echo "Connection string:"
-echo "  postgresql://docfusion:docfusion123@db.lindela.io/docfusion"
+echo "  postgresql://docfusion:<password>@db.lindela.io/docfusion"
 echo ""
 echo "Update .env file with:"
-echo "  DATABASE_URL=postgresql://docfusion:docfusion123@db.lindela.io/docfusion"
+echo "  DATABASE_URL=postgresql://docfusion:<password>@db.lindela.io/docfusion"

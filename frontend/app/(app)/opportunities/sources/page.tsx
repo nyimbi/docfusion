@@ -14,16 +14,18 @@ import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
-	getScraperSources,
 	getSourcesStats,
 	getScheduleTiers,
-	toggleSourceEnabled,
 	getPaginatedScraperSources,
 	type ScraperSource,
 	type ScraperSchedule,
 	type SourceStats,
-	type PaginatedSources,
 } from "@/lib/actions/scraper-sources";
+import {
+	startScraperSourceRunWorkflow,
+	startSelectedScraperSourceRunsWorkflow,
+	transitionScraperSourceEnabledWorkflow,
+} from "@/lib/actions/scraper-workflows";
 import { Button } from "@/components/ui/Button";
 import {
 	ArrowLeft,
@@ -188,13 +190,19 @@ export default function ScraperSourcesPage() {
 			loadData(1);
 		}, 300);
 		return () => clearTimeout(timer);
-	}, [searchTerm]);
+	}, [loadData, searchTerm]);
 
 	// Handle toggle enabled
 	const handleToggleEnabled = async (id: string, currentEnabled: boolean) => {
 		setTogglingId(id);
 		try {
-			const result = await toggleSourceEnabled(id, !currentEnabled);
+			const result = await transitionScraperSourceEnabledWorkflow(
+				id,
+				!currentEnabled,
+				currentEnabled
+					? "Operator disabled source from the source management table."
+					: "Operator enabled source from the source management table."
+			);
 			if (result.success && result.source) {
 				setSources((prev) =>
 					prev.map((s) => (s.id === id ? result.source! : s))
@@ -210,15 +218,12 @@ export default function ScraperSourcesPage() {
 	// Handle run single source
 	const handleRunSource = async (source: ScraperSource) => {
 		try {
-			const response = await fetch("/api/scrapers/run", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ sourceId: source.id }),
+			const result = await startScraperSourceRunWorkflow(source.id, {
+				reason: "Operator queued source from the source management table.",
 			});
-			const data = await response.json();
 
-			if (data.success && data.jobId) {
-				setRunningJobs((prev) => new Map(prev).set(source.id, data.jobId));
+			if (result.success && result.jobId) {
+				setRunningJobs((prev) => new Map(prev).set(source.id, result.jobId!));
 				setShowProgress(true);
 			}
 		} catch (error) {
@@ -255,17 +260,52 @@ export default function ScraperSourcesPage() {
 
 		setIsBulkOperating(true);
 		try {
-			const response = await fetch("/api/scrapers/batch", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					operation,
-					sourceIds: Array.from(selectedIds),
-				}),
-			});
-			const data = await response.json();
+			let data: {
+				success: boolean;
+				results?: Array<{ sourceId: string; success: boolean; jobId?: string; error?: string }>;
+				summary?: { succeeded: number; failed: number };
+			};
+			const selectedSourceIds = Array.from(selectedIds);
 
-			if (data.success || data.summary?.succeeded > 0) {
+			if (operation === "run") {
+				data = await startSelectedScraperSourceRunsWorkflow(selectedSourceIds, {
+					reason: "Operator queued selected sources from the source management table.",
+				});
+			} else if (operation === "enable" || operation === "disable") {
+				const enabled = operation === "enable";
+				const results = [];
+				for (const sourceId of selectedSourceIds) {
+					const result = await transitionScraperSourceEnabledWorkflow(
+						sourceId,
+						enabled,
+						enabled
+							? "Bulk enable requested from the source management table."
+							: "Bulk disable requested from the source management table."
+					);
+					results.push({ sourceId, success: result.success, error: result.error });
+				}
+				const succeeded = results.filter((result) => result.success).length;
+				data = {
+					success: succeeded === results.length,
+					results,
+					summary: {
+						succeeded,
+						failed: results.length - succeeded,
+					},
+				};
+			} else {
+				const response = await fetch("/api/scrapers/batch", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						operation,
+						sourceIds: selectedSourceIds,
+					}),
+				});
+				data = await response.json();
+			}
+
+			if (data.success || (data.summary?.succeeded ?? 0) > 0) {
 				// Reload data
 				await loadData(pagination.page);
 				setSelectedIds(new Set());

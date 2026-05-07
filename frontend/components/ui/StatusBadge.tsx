@@ -308,7 +308,8 @@ export const StatusBadge = React.forwardRef<HTMLSpanElement, StatusBadgeProps>(
 			role={interactive ? "button" : "status"}
 			tabIndex={interactive ? 0 : undefined}
 			{...props}
-		>
+
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			{withDot && (
 				<span
 					className={cn("rounded-full", dotSize, config.dotColor)}

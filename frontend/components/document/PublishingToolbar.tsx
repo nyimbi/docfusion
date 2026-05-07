@@ -638,12 +638,12 @@ function BibliographyDialog({
           {/* Sidebar */}
           <div className="w-64 space-y-4">
             <div>
-              <label className="text-sm font-medium">Citation Style</label>
+              <span className="text-sm font-medium">Citation Style</span>
               <select 
                 className="w-full mt-1 p-2 rounded border"
                 value={publishing.activeStyle}
                 onChange={(e) => publishing.setActiveStyle(e.target.value as CitationStyle)}
-              >
+               aria-label="Citation Style">
                 {publishing.availableStyles.map(style => (
                   <option key={style} value={style}>{style.toUpperCase()}</option>
                 ))}
@@ -711,12 +711,12 @@ function LayoutSettingsDialog({
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium">Paper Size</label>
+              <span className="text-sm font-medium">Paper Size</span>
               <select 
                 className="w-full mt-1 p-2 rounded border"
                 value={layout.size}
                 onChange={(e) => onUpdate({ ...layout, size: e.target.value as PageSize })}
-              >
+               aria-label="Paper Size">
                 <option value="letter">Letter (8.5x11")</option>
                 <option value="legal">Legal (8.5x14")</option>
                 <option value="a4">A4 (210x297mm)</option>
@@ -725,12 +725,12 @@ function LayoutSettingsDialog({
             </div>
             
             <div>
-              <label className="text-sm font-medium">Orientation</label>
+              <span className="text-sm font-medium">Orientation</span>
               <select 
                 className="w-full mt-1 p-2 rounded border"
                 value={layout.orientation}
                 onChange={(e) => onUpdate({ ...layout, orientation: e.target.value as "portrait" | "landscape" })}
-              >
+               aria-label="Orientation">
                 <option value="portrait">Portrait</option>
                 <option value="landscape">Landscape</option>
               </select>
@@ -738,7 +738,7 @@ function LayoutSettingsDialog({
           </div>
           
           <div>
-            <label className="text-sm font-medium">Margins (mm)</label>
+            <span className="text-sm font-medium">Margins (mm)</span>
             <div className="grid grid-cols-4 gap-2 mt-1">
               {["top", "bottom", "left", "right"].map((edge) => (
                 <div key={edge}>
@@ -759,22 +759,22 @@ function LayoutSettingsDialog({
           
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium">Font Size (pt)</label>
+              <span className="text-sm font-medium">Font Size (pt)</span>
               <input
                 type="number"
                 className="w-full mt-1 p-2 rounded border"
                 value={layout.fontSize}
                 onChange={(e) => onUpdate({ ...layout, fontSize: parseFloat(e.target.value) })}
-              />
+               aria-label="Font Size (pt)"/>
             </div>
             
             <div>
-              <label className="text-sm font-medium">Font Family</label>
+              <span className="text-sm font-medium">Font Family</span>
               <select 
                 className="w-full mt-1 p-2 rounded border"
                 value={layout.fontFamily}
                 onChange={(e) => onUpdate({ ...layout, fontFamily: e.target.value })}
-              >
+               aria-label="Font Family">
                 <option value="Times New Roman">Times New Roman</option>
                 <option value="Arial">Arial</option>
                 <option value="Georgia">Georgia</option>

@@ -1,0 +1,178 @@
+[
+  {
+    "action": "retry",
+    "response": {
+      "parsingJobId": "6e8dd319-f774-4525-9494-1b30e24f5579",
+      "status": "queued",
+      "message": "Parsing retry queued successfully"
+    },
+    "documentStatus": "pending",
+    "parseWorkflow": {
+      "at": "2026-05-05T04:11:54.922Z",
+      "state": "queued",
+      "reason": "Phase 1 proof retry after failed OCR.",
+      "actorId": "phase1_20260505T041149Z_operator",
+      "attempt": 2,
+      "history": [
+        {
+          "at": "2026-05-05T04:11:51.898Z",
+          "to": "failed",
+          "from": "processing",
+          "error": "Phase 1 induced parse failure",
+          "jobId": "c7ec3287-d294-4539-bbc8-85c784367734",
+          "action": "failed",
+          "reason": "Phase 1 induced parse failure",
+          "actorId": "system"
+        },
+        {
+          "at": "2026-05-05T04:11:54.922Z",
+          "to": "queued",
+          "from": "failed",
+          "jobId": "6e8dd319-f774-4525-9494-1b30e24f5579",
+          "action": "retry",
+          "reason": "Phase 1 proof retry after failed OCR.",
+          "actorId": "phase1_20260505T041149Z_operator"
+        }
+      ],
+      "activeJobId": "6e8dd319-f774-4525-9494-1b30e24f5579"
+    },
+    "jobStatuses": [
+      {
+        "id": "c7ec3287-d294-4539-bbc8-85c784367734",
+        "status": "failed",
+        "step": "Extracting text",
+        "error": "Phase 1 induced parse failure"
+      },
+      {
+        "id": "6e8dd319-f774-4525-9494-1b30e24f5579",
+        "status": "queued",
+        "step": "Queued for retry",
+        "error": null
+      }
+    ],
+    "workflowInstances": [
+      {
+        "id": "d302b9e1-fe93-4493-aef6-bfa51483c2dc",
+        "state": "queued",
+        "status": "active"
+      }
+    ],
+    "auditEvents": [
+      "rfp_parse_retry"
+    ]
+  },
+  {
+    "action": "manual_extraction",
+    "response": {
+      "parsingJobId": "7e08781a-708d-480b-9b2d-13c60b0b18bd",
+      "status": "manual_extraction",
+      "message": "Parsing workflow manual_extraction recorded successfully"
+    },
+    "documentStatus": "failed",
+    "parseWorkflow": {
+      "at": "2026-05-05T04:11:58.021Z",
+      "state": "manual_extraction",
+      "reason": "Phase 1 proof manual extraction after unreadable source.",
+      "actorId": "phase1_20260505T041149Z_operator",
+      "attempt": 1,
+      "history": [
+        {
+          "at": "2026-05-05T04:11:56.536Z",
+          "to": "failed",
+          "from": "processing",
+          "error": "Phase 1 induced parse failure",
+          "jobId": "7e08781a-708d-480b-9b2d-13c60b0b18bd",
+          "action": "failed",
+          "reason": "Phase 1 induced parse failure",
+          "actorId": "system"
+        },
+        {
+          "at": "2026-05-05T04:11:58.021Z",
+          "to": "manual_extraction",
+          "from": "failed",
+          "error": "Phase 1 proof manual extraction after unreadable source.",
+          "jobId": "7e08781a-708d-480b-9b2d-13c60b0b18bd",
+          "action": "manual_extraction",
+          "reason": "Phase 1 proof manual extraction after unreadable source.",
+          "actorId": "phase1_20260505T041149Z_operator"
+        }
+      ],
+      "activeJobId": "7e08781a-708d-480b-9b2d-13c60b0b18bd"
+    },
+    "jobStatuses": [
+      {
+        "id": "7e08781a-708d-480b-9b2d-13c60b0b18bd",
+        "status": "failed",
+        "step": "Extracting text",
+        "error": "Phase 1 induced parse failure"
+      }
+    ],
+    "workflowInstances": [
+      {
+        "id": "a0ebd900-8a82-49d2-ac74-f9aebfd46cb3",
+        "state": "manual_extraction",
+        "status": "active"
+      }
+    ],
+    "auditEvents": [
+      "rfp_parse_manual_extraction"
+    ]
+  },
+  {
+    "action": "reject",
+    "response": {
+      "parsingJobId": "2982c339-acf2-4ee2-bcba-d5fffb0ed15c",
+      "status": "rejected",
+      "message": "Parsing workflow reject recorded successfully"
+    },
+    "documentStatus": "failed",
+    "parseWorkflow": {
+      "at": "2026-05-05T04:12:01.594Z",
+      "state": "rejected",
+      "reason": "Phase 1 proof rejection of duplicate failed parse.",
+      "actorId": "phase1_20260505T041149Z_operator",
+      "attempt": 1,
+      "history": [
+        {
+          "at": "2026-05-05T04:11:59.852Z",
+          "to": "failed",
+          "from": "processing",
+          "error": "Phase 1 induced parse failure",
+          "jobId": "2982c339-acf2-4ee2-bcba-d5fffb0ed15c",
+          "action": "failed",
+          "reason": "Phase 1 induced parse failure",
+          "actorId": "system"
+        },
+        {
+          "at": "2026-05-05T04:12:01.594Z",
+          "to": "rejected",
+          "from": "failed",
+          "error": "Phase 1 proof rejection of duplicate failed parse.",
+          "jobId": "2982c339-acf2-4ee2-bcba-d5fffb0ed15c",
+          "action": "reject",
+          "reason": "Phase 1 proof rejection of duplicate failed parse.",
+          "actorId": "phase1_20260505T041149Z_operator"
+        }
+      ],
+      "activeJobId": "2982c339-acf2-4ee2-bcba-d5fffb0ed15c"
+    },
+    "jobStatuses": [
+      {
+        "id": "2982c339-acf2-4ee2-bcba-d5fffb0ed15c",
+        "status": "failed",
+        "step": "Extracting text",
+        "error": "Phase 1 proof rejection of duplicate failed parse."
+      }
+    ],
+    "workflowInstances": [
+      {
+        "id": "83755aa5-a3a0-4c56-b9ed-54aa8ea688a1",
+        "state": "rejected",
+        "status": "completed"
+      }
+    ],
+    "auditEvents": [
+      "rfp_parse_reject"
+    ]
+  }
+]

@@ -167,7 +167,7 @@ export async function GET(
 			sourceSection: req.sourceSection,
 			category: (req.category ?? "other") as RequirementCategory,
 			subcategory: req.subcategory,
-			requirementType: req.requirementType,
+			requirementType: req.requirementType ?? "other",
 			priority: (req.priority ?? "medium") as RequirementPriority,
 			riskLevel: (req.riskLevel ?? "low") as RiskLevel,
 			evaluationWeight: req.evaluationWeight,

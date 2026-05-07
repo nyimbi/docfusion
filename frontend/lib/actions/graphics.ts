@@ -51,14 +51,11 @@ import {
 	getTemplateById as getDiagramLibTemplateById,
 } from "@/lib/diagrams";
 import {
-	detectDiagramFormat,
-	renderDiagram,
 	parseDiagram,
 	formatDiagram,
-	validateDiagram,
 	getDiagramStats,
-	diagramToSvg,
-} from "@/lib/diagrams/renderer";
+	detectDiagramFormat,
+} from "@/lib/diagrams/code-tools";
 import type { DiagramFormat, DiagramTheme } from "@/lib/diagrams/types";
 import { logger } from "@/lib/utils/logger";
 
@@ -1792,6 +1789,7 @@ export async function renderGraphicToSvg(
 		}
 
 		const format = (graphic.format as DiagramFormat) || detectDiagramFormat(graphic.diagramCode);
+		const { diagramToSvg } = await import("@/lib/diagrams/renderer");
 		const svg = await diagramToSvg(graphic.diagramCode, format, theme);
 
 		if (!svg) {

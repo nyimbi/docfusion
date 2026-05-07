@@ -144,7 +144,10 @@ function SectionProgressCard({
 				hasIssues && "border-amber-200 bg-amber-50"
 			)}
 			onClick={onSectionClick}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			<div className="flex items-center justify-between mb-2">
 				<h4 className="font-medium text-sm">{section.name}</h4>
 				<div className="flex items-center gap-2">

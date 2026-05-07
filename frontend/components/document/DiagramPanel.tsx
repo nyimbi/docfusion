@@ -294,19 +294,19 @@ export function DiagramPanel({
 							
 							<TabsContent value="generate" className="mt-4 space-y-4">
 								<div className="space-y-2">
-									<label className="text-sm font-medium">Description</label>
+									<span className="text-sm font-medium">Description</span>
 									<Textarea
 										placeholder="Describe what you want to diagram..."
 										value={description}
 										onChange={(e) => setDescription(e.target.value)}
 										className="min-h-[100px]"
-									/>
+									 aria-label="Description"/>
 								</div>
 								
 								<div className="space-y-2">
-									<label className="text-sm font-medium">Diagram Type</label>
+									<span className="text-sm font-medium">Diagram Type</span>
 									<Select value={diagramType} onValueChange={(v) => setDiagramType(v as DiagramType)}>
-										<SelectTrigger>
+										<SelectTrigger aria-label="Diagram Type">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
@@ -320,9 +320,9 @@ export function DiagramPanel({
 								</div>
 								
 								<div className="space-y-2">
-									<label className="text-sm font-medium">Style</label>
+									<span className="text-sm font-medium">Style</span>
 									<Select value={diagramStyle} onValueChange={(v) => setDiagramStyle(v as DiagramStyle)}>
-										<SelectTrigger>
+										<SelectTrigger aria-label="Style">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
@@ -356,17 +356,17 @@ export function DiagramPanel({
 							
 							<TabsContent value="code" className="mt-4 space-y-4">
 								<div className="space-y-2">
-									<label className="text-sm font-medium">Mermaid Code</label>
+									<span className="text-sm font-medium">Mermaid Code</span>
 									<Textarea
 										value={mermaidCode}
 										onChange={(e) => setMermaidCode(e.target.value)}
 										className="min-h-[250px] font-mono text-sm"
 										spellCheck={false}
-									/>
+									 aria-label="Mermaid Code"/>
 								</div>
 								
 								<div className="space-y-2">
-									<label className="text-sm font-medium">Load Example</label>
+									<span className="text-sm font-medium">Load Example</span>
 									<div className="flex flex-wrap gap-2">
 										{Object.entries(examples).slice(0, 4).map(([type, code]) => (
 											<Button

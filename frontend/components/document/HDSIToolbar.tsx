@@ -2,7 +2,7 @@
 
 /**
  * HDSI Toolbar - Comprehensive editor toolbar with all HDSI features
- * 
+ *
  * Features:
  * - Document versioning (save versions, view history, restore)
  * - Quality evaluation (assess, view scores, improvement suggestions)
@@ -159,7 +159,7 @@ export function HDSIToolbar({
         const parts: string[] = [];
         if (node.title) parts.push(`# ${node.title}`);
         if (node.generatedContent) parts.push(node.generatedContent);
-        
+
         for (const child of node.children) {
           const childContent = collectContent(child);
           if (childContent) parts.push(childContent);
@@ -226,7 +226,7 @@ export function HDSIToolbar({
           } else {
             parts.push(`H${Math.min(depth, 6)}:${prefix}`);
           }
-          
+
           if (node.generatedContent) {
             parts.push(node.generatedContent);
           }
@@ -264,12 +264,12 @@ export function HDSIToolbar({
           if (match) {
             const level = parseInt(match[1]);
             const title = match[2].trim();
-            
+
             if (yPosition > pageHeight - 30) {
               doc.addPage();
               yPosition = 20;
             }
-            
+
             const fontSize = level === 1 ? 14 : level === 2 ? 12 : 11;
             doc.setFontSize(fontSize);
             doc.setFont("helvetica", level <= 2 ? "bold" : "normal");
@@ -285,7 +285,7 @@ export function HDSIToolbar({
             doc.addPage();
             yPosition = 20;
           }
-          
+
           doc.setFontSize(11);
           const splitText = doc.splitTextToSize(part, maxWidth);
           doc.text(splitText, marginLeft, yPosition);
@@ -308,7 +308,7 @@ export function HDSIToolbar({
 
       const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const filename = `${documentTitle.replace(/[^\w]+/g, "_")}.html`;
-      
+
       // Native browser download
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -318,7 +318,7 @@ export function HDSIToolbar({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       toast.success("HTML exported successfully");
     } catch (err) {
       toast.error("Failed to export HTML");
@@ -329,7 +329,7 @@ export function HDSIToolbar({
     try {
       // Build document content
       const docChildren: docx.Paragraph[] = [];
-      
+
       // Title
       docChildren.push(
         new docx.Paragraph({
@@ -358,7 +358,7 @@ export function HDSIToolbar({
         };
         const headingLevel = headingMap[depth] || docx.HeadingLevel.HEADING_6;
         const fontSize = depth === 0 ? 28 : depth === 1 ? 26 : depth === 2 ? 24 : depth === 3 ? 22 : 20;
-        
+
         docChildren.push(
           new docx.Paragraph({
             children: [
@@ -419,7 +419,7 @@ export function HDSIToolbar({
 
       const blob = await docx.Packer.toBlob(doc);
       const filename = `${documentTitle.replace(/[^\w]+/g, "_")}.docx`;
-      
+
       // Native browser download
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -429,7 +429,7 @@ export function HDSIToolbar({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       toast.success("DOCX exported successfully");
     } catch (err) {
       toast.error("Failed to export DOCX");
@@ -685,7 +685,7 @@ function VersionHistoryPanel({ documentId, open, onOpenChange, onRestoreVersion 
                 <Badge variant="secondary" className="text-xs">{versions.length}</Badge>
               )}
             </h4>
-            
+
             <ScrollArea className="flex-1 -mx-2 px-2">
               {isLoading ? (
                 <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
@@ -715,7 +715,10 @@ function VersionHistoryPanel({ documentId, open, onOpenChange, onRestoreVersion 
                           : "bg-card hover:bg-accent/20"
                       )}
                       onClick={() => setSelectedVersion(selectedVersion?.id === version.id ? null : version)}
-                    >
+
+										role="button"
+										tabIndex={0}
+										onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
                       <div className="flex flex-col items-center pt-1">
                         <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
                           {versions.length - index}
@@ -783,7 +786,7 @@ function VersionHistoryPanel({ documentId, open, onOpenChange, onRestoreVersion 
               <Button variant="outline" onClick={() => setShowRestoreConfirm(false)}>
                 Cancel
               </Button>
-              <Button 
+              <Button
                 variant="primary"
                 onClick={() => selectedVersion && handleRestore(selectedVersion)}
               >
@@ -842,7 +845,7 @@ function QualityPanel({ documentId, structure, open, onOpenChange }: QualityPane
     return <AlertCircle className="h-5 w-5 text-red-600" />;
   };
 
-  const filteredFactors = activeCategory === "all" 
+  const filteredFactors = activeCategory === "all"
     ? assessment?.factors || []
     : assessment?.factors.filter(f => f.category === activeCategory) || [];
 
@@ -888,8 +891,8 @@ function QualityPanel({ documentId, structure, open, onOpenChange }: QualityPane
                 </span>
               )}
             </div>
-            <Button 
-              onClick={handleAssess} 
+            <Button
+              onClick={handleAssess}
               disabled={isAssessing}
               size="sm"
             >
@@ -1109,7 +1112,7 @@ export function CopySectionButton({ node, variant = "ghost", size = "sm", classN
         const prefix = "#".repeat(Math.min(depth + 1, 6));
         parts.push(`${prefix} ${n.title}`);
         if (n.generatedContent) parts.push(n.generatedContent);
-        
+
         for (const child of n.children) {
           const childContent = collectContent(child, depth + 1);
           if (childContent) parts.push(childContent);

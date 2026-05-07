@@ -89,7 +89,10 @@ export const DocumentListItem = React.memo(function DocumentListItem({
 		>
 			{/* Selection checkbox */}
 			{selectable && (
-				<div onClick={handleCheckboxClick}>
+				<div onClick={handleCheckboxClick}
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 					<Checkbox
 						checked={selected}
 						onCheckedChange={(checked) => onSelectionChange?.(!!checked)}

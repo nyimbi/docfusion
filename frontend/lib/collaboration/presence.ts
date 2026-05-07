@@ -242,7 +242,7 @@ export function usePresence(
 			managerRef.current = null;
 			store.clearCurrentUser();
 		};
-	}, [documentId, provider, user]);
+	}, [documentId, provider, store, user]);
 
 	// Cursor update handler
 	const updateCursor = useCallback((cursor: CursorPosition | null) => {

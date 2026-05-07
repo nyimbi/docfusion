@@ -237,7 +237,10 @@ function ActivityItem({ activity, onComplete, onClick, isPending }: ActivityItem
 				onClick && "cursor-pointer"
 			)}
 			onClick={onClick}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			{/* Timeline dot and line */}
 			<div className="flex flex-col items-center">
 				<div

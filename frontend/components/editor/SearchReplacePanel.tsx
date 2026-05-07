@@ -141,7 +141,7 @@ export function SearchReplacePanel({
 		} else if (matches.length === 0) {
 			setCurrentMatchIndex(-1);
 		}
-	}, [searchQuery, caseSensitive, useRegex, findMatchesWithPositions]);
+	}, [searchQuery, caseSensitive, useRegex, findMatchesWithPositions, currentMatchIndex]);
 
 	const navigateMatch = (direction: "next" | "prev") => {
 		const matches = findMatchesWithPositions();

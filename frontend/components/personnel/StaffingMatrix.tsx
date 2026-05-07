@@ -105,7 +105,10 @@ function MatrixCellComponent({
 							getCellColor(cell.status, cell.matchScore)
 						)}
 						onClick={cell.assignedPersonnel ? onUnassign : onAssign}
-					>
+
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 						{cell.assignedPersonnel ? (
 							<div className="flex items-center gap-2 h-full">
 								<Avatar className="h-8 w-8 flex-shrink-0">

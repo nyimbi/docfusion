@@ -318,12 +318,12 @@ export function RequirementCategorizer({
 						</div>
 						<div className="flex items-center gap-4">
 							<div className="flex items-center gap-2">
-								<label className="text-sm">Category:</label>
+								<span className="text-sm">Category:</span>
 								<select
 									onChange={(e) => applyToSelected("category", e.target.value)}
 									className="px-2 py-1 border rounded text-sm"
 									defaultValue=""
-								>
+								 aria-label="Category:">
 									<option value="" disabled>
 										Apply to selected
 									</option>
@@ -335,12 +335,12 @@ export function RequirementCategorizer({
 								</select>
 							</div>
 							<div className="flex items-center gap-2">
-								<label className="text-sm">Priority:</label>
+								<span className="text-sm">Priority:</span>
 								<select
 									onChange={(e) => applyToSelected("priority", e.target.value)}
 									className="px-2 py-1 border rounded text-sm"
 									defaultValue=""
-								>
+								 aria-label="Priority:">
 									<option value="" disabled>
 										Apply to selected
 									</option>

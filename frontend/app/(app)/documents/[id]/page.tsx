@@ -353,7 +353,7 @@ function DocumentEditor({ document }: DocumentEditorProps) {
 										"p-2 rounded-[var(--radius-md)]",
 										"text-[var(--foreground-muted)] hover:text-[var(--foreground)]",
 										"hover:bg-[var(--background-muted)]",
-										"transition-all duration-[var(--transition-fast)]"
+										"transition-all duration-&lsqb;var(--transition-fast)&rsqb;"
 									)}
 								>
 									<ArrowLeft className="h-5 w-5" />
@@ -400,7 +400,7 @@ function DocumentEditor({ document }: DocumentEditorProps) {
 									className={cn(
 										"text-lg font-semibold text-[var(--foreground)] truncate max-w-lg",
 										"hover:text-[var(--accent-600)]",
-										"transition-colors duration-[var(--transition-fast)]",
+										"transition-colors duration-&lsqb;var(--transition-fast)&rsqb;",
 										"text-left"
 									)}
 								>
@@ -712,7 +712,7 @@ function ViewModeButton({ icon: Icon, label, active, onClick }: ViewModeButtonPr
 					onClick={onClick}
 					className={cn(
 						"p-1.5 rounded-[var(--radius-sm)]",
-						"transition-all duration-[var(--transition-fast)]",
+						"transition-all duration-&lsqb;var(--transition-fast)&rsqb;",
 						active
 							? "bg-[var(--background)] text-[var(--foreground)] shadow-[var(--shadow-xs)]"
 							: "text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background)]/50"

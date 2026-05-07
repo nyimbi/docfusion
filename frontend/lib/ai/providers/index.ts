@@ -42,6 +42,7 @@ export { ProviderRegistry, providerRegistry } from "./provider-registry";
 // ============================================================================
 
 export { AzureOpenAIProvider, createAzureOpenAIProvider } from "./azure-openai";
+export { LiteLLMProvider, createLiteLLMProvider } from "./litellm";
 export { OllamaProvider, createOllamaProvider } from "./ollama";
 
 // ============================================================================
@@ -63,4 +64,3 @@ export {
 } from "./factory";
 
 export type { AISettingsFormData } from "../types";
-

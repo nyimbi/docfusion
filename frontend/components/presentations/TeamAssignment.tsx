@@ -437,22 +437,22 @@ export function TeamAssignment({
 
 						<div className="space-y-4 py-4">
 							<div>
-								<label className="text-sm font-medium">Name *</label>
+								<span className="text-sm font-medium">Name *</span>
 								<Input
 									value={formData.name}
 									onChange={(e) => setFormData({ ...formData, name: e.target.value })}
 									placeholder="Full name"
 									className="mt-1"
-								/>
+								 aria-label="Name"/>
 							</div>
 
 							<div>
-								<label className="text-sm font-medium">Role</label>
+								<span className="text-sm font-medium">Role</span>
 								<Select
 									value={formData.role}
 									onValueChange={(v) => setFormData({ ...formData, role: v as TeamRole })}
 								>
-									<SelectTrigger className="mt-1">
+									<SelectTrigger className="mt-1" aria-label="Role">
 										<SelectValue placeholder="Select role" />
 									</SelectTrigger>
 									<SelectContent>

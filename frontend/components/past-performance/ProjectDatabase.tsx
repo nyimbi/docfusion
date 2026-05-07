@@ -590,14 +590,14 @@ export function ProjectDatabase({
 
 							<div className="p-2 space-y-3">
 								<div className="space-y-1">
-									<label className="text-xs font-medium">Contract Type</label>
+									<span className="text-xs font-medium">Contract Type</span>
 									<Select
 										value={filters.contractType || "all"}
 										onValueChange={(v) =>
 											updateFilter("contractType", v === "all" ? "" : v)
 										}
 									>
-										<SelectTrigger className="h-8">
+										<SelectTrigger className="h-8" aria-label="Contract Type">
 											<SelectValue placeholder="All types" />
 										</SelectTrigger>
 										<SelectContent>
@@ -612,14 +612,14 @@ export function ProjectDatabase({
 								</div>
 
 								<div className="space-y-1">
-									<label className="text-xs font-medium">Date Range</label>
+									<span className="text-xs font-medium">Date Range</span>
 									<Select
 										value={filters.dateRange}
 										onValueChange={(v: FilterState["dateRange"]) =>
 											updateFilter("dateRange", v)
 										}
 									>
-										<SelectTrigger className="h-8">
+										<SelectTrigger className="h-8" aria-label="Date Range">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
@@ -632,14 +632,14 @@ export function ProjectDatabase({
 								</div>
 
 								<div className="space-y-1">
-									<label className="text-xs font-medium">Role</label>
+									<span className="text-xs font-medium">Role</span>
 									<Select
 										value={filters.primeOrSub}
 										onValueChange={(v: FilterState["primeOrSub"]) =>
 											updateFilter("primeOrSub", v)
 										}
 									>
-										<SelectTrigger className="h-8">
+										<SelectTrigger className="h-8" aria-label="Role">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
@@ -651,12 +651,12 @@ export function ProjectDatabase({
 								</div>
 
 								<div className="space-y-1">
-									<label className="text-xs font-medium">Min CPAR Rating</label>
+									<span className="text-xs font-medium">Min CPAR Rating</span>
 									<Select
 										value={filters.minRating.toString()}
 										onValueChange={(v) => updateFilter("minRating", parseFloat(v))}
 									>
-										<SelectTrigger className="h-8">
+										<SelectTrigger className="h-8" aria-label="Min CPAR Rating">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>

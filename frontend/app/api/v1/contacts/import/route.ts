@@ -14,7 +14,6 @@ import { db } from "@/lib/db";
 import { contactImports, contacts, accounts } from "@/lib/db/schema-crm";
 import { eq, ilike, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import {
 	autoParseContacts,
 	parseCSV,
@@ -28,7 +27,7 @@ import type { ContactVisibility } from "@/lib/actions/crm/contacts";
  * Get authenticated user context.
  */
 async function getUserContext() {
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) return null;
 	return {
 		userId: session.user.id,

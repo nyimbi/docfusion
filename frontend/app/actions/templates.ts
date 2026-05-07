@@ -22,6 +22,7 @@ import type {
 } from "@/lib/types/template";
 import type { Document, DocumentContent } from "@/lib/types/document";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { substitutePlaceholders } from "@/lib/placeholders/substitution";
 
 // ============================================================================
 // Helper Functions
@@ -337,29 +338,7 @@ function applyPlaceholders(
 	content: DocumentContent,
 	placeholderValues: Record<string, string | number | boolean | string[]>
 ): DocumentContent {
-	const processNode = (node: DocumentContent): DocumentContent => {
-		if (node.type === "text" && node.text) {
-			// Replace {{placeholder}} patterns
-			let text = node.text;
-			for (const [key, value] of Object.entries(placeholderValues)) {
-				const pattern = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g");
-				const replacement = Array.isArray(value) ? value.join(", ") : String(value);
-				text = text.replace(pattern, replacement);
-			}
-			return { ...node, text };
-		}
-
-		if (node.content && Array.isArray(node.content)) {
-			return {
-				...node,
-				content: node.content.map(processNode),
-			};
-		}
-
-		return node;
-	};
-
-	return processNode(content);
+	return substitutePlaceholders(content, placeholderValues).content;
 }
 
 /**

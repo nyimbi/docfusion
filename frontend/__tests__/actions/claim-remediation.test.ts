@@ -1,0 +1,271 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/auth-utils", () => ({
+	requireUserContext: vi.fn(async () => ({ userId: "proposal-writer-1" })),
+}));
+
+vi.mock("@/lib/actions/workflow-runtime", () => ({
+	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "claim-workflow-1" })),
+	upsertWorkflowRuntimeTask: vi.fn(async () => ({ id: "claim-task-1" })),
+}));
+
+interface ChainConfig {
+	result?: unknown[];
+	onSet?: (value: Record<string, unknown>) => void;
+}
+
+function createChain(config: ChainConfig = {}) {
+	const chain: Record<string, any> = {};
+	for (const method of ["from", "where", "limit"]) {
+		chain[method] = vi.fn(() => chain);
+	}
+	chain.set = vi.fn((value: Record<string, unknown>) => {
+		config.onSet?.(value);
+		return chain;
+	});
+	chain.returning = vi.fn(async () => config.result ?? []);
+	chain.then = (resolve: (value: unknown[]) => void) =>
+		Promise.resolve(config.result ?? []).then(resolve);
+	return chain;
+}
+
+var dbMock: any;
+
+vi.mock("@/lib/db", () => {
+	dbMock = {
+		select: vi.fn(() => createChain()),
+		update: vi.fn(() => createChain()),
+	};
+	return { db: dbMock };
+});
+
+import { transitionClaimRemediationWorkflow } from "@/lib/actions/claim-remediation";
+import {
+	recordWorkflowRuntimeTransition,
+	upsertWorkflowRuntimeTask,
+} from "@/lib/actions/workflow-runtime";
+
+const baseClaim: Record<string, any> = {
+	id: "claim-1",
+	documentId: "doc-1",
+	sectionId: "section-1",
+	opportunityId: "opp-1",
+	claimText: "Datacraft will deliver flawless integration outcomes.",
+	claimType: "performance",
+	claimLocation: null,
+	hasEvidence: false,
+	evidenceStrength: "none",
+	linkedEvidenceIds: [],
+	suggestedEvidence: [],
+	quantificationSuggestion: "Add delivery metrics from prior projects.",
+	riskLevel: "high",
+	evaluatorImpact: "Evaluator may discount the claim without proof.",
+	status: "open",
+	resolution: null,
+	resolvedBy: null,
+	resolvedAt: null,
+	resolutionNotes: null,
+	analyzedAt: new Date("2026-05-01T00:00:00.000Z"),
+	createdAt: new Date("2026-05-01T00:00:00.000Z"),
+};
+
+beforeEach(() => {
+	vi.clearAllMocks();
+	dbMock.select.mockReset();
+	dbMock.update.mockReset();
+});
+
+describe("claim remediation workflow", () => {
+	it("starts high-risk claim remediation and projects an owned task", async () => {
+		let claimUpdate: Record<string, unknown> | undefined;
+		dbMock.select.mockReturnValueOnce(createChain({ result: [baseClaim] }));
+		dbMock.update.mockReturnValueOnce(createChain({
+			result: [{ ...baseClaim, status: "in_progress", resolutionNotes: "Needs evidence" }],
+			onSet: (value) => {
+				claimUpdate = value;
+			},
+		}));
+
+		const result = await transitionClaimRemediationWorkflow({
+			claimId: "claim-1",
+			action: "start",
+			reason: "Needs evidence",
+			assignedTo: "proposal-writer-2",
+			dueAt: "2026-05-06T00:00:00.000Z",
+		});
+
+		expect(result).toMatchObject({
+			claimId: "claim-1",
+			opportunityId: "opp-1",
+			fromState: "open",
+			toState: "in_progress",
+			status: "in_progress",
+			taskProjected: true,
+		});
+		expect(claimUpdate).toMatchObject({
+			status: "in_progress",
+			resolution: null,
+			resolvedBy: null,
+			resolvedAt: null,
+		});
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
+			workflowKey: "evidence_claim_remediation",
+			subjectType: "evidence_claim",
+			subjectId: "claim-1",
+			toState: "in_progress",
+			priority: "critical",
+			assignedTo: "proposal-writer-2",
+			assignedRole: "proposal_writer",
+			terminal: false,
+		}));
+		expect(upsertWorkflowRuntimeTask).toHaveBeenCalledWith(expect.objectContaining({
+			workflowInstanceId: "claim-workflow-1",
+			taskKey: "claim-remediation:claim-1",
+			state: "in_progress",
+			priority: "critical",
+			assignedTo: "proposal-writer-2",
+		}));
+	});
+
+	it("resolves a claim by adding evidence and completes the remediation task", async () => {
+		let claimUpdate: Record<string, unknown> | undefined;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{ ...baseClaim, status: "in_progress", linkedEvidenceIds: ["ev-1"] }],
+		}));
+		dbMock.update.mockReturnValueOnce(createChain({
+			result: [{
+				...baseClaim,
+				status: "resolved",
+				resolution: "evidence_added",
+				hasEvidence: true,
+				evidenceStrength: "moderate",
+				linkedEvidenceIds: ["ev-1", "ev-2"],
+			}],
+			onSet: (value) => {
+				claimUpdate = value;
+			},
+		}));
+
+		const result = await transitionClaimRemediationWorkflow({
+			claimId: "claim-1",
+			action: "add_evidence",
+			reason: "Linked verified case study",
+			evidenceIds: ["ev-2"],
+		});
+
+		expect(result).toMatchObject({
+			toState: "evidenced",
+			status: "resolved",
+			resolution: "evidence_added",
+			taskProjected: true,
+		});
+		expect(claimUpdate).toMatchObject({
+			status: "resolved",
+			resolution: "evidence_added",
+			hasEvidence: true,
+			evidenceStrength: "moderate",
+			linkedEvidenceIds: ["ev-1", "ev-2"],
+			resolvedBy: "proposal-writer-1",
+		});
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
+			toState: "evidenced",
+			terminal: true,
+			evidenceLinks: ["ev-2"],
+			assignedRole: null,
+		}));
+		expect(upsertWorkflowRuntimeTask).toHaveBeenCalledWith(expect.objectContaining({
+			state: "completed",
+			assignedRole: null,
+		}));
+	});
+
+	it("records a rewritten claim as terminal claim-modified remediation", async () => {
+		let claimUpdate: Record<string, unknown> | undefined;
+		dbMock.select.mockReturnValueOnce(createChain({ result: [baseClaim] }));
+		dbMock.update.mockReturnValueOnce(createChain({
+			result: [{
+				...baseClaim,
+				claimText: "Datacraft will apply proven integration controls validated across prior programmes.",
+				status: "resolved",
+				resolution: "claim_modified",
+			}],
+			onSet: (value) => {
+				claimUpdate = value;
+			},
+		}));
+
+		await transitionClaimRemediationWorkflow({
+			claimId: "claim-1",
+			action: "rewrite",
+			reason: "Qualified unsupported absolute language",
+			revisedClaimText: "Datacraft will apply proven integration controls validated across prior programmes.",
+		});
+
+		expect(claimUpdate).toMatchObject({
+			claimText: "Datacraft will apply proven integration controls validated across prior programmes.",
+			status: "resolved",
+			resolution: "claim_modified",
+		});
+		expect(String(claimUpdate?.resolutionNotes)).toContain("Original claim:");
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
+			toState: "rewritten",
+			terminal: true,
+		}));
+	});
+
+	it("requires evidence for evidence remediation", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({ result: [baseClaim] }));
+
+		await expect(
+			transitionClaimRemediationWorkflow({
+				claimId: "claim-1",
+				action: "add_evidence",
+				reason: "Evidence will be added later",
+			})
+		).rejects.toThrow("requires at least one evidence item");
+
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(recordWorkflowRuntimeTransition).not.toHaveBeenCalled();
+	});
+
+	it("reopens a waived claim for renewed evidence work", async () => {
+		let claimUpdate: Record<string, unknown> | undefined;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				...baseClaim,
+				status: "wont_fix",
+				resolution: "accepted_as_is",
+				resolvedBy: "approver-1",
+				resolvedAt: new Date("2026-05-02T00:00:00.000Z"),
+			}],
+		}));
+		dbMock.update.mockReturnValueOnce(createChain({
+			result: [{ ...baseClaim, status: "open", resolution: null }],
+			onSet: (value) => {
+				claimUpdate = value;
+			},
+		}));
+
+		const result = await transitionClaimRemediationWorkflow({
+			claimId: "claim-1",
+			action: "reopen",
+			reason: "New evidence became available",
+		});
+
+		expect(result).toMatchObject({
+			fromState: "accepted_as_is",
+			toState: "open",
+			status: "open",
+		});
+		expect(claimUpdate).toMatchObject({
+			status: "open",
+			resolution: null,
+			resolvedBy: null,
+			resolvedAt: null,
+		});
+		expect(upsertWorkflowRuntimeTask).toHaveBeenCalledWith(expect.objectContaining({
+			state: "open",
+			title: "Reopened claim remediation",
+		}));
+	});
+});

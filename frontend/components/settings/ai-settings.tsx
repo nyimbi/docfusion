@@ -12,6 +12,7 @@ import {
 	Cloud,
 	Laptop,
 	Zap,
+	Network,
 	AlertCircle,
 	CheckCircle2,
 	RefreshCw,
@@ -56,6 +57,12 @@ const PROVIDER_OPTIONS = [
 		label: "Azure OpenAI",
 		description: "Enterprise AI through Microsoft Azure",
 		icon: Cloud,
+	},
+	{
+		value: "litellm",
+		label: "LiteLLM Gateway",
+		description: "Use the shared Lindela AI gateway",
+		icon: Network,
 	},
 	{
 		value: "ollama",
@@ -141,6 +148,7 @@ export function AISettingsPanel() {
 		onSuccess: (data) => {
 			if (data.success && data.result) {
 				setTestResults({
+					litellm: { success: false, message: "Not tested" },
 					ollama: data.result,
 					"azure-openai": { success: false, message: "Not tested" },
 					openai: { success: false, message: "Not tested" },
@@ -219,7 +227,9 @@ export function AISettingsPanel() {
 									const Icon = option.icon;
 									const isSelected = formState.provider === option.value;
 									const isAvailable =
-										option.value === "azure-openai"
+										option.value === "litellm"
+											? testResults?.litellm?.success ?? true
+											: option.value === "azure-openai"
 											? testResults?.["azure-openai"]?.success ?? true
 											: true;
 
@@ -462,6 +472,23 @@ export function AISettingsPanel() {
 									</AlertDescription>
 								</Alert>
 							)}
+						</div>
+
+						{/* Azure OpenAI Info */}
+						<div className="space-y-4">
+							<h3 className="text-sm font-medium flex items-center gap-2">
+								<Network className="h-4 w-4" />
+								LiteLLM Gateway
+							</h3>
+							<Alert>
+								<AlertCircle className="h-4 w-4" />
+								<AlertTitle>Shared Gateway Configuration</AlertTitle>
+								<AlertDescription>
+									LiteLLM is configured via LITELLM_URL, LITELLM_API_KEY,
+									LLM_MODEL, LLM_FAST_MODEL, and LLM_EMBEDDING_MODEL. It is the
+									preferred gateway for cached, routed, OpenAI-compatible AI calls.
+								</AlertDescription>
+							</Alert>
 						</div>
 
 						{/* Azure OpenAI Info */}

@@ -15,7 +15,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useTheme } from "@/lib/theme-provider";
 import { useSession, signOut } from "@/lib/auth-client";
 import {
@@ -98,6 +98,17 @@ interface NavSection {
  * 5. MANAGE - Coordinate tasks, reviews, deadlines
  */
 const NAV_SECTIONS: NavSection[] = [
+	{
+		title: "Home",
+		items: [
+			{
+				label: "Role Home",
+				href: "/home",
+				icon: Home,
+				description: "Role-based work surface",
+			},
+		],
+	},
 	{
 		title: "Discover",
 		items: [
@@ -575,7 +586,7 @@ const SidebarNavigation = React.memo(function SidebarNavigation({
 			{/* Home link for mobile */}
 			{isMobile && (
 				<Link
-					href="/"
+					href="/home"
 					className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-all mb-2"
 					onClick={handleNavClick}
 				>
@@ -584,7 +595,7 @@ const SidebarNavigation = React.memo(function SidebarNavigation({
 					</div>
 					<div className="flex-1">
 						<div className="text-sm font-medium">Home</div>
-						<div className="text-xs text-muted-foreground/70">Back to homepage</div>
+						<div className="text-xs text-muted-foreground/70">Role work surface</div>
 					</div>
 				</Link>
 			)}
@@ -842,7 +853,6 @@ NotificationBell.displayName = "NotificationBell";
 function UserMenu() {
 	const { theme, setTheme } = useTheme();
 	const { data: session } = useSession();
-	const router = useRouter();
 
 	// Memoize user initials
 	const userInitials = React.useMemo(() => {
@@ -861,14 +871,8 @@ function UserMenu() {
 	}, [session?.user?.name, session?.user?.email]);
 
 	const handleSignOut = React.useCallback(async () => {
-		await signOut({
-			fetchOptions: {
-				onSuccess: () => {
-					router.push("/auth/sign-in");
-				},
-			},
-		});
-	}, [router]);
+		await signOut({ callbackUrl: "/auth/sign-in" });
+	}, []);
 
 	return (
 		<DropdownMenu>

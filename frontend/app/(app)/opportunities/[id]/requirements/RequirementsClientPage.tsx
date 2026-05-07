@@ -9,6 +9,7 @@
 
 import { useState, useCallback } from "react";
 import type { Requirement, RequirementStats } from "@/lib/types/opportunity";
+import { reviewRfpParseConfidence } from "@/lib/actions/rfp-parser";
 import { RequirementsTable } from "@/components/requirements/RequirementsTable";
 import { RequirementDetail } from "@/components/requirements/RequirementDetail";
 import { RequirementExtractor } from "./RequirementExtractor";
@@ -19,15 +20,29 @@ interface RequirementsClientPageProps {
 	opportunityId: string;
 	initialRequirements: Requirement[];
 	initialStats: RequirementStats;
+	initialRfpDocuments: RfpParseDocumentSummary[];
 }
+
+interface RfpParseDocumentSummary {
+	id: string;
+	filename: string;
+	parsingStatus: string;
+	parsingConfidence: number | null;
+	metadata: unknown;
+	createdAt: string;
+}
+
+type ParseReviewState = "auto_accepted" | "needs_review" | "accepted" | "correction_requested";
 
 export function RequirementsClientPage({
 	opportunityId,
 	initialRequirements,
 	initialStats,
+	initialRfpDocuments,
 }: RequirementsClientPageProps) {
 	const [requirements, setRequirements] = useState(initialRequirements);
 	const [stats, setStats] = useState(initialStats);
+	const [rfpDocuments, setRfpDocuments] = useState(initialRfpDocuments);
 	const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
 	const [showExtractor, setShowExtractor] = useState(false);
 
@@ -66,6 +81,20 @@ export function RequirementsClientPage({
 	return (
 		<>
 			{/* Action Bar */}
+			<ParseReviewPanel
+				documents={rfpDocuments}
+				onReviewed={(documentId, state) => {
+					setRfpDocuments((prev) => prev.map((doc) =>
+						doc.id === documentId
+							? {
+								...doc,
+								metadata: mergeParseReviewState(doc.metadata, state),
+							}
+							: doc
+					));
+				}}
+			/>
+
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-3">
 					<h2 className="text-lg font-medium text-[var(--foreground)]">
@@ -117,6 +146,179 @@ export function RequirementsClientPage({
 // ============================================================================
 // Sub-Components
 // ============================================================================
+
+function ParseReviewPanel({
+	documents,
+	onReviewed,
+}: {
+	documents: RfpParseDocumentSummary[];
+	onReviewed: (documentId: string, state: ParseReviewState) => void;
+}) {
+	const reviewable = documents.filter(isActionableParseReview);
+	const waitingForCompletion = documents.filter((doc) => {
+		const review = getParseReview(doc);
+		return review.state === "needs_review" && doc.parsingStatus !== "completed";
+	});
+	const otherDocuments = documents
+		.filter((doc) => !isActionableParseReview(doc))
+		.slice(0, Math.max(0, 5 - reviewable.length));
+	const visibleDocuments = [...reviewable, ...otherDocuments];
+	if (documents.length === 0) return null;
+
+	return (
+		<Card>
+			<CardHeader className="pb-2">
+				<CardTitle className="text-base">RFP Intake And Parser Review</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<div className="space-y-3">
+					{visibleDocuments.map((doc) => (
+						<ParseReviewRow
+							key={doc.id}
+							document={doc}
+							onReviewed={onReviewed}
+						/>
+					))}
+				</div>
+				{reviewable.length > 0 && (
+					<p className="mt-3 text-xs text-[var(--foreground-muted)]">
+						{reviewable.length} parser output{reviewable.length === 1 ? "" : "s"} need human confidence review before requirements are treated as ready.
+					</p>
+				)}
+				{waitingForCompletion.length > 0 && (
+					<p className="mt-2 text-xs text-[var(--foreground-muted)]">
+						{waitingForCompletion.length} parser output{waitingForCompletion.length === 1 ? " is" : "s are"} waiting for parse completion before review actions are available.
+					</p>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+function ParseReviewRow({
+	document,
+	onReviewed,
+}: {
+	document: RfpParseDocumentSummary;
+	onReviewed: (documentId: string, state: ParseReviewState) => void;
+}) {
+	const [isPending, setIsPending] = useState(false);
+	const review = getParseReview(document);
+	const confidence = review.confidence ?? document.parsingConfidence ?? 0;
+	const needsReview = review.state === "needs_review";
+	const canReview = needsReview && document.parsingStatus === "completed";
+
+	const submitReview = async (action: "accept" | "request_correction") => {
+		setIsPending(true);
+		try {
+			const result = await reviewRfpParseConfidence({
+				rfpDocumentId: document.id,
+				action,
+				reason: action === "accept"
+					? "Human reviewer accepted parser output for requirement workflow use."
+					: "Parser output requires correction before downstream requirement acceptance.",
+			});
+			if (result.success && result.state) {
+				onReviewed(document.id, result.state);
+			}
+		} finally {
+			setIsPending(false);
+		}
+	};
+
+	return (
+		<div className="flex flex-col gap-3 rounded border border-[var(--border)] p-3 sm:flex-row sm:items-center sm:justify-between">
+			<div className="min-w-0">
+				<div className="flex flex-wrap items-center gap-2">
+					<p className="truncate text-sm font-medium text-[var(--foreground)]">{document.filename}</p>
+					<span className="rounded bg-[var(--background-muted)] px-2 py-0.5 text-xs text-[var(--foreground-muted)]">
+						{document.parsingStatus}
+					</span>
+					<span className={`rounded px-2 py-0.5 text-xs ${needsReview ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}`}>
+						{formatParseReviewState(review.state)}
+					</span>
+				</div>
+				<p className="mt-1 text-xs text-[var(--foreground-muted)]">
+					Confidence {Math.round(confidence)}% / gate {Math.round(review.threshold)}%
+				</p>
+			</div>
+			{canReview && (
+				<div className="flex shrink-0 items-center gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={isPending}
+						onClick={() => submitReview("request_correction")}
+					>
+						Request Correction
+					</Button>
+					<Button
+						variant="primary"
+						size="sm"
+						disabled={isPending}
+						onClick={() => submitReview("accept")}
+					>
+						Accept Output
+					</Button>
+				</div>
+			)}
+			{needsReview && !canReview && (
+				<p className="shrink-0 text-xs text-[var(--foreground-muted)]">
+					Review opens after parse completion
+				</p>
+			)}
+		</div>
+	);
+}
+
+function isActionableParseReview(document: RfpParseDocumentSummary): boolean {
+	return getParseReview(document).state === "needs_review" && document.parsingStatus === "completed";
+}
+
+function getParseReview(document: RfpParseDocumentSummary): {
+	state: ParseReviewState;
+	confidence: number;
+	threshold: number;
+} {
+	const metadata = isRecord(document.metadata) ? document.metadata : {};
+	const review = isRecord(metadata.parseReview) ? metadata.parseReview : {};
+	const confidence = typeof review.confidence === "number"
+		? review.confidence
+		: document.parsingConfidence ?? 0;
+	const threshold = typeof review.threshold === "number" ? review.threshold : 80;
+	const state = isParseReviewState(review.state)
+		? review.state
+		: confidence >= threshold ? "auto_accepted" : "needs_review";
+
+	return { state, confidence, threshold };
+}
+
+function mergeParseReviewState(metadata: unknown, state: ParseReviewState): Record<string, unknown> {
+	const current = isRecord(metadata) ? metadata : {};
+	const review = isRecord(current.parseReview) ? current.parseReview : {};
+	return {
+		...current,
+		parseReview: {
+			...review,
+			state,
+		},
+	};
+}
+
+function isParseReviewState(value: unknown): value is ParseReviewState {
+	return value === "auto_accepted" ||
+		value === "needs_review" ||
+		value === "accepted" ||
+		value === "correction_requested";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function formatParseReviewState(state: ParseReviewState): string {
+	return state.replace(/_/g, " ");
+}
 
 function EmptyState({ onExtract }: { onExtract: () => void }) {
 	return (

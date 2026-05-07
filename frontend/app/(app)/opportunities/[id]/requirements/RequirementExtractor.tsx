@@ -130,7 +130,6 @@ export function RequirementExtractor({
 					"animate-in fade-in-0 zoom-in-95",
 					"flex flex-col"
 				)}
-				onClick={(e) => e.stopPropagation()}
 			>
 				{/* Header */}
 				<div className="px-6 py-4 border-b border-[var(--border)]">
@@ -172,9 +171,9 @@ export function RequirementExtractor({
 					{step === "input" && (
 						<div className="space-y-4">
 							<div>
-								<label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+								<span className="block text-sm font-medium text-[var(--foreground)] mb-2">
 									RFP Content
-								</label>
+								</span>
 								<textarea
 									ref={textareaRef}
 									value={content}
@@ -189,7 +188,7 @@ The contractor shall provide the following:
 - Should integrate with existing Active Directory"
 									rows={16}
 									className="w-full px-4 py-3 text-sm font-mono border border-[var(--border)] rounded-lg bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] resize-none"
-								/>
+								 aria-label="RFP Content"/>
 								<p className="text-xs text-[var(--foreground-muted)] mt-2">
 									{content.length} characters • Supports plain text from PDFs, Word docs, or web pages
 								</p>
@@ -373,7 +372,10 @@ function ExtractedRequirementRow({
 					: "border-[var(--border)] hover:bg-[var(--background-muted)]"
 			)}
 			onClick={onToggle}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			<Checkbox checked={isSelected} onCheckedChange={onToggle} />
 			<div className="flex-1 min-w-0">
 				<p className="text-sm text-[var(--foreground)] line-clamp-2">{requirement.text}</p>

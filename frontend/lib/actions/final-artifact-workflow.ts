@@ -1,0 +1,497 @@
+"use server";
+
+import { createHash } from "node:crypto";
+import { requireUserContext } from "@/lib/auth-utils";
+import { renderDocument } from "@/lib/actions/document-render";
+import {
+	recordWorkflowRuntimeTransition,
+	upsertWorkflowRuntimeTask,
+} from "@/lib/actions/workflow-runtime";
+import { db } from "@/lib/db";
+import { documents, proposalDocuments } from "@/lib/db/schema";
+import type { ExportFormat, RenderOptions } from "@/lib/types/opportunity";
+import { and, eq } from "drizzle-orm";
+
+type DocumentRow = typeof documents.$inferSelect;
+type ProposalDocumentRow = typeof proposalDocuments.$inferSelect;
+
+export type FinalArtifactAction = "request_render" | "render" | "approve" | "reopen";
+
+export interface FinalArtifactManifest {
+	documentId: string;
+	proposalDocumentId: string | null;
+	opportunityId: string | null;
+	format: ExportFormat;
+	filename: string;
+	mimeType: string;
+	size: number;
+	artifactHash: string;
+	downloadUrl: string;
+	renderedAt: string;
+	renderedBy: string;
+	renderTimeMs: number | null;
+	pageCount: number | null;
+}
+
+export interface FinalArtifactWorkflowInput {
+	documentId: string;
+	action: FinalArtifactAction;
+	reason: string;
+	format?: ExportFormat;
+	opportunityId?: string | null;
+	proposalDocumentId?: string | null;
+	renderOptions?: Partial<RenderOptions>;
+	approvalRole?: string | null;
+	assignedTo?: string | null;
+	dueAt?: Date | string | null;
+	allowDraftRender?: boolean;
+}
+
+export interface FinalArtifactWorkflowResult {
+	documentId: string;
+	proposalDocumentId: string | null;
+	opportunityId: string | null;
+	fromState: string;
+	toState: string;
+	workflowInstanceId: string;
+	taskProjected: boolean;
+	artifact?: FinalArtifactManifest;
+}
+
+const WORKFLOW_KEY = "final_artifact_render_export";
+const SUBJECT_TYPE = "document";
+
+export async function transitionFinalArtifactWorkflow(
+	input: FinalArtifactWorkflowInput
+): Promise<FinalArtifactWorkflowResult> {
+	const userContext = await requireUserContext();
+	const reason = requireReason(input.reason, "Final artifact transitions require a reason");
+	const document = await loadDocument(input.documentId);
+	const proposalDocument = await loadProposalDocument(input, document);
+	const fromState = finalArtifactState(document, proposalDocument);
+	const transition = await buildTransition({
+		input,
+		document,
+		proposalDocument,
+		actorId: userContext.userId,
+	});
+
+	const [updatedDocument] = await db
+		.update(documents)
+		.set(transition.documentPatch)
+		.where(eq(documents.id, input.documentId))
+		.returning();
+	if (!updatedDocument) {
+		throw new Error("Failed to update final artifact metadata");
+	}
+
+	if (proposalDocument && transition.proposalPatch) {
+		await db
+			.update(proposalDocuments)
+			.set(transition.proposalPatch)
+			.where(eq(proposalDocuments.id, proposalDocument.id));
+	}
+
+	const opportunityId = proposalDocument?.opportunityId ?? input.opportunityId ?? null;
+	const instance = await recordWorkflowRuntimeTransition({
+		workflowKey: WORKFLOW_KEY,
+		subjectType: SUBJECT_TYPE,
+		subjectId: input.documentId,
+		opportunityId,
+		fromState,
+		toState: transition.toState,
+		eventType: `final_artifact_${input.action}`,
+		actorId: userContext.userId,
+		reason,
+		priority: transition.priority,
+		assignedTo: input.assignedTo ?? null,
+		assignedRole: transition.terminal ? null : transition.assignedRole,
+		dueAt: transition.terminal ? null : normalizeDueAt(input.dueAt, 1),
+		authorityPolicy: input.approvalRole
+			? { requiredRoles: [input.approvalRole] }
+			: undefined,
+		metadata: {
+			documentId: input.documentId,
+			proposalDocumentId: proposalDocument?.id ?? null,
+			opportunityId,
+			documentTitle: updatedDocument.title,
+			documentStatus: updatedDocument.status,
+			proposalDocumentStatus: transition.proposalPatch?.status ?? proposalDocument?.status ?? null,
+			action: input.action,
+			format: input.format ?? null,
+			artifactHash: transition.artifact?.artifactHash ?? null,
+			filename: transition.artifact?.filename ?? null,
+			size: transition.artifact?.size ?? null,
+			approvalRole: input.approvalRole ?? null,
+		},
+		terminal: transition.terminal,
+		actionUrl: `/documents/${input.documentId}`,
+	});
+
+	await upsertWorkflowRuntimeTask({
+		workflowInstanceId: instance.id,
+		taskKey: `final-artifact:${input.documentId}`,
+		title: transition.taskTitle,
+		description: `${transition.taskTitle}. Reason: ${reason}`,
+		state: transition.taskState,
+		priority: transition.priority,
+		assignedTo: input.assignedTo ?? null,
+		assignedRole: transition.terminal ? null : transition.assignedRole,
+		dueAt: transition.terminal ? null : normalizeDueAt(input.dueAt, 1),
+		metadata: {
+			documentId: input.documentId,
+			proposalDocumentId: proposalDocument?.id ?? null,
+			fromState,
+			toState: transition.toState,
+			artifactHash: transition.artifact?.artifactHash ?? null,
+		},
+	});
+
+	return {
+		documentId: input.documentId,
+		proposalDocumentId: proposalDocument?.id ?? null,
+		opportunityId,
+		fromState,
+		toState: transition.toState,
+		workflowInstanceId: instance.id,
+		taskProjected: true,
+		artifact: transition.artifact,
+	};
+}
+
+async function buildTransition(input: {
+	input: FinalArtifactWorkflowInput;
+	document: DocumentRow;
+	proposalDocument: ProposalDocumentRow | null;
+	actorId: string;
+}): Promise<{
+	toState: string;
+	terminal: boolean;
+	taskState: "open" | "in_progress" | "blocked" | "completed" | "cancelled";
+	taskTitle: string;
+	priority: "critical" | "high" | "medium" | "low";
+	assignedRole: string;
+	documentPatch: Partial<typeof documents.$inferInsert>;
+	proposalPatch?: Partial<typeof proposalDocuments.$inferInsert>;
+	artifact?: FinalArtifactManifest;
+}> {
+	const now = new Date();
+	switch (input.input.action) {
+		case "request_render":
+			return {
+				toState: "render_requested",
+				terminal: false,
+				taskState: "open",
+				taskTitle: "Render final proposal artifact",
+				priority: "high",
+				assignedRole: "production_specialist",
+				documentPatch: {
+					metadata: mergeMetadata(input.document.metadata, {
+						finalArtifactWorkflow: {
+							state: "render_requested",
+							requestedAt: now.toISOString(),
+							requestedBy: input.actorId,
+							format: input.input.format ?? "pdf",
+						},
+					}),
+					updatedAt: now,
+				},
+			};
+		case "render": {
+			enforceRenderable(input.document, input.proposalDocument, input.input.allowDraftRender);
+			const format = input.input.format ?? "pdf";
+			const renderResult = await renderDocument(input.input.documentId, {
+				...input.input.renderOptions,
+				format,
+				metadata: {
+					...input.input.renderOptions?.metadata,
+					title: input.input.renderOptions?.metadata?.title ?? input.document.title,
+				},
+			});
+			if (!renderResult.success || !renderResult.data || !renderResult.filename || !renderResult.mimeType || renderResult.size == null) {
+				throw new Error(renderResult.error ?? "Final artifact render failed");
+			}
+			const artifact = buildManifest({
+				documentId: input.document.id,
+				proposalDocumentId: input.proposalDocument?.id ?? null,
+				opportunityId: input.proposalDocument?.opportunityId ?? input.input.opportunityId ?? null,
+				format,
+				renderedBy: input.actorId,
+				renderedAt: now,
+				renderResult: {
+					data: renderResult.data,
+					filename: renderResult.filename,
+					mimeType: renderResult.mimeType,
+					size: renderResult.size,
+					renderTimeMs: renderResult.renderTimeMs,
+					pageCount: renderResult.pageCount,
+				},
+			});
+			return {
+				toState: "artifact_rendered",
+				terminal: false,
+				taskState: "in_progress",
+				taskTitle: "Verify rendered proposal artifact",
+				priority: "high",
+				assignedRole: "proposal_manager",
+				artifact,
+				documentPatch: {
+					metadata: mergeRenderedArtifact(input.document.metadata, artifact),
+					updatedAt: now,
+				},
+			};
+		}
+		case "approve": {
+			requireAuthority(input.input.approvalRole, "Approving a final artifact requires production approval authority");
+			const artifact = latestArtifact(input.document.metadata, input.input.format);
+			if (!artifact) {
+				throw new Error("Approving a final artifact requires a rendered artifact manifest");
+			}
+			return {
+				toState: "artifact_approved",
+				terminal: true,
+				taskState: "completed",
+				taskTitle: "Final proposal artifact approved",
+				priority: "medium",
+				assignedRole: "proposal_manager",
+				artifact,
+				documentPatch: {
+					status: "final",
+					metadata: mergeMetadata(input.document.metadata, {
+						finalArtifact: {
+							...artifact,
+							approvedAt: now.toISOString(),
+							approvedBy: input.actorId,
+							approvalRole: input.input.approvalRole,
+						},
+					}),
+					updatedAt: now,
+				},
+				proposalPatch: input.proposalDocument
+					? {
+						status: "final",
+						approvedBy: input.actorId,
+						approvedAt: now,
+						updatedAt: now,
+					}
+					: undefined,
+			};
+		}
+		case "reopen":
+			requireAuthority(input.input.approvalRole, "Reopening an approved final artifact requires production authority");
+			return {
+				toState: "artifact_reopened",
+				terminal: false,
+				taskState: "open",
+				taskTitle: "Re-render reopened proposal artifact",
+				priority: "high",
+				assignedRole: "production_specialist",
+				documentPatch: {
+					status: "draft",
+					metadata: mergeMetadata(input.document.metadata, {
+						finalArtifact: null,
+						finalArtifactWorkflow: {
+							state: "artifact_reopened",
+							reopenedAt: now.toISOString(),
+							reopenedBy: input.actorId,
+						},
+					}),
+					updatedAt: now,
+				},
+				proposalPatch: input.proposalDocument
+					? {
+						status: "in_review",
+						approvedBy: null,
+						approvedAt: null,
+						updatedAt: now,
+					}
+					: undefined,
+			};
+	}
+}
+
+async function loadDocument(documentId: string) {
+	const [document] = await db
+		.select()
+		.from(documents)
+		.where(eq(documents.id, documentId))
+		.limit(1);
+	if (!document) {
+		throw new Error("Document not found");
+	}
+	return document;
+}
+
+async function loadProposalDocument(input: FinalArtifactWorkflowInput, document: DocumentRow) {
+	if (input.proposalDocumentId) {
+		const [proposalDocument] = await db
+			.select()
+			.from(proposalDocuments)
+			.where(eq(proposalDocuments.id, input.proposalDocumentId))
+			.limit(1);
+		if (!proposalDocument) {
+			throw new Error("Proposal document link not found");
+		}
+		if (proposalDocument.documentId !== document.id) {
+			throw new Error("Proposal document link does not match the document");
+		}
+		return proposalDocument;
+	}
+	if (!input.opportunityId) {
+		return null;
+	}
+	const [proposalDocument] = await db
+		.select()
+		.from(proposalDocuments)
+		.where(and(
+			eq(proposalDocuments.opportunityId, input.opportunityId),
+			eq(proposalDocuments.documentId, document.id)
+		))
+		.limit(1);
+	return proposalDocument ?? null;
+}
+
+function enforceRenderable(
+	document: DocumentRow,
+	proposalDocument: ProposalDocumentRow | null,
+	allowDraftRender: boolean | undefined
+) {
+	if (allowDraftRender) {
+		return;
+	}
+	const documentStatus = document.status;
+	const proposalStatus = proposalDocument?.status ?? null;
+	if (proposalDocument && !["approved", "final"].includes(proposalStatus ?? "")) {
+		throw new Error("Rendering a final artifact requires an approved or final proposal document");
+	}
+	if (!proposalDocument && !["approved", "final", "published"].includes(documentStatus)) {
+		throw new Error("Rendering a final artifact requires an approved or final document");
+	}
+}
+
+function buildManifest(input: {
+	documentId: string;
+	proposalDocumentId: string | null;
+	opportunityId: string | null;
+	format: ExportFormat;
+	renderedBy: string;
+	renderedAt: Date;
+	renderResult: {
+		data: string;
+		filename: string;
+		mimeType: string;
+		size: number;
+		renderTimeMs?: number;
+		pageCount?: number;
+	};
+}): FinalArtifactManifest {
+	const bytes = Buffer.from(input.renderResult.data, "base64");
+	const artifactHash = createHash("sha256").update(bytes).digest("hex");
+	const downloadUrl = `/api/documents/${input.documentId}/download?format=${input.format}&artifactHash=${artifactHash}&filename=${encodeURIComponent(input.renderResult.filename)}`;
+	return {
+		documentId: input.documentId,
+		proposalDocumentId: input.proposalDocumentId,
+		opportunityId: input.opportunityId,
+		format: input.format,
+		filename: input.renderResult.filename,
+		mimeType: input.renderResult.mimeType,
+		size: input.renderResult.size,
+		artifactHash,
+		downloadUrl,
+		renderedAt: input.renderedAt.toISOString(),
+		renderedBy: input.renderedBy,
+		renderTimeMs: input.renderResult.renderTimeMs ?? null,
+		pageCount: input.renderResult.pageCount ?? null,
+	};
+}
+
+function mergeRenderedArtifact(metadata: unknown, artifact: FinalArtifactManifest) {
+	const current = asRecord(metadata);
+	const renderedArtifacts = asRecord(current.renderedArtifacts);
+	return {
+		...current,
+		renderedArtifacts: {
+			...renderedArtifacts,
+			[artifact.format]: artifact,
+		},
+		finalArtifactWorkflow: {
+			state: "artifact_rendered",
+			lastRenderedAt: artifact.renderedAt,
+			lastRenderedBy: artifact.renderedBy,
+			lastArtifactHash: artifact.artifactHash,
+		},
+	};
+}
+
+function mergeMetadata(metadata: unknown, patch: Record<string, unknown>) {
+	return {
+		...asRecord(metadata),
+		...patch,
+	};
+}
+
+function latestArtifact(metadata: unknown, format: ExportFormat | undefined): FinalArtifactManifest | null {
+	const current = asRecord(metadata);
+	const renderedArtifacts = asRecord(current.renderedArtifacts);
+	if (format && isArtifact(renderedArtifacts[format])) {
+		return renderedArtifacts[format];
+	}
+	for (const candidate of Object.values(renderedArtifacts).reverse()) {
+		if (isArtifact(candidate)) {
+			return candidate;
+		}
+	}
+	return null;
+}
+
+function isArtifact(value: unknown): value is FinalArtifactManifest {
+	return Boolean(
+		value &&
+		typeof value === "object" &&
+		typeof (value as FinalArtifactManifest).artifactHash === "string" &&
+		typeof (value as FinalArtifactManifest).filename === "string"
+	);
+}
+
+function finalArtifactState(document: DocumentRow, proposalDocument: ProposalDocumentRow | null) {
+	const metadata = asRecord(document.metadata);
+	if (isArtifact(metadata.finalArtifact)) {
+		return "artifact_approved";
+	}
+	if (latestArtifact(document.metadata, undefined)) {
+		return "artifact_rendered";
+	}
+	return proposalDocument?.status ?? document.status ?? "draft";
+}
+
+function requireReason(value: string | null | undefined, message: string) {
+	const reason = value?.trim();
+	if (!reason) {
+		throw new Error(message);
+	}
+	return reason;
+}
+
+function requireAuthority(value: string | null | undefined, message: string) {
+	if (!value?.trim()) {
+		throw new Error(message);
+	}
+}
+
+function normalizeDueAt(value: Date | string | null | undefined, fallbackDays: number) {
+	if (value instanceof Date) {
+		return value;
+	}
+	if (typeof value === "string" && value.trim()) {
+		return new Date(value);
+	}
+	const dueAt = new Date();
+	dueAt.setDate(dueAt.getDate() + fallbackDays);
+	return dueAt;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? { ...(value as Record<string, unknown>) }
+		: {};
+}

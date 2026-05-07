@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { transitionDomainWorkflow } from "@/lib/actions/workflow-domain";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 import { isWorkflowApiResponse, requireWorkflowApiActor } from "@/lib/workflows/api-auth";
 
 export async function POST(
@@ -33,6 +34,9 @@ export async function POST(
 
 		return NextResponse.json(result);
 	} catch (error) {
+		if (error instanceof WorkflowAuthorityDeniedError) {
+			return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+		}
 		const message = error instanceof Error ? error.message : "Workflow transition failed";
 		return NextResponse.json({ error: message }, { status: 400 });
 	}

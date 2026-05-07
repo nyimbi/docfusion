@@ -1,25 +1,24 @@
 /**
  * Competitive Intelligence Import API
  *
- * POST endpoint to import competitive intelligence data from the Excel file.
+ * POST endpoint to import competitive intelligence data from a configured CSV file.
  * This imports 300 East African software companies with 47 fields each.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import * as XLSX from "xlsx";
 import { readFile } from "fs/promises";
-import { existsSync } from "fs";
+import Papa from "papaparse";
 import {
 	bulkImportCompetitiveIntelligence,
 	type CompetitiveIntelligenceRow,
 } from "@/lib/actions/competitive";
+import { isControlPlaneResponse, requireControlPlaneAdmin } from "@/lib/auth/control-plane";
 
-// Default path to the competitive intelligence Excel file
-const DEFAULT_CI_FILE_PATH = "/Users/nyimbiodero/src/pjs/docfusion/data/Competition/East_Africa_Software_Companies_Competitive_Intelligence.xlsx";
+const CI_IMPORT_CSV_PATH = process.env.COMPETITIVE_INTELLIGENCE_CSV_PATH;
 
 /**
- * Map Excel row to CompetitiveIntelligenceRow interface.
- * Headers from the Excel file:
+ * Map CSV row to CompetitiveIntelligenceRow interface.
+ * Headers from the CSV file:
  * ID, Company Name, Country, City, Founded Year, Company Age, Company Type, Primary Business,
  * Specialization, Website, LinkedIn, Email, Phone, Physical Address, CEO/Founder, CTO/Tech Lead,
  * Key Management, Management LinkedIn, Team Size, Engineer Count, Key Engineers, Notable Alumni,
@@ -29,7 +28,7 @@ const DEFAULT_CI_FILE_PATH = "/Users/nyimbiodero/src/pjs/docfusion/data/Competit
  * Competitive Positioning, Strengths, Weaknesses, Market Share, Growth Trajectory,
  * Threat Level to Datacraft, Strategic Notes, Last Updated
  */
-function mapExcelRowToCI(row: unknown[]): CompetitiveIntelligenceRow | null {
+function mapCsvRowToCI(row: unknown[]): CompetitiveIntelligenceRow | null {
 	if (!row || !row[0] || !row[1]) return null; // Skip rows without ID or Company Name
 
 	// Handle potential undefined/null values
@@ -97,38 +96,36 @@ function mapExcelRowToCI(row: unknown[]): CompetitiveIntelligenceRow | null {
 
 export async function POST(request: NextRequest) {
 	try {
-		// Check for custom file path in request body
-		let filePath = DEFAULT_CI_FILE_PATH;
-		try {
-			const body = await request.json();
-			if (body.filePath) {
-				filePath = body.filePath;
-			}
-		} catch {
-			// No body or invalid JSON, use default path
-		}
+		const authz = await requireControlPlaneAdmin(request, {
+			allowedRoles: ["admin", "operations"],
+		});
+		if (isControlPlaneResponse(authz)) return authz;
 
-		// Check if file exists
-		if (!existsSync(filePath)) {
+		if (!CI_IMPORT_CSV_PATH) {
 			return NextResponse.json(
-				{ error: `File not found: ${filePath}` },
-				{ status: 404 }
+				{ error: "Competitive intelligence CSV import source is not configured" },
+				{ status: 503 }
 			);
 		}
 
-		// Read the Excel file
-		const fileBuffer = await readFile(filePath);
-		const workbook = XLSX.read(fileBuffer, { type: "buffer" });
-
-		// Get the main sheet (first sheet contains all companies)
-		const sheetName = workbook.SheetNames[0];
-		const worksheet = workbook.Sheets[sheetName];
-		const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][];
+		// Read the configured CSV file. Request-controlled filesystem paths are not accepted.
+		const csv = await readFile(CI_IMPORT_CSV_PATH, "utf8");
+		const parsed = Papa.parse<unknown[]>(csv, {
+			header: false,
+			skipEmptyLines: true,
+		});
+		if (parsed.errors.length) {
+			return NextResponse.json(
+				{ error: "Competitive intelligence CSV could not be parsed" },
+				{ status: 400 }
+			);
+		}
+		const data = parsed.data;
 
 		// Skip header row, map remaining rows
 		const rows: CompetitiveIntelligenceRow[] = [];
 		for (let i = 1; i < data.length; i++) {
-			const mapped = mapExcelRowToCI(data[i]);
+			const mapped = mapCsvRowToCI(data[i]);
 			if (mapped) {
 				rows.push(mapped);
 			}
@@ -136,7 +133,7 @@ export async function POST(request: NextRequest) {
 
 		if (rows.length === 0) {
 			return NextResponse.json(
-				{ error: "No valid data rows found in Excel file" },
+				{ error: "No valid data rows found in CSV file" },
 				{ status: 400 }
 			);
 		}
@@ -159,22 +156,24 @@ export async function POST(request: NextRequest) {
 	} catch (error) {
 		console.error("[POST /api/import/competitive-intelligence]", error);
 		return NextResponse.json(
-			{ error: `Import failed: ${String(error)}` },
+			{ error: "Import failed" },
 			{ status: 500 }
 		);
 	}
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+	const authz = await requireControlPlaneAdmin(request, {
+		allowedRoles: ["admin", "operations"],
+	});
+	if (isControlPlaneResponse(authz)) return authz;
+
 	// Return info about the import endpoint
 	return NextResponse.json({
 		endpoint: "/api/import/competitive-intelligence",
 		method: "POST",
-		description: "Import competitive intelligence data from Excel file",
-		defaultFile: DEFAULT_CI_FILE_PATH,
-		body: {
-			filePath: "(optional) Custom path to Excel file",
-		},
+		description: "Import competitive intelligence data from the configured server-side CSV source",
+		configured: Boolean(CI_IMPORT_CSV_PATH),
 		expectedFields: 47,
 		countries: ["Kenya", "Tanzania", "Uganda", "Rwanda"],
 		totalCompanies: 300,

@@ -835,8 +835,12 @@ frontend/
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string |
-| `NEXTAUTH_SECRET` | NextAuth.js secret |
+| `AUTH_SECRET` | Auth.js session encryption secret |
+| `NEXTAUTH_SECRET` | Compatibility alias for `AUTH_SECRET` |
 | `NEXTAUTH_URL` | App base URL |
+| `KEYCLOAK_ISSUER` | Keycloak realm issuer URL |
+| `KEYCLOAK_CLIENT_ID` | Keycloak OIDC client ID |
+| `KEYCLOAK_CLIENT_SECRET` | Keycloak OIDC client secret |
 
 **Optional (AI):**
 
@@ -846,6 +850,14 @@ frontend/
 | `AZURE_OPENAI_ENDPOINT` | Azure endpoint |
 | `AZURE_OPENAI_DEPLOYMENT_NAME` | Model deployment |
 | `OLLAMA_BASE_URL` | Ollama server URL |
+
+**Optional (Authorization):**
+
+| Variable | Description |
+|----------|-------------|
+| `SPICEDB_ENDPOINT` | SpiceDB/Authzed gRPC endpoint |
+| `SPICEDB_KEY` | SpiceDB/Authzed bearer token |
+| `SPICEDB_ALLOW_INSECURE_LOCALHOST` | Allow plaintext SpiceDB only for localhost development |
 
 **Optional (Realtime):**
 

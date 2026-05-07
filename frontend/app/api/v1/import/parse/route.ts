@@ -2,17 +2,15 @@
  * Import Parse API Route
  *
  * POST /api/v1/import/parse
- * Parses uploaded file and returns headers, sample rows, and detected types.
+ * Parses uploaded delimited files and returns headers, sample rows, and detected types.
  *
  * Accepts multipart/form-data with:
- * - file: The Excel/CSV file to parse
- * - sheetName: (optional) For Excel files, which sheet to parse
+ * - file: The CSV/TSV file to parse
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { parseFile, getExcelSheets } from "@/lib/import/universal-parser";
+import { parseFile } from "@/lib/import/universal-parser";
 
 /**
  * Get authenticated user context.
@@ -20,9 +18,7 @@ import { parseFile, getExcelSheets } from "@/lib/import/universal-parser";
  */
 async function getUserContext() {
 	try {
-		const session = await auth.api.getSession({
-			headers: await headers(),
-		});
+		const session = await auth();
 
 		if (!session?.user) return null;
 		return {
@@ -49,7 +45,6 @@ export async function POST(request: NextRequest) {
 		// Parse form data
 		const formData = await request.formData();
 		const file = formData.get("file") as File | null;
-		const sheetName = formData.get("sheetName") as string | null;
 
 		if (!file) {
 			return NextResponse.json(
@@ -60,22 +55,18 @@ export async function POST(request: NextRequest) {
 
 		// Validate file type
 		const allowedTypes = [
-			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
-			"application/vnd.ms-excel", // .xls
 			"text/csv",
 			"text/tab-separated-values",
 			"application/csv",
 		];
 
 		const isAllowedType = allowedTypes.includes(file.type) ||
-			file.name.endsWith(".xlsx") ||
-			file.name.endsWith(".xls") ||
 			file.name.endsWith(".csv") ||
 			file.name.endsWith(".tsv");
 
 		if (!isAllowedType) {
 			return NextResponse.json(
-				{ success: false, error: `Unsupported file type: ${file.type}. Please upload Excel (.xlsx, .xls) or CSV files.` },
+				{ success: false, error: `Unsupported file type: ${file.type}. Please upload CSV or TSV files.` },
 				{ status: 400 }
 			);
 		}
@@ -90,7 +81,7 @@ export async function POST(request: NextRequest) {
 		}
 
 		// Parse the file
-		const parsedData = await parseFile(file, sheetName || undefined);
+		const parsedData = await parseFile(file);
 
 		return NextResponse.json({
 			success: true,
@@ -107,9 +98,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GET /api/v1/import/parse?filename=...
- * Get available sheets from an Excel file (for sheet selection UI).
- * Note: Requires re-uploading the file as we don't store files.
+ * GET /api/v1/import/parse
  */
 export async function GET(request: NextRequest) {
 	// This endpoint is not typically needed as sheet info is returned in POST

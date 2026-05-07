@@ -2,20 +2,17 @@
  * Server-Side Auth Utilities
  *
  * Helper functions for accessing session data in server components
- * and server actions.
+ * and server actions. Uses Next-Auth's auth() function.
  */
 
 import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 
 /**
  * Get the current session in a server component or server action.
  * Returns null if no valid session exists.
  */
 export async function getServerSession() {
-	return auth.api.getSession({
-		headers: await headers(),
-	});
+	return auth();
 }
 
 /**

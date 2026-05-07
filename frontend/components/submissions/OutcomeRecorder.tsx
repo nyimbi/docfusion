@@ -89,9 +89,9 @@ export function OutcomeRecorder({
 
 			{/* Outcome Selection */}
 			<div>
-				<label className="block text-sm font-medium text-[var(--foreground)] mb-3">
+				<span className="block text-sm font-medium text-[var(--foreground)] mb-3">
 					Outcome <span className="text-red-500">*</span>
-				</label>
+				</span>
 				<div className="grid grid-cols-2 gap-3">
 					{OUTCOME_OPTIONS.map((option) => (
 						<button
@@ -129,9 +129,9 @@ export function OutcomeRecorder({
 
 					<div className="grid grid-cols-2 gap-4">
 						<div>
-							<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+							<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 								Contract Value
-							</label>
+							</span>
 							<div className="relative">
 								<span className="absolute left-3 top-2 text-[var(--foreground-muted)]">
 									$
@@ -142,21 +142,21 @@ export function OutcomeRecorder({
 									onChange={(e) => setContractValue(e.target.value)}
 									placeholder="0"
 									className="w-full pl-7 pr-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-green-500 focus:border-transparent"
-								/>
+								 aria-label="Contract Value"/>
 							</div>
 						</div>
 
 						<div>
-							<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+							<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 								Contract Duration
-							</label>
+							</span>
 							<input
 								type="text"
 								value={contractDuration}
 								onChange={(e) => setContractDuration(e.target.value)}
 								placeholder="e.g., 12 months"
 								className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-green-500 focus:border-transparent"
-							/>
+							 aria-label="Contract Duration"/>
 						</div>
 					</div>
 				</div>
@@ -164,44 +164,44 @@ export function OutcomeRecorder({
 
 			{/* Outcome Notes */}
 			<div>
-				<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+				<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 					Outcome Notes
-				</label>
+				</span>
 				<textarea
 					value={outcomeNotes}
 					onChange={(e) => setOutcomeNotes(e.target.value)}
 					placeholder="Notes about the outcome..."
 					rows={2}
 					className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-				/>
+				 aria-label="Outcome Notes"/>
 			</div>
 
 			{/* Evaluator Feedback */}
 			<div>
-				<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+				<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 					Evaluator Feedback
-				</label>
+				</span>
 				<textarea
 					value={evaluatorFeedback}
 					onChange={(e) => setEvaluatorFeedback(e.target.value)}
 					placeholder="Feedback received from the evaluators..."
 					rows={3}
 					className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-				/>
+				 aria-label="Evaluator Feedback"/>
 			</div>
 
 			{/* Lessons Learned */}
 			<div>
-				<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+				<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 					Lessons Learned
-				</label>
+				</span>
 				<textarea
 					value={lessonsLearned}
 					onChange={(e) => setLessonsLearned(e.target.value)}
 					placeholder="What did we learn from this submission? What could we improve?"
 					rows={3}
 					className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-				/>
+				 aria-label="Lessons Learned"/>
 			</div>
 
 			{/* Error Message */}

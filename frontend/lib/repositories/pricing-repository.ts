@@ -277,7 +277,7 @@ export class PricingRepository extends BaseRepository<
 	async bulkUpdateCostElements(
 		updates: { id: string; data: Partial<CostElement> }[],
 	): Promise<void> {
-		await this.db.transaction(async (tx) => {
+		await this.db.transaction(async (tx: any) => {
 			for (const update of updates) {
 				await tx
 					.update(costElements)

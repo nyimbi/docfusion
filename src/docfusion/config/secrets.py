@@ -158,7 +158,7 @@ class SecretsManager:
 			name="litellm_key",
 			env_var="LITELLM_KEY",
 			description="LiteLLM API key for AI gateway",
-			development_default="sk-pjs-litellm-master-key",
+			development_default="",
 			required_in_production=False,
 		),
 		"OPENAI_API_KEY": SecretConfig(

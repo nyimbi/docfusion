@@ -186,12 +186,12 @@ const ScoreInputSchema = z.object({
 // TYPE DEFINITIONS
 // ============================================================================
 
-export type CreateReviewInput = z.infer<typeof CreateReviewInputSchema>;
+export type CreateReviewInput = z.input<typeof CreateReviewInputSchema>;
 export type UpdateReviewInput = z.infer<typeof UpdateReviewInputSchema>;
 export type ReviewerAssignment = z.infer<typeof ReviewerAssignmentSchema>;
-export type CommentInput = z.infer<typeof CommentInputSchema>;
+export type CommentInput = z.input<typeof CommentInputSchema>;
 export type ResolutionInput = z.infer<typeof ResolutionInputSchema>;
-export type ScoreInput = z.infer<typeof ScoreInputSchema>;
+export type ScoreInput = z.input<typeof ScoreInputSchema>;
 
 export interface AggregatedScores {
 	reviewId: string;

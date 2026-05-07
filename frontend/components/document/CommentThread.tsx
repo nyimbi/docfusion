@@ -450,7 +450,6 @@ function ReplyEditor({
 					onChange={(e) => setContent(e.target.value)}
 					placeholder={placeholder}
 					className="min-h-[80px] text-sm"
-					autoFocus
 				/>
 
 				<div className="flex justify-between items-center">

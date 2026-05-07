@@ -28,6 +28,7 @@
 
 import { NextRequest } from "next/server";
 import { scraperQueue, type ScraperJob, type QueueEventType } from "@/lib/scrapers/queue";
+import { requireScraperAccess } from "@/lib/scrapers/api-auth";
 
 // Event types we stream
 const STREAM_EVENTS: QueueEventType[] = [
@@ -42,6 +43,9 @@ const STREAM_EVENTS: QueueEventType[] = [
 ];
 
 export async function GET(request: NextRequest) {
+	const unauthorized = await requireScraperAccess(request);
+	if (unauthorized) return unauthorized;
+
 	const { searchParams } = new URL(request.url);
 	const jobId = searchParams.get("jobId");
 	const batchId = searchParams.get("batchId");
@@ -49,9 +53,9 @@ export async function GET(request: NextRequest) {
 
 	// Create a readable stream for SSE
 	const stream = new ReadableStream({
-		start(controller) {
+		async start(controller) {
 			// Keep track of handlers for cleanup
-			const handlers: Map<QueueEventType, (job: ScraperJob) => void> = new Map();
+			const handlers: Map<QueueEventType, (job: ScraperJob | null) => void> = new Map();
 
 			// Helper to send SSE event
 			const sendEvent = (type: string, job: ScraperJob) => {
@@ -80,8 +84,8 @@ export async function GET(request: NextRequest) {
 
 			// Set up event handlers
 			for (const eventType of STREAM_EVENTS) {
-				const handler = (job: ScraperJob) => {
-					if (shouldSendEvent(job)) {
+				const handler = (job: ScraperJob | null) => {
+					if (job && shouldSendEvent(job)) {
 						sendEvent(eventType, job);
 					}
 				};
@@ -101,7 +105,7 @@ export async function GET(request: NextRequest) {
 
 			// If watching a specific job, send its current state
 			if (jobId) {
-				const job = scraperQueue.getStatus(jobId);
+				const job = await scraperQueue.getStatus(jobId);
 				if (job) {
 					sendEvent("job:status", job);
 				}
@@ -109,20 +113,31 @@ export async function GET(request: NextRequest) {
 
 			// If watching a batch, send current state of all jobs
 			if (batchId) {
-				const jobs = scraperQueue.getBatchJobs(batchId);
+				const jobs = await scraperQueue.getBatchJobs(batchId);
 				for (const job of jobs) {
 					sendEvent("job:status", job);
 				}
 			}
 
-			// Send heartbeat every 30 seconds to keep connection alive
+			// Send heartbeat and DB-backed status snapshots so clients still see
+			// progress when the worker processing the job is a different instance.
 			const heartbeat = setInterval(() => {
-				try {
-					controller.enqueue(`: heartbeat\n\n`);
-				} catch {
-					cleanup();
-				}
-			}, 30000);
+				void (async () => {
+					try {
+						if (jobId) {
+							const job = await scraperQueue.getStatus(jobId);
+							if (job) sendEvent("job:status", job);
+						}
+						if (batchId) {
+							const jobs = await scraperQueue.getBatchJobs(batchId);
+							for (const job of jobs) sendEvent("job:status", job);
+						}
+						controller.enqueue(`: heartbeat\n\n`);
+					} catch {
+						cleanup();
+					}
+				})();
+			}, 5000);
 
 			// Cleanup function
 			const cleanup = () => {

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { BookmarkPlus, BookmarkCheck, Loader2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { bulkUpdateStatus } from "@/lib/actions/opportunities";
+import { transitionOpportunityTriage } from "@/lib/actions/opportunity-lifecycle";
 import { toast } from "sonner";
 
 // ============================================================================
@@ -35,8 +35,16 @@ export function ShortlistButton({
 
 	const mutation = useMutation({
 		mutationFn: async (shortlist: boolean) => {
-			const status = shortlist ? "shortlisted" : "interested";
-			await bulkUpdateStatus([opportunityId], status);
+			const result = await transitionOpportunityTriage({
+				opportunityId,
+				action: shortlist ? "shortlist" : "reopen",
+				reason: shortlist
+					? "Added to shortlist from opportunity header"
+					: "Removed from shortlist from opportunity header",
+			});
+			if (!result.success) {
+				throw new Error(result.error ?? "Failed to update shortlist workflow");
+			}
 		},
 		onSuccess: (_data, shortlist) => {
 			queryClient.invalidateQueries({ queryKey: ["opportunities"] });

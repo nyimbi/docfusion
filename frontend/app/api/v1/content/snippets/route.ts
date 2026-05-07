@@ -12,6 +12,10 @@ import { templateSnippets } from "@/lib/db/schema-additions";
 import { snippetAnalytics, snippetEmbeddings } from "@/lib/db/schema-content-library";
 import { eq, ilike, and, gte, desc, asc, sql } from "drizzle-orm";
 import type { ContentType, FreshnessStatus } from "@/lib/db/schema-content-library";
+import type { DocumentContent } from "@/lib/types/document";
+import type { SnippetPlaceholder } from "@/lib/types/snippets";
+import { normalizePlaceholderDefinitions } from "@/lib/placeholders/substitution";
+import { normalizeSnippetPayload } from "@/lib/snippets/content-normalization";
 
 // ============================================================================
 // Types
@@ -20,7 +24,9 @@ import type { ContentType, FreshnessStatus } from "@/lib/db/schema-content-libra
 interface SnippetResponse {
 	id: string;
 	name: string;
-	content: unknown; // JSONB content (Tiptap JSON)
+	content: DocumentContent;
+	plainTextPreview: string;
+	placeholders: SnippetPlaceholder[];
 	description: string | null;
 	category: string | null;
 	tags: string[];
@@ -87,7 +93,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 			conditions.push(
 				sql`(
 					${ilike(templateSnippets.name, `%${search}%`)} OR
-					${ilike(templateSnippets.content, `%${search}%`)} OR
+					${templateSnippets.content}::text ILIKE ${`%${search}%`} OR
 					${ilike(templateSnippets.description, `%${search}%`)}
 				)`
 			);
@@ -141,35 +147,40 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 				}
 				return true;
 			})
-			.map(({ snippet, analytics }) => ({
-				id: snippet.id,
-				name: snippet.name,
-				content: snippet.content,
-				description: snippet.description,
-				category: snippet.category,
-				tags: (snippet.tags ?? []) as string[],
-				// Analytics data (with defaults)
-				aiTags: (analytics?.aiTags ?? []) as string[],
-				keyTerms: (analytics?.keyTerms ?? []) as string[],
-				contentType: analytics?.contentType as ContentType | null,
-				topicCategory: analytics?.topicCategory ?? null,
-				sectors: (analytics?.sectors ?? []) as string[],
-				technologies: (analytics?.technologies ?? []) as string[],
-				complianceFrameworks: (analytics?.complianceFrameworks ?? []) as string[],
-				freshnessStatus: (analytics?.freshnessStatus ?? "current") as FreshnessStatus,
-				reviewDueDate: analytics?.reviewDueDate?.toISOString() ?? null,
-				lastReviewedAt: analytics?.lastReviewedAt?.toISOString() ?? null,
-				qualityScore: analytics?.qualityScore ?? null,
-				wordCount: analytics?.wordCount ?? 0, // Word count comes from analytics
-				// Win/loss tracking
-				winCount: analytics?.winCount ?? 0,
-				lossCount: analytics?.lossCount ?? 0,
-				winRate: analytics?.winRate ?? null,
-				lastUsedAt: analytics?.lastUsedAt?.toISOString() ?? null,
-				// Metadata
-				createdAt: snippet.createdAt.toISOString(),
-				updatedAt: snippet.updatedAt.toISOString(),
-			}));
+			.map(({ snippet, analytics }) => {
+				const normalized = normalizeSnippetPayload(snippet.content);
+				return {
+					id: snippet.id,
+					name: snippet.name,
+					content: normalized.content,
+					plainTextPreview: normalized.plainTextPreview,
+					placeholders: normalizePlaceholderDefinitions((snippet.placeholders ?? []) as SnippetPlaceholder[]),
+					description: snippet.description,
+					category: snippet.category,
+					tags: (snippet.tags ?? []) as string[],
+					// Analytics data (with defaults)
+					aiTags: (analytics?.aiTags ?? []) as string[],
+					keyTerms: (analytics?.keyTerms ?? []) as string[],
+					contentType: analytics?.contentType as ContentType | null,
+					topicCategory: analytics?.topicCategory ?? null,
+					sectors: (analytics?.sectors ?? []) as string[],
+					technologies: (analytics?.technologies ?? []) as string[],
+					complianceFrameworks: (analytics?.complianceFrameworks ?? []) as string[],
+					freshnessStatus: (analytics?.freshnessStatus ?? "current") as FreshnessStatus,
+					reviewDueDate: analytics?.reviewDueDate?.toISOString() ?? null,
+					lastReviewedAt: analytics?.lastReviewedAt?.toISOString() ?? null,
+					qualityScore: analytics?.qualityScore ?? null,
+					wordCount: analytics?.wordCount ?? 0, // Word count comes from analytics
+					// Win/loss tracking
+					winCount: analytics?.winCount ?? 0,
+					lossCount: analytics?.lossCount ?? 0,
+					winRate: analytics?.winRate ?? null,
+					lastUsedAt: analytics?.lastUsedAt?.toISOString() ?? null,
+					// Metadata
+					createdAt: snippet.createdAt.toISOString(),
+					updatedAt: snippet.updatedAt.toISOString(),
+				};
+			});
 
 		// Sort by analytics fields if needed
 		if (sortBy === "winRate") {
@@ -222,7 +233,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
 		// Parse request body
 		const body = await request.json();
-		const { name, content, description, category, tags, shortcut } = body;
+		const { name, content, description, category, tags, shortcut, placeholders } = body;
 
 		if (!name || !content) {
 			return NextResponse.json(
@@ -233,6 +244,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
 		// Generate shortcut from name if not provided
 		const snippetShortcut = shortcut ?? `/${name.toLowerCase().replace(/\s+/g, "-").slice(0, 30)}`;
+		const normalized = normalizeSnippetPayload(content);
+		const normalizedPlaceholders = normalizePlaceholderDefinitions(
+			(placeholders ?? []) as SnippetPlaceholder[]
+		);
 
 		// Create snippet
 		const [snippet] = await db
@@ -240,7 +255,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			.values({
 				name,
 				shortcut: snippetShortcut,
-				content,
+				content: normalized.content,
+				placeholders: normalizedPlaceholders,
 				description: description ?? null,
 				category: category ?? null,
 				tags: tags ?? [],
@@ -248,20 +264,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			})
 			.returning();
 
-		// Create analytics record (estimate word count from content if string-like)
-		const wordCount = typeof content === "string"
-			? content.split(/\s+/).length
-			: JSON.stringify(content).split(/\s+/).length / 2; // Rough estimate for JSON
+		const wordCount = normalized.plainTextPreview.split(/\s+/).filter(Boolean).length;
 		await db.insert(snippetAnalytics).values({
 			snippetId: snippet.id,
-			wordCount: Math.round(wordCount),
+			wordCount,
 			freshnessStatus: "current",
 		});
 
 		// In production, trigger embedding generation here
 		// await generateSnippetEmbedding(snippet.id);
 
-		return NextResponse.json(snippet, { status: 201 });
+		return NextResponse.json(
+			{
+				...snippet,
+				content: normalized.content,
+				plainTextPreview: normalized.plainTextPreview,
+				placeholders: normalizedPlaceholders,
+			},
+			{ status: 201 }
+		);
 	} catch (error) {
 		console.error("Create snippet error:", error);
 		return NextResponse.json(

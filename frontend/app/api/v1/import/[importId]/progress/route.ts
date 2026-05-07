@@ -6,7 +6,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getImportProgress } from "@/lib/actions/import";
 
@@ -14,7 +13,7 @@ import { getImportProgress } from "@/lib/actions/import";
  * Get authenticated user context.
  */
 async function getUserContext() {
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) return null;
 	return {
 		userId: session.user.id,

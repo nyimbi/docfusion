@@ -82,7 +82,7 @@ export const AISuggestionPopover = React.memo(function AISuggestionPopover({
 	}, [position, containerRef]);
 
 	// Handle accept
-	const handleAccept = async () => {
+	const handleAccept = React.useCallback(async () => {
 		if (!suggestion || !editor) return;
 
 		await applyMutation.mutateAsync({
@@ -92,17 +92,17 @@ export const AISuggestionPopover = React.memo(function AISuggestionPopover({
 			editor,
 		});
 		onApply?.();
-	};
+	}, [applyMutation, editor, onApply, suggestion]);
 
 	// Handle reject
-	const handleReject = async () => {
+	const handleReject = React.useCallback(async () => {
 		if (!suggestion) return;
 
 		await rejectMutation.mutateAsync({
 			requestId: suggestion.requestId,
 		});
 		onReject?.();
-	};
+	}, [onReject, rejectMutation, suggestion]);
 
 	// Handle copy
 	const handleCopy = async () => {

@@ -678,7 +678,7 @@ export function useDocumentBrowser(options: DocumentBrowserOptions = {}) {
     if (options.showArchived !== undefined) filters.isArchived = options.showArchived;
     
     org.setCustomFilters(filters);
-  }, []);
+  }, [options.filterByClient, options.filterByOpportunity, options.filterByProject, options.initialView, options.showArchived, org]);
   
   return {
     ...org,

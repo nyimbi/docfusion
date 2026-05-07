@@ -185,7 +185,10 @@ export function ContactResearchPanel({
 									key={category.id}
 									className="flex items-center space-x-2 p-2 rounded border cursor-pointer hover:bg-muted/50"
 									onClick={() => toggleCategory(category.id)}
-								>
+
+				role="button"
+				tabIndex={0}
+				onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 									<Checkbox
 										checked={selectedCategories.includes(category.id)}
 										onCheckedChange={() => toggleCategory(category.id)}

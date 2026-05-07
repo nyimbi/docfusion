@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { claimAnalysis } from "@/lib/db/schema-evidence";
 import { dataImports } from "@/lib/db/schema-import";
 import { costElements } from "@/lib/db/schema-pricing";
-import { opportunities, opportunityPartners, submissions } from "@/lib/db/schema";
+import { documents, opportunities, opportunityPartners, proposalDocuments, submissions } from "@/lib/db/schema";
 import { documentApprovals } from "@/lib/db/schema-comments-workflow";
 import { gateReviews } from "@/lib/db/schema-pipeline";
 import { complianceEntries, rfpDocuments, rfpParsingJobs, rfpRequirements } from "@/lib/db/schema-rfp";
@@ -99,6 +99,12 @@ export async function startDomainWorkflowFromTemplate(
 	if (!initialState) {
 		throw new Error(`Workflow template ${input.templateKey} does not define an initial state`);
 	}
+	await assertWorkflowAuthority({
+		actorId: input.actorId,
+		actorRoles: input.actorRoles,
+		policy: getStartAuthorityPolicy(template, initialState),
+		action: "start",
+	});
 
 	const dueAt = computeDueAt(template.slaPolicy);
 	const instance = await recordWorkflowRuntimeTransition({
@@ -158,13 +164,25 @@ export async function transitionDomainWorkflow(
 	input: TransitionDomainWorkflowInput
 ): Promise<WorkflowInstanceRow> {
 	if (isReversalAction(input.action)) {
+		const instance = await getWorkflowInstance(input.workflowInstanceId);
+		const template = await getTemplateForInstance(instance);
+		const targetState = input.targetState ?? getDefaultReversalTargetState(input.action);
+		await assertWorkflowAuthority({
+			actorId: input.actorId,
+			actorRoles: input.actorRoles,
+			policy: getReversalAuthorityPolicy(input.action, instance, template),
+			action: input.action,
+		});
 		const updated = await reverseWorkflowRuntimeState({
 			workflowInstanceId: input.workflowInstanceId,
 			action: input.action,
 			actorId: input.actorId,
 			reason: input.reason ?? "",
-			targetState: input.targetState,
+			targetState,
+			visibility: getTemplateVisibility(template, targetState),
+			portalVisibility: getTemplatePortalVisibility(template, targetState) ?? null,
 			evidenceLinks: input.evidenceLinks,
+			authorityChecked: true,
 			metadata: {
 				domainCompensation: true,
 				apiActorRoles: input.actorRoles ?? [],
@@ -300,6 +318,30 @@ async function applyDomainCompensation(input: {
 						updatedAt: now,
 					};
 			await db.update(opportunities).set(patch).where(eq(opportunities.id, input.instance.subjectId));
+			break;
+		}
+		case "document": {
+			handler = "document_finalization";
+			const [document] = await db
+				.select()
+				.from(documents)
+				.where(eq(documents.id, input.instance.subjectId))
+				.limit(1);
+			if (!document) {
+				throw new Error("Document not found for workflow compensation");
+			}
+			patch = documentFinalizationPatch({
+				action: input.action,
+				actorId: input.actorId,
+				reason: input.reason,
+				now,
+				metadata: document.metadata,
+			});
+			await db.update(documents).set(patch).where(eq(documents.id, input.instance.subjectId));
+			await db
+				.update(proposalDocuments)
+				.set(proposalDocumentFinalizationPatch(input.action, input.actorId, input.reason, now))
+				.where(eq(proposalDocuments.documentId, input.instance.subjectId));
 			break;
 		}
 		case "rfp_parse":
@@ -715,6 +757,104 @@ function pricingPatch(action: "reopen" | "cancel" | "resolve", actorId: string, 
 	return { status: "approved", approvedBy: actorId, approvedAt: now, updatedAt: now };
 }
 
+function documentFinalizationPatch(input: {
+	action: "reopen" | "cancel" | "resolve";
+	actorId: string;
+	reason: string;
+	now: Date;
+	metadata: unknown;
+}) {
+	const metadata = isRecord(input.metadata) ? input.metadata : {};
+	if (input.action === "reopen") {
+		return {
+			status: "draft",
+			metadata: {
+				...metadata,
+				finalArtifact: null,
+				finalArtifactWorkflow: {
+					state: "artifact_reopened",
+					reopenedAt: input.now.toISOString(),
+					reopenedBy: input.actorId,
+					reason: input.reason,
+				},
+				finalizationCompensation: {
+					action: input.action,
+					reason: input.reason,
+					actorId: input.actorId,
+					at: input.now.toISOString(),
+				},
+			},
+			updatedAt: input.now,
+		};
+	}
+	if (input.action === "cancel") {
+		return {
+			status: "draft",
+			metadata: {
+				...metadata,
+				finalArtifact: null,
+				finalArtifactWorkflow: {
+					state: "artifact_cancelled",
+					cancelledAt: input.now.toISOString(),
+					cancelledBy: input.actorId,
+					reason: input.reason,
+				},
+				finalizationCompensation: {
+					action: input.action,
+					reason: input.reason,
+					actorId: input.actorId,
+					at: input.now.toISOString(),
+				},
+			},
+			updatedAt: input.now,
+		};
+	}
+	return {
+		status: "final",
+		metadata: {
+			...metadata,
+			finalArtifactWorkflow: {
+				...(isRecord(metadata.finalArtifactWorkflow) ? metadata.finalArtifactWorkflow : {}),
+				state: "artifact_approved",
+				resolvedAt: input.now.toISOString(),
+				resolvedBy: input.actorId,
+				reason: input.reason,
+			},
+			finalizationCompensation: {
+				action: input.action,
+				reason: input.reason,
+				actorId: input.actorId,
+				at: input.now.toISOString(),
+			},
+		},
+		updatedAt: input.now,
+	};
+}
+
+function proposalDocumentFinalizationPatch(
+	action: "reopen" | "cancel" | "resolve",
+	actorId: string,
+	reason: string,
+	now: Date
+) {
+	if (action === "resolve") {
+		return {
+			status: "final",
+			approvedBy: actorId,
+			approvedAt: now,
+			notes: `Resolved by workflow compensation: ${reason}`,
+			updatedAt: now,
+		};
+	}
+	return {
+		status: "in_review",
+		approvedBy: null,
+		approvedAt: null,
+		notes: `${action === "reopen" ? "Reopened" : "Cancelled"} by workflow compensation: ${reason}`,
+		updatedAt: now,
+	};
+}
+
 function rfpDocumentPatch(action: "reopen" | "cancel" | "resolve", reason: string, now: Date) {
 	if (action === "reopen") {
 		return {
@@ -906,8 +1046,47 @@ function getTemplateAuthorityPolicy(template: WorkflowTemplateRow) {
 	};
 }
 
+function getStartAuthorityPolicy(template: WorkflowTemplateRow, initialState: string) {
+	const metadata = isRecord(template.metadata) ? template.metadata : {};
+	const metadataStartRoles = Array.isArray(metadata.startRequiredRoles)
+		? metadata.startRequiredRoles.filter((role): role is string => typeof role === "string" && role.length > 0)
+		: [];
+	const initialTransitionRoles = template.transitions
+		.filter((transition) => transition.from.includes(initialState))
+		.flatMap((transition) => transition.requiredRoles ?? []);
+	const requiredRoles = unique([
+		...metadataStartRoles,
+		...initialTransitionRoles,
+	]);
+	return {
+		requiredRoles: requiredRoles.length ? requiredRoles : ["admin", "workflow_admin"],
+	};
+}
+
 function isReversalAction(action: string): action is "reopen" | "cancel" | "resolve" {
 	return action === "reopen" || action === "cancel" || action === "resolve";
+}
+
+function getDefaultReversalTargetState(action: "reopen" | "cancel" | "resolve") {
+	if (action === "reopen") return "active";
+	if (action === "cancel") return "cancelled";
+	return "resolved";
+}
+
+function getReversalAuthorityPolicy(
+	action: "reopen" | "cancel" | "resolve",
+	instance: WorkflowInstanceRow,
+	template: WorkflowTemplateRow
+) {
+	const explicitTransition = template.transitions.find((candidate) =>
+		candidate.action === action && candidate.from.includes(instance.state)
+	);
+	return {
+		requiredRoles: explicitTransition?.requiredRoles?.length
+			? explicitTransition.requiredRoles
+			: ["admin", "workflow_admin"],
+		allowedActorIds: instance.authorityPolicy?.allowedActorIds,
+	};
 }
 
 function compact(values: Array<string | null | undefined>): string[] {

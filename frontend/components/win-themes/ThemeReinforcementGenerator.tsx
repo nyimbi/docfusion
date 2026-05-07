@@ -154,7 +154,10 @@ function OptionCard({
 					: "hover:border-muted-foreground/50"
 			)}
 			onClick={onSelect}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			<div className="flex items-start justify-between mb-2">
 				<div className="flex items-center gap-2">
 					<Badge variant="outline" className="text-xs">

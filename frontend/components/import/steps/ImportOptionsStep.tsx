@@ -486,22 +486,22 @@ export function ImportOptionsStep() {
 
 					<div className="space-y-4 py-4">
 						<div className="space-y-2">
-							<label className="text-sm font-medium">Template Name *</label>
+							<span className="text-sm font-medium">Template Name *</span>
 							<Input
 								value={templateName}
 								onChange={(e) => setTemplateName(e.target.value)}
 								placeholder="e.g., Partner Import from Excel"
-							/>
+							 aria-label="Template Name"/>
 						</div>
 
 						<div className="space-y-2">
-							<label className="text-sm font-medium">Description</label>
+							<span className="text-sm font-medium">Description</span>
 							<Textarea
 								value={templateDescription}
 								onChange={(e) => setTemplateDescription(e.target.value)}
 								placeholder="Optional description for this template"
 								rows={3}
-							/>
+							 aria-label="Description"/>
 						</div>
 
 						{saveError && (

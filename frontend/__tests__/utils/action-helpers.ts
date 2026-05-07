@@ -7,7 +7,7 @@
  *
  * Import this file in test setup or at the top of server action test files.
  */
-import { vi } from "vitest";
+import { expect, vi } from "vitest";
 
 // ============================================================================
 // Next.js Cache Mocks

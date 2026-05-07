@@ -153,16 +153,11 @@ export function SplitPane({
 			</div>
 
 			{/* Divider */}
-			<div
-				role="separator"
-				aria-orientation="vertical"
-				aria-valuenow={Math.round(ratio * 100)}
-				aria-valuemin={20}
-				aria-valuemax={80}
+			<button
+				type="button"
 				aria-label="Resize panes"
-				tabIndex={0}
 				className={cn(
-					"relative flex-shrink-0 w-1 cursor-col-resize",
+					"relative flex-shrink-0 w-1 cursor-col-resize appearance-none border-0 p-0",
 					"bg-gray-200 hover:bg-blue-400 active:bg-blue-500",
 					"dark:bg-gray-800 dark:hover:bg-blue-600",
 					"transition-colors duration-150",
@@ -183,7 +178,7 @@ export function SplitPane({
 						<div className="w-1 h-1 rounded-full bg-current" />
 					</div>
 				</div>
-			</div>
+			</button>
 
 			{/* Right pane (markdown preview) */}
 			<div

@@ -7,6 +7,7 @@
 
 import { logger } from "@/lib/utils/logger";
 import { AzureOpenAIProvider } from "./azure-openai";
+import { LiteLLMProvider } from "./litellm";
 import { OllamaProvider } from "./ollama";
 import type {
 	AIProvider,
@@ -18,6 +19,7 @@ import type {
 } from "./types";
 import {
 	getOllamaConfig,
+	getLiteLLMConfig,
 	getAzureConfig,
 	getEffectiveProvider,
 	getFallbackProviders,
@@ -43,6 +45,17 @@ export function createAzureOpenAIProvider(): AzureOpenAIProvider | null {
 }
 
 /**
+ * Create LiteLLM gateway provider instance.
+ */
+export function createLiteLLMProvider(): LiteLLMProvider | null {
+	const config = getLiteLLMConfig();
+	if (!config) {
+		return null;
+	}
+	return new LiteLLMProvider(config);
+}
+
+/**
  * Create Ollama provider instance.
  * Uses current configuration (respects user preferences).
  */
@@ -57,6 +70,8 @@ export function createOllamaProvider(): OllamaProvider {
  */
 export function createProvider(type: AIProviderType): AIProvider | null {
 	switch (type) {
+		case "litellm":
+			return createLiteLLMProvider();
 		case "azure-openai":
 			return createAzureOpenAIProvider();
 		case "ollama":
@@ -130,7 +145,7 @@ export class AIProviderManager {
 	 * List all providers.
 	 */
 	listProviders(): AIProviderType[] {
-		return ["azure-openai", "ollama"];
+		return ["litellm", "azure-openai", "ollama"];
 	}
 
 	/**
@@ -326,7 +341,7 @@ export class AIProviderManager {
 	 */
 	async listAvailableProviders(): Promise<AIProviderType[]> {
 		const available: AIProviderType[] = [];
-		const types: AIProviderType[] = ["azure-openai", "ollama"];
+		const types: AIProviderType[] = this.listProviders();
 
 		for (const type of types) {
 			if (await this.isProviderAvailable(type)) {
@@ -343,7 +358,7 @@ export class AIProviderManager {
 	async listAllModels(): Promise<AIModelConfig[]> {
 		const models: AIModelConfig[] = [];
 
-		for (const type of ["azure-openai", "ollama"] as AIProviderType[]) {
+		for (const type of this.listProviders()) {
 			const provider = getProvider(type);
 			if (provider) {
 				try {
@@ -505,6 +520,29 @@ export async function testProviderConnections(): Promise<
 		{ success: boolean; message: string; models?: string[] }
 	>;
 
+	const litellmConfig = getLiteLLMConfig();
+	if (litellmConfig) {
+		const litellmProvider = new LiteLLMProvider(litellmConfig);
+		try {
+			const models = await litellmProvider.listModels();
+			results.litellm = {
+				success: await litellmProvider.isAvailable(false),
+				message: "LiteLLM gateway is configured and reachable",
+				models: models.map((model) => model.modelId),
+			};
+		} catch (error) {
+			results.litellm = {
+				success: false,
+				message: `LiteLLM gateway check failed: ${error instanceof Error ? error.message : "unknown error"}`,
+			};
+		}
+	} else {
+		results.litellm = {
+			success: false,
+			message: "LiteLLM is not configured (missing LITELLM_API_KEY or LITELLM_KEY)",
+		};
+	}
+
 	// Test Azure
 	const azureConfig = getAzureConfig();
 	if (azureConfig) {
@@ -538,6 +576,11 @@ export async function testProviderConnections(): Promise<
 		ollamaConfig.baseUrl,
 		ollamaConfig.defaultModel
 	);
+
+	results.openai = {
+		success: false,
+		message: "Direct OpenAI provider is not configured; use LiteLLM for OpenAI-compatible routing",
+	};
 
 	return results;
 }

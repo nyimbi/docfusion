@@ -77,7 +77,7 @@ function createChainableQuery(returnValue: unknown = []) {
 	return chain;
 }
 
-let dbMock: ReturnType<typeof createDbMock>;
+var dbMock: ReturnType<typeof createDbMock>;
 
 function createDbMock() {
 	return {
@@ -155,7 +155,7 @@ beforeEach(() => {
 
 describe("Cost element total cost calculation (via createCostElement)", () => {
 	const baseLaborInput = {
-		opportunityId: "00000000-0000-0000-0000-000000000001",
+		opportunityId: "00000000-0000-4000-8000-000000000001",
 		elementType: "labor" as const,
 		hours: 160,
 		rate: 125,
@@ -192,7 +192,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 
 	test("ODC cost = odcAmount", async () => {
 		const input = {
-			opportunityId: "00000000-0000-0000-0000-000000000001",
+			opportunityId: "00000000-0000-4000-8000-000000000001",
 			elementType: "odc" as const,
 			odcType: "equipment" as const,
 			odcAmount: 5000,
@@ -206,7 +206,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 
 	test("travel cost = trips * costPerTrip", async () => {
 		const input = {
-			opportunityId: "00000000-0000-0000-0000-000000000001",
+			opportunityId: "00000000-0000-4000-8000-000000000001",
 			elementType: "travel" as const,
 			travelTrips: 4,
 			travelCostPerTrip: 2500,
@@ -220,7 +220,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 
 	test("subcontract cost = subcontractorCost", async () => {
 		const input = {
-			opportunityId: "00000000-0000-0000-0000-000000000001",
+			opportunityId: "00000000-0000-4000-8000-000000000001",
 			elementType: "subcontract" as const,
 			subcontractorCost: 75000,
 			subcontractorName: "ACME Corp",
@@ -234,7 +234,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 
 	test("material cost = materialCost", async () => {
 		const input = {
-			opportunityId: "00000000-0000-0000-0000-000000000001",
+			opportunityId: "00000000-0000-4000-8000-000000000001",
 			elementType: "material" as const,
 			materialCost: 12000,
 			materialDescription: "Server hardware",
@@ -446,7 +446,7 @@ describe("Labor Category CRUD", () => {
 
 describe("Cost Element CRUD", () => {
 	const validLaborInput = {
-		opportunityId: "00000000-0000-0000-0000-000000000001",
+		opportunityId: "00000000-0000-4000-8000-000000000001",
 		elementType: "labor" as const,
 		hours: 100,
 		rate: 150,
@@ -486,7 +486,7 @@ describe("Cost Element CRUD", () => {
 
 		test("defaults period to 1 and type to base when not specified", async () => {
 			const input = {
-				opportunityId: "00000000-0000-0000-0000-000000000001",
+				opportunityId: "00000000-0000-4000-8000-000000000001",
 				elementType: "odc" as const,
 				odcType: "software" as const,
 				odcAmount: 1000,
@@ -741,7 +741,7 @@ describe("Validation edge cases", () => {
 
 	test("createCostElement rejects period type not in enum", async () => {
 		const result = await createCostElement({
-			opportunityId: "00000000-0000-0000-0000-000000000001",
+			opportunityId: "00000000-0000-4000-8000-000000000001",
 			elementType: "labor",
 			periodType: "option_99" as never,
 		});
@@ -750,11 +750,11 @@ describe("Validation edge cases", () => {
 
 	test("createCostElement accepts valid period types", async () => {
 		for (const pt of ["base", "option_1", "option_2", "option_3", "option_4"] as const) {
-			const created = { id: `ce-${pt}`, opportunityId: "00000000-0000-0000-0000-000000000001", elementType: "labor", periodType: pt, totalCost: 0, status: "draft" };
+			const created = { id: `ce-${pt}`, opportunityId: "00000000-0000-4000-8000-000000000001", elementType: "labor", periodType: pt, totalCost: 0, status: "draft" };
 			dbMock.insert.mockImplementation(() => createChainableQuery([created]));
 
 			const result = await createCostElement({
-				opportunityId: "00000000-0000-0000-0000-000000000001",
+				opportunityId: "00000000-0000-4000-8000-000000000001",
 				elementType: "labor",
 				periodType: pt,
 			});

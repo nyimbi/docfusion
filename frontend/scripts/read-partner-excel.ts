@@ -5,7 +5,7 @@
  * Run with: npx tsx scripts/read-partner-excel.ts
  */
 
-import * as XLSX from "xlsx";
+import * as XLSX from "./lib/xlsx-reader";
 import * as fs from "fs";
 import * as path from "path";
 

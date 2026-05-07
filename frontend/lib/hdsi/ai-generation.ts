@@ -298,7 +298,7 @@ export function createGenerationQueue(parallelism = 2) {
   return {
     add<T>(execute: () => Promise<T>): Promise<T> {
       return new Promise((resolve, reject) => {
-        queue.push({ execute, resolve, reject });
+        queue.push({ execute, resolve: (value) => resolve(value as T), reject });
         processQueue();
       });
     },

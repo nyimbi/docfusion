@@ -55,7 +55,8 @@ interface StructureNode extends DocumentStructure {
 
 export function AIStructureGenerator({ onSuccess }: AIStructureGeneratorProps) {
 	const router = useRouter();
-	const { data: session, isPending: isSessionPending } = useSession();
+	const { data: session, status } = useSession();
+	const isSessionPending = status === "loading";
 	const [step, setStep] = React.useState<WizardStep>("intent");
 	
 	// Session state for auth

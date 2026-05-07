@@ -56,6 +56,15 @@ export const scraperRunStatusEnum = pgEnum("scraper_run_status", [
 	"cancelled",     // Manually cancelled
 ]);
 
+export const scraperJobStatusEnum = pgEnum("scraper_job_status", [
+	"queued",
+	"running",
+	"completed",
+	"failed",
+	"cancelled",
+	"retrying",
+]);
+
 // ============================================================================
 // Scraper Sources - Configuration table
 // ============================================================================
@@ -251,6 +260,50 @@ export const scraperRuns = pgTable(
 );
 
 // ============================================================================
+// Scraper Jobs - Durable work queue
+// ============================================================================
+
+export const scraperJobs = pgTable(
+	"scraper_jobs",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+
+		sourceId: uuid("source_id").notNull().references(() => scraperSources.id, { onDelete: "cascade" }),
+		sourceKey: varchar("source_key", { length: 50 }).notNull(),
+		sourceName: varchar("source_name", { length: 200 }).notNull(),
+
+		priority: integer("priority").notNull().default(2),
+		tier: integer("tier").notNull().default(3),
+		status: scraperJobStatusEnum("status").notNull().default("queued"),
+		progress: integer("progress").notNull().default(0),
+		attempt: integer("attempt").notNull().default(0),
+		maxAttempts: integer("max_attempts").notNull().default(3),
+		batchId: varchar("batch_id", { length: 100 }),
+
+		runDbId: uuid("run_db_id"),
+		error: text("error"),
+		result: jsonb("result"),
+
+		lockedBy: varchar("locked_by", { length: 100 }),
+		lockedAt: timestamp("locked_at", { withTimezone: true }),
+		leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+		nextRunAt: timestamp("next_run_at", { withTimezone: true }).notNull().defaultNow(),
+
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+		startedAt: timestamp("started_at", { withTimezone: true }),
+		completedAt: timestamp("completed_at", { withTimezone: true }),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("scraper_jobs_status_next_run_idx").on(table.status, table.nextRunAt),
+		index("scraper_jobs_priority_idx").on(table.priority, table.tier, table.createdAt),
+		index("scraper_jobs_batch_idx").on(table.batchId),
+		index("scraper_jobs_source_idx").on(table.sourceId),
+		index("scraper_jobs_lease_idx").on(table.leaseExpiresAt),
+	]
+);
+
+// ============================================================================
 // Scraper Schedules - Schedule tier configuration
 // ============================================================================
 
@@ -301,6 +354,13 @@ export const scraperRunsRelations = relations(scraperRuns, ({ one }) => ({
 	}),
 }));
 
+export const scraperJobsRelations = relations(scraperJobs, ({ one }) => ({
+	source: one(scraperSources, {
+		fields: [scraperJobs.sourceId],
+		references: [scraperSources.id],
+	}),
+}));
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -310,6 +370,9 @@ export type NewScraperSource = typeof scraperSources.$inferInsert;
 
 export type ScraperRun = typeof scraperRuns.$inferSelect;
 export type NewScraperRun = typeof scraperRuns.$inferInsert;
+
+export type ScraperJob = typeof scraperJobs.$inferSelect;
+export type NewScraperJob = typeof scraperJobs.$inferInsert;
 
 export type ScraperSchedule = typeof scraperSchedules.$inferSelect;
 export type NewScraperSchedule = typeof scraperSchedules.$inferInsert;

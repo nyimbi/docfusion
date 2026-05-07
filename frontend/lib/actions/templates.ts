@@ -17,6 +17,10 @@ import type {
 	TemplateStatus,
 	TemplateVisibility,
 } from "@/lib/types/template";
+import {
+	substitutePlaceholders as substituteContentPlaceholders,
+	substitutePlaceholdersInString as substituteStringPlaceholders,
+} from "@/lib/placeholders/substitution";
 
 // ============================================================================
 // Template Categories
@@ -548,13 +552,7 @@ function substitutePlaceholdersInString(
 	text: string,
 	values: Record<string, string | number | boolean | string[] | null>
 ): string {
-	// Replace {{placeholder}} patterns including dotted paths like {{company.name}}
-	return text.replace(/\{\{([a-zA-Z_][\w.]*)\}\}/g, (match, key) => {
-		const value = values[key];
-		if (value === undefined || value === null) return match;
-		if (Array.isArray(value)) return value.join(", ");
-		return String(value);
-	});
+	return substituteStringPlaceholders(text, values).text;
 }
 
 /**
@@ -574,23 +572,7 @@ function substitutePlaceholders(
 	content: unknown,
 	values: Record<string, string | number | boolean | string[] | null>
 ): unknown {
-	if (typeof content === "string") {
-		return substitutePlaceholdersInString(content, values);
-	}
-
-	if (Array.isArray(content)) {
-		return content.map((item) => substitutePlaceholders(item, values));
-	}
-
-	if (content && typeof content === "object") {
-		const result: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(content)) {
-			result[key] = substitutePlaceholders(value, values);
-		}
-		return result;
-	}
-
-	return content;
+	return substituteContentPlaceholders(content, values).content;
 }
 
 /**

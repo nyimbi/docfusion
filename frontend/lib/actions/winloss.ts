@@ -2006,12 +2006,21 @@ Be specific and strategic. Only output valid JSON array.`;
 // Export Functionality
 // ============================================================================
 
+function toCsvRow(values: unknown[]): string {
+	return values
+		.map((value) => {
+			const text = value === null || value === undefined ? "" : String(value);
+			return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+		})
+		.join(",");
+}
+
 /**
  * Export win/loss report in specified format.
  * Generates downloadable report with comprehensive analytics.
  */
 export async function exportWinLossReport(
-	format: "pdf" | "xlsx"
+	format: "pdf" | "csv"
 ): Promise<ActionResult<{ content: string; filename: string; mimeType: string }>> {
 	try {
 		// Fetch all required data
@@ -2029,10 +2038,7 @@ export async function exportWinLossReport(
 
 		const filename = `winloss-report-${new Date().toISOString().split("T")[0]}.${format}`;
 
-		if (format === "xlsx") {
-			const XLSX = await import("xlsx");
-
-			// Summary sheet data
+		if (format === "csv") {
 			const summaryData = [
 				["Win/Loss Analysis Report"],
 				["Generated", new Date().toISOString()],
@@ -2049,7 +2055,6 @@ export async function exportWinLossReport(
 				["ROI", stats.roi.toFixed(2)],
 			];
 
-			// Patterns sheet data
 			const patternsHeaders = ["Pattern Name", "Description", "Type", "Occurrences", "Win Correlation", "Confidence"];
 			const patternsData = patterns?.patterns.map(p => [
 				p.patternName,
@@ -2069,30 +2074,24 @@ export async function exportWinLossReport(
 				l.frequency,
 			]) ?? [];
 
-			// Create workbook
-			const workbook = XLSX.utils.book_new();
-
-			const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-			XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
-
-			if (patternsData.length > 0) {
-				const patternsSheet = XLSX.utils.aoa_to_sheet([patternsHeaders, ...patternsData]);
-				XLSX.utils.book_append_sheet(workbook, patternsSheet, "Patterns");
-			}
-
-			if (lessonsData.length > 0) {
-				const lessonsSheet = XLSX.utils.aoa_to_sheet([lessonsHeaders, ...lessonsData]);
-				XLSX.utils.book_append_sheet(workbook, lessonsSheet, "Lessons Learned");
-			}
-
-			const buffer = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
+			const csv = [
+				...summaryData,
+				[],
+				["Patterns"],
+				patternsHeaders,
+				...patternsData,
+				[],
+				["Lessons Learned"],
+				lessonsHeaders,
+				...lessonsData,
+			].map(toCsvRow).join("\n");
 
 			return {
 				success: true,
 				data: {
-					content: buffer,
+					content: Buffer.from(csv, "utf-8").toString("base64"),
 					filename,
-					mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+					mimeType: "text/csv",
 				},
 			};
 		} else {

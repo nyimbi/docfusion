@@ -13,7 +13,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getAIClient } from "@/lib/ai/client";
 import { db } from "@/lib/db";
@@ -706,7 +705,7 @@ function mergeExtractedData(
 
 export async function POST(request: NextRequest): Promise<NextResponse<ExtractResponse>> {
 	// Verify authentication
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) {
 		return NextResponse.json(
 			{
@@ -931,7 +930,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 
 export async function GET(): Promise<NextResponse> {
 	// Verify authentication
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) {
 		return NextResponse.json(
 			{ error: "Authentication required" },

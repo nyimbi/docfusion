@@ -11,14 +11,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { scraperQueue } from "@/lib/scrapers/queue";
-import { scraperRuntime } from "@/lib/scrapers/runtime";
+import { requireScraperAccess } from "@/lib/scrapers/api-auth";
+import { cancelScraperJobWorkflow } from "@/lib/actions/scraper-workflows";
 
 export async function POST(
 	request: NextRequest,
 	{ params }: { params: Promise<{ runId: string }> }
 ) {
 	try {
+		const unauthorized = await requireScraperAccess(request);
+		if (unauthorized) return unauthorized;
+
 		const { runId } = await params;
 
 		if (!runId) {
@@ -28,13 +31,11 @@ export async function POST(
 			);
 		}
 
-		// First try to cancel in queue
-		const queueCancelled = await scraperQueue.cancel(runId);
-
-		// Also try to cancel in runtime (for running jobs)
-		const runtimeCancelled = scraperRuntime.cancel(runId);
-
-		if (queueCancelled || runtimeCancelled) {
+		const result = await cancelScraperJobWorkflow(
+			runId,
+			"Operator cancelled scraper job through the scraper run API."
+		);
+		if (result.success) {
 			return NextResponse.json({
 				success: true,
 				message: "Job cancelled successfully",
@@ -42,7 +43,7 @@ export async function POST(
 		}
 
 		return NextResponse.json(
-			{ success: false, message: "Job not found or already completed" },
+			{ success: false, message: result.error ?? "Job not found or already completed" },
 			{ status: 404 }
 		);
 

@@ -1,0 +1,20 @@
+{
+  "result": {
+    "attempted": 1,
+    "delivered": 0,
+    "failed": 1,
+    "skipped": 0
+  },
+  "notifications": [
+    {
+      "id": "297ea107-c476-443f-987c-41981719a39b",
+      "channel": "email",
+      "eventType": "phase1_notification_created",
+      "deliveryStatus": "failed",
+      "deliveredAt": null,
+      "metadata": {
+        "error": "SMTP response timed out after 5000ms"
+      }
+    }
+  ]
+}

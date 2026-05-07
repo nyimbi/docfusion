@@ -539,23 +539,23 @@ function DetailsStep({
 		<div className="space-y-6">
 			{/* Name */}
 			<div>
-				<label className="text-sm font-medium text-gray-900 dark:text-white">
+				<span className="text-sm font-medium text-gray-900 dark:text-white">
 					Template Name <span className="text-red-500">*</span>
-				</label>
+				</span>
 				<Input
 					value={name}
 					onChange={(e) => setName(e.target.value)}
 					placeholder="Enter template name"
 					className={cn("mt-1", errors.name && "border-red-500")}
-				/>
+				 aria-label="Template Name"/>
 				{errors.name && <InputError>{errors.name}</InputError>}
 			</div>
 
 			{/* Description */}
 			<div>
-				<label className="text-sm font-medium text-gray-900 dark:text-white">
+				<span className="text-sm font-medium text-gray-900 dark:text-white">
 					Description <span className="text-red-500">*</span>
-				</label>
+				</span>
 				<textarea
 					value={description}
 					onChange={(e) => setDescription(e.target.value)}
@@ -567,15 +567,15 @@ function DetailsStep({
 						"focus:outline-none focus:ring-2 focus:ring-blue-500",
 						errors.description && "border-red-500"
 					)}
-				/>
+				 aria-label="Description"/>
 				{errors.description && <InputError>{errors.description}</InputError>}
 			</div>
 
 			{/* Visibility */}
 			<div>
-				<label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+				<span className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
 					Visibility
-				</label>
+				</span>
 				<div className="grid grid-cols-2 gap-3">
 					{visibilityOptions.map((option) => {
 						const Icon = option.icon;
@@ -622,9 +622,9 @@ function DetailsStep({
 
 			{/* Categories */}
 			<div>
-				<label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+				<span className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
 					Categories
-				</label>
+				</span>
 				<CategorySelector
 					categories={categoryTree}
 					selectedIds={categoryIds}
@@ -634,9 +634,9 @@ function DetailsStep({
 
 			{/* Tags */}
 			<div>
-				<label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+				<span className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
 					Tags
-				</label>
+				</span>
 				<div className="flex flex-wrap items-center gap-2">
 					{tags.map((tag) => (
 						<span
@@ -665,7 +665,7 @@ function DetailsStep({
 							}}
 							placeholder="Add tag"
 							className="w-24 h-8 text-sm"
-						/>
+						 aria-label="Tags"/>
 						<Button type="button" variant="ghost" size="sm" onClick={addTag}>
 							<Plus className="h-4 w-4" />
 						</Button>
@@ -676,9 +676,9 @@ function DetailsStep({
 			{/* Difficulty and estimated time */}
 			<div className="grid grid-cols-2 gap-4">
 				<div>
-					<label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+					<span className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
 						Difficulty
-					</label>
+					</span>
 					<select
 						value={difficulty ?? ""}
 						onChange={(e) =>
@@ -689,7 +689,7 @@ function DetailsStep({
 							)
 						}
 						className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-					>
+					 aria-label="Difficulty">
 						<option value="">Not specified</option>
 						{difficultyOptions.map((option) => (
 							<option key={option.value} value={option.value}>
@@ -699,9 +699,9 @@ function DetailsStep({
 					</select>
 				</div>
 				<div>
-					<label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+					<span className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
 						Estimated Time (minutes)
-					</label>
+					</span>
 					<Input
 						type="number"
 						value={estimatedTime ?? ""}
@@ -710,7 +710,7 @@ function DetailsStep({
 						}
 						placeholder="e.g., 30"
 						min={1}
-					/>
+					 aria-label="Estimated Time (minutes)"/>
 				</div>
 			</div>
 		</div>
@@ -870,7 +870,10 @@ function PlaceholderEditor({
 			<div
 				className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 cursor-pointer"
 				onClick={() => setExpanded(!expanded)}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				<div className="flex items-center gap-3">
 					<GripVertical className="h-4 w-4 text-gray-400" />
 					<span className="font-medium text-gray-900 dark:text-white">
@@ -911,9 +914,9 @@ function PlaceholderEditor({
 					<div className="grid grid-cols-2 gap-4">
 						{/* Name */}
 						<div>
-							<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+							<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
 								Name <span className="text-red-500">*</span>
-							</label>
+							</span>
 							<Input
 								value={placeholder.name}
 								onChange={(e) => handleNameChange(e.target.value)}
@@ -922,7 +925,7 @@ function PlaceholderEditor({
 									"mt-1",
 									errors[`${placeholder.id}-name`] && "border-red-500"
 								)}
-							/>
+							 aria-label="Name"/>
 							{errors[`${placeholder.id}-name`] && (
 								<InputError>{errors[`${placeholder.id}-name`]}</InputError>
 							)}
@@ -930,9 +933,9 @@ function PlaceholderEditor({
 
 						{/* Variable name */}
 						<div>
-							<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+							<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
 								Variable Name <span className="text-red-500">*</span>
-							</label>
+							</span>
 							<Input
 								value={placeholder.variableName}
 								onChange={(e) => onUpdate({ variableName: e.target.value })}
@@ -941,7 +944,7 @@ function PlaceholderEditor({
 									"mt-1 font-mono",
 									errors[`${placeholder.id}-variable`] && "border-red-500"
 								)}
-							/>
+							 aria-label="Variable Name"/>
 							{errors[`${placeholder.id}-variable`] && (
 								<InputError>{errors[`${placeholder.id}-variable`]}</InputError>
 							)}
@@ -951,14 +954,14 @@ function PlaceholderEditor({
 					<div className="grid grid-cols-2 gap-4">
 						{/* Type */}
 						<div>
-							<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+							<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
 								Type
-							</label>
+							</span>
 							<select
 								value={placeholder.type}
 								onChange={(e) => onUpdate({ type: e.target.value as PlaceholderType })}
 								className="w-full mt-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-							>
+							 aria-label="Type">
 								{placeholderTypeOptions.map((option) => (
 									<option key={option.value} value={option.value}>
 										{option.label}
@@ -985,28 +988,28 @@ function PlaceholderEditor({
 
 					{/* Description */}
 					<div>
-						<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+						<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
 							Description
-						</label>
+						</span>
 						<Input
 							value={placeholder.description ?? ""}
 							onChange={(e) => onUpdate({ description: e.target.value || undefined })}
 							placeholder="Help text for users"
 							className="mt-1"
-						/>
+						 aria-label="Description"/>
 					</div>
 
 					{/* Default value */}
 					<div>
-						<label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+						<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
 							Default Value
-						</label>
+						</span>
 						<Input
 							value={placeholder.defaultValue ?? ""}
 							onChange={(e) => onUpdate({ defaultValue: e.target.value || undefined })}
 							placeholder="Optional default value"
 							className="mt-1"
-						/>
+						 aria-label="Default Value"/>
 					</div>
 				</div>
 			)}

@@ -475,7 +475,7 @@ export function ColumnMappingStep() {
 						<div className="space-y-4 py-4">
 							{/* Source Column Selection */}
 							<div className="space-y-2">
-								<label className="text-sm font-medium">Source Columns</label>
+								<span className="text-sm font-medium">Source Columns</span>
 								<div className="flex flex-wrap gap-2 p-3 border rounded-lg min-h-[60px]">
 									{concatColumns.map((col, index) => (
 										<Badge
@@ -514,9 +514,9 @@ export function ColumnMappingStep() {
 
 							{/* Available Columns */}
 							<div className="space-y-2">
-								<label className="text-sm font-medium">
+								<span className="text-sm font-medium">
 									Available Columns
-								</label>
+								</span>
 								<ScrollArea className="h-[150px] border rounded-lg p-2">
 									<div className="flex flex-wrap gap-2">
 										{parsedData?.headers
@@ -540,13 +540,13 @@ export function ColumnMappingStep() {
 							{/* Separator Selection */}
 							{concatColumns.length > 1 && (
 								<div className="space-y-2">
-									<label className="text-sm font-medium">Separator</label>
+									<span className="text-sm font-medium">Separator</span>
 									<div className="flex items-center gap-2">
 										<Select
 											value={concatSeparator}
 											onValueChange={setConcatSeparator}
 										>
-											<SelectTrigger className="flex-1">
+											<SelectTrigger className="flex-1" aria-label="Separator">
 												<SelectValue />
 											</SelectTrigger>
 											<SelectContent>
@@ -573,7 +573,7 @@ export function ColumnMappingStep() {
 							{/* Preview */}
 							{concatColumns.length > 0 && parsedData?.sampleRows?.[0] && (
 								<div className="space-y-2">
-									<label className="text-sm font-medium">Preview</label>
+									<span className="text-sm font-medium">Preview</span>
 									<div className="p-3 bg-muted rounded-lg font-mono text-sm">
 										{concatColumns
 											.map((col) => String(parsedData.sampleRows[0][col] || ""))

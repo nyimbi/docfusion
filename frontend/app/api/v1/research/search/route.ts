@@ -6,7 +6,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
 // ============================================================================
@@ -222,7 +221,7 @@ function buildSearchQuery(baseQuery: string, category: string): string {
 
 export async function POST(request: NextRequest): Promise<NextResponse<SearchResponse>> {
 	// Verify authentication
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) {
 		return NextResponse.json(
 			{ success: false, results: [], error: "Authentication required" },
@@ -295,7 +294,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<SearchRes
  */
 export async function PUT(request: NextRequest): Promise<NextResponse<SearchResponse>> {
 	// Verify authentication
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) {
 		return NextResponse.json(
 			{ success: false, results: [], error: "Authentication required" },
@@ -343,7 +342,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse<SearchResp
 
 export async function GET(): Promise<NextResponse> {
 	// Verify authentication
-	const session = await auth.api.getSession({ headers: await headers() });
+	const session = await auth();
 	if (!session?.user) {
 		return NextResponse.json(
 			{ error: "Authentication required" },

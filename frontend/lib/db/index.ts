@@ -10,10 +10,11 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 import { logger } from "@/lib/utils/logger";
 
-// Connection string from environment or provided default
-const connectionString =
-	process.env.DATABASE_URL ||
-	"postgresql://azureuser:Abcd1234.@lindela16.postgres.database.azure.com:5432/docfusion?sslmode=require";
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+	throw new Error("DATABASE_URL is required");
+}
 
 // Create connection pool with sensible defaults for serverless
 const pool = new Pool({

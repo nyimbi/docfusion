@@ -309,7 +309,7 @@ export function ContentLibraryBrowser({
 				const searchLower = filters.search.toLowerCase();
 				const matchesSearch =
 					snippet.name.toLowerCase().includes(searchLower) ||
-					snippet.content.toLowerCase().includes(searchLower) ||
+					snippet.plainTextPreview.toLowerCase().includes(searchLower) ||
 					snippet.description?.toLowerCase().includes(searchLower) ||
 					snippet.tags.some((t) => t.toLowerCase().includes(searchLower)) ||
 					snippet.aiTags.some((t) => t.toLowerCase().includes(searchLower)) ||
@@ -401,7 +401,7 @@ export function ContentLibraryBrowser({
 	const handleCopy = useCallback((id: string) => {
 		const snippet = snippets.find((s) => s.id === id);
 		if (snippet) {
-			navigator.clipboard.writeText(snippet.content);
+			navigator.clipboard.writeText(snippet.plainTextPreview);
 			toast("Content copied to clipboard", { variant: "success" });
 		}
 	}, [snippets, toast]);
@@ -648,16 +648,16 @@ export function ContentLibraryBrowser({
 						<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 							{/* Content type */}
 							<div className="space-y-2">
-								<label className="text-xs font-medium text-muted-foreground">
+								<span className="text-xs font-medium text-muted-foreground">
 									Content Type
-								</label>
+								</span>
 								<Select
 									value={filters.contentType}
 									onValueChange={(v) =>
 										setFilters((prev) => ({ ...prev, contentType: v as ContentType | "" }))
 									}
 								>
-									<SelectTrigger>
+									<SelectTrigger aria-label="Content Type">
 										<SelectValue placeholder="All types" />
 									</SelectTrigger>
 									<SelectContent>
@@ -673,9 +673,9 @@ export function ContentLibraryBrowser({
 
 							{/* Freshness status */}
 							<div className="space-y-2">
-								<label className="text-xs font-medium text-muted-foreground">
+								<span className="text-xs font-medium text-muted-foreground">
 									Freshness
-								</label>
+								</span>
 								<Select
 									value={filters.freshnessStatus}
 									onValueChange={(v) =>
@@ -685,7 +685,7 @@ export function ContentLibraryBrowser({
 										}))
 									}
 								>
-									<SelectTrigger>
+									<SelectTrigger aria-label="Freshness">
 										<SelectValue placeholder="All statuses" />
 									</SelectTrigger>
 									<SelectContent>
@@ -701,16 +701,16 @@ export function ContentLibraryBrowser({
 
 							{/* Category */}
 							<div className="space-y-2">
-								<label className="text-xs font-medium text-muted-foreground">
+								<span className="text-xs font-medium text-muted-foreground">
 									Category
-								</label>
+								</span>
 								<Select
 									value={filters.category}
 									onValueChange={(v) =>
 										setFilters((prev) => ({ ...prev, category: v }))
 									}
 								>
-									<SelectTrigger>
+									<SelectTrigger aria-label="Category">
 										<SelectValue placeholder="All categories" />
 									</SelectTrigger>
 									<SelectContent>
@@ -726,9 +726,9 @@ export function ContentLibraryBrowser({
 
 							{/* Min win rate */}
 							<div className="space-y-2">
-								<label className="text-xs font-medium text-muted-foreground">
+								<span className="text-xs font-medium text-muted-foreground">
 									Min Win Rate
-								</label>
+								</span>
 								<Select
 									value={filters.minWinRate?.toString() ?? ""}
 									onValueChange={(v) =>
@@ -738,7 +738,7 @@ export function ContentLibraryBrowser({
 										}))
 									}
 								>
-									<SelectTrigger>
+									<SelectTrigger aria-label="Min Win Rate">
 										<SelectValue placeholder="Any" />
 									</SelectTrigger>
 									<SelectContent>

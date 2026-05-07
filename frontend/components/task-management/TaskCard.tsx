@@ -274,7 +274,10 @@ export function TaskCard({
 				onClick={handleClick}
 				onMouseEnter={() => setIsHovered(true)}
 				onMouseLeave={() => setIsHovered(false)}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				{showDragHandle && (
 					<GripVertical className="w-4 h-4 text-gray-400 cursor-grab" />
 				)}

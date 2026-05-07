@@ -279,17 +279,17 @@ function SuggestionCard({
 					<div className="px-4 pb-4 space-y-4 border-t pt-4 ml-9">
 						{/* Full Statement */}
 						<div>
-							<label className="text-xs font-medium text-muted-foreground">
+							<span className="text-xs font-medium text-muted-foreground">
 								Full Statement
-							</label>
+							</span>
 							<p className="text-sm mt-1">{suggestion.statement}</p>
 						</div>
 
 						{/* Rationale */}
 						<div>
-							<label className="text-xs font-medium text-muted-foreground">
+							<span className="text-xs font-medium text-muted-foreground">
 								Rationale
-							</label>
+							</span>
 							<p className="text-sm mt-1 text-muted-foreground">
 								{suggestion.rationale}
 							</p>
@@ -298,9 +298,9 @@ function SuggestionCard({
 						{/* Sources */}
 						{suggestion.sources.length > 0 && (
 							<div>
-								<label className="text-xs font-medium text-muted-foreground">
+								<span className="text-xs font-medium text-muted-foreground">
 									Sources
-								</label>
+								</span>
 								<div className="space-y-2 mt-1">
 									{suggestion.sources.map((source, idx) => (
 										<div
@@ -327,9 +327,9 @@ function SuggestionCard({
 						{/* Suggested Keywords */}
 						{suggestion.suggestedKeywords.length > 0 && (
 							<div>
-								<label className="text-xs font-medium text-muted-foreground">
+								<span className="text-xs font-medium text-muted-foreground">
 									Suggested Keywords
-								</label>
+								</span>
 								<div className="flex flex-wrap gap-1 mt-1">
 									{suggestion.suggestedKeywords.map((keyword, idx) => (
 										<Badge key={idx} variant="outline" className="text-xs">

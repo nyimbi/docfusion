@@ -53,7 +53,7 @@ import {
   MoveDown,
   Indent,
   Outdent,
-  Image,
+  Image as ImageIcon,
   BookOpen,
   Droplets,
   Footprints,
@@ -181,9 +181,9 @@ Return ONLY the improved prompt, no explanations or preamble.`,
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-semibold text-muted-foreground">
+        <span className="text-xs font-semibold text-muted-foreground">
           Custom AI Prompt
-        </label>
+        </span>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
             {wordCount} words • {characterCount} chars
@@ -548,7 +548,7 @@ export function HDSINodeEditor({
 
               {/* Insert Diagram */}
               <Button variant="outline" size="sm" onClick={() => setShowDiagramEditor(true)}>
-                <Image className="h-4 w-4 mr-1" />
+                <ImageIcon className="h-4 w-4 mr-1" />
                 Diagram
               </Button>
 
@@ -628,23 +628,23 @@ export function HDSINodeEditor({
           <div className="p-4 space-y-4 max-w-md">
             {/* Title */}
             <div>
-              <label className="text-xs font-semibold text-muted-foreground">Title</label>
+              <span className="text-xs font-semibold text-muted-foreground">Title</span>
               <input
                 type="text"
                 value={node.title}
                 onChange={(e) => onUpdate({ title: e.target.value })}
                 className="w-full mt-1 px-3 py-2 border rounded text-sm"
-              />
+               aria-label="Title"/>
             </div>
 
             {/* Type */}
             <div>
-              <label className="text-xs font-semibold text-muted-foreground">Type</label>
+              <span className="text-xs font-semibold text-muted-foreground">Type</span>
               <select
                 value={node.type}
                 onChange={(e) => onUpdate({ type: e.target.value as HDSINode["type"] })}
                 className="w-full mt-1 px-3 py-2 border rounded text-sm"
-              >
+               aria-label="Type">
                 <option value="chapter">Chapter</option>
                 <option value="section">Section</option>
                 <option value="subsection">Subsection</option>
@@ -655,9 +655,9 @@ export function HDSINodeEditor({
             {/* Token Budget with Reading Time */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-muted-foreground">
+                <span className="text-xs font-semibold text-muted-foreground">
                   Token Budget
-                </label>
+                </span>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="font-mono bg-muted px-1.5 py-0.5 rounded">
                     {node.tokenBudget} tokens

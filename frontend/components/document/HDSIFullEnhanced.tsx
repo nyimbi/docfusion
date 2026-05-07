@@ -923,7 +923,7 @@ export function HDSIFullEnhanced({
       // Cleanup and final save on unmount
       autoSaveRef.current?.dispose();
     };
-  }, [docId, structure.length > 0]); // Only re-create when docId changes or structure becomes non-empty
+  }, [docId, structure.length]); // Only re-create when docId changes or structure becomes non-empty
 
   // Trigger save on structure changes
   React.useEffect(() => {
@@ -2010,7 +2010,7 @@ ${initialBrief}
                 {discoveryStep === "input" && (
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Describe your document</label>
+                      <span className="text-sm font-medium">Describe your document</span>
                       <Textarea
                         placeholder="Be specific about your document's purpose, audience, and requirements. For example:
 
@@ -2022,7 +2022,7 @@ Include any constraints, deadlines, or specific content requirements."
                         value={initialBrief}
                         onChange={(e) => setInitialBrief(e.target.value)}
                         className="min-h-[200px] resize-none"
-                      />
+                       aria-label="Describe your document"/>
                       <p className="text-xs text-muted-foreground">
                         The more detail you provide, the better the AI can tailor your document structure.
                       </p>

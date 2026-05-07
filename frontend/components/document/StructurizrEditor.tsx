@@ -94,7 +94,7 @@ export function StructurizrEditor({
 		}, 500);
 
 		return () => clearTimeout(timeout);
-	}, [code]);
+	}, [code, onRender]);
 
 	// Handlers
 	const handleCodeChange = (newCode: string) => {

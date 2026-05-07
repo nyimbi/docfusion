@@ -288,10 +288,10 @@ export function SemanticSearchBar({
 						{/* Categories */}
 						{categories.length > 0 && (
 							<div>
-								<label className="block text-sm font-medium mb-2 flex items-center gap-1">
+								<span className="block text-sm font-medium mb-2 flex items-center gap-1">
 									<Folder className="w-4 h-4" />
 									Categories
-								</label>
+								</span>
 								<div className="flex flex-wrap gap-2">
 									{categories.map((cat) => (
 										<button
@@ -314,9 +314,9 @@ export function SemanticSearchBar({
 						{/* Content Types */}
 						{contentTypes.length > 0 && (
 							<div>
-								<label className="block text-sm font-medium mb-2">
+								<span className="block text-sm font-medium mb-2">
 									Content Types
-								</label>
+								</span>
 								<div className="flex flex-wrap gap-2">
 									{contentTypes.map((type) => (
 										<button
@@ -339,10 +339,10 @@ export function SemanticSearchBar({
 						{/* Tags */}
 						{availableTags.length > 0 && (
 							<div>
-								<label className="block text-sm font-medium mb-2 flex items-center gap-1">
+								<span className="block text-sm font-medium mb-2 flex items-center gap-1">
 									<Tag className="w-4 h-4" />
 									Tags
-								</label>
+								</span>
 								<div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto">
 									{availableTags.slice(0, 20).map((tag) => (
 										<button
@@ -364,9 +364,9 @@ export function SemanticSearchBar({
 
 						{/* Freshness */}
 						<div>
-							<label className="block text-sm font-medium mb-2">
+							<span className="block text-sm font-medium mb-2">
 								Freshness Status
-							</label>
+							</span>
 							<div className="flex flex-wrap gap-2">
 								{["current", "stale", "needs_review", "expired"].map((status) => (
 									<button
@@ -387,9 +387,9 @@ export function SemanticSearchBar({
 
 						{/* Min Win Rate */}
 						<div>
-							<label className="block text-sm font-medium mb-2">
+							<span className="block text-sm font-medium mb-2">
 								Minimum Win Rate
-							</label>
+							</span>
 							<input
 								type="range"
 								min="0"
@@ -403,7 +403,7 @@ export function SemanticSearchBar({
 									})
 								}
 								className="w-full"
-							/>
+							 aria-label="Minimum Win Rate"/>
 							<div className="flex justify-between text-xs text-gray-500">
 								<span>Any</span>
 								<span>{filters.minWinRate ?? 0}%+</span>

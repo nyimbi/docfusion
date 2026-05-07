@@ -876,7 +876,10 @@ export function BibliographyManager({
                                 setSelectedEntryId(entry.id);
                                 setActiveTab("entries");
                               }}
-                            >
+
+														role="button"
+														tabIndex={0}
+														onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
                               <span className="font-medium">{entry.citeKey}</span>
                               <span className="text-muted-foreground ml-2">{entry.title}</span>
                             </div>

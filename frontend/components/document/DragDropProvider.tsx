@@ -158,7 +158,6 @@ export function DragDropProvider({
 
 			// Update editor storage
 			if (editor) {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				const storage = (editor.storage as any).dragDrop;
 				if (storage) {
 					storage.isDragging = true;
@@ -197,7 +196,6 @@ export function DragDropProvider({
 
 			// Update editor storage
 			if (editor) {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				const storage = (editor.storage as any).dragDrop;
 				if (storage) {
 					storage.isDragging = false;
@@ -403,7 +401,6 @@ export interface DragHandleProps {
 	/** Additional className */
 	className?: string;
 	/** Additional props */
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	[key: string]: any;
 }
 

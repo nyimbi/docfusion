@@ -106,12 +106,8 @@ export interface ParsedFileData {
 	/** File metadata */
 	metadata: {
 		filename: string;
-		fileType: "xlsx" | "xls" | "csv" | "tsv";
+		fileType: "csv" | "tsv";
 		fileSize: number;
-		/** Sheet name for Excel files */
-		sheetName?: string;
-		/** Available sheets for Excel files */
-		availableSheets?: string[];
 	};
 }
 

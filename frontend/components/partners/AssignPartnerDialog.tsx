@@ -114,7 +114,10 @@ export function AssignPartnerDialog({
 			<div
 				className="absolute inset-0 bg-black/50"
 				onClick={onClose}
-			/>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}/>
 
 			{/* Dialog */}
 			<div className="relative w-full max-w-2xl max-h-[90vh] bg-[var(--background)] rounded-lg shadow-xl flex flex-col">
@@ -193,14 +196,14 @@ export function AssignPartnerDialog({
 
 							{/* Role */}
 							<div>
-								<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+								<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 									Role
-								</label>
+								</span>
 								<select
 									value={role}
 									onChange={(e) => setRole(e.target.value)}
 									className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-								>
+								 aria-label="Role">
 									<option value="">Select a role...</option>
 									<option value="lead">Lead Partner</option>
 									<option value="support">Support Partner</option>
@@ -212,9 +215,9 @@ export function AssignPartnerDialog({
 
 							{/* Work Share */}
 							<div>
-								<label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+								<span className="block text-sm font-medium text-[var(--foreground)] mb-1">
 									Work Share (%)
-								</label>
+								</span>
 								<input
 									type="number"
 									value={workShare}
@@ -223,7 +226,7 @@ export function AssignPartnerDialog({
 									min="0"
 									max="100"
 									className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-								/>
+								 aria-label="Work Share (%)"/>
 								<p className="text-xs text-[var(--foreground-muted)] mt-1">
 									Percentage of total work assigned to this partner
 								</p>
@@ -231,9 +234,9 @@ export function AssignPartnerDialog({
 
 							{/* Assigned Sections */}
 							<div>
-								<label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+								<span className="block text-sm font-medium text-[var(--foreground)] mb-2">
 									Assigned Sections
-								</label>
+								</span>
 								<div className="grid grid-cols-2 gap-2">
 									{DOCUMENT_SECTIONS.map((section) => (
 										<label

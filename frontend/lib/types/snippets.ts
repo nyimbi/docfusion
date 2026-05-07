@@ -190,6 +190,31 @@ export interface ShortcutExpansion {
 	resolvedValues?: Record<string, string | number | boolean | string[]>;
 	valueSources?: Record<string, string>;
 	diagnostics?: SnippetResolutionDiagnostic[];
+	adaptationNotes?: string[];
+	provenance?: SnippetInsertionProvenance;
+}
+
+export interface SnippetInsertionProvenance {
+	snippetId?: string;
+	shortcut?: string;
+	resolvedAt: string;
+	placeholderCount: number;
+	resolvedKeys: string[];
+	unresolvedKeys: string[];
+	valueSources: Record<string, string>;
+	diagnostics: SnippetResolutionDiagnostic[];
+	adaptation: {
+		usedAI: boolean;
+		notes: string[];
+	};
+	context: {
+		documentId?: string;
+		opportunityId?: string;
+		requirementId?: string;
+		hasRequirementText: boolean;
+		hasSurroundingText: boolean;
+		sectionTitle?: string;
+	};
 }
 
 /**

@@ -3,14 +3,23 @@ import type { Metadata } from "next";
 import { AlertTriangle, BellRing, Clock, RotateCcw, TimerReset } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
+import {
+	WorkflowInstanceRemediationActions,
+	WorkflowOperationRunButton,
+} from "@/components/workflows/WorkflowOperationsActions";
+import { SandboxModeBanner } from "@/components/workflows/SandboxModeBanner";
 import { getWorkflowDashboard } from "@/lib/actions/workflow-runtime";
+import { getWorkflowViewerScopeFromSession } from "@/lib/workflows/viewer-scope";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
 	title: "Workflow Operations | DocFusion",
 };
 
 export default async function WorkflowOperationsPage() {
-	const dashboard = await getWorkflowDashboard({
+	const scope = await getWorkflowViewerScopeFromSession();
+	if (!scope) redirect("/auth/sign-in");
+	const dashboard = await getWorkflowDashboard(scope, {
 		statuses: ["active", "waiting", "breached", "escalated"],
 		limit: 120,
 	});
@@ -45,7 +54,7 @@ export default async function WorkflowOperationsPage() {
 					</div>
 					<div className="divide-y">
 						{exceptionRows.map((item) => (
-							<div key={item.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1fr_160px_160px] md:items-center">
+							<div key={item.id} className="grid gap-3 px-5 py-4 xl:grid-cols-[1fr_150px_150px_340px] xl:items-center">
 								<div>
 									<div className="flex flex-wrap items-center gap-2">
 										<span className="font-medium">{item.workflowKey}</span>
@@ -63,6 +72,10 @@ export default async function WorkflowOperationsPage() {
 									<div className="text-muted-foreground">Due</div>
 									<div>{formatDate(item.dueAt)}</div>
 								</div>
+								<WorkflowInstanceRemediationActions
+									workflowId={item.id}
+									defaultReason={`Operational remediation for ${item.status} workflow`}
+								/>
 							</div>
 						))}
 						{exceptionRows.length === 0 && (
@@ -74,23 +87,30 @@ export default async function WorkflowOperationsPage() {
 				</section>
 
 				<aside className="space-y-6">
+					<SandboxModeBanner />
 					<OperationPanel
 						icon={Clock}
 						title="SLA Evaluation"
 						body="Scheduled worker execution evaluates overdue active and waiting workflows, writes audit events, and promotes breached items to escalation."
 						endpoint="POST /api/v1/workflows/sla/evaluate"
+						actionEndpoint="/api/v1/workflows/sla/evaluate"
+						actionLabel="Evaluate SLA"
 					/>
 					<OperationPanel
 						icon={AlertTriangle}
 						title="Exception Sync"
 						body="Operational exceptions are synchronized into durable workflow instances for dashboarding and downstream task ownership."
 						endpoint="POST /api/v1/workflows/exceptions/sync"
+						actionEndpoint="/api/v1/workflows/exceptions/sync"
+						actionLabel="Sync exceptions"
 					/>
 					<OperationPanel
 						icon={BellRing}
 						title="Stalwart Delivery"
 						body="Queued workflow notifications are dispatched through the configured Stalwart SMTP server and recorded as delivered or failed."
 						endpoint="POST /api/v1/workflows/notifications/dispatch"
+						actionEndpoint="/api/v1/workflows/notifications/dispatch"
+						actionLabel="Dispatch queued"
 					/>
 					<OperationPanel
 						icon={RotateCcw}
@@ -109,11 +129,15 @@ function OperationPanel({
 	title,
 	body,
 	endpoint,
+	actionEndpoint,
+	actionLabel,
 }: {
 	icon: typeof Clock;
 	title: string;
 	body: string;
 	endpoint: string;
+	actionEndpoint?: string;
+	actionLabel?: string;
 }) {
 	return (
 		<div className="rounded-lg border bg-card p-5">
@@ -123,6 +147,9 @@ function OperationPanel({
 			</div>
 			<p className="mt-3 text-sm text-muted-foreground">{body}</p>
 			<div className="mt-4 rounded-md border bg-muted/40 px-3 py-2 font-mono text-xs">{endpoint}</div>
+			{actionEndpoint && actionLabel && (
+				<WorkflowOperationRunButton endpoint={actionEndpoint} label={actionLabel} />
+			)}
 		</div>
 	);
 }

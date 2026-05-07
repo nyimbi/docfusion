@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { GitBranch, PlayCircle, ShieldCheck, Workflow } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
+import { SandboxModeBanner } from "@/components/workflows/SandboxModeBanner";
+import { WorkflowTemplateGovernanceActions } from "@/components/workflows/WorkflowTemplateGovernanceActions";
 import { listWorkflowTemplates } from "@/lib/actions/workflow-runtime";
 import { simulateWorkflowTemplate } from "@/lib/workflows/simulation";
 
@@ -33,6 +35,8 @@ export default async function WorkflowTemplatesPage() {
 			</header>
 
 			<main className="space-y-6 p-6">
+				<SandboxModeBanner />
+
 				<section className="grid gap-4 md:grid-cols-3">
 					<TemplateMetric label="Templates" value={templates.length} icon={Workflow} />
 					<TemplateMetric label="Active" value={templates.filter((item) => item.status === "active").length} icon={ShieldCheck} />
@@ -50,7 +54,7 @@ export default async function WorkflowTemplatesPage() {
 								transitions: template.transitions,
 							});
 							return (
-								<div key={template.id} className="grid gap-4 px-5 py-4 xl:grid-cols-[1fr_140px_160px_220px] xl:items-center">
+								<div key={template.id} className="grid gap-4 px-5 py-4 xl:grid-cols-[1fr_120px_140px_160px_300px] xl:items-center">
 									<div>
 										<div className="flex flex-wrap items-center gap-2">
 											<span className="font-medium">{template.name}</span>
@@ -77,6 +81,12 @@ export default async function WorkflowTemplatesPage() {
 										<div className="text-muted-foreground">Published</div>
 										<div>{formatDate(template.publishedAt)}</div>
 									</div>
+									<WorkflowTemplateGovernanceActions
+										templateId={template.id}
+										templateKey={template.templateKey}
+										version={template.version}
+										status={template.status}
+									/>
 								</div>
 							);
 						})}

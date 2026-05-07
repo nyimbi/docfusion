@@ -6,6 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireRouteSessionOr401, isRouteSessionResponse } from "@/lib/auth/route-session";
+import { createGoogleOAuthState, sanitizeGoogleReturnUrl } from "@/lib/google/bound-tokens";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/v1/google/callback`;
@@ -18,6 +20,10 @@ const SCOPES = [
 ].join(" ");
 
 export async function GET(request: NextRequest) {
+  const authResult = await requireRouteSessionOr401();
+  if (isRouteSessionResponse(authResult)) return authResult;
+  const sessionUserId = authResult.session.user.id;
+
   if (!GOOGLE_CLIENT_ID) {
     return NextResponse.json(
       {
@@ -47,7 +53,7 @@ export async function GET(request: NextRequest) {
   const state = crypto.randomUUID();
 
   // Store the return URL from query params
-  const returnUrl = request.nextUrl.searchParams.get("returnUrl") || "/hdsi";
+  const returnUrl = sanitizeGoogleReturnUrl(request.nextUrl.searchParams.get("returnUrl") || "/hdsi");
 
   // Build Google OAuth URL
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -57,7 +63,7 @@ export async function GET(request: NextRequest) {
   authUrl.searchParams.set("scope", SCOPES);
   authUrl.searchParams.set("access_type", "offline");
   authUrl.searchParams.set("prompt", "consent");
-  authUrl.searchParams.set("state", `${state}:${encodeURIComponent(returnUrl)}`);
+  authUrl.searchParams.set("state", createGoogleOAuthState(state, sessionUserId, returnUrl));
 
   // Create response with redirect
   const response = NextResponse.redirect(authUrl.toString());
@@ -68,6 +74,12 @@ export async function GET(request: NextRequest) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: 60 * 10, // 10 minutes
+  });
+  response.cookies.set("google_oauth_app_user", sessionUserId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 10,
   });
 
   return response;

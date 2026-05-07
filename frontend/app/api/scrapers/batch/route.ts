@@ -30,12 +30,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { scraperSources } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
-import { scraperQueue } from "@/lib/scrapers/queue";
-import { initializeScraperQueue } from "@/lib/scrapers/runtime";
+import { requireScraperAccess } from "@/lib/scrapers/api-auth";
 import { revalidatePath } from "next/cache";
-
-// Initialize queue executor
-initializeScraperQueue();
+import { scraperQueue, type ScraperJob } from "@/lib/scrapers/queue";
+import {
+	startScraperSourceRunWorkflow,
+	transitionScraperSourceEnabledWorkflow,
+} from "@/lib/actions/scraper-workflows";
 
 type BatchOperation = "run" | "enable" | "disable" | "delete";
 
@@ -56,6 +57,9 @@ interface BatchResult {
 
 export async function POST(request: NextRequest) {
 	try {
+		const unauthorized = await requireScraperAccess(request);
+		if (unauthorized) return unauthorized;
+
 		const body: BatchRequest = await request.json();
 		const { operation, sourceIds, options } = body;
 
@@ -66,9 +70,23 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
+		if (!["run", "enable", "disable", "delete"].includes(operation)) {
+			return NextResponse.json(
+				{ success: false, message: "operation must be run, enable, disable, or delete" },
+				{ status: 400 }
+			);
+		}
+
 		if (sourceIds.length === 0) {
 			return NextResponse.json(
 				{ success: false, message: "sourceIds array cannot be empty" },
+				{ status: 400 }
+			);
+		}
+
+		if (options?.priority !== undefined && ![1, 2, 3].includes(options.priority)) {
+			return NextResponse.json(
+				{ success: false, message: "priority must be 1, 2, or 3" },
 				{ status: 400 }
 			);
 		}
@@ -105,46 +123,42 @@ export async function POST(request: NextRequest) {
 			try {
 				switch (operation) {
 					case "run":
-						if (!source.enabled) {
-							results.push({
-								sourceId,
-								success: false,
-								error: "Source is disabled",
-							});
-						} else {
-							const jobId = await scraperQueue.add({
-								sourceId: source.id,
-								sourceKey: source.sourceId,
-								sourceName: source.name,
-								priority: options?.priority ?? (source.priority as 1 | 2 | 3),
-								tier: source.scheduleTier,
-							});
-							results.push({ sourceId, success: true, jobId });
-						}
+						const runResult = await startScraperSourceRunWorkflow(sourceId, {
+							priority: options?.priority,
+							reason: "Bulk scraper run requested by operator.",
+						});
+						results.push({
+							sourceId,
+							success: runResult.success,
+							jobId: runResult.jobId,
+							error: runResult.error,
+						});
 						break;
 
 					case "enable":
-						await db
-							.update(scraperSources)
-							.set({
-								enabled: true,
-								healthStatus: "unknown",
-								updatedAt: new Date(),
-							})
-							.where(eq(scraperSources.id, sourceId));
-						results.push({ sourceId, success: true });
+						const enableResult = await transitionScraperSourceEnabledWorkflow(
+							sourceId,
+							true,
+							"Bulk enable requested by operator."
+						);
+						results.push({
+							sourceId,
+							success: enableResult.success,
+							error: enableResult.error,
+						});
 						break;
 
 					case "disable":
-						await db
-							.update(scraperSources)
-							.set({
-								enabled: false,
-								healthStatus: "disabled",
-								updatedAt: new Date(),
-							})
-							.where(eq(scraperSources.id, sourceId));
-						results.push({ sourceId, success: true });
+						const disableResult = await transitionScraperSourceEnabledWorkflow(
+							sourceId,
+							false,
+							"Bulk disable requested by operator."
+						);
+						results.push({
+							sourceId,
+							success: disableResult.success,
+							error: disableResult.error,
+						});
 						break;
 
 					case "delete":
@@ -202,6 +216,9 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
 	try {
+		const unauthorized = await requireScraperAccess(request);
+		if (unauthorized) return unauthorized;
+
 		const { searchParams } = new URL(request.url);
 		const batchId = searchParams.get("batchId");
 
@@ -212,7 +229,7 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const jobs = scraperQueue.getBatchJobs(batchId);
+		const jobs: ScraperJob[] = await scraperQueue.getBatchJobs(batchId);
 
 		const summary = {
 			total: jobs.length,

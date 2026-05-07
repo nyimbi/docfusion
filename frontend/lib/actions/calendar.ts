@@ -167,22 +167,22 @@ async function fetchRequirementDeadlines(
 ): Promise<DeadlineItem[]> {
 	const rows = await db
 		.select({
-			id: requirements.id,
-			text: requirements.text,
-			requirementId: requirements.requirementId,
-			dueDate: requirements.dueDate,
-			complianceStatus: requirements.complianceStatus,
-			assignedTo: requirements.assignedTo,
-			opportunityId: requirements.opportunityId,
+			id: rfpRequirements.id,
+			text: rfpRequirements.requirementText,
+			requirementId: rfpRequirements.requirementNumber,
+			dueDate: rfpRequirements.dueDate,
+			complianceStatus: rfpRequirements.complianceStatus,
+			assignedTo: rfpRequirements.assignedTo,
+			opportunityId: rfpRequirements.opportunityId,
 			opportunityTitle: opportunities.title,
 		})
-		.from(requirements)
-		.innerJoin(opportunities, eq(requirements.opportunityId, opportunities.id))
+		.from(rfpRequirements)
+		.innerJoin(opportunities, eq(rfpRequirements.opportunityId, opportunities.id))
 		.where(
 			and(
-				isNotNull(requirements.dueDate),
-				gte(requirements.dueDate, startDate),
-				lte(requirements.dueDate, endDate)
+				isNotNull(rfpRequirements.dueDate),
+				gte(rfpRequirements.dueDate, startDate),
+				lte(rfpRequirements.dueDate, endDate)
 			)
 		);
 
@@ -201,7 +201,7 @@ async function fetchRequirementDeadlines(
 				daysUntil,
 				urgency: calculateUrgency(daysUntil),
 				sourceId: row.id,
-				opportunityId: row.opportunityId,
+				opportunityId: row.opportunityId ?? "",
 				opportunityTitle: row.opportunityTitle,
 				assignedTo: row.assignedTo,
 				status: row.complianceStatus,
@@ -460,18 +460,18 @@ export async function getMilestones(
 	// 2. Get requirement deadlines for this opportunity
 	const reqRows = await db
 		.select({
-			id: requirements.id,
-			requirementId: requirements.requirementId,
-			text: requirements.text,
-			dueDate: requirements.dueDate,
-			complianceStatus: requirements.complianceStatus,
-			assignedTo: requirements.assignedTo,
+			id: rfpRequirements.id,
+			requirementId: rfpRequirements.requirementNumber,
+			text: rfpRequirements.requirementText,
+			dueDate: rfpRequirements.dueDate,
+			complianceStatus: rfpRequirements.complianceStatus,
+			assignedTo: rfpRequirements.assignedTo,
 		})
-		.from(requirements)
+		.from(rfpRequirements)
 		.where(
 			and(
-				eq(requirements.opportunityId, opportunityId),
-				isNotNull(requirements.dueDate)
+				eq(rfpRequirements.opportunityId, opportunityId),
+				isNotNull(rfpRequirements.dueDate)
 			)
 		);
 

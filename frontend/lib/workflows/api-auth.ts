@@ -10,7 +10,7 @@ export interface WorkflowApiActor {
 	isSystem: boolean;
 }
 
-const ADMIN_ROLES = new Set(["admin", "workflow_admin", "operations", "proposal_manager"]);
+const ADMIN_ROLES = new Set(["admin", "workflow_admin", "operations"]);
 
 export async function requireWorkflowApiActor(
 	request: NextRequest,

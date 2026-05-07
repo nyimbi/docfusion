@@ -13,8 +13,9 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useTheme } from "@/lib/theme-provider";
 import { useSession, signOut } from "@/lib/auth-client";
 import {
@@ -123,7 +124,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 					<div
 						className="lg:hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
 						onClick={() => setMobileMenuOpen(false)}
-					/>
+
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}/>
 					<aside className="lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card border-r">
 						<MobileSidebar
 							pathname={pathname}
@@ -422,7 +426,6 @@ function NotificationBell() {
 function UserMenu() {
 	const { theme, setTheme } = useTheme();
 	const { data: session } = useSession();
-	const router = useRouter();
 
 	// Get user initials from name or email
 	const userInitials = React.useMemo(() => {
@@ -441,13 +444,7 @@ function UserMenu() {
 	}, [session?.user?.name, session?.user?.email]);
 
 	const handleSignOut = async () => {
-		await signOut({
-			fetchOptions: {
-				onSuccess: () => {
-					router.push("/auth/sign-in");
-				},
-			},
-		});
+		await signOut({ callbackUrl: "/auth/sign-in" });
 	};
 
 	return (
@@ -455,9 +452,11 @@ function UserMenu() {
 			<DropdownMenuTrigger asChild>
 				<button className="flex items-center gap-2 p-1.5 pr-3 rounded-xl hover:bg-accent transition-colors">
 					{session?.user?.image ? (
-						<img
+						<Image
 							src={session.user.image}
 							alt={session.user.name || "User"}
+							width={32}
+							height={32}
 							className="w-8 h-8 rounded-lg object-cover"
 						/>
 					) : (

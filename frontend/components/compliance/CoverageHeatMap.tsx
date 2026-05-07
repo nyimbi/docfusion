@@ -213,7 +213,10 @@ export function CoverageHeatMap({
 										onClick={() => toggleCategory(category.name)}
 										onMouseEnter={() => setTooltipCategory(category.name)}
 										onMouseLeave={() => setTooltipCategory(null)}
-									>
+
+				role="button"
+				tabIndex={0}
+				onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 										<div className="flex items-center gap-3">
 											{/* Expand/Collapse */}
 											<div className="w-5">
@@ -321,7 +324,10 @@ export function CoverageHeatMap({
 															e.stopPropagation();
 															onSubcategoryClick?.(category.name, sub.name);
 														}}
-													>
+
+						role="button"
+						tabIndex={0}
+						onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 														<SubIcon
 															className={cn(
 																"w-4 h-4",

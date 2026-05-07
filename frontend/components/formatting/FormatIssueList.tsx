@@ -174,7 +174,10 @@ function IssueRow({
 					if ((e.target as HTMLElement).closest("button")) return;
 					onClick?.();
 				}}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				{showCheckbox && (
 					<Checkbox
 						checked={isSelected}
@@ -444,7 +447,10 @@ export function FormatIssueList({
 								!severityFilter.has(severity) && "opacity-50"
 							)}
 							onClick={() => toggleSeverityFilter(severity)}
-						>
+
+			role="button"
+			tabIndex={0}
+			onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 							<Icon className={cn("h-4 w-4", config.color)} />
 							<span className={cn("text-sm font-medium", config.color)}>
 								{count} {config.label}

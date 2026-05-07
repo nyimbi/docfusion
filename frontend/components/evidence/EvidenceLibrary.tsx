@@ -251,7 +251,10 @@ function EvidenceCard({
 					evidence.status === "archived" && "opacity-60"
 				)}
 				onClick={onSelect}
-			>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 				{/* Type Icon */}
 				<div className={cn("p-2 rounded", typeConfig.bgColor)}>
 					<TypeIcon className={cn("h-4 w-4", typeConfig.color)} />
@@ -339,7 +342,10 @@ function EvidenceCard({
 				evidence.status === "archived" && "opacity-60"
 			)}
 			onClick={onSelect}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			{/* Header */}
 			<div className="flex items-start justify-between mb-3">
 				<Badge
@@ -609,7 +615,10 @@ export function EvidenceLibrary({
 												selectedStrengthTiers.includes(tier) && "bg-muted"
 											)}
 											onClick={() => toggleStrengthTier(tier)}
-										>
+
+					role="button"
+					tabIndex={0}
+					onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 											<div
 												className={cn(
 													"h-4 w-4 border rounded flex items-center justify-center",

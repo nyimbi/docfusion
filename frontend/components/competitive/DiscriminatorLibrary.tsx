@@ -160,13 +160,6 @@ export function DiscriminatorLibrary({
 	const [editingDiscriminator, setEditingDiscriminator] = useState<Discriminator | null>(null);
 	const [deletingId, setDeletingId] = useState<string | null>(null);
 
-	// Load discriminators on mount
-	useEffect(() => {
-		if (initialDiscriminators.length === 0) {
-			loadDiscriminators();
-		}
-	}, []);
-
 	/**
 	 * Load discriminators from server
 	 */
@@ -186,6 +179,13 @@ export function DiscriminatorLibrary({
 			setIsLoading(false);
 		}
 	}, [typeFilter]);
+
+	// Load discriminators on mount
+	useEffect(() => {
+		if (initialDiscriminators.length === 0) {
+			loadDiscriminators();
+		}
+	}, [initialDiscriminators.length, loadDiscriminators]);
 
 	/**
 	 * Filter discriminators client-side
@@ -416,7 +416,10 @@ export function DiscriminatorLibrary({
 										<div
 											className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
 											onClick={(e) => e.stopPropagation()}
-										>
+
+					role="button"
+					tabIndex={0}
+					onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>

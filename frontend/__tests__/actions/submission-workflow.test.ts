@@ -4,6 +4,10 @@ vi.mock("@/lib/actions/document-render", () => ({
 	preSubmissionAudit: vi.fn(),
 }));
 
+vi.mock("@/lib/actions/final-submission-checklist-workflow", () => ({
+	evaluateFinalSubmissionChecklistWorkflow: vi.fn(),
+}));
+
 vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "workflow-instance-1" })),
 }));
@@ -45,6 +49,7 @@ vi.mock("@/lib/db", () => {
 });
 
 import { preSubmissionAudit } from "@/lib/actions/document-render";
+import { evaluateFinalSubmissionChecklistWorkflow } from "@/lib/actions/final-submission-checklist-workflow";
 import { createSubmission } from "@/lib/actions/submissions";
 
 const readyAudit = {
@@ -83,6 +88,16 @@ const submissionRow = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	vi.mocked(preSubmissionAudit).mockResolvedValue(readyAudit);
+	vi.mocked(evaluateFinalSubmissionChecklistWorkflow).mockResolvedValue({
+		opportunityId: "opp-1",
+		allowed: true,
+		blockers: [],
+		warnings: [],
+		items: [],
+		dlpFindings: [],
+		workflowInstanceId: "checklist-workflow-1",
+		taskProjected: true,
+	});
 });
 
 describe("submission workflow gates", () => {
@@ -118,6 +133,32 @@ describe("submission workflow gates", () => {
 			})
 		).rejects.toThrow("Pre-submission audit is not ready");
 
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
+	it("blocks submission when the final checklist has unresolved hard gates", async () => {
+		vi.mocked(evaluateFinalSubmissionChecklistWorkflow).mockResolvedValueOnce({
+			opportunityId: "opp-1",
+			allowed: false,
+			blockers: ["Technical Approach artifact hash: Approved final artifact hash is missing"],
+			warnings: [],
+			items: [],
+			dlpFindings: [],
+			workflowInstanceId: "checklist-workflow-1",
+			taskProjected: true,
+		});
+
+		await expect(
+			createSubmission({
+				opportunityId: "opp-1",
+				submittedBy: "Proposal Lead",
+				submissionMethod: "portal",
+				confirmationNumber: "PORTAL-123",
+				attachmentIds: ["doc-1"],
+			})
+		).rejects.toThrow("Final submission checklist is not ready");
+
+		expect(evaluateFinalSubmissionChecklistWorkflow).toHaveBeenCalledWith("opp-1");
 		expect(dbMock.insert).not.toHaveBeenCalled();
 	});
 
@@ -177,5 +218,6 @@ describe("submission workflow gates", () => {
 		expect(opportunityUpdate).toMatchObject({
 			decisionStatus: "submitted",
 		});
+		expect(evaluateFinalSubmissionChecklistWorkflow).toHaveBeenCalledWith("opp-1");
 	});
 });

@@ -1,45 +1,40 @@
 /**
- * Dynamic Auth Pages - DocFusion
- * "Ink & Paper" Editorial Elegance
+ * Auth Pages - DocFusion
  *
- * Renders authentication views (sign-in, sign-up, forgot-password, etc.)
- * using better-auth-ui's AuthView component with custom styling.
+ * Redirects all auth paths to Keycloak OIDC login.
+ * Replaces the better-auth-ui dynamic auth pages.
  */
 
-import { AuthView } from "@daveyplate/better-auth-ui";
+"use client";
+
+import { signIn, useSession } from "next-auth/react";
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Feather } from "lucide-react";
 
-// Allow dynamic rendering - auth pages should work without static generation
-export const dynamic = "force-dynamic";
+function sanitizeCallbackUrl(value: string | null): string {
+	if (!value?.startsWith("/") || value.startsWith("//")) {
+		return "/documents";
+	}
+	return value;
+}
 
-/** Custom class names for the AuthView component to match DocFusion design */
-const authViewClassNames = {
-	base: "w-full",
-	content: "space-y-4",
-	title: "font-display text-2xl font-semibold text-foreground",
-	description: "text-sm text-muted-foreground",
-	form: {
-		base: "w-full space-y-4",
-		input: "w-full h-11 px-3.5 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all",
-		label: "block text-sm font-medium text-foreground mb-1.5",
-		primaryButton: "w-full h-11 bg-primary hover:bg-primary-hover text-primary-foreground font-medium rounded-lg transition-colors",
-		outlineButton: "w-full h-11 border border-border hover:bg-secondary text-foreground font-medium rounded-lg transition-colors",
-		providerButton: "w-full h-11 border border-border hover:bg-secondary text-foreground font-medium rounded-lg transition-colors",
-		error: "text-sm text-destructive mt-1",
-		forgotPasswordLink: "text-sm text-primary hover:underline",
-	},
-	footerLink: "text-sm text-primary hover:underline",
-	separator: "text-muted-foreground text-xs",
-};
+function AuthPageContent() {
+	const { status } = useSession();
+	const router = useRouter();
+	const searchParams = useSearchParams();
+	const callbackUrl = sanitizeCallbackUrl(searchParams.get("callbackUrl"));
 
-export default async function AuthPage({
-	params,
-}: {
-	params: Promise<{ path: string[] }>;
-}) {
-	const { path } = await params;
-	const authPath = path.join("/");
+	useEffect(() => {
+		if (status === "authenticated") {
+			router.push(callbackUrl);
+		}
+		if (status === "unauthenticated") {
+			// Automatically redirect to Keycloak login
+			signIn("keycloak", { callbackUrl });
+		}
+	}, [status, router, callbackUrl]);
 
 	return (
 		<main className="min-h-screen flex flex-col bg-background bg-paper">
@@ -61,23 +56,34 @@ export default async function AuthPage({
 				</Link>
 			</header>
 
-			{/* Auth form centered */}
+			{/* Loading state centered */}
 			<div className="relative z-10 flex-1 flex items-center justify-center p-6">
-				<div className="w-full max-w-sm animate-fade-up">
-					{/* AuthView has its own card wrapper */}
-					<AuthView
-						path={authPath}
-						className="w-full"
-						classNames={authViewClassNames}
-					/>
-
-					{/* Footer text */}
-					<p className="mt-8 text-center text-sm text-muted-foreground">
-						Powered by{" "}
-						<span className="font-medium text-foreground">DocFusion</span>
-					</p>
+				<div className="w-full max-w-sm animate-fade-up text-center space-y-6">
+					<div className="w-12 h-12 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
+					<div>
+						<h1 className="font-display text-lg font-medium text-foreground">
+							Redirecting to login...
+						</h1>
+						<p className="text-sm text-muted-foreground mt-1">
+							Please wait while we connect you to Keycloak.
+						</p>
+					</div>
+					<button
+						onClick={() => signIn("keycloak", { callbackUrl })}
+						className="w-full h-11 bg-primary hover:bg-primary-hover text-primary-foreground font-medium rounded-lg transition-colors"
+					>
+						Sign in with Keycloak
+					</button>
 				</div>
 			</div>
 		</main>
+	);
+}
+
+export default function AuthPage() {
+	return (
+		<Suspense fallback={null}>
+			<AuthPageContent />
+		</Suspense>
 	);
 }

@@ -15,7 +15,8 @@ import {
 	opportunities,
 	type SubmissionRow,
 } from "@/lib/db/schema";
-import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, count, inArray } from "drizzle-orm";
+import { evaluateFinalSubmissionChecklistWorkflow } from "@/lib/actions/final-submission-checklist-workflow";
 import { preSubmissionAudit } from "@/lib/actions/document-render";
 import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
 import { logger } from "@/lib/utils/logger";
@@ -106,6 +107,10 @@ export async function createSubmission(
 			: `readiness score ${audit.readinessScore}%`;
 		throw new Error(`Pre-submission audit is not ready: ${auditSummary}`);
 	}
+	const finalChecklist = await evaluateFinalSubmissionChecklistWorkflow(input.opportunityId);
+	if (!finalChecklist.allowed) {
+		throw new Error(`Final submission checklist is not ready: ${finalChecklist.blockers.join("; ")}`);
+	}
 
 	// Get attached document details
 	const attachments: SubmissionAttachment[] = [];
@@ -127,7 +132,7 @@ export async function createSubmission(
 			.where(
 				and(
 					eq(proposalDocuments.opportunityId, input.opportunityId),
-					sql`${proposalDocuments.documentId} = ANY(${input.attachmentIds})`
+					inArray(proposalDocuments.documentId, input.attachmentIds)
 				)
 			);
 
@@ -199,6 +204,8 @@ export async function createSubmission(
 				attachmentCount: attachments.length,
 				attachments,
 				auditReadinessScore: audit.readinessScore,
+				finalChecklistWorkflowInstanceId: finalChecklist.workflowInstanceId,
+				finalChecklistItemCount: finalChecklist.items.length,
 				submissionMethod: input.submissionMethod,
 			},
 			terminal: true,

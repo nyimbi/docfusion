@@ -35,6 +35,12 @@ export interface LinodeE3ObjectResult {
 	etag: string | null;
 }
 
+export interface LinodeE3DeleteResult {
+	bucket: string;
+	key: string;
+	deleted: boolean;
+}
+
 export function getLinodeE3ConfigFromEnv(): LinodeE3Config | null {
 	const bucket = process.env.LINODE_E3_BUCKET;
 	const accessKeyId = process.env.LINODE_E3_ACCESS_KEY_ID;
@@ -180,6 +186,58 @@ export async function downloadFromLinodeE3(
 			? Number(response.headers.get("content-length"))
 			: null,
 		etag: response.headers.get("etag"),
+	};
+}
+
+export async function deleteFromLinodeE3(
+	config: LinodeE3Config,
+	storagePath: string
+): Promise<LinodeE3DeleteResult> {
+	const { bucket, key } = parseS3StoragePath(storagePath);
+	if (bucket !== config.bucket) {
+		throw new Error(`Linode E3 bucket mismatch for ${storagePath}`);
+	}
+
+	const endpoint = normalizeEndpoint(config.endpoint);
+	const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+	const url = `${endpoint}/${bucket}/${encodedKey}`;
+	const now = new Date();
+	const amzDate = toAmzDate(now);
+	const dateStamp = amzDate.slice(0, 8);
+	const payloadHash = sha256Hex("");
+	const host = new URL(endpoint).host;
+	const headers: Record<string, string> = {
+		host,
+		"x-amz-content-sha256": payloadHash,
+		"x-amz-date": amzDate,
+	};
+
+	headers.authorization = buildAuthorizationHeader({
+		method: "DELETE",
+		canonicalUri: `/${bucket}/${encodedKey}`,
+		headers,
+		payloadHash,
+		amzDate,
+		dateStamp,
+		region: config.region,
+		accessKeyId: config.accessKeyId,
+		secretAccessKey: config.secretAccessKey,
+	});
+
+	const response = await fetch(url, {
+		method: "DELETE",
+		headers,
+	});
+
+	if (!response.ok && response.status !== 404) {
+		const body = await response.text().catch(() => "");
+		throw new Error(`Linode E3 delete failed: ${response.status} ${response.statusText}${body ? ` - ${body}` : ""}`);
+	}
+
+	return {
+		bucket,
+		key,
+		deleted: response.ok,
 	};
 }
 

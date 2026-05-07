@@ -63,7 +63,7 @@ export function TaskList({
 	className,
 }: TaskListProps) {
 	// Support both tasks and activities props
-	const tasks = tasksProp ?? activities ?? [];
+	const tasks = useMemo(() => tasksProp ?? activities ?? [], [tasksProp, activities]);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [statusFilter, setStatusFilter] = useState<string>("all");
 	const [priorityFilter, setPriorityFilter] = useState<string>("all");
@@ -209,7 +209,10 @@ export function TaskList({
 				<div
 					className="flex-1 min-w-0 cursor-pointer"
 					onClick={() => onTaskClick?.(task)}
-				>
+
+		role="button"
+		tabIndex={0}
+		onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 					<div className="flex items-center gap-2">
 						<span
 							className={cn(

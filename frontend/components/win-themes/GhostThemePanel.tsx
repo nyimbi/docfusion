@@ -237,10 +237,10 @@ function CompetitorCard({
 						{/* Weaknesses */}
 						{competitor.weaknesses.length > 0 && (
 							<div>
-								<label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+								<span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
 									<Target className="h-3 w-3 text-red-500" />
 									Their Weaknesses
-								</label>
+								</span>
 								<ul className="mt-1 space-y-1">
 									{competitor.weaknesses.map((weakness, idx) => (
 										<li key={idx} className="text-sm flex items-start gap-2">
@@ -255,10 +255,10 @@ function CompetitorCard({
 						{/* Our Advantages */}
 						{competitor.ourAdvantages.length > 0 && (
 							<div>
-								<label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+								<span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
 									<Shield className="h-3 w-3 text-green-500" />
 									Our Advantages
-								</label>
+								</span>
 								<ul className="mt-1 space-y-1">
 									{competitor.ourAdvantages.map((advantage, idx) => (
 										<li key={idx} className="text-sm flex items-start gap-2">
@@ -273,9 +273,9 @@ function CompetitorCard({
 						{/* Their Likely Themes */}
 						{competitor.likelyThemes.length > 0 && (
 							<div>
-								<label className="text-xs font-medium text-muted-foreground">
+								<span className="text-xs font-medium text-muted-foreground">
 									Their Likely Themes
-								</label>
+								</span>
 								<div className="flex flex-wrap gap-1 mt-1">
 									{competitor.likelyThemes.map((theme, idx) => (
 										<Badge key={idx} variant="outline" className="text-xs">
@@ -289,9 +289,9 @@ function CompetitorCard({
 						{/* Notes */}
 						{competitor.notes && (
 							<div>
-								<label className="text-xs font-medium text-muted-foreground">
+								<span className="text-xs font-medium text-muted-foreground">
 									Notes
-								</label>
+								</span>
 								<p className="text-sm text-muted-foreground mt-1">
 									{competitor.notes}
 								</p>
@@ -348,9 +348,9 @@ function GhostSuggestionCard({ suggestion, onAddToThemes }: GhostSuggestionCardP
 					{/* Alternative Phrasings */}
 					{suggestion.phrasings.length > 0 && (
 						<div className="mt-3">
-							<label className="text-xs font-medium text-muted-foreground">
+							<span className="text-xs font-medium text-muted-foreground">
 								Alternative Phrasings
-							</label>
+							</span>
 							<div className="space-y-1 mt-1">
 								{suggestion.phrasings.slice(0, 2).map((phrasing, idx) => (
 									<p key={idx} className="text-xs text-muted-foreground italic">

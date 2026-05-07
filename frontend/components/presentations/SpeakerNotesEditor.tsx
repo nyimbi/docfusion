@@ -85,7 +85,7 @@ export function SpeakerNotesEditor({
 	// Update local notes when slide changes
 	useMemo(() => {
 		setNotes(slide?.speakerNotes ?? "");
-	}, [slide?.id]);
+	}, [slide?.speakerNotes]);
 
 	// Calculations
 	const wordCount = useMemo(() => {
@@ -267,7 +267,7 @@ export function SpeakerNotesEditor({
 					{/* Notes Editor */}
 					<div className="space-y-2">
 						<div className="flex items-center justify-between">
-							<label className="text-sm font-medium">Notes</label>
+							<span className="text-sm font-medium">Notes</span>
 							<Button
 								variant="outline"
 								size="sm"

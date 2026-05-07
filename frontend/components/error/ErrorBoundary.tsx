@@ -8,9 +8,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
-import { captureException } from "@/lib/monitoring/sentry";
+import { captureClientException } from "@/lib/monitoring/sentry-client";
 import {
 	AlertTriangle,
 	RefreshCw,
@@ -113,7 +114,7 @@ export class ErrorBoundary extends React.Component<
 		}
 
 		// Report to Sentry with the React component stack for debuggability
-		captureException(error, {
+		captureClientException(error, {
 			componentStack: errorInfo.componentStack ?? undefined,
 		});
 
@@ -208,10 +209,10 @@ export function DefaultErrorFallback({
 					Try Again
 				</Button>
 				<Button variant="outline" asChild>
-					<a href="/">
+					<Link href="/">
 						<Home className="h-4 w-4 mr-2" />
 						Go Home
-					</a>
+					</Link>
 				</Button>
 			</div>
 

@@ -78,7 +78,7 @@ export function DocumentSidebar({
 }: DocumentSidebarProps) {
 	const [activeTab, setActiveTab] = React.useState("info");
 	const [isVersionDialogOpen, setIsVersionDialogOpen] = React.useState(false);
-	
+
 	const collaborators = useCollaborationStore((s) => s.collaborators);
 	const userPresence = useCollaborationStore((s) => s.userPresence);
 	const comments = useCommentStore((s) => s.comments);
@@ -453,7 +453,10 @@ function VersionsPanel({
 									: "hover:bg-muted/50"
 							)}
 							onClick={() => handleRestore(version)}
-						>
+
+			role="button"
+			tabIndex={0}
+			onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 							<div className="flex items-center justify-between">
 								<div className="flex items-center gap-2">
 									<Badge variant="outline">v{version.versionNumber}</Badge>
@@ -695,7 +698,10 @@ function CommentCard({ comment }: CommentCardProps) {
 					useCommentStore.getState().setSelectedBlock(comment.sectionId);
 				}
 			}}
-		>
+
+	role="button"
+	tabIndex={0}
+	onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 			<div className="flex items-start gap-2">
 				<div className="w-6 h-6 rounded-full bg-primary/10 flex-shrink-0 flex items-center justify-center text-xs font-medium">
 					{comment.authorName.charAt(0).toUpperCase()}

@@ -347,7 +347,10 @@ export function PwinDashboard({
 											onOpportunitySelect && "cursor-pointer"
 										)}
 										onClick={() => onOpportunitySelect?.(opp.opportunityId)}
-									>
+
+				role="button"
+				tabIndex={0}
+				onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 										<div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-xs font-medium">
 											{idx + 1}
 										</div>

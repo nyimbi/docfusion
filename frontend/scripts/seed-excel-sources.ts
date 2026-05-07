@@ -5,7 +5,7 @@
  * Run with: npx tsx scripts/seed-excel-sources.ts
  */
 
-import * as XLSX from 'xlsx';
+import * as XLSX from './lib/xlsx-reader';
 import * as path from 'path';
 import { db } from '../lib/db';
 import { scraperSources, type NewScraperSource } from '../lib/db/schema';

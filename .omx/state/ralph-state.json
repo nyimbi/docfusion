@@ -1,32 +1,154 @@
 {
-  "active": false,
-  "iteration": 3,
-  "max_iterations": 10,
-  "current_phase": "complete",
-  "started_at": "2026-05-03T04:24:22+03:00",
-  "task_description": "Execute .omx/plans/proposal-document-fixtures-plan.md",
-  "context_snapshot_path": ".omx/context/proposal-document-fixtures-20260502T234959Z.md",
-  "plan_path": ".omx/plans/proposal-document-fixtures-plan.md",
-  "verification_note_path": ".omx/state/snippet-context-fixture-verification.md",
-  "verification": [
-    "npm test -- --run __tests__/actions/snippet-placeholder-context.test.ts __tests__/actions/snippet-context-fixtures.test.ts",
-    "npm run test:e2e -- e2e/snippet-expansion.spec.ts",
-    "npx tsc --noEmit",
-    "npm run lint",
-    "npm run build",
-    "git diff --check -- scoped Ralph files",
-    "npx tsx scripts/ensure-snippet-context-fixtures.ts --audit",
-    "npx tsx scripts/ensure-snippet-context-fixtures.ts --apply --confirm-host db.lindela.io",
-    "concurrent fixture apply proof against db.lindela.io",
-    "direct resolveSnippetContent proof for canonical, metadata fallback, and ambiguous fixtures"
-  ],
-  "deslop": "Scoped cleanup pass found no dead code or unnecessary abstraction to remove; file-scoped ESLint passed.",
-  "architect_review": "APPROVED after duplicate proposal_documents pair apply guard was added.",
-  "manual_evidence_caveat": "Local next dev route proof was blocked by Watchpack EMFILE route discovery; production build/start proved /documents/[id] is registered and protected, and live direct resolver proof validated placeholder behavior.",
-  "completed_at": "2026-05-03T04:49:56+03:00",
-  "last_turn_at": "2026-05-03T04:49:56+03:00",
+  "active": true,
+  "iteration": 16,
+  "max_iterations": 20,
+  "current_phase": "executing",
+  "started_at": "2026-05-05T09:50:00Z",
+  "task_description": "Implement .omx/plans/full-jtbd-enhancements-implementation-plan.md exhaustively using Ralph.",
+  "context_snapshot_path": ".omx/context/full-jtbd-enhancements-implementation-20260505T083507Z.md",
+  "plan_path": ".omx/plans/full-jtbd-enhancements-implementation-plan.md",
+  "test_spec_path": ".omx/plans/test-spec-full-jtbd-enhancements-implementation.md",
+  "facility_ledger_path": ".omx/state/platform-e2e-facility-ledger.md",
+  "topology_matrix_path": ".omx/state/platform-e2e-topology-matrix.md",
+  "last_turn_at": "2026-05-05T19:32:09.209Z",
   "notes": [
-    "docs/shared/agent-tiers.md is absent in this checkout; used available Ralph role types for architect review.",
-    "Kept fixture implementation scoped and left unrelated dirty worktree changes untouched."
-  ]
+    "docs/shared/agent-tiers.md is absent in this checkout; using AGENTS.md role table and scoped local verification.",
+    "Codex native subagents returned Azure deployment 404 during Phase 0; architect verification later completed successfully.",
+    "Keep unrelated dirty worktree changes untouched.",
+    "Architect verifier accepted the search-vector repair and evidence-ledger cleanup corrections; remaining broad platform rows stay blocked/partial where not exercised.",
+    "Wave 1 first implementation slice added command center projections, operational inbox, audit explorer, notification acknowledgement/preferences, operations remediation buttons, template publish/deprecate/rollback actions, and sandbox labeling.",
+    "Wave 2 first implementation slice added workflow-backed opportunity triage, analysis acceptance, deadline acceptance, lifecycle controls, and regression tests.",
+    "Wave 2 discovery-linked RFP intake slice added storage receipt/provenance propagation, workflow runtime/audit transitions, parser confidence review, parser source-trace requirement metadata, intake UI progress, and regression tests."
+  ],
+  "approved_plan": "facility-ledger-first topology-gated evidence-strict E2E campaign",
+  "phase": "wave_2_in_progress",
+  "approved_plan_path": ".omx/plans/full-jtbd-enhancements-implementation-plan.md",
+  "target_rows": [
+    "F-001",
+    "F-002",
+    "F-003",
+    "F-004A",
+    "F-005B",
+    "F-006B",
+    "F-006C",
+    "F-007",
+    "O-009"
+  ],
+  "required_pass_rows": [
+    "F-001",
+    "F-002",
+    "F-003",
+    "F-007"
+  ],
+  "conditional_pass_rows": [
+    "F-004A",
+    "F-005B",
+    "F-006B",
+    "F-006C",
+    "O-009"
+  ],
+  "note": "docs/shared/agent-tiers.md absent; using AGENTS.md/native role roster.",
+  "run_id": "wave2-20260505T122152Z",
+  "facilities": {
+    "F-001": "blocked",
+    "F-002": "blocked",
+    "F-003": "blocked",
+    "F-004A": "blocked",
+    "F-005B": "blocked",
+    "F-006B": "blocked",
+    "F-006C": "blocked",
+    "F-007": "blocked",
+    "O-009": "blocked"
+  },
+  "verification": "git diff --check; frontend opportunity/workflow focused suite 36 tests; npx tsc --noEmit; npm run lint",
+  "architect_status": "approved_wave_2_slice",
+  "closeout": null,
+  "closeout_verification": null,
+  "skill_active_marker": "active",
+  "phase_detail": "wave_2_discovery_rfp_intake_foundation",
+  "current_wave": "2",
+  "missing_agent_tiers_doc": true,
+  "planned_next_files": [
+    ".omx/plans/prd-full-jtbd-enhancements-implementation.md",
+    ".omx/plans/test-spec-full-jtbd-enhancements-implementation.md",
+    "docs/jtbd-implementation-ledger.md",
+    "docs/platform-jtbd-catalogue.md",
+    ".omx/state/platform-e2e-facility-ledger.md"
+  ],
+  "wave_0_artifacts": [
+    ".omx/plans/prd-full-jtbd-enhancements-implementation.md",
+    ".omx/plans/test-spec-full-jtbd-enhancements-implementation.md",
+    "docs/jtbd-implementation-ledger.md",
+    "docs/platform-jtbd-catalogue.md",
+    ".omx/state/platform-e2e-facility-ledger.md"
+  ],
+  "mechanical_checks": {
+    "jtbd_ledger_rows": 75,
+    "ux_ledger_rows": 25,
+    "proof_targets_missing_from_facility_register": 0,
+    "git_diff_check": "pass"
+  },
+  "wave_1_artifacts": [
+    "frontend/lib/work-items/projections.ts",
+    "frontend/lib/actions/work-items.ts",
+    "frontend/lib/actions/workflow-audit.ts",
+    "frontend/lib/actions/workflow-template-governance.ts",
+    "frontend/app/(app)/opportunities/[id]/page.tsx",
+    "frontend/app/(app)/tasks/page.tsx",
+    "frontend/app/(app)/workflows/audit/page.tsx",
+    "frontend/app/(app)/workflows/operations/page.tsx",
+    "frontend/app/(app)/workflows/templates/page.tsx",
+    "frontend/components/opportunities/OpportunityCommandCenter.tsx",
+    "frontend/components/tasks/OperationalInbox.tsx",
+    "frontend/components/work-items/NextActionPanel.tsx",
+    "frontend/components/workflows/SandboxModeBanner.tsx",
+    "frontend/components/workflows/WorkflowOperationsActions.tsx",
+    "frontend/components/workflows/WorkflowTemplateGovernanceActions.tsx",
+    "frontend/__tests__/work-items/projections.test.ts",
+    "frontend/__tests__/actions/workflow-runtime.test.ts",
+    ".omx/logs/platform-completion/wave1-20260505T111538Z/control-plane-proof.json"
+  ],
+  "wave_1_verification": {
+    "git_diff_check": "pass",
+    "frontend_typecheck": "pass",
+    "frontend_lint": "pass",
+    "frontend_build": "pass",
+    "focused_tests": "41 passed"
+  },
+  "architect_review": {
+    "reviewer": "Halley",
+    "status": "APPROVE",
+    "rejection_fixes": [
+      "Workflow dashboard and portal visibility SQL scope filtering now happens before pagination.",
+      "Opportunity command-center audit only exposes direct subject audit to global/direct opportunity owners and otherwise uses visible workflow IDs.",
+      "Workflow reversals recompute target-state portal visibility and clear stale portal visibility for non-portal target states."
+    ]
+  },
+  "wave_2_artifacts": [
+    "frontend/lib/actions/opportunity-lifecycle.ts",
+    "frontend/lib/actions/opportunity-documents.ts",
+    "frontend/lib/actions/rfp-parser.ts",
+    "frontend/lib/services/rfp-document-service.ts",
+    "frontend/components/opportunities/OpportunityLifecyclePanel.tsx",
+    "frontend/components/opportunities/DocumentManager.tsx",
+    "frontend/components/opportunities/OpportunityDocumentsPanel.tsx",
+    "frontend/app/(app)/opportunities/[id]/page.tsx",
+    "frontend/app/(app)/opportunities/[id]/requirements/page.tsx",
+    "frontend/app/(app)/opportunities/[id]/requirements/RequirementsClientPage.tsx",
+    "frontend/__tests__/actions/opportunity-lifecycle.test.ts",
+    "frontend/__tests__/actions/rfp-parse-workflow.test.ts",
+    "frontend/__tests__/services/rfp-document-service.test.ts",
+    ".omx/logs/platform-completion/wave2-20260505T115633Z/opportunity-lifecycle-proof.json",
+    ".omx/logs/platform-completion/wave2-20260505T122152Z/discovery-rfp-proof.json"
+  ],
+  "wave_2_verification": {
+    "git_diff_check": "pass",
+    "frontend_typecheck": "pass",
+    "frontend_lint": "pass",
+    "frontend_build": "pass",
+    "focused_tests": "22 passed in discovery-RFP slice; 37 passed in opportunity lifecycle slice",
+    "architect_review": "APPROVE after fixing early confidence-review task creation, completing/cancelling review tasks on human action, blocking failed/incomplete parse review, rendering every actionable low-confidence parse review, and removing the server-side newest-N fetch cap. Opportunity lifecycle slice approved after fixing header shortlist workflow bypass, analysis state persistence, timezone-explicit deadlines, and stale Wave 2 state rows."
+  },
+  "max_iterations_auto_expand_count": 1,
+  "max_iterations_auto_expanded_at": "2026-05-05T13:20:51.769Z"
 }

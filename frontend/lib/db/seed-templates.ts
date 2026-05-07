@@ -17,6 +17,7 @@ import {
 	DATACRAFT_RESPONSE_TEMPLATE_INPUTS,
 	getDatacraftSnippetWordCount,
 } from "@/lib/data/datacraft-response-content";
+import { normalizePlaceholderDefinitions } from "@/lib/placeholders/substitution";
 
 // ============================================================================
 // Template Categories
@@ -2639,6 +2640,7 @@ export async function seedTemplates() {
 			name: snippet.name,
 			shortcut: snippet.shortcut,
 			content: snippet.content,
+			placeholders: normalizePlaceholderDefinitions(snippet.placeholders),
 			description: snippet.description,
 			tags: snippet.tags,
 			category: snippet.category,

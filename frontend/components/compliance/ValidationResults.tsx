@@ -395,7 +395,10 @@ export function ValidationResults({
 													onIssueClick && "cursor-pointer"
 												)}
 												onClick={() => onIssueClick?.(issue)}
-											>
+
+					role="button"
+					tabIndex={0}
+					onKeyDown={(event) => { if (event.target !== event.currentTarget) return; if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
 												<div className="flex items-start gap-3">
 													<IssueIcon
 														className={cn("w-5 h-5 mt-0.5", issueConfig.color)}

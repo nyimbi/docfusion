@@ -1,19 +1,14 @@
 /**
  * Universal File Parser for DocFusion
  *
- * Multi-format file parsing supporting:
- * - Excel files (.xlsx, .xls) via xlsx library
- * - CSV files with various delimiters
- * - TSV files
+ * Delimited file parsing supporting CSV files with various delimiters and TSV files.
  *
  * Features:
  * - Automatic format detection
  * - Column type inference
  * - Sample row extraction for preview
- * - Multi-sheet support for Excel
  */
 
-import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import type {
 	ParsedFileData,
@@ -51,23 +46,12 @@ const TYPE_PATTERNS = {
 /**
  * Detect file type from filename and content.
  */
-export function detectFileType(filename: string, buffer?: ArrayBuffer): "xlsx" | "xls" | "csv" | "tsv" {
+export function detectFileType(filename: string): "csv" | "tsv" {
 	const ext = filename.toLowerCase().split(".").pop();
 
 	// Check extension first
-	if (ext === "xlsx") return "xlsx";
-	if (ext === "xls") return "xls";
 	if (ext === "tsv") return "tsv";
 	if (ext === "csv") return "csv";
-
-	// Check magic bytes for Excel
-	if (buffer) {
-		const view = new Uint8Array(buffer.slice(0, 8));
-		// XLSX (ZIP format) starts with PK
-		if (view[0] === 0x50 && view[1] === 0x4B) return "xlsx";
-		// XLS (OLE format) starts with D0 CF
-		if (view[0] === 0xD0 && view[1] === 0xCF) return "xls";
-	}
 
 	// Default to CSV
 	return "csv";
@@ -194,90 +178,6 @@ function analyzeColumn(name: string, values: unknown[]): DetectedColumnType {
 }
 
 // ============================================================================
-// Excel Parsing
-// ============================================================================
-
-/**
- * Parse Excel file (.xlsx or .xls).
- */
-export async function parseExcelFile(
-	buffer: ArrayBuffer,
-	filename: string,
-	sheetName?: string
-): Promise<ParsedFileData> {
-	const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-	const sheetNames = workbook.SheetNames;
-
-	// Select sheet
-	const selectedSheet = sheetName && sheetNames.includes(sheetName)
-		? sheetName
-		: sheetNames[0];
-
-	const worksheet = workbook.Sheets[selectedSheet];
-
-	// Convert to JSON with header row
-	// When header: 1 is used, sheet_to_json returns an array of arrays (rows)
-	const rawData = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
-		header: 1, // Use 1-indexed array format first to get headers
-		defval: null,
-	}) as unknown[][];
-
-	if (!rawData.length) {
-		return {
-			headers: [],
-			sampleRows: [],
-			totalRows: 0,
-			detectedTypes: [],
-			metadata: {
-				filename,
-				fileType: filename.endsWith(".xlsx") ? "xlsx" : "xls",
-				fileSize: buffer.byteLength,
-				sheetName: selectedSheet,
-				availableSheets: sheetNames,
-			},
-		};
-	}
-
-	// First row is headers
-	const headers = rawData[0].map((h) => String(h || "").trim()).filter(Boolean);
-	const dataRows = rawData.slice(1);
-
-	// Convert to objects
-	const rows: Record<string, unknown>[] = dataRows
-		.filter((row) => row.some((cell) => cell !== null && cell !== undefined && cell !== ""))
-		.map((row) => {
-			const obj: Record<string, unknown> = {};
-			headers.forEach((header, i) => {
-				obj[header] = row[i] !== undefined ? row[i] : null;
-			});
-			return obj;
-		});
-
-	// Sample rows for preview
-	const sampleRows = rows.slice(0, MAX_SAMPLE_ROWS);
-
-	// Analyze columns
-	const detectedTypes = headers.map((header) => {
-		const values = sampleRows.map((row) => row[header]);
-		return analyzeColumn(header, values);
-	});
-
-	return {
-		headers,
-		sampleRows,
-		totalRows: rows.length,
-		detectedTypes,
-		metadata: {
-			filename,
-			fileType: filename.endsWith(".xlsx") ? "xlsx" : "xls",
-			fileSize: buffer.byteLength,
-			sheetName: selectedSheet,
-			availableSheets: sheetNames,
-		},
-	};
-}
-
-// ============================================================================
 // CSV/TSV Parsing
 // ============================================================================
 
@@ -336,15 +236,11 @@ export async function parseCSVFile(
  * Parse any supported file format.
  * Returns parsed data with headers, sample rows, and type detection.
  */
-export async function parseFile(file: File, sheetName?: string): Promise<ParsedFileData> {
+export async function parseFile(file: File): Promise<ParsedFileData> {
 	const buffer = await file.arrayBuffer();
-	const fileType = detectFileType(file.name, buffer);
+	const fileType = detectFileType(file.name);
 
 	switch (fileType) {
-		case "xlsx":
-		case "xls":
-			return parseExcelFile(buffer, file.name, sheetName);
-
 		case "csv":
 		case "tsv": {
 			const text = new TextDecoder().decode(buffer);
@@ -354,21 +250,4 @@ export async function parseFile(file: File, sheetName?: string): Promise<ParsedF
 		default:
 			throw new Error(`Unsupported file type: ${fileType}`);
 	}
-}
-
-/**
- * Get available sheet names from an Excel file.
- */
-export async function getExcelSheets(file: File): Promise<string[]> {
-	const buffer = await file.arrayBuffer();
-	const workbook = XLSX.read(buffer, { type: "array", bookSheets: true });
-	return workbook.SheetNames;
-}
-
-/**
- * Re-parse with a different sheet selected.
- */
-export async function parseWithSheet(file: File, sheetName: string): Promise<ParsedFileData> {
-	const buffer = await file.arrayBuffer();
-	return parseExcelFile(buffer, file.name, sheetName);
 }

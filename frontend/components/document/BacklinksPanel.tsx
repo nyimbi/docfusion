@@ -137,7 +137,7 @@ export const BacklinksPanel = React.memo(function BacklinksPanel({
 
           {/* Backlinks list */}
           {!isLoading && hasBacklinks && (
-            <ul className="space-y-2" role="list" aria-label="Backlinks">
+	            <ul className="space-y-2" aria-label="Backlinks">
               {backlinks.map((backlink) => (
                 <BacklinksListItem
                   key={backlink.documentId}
