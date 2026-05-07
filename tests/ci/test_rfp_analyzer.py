@@ -17,7 +17,7 @@ from docfusion.rfp.rfp_analyzer import (
 )
 from docfusion.rfp.requirement_extractor import (
 	Requirement,
-	RequirementCategory,
+	RequirementModality,
 	RequirementType,
 	RequirementExtractionResult,
 )
@@ -76,7 +76,7 @@ class TestRFPAnalysisResult:
 		"""Test result with data"""
 		req = Requirement(
 			text="Test requirement",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			requirement_type=RequirementType.TECHNICAL,
 			confidence=0.9,
 		)
@@ -232,7 +232,7 @@ class TestRFPAnalyzerIntegration:
 		# Verify requirements have proper classification
 		mandatory_count = sum(
 			1 for req in result.requirements
-			if req.category == RequirementCategory.MANDATORY
+			if req.modality == RequirementModality.MANDATORY
 		)
 		assert mandatory_count > 0
 

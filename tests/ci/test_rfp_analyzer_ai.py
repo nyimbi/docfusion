@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from docfusion.rfp.rfp_analyzer import RFPAnalyzer, RFPAnalysisResult, create_rfp_analyzer
-from docfusion.rfp.requirement_extractor import Requirement, RequirementCategory, RequirementType
+from docfusion.rfp.requirement_extractor import Requirement, RequirementModality, RequirementType
 
 
 @pytest.fixture
@@ -14,13 +14,13 @@ def sample_requirements():
 	return [
 		Requirement(
 			text="Vendor shall provide 24/7 support",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			requirement_type=RequirementType.FUNCTIONAL,
 			confidence=0.9,
 		),
 		Requirement(
 			text="Must support SSO via SAML",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			requirement_type=RequirementType.SECURITY,
 			confidence=0.95,
 		),

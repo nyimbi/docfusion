@@ -23,7 +23,7 @@ from ..config.secrets import SecretsManager
 from ..infrastructure import complete_with_fallback
 import time
 
-class RequirementCategory(str, Enum):
+class RequirementModality(str, Enum):
 	"""Classification categories for RFP requirements"""
 
 	MANDATORY = "mandatory"  # Must be met - "shall", "must", "required"
@@ -65,8 +65,8 @@ class Requirement(BaseModel):
 
 	id: str = Field(default_factory=uuid7str)
 	text: str = Field(..., description="Requirement text")
-	category: RequirementCategory = Field(
-		default=RequirementCategory.MANDATORY, description="Requirement classification"
+	modality: RequirementModality = Field(
+		default=RequirementModality.MANDATORY, description="Requirement classification"
 	)
 	requirement_type: RequirementType = Field(
 		default=RequirementType.UNKNOWN, description="Requirement type"
@@ -665,7 +665,7 @@ class RequirementExtractor:
 			# Build requirement
 			req = Requirement(
 				text=para,
-				category=category,
+				modality=category,
 				requirement_type=req_type,
 				page_number=page_num,
 				confidence=confidence,
@@ -705,7 +705,7 @@ class RequirementExtractor:
 				# Classify and analyze
 				category = self._classify_requirement(req_text)
 				if category is None:
-					category = RequirementCategory.MANDATORY  # Default for requirements section
+					category = RequirementModality.MANDATORY  # Default for requirements section
 
 				req_type = self._determine_requirement_type(req_text)
 				confidence = self._calculate_confidence(req_text, category)
@@ -714,7 +714,7 @@ class RequirementExtractor:
 
 				req = Requirement(
 					text=req_text,
-					category=category,
+					modality=category,
 					requirement_type=req_type,
 					section=section_name,
 					confidence=min(confidence + 0.1, 1.0),  # Boost confidence for section-based, cap at 1.0
@@ -748,7 +748,7 @@ class RequirementExtractor:
 			# Classify
 			category = self._classify_requirement(req_text)
 			if category is None:
-				category = RequirementCategory.MANDATORY
+				category = RequirementModality.MANDATORY
 
 			req_type = self._determine_requirement_type(req_text)
 			confidence = self._calculate_confidence(req_text, category) + 0.15
@@ -761,7 +761,7 @@ class RequirementExtractor:
 
 			req = Requirement(
 				text=req_text,
-				category=category,
+				modality=category,
 				requirement_type=req_type,
 				section=f"Requirement {req_number}",
 				page_number=page_num,
@@ -821,7 +821,7 @@ class RequirementExtractor:
 			candidates_json.append({
 				"index": i,
 				"text": req.text[:300],  # Truncate very long text
-				"current_category": req.category.value,
+				"current_category": req.modality.value,
 				"current_type": req.requirement_type.value,
 				"current_confidence": req.confidence,
 			})
@@ -863,8 +863,8 @@ class RequirementExtractor:
 
 				# Update category if valid
 				cat_val = refinement.get("category", "").lower()
-				if cat_val in {c.value for c in RequirementCategory}:
-					req.category = RequirementCategory(cat_val)
+				if cat_val in {c.value for c in RequirementModality}:
+					req.modality = RequirementModality(cat_val)
 
 				# Update type if valid
 				type_val = refinement.get("requirement_type", "").lower()
@@ -885,7 +885,7 @@ class RequirementExtractor:
 
 		return requirements
 
-	def _classify_requirement(self, text: str) -> RequirementCategory | None:
+	def _classify_requirement(self, text: str) -> RequirementModality | None:
 		"""
 		Classify a requirement as mandatory, optional, or conditional.
 
@@ -893,31 +893,31 @@ class RequirementExtractor:
 			text: Requirement text
 
 		Returns:
-			RequirementCategory or None if not a requirement
+			RequirementModality or None if not a requirement
 		"""
 		text_lower = text.lower()
 
 		# Check for conditional indicators first (as they often override mandatory)
 		if self._conditional_pattern.search(text):
-			return RequirementCategory.CONDITIONAL
+			return RequirementModality.CONDITIONAL
 
 		# Check for mandatory indicators
 		if self._mandatory_pattern.search(text):
-			return RequirementCategory.MANDATORY
+			return RequirementModality.MANDATORY
 
 		# Check for optional indicators
 		if self._optional_pattern.search(text):
-			return RequirementCategory.OPTIONAL
+			return RequirementModality.OPTIONAL
 
 		# Check for strong mandatory language
 		strong_mandatory = ["required", "must", "shall", "will", "necessary"]
 		if any(word in text_lower for word in strong_mandatory):
-			return RequirementCategory.MANDATORY
+			return RequirementModality.MANDATORY
 
 		# If none matched but looks like a requirement, default to mandatory
 		# This handles cases like numbered requirements in requirements sections
 		if self._looks_like_requirement(text):
-			return RequirementCategory.MANDATORY
+			return RequirementModality.MANDATORY
 
 		return None
 
@@ -979,20 +979,20 @@ class RequirementExtractor:
 		# Default to functional
 		return RequirementType.FUNCTIONAL
 
-	def _calculate_confidence(self, text: str, category: RequirementCategory) -> float:
+	def _calculate_confidence(self, text: str, category: RequirementModality) -> float:
 		"""Calculate confidence score for an extraction"""
 		confidence = 0.5  # Base confidence
 
 		# Boost for clear indicator words
-		if category == RequirementCategory.MANDATORY:
+		if category == RequirementModality.MANDATORY:
 			indicator_match = self._mandatory_pattern.search(text)
 			if indicator_match:
 				confidence += 0.3
-		elif category == RequirementCategory.OPTIONAL:
+		elif category == RequirementModality.OPTIONAL:
 			indicator_match = self._optional_pattern.search(text)
 			if indicator_match:
 				confidence += 0.2
-		elif category == RequirementCategory.CONDITIONAL:
+		elif category == RequirementModality.CONDITIONAL:
 			indicator_match = self._conditional_pattern.search(text)
 			if indicator_match:
 				confidence += 0.25
@@ -1138,7 +1138,7 @@ class RequirementExtractor:
 		# Category distribution
 		category_counts: dict[str, int] = {}
 		for req in requirements:
-			cat = req.category.value
+			cat = req.modality.value
 			category_counts[cat] = category_counts.get(cat, 0) + 1
 
 		# Type distribution
@@ -1181,7 +1181,7 @@ class RequirementExtractor:
 		return {
 			"version": "1.0.0",
 			"supported_formats": ["pdf", "docx", "text"],
-			"classification_categories": [cat.value for cat in RequirementCategory],
+			"classification_categories": [cat.value for cat in RequirementModality],
 			"requirement_types": [t.value for t in RequirementType],
 			"features": [
 				"pattern_detection",

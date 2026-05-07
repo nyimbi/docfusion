@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, ConfigDict, Field
 
 # Import from completed dependencies
-from ...rfp.requirement_extractor import Requirement, RequirementCategory, RequirementType
+from ...rfp.requirement_extractor import Requirement, RequirementModality, RequirementType
 from ...rfp.compliance_matrix import ComplianceMatrix, ComplianceStatus
 
 
@@ -200,11 +200,11 @@ class FeatureEngineer:
 
 		# Category counts
 		for req in requirements:
-			if req.category == RequirementCategory.MANDATORY:
+			if req.modality == RequirementModality.MANDATORY:
 				features.mandatory_count += 1
-			elif req.category == RequirementCategory.OPTIONAL:
+			elif req.modality == RequirementModality.OPTIONAL:
 				features.optional_count += 1
-			elif req.category == RequirementCategory.CONDITIONAL:
+			elif req.modality == RequirementModality.CONDITIONAL:
 				features.conditional_count += 1
 
 		# Type distribution
@@ -272,7 +272,7 @@ class FeatureEngineer:
 		# Mandatory compliance
 		mandatory_mappings = [
 			m for m in mappings
-			if m.category == RequirementCategory.MANDATORY
+			if m.modality == RequirementModality.MANDATORY
 		]
 		if mandatory_mappings:
 			addressed = sum(
@@ -284,7 +284,7 @@ class FeatureEngineer:
 		# Optional compliance
 		optional_mappings = [
 			m for m in mappings
-			if m.category == RequirementCategory.OPTIONAL
+			if m.modality == RequirementModality.OPTIONAL
 		]
 		if optional_mappings:
 			addressed = sum(
@@ -312,7 +312,7 @@ class FeatureEngineer:
 		# Critical gaps (low confidence mandatory requirements)
 		critical_count = sum(
 			1 for req in requirements
-			if req.category == RequirementCategory.MANDATORY
+			if req.modality == RequirementModality.MANDATORY
 			and req.confidence < self.config["quality_thresholds"]["min_confidence"]
 		)
 		features.critical_gap_count = critical_count
@@ -350,7 +350,7 @@ class FeatureEngineer:
 		req_count = len(requirements)
 		mandatory_count = sum(
 			1 for r in requirements
-			if r.category == RequirementCategory.MANDATORY
+			if r.modality == RequirementModality.MANDATORY
 		)
 
 		# Average confidence

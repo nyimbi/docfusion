@@ -12,7 +12,7 @@ from docfusion.rfp.compliance_matrix import (
 	ComplianceStatus,
 	RequirementMapping,
 )
-from docfusion.rfp.requirement_extractor import RequirementCategory, RequirementType
+from docfusion.rfp.requirement_extractor import RequirementModality, RequirementType
 
 
 def _make_mock_result(rows):
@@ -39,7 +39,7 @@ class TestPersistence:
 			requirement_text="Must support 1000 users",
 			status=ComplianceStatus.ADDRESSED,
 			confidence=0.95,
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			requirement_type=RequirementType.PERFORMANCE,
 		))
 		matrix.add_mapping(RequirementMapping(
@@ -47,7 +47,7 @@ class TestPersistence:
 			requirement_text="Should have mobile app",
 			status=ComplianceStatus.NOT_ADDRESSED,
 			confidence=0.85,
-			category=RequirementCategory.OPTIONAL,
+			modality=RequirementModality.OPTIONAL,
 			requirement_type=RequirementType.FUNCTIONAL,
 		))
 		return matrix
@@ -128,7 +128,7 @@ class TestPersistence:
 		assert mapping.requirement_id == "req-1"
 		assert mapping.status == ComplianceStatus.ADDRESSED
 		assert mapping.confidence == 0.95
-		assert mapping.category == RequirementCategory.MANDATORY
+		assert mapping.modality == RequirementModality.MANDATORY
 		assert mapping.requirement_type == RequirementType.PERFORMANCE
 		assert mapping.notes == "Looks good"
 		assert mapping.source_section == "Technical"

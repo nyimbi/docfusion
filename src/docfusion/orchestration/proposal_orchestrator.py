@@ -16,7 +16,7 @@ from docfusion.rfp.compliance_matrix import (
     ComplianceMatrix,
     ComplianceMatrixGenerator,
     ComplianceStatus,
-    RequirementCategory,
+    RequirementModality,
     RequirementMapping,
     RequirementType,
 )
@@ -204,6 +204,6 @@ class ProposalOrchestrator:
         }
 
     def _category_for(self, entry: RequirementMapping) -> str:
-        if entry.category:
-            return entry.category.value
+        if entry.modality:
+            return entry.modality.value
         return "general"
