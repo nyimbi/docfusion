@@ -89,6 +89,10 @@ class Requirement(BaseModel):
 	modality: RequirementModality = Field(
 		default=RequirementModality.MANDATORY, description="Requirement classification"
 	)
+	category: RequirementCategory = Field(
+		default=RequirementCategory.OTHER,
+		description="Subject domain (technical/management/cost/...) — orthogonal to modality",
+	)
 	requirement_type: RequirementType = Field(
 		default=RequirementType.UNKNOWN, description="Requirement type"
 	)
