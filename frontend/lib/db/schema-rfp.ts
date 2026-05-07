@@ -37,6 +37,7 @@ export const rfpDocuments = pgTable(
 	"rfp_documents",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }).notNull(),
 		/** Link to the opportunity this RFP is for */
 		opportunityId: uuid("opportunity_id").references(() => opportunities.id, { onDelete: "set null" }),
 		/** Original filename */
@@ -134,6 +135,8 @@ export const rfpDocuments = pgTable(
 		index("rfp_docs_uploaded_by_idx").on(table.uploadedBy),
 		index("rfp_docs_created_idx").on(table.createdAt),
 		uniqueIndex("rfp_docs_hash_idx").on(table.fileHash),
+		index("rfp_docs_org_idx").on(table.organizationId),
+		index("rfp_docs_org_id_idx").on(table.organizationId, table.id),
 	]
 );
 
@@ -145,6 +148,7 @@ export const rfpRequirements = pgTable(
 	"rfp_requirements",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }).notNull(),
 		/** Source RFP document */
 		rfpDocumentId: uuid("rfp_document_id").references(() => rfpDocuments.id, { onDelete: "cascade" }),
 		/** Link to opportunity for direct access */
@@ -230,6 +234,8 @@ export const rfpRequirements = pgTable(
 		index("rfp_reqs_assigned_idx").on(table.assignedTo),
 		index("rfp_reqs_risk_idx").on(table.riskLevel),
 		uniqueIndex("rfp_reqs_number_doc_idx").on(table.rfpDocumentId, table.requirementNumber),
+		index("rfp_reqs_org_idx").on(table.organizationId),
+		index("rfp_reqs_org_doc_idx").on(table.organizationId, table.rfpDocumentId),
 	]
 );
 
@@ -241,6 +247,7 @@ export const complianceMatrices = pgTable(
 	"compliance_matrices",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }).notNull(),
 		/** Opportunity this matrix is for */
 		opportunityId: uuid("opportunity_id").notNull().references(() => opportunities.id, { onDelete: "cascade" }),
 		/** Source RFP document */
@@ -315,6 +322,8 @@ export const complianceMatrices = pgTable(
 		index("compliance_matrix_status_idx").on(table.status),
 		index("compliance_matrix_created_by_idx").on(table.createdBy),
 		uniqueIndex("compliance_matrix_opp_version_idx").on(table.opportunityId, table.version),
+		index("compliance_matrices_org_idx").on(table.organizationId),
+		index("compliance_matrices_org_id_idx").on(table.organizationId, table.id),
 	]
 );
 
@@ -326,6 +335,7 @@ export const complianceEntries = pgTable(
 	"compliance_entries",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }).notNull(),
 		/** Parent compliance matrix */
 		matrixId: uuid("matrix_id").notNull().references(() => complianceMatrices.id, { onDelete: "cascade" }),
 		/** Source requirement */
@@ -393,6 +403,7 @@ export const complianceEntries = pgTable(
 		index("compliance_entry_assigned_idx").on(table.assignedTo),
 		index("compliance_entry_doc_idx").on(table.responseDocumentId),
 		uniqueIndex("compliance_entry_matrix_req_idx").on(table.matrixId, table.requirementId),
+		index("compliance_entries_org_idx").on(table.organizationId),
 	]
 );
 
@@ -404,6 +415,7 @@ export const rfpParsingJobs = pgTable(
 	"rfp_parsing_jobs",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }).notNull(),
 		/** RFP document being parsed */
 		rfpDocumentId: uuid("rfp_document_id").notNull().references(() => rfpDocuments.id, { onDelete: "cascade" }),
 
@@ -458,6 +470,7 @@ export const rfpParsingJobs = pgTable(
 		index("rfp_jobs_status_idx").on(table.status),
 		index("rfp_jobs_initiated_by_idx").on(table.initiatedBy),
 		index("rfp_jobs_queued_idx").on(table.queuedAt),
+		index("rfp_parsing_jobs_org_idx").on(table.organizationId),
 	]
 );
 
