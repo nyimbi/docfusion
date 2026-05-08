@@ -22,7 +22,7 @@ from ..infrastructure import complete_with_fallback
 from .requirement_extractor import (
 	RequirementExtractor,
 	Requirement,
-	RequirementCategory,
+	RequirementModality,
 	RequirementType,
 	RequirementExtractionResult,
 )
@@ -373,7 +373,7 @@ class RFPAnalyzer:
 	) -> str:
 		preview = document_text[:3000]
 		requirement_summary = "\n".join(
-			f"- [{r.category.value}] {r.text[:200]}"
+			f"- [{r.modality.value}] {r.text[:200]}"
 			for r in requirements[:30]
 		)
 		return (
@@ -393,7 +393,7 @@ class RFPAnalyzer:
 		# Category distribution
 		category_counts: dict[str, int] = {}
 		for req in result.requirements:
-			cat = req.category.value
+			cat = req.modality.value
 			category_counts[cat] = category_counts.get(cat, 0) + 1
 
 		# Type distribution
@@ -515,7 +515,7 @@ class RFPAnalyzer:
 							"text_snippet": req.text[
 								:200
 							],  # First 200 chars
-							"category": req.category.value,
+							"category": req.modality.value,
 							"confidence": req.confidence,
 						}
 					)

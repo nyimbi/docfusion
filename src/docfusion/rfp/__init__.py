@@ -16,6 +16,7 @@ from .stakeholder_mapper import (
 from .requirement_extractor import (
 	RequirementExtractor,
 	Requirement,
+	RequirementModality,
 	RequirementCategory,
 	RequirementType,
 	RequirementExtractionResult,
@@ -56,6 +57,7 @@ __all__ = [
 	# Requirement extraction
 	"RequirementExtractor",
 	"Requirement",
+	"RequirementModality",
 	"RequirementCategory",
 	"RequirementType",
 	"RequirementExtractionResult",

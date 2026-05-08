@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from docfusion.rfp.requirement_extractor import (
 	RequirementExtractor,
 	Requirement,
-	RequirementCategory,
+	RequirementModality,
 	RequirementType,
 	RequirementExtractionResult,
 	create_requirement_extractor,
@@ -74,14 +74,14 @@ class TestRequirementModel:
 		"""Test basic requirement creation"""
 		req = Requirement(
 			text="The system must support 1000 concurrent users",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			requirement_type=RequirementType.PERFORMANCE,
 			section="Technical Requirements",
 			confidence=0.9,
 		)
 
 		assert req.text == "The system must support 1000 concurrent users"
-		assert req.category == RequirementCategory.MANDATORY
+		assert req.modality == RequirementModality.MANDATORY
 		assert req.requirement_type == RequirementType.PERFORMANCE
 		assert req.section == "Technical Requirements"
 		assert req.confidence == 0.9
@@ -93,7 +93,7 @@ class TestRequirementModel:
 		"""Test requirement default values"""
 		req = Requirement(text="Test requirement")
 
-		assert req.category == RequirementCategory.MANDATORY
+		assert req.modality == RequirementModality.MANDATORY
 		assert req.requirement_type == RequirementType.UNKNOWN
 		assert req.section == ""
 		assert req.page_number is None
@@ -130,20 +130,20 @@ class TestRequirementModel:
 			Requirement(text="Test", confidence=-0.1)
 
 
-class TestRequirementCategory:
+class TestRequirementModality:
 	"""Tests for requirement classification"""
 
 	def test_category_values(self):
 		"""Test category enum values"""
-		assert RequirementCategory.MANDATORY.value == "mandatory"
-		assert RequirementCategory.OPTIONAL.value == "optional"
-		assert RequirementCategory.CONDITIONAL.value == "conditional"
+		assert RequirementModality.MANDATORY.value == "mandatory"
+		assert RequirementModality.OPTIONAL.value == "optional"
+		assert RequirementModality.CONDITIONAL.value == "conditional"
 
 	def test_category_from_string(self):
 		"""Test creating category from string"""
-		assert RequirementCategory("mandatory") == RequirementCategory.MANDATORY
-		assert RequirementCategory("optional") == RequirementCategory.OPTIONAL
-		assert RequirementCategory("conditional") == RequirementCategory.CONDITIONAL
+		assert RequirementModality("mandatory") == RequirementModality.MANDATORY
+		assert RequirementModality("optional") == RequirementModality.OPTIONAL
+		assert RequirementModality("conditional") == RequirementModality.CONDITIONAL
 
 
 class TestRequirementType:
@@ -211,7 +211,7 @@ class TestRequirementExtractor:
 		# Check that we found some mandatory requirements
 		mandatory_reqs = [
 			req for req in result.requirements
-			if req.category == RequirementCategory.MANDATORY
+			if req.modality == RequirementModality.MANDATORY
 		]
 		assert len(mandatory_reqs) > 0
 
@@ -223,7 +223,7 @@ class TestRequirementExtractor:
 		# Find requirements with "must" or "shall" that should be mandatory
 		mandatory_reqs = [
 			req for req in result.requirements
-			if req.category == RequirementCategory.MANDATORY
+			if req.modality == RequirementModality.MANDATORY
 		]
 
 		# Should have found some mandatory requirements
@@ -245,7 +245,7 @@ class TestRequirementExtractor:
 		# Find requirements that might be optional
 		optional_reqs = [
 			req for req in result.requirements
-			if req.category == RequirementCategory.OPTIONAL
+			if req.modality == RequirementModality.OPTIONAL
 		]
 
 		# Check that optional requirements were found (may or may not exist depending on text)
@@ -395,7 +395,7 @@ class TestRequirementExtractor:
 
 		for text in texts:
 			category = extractor._classify_requirement(text)
-			assert category == RequirementCategory.MANDATORY, f"Failed for: {text}"
+			assert category == RequirementModality.MANDATORY, f"Failed for: {text}"
 
 	@pytest.mark.asyncio
 	async def test_classify_requirement_optional(self, extractor):
@@ -408,7 +408,7 @@ class TestRequirementExtractor:
 
 		for text in texts:
 			category = extractor._classify_requirement(text)
-			assert category == RequirementCategory.OPTIONAL, f"Failed for: {text}"
+			assert category == RequirementModality.OPTIONAL, f"Failed for: {text}"
 
 	@pytest.mark.asyncio
 	async def test_classify_requirement_conditional(self, extractor):
@@ -423,7 +423,7 @@ class TestRequirementExtractor:
 			category = extractor._classify_requirement(text)
 			# Conditional should be detected, or the text might not match patterns
 			# Just verify classification works
-			assert category in (RequirementCategory.CONDITIONAL, RequirementCategory.OPTIONAL, RequirementCategory.MANDATORY), f"Failed for: {text}"
+			assert category in (RequirementModality.CONDITIONAL, RequirementModality.OPTIONAL, RequirementModality.MANDATORY), f"Failed for: {text}"
 
 
 class TestRequirementExtractionResult:
@@ -444,7 +444,7 @@ class TestRequirementExtractionResult:
 		"""Test result with requirements"""
 		req = Requirement(
 			text="Test requirement",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			confidence=0.9,
 		)
 
@@ -512,7 +512,7 @@ class TestIntegration:
 		# Verify requirements have all expected fields
 		for req in result.requirements:
 			assert req.text
-			assert req.category in RequirementCategory
+			assert req.modality in RequirementModality
 			assert req.requirement_type in RequirementType
 			assert 0.0 <= req.confidence <= 1.0
 
@@ -551,7 +551,7 @@ class TestAIEnhancement:
 		"""Test AI enhancement skips when no ambiguous requirements"""
 		req = Requirement(
 			text="The system must support 1000 concurrent users.",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			requirement_type=RequirementType.PERFORMANCE,
 			confidence=0.95,
 		)
@@ -568,7 +568,7 @@ class TestAIEnhancement:
 		"""Test AI refinement updates ambiguous requirements"""
 		req = Requirement(
 			text="Short text.",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			requirement_type=RequirementType.UNKNOWN,
 			confidence=0.4,
 		)
@@ -589,7 +589,7 @@ class TestAIEnhancement:
 			result = await ai_extractor._extract_with_ai("test text", [req])
 
 		assert len(result) == 1
-		assert result[0].category == RequirementCategory.OPTIONAL
+		assert result[0].modality == RequirementModality.OPTIONAL
 		assert result[0].requirement_type == RequirementType.TECHNICAL
 		assert result[0].confidence == 0.72
 		assert result[0].metadata.get("ai_refined") is True
@@ -600,7 +600,7 @@ class TestAIEnhancement:
 		"""Test AI enhancement fails gracefully"""
 		req = Requirement(
 			text="Ambiguous text here.",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			confidence=0.3,
 		)
 
@@ -611,14 +611,14 @@ class TestAIEnhancement:
 		# Should return original requirements unchanged
 		assert len(result) == 1
 		assert result[0].confidence == 0.3
-		assert result[0].category == RequirementCategory.MANDATORY
+		assert result[0].modality == RequirementModality.MANDATORY
 
 	@pytest.mark.asyncio
 	async def test_extract_with_ai_parses_markdown_fences(self, ai_extractor):
 		"""Test AI response wrapped in markdown code fences"""
 		req = Requirement(
 			text="Some requirement text.",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			requirement_type=RequirementType.UNKNOWN,
 			confidence=0.5,
 		)
@@ -642,7 +642,7 @@ class TestAIEnhancement:
 			mock_llm.return_value = mock_response
 			result = await ai_extractor._extract_with_ai("test text", [req])
 
-		assert result[0].category == RequirementCategory.CONDITIONAL
+		assert result[0].modality == RequirementModality.CONDITIONAL
 		assert result[0].requirement_type == RequirementType.COMPLIANCE
 		assert result[0].confidence == 0.68
 
@@ -674,7 +674,7 @@ class TestAIEnhancement:
 		"""Test invalid refinement values are ignored"""
 		req = Requirement(
 			text="Valid requirement text here for testing.",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			confidence=0.5,
 		)
 
@@ -694,7 +694,7 @@ class TestAIEnhancement:
 			result = await ai_extractor._extract_with_ai("test text", [req])
 
 		# Original values preserved since AI returned invalid enums
-		assert result[0].category == RequirementCategory.MANDATORY
+		assert result[0].modality == RequirementModality.MANDATORY
 		assert result[0].confidence == 0.5
 		assert result[0].metadata.get("ai_refined") is True  # Still marked as processed
 

@@ -26,7 +26,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .requirement_extractor import Requirement, RequirementCategory, RequirementType
+from .requirement_extractor import Requirement, RequirementModality, RequirementType
 from ..core.utils import uuid7str
 
 class ComplianceStatus(str, Enum):
@@ -77,8 +77,8 @@ class RequirementMapping(BaseModel):
 	notes: str = Field(default="", description="Additional notes about this mapping")
 	created_at: datetime = Field(default_factory=datetime.now)
 	updated_at: datetime = Field(default_factory=datetime.now)
-	category: RequirementCategory = Field(
-		default=RequirementCategory.MANDATORY,
+	modality: RequirementModality = Field(
+		default=RequirementModality.MANDATORY,
 		description="Requirement category"
 	)
 	requirement_type: RequirementType = Field(
@@ -166,7 +166,7 @@ class ComplianceMatrix(BaseModel):
 		by_category: dict[str, dict[str, int]] = {}
 
 		for mapping in self.mappings:
-			cat = mapping.category.value
+			cat = mapping.modality.value
 			if cat not in by_category:
 				by_category[cat] = {"addressed": 0, "total": 0}
 			by_category[cat]["total"] += 1
@@ -312,7 +312,7 @@ class ComplianceMatrix(BaseModel):
 			writer.writerow([
 				mapping.requirement_id,
 				mapping.requirement_text[:200] + "..." if len(mapping.requirement_text) > 200 else mapping.requirement_text,
-				mapping.category.value,
+				mapping.modality.value,
 				mapping.requirement_type.value,
 				mapping.source_section,
 				mapping.page_number or "",
@@ -394,7 +394,7 @@ class ComplianceMatrix(BaseModel):
 			row_data = [
 				mapping.requirement_id,
 				mapping.requirement_text[:500],  # Limit text length
-				mapping.category.value,
+				mapping.modality.value,
 				mapping.requirement_type.value,
 				mapping.source_section,
 				mapping.page_number or "",
@@ -636,7 +636,7 @@ class ComplianceMatrixGenerator:
 			mapping = RequirementMapping(
 				requirement_id=req.id,
 				requirement_text=req.text,
-				category=req.category,
+				modality=req.modality,
 				requirement_type=req.requirement_type,
 				source_section=req.section,
 				page_number=req.page_number,
@@ -801,7 +801,7 @@ class ComplianceMatrixGenerator:
 			{
 				"requirement_id": gap.requirement_id,
 				"requirement_text": gap.requirement_text[:100] + "...",
-				"category": gap.category.value,
+				"category": gap.modality.value,
 				"type": gap.requirement_type.value,
 				"section": gap.source_section,
 			}
@@ -823,7 +823,7 @@ class ComplianceMatrixGenerator:
 				"section": gap.source_section,
 			}
 			for gap in gaps
-			if gap.category == RequirementCategory.MANDATORY
+			if gap.modality == RequirementModality.MANDATORY
 		]
 
 		return {
@@ -864,7 +864,7 @@ class ComplianceMatrixGenerator:
 			1 for m in self._matrices.values()
 			for mapping in m.mappings
 			if mapping.status == ComplianceStatus.NOT_ADDRESSED
-			and mapping.category == RequirementCategory.MANDATORY
+			and mapping.modality == RequirementModality.MANDATORY
 		)
 		if not_addressed_mandatory > 0:
 			alerts.append({
@@ -932,7 +932,7 @@ class ComplianceMatrixGenerator:
 		# Group gaps by category
 		by_category: dict[str, list[RequirementMapping]] = {}
 		for gap in gaps:
-			cat = gap.category.value
+			cat = gap.modality.value
 			if cat not in by_category:
 				by_category[cat] = []
 			by_category[cat].append(gap)
@@ -957,7 +957,7 @@ class ComplianceMatrixGenerator:
 		priority_gaps = sorted(
 			gaps,
 			key=lambda m: (
-				0 if m.category == RequirementCategory.MANDATORY else 1,
+				0 if m.modality == RequirementModality.MANDATORY else 1,
 				-m.confidence  # Higher confidence first
 			)
 		)
@@ -991,7 +991,7 @@ class ComplianceMatrixGenerator:
 				{
 					"requirement_id": g.requirement_id,
 					"requirement_text": g.requirement_text[:200],
-					"category": g.category.value,
+					"category": g.modality.value,
 					"type": g.requirement_type.value,
 					"section": g.source_section,
 					"confidence": g.confidence,
@@ -1032,7 +1032,7 @@ class ComplianceMatrixGenerator:
 					"requirement_id": mapping.requirement_id,
 					"requirement_text": mapping.requirement_text[:100],
 					"status": mapping.status.value,
-					"category": mapping.category.value,
+					"category": mapping.modality.value,
 				})
 				section_map[mapping.section_id]["total_requirements"] += 1
 				if mapping.status in (ComplianceStatus.ADDRESSED, ComplianceStatus.VERIFIED):
@@ -1043,7 +1043,7 @@ class ComplianceMatrixGenerator:
 			{
 				"requirement_id": m.requirement_id,
 				"requirement_text": m.requirement_text[:100],
-				"category": m.category.value,
+				"category": m.modality.value,
 				"status": m.status.value,
 			}
 			for m in matrix.mappings
@@ -1094,7 +1094,7 @@ class ComplianceMatrixGenerator:
 			status_counts[m.status.value] = status_counts.get(m.status.value, 0) + 1
 
 		mandatory_count = sum(
-			1 for m in matrix.mappings if m.category == RequirementCategory.MANDATORY
+			1 for m in matrix.mappings if m.modality == RequirementModality.MANDATORY
 		)
 		compliant_count = status_counts.get("addressed", 0) + status_counts.get("verified", 0)
 		partial_count = status_counts.get("in_progress", 0)
@@ -1104,7 +1104,7 @@ class ComplianceMatrixGenerator:
 		compliance_score = round(compliant_count / total, 3) if total > 0 else None
 		mandatory_compliant = sum(
 			1 for m in matrix.mappings
-			if m.category == RequirementCategory.MANDATORY
+			if m.modality == RequirementModality.MANDATORY
 			and m.status in (ComplianceStatus.ADDRESSED, ComplianceStatus.VERIFIED)
 		)
 		mandatory_score = round(mandatory_compliant / mandatory_count, 3) if mandatory_count > 0 else None
@@ -1190,7 +1190,7 @@ class ComplianceMatrixGenerator:
 					"assigned_to": None,
 					"metadata": json.dumps({
 						"confidence": mapping.confidence,
-						"category": mapping.category.value,
+						"category": mapping.modality.value,
 						"requirement_type": mapping.requirement_type.value,
 						"source_section": mapping.source_section,
 						"page_number": mapping.page_number,
@@ -1252,7 +1252,7 @@ class ComplianceMatrixGenerator:
 				status=ComplianceStatus(e["compliance_status"]),
 				confidence=meta.get("confidence", 0.0),
 				notes=e.get("reviewer_notes") or "",
-				category=RequirementCategory(meta.get("category", "mandatory")),
+				modality=RequirementModality(meta.get("category", "mandatory")),
 				requirement_type=RequirementType(meta.get("requirement_type", "unknown")),
 				source_section=meta.get("source_section", ""),
 				page_number=meta.get("page_number"),

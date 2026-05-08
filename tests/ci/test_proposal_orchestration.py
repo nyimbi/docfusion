@@ -19,7 +19,7 @@ from docfusion.rfp.compliance_matrix import (
     ComplianceMatrix,
     ComplianceMatrixGenerator,
     ComplianceStatus,
-    RequirementCategory,
+    RequirementModality,
     RequirementMapping,
     RequirementType,
 )
@@ -81,14 +81,14 @@ def sample_matrix():
         RequirementMapping(
             requirement_id="req-1",
             requirement_text="The contractor shall provide 24/7 support.",
-            category=RequirementCategory.MANDATORY,
+            modality=RequirementModality.MANDATORY,
             requirement_type=RequirementType.FUNCTIONAL,
             status=ComplianceStatus.NOT_ADDRESSED,
         ),
         RequirementMapping(
             requirement_id="req-2",
             requirement_text="The system must support SAML SSO.",
-            category=RequirementCategory.MANDATORY,
+            modality=RequirementModality.MANDATORY,
             requirement_type=RequirementType.SECURITY,
             status=ComplianceStatus.NOT_ADDRESSED,
         ),
@@ -158,12 +158,12 @@ async def test_compliance_check_draft_against_matrix():
         RequirementMapping(
             requirement_id="r1",
             requirement_text="24/7 support",
-            category=RequirementCategory.MANDATORY,
+            modality=RequirementModality.MANDATORY,
         ),
         RequirementMapping(
             requirement_id="r2",
             requirement_text="SAML SSO",
-            category=RequirementCategory.MANDATORY,
+            modality=RequirementModality.MANDATORY,
         ),
     ]
 

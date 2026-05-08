@@ -20,7 +20,7 @@ from docfusion.rfp.compliance_matrix import (
 )
 from docfusion.rfp.requirement_extractor import (
 	Requirement,
-	RequirementCategory,
+	RequirementModality,
 	RequirementType,
 )
 
@@ -29,35 +29,35 @@ from docfusion.rfp.requirement_extractor import (
 SAMPLE_REQUIREMENTS = [
 	Requirement(
 		text="The system must support at least 1,000 concurrent users.",
-		category=RequirementCategory.MANDATORY,
+		modality=RequirementModality.MANDATORY,
 		requirement_type=RequirementType.PERFORMANCE,
 		section="Technical Requirements",
 		confidence=0.95,
 	),
 	Requirement(
 		text="The platform shall provide real-time data synchronization.",
-		category=RequirementCategory.MANDATORY,
+		modality=RequirementModality.MANDATORY,
 		requirement_type=RequirementType.TECHNICAL,
 		section="Technical Requirements",
 		confidence=0.9,
 	),
 	Requirement(
 		text="The solution should include a mobile application.",
-		category=RequirementCategory.OPTIONAL,
+		modality=RequirementModality.OPTIONAL,
 		requirement_type=RequirementType.FUNCTIONAL,
 		section="Scope of Work",
 		confidence=0.85,
 	),
 	Requirement(
 		text="Proposals must demonstrate GDPR compliance.",
-		category=RequirementCategory.MANDATORY,
+		modality=RequirementModality.MANDATORY,
 		requirement_type=RequirementType.COMPLIANCE,
 		section="Compliance",
 		confidence=0.92,
 	),
 	Requirement(
 		text="Where applicable, the system should support legacy browsers.",
-		category=RequirementCategory.CONDITIONAL,
+		modality=RequirementModality.CONDITIONAL,
 		requirement_type=RequirementType.TECHNICAL,
 		section="Technical Requirements",
 		confidence=0.75,
@@ -91,7 +91,7 @@ class TestRequirementMapping:
 		mapping = RequirementMapping(
 			requirement_id="req-001",
 			requirement_text="The system must support concurrent users.",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			requirement_type=RequirementType.PERFORMANCE,
 		)
 
@@ -110,7 +110,7 @@ class TestRequirementMapping:
 		assert mapping.status == ComplianceStatus.NOT_ADDRESSED
 		assert mapping.confidence == 0.0
 		assert mapping.notes == ""
-		assert mapping.category == RequirementCategory.MANDATORY
+		assert mapping.modality == RequirementModality.MANDATORY
 		assert mapping.requirement_type == RequirementType.UNKNOWN
 
 	def test_mapping_update_status(self):
@@ -155,12 +155,12 @@ class TestComplianceMatrix:
 			RequirementMapping(
 				requirement_id="req-001",
 				requirement_text="Requirement 1",
-				category=RequirementCategory.MANDATORY,
+				modality=RequirementModality.MANDATORY,
 			),
 			RequirementMapping(
 				requirement_id="req-002",
 				requirement_text="Requirement 2",
-				category=RequirementCategory.OPTIONAL,
+				modality=RequirementModality.OPTIONAL,
 			),
 		]
 
@@ -206,13 +206,13 @@ class TestComplianceMatrix:
 		matrix.add_mapping(RequirementMapping(
 			requirement_id="req-001",
 			requirement_text="Req 1",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			status=ComplianceStatus.ADDRESSED,
 		))
 		matrix.add_mapping(RequirementMapping(
 			requirement_id="req-002",
 			requirement_text="Req 2",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			status=ComplianceStatus.NOT_ADDRESSED,
 		))
 
@@ -220,7 +220,7 @@ class TestComplianceMatrix:
 		matrix.add_mapping(RequirementMapping(
 			requirement_id="req-003",
 			requirement_text="Req 3",
-			category=RequirementCategory.OPTIONAL,
+			modality=RequirementModality.OPTIONAL,
 			status=ComplianceStatus.ADDRESSED,
 		))
 
@@ -281,7 +281,7 @@ class TestComplianceMatrix:
 		matrix.add_mapping(RequirementMapping(
 			requirement_id="req-001",
 			requirement_text="The system must support users.",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			status=ComplianceStatus.ADDRESSED,
 			confidence=0.9,
 		))
@@ -625,7 +625,7 @@ class TestComplianceMatrixExport:
 		matrix.add_mapping(RequirementMapping(
 			requirement_id="req-001",
 			requirement_text="The system must support 1000 users.",
-			category=RequirementCategory.MANDATORY,
+			modality=RequirementModality.MANDATORY,
 			requirement_type=RequirementType.PERFORMANCE,
 			source_section="Technical Requirements",
 			page_number=5,
@@ -639,7 +639,7 @@ class TestComplianceMatrixExport:
 		matrix.add_mapping(RequirementMapping(
 			requirement_id="req-002",
 			requirement_text="Optional mobile app.",
-			category=RequirementCategory.OPTIONAL,
+			modality=RequirementModality.OPTIONAL,
 			requirement_type=RequirementType.FUNCTIONAL,
 			source_section="Scope",
 			status=ComplianceStatus.NOT_ADDRESSED,
