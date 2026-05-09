@@ -27,6 +27,7 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -38,13 +39,14 @@ from ..dependencies import TenantContext, require_tenant
 from ...core.database.session import get_async_db_session
 from ...core.utils import uuid7str
 from ...orchestration.proposal_orchestrator import ProposalOrchestrator
-# Pipeline classes are imported lazily by W3b's DB wire-up — keep these
-# top-level imports so test fixtures and downstream tools can monkeypatch
-# them without dynamic-import gymnastics. F401 suppresses the unused warning
-# for now; remove once W3b lands the real handlers.
 from ...rfp.compliance_matrix import ComplianceMatrixGenerator  # noqa: F401
-from ...rfp.requirement_extractor import RequirementExtractor  # noqa: F401
-from ...rfp.rfp_analyzer import RFPAnalyzer  # noqa: F401
+from ...rfp.requirement_extractor import (
+	RequirementCategory,
+	RequirementExtractor,  # noqa: F401
+	RequirementModality,
+	RequirementType,
+)
+from ...rfp.rfp_analyzer import RFPAnalyzer
 
 router = APIRouter(prefix="/api/v1/rfp", tags=["rfp"])
 
@@ -121,6 +123,16 @@ class UploadResponse(BaseModel):
 	file_hash: str
 	storage_path: str
 	parsing_status: str
+
+
+class ParseResponse(BaseModel):
+	"""Response from RFP parse."""
+
+	model_config = ConfigDict(extra="forbid")
+
+	rfp_id: str
+	requirements_extracted: int
+	status: str
 
 
 # ---------------------------------------------------------------------------
@@ -223,22 +235,261 @@ async def upload_rfp(
 	)
 
 
-@router.post("/{rfp_id}/parse", status_code=501)
+# Mapping from the pipeline's ``RequirementType`` enum to the small
+# ``rfp_requirements.requirement_type`` vocabulary the schema enforces
+# (shall/should/may/will). Any pipeline type not directly nameable as a
+# verb falls back to ``shall`` because that is the conservative
+# compliance read of an extracted requirement.
+_REQ_TYPE_TO_VERB: dict[str, str] = {
+	"functional": "shall",
+	"technical": "shall",
+	"performance": "shall",
+	"security": "shall",
+	"compliance": "shall",
+	"deliverable": "shall",
+	"evaluation": "shall",
+	"contract": "shall",
+	"administrative": "shall",
+	"unknown": "shall",
+}
+
+
+def _requirement_type_to_verb(req_type: RequirementType) -> str:
+	"""Coerce the analyzer's RequirementType to the schema's verb vocabulary."""
+	return _REQ_TYPE_TO_VERB.get(req_type.value, "shall")
+
+
+def _modality_to_priority(modality: RequirementModality) -> str:
+	"""``mandatory`` -> ``mandatory``, ``optional`` -> ``optional``,
+	``conditional`` -> ``preferred``. The schema only knows three
+	priority levels; ``conditional`` collapses to ``preferred`` so a
+	human reviewer still sees it as non-mandatory work."""
+	if modality == RequirementModality.MANDATORY:
+		return "mandatory"
+	if modality == RequirementModality.OPTIONAL:
+		return "optional"
+	return "preferred"
+
+
+@router.post("/{rfp_id}/parse", response_model=ParseResponse)
 async def parse_rfp(
 	rfp_id: str,
 	ctx: TenantContext = Depends(require_tenant),
-) -> dict[str, object]:
+	session: AsyncSession = Depends(get_async_db_session),
+) -> ParseResponse:
 	"""Parse an uploaded RFP and extract requirements.
 
-	W3b: still 501. The /parse wire-up lands in the next commit so the
-	diff stays reviewable.
+	W3b: synchronous DB-backed pipeline.
+
+	  1. SELECT the document row scoped by ``organization_id`` — 404 if
+	     the row is missing or owned by a different tenant.
+	  2. Load the staged bytes from local disk.
+	  3. Run :class:`RequirementExtractor` over the bytes (PDF/DOCX go
+	     through Docling, plain text goes straight through). The
+	     resulting :class:`RFPAnalysisResult` carries the requirements.
+	  4. INSERT each requirement into ``rfp_requirements`` with
+	     ``organization_id`` and ``rfp_document_id`` set.
+	  5. UPDATE the document row to ``parsing_status='completed'``.
+
+	Async / queued execution is W3c's job — this synchronous pass keeps
+	the contract honest until the Temporal worker lands.
 	"""
-	logger.warning(
-		"FastAPI /parse called for rfp_id=%s org=%s — returning 501 (not wired)",
+	row = (
+		await session.execute(
+			text(
+				"""
+				SELECT id, organization_id, filename, file_type, storage_path
+				FROM rfp_documents
+				WHERE id = :rfp_id AND organization_id = :org_id
+				"""
+			),
+			{"rfp_id": rfp_id, "org_id": ctx.organization_id},
+		)
+	).mappings().first()
+
+	if row is None:
+		# Either the document does not exist or it belongs to a different
+		# tenant. Both look the same to the caller — we never leak the
+		# distinction across the trust boundary.
+		raise HTTPException(status_code=404, detail="RFP document not found")
+
+	storage_path = row["storage_path"]
+	file_type = (row["file_type"] or "").lower()
+	local_path = _local_storage_path(storage_path)
+
+	if not local_path.exists():
+		# Bytes vanished between upload and parse. Returning 410 so the
+		# client knows to re-upload rather than re-trying the parse.
+		await _mark_parse_failed(session, rfp_id, ctx.organization_id, "stored bytes missing")
+		raise HTTPException(status_code=410, detail="Staged RFP bytes are gone; re-upload required")
+
+	contents = local_path.read_bytes()
+
+	# Mark parsing as started so the UI can move out of "queued".
+	now_started = datetime.now(timezone.utc)
+	await session.execute(
+		text(
+			"""
+			UPDATE rfp_documents
+			SET parsing_status = 'processing',
+				parsing_started_at = :started,
+				updated_at = :started
+			WHERE id = :rfp_id AND organization_id = :org_id
+			"""
+		),
+		{"rfp_id": rfp_id, "org_id": ctx.organization_id, "started": now_started},
+	)
+	await session.commit()
+
+	analyzer = RFPAnalyzer(config={"ai_enhancement": False})
+	try:
+		analysis = await _run_analysis(analyzer, contents, file_type)
+	except Exception as exc:  # noqa: BLE001 — explicit broad catch to record failure
+		logger.exception(
+			"FastAPI /parse analyzer failure rfp_id=%s org=%s",
+			rfp_id,
+			ctx.organization_id,
+		)
+		await _mark_parse_failed(session, rfp_id, ctx.organization_id, str(exc))
+		raise HTTPException(status_code=500, detail="RFP parse failed") from exc
+	finally:
+		await analyzer.close()
+
+	if not analysis.success:
+		joined = "; ".join(analysis.errors) or "unknown analyzer failure"
+		await _mark_parse_failed(session, rfp_id, ctx.organization_id, joined)
+		raise HTTPException(status_code=500, detail=f"RFP parse failed: {joined}")
+
+	# Persist requirements. Each gets a fresh server-side UUID so the row
+	# id is independent of whatever the in-memory pipeline picked.
+	now_completed = datetime.now(timezone.utc)
+	for index, req in enumerate(analysis.requirements, start=1):
+		await session.execute(
+			text(
+				"""
+				INSERT INTO rfp_requirements (
+					id, organization_id, rfp_document_id,
+					requirement_number, requirement_text, source_quote,
+					source_page, source_section,
+					category, requirement_type, priority,
+					extraction_confidence,
+					compliance_status,
+					tags, clarification_questions, related_requirements, key_terms,
+					created_at, updated_at
+				) VALUES (
+					:id, :organization_id, :rfp_document_id,
+					:requirement_number, :requirement_text, :source_quote,
+					:source_page, :source_section,
+					:category, :requirement_type, :priority,
+					:extraction_confidence,
+					'not_addressed',
+					CAST('[]' AS JSONB), CAST('[]' AS JSONB),
+					CAST('[]' AS JSONB), CAST('[]' AS JSONB),
+					:created_at, :updated_at
+				)
+				"""
+			),
+			{
+				"id": uuid7str(),
+				"organization_id": ctx.organization_id,
+				"rfp_document_id": rfp_id,
+				"requirement_number": f"REQ-{index:03d}",
+				"requirement_text": req.text,
+				"source_quote": req.text[:1000],
+				"source_page": req.page_number,
+				"source_section": req.section or None,
+				"category": req.category.value if isinstance(req.category, RequirementCategory) else None,
+				"requirement_type": _requirement_type_to_verb(req.requirement_type),
+				"priority": _modality_to_priority(req.modality),
+				"extraction_confidence": req.confidence,
+				"created_at": now_completed,
+				"updated_at": now_completed,
+			},
+		)
+
+	await session.execute(
+		text(
+			"""
+			UPDATE rfp_documents
+			SET parsing_status = 'completed',
+				parsing_progress = 100,
+				parsing_completed_at = :completed,
+				updated_at = :completed
+			WHERE id = :rfp_id AND organization_id = :org_id
+			"""
+		),
+		{"rfp_id": rfp_id, "org_id": ctx.organization_id, "completed": now_completed},
+	)
+	await session.commit()
+
+	logger.info(
+		"FastAPI /parse completed rfp_id=%s org=%s requirements=%d",
 		rfp_id,
 		ctx.organization_id,
+		len(analysis.requirements),
 	)
-	raise HTTPException(status_code=501, detail=_NOT_WIRED_DETAIL)
+	return ParseResponse(
+		rfp_id=rfp_id,
+		requirements_extracted=len(analysis.requirements),
+		status="completed",
+	)
+
+
+async def _run_analysis(
+	analyzer: RFPAnalyzer,
+	contents: bytes,
+	file_type: str,
+) -> Any:
+	"""Pick the right analyzer entry point for the file type.
+
+	Centralised so the synchronous parse handler stays readable, and so
+	the future Temporal worker (W3c) can reuse the same dispatcher
+	without copy-pasting the file-type table.
+	"""
+	if file_type == "pdf":
+		return await analyzer.analyze_pdf(contents)
+	if file_type == "docx":
+		return await analyzer.analyze_docx(contents)
+	# txt/html/bin — try to decode as text. Anything that survives
+	# round-tripping through utf-8 is fed to ``analyze_text``.
+	try:
+		text_payload = contents.decode("utf-8", errors="replace")
+	except Exception as exc:  # pragma: no cover — decode("...", errors="replace") cannot raise
+		raise RuntimeError(f"Cannot decode RFP bytes as text: {exc}") from exc
+	return await analyzer.analyze_text(text_payload)
+
+
+async def _mark_parse_failed(
+	session: AsyncSession,
+	rfp_id: str,
+	organization_id: str,
+	error: str,
+) -> None:
+	"""Record a parse failure on the document row and commit.
+
+	Keeps the error string under 4 KB so a stray analyzer traceback
+	can't blow up the column. Always writes ``updated_at`` so list
+	views still order correctly.
+	"""
+	now = datetime.now(timezone.utc)
+	await session.execute(
+		text(
+			"""
+			UPDATE rfp_documents
+			SET parsing_status = 'failed',
+				parsing_error = :err,
+				updated_at = :now
+			WHERE id = :rfp_id AND organization_id = :org_id
+			"""
+		),
+		{
+			"rfp_id": rfp_id,
+			"org_id": organization_id,
+			"err": (error or "unknown")[:4000],
+			"now": now,
+		},
+	)
+	await session.commit()
 
 
 @router.get("/{rfp_id}/status")
