@@ -1904,13 +1904,33 @@ export async function processRfpParsingJob(
 			text: s.content,
 			pageNumber: s.pageStart,
 		}));
-		const extractedRequirementsMap = await batchExtractRequirements(sectionsForExtraction);
+		const extractedOutcomesMap = await batchExtractRequirements(sectionsForExtraction);
 
-		// Flatten the Map into an array of requirements
+		// Flatten outcomes into a single requirement list and accumulate
+		// provenance — which sections fell back to heuristic and why. The
+		// summary lands on the document metadata so the UI can warn users
+		// that the parse degraded silently.
 		const allExtractedRequirements: ExtractedRequirement[] = [];
-		for (const [_sectionId, requirements] of extractedRequirementsMap) {
-			allExtractedRequirements.push(...requirements);
+		const heuristicSections: Array<{ sectionId: string; aiError?: string }> = [];
+		let aiSectionCount = 0;
+		for (const [sectionId, outcome] of extractedOutcomesMap) {
+			allExtractedRequirements.push(...outcome.requirements);
+			if (outcome.source === "heuristic") {
+				heuristicSections.push({ sectionId, aiError: outcome.aiError });
+			} else {
+				aiSectionCount += 1;
+			}
 		}
+		const extractionProvenance = {
+			source: heuristicSections.length === 0
+				? ("ai" as const)
+				: aiSectionCount === 0
+					? ("heuristic" as const)
+					: ("mixed" as const),
+			aiSectionCount,
+			heuristicSectionCount: heuristicSections.length,
+			heuristicSections: heuristicSections.length > 0 ? heuristicSections : undefined,
+		};
 
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 70, "Classifying and storing requirements");
 
@@ -1991,6 +2011,7 @@ export async function processRfpParsingJob(
 				metadata: {
 					...mergeRecordMetadata(rfpDoc.metadata),
 					parseReview,
+					extractionProvenance,
 					parseWorkflow: appendRfpParseWorkflowHistory(
 						normalizeRfpParseWorkflowMetadata(rfpDoc.metadata),
 						{

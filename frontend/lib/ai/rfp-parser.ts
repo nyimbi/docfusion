@@ -644,13 +644,31 @@ export async function matchRequirementToContent(
 }
 
 /**
+ * Per-section extraction outcome with provenance. `source` distinguishes
+ * AI-extracted requirements from heuristic-fallback rows so the UI can warn
+ * users that the parse degraded silently and the parse pipeline can record
+ * the failure cause in document metadata.
+ */
+export interface RequirementExtractionOutcome {
+	requirements: ExtractedRequirement[];
+	source: "ai" | "heuristic";
+	aiError?: string;
+}
+
+/**
  * Batch extract requirements from multiple sections.
+ *
+ * Each section returns an outcome carrying both the requirements and a
+ * `source` flag. When AI extraction throws (rate limit, invalid JSON, etc.)
+ * the section falls back to the regex heuristic and the failure cause is
+ * recorded in `aiError`. Callers that previously assumed AI provenance
+ * silently must now branch on `source`.
  */
 export async function batchExtractRequirements(
 	sections: Array<{ id: string; text: string; pageNumber?: number }>,
 	config: Partial<RFPParserConfig> = {}
-): Promise<Map<string, ExtractedRequirement[]>> {
-	const results = new Map<string, ExtractedRequirement[]>();
+): Promise<Map<string, RequirementExtractionOutcome>> {
+	const results = new Map<string, RequirementExtractionOutcome>();
 
 	// Process sections in parallel with concurrency limit
 	const CONCURRENCY_LIMIT = 3;
@@ -664,27 +682,38 @@ export async function batchExtractRequirements(
 		const promises = chunk.map(async (section) => {
 			try {
 				const requirements = await extractRequirementsWithAI(section.text, config);
-				// Add page number to each requirement
 				const withPageNumbers = requirements.map((req) => ({
 					...req,
 					pageNumber: req.pageNumber ?? section.pageNumber,
 				}));
-				return { sectionId: section.id, requirements: withPageNumbers };
-			} catch (error) {
-				logger.error(`Error extracting from section ${section.id}:`, error);
 				return {
 					sectionId: section.id,
-					requirements: extractRequirementsHeuristicForRfp(section.text).map((req) => ({
-						...req,
-						pageNumber: req.pageNumber ?? section.pageNumber,
-					})),
+					outcome: { requirements: withPageNumbers, source: "ai" as const },
+				};
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				logger.warn(
+					`AI extraction failed for section ${section.id}, falling back to heuristic`,
+					{ error: message },
+				);
+				const heuristic = extractRequirementsHeuristicForRfp(section.text).map((req) => ({
+					...req,
+					pageNumber: req.pageNumber ?? section.pageNumber,
+				}));
+				return {
+					sectionId: section.id,
+					outcome: {
+						requirements: heuristic,
+						source: "heuristic" as const,
+						aiError: message,
+					},
 				};
 			}
 		});
 
 		const chunkResults = await Promise.all(promises);
 		for (const result of chunkResults) {
-			results.set(result.sectionId, result.requirements);
+			results.set(result.sectionId, result.outcome);
 		}
 	}
 
