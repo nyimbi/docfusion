@@ -5,10 +5,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireServerSession } from "@/lib/auth-utils";
+import {
+	requireRouteTenantContext,
+	isTenantResponse,
+} from "@/lib/auth/route-tenant";
 import { db } from "@/lib/db";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import {
 	processRfpParsingJob,
 	transitionRfpParseWorkflow,
@@ -17,6 +20,8 @@ import { getLinodeE3ConfigFromEnv } from "@/lib/storage/linode-e3";
 
 const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
 const USE_PYTHON_RFP = process.env.USE_PYTHON_RFP !== "false";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ============================================================================
 // Types
@@ -42,17 +47,24 @@ export async function POST(
 	request: NextRequest,
 	context: { params: Promise<{ rfpId: string }> }
 ): Promise<NextResponse> {
+	const ctx = await requireRouteTenantContext();
+	if (isTenantResponse(ctx)) return ctx;
+
+	const { rfpId } = await context.params;
+	if (!UUID_RE.test(rfpId)) {
+		return NextResponse.json({ error: "Invalid rfpId" }, { status: 400 });
+	}
+	const userId = ctx.userId;
+
 	try {
-		const { rfpId } = await context.params;
 		const objectStoreConfig = getLinodeE3ConfigFromEnv();
 
-		// Authenticate user
-		const session = await requireServerSession();
-		const userId = session.user?.id ?? session.user?.email ?? "unknown";
-
-		// Get RFP document
+		// Get RFP document, scoped to caller's organization.
 		const rfpDocument = await db.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, rfpId),
+			where: and(
+				eq(rfpDocuments.id, rfpId),
+				eq(rfpDocuments.organizationId, ctx.organizationId),
+			),
 		});
 		const body = await request.json().catch(() => ({}));
 		const requestedAction = isRfpParseWorkflowAction(body.action) ? body.action : undefined;
@@ -124,8 +136,10 @@ export async function POST(
 			parsingOptions = { ...parsingOptions, ...body.options };
 		}
 
-		// Update document status
-		await db
+		// Atomic status transition — only one concurrent caller successfully flips
+		// "pending"/"failed" to "processing". The `ne` guard prevents the race
+		// where two callers both observed a non-processing status.
+		const transitionedRows = await db
 			.update(rfpDocuments)
 			.set({
 				parsingStatus: "processing",
@@ -134,13 +148,28 @@ export async function POST(
 				parsingStartedAt: new Date(),
 				updatedAt: new Date(),
 			})
-			.where(eq(rfpDocuments.id, rfpId));
+			.where(
+				and(
+					eq(rfpDocuments.id, rfpId),
+					eq(rfpDocuments.organizationId, ctx.organizationId),
+					ne(rfpDocuments.parsingStatus, "processing"),
+				),
+			)
+			.returning({ id: rfpDocuments.id });
 
-		// Create new parsing job
+		if (transitionedRows.length === 0) {
+			return NextResponse.json(
+				{ error: "Document is already being parsed" },
+				{ status: 409 },
+			);
+		}
+
+		// Create new parsing job, tagged with the caller's organization.
 		const [parsingJob] = await db
 			.insert(rfpParsingJobs)
 			.values({
 				rfpDocumentId: rfpId,
+				organizationId: ctx.organizationId,
 				status: "queued",
 				currentStep: "upload",
 				progress: 0,
