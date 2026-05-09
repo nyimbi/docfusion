@@ -38,9 +38,13 @@ from ..dependencies import TenantContext, require_tenant
 from ...core.database.session import get_async_db_session
 from ...core.utils import uuid7str
 from ...orchestration.proposal_orchestrator import ProposalOrchestrator
-from ...rfp.compliance_matrix import ComplianceMatrixGenerator  # noqa: F401  (re-exported for callers)
-from ...rfp.requirement_extractor import RequirementExtractor  # noqa: F401  (re-exported for callers)
-from ...rfp.rfp_analyzer import RFPAnalyzer  # noqa: F401  (re-exported for callers)
+# Pipeline classes are imported lazily by W3b's DB wire-up — keep these
+# top-level imports so test fixtures and downstream tools can monkeypatch
+# them without dynamic-import gymnastics. F401 suppresses the unused warning
+# for now; remove once W3b lands the real handlers.
+from ...rfp.compliance_matrix import ComplianceMatrixGenerator  # noqa: F401
+from ...rfp.requirement_extractor import RequirementExtractor  # noqa: F401
+from ...rfp.rfp_analyzer import RFPAnalyzer  # noqa: F401
 
 router = APIRouter(prefix="/api/v1/rfp", tags=["rfp"])
 

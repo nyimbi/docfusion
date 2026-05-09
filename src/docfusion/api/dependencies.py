@@ -544,12 +544,10 @@ async def service_context():
 # identity via two headers. FastAPI never inspects the user's session cookie
 # directly — the BFF is the trust boundary.
 
-from dataclasses import dataclass as _dataclass
-
-from fastapi import Header, HTTPException, status as _status
+from fastapi import Header, HTTPException, status
 
 
-@_dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True)
 class TenantContext:
 	user_id: str
 	organization_id: str
@@ -564,10 +562,10 @@ def require_tenant(
 	Raises 401 if user is missing, 403 if user is set but org is missing.
 	"""
 	if not x_docfusion_user_id:
-		raise HTTPException(status_code=_status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 	if not x_docfusion_organization_id:
 		raise HTTPException(
-			status_code=_status.HTTP_403_FORBIDDEN, detail="No organization context"
+			status_code=status.HTTP_403_FORBIDDEN, detail="No organization context"
 		)
 	return TenantContext(
 		user_id=x_docfusion_user_id,

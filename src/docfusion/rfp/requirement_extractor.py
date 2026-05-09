@@ -10,6 +10,7 @@ with support for cross-reference detection, traceability, and confidence scoring
 import asyncio
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -564,7 +565,6 @@ class RequirementExtractor:
 			# extraction was silently failing and falling through to the
 			# empty-text branch downstream. The endpoint is env-overridable
 			# (DOCLING_CONVERT_PATH) in case the docling-serve API moves.
-			import os
 			endpoint = os.environ.get("DOCLING_CONVERT_PATH", "/v1/convert/file")
 			filename = self._docling_filename_for_content_type(content_type)
 			files = {"files": (filename, content, content_type)}
