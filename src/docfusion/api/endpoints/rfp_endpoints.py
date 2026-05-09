@@ -508,18 +508,96 @@ async def stream_status(
 	return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-@router.get("/{rfp_id}/requirements", status_code=501)
+@router.get("/{rfp_id}/requirements")
 async def list_requirements(
 	rfp_id: str,
 	ctx: TenantContext = Depends(require_tenant),
-) -> dict[str, object]:
-	"""List extracted requirements for an RFP. 501 until /requirements lands."""
-	logger.warning(
-		"FastAPI /requirements called for rfp_id=%s org=%s — returning 501 (not wired)",
-		rfp_id,
-		ctx.organization_id,
-	)
-	raise HTTPException(status_code=501, detail=_NOT_WIRED_DETAIL)
+	session: AsyncSession = Depends(get_async_db_session),
+) -> dict[str, Any]:
+	"""List extracted requirements for an RFP, scoped to the caller's org.
+
+	The 404 first checks that the document itself exists and belongs to
+	the caller's tenant. That keeps cross-tenant probing from leaking a
+	"this RFP exists, just not for you" signal — both states return 404.
+	"""
+	doc_row = (
+		await session.execute(
+			text(
+				"""
+				SELECT id FROM rfp_documents
+				WHERE id = :rfp_id AND organization_id = :org_id
+				"""
+			),
+			{"rfp_id": rfp_id, "org_id": ctx.organization_id},
+		)
+	).mappings().first()
+
+	if doc_row is None:
+		raise HTTPException(status_code=404, detail="RFP document not found")
+
+	rows = (
+		await session.execute(
+			text(
+				"""
+				SELECT
+					id, requirement_number, title, requirement_text,
+					source_quote, source_page, source_section,
+					category, subcategory, requirement_type, priority,
+					risk_level, extraction_confidence,
+					compliance_status, response_strategy, assigned_to,
+					due_date, response_section, notes,
+					created_at, updated_at
+				FROM rfp_requirements
+				WHERE rfp_document_id = :rfp_id AND organization_id = :org_id
+				ORDER BY requirement_number ASC NULLS LAST, created_at ASC
+				"""
+			),
+			{"rfp_id": rfp_id, "org_id": ctx.organization_id},
+		)
+	).mappings().all()
+
+	requirements = [_requirement_row_to_dict(row) for row in rows]
+	return {
+		"rfp_id": rfp_id,
+		"organization_id": ctx.organization_id,
+		"count": len(requirements),
+		"requirements": requirements,
+	}
+
+
+def _requirement_row_to_dict(row: Any) -> dict[str, Any]:
+	"""Render a ``rfp_requirements`` row as a JSON-serialisable dict.
+
+	Keeps timestamps as ISO-8601 strings; FastAPI's default encoder
+	already does that for ``datetime`` but being explicit makes the
+	contract diff-friendly.
+	"""
+	def _iso(value: Any) -> str | None:
+		return value.isoformat() if hasattr(value, "isoformat") else None
+
+	return {
+		"id": str(row["id"]),
+		"requirement_number": row.get("requirement_number"),
+		"title": row.get("title"),
+		"requirement_text": row.get("requirement_text"),
+		"source_quote": row.get("source_quote"),
+		"source_page": row.get("source_page"),
+		"source_section": row.get("source_section"),
+		"category": row.get("category"),
+		"subcategory": row.get("subcategory"),
+		"requirement_type": row.get("requirement_type"),
+		"priority": row.get("priority"),
+		"risk_level": row.get("risk_level"),
+		"extraction_confidence": row.get("extraction_confidence"),
+		"compliance_status": row.get("compliance_status"),
+		"response_strategy": row.get("response_strategy"),
+		"assigned_to": row.get("assigned_to"),
+		"due_date": _iso(row.get("due_date")),
+		"response_section": row.get("response_section"),
+		"notes": row.get("notes"),
+		"created_at": _iso(row.get("created_at")),
+		"updated_at": _iso(row.get("updated_at")),
+	}
 
 
 @router.post("/{rfp_id}/compliance-matrix", status_code=501)
