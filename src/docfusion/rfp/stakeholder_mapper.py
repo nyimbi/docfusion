@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union, TYPE_CHECKING
 # spaCy integration for NER
 try:
 	import spacy
-	from spacy.matcher import Matcher, PhraseMatch
+	from spacy.matcher import Matcher, PhraseMatcher
 	from spacy.tokens import Doc, Span
 
 	HAS_SPACY_SUPPORT = True
