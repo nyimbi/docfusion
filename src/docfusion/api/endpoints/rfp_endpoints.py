@@ -71,12 +71,31 @@ logger = logging.getLogger(__name__)
 _LOCAL_STORAGE_ROOT = Path("./storage/rfp")
 
 
+def _safe_filename(filename: str | None) -> str:
+	"""Strip path components and reject obvious traversal attempts.
+
+	The local-disk fallback writes via ``Path(...).write_bytes(...)``; an
+	attacker-controlled ``../../etc/passwd`` would otherwise escape the
+	per-tenant directory. ``Path(name).name`` keeps only the final
+	component, matching the cloud-storage layout where slashes have
+	semantic meaning in the key.
+	"""
+	if not filename:
+		return "rfp"
+	# Path(...).name drops everything before the last separator on either
+	# platform, so "../etc/passwd" -> "passwd" and "C:\\boot.ini" -> "boot.ini".
+	stripped = Path(filename).name
+	# Reject anything that is still a separator-only or empty after strip.
+	if not stripped or stripped in {".", ".."}:
+		return "rfp"
+	return stripped
+
+
 def _storage_key(organization_id: str, rfp_id: str, filename: str) -> str:
 	"""Build the canonical storage key. Stable across local and cloud backends."""
 	assert organization_id, "organization_id required for storage key"
 	assert rfp_id, "rfp_id required for storage key"
-	safe_name = filename or "rfp"
-	return f"orgs/{organization_id}/rfp/{rfp_id}/{safe_name}"
+	return f"orgs/{organization_id}/rfp/{rfp_id}/{_safe_filename(filename)}"
 
 
 def _local_storage_path(storage_key: str) -> Path:
@@ -166,11 +185,38 @@ async def upload_rfp(
 	contents = await file.read()
 	assert contents is not None, "UploadFile.read() must return bytes"
 	rfp_id = uuid7str()
-	filename = file.filename or "unknown"
+	filename = _safe_filename(file.filename)
 	file_size = len(contents)
 	file_hash = hashlib.sha256(contents).hexdigest()
 	file_type = _file_type_from_filename(filename)
 	storage_path = _storage_key(ctx.organization_id, rfp_id, filename)
+
+	# Per-tenant SHA-256 dedup. Migration 0022 already enforces
+	# UNIQUE (organization_id, file_hash) — we surface the conflict as 409
+	# instead of letting it bubble up as a 500 IntegrityError.
+	existing = await session.execute(
+		text(
+			"""
+			SELECT id, filename, storage_path
+			FROM rfp_documents
+			WHERE organization_id = :organization_id
+			  AND file_hash = :file_hash
+			LIMIT 1
+			"""
+		),
+		{"organization_id": ctx.organization_id, "file_hash": file_hash},
+	)
+	dup = existing.mappings().first()
+	if dup is not None:
+		raise HTTPException(
+			status_code=409,
+			detail={
+				"error": "duplicate",
+				"existing_rfp_id": dup["id"],
+				"existing_filename": dup["filename"],
+				"message": "An RFP with the same content has already been uploaded by this organization.",
+			},
+		)
 
 	# Stage the bytes locally so /parse can rehydrate them. Production
 	# deployments swap this for SecureStorageService in W3c.

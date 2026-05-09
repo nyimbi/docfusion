@@ -140,6 +140,43 @@ class FakeSession:
 			return _Result()
 
 		# --- SELECTs --------------------------------------------------
+		# Defense-in-depth: every read against an RFP-domain table MUST scope
+		# by organization_id in its SQL predicate, even when the params dict
+		# happens to be filtered the right way. A future handler that drops
+		# the WHERE clause but keeps a structurally-correct params dict
+		# would otherwise pass these tests silently.
+		if any(t in sql for t in (
+			"from rfp_documents",
+			"from rfp_requirements",
+			"from compliance_entries",
+			"from compliance_matrices",
+		)):
+			assert "organization_id" in sql, (
+				f"FakeSession: SELECT against an RFP-domain table is missing "
+				f"the organization_id predicate. SQL: {sql[:200]!r}"
+			)
+
+		# rfp_documents file-hash dedup at /upload time. The handler emits
+		# this SELECT before INSERT to convert the unique-index conflict into
+		# a 409 instead of letting it bubble up as a 500.
+		if "from rfp_documents" in sql and "file_hash = :file_hash" in sql:
+			match = next(
+				(
+					row
+					for row in self.documents.values()
+					if row.get("organization_id") == params.get("organization_id")
+					and row.get("file_hash") == params.get("file_hash")
+				),
+				None,
+			)
+			if match is None:
+				return _Result([])
+			return _Result([{
+				"id": match["id"],
+				"filename": match["filename"],
+				"storage_path": match["storage_path"],
+			}])
+
 		if "from rfp_documents" in sql and "where id = :rfp_id" in sql:
 			row = self.documents.get(params["rfp_id"])
 			if row and row.get("organization_id") == params["org_id"]:
@@ -332,6 +369,50 @@ class TestRfpPipeline:
 			files={"file": ("sample.pdf", b"%PDF-1.4 test", "application/pdf")},
 		)
 		assert response.status_code == 401
+
+	def test_upload_dedups_within_tenant(self, client: TestClient, fake_session: FakeSession):
+		"""Same bytes uploaded twice by the same org -> 409, not 500."""
+		payload = b"%PDF-1.4 same bytes"
+		first = client.post(
+			"/api/v1/rfp/upload",
+			headers=TENANT_HEADERS,
+			files={"file": ("a.pdf", payload, "application/pdf")},
+		)
+		assert first.status_code == 202
+		first_id = first.json()["rfp_id"]
+
+		second = client.post(
+			"/api/v1/rfp/upload",
+			headers=TENANT_HEADERS,
+			files={"file": ("b.pdf", payload, "application/pdf")},
+		)
+		assert second.status_code == 409, second.text
+		detail = second.json()["detail"]
+		assert detail["error"] == "duplicate"
+		assert detail["existing_rfp_id"] == first_id
+
+	def test_upload_strips_path_traversal_in_filename(
+		self, client: TestClient, fake_session: FakeSession
+	):
+		"""Attacker-controlled filename cannot escape the per-tenant directory."""
+		response = client.post(
+			"/api/v1/rfp/upload",
+			headers=TENANT_HEADERS,
+			files={
+				"file": (
+					"../../../etc/passwd",
+					b"would-be-escape",
+					"application/octet-stream",
+				)
+			},
+		)
+		assert response.status_code == 202
+		data = response.json()
+		# Stored filename is just the basename; storage_path stays under
+		# orgs/{org}/rfp/{rfp_id}/ — no parent traversal.
+		assert data["filename"] == "passwd"
+		assert "/etc/" not in data["storage_path"]
+		assert data["storage_path"].startswith(f"orgs/test-org/rfp/{data['rfp_id']}/")
 
 	def test_parse_extracts_requirements(self, client: TestClient, fake_session: FakeSession):
 		"""/parse runs the analyzer, persists requirements, marks completed."""
