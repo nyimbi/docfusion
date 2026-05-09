@@ -30,6 +30,7 @@ import {
 import { eq, and, desc, asc, sql, ilike, or, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireTenantContext } from "@/lib/auth/tenant-context";
 import {
 	parseRFPWithAI,
 	batchExtractRequirements,
@@ -138,15 +139,19 @@ export async function uploadRfpDocument(input: {
 	fileHash?: string;
 }): Promise<{ success: boolean; rfpDocumentId?: string; jobId?: string; error?: string }> {
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) {
 			return { success: false, error: "Not authenticated" };
 		}
+		const { userId, organizationId } = ctx;
 
-		// Check for duplicate based on hash
+		// Check for duplicate based on hash, scoped to caller's organization.
 		if (input.fileHash) {
 			const existing = await db.query.rfpDocuments.findFirst({
-				where: eq(rfpDocuments.fileHash, input.fileHash),
+				where: and(
+					eq(rfpDocuments.fileHash, input.fileHash),
+					eq(rfpDocuments.organizationId, organizationId),
+				),
 			});
 			if (existing) {
 				return { success: false, error: "This document has already been uploaded" };
@@ -155,6 +160,7 @@ export async function uploadRfpDocument(input: {
 
 		// Create RFP document record
 		const [rfpDoc] = await db.insert(rfpDocuments).values({
+			organizationId,
 			opportunityId: input.opportunityId,
 			filename: input.filename,
 			fileType: input.fileType,
@@ -167,6 +173,7 @@ export async function uploadRfpDocument(input: {
 
 		// Create parsing job
 		const [job] = await db.insert(rfpParsingJobs).values({
+			organizationId,
 			rfpDocumentId: rfpDoc.id,
 			status: "queued",
 			initiatedBy: userId,
@@ -174,7 +181,11 @@ export async function uploadRfpDocument(input: {
 
 		// Start the parsing job asynchronously (fire-and-forget)
 		// This runs after the response is sent to the client
-		processRfpParsingJob(job.id, rfpDoc.id).catch((error) => {
+		processRfpParsingJob({
+			jobId: job.id,
+			rfpDocumentId: rfpDoc.id,
+			tenantContext: { userId, organizationId },
+		}).catch((error) => {
 			logger.error("[RFP Parser] Background job failed:", error);
 		});
 
@@ -1135,21 +1146,28 @@ export async function transitionRfpParseWorkflow(
 		throw new Error("RFP parse workflow transition requires a reason.");
 	}
 
-	const userId = await getCurrentUserId();
-	if (!userId) {
+	const ctx = await requireTenantContext().catch(() => null);
+	if (!ctx) {
 		throw new Error("Not authenticated");
 	}
+	const { userId, organizationId } = ctx;
 
 	return db.transaction(async (tx) => {
 		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.rfpDocumentId}))`);
 
 		const doc = await tx.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, input.rfpDocumentId),
+			where: and(
+				eq(rfpDocuments.id, input.rfpDocumentId),
+				eq(rfpDocuments.organizationId, organizationId),
+			),
 		});
 		if (!doc) return null;
 
 		const latestJob = await tx.query.rfpParsingJobs.findFirst({
-			where: eq(rfpParsingJobs.rfpDocumentId, input.rfpDocumentId),
+			where: and(
+				eq(rfpParsingJobs.rfpDocumentId, input.rfpDocumentId),
+				eq(rfpParsingJobs.organizationId, organizationId),
+			),
 			orderBy: desc(rfpParsingJobs.createdAt),
 		});
 
@@ -1168,6 +1186,7 @@ export async function transitionRfpParseWorkflow(
 		if (input.action === "retry") {
 			const [newJob] = await tx.insert(rfpParsingJobs).values({
 				rfpDocumentId: input.rfpDocumentId,
+				organizationId,
 				status: "queued",
 				currentStep: "Queued for retry",
 				progress: 0,
@@ -1198,7 +1217,10 @@ export async function transitionRfpParseWorkflow(
 					cancelReason: reason,
 					cancelledBy: userId,
 				}),
-			}).where(eq(rfpParsingJobs.id, latestJob.id));
+			}).where(and(
+				eq(rfpParsingJobs.id, latestJob.id),
+				eq(rfpParsingJobs.organizationId, organizationId),
+			));
 			progress = latestJob.progress ?? doc.parsingProgress ?? 0;
 			currentStep = "Cancelled";
 		}
@@ -1213,7 +1235,10 @@ export async function transitionRfpParseWorkflow(
 					rejectedBy: userId,
 					rejectReason: reason,
 				}),
-			}).where(eq(rfpParsingJobs.id, latestJob.id));
+			}).where(and(
+				eq(rfpParsingJobs.id, latestJob.id),
+				eq(rfpParsingJobs.organizationId, organizationId),
+			));
 			error = reason;
 			currentStep = "Rejected";
 		}
@@ -1247,7 +1272,10 @@ export async function transitionRfpParseWorkflow(
 				parseWorkflow: nextWorkflow,
 			},
 			updatedAt: now,
-		}).where(eq(rfpDocuments.id, input.rfpDocumentId));
+		}).where(and(
+			eq(rfpDocuments.id, input.rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		));
 
 		try {
 			const runtimeInstance = await recordWorkflowRuntimeTransition({
@@ -1299,7 +1327,11 @@ export async function transitionRfpParseWorkflow(
 		}
 
 		if (input.action === "retry" && activeJobId && input.startProcessing !== false) {
-			processRfpParsingJob(activeJobId, input.rfpDocumentId).catch((error) => {
+			processRfpParsingJob({
+				jobId: activeJobId,
+				rfpDocumentId: input.rfpDocumentId,
+				tenantContext: { userId, organizationId },
+			}).catch((error) => {
 				logger.error("[RFP Parser] Retry background job failed:", error);
 			});
 		}
@@ -1705,12 +1737,37 @@ function appendRfpParseWorkflowHistory(
 	};
 }
 
+export interface ProcessRfpParsingJobInput {
+	jobId: string;
+	rfpDocumentId: string;
+	tenantContext: { userId: string; organizationId: string };
+}
+
 /**
  * Process an RFP parsing job asynchronously.
- * This function handles the actual parsing, extraction, and storage of requirements.
+ * This function handles the actual parsing, extraction, and storage of requirements,
+ * scoped to the caller's organization. Refuses to proceed if the document does
+ * not belong to `tenantContext.organizationId`.
  */
-export async function processRfpParsingJob(jobId: string, rfpDocumentId: string): Promise<void> {
-	logger.debug(`[RFP Parser] Starting job ${jobId} for document ${rfpDocumentId}`);
+export async function processRfpParsingJob(
+	input: ProcessRfpParsingJobInput,
+): Promise<void> {
+	const { jobId, rfpDocumentId, tenantContext } = input;
+	const organizationId = tenantContext.organizationId;
+	logger.debug(`[RFP Parser] Starting job ${jobId} for document ${rfpDocumentId} (org=${organizationId})`);
+
+	// Ownership check: refuse to process documents the caller does not own.
+	const rfpDoc = await db.query.rfpDocuments.findFirst({
+		where: and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		),
+	});
+	if (!rfpDoc) {
+		throw new Error(
+			`processRfpParsingJob: tenant mismatch (rfpDocumentId=${rfpDocumentId}, organizationId=${organizationId})`,
+		);
+	}
 
 	try {
 		// Update job status to processing
@@ -1720,7 +1777,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			currentStep: "Initializing",
 			progress: 5,
 			updatedAt: new Date(),
-		}).where(eq(rfpParsingJobs.id, jobId));
+		}).where(and(
+			eq(rfpParsingJobs.id, jobId),
+			eq(rfpParsingJobs.organizationId, organizationId),
+		));
 
 		// Update document status
 		await db.update(rfpDocuments).set({
@@ -1728,19 +1788,13 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			parsingProgress: 5,
 			parsingStartedAt: new Date(),
 			updatedAt: new Date(),
-		}).where(eq(rfpDocuments.id, rfpDocumentId));
-
-		// Fetch the document record
-		const rfpDoc = await db.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, rfpDocumentId),
-		});
-
-		if (!rfpDoc) {
-			throw new Error("RFP document not found");
-		}
+		}).where(and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		));
 
 		// Step 1: Read and extract text from the document (10-30%)
-		await updateJobProgress(jobId, rfpDocumentId, 10, "Extracting text from document");
+		await updateJobProgress(jobId, rfpDocumentId, organizationId, 10, "Extracting text from document");
 
 		// For now, we'll simulate text extraction.
 		// In production, you would read from storage and extract text based on file type
@@ -1752,7 +1806,7 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			extractedText = await extractTextFromDocument(rfpDoc.storagePath, rfpDoc.fileType);
 		}
 
-		await updateJobProgress(jobId, rfpDocumentId, 30, "Parsing RFP structure");
+		await updateJobProgress(jobId, rfpDocumentId, organizationId, 30, "Parsing RFP structure");
 
 		// Step 2: Parse RFP structure and metadata (30-50%)
 		const parsedRFP = await parseRFPWithAI(extractedText);
@@ -1779,9 +1833,12 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 				parseReview,
 			},
 			updatedAt: new Date(),
-		}).where(eq(rfpDocuments.id, rfpDocumentId));
+		}).where(and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		));
 
-		await updateJobProgress(jobId, rfpDocumentId, 50, "Extracting requirements");
+		await updateJobProgress(jobId, rfpDocumentId, organizationId, 50, "Extracting requirements");
 
 		// Step 3: Extract requirements (50-80%)
 		// Format sections for batch extraction (with id and text properties)
@@ -1798,12 +1855,13 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			allExtractedRequirements.push(...requirements);
 		}
 
-		await updateJobProgress(jobId, rfpDocumentId, 70, "Classifying and storing requirements");
+		await updateJobProgress(jobId, rfpDocumentId, organizationId, 70, "Classifying and storing requirements");
 
 		// Step 4: Store extracted requirements (70-90%)
 		if (allExtractedRequirements.length > 0) {
 			const requirementsToInsert = allExtractedRequirements.map((req, index) => ({
 				rfpDocumentId,
+				organizationId,
 				opportunityId: rfpDoc.opportunityId,
 				requirementNumber: req.requirementNumber || `REQ-${String(index + 1).padStart(3, "0")}`,
 				sourceSection: req.sectionReference || null,
@@ -1840,7 +1898,7 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			await db.insert(rfpRequirements).values(requirementsToInsert);
 		}
 
-		await updateJobProgress(jobId, rfpDocumentId, 90, "Finalizing");
+		await updateJobProgress(jobId, rfpDocumentId, organizationId, 90, "Finalizing");
 
 		// Step 5: Complete the job (90-100%)
 		const now = new Date();
@@ -1852,7 +1910,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			completedAt: now,
 			requirementsExtracted: allExtractedRequirements.length,
 			updatedAt: now,
-		}).where(eq(rfpParsingJobs.id, jobId));
+		}).where(and(
+			eq(rfpParsingJobs.id, jobId),
+			eq(rfpParsingJobs.organizationId, organizationId),
+		));
 
 		await db.update(rfpDocuments).set({
 			parsingStatus: "completed",
@@ -1876,7 +1937,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 				),
 			},
 			updatedAt: now,
-		}).where(eq(rfpDocuments.id, rfpDocumentId));
+		}).where(and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		));
 
 		await recordParseConfidenceReviewWorkflow({
 			rfpDocument: {
@@ -1896,7 +1960,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 
 		const errorMessage = error instanceof Error ? error.message : "Unknown error";
 		const failedDoc = await db.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, rfpDocumentId),
+			where: and(
+				eq(rfpDocuments.id, rfpDocumentId),
+				eq(rfpDocuments.organizationId, organizationId),
+			),
 		});
 		const failedAt = new Date();
 
@@ -1906,7 +1973,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			errorMessage,
 			completedAt: failedAt,
 			updatedAt: failedAt,
-		}).where(eq(rfpParsingJobs.id, jobId));
+		}).where(and(
+			eq(rfpParsingJobs.id, jobId),
+			eq(rfpParsingJobs.organizationId, organizationId),
+		));
 
 		await db.update(rfpDocuments).set({
 			parsingStatus: "failed",
@@ -1929,7 +1999,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 				),
 			},
 			updatedAt: failedAt,
-		}).where(eq(rfpDocuments.id, rfpDocumentId));
+		}).where(and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		));
 	}
 }
 
@@ -1939,6 +2012,7 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 async function updateJobProgress(
 	jobId: string,
 	rfpDocumentId: string,
+	organizationId: string,
 	progress: number,
 	step: string
 ): Promise<void> {
@@ -1947,11 +2021,17 @@ async function updateJobProgress(
 			progress,
 			currentStep: step,
 			updatedAt: new Date(),
-		}).where(eq(rfpParsingJobs.id, jobId)),
+		}).where(and(
+			eq(rfpParsingJobs.id, jobId),
+			eq(rfpParsingJobs.organizationId, organizationId),
+		)),
 		db.update(rfpDocuments).set({
 			parsingProgress: progress,
 			updatedAt: new Date(),
-		}).where(eq(rfpDocuments.id, rfpDocumentId)),
+		}).where(and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		)),
 	]);
 }
 

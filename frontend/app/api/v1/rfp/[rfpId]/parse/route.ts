@@ -179,7 +179,11 @@ export async function POST(
 			.returning();
 
 		// Trigger background parsing via server action
-		processRfpParsingJob(parsingJob.id, rfpId).catch((error: unknown) => {
+		processRfpParsingJob({
+			jobId: parsingJob.id,
+			rfpDocumentId: rfpId,
+			tenantContext: { userId: ctx.userId, organizationId: ctx.organizationId },
+		}).catch((error: unknown) => {
 			console.error("Background parsing job failed:", error);
 		});
 
