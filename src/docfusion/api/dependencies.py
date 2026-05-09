@@ -534,3 +534,42 @@ async def service_context():
 		yield container
 	finally:
 		await shutdown_services()
+
+
+# ============================================================================
+# Tenant dependency
+# ============================================================================
+#
+# The Next.js BFF proxies requests to FastAPI and injects the resolved tenant
+# identity via two headers. FastAPI never inspects the user's session cookie
+# directly — the BFF is the trust boundary.
+
+from dataclasses import dataclass as _dataclass
+
+from fastapi import Header, HTTPException, status as _status
+
+
+@_dataclass(frozen=True, slots=True)
+class TenantContext:
+	user_id: str
+	organization_id: str
+
+
+def require_tenant(
+	x_docfusion_user_id: str | None = Header(default=None),
+	x_docfusion_organization_id: str | None = Header(default=None),
+) -> TenantContext:
+	"""Resolve calling user and organization from BFF-injected headers.
+
+	Raises 401 if user is missing, 403 if user is set but org is missing.
+	"""
+	if not x_docfusion_user_id:
+		raise HTTPException(status_code=_status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+	if not x_docfusion_organization_id:
+		raise HTTPException(
+			status_code=_status.HTTP_403_FORBIDDEN, detail="No organization context"
+		)
+	return TenantContext(
+		user_id=x_docfusion_user_id,
+		organization_id=x_docfusion_organization_id,
+	)
