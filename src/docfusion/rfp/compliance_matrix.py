@@ -632,6 +632,16 @@ class ComplianceMatrixGenerator:
 		while len(self._matrices) > MAX_IN_MEMORY_MATRICES:
 			self._matrices.popitem(last=False)
 
+	def _get_matrix(self, matrix_id: str) -> "ComplianceMatrix | None":
+		"""Read-side LRU access: marks the entry as recently-touched so a
+		hot matrix is not evicted before a cold one. Use this in place of
+		direct ``self._matrices.get(matrix_id)`` to keep the cache fresh."""
+		# Direct dict access intentional — the wrapper itself must not recurse.
+		matrix = self._matrices.get(matrix_id)
+		if matrix is not None:
+			self._matrices.move_to_end(matrix_id)
+		return matrix
+
 	def _get_default_config(self) -> dict[str, Any]:
 		"""Get default configuration"""
 		return {
@@ -750,7 +760,7 @@ class ComplianceMatrixGenerator:
 		Returns:
 			True if successful, False if matrix or requirement not found
 		"""
-		matrix = self._matrices.get(matrix_id)
+		matrix = self._get_matrix(matrix_id)
 		if not matrix:
 			self.logger.warning(f"Matrix {matrix_id} not found")
 			return False
@@ -814,7 +824,7 @@ class ComplianceMatrixGenerator:
 		Returns:
 			Matrix if found, None otherwise
 		"""
-		return self._matrices.get(matrix_id)
+		return self._get_matrix(matrix_id)
 
 	def get_dashboard_data(self, matrix_id: str) -> dict[str, Any]:
 		"""
@@ -829,7 +839,7 @@ class ComplianceMatrixGenerator:
 		Returns:
 			Dictionary with dashboard-ready data
 		"""
-		matrix = self._matrices.get(matrix_id)
+		matrix = self._get_matrix(matrix_id)
 		if not matrix:
 			return {"error": "Matrix not found", "matrix_id": matrix_id}
 
@@ -971,7 +981,7 @@ class ComplianceMatrixGenerator:
 		Returns:
 			Detailed gap analysis
 		"""
-		matrix = self._matrices.get(matrix_id)
+		matrix = self._get_matrix(matrix_id)
 		if not matrix:
 			return {"error": "Matrix not found"}
 
@@ -1058,7 +1068,7 @@ class ComplianceMatrixGenerator:
 		Returns:
 			Traceability matrix data
 		"""
-		matrix = self._matrices.get(matrix_id)
+		matrix = self._get_matrix(matrix_id)
 		if not matrix:
 			return {"error": "Matrix not found"}
 

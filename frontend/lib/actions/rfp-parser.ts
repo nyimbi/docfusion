@@ -1911,7 +1911,7 @@ export async function processRfpParsingJob(
 		// summary lands on the document metadata so the UI can warn users
 		// that the parse degraded silently.
 		const allExtractedRequirements: ExtractedRequirement[] = [];
-		const heuristicSections: Array<{ sectionId: string; aiError?: string }> = [];
+		const heuristicSections: Array<{ sectionId: string; aiError?: import("@/lib/ai/rfp-parser").AiErrorClass }> = [];
 		let aiSectionCount = 0;
 		for (const [sectionId, outcome] of extractedOutcomesMap) {
 			allExtractedRequirements.push(...outcome.requirements);
@@ -1922,11 +1922,13 @@ export async function processRfpParsingJob(
 			}
 		}
 		const extractionProvenance = {
-			source: heuristicSections.length === 0
-				? ("ai" as const)
-				: aiSectionCount === 0
-					? ("heuristic" as const)
-					: ("mixed" as const),
+			source: extractedOutcomesMap.size === 0
+				? ("none" as const)
+				: heuristicSections.length === 0
+					? ("ai" as const)
+					: aiSectionCount === 0
+						? ("heuristic" as const)
+						: ("mixed" as const),
 			aiSectionCount,
 			heuristicSectionCount: heuristicSections.length,
 			heuristicSections: heuristicSections.length > 0 ? heuristicSections : undefined,
@@ -1942,6 +1944,13 @@ export async function processRfpParsingJob(
 		const now = new Date();
 
 		await db.transaction(async (tx) => {
+			// Serialise concurrent retries on the same document. Without this,
+			// two workers picking up the same job (queue duplication) could both
+			// run delete + insert and produce row doubling under READ COMMITTED.
+			await tx.execute(
+				sql`select pg_advisory_xact_lock(hashtext(${rfpDocumentId}))`,
+			);
+
 			await tx
 				.delete(rfpRequirements)
 				.where(
