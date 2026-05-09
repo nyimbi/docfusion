@@ -1904,111 +1904,164 @@ export async function processRfpParsingJob(
 			text: s.content,
 			pageNumber: s.pageStart,
 		}));
-		const extractedRequirementsMap = await batchExtractRequirements(sectionsForExtraction);
+		const extractedOutcomesMap = await batchExtractRequirements(sectionsForExtraction);
 
-		// Flatten the Map into an array of requirements
+		// Flatten outcomes into a single requirement list and accumulate
+		// provenance — which sections fell back to heuristic and why. The
+		// summary lands on the document metadata so the UI can warn users
+		// that the parse degraded silently.
 		const allExtractedRequirements: ExtractedRequirement[] = [];
-		for (const [_sectionId, requirements] of extractedRequirementsMap) {
-			allExtractedRequirements.push(...requirements);
+		const heuristicSections: Array<{ sectionId: string; aiError?: import("@/lib/ai/rfp-parser").AiErrorClass }> = [];
+		let aiSectionCount = 0;
+		for (const [sectionId, outcome] of extractedOutcomesMap) {
+			allExtractedRequirements.push(...outcome.requirements);
+			if (outcome.source === "heuristic") {
+				heuristicSections.push({ sectionId, aiError: outcome.aiError });
+			} else {
+				aiSectionCount += 1;
+			}
 		}
+		const extractionProvenance = {
+			source: extractedOutcomesMap.size === 0
+				? ("none" as const)
+				: heuristicSections.length === 0
+					? ("ai" as const)
+					: aiSectionCount === 0
+						? ("heuristic" as const)
+						: ("mixed" as const),
+			aiSectionCount,
+			heuristicSectionCount: heuristicSections.length,
+			heuristicSections: heuristicSections.length > 0 ? heuristicSections : undefined,
+		};
 
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 70, "Classifying and storing requirements");
 
-		// Step 4: Store extracted requirements (70-90%)
-		if (allExtractedRequirements.length > 0) {
-			const requirementsToInsert = allExtractedRequirements.map((req, index) => ({
-				rfpDocumentId,
-				organizationId,
-				opportunityId: rfpDoc.opportunityId,
-				requirementNumber: req.requirementNumber || `REQ-${String(index + 1).padStart(3, "0")}`,
-				sourceSection: req.sectionReference || null,
-				title: req.title || req.fullText.slice(0, 100),
-				requirementText: req.fullText,
-				category: req.category,
-				subcategory: req.subcategory || null,
-				requirementType: req.requirementType,
-				priority: req.priority,
-				evaluationWeight: req.evaluationWeight || null,
-				extractionConfidence: req.confidenceScore * 100,
-				relatedRequirements: req.relatedRequirements || [],
-				sourcePage: req.pageNumber || null,
-				aiAnalysis: {
-					summary: req.summary,
-					scoringMethod: req.scoringMethod,
-					source: "rfp_parser",
-				},
-				complianceStatus: "pending" as const,
-				riskLevel: "medium" as const,
-				metadata: {
-					workflow: {
-						state: "review",
-						sourceTrace: {
-							rfpDocumentId,
-							parseJobId: jobId,
-							sectionReference: req.sectionReference,
-							pageNumber: req.pageNumber,
+		// Steps 4+5 land atomically. On retry, prior requirements for the
+		// document are removed inside the same transaction so retries do not
+		// double the row count. If anything inside throws, the transaction
+		// rolls back; the catch block below records the failed status outside
+		// the tx and the previous requirements (if any) survive untouched.
+		const now = new Date();
+
+		await db.transaction(async (tx) => {
+			// Serialise concurrent retries on the same document. Without this,
+			// two workers picking up the same job (queue duplication) could both
+			// run delete + insert and produce row doubling under READ COMMITTED.
+			await tx.execute(
+				sql`select pg_advisory_xact_lock(hashtext(${rfpDocumentId}))`,
+			);
+
+			await tx
+				.delete(rfpRequirements)
+				.where(
+					and(
+						eq(rfpRequirements.rfpDocumentId, rfpDocumentId),
+						eq(rfpRequirements.organizationId, organizationId),
+					),
+				);
+
+			if (allExtractedRequirements.length > 0) {
+				const requirementsToInsert = allExtractedRequirements.map((req, index) => ({
+					rfpDocumentId,
+					organizationId,
+					opportunityId: rfpDoc.opportunityId,
+					requirementNumber: req.requirementNumber || `REQ-${String(index + 1).padStart(3, "0")}`,
+					sourceSection: req.sectionReference || null,
+					title: req.title || req.fullText.slice(0, 100),
+					requirementText: req.fullText,
+					category: req.category,
+					subcategory: req.subcategory || null,
+					requirementType: req.requirementType,
+					priority: req.priority,
+					evaluationWeight: req.evaluationWeight || null,
+					extractionConfidence: req.confidenceScore * 100,
+					relatedRequirements: req.relatedRequirements || [],
+					sourcePage: req.pageNumber || null,
+					aiAnalysis: {
+						summary: req.summary,
+						scoringMethod: req.scoringMethod,
+						source: "rfp_parser",
+					},
+					complianceStatus: "not_addressed" as const,
+					riskLevel: "medium" as const,
+					metadata: {
+						workflow: {
+							state: "review",
+							sourceTrace: {
+								rfpDocumentId,
+								parseJobId: jobId,
+								sectionReference: req.sectionReference,
+								pageNumber: req.pageNumber,
+							},
 						},
 					},
-				},
-			}));
+				}));
 
-			await db.insert(rfpRequirements).values(requirementsToInsert);
-		}
+				await tx.insert(rfpRequirements).values(requirementsToInsert);
+			}
+
+			await tx.update(rfpParsingJobs).set({
+				status: "completed",
+				progress: 100,
+				currentStep: "Completed",
+				completedAt: now,
+				requirementsExtracted: allExtractedRequirements.length,
+				updatedAt: now,
+			}).where(and(
+				eq(rfpParsingJobs.id, jobId),
+				eq(rfpParsingJobs.organizationId, organizationId),
+			));
+
+			await tx.update(rfpDocuments).set({
+				parsingStatus: "completed",
+				parsingProgress: 100,
+				parsingCompletedAt: now,
+				parsingError: null,
+				metadata: {
+					...mergeRecordMetadata(rfpDoc.metadata),
+					parseReview,
+					extractionProvenance,
+					parseWorkflow: appendRfpParseWorkflowHistory(
+						normalizeRfpParseWorkflowMetadata(rfpDoc.metadata),
+						{
+							action: "completed",
+							from: parseWorkflowStateFromStatus(rfpDoc.parsingStatus),
+							to: "completed",
+							actorId: "system",
+							reason: "Parsing completed successfully.",
+							at: now.toISOString(),
+							jobId,
+						}
+					),
+				},
+				updatedAt: now,
+			}).where(and(
+				eq(rfpDocuments.id, rfpDocumentId),
+				eq(rfpDocuments.organizationId, organizationId),
+			));
+		});
 
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 90, "Finalizing");
 
-		// Step 5: Complete the job (90-100%)
-		const now = new Date();
-
-		await db.update(rfpParsingJobs).set({
-			status: "completed",
-			progress: 100,
-			currentStep: "Completed",
-			completedAt: now,
-			requirementsExtracted: allExtractedRequirements.length,
-			updatedAt: now,
-		}).where(and(
-			eq(rfpParsingJobs.id, jobId),
-			eq(rfpParsingJobs.organizationId, organizationId),
-		));
-
-		await db.update(rfpDocuments).set({
-			parsingStatus: "completed",
-			parsingProgress: 100,
-			parsingCompletedAt: now,
-			parsingError: null,
-			metadata: {
-				...mergeRecordMetadata(rfpDoc.metadata),
+		// Workflow recording is observability — its failure must not unwind the
+		// successful parse transaction above by triggering the outer catch.
+		try {
+			await recordParseConfidenceReviewWorkflow({
+				rfpDocument: {
+					...rfpDoc,
+					parsingStatus: "completed",
+					parsingConfidence,
+				},
+				jobId,
+				confidence: parsingConfidence,
 				parseReview,
-				parseWorkflow: appendRfpParseWorkflowHistory(
-					normalizeRfpParseWorkflowMetadata(rfpDoc.metadata),
-					{
-						action: "completed",
-						from: parseWorkflowStateFromStatus(rfpDoc.parsingStatus),
-						to: "completed",
-						actorId: "system",
-						reason: "Parsing completed successfully.",
-						at: now.toISOString(),
-						jobId,
-					}
-				),
-			},
-			updatedAt: now,
-		}).where(and(
-			eq(rfpDocuments.id, rfpDocumentId),
-			eq(rfpDocuments.organizationId, organizationId),
-		));
-
-		await recordParseConfidenceReviewWorkflow({
-			rfpDocument: {
-				...rfpDoc,
-				parsingStatus: "completed",
-				parsingConfidence,
-			},
-			jobId,
-			confidence: parsingConfidence,
-			parseReview,
-		});
+			});
+		} catch (workflowError) {
+			logger.warn(
+				`[RFP Parser] Confidence review workflow recording failed for job ${jobId}; parse already committed`,
+				workflowError,
+			);
+		}
 
 		logger.debug(`[RFP Parser] Job ${jobId} completed successfully. Extracted ${allExtractedRequirements.length} requirements.`);
 

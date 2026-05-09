@@ -19,6 +19,7 @@ import asyncio
 import csv
 import json
 import logging
+from collections import OrderedDict
 from datetime import datetime, timezone
 from enum import Enum
 from io import BytesIO, StringIO
@@ -28,6 +29,43 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .requirement_extractor import Requirement, RequirementModality, RequirementType
 from ..core.utils import uuid7str
+
+
+def _safe_modality(value: Any, *, default: RequirementModality) -> RequirementModality:
+	"""Coerce a raw JSONB value to RequirementModality, falling back on legacy
+	rows that may have stored a different vocabulary under the same JSON key.
+	The audit on PR #1 flagged this site: an unguarded enum constructor would
+	raise on data persisted before the W0 modality/category split."""
+	if value is None:
+		return default
+	try:
+		return RequirementModality(value)
+	except ValueError:
+		logging.getLogger(__name__).warning(
+			"Unrecognised modality value in compliance metadata; falling back to default",
+			extra={"value": value, "default": default.value},
+		)
+		return default
+
+
+def _safe_requirement_type(value: Any, *, default: RequirementType) -> RequirementType:
+	"""Same defensive pattern as _safe_modality, applied to RequirementType."""
+	if value is None:
+		return default
+	try:
+		return RequirementType(value)
+	except ValueError:
+		logging.getLogger(__name__).warning(
+			"Unrecognised requirement_type value in compliance metadata; falling back to default",
+			extra={"value": value, "default": default.value},
+		)
+		return default
+
+
+# Per-process cap on the in-memory matrix LRU. Beyond this, the oldest
+# matrix is evicted on insert. Prevents unbounded growth across long-lived
+# worker processes (audit Critical #11).
+MAX_IN_MEMORY_MATRICES = 64
 
 class ComplianceStatus(str, Enum):
 	"""Status of requirement compliance in response"""
@@ -576,13 +614,33 @@ class ComplianceMatrixGenerator:
 			self.config.update(config)
 		self.logger = logging.getLogger(__name__)
 
-		# Storage for matrices (in production, would use database)
-		self._matrices: dict[str, ComplianceMatrix] = {}
+		# Bounded LRU cache of recently-touched matrices. Evicts oldest on
+		# insert past MAX_IN_MEMORY_MATRICES so a long-running worker process
+		# cannot leak memory (or alert counts) across requests.
+		self._matrices: OrderedDict[str, ComplianceMatrix] = OrderedDict()
 
 		# Update callbacks for real-time notifications
 		self._update_callbacks: list[callable] = []
 
 		self._log_generator_initialized()
+
+	def _remember_matrix(self, matrix: "ComplianceMatrix") -> None:
+		"""Cache a matrix in the bounded LRU; evict oldest entries on overflow."""
+		if matrix.id in self._matrices:
+			self._matrices.move_to_end(matrix.id)
+		self._matrices[matrix.id] = matrix
+		while len(self._matrices) > MAX_IN_MEMORY_MATRICES:
+			self._matrices.popitem(last=False)
+
+	def _get_matrix(self, matrix_id: str) -> "ComplianceMatrix | None":
+		"""Read-side LRU access: marks the entry as recently-touched so a
+		hot matrix is not evicted before a cold one. Use this in place of
+		direct ``self._matrices.get(matrix_id)`` to keep the cache fresh."""
+		# Direct dict access intentional — the wrapper itself must not recurse.
+		matrix = self._matrices.get(matrix_id)
+		if matrix is not None:
+			self._matrices.move_to_end(matrix_id)
+		return matrix
 
 	def _get_default_config(self) -> dict[str, Any]:
 		"""Get default configuration"""
@@ -646,7 +704,7 @@ class ComplianceMatrixGenerator:
 			matrix.add_mapping(mapping)
 
 		# Store the matrix
-		self._matrices[matrix.id] = matrix
+		self._remember_matrix(matrix)
 
 		self._log_matrix_created(rfp_id, len(requirements))
 		return matrix
@@ -702,7 +760,7 @@ class ComplianceMatrixGenerator:
 		Returns:
 			True if successful, False if matrix or requirement not found
 		"""
-		matrix = self._matrices.get(matrix_id)
+		matrix = self._get_matrix(matrix_id)
 		if not matrix:
 			self.logger.warning(f"Matrix {matrix_id} not found")
 			return False
@@ -766,7 +824,7 @@ class ComplianceMatrixGenerator:
 		Returns:
 			Matrix if found, None otherwise
 		"""
-		return self._matrices.get(matrix_id)
+		return self._get_matrix(matrix_id)
 
 	def get_dashboard_data(self, matrix_id: str) -> dict[str, Any]:
 		"""
@@ -781,7 +839,7 @@ class ComplianceMatrixGenerator:
 		Returns:
 			Dictionary with dashboard-ready data
 		"""
-		matrix = self._matrices.get(matrix_id)
+		matrix = self._get_matrix(matrix_id)
 		if not matrix:
 			return {"error": "Matrix not found", "matrix_id": matrix_id}
 
@@ -923,7 +981,7 @@ class ComplianceMatrixGenerator:
 		Returns:
 			Detailed gap analysis
 		"""
-		matrix = self._matrices.get(matrix_id)
+		matrix = self._get_matrix(matrix_id)
 		if not matrix:
 			return {"error": "Matrix not found"}
 
@@ -1010,7 +1068,7 @@ class ComplianceMatrixGenerator:
 		Returns:
 			Traceability matrix data
 		"""
-		matrix = self._matrices.get(matrix_id)
+		matrix = self._get_matrix(matrix_id)
 		if not matrix:
 			return {"error": "Matrix not found"}
 
@@ -1252,8 +1310,8 @@ class ComplianceMatrixGenerator:
 				status=ComplianceStatus(e["compliance_status"]),
 				confidence=meta.get("confidence", 0.0),
 				notes=e.get("reviewer_notes") or "",
-				modality=RequirementModality(meta.get("category", "mandatory")),
-				requirement_type=RequirementType(meta.get("requirement_type", "unknown")),
+				modality=_safe_modality(meta.get("category"), default=RequirementModality.MANDATORY),
+				requirement_type=_safe_requirement_type(meta.get("requirement_type"), default=RequirementType.UNKNOWN),
 				source_section=meta.get("source_section", ""),
 				page_number=meta.get("page_number"),
 			)

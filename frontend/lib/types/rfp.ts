@@ -142,16 +142,11 @@ export type RfpRequirementPriority = "mandatory" | "preferred" | "optional";
 /** Risk level for requirements (RFP-specific) */
 export type RfpRiskLevel = "critical" | "high" | "medium" | "low";
 
-/** Compliance status for a requirement (RFP-specific) */
-export type RfpComplianceStatus =
-	| "not_addressed"
-	| "in_progress"
-	| "addressed"
-	| "compliant"
-	| "partial"
-	| "non_compliant"
-	| "not_applicable"
-	| "pending";
+import type { COMPLIANCE_STATUSES } from "@/lib/db/schema-rfp";
+
+/** Compliance status for a requirement (RFP-specific). Derived from the DB
+ * pgEnum so the TS union and the column constraint can never drift. */
+export type RfpComplianceStatus = (typeof COMPLIANCE_STATUSES)[number];
 
 /** Ambiguity level for requirements */
 export type AmbiguityLevel = "clear" | "somewhat_ambiguous" | "very_ambiguous";

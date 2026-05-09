@@ -1,0 +1,20 @@
+{
+	"version": "1",
+	"summary": "Cross-side fixture: ten mandatory requirements, two ambiguity flags.",
+	"riskFactors": [
+		"unfunded scope",
+		"unclear evaluation criteria"
+	],
+	"suggestedApproach": "Prioritize Section L compliance and request clarification on evaluation weights.",
+	"ambiguityFlags": [
+		{
+			"requirementId": "REQ-001",
+			"reason": "no quantitative success metric"
+		},
+		{
+			"requirementId": "REQ-014",
+			"reason": "page reference is missing from the source"
+		}
+	],
+	"extractedAt": "2026-05-09T12:00:00Z"
+}

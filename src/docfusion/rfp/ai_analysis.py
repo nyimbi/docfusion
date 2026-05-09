@@ -33,7 +33,13 @@ class AiAnalysisV1(BaseModel):
 	extractedAt: datetime
 
 
-# Discriminated union ready for future v2/v3 variants.
+# Discriminated union ready for future v2/v3 variants. The `Union[V1]`
+# form silently collapses to `V1` while only one variant exists. When a
+# second variant is added, switch to a tagged form so Pydantic dispatches
+# on the discriminator instead of trying every member:
+#
+#     AiAnalysis = Annotated[Union[AiAnalysisV1, AiAnalysisV2], Field(discriminator="version")]
+#
 AiAnalysis = Union[AiAnalysisV1]
 _adapter: TypeAdapter[AiAnalysis] = TypeAdapter(AiAnalysis)
 

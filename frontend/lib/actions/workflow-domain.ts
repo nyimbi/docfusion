@@ -30,9 +30,23 @@ import { z } from "zod";
 import { requireTenantContext } from "@/lib/auth/tenant-context";
 
 // Zod whitelist for workflow-driven rfpRequirements patch — only the columns
-// that the domain compensation legitimately writes are permitted.
+// that the domain compensation legitimately writes are permitted. The
+// complianceStatus values mirror frontend/lib/db/schema-rfp.ts
+// COMPLIANCE_STATUSES so a legal status transition cannot be silently
+// rejected at the patch layer while the DB still accepts it.
 const rfpRequirementWorkflowPatchSchema = z.object({
-	complianceStatus: z.enum(["not_addressed", "partial", "compliant", "non_compliant", "not_applicable", "addressed"]).optional(),
+	complianceStatus: z
+		.enum([
+			"not_addressed",
+			"in_progress",
+			"addressed",
+			"compliant",
+			"partial",
+			"non_compliant",
+			"not_applicable",
+			"pending",
+		])
+		.optional(),
 	priority: z.enum(["mandatory", "preferred", "optional"]).optional(),
 	notes: z.string().optional(),
 	assignedTo: z.string().optional(),
