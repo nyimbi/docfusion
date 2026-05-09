@@ -1937,7 +1937,7 @@ export async function processRfpParsingJob(
 					scoringMethod: req.scoringMethod,
 					source: "rfp_parser",
 				},
-				complianceStatus: "pending" as const,
+				complianceStatus: "not_addressed" as const,
 				riskLevel: "medium" as const,
 				metadata: {
 					workflow: {
