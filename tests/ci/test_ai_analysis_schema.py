@@ -45,3 +45,19 @@ def test_extra_fields_rejected():
 				"unknown": "field",
 			}
 		)
+
+
+def test_shared_fixture_round_trips():
+	"""Cross-side contract: the same fixture file is parsed by both Python
+	(this test) and TypeScript (frontend/__tests__/types/ai-analysis.test.ts).
+	If either side rejects the bytes, the contract has drifted."""
+	import json
+	from pathlib import Path
+
+	fixture_path = Path(__file__).parent.parent.parent / "examples" / "ai-analysis-v1-fixture.json"
+	payload = json.loads(fixture_path.read_text())
+	parsed = parse_ai_analysis(payload)
+	assert isinstance(parsed, AiAnalysisV1)
+	assert parsed.version == "1"
+	assert len(parsed.riskFactors) == 2
+	assert len(parsed.ambiguityFlags) == 2

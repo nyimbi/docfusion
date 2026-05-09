@@ -30,6 +30,38 @@ from pydantic import BaseModel, ConfigDict, Field
 from .requirement_extractor import Requirement, RequirementModality, RequirementType
 from ..core.utils import uuid7str
 
+
+def _safe_modality(value: Any, *, default: RequirementModality) -> RequirementModality:
+	"""Coerce a raw JSONB value to RequirementModality, falling back on legacy
+	rows that may have stored a different vocabulary under the same JSON key.
+	The audit on PR #1 flagged this site: an unguarded enum constructor would
+	raise on data persisted before the W0 modality/category split."""
+	if value is None:
+		return default
+	try:
+		return RequirementModality(value)
+	except ValueError:
+		logging.getLogger(__name__).warning(
+			"Unrecognised modality value in compliance metadata; falling back to default",
+			extra={"value": value, "default": default.value},
+		)
+		return default
+
+
+def _safe_requirement_type(value: Any, *, default: RequirementType) -> RequirementType:
+	"""Same defensive pattern as _safe_modality, applied to RequirementType."""
+	if value is None:
+		return default
+	try:
+		return RequirementType(value)
+	except ValueError:
+		logging.getLogger(__name__).warning(
+			"Unrecognised requirement_type value in compliance metadata; falling back to default",
+			extra={"value": value, "default": default.value},
+		)
+		return default
+
+
 # Per-process cap on the in-memory matrix LRU. Beyond this, the oldest
 # matrix is evicted on insert. Prevents unbounded growth across long-lived
 # worker processes (audit Critical #11).
@@ -1268,8 +1300,8 @@ class ComplianceMatrixGenerator:
 				status=ComplianceStatus(e["compliance_status"]),
 				confidence=meta.get("confidence", 0.0),
 				notes=e.get("reviewer_notes") or "",
-				modality=RequirementModality(meta.get("category", "mandatory")),
-				requirement_type=RequirementType(meta.get("requirement_type", "unknown")),
+				modality=_safe_modality(meta.get("category"), default=RequirementModality.MANDATORY),
+				requirement_type=_safe_requirement_type(meta.get("requirement_type"), default=RequirementType.UNKNOWN),
 				source_section=meta.get("source_section", ""),
 				page_number=meta.get("page_number"),
 			)
