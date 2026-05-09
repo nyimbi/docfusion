@@ -13,6 +13,7 @@ import { proposalTasks, taskActivity } from "@/lib/db/schema-tasks";
 import { eq, and, or, ilike, inArray, isNull, isNotNull, lt, sql, desc, asc } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
+import { requireTenantContext } from "@/lib/auth/tenant-context";
 import type {
 	Requirement,
 	RequirementInput,
@@ -209,9 +210,11 @@ export async function getRequirements(
  * Create a new requirement.
  */
 export async function createRequirement(input: RequirementInput): Promise<Requirement> {
+	const { organizationId } = await requireTenantContext();
 	const [result] = await db
 		.insert(rfpRequirements)
 		.values({
+			organizationId,
 			opportunityId: input.opportunityId,
 			requirementNumber: input.requirementId ?? null,
 			category: input.category ?? null,
@@ -238,10 +241,12 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
 export async function createRequirements(inputs: RequirementInput[]): Promise<Requirement[]> {
 	if (inputs.length === 0) return [];
 
+	const { organizationId } = await requireTenantContext();
 	const results = await db
 		.insert(rfpRequirements)
 		.values(
 			inputs.map((input) => ({
+				organizationId,
 				opportunityId: input.opportunityId,
 				requirementNumber: input.requirementId ?? null,
 				category: input.category ?? null,

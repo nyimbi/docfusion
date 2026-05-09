@@ -433,24 +433,32 @@ export async function createComplianceMatrix(
 	input: CreateComplianceMatrixInput
 ): Promise<{ success: boolean; matrixId?: string; error?: string }> {
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) {
 			return { success: false, error: "Not authenticated" };
 		}
+		const { userId, organizationId } = ctx;
 
-		// Get requirements to include in matrix
+		// Get requirements to include in matrix, scoped to caller's organization.
 		const requirements = input.includeRequirementIds
 			? await db.query.rfpRequirements.findMany({
-					where: inArray(rfpRequirements.id, input.includeRequirementIds),
+					where: and(
+						inArray(rfpRequirements.id, input.includeRequirementIds),
+						eq(rfpRequirements.organizationId, organizationId),
+					),
 			  })
 			: input.rfpDocumentId
 			? await db.query.rfpRequirements.findMany({
-					where: eq(rfpRequirements.rfpDocumentId, input.rfpDocumentId),
+					where: and(
+						eq(rfpRequirements.rfpDocumentId, input.rfpDocumentId),
+						eq(rfpRequirements.organizationId, organizationId),
+					),
 			  })
 			: [];
 
 		// Create the matrix
 		const [matrix] = await db.insert(complianceMatrices).values({
+			organizationId,
 			opportunityId: input.opportunityId,
 			rfpDocumentId: input.rfpDocumentId,
 			name: input.name,
@@ -465,6 +473,7 @@ export async function createComplianceMatrix(
 		if (requirements.length > 0) {
 			await db.insert(complianceEntries).values(
 				requirements.map((req, index) => ({
+					organizationId,
 					matrixId: matrix.id,
 					requirementId: req.id,
 					complianceStatus: "pending" as const,
