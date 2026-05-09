@@ -488,7 +488,7 @@ export async function classifyRequirementWithAI(
 			[
 				{
 					role: "system",
-					content: "You are an expert at classifying government RFP requirements. Always respond with valid JSON only.",
+					content: "You are an expert at classifying government RFP requirements. Always respond with valid JSON only." + PROMPT_ENVELOPE_INSTRUCTION,
 				},
 				{
 					role: "user",
@@ -530,7 +530,7 @@ export async function detectAmbiguityWithAI(
 			[
 				{
 					role: "system",
-					content: "You are an expert at identifying ambiguous requirements. Always respond with valid JSON only.",
+					content: "You are an expert at identifying ambiguous requirements. Always respond with valid JSON only." + PROMPT_ENVELOPE_INSTRUCTION,
 				},
 				{
 					role: "user",
@@ -585,7 +585,7 @@ Respond in JSON format only:
 			[
 				{
 					role: "system",
-					content: "You are an expert government proposal professional. Generate professional clarification questions. Always respond with valid JSON only.",
+					content: "You are an expert government proposal professional. Generate professional clarification questions. Always respond with valid JSON only." + PROMPT_ENVELOPE_INSTRUCTION,
 				},
 				{
 					role: "user",
@@ -629,7 +629,7 @@ export async function matchRequirementToContent(
 			[
 				{
 					role: "system",
-					content: "You are an expert at matching proposal content to RFP requirements. Always respond with valid JSON only.",
+					content: "You are an expert at matching proposal content to RFP requirements. Always respond with valid JSON only." + PROMPT_ENVELOPE_INSTRUCTION,
 				},
 				{
 					role: "user",
@@ -954,7 +954,7 @@ Respond in JSON only:
 			[
 				{
 					role: "system",
-					content: "You are an expert compliance analyst. Always respond with valid JSON only.",
+					content: "You are an expert compliance analyst. Always respond with valid JSON only." + PROMPT_ENVELOPE_INSTRUCTION,
 				},
 				{
 					role: "user",
@@ -1039,7 +1039,7 @@ Respond in JSON only:
 			[
 				{
 					role: "system",
-					content: "You are an expert at analyzing government RFP evaluation criteria. Always respond with valid JSON only.",
+					content: "You are an expert at analyzing government RFP evaluation criteria. Always respond with valid JSON only." + PROMPT_ENVELOPE_INSTRUCTION,
 				},
 				{
 					role: "user",
@@ -1122,7 +1122,7 @@ Respond in JSON only:
 			[
 				{
 					role: "system",
-					content: "You are an expert proposal manager. Always respond with valid JSON only.",
+					content: "You are an expert proposal manager. Always respond with valid JSON only." + PROMPT_ENVELOPE_INSTRUCTION,
 				},
 				{
 					role: "user",
