@@ -557,21 +557,29 @@ class RequirementExtractor:
 		try:
 			client = await self._get_http_client()
 
-			# Call DoclingService to parse the document
-			response = await client.post(
-				"/v1/parse",
-				content=content,
-				headers={"Content-Type": content_type},
-			)
+			# DoclingService v1.16+ exposes `/v1/convert/file` and expects a
+			# multipart upload under the field name `files`, not raw bytes
+			# with a Content-Type header. The previous /v1/parse path was a
+			# 404 against every deployed version we have, so PDF/DOCX
+			# extraction was silently failing and falling through to the
+			# empty-text branch downstream. The endpoint is env-overridable
+			# (DOCLING_CONVERT_PATH) in case the docling-serve API moves.
+			import os
+			endpoint = os.environ.get("DOCLING_CONVERT_PATH", "/v1/convert/file")
+			filename = self._docling_filename_for_content_type(content_type)
+			files = {"files": (filename, content, content_type)}
+			response = await client.post(endpoint, files=files)
 
 			if response.status_code == 200:
 				data = response.json()
+				doc = data.get("document") or data
+				text = doc.get("text") or doc.get("md_content") or doc.get("body", "")
 				return {
 					"success": True,
-					"text": data.get("text", ""),
-					"pages": data.get("pages", []),
-					"sections": data.get("sections", []),
-					"metadata": data.get("metadata", {}),
+					"text": text,
+					"pages": doc.get("pages", []),
+					"sections": doc.get("sections", []),
+					"metadata": doc.get("metadata", {}),
 				}
 			else:
 				return {
@@ -585,6 +593,20 @@ class RequirementExtractor:
 			return {"success": False, "errors": [f"DoclingService request error: {str(e)}"]}
 		except Exception as e:
 			return {"success": False, "errors": [f"DoclingService error: {str(e)}"]}
+
+	@staticmethod
+	def _docling_filename_for_content_type(content_type: str) -> str:
+		"""Pick a filename + extension docling-serve recognises for the
+		multipart upload. The server inspects the extension, not the
+		Content-Type header, when picking a parser."""
+		ct = (content_type or "").lower()
+		if "pdf" in ct:
+			return "document.pdf"
+		if "wordprocessing" in ct or "docx" in ct:
+			return "document.docx"
+		if "html" in ct:
+			return "document.html"
+		return "document.bin"
 
 	async def _extract_requirements_from_text(
 		self,
