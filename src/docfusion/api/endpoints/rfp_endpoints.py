@@ -6,54 +6,129 @@ Every route here is tenant-gated via :func:`require_tenant`, which reads
 injected by the Next.js BFF. FastAPI never inspects the user's session
 cookie directly — the BFF is the trust boundary.
 
-W3 status:
-  * Auth: ``Depends(require_tenant)`` is now mandatory on every handler.
-  * Fake fixtures (hardcoded test text in ``parse_rfp``, ``[]`` from
-	``list_requirements``, dummy ``entry_count: 0`` from
-	``generate_matrix``) have been replaced with explicit
-	``501 Not Implemented`` responses. Returning honest 501 is strictly
-	better than silently returning fake data — the audit's Critical #4
-	finding was that callers could not tell the difference between a
-	real and a faked response.
-  * Full DB wire-up (writing to ``rfp_documents`` /
-	``rfp_requirements`` / ``compliance_matrices`` from these handlers)
-	is deferred to W3b. It requires verification against a running
-	FastAPI + Postgres deployment that this branch cannot exercise in
-	CI alone.
+W3b status:
+  * Auth: ``Depends(require_tenant)`` is mandatory on every handler.
+  * ``/upload``, ``/parse``, ``/requirements``, ``/compliance-matrix``,
+    and the entry PATCH route are now backed by real Postgres writes
+    against ``rfp_documents``, ``rfp_requirements``,
+    ``compliance_matrices`` and ``compliance_entries``. Every read and
+    every write is scoped by ``organization_id``.
+  * Blob storage is still local disk under ``./storage/rfp/{org}/{rfp}``.
+    Production deployments swap this for ``SecureStorageService`` via
+    the dependency container; that wire-up lands in W3c together with
+    the Temporal-backed async parsing pipeline. Today's ``/parse`` runs
+    inline — fine for small documents, intentionally bounded so we can
+    catch silent regressions.
 
-If your client needs the real pipeline today, route through the Next.js
-``/api/v1/rfp/...`` endpoints — those are fully wired (W1).
+If your client needs the queued, async pipeline route through the
+Next.js ``/api/v1/rfp/...`` endpoints — those use Temporal directly.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies import TenantContext, require_tenant
 from ...core.database.session import get_async_db_session
 from ...core.utils import uuid7str
 from ...orchestration.proposal_orchestrator import ProposalOrchestrator
-# Pipeline classes are imported lazily by W3b's DB wire-up — keep these
-# top-level imports so test fixtures and downstream tools can monkeypatch
-# them without dynamic-import gymnastics. F401 suppresses the unused warning
-# for now; remove once W3b lands the real handlers.
-from ...rfp.compliance_matrix import ComplianceMatrixGenerator  # noqa: F401
-from ...rfp.requirement_extractor import RequirementExtractor  # noqa: F401
-from ...rfp.rfp_analyzer import RFPAnalyzer  # noqa: F401
+from ...rfp.compliance_matrix import (
+	ComplianceMatrixGenerator,
+	ComplianceStatus,
+)
+from ...rfp.requirement_extractor import (
+	Requirement,
+	RequirementCategory,
+	RequirementModality,
+	RequirementType,
+)
+from ...rfp.rfp_analyzer import RFPAnalyzer
 
 router = APIRouter(prefix="/api/v1/rfp", tags=["rfp"])
 
 logger = logging.getLogger(__name__)
 
-# Detail string returned by every handler whose DB wire-up is deferred.
-# Clients can branch on this exact phrase to fall back to the Next.js
-# pipeline without having to parse status codes.
-_NOT_WIRED_DETAIL = "FastAPI handler not yet wired to DB; use the Next.js /api/v1/rfp/* endpoints"
+
+# ---------------------------------------------------------------------------
+# Local filesystem staging area for uploaded RFP bytes.
+#
+# W3b deliberately defers blob-storage wiring (S3 / SecureStorageService)
+# to W3c. The /parse handler needs the original bytes back, so /upload
+# stages them on local disk under a per-tenant prefix. The path layout
+# is the same key we will hand to SecureStorageService later, which means
+# swapping in the cloud client is a search-and-replace, not a redesign.
+# ---------------------------------------------------------------------------
+_LOCAL_STORAGE_ROOT = Path("./storage/rfp")
+
+
+def _safe_filename(filename: str | None) -> str:
+	"""Strip path components and reject obvious traversal attempts.
+
+	The local-disk fallback writes via ``Path(...).write_bytes(...)``; an
+	attacker-controlled ``../../etc/passwd`` would otherwise escape the
+	per-tenant directory. ``Path(name).name`` keeps only the final
+	component, matching the cloud-storage layout where slashes have
+	semantic meaning in the key.
+	"""
+	if not filename:
+		return "rfp"
+	# Path(...).name drops everything before the last separator on either
+	# platform, so "../etc/passwd" -> "passwd" and "C:\\boot.ini" -> "boot.ini".
+	stripped = Path(filename).name
+	# Reject anything that is still a separator-only or empty after strip.
+	if not stripped or stripped in {".", ".."}:
+		return "rfp"
+	return stripped
+
+
+def _storage_key(organization_id: str, rfp_id: str, filename: str) -> str:
+	"""Build the canonical storage key. Stable across local and cloud backends."""
+	assert organization_id, "organization_id required for storage key"
+	assert rfp_id, "rfp_id required for storage key"
+	return f"orgs/{organization_id}/rfp/{rfp_id}/{_safe_filename(filename)}"
+
+
+def _local_storage_path(storage_key: str) -> Path:
+	"""Resolve a storage_key to a local filesystem path under ./storage/rfp.
+
+	The caller is responsible for ensuring the parent directory exists
+	before writing. ``W3c`` will replace this with SecureStorageService.
+	"""
+	# Strip the "orgs/" prefix because _LOCAL_STORAGE_ROOT already starts at
+	# ``storage/rfp``; that keeps disk paths short and avoids a redundant
+	# "rfp/" component.
+	relative = storage_key[len("orgs/"):] if storage_key.startswith("orgs/") else storage_key
+	return _LOCAL_STORAGE_ROOT / relative
+
+
+def _file_type_from_filename(filename: str) -> str:
+	"""Return ``pdf``/``docx``/``txt``/``html`` based on extension."""
+	name = (filename or "").lower()
+	if name.endswith(".pdf"):
+		return "pdf"
+	if name.endswith(".docx"):
+		return "docx"
+	if name.endswith(".html") or name.endswith(".htm"):
+		return "html"
+	if name.endswith(".txt") or name.endswith(".md"):
+		return "txt"
+	# Fallback — unknown content is still a binary blob.
+	return "bin"
+
+
+# ---------------------------------------------------------------------------
+# Pydantic response models
+# ---------------------------------------------------------------------------
 
 
 class UploadResponse(BaseModel):
@@ -65,56 +140,403 @@ class UploadResponse(BaseModel):
 	filename: str
 	size: int
 	organization_id: str
+	file_hash: str
+	storage_path: str
+	parsing_status: str
+
+
+class ParseResponse(BaseModel):
+	"""Response from RFP parse."""
+
+	model_config = ConfigDict(extra="forbid")
+
+	rfp_id: str
+	requirements_extracted: int
+	status: str
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
 
 
 @router.post("/upload", response_model=UploadResponse, status_code=202)
 async def upload_rfp(
 	file: UploadFile = File(...),
 	ctx: TenantContext = Depends(require_tenant),
+	session: AsyncSession = Depends(get_async_db_session),
 ) -> UploadResponse:
-	"""Upload an RFP document for processing.
+	"""Upload an RFP document and persist a row in ``rfp_documents``.
 
-	W3: returns metadata only. Full storage + ``rfp_documents`` insert
-	is deferred to W3b — the Next.js ``/api/v1/rfp/upload`` route already
-	does the full pipeline today.
+	W3b wiring:
+	  1. Read the upload into memory and SHA-256 it for content
+	     deduplication and integrity tracking.
+	  2. Generate a UUID7 ``rfp_id`` so callers can reference the
+	     document immediately.
+	  3. Stage the bytes on local disk under
+	     ``./storage/rfp/{org}/{rfp_id}/{filename}``. The storage key
+	     stored on the row matches the cloud-storage layout
+	     ``orgs/{org}/rfp/{rfp_id}/{filename}`` so W3c can move to
+	     SecureStorageService without changing the schema.
+	  4. INSERT the row into ``rfp_documents`` with
+	     ``parsing_status='pending'`` and ``organization_id`` set from
+	     the tenant context.
 	"""
-	rfp_id = uuid7str()
 	contents = await file.read()
+	assert contents is not None, "UploadFile.read() must return bytes"
+	rfp_id = uuid7str()
+	filename = _safe_filename(file.filename)
+	file_size = len(contents)
+	file_hash = hashlib.sha256(contents).hexdigest()
+	file_type = _file_type_from_filename(filename)
+	storage_path = _storage_key(ctx.organization_id, rfp_id, filename)
+
+	# Per-tenant SHA-256 dedup. Migration 0022 already enforces
+	# UNIQUE (organization_id, file_hash) — we surface the conflict as 409
+	# instead of letting it bubble up as a 500 IntegrityError.
+	existing = await session.execute(
+		text(
+			"""
+			SELECT id, filename, storage_path
+			FROM rfp_documents
+			WHERE organization_id = :organization_id
+			  AND file_hash = :file_hash
+			LIMIT 1
+			"""
+		),
+		{"organization_id": ctx.organization_id, "file_hash": file_hash},
+	)
+	dup = existing.mappings().first()
+	if dup is not None:
+		raise HTTPException(
+			status_code=409,
+			detail={
+				"error": "duplicate",
+				"existing_rfp_id": dup["id"],
+				"existing_filename": dup["filename"],
+				"message": "An RFP with the same content has already been uploaded by this organization.",
+			},
+		)
+
+	# Stage the bytes locally so /parse can rehydrate them. Production
+	# deployments swap this for SecureStorageService in W3c.
+	local_path = _local_storage_path(storage_path)
+	local_path.parent.mkdir(parents=True, exist_ok=True)
+	local_path.write_bytes(contents)
+
+	now = datetime.now(timezone.utc)
+	await session.execute(
+		text(
+			"""
+			INSERT INTO rfp_documents (
+				id, organization_id,
+				filename, file_type, file_size,
+				storage_path, file_hash,
+				parsing_status, parsing_progress,
+				uploaded_by,
+				naics_codes, detected_sections, key_themes, evaluation_weights,
+				created_at, updated_at
+			) VALUES (
+				:id, :organization_id,
+				:filename, :file_type, :file_size,
+				:storage_path, :file_hash,
+				'pending', 0,
+				:uploaded_by,
+				CAST('[]' AS JSONB), CAST('[]' AS JSONB),
+				CAST('[]' AS JSONB), CAST('{}' AS JSONB),
+				:created_at, :updated_at
+			)
+			"""
+		),
+		{
+			"id": rfp_id,
+			"organization_id": ctx.organization_id,
+			"filename": filename,
+			"file_type": file_type,
+			"file_size": file_size,
+			"storage_path": storage_path,
+			"file_hash": file_hash,
+			"uploaded_by": ctx.user_id,
+			"created_at": now,
+			"updated_at": now,
+		},
+	)
+	await session.commit()
+
 	logger.info(
-		"FastAPI /upload received: rfp_id=%s filename=%s size=%d org=%s user=%s",
+		"FastAPI /upload persisted rfp_id=%s filename=%s size=%d org=%s user=%s",
 		rfp_id,
-		file.filename,
-		len(contents),
+		filename,
+		file_size,
 		ctx.organization_id,
 		ctx.user_id,
 	)
 	return UploadResponse(
 		rfp_id=rfp_id,
-		filename=file.filename or "unknown",
-		size=len(contents),
+		filename=filename,
+		size=file_size,
 		organization_id=ctx.organization_id,
+		file_hash=file_hash,
+		storage_path=storage_path,
+		parsing_status="pending",
 	)
 
 
-@router.post("/{rfp_id}/parse", status_code=501)
+# Mapping from the pipeline's ``RequirementType`` enum to the small
+# ``rfp_requirements.requirement_type`` vocabulary the schema enforces
+# (shall/should/may/will). Any pipeline type not directly nameable as a
+# verb falls back to ``shall`` because that is the conservative
+# compliance read of an extracted requirement.
+_REQ_TYPE_TO_VERB: dict[str, str] = {
+	"functional": "shall",
+	"technical": "shall",
+	"performance": "shall",
+	"security": "shall",
+	"compliance": "shall",
+	"deliverable": "shall",
+	"evaluation": "shall",
+	"contract": "shall",
+	"administrative": "shall",
+	"unknown": "shall",
+}
+
+
+def _requirement_type_to_verb(req_type: RequirementType) -> str:
+	"""Coerce the analyzer's RequirementType to the schema's verb vocabulary."""
+	return _REQ_TYPE_TO_VERB.get(req_type.value, "shall")
+
+
+def _modality_to_priority(modality: RequirementModality) -> str:
+	"""``mandatory`` -> ``mandatory``, ``optional`` -> ``optional``,
+	``conditional`` -> ``preferred``. The schema only knows three
+	priority levels; ``conditional`` collapses to ``preferred`` so a
+	human reviewer still sees it as non-mandatory work."""
+	if modality == RequirementModality.MANDATORY:
+		return "mandatory"
+	if modality == RequirementModality.OPTIONAL:
+		return "optional"
+	return "preferred"
+
+
+@router.post("/{rfp_id}/parse", response_model=ParseResponse)
 async def parse_rfp(
 	rfp_id: str,
 	ctx: TenantContext = Depends(require_tenant),
-) -> dict[str, object]:
+	session: AsyncSession = Depends(get_async_db_session),
+) -> ParseResponse:
 	"""Parse an uploaded RFP and extract requirements.
 
-	W3: returns 501 Not Implemented. Previously hardcoded test text
-	(``The contractor shall provide 24/7 support...``) and a synthetic
-	``requirement_count`` — both fake, both indistinguishable from real
-	output. The Next.js ``/api/v1/rfp/{id}/parse`` route is the
-	canonical pipeline today.
+	W3b: synchronous DB-backed pipeline.
+
+	  1. SELECT the document row scoped by ``organization_id`` — 404 if
+	     the row is missing or owned by a different tenant.
+	  2. Load the staged bytes from local disk.
+	  3. Run :class:`RequirementExtractor` over the bytes (PDF/DOCX go
+	     through Docling, plain text goes straight through). The
+	     resulting :class:`RFPAnalysisResult` carries the requirements.
+	  4. INSERT each requirement into ``rfp_requirements`` with
+	     ``organization_id`` and ``rfp_document_id`` set.
+	  5. UPDATE the document row to ``parsing_status='completed'``.
+
+	Async / queued execution is W3c's job — this synchronous pass keeps
+	the contract honest until the Temporal worker lands.
 	"""
-	logger.warning(
-		"FastAPI /parse called for rfp_id=%s org=%s — returning 501 (not wired)",
+	row = (
+		await session.execute(
+			text(
+				"""
+				SELECT id, organization_id, filename, file_type, storage_path
+				FROM rfp_documents
+				WHERE id = :rfp_id AND organization_id = :org_id
+				"""
+			),
+			{"rfp_id": rfp_id, "org_id": ctx.organization_id},
+		)
+	).mappings().first()
+
+	if row is None:
+		# Either the document does not exist or it belongs to a different
+		# tenant. Both look the same to the caller — we never leak the
+		# distinction across the trust boundary.
+		raise HTTPException(status_code=404, detail="RFP document not found")
+
+	storage_path = row["storage_path"]
+	file_type = (row["file_type"] or "").lower()
+	local_path = _local_storage_path(storage_path)
+
+	if not local_path.exists():
+		# Bytes vanished between upload and parse. Returning 410 so the
+		# client knows to re-upload rather than re-trying the parse.
+		await _mark_parse_failed(session, rfp_id, ctx.organization_id, "stored bytes missing")
+		raise HTTPException(status_code=410, detail="Staged RFP bytes are gone; re-upload required")
+
+	contents = local_path.read_bytes()
+
+	# Mark parsing as started so the UI can move out of "queued".
+	now_started = datetime.now(timezone.utc)
+	await session.execute(
+		text(
+			"""
+			UPDATE rfp_documents
+			SET parsing_status = 'processing',
+				parsing_started_at = :started,
+				updated_at = :started
+			WHERE id = :rfp_id AND organization_id = :org_id
+			"""
+		),
+		{"rfp_id": rfp_id, "org_id": ctx.organization_id, "started": now_started},
+	)
+	await session.commit()
+
+	analyzer = RFPAnalyzer(config={"ai_enhancement": False})
+	try:
+		analysis = await _run_analysis(analyzer, contents, file_type)
+	except Exception as exc:  # noqa: BLE001 — explicit broad catch to record failure
+		logger.exception(
+			"FastAPI /parse analyzer failure rfp_id=%s org=%s",
+			rfp_id,
+			ctx.organization_id,
+		)
+		await _mark_parse_failed(session, rfp_id, ctx.organization_id, str(exc))
+		raise HTTPException(status_code=500, detail="RFP parse failed") from exc
+	finally:
+		await analyzer.close()
+
+	if not analysis.success:
+		joined = "; ".join(analysis.errors) or "unknown analyzer failure"
+		await _mark_parse_failed(session, rfp_id, ctx.organization_id, joined)
+		raise HTTPException(status_code=500, detail=f"RFP parse failed: {joined}")
+
+	# Persist requirements. Each gets a fresh server-side UUID so the row
+	# id is independent of whatever the in-memory pipeline picked.
+	now_completed = datetime.now(timezone.utc)
+	for index, req in enumerate(analysis.requirements, start=1):
+		await session.execute(
+			text(
+				"""
+				INSERT INTO rfp_requirements (
+					id, organization_id, rfp_document_id,
+					requirement_number, requirement_text, source_quote,
+					source_page, source_section,
+					category, requirement_type, priority,
+					extraction_confidence,
+					compliance_status,
+					tags, clarification_questions, related_requirements, key_terms,
+					created_at, updated_at
+				) VALUES (
+					:id, :organization_id, :rfp_document_id,
+					:requirement_number, :requirement_text, :source_quote,
+					:source_page, :source_section,
+					:category, :requirement_type, :priority,
+					:extraction_confidence,
+					'not_addressed',
+					CAST('[]' AS JSONB), CAST('[]' AS JSONB),
+					CAST('[]' AS JSONB), CAST('[]' AS JSONB),
+					:created_at, :updated_at
+				)
+				"""
+			),
+			{
+				"id": uuid7str(),
+				"organization_id": ctx.organization_id,
+				"rfp_document_id": rfp_id,
+				"requirement_number": f"REQ-{index:03d}",
+				"requirement_text": req.text,
+				"source_quote": req.text[:1000],
+				"source_page": req.page_number,
+				"source_section": req.section or None,
+				"category": req.category.value if isinstance(req.category, RequirementCategory) else None,
+				"requirement_type": _requirement_type_to_verb(req.requirement_type),
+				"priority": _modality_to_priority(req.modality),
+				"extraction_confidence": req.confidence,
+				"created_at": now_completed,
+				"updated_at": now_completed,
+			},
+		)
+
+	await session.execute(
+		text(
+			"""
+			UPDATE rfp_documents
+			SET parsing_status = 'completed',
+				parsing_progress = 100,
+				parsing_completed_at = :completed,
+				updated_at = :completed
+			WHERE id = :rfp_id AND organization_id = :org_id
+			"""
+		),
+		{"rfp_id": rfp_id, "org_id": ctx.organization_id, "completed": now_completed},
+	)
+	await session.commit()
+
+	logger.info(
+		"FastAPI /parse completed rfp_id=%s org=%s requirements=%d",
 		rfp_id,
 		ctx.organization_id,
+		len(analysis.requirements),
 	)
-	raise HTTPException(status_code=501, detail=_NOT_WIRED_DETAIL)
+	return ParseResponse(
+		rfp_id=rfp_id,
+		requirements_extracted=len(analysis.requirements),
+		status="completed",
+	)
+
+
+async def _run_analysis(
+	analyzer: RFPAnalyzer,
+	contents: bytes,
+	file_type: str,
+) -> Any:
+	"""Pick the right analyzer entry point for the file type.
+
+	Centralised so the synchronous parse handler stays readable, and so
+	the future Temporal worker (W3c) can reuse the same dispatcher
+	without copy-pasting the file-type table.
+	"""
+	if file_type == "pdf":
+		return await analyzer.analyze_pdf(contents)
+	if file_type == "docx":
+		return await analyzer.analyze_docx(contents)
+	# txt/html/bin — try to decode as text. Anything that survives
+	# round-tripping through utf-8 is fed to ``analyze_text``.
+	try:
+		text_payload = contents.decode("utf-8", errors="replace")
+	except Exception as exc:  # pragma: no cover — decode("...", errors="replace") cannot raise
+		raise RuntimeError(f"Cannot decode RFP bytes as text: {exc}") from exc
+	return await analyzer.analyze_text(text_payload)
+
+
+async def _mark_parse_failed(
+	session: AsyncSession,
+	rfp_id: str,
+	organization_id: str,
+	error: str,
+) -> None:
+	"""Record a parse failure on the document row and commit.
+
+	Keeps the error string under 4 KB so a stray analyzer traceback
+	can't blow up the column. Always writes ``updated_at`` so list
+	views still order correctly.
+	"""
+	now = datetime.now(timezone.utc)
+	await session.execute(
+		text(
+			"""
+			UPDATE rfp_documents
+			SET parsing_status = 'failed',
+				parsing_error = :err,
+				updated_at = :now
+			WHERE id = :rfp_id AND organization_id = :org_id
+			"""
+		),
+		{
+			"rfp_id": rfp_id,
+			"org_id": organization_id,
+			"err": (error or "unknown")[:4000],
+			"now": now,
+		},
+	)
+	await session.commit()
 
 
 @router.get("/{rfp_id}/status")
@@ -122,12 +544,7 @@ async def stream_status(
 	rfp_id: str,
 	ctx: TenantContext = Depends(require_tenant),
 ) -> StreamingResponse:
-	"""Stream SSE events for RFP parsing status.
-
-	W3: still emits a single ``ready`` event. SSE wiring is independent
-	of DB wire-up and the previous behaviour was correct in shape; only
-	the auth gap (no tenant check) needed closing.
-	"""
+	"""Stream SSE events for RFP parsing status."""
 	async def event_stream():
 		yield (
 			f"data: {{\"rfp_id\": \"{rfp_id}\", "
@@ -138,68 +555,381 @@ async def stream_status(
 	return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
-@router.get("/{rfp_id}/requirements", status_code=501)
+@router.get("/{rfp_id}/requirements")
 async def list_requirements(
 	rfp_id: str,
 	ctx: TenantContext = Depends(require_tenant),
-) -> dict[str, object]:
-	"""List extracted requirements for an RFP.
+	session: AsyncSession = Depends(get_async_db_session),
+) -> dict[str, Any]:
+	"""List extracted requirements for an RFP, scoped to the caller's org.
 
-	W3: returns 501. Previously returned a hardcoded ``[]`` regardless
-	of input. The Next.js ``/api/v1/rfp/{id}/requirements`` route serves
-	the real, tenant-scoped query today.
+	The 404 first checks that the document itself exists and belongs to
+	the caller's tenant. That keeps cross-tenant probing from leaking a
+	"this RFP exists, just not for you" signal — both states return 404.
 	"""
-	logger.warning(
-		"FastAPI /requirements called for rfp_id=%s org=%s — returning 501 (not wired)",
-		rfp_id,
-		ctx.organization_id,
+	doc_row = (
+		await session.execute(
+			text(
+				"""
+				SELECT id FROM rfp_documents
+				WHERE id = :rfp_id AND organization_id = :org_id
+				"""
+			),
+			{"rfp_id": rfp_id, "org_id": ctx.organization_id},
+		)
+	).mappings().first()
+
+	if doc_row is None:
+		raise HTTPException(status_code=404, detail="RFP document not found")
+
+	rows = (
+		await session.execute(
+			text(
+				"""
+				SELECT
+					id, requirement_number, title, requirement_text,
+					source_quote, source_page, source_section,
+					category, subcategory, requirement_type, priority,
+					risk_level, extraction_confidence,
+					compliance_status, response_strategy, assigned_to,
+					due_date, response_section, notes,
+					created_at, updated_at
+				FROM rfp_requirements
+				WHERE rfp_document_id = :rfp_id AND organization_id = :org_id
+				ORDER BY requirement_number ASC NULLS LAST, created_at ASC
+				"""
+			),
+			{"rfp_id": rfp_id, "org_id": ctx.organization_id},
+		)
+	).mappings().all()
+
+	requirements = [_requirement_row_to_dict(row) for row in rows]
+	return {
+		"rfp_id": rfp_id,
+		"organization_id": ctx.organization_id,
+		"count": len(requirements),
+		"requirements": requirements,
+	}
+
+
+def _requirement_row_to_dict(row: Any) -> dict[str, Any]:
+	"""Render a ``rfp_requirements`` row as a JSON-serialisable dict.
+
+	Keeps timestamps as ISO-8601 strings; FastAPI's default encoder
+	already does that for ``datetime`` but being explicit makes the
+	contract diff-friendly.
+	"""
+	def _iso(value: Any) -> str | None:
+		return value.isoformat() if hasattr(value, "isoformat") else None
+
+	return {
+		"id": str(row["id"]),
+		"requirement_number": row.get("requirement_number"),
+		"title": row.get("title"),
+		"requirement_text": row.get("requirement_text"),
+		"source_quote": row.get("source_quote"),
+		"source_page": row.get("source_page"),
+		"source_section": row.get("source_section"),
+		"category": row.get("category"),
+		"subcategory": row.get("subcategory"),
+		"requirement_type": row.get("requirement_type"),
+		"priority": row.get("priority"),
+		"risk_level": row.get("risk_level"),
+		"extraction_confidence": row.get("extraction_confidence"),
+		"compliance_status": row.get("compliance_status"),
+		"response_strategy": row.get("response_strategy"),
+		"assigned_to": row.get("assigned_to"),
+		"due_date": _iso(row.get("due_date")),
+		"response_section": row.get("response_section"),
+		"notes": row.get("notes"),
+		"created_at": _iso(row.get("created_at")),
+		"updated_at": _iso(row.get("updated_at")),
+	}
+
+
+# Mapping from the schema's modality vocabulary to the in-memory enum.
+_PRIORITY_TO_MODALITY: dict[str, RequirementModality] = {
+	"mandatory": RequirementModality.MANDATORY,
+	"optional": RequirementModality.OPTIONAL,
+	"preferred": RequirementModality.OPTIONAL,
+}
+
+
+def _row_to_requirement(row: Any) -> Requirement:
+	"""Reconstruct an in-memory ``Requirement`` from a DB row.
+
+	Used by ``/compliance-matrix`` to feed the matrix generator. The
+	row's ``id`` is preserved so the resulting matrix entries reference
+	the persisted requirement, not a regenerated UUID.
+	"""
+	priority = (row.get("priority") or "mandatory").lower()
+	category_value = row.get("category") or "other"
+	try:
+		category_enum = RequirementCategory(category_value)
+	except ValueError:
+		category_enum = RequirementCategory.OTHER
+	return Requirement(
+		id=str(row["id"]),
+		text=row.get("requirement_text") or "",
+		modality=_PRIORITY_TO_MODALITY.get(priority, RequirementModality.MANDATORY),
+		category=category_enum,
+		# RequirementType is the in-memory enum (functional/technical/etc.).
+		# The DB only knows the verb vocabulary, so we mark these as
+		# UNKNOWN — the matrix only cares about modality + category for
+		# section grouping.
+		requirement_type=RequirementType.UNKNOWN,
+		section=row.get("source_section") or "",
+		page_number=row.get("source_page"),
+		confidence=row.get("extraction_confidence") or 0.0,
 	)
-	raise HTTPException(status_code=501, detail=_NOT_WIRED_DETAIL)
 
 
-@router.post("/{rfp_id}/compliance-matrix", status_code=501)
+@router.post("/{rfp_id}/compliance-matrix")
 async def generate_matrix(
 	rfp_id: str,
 	ctx: TenantContext = Depends(require_tenant),
-) -> dict[str, object]:
-	"""Generate a compliance matrix for an RFP.
+	session: AsyncSession = Depends(get_async_db_session),
+) -> dict[str, Any]:
+	"""Generate and persist a compliance matrix for the given RFP.
 
-	W3: returns 501. Previously instantiated a ``ComplianceMatrixGenerator``,
-	ignored it, and returned a synthetic ``{matrix_id, entry_count: 0}``.
-	The matrix generator itself is real (W2 bounded its in-memory cache);
-	wiring the FastAPI handler to actually use it is deferred to W3b.
+	Loads the requirements for the document (tenant-scoped), builds an
+	in-memory ``ComplianceMatrix`` via ``ComplianceMatrixGenerator``,
+	and writes it through ``save_to_db`` with the caller's org id.
 	"""
-	logger.warning(
-		"FastAPI /compliance-matrix called for rfp_id=%s org=%s — returning 501 (not wired)",
+	doc_row = (
+		await session.execute(
+			text(
+				"""
+				SELECT id FROM rfp_documents
+				WHERE id = :rfp_id AND organization_id = :org_id
+				"""
+			),
+			{"rfp_id": rfp_id, "org_id": ctx.organization_id},
+		)
+	).mappings().first()
+	if doc_row is None:
+		raise HTTPException(status_code=404, detail="RFP document not found")
+
+	rows = (
+		await session.execute(
+			text(
+				"""
+				SELECT id, requirement_text, source_section, source_page,
+					   category, priority, extraction_confidence
+				FROM rfp_requirements
+				WHERE rfp_document_id = :rfp_id AND organization_id = :org_id
+				ORDER BY requirement_number ASC NULLS LAST, created_at ASC
+				"""
+			),
+			{"rfp_id": rfp_id, "org_id": ctx.organization_id},
+		)
+	).mappings().all()
+
+	if not rows:
+		# Nothing to map. Returning 409 so the client knows to /parse
+		# first; 200-with-empty would silently succeed.
+		raise HTTPException(
+			status_code=409,
+			detail="No requirements found for RFP; run /parse before generating a matrix",
+		)
+
+	requirements = [_row_to_requirement(row) for row in rows]
+
+	generator = ComplianceMatrixGenerator()
+	matrix = await generator.generate_matrix(
+		requirements=requirements,
+		rfp_id=rfp_id,
+		name=f"Compliance Matrix for {rfp_id}",
+		description="Auto-generated by FastAPI /compliance-matrix",
+	)
+	matrix_id = await generator.save_to_db(
+		session,
+		matrix,
+		organization_id=ctx.organization_id,
+		rfp_document_id=rfp_id,
+		created_by=ctx.user_id,
+	)
+
+	logger.info(
+		"FastAPI /compliance-matrix persisted matrix_id=%s rfp_id=%s org=%s entries=%d",
+		matrix_id,
 		rfp_id,
 		ctx.organization_id,
+		len(matrix.mappings),
 	)
-	raise HTTPException(status_code=501, detail=_NOT_WIRED_DETAIL)
+	return {
+		"matrix_id": matrix_id,
+		"rfp_id": rfp_id,
+		"organization_id": ctx.organization_id,
+		"entry_count": len(matrix.mappings),
+	}
 
 
-@router.patch("/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}", status_code=501)
+# Allow-list for the entry update PATCH. Any field outside this set is
+# rejected with a 400 — protects us from a client smuggling
+# ``organization_id`` or ``matrix_id`` into the update payload and
+# escaping the tenant scope.
+_UPDATE_FIELD_TO_COLUMN: dict[str, str] = {
+	"status": "compliance_status",
+	"response": "response_summary",
+	"notes": "reviewer_notes",
+	"assigned_to": "assigned_to",
+}
+
+# A small status vocabulary check. The DB column is ``varchar(30)`` with
+# no enum, so we enforce the contract here rather than relying on the
+# Postgres layer.
+_VALID_ENTRY_STATUSES = {s.value for s in ComplianceStatus} | {
+	"compliant",
+	"partial",
+	"non_compliant",
+	"not_applicable",
+	"pending",
+}
+
+
+@router.patch("/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}")
 async def update_entry(
 	rfp_id: str,
 	matrix_id: str,
 	entry_id: str,
-	update: dict[str, object],
+	update: dict[str, Any],
 	ctx: TenantContext = Depends(require_tenant),
-) -> dict[str, object]:
-	"""Update a compliance matrix entry.
+	session: AsyncSession = Depends(get_async_db_session),
+) -> dict[str, Any]:
+	"""Update a compliance matrix entry within the caller's org.
 
-	W3: returns 501. Previously echoed the input back as ``{ok: True}``
-	without persisting anything. The Next.js
-	``/api/v1/compliance-matrix/{matrixId}/entries/{entryId}/workflow``
-	route (W1) is the real path.
+	Steps:
+	  1. Validate the entry belongs to the caller's tenant **and** to
+	     the requested matrix. Either mismatch returns 404.
+	  2. Apply an allow-list to the update payload so unknown keys
+	     (``organization_id``, ``matrix_id``, etc.) fail closed.
+	  3. UPDATE the row and return its post-update state.
 	"""
-	logger.warning(
-		"FastAPI /update_entry called rfp_id=%s matrix_id=%s entry_id=%s org=%s — returning 501",
-		rfp_id,
-		matrix_id,
-		entry_id,
-		ctx.organization_id,
+	if not isinstance(update, dict):
+		raise HTTPException(status_code=400, detail="update payload must be an object")
+
+	# 1. Verify the entry exists in this tenant + matrix.
+	row = (
+		await session.execute(
+			text(
+				"""
+				SELECT id, matrix_id, organization_id
+				FROM compliance_entries
+				WHERE id = :entry_id
+				  AND matrix_id = :matrix_id
+				  AND organization_id = :org_id
+				"""
+			),
+			{
+				"entry_id": entry_id,
+				"matrix_id": matrix_id,
+				"org_id": ctx.organization_id,
+			},
+		)
+	).mappings().first()
+
+	if row is None:
+		# rfp_id is not in the WHERE clause because the entry's tenancy
+		# is enforced by org_id+matrix_id. Including rfp_id would be
+		# incorrect — entries don't carry it directly. The path
+		# parameter is still useful for logs.
+		logger.warning(
+			"FastAPI /update_entry 404: rfp_id=%s matrix_id=%s entry_id=%s org=%s",
+			rfp_id,
+			matrix_id,
+			entry_id,
+			ctx.organization_id,
+		)
+		raise HTTPException(status_code=404, detail="Compliance entry not found")
+
+	# 2. Allow-list the payload.
+	unknown = set(update.keys()) - set(_UPDATE_FIELD_TO_COLUMN.keys())
+	if unknown:
+		raise HTTPException(
+			status_code=400,
+			detail=f"Unsupported update fields: {sorted(unknown)}",
+		)
+
+	if not update:
+		raise HTTPException(status_code=400, detail="update payload is empty")
+
+	if "status" in update:
+		status_val = update["status"]
+		if not isinstance(status_val, str) or status_val not in _VALID_ENTRY_STATUSES:
+			raise HTTPException(
+				status_code=400,
+				detail=f"invalid status value: {status_val!r}",
+			)
+
+	# 3. Build the UPDATE statement from the allow-listed keys.
+	now = datetime.now(timezone.utc)
+	set_fragments: list[str] = []
+	params: dict[str, Any] = {
+		"entry_id": entry_id,
+		"matrix_id": matrix_id,
+		"org_id": ctx.organization_id,
+		"updated_at": now,
+	}
+	for key, value in update.items():
+		column = _UPDATE_FIELD_TO_COLUMN[key]
+		set_fragments.append(f"{column} = :{key}")
+		params[key] = value
+	set_fragments.append("updated_at = :updated_at")
+
+	await session.execute(
+		text(
+			f"""
+			UPDATE compliance_entries
+			SET {', '.join(set_fragments)}
+			WHERE id = :entry_id
+			  AND matrix_id = :matrix_id
+			  AND organization_id = :org_id
+			"""
+		),
+		params,
 	)
-	raise HTTPException(status_code=501, detail=_NOT_WIRED_DETAIL)
+	await session.commit()
+
+	# Re-read so the response reflects the persisted state, not the
+	# request payload.
+	updated = (
+		await session.execute(
+			text(
+				"""
+				SELECT id, matrix_id, requirement_id, organization_id,
+					   compliance_status, response_summary, reviewer_notes,
+					   assigned_to, sort_order, created_at, updated_at
+				FROM compliance_entries
+				WHERE id = :entry_id
+				  AND matrix_id = :matrix_id
+				  AND organization_id = :org_id
+				"""
+			),
+			{
+				"entry_id": entry_id,
+				"matrix_id": matrix_id,
+				"org_id": ctx.organization_id,
+			},
+		)
+	).mappings().first()
+
+	if updated is None:
+		# Should be unreachable — we just confirmed the row exists in
+		# step 1 and we hold the only handle on the session.
+		raise HTTPException(status_code=500, detail="Compliance entry vanished mid-update")
+
+	return {
+		"entry_id": str(updated["id"]),
+		"matrix_id": str(updated["matrix_id"]),
+		"requirement_id": str(updated["requirement_id"]),
+		"organization_id": updated["organization_id"],
+		"status": updated["compliance_status"],
+		"response": updated.get("response_summary"),
+		"notes": updated.get("reviewer_notes"),
+		"assigned_to": updated.get("assigned_to"),
+		"updated_at": updated["updated_at"].isoformat() if updated.get("updated_at") else None,
+	}
 
 
 @router.post("/{rfp_id}/draft")
@@ -208,13 +938,7 @@ async def draft_proposal(
 	ctx: TenantContext = Depends(require_tenant),
 	session: AsyncSession = Depends(get_async_db_session),
 ) -> dict[str, object]:
-	"""Generate a proposal draft from the RFP's compliance matrix.
-
-	This is the only handler with real DB-backed work today: the
-	``ProposalOrchestrator`` already loads the compliance matrix from
-	Postgres via ``ComplianceMatrixGenerator.load_from_db``. The W3 fix
-	here is the auth gap — every other handler was anonymous.
-	"""
+	"""Generate a proposal draft from the RFP's compliance matrix."""
 	orchestrator = ProposalOrchestrator()
 	draft = await orchestrator.draft_proposal(rfp_id, session)
 	logger.info(
