@@ -10,7 +10,7 @@
 
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { db } from "@/lib/db";
-import { opportunityDocuments, opportunities, type NewOpportunityDocument } from "@/lib/db/schema";
+import { opportunityDocuments, opportunities, userWorkspaces, type NewOpportunityDocument } from "@/lib/db/schema";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import { eq, and } from "drizzle-orm";
 import { mkdir, writeFile, readFile, access, unlink } from "fs/promises";
@@ -1031,8 +1031,23 @@ async function queueRfpParsingFromDownloadedDocument(params: {
   }
 
   try {
+    const userWorkspace = await db.query.userWorkspaces.findFirst({
+      where: and(
+        eq(userWorkspaces.userId, params.userId),
+        eq(userWorkspaces.isDefault, true),
+      ),
+    });
+    if (!userWorkspace) {
+      logger.warn("[RFP Document Service] Aborting parse queue — user has no default workspace", { userId: params.userId });
+      return {};
+    }
+    const organizationId = userWorkspace.organizationId;
+
     const existing = await db.query.rfpDocuments.findFirst({
-      where: eq(rfpDocuments.fileHash, params.fileHash),
+      where: and(
+        eq(rfpDocuments.fileHash, params.fileHash),
+        eq(rfpDocuments.organizationId, organizationId),
+      ),
     });
 
     if (existing) {
@@ -1049,6 +1064,7 @@ async function queueRfpParsingFromDownloadedDocument(params: {
     }
 
     const [rfpDocument] = await db.insert(rfpDocuments).values({
+      organizationId,
       opportunityId: params.document.opportunityId,
       filename: params.document.documentName,
       fileType,
@@ -1082,6 +1098,7 @@ async function queueRfpParsingFromDownloadedDocument(params: {
 
     const [parsingJob] = await db.insert(rfpParsingJobs).values({
       rfpDocumentId: rfpDocument.id,
+      organizationId,
       status: "queued",
       currentStep: "Queued from discovered RFP download",
       progress: 0,
@@ -1110,7 +1127,14 @@ async function queueRfpParsingFromDownloadedDocument(params: {
       parsingJobId: parsingJob.id,
     });
 
-    processRfpParsingJob(parsingJob.id, rfpDocument.id).catch((error) => {
+    processRfpParsingJob({
+      jobId: parsingJob.id,
+      rfpDocumentId: rfpDocument.id,
+      tenantContext: {
+        userId: params.userId,
+        organizationId: rfpDocument.organizationId,
+      },
+    }).catch((error) => {
       logger.error("[RFP Document Service] Background parse failed:", error);
     });
 

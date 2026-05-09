@@ -22,6 +22,9 @@ export default defineConfig({
 		// Project-specific configs
 		pool: "threads",
 
+		// Root-level setup runs for all projects (loads .env.local).
+		setupFiles: ["__tests__/setup-env.ts"],
+
 		// Coverage settings
 		coverage: {
 			provider: "v8",

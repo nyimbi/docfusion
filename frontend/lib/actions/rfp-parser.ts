@@ -30,6 +30,7 @@ import {
 import { eq, and, desc, asc, sql, ilike, or, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireTenantContext } from "@/lib/auth/tenant-context";
 import {
 	parseRFPWithAI,
 	batchExtractRequirements,
@@ -138,15 +139,19 @@ export async function uploadRfpDocument(input: {
 	fileHash?: string;
 }): Promise<{ success: boolean; rfpDocumentId?: string; jobId?: string; error?: string }> {
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) {
 			return { success: false, error: "Not authenticated" };
 		}
+		const { userId, organizationId } = ctx;
 
-		// Check for duplicate based on hash
+		// Check for duplicate based on hash, scoped to caller's organization.
 		if (input.fileHash) {
 			const existing = await db.query.rfpDocuments.findFirst({
-				where: eq(rfpDocuments.fileHash, input.fileHash),
+				where: and(
+					eq(rfpDocuments.fileHash, input.fileHash),
+					eq(rfpDocuments.organizationId, organizationId),
+				),
 			});
 			if (existing) {
 				return { success: false, error: "This document has already been uploaded" };
@@ -155,6 +160,7 @@ export async function uploadRfpDocument(input: {
 
 		// Create RFP document record
 		const [rfpDoc] = await db.insert(rfpDocuments).values({
+			organizationId,
 			opportunityId: input.opportunityId,
 			filename: input.filename,
 			fileType: input.fileType,
@@ -167,6 +173,7 @@ export async function uploadRfpDocument(input: {
 
 		// Create parsing job
 		const [job] = await db.insert(rfpParsingJobs).values({
+			organizationId,
 			rfpDocumentId: rfpDoc.id,
 			status: "queued",
 			initiatedBy: userId,
@@ -174,7 +181,11 @@ export async function uploadRfpDocument(input: {
 
 		// Start the parsing job asynchronously (fire-and-forget)
 		// This runs after the response is sent to the client
-		processRfpParsingJob(job.id, rfpDoc.id).catch((error) => {
+		processRfpParsingJob({
+			jobId: job.id,
+			rfpDocumentId: rfpDoc.id,
+			tenantContext: { userId, organizationId },
+		}).catch((error) => {
 			logger.error("[RFP Parser] Background job failed:", error);
 		});
 
@@ -191,8 +202,11 @@ export async function uploadRfpDocument(input: {
  */
 export async function getRfpDocument(id: string): Promise<RfpDocumentRow | null> {
 	try {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) return null;
+		const { organizationId } = ctx;
 		const doc = await db.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, id),
+			where: and(eq(rfpDocuments.id, id), eq(rfpDocuments.organizationId, organizationId)),
 		});
 		return doc ?? null;
 	} catch (error) {
@@ -211,10 +225,14 @@ export async function listRfpDocuments(params?: {
 	offset?: number;
 }): Promise<{ documents: RfpDocumentRow[]; total: number }> {
 	try {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) return { documents: [], total: 0 };
+		const { organizationId } = ctx;
+
 		const { opportunityId, parsingStatus, offset = 0 } = params ?? {};
 		const limit = params && "limit" in params ? params.limit : 20;
 
-		const conditions = [];
+		const conditions = [eq(rfpDocuments.organizationId, organizationId)];
 		if (opportunityId) conditions.push(eq(rfpDocuments.opportunityId, opportunityId));
 		if (parsingStatus) conditions.push(eq(rfpDocuments.parsingStatus, parsingStatus));
 
@@ -245,12 +263,13 @@ export async function listRfpDocuments(params?: {
  */
 export async function deleteRfpDocument(id: string): Promise<{ success: boolean; error?: string }> {
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) {
 			return { success: false, error: "Not authenticated" };
 		}
+		const { organizationId } = ctx;
 
-		await db.delete(rfpDocuments).where(eq(rfpDocuments.id, id));
+		await db.delete(rfpDocuments).where(and(eq(rfpDocuments.id, id), eq(rfpDocuments.organizationId, organizationId)));
 		revalidatePath("/documents");
 		return { success: true };
 	} catch (error) {
@@ -273,6 +292,10 @@ export async function getRequirements(filters: RfpRequirementFilters & {
 	sortOrder?: "asc" | "desc";
 }): Promise<{ requirements: RfpRequirementRow[]; total: number }> {
 	try {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) return { requirements: [], total: 0 };
+		const { organizationId } = ctx;
+
 		const {
 			rfpDocumentId,
 			opportunityId,
@@ -288,7 +311,7 @@ export async function getRequirements(filters: RfpRequirementFilters & {
 			sortOrder = "asc",
 		} = filters;
 
-		const conditions = [];
+		const conditions = [eq(rfpRequirements.organizationId, organizationId)];
 		if (rfpDocumentId) conditions.push(eq(rfpRequirements.rfpDocumentId, rfpDocumentId));
 		if (opportunityId) conditions.push(eq(rfpRequirements.opportunityId, opportunityId));
 		if (category) conditions.push(eq(rfpRequirements.category, category));
@@ -301,10 +324,10 @@ export async function getRequirements(filters: RfpRequirementFilters & {
 				ilike(rfpRequirements.title, `%${search}%`),
 				ilike(rfpRequirements.requirementText, `%${search}%`),
 				ilike(rfpRequirements.requirementNumber, `%${search}%`),
-			));
+			)!);
 		}
 
-		const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+		const whereClause = and(...conditions);
 		const orderColumn = rfpRequirements[sortBy as keyof typeof rfpRequirements] || rfpRequirements.requirementNumber;
 		const orderFn = sortOrder === "desc" ? desc : asc;
 
@@ -330,8 +353,11 @@ export async function getRequirements(filters: RfpRequirementFilters & {
  */
 export async function getRequirement(id: string): Promise<RfpRequirementRow | null> {
 	try {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) return null;
+		const { organizationId } = ctx;
 		const req = await db.query.rfpRequirements.findFirst({
-			where: eq(rfpRequirements.id, id),
+			where: and(eq(rfpRequirements.id, id), eq(rfpRequirements.organizationId, organizationId)),
 		});
 		return req ?? null;
 	} catch (error) {
@@ -357,10 +383,11 @@ export async function updateRequirement(
 	}>
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) {
 			return { success: false, error: "Not authenticated" };
 		}
+		const { organizationId } = ctx;
 
 		await db.update(rfpRequirements)
 			.set({
@@ -368,7 +395,7 @@ export async function updateRequirement(
 				dueDate: updates.dueDate ? new Date(updates.dueDate) : undefined,
 				updatedAt: new Date(),
 			})
-			.where(eq(rfpRequirements.id, id));
+			.where(and(eq(rfpRequirements.id, id), eq(rfpRequirements.organizationId, organizationId)));
 
 		revalidatePath("/requirements");
 		return { success: true };
@@ -390,10 +417,11 @@ export async function bulkUpdateRequirements(
 	}>
 ): Promise<{ success: boolean; updated: number; error?: string }> {
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) {
 			return { success: false, updated: 0, error: "Not authenticated" };
 		}
+		const { organizationId } = ctx;
 
 		const result = await db.update(rfpRequirements)
 			.set({
@@ -401,7 +429,7 @@ export async function bulkUpdateRequirements(
 				dueDate: updates.dueDate ? new Date(updates.dueDate) : undefined,
 				updatedAt: new Date(),
 			})
-			.where(inArray(rfpRequirements.id, ids));
+			.where(and(inArray(rfpRequirements.id, ids), eq(rfpRequirements.organizationId, organizationId)));
 
 		revalidatePath("/requirements");
 		return { success: true, updated: ids.length };
@@ -422,24 +450,32 @@ export async function createComplianceMatrix(
 	input: CreateComplianceMatrixInput
 ): Promise<{ success: boolean; matrixId?: string; error?: string }> {
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) {
 			return { success: false, error: "Not authenticated" };
 		}
+		const { userId, organizationId } = ctx;
 
-		// Get requirements to include in matrix
+		// Get requirements to include in matrix, scoped to caller's organization.
 		const requirements = input.includeRequirementIds
 			? await db.query.rfpRequirements.findMany({
-					where: inArray(rfpRequirements.id, input.includeRequirementIds),
+					where: and(
+						inArray(rfpRequirements.id, input.includeRequirementIds),
+						eq(rfpRequirements.organizationId, organizationId),
+					),
 			  })
 			: input.rfpDocumentId
 			? await db.query.rfpRequirements.findMany({
-					where: eq(rfpRequirements.rfpDocumentId, input.rfpDocumentId),
+					where: and(
+						eq(rfpRequirements.rfpDocumentId, input.rfpDocumentId),
+						eq(rfpRequirements.organizationId, organizationId),
+					),
 			  })
 			: [];
 
 		// Create the matrix
 		const [matrix] = await db.insert(complianceMatrices).values({
+			organizationId,
 			opportunityId: input.opportunityId,
 			rfpDocumentId: input.rfpDocumentId,
 			name: input.name,
@@ -454,6 +490,7 @@ export async function createComplianceMatrix(
 		if (requirements.length > 0) {
 			await db.insert(complianceEntries).values(
 				requirements.map((req, index) => ({
+					organizationId,
 					matrixId: matrix.id,
 					requirementId: req.id,
 					complianceStatus: "pending" as const,
@@ -479,8 +516,12 @@ export async function getComplianceMatrix(id: string): Promise<{
 	requirements: Record<string, RfpRequirementRow>;
 }> {
 	try {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) return { matrix: null, entries: [], requirements: {} };
+		const { organizationId } = ctx;
+
 		const matrix = await db.query.complianceMatrices.findFirst({
-			where: eq(complianceMatrices.id, id),
+			where: and(eq(complianceMatrices.id, id), eq(complianceMatrices.organizationId, organizationId)),
 		});
 
 		if (!matrix) {
@@ -488,15 +529,15 @@ export async function getComplianceMatrix(id: string): Promise<{
 		}
 
 		const entries = await db.query.complianceEntries.findMany({
-			where: eq(complianceEntries.matrixId, id),
+			where: and(eq(complianceEntries.matrixId, id), eq(complianceEntries.organizationId, organizationId)),
 			orderBy: [asc(complianceEntries.sortOrder)],
 		});
 
-		// Fetch all related requirements
+		// Fetch all related requirements — scoped to caller's organization
 		const requirementIds = entries.map(e => e.requirementId);
 		const reqs = requirementIds.length > 0
 			? await db.query.rfpRequirements.findMany({
-					where: inArray(rfpRequirements.id, requirementIds),
+					where: and(inArray(rfpRequirements.id, requirementIds), eq(rfpRequirements.organizationId, organizationId)),
 			  })
 			: [];
 
@@ -520,9 +561,13 @@ export async function listComplianceMatrices(filters?: ComplianceMatrixFilters &
 	offset?: number;
 }): Promise<{ matrices: ComplianceMatrixRow[]; total: number }> {
 	try {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) return { matrices: [], total: 0 };
+		const { organizationId } = ctx;
+
 		const { opportunityId, status, search, limit = 20, offset = 0 } = filters ?? {};
 
-		const conditions = [];
+		const conditions = [eq(complianceMatrices.organizationId, organizationId)];
 		if (opportunityId) conditions.push(eq(complianceMatrices.opportunityId, opportunityId));
 		if (status) conditions.push(eq(complianceMatrices.status, status));
 		if (search) conditions.push(ilike(complianceMatrices.name, `%${search}%`));
@@ -554,10 +599,11 @@ export async function updateComplianceEntry(
 	updates: UpdateComplianceEntryInput
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) {
 			return { success: false, error: "Not authenticated" };
 		}
+		const { organizationId } = ctx;
 
 		await db.update(complianceEntries)
 			.set({
@@ -565,11 +611,11 @@ export async function updateComplianceEntry(
 				dueDate: updates.dueDate ? new Date(updates.dueDate) : undefined,
 				updatedAt: new Date(),
 			})
-			.where(eq(complianceEntries.id, id));
+			.where(and(eq(complianceEntries.id, id), eq(complianceEntries.organizationId, organizationId)));
 
 		// Update matrix statistics
 		const entry = await db.query.complianceEntries.findFirst({
-			where: eq(complianceEntries.id, id),
+			where: and(eq(complianceEntries.id, id), eq(complianceEntries.organizationId, organizationId)),
 		});
 		if (entry) {
 			await recalculateMatrixStats(entry.matrixId);
@@ -591,10 +637,11 @@ export async function updateComplianceMatrixStatus(
 	status: MatrixStatus
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) {
 			return { success: false, error: "Not authenticated" };
 		}
+		const { userId, organizationId } = ctx;
 
 		const updates: Record<string, unknown> = { status, updatedAt: new Date() };
 		if (status === "review") {
@@ -607,7 +654,7 @@ export async function updateComplianceMatrixStatus(
 
 		await db.update(complianceMatrices)
 			.set(updates)
-			.where(eq(complianceMatrices.id, id));
+			.where(and(eq(complianceMatrices.id, id), eq(complianceMatrices.organizationId, organizationId)));
 
 		revalidatePath("/compliance");
 		return { success: true };
@@ -695,8 +742,12 @@ export async function getParsingJobStatus(jobId: string): Promise<{
 	error?: string;
 } | null> {
 	try {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) return null;
+		const { organizationId } = ctx;
+
 		const job = await db.query.rfpParsingJobs.findFirst({
-			where: eq(rfpParsingJobs.id, jobId),
+			where: and(eq(rfpParsingJobs.id, jobId), eq(rfpParsingJobs.organizationId, organizationId)),
 		});
 
 		if (!job) return null;
@@ -718,10 +769,11 @@ export async function getParsingJobStatus(jobId: string): Promise<{
  */
 export async function cancelParsingJob(jobId: string): Promise<{ success: boolean; error?: string }> {
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) {
 			return { success: false, error: "Not authenticated" };
 		}
+		const { organizationId } = ctx;
 
 		await db.update(rfpParsingJobs)
 			.set({
@@ -732,6 +784,7 @@ export async function cancelParsingJob(jobId: string): Promise<{ success: boolea
 			.where(
 				and(
 					eq(rfpParsingJobs.id, jobId),
+					eq(rfpParsingJobs.organizationId, organizationId),
 					eq(rfpParsingJobs.status, "processing")
 				)
 			);
@@ -750,13 +803,17 @@ export async function getRfpParseLifecycle(
 	rfpDocumentId: string
 ): Promise<RfpParseWorkflowResult | null> {
 	try {
+		const ctx = await requireTenantContext().catch(() => null);
+		if (!ctx) return null;
+		const { organizationId } = ctx;
+
 		const doc = await db.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, rfpDocumentId),
+			where: and(eq(rfpDocuments.id, rfpDocumentId), eq(rfpDocuments.organizationId, organizationId)),
 		});
 		if (!doc) return null;
 
 		const latestJob = await db.query.rfpParsingJobs.findFirst({
-			where: eq(rfpParsingJobs.rfpDocumentId, rfpDocumentId),
+			where: and(eq(rfpParsingJobs.rfpDocumentId, rfpDocumentId), eq(rfpParsingJobs.organizationId, organizationId)),
 			orderBy: desc(rfpParsingJobs.createdAt),
 		});
 		const workflow = normalizeRfpParseWorkflowMetadata(doc.metadata);
@@ -789,14 +846,15 @@ export async function reviewRfpParseConfidence(input: {
 		return { success: false, error: "Review reason is required" };
 	}
 
-	const userId = await getCurrentUserId();
-	if (!userId) {
+	const ctx = await requireTenantContext().catch(() => null);
+	if (!ctx) {
 		return { success: false, error: "Not authenticated" };
 	}
+	const { userId, organizationId } = ctx;
 
 	try {
 		const doc = await db.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, input.rfpDocumentId),
+			where: and(eq(rfpDocuments.id, input.rfpDocumentId), eq(rfpDocuments.organizationId, organizationId)),
 		});
 		if (!doc) {
 			return { success: false, error: "RFP document not found" };
@@ -823,7 +881,7 @@ export async function reviewRfpParseConfidence(input: {
 				parseReview: nextReview,
 			},
 			updatedAt: new Date(),
-		}).where(eq(rfpDocuments.id, input.rfpDocumentId));
+		}).where(and(eq(rfpDocuments.id, input.rfpDocumentId), eq(rfpDocuments.organizationId, organizationId)));
 
 		try {
 			const instance = await recordWorkflowRuntimeTransition({
@@ -934,8 +992,8 @@ export async function applyRfpAmendmentSupersession(
 		};
 	}
 
-	const userId = await getCurrentUserId();
-	if (!userId) {
+	const ctx = await requireTenantContext().catch(() => null);
+	if (!ctx) {
 		return {
 			success: false,
 			amendmentDocumentId: input.amendmentDocumentId,
@@ -945,16 +1003,17 @@ export async function applyRfpAmendmentSupersession(
 			error: "Not authenticated",
 		};
 	}
+	const { userId, organizationId } = ctx;
 
 	try {
 		return await db.transaction(async (tx) => {
 			await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.amendmentDocumentId}))`);
 
 			const amendment = await tx.query.rfpDocuments.findFirst({
-				where: eq(rfpDocuments.id, input.amendmentDocumentId),
+				where: and(eq(rfpDocuments.id, input.amendmentDocumentId), eq(rfpDocuments.organizationId, organizationId)),
 			});
 			const target = await tx.query.rfpDocuments.findFirst({
-				where: eq(rfpDocuments.id, input.targetDocumentId),
+				where: and(eq(rfpDocuments.id, input.targetDocumentId), eq(rfpDocuments.organizationId, organizationId)),
 			});
 			if (!amendment || !target) {
 				return {
@@ -980,9 +1039,12 @@ export async function applyRfpAmendmentSupersession(
 			const impactedRows = await tx
 				.select()
 				.from(rfpRequirements)
-				.where(input.impactedRequirementIds?.length
-					? inArray(rfpRequirements.id, input.impactedRequirementIds)
-					: eq(rfpRequirements.rfpDocumentId, target.id));
+				.where(and(
+					input.impactedRequirementIds?.length
+						? inArray(rfpRequirements.id, input.impactedRequirementIds)
+						: eq(rfpRequirements.rfpDocumentId, target.id),
+					eq(rfpRequirements.organizationId, organizationId),
+				));
 
 			const now = new Date();
 			const impactedRequirementIds = impactedRows.map((row) => row.id);
@@ -1015,7 +1077,7 @@ export async function applyRfpAmendmentSupersession(
 						},
 					},
 					updatedAt: now,
-				}).where(eq(rfpRequirements.id, row.id));
+				}).where(and(eq(rfpRequirements.id, row.id), eq(rfpRequirements.organizationId, organizationId)));
 			}
 
 			const amendmentMetadata = mergeRecordMetadata(amendment.metadata);
@@ -1035,7 +1097,7 @@ export async function applyRfpAmendmentSupersession(
 					},
 				},
 				updatedAt: now,
-			}).where(eq(rfpDocuments.id, amendment.id));
+			}).where(and(eq(rfpDocuments.id, amendment.id), eq(rfpDocuments.organizationId, organizationId)));
 
 			await tx.update(rfpDocuments).set({
 				metadata: {
@@ -1051,7 +1113,7 @@ export async function applyRfpAmendmentSupersession(
 					},
 				},
 				updatedAt: now,
-			}).where(eq(rfpDocuments.id, target.id));
+			}).where(and(eq(rfpDocuments.id, target.id), eq(rfpDocuments.organizationId, organizationId)));
 
 			const runtimeInstance = await recordWorkflowRuntimeTransition({
 				workflowKey: "rfp_amendment_supersession",
@@ -1135,21 +1197,28 @@ export async function transitionRfpParseWorkflow(
 		throw new Error("RFP parse workflow transition requires a reason.");
 	}
 
-	const userId = await getCurrentUserId();
-	if (!userId) {
+	const ctx = await requireTenantContext().catch(() => null);
+	if (!ctx) {
 		throw new Error("Not authenticated");
 	}
+	const { userId, organizationId } = ctx;
 
 	return db.transaction(async (tx) => {
 		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.rfpDocumentId}))`);
 
 		const doc = await tx.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, input.rfpDocumentId),
+			where: and(
+				eq(rfpDocuments.id, input.rfpDocumentId),
+				eq(rfpDocuments.organizationId, organizationId),
+			),
 		});
 		if (!doc) return null;
 
 		const latestJob = await tx.query.rfpParsingJobs.findFirst({
-			where: eq(rfpParsingJobs.rfpDocumentId, input.rfpDocumentId),
+			where: and(
+				eq(rfpParsingJobs.rfpDocumentId, input.rfpDocumentId),
+				eq(rfpParsingJobs.organizationId, organizationId),
+			),
 			orderBy: desc(rfpParsingJobs.createdAt),
 		});
 
@@ -1168,6 +1237,7 @@ export async function transitionRfpParseWorkflow(
 		if (input.action === "retry") {
 			const [newJob] = await tx.insert(rfpParsingJobs).values({
 				rfpDocumentId: input.rfpDocumentId,
+				organizationId,
 				status: "queued",
 				currentStep: "Queued for retry",
 				progress: 0,
@@ -1198,7 +1268,10 @@ export async function transitionRfpParseWorkflow(
 					cancelReason: reason,
 					cancelledBy: userId,
 				}),
-			}).where(eq(rfpParsingJobs.id, latestJob.id));
+			}).where(and(
+				eq(rfpParsingJobs.id, latestJob.id),
+				eq(rfpParsingJobs.organizationId, organizationId),
+			));
 			progress = latestJob.progress ?? doc.parsingProgress ?? 0;
 			currentStep = "Cancelled";
 		}
@@ -1213,7 +1286,10 @@ export async function transitionRfpParseWorkflow(
 					rejectedBy: userId,
 					rejectReason: reason,
 				}),
-			}).where(eq(rfpParsingJobs.id, latestJob.id));
+			}).where(and(
+				eq(rfpParsingJobs.id, latestJob.id),
+				eq(rfpParsingJobs.organizationId, organizationId),
+			));
 			error = reason;
 			currentStep = "Rejected";
 		}
@@ -1247,7 +1323,10 @@ export async function transitionRfpParseWorkflow(
 				parseWorkflow: nextWorkflow,
 			},
 			updatedAt: now,
-		}).where(eq(rfpDocuments.id, input.rfpDocumentId));
+		}).where(and(
+			eq(rfpDocuments.id, input.rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		));
 
 		try {
 			const runtimeInstance = await recordWorkflowRuntimeTransition({
@@ -1299,7 +1378,11 @@ export async function transitionRfpParseWorkflow(
 		}
 
 		if (input.action === "retry" && activeJobId && input.startProcessing !== false) {
-			processRfpParsingJob(activeJobId, input.rfpDocumentId).catch((error) => {
+			processRfpParsingJob({
+				jobId: activeJobId,
+				rfpDocumentId: input.rfpDocumentId,
+				tenantContext: { userId, organizationId },
+			}).catch((error) => {
 				logger.error("[RFP Parser] Retry background job failed:", error);
 			});
 		}
@@ -1705,12 +1788,43 @@ function appendRfpParseWorkflowHistory(
 	};
 }
 
+class TenantMismatchError extends Error {
+	readonly code = "tenant_mismatch";
+	constructor() {
+		super("Document is not accessible from this organization context");
+	}
+}
+
+export interface ProcessRfpParsingJobInput {
+	jobId: string;
+	rfpDocumentId: string;
+	tenantContext: { userId: string; organizationId: string };
+}
+
 /**
  * Process an RFP parsing job asynchronously.
- * This function handles the actual parsing, extraction, and storage of requirements.
+ * This function handles the actual parsing, extraction, and storage of requirements,
+ * scoped to the caller's organization. Refuses to proceed if the document does
+ * not belong to `tenantContext.organizationId`.
  */
-export async function processRfpParsingJob(jobId: string, rfpDocumentId: string): Promise<void> {
-	logger.debug(`[RFP Parser] Starting job ${jobId} for document ${rfpDocumentId}`);
+export async function processRfpParsingJob(
+	input: ProcessRfpParsingJobInput,
+): Promise<void> {
+	const { jobId, rfpDocumentId, tenantContext } = input;
+	const organizationId = tenantContext.organizationId;
+	logger.debug(`[RFP Parser] Starting job ${jobId} for document ${rfpDocumentId} (org=${organizationId})`);
+
+	// Ownership check: refuse to process documents the caller does not own.
+	const rfpDoc = await db.query.rfpDocuments.findFirst({
+		where: and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		),
+	});
+	if (!rfpDoc) {
+		logger.warn("[RFP Parser] processRfpParsingJob: tenant mismatch", { rfpDocumentId, organizationId });
+		throw new TenantMismatchError();
+	}
 
 	try {
 		// Update job status to processing
@@ -1720,7 +1834,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			currentStep: "Initializing",
 			progress: 5,
 			updatedAt: new Date(),
-		}).where(eq(rfpParsingJobs.id, jobId));
+		}).where(and(
+			eq(rfpParsingJobs.id, jobId),
+			eq(rfpParsingJobs.organizationId, organizationId),
+		));
 
 		// Update document status
 		await db.update(rfpDocuments).set({
@@ -1728,19 +1845,13 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			parsingProgress: 5,
 			parsingStartedAt: new Date(),
 			updatedAt: new Date(),
-		}).where(eq(rfpDocuments.id, rfpDocumentId));
-
-		// Fetch the document record
-		const rfpDoc = await db.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, rfpDocumentId),
-		});
-
-		if (!rfpDoc) {
-			throw new Error("RFP document not found");
-		}
+		}).where(and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		));
 
 		// Step 1: Read and extract text from the document (10-30%)
-		await updateJobProgress(jobId, rfpDocumentId, 10, "Extracting text from document");
+		await updateJobProgress(jobId, rfpDocumentId, organizationId, 10, "Extracting text from document");
 
 		// For now, we'll simulate text extraction.
 		// In production, you would read from storage and extract text based on file type
@@ -1752,7 +1863,7 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			extractedText = await extractTextFromDocument(rfpDoc.storagePath, rfpDoc.fileType);
 		}
 
-		await updateJobProgress(jobId, rfpDocumentId, 30, "Parsing RFP structure");
+		await updateJobProgress(jobId, rfpDocumentId, organizationId, 30, "Parsing RFP structure");
 
 		// Step 2: Parse RFP structure and metadata (30-50%)
 		const parsedRFP = await parseRFPWithAI(extractedText);
@@ -1779,9 +1890,12 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 				parseReview,
 			},
 			updatedAt: new Date(),
-		}).where(eq(rfpDocuments.id, rfpDocumentId));
+		}).where(and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		));
 
-		await updateJobProgress(jobId, rfpDocumentId, 50, "Extracting requirements");
+		await updateJobProgress(jobId, rfpDocumentId, organizationId, 50, "Extracting requirements");
 
 		// Step 3: Extract requirements (50-80%)
 		// Format sections for batch extraction (with id and text properties)
@@ -1798,12 +1912,13 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			allExtractedRequirements.push(...requirements);
 		}
 
-		await updateJobProgress(jobId, rfpDocumentId, 70, "Classifying and storing requirements");
+		await updateJobProgress(jobId, rfpDocumentId, organizationId, 70, "Classifying and storing requirements");
 
 		// Step 4: Store extracted requirements (70-90%)
 		if (allExtractedRequirements.length > 0) {
 			const requirementsToInsert = allExtractedRequirements.map((req, index) => ({
 				rfpDocumentId,
+				organizationId,
 				opportunityId: rfpDoc.opportunityId,
 				requirementNumber: req.requirementNumber || `REQ-${String(index + 1).padStart(3, "0")}`,
 				sourceSection: req.sectionReference || null,
@@ -1840,7 +1955,7 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			await db.insert(rfpRequirements).values(requirementsToInsert);
 		}
 
-		await updateJobProgress(jobId, rfpDocumentId, 90, "Finalizing");
+		await updateJobProgress(jobId, rfpDocumentId, organizationId, 90, "Finalizing");
 
 		// Step 5: Complete the job (90-100%)
 		const now = new Date();
@@ -1852,7 +1967,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			completedAt: now,
 			requirementsExtracted: allExtractedRequirements.length,
 			updatedAt: now,
-		}).where(eq(rfpParsingJobs.id, jobId));
+		}).where(and(
+			eq(rfpParsingJobs.id, jobId),
+			eq(rfpParsingJobs.organizationId, organizationId),
+		));
 
 		await db.update(rfpDocuments).set({
 			parsingStatus: "completed",
@@ -1876,7 +1994,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 				),
 			},
 			updatedAt: now,
-		}).where(eq(rfpDocuments.id, rfpDocumentId));
+		}).where(and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		));
 
 		await recordParseConfidenceReviewWorkflow({
 			rfpDocument: {
@@ -1896,7 +2017,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 
 		const errorMessage = error instanceof Error ? error.message : "Unknown error";
 		const failedDoc = await db.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, rfpDocumentId),
+			where: and(
+				eq(rfpDocuments.id, rfpDocumentId),
+				eq(rfpDocuments.organizationId, organizationId),
+			),
 		});
 		const failedAt = new Date();
 
@@ -1906,7 +2030,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 			errorMessage,
 			completedAt: failedAt,
 			updatedAt: failedAt,
-		}).where(eq(rfpParsingJobs.id, jobId));
+		}).where(and(
+			eq(rfpParsingJobs.id, jobId),
+			eq(rfpParsingJobs.organizationId, organizationId),
+		));
 
 		await db.update(rfpDocuments).set({
 			parsingStatus: "failed",
@@ -1929,7 +2056,10 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 				),
 			},
 			updatedAt: failedAt,
-		}).where(eq(rfpDocuments.id, rfpDocumentId));
+		}).where(and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		));
 	}
 }
 
@@ -1939,6 +2069,7 @@ export async function processRfpParsingJob(jobId: string, rfpDocumentId: string)
 async function updateJobProgress(
 	jobId: string,
 	rfpDocumentId: string,
+	organizationId: string,
 	progress: number,
 	step: string
 ): Promise<void> {
@@ -1947,11 +2078,17 @@ async function updateJobProgress(
 			progress,
 			currentStep: step,
 			updatedAt: new Date(),
-		}).where(eq(rfpParsingJobs.id, jobId)),
+		}).where(and(
+			eq(rfpParsingJobs.id, jobId),
+			eq(rfpParsingJobs.organizationId, organizationId),
+		)),
 		db.update(rfpDocuments).set({
 			parsingProgress: progress,
 			updatedAt: new Date(),
-		}).where(eq(rfpDocuments.id, rfpDocumentId)),
+		}).where(and(
+			eq(rfpDocuments.id, rfpDocumentId),
+			eq(rfpDocuments.organizationId, organizationId),
+		)),
 	]);
 }
 

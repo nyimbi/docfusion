@@ -13,6 +13,7 @@ import { proposalTasks, taskActivity } from "@/lib/db/schema-tasks";
 import { eq, and, or, ilike, inArray, isNull, isNotNull, lt, sql, desc, asc } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
+import { requireTenantContext } from "@/lib/auth/tenant-context";
 import type {
 	Requirement,
 	RequirementInput,
@@ -89,10 +90,11 @@ interface RequirementWorkflowHistoryEntry {
  * Get a single requirement by ID.
  */
 export async function getRequirement(id: string): Promise<Requirement | null> {
+	const { organizationId } = await requireTenantContext();
 	const result = await db
 		.select()
 		.from(rfpRequirements)
-		.where(eq(rfpRequirements.id, id))
+		.where(and(eq(rfpRequirements.id, id), eq(rfpRequirements.organizationId, organizationId)))
 		.limit(1);
 
 	if (result.length === 0) return null;
@@ -109,7 +111,11 @@ export async function getRequirements(
 	sort?: RequirementSort,
 	pagination?: PaginationOptions
 ): Promise<PaginatedResponse<Requirement>> {
-	const conditions = [eq(rfpRequirements.opportunityId, opportunityId)];
+	const { organizationId } = await requireTenantContext();
+	const conditions = [
+		eq(rfpRequirements.opportunityId, opportunityId),
+		eq(rfpRequirements.organizationId, organizationId),
+	];
 
 	// Apply filters
 	if (filters) {
@@ -209,9 +215,11 @@ export async function getRequirements(
  * Create a new requirement.
  */
 export async function createRequirement(input: RequirementInput): Promise<Requirement> {
+	const { organizationId } = await requireTenantContext();
 	const [result] = await db
 		.insert(rfpRequirements)
 		.values({
+			organizationId,
 			opportunityId: input.opportunityId,
 			requirementNumber: input.requirementId ?? null,
 			category: input.category ?? null,
@@ -238,10 +246,12 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
 export async function createRequirements(inputs: RequirementInput[]): Promise<Requirement[]> {
 	if (inputs.length === 0) return [];
 
+	const { organizationId } = await requireTenantContext();
 	const results = await db
 		.insert(rfpRequirements)
 		.values(
 			inputs.map((input) => ({
+				organizationId,
 				opportunityId: input.opportunityId,
 				requirementNumber: input.requirementId ?? null,
 				category: input.category ?? null,
@@ -270,6 +280,7 @@ export async function updateRequirement(
 	id: string,
 	input: RequirementUpdateInput
 ): Promise<Requirement | null> {
+	const { organizationId } = await requireTenantContext();
 	const updateData: Record<string, unknown> = {
 		updatedAt: new Date(),
 	};
@@ -293,7 +304,7 @@ export async function updateRequirement(
 	const [result] = await db
 		.update(rfpRequirements)
 		.set(updateData)
-		.where(eq(rfpRequirements.id, id))
+		.where(and(eq(rfpRequirements.id, id), eq(rfpRequirements.organizationId, organizationId)))
 		.returning();
 
 	if (!result) return null;
@@ -309,6 +320,7 @@ export async function bulkUpdateRequirements(
 ): Promise<{ updated: number }> {
 	if (ids.length === 0) return { updated: 0 };
 
+	const { organizationId } = await requireTenantContext();
 	const updateData: Record<string, unknown> = {
 		updatedAt: new Date(),
 	};
@@ -325,7 +337,7 @@ export async function bulkUpdateRequirements(
 	const results = await db
 		.update(rfpRequirements)
 		.set(updateData)
-		.where(inArray(rfpRequirements.id, ids))
+		.where(and(inArray(rfpRequirements.id, ids), eq(rfpRequirements.organizationId, organizationId)))
 		.returning({ id: rfpRequirements.id });
 
 	return { updated: results.length };
@@ -339,6 +351,7 @@ export async function assignRequirement(
 	assignedTo: string,
 	dueDate?: Date | string
 ): Promise<Requirement | null> {
+	const { organizationId } = await requireTenantContext();
 	const [result] = await db
 		.update(rfpRequirements)
 		.set({
@@ -346,7 +359,7 @@ export async function assignRequirement(
 			dueDate: dueDate ? new Date(dueDate) : null,
 			updatedAt: new Date(),
 		})
-		.where(eq(rfpRequirements.id, id))
+		.where(and(eq(rfpRequirements.id, id), eq(rfpRequirements.organizationId, organizationId)))
 		.returning();
 
 	if (!result) return null;
@@ -368,13 +381,15 @@ export async function transitionRequirementWorkflow(
 		throw new Error("Requirement workflow transition requires a reason.");
 	}
 
+	const { organizationId } = await requireTenantContext();
+
 	return db.transaction(async (tx) => {
 		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.requirementId}))`);
 
 		const [row] = await tx
 			.select()
 			.from(rfpRequirements)
-			.where(eq(rfpRequirements.id, input.requirementId))
+			.where(and(eq(rfpRequirements.id, input.requirementId), eq(rfpRequirements.organizationId, organizationId)))
 			.limit(1);
 
 		if (!row) return null;
@@ -397,6 +412,7 @@ export async function transitionRequirementWorkflow(
 		let projectedTaskId = currentWorkflow?.projectedTaskId;
 
 		if (input.action === "accept") {
+			// TODO(W2): tenant-scope proposalTasks once schema gains organizationId
 			const [existingTask] = await tx
 				.select()
 				.from(proposalTasks)
@@ -478,7 +494,7 @@ export async function transitionRequirementWorkflow(
 		const [updated] = await tx
 			.update(rfpRequirements)
 			.set(updateData)
-			.where(eq(rfpRequirements.id, input.requirementId))
+			.where(and(eq(rfpRequirements.id, input.requirementId), eq(rfpRequirements.organizationId, organizationId)))
 			.returning();
 
 		if (!updated) return null;
@@ -570,9 +586,10 @@ export async function transitionRequirementWorkflow(
  * Delete a requirement.
  */
 export async function deleteRequirement(id: string): Promise<boolean> {
+	const { organizationId } = await requireTenantContext();
 	const result = await db
 		.delete(rfpRequirements)
-		.where(eq(rfpRequirements.id, id))
+		.where(and(eq(rfpRequirements.id, id), eq(rfpRequirements.organizationId, organizationId)))
 		.returning({ id: rfpRequirements.id });
 
 	return result.length > 0;
@@ -584,9 +601,10 @@ export async function deleteRequirement(id: string): Promise<boolean> {
 export async function deleteRequirements(ids: string[]): Promise<{ deleted: number }> {
 	if (ids.length === 0) return { deleted: 0 };
 
+	const { organizationId } = await requireTenantContext();
 	const result = await db
 		.delete(rfpRequirements)
-		.where(inArray(rfpRequirements.id, ids))
+		.where(and(inArray(rfpRequirements.id, ids), eq(rfpRequirements.organizationId, organizationId)))
 		.returning({ id: rfpRequirements.id });
 
 	return { deleted: result.length };
@@ -600,10 +618,11 @@ export async function deleteRequirements(ids: string[]): Promise<{ deleted: numb
  * Get requirement statistics for an opportunity.
  */
 export async function getRequirementStats(opportunityId: string): Promise<RequirementStats> {
+	const { organizationId } = await requireTenantContext();
 	const allRequirements = await db
 		.select()
 		.from(rfpRequirements)
-		.where(eq(rfpRequirements.opportunityId, opportunityId));
+		.where(and(eq(rfpRequirements.opportunityId, opportunityId), eq(rfpRequirements.organizationId, organizationId)));
 
 	const now = new Date();
 
@@ -695,10 +714,11 @@ export async function getRequirementStats(opportunityId: string): Promise<Requir
 export async function analyzeRequirementGaps(
 	opportunityId: string
 ): Promise<RequirementGapAnalysis> {
+	const { organizationId } = await requireTenantContext();
 	const allRequirements = await db
 		.select()
 		.from(rfpRequirements)
-		.where(eq(rfpRequirements.opportunityId, opportunityId));
+		.where(and(eq(rfpRequirements.opportunityId, opportunityId), eq(rfpRequirements.organizationId, organizationId)));
 
 	const gaps: RequirementGapAnalysis["gaps"] = [];
 	const recommendations: string[] = [];

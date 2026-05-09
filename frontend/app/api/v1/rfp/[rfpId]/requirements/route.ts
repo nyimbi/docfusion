@@ -6,11 +6,16 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireServerSession } from "@/lib/auth-utils";
+import {
+	requireRouteTenantContext,
+	isTenantResponse,
+} from "@/lib/auth/route-tenant";
 import { db } from "@/lib/db";
 import { rfpDocuments, rfpRequirements } from "@/lib/db/schema-rfp";
-import { eq, and, ilike, inArray, desc, asc, sql } from "drizzle-orm";
+import { eq, and, ilike, desc, asc, sql } from "drizzle-orm";
 import type { RequirementCategory, RequirementPriority, ComplianceStatus, RiskLevel } from "@/lib/db/schema-rfp";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ============================================================================
 // Types
@@ -61,11 +66,15 @@ export async function GET(
 	request: NextRequest,
 	context: { params: Promise<{ rfpId: string }> }
 ): Promise<NextResponse> {
-	try {
-		// Authenticate user
-		await requireServerSession();
+	const ctx = await requireRouteTenantContext();
+	if (isTenantResponse(ctx)) return ctx;
 
-		const { rfpId } = await context.params;
+	const { rfpId } = await context.params;
+	if (!UUID_RE.test(rfpId)) {
+		return NextResponse.json({ error: "Invalid rfpId" }, { status: 400 });
+	}
+
+	try {
 
 		// Parse query parameters
 		const searchParams = request.nextUrl.searchParams;
@@ -79,9 +88,12 @@ export async function GET(
 		const sortBy = searchParams.get("sortBy") ?? "requirementNumber";
 		const sortOrder = searchParams.get("sortOrder") === "desc" ? "desc" : "asc";
 
-		// Verify RFP document exists
+		// Verify RFP document exists in caller's organization
 		const rfpDocument = await db.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, rfpId),
+			where: and(
+				eq(rfpDocuments.id, rfpId),
+				eq(rfpDocuments.organizationId, ctx.organizationId),
+			),
 		});
 
 		if (!rfpDocument) {
@@ -91,8 +103,11 @@ export async function GET(
 			);
 		}
 
-		// Build where conditions
-		const conditions = [eq(rfpRequirements.rfpDocumentId, rfpId)];
+		// Build where conditions — every read scoped to the caller's organization.
+		const conditions = [
+			eq(rfpRequirements.rfpDocumentId, rfpId),
+			eq(rfpRequirements.organizationId, ctx.organizationId),
+		];
 
 		if (search) {
 			conditions.push(

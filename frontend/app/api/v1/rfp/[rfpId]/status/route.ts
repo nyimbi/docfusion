@@ -1,18 +1,18 @@
 /**
  * RFP Parsing Status API Route
  *
- * Returns the current parsing status and progress for an RFP document.
+ * Returns the current parsing status and progress for an RFP document,
+ * scoped to the caller's organization.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireServerSession } from "@/lib/auth-utils";
+import {
+	requireRouteTenantContext,
+	isTenantResponse,
+} from "@/lib/auth/route-tenant";
 import { db } from "@/lib/db";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
-import { eq, desc } from "drizzle-orm";
-
-// ============================================================================
-// Types
-// ============================================================================
+import { and, eq, desc } from "drizzle-orm";
 
 interface ParsingStatusResponse {
 	status: "queued" | "processing" | "completed" | "failed" | "cancelled";
@@ -26,39 +26,43 @@ interface ParsingStatusResponse {
 	filename: string;
 }
 
-// ============================================================================
-// Handler
-// ============================================================================
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(
-	request: NextRequest,
-	context: { params: Promise<{ rfpId: string }> }
+	_request: NextRequest,
+	context: { params: Promise<{ rfpId: string }> },
 ): Promise<NextResponse> {
+	const ctx = await requireRouteTenantContext();
+	if (isTenantResponse(ctx)) return ctx;
+
+	const { rfpId } = await context.params;
+	if (!UUID_RE.test(rfpId)) {
+		return NextResponse.json({ error: "Invalid rfpId" }, { status: 400 });
+	}
+
 	try {
-		// Authenticate user
-		await requireServerSession();
-
-		const { rfpId } = await context.params;
-
-		// Get RFP document
 		const rfpDocument = await db.query.rfpDocuments.findFirst({
-			where: eq(rfpDocuments.id, rfpId),
+			where: and(
+				eq(rfpDocuments.id, rfpId),
+				eq(rfpDocuments.organizationId, ctx.organizationId),
+			),
 		});
 
 		if (!rfpDocument) {
 			return NextResponse.json(
 				{ error: "RFP document not found" },
-				{ status: 404 }
+				{ status: 404 },
 			);
 		}
 
-		// Get latest parsing job
 		const parsingJob = await db.query.rfpParsingJobs.findFirst({
-			where: eq(rfpParsingJobs.rfpDocumentId, rfpId),
+			where: and(
+				eq(rfpParsingJobs.rfpDocumentId, rfpId),
+				eq(rfpParsingJobs.organizationId, ctx.organizationId),
+			),
 			orderBy: desc(rfpParsingJobs.createdAt),
 		});
 
-		// Build response
 		const response: ParsingStatusResponse = {
 			status: (parsingJob?.status ?? rfpDocument.parsingStatus) as ParsingStatusResponse["status"],
 			currentStep: parsingJob?.currentStep ?? null,
@@ -76,7 +80,7 @@ export async function GET(
 		console.error("RFP status error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }

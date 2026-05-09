@@ -335,6 +335,7 @@ async function seedFailedRfpDocument(label: string) {
 	const now = new Date();
 	await db.insert(rfpDocuments).values({
 		id: rfpDocumentId,
+		organizationId: "__MIGRATED_LEGACY__",
 		filename: `${RUN_ID}-${label}.html`,
 		fileType: "html",
 		fileSize: 128,
@@ -368,6 +369,7 @@ async function seedFailedRfpDocument(label: string) {
 	}).returning();
 	await db.insert(rfpParsingJobs).values({
 		id: jobId,
+		organizationId: "__MIGRATED_LEGACY__",
 		rfpDocumentId,
 		status: "failed",
 		currentStep: "Extracting text",

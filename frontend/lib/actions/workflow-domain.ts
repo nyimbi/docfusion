@@ -26,6 +26,18 @@ import {
 	type WorkflowRuntimeStatus,
 } from "@/lib/actions/workflow-runtime";
 import { and, desc, eq } from "drizzle-orm";
+import { z } from "zod";
+import { requireTenantContext } from "@/lib/auth/tenant-context";
+
+// Zod whitelist for workflow-driven rfpRequirements patch — only the columns
+// that the domain compensation legitimately writes are permitted.
+const rfpRequirementWorkflowPatchSchema = z.object({
+	complianceStatus: z.enum(["not_addressed", "partial", "compliant", "non_compliant", "not_applicable", "addressed"]).optional(),
+	priority: z.enum(["mandatory", "preferred", "optional"]).optional(),
+	notes: z.string().optional(),
+	assignedTo: z.string().optional(),
+	updatedAt: z.date().optional(),
+});
 
 type DomainWorkflowAction = "start" | "transition" | "reopen" | "cancel" | "resolve";
 type CompensationAction = "reopen" | "cancel" | "resolve";
@@ -94,6 +106,7 @@ export interface TransitionDomainWorkflowInput {
 export async function startDomainWorkflowFromTemplate(
 	input: StartDomainWorkflowInput
 ): Promise<WorkflowInstanceRow> {
+	const { organizationId } = await requireTenantContext();
 	const template = await getActiveWorkflowTemplate(input.templateKey);
 	const initialState = template.states[0];
 	if (!initialState) {
@@ -155,6 +168,7 @@ export async function startDomainWorkflowFromTemplate(
 		toState: initialState,
 		actorId: input.actorId,
 		reason: input.reason ?? `Started ${template.name}`,
+		organizationId,
 	});
 
 	return instance;
@@ -163,6 +177,7 @@ export async function startDomainWorkflowFromTemplate(
 export async function transitionDomainWorkflow(
 	input: TransitionDomainWorkflowInput
 ): Promise<WorkflowInstanceRow> {
+	const { organizationId } = await requireTenantContext();
 	if (isReversalAction(input.action)) {
 		const instance = await getWorkflowInstance(input.workflowInstanceId);
 		const template = await getTemplateForInstance(instance);
@@ -193,6 +208,7 @@ export async function transitionDomainWorkflow(
 			action: input.action,
 			actorId: input.actorId,
 			reason: input.reason ?? "",
+			organizationId,
 		});
 		return updated;
 	}
@@ -264,6 +280,7 @@ export async function transitionDomainWorkflow(
 		toState: transition.to,
 		actorId: input.actorId,
 		reason: input.reason ?? `Advanced workflow via ${input.action}`,
+		organizationId,
 	});
 
 	return updated;
@@ -275,12 +292,14 @@ async function applyDomainStateProjection(input: {
 	toState: string;
 	actorId: string;
 	reason: string;
+	organizationId: string;
 }) {
 	await applyDomainCompensation({
 		instance: input.instance,
 		action: normalizeProjectionAction(input.toState),
 		actorId: input.actorId,
 		reason: input.reason,
+		organizationId: input.organizationId,
 	});
 }
 
@@ -289,6 +308,7 @@ async function applyDomainCompensation(input: {
 	action: CompensationAction;
 	actorId: string;
 	reason: string;
+	organizationId: string;
 }) {
 	const now = new Date();
 	let handler = "metadata_only";
@@ -348,7 +368,7 @@ async function applyDomainCompensation(input: {
 		case "rfp_document": {
 			handler = "rfp_document_parse";
 			patch = rfpDocumentPatch(input.action, input.reason, now);
-			await db.update(rfpDocuments).set(patch).where(eq(rfpDocuments.id, input.instance.subjectId));
+			await db.update(rfpDocuments).set(patch).where(and(eq(rfpDocuments.id, input.instance.subjectId), eq(rfpDocuments.organizationId, input.organizationId)));
 			break;
 		}
 		case "rfp_parsing_job": {
@@ -379,7 +399,7 @@ async function applyDomainCompensation(input: {
 						completedAt: now,
 						updatedAt: now,
 					};
-			await db.update(rfpParsingJobs).set(patch).where(eq(rfpParsingJobs.id, input.instance.subjectId));
+			await db.update(rfpParsingJobs).set(patch).where(and(eq(rfpParsingJobs.id, input.instance.subjectId), eq(rfpParsingJobs.organizationId, input.organizationId)));
 			break;
 		}
 		case "requirement":
@@ -399,7 +419,9 @@ async function applyDomainCompensation(input: {
 						complianceStatus: "addressed",
 						updatedAt: now,
 					};
-			await db.update(rfpRequirements).set(patch).where(eq(rfpRequirements.id, input.instance.subjectId));
+			// Validate patch against whitelist before writing — prevents uncontrolled column writes.
+			const validatedReqPatch = rfpRequirementWorkflowPatchSchema.parse(patch);
+			await db.update(rfpRequirements).set(validatedReqPatch).where(and(eq(rfpRequirements.id, input.instance.subjectId), eq(rfpRequirements.organizationId, input.organizationId)));
 			break;
 		}
 		case "compliance_entry": {
@@ -438,7 +460,7 @@ async function applyDomainCompensation(input: {
 						completionPercent: 100,
 						updatedAt: now,
 					};
-			await db.update(complianceEntries).set(patch).where(eq(complianceEntries.id, input.instance.subjectId));
+			await db.update(complianceEntries).set(patch).where(and(eq(complianceEntries.id, input.instance.subjectId), eq(complianceEntries.organizationId, input.organizationId)));
 			break;
 		}
 		case "gate_review": {

@@ -1,19 +1,24 @@
 /**
  * Compliance Matrix API Route
  *
- * Returns a compliance matrix with all entries for display and management.
+ * Returns a compliance matrix with all entries for display and management,
+ * scoped to the caller's organization.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireServerSession } from "@/lib/auth-utils";
+import { z } from "zod";
+import {
+	requireRouteTenantContext,
+	isTenantResponse,
+} from "@/lib/auth/route-tenant";
 import { db } from "@/lib/db";
-import { complianceMatrices, complianceEntries, rfpRequirements } from "@/lib/db/schema-rfp";
-import { eq, asc } from "drizzle-orm";
-import type { ComplianceMatrixRow, ComplianceEntryRow, RfpRequirementRow } from "@/lib/db/schema-rfp";
-
-// ============================================================================
-// Types
-// ============================================================================
+import {
+	complianceMatrices,
+	complianceEntries,
+	rfpRequirements,
+	MATRIX_STATUSES,
+} from "@/lib/db/schema-rfp";
+import { and, eq, asc } from "drizzle-orm";
 
 interface ComplianceEntryResponse {
 	id: string;
@@ -56,67 +61,88 @@ interface ComplianceMatrixResponse {
 	entries: ComplianceEntryResponse[];
 }
 
-// ============================================================================
-// Handler
-// ============================================================================
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const PatchSchema = z
+	.object({
+		name: z.string().min(1).max(200).optional(),
+		description: z.string().nullable().optional(),
+		status: z.enum(MATRIX_STATUSES).optional(),
+	})
+	.strict();
 
 export async function GET(
-	request: NextRequest,
-	context: { params: Promise<{ matrixId: string }> }
+	_request: NextRequest,
+	context: { params: Promise<{ matrixId: string }> },
 ): Promise<NextResponse> {
+	const ctx = await requireRouteTenantContext();
+	if (isTenantResponse(ctx)) return ctx;
+
+	const { matrixId } = await context.params;
+	if (!UUID_RE.test(matrixId)) {
+		return NextResponse.json({ error: "Invalid matrixId" }, { status: 400 });
+	}
+
 	try {
-		// Authenticate user
-		await requireServerSession();
-
-		const { matrixId } = await context.params;
-
-		// Get compliance matrix
 		const matrix = await db.query.complianceMatrices.findFirst({
-			where: eq(complianceMatrices.id, matrixId),
+			where: and(
+				eq(complianceMatrices.id, matrixId),
+				eq(complianceMatrices.organizationId, ctx.organizationId),
+			),
 		});
 
 		if (!matrix) {
 			return NextResponse.json(
 				{ error: "Compliance matrix not found" },
-				{ status: 404 }
+				{ status: 404 },
 			);
 		}
 
-		// Get all entries with requirements
 		const entries = await db
 			.select({
 				entry: complianceEntries,
 				requirement: rfpRequirements,
 			})
 			.from(complianceEntries)
-			.innerJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
-			.where(eq(complianceEntries.matrixId, matrixId))
-			.orderBy(asc(complianceEntries.sortOrder), asc(rfpRequirements.requirementNumber));
+			.innerJoin(
+				rfpRequirements,
+				eq(complianceEntries.requirementId, rfpRequirements.id),
+			)
+			.where(
+				and(
+					eq(complianceEntries.matrixId, matrixId),
+					eq(complianceEntries.organizationId, ctx.organizationId),
+				),
+			)
+			.orderBy(
+				asc(complianceEntries.sortOrder),
+				asc(rfpRequirements.requirementNumber),
+			);
 
-		// Format entries
-		const formattedEntries: ComplianceEntryResponse[] = entries.map(({ entry, requirement }) => ({
-			id: entry.id,
-			requirementId: requirement.id,
-			requirementNumber: requirement.requirementNumber ?? requirement.id,
-			requirementTitle: requirement.title,
-			requirementText: requirement.requirementText,
-			category: requirement.category ?? "other",
-			priority: requirement.priority ?? "medium",
-			sourceSection: requirement.sourceSection,
-			complianceStatus: entry.complianceStatus,
-			complianceJustification: entry.complianceJustification,
-			responseReference: entry.responseReference,
-			responseSummary: entry.responseSummary,
-			strengthAssessment: entry.strengthAssessment,
-			riskLevel: entry.riskLevel,
-			mitigationStrategy: entry.mitigationStrategy,
-			assignedTo: entry.assignedTo,
-			dueDate: entry.dueDate?.toISOString() ?? null,
-			completionPercent: entry.completionPercent,
-			status: entry.status,
-		}));
+		const formattedEntries: ComplianceEntryResponse[] = entries.map(
+			({ entry, requirement }) => ({
+				id: entry.id,
+				requirementId: requirement.id,
+				requirementNumber: requirement.requirementNumber ?? requirement.id,
+				requirementTitle: requirement.title,
+				requirementText: requirement.requirementText,
+				category: requirement.category ?? "other",
+				priority: requirement.priority ?? "medium",
+				sourceSection: requirement.sourceSection,
+				complianceStatus: entry.complianceStatus,
+				complianceJustification: entry.complianceJustification,
+				responseReference: entry.responseReference,
+				responseSummary: entry.responseSummary,
+				strengthAssessment: entry.strengthAssessment,
+				riskLevel: entry.riskLevel,
+				mitigationStrategy: entry.mitigationStrategy,
+				assignedTo: entry.assignedTo,
+				dueDate: entry.dueDate?.toISOString() ?? null,
+				completionPercent: entry.completionPercent,
+				status: entry.status,
+			}),
+		);
 
-		// Build response
 		const response: ComplianceMatrixResponse = {
 			id: matrix.id,
 			name: matrix.name,
@@ -141,59 +167,56 @@ export async function GET(
 		console.error("Compliance matrix error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
 
-// ============================================================================
-// PATCH - Update matrix metadata
-// ============================================================================
-
 export async function PATCH(
 	request: NextRequest,
-	context: { params: Promise<{ matrixId: string }> }
+	context: { params: Promise<{ matrixId: string }> },
 ): Promise<NextResponse> {
+	const ctx = await requireRouteTenantContext();
+	if (isTenantResponse(ctx)) return ctx;
+
+	const { matrixId } = await context.params;
+	if (!UUID_RE.test(matrixId)) {
+		return NextResponse.json({ error: "Invalid matrixId" }, { status: 400 });
+	}
+
+	const parsed = PatchSchema.safeParse(await request.json().catch(() => ({})));
+	if (!parsed.success) {
+		return NextResponse.json(
+			{ error: "Invalid body", issues: parsed.error.issues },
+			{ status: 400 },
+		);
+	}
+
 	try {
-		// Authenticate user
-		await requireServerSession();
-
-		const { matrixId } = await context.params;
-
-		// Get existing matrix
-		const existingMatrix = await db.query.complianceMatrices.findFirst({
-			where: eq(complianceMatrices.id, matrixId),
-		});
-
-		if (!existingMatrix) {
-			return NextResponse.json(
-				{ error: "Compliance matrix not found" },
-				{ status: 404 }
-			);
-		}
-
-		// Parse request body
-		const body = await request.json();
-		const { name, description, status } = body;
-
-		// Update matrix
 		const [updated] = await db
 			.update(complianceMatrices)
-			.set({
-				...(name !== undefined && { name }),
-				...(description !== undefined && { description }),
-				...(status !== undefined && { status }),
-				updatedAt: new Date(),
-			})
-			.where(eq(complianceMatrices.id, matrixId))
+			.set({ ...parsed.data, updatedAt: new Date() })
+			.where(
+				and(
+					eq(complianceMatrices.id, matrixId),
+					eq(complianceMatrices.organizationId, ctx.organizationId),
+				),
+			)
 			.returning();
+
+		if (!updated) {
+			return NextResponse.json(
+				{ error: "Compliance matrix not found" },
+				{ status: 404 },
+			);
+		}
 
 		return NextResponse.json(updated);
 	} catch (error) {
 		console.error("Compliance matrix update error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
