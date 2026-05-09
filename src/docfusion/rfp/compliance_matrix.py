@@ -1130,13 +1130,28 @@ class ComplianceMatrixGenerator:
 	# Database persistence (asyncpg via SQLAlchemy AsyncSession)
 	# ------------------------------------------------------------------
 
-	async def save_to_db(self, session: Any, matrix: ComplianceMatrix) -> str:
+	async def save_to_db(
+		self,
+		session: Any,
+		matrix: ComplianceMatrix,
+		*,
+		organization_id: str | None = None,
+		rfp_document_id: str | None = None,
+		created_by: str = "system",
+	) -> str:
 		"""
 		Persist a compliance matrix and its mappings to the database.
 
 		Args:
 			session: SQLAlchemy AsyncSession or asyncpg connection
 			matrix: ComplianceMatrix to persist
+			organization_id: Tenant scope. Required for new W3b rows; the
+				default ``None`` is preserved for backward-compatible test
+				fixtures that mock the session and never hit a real
+				``NOT NULL`` constraint.
+			rfp_document_id: Optional FK back to ``rfp_documents.id`` so the
+				matrix can be filtered by source document.
+			created_by: User id stored in ``compliance_matrices.created_by``.
 
 		Returns:
 			The matrix id (UUID string)
@@ -1167,21 +1182,28 @@ class ComplianceMatrixGenerator:
 		)
 		mandatory_score = round(mandatory_compliant / mandatory_count, 3) if mandatory_count > 0 else None
 
-		# Upsert matrix
+		# Upsert matrix. ``organization_id`` and ``rfp_document_id`` were
+		# added in W3b — both are NOT NULL on ``compliance_matrices`` after
+		# migration 0021_rfp_tenant_isolation, so the FastAPI handlers must
+		# always pass them through. Test fixtures that mock the session can
+		# still leave ``organization_id`` as ``None``; the SQL is just text
+		# they never execute.
 		await session.execute(
 			text("""
 				INSERT INTO compliance_matrices (
-					id, opportunity_id, name, description, version, status,
+					id, organization_id, opportunity_id, rfp_document_id,
+					name, description, version, status,
 					total_requirements, mandatory_count, compliant_count, partial_count,
 					non_compliant_count, not_addressed_count,
 					compliance_score, mandatory_compliance_score,
 					metadata, created_by, created_at, updated_at
 				) VALUES (
-					:id, :opportunity_id, :name, :description, 1, 'draft',
+					:id, :organization_id, :opportunity_id, :rfp_document_id,
+					:name, :description, 1, 'draft',
 					:total_requirements, :mandatory_count, :compliant_count, :partial_count,
 					:non_compliant_count, :not_addressed_count,
 					:compliance_score, :mandatory_compliance_score,
-					CAST(:metadata AS JSONB), 'system', :created_at, :updated_at
+					CAST(:metadata AS JSONB), :created_by, :created_at, :updated_at
 				)
 				ON CONFLICT (id) DO UPDATE SET
 					name = EXCLUDED.name,
@@ -1200,7 +1222,9 @@ class ComplianceMatrixGenerator:
 			"""),
 			{
 				"id": matrix_id,
+				"organization_id": organization_id,
 				"opportunity_id": matrix.rfp_id,
+				"rfp_document_id": rfp_document_id,
 				"name": matrix.name,
 				"description": matrix.description or None,
 				"total_requirements": total,
@@ -1212,6 +1236,7 @@ class ComplianceMatrixGenerator:
 				"compliance_score": compliance_score,
 				"mandatory_compliance_score": mandatory_score,
 				"metadata": json.dumps(matrix.metadata),
+				"created_by": created_by,
 				"created_at": now,
 				"updated_at": now,
 			},
@@ -1227,12 +1252,12 @@ class ComplianceMatrixGenerator:
 			await session.execute(
 				text("""
 					INSERT INTO compliance_entries (
-						id, matrix_id, requirement_id,
+						id, organization_id, matrix_id, requirement_id,
 						compliance_status, response_summary,
 						reviewer_notes, assigned_to,
 						metadata, sort_order, created_at, updated_at
 					) VALUES (
-						:id, :matrix_id, :requirement_id,
+						:id, :organization_id, :matrix_id, :requirement_id,
 						:compliance_status, :response_summary,
 						:reviewer_notes, :assigned_to,
 						CAST(:metadata AS JSONB), :sort_order, :created_at, :updated_at
@@ -1240,6 +1265,7 @@ class ComplianceMatrixGenerator:
 				"""),
 				{
 					"id": mapping.id or uuid7str(),
+					"organization_id": organization_id,
 					"matrix_id": matrix_id,
 					"requirement_id": mapping.requirement_id,
 					"compliance_status": mapping.status.value,
