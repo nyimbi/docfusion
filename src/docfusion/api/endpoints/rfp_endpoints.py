@@ -8,17 +8,20 @@ cookie directly — the BFF is the trust boundary.
 
 W3b status:
   * Auth: ``Depends(require_tenant)`` is mandatory on every handler.
-  * ``/upload`` is now backed by a real Postgres write against
-    ``rfp_documents``. Every read and every write is scoped by
-    ``organization_id``.
+  * ``/upload``, ``/parse``, ``/requirements``, ``/compliance-matrix``,
+    and the entry PATCH route are now backed by real Postgres writes
+    against ``rfp_documents``, ``rfp_requirements``,
+    ``compliance_matrices`` and ``compliance_entries``. Every read and
+    every write is scoped by ``organization_id``.
   * Blob storage is still local disk under ``./storage/rfp/{org}/{rfp}``.
     Production deployments swap this for ``SecureStorageService`` via
     the dependency container; that wire-up lands in W3c together with
-    the Temporal-backed async parsing pipeline.
-  * The remaining handlers (``/parse``, ``/requirements``,
-    ``/compliance-matrix``, ``/update_entry``) still return 501 with
-    a sentinel detail string. They will land one commit at a time so
-    the wire-up is reviewable in isolation.
+    the Temporal-backed async parsing pipeline. Today's ``/parse`` runs
+    inline — fine for small documents, intentionally bounded so we can
+    catch silent regressions.
+
+If your client needs the queued, async pipeline route through the
+Next.js ``/api/v1/rfp/...`` endpoints — those use Temporal directly.
 """
 
 from __future__ import annotations
@@ -39,11 +42,13 @@ from ..dependencies import TenantContext, require_tenant
 from ...core.database.session import get_async_db_session
 from ...core.utils import uuid7str
 from ...orchestration.proposal_orchestrator import ProposalOrchestrator
-from ...rfp.compliance_matrix import ComplianceMatrixGenerator
+from ...rfp.compliance_matrix import (
+	ComplianceMatrixGenerator,
+	ComplianceStatus,
+)
 from ...rfp.requirement_extractor import (
 	Requirement,
 	RequirementCategory,
-	RequirementExtractor,  # noqa: F401
 	RequirementModality,
 	RequirementType,
 )
@@ -52,11 +57,6 @@ from ...rfp.rfp_analyzer import RFPAnalyzer
 router = APIRouter(prefix="/api/v1/rfp", tags=["rfp"])
 
 logger = logging.getLogger(__name__)
-
-# Detail string returned by every handler whose DB wire-up is deferred.
-# Clients can branch on this exact phrase to fall back to the Next.js
-# pipeline without having to parse status codes.
-_NOT_WIRED_DETAIL = "FastAPI handler not yet wired to DB; use the Next.js /api/v1/rfp/* endpoints"
 
 
 # ---------------------------------------------------------------------------
@@ -719,23 +719,171 @@ async def generate_matrix(
 	}
 
 
-@router.patch("/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}", status_code=501)
+# Allow-list for the entry update PATCH. Any field outside this set is
+# rejected with a 400 — protects us from a client smuggling
+# ``organization_id`` or ``matrix_id`` into the update payload and
+# escaping the tenant scope.
+_UPDATE_FIELD_TO_COLUMN: dict[str, str] = {
+	"status": "compliance_status",
+	"response": "response_summary",
+	"notes": "reviewer_notes",
+	"assigned_to": "assigned_to",
+}
+
+# A small status vocabulary check. The DB column is ``varchar(30)`` with
+# no enum, so we enforce the contract here rather than relying on the
+# Postgres layer.
+_VALID_ENTRY_STATUSES = {s.value for s in ComplianceStatus} | {
+	"compliant",
+	"partial",
+	"non_compliant",
+	"not_applicable",
+	"pending",
+}
+
+
+@router.patch("/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}")
 async def update_entry(
 	rfp_id: str,
 	matrix_id: str,
 	entry_id: str,
-	update: dict[str, object],
+	update: dict[str, Any],
 	ctx: TenantContext = Depends(require_tenant),
-) -> dict[str, object]:
-	"""Update a compliance matrix entry. 501 until /update_entry lands."""
-	logger.warning(
-		"FastAPI /update_entry called rfp_id=%s matrix_id=%s entry_id=%s org=%s — returning 501",
-		rfp_id,
-		matrix_id,
-		entry_id,
-		ctx.organization_id,
+	session: AsyncSession = Depends(get_async_db_session),
+) -> dict[str, Any]:
+	"""Update a compliance matrix entry within the caller's org.
+
+	Steps:
+	  1. Validate the entry belongs to the caller's tenant **and** to
+	     the requested matrix. Either mismatch returns 404.
+	  2. Apply an allow-list to the update payload so unknown keys
+	     (``organization_id``, ``matrix_id``, etc.) fail closed.
+	  3. UPDATE the row and return its post-update state.
+	"""
+	if not isinstance(update, dict):
+		raise HTTPException(status_code=400, detail="update payload must be an object")
+
+	# 1. Verify the entry exists in this tenant + matrix.
+	row = (
+		await session.execute(
+			text(
+				"""
+				SELECT id, matrix_id, organization_id
+				FROM compliance_entries
+				WHERE id = :entry_id
+				  AND matrix_id = :matrix_id
+				  AND organization_id = :org_id
+				"""
+			),
+			{
+				"entry_id": entry_id,
+				"matrix_id": matrix_id,
+				"org_id": ctx.organization_id,
+			},
+		)
+	).mappings().first()
+
+	if row is None:
+		# rfp_id is not in the WHERE clause because the entry's tenancy
+		# is enforced by org_id+matrix_id. Including rfp_id would be
+		# incorrect — entries don't carry it directly. The path
+		# parameter is still useful for logs.
+		logger.warning(
+			"FastAPI /update_entry 404: rfp_id=%s matrix_id=%s entry_id=%s org=%s",
+			rfp_id,
+			matrix_id,
+			entry_id,
+			ctx.organization_id,
+		)
+		raise HTTPException(status_code=404, detail="Compliance entry not found")
+
+	# 2. Allow-list the payload.
+	unknown = set(update.keys()) - set(_UPDATE_FIELD_TO_COLUMN.keys())
+	if unknown:
+		raise HTTPException(
+			status_code=400,
+			detail=f"Unsupported update fields: {sorted(unknown)}",
+		)
+
+	if not update:
+		raise HTTPException(status_code=400, detail="update payload is empty")
+
+	if "status" in update:
+		status_val = update["status"]
+		if not isinstance(status_val, str) or status_val not in _VALID_ENTRY_STATUSES:
+			raise HTTPException(
+				status_code=400,
+				detail=f"invalid status value: {status_val!r}",
+			)
+
+	# 3. Build the UPDATE statement from the allow-listed keys.
+	now = datetime.now(timezone.utc)
+	set_fragments: list[str] = []
+	params: dict[str, Any] = {
+		"entry_id": entry_id,
+		"matrix_id": matrix_id,
+		"org_id": ctx.organization_id,
+		"updated_at": now,
+	}
+	for key, value in update.items():
+		column = _UPDATE_FIELD_TO_COLUMN[key]
+		set_fragments.append(f"{column} = :{key}")
+		params[key] = value
+	set_fragments.append("updated_at = :updated_at")
+
+	await session.execute(
+		text(
+			f"""
+			UPDATE compliance_entries
+			SET {', '.join(set_fragments)}
+			WHERE id = :entry_id
+			  AND matrix_id = :matrix_id
+			  AND organization_id = :org_id
+			"""
+		),
+		params,
 	)
-	raise HTTPException(status_code=501, detail=_NOT_WIRED_DETAIL)
+	await session.commit()
+
+	# Re-read so the response reflects the persisted state, not the
+	# request payload.
+	updated = (
+		await session.execute(
+			text(
+				"""
+				SELECT id, matrix_id, requirement_id, organization_id,
+					   compliance_status, response_summary, reviewer_notes,
+					   assigned_to, sort_order, created_at, updated_at
+				FROM compliance_entries
+				WHERE id = :entry_id
+				  AND matrix_id = :matrix_id
+				  AND organization_id = :org_id
+				"""
+			),
+			{
+				"entry_id": entry_id,
+				"matrix_id": matrix_id,
+				"org_id": ctx.organization_id,
+			},
+		)
+	).mappings().first()
+
+	if updated is None:
+		# Should be unreachable — we just confirmed the row exists in
+		# step 1 and we hold the only handle on the session.
+		raise HTTPException(status_code=500, detail="Compliance entry vanished mid-update")
+
+	return {
+		"entry_id": str(updated["id"]),
+		"matrix_id": str(updated["matrix_id"]),
+		"requirement_id": str(updated["requirement_id"]),
+		"organization_id": updated["organization_id"],
+		"status": updated["compliance_status"],
+		"response": updated.get("response_summary"),
+		"notes": updated.get("reviewer_notes"),
+		"assigned_to": updated.get("assigned_to"),
+		"updated_at": updated["updated_at"].isoformat() if updated.get("updated_at") else None,
+	}
 
 
 @router.post("/{rfp_id}/draft")
