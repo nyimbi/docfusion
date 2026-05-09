@@ -80,7 +80,11 @@ export async function POST(
 			if (USE_PYTHON_RFP && !objectStoreConfig) {
 				const response = await fetch(`${FASTAPI_URL}/api/v1/rfp/${rfpId}/parse`, {
 					method: "POST",
-					headers: { "Content-Type": "application/json" },
+					headers: {
+						"Content-Type": "application/json",
+						"x-docfusion-user-id": ctx.userId,
+						"x-docfusion-organization-id": ctx.organizationId,
+					},
 				});
 				return NextResponse.json(await response.json(), { status: response.status });
 			}
