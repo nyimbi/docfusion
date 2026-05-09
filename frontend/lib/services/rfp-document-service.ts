@@ -1031,17 +1031,17 @@ async function queueRfpParsingFromDownloadedDocument(params: {
   }
 
   try {
-    // Resolve the user's default-workspace organisation. This mirrors the
-    // backfill in migration 0021 — when no default workspace exists, fall back
-    // to the migrated-legacy sentinel so the downstream insert never violates
-    // the NOT NULL constraint.
     const userWorkspace = await db.query.userWorkspaces.findFirst({
       where: and(
         eq(userWorkspaces.userId, params.userId),
         eq(userWorkspaces.isDefault, true),
       ),
     });
-    const organizationId = userWorkspace?.organizationId ?? "__MIGRATED_LEGACY__";
+    if (!userWorkspace) {
+      logger.warn("[RFP Document Service] Aborting parse queue — user has no default workspace", { userId: params.userId });
+      return {};
+    }
+    const organizationId = userWorkspace.organizationId;
 
     const existing = await db.query.rfpDocuments.findFirst({
       where: and(
