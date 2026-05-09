@@ -134,7 +134,7 @@ export const rfpDocuments = pgTable(
 		index("rfp_docs_deadline_idx").on(table.responseDeadline),
 		index("rfp_docs_uploaded_by_idx").on(table.uploadedBy),
 		index("rfp_docs_created_idx").on(table.createdAt),
-		uniqueIndex("rfp_docs_hash_idx").on(table.fileHash),
+		uniqueIndex("rfp_docs_org_hash_idx").on(table.organizationId, table.fileHash),
 		index("rfp_docs_org_idx").on(table.organizationId),
 		index("rfp_docs_org_id_idx").on(table.organizationId, table.id),
 	]

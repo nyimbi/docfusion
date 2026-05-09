@@ -6,9 +6,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { isRouteSessionResponse, requireRouteSessionOr401 } from "@/lib/auth/route-session";
+import {
+	isTenantResponse,
+	requireRouteTenantContext,
+} from "@/lib/auth/route-tenant";
 import { db } from "@/lib/db";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
+import { and, eq } from "drizzle-orm";
 import {
 	buildRfpObjectKey,
 	getLinodeE3ConfigFromEnv,
@@ -38,11 +42,12 @@ interface UploadResponse {
 // ============================================================================
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+	const ctx = await requireRouteTenantContext();
+	if (isTenantResponse(ctx)) return ctx;
+	const userId = ctx.userId;
+	const organizationId = ctx.organizationId;
+
 	try {
-		const authResult = await requireRouteSessionOr401();
-		if (isRouteSessionResponse(authResult)) return authResult;
-		const session = authResult.session;
-		const userId = session.user?.id ?? session.user?.email ?? "unknown";
 
 		// Parse form data only after authentication.
 		const formData = await request.formData();
@@ -89,6 +94,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				method: "POST",
 				headers: {
 					"x-docfusion-user-id": userId,
+					"x-docfusion-organization-id": organizationId,
 				},
 				body: formData,
 			});
@@ -99,9 +105,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		const fileHash = crypto.createHash("md5").update(buffer).digest("hex");
 		const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
 
-		// Check for duplicate file
+		// Check for duplicate file within the caller's organization. Cross-tenant
+		// hash collisions are not visible — different orgs may upload the same file.
 		const existingDoc = await db.query.rfpDocuments.findFirst({
-			where: (docs, { eq }) => eq(docs.fileHash, fileHash),
+			where: and(
+				eq(rfpDocuments.fileHash, fileHash),
+				eq(rfpDocuments.organizationId, organizationId),
+			),
 		});
 
 		if (existingDoc) {
@@ -158,6 +168,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			.insert(rfpDocuments)
 			.values({
 				id: documentId,
+				organizationId,
 				opportunityId: opportunityId || null,
 				filename: file.name,
 				fileType,
@@ -180,6 +191,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			.insert(rfpParsingJobs)
 			.values({
 				rfpDocumentId: documentId,
+				organizationId,
 				status: "queued",
 				initiatedBy: userId,
 				parsingOptions: {
