@@ -19,6 +19,7 @@ import asyncio
 import csv
 import json
 import logging
+from collections import OrderedDict
 from datetime import datetime, timezone
 from enum import Enum
 from io import BytesIO, StringIO
@@ -28,6 +29,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .requirement_extractor import Requirement, RequirementModality, RequirementType
 from ..core.utils import uuid7str
+
+# Per-process cap on the in-memory matrix LRU. Beyond this, the oldest
+# matrix is evicted on insert. Prevents unbounded growth across long-lived
+# worker processes (audit Critical #11).
+MAX_IN_MEMORY_MATRICES = 64
 
 class ComplianceStatus(str, Enum):
 	"""Status of requirement compliance in response"""
@@ -576,13 +582,23 @@ class ComplianceMatrixGenerator:
 			self.config.update(config)
 		self.logger = logging.getLogger(__name__)
 
-		# Storage for matrices (in production, would use database)
-		self._matrices: dict[str, ComplianceMatrix] = {}
+		# Bounded LRU cache of recently-touched matrices. Evicts oldest on
+		# insert past MAX_IN_MEMORY_MATRICES so a long-running worker process
+		# cannot leak memory (or alert counts) across requests.
+		self._matrices: OrderedDict[str, ComplianceMatrix] = OrderedDict()
 
 		# Update callbacks for real-time notifications
 		self._update_callbacks: list[callable] = []
 
 		self._log_generator_initialized()
+
+	def _remember_matrix(self, matrix: "ComplianceMatrix") -> None:
+		"""Cache a matrix in the bounded LRU; evict oldest entries on overflow."""
+		if matrix.id in self._matrices:
+			self._matrices.move_to_end(matrix.id)
+		self._matrices[matrix.id] = matrix
+		while len(self._matrices) > MAX_IN_MEMORY_MATRICES:
+			self._matrices.popitem(last=False)
 
 	def _get_default_config(self) -> dict[str, Any]:
 		"""Get default configuration"""
@@ -646,7 +662,7 @@ class ComplianceMatrixGenerator:
 			matrix.add_mapping(mapping)
 
 		# Store the matrix
-		self._matrices[matrix.id] = matrix
+		self._remember_matrix(matrix)
 
 		self._log_matrix_created(rfp_id, len(requirements))
 		return matrix
