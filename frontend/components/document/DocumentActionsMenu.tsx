@@ -58,6 +58,12 @@ import {
 	applyTemplateToDocument,
 	archiveDocument,
 } from "@/lib/actions/documents-enhanced";
+import {
+	MAX_RENDER_CONTENT_BYTES,
+	describeRenderError,
+	sanitizeRenderFilename,
+	triggerBlobDownload,
+} from "@/lib/document/server-export";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -107,36 +113,18 @@ export function DocumentActionsMenu({
 			const content = editor?.getHTML() ?? "";
 
 			if (format === "markdown") {
-				// Convert HTML to markdown and download
 				const blob = new Blob([content], { type: "text/markdown" });
-				const url = URL.createObjectURL(blob);
-				const a = window.document.createElement("a");
-				a.href = url;
-				a.download = `${document.title}.md`;
-				a.click();
-				URL.revokeObjectURL(url);
+				triggerBlobDownload(blob, sanitizeRenderFilename(document.title, "md"));
 				toast.success("Exported as Markdown");
 			} else if (format === "html") {
-				// Export as HTML
 				const fullHtml = `<!DOCTYPE html><html><head><title>${document.title}</title></head><body>${content}</body></html>`;
 				const blob = new Blob([fullHtml], { type: "text/html" });
-				const url = URL.createObjectURL(blob);
-				const a = window.document.createElement("a");
-				a.href = url;
-				a.download = `${document.title}.html`;
-				a.click();
-				URL.revokeObjectURL(url);
+				triggerBlobDownload(blob, sanitizeRenderFilename(document.title, "html"));
 				toast.success("Exported as HTML");
 			} else if (format === "json") {
-				// Export document data as JSON
 				const json = JSON.stringify({ title: document.title, content }, null, 2);
 				const blob = new Blob([json], { type: "application/json" });
-				const url = URL.createObjectURL(blob);
-				const a = window.document.createElement("a");
-				a.href = url;
-				a.download = `${document.title}.json`;
-				a.click();
-				URL.revokeObjectURL(url);
+				triggerBlobDownload(blob, sanitizeRenderFilename(document.title, "json"));
 				toast.success("Exported as JSON");
 			} else if (format === "pdf" || format === "docx") {
 				// Server-side conversion via backend DocumentEngine. When the
@@ -146,29 +134,31 @@ export function DocumentActionsMenu({
 				// the field and the backend uses the persisted body. Tiptap
 				// returns "<p></p>" for an empty editor, never "", so the
 				// server's min_length=1 guard isn't reachable in practice.
+				if (editor && content.length > MAX_RENDER_CONTENT_BYTES) {
+					toast.error(
+						"Document is too large to export — split it or remove embedded assets.",
+					);
+					return;
+				}
+
 				const response = await fetch(`/api/v1/documents/${document.id}/render`, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						output_format: format,
-						...(editor ? { content_override: editor.getHTML() } : {}),
+						...(editor ? { content_override: content } : {}),
 					}),
 				});
 				if (!response.ok) {
-					const errorText = await response.text().catch(() => "Unknown error");
-					throw new Error(`Server error: ${errorText}`);
+					const upstreamText = await response.text().catch(() => "");
+					throw new Error(describeRenderError(response, upstreamText));
 				}
 				const blob = await response.blob();
-				const url = URL.createObjectURL(blob);
-				const a = window.document.createElement("a");
-				a.href = url;
-				a.download = `${document.title}.${format}`;
-				a.click();
-				URL.revokeObjectURL(url);
+				triggerBlobDownload(blob, sanitizeRenderFilename(document.title, format));
 				toast.success(`Exported as ${format.toUpperCase()}`);
 			}
 		} catch (error) {
-			toast.error("Export failed");
+			toast.error(error instanceof Error ? error.message : "Export failed");
 		}
 	}, [document.id, document.title, editor]);
 

@@ -52,7 +52,13 @@ import {
   type Watermark,
   type WatermarkPreset,
 } from "@/lib/hdsi/publishing";
-import { useExport, type ExportFormat } from "@/lib/hdsi/export";
+import { useExport, exportToHTML, type ExportFormat } from "@/lib/hdsi/export";
+import {
+  MAX_RENDER_CONTENT_BYTES,
+  describeRenderError,
+  sanitizeRenderFilename,
+  triggerBlobDownload,
+} from "@/lib/document/server-export";
 import { ExportPPTXButton } from "@/components/hdsi/ExportPPTXButton";
 import type { HDSINode } from "@/lib/hdsi/types";
 
@@ -133,10 +139,16 @@ export function PublishingToolbar(props: PublishingToolbarProps) {
 
   const publishing = usePublishing(documentId);
   const exportSystem = useExport();
-  
+
   const [showBibliography, setShowBibliography] = React.useState(false);
   const [showLayoutSettings, setShowLayoutSettings] = React.useState(false);
   const [showWatermarkSettings, setShowWatermarkSettings] = React.useState(false);
+
+  // Tracks in-flight server-side renders so the export menu trigger can
+  // show a spinner / disable correctly. The HDSI client-side hook tracks
+  // its own state separately; we combine the two for the UI.
+  const [serverExporting, setServerExporting] = React.useState(false);
+  const isExporting = exportSystem.isExporting || serverExporting;
 
   // Quick citation insertion
   const handleQuickCite = (entry: BibliographyEntry) => {
@@ -147,7 +159,10 @@ export function PublishingToolbar(props: PublishingToolbarProps) {
     }
   };
 
-  // Export handler
+  // Client-side export — used for text-shaped outputs (markdown, latex,
+  // html, txt, json) where the HDSI serializer produces the final
+  // artifact directly and there is no value in round-tripping through
+  // the backend renderer.
   const handleExport = async (format: ExportFormat) => {
     const options = {
       format,
@@ -158,11 +173,73 @@ export function PublishingToolbar(props: PublishingToolbarProps) {
     };
 
     const result = await exportSystem.exportDoc(nodes, documentTitle, options);
-    
+
     if (result.success) {
       toast.success(`Exported to ${format.toUpperCase()}: ${result.filename}`);
     } else {
       toast.error(`Export failed: ${result.error}`);
+    }
+  };
+
+  // Server-side export — used for binary formats (PDF, DOCX) where the
+  // backend DocumentEngine produces a higher-fidelity artifact than the
+  // client can. The HDSI tree is serialized to HTML on the client (so
+  // TOC, bibliography, watermarks, page layout still flow through) and
+  // posted as content_override; the backend renders to the requested
+  // binary format and streams the bytes back.
+  //
+  // Replaces the legacy client-side exportToDOCX path that produced
+  // structurally invalid OOXML (audit C3 was the matching backend fix;
+  // this PR closes the audit's remaining "two pipelines" gap).
+  const handleServerExport = async (format: "pdf" | "docx") => {
+    // Defensive early-return — the dropdown closes on click so two
+    // concurrent invocations are hard to trigger, but a fast double-tap
+    // could otherwise stack two in-flight requests.
+    if (isExporting) return;
+
+    setServerExporting(true);
+    try {
+      const html = exportToHTML(nodes, documentTitle, {
+        includeTOC: true,
+        pageLayout: publishing.pageLayout,
+        watermarks: publishing.watermarks,
+      });
+
+      // Bound the request before it hits the network. The backend caps
+      // content_override at the same byte count; a local error is more
+      // actionable than the raw Pydantic 422 the server would surface.
+      if (html.length > MAX_RENDER_CONTENT_BYTES) {
+        toast.error(
+          "Document is too large to export — split it or remove embedded assets.",
+        );
+        return;
+      }
+
+      const response = await fetch(
+        `/api/v1/documents/${documentId}/render`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            output_format: format,
+            content_override: html,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const upstreamText = await response.text().catch(() => "");
+        throw new Error(describeRenderError(response, upstreamText));
+      }
+
+      const blob = await response.blob();
+      triggerBlobDownload(blob, sanitizeRenderFilename(documentTitle, format));
+
+      toast.success(`Exported to ${format.toUpperCase()}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setServerExporting(false);
     }
   };
 
@@ -491,8 +568,8 @@ export function PublishingToolbar(props: PublishingToolbarProps) {
       {/* Export Dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-1" disabled={exportSystem.isExporting}>
-            {exportSystem.isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          <Button variant="outline" size="sm" className="gap-1" disabled={isExporting}>
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             <span className="hidden sm:inline">Export</span>
             <ChevronDown className="h-3 w-3" />
           </Button>
@@ -503,7 +580,7 @@ export function PublishingToolbar(props: PublishingToolbarProps) {
             <FileCode className="h-4 w-4 mr-2" />
             Markdown (.md)
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleExport("docx")}>
+          <DropdownMenuItem onClick={() => handleServerExport("docx")}>
             <FileType className="h-4 w-4 mr-2" />
             Word (.docx)
           </DropdownMenuItem>
@@ -512,7 +589,7 @@ export function PublishingToolbar(props: PublishingToolbarProps) {
             LaTeX (.tex)
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => handleExport("pdf")}>
+          <DropdownMenuItem onClick={() => handleServerExport("pdf")}>
             <FileText className="h-4 w-4 mr-2" />
             PDF (.pdf)
           </DropdownMenuItem>
