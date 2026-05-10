@@ -53,7 +53,11 @@ from ...rfp.requirement_extractor import (
 	RequirementModality,
 	RequirementType,
 )
-from ...workers.rfp_parse.client import enqueue_rfp_parse
+from ...workers.rfp_parse.client import (
+	TemporalUnreachableError,
+	WorkflowAlreadyEnqueuedError,
+	enqueue_rfp_parse,
+)
 
 router = APIRouter(prefix="/api/v1/rfp", tags=["rfp"])
 
@@ -354,18 +358,47 @@ async def parse_rfp(
 			organization_id=ctx.organization_id,
 			user_id=ctx.user_id,
 		)
-	except Exception as exc:  # noqa: BLE001 — surface enqueue failures distinctly
-		# If we couldn't reach Temporal, leave the row in ``queued`` so
-		# operators can re-drive it from the worker side once the
-		# cluster is back. 503 tells the client to retry.
+	except WorkflowAlreadyEnqueuedError as exc:
+		# Idempotent re-enqueue: a parse for this rfp_id is already in
+		# flight. Return 200 with the existing handle so the caller can
+		# poll /status against the live run rather than starting a fresh
+		# one (which would re-INSERT requirements — the activity is not
+		# upsert-safe).
+		logger.info(
+			"FastAPI /parse re-enqueue collided with in-flight workflow "
+			"rfp_id=%s org=%s workflow_id=%s",
+			rfp_id,
+			ctx.organization_id,
+			exc.workflow_id,
+		)
+		return ParseEnqueuedResponse(
+			rfp_id=rfp_id,
+			workflow_id=exc.workflow_id,
+			run_id=exc.run_id,
+			status="queued",
+		)
+	except TemporalUnreachableError as exc:
+		# The cluster is down or misconfigured. Leave the row in ``queued``
+		# so operators can re-drive once the cluster is back. 503 tells
+		# the client to retry.
 		logger.exception(
-			"FastAPI /parse enqueue failure rfp_id=%s org=%s",
+			"FastAPI /parse Temporal cluster unreachable rfp_id=%s org=%s",
 			rfp_id,
 			ctx.organization_id,
 		)
 		raise HTTPException(
 			status_code=503,
-			detail="Failed to enqueue RFP parse; please retry",
+			detail="RFP parse queue is unreachable; please retry",
+		) from exc
+	except Exception as exc:  # noqa: BLE001 — last-resort guard
+		logger.exception(
+			"FastAPI /parse enqueue unexpected failure rfp_id=%s org=%s",
+			rfp_id,
+			ctx.organization_id,
+		)
+		raise HTTPException(
+			status_code=500,
+			detail="Failed to enqueue RFP parse",
 		) from exc
 
 	logger.info(
