@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""End-to-end: upload -> parse -> requirements -> compliance -> discovery ingest.
+"""End-to-end: upload -> parse-enqueue -> requirements -> compliance -> discovery ingest.
 
-W3b: every RFP endpoint is now backed by real DB writes against
-``rfp_documents`` / ``rfp_requirements`` / ``compliance_matrices`` /
-``compliance_entries``. Tests replace the AsyncSession dependency with
-an in-memory fake that records the same SQL the production code emits.
-That keeps the suite hermetic — no Postgres in CI — without falling
-back to the previous "501 Not Implemented" placeholder contract.
+W3c contract:
+  * ``/upload``, ``/requirements``, ``/compliance-matrix``, and the
+    entry PATCH route stay synchronous and DB-backed.
+  * ``/parse`` no longer runs inline. The handler validates tenancy,
+    flips the document to ``parsing_status='queued'``, and hands the
+    parse to a Temporal workflow. These tests stub
+    :func:`docfusion.workers.rfp_parse.client.enqueue_rfp_parse` so
+    the suite stays hermetic — no Temporal cluster, no Docling.
+    Activity-level coverage of the actual parse pipeline lives in
+    ``test_rfp_parse_activity.py``.
 
 Cross-tenant assertions are first-class: every state-mutating handler
 is exercised with a second ``x-docfusion-organization-id`` header and
@@ -15,10 +19,7 @@ must return 404 (never 200).
 
 from __future__ import annotations
 
-import shutil
-from datetime import datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -207,7 +208,11 @@ class FakeSession:
 		if "update rfp_documents" in sql:
 			doc = self.documents.get(params["rfp_id"])
 			if doc and doc.get("organization_id") == params["org_id"]:
-				if "parsing_status = 'processing'" in sql:
+				if "parsing_status = 'queued'" in sql:
+					# Emitted by the FastAPI /parse handler right
+					# before it hands the work off to Temporal.
+					doc["parsing_status"] = "queued"
+				elif "parsing_status = 'processing'" in sql:
 					doc["parsing_status"] = "processing"
 					doc["parsing_started_at"] = params.get("started")
 				elif "parsing_status = 'completed'" in sql:
@@ -250,61 +255,41 @@ class FakeSession:
 
 
 # ---------------------------------------------------------------------------
-# Stub the analyzer so /parse doesn't depend on Docling/LiteLLM.
+# Stub the Temporal enqueue so /parse doesn't try to reach a cluster.
+#
+# The handler now hands work off to ``enqueue_rfp_parse``; the real
+# implementation opens a connection to the Temporal frontend. Tests
+# replace it with a deterministic stub that records every call so we
+# can assert the right tenant context was forwarded.
 # ---------------------------------------------------------------------------
 
 
-class _StubAnalyzer:
-	"""Returns a deterministic two-requirement result, regardless of input."""
+class _EnqueueRecorder:
+	"""Captures the (rfp_id, organization_id, user_id) tuples seen by /parse."""
 
-	def __init__(self, *_args: Any, **_kwargs: Any) -> None:
-		pass
+	def __init__(self) -> None:
+		self.calls: list[dict[str, str]] = []
+		self.workflow_id: str = "wf-stub"
+		self.run_id: str = "run-stub"
+		# Override return shape per-test by mutating .next_return.
+		self.next_return: tuple[str, str] | None = None
 
-	async def analyze_pdf(self, content: bytes) -> SimpleNamespace:  # noqa: ARG002
-		return await self.analyze_text("")
-
-	async def analyze_docx(self, content: bytes) -> SimpleNamespace:  # noqa: ARG002
-		return await self.analyze_text("")
-
-	async def analyze_text(self, _text: str) -> SimpleNamespace:
-		from docfusion.rfp.requirement_extractor import (
-			Requirement,
-			RequirementCategory,
-			RequirementModality,
-			RequirementType,
+	async def __call__(
+		self,
+		rfp_id: str,
+		organization_id: str,
+		user_id: str,
+	) -> tuple[str, str]:
+		self.calls.append(
+			{
+				"rfp_id": rfp_id,
+				"organization_id": organization_id,
+				"user_id": user_id,
+			}
 		)
-
-		requirements = [
-			Requirement(
-				id="req-stub-1",
-				text="The contractor shall provide 24/7 support.",
-				modality=RequirementModality.MANDATORY,
-				category=RequirementCategory.TECHNICAL,
-				requirement_type=RequirementType.FUNCTIONAL,
-				section="Section L",
-				page_number=3,
-				confidence=0.9,
-			),
-			Requirement(
-				id="req-stub-2",
-				text="The vendor should offer a mobile app.",
-				modality=RequirementModality.OPTIONAL,
-				category=RequirementCategory.TECHNICAL,
-				requirement_type=RequirementType.FUNCTIONAL,
-				section="Section M",
-				page_number=7,
-				confidence=0.7,
-			),
-		]
-		return SimpleNamespace(
-			success=True,
-			requirements=requirements,
-			errors=[],
-			warnings=[],
-		)
-
-	async def close(self) -> None:
-		pass
+		if self.next_return is not None:
+			return self.next_return
+		return (f"{self.workflow_id}-{rfp_id}", self.run_id)
 
 
 @pytest.fixture
@@ -313,17 +298,32 @@ def fake_session() -> FakeSession:
 
 
 @pytest.fixture
-def client(fake_session: FakeSession, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def enqueue_recorder() -> _EnqueueRecorder:
+	return _EnqueueRecorder()
+
+
+@pytest.fixture
+def client(
+	fake_session: FakeSession,
+	enqueue_recorder: _EnqueueRecorder,
+	monkeypatch: pytest.MonkeyPatch,
+	tmp_path: Path,
+):
 	# Redirect the local-bytes staging area into ``tmp_path`` so each
-	# test starts with a clean disk.
+	# test starts with a clean disk. Both /upload and the (now removed)
+	# inline parse path used the same constant; only /upload still
+	# touches it now.
 	monkeypatch.setattr(
 		"docfusion.api.endpoints.rfp_endpoints._LOCAL_STORAGE_ROOT",
 		tmp_path / "rfp",
 	)
-	# Replace the analyzer so we don't hit Docling.
+	# Replace the Temporal enqueue helper so we don't open a TCP
+	# connection during tests. The handler imports it as a name
+	# local to ``rfp_endpoints``; patch that exact name so the route
+	# sees the stub even when the real module is also loaded.
 	monkeypatch.setattr(
-		"docfusion.api.endpoints.rfp_endpoints.RFPAnalyzer",
-		_StubAnalyzer,
+		"docfusion.api.endpoints.rfp_endpoints.enqueue_rfp_parse",
+		enqueue_recorder,
 	)
 
 	app = FastAPI()
@@ -336,6 +336,47 @@ def client(fake_session: FakeSession, monkeypatch: pytest.MonkeyPatch, tmp_path:
 	app.dependency_overrides[get_async_db_session] = _override_session
 	yield TestClient(app)
 	app.dependency_overrides.clear()
+
+
+def _seed_requirements(fake_session: FakeSession, rfp_id: str, org_id: str) -> None:
+	"""Inject two stub requirements straight into the FakeSession.
+
+	W3b's /parse handler used to populate these synchronously. Under W3c
+	the parse runs on a Temporal worker that is intentionally absent
+	from this hermetic test suite, so we seed the rows the matrix /
+	requirements endpoints expect to read. Activity-level coverage of
+	the persistence path lives in ``test_rfp_parse_activity.py``.
+	"""
+	from docfusion.core.utils import uuid7str
+
+	for index, modality, page in (
+		(1, "mandatory", 3),
+		(2, "optional", 7),
+	):
+		req_id = uuid7str()
+		fake_session.requirements[req_id] = {
+			"id": req_id,
+			"organization_id": org_id,
+			"rfp_document_id": rfp_id,
+			"requirement_number": f"REQ-{index:03d}",
+			"requirement_text": f"Stub requirement {index}",
+			"source_quote": f"Stub requirement {index}",
+			"source_page": page,
+			"source_section": f"Section {index}",
+			"category": "technical",
+			"requirement_type": "shall",
+			"priority": modality,
+			"extraction_confidence": 0.8,
+			"compliance_status": "not_addressed",
+			"title": None,
+			"subcategory": None,
+			"risk_level": "medium",
+			"response_strategy": None,
+			"assigned_to": None,
+			"due_date": None,
+			"response_section": None,
+			"notes": None,
+		}
 
 
 class TestRfpPipeline:
@@ -414,33 +455,68 @@ class TestRfpPipeline:
 		assert "/etc/" not in data["storage_path"]
 		assert data["storage_path"].startswith(f"orgs/test-org/rfp/{data['rfp_id']}/")
 
-	def test_parse_extracts_requirements(self, client: TestClient, fake_session: FakeSession):
-		"""/parse runs the analyzer, persists requirements, marks completed."""
+	def test_parse_enqueues_temporal_workflow(
+		self,
+		client: TestClient,
+		fake_session: FakeSession,
+		enqueue_recorder: _EnqueueRecorder,
+	):
+		"""/parse returns 202 with a workflow handle and flips status to queued.
+
+		The actual analyzer no longer runs inline — the route hands the
+		work to ``enqueue_rfp_parse`` and returns immediately. We verify:
+		  1. The DB row's ``parsing_status`` moved from ``pending`` to
+		     ``queued`` *before* the handoff so polling clients see the
+		     transition even if Temporal is slow to pick up.
+		  2. The enqueue helper saw the right tenant context.
+		  3. The 202 response contains the workflow handle.
+		"""
 		upload = client.post(
 			"/api/v1/rfp/upload",
 			headers=TENANT_HEADERS,
 			files={"file": ("sample.pdf", b"%PDF-1.4 hello", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
+		assert fake_session.documents[rfp_id]["parsing_status"] == "pending"
+
+		# Force a deterministic return shape so the assertion is stable.
+		enqueue_recorder.next_return = ("wf-fixed-id", "run-fixed-id")
 
 		response = client.post(f"/api/v1/rfp/{rfp_id}/parse", headers=TENANT_HEADERS)
-		assert response.status_code == 200, response.text
+		assert response.status_code == 202, response.text
 		data = response.json()
-		assert data["rfp_id"] == rfp_id
-		assert data["status"] == "completed"
-		assert data["requirements_extracted"] == 2
+		assert data == {
+			"rfp_id": rfp_id,
+			"workflow_id": "wf-fixed-id",
+			"run_id": "run-fixed-id",
+			"status": "queued",
+		}
 
-		# DB state matches.
-		assert fake_session.documents[rfp_id]["parsing_status"] == "completed"
+		# Status flipped to queued before the handoff.
+		assert fake_session.documents[rfp_id]["parsing_status"] == "queued"
+		# No requirements were persisted inline — that's the worker's job now.
 		stored = [
-			r for r in fake_session.requirements.values()
-			if r["rfp_document_id"] == rfp_id and r["organization_id"] == "test-org"
+			r
+			for r in fake_session.requirements.values()
+			if r.get("rfp_document_id") == rfp_id
 		]
-		assert len(stored) == 2
-		assert all(r["organization_id"] == "test-org" for r in stored)
+		assert stored == []
 
-	def test_parse_404_for_other_tenant(self, client: TestClient):
-		"""Cross-tenant /parse against an existing rfp returns 404."""
+		# The enqueue helper got the tenant identity from headers.
+		assert enqueue_recorder.calls == [
+			{
+				"rfp_id": rfp_id,
+				"organization_id": "test-org",
+				"user_id": "test-user",
+			}
+		]
+
+	def test_parse_404_for_other_tenant(
+		self,
+		client: TestClient,
+		enqueue_recorder: _EnqueueRecorder,
+	):
+		"""Cross-tenant /parse against an existing rfp returns 404 and never enqueues."""
 		upload = client.post(
 			"/api/v1/rfp/upload",
 			headers=TENANT_HEADERS,
@@ -453,6 +529,8 @@ class TestRfpPipeline:
 			headers=OTHER_TENANT_HEADERS,
 		)
 		assert response.status_code == 404
+		# Tenancy check fails *before* the Temporal call.
+		assert enqueue_recorder.calls == []
 
 	def test_list_requirements_returns_persisted_rows(
 		self,
@@ -465,7 +543,10 @@ class TestRfpPipeline:
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
-		client.post(f"/api/v1/rfp/{rfp_id}/parse", headers=TENANT_HEADERS)
+		# /parse no longer populates rows synchronously — seed directly so
+		# /requirements has rows to read. Activity-level coverage of the
+		# extraction lives in test_rfp_parse_activity.py.
+		_seed_requirements(fake_session, rfp_id, "test-org")
 
 		response = client.get(f"/api/v1/rfp/{rfp_id}/requirements", headers=TENANT_HEADERS)
 		assert response.status_code == 200
@@ -477,14 +558,18 @@ class TestRfpPipeline:
 		numbers = [r["requirement_number"] for r in data["requirements"]]
 		assert numbers == sorted(numbers)
 
-	def test_list_requirements_404_for_other_tenant(self, client: TestClient):
+	def test_list_requirements_404_for_other_tenant(
+		self,
+		client: TestClient,
+		fake_session: FakeSession,
+	):
 		upload = client.post(
 			"/api/v1/rfp/upload",
 			headers=TENANT_HEADERS,
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
-		client.post(f"/api/v1/rfp/{rfp_id}/parse", headers=TENANT_HEADERS)
+		_seed_requirements(fake_session, rfp_id, "test-org")
 
 		response = client.get(
 			f"/api/v1/rfp/{rfp_id}/requirements",
@@ -503,7 +588,7 @@ class TestRfpPipeline:
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
-		client.post(f"/api/v1/rfp/{rfp_id}/parse", headers=TENANT_HEADERS)
+		_seed_requirements(fake_session, rfp_id, "test-org")
 
 		response = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
@@ -523,14 +608,18 @@ class TestRfpPipeline:
 		assert len(entries) == 2
 		assert all(e["organization_id"] == "test-org" for e in entries)
 
-	def test_generate_matrix_404_for_other_tenant(self, client: TestClient):
+	def test_generate_matrix_404_for_other_tenant(
+		self,
+		client: TestClient,
+		fake_session: FakeSession,
+	):
 		upload = client.post(
 			"/api/v1/rfp/upload",
 			headers=TENANT_HEADERS,
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
-		client.post(f"/api/v1/rfp/{rfp_id}/parse", headers=TENANT_HEADERS)
+		_seed_requirements(fake_session, rfp_id, "test-org")
 
 		response = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
@@ -545,7 +634,7 @@ class TestRfpPipeline:
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
-		# Skip /parse — no requirements yet.
+		# Skip seeding — no requirements yet.
 
 		response = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
@@ -564,7 +653,7 @@ class TestRfpPipeline:
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
-		client.post(f"/api/v1/rfp/{rfp_id}/parse", headers=TENANT_HEADERS)
+		_seed_requirements(fake_session, rfp_id, "test-org")
 		matrix_resp = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
 			headers=TENANT_HEADERS,
@@ -595,7 +684,7 @@ class TestRfpPipeline:
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
-		client.post(f"/api/v1/rfp/{rfp_id}/parse", headers=TENANT_HEADERS)
+		_seed_requirements(fake_session, rfp_id, "test-org")
 		matrix_resp = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
 			headers=TENANT_HEADERS,
@@ -623,7 +712,7 @@ class TestRfpPipeline:
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
-		client.post(f"/api/v1/rfp/{rfp_id}/parse", headers=TENANT_HEADERS)
+		_seed_requirements(fake_session, rfp_id, "test-org")
 		matrix_resp = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
 			headers=TENANT_HEADERS,
@@ -649,7 +738,7 @@ class TestRfpPipeline:
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
-		client.post(f"/api/v1/rfp/{rfp_id}/parse", headers=TENANT_HEADERS)
+		_seed_requirements(fake_session, rfp_id, "test-org")
 		matrix_resp = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
 			headers=TENANT_HEADERS,
