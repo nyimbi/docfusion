@@ -95,6 +95,7 @@ dependencies = [
     "uuid7>=0.1.0",
     "simpleeval>=1.0.7",
     "cachetools>=6.2.5",
+    "temporalio>=1.5",                  # Temporal workflow/activity SDK (W3c async RFP parsing)
 ]
 
 # Optional dependency groups
