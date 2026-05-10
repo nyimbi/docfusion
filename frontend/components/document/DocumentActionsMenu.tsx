@@ -139,11 +139,20 @@ export function DocumentActionsMenu({
 				URL.revokeObjectURL(url);
 				toast.success("Exported as JSON");
 			} else if (format === "pdf" || format === "docx") {
-				// Server-side conversion via backend DocumentEngine
+				// Server-side conversion via backend DocumentEngine. When the
+				// editor is mounted, send its current HTML as content_override
+				// so the export reflects unsaved edits (Bug 1, A.2). When no
+				// editor is mounted (e.g. invoked from a document list), omit
+				// the field and the backend uses the persisted body. Tiptap
+				// returns "<p></p>" for an empty editor, never "", so the
+				// server's min_length=1 guard isn't reachable in practice.
 				const response = await fetch(`/api/v1/documents/${document.id}/render`, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ output_format: format }),
+					body: JSON.stringify({
+						output_format: format,
+						...(editor ? { content_override: editor.getHTML() } : {}),
+					}),
 				});
 				if (!response.ok) {
 					const errorText = await response.text().catch(() => "Unknown error");

@@ -150,6 +150,18 @@ class RenderRequest(BaseModel):
         None, description="Additional rendering metadata"
     )
 
+    content_override: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=2_000_000,
+        description=(
+            "Live editor content to render instead of the stored document body. "
+            "When present, takes precedence over the persisted content; title "
+            "and metadata still come from storage. Capped at ~2MB to bound "
+            "renderer work — typical proposal HTML is well under 200KB."
+        ),
+    )
+
 # ==================== RESPONSE MODELS ====================
 
 class DocumentResponse(BaseModel):

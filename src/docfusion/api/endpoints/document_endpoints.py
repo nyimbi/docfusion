@@ -489,12 +489,24 @@ class DocumentEndpoints:
 
             document = doc_result["document"]
 
+            # When the caller passes content_override (e.g. unsaved editor HTML
+            # from the document UI), render against the live content rather
+            # than the persisted body. Title and the body-embedded metadata
+            # always come from storage — the override stays narrowly scoped to
+            # body content. Render-level metadata (request.metadata) is still
+            # forwarded separately to generate_document below.
+            rendered_content = (
+                request.content_override
+                if request.content_override is not None
+                else document.get("content", "")
+            )
+
             # Generate document using document engine
             generation_result = await self.document_engine.generate_document(
                 template_id=request.template_id or "default",
                 content_data={
                     "title": document.get("title", ""),
-                    "content": document.get("content", ""),
+                    "content": rendered_content,
                     "metadata": document.get("metadata", {}),
                 },
                 user_id=user_id,
