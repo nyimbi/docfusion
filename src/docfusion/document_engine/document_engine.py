@@ -597,17 +597,24 @@ class DocumentEngine:
 				'build_successful': True,
 				'document_id': request.request_id,
 				'section_count': len(structure.sections) if hasattr(structure, 'sections') else len(blocks),
-				'structure_quality_score': 0.89,
+				# StructureBuilder does not yet compute its own quality score.
+				# None here — quality validation skips None contributors rather
+				# than averaging in a fabricated constant.
+				'structure_quality_score': None,
 				'structure': structure
 			})()
 		except Exception as e:
 			if self.logger:
 				self.logger.warning(f"StructureBuilder failed, using fallback result: {str(e)}")
+			# Honest fallback — report degraded execution so callers and the
+			# quality validation pass can detect it instead of pretending the
+			# downstream pipeline got a real structure.
 			return type('StructureResult', (), {
-				'build_successful': True,
+				'build_successful': False,
 				'document_id': request.request_id,
 				'section_count': len(request.content_sources),
-				'structure_quality_score': 0.75
+				'structure_quality_score': None,
+				'failure_reason': str(e),
 			})()
 	
 	async def _execute_cross_reference_management(
@@ -634,18 +641,28 @@ class DocumentEngine:
 				'processing_successful': True,
 				'document_id': request.request_id,
 				'total_references': getattr(graph, 'total_references', 0),
-				'resolution_success_rate': 1.0,
+				# CrossReferenceManager computes a real validation_score on the
+				# graph (1.0 when all references resolve, decremented by 0.1
+				# per error). Preserve it instead of overwriting with a
+				# placeholder.
+				'resolution_success_rate': getattr(graph, 'validation_score', None),
 				'graph': graph
 			})()
 		except Exception as e:
 			if self.logger:
 				self.logger.warning(f"CrossReferenceManager failed, using fallback: {str(e)}")
-		return type('CrossRefResult', (), {
-			'processing_successful': True,
-			'document_id': request.request_id,
-			'total_references': 0,
-			'resolution_success_rate': 1.0
-		})()
+			# Honest fallback — phase did not run to completion, so report
+			# degraded execution and let quality validation skip the score.
+			# Indented under except (rather than module-flow fall-through)
+			# to match the other five phases and so failure_reason captures
+			# the exception that triggered the fallback.
+			return type('CrossRefResult', (), {
+				'processing_successful': False,
+				'document_id': request.request_id,
+				'total_references': 0,
+				'resolution_success_rate': None,
+				'failure_reason': str(e),
+			})()
 	
 	async def _execute_document_formatting(
 		self,
@@ -671,12 +688,17 @@ class DocumentEngine:
 				}
 			)
 			formatting_result.formatting_successful = formatting_result.success
-			formatting_result.formatting_quality_score = 0.85
+			# DocumentFormatter does not yet emit a quality score of its own;
+			# None signals "no measurement" to the validation aggregator.
+			formatting_result.formatting_quality_score = None
 			return formatting_result
 		except Exception as e:
 			if self.logger:
 				self.logger.warning(f"DocumentFormatter failed, using fallback result: {str(e)}")
 
+			# Honest fallback — produce minimal placeholder content so the
+			# pipeline can still render *something*, but mark the phase as
+			# unsuccessful so quality validation surfaces the degradation.
 			formatted_content = {
 				"html": f"<h1>{request.generation_config.document_title or 'Generated Document'}</h1><p>Generated content</p>",
 				"text": f"{request.generation_config.document_title or 'Generated Document'}\n\nGenerated content",
@@ -684,11 +706,12 @@ class DocumentEngine:
 			}
 			result = FormattingResult(
 				document_id=request.request_id,
-				success=True,
-				formatted_content=formatted_content
+				success=False,
+				formatted_content=formatted_content,
 			)
-			result.formatting_successful = True
-			result.formatting_quality_score = 0.75
+			result.formatting_successful = False
+			result.formatting_quality_score = None
+			result.failure_reason = str(e)
 			return result
 	
 	async def _execute_brand_formatting(
@@ -710,20 +733,23 @@ class DocumentEngine:
 			)
 			if not brand_result.formatting_successful:
 				if self.logger:
-					self.logger.warning(f"BrandFormatter returned unsuccessful result, using fallback")
-				return BrandFormattingResult(
-					formatting_successful=True,
-					document_id=request.request_id,
-					brand_consistency_score=0.87
-				)
+					self.logger.warning(
+						f"BrandFormatter reported failure for request {request.request_id}; "
+						f"propagating the failure instead of masking it as success."
+					)
+				# Propagate the real failure rather than rewriting it as a
+				# successful 0.87 result. Downstream quality validation
+				# detects formatting_successful=False and warns.
 			return brand_result
 		except Exception as e:
 			if self.logger:
 				self.logger.warning(f"BrandFormatter failed, using fallback: {str(e)}")
+		# Honest fallback — quality validation skips brand_consistency_score
+		# when it is None and emits a phase-degraded warning.
 		return BrandFormattingResult(
-			formatting_successful=True,
+			formatting_successful=False,
 			document_id=request.request_id,
-			brand_consistency_score=0.87
+			brand_consistency_score=0.0,
 		)
 	
 	async def _execute_layout_management(
@@ -748,10 +774,11 @@ class DocumentEngine:
 		except Exception as e:
 			if self.logger:
 				self.logger.warning(f"LayoutManager failed, using fallback: {str(e)}")
+		# Honest fallback — let quality validation skip the score and warn.
 		return type('LayoutResult', (), {
-			'layout_successful': True,
+			'layout_successful': False,
 			'document_id': request.request_id,
-			'layout_quality_score': 0.75
+			'layout_quality_score': None,
 		})()
 	
 	async def _execute_style_application(
@@ -781,10 +808,11 @@ class DocumentEngine:
 		except Exception as e:
 			if self.logger:
 				self.logger.warning(f"StyleApplier failed, using fallback: {str(e)}")
+		# Honest fallback — let quality validation skip the score and warn.
 		return type('StyleApplicationResult', (), {
-			'application_successful': True,
+			'application_successful': False,
 			'document_id': request.request_id,
-			'style_quality_score': 0.75
+			'style_quality_score': None,
 		})()
 	
 	async def _execute_multi_format_rendering(
@@ -1082,36 +1110,104 @@ class DocumentEngine:
 		request: DocumentGenerationRequest,
 		result: DocumentGenerationResult
 	):
-		"""Execute quality validation and finalization"""
-		# Calculate overall quality score
-		quality_scores = []
-		
-		# Safely extract quality scores from results using getattr with defaults
-		if result.assembly_result:
-			quality_scores.append(getattr(result.assembly_result, 'performance_score', 
-										  getattr(result.assembly_result, 'quality_score', 0.8)))
-		if result.structure_result:
-			if isinstance(result.structure_result, dict):
-				quality_scores.append(result.structure_result.get("structure_quality_score", 0.8))
+		"""Execute quality validation and finalization
+
+		Aggregates only honest signal: phases that ran successfully *and*
+		emitted a real quality score contribute. Phases that fell back, or
+		that don't yet compute a score, are skipped and surfaced as
+		degradation warnings — averaging a placeholder in would smear over
+		real failures and produce a falsely-rosy overall_quality_score.
+		"""
+		quality_scores: list[float] = []
+		degraded_phases: list[str] = []
+
+		def _contribute(phase_label: str, container: Any, score_attr: str, success_attrs: tuple[str, ...]) -> None:
+			"""Append the phase's score iff it succeeded and produced a real number.
+
+			- success_attrs: candidate boolean attributes; the first one
+			  that exists on the container is consulted.
+			- score_attr: the float field; None or non-numeric → skip.
+
+			A container that exposes none of the expected success flags
+			is treated as unmeasured (skipped entirely). The previous
+			behaviour of defaulting to "succeeded=True" let malformed
+			test doubles or future result shapes silently contribute a
+			score, which is exactly the fictional-confidence regression
+			this pass exists to prevent.
+			"""
+			if container is None:
+				return
+			succeeded = None
+			for flag in success_attrs:
+				if isinstance(container, dict):
+					if flag in container:
+						succeeded = bool(container.get(flag))
+						break
+				elif hasattr(container, flag):
+					succeeded = bool(getattr(container, flag))
+					break
+			if succeeded is None:
+				# No success signal — refuse to guess. Logged at debug
+				# rather than warning so test fixtures with minimal
+				# containers don't spam noise.
+				if self.logger:
+					self.logger.debug(
+						f"Phase {phase_label} container exposes none of "
+						f"{success_attrs}; skipping score contribution."
+					)
+				return
+			if not succeeded:
+				degraded_phases.append(phase_label)
+				return
+			# Resolve score — None or anything non-numeric is treated as
+			# "no measurement" rather than zero. Note that 0.0 IS a real
+			# score (perfect failure) and contributes.
+			if isinstance(container, dict):
+				score = container.get(score_attr)
 			else:
-				quality_scores.append(getattr(result.structure_result, 'structure_quality_score', 0.8))
-		if result.formatting_result:
-			# FormattingResult doesn't have formatting_quality_score, use success as indicator
-			formatting_score = 0.9 if getattr(result.formatting_result, 'success', True) else 0.5
-			quality_scores.append(formatting_score)
-		if result.brand_result:
-			quality_scores.append(getattr(result.brand_result, 'brand_consistency_score', 0.8))
-		if result.layout_result:
-			quality_scores.append(getattr(result.layout_result, 'layout_quality_score', 0.8))
-		if result.style_result:
-			quality_scores.append(getattr(result.style_result, 'style_quality_score', 0.8))
-		
-		# Add format quality scores
-		quality_scores.extend(result.format_quality_scores.values())
-		
+				score = getattr(container, score_attr, None)
+			if isinstance(score, (int, float)):
+				quality_scores.append(float(score))
+
+		# Assembly is upstream of the six audited phases; keep its dual-attr
+		# fallback for compatibility with the existing ContentAssembler shape.
+		if result.assembly_result is not None:
+			assembly_score = getattr(result.assembly_result, 'performance_score', None)
+			if assembly_score is None:
+				assembly_score = getattr(result.assembly_result, 'quality_score', None)
+			if isinstance(assembly_score, (int, float)):
+				quality_scores.append(float(assembly_score))
+
+		_contribute('structure_building', result.structure_result,
+				'structure_quality_score', ('build_successful',))
+		_contribute('cross_reference_management', result.cross_ref_result,
+				'resolution_success_rate', ('processing_successful',))
+		_contribute('document_formatting', result.formatting_result,
+				'formatting_quality_score', ('formatting_successful', 'success'))
+		_contribute('brand_formatting', result.brand_result,
+				'brand_consistency_score', ('formatting_successful',))
+		_contribute('layout_management', result.layout_result,
+				'layout_quality_score', ('layout_successful',))
+		_contribute('style_application', result.style_result,
+				'style_quality_score', ('application_successful',))
+
+		# Render-format scores are computed elsewhere and known to be real.
+		quality_scores.extend(
+			s for s in result.format_quality_scores.values()
+			if isinstance(s, (int, float))
+		)
+
 		if quality_scores:
 			result.overall_quality_score = sum(quality_scores) / len(quality_scores)
-		
+
+		# Surface every degraded phase explicitly so operators don't have to
+		# infer it from a slightly-lower overall score. This is the signal
+		# the audit's "graceful fallback" framing previously suppressed.
+		if degraded_phases:
+			result.warnings.append(
+				"Degraded phases: " + ", ".join(sorted(set(degraded_phases)))
+			)
+
 		# Validate against minimum quality requirements
 		min_quality = request.generation_config.minimum_quality_score
 		if result.overall_quality_score < min_quality:
@@ -1119,7 +1215,7 @@ class DocumentEngine:
 				f"Overall quality score ({result.overall_quality_score:.2f}) "
 				f"below minimum threshold ({min_quality:.2f})"
 			)
-		
+
 		# Generate recommendations
 		if result.overall_quality_score < 0.9:
 			result.recommendations.append("Consider reviewing content quality and formatting")
