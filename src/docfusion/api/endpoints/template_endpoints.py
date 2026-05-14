@@ -21,7 +21,6 @@ from ...document_engine.secure_document_engine import SecureDocumentEngine
 from ...security import SecurityManager
 from ...storage.secure_storage_service import SecureStorageService
 from ..middleware.authentication_middleware import get_api_key_user, get_current_user
-from ...composition.runner import CompositionRunner
 from ...core.utils import uuid7str
 from ..serializers.template_serializers import (
     TemplateCreateRequest,
@@ -47,7 +46,6 @@ class TemplateEndpoints:
         self.document_engine = document_engine
         self.security = security_manager
         self.logger = logging.getLogger(__name__)
-        self.composition_runner = CompositionRunner()
 
         # Create FastAPI router
         self.router = APIRouter(prefix="/api/v1/templates", tags=["templates"])
@@ -569,8 +567,10 @@ class TemplateEndpoints:
             for key, value in request.variables.items():
                 populated_content = populated_content.replace(f"{{{key}}}", str(value))
 
-            # Generate document through composition runner if complex workflow,
-            # otherwise use direct document engine
+            # All template populations route through the DocumentEngine
+            # directly. A composition-runner branch is reserved for future
+            # multi-agent workflows once that subsystem is promoted out of
+            # docfusion.experimental.
             document_id = uuid7str()
             generation_result = await self.document_engine.generate_document(
                 template_id=template_id,

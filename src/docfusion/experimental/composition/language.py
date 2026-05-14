@@ -17,7 +17,7 @@ from enum import Enum
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field, ConfigDict
-from ..core.utils import uuid7str
+from ...core.utils import uuid7str
 
 class CompositionLanguage:
 	"""

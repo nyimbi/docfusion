@@ -22,7 +22,7 @@ ALLOWED_FILES = {
 	"src/docfusion/agents/communication/channels.py",   # task-015
 	"src/docfusion/agents/core/agent.py",               # task-014
 	"src/docfusion/api/health/health_checks.py",        # task-025
-	"src/docfusion/composition/interpreter.py",         # task-022
+	"src/docfusion/experimental/composition/interpreter.py",         # task-022
 	"src/docfusion/document_engine/formatter/style_applier.py",  # task-024
 	"src/docfusion/visualization/renderers/svg_renderer.py",     # task-023
 	"src/docfusion/workflow/integration/agents_workflow_integration.py",  # task-016

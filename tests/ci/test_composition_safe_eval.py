@@ -23,11 +23,11 @@ simpleeval = pytest.importorskip("simpleeval", reason="simpleeval not installed"
 def _load_runner_module():
 	"""Load the runner module, handling import chain issues."""
 	try:
-		from docfusion.composition.runner import CompositionRunner, ExecutionContext
+		from docfusion.experimental.composition.runner import CompositionRunner, ExecutionContext
 		return CompositionRunner, ExecutionContext
 	except (ImportError, AttributeError) as exc:
 		# Attempt direct file load if package init chain is broken
-		module_path = __import__("pathlib").Path(__file__).parent.parent.parent / "src" / "docfusion" / "composition" / "runner.py"
+		module_path = __import__("pathlib").Path(__file__).parent.parent.parent / "src" / "docfusion" / "experimental" / "composition" / "runner.py"
 		if not module_path.exists():
 			pytest.skip(f"Runner module not found at {module_path}")
 		pytest.skip(f"Cannot import runner due to dependency chain: {exc}")
