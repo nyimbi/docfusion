@@ -749,7 +749,6 @@ class DocumentEngine:
 		return BrandFormattingResult(
 			formatting_successful=False,
 			document_id=request.request_id,
-			brand_consistency_score=0.0,
 		)
 	
 	async def _execute_layout_management(

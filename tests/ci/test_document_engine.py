@@ -240,16 +240,6 @@ class TestDocumentEngine:
 		assert result.accessibility_result is not None
 		assert result.accessibility_score >= 0.0
 	
-	@pytest.mark.xfail(
-		strict=True,
-		reason=(
-			"BrandFormatter asserts a 'primary' logo variant exists "
-			"(brand_formatter.py:570) even when the brand_specification "
-			"omits a logo. The orchestrator's honesty pass surfaces the "
-			"failure instead of masking it as True. Resolve by relaxing "
-			"the no-logo path in BrandFormatter, then remove this xfail."
-		),
-	)
 	async def test_generate_document_with_brand_compliance(self, document_engine, sample_generation_request):
 		"""Test document generation with brand compliance"""
 		sample_generation_request.generation_config.enable_brand_compliance = True
@@ -763,16 +753,6 @@ class TestDocumentEngineIntegration:
 		assert result.accessibility_result is not None
 		assert result.accessibility_score > 0.0
 	
-	@pytest.mark.xfail(
-		strict=True,
-		reason=(
-			"Same BrandFormatter no-logo assertion as "
-			"test_generate_document_with_brand_compliance — see "
-			"brand_formatter.py:570. Remove xfail when the formatter "
-			"stops requiring a 'primary' logo variant on brand specs "
-			"that don't include one."
-		),
-	)
 	async def test_brand_focused_workflow(self):
 		"""Test brand-focused document generation workflow"""
 		config = DocumentGenerationConfiguration(

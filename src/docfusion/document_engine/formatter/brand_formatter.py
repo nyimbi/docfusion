@@ -22,6 +22,7 @@ import base64
 import re
 import mimetypes
 from dataclasses import dataclass, field
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -30,6 +31,8 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, ConfigDict, AfterValidator
 from pydantic.dataclasses import dataclass as pydantic_dataclass, rebuild_dataclass
 from ...core.utils import uuid7str
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Exception Classes
@@ -491,10 +494,14 @@ class BrandFormattingResult:
 	template_customizations: dict[str, Any] = Field(default_factory=dict)
 	auto_corrections_applied: list[dict[str, Any]] = Field(default_factory=list)
 	
-	# Quality metrics
-	formatting_quality_score: float = 0.0
-	brand_consistency_score: float = 0.0
-	accessibility_compliance_score: float = 0.0
+	# Quality metrics. Optional so "no measurement yet" can be expressed
+	# directly — the document_engine quality aggregator skips None
+	# contributors rather than averaging them in as 0.0. The successful
+	# code path inside apply_brand_formatting still sets concrete floats
+	# via _calculate_formatting_quality and brand_compliance_report.
+	formatting_quality_score: Optional[float] = None
+	brand_consistency_score: Optional[float] = None
+	accessibility_compliance_score: Optional[float] = None
 	
 	# Format outputs
 	latex_brand_output: str = ""
@@ -1613,30 +1620,46 @@ class BrandFormatter:
 		brand_template: dict[str, Any],
 		formatting_context: dict[str, Any]
 	) -> list[LogoPlacement]:
-		"""Apply logo placements based on template and context"""
+		"""Apply logo placements based on template and context.
+
+		A brand template may declare placement intents (``primary_placement``,
+		``secondary_placement``) regardless of whether the caller's
+		``brand_specification`` actually ships logo assets. When the
+		corresponding logo variant is missing from the asset library we
+		skip the placement and log it, instead of letting LogoManager's
+		assertion abort the whole brand-formatting phase.
+
+		The caller still sees ``BrandFormattingResult.logo_placements``
+		shrink to only the placements we could actually produce. The
+		quality aggregator already weights compliance and classification
+		alongside logo quality, so skipping a logo gracefully degrades the
+		score rather than failing the phase outright.
+		"""
 		placements = []
-		
-		# Get logo configuration from template
+		available_variants = self.logo_manager.asset_library.logo_variants
+
 		logo_config = brand_template.get('logo_configuration', {})
-		
-		# Primary logo placement
+
+		def _place_if_available(variant_name: str, placement_context: str) -> None:
+			if variant_name not in available_variants:
+				logger.info(
+					f"Skipping {placement_context} logo placement: "
+					f"variant '{variant_name}' not configured in asset_library."
+				)
+				return
+			placement = self.logo_manager.place_logo(
+				variant_name,
+				placement_context,
+				formatting_context.get('layout_constraints', {})
+			)
+			placements.append(placement)
+
 		if 'primary_placement' in logo_config:
-			primary_placement = self.logo_manager.place_logo(
-				'primary',
-				logo_config['primary_placement'],
-				formatting_context.get('layout_constraints', {})
-			)
-			placements.append(primary_placement)
-		
-		# Secondary logo placement
+			_place_if_available('primary', logo_config['primary_placement'])
+
 		if 'secondary_placement' in logo_config:
-			secondary_placement = self.logo_manager.place_logo(
-				'icon',
-				logo_config['secondary_placement'],
-				formatting_context.get('layout_constraints', {})
-			)
-			placements.append(secondary_placement)
-		
+			_place_if_available('icon', logo_config['secondary_placement'])
+
 		return placements
 	
 	def _generate_brand_outputs(
