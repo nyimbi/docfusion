@@ -19,7 +19,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .language import CompositionLanguage
-from ..core.utils import uuid7str
+from ...core.utils import uuid7str
 
 class OperatorType(Enum):
     """Operator types for composition language"""

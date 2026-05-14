@@ -14,7 +14,7 @@ priority: medium
 
 ## Description (the why)
 
-`src/docfusion/composition/interpreter.py:435` raises `NotImplementedError` on `_merge_sequential_nodes` — an AST optimization that merges adjacent same-type nodes (e.g. two consecutive text runs). Without it, compositions produce a fragmented AST that bloats memory and rendering time.
+`src/docfusion/experimental/composition/interpreter.py:435` raises `NotImplementedError` on `_merge_sequential_nodes` — an AST optimization that merges adjacent same-type nodes (e.g. two consecutive text runs). Without it, compositions produce a fragmented AST that bloats memory and rendering time.
 
 ## Acceptance Criteria (the what)
 
@@ -28,7 +28,7 @@ priority: medium
 
 **Step 1: Read the context.**
 ```bash
-grep -n "_merge_sequential_nodes\|class.*Interpreter\|Node\b" src/docfusion/composition/interpreter.py | head -30
+grep -n "_merge_sequential_nodes\|class.*Interpreter\|Node\b" src/docfusion/experimental/composition/interpreter.py | head -30
 ```
 
 Find the `Node` class (may be in `parser.py` or `ast.py`). Note what fields it has — `type`, `content`, `attrs`, `children`, etc.
@@ -132,10 +132,10 @@ def test_incompatible_attrs_prevent_merge():
 **Step 5: Verify + commit.**
 ```bash
 uv run pytest tests/ci/test_interpreter_merge.py -vxs
-grep -n "NotImplementedError" src/docfusion/composition/interpreter.py
+grep -n "NotImplementedError" src/docfusion/experimental/composition/interpreter.py
 # Must be 0 lines.
 
-git add src/docfusion/composition/interpreter.py tests/ci/test_interpreter_merge.py
+git add src/docfusion/experimental/composition/interpreter.py tests/ci/test_interpreter_merge.py
 git commit -m "feat(composition): implement _merge_sequential_nodes [G-CP-01]"
 ```
 

@@ -11,14 +11,14 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 from typing import Dict, Any
 
-from docfusion.composition.runner import (
+from docfusion.experimental.composition.runner import (
 	CompositionRunner, 
 	ExecutionStatus, 
 	NodeExecutionResult,
 	CompositionRunnerError,
 	ExecutionContext
 )
-from docfusion.composition.interpreter import (
+from docfusion.experimental.composition.interpreter import (
 	ExecutionNode, 
 	NodeType,
 	InterpretedComposition

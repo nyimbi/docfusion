@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from docfusion.composition.interpreter import (
+from docfusion.experimental.composition.interpreter import (
 	CompositionInterpreter,
 	ExecutionGraph,
 	ExecutionMode,

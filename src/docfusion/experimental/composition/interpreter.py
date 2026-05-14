@@ -18,7 +18,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 
 from .parser import ParsedComposition, ParsedFlow, ParsedExpression, OperatorType
-from ..core.utils import uuid7str
+from ...core.utils import uuid7str
 
 class ExecutionMode(Enum):
 	"""Execution modes for workflow interpretation"""

@@ -20,7 +20,7 @@ import os
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from docfusion.composition import (
+from docfusion.experimental.composition import (
 	CompositionLanguage,
 	CompositionParser,
 	CompositionInterpreter,

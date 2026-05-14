@@ -23,7 +23,7 @@ from simpleeval import simple_eval, InvalidExpression, NameNotDefined, FunctionN
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..core.utils import uuid7str
+from ...core.utils import uuid7str
 from .interpreter import (
     ExecutionGraph,
     ExecutionMode,
