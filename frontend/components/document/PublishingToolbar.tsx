@@ -52,7 +52,7 @@ import {
   type Watermark,
   type WatermarkPreset,
 } from "@/lib/hdsi/publishing";
-import { useExport, exportToHTML, type ExportFormat } from "@/lib/hdsi/export";
+import { useExport, exportToHTML, exportToPDF, type ExportFormat } from "@/lib/hdsi/export";
 import {
   MAX_RENDER_CONTENT_BYTES,
   describeRenderError,
@@ -603,7 +603,20 @@ export function PublishingToolbar(props: PublishingToolbarProps) {
             Plain Text (.txt)
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => window.print()}>
+          <DropdownMenuItem
+            onClick={() => {
+              // Open the document in a new window with print-optimized
+              // HTML and trigger the browser's print dialog there. Using
+              // window.print() on the host page would print the entire
+              // app chrome (sidebars, toolbars, etc.) — exportToPDF
+              // renders only the HDSI content with the publishing
+              // settings applied (TOC, page layout, watermarks).
+              exportToPDF(nodes, documentTitle, {
+                pageLayout: publishing.pageLayout,
+                watermarks: publishing.watermarks,
+              });
+            }}
+          >
             <Printer className="h-4 w-4 mr-2" />
             Print
           </DropdownMenuItem>
