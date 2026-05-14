@@ -304,16 +304,6 @@ class TestComponentIntegration:
 			assert isinstance(unified_content, dict)
 			assert "title" in unified_content
 	
-	@pytest.mark.xfail(
-		strict=True,
-		reason=(
-			"BrandFormatter asserts a 'primary' logo variant exists "
-			"(brand_formatter.py:570) even when the brand_specification "
-			"omits a logo. The orchestrator's honesty pass surfaces the "
-			"failure instead of masking it as True. Resolve by relaxing "
-			"the no-logo path in BrandFormatter, then remove this xfail."
-		),
-	)
 	async def test_brand_and_style_integration(
 		self,
 		document_engine,
