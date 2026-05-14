@@ -271,9 +271,6 @@ output-format = "grouped"
 # Show fixes in output
 show-fixes = true
 
-# Show source code in output
-show-source = true
-
 # Respect gitignore
 respect-gitignore = true
 
