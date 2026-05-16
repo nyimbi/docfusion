@@ -688,9 +688,15 @@ class DocumentEngine:
 				}
 			)
 			formatting_result.formatting_successful = formatting_result.success
-			# DocumentFormatter does not yet emit a quality score of its own;
-			# None signals "no measurement" to the validation aggregator.
-			formatting_result.formatting_quality_score = None
+			# DocumentFormatter populates style_coverage as the fraction of
+			# content elements that received computed styles — this is a
+			# real measurement, so route it through as the quality score on
+			# the success path. None on failure so the aggregator skips it
+			# rather than averaging in a fabricated number.
+			if formatting_result.success:
+				formatting_result.formatting_quality_score = formatting_result.style_coverage
+			else:
+				formatting_result.formatting_quality_score = None
 			return formatting_result
 		except Exception as e:
 			if self.logger:
