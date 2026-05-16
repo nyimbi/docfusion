@@ -150,19 +150,40 @@ class _DocFormatterRaiser:
 
 
 class _DocFormatterSucceeder:
+	def __init__(self, style_coverage: float = 0.92) -> None:
+		self._style_coverage = style_coverage
+
 	async def format_document(self, **_: Any) -> FormattingResult:
 		fr = FormattingResult(document_id="r", success=True)
 		fr.formatted_content = {"html": "<p>ok</p>"}
+		fr.style_coverage = self._style_coverage
 		return fr
 
 
 class TestDocumentFormattingFallback:
-	async def test_happy_path_omits_hardcoded_score(self):
-		engine = _make_engine(document_formatter=_DocFormatterSucceeder())
+	async def test_happy_path_uses_real_style_coverage_as_quality(self):
+		"""B.fix.4: the orchestrator now routes DocumentFormatter's real
+		style_coverage measurement (fraction of content elements with
+		computed styles) as the phase quality score. No fabricated
+		constant; no None placeholder. style_coverage is the only signal
+		the component actually computes today, so use that directly."""
+		engine = _make_engine(
+			document_formatter=_DocFormatterSucceeder(style_coverage=0.92)
+		)
 		result = await engine._execute_document_formatting(_make_request(), None)
 		assert getattr(result, "formatting_successful") is True
-		# B.fix.2: was 0.85 — None signals "no measurement yet".
-		assert getattr(result, "formatting_quality_score") is None
+		assert getattr(result, "formatting_quality_score") == 0.92
+
+	async def test_happy_path_zero_coverage_propagates(self):
+		"""A successful run with zero coverage still propagates the 0.0 —
+		that's a real low score, not a missing measurement. The aggregator
+		will average it in, which is the right signal: nothing was styled."""
+		engine = _make_engine(
+			document_formatter=_DocFormatterSucceeder(style_coverage=0.0)
+		)
+		result = await engine._execute_document_formatting(_make_request(), None)
+		assert getattr(result, "formatting_successful") is True
+		assert getattr(result, "formatting_quality_score") == 0.0
 
 	async def test_fallback_marks_failure_and_carries_reason(self):
 		engine = _make_engine(document_formatter=_DocFormatterRaiser())
