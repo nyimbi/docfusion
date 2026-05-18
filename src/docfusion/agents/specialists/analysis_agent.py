@@ -1,16 +1,10 @@
-import asyncio
-import logging
-from typing import Any, Dict, List, Optional, Set, Union
-from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
-import statistics
-from ..core.agent import Agent, AgentConfig, AgentCapabilities, AgentState
-from ..core.roles import AgentRole, get_role_definition
+from ..core.agent import Agent, AgentConfig, AgentCapabilities
 from ..core.messages import AgentMessage, MessageType, MessageTemplates
 from ...intelligence.service import IntelligenceService
 from ...intelligence.analyzers.market_analyzer import MarketAnalyzer
 from ...intelligence.analyzers.financial_analyzer import FinancialAnalyzer
-import re
 """
 Analysis Agent
 
@@ -86,8 +80,6 @@ class AnalysisAgent(Agent[AnalysisTask]):
 	
 	def _create_default_config(self) -> AgentConfig:
 		"""Create default configuration for analysis agent"""
-		role_def = get_role_definition(AgentRole.ANALYST)
-		
 		return AgentConfig(
 			name="Data Analyst",
 			description="Data analysis and intelligence processing specialist",
@@ -175,6 +167,27 @@ class AnalysisAgent(Agent[AnalysisTask]):
 			region=task.analysis_parameters.get("region", "global"),
 			timeframe=task.analysis_parameters.get("timeframe", "current")
 		)
+
+		if market_data.get("status") == "unavailable":
+			return AnalysisResult(
+				task_id=task.task_id,
+				analysis_type=task.analysis_type,
+				insights={
+					"status": "unavailable",
+					"market_size": {},
+					"growth_trends": [],
+					"key_players": [],
+					"opportunities": []
+				},
+				recommendations=[
+					"Connect a real market intelligence analyzer before relying on market conclusions"
+				],
+				confidence_score=0.0,
+				data_quality_score=0.0,
+				visualizations=[],
+				executive_summary="Market analysis unavailable; no market conclusions generated",
+				detailed_findings=market_data
+			)
 		
 		insights = {
 			"market_size": market_data.get("market_size", {}),
@@ -207,6 +220,27 @@ class AnalysisAgent(Agent[AnalysisTask]):
 		financial_data = await self.financial_analyzer.analyze_financial_viability(
 			project_data=task.analysis_parameters
 		)
+
+		if financial_data.get("status") == "unavailable":
+			return AnalysisResult(
+				task_id=task.task_id,
+				analysis_type=task.analysis_type,
+				insights={
+					"status": "unavailable",
+					"roi_projection": {},
+					"cost_analysis": {},
+					"revenue_projections": {},
+					"risk_factors": []
+				},
+				recommendations=[
+					"Connect a real financial analyzer before relying on financial conclusions"
+				],
+				confidence_score=0.0,
+				data_quality_score=0.0,
+				visualizations=[],
+				executive_summary="Financial analysis unavailable; no financial conclusions generated",
+				detailed_findings=financial_data
+			)
 		
 		insights = {
 			"roi_projection": financial_data.get("roi", {}),
