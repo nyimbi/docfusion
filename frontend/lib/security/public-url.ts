@@ -14,6 +14,7 @@ interface PublicHttpRequestInit {
 	headers?: HeadersInit;
 	method?: string;
 	body?: string | Buffer | Uint8Array;
+	maxRedirects?: number;
 	signal?: AbortSignal;
 	timeoutMs?: number;
 }
@@ -44,7 +45,35 @@ export async function fetchPublicHttpUrl(
 	init: PublicHttpRequestInit = {},
 	label = "URL",
 ): Promise<Response> {
+	const maxRedirects = init.maxRedirects ?? getDefaultMaxRedirects(init);
+
+	return fetchPublicHttpUrlWithRedirects(rawUrl, init, label, maxRedirects);
+}
+
+async function fetchPublicHttpUrlWithRedirects(
+	rawUrl: string | URL,
+	init: PublicHttpRequestInit,
+	label: string,
+	redirectsRemaining: number,
+): Promise<Response> {
 	const url = await assertPublicHttpUrl(rawUrl.toString(), label);
+	const response = await requestPublicHttpUrl(url, init, label);
+	const location = response.headers.get("location");
+
+	if (location && redirectsRemaining > 0 && isRedirectStatus(response.status)) {
+		const redirectUrl = new URL(location, url);
+		const redirectInit = buildRedirectInit(init, url, redirectUrl, response.status);
+		return fetchPublicHttpUrlWithRedirects(redirectUrl, redirectInit, label, redirectsRemaining - 1);
+	}
+
+	return response;
+}
+
+async function requestPublicHttpUrl(
+	url: URL,
+	init: PublicHttpRequestInit,
+	label: string,
+): Promise<Response> {
 	const lookup = await createPinnedPublicLookup(url, label);
 	const requester = url.protocol === "https:" ? httpsRequest : httpRequest;
 	const headers = new Headers(init.headers);
@@ -183,6 +212,44 @@ async function resolveHostAddresses(
 
 function normalizeHostname(hostname: string): string {
 	return hostname.replace(/^\[/, "").replace(/\]$/, "").replace(/\.$/, "").toLowerCase();
+}
+
+function getDefaultMaxRedirects(init: PublicHttpRequestInit): number {
+	const method = (init.method ?? "GET").toUpperCase();
+	return method === "GET" || method === "HEAD" ? 5 : 0;
+}
+
+function isRedirectStatus(status: number): boolean {
+	return status >= 300 && status < 400;
+}
+
+function buildRedirectInit(
+	init: PublicHttpRequestInit,
+	sourceUrl: URL,
+	redirectUrl: URL,
+	status: number,
+): PublicHttpRequestInit {
+	const headers = new Headers(init.headers);
+	let method = init.method;
+	let body = init.body;
+
+	if (sourceUrl.origin !== redirectUrl.origin) {
+		headers.delete("authorization");
+		headers.delete("cookie");
+		headers.delete("proxy-authorization");
+	}
+	if (status === 303 && method && method.toUpperCase() !== "GET" && method.toUpperCase() !== "HEAD") {
+		method = "GET";
+		body = undefined;
+		headers.delete("content-length");
+	}
+
+	return {
+		...init,
+		body,
+		headers,
+		method,
+	};
 }
 
 function getBodyByteLength(body: string | Buffer | Uint8Array): number {

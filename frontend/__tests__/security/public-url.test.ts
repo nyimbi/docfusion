@@ -153,4 +153,85 @@ describe("public URL validation", () => {
 		const request = httpRequestMock.mock.results[0].value;
 		expect(request.setTimeout).toHaveBeenCalledWith(15_000, expect.any(Function));
 	});
+
+	it("follows redirects only after revalidating and repinning the next URL", async () => {
+		lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+		httpRequestMock.mockImplementation((_url, _options, callback) =>
+			createMockRequest(callback, {
+				headers: { location: "https://cdn.example/final.pdf" },
+				statusCode: 302,
+				statusMessage: "Found",
+			})
+		);
+		httpsRequestMock.mockImplementation((_url, _options, callback) =>
+			createMockRequest(callback, {
+				body: "final-body",
+				headers: { "content-type": "application/pdf" },
+				statusCode: 200,
+				statusMessage: "OK",
+			})
+		);
+
+		const response = await fetchPublicHttpUrl("http://example.com/start.pdf");
+
+		expect(response.status).toBe(200);
+		await expect(response.text()).resolves.toBe("final-body");
+		expect(httpRequestMock).toHaveBeenCalledTimes(1);
+		expect(httpsRequestMock).toHaveBeenCalledTimes(1);
+		expect(lookupMock).toHaveBeenCalledTimes(4);
+	});
+
+	it("rejects redirects to non-public targets", async () => {
+		lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+		httpRequestMock.mockImplementation((_url, _options, callback) =>
+			createMockRequest(callback, {
+				headers: { location: "http://127.0.0.1/admin" },
+				statusCode: 302,
+				statusMessage: "Found",
+			})
+		);
+
+		await expect(fetchPublicHttpUrl("http://example.com/start")).rejects.toBeInstanceOf(UnsafePublicUrlError);
+		expect(httpRequestMock).toHaveBeenCalledTimes(1);
+		expect(httpsRequestMock).not.toHaveBeenCalled();
+	});
 });
+
+function createMockRequest(
+	callback: (response: EventEmitter) => void,
+	responseInit: {
+		body?: string;
+		headers?: Record<string, string>;
+		statusCode: number;
+		statusMessage: string;
+	},
+) {
+	const response = new EventEmitter() as EventEmitter & {
+		headers: Record<string, string>;
+		statusCode: number;
+		statusMessage: string;
+	};
+	response.headers = responseInit.headers ?? {};
+	response.statusCode = responseInit.statusCode;
+	response.statusMessage = responseInit.statusMessage;
+
+	const request = new EventEmitter() as EventEmitter & {
+		destroy: ReturnType<typeof vi.fn>;
+		end: ReturnType<typeof vi.fn>;
+		setTimeout: ReturnType<typeof vi.fn>;
+		write: ReturnType<typeof vi.fn>;
+	};
+	request.destroy = vi.fn((error?: Error) => {
+		if (error) request.emit("error", error);
+	});
+	request.setTimeout = vi.fn();
+	request.write = vi.fn();
+	request.end = vi.fn(() => {
+		callback(response);
+		if (responseInit.body) {
+			response.emit("data", Buffer.from(responseInit.body));
+		}
+		response.emit("end");
+	});
+	return request;
+}
