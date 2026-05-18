@@ -10,23 +10,22 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass, field
-from datetime import datetime
 
 # Import all NLP components
 from .nlp_service import NLPService, NLPServiceConfiguration, NLPAnalysisResult
 
 # Import analyzers
-from .analyzers.style_analyzer import StyleAnalyzer, create_style_analyzer
-from .analyzers.semantic_analyzer import SemanticAnalyzer, create_semantic_analyzer
-from .analyzers.coherence_analyzer import CoherenceAnalyzer, create_coherence_analyzer
-from .analyzers.readability_analyzer import ReadabilityAnalyzer, create_readability_analyzer
-from .analyzers.causal_analyzer import CausalAnalyzer, create_causal_analyzer
+from .analyzers.style_analyzer import create_style_analyzer
+from .analyzers.semantic_analyzer import create_semantic_analyzer
+from .analyzers.coherence_analyzer import create_coherence_analyzer
+from .analyzers.readability_analyzer import create_readability_analyzer
+from .analyzers.causal_analyzer import create_causal_analyzer
 
 # Import transformers
-from .transformers.content_generator import ContentGenerator, create_content_generator
-from .transformers.style_transformer import StyleTransformer, create_style_transformer
-from .transformers.document_summarizer import DocumentSummarizer, create_document_summarizer
-from .transformers.content_optimizer import ContentOptimizer, create_content_optimizer
+from .transformers.content_generator import create_content_generator
+from .transformers.style_transformer import create_style_transformer
+from .transformers.document_summarizer import create_document_summarizer
+from .transformers.content_optimizer import create_content_optimizer
 from ..core.utils import uuid7str
 import time
 
@@ -443,7 +442,6 @@ class EnhancedNLPService:
 		try:
 			# Content optimization (if enabled and needed)
 			if self.content_optimizer and self._should_optimize_content(result):
-				from .transformers.content_optimizer import OptimizationType
 				
 				optimization_types = self._determine_optimization_types(result)
 				if optimization_types:

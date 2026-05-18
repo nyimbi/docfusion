@@ -13,40 +13,35 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 # Import all NLP processors and extractors
-from .analyzers.causal_analyzer import CausalAnalyzer, create_causal_analyzer
-from .analyzers.coherence_analyzer import CoherenceAnalyzer, create_coherence_analyzer
+from .analyzers.causal_analyzer import create_causal_analyzer
+from .analyzers.coherence_analyzer import create_coherence_analyzer
 from .analyzers.readability_analyzer import (
-    ReadabilityAnalyzer,
     create_readability_analyzer,
 )
-from .analyzers.semantic_analyzer import SemanticAnalyzer, create_semantic_analyzer
+from .analyzers.semantic_analyzer import create_semantic_analyzer
 
 # Import enhanced analyzers and transformers
-from .analyzers.style_analyzer import StyleAnalyzer, create_style_analyzer
-from .extractors.deadline_extractor import DeadlineExtractor, create_deadline_extractor
-from .extractors.entity_extractor import EntityExtractor, create_entity_extractor
+from .analyzers.style_analyzer import create_style_analyzer
+from .extractors.deadline_extractor import create_deadline_extractor
+from .extractors.entity_extractor import create_entity_extractor
 from .extractors.relationship_extractor import (
-    RelationshipExtractor,
     create_relationship_extractor,
 )
 from .extractors.requirement_extractor import (
-    RequirementExtractor,
     create_requirement_extractor,
 )
-from .processors.document_processor import DocumentProcessor, create_document_processor
-from .processors.document_tokenizer import DocumentTokenizer, create_document_tokenizer
+from .processors.document_processor import create_document_processor
+from .processors.document_tokenizer import create_document_tokenizer
 from .processors.structure_recognizer import (
-    StructureRecognizer,
     create_structure_recognizer,
 )
-from .processors.text_cleaner import OllamaTextCleaner, create_text_cleaner
-from .transformers.content_generator import ContentGenerator, create_content_generator
-from .transformers.content_optimizer import ContentOptimizer, create_content_optimizer
+from .processors.text_cleaner import create_text_cleaner
+from .transformers.content_generator import create_content_generator
+from .transformers.content_optimizer import create_content_optimizer
 from .transformers.document_summarizer import (
-    DocumentSummarizer,
     create_document_summarizer,
 )
-from .transformers.style_transformer import StyleTransformer, create_style_transformer
+from .transformers.style_transformer import create_style_transformer
 from ..core.utils import uuid7str
 import time
 
