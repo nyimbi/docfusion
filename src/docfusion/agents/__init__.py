@@ -98,19 +98,12 @@ __all__ = [
 	"DirectChannel",
 
 	# Memory
-	"SharedMemory",
-	"AgentMemory",
+	"MemoryManager",
+	"MemoryConfig",
+	"MemoryType",
 	"ContextManager",
+	"ContextScope",
+	"SharedContext",
 	"KnowledgeBase",
-	"ConversationHistory",
-
-	# Tasks
-	"AgentTask",
-	"TaskType",
-	"TaskPriority",
-	"TaskStatus",
-	"TaskResult",
-	"WorkflowTask",
-	"TaskScheduler",
-	"TaskDependency"
+	"LearningSystem",
 ]
