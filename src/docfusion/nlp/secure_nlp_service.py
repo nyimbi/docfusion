@@ -6,18 +6,17 @@ Security-enhanced NLP service that integrates authentication, authorization,
 encryption, and audit logging with NLP document analysis and processing.
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Union
 from datetime import timezone, datetime
 
-from .enhanced_nlp_service import EnhancedNLPService, EnhancedNLPServiceConfiguration, EnhancedAnalysisResult
+from .enhanced_nlp_service import EnhancedNLPService, EnhancedNLPServiceConfiguration
 from .nlp_service import NLPService, NLPServiceConfiguration
 from ..core.utils import uuid7str
 from ..security import (
 	SecurityManager, SecurityManagerConfiguration,
-	AuditEventType, AuditSeverity, PermissionLevel
+	AuditEventType, AuditSeverity
 )
 
 @dataclass
@@ -129,7 +128,7 @@ class SecureNLPService:
 					}
 			
 			# Encrypt content before processing if required
-			secure_content = content
+			_secure_content = content
 			encryption_metadata = {}
 			
 			if self.config.enable_content_encryption:
@@ -139,7 +138,7 @@ class SecureNLPService:
 				)
 				
 				if encryption_result.success:
-					secure_content = encryption_result.encrypted_data
+					_secure_content = encryption_result.encrypted_data
 					encryption_metadata = {
 						'content_encrypted': True,
 						'encryption_key_id': encryption_result.key_id,
