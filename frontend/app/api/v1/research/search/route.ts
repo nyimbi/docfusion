@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { assertPublicHttpUrl, UnsafePublicUrlError } from "@/lib/security/public-url";
 
 // ============================================================================
 // Configuration
@@ -117,13 +118,14 @@ async function firecrawlSearch(query: string, limit = 10): Promise<SearchResult[
  */
 async function firecrawlScrape(url: string): Promise<SearchResult | null> {
 	try {
+		const safeUrl = await assertPublicHttpUrl(url, "Scrape URL");
 		const response = await fetch(`${FIRECRAWL_URL}/v1/scrape`, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
 			},
 			body: JSON.stringify({
-				url,
+				url: safeUrl.toString(),
 				formats: ["markdown"],
 				onlyMainContent: true,
 			}),
@@ -139,16 +141,19 @@ async function firecrawlScrape(url: string): Promise<SearchResult | null> {
 		if (data.success && data.data) {
 			const content = data.data.markdown || data.data.content || "";
 			return {
-				title: data.data.metadata?.title || data.data.metadata?.ogTitle || url,
+				title: data.data.metadata?.title || data.data.metadata?.ogTitle || safeUrl.toString(),
 				snippet: data.data.metadata?.description || data.data.metadata?.ogDescription || content.slice(0, 500),
-				url,
-				source: new URL(url).hostname,
+				url: safeUrl.toString(),
+				source: safeUrl.hostname,
 				metadata: data.data.metadata,
 			};
 		}
 
 		return null;
 	} catch (error) {
+		if (error instanceof UnsafePublicUrlError) {
+			throw error;
+		}
 		console.error("Firecrawl scrape error:", error);
 		return null;
 	}
@@ -241,15 +246,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<SearchRes
 		}
 
 		let results: SearchResult[] = [];
+		const safeUrl = url ? (await assertPublicHttpUrl(url, "Research URL")).toString() : undefined;
 
 		// If a specific URL is provided, scrape it directly
-		if (url) {
+		if (safeUrl) {
 			if (category === "company_info") {
 				// Scrape the company website thoroughly
-				results = await scrapeCompanyWebsite(url);
+				results = await scrapeCompanyWebsite(safeUrl);
 			} else {
 				// Scrape the specific URL
-				const scraped = await firecrawlScrape(url);
+				const scraped = await firecrawlScrape(safeUrl);
 				if (scraped) {
 					results.push(scraped);
 				}
@@ -277,6 +283,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<SearchRes
 			results,
 		});
 	} catch (error) {
+		if (error instanceof UnsafePublicUrlError) {
+			return NextResponse.json(
+				{ success: false, results: [], error: error.message },
+				{ status: 400 }
+			);
+		}
 		console.error("Search API error:", error);
 		return NextResponse.json(
 			{
@@ -313,7 +325,8 @@ export async function PUT(request: NextRequest): Promise<NextResponse<SearchResp
 			);
 		}
 
-		const result = await firecrawlScrape(url);
+		const safeUrl = (await assertPublicHttpUrl(url, "Research URL")).toString();
+		const result = await firecrawlScrape(safeUrl);
 
 		if (result) {
 			return NextResponse.json({
@@ -328,6 +341,12 @@ export async function PUT(request: NextRequest): Promise<NextResponse<SearchResp
 			error: "Failed to scrape URL",
 		});
 	} catch (error) {
+		if (error instanceof UnsafePublicUrlError) {
+			return NextResponse.json(
+				{ success: false, results: [], error: error.message },
+				{ status: 400 }
+			);
+		}
 		console.error("Scrape API error:", error);
 		return NextResponse.json(
 			{

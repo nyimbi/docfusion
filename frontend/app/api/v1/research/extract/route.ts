@@ -20,6 +20,7 @@ import { companySettings } from "@/lib/db/schema";
 import { products, services } from "@/lib/db/schema-company";
 import { eq } from "drizzle-orm";
 import type { CommercialInsights } from "@/lib/db/schema-crm";
+import { assertPublicHttpUrl, UnsafePublicUrlError } from "@/lib/security/public-url";
 
 // ============================================================================
 // Configuration
@@ -180,11 +181,12 @@ async function firecrawlSearch(query: string, limit = 8): Promise<Array<{ url: s
 
 async function firecrawlScrape(url: string): Promise<{ content: string; title: string } | null> {
 	try {
+		const safeUrl = await assertPublicHttpUrl(url, "Scrape URL");
 		const response = await fetch(`${FIRECRAWL_URL}/v1/scrape`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
-				url,
+				url: safeUrl.toString(),
 				formats: ["markdown"],
 				onlyMainContent: true,
 			}),
@@ -196,11 +198,14 @@ async function firecrawlScrape(url: string): Promise<{ content: string; title: s
 		if (data.success && data.data) {
 			return {
 				content: data.data.markdown || data.data.content || "",
-				title: data.data.metadata?.title || url,
+				title: data.data.metadata?.title || safeUrl.toString(),
 			};
 		}
 		return null;
 	} catch (error) {
+		if (error instanceof UnsafePublicUrlError) {
+			throw error;
+		}
 		console.error("Scrape error:", error);
 		return null;
 	}
@@ -724,7 +729,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 
 	try {
 		const body: ExtractRequest = await request.json();
-		const { accountName, website, country, currentData } = body;
+		const { accountName, country, currentData } = body;
+		const website = body.website
+			? (await assertPublicHttpUrl(body.website, "Website URL")).toString()
+			: undefined;
 
 		if (!accountName) {
 			return NextResponse.json(
@@ -911,6 +919,21 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 			sources,
 		});
 	} catch (error) {
+		if (error instanceof UnsafePublicUrlError) {
+			return NextResponse.json(
+				{
+					success: false,
+					extracted: {},
+					findings: null,
+					commercialInsights: null,
+					valueProposition: null,
+					thinkingTrace: null,
+					sources: [],
+					error: error.message,
+				},
+				{ status: 400 }
+			);
+		}
 		console.error("Extract API error:", error);
 		return NextResponse.json(
 			{

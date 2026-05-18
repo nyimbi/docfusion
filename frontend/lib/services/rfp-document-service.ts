@@ -19,6 +19,7 @@ import { createHash } from "crypto";
 import { processRfpDocument, isSupportedFileType } from "@/lib/services/docling-client";
 import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
+import { assertPublicHttpUrl } from "@/lib/security/public-url";
 import {
   buildRfpObjectKey,
   downloadFromLinodeE3,
@@ -163,10 +164,11 @@ export async function discoverDocuments(
   sourceUrl: string
 ): Promise<DocumentDiscoveryResult> {
   try {
+    const safeSourceUrl = (await assertPublicHttpUrl(sourceUrl, "RFP source URL")).toString();
     const firecrawl = new FirecrawlClient();
 
     // First, try LLM-based extraction for best results
-    const scrapeResult = await firecrawl.scrape(sourceUrl, {
+    const scrapeResult = await firecrawl.scrape(safeSourceUrl, {
       formats: ["markdown", "links", "html"],
       waitFor: 3000, // Wait for dynamic content
       extract: {
@@ -205,7 +207,7 @@ Return direct document URLs only.`,
       documents = extractedDocs
         .map((doc) => ({
           ...doc,
-          url: resolveUrl(doc.url, sourceUrl),
+          url: resolveUrl(doc.url, safeSourceUrl),
         }))
         .filter((doc) => isValidDocumentUrl(doc.url))
         .map((doc) => ({
@@ -221,7 +223,7 @@ Return direct document URLs only.`,
       const linkDocs = extractDocumentsFromLinks(
         scrapeResult.data.markdown,
         scrapeResult.data.links || [],
-        sourceUrl
+        safeSourceUrl
       );
       documents = linkDocs;
     }
@@ -536,6 +538,7 @@ export async function downloadDocument(
     if (!doc.sourceUrl) {
       return { success: false, error: "No source URL available" };
     }
+    const safeSourceUrl = (await assertPublicHttpUrl(doc.sourceUrl, "Document source URL")).toString();
 
     // Update status to downloading
     await db.update(opportunityDocuments)
@@ -547,7 +550,7 @@ export async function downloadDocument(
       .where(eq(opportunityDocuments.id, documentId));
 
     // Download the file
-    const response = await fetch(doc.sourceUrl, {
+    const response = await fetch(safeSourceUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
@@ -581,7 +584,7 @@ export async function downloadDocument(
       documentId: doc.id,
       opportunityId: doc.opportunityId,
       filename: doc.documentName,
-      sourceUrl: doc.sourceUrl,
+      sourceUrl: safeSourceUrl,
       buffer,
       mimeType,
       userId,
@@ -628,7 +631,7 @@ export async function downloadDocument(
     const provenance: RfpIngestProvenance = {
       source: "opportunity_document_download",
       sourceOpportunityDocumentId: doc.id,
-      sourceUrl: doc.sourceUrl,
+      sourceUrl: safeSourceUrl,
       downloadedBy: userId || "system",
       downloadedAt: new Date().toISOString(),
     };

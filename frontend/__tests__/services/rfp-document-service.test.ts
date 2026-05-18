@@ -55,6 +55,9 @@ const dbMock = vi.hoisted(() => ({
 		rfpDocuments: {
 			findFirst: vi.fn(),
 		},
+		userWorkspaces: {
+			findFirst: vi.fn(),
+		},
 	},
 	select: vi.fn(),
 	insert: vi.fn(),
@@ -73,6 +76,14 @@ const storageMock = vi.hoisted(() => ({
 const doclingMock = vi.hoisted(() => ({
 	isSupportedFileType: vi.fn(),
 	processRfpDocument: vi.fn(),
+}));
+
+const dnsLookupMock = vi.hoisted(() =>
+	vi.fn<() => Promise<Array<{ address: string; family: 4 | 6 }>>>()
+);
+
+vi.mock("node:dns/promises", () => ({
+	lookup: dnsLookupMock,
 }));
 
 vi.mock("@/lib/db", () => ({ db: dbMock }));
@@ -105,9 +116,14 @@ import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	dnsLookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
 	dbMock.$count.mockResolvedValue(1);
 	dbMock.select.mockImplementation(() => createChain({ result: [] }));
 	dbMock.query.rfpDocuments.findFirst.mockResolvedValue(null);
+	dbMock.query.userWorkspaces.findFirst.mockResolvedValue({
+		id: "00000000-0000-4000-8000-000000000701",
+		organizationId: "org-1",
+	});
 	dbMock.insert.mockImplementation(() => createChain());
 	dbMock.update.mockImplementation(() => createChain());
 	dbMock.delete.mockImplementation(() => createChain());
@@ -146,7 +162,7 @@ describe("RFP document fetch storage", () => {
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
 		dbMock.insert
 			.mockReturnValueOnce(createChain({
-				result: [{ id: "00000000-0000-4000-8000-000000000401" }],
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
 				onValues: (value) => insertedValues.push(value),
 			}))
 			.mockReturnValueOnce(createChain({
@@ -221,10 +237,14 @@ describe("RFP document fetch storage", () => {
 			status: "queued",
 			currentStep: "Queued from discovered RFP download",
 		});
-		expect(processRfpParsingJob).toHaveBeenCalledWith(
-			"00000000-0000-4000-8000-000000000501",
-			"00000000-0000-4000-8000-000000000401"
-		);
+		expect(processRfpParsingJob).toHaveBeenCalledWith({
+			jobId: "00000000-0000-4000-8000-000000000501",
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			tenantContext: {
+				userId: "capture-user",
+				organizationId: "org-1",
+			},
+		});
 		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({
 				workflowKey: "discovery_rfp_ingest",
@@ -273,6 +293,23 @@ describe("RFP document fetch storage", () => {
 			success: false,
 			documentId: baseDocument.id,
 			error: "Document does not belong to this opportunity",
+		});
+		expect(global.fetch).not.toHaveBeenCalled();
+		expect(storageMock.uploadToLinodeE3).not.toHaveBeenCalled();
+	});
+
+	it("blocks downloads from non-public source URLs before fetching bytes", async () => {
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			sourceUrl: "http://127.0.0.1/admin",
+		});
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result).toMatchObject({
+			success: false,
+			documentId: baseDocument.id,
+			error: expect.stringContaining("non-public"),
 		});
 		expect(global.fetch).not.toHaveBeenCalled();
 		expect(storageMock.uploadToLinodeE3).not.toHaveBeenCalled();
