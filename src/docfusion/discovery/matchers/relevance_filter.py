@@ -9,17 +9,15 @@ including strategic fit, capability alignment, and business potential.
 import asyncio
 import logging
 logger = logging.getLogger(__name__)
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from uuid import uuid4
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from ...core.models.base import BaseEntity
 from ..models.opportunity_models import OpportunityData
 from ..analyzers.opportunity_analyzer import OpportunityAnalysis
 from ..analyzers.qualification_analyzer import QualificationAssessment

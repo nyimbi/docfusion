@@ -9,21 +9,18 @@ and machine learning techniques.
 import asyncio
 import logging
 logger = logging.getLogger(__name__)
-import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from uuid import uuid4
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import KMeans
 
-from ...core.models.base import BaseEntity
 from ...nlp.services.text_analyzer import TextAnalyzer
 from ...nlp.services.semantic_matcher import SemanticMatcher
 
