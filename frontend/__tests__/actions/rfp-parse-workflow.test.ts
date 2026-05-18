@@ -8,6 +8,14 @@ vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: vi.fn(async () => "capture-lead"),
 }));
 
+vi.mock("@/lib/auth/tenant-context", () => ({
+	requireTenantContext: vi.fn(async () => ({
+		userId: "capture-lead",
+		organizationId: "org-1",
+		roles: ["admin"],
+	})),
+}));
+
 vi.mock("@/lib/ai/rfp-parser", () => ({
 	parseRFPWithAI: vi.fn(),
 	batchExtractRequirements: vi.fn(),

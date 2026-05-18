@@ -40,6 +40,7 @@ import {
 	downloadFromLinodeE3,
 	getLinodeE3ConfigFromEnv,
 } from "@/lib/storage/linode-e3";
+import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import type {
 	RfpFormat,
@@ -2172,7 +2173,7 @@ async function extractTextFromDocument(
 			fileBuffer = await fs.readFile(storagePath);
 		} else if (storagePath.startsWith("http://") || storagePath.startsWith("https://")) {
 			// Remote URL - fetch the file
-			const response = await fetch(storagePath);
+			const response = await fetchPublicHttpUrl(storagePath, {}, "RFP storage URL");
 			if (!response.ok) {
 				throw new Error(`Failed to fetch document: ${response.status} ${response.statusText}`);
 			}
@@ -2182,8 +2183,11 @@ async function extractTextFromDocument(
 			// Assume it's a storage key - construct URL based on storage configuration
 			const storageBaseUrl = process.env.STORAGE_BASE_URL || "";
 			if (storageBaseUrl) {
-				const fullUrl = `${storageBaseUrl}/${storagePath}`;
-				const response = await fetch(fullUrl);
+				const fullUrl = new URL(
+					storagePath.replace(/^\/+/, ""),
+					storageBaseUrl.endsWith("/") ? storageBaseUrl : `${storageBaseUrl}/`,
+				);
+				const response = await fetchPublicHttpUrl(fullUrl, {}, "RFP storage URL");
 				if (!response.ok) {
 					throw new Error(`Failed to fetch from storage: ${response.status}`);
 				}
