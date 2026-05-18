@@ -9,11 +9,10 @@ and audit logging across the entire application.
 
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime, timezone
 import logging
 import os
 import secrets
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 
 from .authentication.user_authentication import (
     UserAuthentication, UserCredentials, AuthenticationResult, SecurityConfiguration
@@ -40,7 +39,7 @@ from .authorization.document_permissions import (
     DocumentPermissions, DocumentPermissionsConfig, PermissionLevel
 )
 from .authorization.abac_authorization import (
-    ABACAuthorization, ABACConfiguration, ABACDecision, AttributeType
+    ABACAuthorization, ABACConfiguration
 )
 from .authorization.contextual_access import (
     ContextualAccessControl, ContextualAccessConfig, AccessContext, AccessDecision
@@ -49,13 +48,13 @@ from .encryption.data_encryption import (
     DataEncryption, EncryptionConfiguration, EncryptionResult, KeyType
 )
 from .encryption.e2e_encryption import (
-    E2EEncryption, E2EEncryptionConfig, E2EEncryptionResult
+    E2EEncryption, E2EEncryptionConfig
 )
 from .compliance.gdpr_compliance import (
-    GDPRCompliance, GDPRConfiguration, DataSubjectRequest, GDPRRights
+    GDPRCompliance, GDPRConfiguration
 )
 from .compliance.compliance_dashboard import (
-    ComplianceDashboard, DashboardConfiguration, ComplianceFramework
+    ComplianceDashboard, DashboardConfiguration
 )
 from .data_protection.dlp_system import (
     DLPSystem, DLPConfiguration, ContentType, DLPAction
