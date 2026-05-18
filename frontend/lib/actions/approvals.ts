@@ -16,6 +16,7 @@ import { documentApprovals, workflowAssignments } from "@/lib/db/schema-comments
 import { documents, proposalDocuments } from "@/lib/db/schema";
 import { user } from "@/lib/db/auth-schema";
 import { eq, and, desc, asc, sql, inArray, gte, lt } from "drizzle-orm";
+import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import type {
 	DocumentApproval,
 	CreateApprovalInput,
@@ -106,11 +107,11 @@ async function sendWorkflowNotification(notification: WorkflowNotification): Pro
 
 		// Send to webhook if configured (non-blocking)
 		if (webhookUrl) {
-			fetch(webhookUrl, {
+			fetchPublicHttpUrl(webhookUrl, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(notificationPayload),
-			}).catch((err) => {
+			}, "workflow notification webhook URL").catch((err) => {
 				logger.error("[Notification] Webhook delivery failed:", err);
 			});
 		}
@@ -118,11 +119,11 @@ async function sendWorkflowNotification(notification: WorkflowNotification): Pro
 		// Send email if email service is configured (non-blocking)
 		if (emailServiceUrl) {
 			const emailPayload = buildEmailPayload(type, notificationPayload);
-			fetch(emailServiceUrl, {
+			fetchPublicHttpUrl(emailServiceUrl, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(emailPayload),
-			}).catch((err) => {
+			}, "workflow email service URL").catch((err) => {
 				logger.error("[Notification] Email delivery failed:", err);
 			});
 		}

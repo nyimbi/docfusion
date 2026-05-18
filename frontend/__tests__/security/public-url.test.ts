@@ -1,16 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 
 const lookupMock = vi.hoisted(() =>
 	vi.fn<() => Promise<Array<{ address: string; family: 4 | 6 }>>>()
 );
+const httpRequestMock = vi.hoisted(() => vi.fn());
+const httpsRequestMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:dns/promises", () => ({
 	lookup: lookupMock,
+}));
+vi.mock("node:http", () => ({
+	request: httpRequestMock,
+}));
+vi.mock("node:https", () => ({
+	request: httpsRequestMock,
 }));
 
 import {
 	assertPublicHttpUrl,
 	createPinnedPublicLookup,
+	fetchPublicHttpUrl,
 	isPublicIpAddress,
 	UnsafePublicUrlError,
 } from "@/lib/security/public-url";
@@ -79,5 +89,61 @@ describe("public URL validation", () => {
 
 		expect(resolved).toEqual({ address: "93.184.216.34", family: 4 });
 		expect(lookupMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("sends POST bodies through the pinned public request helper", async () => {
+		const body = JSON.stringify({ ok: true });
+		const writes: string[] = [];
+		lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+		httpRequestMock.mockImplementation((_url, _options, callback) => {
+			const response = new EventEmitter() as EventEmitter & {
+				headers: Record<string, string>;
+				statusCode: number;
+				statusMessage: string;
+			};
+			response.headers = { "x-delivered": "yes" };
+			response.statusCode = 202;
+			response.statusMessage = "Accepted";
+
+			const request = new EventEmitter() as EventEmitter & {
+				write: ReturnType<typeof vi.fn>;
+				end: ReturnType<typeof vi.fn>;
+			};
+			request.write = vi.fn((chunk: string | Buffer | Uint8Array) => {
+				writes.push(Buffer.from(chunk).toString("utf8"));
+			});
+			request.end = vi.fn(() => {
+				callback(response);
+				response.emit("data", Buffer.from("accepted"));
+				response.emit("end");
+			});
+			return request;
+		});
+
+		const response = await fetchPublicHttpUrl(
+			"http://example.com/notify",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body,
+			},
+			"notification URL",
+		);
+
+		expect(response.status).toBe(202);
+		await expect(response.text()).resolves.toBe("accepted");
+		expect(writes).toEqual([body]);
+		expect(httpRequestMock).toHaveBeenCalledWith(
+			expect.objectContaining({ hostname: "example.com", pathname: "/notify" }),
+			expect.objectContaining({
+				method: "POST",
+				headers: {
+					"content-length": String(Buffer.byteLength(body)),
+					"content-type": "application/json",
+				},
+				lookup: expect.any(Function),
+			}),
+			expect.any(Function),
+		);
 	});
 });

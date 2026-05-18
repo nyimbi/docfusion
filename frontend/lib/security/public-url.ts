@@ -10,6 +10,12 @@ export class UnsafePublicUrlError extends Error {
 	}
 }
 
+interface PublicHttpRequestInit {
+	headers?: HeadersInit;
+	method?: string;
+	body?: string | Buffer | Uint8Array;
+}
+
 export async function assertPublicHttpUrl(rawUrl: string, label = "URL"): Promise<URL> {
 	let url: URL;
 	try {
@@ -33,13 +39,16 @@ export async function assertPublicHttpUrl(rawUrl: string, label = "URL"): Promis
 
 export async function fetchPublicHttpUrl(
 	rawUrl: string | URL,
-	init: { headers?: HeadersInit; method?: string } = {},
+	init: PublicHttpRequestInit = {},
 	label = "URL",
 ): Promise<Response> {
 	const url = await assertPublicHttpUrl(rawUrl.toString(), label);
 	const lookup = await createPinnedPublicLookup(url, label);
 	const requester = url.protocol === "https:" ? httpsRequest : httpRequest;
 	const headers = new Headers(init.headers);
+	if (init.body !== undefined && !headers.has("content-length")) {
+		headers.set("content-length", String(getBodyByteLength(init.body)));
+	}
 	const requestHeaders = Object.fromEntries(headers.entries());
 
 	return new Promise<Response>((resolve, reject) => {
@@ -66,6 +75,9 @@ export async function fetchPublicHttpUrl(
 		);
 
 		request.on("error", reject);
+		if (init.body !== undefined) {
+			request.write(init.body);
+		}
 		request.end();
 	});
 }
@@ -144,6 +156,10 @@ async function resolveHostAddresses(
 
 function normalizeHostname(hostname: string): string {
 	return hostname.replace(/^\[/, "").replace(/\]$/, "").replace(/\.$/, "").toLowerCase();
+}
+
+function getBodyByteLength(body: string | Buffer | Uint8Array): number {
+	return typeof body === "string" ? Buffer.byteLength(body) : body.byteLength;
 }
 
 function isPublicIpv4Address(address: string): boolean {
