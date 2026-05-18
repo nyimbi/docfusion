@@ -11,11 +11,11 @@ import logging
 logger = logging.getLogger(__name__)
 import json
 import shutil
+import importlib.util
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 import statistics
 
@@ -23,16 +23,17 @@ from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 
 # Import voice analysis components
-from ..analyzer.voice_pattern_analyzer import VoiceFingerprint, WritingPattern, VoiceComponent
-from ..analyzer.style_pattern_extractor import StyleProfile, StylePattern, StyleDimension
-from .voice_profiler import VoiceProfile, ProfileType, DocumentMetadata
+from ..analyzer.voice_pattern_analyzer import VoiceFingerprint
+from ..analyzer.style_pattern_extractor import StyleProfile
+from .voice_profiler import VoiceProfile
 
 # NLP imports with fallbacks
 try:
-	import numpy as np
-	from sklearn.metrics.pairwise import cosine_similarity
-	ML_AVAILABLE = True
-except ImportError:
+	ML_AVAILABLE = (
+		importlib.util.find_spec("numpy") is not None
+		and importlib.util.find_spec("sklearn") is not None
+	)
+except ValueError:
 	ML_AVAILABLE = False
 
 
@@ -871,8 +872,8 @@ async def create_sample_profile_management():
 	]
 	
 	# Create voice fingerprints
-	fp1 = await analyzer.analyze_voice_patterns(org1_docs, "Formal Corp")
-	fp2 = await analyzer.analyze_voice_patterns(org2_docs, "Casual Startup")
+	await analyzer.analyze_voice_patterns(org1_docs, "Formal Corp")
+	await analyzer.analyze_voice_patterns(org2_docs, "Casual Startup")
 	
 	# Create voice profiles
 	profile1 = await profiler.create_voice_profile("Formal Corp", org1_docs)
@@ -888,7 +889,7 @@ async def create_sample_profile_management():
 	
 	# Create modified version
 	modified_docs = org1_docs + ["We appreciate your partnership and look forward to collaboration."]
-	fp1_modified = await analyzer.analyze_voice_patterns(modified_docs, "Formal Corp")
+	await analyzer.analyze_voice_patterns(modified_docs, "Formal Corp")
 	profile1_modified = await profiler.create_voice_profile("Formal Corp", modified_docs)
 	
 	version1_updated = await manager.create_profile_version(

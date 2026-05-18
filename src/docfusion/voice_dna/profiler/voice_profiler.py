@@ -10,32 +10,28 @@ interface for creating and managing organizational voice profiles.
 import asyncio
 import logging
 logger = logging.getLogger(__name__)
-import json
-import pickle
+import importlib.util
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 import statistics
 import hashlib
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 
 # Import voice analysis components
-from ..analyzer.voice_pattern_analyzer import VoicePatternAnalyzer, VoiceFingerprint, WritingPattern, VoiceComponent
-from ..analyzer.style_pattern_extractor import StylePatternExtractor, StyleProfile, StylePattern, StyleDimension
+from ..analyzer.voice_pattern_analyzer import VoicePatternAnalyzer, VoiceFingerprint
+from ..analyzer.style_pattern_extractor import StylePatternExtractor, StyleProfile
 
 # NLP imports with fallbacks
 try:
-	import numpy as np
-	from sklearn.cluster import KMeans
-	from sklearn.feature_extraction.text import TfidfVectorizer
-	from sklearn.metrics.pairwise import cosine_similarity
-	from sklearn.decomposition import PCA
-	SKLEARN_AVAILABLE = True
-except ImportError:
+	SKLEARN_AVAILABLE = (
+		importlib.util.find_spec("numpy") is not None
+		and importlib.util.find_spec("sklearn") is not None
+	)
+except ValueError:
 	SKLEARN_AVAILABLE = False
 
 

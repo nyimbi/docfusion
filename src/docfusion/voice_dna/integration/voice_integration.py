@@ -10,9 +10,7 @@ import logging
 import asyncio
 from collections import defaultdict
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, Callable
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 import statistics
 
@@ -20,12 +18,12 @@ from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 
 # Import Voice DNA components
-from ..analyzer.voice_pattern_analyzer import VoicePatternAnalyzer, VoiceFingerprint, WritingPattern
-from ..analyzer.style_pattern_extractor import StylePatternExtractor, StyleProfile, StylePattern
-from ..validator.voice_validator import VoiceValidator, ValidationResult, VoiceDeviation
-from ..validator.authenticity_scorer import AuthenticityScorer, AuthenticityReport, AuthenticityDimension
-from ..profiler.voice_profiler import VoiceProfiler, VoiceProfile, ProfileType
-from ..profiler.profile_manager import ProfileManager, ProfileVersion, ProfileComparison
+from ..analyzer.voice_pattern_analyzer import VoicePatternAnalyzer, VoiceFingerprint
+from ..analyzer.style_pattern_extractor import StylePatternExtractor, StyleProfile
+from ..validator.voice_validator import VoiceValidator, ValidationResult
+from ..validator.authenticity_scorer import AuthenticityScorer, AuthenticityReport
+from ..profiler.voice_profiler import VoiceProfiler
+from ..profiler.profile_manager import ProfileManager, ProfileComparison
 
 # Import Enhancement components
 from ..enhancement.writing_enhancer import WritingEnhancer, EnhancementRequest, EnhancementResult
@@ -38,7 +36,6 @@ from ..enhancement.natural_writing_assistant import NaturalWritingAssistant, Wri
 # NLP imports with fallbacks
 try:
 	import spacy
-	import nltk
 	from textblob import TextBlob
 	NLP_AVAILABLE = True
 except ImportError:

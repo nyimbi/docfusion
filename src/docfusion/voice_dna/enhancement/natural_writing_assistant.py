@@ -7,19 +7,15 @@ patterns, mechanical writing, and provides specific suggestions for more engagin
 human-like content.
 """
 
-from typing import Dict, List, Optional, Set, Tuple, Any, Union
+from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
-from dataclasses import dataclass, field
-from pathlib import Path
 import re
 import statistics
-import asyncio
-from collections import Counter, defaultdict
+from collections import Counter
 import uuid
 import logging
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
-from typing_extensions import Annotated
+from pydantic import BaseModel, Field, ConfigDict
 
 # Optional NLP imports with fallbacks
 try:
@@ -29,17 +25,16 @@ except ImportError:
 	SPACY_AVAILABLE = False
 
 try:
-	import nltk
-	from nltk.corpus import stopwords
-	from nltk.tokenize import sent_tokenize, word_tokenize
+	from nltk.tokenize import sent_tokenize
 	NLTK_AVAILABLE = True
 except ImportError:
 	NLTK_AVAILABLE = False
 
 try:
-	from textblob import TextBlob
-	TEXTBLOB_AVAILABLE = True
-except ImportError:
+	import importlib.util
+
+	TEXTBLOB_AVAILABLE = importlib.util.find_spec("textblob") is not None
+except (ImportError, ValueError):
 	TEXTBLOB_AVAILABLE = False
 
 

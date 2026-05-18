@@ -11,9 +11,9 @@ import asyncio
 import logging
 logger = logging.getLogger(__name__)
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set
 from enum import Enum
 import statistics
 
@@ -23,9 +23,6 @@ from uuid import uuid4
 # NLP imports with fallbacks
 try:
 	import spacy
-	import nltk
-	from textblob import TextBlob
-	from textstat import flesch_reading_ease, flesch_kincaid_grade, automated_readability_index
 	NLP_AVAILABLE = True
 except ImportError:
 	NLP_AVAILABLE = False
@@ -977,7 +974,6 @@ class WritingEnhancer:
 		
 		for i in range(1, len(sentences)):
 			sentence = sentences[i]
-			previous = sentences[i-1]
 			
 			# Add connecting words based on content relationship
 			if 'result' in sentence.lower() or 'outcome' in sentence.lower():
@@ -1348,7 +1344,6 @@ class WritingEnhancer:
 		enhanced_words = set(enhanced.lower().split())
 		
 		new_words = enhanced_words - original_words
-		removed_words = original_words - enhanced_words
 		
 		# Track word replacements (simplified)
 		for new_word in list(new_words)[:5]:  # Top 5

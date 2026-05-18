@@ -10,12 +10,11 @@ import asyncio
 import logging
 logger = logging.getLogger(__name__)
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, Pattern
+from typing import Any, Dict, List, Optional, Tuple, Pattern
 from enum import Enum
 import statistics
-import json
 
 from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
@@ -790,7 +789,6 @@ class StyleGuideCompliance:
 		
 		# Check for brand-inconsistent language patterns
 		informal_words = ['awesome', 'cool', 'stuff', 'things', 'gonna', 'wanna']
-		overly_technical = ['utilize', 'implement', 'leverage', 'facilitate']
 		
 		text_lower = text.lower()
 		words = text_lower.split()
@@ -1015,7 +1013,6 @@ class StyleGuideCompliance:
 			trends["most_common_violation"] = violation_counts.most_common(1)[0][0]
 			
 			# Most problematic category
-			category_counts = Counter(v.rule_name for v in violations)  # Simplified
 			trends["most_problematic_category"] = "grammar"  # Simplified
 			
 			# Severity distribution
@@ -1035,7 +1032,6 @@ class StyleGuideCompliance:
 		
 		# Check for good practices
 		sentences = [s.strip() for s in text.split('.') if s.strip()]
-		words = text.split()
 		
 		# Good sentence length variety
 		if sentences:

@@ -9,9 +9,9 @@ metrics and actionable recommendations for content improvement.
 import asyncio
 import logging
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 from enum import Enum
 import statistics
 import math
@@ -24,11 +24,9 @@ from uuid import uuid4
 # NLP imports with fallbacks
 try:
 	import spacy
-	import nltk
-	from textblob import TextBlob
 	from textstat import (
 		flesch_reading_ease, flesch_kincaid_grade, automated_readability_index,
-		coleman_liau_index, gunning_fog, smog_index, text_standard
+		coleman_liau_index, gunning_fog, smog_index
 	)
 	NLP_AVAILABLE = True
 except ImportError:
@@ -1520,7 +1518,6 @@ class ContentQualityAnalyzer:
 	async def _analyze_writing_style(self, text: str) -> Dict[str, Any]:
 		"""Analyze writing style characteristics"""
 		
-		sentences = [s.strip() for s in text.split('.') if s.strip()]
 		words = text.split()
 		
 		style_profile = {

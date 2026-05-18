@@ -10,10 +10,9 @@ with deeper stylistic analysis capabilities.
 import logging
 import asyncio
 import re
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 import statistics
 
@@ -21,7 +20,6 @@ from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 
 # Import the base pattern classes from voice pattern analyzer
-from .voice_pattern_analyzer import WritingPattern, VoiceComponent
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +28,7 @@ try:
 	import spacy
 	import nltk
 	from nltk.corpus import stopwords
-	from nltk.tokenize import sent_tokenize, word_tokenize
-	from nltk.corpus import wordnet
-	from textstat import flesch_reading_ease, flesch_kincaid_grade, automated_readability_index
+	from nltk.tokenize import sent_tokenize
 	NLP_AVAILABLE = True
 except ImportError:
 	NLP_AVAILABLE = False

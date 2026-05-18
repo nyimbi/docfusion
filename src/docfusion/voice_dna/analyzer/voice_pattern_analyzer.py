@@ -9,15 +9,12 @@ choices, and stylistic elements that characterize an organization's voice.
 
 import logging
 import asyncio
-import re
 from collections import Counter, defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 from enum import Enum
 import statistics
 
-import numpy as np
 
 logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field, ConfigDict
@@ -28,7 +25,7 @@ try:
 	import spacy
 	import nltk
 	from nltk.corpus import stopwords
-	from nltk.tokenize import sent_tokenize, word_tokenize
+	from nltk.tokenize import sent_tokenize
 	from textstat import flesch_reading_ease, flesch_kincaid_grade, automated_readability_index
 	NLP_AVAILABLE = True
 	logger = logging.getLogger(__name__)
@@ -583,7 +580,6 @@ class VoicePatternAnalyzer:
 		
 		# Simple n-gram analysis
 		bigrams = self._extract_ngrams(full_text, 2)
-		trigrams = self._extract_ngrams(full_text, 3)
 		
 		# Create patterns for high-frequency n-grams
 		total_bigrams = sum(bigrams.values())
@@ -663,7 +659,6 @@ class VoicePatternAnalyzer:
 		
 		if total_sentences > 0:
 			question_ratio = question_count / total_sentences
-			exclamation_ratio = exclamation_count / total_sentences
 			
 			if question_ratio > 0.05:  # More than 5% questions
 				pattern = WritingPattern(

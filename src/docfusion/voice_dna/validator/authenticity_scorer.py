@@ -10,29 +10,27 @@ appropriateness.
 import asyncio
 import logging
 logger = logging.getLogger(__name__)
+import importlib.util
 import re
-from collections import Counter, defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 import statistics
-import math
 
 from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 
 # Import voice analysis components
-from ..analyzer.voice_pattern_analyzer import VoiceFingerprint, WritingPattern, VoiceComponent
-from ..analyzer.style_pattern_extractor import StyleProfile, StylePattern, StyleDimension
+from ..analyzer.voice_pattern_analyzer import VoiceFingerprint
+from ..analyzer.style_pattern_extractor import StyleProfile
 
 # NLP imports with fallbacks
 try:
-	import numpy as np
-	from sklearn.feature_extraction.text import TfidfVectorizer
-	from sklearn.metrics.pairwise import cosine_similarity
-	SKLEARN_AVAILABLE = True
-except ImportError:
+	SKLEARN_AVAILABLE = (
+		importlib.util.find_spec("numpy") is not None
+		and importlib.util.find_spec("sklearn") is not None
+	)
+except ValueError:
 	SKLEARN_AVAILABLE = False
 
 

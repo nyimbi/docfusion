@@ -10,11 +10,9 @@ recommendations.
 import asyncio
 import logging
 logger = logging.getLogger(__name__)
-import re
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 import statistics
 
@@ -22,15 +20,13 @@ from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 
 # Import voice analysis components
-from ..analyzer.voice_pattern_analyzer import VoiceFingerprint, WritingPattern, VoiceComponent
-from ..analyzer.style_pattern_extractor import StyleProfile, StylePattern, StyleDimension
+from ..analyzer.voice_pattern_analyzer import VoiceFingerprint
+from ..analyzer.style_pattern_extractor import StyleProfile
 
 # NLP imports with fallbacks
 try:
 	import spacy
-	import nltk
-	from nltk.tokenize import sent_tokenize, word_tokenize
-	from textstat import flesch_reading_ease, flesch_kincaid_grade
+	from textstat import flesch_reading_ease
 	NLP_AVAILABLE = True
 except ImportError:
 	NLP_AVAILABLE = False
@@ -513,7 +509,6 @@ class VoiceValidator:
 		if NLP_AVAILABLE:
 			try:
 				flesch_score = flesch_reading_ease(text)
-				fk_grade = flesch_kincaid_grade(text)
 				
 				# Normalize to 0-1 scale
 				complexity = max(0.0, min(1.0, (100 - flesch_score) / 100.0))
