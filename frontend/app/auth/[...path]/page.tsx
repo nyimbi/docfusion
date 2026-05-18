@@ -37,17 +37,10 @@ function AuthPageContent() {
 	}, [status, router, callbackUrl]);
 
 	return (
-		<main className="min-h-screen flex flex-col bg-background bg-paper">
-			{/* Background decoration */}
-			<div className="fixed inset-0 pointer-events-none overflow-hidden">
-				<div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
-				<div className="absolute -bottom-40 -left-40 w-96 h-96 bg-warning/5 rounded-full blur-3xl" />
-			</div>
-
-			{/* Header with logo */}
-			<header className="relative z-10 py-8 px-6">
-				<Link href="/" className="inline-flex items-center gap-3 group">
-					<div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-primary-sm transition-shadow group-hover:shadow-primary-md">
+		<main className="min-h-screen flex flex-col bg-background">
+			<header className="border-b border-border bg-background px-6 py-4">
+				<Link href="/home" className="inline-flex items-center gap-3 group">
+					<div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center shadow-primary-sm transition-shadow group-hover:shadow-primary-md">
 						<Feather className="h-5 w-5 text-primary-foreground" />
 					</div>
 					<span className="font-display font-semibold text-xl text-foreground tracking-tight">
@@ -56,9 +49,8 @@ function AuthPageContent() {
 				</Link>
 			</header>
 
-			{/* Loading state centered */}
-			<div className="relative z-10 flex-1 flex items-center justify-center p-6">
-				<div className="w-full max-w-sm animate-fade-up text-center space-y-6">
+			<div className="flex-1 flex items-center justify-center p-6">
+				<div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center shadow-sm space-y-6">
 					<div className="w-12 h-12 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
 					<div>
 						<h1 className="font-display text-lg font-medium text-foreground">
