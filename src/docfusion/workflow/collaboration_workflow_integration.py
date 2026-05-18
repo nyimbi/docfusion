@@ -8,14 +8,14 @@ workflow execution, and integration with collaboration features.
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Callable
 
 from pydantic import BaseModel, Field, ConfigDict
 
 # Import collaboration components
-from ..collaboration.presence.presence_manager import PresenceManager, UserSession
+from ..collaboration.presence.presence_manager import PresenceManager
 from ..collaboration.permissions.collaboration_permissions import CollaborationPermissions, Permission, PermissionScope
 from ..collaboration.editing.collaborative_editor import CollaborativeEditor
 
@@ -248,7 +248,7 @@ class CollaborationWorkflowIntegrator:
 			raise ValueError(f"Template {template_id} not found")
 		
 		# Instantiate template
-		instance = await self.workflow_template.instantiate_template(
+		await self.workflow_template.instantiate_template(
 			template_id, f"Workflow for {document_id}", template_parameters, initiated_by
 		)
 		
@@ -532,7 +532,6 @@ class CollaborationWorkflowIntegrator:
 	async def _initialize_workflow_execution(self, execution: WorkflowExecution):
 		"""Initialize workflow execution by finding and starting initial tasks."""
 		process_nodes = await self.process_definition.get_process_nodes(execution.process_id)
-		process_edges = await self.process_definition.get_process_edges(execution.process_id)
 		
 		# Find start nodes
 		start_nodes = [node for node in process_nodes.values() if node.node_type == NodeType.START]
