@@ -9,7 +9,6 @@ key rotation, field-level encryption, and key derivation functions.
 import asyncio
 import base64
 import hashlib
-import hmac
 import json
 import logging
 import secrets
@@ -18,10 +17,8 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives import hashes
 
 # Cryptographic libraries
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes

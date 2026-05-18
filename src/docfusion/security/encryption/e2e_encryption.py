@@ -6,16 +6,13 @@ Implements end-to-end encryption for documents with support for multiple
 encryption schemes, key exchange protocols, and secure sharing mechanisms.
 """
 
-import asyncio
 import base64
-import hashlib
-import json
 import logging
 import secrets
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     from cryptography.fernet import Fernet
@@ -23,8 +20,6 @@ try:
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
     HAS_CRYPTOGRAPHY = True
 except ImportError:
