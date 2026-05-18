@@ -10,15 +10,13 @@ import asyncio
 import logging
 import re
 from abc import ABC, abstractmethod
-from datetime import timezone, datetime, timedelta
+from datetime import timezone, datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import Path as PathParam
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 try:
     import meilisearch
@@ -36,7 +34,7 @@ except ImportError:
     httpx = None
 
 from ...security import SecurityManager
-from ..middleware.authentication_middleware import get_api_key_user, get_current_user
+from ..middleware.authentication_middleware import get_current_user
 from ...core.utils import uuid7str
 
 class SearchScope(str, Enum):

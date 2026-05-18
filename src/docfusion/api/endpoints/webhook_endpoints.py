@@ -11,18 +11,16 @@ import hashlib
 import hmac
 import json
 import logging
-from datetime import timezone, datetime, timedelta
+from datetime import timezone, datetime
 from enum import Enum
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import Path as PathParam
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, HttpUrl
 
 from ...security import SecurityManager
-from ..middleware.authentication_middleware import get_api_key_user, get_current_user
+from ..middleware.authentication_middleware import get_current_user
 from ...core.utils import uuid7str
 
 class WebhookEventType(str, Enum):
