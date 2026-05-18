@@ -35,7 +35,6 @@ from .memory_manager import (
 )
 from ...core.utils import uuid7str
 from .schema import (
-    SCHEMA_VERSION,
     DEFAULT_EMBEDDING_DIMENSIONS,
     get_schema_sql,
 )

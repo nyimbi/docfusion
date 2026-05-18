@@ -9,14 +9,12 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List
 
-from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
 
 class LearningType(str, Enum):
