@@ -1621,6 +1621,7 @@ class RealNLPService:
 	"""Real NLP service using our comprehensive NLP pipeline."""
 	
 	def __init__(self):
+		self.logger = logging.getLogger(__name__)
 		if HAS_REAL_NLP:
 			try:
 				# Initialize with centralized LLM configuration
@@ -1629,7 +1630,6 @@ class RealNLPService:
 				self.content_generator = ContentGenerator(
 					llm_config=get_llm_config(LLMTask.DOCUMENT_CONTENT)
 				)
-				self.logger = logging.getLogger(__name__)
 				self.logger.info("RealNLPService initialized with full NLP pipeline")
 			except Exception as e:
 				self.logger.error(f"Failed to initialize real NLP service: {e}")
