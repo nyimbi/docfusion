@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Any, Set
 from datetime import timezone, datetime
 from enum import Enum
 
-from fastapi import WebSocket, WebSocketDisconnect, Depends, HTTPException, Query
+from fastapi import WebSocket, WebSocketDisconnect, Query
 from pydantic import BaseModel, Field, ValidationError
 
 from ..middleware.authentication_middleware import get_websocket_user

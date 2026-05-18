@@ -16,7 +16,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.database.session import get_async_db_session
-from ...core.utils import uuid7str
 from ...rfp.rfp_analyzer import RFPAnalyzer
 
 logger = logging.getLogger(__name__)
