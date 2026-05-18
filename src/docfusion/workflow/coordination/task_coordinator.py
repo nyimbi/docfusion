@@ -9,12 +9,10 @@ routing, dependency management, and progress tracking.
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Callable
 from collections import defaultdict
-import json
-import math
 
 from pydantic import BaseModel, Field, ConfigDict
 from ...core.utils import uuid7str
@@ -1259,11 +1257,6 @@ class TaskCoordinator:
 		]
 		
 		if completed_with_deadlines:
-			on_time_completions = [
-				assignment for assignment in completed_with_deadlines
-				# Note: We don't have completion time in the current model
-				# This would need to be tracked separately
-			]
 			# Simplified calculation
 			self.coordination_metrics.deadline_adherence_rate = 85.0  # Placeholder
 		
