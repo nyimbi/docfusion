@@ -104,8 +104,8 @@ class TemplateField(BaseModel):
 
     @field_validator("options")
     @classmethod
-    def validate_options(cls, v, values):
-        field_type = values.get("type")
+    def validate_options(cls, v, info):
+        field_type = info.data.get("type") if info.data else None
         if field_type in [FieldType.SELECT, FieldType.MULTISELECT]:
             if not v or len(v) == 0:
                 raise ValueError("Select fields must have at least one option")
@@ -195,17 +195,16 @@ class TemplateCreateRequest(BaseModel):
 
         return v
 
-    @field_validator("content")
-    @classmethod
-    def validate_content_placeholders(cls, v, values):
+    @model_validator(mode="after")
+    def validate_content_placeholders(self):
         """Validate that content placeholders match defined fields"""
         import re
 
         # Extract placeholders from content
-        placeholders = set(re.findall(r"\{(\w+)\}", v))
+        placeholders = set(re.findall(r"\{(\w+)\}", self.content))
 
         # Get defined field names
-        fields = values.get("fields", [])
+        fields = self.fields or []
         field_names = {field.name for field in fields} if fields else set()
 
         # Check for placeholders without corresponding fields
@@ -215,7 +214,7 @@ class TemplateCreateRequest(BaseModel):
                 f"Undefined placeholders in content: {', '.join(undefined_placeholders)}"
             )
 
-        return v
+        return self
 
 class TemplateUpdateRequest(BaseModel):
     """Request model for updating a template"""

@@ -6,16 +6,13 @@ Comprehensive test suite for the FastAPI-based proposal writer API
 including endpoints, middleware, validation, and integration tests.
 """
 
-import asyncio
 import pytest
 from fastapi.testclient import TestClient
 from fastapi import status
-import json
-from typing import Dict, Any, Optional
 
-from src.proposal_writer.api import create_app, APIApplication
-from src.proposal_writer.api.serializers.document_serializers import DocumentCreateRequest
-from src.proposal_writer.api.serializers.template_serializers import TemplateCreateRequest
+from docfusion.api.main import APIApplication, create_app
+from docfusion.api.serializers.document_serializers import DocumentCreateRequest
+from docfusion.api.serializers.template_serializers import TemplateCreateRequest
 
 
 class TestAPIApplication:
@@ -241,9 +238,15 @@ class TestAPIMiddleware:
 	
 	def test_cors_headers(self, client):
 		"""Test CORS headers are present"""
-		response = client.options("/api/v1/info")
-		# CORS headers should be present for OPTIONS request
-		assert response.status_code in [200, 404]  # Depending on middleware setup
+		response = client.options(
+			"/api/v1/info",
+			headers={
+				"Origin": "http://localhost:3000",
+				"Access-Control-Request-Method": "GET",
+			},
+		)
+		assert response.status_code == 200
+		assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
 	
 	def test_rate_limiting_headers(self, client):
 		"""Test rate limiting headers"""
@@ -372,7 +375,6 @@ class TestAPIPerformance:
 	def test_concurrent_requests(self, client):
 		"""Test handling of concurrent requests"""
 		import concurrent.futures
-		import threading
 		
 		def make_request():
 			return client.get("/api/v1/info")

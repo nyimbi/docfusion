@@ -1,5 +1,4 @@
-import pytest
-from src.proposal_writer.main import main
+from docfusion.main import main
 
 def test_main() -> None:
     """Test main function runs without error."""
@@ -7,5 +6,5 @@ def test_main() -> None:
 
 def test_import() -> None:
     """Test that the package can be imported."""
-    import src.proposal_writer
-    assert hasattr(src.proposal_writer, "__version__")
+    import docfusion
+    assert hasattr(docfusion, "__version__")

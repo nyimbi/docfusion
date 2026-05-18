@@ -8,9 +8,9 @@ testing, and monitoring for the proposal writer system.
 
 import logging
 from contextlib import asynccontextmanager
-from typing import Dict, Optional, Any
+from typing import Annotated, Dict, Optional, Any
 
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -36,6 +36,11 @@ from .middleware.cors_middleware import (
 	create_production_cors_middleware
 )
 from .validators.input_validators import InputValidators, create_input_validators
+from .serializers.document_serializers import DocumentCreateRequest
+from .serializers.template_serializers import (
+	TemplateCreateRequest,
+	TemplateSearchRequest,
+)
 from ..security import SecurityManager, create_security_manager
 from ..storage.secure_storage_service import SecureStorageService
 from ..document_engine.secure_document_engine import SecureDocumentEngine
@@ -44,6 +49,10 @@ from ..document_engine.secure_document_engine import SecureDocumentEngine
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+AuthenticatedUser = Annotated[dict[str, Any], Depends(get_current_user)]
+DocumentSearchQuery = Annotated[str, Query(description="Search query")]
+DocumentSearchLimit = Annotated[int, Query(ge=1, le=100, description="Maximum results")]
 
 
 def _get_allowed_origins() -> list[str]:
@@ -226,17 +235,82 @@ class APIApplication:
 				"status": "running"
 			}
 		
-		# Include endpoint routers when available
+		# Include endpoint routers when available; otherwise register
+		# auth-protected service-unavailable fallbacks so known protected paths
+		# fail closed instead of disappearing as 404s.
 		if hasattr(self, 'document_endpoints') and self.document_endpoints:
 			app.include_router(self.document_endpoints.router)
+		else:
+			self._add_unavailable_document_routes(app)
 		
 		if hasattr(self, 'template_endpoints') and self.template_endpoints:
 			app.include_router(self.template_endpoints.router)
+		else:
+			self._add_unavailable_template_routes(app)
 
 		# Include RFP and discovery routers (always available)
 		app.include_router(rfp_router)
 		app.include_router(discovery_router)
 		app.include_router(opportunity_router)
+
+	def _add_unavailable_document_routes(self, app: FastAPI):
+		"""Register protected document routes when backing services are unavailable."""
+		router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
+
+		@router.get("/")
+		async def list_documents(
+			current_user: AuthenticatedUser,
+		) -> None:
+			del current_user
+			raise HTTPException(status_code=503, detail="Document service unavailable")
+
+		@router.get("/search")
+		async def search_documents(
+			query: DocumentSearchQuery,
+			current_user: AuthenticatedUser,
+			limit: DocumentSearchLimit = 20,
+		) -> None:
+			del query, limit, current_user
+			raise HTTPException(status_code=503, detail="Document service unavailable")
+
+		@router.post("/")
+		async def create_document(
+			request: DocumentCreateRequest,
+			current_user: AuthenticatedUser,
+		) -> None:
+			del request, current_user
+			raise HTTPException(status_code=503, detail="Document service unavailable")
+
+		app.include_router(router)
+
+	def _add_unavailable_template_routes(self, app: FastAPI):
+		"""Register protected template routes when backing services are unavailable."""
+		router = APIRouter(prefix="/api/v1/templates", tags=["templates"])
+
+		@router.get("/")
+		async def list_templates(
+			current_user: AuthenticatedUser,
+		) -> None:
+			del current_user
+			raise HTTPException(status_code=503, detail="Template service unavailable")
+
+		@router.post("/search")
+		async def search_templates(
+			request: TemplateSearchRequest,
+			current_user: AuthenticatedUser,
+		) -> None:
+			del request, current_user
+			raise HTTPException(status_code=503, detail="Template service unavailable")
+
+		@router.post("/")
+		async def create_template(
+			request: TemplateCreateRequest,
+			current_user: AuthenticatedUser,
+		) -> None:
+			del request, current_user
+			raise HTTPException(status_code=503, detail="Template service unavailable")
+
+		app.include_router(router)
 
 	def _add_documentation_routes(self, app: FastAPI):
 		"""Add custom documentation routes"""
