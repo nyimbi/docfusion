@@ -11,12 +11,11 @@ Copyright (c) 2025
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Type, Callable
+from typing import Any, Dict, List, Optional, Callable
 from datetime import datetime
 from dataclasses import dataclass
 from enum import Enum
 
-from pydantic import BaseModel, Field, ConfigDict
 
 
 class ServiceStatus(str, Enum):

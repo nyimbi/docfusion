@@ -9,9 +9,8 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 try:
 	from ...voice_dna import (
