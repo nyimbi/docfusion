@@ -9,16 +9,13 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from datetime import datetime
 
 try:
-	from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+	from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 	from fastapi.responses import HTMLResponse, JSONResponse
-	from fastapi.staticfiles import StaticFiles
-	from fastapi.templating import Jinja2Templates
 	from pydantic import BaseModel, Field
 	FASTAPI_AVAILABLE = True
 except ImportError:

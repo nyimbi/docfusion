@@ -9,17 +9,14 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from pydantic import BaseModel, ConfigDict, Field
 
-from .agent_composer import AgentComposer, AgentConfiguration
+from .agent_composer import AgentComposer
 from .workflow_builder import WorkflowBuilder
 from .workflow_engine import WorkflowEngine
 from ..core.utils import uuid7str
@@ -656,9 +653,7 @@ class VisualWorkflowEditor:
 
     async def _handle_canvas_click(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle canvas click events"""
-        position = event_data.get("position", (0, 0))
         button = event_data.get("button", "left")
-        modifiers = event_data.get("modifiers", [])
 
         if button == "left":
             if self.editor_state.current_mode == EditorMode.SELECT:
@@ -810,7 +805,6 @@ class VisualWorkflowEditor:
 
     async def _handle_context_menu(self, event_data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle context menu actions"""
-        action = event_data.get("action")
         element_id = event_data.get("element_id")
         position = event_data.get("position", (0, 0))
 
@@ -944,7 +938,6 @@ class VisualWorkflowEditor:
         # Check for unbalanced braces
         import re
 
-        braces = re.findall(r"\{[^}]*\}", prompt)
         for match in re.finditer(r"\{[^}]*(?:\}|$)", prompt):
             if not match.group().endswith("}"):
                 errors.append(

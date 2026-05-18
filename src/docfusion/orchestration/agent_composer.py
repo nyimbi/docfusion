@@ -9,15 +9,13 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, ConfigDict, Field
 
 from ..core.utils import uuid7str
 from .workflow_engine import (
@@ -842,7 +840,6 @@ class AgentComposer:
 
         node_count = len(nodes)
         cols = math.ceil(math.sqrt(node_count))
-        rows = math.ceil(node_count / cols)
 
         spacing_x = 220
         spacing_y = 150
