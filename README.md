@@ -837,6 +837,7 @@ frontend/
 | `DATABASE_URL` | PostgreSQL connection string |
 | `AUTH_SECRET` | Auth.js session encryption secret |
 | `NEXTAUTH_SECRET` | Compatibility alias for `AUTH_SECRET` |
+| `DOCFUSION_TENANT_HEADER_SECRET` | Shared HMAC secret for frontend-to-FastAPI tenant context headers |
 | `NEXTAUTH_URL` | App base URL |
 | `KEYCLOAK_ISSUER` | Keycloak realm issuer URL |
 | `KEYCLOAK_CLIENT_ID` | Keycloak OIDC client ID |

@@ -34,6 +34,7 @@ function paramsFor(documentId: string) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	vi.stubEnv("DOCFUSION_TENANT_HEADER_SECRET", "test-tenant-secret");
 	sessionMock.getServerSession.mockResolvedValue({
 		user: { id: "user-1", organizationId: "org-1" },
 	});
@@ -123,6 +124,8 @@ describe("Documents render BFF route", () => {
 		const headers = init?.headers as Record<string, string>;
 		expect(headers["x-docfusion-user-id"]).toBe("user-1");
 		expect(headers["x-docfusion-organization-id"]).toBe("org-1");
+		expect(headers["x-docfusion-tenant-timestamp"]).toEqual(expect.any(String));
+		expect(headers["x-docfusion-tenant-signature"]).toMatch(/^[a-f0-9]{64}$/);
 		expect(headers["Content-Type"]).toBe("application/json");
 
 		// Body forwarded verbatim — the BFF does not re-shape the JSON.

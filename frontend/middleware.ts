@@ -101,6 +101,13 @@ const PUBLIC_API_PATHS = ["/api/auth"];
 // Auth pages that authenticated users should be redirected away from
 const AUTH_PATHS = ["/auth/sign-in", "/auth/sign-up", "/auth/forgot-password"];
 
+const TENANT_CONTEXT_HEADERS = [
+	"x-docfusion-user-id",
+	"x-docfusion-organization-id",
+	"x-docfusion-tenant-timestamp",
+	"x-docfusion-tenant-signature",
+];
+
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
@@ -154,8 +161,17 @@ export async function middleware(request: NextRequest) {
 			}
 		}
 
+		const forwardedHeaders = new Headers(request.headers);
+		for (const header of TENANT_CONTEXT_HEADERS) {
+			forwardedHeaders.delete(header);
+		}
+
 		// Allow the request through, attaching rate-limit headers to the response
-		const response = NextResponse.next();
+		const response = NextResponse.next({
+			request: {
+				headers: forwardedHeaders,
+			},
+		});
 		response.headers.set("X-RateLimit-Limit", String(RATE_LIMIT_MAX));
 		response.headers.set("X-RateLimit-Remaining", String(remaining));
 		response.headers.set(

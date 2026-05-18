@@ -9,6 +9,7 @@ import {
 	requireRouteTenantContext,
 	isTenantResponse,
 } from "@/lib/auth/route-tenant";
+import { buildSignedTenantHeaders } from "@/lib/auth/tenant-signature";
 import { db } from "@/lib/db";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import { and, eq, ne } from "drizzle-orm";
@@ -82,8 +83,12 @@ export async function POST(
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
-						"x-docfusion-user-id": ctx.userId,
-						"x-docfusion-organization-id": ctx.organizationId,
+						...buildSignedTenantHeaders({
+							method: "POST",
+							path: `/api/v1/rfp/${rfpId}/parse`,
+							userId: ctx.userId,
+							organizationId: ctx.organizationId,
+						}),
 					},
 				});
 				return NextResponse.json(await response.json(), { status: response.status });

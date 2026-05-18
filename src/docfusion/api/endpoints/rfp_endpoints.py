@@ -2,9 +2,9 @@
 """FastAPI endpoints for the RFP ingestion pipeline.
 
 Every route here is tenant-gated via :func:`require_tenant`, which reads
-``x-docfusion-user-id`` and ``x-docfusion-organization-id`` headers
-injected by the Next.js BFF. FastAPI never inspects the user's session
-cookie directly — the BFF is the trust boundary.
+HMAC-signed tenant headers injected by the Next.js BFF. FastAPI never
+inspects the user's session cookie directly — the signed BFF context is
+the trust boundary.
 
 W3c status:
   * Auth: ``Depends(require_tenant)`` is mandatory on every handler.

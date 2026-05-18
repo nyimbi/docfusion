@@ -21,6 +21,7 @@ import {
 	requireRouteTenantContext,
 	isTenantResponse,
 } from "@/lib/auth/route-tenant";
+import { buildSignedTenantHeaders } from "@/lib/auth/tenant-signature";
 
 const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
 
@@ -70,8 +71,12 @@ export async function POST(
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
-					"x-docfusion-user-id": ctx.userId,
-					"x-docfusion-organization-id": ctx.organizationId,
+					...buildSignedTenantHeaders({
+						method: "POST",
+						path: `/api/v1/documents/${documentId}/render`,
+						userId: ctx.userId,
+						organizationId: ctx.organizationId,
+					}),
 				},
 				body,
 				signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),

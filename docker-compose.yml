@@ -19,6 +19,7 @@ services:
       - ENVIRONMENT=production
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET required}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY required}
+      - DOCFUSION_TENANT_HEADER_SECRET=${DOCFUSION_TENANT_HEADER_SECRET:?DOCFUSION_TENANT_HEADER_SECRET required}
       - REQUIRE_AUTH=${REQUIRE_AUTH:-true}
       
       # Database Configuration
@@ -89,6 +90,7 @@ services:
       - ENVIRONMENT=development
       - JWT_SECRET=${JWT_SECRET:-dev-secret-key-change-in-production}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-dev-encryption-key-change-in-production}
+      - DOCFUSION_TENANT_HEADER_SECRET=${DOCFUSION_TENANT_HEADER_SECRET:-dev-tenant-header-secret-change-in-production}
       - REQUIRE_AUTH=${REQUIRE_AUTH:-true}
       - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/docufusion
       - REDIS_URL=redis://redis:6379/0

@@ -33,11 +33,15 @@ Usage:
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
+import os
+import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import NoReturn, Optional
 
 # Infrastructure clients
 from ..infrastructure.searxng_client import SearXNGClient
@@ -542,10 +546,10 @@ async def service_context():
 # ============================================================================
 #
 # The Next.js BFF proxies requests to FastAPI and injects the resolved tenant
-# identity via two headers. FastAPI never inspects the user's session cookie
-# directly — the BFF is the trust boundary.
+# identity via HMAC-signed headers. FastAPI never inspects the user's session
+# cookie directly; the signed BFF context is the trust boundary.
 
-from fastapi import Header, HTTPException, status
+from fastapi import Header, HTTPException, Request, status
 
 
 @dataclass(frozen=True, slots=True)
@@ -554,11 +558,74 @@ class TenantContext:
 	organization_id: str
 
 
+TENANT_SIGNATURE_MAX_AGE_SECONDS = 300
+TENANT_SIGNATURE_SECRET_ENV = "DOCFUSION_TENANT_HEADER_SECRET"
+
+
+def build_tenant_signature(
+	*,
+	method: str,
+	path: str,
+	user_id: str,
+	organization_id: str,
+	timestamp: str,
+	secret: str,
+) -> str:
+	"""Build the BFF-to-FastAPI tenant header signature."""
+	payload = "\n".join(
+		[
+			"v1",
+			method.upper(),
+			path,
+			user_id,
+			organization_id,
+			timestamp,
+		]
+	)
+	return hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def build_signed_tenant_headers(
+	*,
+	method: str,
+	path: str,
+	user_id: str,
+	organization_id: str,
+	timestamp: int | None = None,
+	secret: str | None = None,
+) -> dict[str, str]:
+	"""Build signed tenant headers for tests and trusted internal clients."""
+	resolved_secret = secret or os.environ.get(TENANT_SIGNATURE_SECRET_ENV)
+	if not resolved_secret:
+		raise RuntimeError(f"{TENANT_SIGNATURE_SECRET_ENV} is required")
+	resolved_timestamp = str(timestamp if timestamp is not None else int(time.time()))
+	return {
+		"x-docfusion-user-id": user_id,
+		"x-docfusion-organization-id": organization_id,
+		"x-docfusion-tenant-timestamp": resolved_timestamp,
+		"x-docfusion-tenant-signature": build_tenant_signature(
+			method=method,
+			path=path,
+			user_id=user_id,
+			organization_id=organization_id,
+			timestamp=resolved_timestamp,
+			secret=resolved_secret,
+		),
+	}
+
+
+def _reject_invalid_tenant_signature() -> NoReturn:
+	raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid tenant signature")
+
+
 def require_tenant(
+	request: Request,
 	x_docfusion_user_id: str | None = Header(default=None),
 	x_docfusion_organization_id: str | None = Header(default=None),
+	x_docfusion_tenant_timestamp: str | None = Header(default=None),
+	x_docfusion_tenant_signature: str | None = Header(default=None),
 ) -> TenantContext:
-	"""Resolve calling user and organization from BFF-injected headers.
+	"""Resolve calling user and organization from signed BFF-injected headers.
 
 	Raises 401 if user is missing, 403 if user is set but org is missing.
 	"""
@@ -568,6 +635,32 @@ def require_tenant(
 		raise HTTPException(
 			status_code=status.HTTP_403_FORBIDDEN, detail="No organization context"
 		)
+	if not x_docfusion_tenant_timestamp or not x_docfusion_tenant_signature:
+		_reject_invalid_tenant_signature()
+
+	secret = os.environ.get(TENANT_SIGNATURE_SECRET_ENV)
+	if not secret:
+		logger.error("%s is required to verify tenant headers", TENANT_SIGNATURE_SECRET_ENV)
+		_reject_invalid_tenant_signature()
+
+	try:
+		timestamp = int(x_docfusion_tenant_timestamp)
+	except ValueError:
+		_reject_invalid_tenant_signature()
+	if abs(int(time.time()) - timestamp) > TENANT_SIGNATURE_MAX_AGE_SECONDS:
+		_reject_invalid_tenant_signature()
+
+	expected_signature = build_tenant_signature(
+		method=request.method,
+		path=request.url.path,
+		user_id=x_docfusion_user_id,
+		organization_id=x_docfusion_organization_id,
+		timestamp=x_docfusion_tenant_timestamp,
+		secret=secret,
+	)
+	if not hmac.compare_digest(expected_signature, x_docfusion_tenant_signature):
+		_reject_invalid_tenant_signature()
+
 	return TenantContext(
 		user_id=x_docfusion_user_id,
 		organization_id=x_docfusion_organization_id,

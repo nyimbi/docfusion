@@ -48,6 +48,29 @@ describe("middleware API protection", () => {
 		expect(getTokenMock).toHaveBeenCalledOnce();
 	});
 
+	it("strips tenant identity headers before API rewrites", async () => {
+		getTokenMock.mockResolvedValueOnce({ sub: "user-1" });
+
+		const response = await middleware(
+			new NextRequest("https://app.test/api/v1/rfp/upload", {
+				headers: {
+					"x-docfusion-user-id": "attacker",
+					"x-docfusion-organization-id": "victim-org",
+					"x-docfusion-tenant-timestamp": "9999999999",
+					"x-docfusion-tenant-signature": "bad",
+				},
+			}),
+		);
+
+		const overriddenHeaders = response.headers.get("x-middleware-override-headers") ?? "";
+		expect(overriddenHeaders).not.toContain("x-docfusion-user-id");
+		expect(overriddenHeaders).not.toContain("x-docfusion-organization-id");
+		expect(overriddenHeaders).not.toContain("x-docfusion-tenant-timestamp");
+		expect(overriddenHeaders).not.toContain("x-docfusion-tenant-signature");
+		expect(response.headers.get("x-middleware-request-x-docfusion-user-id")).toBeNull();
+		expect(response.headers.get("x-middleware-request-x-docfusion-organization-id")).toBeNull();
+	});
+
 	it("uses trusted X-Real-IP instead of spoofable X-Forwarded-For", () => {
 		const request = new NextRequest("https://app.test/api/v1/opportunities", {
 			headers: {

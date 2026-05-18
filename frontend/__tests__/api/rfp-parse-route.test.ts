@@ -44,8 +44,12 @@ const parserMock = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth-utils", () => ({
-	requireServerSession: vi.fn(async () => ({
-		user: { id: "capture-user", email: "capture@example.test" },
+	getServerSession: vi.fn(async () => ({
+		user: {
+			id: "capture-user",
+			email: "capture@example.test",
+			organizationId: "capture-org",
+		},
 	})),
 }));
 
@@ -73,6 +77,7 @@ function parseWorkflowRequest(body: Record<string, unknown>, rfpId = "00000000-0
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	vi.stubEnv("DOCFUSION_TENANT_HEADER_SECRET", "test-tenant-secret");
 	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue({
 		endpoint: "https://gb-lon-1.linodeobjects.com",
 		region: "gb-lon-1",
@@ -80,7 +85,9 @@ beforeEach(() => {
 		accessKeyId: "access-key",
 		secretAccessKey: "secret-key",
 	});
-	dbMock.update.mockImplementation(() => createChain());
+	dbMock.update.mockImplementation(() =>
+		createChain({ result: [{ id: "00000000-0000-4000-8000-000000000601" }] })
+	);
 	dbMock.insert.mockImplementation(() =>
 		createChain({ result: [{ id: "00000000-0000-4000-8000-000000000701" }] })
 	);
@@ -113,12 +120,19 @@ describe("RFP parse route", () => {
 		});
 		expect(fetchMock).not.toHaveBeenCalled();
 		expect(parserMock.processRfpParsingJob).toHaveBeenCalledWith(
-			"00000000-0000-4000-8000-000000000701",
-			"00000000-0000-4000-8000-000000000601"
+			{
+				jobId: "00000000-0000-4000-8000-000000000701",
+				rfpDocumentId: "00000000-0000-4000-8000-000000000601",
+				tenantContext: {
+					userId: "capture-user",
+					organizationId: "capture-org",
+				},
+			}
 		);
 	});
 
 	it("keeps the legacy Python proxy only for unknown documents without E3 config", async () => {
+		const unknownRfpId = "00000000-0000-4000-8000-000000000602";
 		storageMock.getLinodeE3ConfigFromEnv.mockReturnValue(null);
 		dbMock.query.rfpDocuments.findFirst.mockResolvedValue(null);
 		const fetchMock = vi.fn(async () => new Response(JSON.stringify({
@@ -130,15 +144,23 @@ describe("RFP parse route", () => {
 		}));
 		vi.stubGlobal("fetch", fetchMock);
 
-		const response = await POST(parseRequest("external-rfp"), {
-			params: Promise.resolve({ rfpId: "external-rfp" }),
+		const response = await POST(parseRequest(unknownRfpId), {
+			params: Promise.resolve({ rfpId: unknownRfpId }),
 		});
 
 		expect(response.status).toBe(202);
 		expect(await response.json()).toMatchObject({ parsingJobId: "python-job" });
 		expect(fetchMock).toHaveBeenCalledWith(
-			"http://localhost:8000/api/v1/rfp/external-rfp/parse",
-			expect.objectContaining({ method: "POST" })
+			`http://localhost:8000/api/v1/rfp/${unknownRfpId}/parse`,
+			expect.objectContaining({
+				method: "POST",
+				headers: expect.objectContaining({
+					"x-docfusion-user-id": "capture-user",
+					"x-docfusion-organization-id": "capture-org",
+					"x-docfusion-tenant-timestamp": expect.any(String),
+					"x-docfusion-tenant-signature": expect.stringMatching(/^[a-f0-9]{64}$/),
+				}),
+			})
 		);
 		expect(parserMock.processRfpParsingJob).not.toHaveBeenCalled();
 	});

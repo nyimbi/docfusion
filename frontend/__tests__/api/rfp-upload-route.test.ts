@@ -49,6 +49,7 @@ function uploadRequest(file: File) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	vi.stubEnv("DOCFUSION_TENANT_HEADER_SECRET", "test-tenant-secret");
 	dbMock.insert.mockReset();
 	dbMock.query.rfpDocuments.findFirst.mockReset();
 	storageMock.getLinodeE3ConfigFromEnv.mockReset();
@@ -83,7 +84,9 @@ describe("RFP upload route", () => {
 	});
 
 	it("rejects unsupported uploads before the Python fallback", async () => {
-		authMock.mockResolvedValueOnce({ user: { id: "user-1", email: "user@example.test" } });
+		authMock.mockResolvedValueOnce({
+			user: { id: "user-1", email: "user@example.test", organizationId: "org-1" },
+		});
 
 		const response = await POST(uploadRequest(new File(["bad"], "rfp.exe", { type: "application/octet-stream" })));
 
@@ -93,7 +96,9 @@ describe("RFP upload route", () => {
 	});
 
 	it("proxies only validated uploads with authenticated user context when E3 is absent", async () => {
-		authMock.mockResolvedValueOnce({ user: { id: "user-1", email: "user@example.test" } });
+		authMock.mockResolvedValueOnce({
+			user: { id: "user-1", email: "user@example.test", organizationId: "org-1" },
+		});
 
 		const response = await POST(uploadRequest(new File(["pdf"], "rfp.pdf", { type: "application/pdf" })));
 
@@ -102,7 +107,12 @@ describe("RFP upload route", () => {
 			"http://localhost:8000/api/v1/rfp/upload",
 			expect.objectContaining({
 				method: "POST",
-				headers: { "x-docfusion-user-id": "user-1" },
+				headers: expect.objectContaining({
+					"x-docfusion-user-id": "user-1",
+					"x-docfusion-organization-id": "org-1",
+					"x-docfusion-tenant-timestamp": expect.any(String),
+					"x-docfusion-tenant-signature": expect.stringMatching(/^[a-f0-9]{64}$/),
+				}),
 				body: expect.any(FormData),
 			})
 		);
@@ -111,7 +121,9 @@ describe("RFP upload route", () => {
 
 	it("stores validated uploads in Linode E3 when object storage is configured", async () => {
 		const inserted: Record<string, unknown>[] = [];
-		authMock.mockResolvedValueOnce({ user: { id: "user-1", email: "user@example.test" } });
+		authMock.mockResolvedValueOnce({
+			user: { id: "user-1", email: "user@example.test", organizationId: "org-1" },
+		});
 		storageMock.getLinodeE3ConfigFromEnv.mockReturnValue({
 			bucket: "mansa",
 			endpoint: "https://mansa.gb-lon-1.linodeobjects.com",

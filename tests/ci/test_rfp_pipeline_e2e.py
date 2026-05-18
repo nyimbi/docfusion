@@ -26,20 +26,31 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from docfusion.api.dependencies import build_signed_tenant_headers
 from docfusion.api.endpoints.rfp_endpoints import router as rfp_router
 from docfusion.api.endpoints.discovery_endpoints import router as discovery_router
 from docfusion.core.database.session import get_async_db_session
 
 
-TENANT_HEADERS = {
-	"x-docfusion-user-id": "test-user",
-	"x-docfusion-organization-id": "test-org",
-}
+TENANT_SECRET = "test-tenant-secret"
 
-OTHER_TENANT_HEADERS = {
-	"x-docfusion-user-id": "other-user",
-	"x-docfusion-organization-id": "other-org",
-}
+
+def _tenant_headers(user_id: str, organization_id: str, method: str, path: str) -> dict[str, str]:
+	return build_signed_tenant_headers(
+		method=method,
+		path=path,
+		user_id=user_id,
+		organization_id=organization_id,
+		secret=TENANT_SECRET,
+	)
+
+
+def _headers_for(method: str, path: str) -> dict[str, str]:
+	return _tenant_headers("test-user", "test-org", method, path)
+
+
+def _other_headers_for(method: str, path: str) -> dict[str, str]:
+	return _tenant_headers("other-user", "other-org", method, path)
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +336,7 @@ def client(
 		"docfusion.api.endpoints.rfp_endpoints.enqueue_rfp_parse",
 		enqueue_recorder,
 	)
+	monkeypatch.setenv("DOCFUSION_TENANT_HEADER_SECRET", TENANT_SECRET)
 
 	app = FastAPI()
 	app.include_router(rfp_router)
@@ -386,7 +398,7 @@ class TestRfpPipeline:
 		"""/upload returns 202 and writes a tenant-scoped row."""
 		response = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 test content", "application/pdf")},
 		)
 		assert response.status_code == 202, response.text
@@ -416,7 +428,7 @@ class TestRfpPipeline:
 		payload = b"%PDF-1.4 same bytes"
 		first = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("a.pdf", payload, "application/pdf")},
 		)
 		assert first.status_code == 202
@@ -424,7 +436,7 @@ class TestRfpPipeline:
 
 		second = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("b.pdf", payload, "application/pdf")},
 		)
 		assert second.status_code == 409, second.text
@@ -438,7 +450,7 @@ class TestRfpPipeline:
 		"""Attacker-controlled filename cannot escape the per-tenant directory."""
 		response = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={
 				"file": (
 					"../../../etc/passwd",
@@ -473,7 +485,7 @@ class TestRfpPipeline:
 		"""
 		upload = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 hello", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
@@ -482,7 +494,10 @@ class TestRfpPipeline:
 		# Force a deterministic return shape so the assertion is stable.
 		enqueue_recorder.next_return = ("wf-fixed-id", "run-fixed-id")
 
-		response = client.post(f"/api/v1/rfp/{rfp_id}/parse", headers=TENANT_HEADERS)
+		response = client.post(
+			f"/api/v1/rfp/{rfp_id}/parse",
+			headers=_headers_for("POST", f"/api/v1/rfp/{rfp_id}/parse"),
+		)
 		assert response.status_code == 202, response.text
 		data = response.json()
 		assert data == {
@@ -519,14 +534,14 @@ class TestRfpPipeline:
 		"""Cross-tenant /parse against an existing rfp returns 404 and never enqueues."""
 		upload = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 hello", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
 
 		response = client.post(
 			f"/api/v1/rfp/{rfp_id}/parse",
-			headers=OTHER_TENANT_HEADERS,
+			headers=_other_headers_for("POST", f"/api/v1/rfp/{rfp_id}/parse"),
 		)
 		assert response.status_code == 404
 		# Tenancy check fails *before* the Temporal call.
@@ -539,7 +554,7 @@ class TestRfpPipeline:
 	):
 		upload = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
@@ -548,7 +563,10 @@ class TestRfpPipeline:
 		# extraction lives in test_rfp_parse_activity.py.
 		_seed_requirements(fake_session, rfp_id, "test-org")
 
-		response = client.get(f"/api/v1/rfp/{rfp_id}/requirements", headers=TENANT_HEADERS)
+		response = client.get(
+			f"/api/v1/rfp/{rfp_id}/requirements",
+			headers=_headers_for("GET", f"/api/v1/rfp/{rfp_id}/requirements"),
+		)
 		assert response.status_code == 200
 		data = response.json()
 		assert data["rfp_id"] == rfp_id
@@ -565,7 +583,7 @@ class TestRfpPipeline:
 	):
 		upload = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
@@ -573,7 +591,7 @@ class TestRfpPipeline:
 
 		response = client.get(
 			f"/api/v1/rfp/{rfp_id}/requirements",
-			headers=OTHER_TENANT_HEADERS,
+			headers=_other_headers_for("GET", f"/api/v1/rfp/{rfp_id}/requirements"),
 		)
 		assert response.status_code == 404
 
@@ -584,7 +602,7 @@ class TestRfpPipeline:
 	):
 		upload = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
@@ -592,7 +610,7 @@ class TestRfpPipeline:
 
 		response = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", f"/api/v1/rfp/{rfp_id}/compliance-matrix"),
 		)
 		assert response.status_code == 200, response.text
 		data = response.json()
@@ -615,7 +633,7 @@ class TestRfpPipeline:
 	):
 		upload = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
@@ -623,14 +641,14 @@ class TestRfpPipeline:
 
 		response = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
-			headers=OTHER_TENANT_HEADERS,
+			headers=_other_headers_for("POST", f"/api/v1/rfp/{rfp_id}/compliance-matrix"),
 		)
 		assert response.status_code == 404
 
 	def test_generate_matrix_409_when_no_requirements(self, client: TestClient):
 		upload = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
@@ -638,7 +656,7 @@ class TestRfpPipeline:
 
 		response = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", f"/api/v1/rfp/{rfp_id}/compliance-matrix"),
 		)
 		assert response.status_code == 409
 
@@ -649,21 +667,24 @@ class TestRfpPipeline:
 	):
 		upload = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
 		_seed_requirements(fake_session, rfp_id, "test-org")
 		matrix_resp = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", f"/api/v1/rfp/{rfp_id}/compliance-matrix"),
 		)
 		matrix_id = matrix_resp.json()["matrix_id"]
 		entry_id = next(iter(fake_session.entries.keys()))
 
 		response = client.patch(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}",
-			headers=TENANT_HEADERS,
+			headers=_headers_for(
+				"PATCH",
+				f"/api/v1/rfp/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}",
+			),
 			json={"status": "addressed", "response": "Section 4.2", "notes": "looks good"},
 		)
 		assert response.status_code == 200, response.text
@@ -680,14 +701,14 @@ class TestRfpPipeline:
 	):
 		upload = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
 		_seed_requirements(fake_session, rfp_id, "test-org")
 		matrix_resp = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", f"/api/v1/rfp/{rfp_id}/compliance-matrix"),
 		)
 		matrix_id = matrix_resp.json()["matrix_id"]
 		entry_id = next(iter(fake_session.entries.keys()))
@@ -695,7 +716,10 @@ class TestRfpPipeline:
 		# A client trying to smuggle in organization_id should fail closed.
 		response = client.patch(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}",
-			headers=TENANT_HEADERS,
+			headers=_headers_for(
+				"PATCH",
+				f"/api/v1/rfp/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}",
+			),
 			json={"organization_id": "evil-org", "status": "addressed"},
 		)
 		assert response.status_code == 400
@@ -708,21 +732,24 @@ class TestRfpPipeline:
 	):
 		upload = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
 		_seed_requirements(fake_session, rfp_id, "test-org")
 		matrix_resp = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", f"/api/v1/rfp/{rfp_id}/compliance-matrix"),
 		)
 		matrix_id = matrix_resp.json()["matrix_id"]
 		entry_id = next(iter(fake_session.entries.keys()))
 
 		response = client.patch(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}",
-			headers=TENANT_HEADERS,
+			headers=_headers_for(
+				"PATCH",
+				f"/api/v1/rfp/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}",
+			),
 			json={"status": "TOTALLY_BOGUS"},
 		)
 		assert response.status_code == 400
@@ -734,21 +761,24 @@ class TestRfpPipeline:
 	):
 		upload = client.post(
 			"/api/v1/rfp/upload",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", "/api/v1/rfp/upload"),
 			files={"file": ("sample.pdf", b"%PDF-1.4 hi", "application/pdf")},
 		)
 		rfp_id = upload.json()["rfp_id"]
 		_seed_requirements(fake_session, rfp_id, "test-org")
 		matrix_resp = client.post(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix",
-			headers=TENANT_HEADERS,
+			headers=_headers_for("POST", f"/api/v1/rfp/{rfp_id}/compliance-matrix"),
 		)
 		matrix_id = matrix_resp.json()["matrix_id"]
 		entry_id = next(iter(fake_session.entries.keys()))
 
 		response = client.patch(
 			f"/api/v1/rfp/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}",
-			headers=OTHER_TENANT_HEADERS,
+			headers=_other_headers_for(
+				"PATCH",
+				f"/api/v1/rfp/{rfp_id}/compliance-matrix/{matrix_id}/entries/{entry_id}",
+			),
 			json={"status": "addressed"},
 		)
 		assert response.status_code == 404

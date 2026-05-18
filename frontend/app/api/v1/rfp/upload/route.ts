@@ -10,6 +10,7 @@ import {
 	isTenantResponse,
 	requireRouteTenantContext,
 } from "@/lib/auth/route-tenant";
+import { buildSignedTenantHeaders } from "@/lib/auth/tenant-signature";
 import { db } from "@/lib/db";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import { and, eq } from "drizzle-orm";
@@ -92,10 +93,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		if (USE_PYTHON_RFP && !objectStoreConfig) {
 			const response = await fetch(`${FASTAPI_URL}/api/v1/rfp/upload`, {
 				method: "POST",
-				headers: {
-					"x-docfusion-user-id": userId,
-					"x-docfusion-organization-id": organizationId,
-				},
+				headers: buildSignedTenantHeaders({
+					method: "POST",
+					path: "/api/v1/rfp/upload",
+					userId,
+					organizationId,
+				}),
 				body: formData,
 			});
 			const data = await response.json();
