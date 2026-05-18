@@ -16,8 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getAIClient } from "@/lib/ai/client";
 import { db } from "@/lib/db";
-import { companySettings } from "@/lib/db/schema";
-import { products, services } from "@/lib/db/schema-company";
+import { companyProfiles, products, services } from "@/lib/db/schema-company";
 import { eq } from "drizzle-orm";
 import type { CommercialInsights } from "@/lib/db/schema-crm";
 import { assertPublicHttpUrl, UnsafePublicUrlError } from "@/lib/security/public-url";
@@ -29,7 +28,6 @@ import { assertPublicHttpUrl, UnsafePublicUrlError } from "@/lib/security/public
 const FIRECRAWL_URL = process.env.FIRECRAWL_URL || "http://20.84.71.33:3002";
 const MAX_SCRAPE_URLS = 8;
 const MAX_CONTENT_LENGTH = 12000;
-const ORGANIZATION_ID = "datacraft";
 
 // ============================================================================
 // Types
@@ -111,29 +109,36 @@ interface ExtractResponse {
 /**
  * Fetch our company's settings, products, and services for value proposition generation
  */
-async function fetchOurCompanyData(): Promise<OurCompanyData | null> {
+async function fetchOurCompanyData(organizationId: string): Promise<OurCompanyData | null> {
 	try {
-		// Fetch company settings
-		const settings = await db.query.companySettings.findFirst();
+		// Fetch organization-scoped company profile
+		const [profile] = await db
+			.select()
+			.from(companyProfiles)
+			.where(eq(companyProfiles.organizationId, organizationId))
+			.limit(1);
 
 		// Fetch active products
 		const productList = await db
 			.select()
 			.from(products)
-			.where(eq(products.organizationId, ORGANIZATION_ID));
+			.where(eq(products.organizationId, organizationId));
 
 		// Fetch active services
 		const serviceList = await db
 			.select()
 			.from(services)
-			.where(eq(services.organizationId, ORGANIZATION_ID));
+			.where(eq(services.organizationId, organizationId));
 
 		return {
-			name: settings?.companyName || "Our Company",
-			description: settings?.industryDescription || undefined,
-			areaOfBusiness: settings?.areaOfBusiness || undefined,
-			coreCapabilities: (settings?.coreCapabilities as string[]) || [],
-			differentiators: (settings?.differentiators as string[]) || [],
+			name: profile?.name || "Our Company",
+			description: profile?.description || undefined,
+			areaOfBusiness: profile?.industry || undefined,
+			coreCapabilities: (profile?.specialties as string[]) || [],
+			differentiators: [
+				...((profile?.certifications as string[]) || []),
+				...((profile?.awards as string[]) || []),
+			],
 			products: productList.map((p) => ({
 				name: p.name,
 				category: p.category || undefined,
@@ -726,6 +731,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 			{ status: 401 }
 		);
 	}
+	const organizationId = (session.user as { organizationId?: string }).organizationId;
+	if (!organizationId) {
+		return NextResponse.json(
+			{
+				success: false,
+				extracted: {},
+				findings: null,
+				commercialInsights: null,
+				valueProposition: null,
+				thinkingTrace: null,
+				sources: [],
+				error: "No organization context",
+			},
+			{ status: 403 }
+		);
+	}
 
 	try {
 		const body: ExtractRequest = await request.json();
@@ -898,7 +919,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 
 		// 6. Fetch our company data for value proposition generation
 		console.log("Fetching our company data for value proposition...");
-		const ourCompanyData = await fetchOurCompanyData();
+		const ourCompanyData = await fetchOurCompanyData(organizationId);
 
 		// 7. Generate research findings
 		console.log("Generating research findings...");

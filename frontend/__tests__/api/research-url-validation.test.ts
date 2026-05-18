@@ -29,6 +29,7 @@ vi.mock("@/lib/db/schema", () => ({
 }));
 
 vi.mock("@/lib/db/schema-company", () => ({
+	companyProfiles: { organizationId: "company_profiles.organization_id" },
 	products: { organizationId: "products.organization_id" },
 	services: { organizationId: "services.organization_id" },
 }));
@@ -51,7 +52,7 @@ function jsonRequest(path: string, body: Record<string, unknown>): NextRequest {
 describe("research URL validation", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		authMock.mockResolvedValue({ user: { id: "user-1" } });
+		authMock.mockResolvedValue({ user: { id: "user-1", organizationId: "org-1" } });
 		vi.stubGlobal("fetch", vi.fn());
 	});
 
@@ -87,6 +88,21 @@ describe("research URL validation", () => {
 
 		expect(response.status).toBe(400);
 		expect(global.fetch).not.toHaveBeenCalled();
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	it("requires organization context before commercial enrichment", async () => {
+		authMock.mockResolvedValueOnce({ user: { id: "user-1" } });
+
+		const response = await extractPost(jsonRequest("/api/v1/research/extract", {
+			accountName: "Tenantless Account",
+		}));
+
+		expect(response.status).toBe(403);
+		await expect(response.json()).resolves.toMatchObject({
+			success: false,
+			error: "No organization context",
+		});
 		expect(dbMock.select).not.toHaveBeenCalled();
 	});
 });
