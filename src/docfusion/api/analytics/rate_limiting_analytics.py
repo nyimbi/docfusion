@@ -14,11 +14,10 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import timezone, datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 from ...core.utils import uuid7str
 
 class RateLimitScope(str, Enum):

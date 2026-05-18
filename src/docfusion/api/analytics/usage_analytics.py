@@ -6,17 +6,14 @@ Comprehensive analytics system for tracking API usage patterns, user behavior,
 endpoint performance, and generating detailed reports and insights.
 """
 
-import asyncio
-import json
 import logging
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import timezone, datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, HTTPException, Query
 from ...core.utils import uuid7str
 
 class AnalyticsPeriod(str, Enum):
