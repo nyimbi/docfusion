@@ -9,11 +9,11 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict
 from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
@@ -997,7 +997,6 @@ class ProcessDefinition:
 					continue
 				
 				visited_nodes.add(node_id)
-				node = nodes[node_id]
 				
 				# Find outgoing edges
 				outgoing_edges = [e for e in edges.values() if e.source_node_id == node_id]
