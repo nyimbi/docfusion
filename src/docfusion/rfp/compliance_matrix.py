@@ -375,7 +375,6 @@ class ComplianceMatrix(BaseModel):
 		try:
 			import openpyxl
 			from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-			from openpyxl.utils import get_column_letter
 		except ImportError:
 			# Fallback to CSV if openpyxl not available
 			return self.export_csv().encode('utf-8')

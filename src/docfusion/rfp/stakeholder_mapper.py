@@ -7,13 +7,11 @@ Extracts stakeholder roles, organizations, contact information, and builds
 relationship graphs for proposal analysis and visualization.
 """
 
-import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 # spaCy integration for NER
 try:
@@ -293,8 +291,8 @@ class StakeholderExtractionResult:
 		self.errors: List[str] = []
 		self.warnings: List[str] = []
 		self.processing_time: float = 0.0
-		methods_used: List[str] = []
-		ai_analysis: Dict[str, Any] = {}
+		self.methods_used: List[str] = []
+		self.ai_analysis: Dict[str, Any] = {}
 
 # Role pattern definitions
 ROLE_PATTERNS: Dict[StakeholderRole, List[str]] = {
@@ -788,7 +786,6 @@ class StakeholderMapper:
 	async def _extract_with_patterns(self, text: str) -> List[Stakeholder]:
 		"""Extract stakeholders using role patterns"""
 		stakeholders = []
-		text_lower = text.lower()
 
 		# Find role mentions
 		for keyword, role in self._role_keyword_map.items():

@@ -7,15 +7,13 @@ Extracts, classifies, and analyzes requirements from PDF and DOCX documents
 with support for cross-reference detection, traceability, and confidence scoring.
 """
 
-import asyncio
 import json
 import logging
 import os
 import re
-from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any
 
 import httpx
 from pydantic import BaseModel, Field, ConfigDict

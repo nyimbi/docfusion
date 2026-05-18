@@ -7,11 +7,10 @@ stakeholder mapping, compliance analysis, and cross-reference detection.
 Integrates with existing NLP pipeline for enhanced analysis.
 """
 
-import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -22,9 +21,6 @@ from ..infrastructure import complete_with_fallback
 from .requirement_extractor import (
 	RequirementExtractor,
 	Requirement,
-	RequirementModality,
-	RequirementType,
-	RequirementExtractionResult,
 )
 
 class RFPAnalysisResult(BaseModel):
