@@ -14,7 +14,6 @@ import logging
 logger = logging.getLogger(__name__)
 import re
 from pathlib import Path
-from ..core.utils import uuid7str
 
 def fix_uuid_imports(file_path):
 	"""Fix UUID import issues"""

@@ -6,7 +6,8 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-from ...core.utils import uuid7str
+from ...core.utils import uuid7str as uuid7str
+
 
 # Voice DNA integration with fallbacks
 def get_voice_integrator():

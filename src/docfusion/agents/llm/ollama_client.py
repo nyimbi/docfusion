@@ -1,10 +1,7 @@
-import asyncio
-import json
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional
 from dataclasses import dataclass
 import aiohttp
-from datetime import datetime
 
 """
 Ollama LLM Client
