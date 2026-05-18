@@ -12,18 +12,15 @@ High-quality PDF generation from formatted documents with comprehensive support 
 """
 
 import asyncio
-import base64
-import io
 import logging
 import re
 import subprocess
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Union
-from uuid import uuid4
+from typing import Any, Optional
 
-from pydantic import Field, ConfigDict
+from pydantic import Field
 from pydantic.dataclasses import dataclass
 from ...core.utils import uuid7str
 
@@ -427,7 +424,6 @@ class LaTeXCompiler:
 	) -> bytes:
 		"""Compile LaTeX content to PDF"""
 		import tempfile
-		import subprocess
 		from pathlib import Path
 		
 		# Create temporary working directory
@@ -774,7 +770,7 @@ class FontManager:
 					'path': f'/system/fonts/{font_name}.ttf',
 					'subset': None
 				}
-			except Exception as e:
+			except Exception:
 				font_results[font_name] = False
 		
 		return font_results
@@ -1066,7 +1062,7 @@ class PDFRenderer:
 			
 			return pdf_bytes
 			
-		except Exception as e:
+		except Exception:
 			# Fallback to mock PDF if WeasyPrint fails
 			return await self._generate_mock_pdf(html_content, css_content)
 	

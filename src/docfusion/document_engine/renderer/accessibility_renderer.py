@@ -21,16 +21,13 @@ This module implements:
 import asyncio
 import logging
 logger = logging.getLogger(__name__)
-import json
 import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
 from ...core.utils import uuid7str
 
 # ============================================================================
@@ -292,8 +289,6 @@ class WCAGValidator:
 		compliance_level: str = "AA"
 	) -> Dict[str, Any]:
 		"""Validate full WCAG 2.1 compliance"""
-		start_time = time.perf_counter()
-		
 		compliance_results = {
 			'compliance_level': compliance_level,
 			'overall_score': 0.0,
@@ -324,7 +319,6 @@ class WCAGValidator:
 				compliance_results['compliance_status'] = 'non_compliant'
 			
 			self.validation_metrics['validations_performed'] += 1
-			validation_time = time.perf_counter() - start_time
 			
 			return compliance_results
 			
@@ -757,7 +751,6 @@ class AccessibilityRenderer:
 		custom_config: AccessibilityRenderConfiguration = None
 	) -> AccessibilityRenderResult:
 		"""Enhance document with accessibility features and validate compliance"""
-		start_time = time.time()
 		config = custom_config or self.render_config
 		
 		try:
@@ -1116,7 +1109,7 @@ def validate_accessibility_renderer_installation() -> Dict[str, bool]:
 	
 	# Validate core components
 	try:
-		renderer = AccessibilityRenderer()
+		AccessibilityRenderer()
 		validation_results["accessibility_renderer_core"] = True
 	except Exception as e:
 		logger.warning("Accessibility renderer core validation failed: %s", str(e))
@@ -1124,7 +1117,7 @@ def validate_accessibility_renderer_installation() -> Dict[str, bool]:
 		validation_results["overall_status"] = False
 	
 	try:
-		field_validator = WCAGValidator()
+		WCAGValidator()
 		validation_results["wcag_field_validator"] = True
 	except Exception as e:
 		logger.warning("WCAG field_validator validation failed: %s", str(e))
@@ -1132,7 +1125,7 @@ def validate_accessibility_renderer_installation() -> Dict[str, bool]:
 		validation_results["overall_status"] = False
 	
 	try:
-		generator = AlternativeTextGenerator()
+		AlternativeTextGenerator()
 		validation_results["alt_text_generator"] = True
 	except Exception as e:
 		logger.warning("Alt text generator validation failed: %s", str(e))
@@ -1140,7 +1133,7 @@ def validate_accessibility_renderer_installation() -> Dict[str, bool]:
 		validation_results["overall_status"] = False
 	
 	try:
-		enhancer = ARIAEnhancer()
+		ARIAEnhancer()
 		validation_results["aria_enhancer"] = True
 	except Exception as e:
 		logger.warning("ARIA enhancer validation failed: %s", str(e))
@@ -1148,7 +1141,7 @@ def validate_accessibility_renderer_installation() -> Dict[str, bool]:
 		validation_results["overall_status"] = False
 	
 	try:
-		simulator = ScreenReaderSimulator()
+		ScreenReaderSimulator()
 		validation_results["screen_reader_simulator"] = True
 	except Exception as e:
 		logger.warning("Screen reader simulator validation failed: %s", str(e))
@@ -1156,7 +1149,7 @@ def validate_accessibility_renderer_installation() -> Dict[str, bool]:
 		validation_results["overall_status"] = False
 	
 	try:
-		analyzer = ColorContrastAnalyzer()
+		ColorContrastAnalyzer()
 		validation_results["color_contrast_analyzer"] = True
 	except Exception as e:
 		logger.warning("Color contrast analyzer validation failed: %s", str(e))

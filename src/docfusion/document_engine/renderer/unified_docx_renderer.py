@@ -13,16 +13,13 @@ Features:
 - Standardized configuration and output
 """
 
-import asyncio
 import logging
 logger = logging.getLogger(__name__)
 import io
-import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import List, Optional, Union
 
-from pydantic import Field, ConfigDict
 
 # Import unified interface
 from .base_renderer import (
@@ -31,7 +28,6 @@ from .base_renderer import (
 	UnifiedDocumentContent, 
 	UnifiedRenderResult,
 	RendererException,
-	ContentProcessingException,
 	OutputGenerationException
 )
 
@@ -256,14 +252,13 @@ class UnifiedDOCXRenderer(BaseRenderer):
 		"""Create minimal DOCX document as fallback"""
 		try:
 			from docx import Document
-			from docx.shared import Inches
 			
 			# Create new document
 			doc = Document()
 			
 			# Add title if available
 			if content.title:
-				title_paragraph = doc.add_heading(content.title, level=1)
+				doc.add_heading(content.title, level=1)
 			
 			# Add content
 			if content.content_html:

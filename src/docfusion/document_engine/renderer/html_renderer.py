@@ -14,15 +14,11 @@ This module provides enterprise-grade HTML generation capabilities including:
 - Cross-browser compatibility and progressive enhancement
 """
 
-import asyncio
-import base64
 import re
-import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
-from uuid import uuid4
+from typing import Any
 
 from pydantic import BaseModel, Field, ConfigDict
 from ...core.utils import uuid7str

@@ -13,18 +13,13 @@ Features:
 - Standardized configuration and output
 """
 
-import asyncio
 import logging
 logger = logging.getLogger(__name__)
-import base64
-import io
-import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import List, Optional, Union
 
-from pydantic import Field, ConfigDict
-from pydantic.dataclasses import dataclass
+from pydantic import Field
 
 # Import unified interface
 from .base_renderer import (
@@ -33,7 +28,6 @@ from .base_renderer import (
 	UnifiedDocumentContent, 
 	UnifiedRenderResult,
 	RendererException,
-	ContentProcessingException,
 	OutputGenerationException
 )
 
