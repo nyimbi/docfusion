@@ -65,6 +65,15 @@ class HasPermission(BasePermission):
 			logger.warning(f"Permission check failed: {e}")
 			return False
 
+def require_permission(resource: str, action: str):
+	"""Create a Strawberry permission class for a specific resource action."""
+	class ResourcePermission(HasPermission):
+		def __init__(self):
+			super().__init__(resource, action)
+
+	ResourcePermission.__name__ = f"HasPermission_{resource}_{action}"
+	return ResourcePermission
+
 class IsOwnerOrAdmin(BasePermission):
 	"""Check if user owns resource or is admin"""
 	message = "Must be owner or admin"
@@ -586,7 +595,7 @@ class Query:
 			total_collaborators=5
 		)
 	
-	@strawberry.field(permission_classes=[HasPermission("system", "read")])
+	@strawberry.field(permission_classes=[require_permission("system", "read")])
 	async def system_analytics(
 		self,
 		info: Info,
@@ -607,7 +616,7 @@ class Query:
 class Mutation:
 	"""GraphQL mutations"""
 	
-	@strawberry.field(permission_classes=[HasPermission("document", "create")])
+	@strawberry.field(permission_classes=[require_permission("document", "create")])
 	async def create_document(
 		self,
 		info: Info,
@@ -749,7 +758,7 @@ class Mutation:
 		
 		return comment
 	
-	@strawberry.field(permission_classes=[HasPermission("search", "index")])
+	@strawberry.field(permission_classes=[require_permission("search", "index")])
 	async def reindex_document(
 		self,
 		info: Info,
