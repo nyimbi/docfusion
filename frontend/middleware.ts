@@ -6,7 +6,7 @@
  * away from auth pages.
  *
  * Applies in-memory rate limiting to all /api/* routes:
- * 100 requests per 15 minutes per IP address.
+ * 100 requests per 15 minutes per trusted proxy client IP.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -24,7 +24,7 @@ interface RateLimitEntry {
 	resetTime: number;
 }
 
-// In-memory store keyed by client IP
+// In-memory store keyed by trusted client IP
 const rateLimitStore = new Map<string, RateLimitEntry>();
 
 // Periodic cleanup of expired entries every 5 minutes to prevent memory leaks.
@@ -45,17 +45,14 @@ function startCleanup() {
 }
 
 /**
- * Resolve the client IP from the request, accounting for reverse proxies
- * that set X-Forwarded-For.
+ * Resolve the client IP from trusted reverse-proxy metadata.
+ *
+ * X-Forwarded-For can include client-supplied values when the proxy appends
+ * rather than overwrites it, so it is intentionally not trusted here.
  */
-function getClientIp(request: NextRequest): string {
-	const forwarded = request.headers.get("x-forwarded-for");
-	if (forwarded) {
-		// X-Forwarded-For may contain multiple IPs; the first is the original client
-		return forwarded.split(",")[0].trim();
-	}
-	// Fallback: Next.js may populate this from the connection
-	return request.headers.get("x-real-ip") ?? "unknown";
+export function getClientIp(request: NextRequest): string {
+	const realIp = request.headers.get("x-real-ip")?.trim();
+	return realIp || "unknown";
 }
 
 /**
@@ -99,6 +96,8 @@ function checkRateLimit(ip: string): {
 // Routes that don't require authentication
 const PUBLIC_PATHS = ["/auth", "/api/auth", "/", "/hdsi"];
 
+const PUBLIC_API_PATHS = ["/api/auth"];
+
 // Auth pages that authenticated users should be redirected away from
 const AUTH_PATHS = ["/auth/sign-in", "/auth/sign-up", "/auth/forgot-password"];
 
@@ -132,6 +131,27 @@ export async function middleware(request: NextRequest) {
 					},
 				},
 			);
+		}
+
+		if (!PUBLIC_API_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+			const token = await getToken({
+				req: request,
+				secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+			});
+
+			if (!token) {
+				return NextResponse.json(
+					{ error: "Unauthorized" },
+					{
+						status: 401,
+						headers: {
+							"X-RateLimit-Limit": String(RATE_LIMIT_MAX),
+							"X-RateLimit-Remaining": String(remaining),
+							"X-RateLimit-Reset": String(Math.ceil(resetTime / 1000)),
+						},
+					},
+				);
+			}
 		}
 
 		// Allow the request through, attaching rate-limit headers to the response
