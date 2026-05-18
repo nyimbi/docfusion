@@ -8,13 +8,12 @@ security validation, content validation, and custom validation logic.
 
 import re
 import logging
-from typing import Dict, List, Optional, Any, Union, Callable, Tuple
-from datetime import datetime, timedelta
+from typing import Dict, List, Any
+from datetime import datetime
 from urllib.parse import urlparse
 import html
 import bleach
 
-from pydantic import BaseModel, Field, field_validator, ValidationError
 
 
 class ValidationResult:

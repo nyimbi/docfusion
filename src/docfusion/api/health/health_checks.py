@@ -10,15 +10,13 @@ import abc
 import asyncio
 import logging
 import time
-import json
-from typing import Dict, List, Optional, Any, Callable
-from datetime import timezone, datetime, timedelta
+from typing import Dict, List, Optional, Any
+from datetime import timezone, datetime
 from enum import Enum
 from dataclasses import dataclass, field
 
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel, Field
 
 try:
 	import httpx
@@ -33,7 +31,6 @@ except ImportError:
 	meilisearch = None
 	OpenSearch = None
 
-from ...core.utils import uuid7str
 
 class HealthStatus(str, Enum):
 	"""Health check status levels"""
