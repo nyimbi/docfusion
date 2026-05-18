@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for proposal_writer
+# Multi-stage Dockerfile for docfusion
 # Optimized for UV package manager with security and performance best practices
 # 
 # Build stages:
@@ -8,8 +8,8 @@
 # 4. production - Minimal production runtime
 # 
 # Usage:
-#   docker build -t proposal_writer:latest .                    # Production build
-#   docker build --target development -t proposal_writer:dev .  # Development build
+#   docker build -t docfusion:latest .                    # Production build
+#   docker build --target development -t docfusion:dev .  # Development build
 
 # ============================================================================
 # STAGE 1: BASE CONFIGURATION
@@ -151,7 +151,7 @@ EXPOSE 8000 8080 5000 3000 8888 8501
 
 # Health check for development
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import proposal_writer; print('Development environment healthy')" || exit 1
+    CMD python -c "import docfusion; print('Development environment healthy')" || exit 1
 
 # Development command (interactive shell)
 CMD ["/bin/bash"]
@@ -194,9 +194,8 @@ COPY --from=builder --chown=appuser:appuser /app/src /app/src
 COPY --from=builder --chown=appuser:appuser /app/pyproject.toml /app/
 COPY --from=builder --chown=appuser:appuser /app/README.md /app/
 
-# Copy additional runtime files if they exist
-COPY --from=builder --chown=appuser:appuser /app/alembic.ini /app/ 2>/dev/null || true
-COPY --from=builder --chown=appuser:appuser /app/migrations /app/migrations/ 2>/dev/null || true
+# Copy runtime metadata
+COPY --from=builder --chown=appuser:appuser /app/alembic.ini /app/
 
 # Create necessary runtime directories
 RUN mkdir -p \
@@ -213,31 +212,29 @@ RUN chmod -R 755 /app && \
 EXPOSE 8000
 
 # Add labels for better container management
-LABEL maintainer="proposal_writer Team <team@example.com>" \
-      org.opencontainers.image.title="proposal_writer" \
-      org.opencontainers.image.description="proposal_writer - A modern Python application" \
+LABEL maintainer="docfusion Team <team@example.com>" \
+      org.opencontainers.image.title="docfusion" \
+      org.opencontainers.image.description="docfusion - A modern Python application" \
       org.opencontainers.image.vendor="Your Organization" \
       org.opencontainers.image.version="0.1.0" \
       org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-      org.opencontainers.image.source="https://github.com/yourusername/proposal_writer" \
-      org.opencontainers.image.documentation="https://proposal_writer.readthedocs.io/" \
+      org.opencontainers.image.source="https://github.com/nyimbi/docfusion" \
+      org.opencontainers.image.documentation="https://docfusion.readthedocs.io/" \
       org.opencontainers.image.licenses="MIT"
 
 # Health check for production
 HEALTHCHECK --interval=30s --timeout=30s --start-period=10s --retries=3 \
     CMD python -c " \
-        import sys, socket; \
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM); \
-        result = sock.connect_ex(('localhost', 8000)); \
-        sock.close(); \
-        sys.exit(0 if result == 0 else 1) \
+        import sys, urllib.request; \
+        response = urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5); \
+        sys.exit(0 if response.status < 500 else 1) \
     " || exit 1
 
 # Use dumb-init for proper signal handling
 ENTRYPOINT ["dumb-init", "--"]
 
-# Default production command (Flask-AppBuilder standalone)
-CMD ["python", "run_standalone.py"]
+# Default production command
+CMD ["python", "-m", "hypercorn", "docfusion.api.app:app", "--bind", "0.0.0.0:8000"]
 
 # ============================================================================
 # ALTERNATIVE COMMANDS
@@ -246,19 +243,19 @@ CMD ["python", "run_standalone.py"]
 # To run specific commands, override CMD:
 # 
 # Web server with Uvicorn:
-# CMD ["uv", "run", "uvicorn", "proposal_writer.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# CMD ["python", "-m", "uvicorn", "docfusion.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
 #
 # Gunicorn for production:
-# CMD ["uv", "run", "gunicorn", "proposal_writer.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+# CMD ["python", "-m", "gunicorn", "docfusion.api.app:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
 #
 # Database migrations:
 # CMD ["uv", "run", "alembic", "upgrade", "head"]
 #
 # Background worker:
-# CMD ["uv", "run", "python", "-m", "proposal_writer.worker"]
+# CMD ["python", "-m", "docfusion.worker"]
 #
 # CLI application:
-# CMD ["uv", "run", "proposal_writer", "--help"]
+# CMD ["docfusion", "--help"]
 
 # ============================================================================
 # DOCKER COMPOSE INTEGRATION
@@ -273,7 +270,7 @@ CMD ["python", "run_standalone.py"]
 #     ports:
 #       - "8000:8000"
 #     environment:
-#       - DATABASE_URL=postgresql://user:pass@db:5432/proposal_writer
+#       - DATABASE_URL=postgresql://user:pass@db:5432/docfusion
 #       - REDIS_URL=redis://redis:6379/0
 #     depends_on:
 #       - db
@@ -298,7 +295,7 @@ CMD ["python", "run_standalone.py"]
 #   db:
 #     image: postgres:15
 #     environment:
-#       - POSTGRES_DB=proposal_writer
+#       - POSTGRES_DB=docfusion
 #       - POSTGRES_USER=user
 #       - POSTGRES_PASSWORD=pass
 #     volumes:
@@ -350,25 +347,25 @@ CMD ["python", "run_standalone.py"]
 # ============================================================================
 
 # Build production image:
-# docker build -t proposal_writer:latest .
+# docker build -t docfusion:latest .
 #
 # Build development image:
-# docker build --target development -t proposal_writer:dev .
+# docker build --target development -t docfusion:dev .
 #
 # Run production container:
-# docker run -p 8000:8000 proposal_writer:latest
+# docker run -p 8000:8000 docfusion:latest
 #
 # Run development container with volume mount:
-# docker run -it -p 8000:8000 -v $(pwd):/app proposal_writer:dev
+# docker run -it -p 8000:8000 -v $(pwd):/app docfusion:dev
 #
 # Run with environment variables:
-# docker run -p 8000:8000 -e DATABASE_URL=postgresql://... proposal_writer:latest
+# docker run -p 8000:8000 -e DATABASE_URL=postgresql://... docfusion:latest
 #
 # Run interactive shell in development:
-# docker run -it proposal_writer:dev /bin/bash
+# docker run -it docfusion:dev /bin/bash
 #
 # Run tests in container:
-# docker run proposal_writer:dev uv run pytest
+# docker run docfusion:dev uv run pytest
 #
 # Run with docker-compose:
 # docker-compose up --build

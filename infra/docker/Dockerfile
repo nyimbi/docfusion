@@ -194,9 +194,8 @@ COPY --from=builder --chown=appuser:appuser /app/src /app/src
 COPY --from=builder --chown=appuser:appuser /app/pyproject.toml /app/
 COPY --from=builder --chown=appuser:appuser /app/README.md /app/
 
-# Copy additional runtime files if they exist
-COPY --from=builder --chown=appuser:appuser /app/alembic.ini /app/ 2>/dev/null || true
-COPY --from=builder --chown=appuser:appuser /app/migrations /app/migrations/ 2>/dev/null || true
+# Copy runtime metadata
+COPY --from=builder --chown=appuser:appuser /app/alembic.ini /app/
 
 # Create necessary runtime directories
 RUN mkdir -p \
@@ -219,25 +218,23 @@ LABEL maintainer="docfusion Team <team@example.com>" \
       org.opencontainers.image.vendor="Your Organization" \
       org.opencontainers.image.version="0.1.0" \
       org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-      org.opencontainers.image.source="https://github.com/yourusername/docfusion" \
+      org.opencontainers.image.source="https://github.com/nyimbi/docfusion" \
       org.opencontainers.image.documentation="https://docfusion.readthedocs.io/" \
       org.opencontainers.image.licenses="MIT"
 
 # Health check for production
 HEALTHCHECK --interval=30s --timeout=30s --start-period=10s --retries=3 \
     CMD python -c " \
-        import sys, socket; \
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM); \
-        result = sock.connect_ex(('localhost', 8000)); \
-        sock.close(); \
-        sys.exit(0 if result == 0 else 1) \
+        import sys, urllib.request; \
+        response = urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5); \
+        sys.exit(0 if response.status < 500 else 1) \
     " || exit 1
 
 # Use dumb-init for proper signal handling
 ENTRYPOINT ["dumb-init", "--"]
 
 # Default production command
-CMD ["uv", "run", "python", "-m", "docfusion", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "hypercorn", "docfusion.api.app:app", "--bind", "0.0.0.0:8000"]
 
 # ============================================================================
 # ALTERNATIVE COMMANDS
@@ -246,19 +243,19 @@ CMD ["uv", "run", "python", "-m", "docfusion", "--host", "0.0.0.0", "--port", "8
 # To run specific commands, override CMD:
 # 
 # Web server with Uvicorn:
-# CMD ["uv", "run", "uvicorn", "docfusion.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# CMD ["python", "-m", "uvicorn", "docfusion.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
 #
 # Gunicorn for production:
-# CMD ["uv", "run", "gunicorn", "docfusion.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+# CMD ["python", "-m", "gunicorn", "docfusion.api.app:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
 #
 # Database migrations:
 # CMD ["uv", "run", "alembic", "upgrade", "head"]
 #
 # Background worker:
-# CMD ["uv", "run", "python", "-m", "docfusion.worker"]
+# CMD ["python", "-m", "docfusion.worker"]
 #
 # CLI application:
-# CMD ["uv", "run", "docfusion", "--help"]
+# CMD ["docfusion", "--help"]
 
 # ============================================================================
 # DOCKER COMPOSE INTEGRATION

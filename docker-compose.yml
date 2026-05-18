@@ -1,11 +1,9 @@
-# Docker Compose configuration for DocuFusion Flask-AppBuilder
+# Docker Compose configuration for DocuFusion FastAPI
 # Provides complete development and production environments
-
-version: '3.8'
 
 services:
   # ============================================================================
-  # DOCUFUSION FLASK-APPBUILDER APPLICATION
+  # DOCUFUSION FASTAPI APPLICATION
   # ============================================================================
   
   docufusion-app:
@@ -15,15 +13,16 @@ services:
       target: production
     container_name: docufusion-app
     ports:
-      - "5000:5000"
+      - "8000:8000"
     environment:
-      # Flask Configuration
-      - FLASK_ENV=production
-      - FLASK_APP=run_standalone.py
-      - SECRET_KEY=${SECRET_KEY:-docufusion-secret-key-change-in-production}
+      # Runtime Configuration
+      - ENVIRONMENT=production
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET required}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY required}
+      - REQUIRE_AUTH=${REQUIRE_AUTH:-true}
       
       # Database Configuration
-      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:-docufusion123}@postgres:5432/docufusion
+      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/docufusion
       
       # Redis Configuration  
       - REDIS_URL=redis://redis:6379/0
@@ -62,7 +61,7 @@ services:
     restart: unless-stopped
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -71,7 +70,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.docufusion.rule=Host(`docufusion.local`)"
-      - "traefik.http.services.docufusion.loadbalancer.server.port=5000"
+      - "traefik.http.services.docufusion.loadbalancer.server.port=8000"
 
   # ============================================================================
   # DEVELOPMENT VERSION
@@ -84,14 +83,14 @@ services:
       target: development
     container_name: docufusion-dev
     ports:
-      - "5000:5000"
+      - "8001:8000"
       - "8888:8888"  # Jupyter Lab
     environment:
-      - FLASK_ENV=development
-      - FLASK_APP=run_standalone.py
-      - FLASK_DEBUG=1
-      - SECRET_KEY=dev-secret-key
-      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:-docufusion123}@postgres:5432/docufusion
+      - ENVIRONMENT=development
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-key-change-in-production}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-dev-encryption-key-change-in-production}
+      - REQUIRE_AUTH=${REQUIRE_AUTH:-true}
+      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/docufusion
       - REDIS_URL=redis://redis:6379/0
       - DOCUFUSION_ENABLE_AI_FEATURES=true
       - DOCUFUSION_ENABLE_COLLABORATION=true
@@ -115,7 +114,7 @@ services:
     networks:
       - docufusion-network
     
-    command: ["python", "run_standalone.py"]
+    command: ["python", "-m", "hypercorn", "docfusion.api.app:app", "--bind", "0.0.0.0:8000", "--reload"]
     
     profiles:
       - development
@@ -130,16 +129,14 @@ services:
     environment:
       - POSTGRES_DB=docufusion
       - POSTGRES_USER=docufusion
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-docufusion123}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --locale=C
     
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # Custom initialization scripts
-      - ./scripts/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     
     networks:
       - docufusion-network
@@ -178,7 +175,7 @@ services:
       - redis-data:/data
     
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     
     networks:
       - docufusion-network
@@ -280,7 +277,6 @@ services:
     restart: unless-stopped
     
     profiles:
-      - production
       - traefik
 
   # ============================================================================
@@ -296,7 +292,7 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:-docufusion123}@postgres:5432/docufusion
+      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/docufusion
     
     volumes:
       - app-uploads:/app/uploads
@@ -318,7 +314,6 @@ services:
     
     profiles:
       - celery
-      - production
 
   celery-beat:
     build:
@@ -329,7 +324,7 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:-docufusion123}@postgres:5432/docufusion
+      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/docufusion
     
     volumes:
       - app-logs:/app/logs
@@ -349,7 +344,6 @@ services:
     
     profiles:
       - celery
-      - production
 
 # ============================================================================
 # VOLUMES
