@@ -17,10 +17,9 @@ Key Features:
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -33,11 +32,9 @@ from ...storage.storage_service import StorageService
 from ..automation.workflow_engine import (
     ProcessState,
     WorkflowEngine,
-    WorkflowEvent,
     WorkflowInstance,
 )
-from ..coordination.task_coordinator import TaskAssignment
-from ..monitoring.workflow_monitor import PerformanceMetrics, WorkflowMonitor
+from ..monitoring.workflow_monitor import WorkflowMonitor
 from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
@@ -842,7 +839,6 @@ class WorkflowStorageIntegration:
         try:
             # Get all completed workflows of the same type
             similar_workflows = []
-            workflow_type = context_factors.get("workflow_type", "")
 
             # This would be implemented with proper workflow history in production
             # For now, return a mock set of similar workflow IDs
@@ -969,7 +965,6 @@ class WorkflowStorageIntegration:
         score = 0.5  # Base score
 
         document = candidate["document"]
-        workflow_context = candidate["workflow_context"]
         metadata = document.get("metadata", {})
         workflow_metadata = metadata.get("workflow_metadata", {})
 
