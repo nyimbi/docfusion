@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 	"""
 	# Startup
 	logger.info("Starting DocuFusion API...")
-	settings = load_settings()
+	settings = getattr(app.state, "settings", None) or load_settings()
 
 	try:
 		# Initialize services
@@ -113,11 +113,13 @@ def create_app(settings: Optional[ServiceSettings] = None) -> FastAPI:
 	# Add CORS middleware
 	app.add_middleware(
 		CORSMiddleware,
-		allow_origins=get_cors_origins(),
+		allow_origins=app_settings.cors_allowed_origins,
 		allow_credentials=True,
 		allow_methods=["*"],
 		allow_headers=["*"],
 	)
+
+	app.state.settings = app_settings
 
 	# Register error handlers
 	register_error_handlers(app)
