@@ -6,19 +6,17 @@ FastAPI application setup with comprehensive middleware, documentation,
 testing, and monitoring for the proposal writer system.
 """
 
-import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 
-from fastapi import FastAPI, Request, HTTPException, Depends, status
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.openapi.utils import get_openapi
-from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 # Internal imports
