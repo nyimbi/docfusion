@@ -41,7 +41,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..dependencies import TenantContext, require_tenant
 from ...core.database.session import get_async_db_session
 from ...core.utils import uuid7str
-from ...orchestration.proposal_orchestrator import ProposalOrchestrator
 from ...rfp.compliance_matrix import (
 	ComplianceMatrixGenerator,
 	ComplianceStatus,
@@ -816,6 +815,8 @@ async def draft_proposal(
 	session: AsyncSession = Depends(get_async_db_session),
 ) -> dict[str, object]:
 	"""Generate a proposal draft from the RFP's compliance matrix."""
+	from ...orchestration.proposal_orchestrator import ProposalOrchestrator
+
 	orchestrator = ProposalOrchestrator()
 	draft = await orchestrator.draft_proposal(rfp_id, session)
 	logger.info(

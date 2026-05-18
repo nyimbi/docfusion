@@ -12,7 +12,7 @@ from .authorization.role_based_access import RoleBasedAccess, Role, Permission, 
 from .authorization.document_permissions import DocumentPermissions, DocumentAccess, PermissionLevel
 from .encryption.data_encryption import DataEncryption, EncryptionResult
 from .audit.audit_logger import AuditLogger, AuditEvent, AuditEventType, AuditSeverity
-from .security_manager import SecurityManager, SecurityManagerConfiguration
+from .security_manager import SecurityManager, SecurityManagerConfiguration, create_security_manager
 
 __all__ = [
     # Authentication
@@ -30,5 +30,5 @@ __all__ = [
     "AuditLogger", "AuditEvent", "AuditEventType", "AuditSeverity",
 
     # Security Manager
-    "SecurityManager", "SecurityManagerConfiguration",
+    "SecurityManager", "SecurityManagerConfiguration", "create_security_manager",
 ]

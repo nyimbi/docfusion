@@ -12,7 +12,11 @@ from typing import Dict, List, Any
 from datetime import datetime
 from urllib.parse import urlparse
 import html
-import bleach
+
+try:
+	import bleach
+except ImportError:
+	bleach = None
 
 
 
@@ -123,6 +127,10 @@ class SecurityValidator:
 			'img': ['src', 'alt', 'title', 'width', 'height']
 		}
 		
+		if bleach is None:
+			self.logger.warning("bleach is unavailable; falling back to escaped HTML sanitization")
+			return html.escape(content, quote=True)
+
 		return bleach.clean(content, tags=allowed_tags, attributes=allowed_attributes, strip=True)
 	
 	def validate_file_path(self, file_path: str) -> ValidationResult:
