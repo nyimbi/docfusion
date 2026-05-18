@@ -108,7 +108,11 @@ describe("public URL validation", () => {
 			const request = new EventEmitter() as EventEmitter & {
 				write: ReturnType<typeof vi.fn>;
 				end: ReturnType<typeof vi.fn>;
+				setTimeout: ReturnType<typeof vi.fn>;
+				destroy: ReturnType<typeof vi.fn>;
 			};
+			request.destroy = vi.fn();
+			request.setTimeout = vi.fn();
 			request.write = vi.fn((chunk: string | Buffer | Uint8Array) => {
 				writes.push(Buffer.from(chunk).toString("utf8"));
 			});
@@ -126,6 +130,7 @@ describe("public URL validation", () => {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body,
+				timeoutMs: 15_000,
 			},
 			"notification URL",
 		);
@@ -145,5 +150,7 @@ describe("public URL validation", () => {
 			}),
 			expect.any(Function),
 		);
+		const request = httpRequestMock.mock.results[0].value;
+		expect(request.setTimeout).toHaveBeenCalledWith(15_000, expect.any(Function));
 	});
 });

@@ -111,6 +111,7 @@ async function sendWorkflowNotification(notification: WorkflowNotification): Pro
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(notificationPayload),
+				timeoutMs: 15_000,
 			}, "workflow notification webhook URL").catch((err) => {
 				logger.error("[Notification] Webhook delivery failed:", err);
 			});
@@ -123,6 +124,7 @@ async function sendWorkflowNotification(notification: WorkflowNotification): Pro
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(emailPayload),
+				timeoutMs: 15_000,
 			}, "workflow email service URL").catch((err) => {
 				logger.error("[Notification] Email delivery failed:", err);
 			});

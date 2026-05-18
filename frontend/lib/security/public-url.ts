@@ -14,6 +14,7 @@ interface PublicHttpRequestInit {
 	headers?: HeadersInit;
 	method?: string;
 	body?: string | Buffer | Uint8Array;
+	timeoutMs?: number;
 }
 
 export async function assertPublicHttpUrl(rawUrl: string, label = "URL"): Promise<URL> {
@@ -75,6 +76,11 @@ export async function fetchPublicHttpUrl(
 		);
 
 		request.on("error", reject);
+		if (init.timeoutMs !== undefined) {
+			request.setTimeout(init.timeoutMs, () => {
+				request.destroy(new Error(`${label} request timed out`));
+			});
+		}
 		if (init.body !== undefined) {
 			request.write(init.body);
 		}
