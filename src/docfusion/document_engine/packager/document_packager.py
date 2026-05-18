@@ -17,9 +17,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from ...core.utils import uuid7str
-
-
 @dataclass
 class PackagingConfiguration:
 	"""Configuration for document packaging"""

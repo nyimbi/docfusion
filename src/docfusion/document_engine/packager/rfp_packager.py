@@ -14,7 +14,7 @@ Packages a complete RFP response including:
 from dataclasses import dataclass, field
 from typing import Any
 
-from .document_packager import DocumentPackager, PackagingConfiguration, PackagingResult
+from .document_packager import DocumentPackager, PackagingResult
 
 
 @dataclass
