@@ -7,16 +7,14 @@ support, WebSocket synchronization, and multi-user presence awareness.
 Simple, understandable API for real-time collaboration.
 """
 
-from typing import Any, Dict, List, Optional, Set, Tuple, Callable
+from typing import Any, Dict, List, Optional, Set, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 import asyncio
-import json
 import logging
 import time
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
-import weakref
 from ...core.utils import uuid7str
 
 logger = logging.getLogger(__name__)

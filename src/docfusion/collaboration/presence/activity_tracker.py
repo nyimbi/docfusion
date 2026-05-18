@@ -7,7 +7,7 @@ collaboration analytics, and activity-based notifications.
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple

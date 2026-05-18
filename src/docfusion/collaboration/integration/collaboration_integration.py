@@ -12,20 +12,18 @@ Simple API for seamless collaboration features in document generation.
 """
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 logger = logging.getLogger(__name__)
 
 from ..conflicts.conflict_detector import (
-    ConflictAnalysisResult,
     ConflictDetector,
     DetectedConflict,
 )
@@ -37,17 +35,12 @@ from ..conflicts.conflict_resolver import (
 
 # Import collaboration modules
 from ..editing.collaborative_editor import (
-    CollaborativeEditor,
     CollaborativeSession,
-    DocumentState,
-    Operation,
-    User,
 )
 from ...core.utils import uuid7str
 from ..versioning.version_manager import (
     DocumentBranch,
     DocumentCommit,
-    DocumentHistory,
     VersionManager,
 )
 
@@ -245,7 +238,7 @@ class CollaborationIntegrator:
             # Initialize collaborative editor
             if doc.collaboration_settings.real_time_sync_enabled:
                 session = CollaborativeSession()
-                editor = await session.create_session(
+                await session.create_session(
                     doc.document_id,
                     initial_content,
                     websocket_handler=self._websocket_handler,
@@ -428,9 +421,8 @@ class CollaborationIntegrator:
             collab_content = await self._get_collaborative_editor_content(document_id)
 
         # Get version from version manager if active
-        version_content = current_content
         if doc.version_manager_active:
-            version_content = await self._get_version_manager_content(document_id)
+            await self._get_version_manager_content(document_id)
 
         # Detect conflicts
         conflicts = await self.conflict_detector.detect_conflicts(

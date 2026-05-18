@@ -12,14 +12,13 @@ Simple API for intelligent conflict resolution with fallback to manual review.
 """
 
 import asyncio
-import json
 import re
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
@@ -28,9 +27,7 @@ from .conflict_detector import (
     ConflictScope,
     ConflictSeverity,
     ConflictType,
-    ContentRegion,
     DetectedConflict,
-    SemanticEntity,
 )
 
 class ResolutionStrategy(Enum):

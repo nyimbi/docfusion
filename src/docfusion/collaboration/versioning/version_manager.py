@@ -14,13 +14,11 @@ Simple API for document versioning and collaboration.
 import asyncio
 import difflib
 import hashlib
-import json
-import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
@@ -486,7 +484,7 @@ class VersionManager:
         if not commit.parent_commits:
             raise ValueError("Cannot revert initial commit")
 
-        parent_content = await self.get_document_at_commit(commit.parent_commits[0])
+        await self.get_document_at_commit(commit.parent_commits[0])
         current_content = await self.get_document_at_commit(
             self.history.branches[self.history.current_branch].head_commit_id
         )
