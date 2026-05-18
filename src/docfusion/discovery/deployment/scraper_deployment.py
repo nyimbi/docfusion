@@ -10,20 +10,19 @@ between different scraping strategies.
 import asyncio
 import json
 import logging
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
 import tempfile
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from ...core.utils import uuid7str
 
 from ..crawlers.source_databases.global_source_db import GlobalSourceDB, ProcurementSource, SourceStatus
 from ..crawlers.ai_driven.universal_scraper import UniversalScraper, ScrapingConfiguration
 from ..crawlers.ai_driven.structure_learner import StructureLearner
-from ...security.authorization.role_based_access import Permission
 
 
 class DeploymentStatus(Enum):

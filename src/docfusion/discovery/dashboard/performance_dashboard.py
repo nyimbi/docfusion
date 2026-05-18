@@ -10,7 +10,7 @@ data quality tracking, and real-time monitoring capabilities.
 import asyncio
 import json
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from ...core.utils import uuid7str
 
 from ..deployment.scraper_deployment import ScraperDeployment
-from ..deployment.deployment_monitor import DeploymentMonitor, HealthStatus, AlertSeverity
+from ..deployment.deployment_monitor import DeploymentMonitor
 from ..crawlers.source_databases.global_source_db import GlobalSourceDB
 from ..crawlers.ai_driven.structure_learner import StructureLearner
 

@@ -8,22 +8,21 @@ and automated recovery mechanisms.
 """
 
 import asyncio
-import json
 import logging
 import psutil
 import aiohttp
-from typing import Dict, List, Optional, Any, Callable, Set
+from typing import Dict, List, Optional, Any, Set
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from enum import Enum
 from dataclasses import dataclass
 import tempfile
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from ...core.utils import uuid7str
 
-from .scraper_deployment import ScraperDeployment, DeploymentStatus, ScraperInstance
-from ..crawlers.source_databases.global_source_db import GlobalSourceDB, ProcurementSource
+from .scraper_deployment import ScraperDeployment, DeploymentStatus
+from ..crawlers.source_databases.global_source_db import GlobalSourceDB
 
 
 class HealthStatus(Enum):
