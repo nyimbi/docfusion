@@ -14,6 +14,7 @@ interface PublicHttpRequestInit {
 	headers?: HeadersInit;
 	method?: string;
 	body?: string | Buffer | Uint8Array;
+	signal?: AbortSignal;
 	timeoutMs?: number;
 }
 
@@ -53,6 +54,18 @@ export async function fetchPublicHttpUrl(
 	const requestHeaders = Object.fromEntries(headers.entries());
 
 	return new Promise<Response>((resolve, reject) => {
+		let settled = false;
+		const abortError = new Error(`${label} request aborted`);
+		const fail = (error: Error) => {
+			if (settled) return;
+			settled = true;
+			init.signal?.removeEventListener("abort", abortRequest);
+			reject(error);
+		};
+		const abortRequest = () => {
+			request.destroy(abortError);
+			fail(abortError);
+		};
 		const request = requester(
 			url,
 			{
@@ -66,6 +79,9 @@ export async function fetchPublicHttpUrl(
 					chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
 				});
 				response.on("end", () => {
+					if (settled) return;
+					settled = true;
+					init.signal?.removeEventListener("abort", abortRequest);
 					resolve(new Response(Buffer.concat(chunks), {
 						status: response.statusCode ?? 0,
 						statusText: response.statusMessage,
@@ -75,12 +91,17 @@ export async function fetchPublicHttpUrl(
 			},
 		);
 
-		request.on("error", reject);
+		request.on("error", fail);
 		if (init.timeoutMs !== undefined) {
 			request.setTimeout(init.timeoutMs, () => {
 				request.destroy(new Error(`${label} request timed out`));
 			});
 		}
+		if (init.signal?.aborted) {
+			abortRequest();
+			return;
+		}
+		init.signal?.addEventListener("abort", abortRequest, { once: true });
 		if (init.body !== undefined) {
 			request.write(init.body);
 		}

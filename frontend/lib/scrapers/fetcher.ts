@@ -16,6 +16,7 @@ import { firecrawl } from "./firecrawl";
 import { getParser, genericParser, type ParseInput } from "./parsers";
 import { extractFromBasicHtml, findNextPageUrl } from "./extractor";
 import { logger } from "@/lib/utils/logger";
+import { assertPublicHttpUrl, fetchPublicHttpUrl } from "@/lib/security/public-url";
 
 const DEFAULT_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const MAX_CONFIGURED_RESPONSE_BYTES = 25 * 1024 * 1024;
@@ -204,9 +205,11 @@ export async function scrapePage(
 		if (signal.aborted) {
 			throw new Error("Job cancelled");
 		}
+		const safeUrl = await assertPublicHttpUrl(url, "Scraper URL");
+		const targetUrl = safeUrl.toString();
 
 		if (firecrawl.isConfigured()) {
-			const result = await scrapeWithFirecrawl(url, source, signal);
+			const result = await scrapeWithFirecrawl(targetUrl, source, signal);
 
 			if (signal.aborted) {
 				throw new Error("Job cancelled");
@@ -227,8 +230,8 @@ export async function scrapePage(
 				);
 
 			if (shouldFallback) {
-				logger.debug(`[Scraper] Firecrawl could not extract ${url}, trying stealth scraper...`);
-				const stealthResult = await scrapeWithStealth(url, source, signal);
+				logger.debug(`[Scraper] Firecrawl could not extract ${targetUrl}, trying stealth scraper...`);
+				const stealthResult = await scrapeWithStealth(targetUrl, source, signal);
 				if (!stealthResult.error || stealthResult.opportunities.length > 0) {
 					return stealthResult;
 				}
@@ -237,7 +240,7 @@ export async function scrapePage(
 			return result;
 		}
 
-		return await scrapeWithFetch(url, source, signal);
+		return await scrapeWithFetch(targetUrl, source, signal);
 
 	} catch (error) {
 		if (signal.aborted) {
@@ -409,15 +412,15 @@ async function scrapeWithFetch(
 		DEFAULT_MAX_RESPONSE_BYTES,
 		MAX_CONFIGURED_RESPONSE_BYTES,
 	);
-	const response = await fetch(url, {
+	const response = await fetchPublicHttpUrl(url, {
 		signal,
-		redirect: "follow",
+		timeoutMs: (source.timeout || 60) * 1000,
 		headers: {
 			"User-Agent": "DocuFusion-Scraper/1.0 (+https://docufusion.ai/bot)",
 			"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 			"Accept-Language": "en-US,en;q=0.5",
 		},
-	});
+	}, "Scraper URL");
 
 	if (!response.ok) {
 		return {
