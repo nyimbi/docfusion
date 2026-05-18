@@ -8,6 +8,7 @@ and performance optimization for competitive proposal development.
 
 import asyncio
 import json
+import logging
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -25,6 +26,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 
 from ...core.models.base import BaseEntity
+
+logger = logging.getLogger(__name__)
 
 
 class ProposalSection(str, Enum):

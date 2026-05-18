@@ -25,15 +25,14 @@ from .analytics.notification_analytics import (
     create_notification_event,
 )
 from .channels import (
-	EmailChannel, EmailConfiguration,
-	SMSChannel, SMSConfiguration,
+	EmailChannel, EmailConfiguration, EmailProvider, create_email_channel,
+	SMSChannel, SMSConfiguration, SMSProvider, create_sms_channel,
 	PushChannel, PushConfiguration,
-	InAppChannel, InAppConfiguration,
+	InAppChannel, InAppConfiguration, create_inapp_channel,
 	WhatsAppChannel, WhatsAppConfiguration,
 	TelegramChannel, TelegramConfiguration,
 	SlackChannel, SlackConfiguration,
 	WebhookChannel, WebhookConfiguration,
-	ChannelType
 )
 from .delivery.notification_delivery import (
     ChannelType,
@@ -52,6 +51,8 @@ from .prioritization.priority_manager import (
     create_notification_metadata,
     create_priority_manager,
 )
+
+logger = logging.getLogger(__name__)
 
 class WorkflowEventType(str, Enum):
     """Workflow event types that trigger notifications."""

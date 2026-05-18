@@ -13,6 +13,8 @@ Provides comprehensive multi-channel notification delivery supporting:
 - And all major communication platforms
 """
 
+from ..delivery.notification_delivery import ChannelType
+
 # Core channel implementations
 from .email_channel import (
 	EmailChannel,
@@ -92,6 +94,9 @@ from .webhook_channel import (
 )
 
 __all__ = [
+	# Shared delivery enum
+	'ChannelType',
+
 	# Email
 	'EmailChannel',
 	'EmailConfiguration', 

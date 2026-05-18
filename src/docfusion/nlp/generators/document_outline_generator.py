@@ -962,7 +962,7 @@ Generate the 10 improvements now:"""
                         psychology_benefits.append(bias)
                     except ValueError:
                         # Skip invalid bias names
-                        self.logger.warning("ValueError in unknown: {names}", names)
+                        self.logger.warning("Skipping invalid psychology bias name: %s", bias_str)
 
                 improvement = OutlineImprovement(
                     element_id=imp_data.get("element_id", ""),

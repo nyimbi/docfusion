@@ -14,6 +14,7 @@ High-quality PDF generation from formatted documents with comprehensive support 
 import asyncio
 import base64
 import io
+import logging
 import re
 import subprocess
 import tempfile
@@ -25,6 +26,8 @@ from uuid import uuid4
 from pydantic import Field, ConfigDict
 from pydantic.dataclasses import dataclass
 from ...core.utils import uuid7str
+
+logger = logging.getLogger(__name__)
 
 try:
 	from weasyprint import HTML, CSS

@@ -7,6 +7,7 @@ recommendations for opportunity pursuit.
 """
 
 import asyncio
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -31,6 +32,8 @@ except ImportError:
 
 # Canonical OpportunityData -- always available from discovery.models
 from ...discovery.models.opportunity_models import OpportunityData
+
+logger = logging.getLogger(__name__)
 
 
 class CompetitorTier(Enum):

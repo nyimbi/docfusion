@@ -23,11 +23,11 @@ from ..prioritization.priority_manager import (
 	create_priority_manager
 )
 from ..analytics.notification_analytics import (
-	NotificationAnalytics, AnalyticsEvent,
+	NotificationAnalytics, AnalyticsEvent, NotificationEvent,
 	create_notification_analytics
 )
 from ..channels import (
-	EmailChannel, EmailConfiguration,
+	EmailChannel, EmailConfiguration, EmailProvider,
 	SMSChannel, SMSConfiguration, SMSProvider,
 	PushChannel, PushConfiguration,
 	InAppChannel, InAppConfiguration,

@@ -29,7 +29,7 @@ from ..coordination.deadline_manager import DeadlineManager, WorkflowDeadline
 from ..monitoring.workflow_monitor import WorkflowMonitor, WorkflowMetrics
 
 # Import agent system components
-from ...agents.core.agent import Agent, AgentState, AgentConfig, AgentMetrics
+from ...agents.core.agent import Agent, AgentState, AgentConfig, AgentMetrics, AgentCapabilities
 from ...agents.orchestration.task_orchestrator import TaskOrchestrator, WorkflowDefinition, WorkflowExecution
 from ...agents.orchestration.crew_manager import AgentCrew, CrewTask, CrewConfiguration
 from ...agents.orchestration.swarm_manager import AgentSwarm, SwarmTask, SwarmConfiguration

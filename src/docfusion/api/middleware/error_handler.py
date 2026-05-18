@@ -18,6 +18,13 @@ from pydantic import ValidationError as PydanticValidationError
 logger = logging.getLogger(__name__)
 
 
+def _is_production() -> bool:
+	"""Return whether runtime secrets configuration is in production mode."""
+	from ...config.secrets import SecretsManager
+
+	return SecretsManager.is_production()
+
+
 # ============================================================================
 # Custom Exception Classes
 # ============================================================================

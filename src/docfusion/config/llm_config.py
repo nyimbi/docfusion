@@ -20,6 +20,8 @@ except ImportError:
 
 from ..core.utils import uuid7str
 
+logger = logging.getLogger(__name__)
+
 class LLMTask(Enum):
     """Standard LLM task categories"""
 

@@ -36,6 +36,8 @@ import pandas as pd
 from pydantic import BaseModel, Field
 from ....core.utils import uuid7str
 
+logger = logging.getLogger(__name__)
+
 
 class ExtractionAttempt(BaseModel):
 	"""Records an extraction attempt and its results"""

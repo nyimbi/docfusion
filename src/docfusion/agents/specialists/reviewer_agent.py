@@ -20,7 +20,7 @@ from ..core.agent import Agent, AgentConfig, AgentCapabilities, AgentState
 from ..core.roles import AgentRole, get_role_definition
 from ..core.messages import AgentMessage, MessageType, MessageTemplates
 
-from ...voice_dna import VoiceIntegrator, AnalysisType, enhance_writing, analyze_content_quality
+from ...voice_dna import VoiceIntegrator, AnalysisRequest, AnalysisType, enhance_writing, analyze_content_quality
 
 
 @dataclass
