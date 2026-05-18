@@ -16,10 +16,9 @@ Configuration via environment variables:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any, Dict, List, Optional
@@ -473,7 +472,7 @@ async def schedule_daily_digest(
 	if temporal_client:
 		# Schedule via Temporal
 		try:
-			schedule = await temporal_client.schedule_workflow(
+			await temporal_client.schedule_workflow(
 				workflow=send_opportunity_digest,
 				cron_schedule=request.cron_schedule,
 				workflow_id=f"daily-digest-{request.user_id}",
