@@ -98,14 +98,17 @@ describe("middleware API protection", () => {
 		expect(getClientIp(request)).toBe("198.51.100.7");
 	});
 
-	it("rejects API requests when the trusted client IP header is missing", async () => {
+	it("continues API auth checks when the trusted client IP header is missing", async () => {
+		getTokenMock.mockResolvedValueOnce(null);
+
 		const response = await middleware(
 			new NextRequest("https://app.test/api/v1/opportunities"),
 		);
 
-		expect(response.status).toBe(400);
-		expect(await response.json()).toEqual({ error: "Missing trusted client IP" });
-		expect(getTokenMock).not.toHaveBeenCalled();
+		expect(response.status).toBe(401);
+		expect(await response.json()).toEqual({ error: "Unauthorized" });
+		expect(response.headers.get("x-ratelimit-limit")).toBeNull();
+		expect(getTokenMock).toHaveBeenCalledOnce();
 	});
 
 	it("does not collapse missing trusted IPs into an unknown limiter key", () => {

@@ -10,6 +10,7 @@ vi.mock("node:dns/promises", () => ({
 
 import {
 	assertPublicHttpUrl,
+	createPinnedPublicLookup,
 	isPublicIpAddress,
 	UnsafePublicUrlError,
 } from "@/lib/security/public-url";
@@ -60,5 +61,23 @@ describe("public URL validation", () => {
 		]);
 
 		await expect(assertPublicHttpUrl("https://example.com")).rejects.toThrow("non-public");
+	});
+
+	it("pins outbound fetch lookup to the already validated public address", async () => {
+		lookupMock.mockResolvedValueOnce([{ address: "93.184.216.34", family: 4 }]);
+		const lookup = await createPinnedPublicLookup(new URL("https://example.com/report.pdf"));
+
+		const resolved = await new Promise<{ address: string; family: number }>((resolve, reject) => {
+			lookup("example.com", {}, (error, address, family) => {
+				if (error) {
+					reject(error);
+					return;
+				}
+				resolve({ address: String(address), family: Number(family) });
+			});
+		});
+
+		expect(resolved).toEqual({ address: "93.184.216.34", family: 4 });
+		expect(lookupMock).toHaveBeenCalledTimes(1);
 	});
 });

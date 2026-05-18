@@ -732,21 +732,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 		);
 	}
 	const organizationId = (session.user as { organizationId?: string }).organizationId;
-	if (!organizationId) {
-		return NextResponse.json(
-			{
-				success: false,
-				extracted: {},
-				findings: null,
-				commercialInsights: null,
-				valueProposition: null,
-				thinkingTrace: null,
-				sources: [],
-				error: "No organization context",
-			},
-			{ status: 403 }
-		);
-	}
 
 	try {
 		const body: ExtractRequest = await request.json();
@@ -917,9 +902,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 			}
 		}
 
-		// 6. Fetch our company data for value proposition generation
-		console.log("Fetching our company data for value proposition...");
-		const ourCompanyData = await fetchOurCompanyData(organizationId);
+		// 6. Fetch organization-scoped company data for value proposition generation.
+		const ourCompanyData = organizationId
+			? await fetchOurCompanyData(organizationId)
+			: null;
 
 		// 7. Generate research findings
 		console.log("Generating research findings...");

@@ -91,17 +91,17 @@ describe("research URL validation", () => {
 		expect(dbMock.select).not.toHaveBeenCalled();
 	});
 
-	it("requires organization context before commercial enrichment", async () => {
+	it("does not require organization context before request validation", async () => {
 		authMock.mockResolvedValueOnce({ user: { id: "user-1" } });
 
 		const response = await extractPost(jsonRequest("/api/v1/research/extract", {
-			accountName: "Tenantless Account",
+			accountName: "",
 		}));
 
-		expect(response.status).toBe(403);
+		expect(response.status).toBe(400);
 		await expect(response.json()).resolves.toMatchObject({
 			success: false,
-			error: "No organization context",
+			error: "Account name is required",
 		});
 		expect(dbMock.select).not.toHaveBeenCalled();
 	});

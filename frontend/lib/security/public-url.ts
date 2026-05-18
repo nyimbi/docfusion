@@ -1,4 +1,6 @@
 import * as dns from "node:dns/promises";
+import { request as httpRequest, type RequestOptions } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 
 export class UnsafePublicUrlError extends Error {
@@ -24,22 +26,87 @@ export async function assertPublicHttpUrl(rawUrl: string, label = "URL"): Promis
 	}
 
 	const hostname = normalizeHostname(url.hostname);
-	if (!hostname || hostname === "localhost") {
+	await resolvePublicHostAddresses(hostname, label);
+
+	return url;
+}
+
+export async function fetchPublicHttpUrl(
+	rawUrl: string | URL,
+	init: { headers?: HeadersInit; method?: string } = {},
+	label = "URL",
+): Promise<Response> {
+	const url = await assertPublicHttpUrl(rawUrl.toString(), label);
+	const lookup = await createPinnedPublicLookup(url, label);
+	const requester = url.protocol === "https:" ? httpsRequest : httpRequest;
+	const headers = new Headers(init.headers);
+	const requestHeaders = Object.fromEntries(headers.entries());
+
+	return new Promise<Response>((resolve, reject) => {
+		const request = requester(
+			url,
+			{
+				method: init.method ?? "GET",
+				headers: requestHeaders,
+				lookup,
+			},
+			(response) => {
+				const chunks: Buffer[] = [];
+				response.on("data", (chunk) => {
+					chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+				});
+				response.on("end", () => {
+					resolve(new Response(Buffer.concat(chunks), {
+						status: response.statusCode ?? 0,
+						statusText: response.statusMessage,
+						headers: response.headers as HeadersInit,
+					}));
+				});
+			},
+		);
+
+		request.on("error", reject);
+		request.end();
+	});
+}
+
+export async function createPinnedPublicLookup(
+	url: URL,
+	label = "URL",
+): Promise<NonNullable<RequestOptions["lookup"]>> {
+	const hostname = normalizeHostname(url.hostname);
+	const [pinned] = await resolvePublicHostAddresses(hostname, label);
+
+	return ((_hostname, options, callback) => {
+		if (options?.all) {
+			callback(null, [pinned]);
+			return;
+		}
+		callback(null, pinned.address, pinned.family);
+	}) as NonNullable<RequestOptions["lookup"]>;
+}
+
+export async function resolvePublicHostAddresses(
+	hostname: string,
+	label = "URL",
+): Promise<Array<{ address: string; family: 4 | 6 }>> {
+	const normalized = normalizeHostname(hostname);
+	if (!normalized || normalized === "localhost") {
 		throw new UnsafePublicUrlError(`${label} host is not allowed`);
 	}
 
-	const addresses = await resolveHostAddresses(hostname, label);
-	if (addresses.length === 0) {
+	const records = await resolveHostAddresses(normalized, label);
+	if (records.length === 0) {
 		throw new UnsafePublicUrlError(`${label} host could not be resolved`);
 	}
 
-	for (const address of addresses) {
-		if (!isPublicIpAddress(address)) {
+	for (const record of records) {
+		if (!isPublicIpAddress(record.address)) {
 			throw new UnsafePublicUrlError(`${label} host resolves to a non-public address`);
 		}
 	}
 
-	return url;
+	return records;
 }
 
 export function isPublicIpAddress(rawAddress: string): boolean {
@@ -55,14 +122,21 @@ export function isPublicIpAddress(rawAddress: string): boolean {
 	return false;
 }
 
-async function resolveHostAddresses(hostname: string, label: string): Promise<string[]> {
-	if (isIP(hostname)) {
-		return [hostname];
+async function resolveHostAddresses(
+	hostname: string,
+	label: string,
+): Promise<Array<{ address: string; family: 4 | 6 }>> {
+	const literalFamily = isIP(hostname);
+	if (literalFamily === 4 || literalFamily === 6) {
+		return [{ address: hostname, family: literalFamily }];
 	}
 
 	try {
 		const records = await dns.lookup(hostname, { all: true, verbatim: true });
-		return records.map((record) => record.address);
+		return records.map((record) => ({
+			address: record.address,
+			family: record.family === 6 ? 6 : 4,
+		}));
 	} catch {
 		throw new UnsafePublicUrlError(`${label} host could not be resolved`);
 	}

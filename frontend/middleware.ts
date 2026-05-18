@@ -5,7 +5,8 @@
  * Redirects unauthenticated users to sign-in and authenticated users
  * away from auth pages.
  *
- * Applies in-memory rate limiting to all /api/* routes:
+ * Applies in-memory rate limiting to /api/* routes when trusted reverse-proxy
+ * client IP metadata is available:
  * 100 requests per 15 minutes per trusted proxy client IP.
  */
 
@@ -118,16 +119,10 @@ export async function middleware(request: NextRequest) {
 	// ---- Rate limiting for API routes ----
 	if (pathname.startsWith("/api/")) {
 		const ip = getClientIp(request);
-		if (!ip) {
-			return NextResponse.json(
-				{ error: "Missing trusted client IP" },
-				{ status: 400 },
-			);
-		}
-		const { allowed, remaining, resetTime } = checkRateLimit(ip);
+		const rateLimit = ip ? checkRateLimit(ip) : null;
 
-		if (!allowed) {
-			const retryAfter = Math.ceil((resetTime - Date.now()) / 1000);
+		if (rateLimit && !rateLimit.allowed) {
+			const retryAfter = Math.ceil((rateLimit.resetTime - Date.now()) / 1000);
 			return new NextResponse(
 				JSON.stringify({
 					error: "Too Many Requests",
@@ -140,7 +135,7 @@ export async function middleware(request: NextRequest) {
 						"Retry-After": String(retryAfter),
 						"X-RateLimit-Limit": String(RATE_LIMIT_MAX),
 						"X-RateLimit-Remaining": "0",
-						"X-RateLimit-Reset": String(Math.ceil(resetTime / 1000)),
+						"X-RateLimit-Reset": String(Math.ceil(rateLimit.resetTime / 1000)),
 					},
 				},
 			);
@@ -157,11 +152,7 @@ export async function middleware(request: NextRequest) {
 					{ error: "Unauthorized" },
 					{
 						status: 401,
-						headers: {
-							"X-RateLimit-Limit": String(RATE_LIMIT_MAX),
-							"X-RateLimit-Remaining": String(remaining),
-							"X-RateLimit-Reset": String(Math.ceil(resetTime / 1000)),
-						},
+						headers: rateLimit ? rateLimitHeaders(rateLimit) : undefined,
 					},
 				);
 			}
@@ -178,12 +169,11 @@ export async function middleware(request: NextRequest) {
 				headers: forwardedHeaders,
 			},
 		});
-		response.headers.set("X-RateLimit-Limit", String(RATE_LIMIT_MAX));
-		response.headers.set("X-RateLimit-Remaining", String(remaining));
-		response.headers.set(
-			"X-RateLimit-Reset",
-			String(Math.ceil(resetTime / 1000)),
-		);
+		if (rateLimit) {
+			for (const [header, value] of Object.entries(rateLimitHeaders(rateLimit))) {
+				response.headers.set(header, value);
+			}
+		}
 		return response;
 	}
 
@@ -212,6 +202,14 @@ export async function middleware(request: NextRequest) {
 	}
 
 	return NextResponse.next();
+}
+
+function rateLimitHeaders(rateLimit: { remaining: number; resetTime: number }): Record<string, string> {
+	return {
+		"X-RateLimit-Limit": String(RATE_LIMIT_MAX),
+		"X-RateLimit-Remaining": String(rateLimit.remaining),
+		"X-RateLimit-Reset": String(Math.ceil(rateLimit.resetTime / 1000)),
+	};
 }
 
 export const config = {

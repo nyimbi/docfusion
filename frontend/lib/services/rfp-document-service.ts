@@ -19,7 +19,7 @@ import { createHash } from "crypto";
 import { processRfpDocument, isSupportedFileType } from "@/lib/services/docling-client";
 import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
-import { assertPublicHttpUrl } from "@/lib/security/public-url";
+import { assertPublicHttpUrl, fetchPublicHttpUrl } from "@/lib/security/public-url";
 import {
   buildRfpObjectKey,
   downloadFromLinodeE3,
@@ -538,7 +538,8 @@ export async function downloadDocument(
     if (!doc.sourceUrl) {
       return { success: false, error: "No source URL available" };
     }
-    const safeSourceUrl = (await assertPublicHttpUrl(doc.sourceUrl, "Document source URL")).toString();
+    const safeSourceUrl = await assertPublicHttpUrl(doc.sourceUrl, "Document source URL");
+    const safeSourceUrlString = safeSourceUrl.toString();
 
     // Update status to downloading
     await db.update(opportunityDocuments)
@@ -550,11 +551,11 @@ export async function downloadDocument(
       .where(eq(opportunityDocuments.id, documentId));
 
     // Download the file
-    const response = await fetch(safeSourceUrl, {
+    const response = await fetchPublicHttpUrl(safeSourceUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
-    });
+    }, "Document source URL");
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -584,7 +585,7 @@ export async function downloadDocument(
       documentId: doc.id,
       opportunityId: doc.opportunityId,
       filename: doc.documentName,
-      sourceUrl: safeSourceUrl,
+      sourceUrl: safeSourceUrlString,
       buffer,
       mimeType,
       userId,
@@ -631,7 +632,7 @@ export async function downloadDocument(
     const provenance: RfpIngestProvenance = {
       source: "opportunity_document_download",
       sourceOpportunityDocumentId: doc.id,
-      sourceUrl: safeSourceUrl,
+      sourceUrl: safeSourceUrlString,
       downloadedBy: userId || "system",
       downloadedAt: new Date().toISOString(),
     };

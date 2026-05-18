@@ -81,10 +81,19 @@ const doclingMock = vi.hoisted(() => ({
 const dnsLookupMock = vi.hoisted(() =>
 	vi.fn<() => Promise<Array<{ address: string; family: 4 | 6 }>>>()
 );
+const fetchPublicHttpUrlMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:dns/promises", () => ({
 	lookup: dnsLookupMock,
 }));
+
+vi.mock("@/lib/security/public-url", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/lib/security/public-url")>();
+	return {
+		...actual,
+		fetchPublicHttpUrl: fetchPublicHttpUrlMock,
+	};
+});
 
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 vi.mock("@/lib/services/docling-client", () => doclingMock);
@@ -146,13 +155,13 @@ beforeEach(() => {
 		text: "Extracted RFP text",
 		pageCount: 3,
 	});
-	vi.stubGlobal("fetch", vi.fn(async () => new Response("downloaded-pdf", {
+	fetchPublicHttpUrlMock.mockResolvedValue(new Response("downloaded-pdf", {
 		status: 200,
 		headers: {
 			"content-length": "14",
 			"content-type": "application/pdf",
 		},
-	})));
+	}));
 });
 
 describe("RFP document fetch storage", () => {
@@ -294,7 +303,7 @@ describe("RFP document fetch storage", () => {
 			documentId: baseDocument.id,
 			error: "Document does not belong to this opportunity",
 		});
-		expect(global.fetch).not.toHaveBeenCalled();
+		expect(fetchPublicHttpUrlMock).not.toHaveBeenCalled();
 		expect(storageMock.uploadToLinodeE3).not.toHaveBeenCalled();
 	});
 
@@ -311,7 +320,7 @@ describe("RFP document fetch storage", () => {
 			documentId: baseDocument.id,
 			error: expect.stringContaining("non-public"),
 		});
-		expect(global.fetch).not.toHaveBeenCalled();
+		expect(fetchPublicHttpUrlMock).not.toHaveBeenCalled();
 		expect(storageMock.uploadToLinodeE3).not.toHaveBeenCalled();
 	});
 });

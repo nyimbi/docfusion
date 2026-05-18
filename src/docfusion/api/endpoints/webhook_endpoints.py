@@ -7,14 +7,17 @@ and external system integration with comprehensive security and reliability.
 """
 
 import asyncio
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 import hashlib
 import hmac
+from http.client import HTTPResponse
 import ipaddress
 import json
 import logging
 import socket
+import ssl
 from typing import Any, Dict, List, Optional, Set
 from urllib.parse import urlparse
 
@@ -38,6 +41,12 @@ class UnsafeWebhookUrlError(ValueError):
     """Raised when a webhook URL would allow unsafe outbound access."""
 
 
+@dataclass(frozen=True)
+class WebhookHttpResponse:
+    status_code: int
+    text: str
+
+
 def validate_public_webhook_url(raw_url: str) -> str:
     """Validate webhook targets before storage and before delivery."""
     parsed = urlparse(str(raw_url))
@@ -55,11 +64,11 @@ def validate_public_webhook_url(raw_url: str) -> str:
     if normalized_host == "localhost":
         raise UnsafeWebhookUrlError(WEBHOOK_URL_HOST_BLOCKED)
 
-    _assert_global_address(hostname)
+    _resolve_public_addresses(hostname)
     return str(raw_url)
 
 
-def _assert_global_address(hostname: str) -> None:
+def _resolve_public_addresses(hostname: str) -> list[str]:
     try:
         addresses = [ipaddress.ip_address(hostname)]
     except ValueError:
@@ -75,6 +84,102 @@ def _assert_global_address(hostname: str) -> None:
     for address in addresses:
         if not address.is_global:
             raise UnsafeWebhookUrlError(WEBHOOK_URL_NON_PUBLIC_ADDRESS)
+
+    return [str(address) for address in addresses]
+
+
+async def _post_webhook_json(
+    webhook_url: str,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout: int,
+) -> WebhookHttpResponse:
+    return await asyncio.to_thread(
+        _post_webhook_json_sync,
+        webhook_url,
+        payload,
+        headers,
+        timeout,
+    )
+
+
+def _post_webhook_json_sync(
+    webhook_url: str,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout: int,
+) -> WebhookHttpResponse:
+    parsed = urlparse(webhook_url)
+    hostname = parsed.hostname
+    if not hostname:
+        raise UnsafeWebhookUrlError(WEBHOOK_URL_HOST_REQUIRED)
+
+    port = parsed.port or 443
+    target = parsed.path or "/"
+    if parsed.query:
+        target = f"{target}?{parsed.query}"
+
+    body = json.dumps(payload, sort_keys=True).encode("utf-8")
+    request_headers = _prepare_webhook_headers(headers, hostname, port, len(body))
+    request_bytes = _build_http_request(target, request_headers, body)
+    context = ssl.create_default_context()
+    last_error: BaseException | None = None
+
+    for address in _resolve_public_addresses(hostname):
+        try:
+            with socket.create_connection((address, port), timeout=timeout) as raw_sock:
+                raw_sock.settimeout(timeout)
+                with context.wrap_socket(raw_sock, server_hostname=hostname) as tls_sock:
+                    tls_sock.sendall(request_bytes)
+                    response = HTTPResponse(tls_sock)
+                    response.begin()
+                    response_body = response.read(1000)
+                    return WebhookHttpResponse(
+                        status_code=response.status,
+                        text=response_body.decode("utf-8", errors="replace"),
+                    )
+        except (OSError, ssl.SSLError) as exc:
+            last_error = exc
+
+    if last_error:
+        raise last_error
+    raise UnsafeWebhookUrlError(WEBHOOK_URL_RESOLUTION_FAILED)
+
+
+def _prepare_webhook_headers(
+    headers: dict[str, str],
+    hostname: str,
+    port: int,
+    content_length: int,
+) -> dict[str, str]:
+    prepared: dict[str, str] = {}
+    blocked_headers = {"connection", "content-length", "host", "transfer-encoding"}
+    for key, value in headers.items():
+        header_name = str(key)
+        header_value = str(value)
+        if header_name.lower() in blocked_headers:
+            continue
+        if "\r" in header_name or "\n" in header_name:
+            continue
+        if "\r" in header_value or "\n" in header_value:
+            continue
+        prepared[header_name] = header_value
+
+    host_header = hostname if port == 443 else f"{hostname}:{port}"
+    prepared["Host"] = host_header
+    prepared["Content-Length"] = str(content_length)
+    prepared["Connection"] = "close"
+    return prepared
+
+
+def _build_http_request(
+    target: str,
+    headers: dict[str, str],
+    body: bytes,
+) -> bytes:
+    header_lines = [f"POST {target} HTTP/1.1"]
+    header_lines.extend(f"{key}: {value}" for key, value in headers.items())
+    return ("\r\n".join(header_lines) + "\r\n\r\n").encode("utf-8") + body
 
 
 class WebhookEventType(str, Enum):
@@ -433,47 +538,41 @@ class WebhookManager:
             start_time = datetime.now(timezone.utc)
 
             try:
-                import httpx
-
                 webhook_url = validate_public_webhook_url(webhook["url"])
-                async with httpx.AsyncClient(timeout=webhook["timeout"]) as client:
-                    response = await client.post(
-                        webhook_url, json=payload, headers=headers
-                    )
+                response = await _post_webhook_json(
+                    webhook_url,
+                    payload,
+                    headers,
+                    webhook["timeout"],
+                )
 
-                    end_time = datetime.now(timezone.utc)
-                    duration_ms = (end_time - start_time).total_seconds() * 1000
+                end_time = datetime.now(timezone.utc)
+                duration_ms = (end_time - start_time).total_seconds() * 1000
 
-                    # Update delivery record
-                    delivery["completed_at"] = end_time
-                    delivery["response_status"] = response.status_code
-                    delivery["response_body"] = response.text[
-                        :1000
-                    ]  # Limit response size
-                    delivery["duration_ms"] = duration_ms
+                # Update delivery record
+                delivery["completed_at"] = end_time
+                delivery["response_status"] = response.status_code
+                delivery["response_body"] = response.text[:1000]
+                delivery["duration_ms"] = duration_ms
 
-                    # Check if successful
-                    if 200 <= response.status_code < 300:
-                        delivery["status"] = WebhookStatus.DELIVERED
+                # Check if successful
+                if 200 <= response.status_code < 300:
+                    delivery["status"] = WebhookStatus.DELIVERED
 
-                        # Update webhook stats
-                        webhook["total_deliveries"] += 1
-                        webhook["successful_deliveries"] += 1
-                        webhook["last_delivery"] = end_time
-                        webhook["failure_count"] = 0
+                    # Update webhook stats
+                    webhook["total_deliveries"] += 1
+                    webhook["successful_deliveries"] += 1
+                    webhook["last_delivery"] = end_time
+                    webhook["failure_count"] = 0
 
-                        # Update global stats
-                        self.stats["total_deliveries"] += 1
-                        self.stats["successful_deliveries"] += 1
-                        self._update_average_response_time(duration_ms)
+                    # Update global stats
+                    self.stats["total_deliveries"] += 1
+                    self.stats["successful_deliveries"] += 1
+                    self._update_average_response_time(duration_ms)
 
-                        self.logger.debug(f"Webhook delivery {delivery_id} successful")
-                    else:
-                        raise httpx.HTTPStatusError(
-                            f"HTTP {response.status_code}",
-                            request=response.request,
-                            response=response,
-                        )
+                    self.logger.debug(f"Webhook delivery {delivery_id} successful")
+                else:
+                    raise RuntimeError(f"HTTP {response.status_code}")
 
             except Exception as e:
                 end_time = datetime.now(timezone.utc)
