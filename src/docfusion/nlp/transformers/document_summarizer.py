@@ -7,19 +7,18 @@ AI-powered insights, and customizable summary generation.
 """
 
 import asyncio
-import json
 import logging
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 from ...core.utils import uuid7str
 import time
 
 try:
     import aiohttp
-    from aiohttp import ClientError, ClientTimeout
+    from aiohttp import ClientTimeout
 except ImportError:
     aiohttp = None
 

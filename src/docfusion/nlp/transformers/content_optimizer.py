@@ -6,17 +6,15 @@ Advanced content optimization for clarity, persuasiveness, and overall effective
 with AI-powered improvements and comprehensive quality enhancement.
 """
 
-import asyncio
-import json
 import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 
 try:
 	import aiohttp
-	from aiohttp import ClientError, ClientTimeout
+	from aiohttp import ClientTimeout
 except ImportError:
 	aiohttp = None
 

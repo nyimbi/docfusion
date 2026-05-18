@@ -7,7 +7,6 @@ adaptation with AI-powered rewriting capabilities.
 """
 
 import asyncio
-import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -16,7 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 try:
 	import aiohttp
-	from aiohttp import ClientError, ClientTimeout
+	from aiohttp import ClientTimeout
 except ImportError:
 	aiohttp = None
 
