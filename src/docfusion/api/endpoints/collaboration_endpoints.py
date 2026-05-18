@@ -570,7 +570,7 @@ class CollaborationEndpoints:
                 user_id,
                 current_user.get("username", "Unknown"),
                 "comment_updated",
-                f"Updated a comment",
+                "Updated a comment",
                 {"comment_id": comment_id},
             )
 
@@ -630,7 +630,7 @@ class CollaborationEndpoints:
                 user_id,
                 current_user.get("username", "Unknown"),
                 "comment_resolved",
-                f"Resolved a comment",
+                "Resolved a comment",
                 {"comment_id": comment_id},
             )
 
@@ -701,7 +701,7 @@ class CollaborationEndpoints:
                 user_id,
                 current_user.get("username", "Unknown"),
                 "comment_deleted",
-                f"Deleted a comment",
+                "Deleted a comment",
                 {"comment_id": comment_id, "replies_deleted": len(replies_to_delete)},
             )
 

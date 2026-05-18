@@ -482,7 +482,7 @@ class APIMonitor:
         if stale_requests:
             await self._create_alert(
                 AlertLevel.WARNING,
-                f"Stale Requests Detected",
+                "Stale Requests Detected",
                 f"Found {len(stale_requests)} requests active for over 10 minutes",
                 "request_monitoring",
                 {"stale_count": len(stale_requests)},
@@ -513,7 +513,7 @@ class APIMonitor:
         if len(self.rate_limit_violations[user_id]) > limit * 2:
             await self._create_alert(
                 AlertLevel.WARNING,
-                f"Excessive Rate Limit Violations",
+                "Excessive Rate Limit Violations",
                 f"User {user_id} has exceeded rate limits {len(self.rate_limit_violations[user_id])} times",
                 "rate_limiting",
                 {
@@ -572,7 +572,7 @@ class APIMonitor:
         if metric.response_time_ms > self.config["alert_thresholds"]["response_time"]:
             await self._create_alert(
                 AlertLevel.WARNING,
-                f"High Response Time",
+                "High Response Time",
                 f"{metric.endpoint} took {metric.response_time_ms:.0f}ms to respond",
                 "performance",
                 {
@@ -590,7 +590,7 @@ class APIMonitor:
         ):
             await self._create_alert(
                 AlertLevel.ERROR,
-                f"High Error Rate",
+                "High Error Rate",
                 f"Error rate is {self.current_stats.error_rate:.1%}",
                 "performance",
                 {
