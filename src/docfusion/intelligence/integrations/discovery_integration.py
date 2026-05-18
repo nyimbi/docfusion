@@ -10,9 +10,7 @@ import asyncio
 import logging
 logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass
-from enum import Enum
+from typing import Any, Dict, List, Optional
 from ...core.types.intelligence import IntelligenceLevel
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -20,7 +18,7 @@ from uuid import uuid4
 
 # Intelligence engine imports
 from ..predictors.win_probability_predictor import (
-    WinProbabilityPredictor, PredictionFeatures, PredictionResult, HistoricalOpportunity
+    WinProbabilityPredictor, PredictionFeatures, PredictionResult
 )
 # from ..analyzers.competitive_analyzer import CompetitiveAnalyzer  # Disabled due to dependency issues
 from ..recommenders.strategy_recommender import (
@@ -33,7 +31,7 @@ from ...discovery.models.opportunity_models import OpportunityData
 # Optional deeper discovery dependencies (analyzers, matchers, notification)
 try:
     from ...discovery.analyzers.opportunity_analyzer import OpportunityAnalyzer
-    from ...discovery.matchers.relevance_filter import RelevanceFilter, OpportunityContext as DiscoveryContext
+    from ...discovery.matchers.relevance_filter import RelevanceFilter
     from ...discovery.integrations.notification_service import OpportunityNotificationService
     DISCOVERY_AVAILABLE = True
 except ImportError:

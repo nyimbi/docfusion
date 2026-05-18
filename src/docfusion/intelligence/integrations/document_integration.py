@@ -9,15 +9,15 @@ feedback, and intelligent proposal enhancement during document creation.
 import logging
 import asyncio
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from enum import Enum
 
 from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 
 # Intelligence engine imports
-from ..predictors.scoring_predictor import ScoringPredictor, SectionFeatures, ProposalSection, SectionScorePrediction
-from ..recommenders.content_recommender import ContentRecommender, ContentRecommendationReport
+from ..predictors.scoring_predictor import ScoringPredictor, SectionFeatures, ProposalSection
+from ..recommenders.content_recommender import ContentRecommender
 from ..recommenders.strategy_recommender import StrategyRecommender
 from .discovery_integration import OpportunityIntelligence
 

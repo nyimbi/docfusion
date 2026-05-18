@@ -17,19 +17,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import asdict
 from enum import Enum
 
-import numpy as np
 from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 
 # Intelligence engine imports
-from ..predictors.win_probability_predictor import (
-    WinProbabilityPredictor, PredictionResult, HistoricalOpportunity, ModelPerformanceMetrics
-)
-from ..predictors.scoring_predictor import (
-    ScoringPredictor, SectionScorePrediction, HistoricalSectionScore, SectionModelMetrics, ProposalSection
-)
-from ..recommenders.strategy_recommender import StrategyRecommender, StrategicRecommendation
-from ..recommenders.content_recommender import ContentRecommender, ContentRecommendationReport
 from .discovery_integration import OpportunityIntelligence
 
 
