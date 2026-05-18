@@ -685,9 +685,6 @@ class DocumentEndpoints:
     ) -> DocumentResponse:
         """Handle document upload and processing"""
         try:
-            user_id = current_user["user_id"]
-            context = self._build_request_context(current_user)
-
             # Read file content
             file_content = await file.read()
 

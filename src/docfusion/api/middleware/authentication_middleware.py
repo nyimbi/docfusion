@@ -410,9 +410,6 @@ def require_permission(required_permission: str):
             *args, current_user: Dict[str, Any] = Depends(get_current_user), **kwargs
         ):
             user_permissions = current_user.get("permissions", {})
-            user_roles = [
-                role["role_name"] for role in user_permissions.get("roles", [])
-            ]
 
             # Check if user has required permission
             has_permission = False

@@ -168,7 +168,6 @@ class RateLimitingMiddleware:
 	) -> Dict[str, Any]:
 		"""Check if request is within rate limits"""
 		counter = self.counters[client_id]
-		now = time.time()
 		
 		# Get applicable rules for this request
 		applicable_rules = self._get_applicable_rules(request)

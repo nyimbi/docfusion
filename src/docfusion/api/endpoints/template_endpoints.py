@@ -411,20 +411,6 @@ class TemplateEndpoints:
             if not auth_result.has_permission:
                 raise HTTPException(status_code=403, detail="Permission denied")
 
-            # Update template metadata
-            metadata = {
-                "template_id": template_id,
-                "template_category": request.category or template_info.category,
-                "template_description": request.description
-                or template_info.description,
-                "template_version": "1.1",  # Increment version
-                "template_fields": request.fields or template_info.fields,
-                "template_access_level": request.access_level
-                or template_info.access_level,
-                "is_template": True,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-
             # This is a simplified update - in production would need to find the actual document
             # and update it through the storage service
 
@@ -716,8 +702,6 @@ class TemplateEndpoints:
     ) -> TemplateResponse:
         """Handle template duplication"""
         try:
-            user_id = current_user["user_id"]
-
             # Get original template
             original = await self.get_template_handler(template_id, True, current_user)
 
