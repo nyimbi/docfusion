@@ -16,24 +16,16 @@ workflow automation capabilities.
 """
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Import core workflow components
-from ...agents.core.agent import Agent
-
 # Import core DocuFusion components
-from ...document_engine.document_engine import (
-    DocumentEngine,
-    DocumentGenerationRequest,
-    DocumentGenerationResult,
-)
+from ...document_engine.document_engine import DocumentEngine
 from ...security.security_manager import SecurityManager
 from ...storage.storage_service import StorageService
 from ..coordination.deadline_manager import DeadlineManager
@@ -44,9 +36,11 @@ from ..monitoring.workflow_monitor import WorkflowMonitor
 from .agents_workflow_integration import AgentsWorkflowIntegration
 from .nlp_workflow_integration import NLPWorkflowIntegration
 from .security_workflow_integration import SecurityWorkflowIntegration
-from .workflow_integration_layer import WorkflowIntegrationLayer
-from .workflow_storage_integration import WorkflowStorageIntegration
 from ...core.utils import uuid7str
+
+if TYPE_CHECKING:
+    from .workflow_integration_layer import WorkflowIntegrationLayer
+    from .workflow_storage_integration import WorkflowStorageIntegration
 
 class IntegrationScope(str, Enum):
     """Scope of integration capabilities"""
@@ -213,13 +207,13 @@ class UnifiedDocuFusionIntegration:
         self.task_coordinator: Optional[TaskCoordinator] = None
         self.deadline_manager: Optional[DeadlineManager] = None
         self.workflow_monitor: Optional[WorkflowMonitor] = None
-        self.workflow_integration_layer: Optional[WorkflowIntegrationLayer] = None
+        self.workflow_integration_layer: Optional["WorkflowIntegrationLayer"] = None
 
         # Component integrations
         self.agents_integration: Optional[AgentsWorkflowIntegration] = None
         self.security_integration: Optional[SecurityWorkflowIntegration] = None
         self.nlp_integration: Optional[NLPWorkflowIntegration] = None
-        self.storage_integration: Optional[WorkflowStorageIntegration] = None
+        self.storage_integration: Optional["WorkflowStorageIntegration"] = None
 
         # System state
         self.component_health: Dict[str, ComponentHealth] = {}
@@ -771,6 +765,8 @@ class UnifiedDocuFusionIntegration:
             )
 
             # Initialize workflow integration layer
+            from .workflow_integration_layer import WorkflowIntegrationLayer
+
             self.workflow_integration_layer = WorkflowIntegrationLayer(
                 task_coordinator=self.task_coordinator,
                 deadline_manager=self.deadline_manager,
@@ -834,6 +830,8 @@ class UnifiedDocuFusionIntegration:
         try:
             # Always initialize storage integration
             if self.storage_service:
+                from .workflow_storage_integration import WorkflowStorageIntegration
+
                 self.storage_integration = WorkflowStorageIntegration(
                     storage_service=self.storage_service
                 )

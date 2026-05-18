@@ -17,26 +17,24 @@ Key Features:
 
 import asyncio
 import logging
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
-from ..automation.task_scheduler import SchedulerConfiguration, TaskScheduler
+from ..automation.task_scheduler import TaskScheduler
 
 # Import workflow components
-from ..automation.workflow_engine import WorkflowConfiguration, WorkflowEngine
-from ..coordination.deadline_manager import DeadlineConfiguration, DeadlineManager
-from ..coordination.task_coordinator import CoordinatorConfiguration, TaskCoordinator
-from ..monitoring.workflow_monitor import MonitoringConfiguration, WorkflowMonitor
+from ..automation.workflow_engine import WorkflowEngine
+from ..coordination.deadline_manager import DeadlineManager
+from ..coordination.task_coordinator import TaskCoordinator
+from ..monitoring.workflow_monitor import WorkflowMonitor
 
 # Import new comprehensive integrations
 from .agents_workflow_integration import AgentsWorkflowIntegration
 from .nlp_workflow_integration import NLPWorkflowIntegration
 from .security_workflow_integration import SecurityWorkflowIntegration
-from .unified_docufusion_integration import UnifiedDocuFusionIntegration
 
 # Import integration components
 from .workflow_document_bridge import (
@@ -45,10 +43,9 @@ from .workflow_document_bridge import (
     create_workflow_document_bridge,
 )
 from ...core.utils import uuid7str
-from .workflow_storage_integration import (
-    WorkflowStorageIntegration,
-    create_workflow_storage_integration,
-)
+if TYPE_CHECKING:
+    from .unified_docufusion_integration import UnifiedDocuFusionIntegration
+    from .workflow_storage_integration import WorkflowStorageIntegration
 
 # Legacy middleware components (maintained for compatibility)
 try:
@@ -65,11 +62,7 @@ except ImportError:
             pass
 
 # Import existing system components
-from ...api.endpoints.document_endpoints import DocumentEndpoints
-from ...document_engine.document_engine import (
-    DocumentEngine,
-    DocumentGenerationConfiguration,
-)
+from ...document_engine.document_engine import DocumentEngine
 from ...storage.storage_service import StorageService
 
 logger = logging.getLogger(__name__)
@@ -98,11 +91,11 @@ class WorkflowIntegrationConfiguration(BaseModel):
     enable_performance_monitoring: bool = True
 
     # Component configurations
-    workflow_engine_config: Optional[WorkflowConfiguration] = None
-    scheduler_config: Optional[SchedulerConfiguration] = None
-    coordinator_config: Optional[CoordinatorConfiguration] = None
-    deadline_config: Optional[DeadlineConfiguration] = None
-    monitoring_config: Optional[MonitoringConfiguration] = None
+    workflow_engine_config: Optional[Dict[str, Any]] = None
+    scheduler_config: Optional[Dict[str, Any]] = None
+    coordinator_config: Optional[Dict[str, Any]] = None
+    deadline_config: Optional[Dict[str, Any]] = None
+    monitoring_config: Optional[Dict[str, Any]] = None
     bridge_config: Optional[WorkflowDocumentConfiguration] = None
 
     # Integration settings
@@ -157,7 +150,7 @@ class WorkflowIntegrationLayer:
 
         # Integration components (will be initialized)
         self.document_bridge: Optional[WorkflowDocumentBridge] = None
-        self.storage_integration: Optional[WorkflowStorageIntegration] = None
+        self.storage_integration: Optional["WorkflowStorageIntegration"] = None
         self.workflow_middleware: Optional[WorkflowMiddleware] = None
         self.request_extensions: Optional[WorkflowRequestExtensions] = None
 
@@ -165,7 +158,7 @@ class WorkflowIntegrationLayer:
         self.agents_integration: Optional[AgentsWorkflowIntegration] = None
         self.security_integration: Optional[SecurityWorkflowIntegration] = None
         self.nlp_integration: Optional[NLPWorkflowIntegration] = None
-        self.unified_integration: Optional[UnifiedDocuFusionIntegration] = None
+        self.unified_integration: Optional["UnifiedDocuFusionIntegration"] = None
 
         # State tracking
         self.is_initialized = False
@@ -233,31 +226,79 @@ class WorkflowIntegrationLayer:
         logger.info("Initializing core workflow components...")
 
         # Initialize WorkflowEngine
-        workflow_config = self.config.workflow_engine_config or WorkflowConfiguration()
-        self.workflow_engine = WorkflowEngine(config=workflow_config)
-        await self.workflow_engine.initialize()
+        workflow_config = self.config.workflow_engine_config or {}
+        workflow_kwargs = {
+            key: value
+            for key, value in workflow_config.items()
+            if key in {"max_concurrent_workflows"}
+        }
+        self.workflow_engine = WorkflowEngine(**workflow_kwargs)
+        if hasattr(self.workflow_engine, "initialize"):
+            await self.workflow_engine.initialize()
 
         # Initialize TaskScheduler
-        scheduler_config = self.config.scheduler_config or SchedulerConfiguration()
-        self.task_scheduler = TaskScheduler(config=scheduler_config)
-        await self.task_scheduler.initialize()
+        scheduler_config = self.config.scheduler_config or {}
+        scheduler_kwargs = {
+            key: value
+            for key, value in scheduler_config.items()
+            if key
+            in {
+                "default_strategy",
+                "max_concurrent_tasks",
+                "resource_optimization_enabled",
+            }
+        }
+        self.task_scheduler = TaskScheduler(**scheduler_kwargs)
+        if hasattr(self.task_scheduler, "initialize"):
+            await self.task_scheduler.initialize()
 
         # Initialize TaskCoordinator
-        coordinator_config = (
-            self.config.coordinator_config or CoordinatorConfiguration()
-        )
-        self.task_coordinator = TaskCoordinator(config=coordinator_config)
-        await self.task_coordinator.initialize()
+        coordinator_config = self.config.coordinator_config or {}
+        coordinator_kwargs = {
+            key: value
+            for key, value in coordinator_config.items()
+            if key
+            in {
+                "default_strategy",
+                "enable_workload_balancing",
+                "max_assignment_attempts",
+            }
+        }
+        self.task_coordinator = TaskCoordinator(**coordinator_kwargs)
+        if hasattr(self.task_coordinator, "initialize"):
+            await self.task_coordinator.initialize()
 
         # Initialize DeadlineManager
-        deadline_config = self.config.deadline_config or DeadlineConfiguration()
-        self.deadline_manager = DeadlineManager(config=deadline_config)
-        await self.deadline_manager.initialize()
+        deadline_config = self.config.deadline_config or {}
+        deadline_kwargs = {
+            key: value
+            for key, value in deadline_config.items()
+            if key
+            in {
+                "default_buffer_percentage",
+                "enable_auto_escalation",
+                "critical_path_update_interval",
+            }
+        }
+        self.deadline_manager = DeadlineManager(**deadline_kwargs)
+        if hasattr(self.deadline_manager, "initialize"):
+            await self.deadline_manager.initialize()
 
         # Initialize WorkflowMonitor
-        monitoring_config = self.config.monitoring_config or MonitoringConfiguration()
-        self.workflow_monitor = WorkflowMonitor(config=monitoring_config)
-        await self.workflow_monitor.initialize()
+        monitoring_config = self.config.monitoring_config or {}
+        monitoring_kwargs = {
+            key: value
+            for key, value in monitoring_config.items()
+            if key
+            in {
+                "monitoring_level",
+                "metrics_retention_days",
+                "alert_retention_days",
+            }
+        }
+        self.workflow_monitor = WorkflowMonitor(**monitoring_kwargs)
+        if hasattr(self.workflow_monitor, "initialize"):
+            await self.workflow_monitor.initialize()
 
         logger.info("Core workflow components initialized")
 
@@ -267,6 +308,8 @@ class WorkflowIntegrationLayer:
 
         # Initialize WorkflowStorageIntegration
         if self.config.enable_storage_integration:
+            from .workflow_storage_integration import create_workflow_storage_integration
+
             self.storage_integration = await create_workflow_storage_integration(
                 storage_service=self.storage_service,
                 workflow_engine=self.workflow_engine,
@@ -822,7 +865,7 @@ class WorkflowIntegrationLayer:
         """Get the NLP-workflow integration component."""
         return self.nlp_integration
 
-    def get_unified_integration(self) -> Optional[UnifiedDocuFusionIntegration]:
+    def get_unified_integration(self) -> Optional["UnifiedDocuFusionIntegration"]:
         """Get the unified DocuFusion integration component."""
         return self.unified_integration
 
@@ -1548,7 +1591,6 @@ class WorkflowIntegrationLayer:
     async def _cleanup_old_metrics(self):
         """Clean up old performance metrics."""
         try:
-            cutoff_time = datetime.now() - timedelta(hours=24)
             keys_to_remove = []
 
             for key in self.performance_metrics:
