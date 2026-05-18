@@ -4,7 +4,6 @@ Tool Setup and Registration
 Initializes and registers all available tools with the tool registry.
 """
 
-import asyncio
 import logging
 from typing import Dict, List
 from pathlib import Path

@@ -5,14 +5,9 @@ Provides file system operations like read, write, copy, delete, search, etc.
 """
 
 import logging
-import os
-import shutil
-import json
-import csv
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 import mimetypes
-import asyncio
 import aiofiles
 import re
 from datetime import datetime
@@ -514,7 +509,6 @@ class FileSearchTool(AgentTool):
 								case_sensitive: bool, max_results: int) -> List[Dict[str, Any]]:
 		"""Search files by content"""
 		results = []
-		search_pattern = search_term if case_sensitive else search_term.lower()
 		flags = 0 if case_sensitive else re.IGNORECASE
 		search_regex = re.compile(re.escape(search_term), flags)
 		

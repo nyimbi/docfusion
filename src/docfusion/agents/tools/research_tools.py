@@ -5,15 +5,13 @@ Provides advanced research capabilities combining web search, data processing,
 and analysis for gathering business intelligence and market insights.
 """
 
-import asyncio
-import json
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 import re
 
 from .base import AgentTool, ToolResult, ToolCapability, ToolError, ToolConfig
 from .web_tools import WebSearchTool, WebScrapeTool
-from .data_tools import JSONProcessorTool, TextProcessorTool
+from .data_tools import TextProcessorTool
 
 
 class CompanyResearchTool(AgentTool):

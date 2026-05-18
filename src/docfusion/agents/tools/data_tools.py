@@ -10,7 +10,6 @@ import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Optional, Union
 import re
 from pathlib import Path
-import asyncio
 import aiofiles
 
 from .base import AgentTool, ToolResult, ToolCapability, ToolError, ToolConfig

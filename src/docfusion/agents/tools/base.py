@@ -5,16 +5,14 @@ Defines the fundamental tool interfaces and registry for agent tool usage.
 """
 
 import asyncio
-import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Type, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
-from ...core.utils import uuid7str
 
 class ToolCapability(str, Enum):
     """Tool capability categories"""
