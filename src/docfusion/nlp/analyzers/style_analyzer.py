@@ -6,13 +6,12 @@ Advanced writing style and tone analysis with AI-powered insights for comprehens
 document understanding and stylistic assessment.
 """
 
-import asyncio
 import json
 import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 from ...core.utils import uuid7str
 import time
 
@@ -76,7 +75,7 @@ except ImportError:
 
 try:
     import aiohttp
-    from aiohttp import ClientError, ClientTimeout
+    from aiohttp import ClientTimeout
 except ImportError:
     aiohttp = None
 
@@ -978,7 +977,7 @@ class StyleAnalyzer:
         recommendations = []
 
         # Use Tree-of-Thought approach for comprehensive recommendations
-        branches = [
+        _branches = [
             "Analyze readability and sentence structure issues",
             "Evaluate tone consistency and appropriateness",
             "Assess vocabulary usage and variety",

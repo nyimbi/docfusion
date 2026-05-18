@@ -6,15 +6,13 @@ Advanced topic modeling, similarity analysis, and semantic understanding with AI
 insights for comprehensive document analysis and content relationships.
 """
 
-import asyncio
 import json
 import logging
-import math
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from ...core.utils import uuid7str
 import time
 
@@ -86,7 +84,7 @@ except ImportError:
 
 try:
     import aiohttp
-    from aiohttp import ClientError, ClientTimeout
+    from aiohttp import ClientTimeout
 except ImportError:
     aiohttp = None
 

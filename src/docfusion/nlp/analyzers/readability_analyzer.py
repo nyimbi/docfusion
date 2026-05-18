@@ -6,7 +6,6 @@ Advanced readability assessment with multiple metrics, AI-powered insights,
 and comprehensive recommendations for document accessibility.
 """
 
-import asyncio
 import json
 import logging
 import re
@@ -18,7 +17,7 @@ import time
 
 try:
     import aiohttp
-    from aiohttp import ClientError, ClientTimeout
+    from aiohttp import ClientTimeout
 except ImportError:
     aiohttp = None
 
@@ -52,7 +51,6 @@ try:
     from ..prompting_strategies import (
         PromptingStrategy,
         create_chain_of_thought_prompt,
-        create_tree_of_thought_prompt,
         filter_thinking_tags,
     )
 

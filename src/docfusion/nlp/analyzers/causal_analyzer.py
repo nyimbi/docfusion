@@ -7,8 +7,6 @@ for discovering causal relationships in proposal data and content performance.
 Uses established statistical methods rather than reinventing the wheel.
 """
 
-import asyncio
-import json
 import logging
 import warnings
 from dataclasses import dataclass, field
@@ -23,7 +21,7 @@ import time
 # Statistical libraries for causal analysis
 try:
     import scipy.stats as stats
-    from scipy.stats import chi2_contingency, pearsonr, spearmanr
+    from scipy.stats import pearsonr
 
     HAS_SCIPY = True
 except ImportError:
@@ -32,7 +30,6 @@ except ImportError:
 try:
     import statsmodels.api as sm
     from statsmodels.regression.linear_model import OLS
-    from statsmodels.stats.diagnostic import acorr_ljungbox
     from statsmodels.stats.outliers_influence import variance_inflation_factor
     from statsmodels.stats.stattools import durbin_watson
     from statsmodels.tsa.stattools import grangercausalitytests

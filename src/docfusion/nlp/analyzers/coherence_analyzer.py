@@ -6,14 +6,13 @@ Advanced logical flow, discourse coherence, and argument structure analysis
 with AI-powered insights for comprehensive document understanding.
 """
 
-import asyncio
 import json
 import logging
 import re
-from collections import defaultdict, deque
+from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from ...core.utils import uuid7str
 import time
 
@@ -85,7 +84,7 @@ except ImportError:
 
 try:
     import aiohttp
-    from aiohttp import ClientError, ClientTimeout
+    from aiohttp import ClientTimeout
 except ImportError:
     aiohttp = None
 
@@ -469,7 +468,7 @@ class CoherenceAnalyzer:
             assert text and text.strip(), "Text content is required"
 
             use_ai = use_ai if use_ai is not None else self.use_ai_enhancement
-            detailed = (
+            _detailed = (
                 detailed_analysis
                 if detailed_analysis is not None
                 else self.enable_detailed_analysis
