@@ -8,12 +8,11 @@ and model registry for ML models used in prediction systems.
 import hashlib
 import json
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List
 
 import joblib
 from pydantic import BaseModel, ConfigDict, Field

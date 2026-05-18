@@ -9,23 +9,19 @@ feature engineering and performance monitoring.
 import asyncio
 import logging
 logger = logging.getLogger(__name__)
-import json
 import numpy as np
-import pandas as pd
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple, Union
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
-from uuid import uuid4
 
 import joblib
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score, train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, mean_absolute_error, r2_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import xgboost as xgb
 from pydantic import BaseModel, Field, ConfigDict
 
-from ...core.models.base import BaseEntity
 
 
 class PredictionFeatures(BaseModel):
