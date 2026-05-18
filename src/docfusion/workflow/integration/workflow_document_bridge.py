@@ -18,17 +18,15 @@ Key Features:
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 # Import document engine components
 from ...document_engine.document_engine import (
     DocumentEngine,
-    DocumentGenerationConfiguration,
     DocumentGenerationRequest,
     DocumentGenerationResult,
     GenerationPhase,
@@ -43,32 +41,20 @@ from ..automation.task_scheduler import (
 # Import workflow components
 from ...core.utils import uuid7str
 from ..automation.workflow_engine import (
-	ProcessState,
-	TriggerType,
 	WorkflowEngine,
 	TaskState,
     WorkflowInstance,
-    WorkflowTrigger,
 )
-from ..collaboration_workflow_integration import WorkflowEvent
 from ..coordination.deadline_manager import (
-	AlertSeverity,
-	CriticalPath,
-	DeadlineAlert,
 	DeadlineManager,
 )
 from ..coordination.task_coordinator import (
     AssignmentStrategy,
     CollaborationType,
-    TaskAssignment,
     TaskComplexity,
     TaskCoordinator,
 )
-from ..monitoring.workflow_monitor import (
-    MonitoringAlert,
-    PerformanceMetrics,
-    WorkflowMonitor,
-)
+from ..monitoring.workflow_monitor import WorkflowMonitor
 
 logger = logging.getLogger(__name__)
 
