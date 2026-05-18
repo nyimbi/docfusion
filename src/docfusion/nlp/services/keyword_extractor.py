@@ -6,7 +6,7 @@ Provides basic keyword extraction from text using frequency analysis.
 
 import re
 from collections import Counter
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 # Common English stop words for filtering

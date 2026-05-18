@@ -6,7 +6,7 @@ complexity, and linguistic feature extraction.
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 class TextAnalyzer:

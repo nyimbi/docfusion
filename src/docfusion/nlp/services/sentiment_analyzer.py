@@ -5,7 +5,7 @@ Provides basic sentiment analysis for text content.
 """
 
 import re
-from typing import Dict, Optional
+from typing import Dict
 
 
 # Basic positive/negative word lists for heuristic sentiment

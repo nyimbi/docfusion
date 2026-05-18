@@ -5,7 +5,7 @@ Provides basic semantic similarity matching between texts.
 """
 
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 class SemanticMatcher:

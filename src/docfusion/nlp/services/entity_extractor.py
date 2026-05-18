@@ -5,7 +5,7 @@ Provides basic named entity extraction from text.
 """
 
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 class EntityExtractor:
