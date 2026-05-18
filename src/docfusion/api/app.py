@@ -10,8 +10,9 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .dependencies import (
 	ServiceContainer,
@@ -24,6 +25,34 @@ from .dependencies import (
 from .middleware.error_handler import register_error_handlers
 
 logger = logging.getLogger(__name__)
+
+CRITICAL_HEALTH_SERVICES = {
+	"database_connection",
+	"security_manager",
+	"storage_service",
+	"document_engine",
+}
+
+HEALTH_SERVICE_ATTRS = {
+	"database_connection": "database_connection",
+	"database_session": "database_session",
+	"security_manager": "security_manager",
+	"storage_service": "storage_service",
+	"document_engine": "document_engine",
+	"searxng": "searxng_client",
+	"firecrawl": "firecrawl_client",
+	"litellm": "litellm_client",
+}
+
+HEALTH_ENDPOINT_ATTRS = {
+	"documents": "document_endpoints",
+	"templates": "template_endpoints",
+	"search": "search_endpoints",
+	"batch": "batch_endpoints",
+	"collaboration": "collaboration_endpoints",
+	"webhooks": "webhook_endpoints",
+	"websocket": "websocket_endpoints",
+}
 
 
 # ============================================================================
@@ -126,17 +155,10 @@ def create_app(settings: Optional[ServiceSettings] = None) -> FastAPI:
 
 	# Health check endpoint (no auth required)
 	@app.get("/health", tags=["system"])
-	async def health_check():
+	async def health_check(request: Request):
 		"""Health check endpoint."""
-		return {
-			"status": "healthy",
-			"version": "1.0.0",
-			"services": {
-				"searxng": "configured",
-				"firecrawl": "configured",
-				"litellm": "configured",
-			}
-		}
+		payload, status_code = _build_health_payload(request.app)
+		return JSONResponse(content=payload, status_code=status_code)
 
 	# Root endpoint
 	@app.get("/", tags=["system"])
@@ -169,6 +191,51 @@ def create_app(settings: Optional[ServiceSettings] = None) -> FastAPI:
 	# This is done in the lifespan function when the container is ready
 
 	return app
+
+
+def _build_health_payload(app: FastAPI) -> tuple[dict[str, object], int]:
+	"""Build readiness payload from the actual initialized service container."""
+	container = getattr(app.state, "container", None)
+	if container is None:
+		return {
+			"status": "starting",
+			"version": "1.0.0",
+			"services": {},
+			"endpoints": {},
+			"missing_critical": sorted(CRITICAL_HEALTH_SERVICES),
+		}, 503
+
+	services = {
+		name: "ready" if getattr(container, attr, None) is not None else "unavailable"
+		for name, attr in HEALTH_SERVICE_ATTRS.items()
+	}
+	endpoints = {
+		name: "ready" if getattr(container, attr, None) is not None else "unavailable"
+		for name, attr in HEALTH_ENDPOINT_ATTRS.items()
+	}
+	missing_critical = sorted(
+		name
+		for name in CRITICAL_HEALTH_SERVICES
+		if services.get(name) != "ready"
+	)
+
+	if missing_critical:
+		status = "unhealthy"
+		status_code = 503
+	elif any(value != "ready" for value in [*services.values(), *endpoints.values()]):
+		status = "degraded"
+		status_code = 200
+	else:
+		status = "healthy"
+		status_code = 200
+
+	return {
+		"status": status,
+		"version": "1.0.0",
+		"services": services,
+		"endpoints": endpoints,
+		"missing_critical": missing_critical,
+	}, status_code
 
 
 def _register_routers(app: FastAPI, container: ServiceContainer) -> None:
