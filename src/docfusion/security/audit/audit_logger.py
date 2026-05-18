@@ -7,7 +7,6 @@ structured logging, log retention, and compliance features.
 """
 
 import asyncio
-import gzip
 import hashlib
 import hmac
 import json
@@ -17,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
