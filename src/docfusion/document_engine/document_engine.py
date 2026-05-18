@@ -18,20 +18,16 @@ This orchestration layer implements:
 """
 
 import asyncio
-import json
+import importlib
 import logging
 
 logger = logging.getLogger(__name__)
-import tempfile
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
-from uuid import uuid4
-
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Dict, List, Optional
 
 # Import all DocuFusion components
 from docfusion.document_engine.assembler.content_assembler import (
@@ -1092,7 +1088,8 @@ class DocumentEngine:
 				html_content = formatted_content.get("html", formatted_content.get("text", ""))
 				accessibility_result = await self.accessibility_renderer.render_accessibility_enhanced(
 					html_content,
-					"html"
+					"html",
+					custom_config=config
 				)
 				result.accessibility_score = accessibility_result.overall_accessibility_score
 				return accessibility_result
@@ -1780,7 +1777,7 @@ def validate_document_engine_installation() -> Dict[str, bool]:
 	
 	try:
 		# Test core engine initialization
-		engine = DocumentEngine()
+		DocumentEngine()
 		validation_results["document_engine_core"] = True
 	except Exception as e:
 			logger.warning(f"Document engine core validation failed: {e}")
@@ -1789,9 +1786,12 @@ def validate_document_engine_installation() -> Dict[str, bool]:
 	
 	# Test component availability
 	try:
-		from docfusion.document_engine.assembler.content_assembler import ContentAssembler
-		from docfusion.document_engine.assembler.structure_builder import StructureBuilder
-		from docfusion.document_engine.assembler.cross_reference_manager import CrossReferenceManager
+		for module_name in (
+			"docfusion.document_engine.assembler.content_assembler",
+			"docfusion.document_engine.assembler.structure_builder",
+			"docfusion.document_engine.assembler.cross_reference_manager",
+		):
+			importlib.import_module(module_name)
 		validation_results["content_assembly_components"] = True
 	except Exception as e:
 			logger.warning(f"Content assembly components validation failed: {e}")
@@ -1799,10 +1799,13 @@ def validate_document_engine_installation() -> Dict[str, bool]:
 			validation_results["overall_status"] = False
 	
 	try:
-		from docfusion.document_engine.formatter.document_formatter import DocumentFormatter
-		from docfusion.document_engine.formatter.brand_formatter import BrandFormatter
-		from docfusion.document_engine.formatter.layout_manager import LayoutManager
-		from docfusion.document_engine.formatter.style_applier import StyleApplier
+		for module_name in (
+			"docfusion.document_engine.formatter.document_formatter",
+			"docfusion.document_engine.formatter.brand_formatter",
+			"docfusion.document_engine.formatter.layout_manager",
+			"docfusion.document_engine.formatter.style_applier",
+		):
+			importlib.import_module(module_name)
 		validation_results["formatting_components"] = True
 	except Exception as e:
 			logger.warning(f"Formatting components validation failed: {e}")
@@ -1810,10 +1813,13 @@ def validate_document_engine_installation() -> Dict[str, bool]:
 			validation_results["overall_status"] = False
 	
 	try:
-		from docfusion.document_engine.renderer.pdf_renderer import PDFRenderer
-		from docfusion.document_engine.renderer.docx_renderer import DOCXRenderer
-		from docfusion.document_engine.renderer.html_renderer import HTMLRenderer
-		from docfusion.document_engine.renderer.accessibility_renderer import AccessibilityRenderer
+		for module_name in (
+			"docfusion.document_engine.renderer.pdf_renderer",
+			"docfusion.document_engine.renderer.docx_renderer",
+			"docfusion.document_engine.renderer.html_renderer",
+			"docfusion.document_engine.renderer.accessibility_renderer",
+		):
+			importlib.import_module(module_name)
 		validation_results["rendering_components"] = True
 	except Exception as e:
 			logger.warning(f"Rendering components validation failed: {e}")
