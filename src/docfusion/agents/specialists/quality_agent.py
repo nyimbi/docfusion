@@ -1,12 +1,7 @@
-import asyncio
-import logging
-from typing import Any, Dict, List, Optional, Set, Union
-from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
-from ..core.agent import Agent, AgentConfig, AgentCapabilities, AgentState
-from ..core.roles import AgentRole, get_role_definition
+from ..core.agent import Agent, AgentConfig, AgentCapabilities
 from ..core.messages import AgentMessage, MessageType, MessageTemplates
-import re
 """
 Quality Agent
 
@@ -20,8 +15,7 @@ Copyright (c) 2025
 
 from ...voice_dna import (
 	VoiceIntegrator, AnalysisRequest, AnalysisType,
-	WritingEnhancer, ContentQualityAnalyzer, StyleGuideCompliance,
-	enhance_writing, analyze_content_quality, check_style_compliance
+	WritingEnhancer, ContentQualityAnalyzer, StyleGuideCompliance
 )
 
 # Import additional classes needed for compliance and enhancement requests
@@ -111,8 +105,6 @@ class QualityAgent(Agent[QualityTask]):
 	
 	def _create_default_config(self) -> AgentConfig:
 		"""Create default configuration for quality agent"""
-		role_def = get_role_definition(AgentRole.QUALITY_ASSURER)
-		
 		return AgentConfig(
 			name="Quality Assurance Specialist",
 			description="Content quality and voice consistency specialist",

@@ -11,7 +11,8 @@ Copyright (c) 2025
 from .agent import (
 	Agent,
 	AgentState,
-	AgentConfig
+	AgentConfig,
+	AgentCapabilities
 )
 
 from .roles import (
@@ -32,6 +33,7 @@ __all__ = [
 	"Agent",
 	"AgentState", 
 	"AgentConfig",
+	"AgentCapabilities",
 	"AgentRole",
 	"AgentCapability",
 	"AgentGoal",

@@ -9,10 +9,9 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
 import re
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Set
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 import hashlib
 from collections import defaultdict
@@ -20,7 +19,6 @@ from dataclasses import dataclass
 from enum import Enum
 
 from ..core import Agent, AgentRole, AgentCapabilities, AgentConfig
-from ..core.messages import Message, MessagePriority
 
 
 class DocumentFormat(str, Enum):
@@ -338,7 +336,6 @@ class LayoutAgent(Agent):
 		"""Determine the most appropriate layout style"""
 		document_type = requirements.get("document_type", "").lower()
 		audience = requirements.get("audience", "").lower()
-		purpose = requirements.get("purpose", "").lower()
 		
 		# Rule-based style selection
 		if any(word in document_type for word in ["proposal", "rfp", "bid"]):

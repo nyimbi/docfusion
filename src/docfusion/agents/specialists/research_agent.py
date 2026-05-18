@@ -1,16 +1,11 @@
-import asyncio
-import logging
-from typing import Any, Dict, List, Optional, Set, Union
-from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Set
+from datetime import datetime
 from dataclasses import dataclass, field
 import statistics
-from ..core.agent import Agent, AgentConfig, AgentCapabilities, AgentState
-from ..core.roles import AgentRole, get_role_definition
+from ..core.agent import Agent, AgentConfig, AgentCapabilities
 from ..core.messages import AgentMessage, MessageType, MessageTemplates
 from ...discovery.service import OpportunityDiscoveryService
-from ...discovery.models.opportunity_models import OpportunityData
 from ...intelligence.analyzers.market_analyzer import MarketAnalyzer
-import re
 """
 Research Agent
 
@@ -103,8 +98,6 @@ class ResearchAgent(Agent[ResearchTask]):
 	
 	def _create_default_config(self) -> AgentConfig:
 		"""Create default configuration for research agent"""
-		role_def = get_role_definition(AgentRole.RESEARCHER)
-		
 		return AgentConfig(
 			name="Research Specialist",
 			description="Comprehensive research and information gathering agent",
