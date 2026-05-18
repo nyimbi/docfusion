@@ -40,27 +40,15 @@ from ._models import (
 from .style_parser import StyleParser
 from .style_computer import (
 	StyleComputer,
-	SpecificityCalculator,
-	InheritanceEngine,
-	ValueResolver,
 )
 from .typography_engine import (
 	TypographyEngine,
-	FontManager,
-	TextProcessor,
-	LineBreaker,
 )
 from .responsive_engine import (
 	ResponsiveEngine,
-	BreakpointManager,
-	LayoutCalculator,
-	ContentAnalyzer,
 )
 from .output_generator import (
 	OutputGenerator,
-	LaTeXStyleGenerator,
-	HTMLStyleGenerator,
-	PDFStyleGenerator,
 )
 
 logger = logging.getLogger(__name__)
@@ -535,8 +523,8 @@ class DocumentFormatter:
 			if custom_overrides:
 				theme_config = self._apply_theme_overrides(theme_config, custom_overrides)
 
-			# Convert theme to style rules
-			style_rules = await self._convert_theme_to_style_rules(theme_config)
+			# Convert theme to style rules to validate theme compatibility.
+			await self._convert_theme_to_style_rules(theme_config)
 
 			# Get cached document or return error
 			if document_id in self.document_cache:

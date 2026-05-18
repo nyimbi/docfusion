@@ -14,7 +14,6 @@ from typing import Any
 from ._models import (
 	ComputedStyle,
 	ResponsiveConfiguration,
-	DocumentFormatterException,
 	StyleComputationException,
 )
 
@@ -256,7 +255,7 @@ class ResponsiveEngine:
 			assert 'page_size' in breakpoints, "Page size breakpoint calculated"
 			return breakpoints
 
-		except Exception as e:
+		except Exception:
 			return {
 				'page_size': 'A4',
 				'content_density': 'normal',
@@ -294,7 +293,6 @@ class ResponsiveEngine:
 	) -> ComputedStyle:
 		"""Optimize individual style for page constraints"""
 		page_width = page_context.get('page_width', '210mm')
-		page_height = page_context.get('page_height', '297mm')
 
 		if style.width and style.width != 'auto':
 			style = await self._constrain_width_to_page(style, page_width)

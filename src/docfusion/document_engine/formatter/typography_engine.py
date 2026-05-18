@@ -14,7 +14,6 @@ from typing import Any
 from ._models import (
 	ComputedStyle,
 	TypographyProfile,
-	DocumentFormatterException,
 	TypographyException,
 )
 

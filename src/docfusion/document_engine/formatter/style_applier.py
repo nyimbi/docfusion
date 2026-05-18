@@ -23,25 +23,17 @@ Features:
 - Brand guideline enforcement
 """
 
-import asyncio
 import colorsys
-import math
-import re
-from collections import defaultdict
-from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
-from uuid import uuid4
 
 from pydantic import Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass, rebuild_dataclass
 
 # Import from document formatter for integration
 from .document_formatter import ComputedStyle, ResponsiveConfiguration
-from ...core.utils import uuid7str
 
 # ============================================================================
 # Data Models
@@ -292,7 +284,7 @@ class ColorManager:
 			
 			return style
 			
-		except Exception as e:
+		except Exception:
 			# Return original style if color application fails
 			return style
 	
@@ -545,7 +537,7 @@ class TypographyManager:
 			
 			return style
 			
-		except Exception as e:
+		except Exception:
 			# Return original style if typography application fails
 			return style
 	
@@ -872,7 +864,6 @@ class StyleApplier:
 			
 			enhanced_styles = []
 			cache_hits = 0
-			violations = []
 			corrections = 0
 			
 			# Process each style
@@ -971,7 +962,7 @@ class StyleApplier:
 			
 			return enhanced_style
 			
-		except Exception as e:
+		except Exception:
 			# Return original style if enhancement fails
 			return style
 	

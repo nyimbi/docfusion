@@ -13,7 +13,6 @@ from typing import Any
 
 from ._models import (
 	ComputedStyle,
-	DocumentFormatterException,
 	OutputGenerationException,
 )
 
@@ -471,7 +470,7 @@ class OutputGenerator:
 			else:
 				return output
 
-		except Exception as e:
+		except Exception:
 			return output
 
 	async def _optimize_latex_output(self, latex_content: str, level: int) -> str:

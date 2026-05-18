@@ -7,19 +7,11 @@ The formatter transforms content blocks into semantic LaTeX markup and handles
 compilation to various output formats.
 """
 
-import asyncio
-import subprocess
-import tempfile
-import shutil
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
-from dataclasses import dataclass, field
-from datetime import datetime
+from typing import Any, Union
 import re
-import json
 import uuid
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 # Import our content block models

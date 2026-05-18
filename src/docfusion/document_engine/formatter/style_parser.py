@@ -11,7 +11,7 @@ import logging
 import re
 from typing import Any
 
-from ._models import StyleRule, DocumentFormatterException, StyleParsingException
+from ._models import StyleRule, StyleParsingException
 
 logger = logging.getLogger(__name__)
 

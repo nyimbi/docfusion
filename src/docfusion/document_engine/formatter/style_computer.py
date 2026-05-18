@@ -8,13 +8,11 @@ application, and relative value resolution for the DocuFusion formatting engine.
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any
 
 from ._models import (
 	StyleRule,
 	ComputedStyle,
-	DocumentFormatterException,
 	StyleComputationException,
 )
 
