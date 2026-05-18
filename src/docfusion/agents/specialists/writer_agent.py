@@ -1,13 +1,10 @@
-import asyncio
-import logging
-from typing import Any, Dict, List, Optional, Set, Union
-from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Set
+from datetime import datetime
 from dataclasses import dataclass, field
 import statistics
-from ..core.agent import Agent, AgentConfig, AgentCapabilities, AgentState
-from ..core.roles import AgentRole, get_role_definition
+from ..core.agent import Agent, AgentConfig, AgentCapabilities
 from ..core.messages import AgentMessage, MessageType, MessageTemplates
-from ...voice_dna import VoiceIntegrator, AnalysisRequest, AnalysisType
+from ...voice_dna import AnalysisRequest, AnalysisType
 from ...document_engine.service import DocumentGenerationService
 import re
 """
@@ -123,8 +120,6 @@ class WriterAgent(Agent[WritingTask]):
 	
 	def _create_default_config(self) -> AgentConfig:
 		"""Create default configuration for writer agent"""
-		role_def = get_role_definition(AgentRole.WRITER)
-		
 		return AgentConfig(
 			name="Content Writer",
 			description="Professional content creation and proposal writing agent",
@@ -408,8 +403,6 @@ class WriterAgent(Agent[WritingTask]):
 	async def _write_executive_summary(self, task: WritingTask) -> WritingResult:
 		"""Write an executive summary"""
 		self.logger.info(f"Writing executive summary: {task.topic}")
-		
-		template = self.content_templates["executive_summary"]
 		
 		# Generate concise, executive-focused content
 		content_parts = []

@@ -5,20 +5,16 @@ AI agent specialized for compliance validation, analysis, and reporting.
 Integrates with the compliance engine to provide intelligent compliance assistance.
 """
 
-from typing import Any, Dict, List, Optional, Set, Union, Tuple
-import asyncio
-from datetime import datetime, date
+from typing import Any, Dict, List, Optional
+from datetime import datetime
 import json
 
-from ..core.agent import Agent, AgentCapability, AgentResponse, AgentStatus
+from ..core.agent import Agent, AgentResponse, AgentStatus
 from ...compliance.validators.regulatory_validator import RegulatoryValidator
-from ...compliance.reporting.compliance_reporter import ComplianceReport
-from ...compliance.validators.format_validator import FormatValidator, FormatReport
-from ...compliance.frameworks.compliance_framework import ComplianceFramework
+from ...compliance.validators.format_validator import FormatValidator
 from ...compliance.evidence.evidence_manager import EvidenceManager, EvidenceRecord
 from ...compliance.reporting.compliance_reporter import ComplianceReporter, ReportType
 from ...document_engine.compliance_integration import DocumentComplianceIntegrator
-from ...config.llm_config import LLMConfiguration, LLMTask, get_llm_config
 from ...nlp.nlp_service import NLPService
 
 
@@ -170,7 +166,8 @@ Be thorough, accurate, and focused on regulatory compliance excellence."""
 					"validation_result": result.dict(),
 					"ai_analysis": ai_analysis,
 					"overall_score": result.compliance_score,
-					"violations": result.total_violations
+					"violations": result.total_violations,
+					"requested_regulations": regulations,
 				}
 			)
 			
@@ -214,7 +211,8 @@ Be thorough, accurate, and focused on regulatory compliance excellence."""
 				metadata={
 					"analysis_results": {k: v.dict() if hasattr(v, 'dict') else v for k, v in analysis_results.items()},
 					"extracted_requirements": extracted_requirements,
-					"insights": insights
+					"insights": insights,
+					"analysis_type": analysis_type,
 				}
 			)
 			

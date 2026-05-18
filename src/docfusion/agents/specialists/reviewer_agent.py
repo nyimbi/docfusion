@@ -9,18 +9,14 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
-import logging
 import re
-from typing import Any, Dict, List, Optional, Set, Union
-from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 
-from ..core.agent import Agent, AgentConfig, AgentCapabilities, AgentState
-from ..core.roles import AgentRole, get_role_definition
+from ..core.agent import Agent, AgentConfig, AgentCapabilities
 from ..core.messages import AgentMessage, MessageType, MessageTemplates
 
-from ...voice_dna import VoiceIntegrator, AnalysisRequest, AnalysisType, enhance_writing, analyze_content_quality
+from ...voice_dna import AnalysisRequest, AnalysisType, analyze_content_quality
 
 
 @dataclass
@@ -86,8 +82,6 @@ class ReviewerAgent(Agent[ReviewTask]):
 	
 	def _create_default_config(self) -> AgentConfig:
 		"""Create default configuration for reviewer agent"""
-		role_def = get_role_definition(AgentRole.REVIEWER)
-		
 		return AgentConfig(
 			name="Quality Reviewer",
 			description="Content quality assurance and review specialist",

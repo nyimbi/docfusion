@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 
-def test_proposal_orchestrator_imports_with_legacy_agent_paths():
+def test_proposal_orchestrator_instantiates_with_legacy_agent_paths():
 	from docfusion.orchestration.proposal_orchestrator import ProposalOrchestrator
 
-	assert ProposalOrchestrator.__name__ == "ProposalOrchestrator"
+	orchestrator = ProposalOrchestrator()
+
+	assert type(orchestrator).__name__ == "ProposalOrchestrator"
