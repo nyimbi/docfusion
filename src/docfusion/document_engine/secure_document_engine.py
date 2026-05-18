@@ -6,16 +6,14 @@ Security-enhanced document engine that integrates authentication, authorization,
 encryption, and audit logging with document generation and processing.
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import timezone, datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from ..security import (
     AuditEventType,
     AuditSeverity,
-    PermissionLevel,
     SecurityManager,
     SecurityManagerConfiguration,
 )
@@ -24,7 +22,6 @@ from .document_engine import (
     DocumentEngine,
     DocumentGenerationConfiguration,
     DocumentGenerationRequest,
-    DocumentGenerationResult,
 )
 
 @dataclass
