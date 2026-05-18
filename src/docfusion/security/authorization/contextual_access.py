@@ -7,16 +7,13 @@ contextual factors for fine-grained security policies. Integrates with ABAC
 to provide dynamic access decisions based on environmental context.
 """
 
-import asyncio
-import json
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
-from typing import Dict, List, Optional, Any, Union, Set, Tuple
+from typing import Dict, List, Optional, Any, Tuple
 from enum import Enum
 import logging
 import ipaddress
-from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
 from ...core.utils import uuid7str

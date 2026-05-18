@@ -6,12 +6,11 @@ Provides document-level access control with sharing, collaboration permissions,
 version access management, and inheritance from parent documents.
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
@@ -323,9 +322,6 @@ class DocumentPermissions:
     ) -> Dict[str, Any]:
         """Check if user has permission to access document"""
         context = context or {}
-
-        # Get all access records for document
-        document_accesses = self.document_access.get(document_id, [])
 
         # Get user's effective permissions
         effective_permissions = await self._get_user_effective_permissions(
