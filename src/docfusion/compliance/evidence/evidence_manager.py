@@ -10,17 +10,15 @@ Provides comprehensive evidence collection, organization, and tracking for compl
 - Evidence backup, archival, and retrieval
 """
 
-from typing import Any, Dict, List, Optional, Set, Union, Tuple
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import json
 import hashlib
 from datetime import datetime, date, timedelta
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict, field_validator
-import asyncio
+from pydantic import BaseModel, Field, ConfigDict
 import mimetypes
-import base64
 from ...core.utils import uuid7str
 
 class EvidenceType(Enum):

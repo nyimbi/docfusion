@@ -8,7 +8,7 @@ Provides comprehensive format validation for RFP responses and document submissi
 - Accessibility compliance (WCAG, PDF/UA)
 """
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 import logging
 logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
@@ -19,7 +19,6 @@ import os
 import mimetypes
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
-import asyncio
 from ...core.utils import uuid7str
 
 class FormatSeverity(Enum):

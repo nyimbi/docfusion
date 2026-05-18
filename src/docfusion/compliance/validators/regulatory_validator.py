@@ -8,15 +8,14 @@ Provides comprehensive regulatory compliance validation including:
 - Industry-specific compliance requirements
 """
 
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 import logging
 logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from enum import Enum
 import re
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict, field_validator
-import asyncio
+from pydantic import BaseModel, Field, ConfigDict
 import json
 from ...core.utils import uuid7str
 
@@ -440,12 +439,6 @@ class RegulatoryValidator:
 	) -> List[ComplianceViolation]:
 		"""Validate FAR 52.204-8 representations and certifications"""
 		violations = []
-		
-		required_certifications = [
-			"small business size certification",
-			"socioeconomic certifications",
-			"tax compliance certification"
-		]
 		
 		cert_pattern = r"(?i)(represent|certif)"
 		if not re.search(cert_pattern, document_content):

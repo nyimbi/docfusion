@@ -10,26 +10,22 @@ Provides comprehensive compliance reporting and audit preparation including:
 - Evidence gap analysis
 """
 
-from typing import Any, Dict, List, Optional, Set, Union, Tuple
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
-import json
 from datetime import datetime, date, timedelta
-from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
-import asyncio
 
 from ..validators.regulatory_validator import (
-	RegulatoryValidator, ComplianceStatus, ViolationSeverity
+	RegulatoryValidator
 )
-from ..validators.format_validator import FormatValidator, FormatReport
-from ..frameworks.compliance_framework import ComplianceFramework
+from ..validators.format_validator import FormatValidator
 from ..evidence.evidence_manager import (
-	EvidenceManager, EvidenceRecord, EvidenceStatus, EvidenceQuality
+	EvidenceManager
 )
 from ...core.utils import uuid7str
 from ...document_engine.compliance_integration import (
-	DocumentComplianceIntegrator, ComplianceIntegrationResult
+	DocumentComplianceIntegrator
 )
 
 class ReportType(Enum):
