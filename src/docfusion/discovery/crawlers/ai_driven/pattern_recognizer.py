@@ -11,19 +11,16 @@ Uses both traditional pattern matching and AI vision models (including Qwen2.5VL
 - Recognize pagination and filtering mechanisms
 """
 
-import asyncio
 import json
 import logging
 import re
 import cv2
 import numpy as np
-from typing import Dict, List, Optional, Any, Tuple, Set
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timezone
-from pathlib import Path
 import base64
 import io
 from urllib.parse import urlparse
-from dataclasses import dataclass
 from enum import Enum
 
 import requests

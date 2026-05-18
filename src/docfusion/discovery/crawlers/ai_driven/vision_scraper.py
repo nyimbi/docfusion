@@ -10,20 +10,14 @@ Advanced computer vision scraper that analyzes webpage screenshots to:
 - Handle dynamic content and complex layouts
 """
 
-import asyncio
 import cv2
 import numpy as np
 import logging
-import json
 import time
 from typing import Dict, List, Optional, Any, Tuple, NamedTuple
-from datetime import datetime, timezone
-from pathlib import Path
 import tempfile
-import base64
-from dataclasses import dataclass
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 import io
 
 try:
@@ -33,7 +27,7 @@ except ImportError:
 	HAS_TESSERACT = False
 	pytesseract = None
 
-from playwright.async_api import async_playwright, Page, Browser, BrowserContext
+from playwright.async_api import async_playwright, Page, Browser
 
 from ..generic.base_scraper import BaseScraper, ScrapingResult, ScrapingStatus, ScrapingConfiguration
 from ....core.utils import uuid7str
@@ -914,9 +908,6 @@ class VisionScraper(BaseScraper):
 		dom_mapping = {}
 		
 		try:
-			# Get viewport size for coordinate mapping
-			viewport = page.viewport_size
-			
 			for element in analysis_result.ui_elements:
 				try:
 					# Convert visual coordinates to page coordinates
@@ -967,7 +958,7 @@ class VisionScraper(BaseScraper):
 						element.css_selector = css_selector
 						element.text_content = text_content.strip() if text_content else ''
 				
-				except Exception as e:
+				except Exception:
 					# Silently continue if mapping fails for this element
 					self.logger.warning("Exception in unknown")
 		

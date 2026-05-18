@@ -11,27 +11,23 @@ future scraping performance. Uses various ML techniques to:
 - Adapt to changing website structures
 """
 
-import asyncio
 import json
 import logging
 import pickle
 import numpy as np
-from typing import Dict, List, Optional, Any, Tuple, Set
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
-import hashlib
 from urllib.parse import urlparse
 from collections import defaultdict, Counter
 import re
 
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.cluster import DBSCAN, KMeans
+from sklearn.cluster import DBSCAN
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
-import pandas as pd
 
 from pydantic import BaseModel, Field
 from ....core.utils import uuid7str

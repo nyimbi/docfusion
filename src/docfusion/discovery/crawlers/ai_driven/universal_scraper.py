@@ -12,18 +12,14 @@ Advanced web scraper that combines multiple technologies:
 This scraper can adapt to different website structures and circumvent blocking.
 """
 
-import asyncio
 import json
 import logging
 import time
 import cv2
 import numpy as np
-from typing import Dict, List, Optional, Any, Union, Tuple
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timezone
-from pathlib import Path
-import tempfile
-import base64
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 import re
 
 # Optional AI and crawler dependencies - imported with fallbacks
@@ -82,12 +78,10 @@ except ImportError:
 from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 import cloudscraper
 from bs4 import BeautifulSoup
-import requests
 from PIL import Image
 import io
 
 from ..generic.base_scraper import BaseScraper, ScrapingResult, ScrapingStatus, ScrapingConfiguration
-from ....core.utils import uuid7str
 from ....config.secrets import SecretsManager
 from pydantic import BaseModel, Field
 from enum import Enum
@@ -599,7 +593,7 @@ class UniversalScraper(BaseScraper):
 								if opportunity and opportunity.get('title'):
 									opportunities.append(opportunity)
 								
-							except Exception as e:
+							except Exception:
 								continue
 						
 						# If we found opportunities with this selector, break
@@ -607,7 +601,7 @@ class UniversalScraper(BaseScraper):
 							self.logger.debug(f"Found {len(opportunities)} opportunities with selector: {selector}")
 							break
 				
-				except Exception as e:
+				except Exception:
 					continue
 		
 		except Exception as e:
@@ -1294,32 +1288,14 @@ class UniversalScraper(BaseScraper):
 					
 					# Check aspect ratio (should be wider than tall for most cards)
 					if w > h and w/h < 4:
-						# This might be an opportunity card
-						# Try to extract text from this region using page coordinates
-						try:
-							# Convert image coordinates to page coordinates
-							viewport = page.viewport_size
-							scale_x = viewport['width'] / opencv_image.shape[1]
-							scale_y = viewport['height'] / opencv_image.shape[0]
-							
-							page_x = x * scale_x
-							page_y = y * scale_y
-							page_w = w * scale_x
-							page_h = h * scale_y
-							
-							# Extract text from this region
-							element = await page.locator(f'*').bounding_box()
-							# This is simplified - in practice, you'd need more sophisticated
-							# coordinate mapping and OCR
-							
-							opportunities.append({
-								'title': f'Opportunity at ({x}, {y})',
-								'description': 'Detected via computer vision',
-								'confidence': 0.3
-							})
-							
-						except Exception as e:
-							self.logger.debug(f"Error extracting text from vision region: {e}")
+						# This might be an opportunity card.
+						# This is simplified - in practice, you'd need more sophisticated
+						# coordinate mapping and OCR.
+						opportunities.append({
+							'title': f'Opportunity at ({x}, {y})',
+							'description': 'Detected via computer vision',
+							'confidence': 0.3
+						})
 			
 			return opportunities[:5]  # Limit results
 			
