@@ -8,15 +8,14 @@ Integrates compliance validation with document generation process including:
 - Automatic compliance fixes where possible
 """
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
-import asyncio
 
 from ..compliance.validators.regulatory_validator import (
-	RegulatoryValidator, ComplianceReport, ComplianceStatus
+	RegulatoryValidator, ComplianceReport
 )
 from ..compliance.validators.format_validator import (
 	FormatValidator, FormatReport

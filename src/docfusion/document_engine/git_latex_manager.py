@@ -13,14 +13,11 @@ Key Features:
 - Professional typesetting without layout concerns
 """
 
-import asyncio
 import json
 import logging
-import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, TypeAlias
-from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 from ..core.utils import uuid7str
@@ -51,7 +48,7 @@ except ImportError:
 	# Fallback: use the real async LaTeX compiler from document_engine.latex
 	from dataclasses import dataclass, field
 
-	from .latex.compiler import CompileResult, LatexCompiler
+	from .latex.compiler import LatexCompiler
 
 	@dataclass
 	class CanonicalCompilationResult:

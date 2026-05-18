@@ -10,13 +10,11 @@ Analyzes system performance metrics and provides optimizations for:
 - Resource utilization
 """
 
-import asyncio
 import logging
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
-import json
 
 from docfusion.document_engine.document_engine import DocumentEngine
 
