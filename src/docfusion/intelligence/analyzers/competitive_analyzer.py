@@ -9,17 +9,15 @@ recommendations for opportunity pursuit.
 import asyncio
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from uuid import uuid4
+from typing import Any, Dict, List, Optional
 
 import numpy as np
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from ...core.models.base import BaseEntity
 # Optional NLP dependencies - gracefully handle missing modules
 try:
     from ...nlp.services.text_analyzer import TextAnalyzer

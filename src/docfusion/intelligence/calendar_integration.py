@@ -5,17 +5,13 @@ Provides integration with Google Calendar and Microsoft Outlook APIs
 for deadline management, event creation, and reminder scheduling.
 """
 
-import asyncio
 import base64
-import json
 import logging
 # import os removed - using SecretsManager
 from ..config.secrets import SecretsManager
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from enum import Enum
-from dataclasses import dataclass
-import hashlib
 
 from pydantic import BaseModel, Field, ConfigDict
 from ..core.utils import uuid7str

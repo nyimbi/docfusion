@@ -1,7 +1,5 @@
-from pathlib import Path
 import logging
 logger = logging.getLogger(__name__)
-from typing import Optional
 
 def main() -> None:
     """Main entry point for proposal_writer."""
