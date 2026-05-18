@@ -23,6 +23,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 from ..endpoints.search_endpoints import SearchRequest, SearchResponse, SearchMode, SearchScope, SearchSort, SortOrder
+from .context import build_graphql_context
 from ...security import SecurityManager
 from ...core.utils import uuid7str
 
@@ -850,35 +851,3 @@ def create_graphql_schema(security_manager: SecurityManager):
 	)
 	
 	return schema
-
-# ==================== CONTEXT BUILDER ====================
-
-async def build_graphql_context(
-	request,
-	security_manager: SecurityManager,
-	search_engine = None
-) -> Dict[str, Any]:
-	"""Build GraphQL context with authentication and services"""
-	
-	context = {
-		"request": request,
-		"security_manager": security_manager,
-		"search_engine": search_engine
-	}
-	
-	# Extract user from request (implementation depends on authentication system)
-	auth_header = request.headers.get("Authorization")
-	if auth_header and auth_header.startswith("Bearer "):
-		token = auth_header[7:]
-		try:
-			# In production, would validate JWT token
-			context["user"] = {
-				"user_id": "user123",
-				"username": "testuser",
-				"permissions": ["document:read", "document:write"]
-			}
-		except Exception as e:
-			logger.warning(f"Invalid authentication token: {e}")
-			pass  # Invalid token, continue without user
-	
-	return context
