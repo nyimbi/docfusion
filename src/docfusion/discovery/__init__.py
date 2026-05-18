@@ -45,26 +45,26 @@ from .models.opportunity_models import OpportunityData
 
 try:
 	# Core scrapers and extractors
-	from .crawlers.generic.base_scraper import BaseScraper, ScrapingConfiguration, ScrapingResult
-	from .crawlers.ai_driven.universal_scraper import UniversalScraper, ExtractionStrategy, ExtractionResult
-	from .crawlers.ai_driven.vision_scraper import VisionScraper, VisionAnalysisResult, UIElement
-	from .crawlers.ai_driven.structure_learner import StructureLearner, ExtractionAttempt, SitePattern, StrategyRecommendation
-	from .crawlers.ai_driven.pattern_recognizer import PatternRecognizer, PatternMatch, ProcurementPattern
+	from .crawlers.generic.base_scraper import BaseScraper, ScrapingConfiguration, ScrapingResult  # noqa: F401
+	from .crawlers.ai_driven.universal_scraper import UniversalScraper, ExtractionStrategy, ExtractionResult  # noqa: F401
+	from .crawlers.ai_driven.vision_scraper import VisionScraper, VisionAnalysisResult, UIElement  # noqa: F401
+	from .crawlers.ai_driven.structure_learner import StructureLearner, ExtractionAttempt, SitePattern, StrategyRecommendation  # noqa: F401
+	from .crawlers.ai_driven.pattern_recognizer import PatternRecognizer, PatternMatch, ProcurementPattern  # noqa: F401
 
 	# Source databases and discovery
-	from .crawlers.source_databases.global_source_db import GlobalSourceDB, ProcurementSource, SourceType, SourceStatus
-	from .crawlers.source_databases.source_discoverer import SourceDiscoverer, DiscoveryResult, SourcePattern
+	from .crawlers.source_databases.global_source_db import GlobalSourceDB, ProcurementSource, SourceType, SourceStatus  # noqa: F401
+	from .crawlers.source_databases.source_discoverer import SourceDiscoverer, DiscoveryResult, SourcePattern  # noqa: F401
 
 	# Deployment and orchestration
-	from .deployment.scraper_deployment import ScraperDeployment, DeploymentConfig, DeploymentStatus, ScraperInstance
-	from .deployment.deployment_monitor import DeploymentMonitor, HealthCheck, Alert, MonitoringConfig
+	from .deployment.scraper_deployment import ScraperDeployment, DeploymentConfig, DeploymentStatus, ScraperInstance  # noqa: F401
+	from .deployment.deployment_monitor import DeploymentMonitor, HealthCheck, Alert, MonitoringConfig  # noqa: F401
 
 	# Performance monitoring
-	from .dashboard.performance_dashboard import PerformanceDashboard, DashboardConfig, DashboardMetrics
+	from .dashboard.performance_dashboard import PerformanceDashboard, DashboardConfig, DashboardMetrics  # noqa: F401
 
 	# Testing and validation
-	from .testing.accuracy_tester import AccuracyTester, TestConfig, TestResult, AccuracyMetrics
-	from .testing.data_validator import DataValidator, ValidationConfig, ValidationResult, QualityMetrics
+	from .testing.accuracy_tester import AccuracyTester, TestConfig, TestResult, AccuracyMetrics  # noqa: F401
+	from .testing.data_validator import DataValidator, ValidationConfig, ValidationResult, QualityMetrics  # noqa: F401
 
 	_SCRAPERS_AVAILABLE = True
 except (ImportError, AttributeError) as _exc:
