@@ -1,0 +1,52 @@
+.git
+.gitignore
+.dockerignore
+
+# Local agent/runtime state
+.omx/
+HANDOVER.md
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node/frontend build artifacts
+frontend/node_modules/
+frontend/.next/
+frontend/.pnpm-store/
+frontend/coverage/
+node_modules/
+
+# Runtime-generated application data
+storage/
+uploads/
+generated_documents/
+logs/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Build outputs and archives
+dist/
+build/
+*.tar
+*.tar.gz
+*.zip
+
+# OS/editor noise
+.DS_Store
+*.swp
+*.swo

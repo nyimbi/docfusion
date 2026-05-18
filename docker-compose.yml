@@ -101,6 +101,8 @@ services:
     volumes:
       # Mount source code for hot reload
       - .:/app
+      # Keep the container's Linux virtualenv from being shadowed by a host .venv.
+      - dev-venv:/app/.venv
       - app-uploads:/app/uploads
       - app-generated:/app/generated_documents
       - app-logs:/app/logs
@@ -280,72 +282,6 @@ services:
     profiles:
       - traefik
 
-  # ============================================================================
-  # BACKGROUND SERVICES
-  # ============================================================================
-  
-  celery-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
-    container_name: docufusion-celery
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/docufusion
-    
-    volumes:
-      - app-uploads:/app/uploads
-      - app-generated:/app/generated_documents
-      - app-logs:/app/logs
-    
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    
-    networks:
-      - docufusion-network
-    
-    command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=info"]
-    
-    restart: unless-stopped
-    
-    profiles:
-      - celery
-
-  celery-beat:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
-    container_name: docufusion-celery-beat
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=postgresql://docufusion:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/docufusion
-    
-    volumes:
-      - app-logs:/app/logs
-    
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    
-    networks:
-      - docufusion-network
-    
-    command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=info"]
-    
-    restart: unless-stopped
-    
-    profiles:
-      - celery
-
 # ============================================================================
 # VOLUMES
 # ============================================================================
@@ -369,6 +305,9 @@ volumes:
     driver: local
   
   # Development cache
+  dev-venv:
+    driver: local
+
   uv-cache:
     driver: local
   

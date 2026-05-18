@@ -71,12 +71,12 @@ WORKDIR /app
 FROM base as builder
 
 # Copy UV configuration and dependency files
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml ./
 
 # Create virtual environment and install dependencies
 # Use --no-dev for production dependencies only
 RUN --mount=type=cache,target=/opt/uv-cache,uid=1000,gid=1000 \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --no-dev --no-install-project
 
 # Copy source code
 COPY --chown=appuser:appuser . .
@@ -114,11 +114,11 @@ RUN apt-get update && apt-get install -y \
 USER appuser
 
 # Copy dependency files
-COPY --chown=appuser:appuser pyproject.toml uv.lock* ./
+COPY --chown=appuser:appuser pyproject.toml ./
 
 # Install all dependencies including development tools
 RUN --mount=type=cache,target=/opt/uv-cache,uid=1000,gid=1000 \
-    uv sync --frozen --all-extras
+    uv sync --all-extras
 
 # Copy source code
 COPY --chown=appuser:appuser . .
