@@ -10,6 +10,11 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+	from docfusion.intelligence.integrations.discovery_integration import (
+		OpportunityIntelligence,
+	)
+
 
 class IntelligenceLevel(str, Enum):
 	"""Levels of intelligence analysis that can be performed on an opportunity."""
