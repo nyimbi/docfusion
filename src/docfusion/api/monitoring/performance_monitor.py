@@ -9,7 +9,6 @@ alerting, and automated performance analysis for API and WebSocket endpoints.
 import asyncio
 import logging
 import statistics
-import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import timezone, datetime, timedelta

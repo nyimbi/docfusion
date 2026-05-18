@@ -7,13 +7,12 @@ usage analytics, health checks, and alerting capabilities.
 """
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass, field
 from datetime import timezone, datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 from ...core.utils import uuid7str
 
 class AlertLevel(str, Enum):

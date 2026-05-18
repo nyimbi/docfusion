@@ -17,11 +17,9 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import timezone, datetime, timedelta
 from enum import Enum
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi import Request
 from ...core.utils import uuid7str
 
 class ErrorSeverity(str, Enum):
