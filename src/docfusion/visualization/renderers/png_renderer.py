@@ -9,11 +9,10 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
 import base64
 import io
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -27,16 +26,13 @@ except ImportError:
     PIL_AVAILABLE = False
 
 try:
-    import matplotlib.patches as patches
     import matplotlib.pyplot as plt
-    import numpy as np
     from matplotlib.backends.backend_agg import FigureCanvasAgg
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
-from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
 
 class PNGQuality(str, Enum):

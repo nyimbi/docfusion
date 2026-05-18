@@ -9,15 +9,12 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
-import json
 import logging
 import math
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 # For diagram libraries - would need to install these
 try:
@@ -31,13 +28,12 @@ try:
     import matplotlib.patches as patches
     import matplotlib.pyplot as plt
     import numpy as np
-    from matplotlib.patches import ConnectionPatch, FancyBboxPatch
+    from matplotlib.patches import FancyBboxPatch
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
-from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
 
 class DiagramType(str, Enum):
@@ -526,7 +522,6 @@ class DiagramGenerator:
                         queue.append((child, level + 1))
 
         # Position nodes based on levels
-        max_level = max(node_levels.values()) if node_levels else 0
         nodes_by_level = {}
 
         for node_id, level in node_levels.items():

@@ -9,28 +9,24 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
 import json
 import logging
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 # For visualization libraries - would need to install these
 try:
     import pandas as pd
     import plotly.express as px
-    import plotly.graph_objects as go
     from plotly.subplots import make_subplots
 
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
 
-import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
 
 class ChartType(str, Enum):

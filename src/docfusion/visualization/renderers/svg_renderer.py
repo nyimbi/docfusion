@@ -9,9 +9,7 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
 import logging
-import math
 import re
 # Security: use defusedxml to prevent XXE attacks when available
 try:
@@ -21,9 +19,8 @@ except ImportError:
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
 
 class SVGOptimizationLevel(str, Enum):
@@ -852,7 +849,6 @@ class SVGRenderer:
 
     async def _xml_to_svg_element(self, xml_element, svg_element: SVGElement):
         """Convert an xml.etree.ElementTree element into SVGElement children."""
-        import xml.etree.ElementTree as ET
 
         if not hasattr(xml_element, "tag"):
             return
