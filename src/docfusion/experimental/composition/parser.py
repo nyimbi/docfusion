@@ -13,10 +13,9 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .language import CompositionLanguage
 from ...core.utils import uuid7str

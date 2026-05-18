@@ -10,14 +10,13 @@ Copyright (c) 2025
 """
 
 import asyncio
-import json
 import logging
 import random
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Union
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 
 from simpleeval import simple_eval, InvalidExpression, NameNotDefined, FunctionNotDefined
 
@@ -455,7 +454,7 @@ class CompositionRunner:
         # 4. Return result
 
         # Simulated agent execution
-        agent_input = {
+        _agent_input = {
             "prompt": node.metadata.get("prompt", ""),
             "context": context.variables,
             "parameters": node.parameters,
@@ -872,8 +871,6 @@ class CompositionRunner:
 
             # Attempt execution again
             try:
-                start_time = time.time()
-
                 # Execute based on node type (same logic as main execution)
                 if node.node_type == NodeType.AGENT:
                     output = await self._execute_agent_node(node, context)

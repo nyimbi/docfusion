@@ -9,13 +9,11 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Union, Tuple, Set, Callable
+from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
-from pydantic import BaseModel, Field, ConfigDict
 
 from .parser import ParsedComposition, ParsedFlow, ParsedExpression, OperatorType
 from ...core.utils import uuid7str
@@ -544,7 +542,7 @@ class CompositionInterpreter:
 			# Check resource compatibility
 			compatible_nodes = []
 			for node_id in group:
-				node = graph.nodes[node_id]
+				graph.nodes[node_id]
 				# Add logic to check resource compatibility
 				compatible_nodes.append(node_id)
 			
