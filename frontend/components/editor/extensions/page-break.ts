@@ -128,7 +128,7 @@ export const PageBreak = Node.create<PageBreakOptions>({
 
 	addKeyboardShortcuts() {
 		return {
-			"Mod-Shift-Enter": () => this.editor.commands.setPageBreak(),
+			"Mod-Shift-Enter": () => this.editor.commands.insertContent({ type: this.name }),
 		};
 	},
 });

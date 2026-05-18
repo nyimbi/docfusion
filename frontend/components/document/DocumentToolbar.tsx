@@ -342,7 +342,7 @@ export function DocumentToolbar({
 				<ToolbarButton
 					icon={BetweenHorizontalStart}
 					label="Page break"
-					onClick={() => editor.chain().focus().setPageBreak().run()}
+					onClick={() => editor.chain().focus().insertContent({ type: "pageBreak" }).run()}
 					showText={showText}
 				/>
 			</ToolbarGroup>
