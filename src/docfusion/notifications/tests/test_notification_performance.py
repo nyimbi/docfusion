@@ -11,19 +11,17 @@ logger = logging.getLogger(__name__)
 import pytest
 import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock
 
 from ..delivery.notification_delivery import (
-	NotificationDelivery, NotificationMessage, ChannelType, Priority, DeliveryStatus,
-	create_notification_delivery
+	NotificationDelivery, NotificationMessage, ChannelType, Priority, create_notification_delivery
 )
 from ..prioritization.priority_manager import (
-	PriorityManager, NotificationMetadata, ImportanceContext,
+	NotificationMetadata, ImportanceContext,
 	create_priority_manager
 )
 from ..analytics.notification_analytics import (
-	NotificationAnalytics, AnalyticsEvent, NotificationEvent,
+	AnalyticsEvent, NotificationEvent,
 	create_notification_analytics
 )
 from ..channels import (
@@ -33,7 +31,7 @@ from ..channels import (
 	InAppChannel, InAppConfiguration
 )
 from ..workflow_notification_integration import (
-	WorkflowNotificationIntegration, WorkflowEventType,
+	WorkflowEventType,
 	create_workflow_notification_integration
 )
 
@@ -395,6 +393,7 @@ class TestNotificationPerformance:
 		start_time = time.time()
 		notification_ids = await delivery.send_batch(messages)
 		end_time = time.time()
+		assert len(notification_ids) == 100
 		
 		# Should still complete in reasonable time despite failures
 		assert (end_time - start_time) < 15.0
@@ -504,6 +503,7 @@ class TestNotificationPerformance:
 		start_time = time.time()
 		notification_ids = await delivery.send_batch(messages)
 		end_time = time.time()
+		assert len(notification_ids) == 50
 		
 		# Should complete despite primary channel failures
 		assert (end_time - start_time) < 20.0
@@ -542,6 +542,7 @@ class TestNotificationReliability:
 		
 		result2 = await delivery.send_notification(message)
 		# Should handle failure gracefully
+		assert result2 is not None
 		
 		# Restore functionality
 		mock_channels[ChannelType.EMAIL].send = AsyncMock(

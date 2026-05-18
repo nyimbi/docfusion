@@ -7,7 +7,6 @@ user interactions, and system events across all supported channels.
 """
 
 import asyncio
-import json
 import logging
 
 # from ...core.utils import uuid7str
@@ -20,23 +19,16 @@ from pydantic import BaseModel, ConfigDict, Field
 from .analytics.notification_analytics import (
     AnalyticsEvent,
     NotificationAnalytics,
-    NotificationEvent,
     create_notification_analytics,
     create_notification_event,
 )
 from .channels import (
-	EmailChannel, EmailConfiguration, EmailProvider, create_email_channel,
-	SMSChannel, SMSConfiguration, SMSProvider, create_sms_channel,
-	PushChannel, PushConfiguration,
-	InAppChannel, InAppConfiguration, create_inapp_channel,
-	WhatsAppChannel, WhatsAppConfiguration,
-	TelegramChannel, TelegramConfiguration,
-	SlackChannel, SlackConfiguration,
-	WebhookChannel, WebhookConfiguration,
+	EmailProvider, create_email_channel,
+	SMSProvider, create_sms_channel,
+	create_inapp_channel,
 )
 from .delivery.notification_delivery import (
     ChannelType,
-    DeliveryResult,
     NotificationDelivery,
     NotificationMessage,
     Priority,
@@ -45,7 +37,6 @@ from .delivery.notification_delivery import (
 from ..core.utils import uuid7str
 from .prioritization.priority_manager import (
     ImportanceContext,
-    NotificationMetadata,
     PriorityLevel,
     PriorityManager,
     create_notification_metadata,

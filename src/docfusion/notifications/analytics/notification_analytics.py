@@ -6,15 +6,13 @@ delivery rates, user engagement metrics, A/B testing capabilities, and
 predictive analytics for optimal notification timing and content.
 """
 
-import asyncio
-import json
 import logging
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.types import confloat

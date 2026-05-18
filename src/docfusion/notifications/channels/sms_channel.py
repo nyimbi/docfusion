@@ -12,10 +12,8 @@ import re
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Any
-from urllib.parse import quote
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-from pydantic.types import constr
 
 from ..delivery.notification_delivery import (
 	NotificationChannel, NotificationMessage, DeliveryResult,

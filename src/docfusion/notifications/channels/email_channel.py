@@ -9,7 +9,6 @@ with multiple email service providers (SMTP, SendGrid, AWS SES, etc.).
 import asyncio
 import logging
 import smtplib
-import ssl
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -770,7 +769,6 @@ def create_email_channel_from_secrets(
 	elif provider == EmailProvider.SMTP:
 		# SMTP credentials are typically configured directly
 		# but can also be retrieved from environment
-		import os
 		kwargs.setdefault('smtp_host', SecretsManager.get_smtp_host())
 		kwargs.setdefault('smtp_username', SecretsManager.get_smtp_user())
 		kwargs.setdefault('smtp_password', SecretsManager.get_smtp_password())

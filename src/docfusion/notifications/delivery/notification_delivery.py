@@ -13,11 +13,10 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Protocol
-from uuid import uuid4
+from typing import Any, Dict, List, Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from pydantic.types import confloat, conint
+from pydantic.types import conint
 from ...core.utils import uuid7str
 
 class DeliveryStatus(str, Enum):

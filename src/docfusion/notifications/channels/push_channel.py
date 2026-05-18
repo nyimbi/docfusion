@@ -9,10 +9,9 @@ import asyncio
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Any
-import json
+from typing import Dict, Optional, Any
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict
 
 from ..delivery.notification_delivery import (
 	NotificationChannel, NotificationMessage, DeliveryResult, 

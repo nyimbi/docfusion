@@ -5,7 +5,6 @@ Implements in-application notifications with real-time delivery via WebSocket,
 persistent notification storage, and user interaction tracking.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
 from enum import Enum
