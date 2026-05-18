@@ -18,8 +18,8 @@ Features:
 import asyncio
 import re
 import json
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional, Any, Tuple, Union, Set
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, Any, Tuple
 from decimal import Decimal
 from pathlib import Path
 import logging
@@ -28,12 +28,8 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.cluster import KMeans
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.preprocessing import LabelEncoder
-import pandas as pd
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 from enum import Enum
 from ...core.utils import uuid7str
 class OpportunityType(str, Enum):

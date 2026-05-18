@@ -10,15 +10,13 @@ import asyncio
 import logging
 logger = logging.getLogger(__name__)
 import re
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set, Tuple
-from uuid import uuid4
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from ...core.models.base import BaseEntity
 from ...nlp.services.text_analyzer import TextAnalyzer
 from ...nlp.services.semantic_matcher import SemanticMatcher
 from ..models.opportunity_models import OpportunityData
