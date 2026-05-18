@@ -143,5 +143,10 @@
     "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^3"
+  },
+  "overrides": {
+    "@protobufjs/utf8": "1.1.1",
+    "fast-uri": "3.1.2",
+    "protobufjs": "7.5.9"
   }
 }
