@@ -50,9 +50,9 @@ function startCleanup() {
  * X-Forwarded-For can include client-supplied values when the proxy appends
  * rather than overwrites it, so it is intentionally not trusted here.
  */
-export function getClientIp(request: NextRequest): string {
+export function getClientIp(request: NextRequest): string | null {
 	const realIp = request.headers.get("x-real-ip")?.trim();
-	return realIp || "unknown";
+	return realIp || null;
 }
 
 /**
@@ -118,6 +118,12 @@ export async function middleware(request: NextRequest) {
 	// ---- Rate limiting for API routes ----
 	if (pathname.startsWith("/api/")) {
 		const ip = getClientIp(request);
+		if (!ip) {
+			return NextResponse.json(
+				{ error: "Missing trusted client IP" },
+				{ status: 400 },
+			);
+		}
 		const { allowed, remaining, resetTime } = checkRateLimit(ip);
 
 		if (!allowed) {

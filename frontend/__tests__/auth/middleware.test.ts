@@ -9,6 +9,21 @@ vi.mock("next-auth/jwt", () => ({
 
 import { getClientIp, middleware } from "../../middleware";
 
+function apiRequest(
+	path: string,
+	init: { headers?: HeadersInit; method?: string; body?: BodyInit | null } = {},
+): NextRequest {
+	const headers = new Headers(init.headers);
+	if (!headers.has("x-real-ip")) {
+		headers.set("x-real-ip", "198.51.100.7");
+	}
+	return new NextRequest(`https://app.test${path}`, {
+		method: init.method,
+		body: init.body,
+		headers,
+	});
+}
+
 beforeEach(() => {
 	vi.clearAllMocks();
 });
@@ -18,7 +33,7 @@ describe("middleware API protection", () => {
 		getTokenMock.mockResolvedValueOnce(null);
 
 		const response = await middleware(
-			new NextRequest("https://app.test/api/v1/opportunities"),
+			apiRequest("/api/v1/opportunities"),
 		);
 
 		expect(response.status).toBe(401);
@@ -28,7 +43,7 @@ describe("middleware API protection", () => {
 
 	it("allows public auth API routes without consulting the session token", async () => {
 		const response = await middleware(
-			new NextRequest("https://app.test/api/auth/session"),
+			apiRequest("/api/auth/session"),
 		);
 
 		expect(response.status).toBe(200);
@@ -40,7 +55,7 @@ describe("middleware API protection", () => {
 		getTokenMock.mockResolvedValueOnce({ sub: "user-1" });
 
 		const response = await middleware(
-			new NextRequest("https://app.test/api/v1/opportunities"),
+			apiRequest("/api/v1/opportunities"),
 		);
 
 		expect(response.status).toBe(200);
@@ -52,8 +67,9 @@ describe("middleware API protection", () => {
 		getTokenMock.mockResolvedValueOnce({ sub: "user-1" });
 
 		const response = await middleware(
-			new NextRequest("https://app.test/api/v1/rfp/upload", {
+			apiRequest("/api/v1/rfp/upload", {
 				headers: {
+					"x-real-ip": "198.51.100.7",
 					"x-docfusion-user-id": "attacker",
 					"x-docfusion-organization-id": "victim-org",
 					"x-docfusion-tenant-timestamp": "9999999999",
@@ -72,7 +88,7 @@ describe("middleware API protection", () => {
 	});
 
 	it("uses trusted X-Real-IP instead of spoofable X-Forwarded-For", () => {
-		const request = new NextRequest("https://app.test/api/v1/opportunities", {
+		const request = apiRequest("/api/v1/opportunities", {
 			headers: {
 				"x-forwarded-for": "203.0.113.99, 10.0.0.4",
 				"x-real-ip": "198.51.100.7",
@@ -80,5 +96,25 @@ describe("middleware API protection", () => {
 		});
 
 		expect(getClientIp(request)).toBe("198.51.100.7");
+	});
+
+	it("rejects API requests when the trusted client IP header is missing", async () => {
+		const response = await middleware(
+			new NextRequest("https://app.test/api/v1/opportunities"),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: "Missing trusted client IP" });
+		expect(getTokenMock).not.toHaveBeenCalled();
+	});
+
+	it("does not collapse missing trusted IPs into an unknown limiter key", () => {
+		const request = new NextRequest("https://app.test/api/v1/opportunities", {
+			headers: {
+				"x-forwarded-for": "203.0.113.99, 10.0.0.4",
+			},
+		});
+
+		expect(getClientIp(request)).toBeNull();
 	});
 });
