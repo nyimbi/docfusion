@@ -9,15 +9,13 @@ data lifecycle management.
 import asyncio
 import logging
 logger = logging.getLogger(__name__)
-import json
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from uuid import uuid4
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
 from ...storage.services import StorageManager
-from ...storage.models.storage_models import StorageQuery, StorageResult
+from ...storage.models.storage_models import StorageQuery
 from ..models.opportunity_models import OpportunityData
 from ..analyzers.opportunity_analyzer import OpportunityAnalysis
 from ..analyzers.qualification_analyzer import QualificationAssessment

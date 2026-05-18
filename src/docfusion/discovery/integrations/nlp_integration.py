@@ -10,7 +10,7 @@ import asyncio
 import logging
 logger = logging.getLogger(__name__)
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -21,7 +21,6 @@ from ...nlp.services.sentiment_analyzer import SentimentAnalyzer
 from ...nlp.services.keyword_extractor import KeywordExtractor
 from ..models.opportunity_models import OpportunityData
 from ..analyzers.opportunity_analyzer import OpportunityAnalyzer
-from ..analyzers.qualification_analyzer import QualificationAnalyzer
 from ..matchers.capability_matcher import CapabilityMatcher
 
 
@@ -272,7 +271,7 @@ class DiscoveryNLPService:
 		
 		try:
 			# Extract requirements using pattern matching and NLP
-			analysis = self.text_analyzer.analyze(combined_text)
+			_analysis = self.text_analyzer.analyze(combined_text)
 			
 			# Derive requirements, technologies, and domains from basic analysis
 			words = combined_text.lower().split()

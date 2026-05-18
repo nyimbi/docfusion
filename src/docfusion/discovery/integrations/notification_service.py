@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -19,7 +19,6 @@ from pydantic import BaseModel, Field, ConfigDict
 from ...core.services.notification_manager import NotificationManager
 from ...core.models.notification_models import Notification, NotificationChannel
 from ..models.opportunity_models import OpportunityData
-from ..analyzers.opportunity_analyzer import OpportunityAnalysis
 
 
 class NotificationType(Enum):
