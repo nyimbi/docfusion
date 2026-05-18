@@ -6,19 +6,15 @@ Comprehensive orchestration system that combines outline generation, iterative c
 behavioral psychology integration, and repetition prevention for compelling document creation.
 """
 
-import asyncio
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 # Import all pipeline components
-from ..prompting_strategies import filter_thinking_tags
 from .document_outline_generator import (
     DocumentOutline,
-    DocumentOutlineGenerator,
     DocumentType,
     OutlineGenerationResult,
     PsychologyBias,
@@ -30,7 +26,6 @@ from .iterative_section_generator import (
     ContentGenerationStrategy,
     ContentPipeline,
     IterativeGenerationResult,
-    IterativeSectionGenerator,
     RepetitionPreventionMode,
     SectionContent,
     create_iterative_section_generator,

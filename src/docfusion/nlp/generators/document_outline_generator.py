@@ -7,17 +7,16 @@ reviews and improves them, then generates compelling content with behavioral
 psychology and economic bias integration.
 """
 
-import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 try:
     import aiohttp
-    from aiohttp import ClientError, ClientTimeout
+    from aiohttp import ClientTimeout
 except ImportError:
     aiohttp = None
 
@@ -25,11 +24,7 @@ except ImportError:
 from ...core.utils import uuid7str
 import time
 from ..prompting_strategies import (
-    AdvancedPromptBuilder,
-    PromptingStrategy,
-    ThoughtBranch,
     create_chain_of_thought_prompt,
-    create_tree_of_thought_prompt,
     filter_thinking_tags,
 )
 

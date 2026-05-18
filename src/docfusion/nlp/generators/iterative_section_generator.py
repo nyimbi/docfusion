@@ -6,34 +6,26 @@ Generates content section-by-section from enhanced outlines with repetition prev
 psychology bias integration, and coherent narrative flow management.
 """
 
-import asyncio
-import json
 import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 try:
     import aiohttp
-    from aiohttp import ClientError, ClientTimeout
+    from aiohttp import ClientTimeout
 except ImportError:
     aiohttp = None
 
 # Import outline structures and prompting strategies
 from ..prompting_strategies import (
-    AdvancedPromptBuilder,
-    PromptingStrategy,
-    ThoughtBranch,
     create_chain_of_thought_prompt,
-    create_tree_of_thought_prompt,
     filter_thinking_tags,
 )
-from ...core.utils import uuid7str
 import time
 from .document_outline_generator import (
     DocumentOutline,
-    DocumentType,
     OutlineElement,
     PsychologyBias,
 )
@@ -1229,7 +1221,6 @@ Return only a single number between 0.0 and 1.0:"""
         content_hash = hashlib.md5(section_content.content.encode()).hexdigest()
 
         # Check against existing fingerprints
-        similarity_threshold = 0.8
         max_similarity = 0.0
 
         for section_id, existing_hash in pipeline.section_fingerprints.items():
