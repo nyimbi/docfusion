@@ -6,26 +6,16 @@ Advanced document structure recognition using pattern matching, machine learning
 and Ollama-based AI analysis for identifying document layouts, sections, and organization.
 """
 
-import asyncio
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 # Ollama integration for AI-powered structure recognition
 import json
 
 import httpx
-
-# Optional libraries for enhanced processing
-try:
-	import numpy as np
-
-	HAS_NUMPY = True
-except ImportError:
-	HAS_NUMPY = False
 
 from ...core.utils import uuid7str
 import time

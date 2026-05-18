@@ -6,16 +6,14 @@ Advanced document processing with multi-format support including PDF, DOCX, HTML
 and text extraction with structure preservation and encoding detection.
 """
 
-import asyncio
 import logging
 import mimetypes
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import chardet
-from ...core.utils import uuid7str
 import time
 
 # PDF processing
@@ -30,7 +28,6 @@ except ImportError:
 # DOCX processing
 try:
     from docx import Document as DocxDocument
-    from docx.shared import Inches
 
     HAS_DOCX_SUPPORT = True
 except ImportError:

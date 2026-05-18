@@ -6,20 +6,16 @@ Advanced document tokenization with spaCy integration for linguistic analysis,
 named entity recognition, and text preprocessing for NLP tasks.
 """
 
-import asyncio
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 # spaCy integration for advanced NLP
 try:
     import spacy
-    from spacy.lang.en import English
     from spacy.matcher import Matcher, PhraseMatcher
-    from spacy.tokens import Doc, Span, Token
 
     HAS_SPACY_SUPPORT = True
 except ImportError:
@@ -36,7 +32,6 @@ try:
 except ImportError:
 	HAS_NLTK_SUPPORT = False
 
-from ...core.utils import uuid7str
 import time
 
 class TokenType(str, Enum):

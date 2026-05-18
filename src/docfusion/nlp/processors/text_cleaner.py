@@ -11,14 +11,11 @@ import html
 import logging
 import re
 import unicodedata
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 
 # Ollama integration
-import json
 
 import httpx
-from ...core.utils import uuid7str
 import time
 
 class CleaningResult:
