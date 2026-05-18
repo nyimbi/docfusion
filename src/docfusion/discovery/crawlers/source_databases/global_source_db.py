@@ -21,14 +21,12 @@ import json
 import logging
 import sqlite3
 import aiofiles
-from typing import ClassVar, Dict, List, Optional, Any, Set, Tuple
+from typing import ClassVar, Dict, List, Optional, Any, Set
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 from enum import Enum
 import csv
-import requests
-from dataclasses import asdict
 
 from pydantic import BaseModel, Field, HttpUrl
 from ....core.utils import uuid7str

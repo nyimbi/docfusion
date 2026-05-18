@@ -15,20 +15,17 @@ new opportunities and sources that match procurement patterns.
 """
 
 import asyncio
-import json
 import logging
 import re
 import aiohttp
-import sqlite3
-from typing import Dict, List, Optional, Any, Set, Tuple
-from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Any, Tuple
+from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urljoin, urlparse, parse_qs
+from urllib.parse import urljoin, urlparse
 from dataclasses import dataclass
 import tempfile
-from collections import defaultdict, Counter
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from ....core.utils import uuid7str
 
 from ..ai_driven.universal_scraper import UniversalScraper, ScrapingConfiguration
