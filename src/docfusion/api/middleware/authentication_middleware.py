@@ -6,16 +6,15 @@ FastAPI middleware for JWT token validation, API key authentication,
 and session management with comprehensive security integration.
 """
 
-import asyncio
 import logging
 from datetime import timezone, datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import APIKeyHeader, HTTPBearer
 from jose import JWTError, jwt
 
-from ...security import APIAuthentication, SecurityManager, UserAuthentication
+from ...security import SecurityManager
 from ...config.secrets import SecretsManager
 from ...core.utils import uuid7str
 

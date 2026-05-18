@@ -7,7 +7,7 @@ origins, methods, headers, and security policies for frontend integration.
 """
 
 import logging
-from typing import Dict, List, Optional, Set, Union, Callable
+from typing import Dict, List, Optional, Callable
 from urllib.parse import urlparse
 
 from fastapi import Request, Response

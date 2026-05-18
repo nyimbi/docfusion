@@ -8,12 +8,11 @@ limits for different endpoints, user tiers, and request types.
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
 import time
 from collections import deque, defaultdict
 
-from fastapi import Request, HTTPException, status
+from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
 
