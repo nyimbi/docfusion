@@ -434,6 +434,12 @@ ignore = [
     "BLE001",
     # Allow magic values in tests
     "PLR2004",
+    # Project Python files intentionally use tabs; the formatter is configured
+    # with indent-style = "tab", so tab-indentation lint rules are contradictory.
+    "W191",
+    "D206",
+    # Ruff formatter recommends disabling COM812 to avoid formatter conflicts.
+    "COM812",
 ]
 
 # Allow unused variables when underscore-prefixed

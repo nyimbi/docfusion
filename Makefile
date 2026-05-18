@@ -21,6 +21,9 @@ SRC_DIR := src
 TEST_DIR := tests
 DOCS_DIR := docs
 APP_DIR := app
+OPTIONAL_APP_DIR := $(wildcard $(APP_DIR))
+PYTHON_CHECK_DIRS := $(SRC_DIR) $(TEST_DIR) $(OPTIONAL_APP_DIR)
+PYTHON_COV_ARGS := --cov=$(SRC_DIR) $(if $(OPTIONAL_APP_DIR),--cov=$(APP_DIR),)
 REPORTS_DIR := reports
 COVERAGE_DIR := $(REPORTS_DIR)/coverage
 MYPY_REPORT_DIR := $(REPORTS_DIR)/mypy
@@ -706,19 +709,19 @@ uv-tree: ## Display dependency tree with UV
 
 format: ## Format code with ruff (replaces black + isort)
 	@echo "$(BOLD)🎨 Formatting code with ruff...$(RESET)"
-	$(UV) run ruff format $(SRC_DIR) $(TEST_DIR) $(APP_DIR)
-	$(UV) run ruff check --fix $(SRC_DIR) $(TEST_DIR) $(APP_DIR)
+	$(UV) run ruff format $(PYTHON_CHECK_DIRS)
+	$(UV) run ruff check --fix $(PYTHON_CHECK_DIRS)
 	@echo "$(GREEN)✅ Code formatting completed$(RESET)"
 
 format-check: ## Check code formatting without making changes
 	@echo "$(BOLD)🔍 Checking code formatting...$(RESET)"
-	$(UV) run ruff format --check $(SRC_DIR) $(TEST_DIR) $(APP_DIR)
-	$(UV) run ruff check $(SRC_DIR) $(TEST_DIR) $(APP_DIR)
+	$(UV) run ruff format --check $(PYTHON_CHECK_DIRS)
+	$(UV) run ruff check $(PYTHON_CHECK_DIRS)
 	@echo "$(GREEN)✅ Format check completed$(RESET)"
 
 lint: ## Run comprehensive linting with ruff
 	@echo "$(BOLD)🔍 Running comprehensive linting...$(RESET)"
-	$(UV) run ruff check $(SRC_DIR) $(TEST_DIR) $(APP_DIR) --output-format=full
+	$(UV) run ruff check $(PYTHON_CHECK_DIRS) --output-format=full
 	@echo "$(GREEN)✅ Linting completed$(RESET)"
 
 # ============================================================================
@@ -759,7 +762,7 @@ security-scan: ## Run comprehensive security scanning
 	@mkdir -p $(SECURITY_REPORT_DIR)
 	@echo "$(CYAN)Running bandit security analysis...$(RESET)"
 	@if $(UV) run python -c "import bandit" 2>/dev/null; then \
-		$(UV) run bandit -r $(SRC_DIR) $(APP_DIR) -f text || true; \
+		$(UV) run bandit -r $(SRC_DIR) $(OPTIONAL_APP_DIR) -f text || true; \
 	else \
 		echo "$(YELLOW)⚠️  bandit not available$(RESET)"; \
 	fi
@@ -775,8 +778,8 @@ security-report: ## Generate comprehensive security reports
 	@echo "$(BOLD)📊 Generating security reports...$(RESET)"
 	@mkdir -p $(SECURITY_REPORT_DIR)
 	@if $(UV) run python -c "import bandit" 2>/dev/null; then \
-		$(UV) run bandit -r $(SRC_DIR) $(APP_DIR) -f json -o $(SECURITY_REPORT_DIR)/bandit.json || true; \
-		$(UV) run bandit -r $(SRC_DIR) $(APP_DIR) -f html -o $(SECURITY_REPORT_DIR)/bandit.html || true; \
+		$(UV) run bandit -r $(SRC_DIR) $(OPTIONAL_APP_DIR) -f json -o $(SECURITY_REPORT_DIR)/bandit.json || true; \
+		$(UV) run bandit -r $(SRC_DIR) $(OPTIONAL_APP_DIR) -f html -o $(SECURITY_REPORT_DIR)/bandit.html || true; \
 	fi
 	@if $(UV) run python -c "import safety" 2>/dev/null; then \
 		$(UV) run safety check --json --output $(SECURITY_REPORT_DIR)/safety.json || true; \
@@ -796,8 +799,7 @@ test-coverage: ## Run tests with comprehensive coverage analysis
 	@echo "$(BOLD)🧪 Running tests with coverage analysis...$(RESET)"
 	@mkdir -p $(COVERAGE_DIR)
 	$(UV) run pytest $(TEST_DIR) \
-		--cov=$(SRC_DIR) \
-		--cov=$(APP_DIR) \
+		$(PYTHON_COV_ARGS) \
 		--cov-report=html:$(COVERAGE_DIR) \
 		--cov-report=xml:coverage.xml \
 		--cov-report=term-missing:skip-covered \
@@ -1105,7 +1107,7 @@ quick-test: ## Quick test run (no coverage, fail fast)
 
 quick-lint: ## Quick lint check (essential rules only)
 	@echo "$(BOLD)⚡ Quick lint check...$(RESET)"
-	$(UV) run ruff check $(SRC_DIR) $(APP_DIR) --select E,F,W
+	$(UV) run ruff check $(SRC_DIR) $(OPTIONAL_APP_DIR) --select E9,F
 
 watch: ## Watch files and run quality checks on changes
 	@echo "$(BOLD)👀 Watching files for changes...$(RESET)"
