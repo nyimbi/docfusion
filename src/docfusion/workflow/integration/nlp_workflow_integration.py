@@ -17,22 +17,22 @@ This module provides:
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Union, Tuple
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 
 # Import workflow components
-from ..coordination.task_coordinator import TaskCoordinator, TaskAssignment
+from ..coordination.task_coordinator import TaskCoordinator
 from ..coordination.deadline_manager import DeadlineManager
 from ..monitoring.workflow_monitor import WorkflowMonitor
 
 # Import NLP components
-from ...nlp.nlp_service import NLPService, NLPServiceConfiguration
+from ...nlp.nlp_service import NLPService
 from ...nlp.enhanced_nlp_service import EnhancedNLPService
 from ...nlp.processors.document_processor import DocumentProcessor
-from ...nlp.processors.text_cleaner import TextCleaner
+from ...nlp.processors.text_cleaner import OllamaTextCleaner as TextCleaner
 from ...nlp.processors.structure_recognizer import StructureRecognizer
 from ...nlp.analyzers.semantic_analyzer import SemanticAnalyzer
 from ...nlp.analyzers.coherence_analyzer import CoherenceAnalyzer

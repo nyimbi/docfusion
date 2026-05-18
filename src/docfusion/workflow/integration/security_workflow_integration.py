@@ -15,29 +15,24 @@ This module provides:
 - Data loss prevention for workflow content
 """
 
-import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Union, Tuple
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
-import json
-import hashlib
 from pydantic import BaseModel, Field, ConfigDict
 
 # Import workflow components
-from ..coordination.task_coordinator import TaskCoordinator, TaskAssignment
+from ..coordination.task_coordinator import TaskCoordinator
 from ..coordination.deadline_manager import DeadlineManager
 from ..monitoring.workflow_monitor import WorkflowMonitor
 
 # Import security components
-from ...security.security_manager import SecurityManager, SecurityManagerConfiguration
-from ...security.authentication.user_authentication import AuthenticationResult, UserCredentials
+from ...security.security_manager import SecurityManager
 from ...security.authorization.role_based_access import AccessResult, PermissionAction, ResourceType
 from ...security.encryption.data_encryption import EncryptionResult
 from ...security.audit.audit_logger import AuditEventType, AuditSeverity
-from ...security.data_protection.dlp_system import ContentType, DLPAction
-from ...security.compliance.gdpr_compliance import GDPRRights
+from ...security.data_protection.dlp_system import DLPAction
 from ...core.utils import uuid7str
 
 class WorkflowSecurityLevel(str, Enum):
@@ -481,13 +476,11 @@ class SecurityWorkflowIntegration:
 				)
 			
 			# Encrypt workflow data if required
-			encrypted_workflow_data = None
 			if security_context.encryption_required:
 				encryption_result = await self._encrypt_workflow_data(
 					workflow_definition, security_context
 				)
 				if encryption_result.success:
-					encrypted_workflow_data = encryption_result.encrypted_data
 					self.security_metrics['encryptions_performed'] += 1
 				else:
 					return SecureWorkflowResult(
