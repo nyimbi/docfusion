@@ -7,9 +7,9 @@ and comprehensive error handling.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
-from fastapi import APIRouter, Request, WebSocket, HTTPException, Depends
+from fastapi import APIRouter, Request, WebSocket
 from fastapi.responses import HTMLResponse
 
 try:
@@ -21,7 +21,6 @@ except ImportError:
 	GraphQLRouter = None
 
 from .schema import create_graphql_schema, build_graphql_context
-from ..middleware.authentication_middleware import get_current_user_optional
 from ...security import SecurityManager
 
 

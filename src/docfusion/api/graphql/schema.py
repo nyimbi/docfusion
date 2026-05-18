@@ -8,7 +8,7 @@ and subscriptions with integrated security and real-time capabilities.
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from datetime import timezone, datetime, timedelta
 from enum import Enum
 
@@ -16,14 +16,13 @@ try:
 	import strawberry
 	from strawberry.types import Info
 	from strawberry.permission import BasePermission
-	from strawberry.subscriptions import GRAPHQL_WS_PROTOCOL
 except ImportError:
 	strawberry = None
 
 logger = logging.getLogger(__name__)
 
-from ..endpoints.search_endpoints import SearchRequest, SearchResponse, SearchMode, SearchScope, SearchSort, SortOrder
-from .context import build_graphql_context
+from ..endpoints.search_endpoints import SearchRequest, SearchMode, SearchScope
+from .context import build_graphql_context as build_graphql_context
 from ...security import SecurityManager
 from ...core.utils import uuid7str
 
