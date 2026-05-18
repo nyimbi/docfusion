@@ -10,12 +10,10 @@ supports real-time collaboration, version control, and intelligent content
 organization as specified in the desired outcomes.
 """
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Protocol, Optional
-from dataclasses import dataclass, field
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from ...core.utils import uuid7str
 
@@ -119,7 +117,7 @@ class NLPService(Protocol):
 
 # Import real NLP services
 try:
-	from ...nlp.nlp_service import NLPServiceConfiguration, NLPServiceImplementation, create_nlp_service
+	from ...nlp.nlp_service import NLPServiceConfiguration, create_nlp_service
 	from ...nlp.transformers.content_generator import ContentGenerator
 	from ...config.llm_config import get_llm_config, LLMTask
 	HAS_REAL_NLP = True

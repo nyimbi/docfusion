@@ -7,22 +7,19 @@ The BlockManager follows a repository pattern with event-driven updates and
 comprehensive caching for high-performance operations.
 """
 
-import asyncio
-import uuid
+from __future__ import annotations
+
 import hashlib
 import json
 from datetime import datetime, timedelta
-from typing import Any, Protocol, Optional
-from dataclasses import dataclass, field
+from typing import Any, Protocol
 from collections import defaultdict, deque
-from copy import deepcopy
 import time
-import weakref
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from .content_assembler import ContentBlock, uuid7str
+from .content_assembler import uuid7str
 
 
 # Enhanced Data Models

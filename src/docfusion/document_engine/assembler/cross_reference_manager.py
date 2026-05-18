@@ -15,22 +15,17 @@ Key Features:
 - Performance-optimized graph processing
 """
 
-import asyncio
 import json
 import re
-import weakref
-from collections import defaultdict, deque
-from copy import deepcopy
+from collections import defaultdict
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Protocol, Optional, Union
-from uuid import uuid4
+from typing import Any
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from .content_assembler import ContentBlock, uuid7str
-from .structure_builder import DocumentStructure, DocumentSection
+from .structure_builder import DocumentStructure
 
 
 # Core Data Models

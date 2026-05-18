@@ -14,19 +14,15 @@ Key Features:
 - Integration with Git + LaTeX file-based system
 """
 
-import asyncio
 import logging
 logger = logging.getLogger(__name__)
 import json
-import weakref
-from collections import defaultdict, deque
+from collections import defaultdict
 from copy import deepcopy
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any, Protocol, Union
-from uuid import uuid4
+from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from .content_assembler import ContentBlock, uuid7str
