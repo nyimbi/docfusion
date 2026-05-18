@@ -7,21 +7,75 @@ and external system integration with comprehensive security and reliability.
 """
 
 import asyncio
+from datetime import datetime, timezone
+from enum import Enum
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
-from datetime import timezone, datetime
-from enum import Enum
+import socket
 from typing import Any, Dict, List, Optional, Set
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import Path as PathParam
 from pydantic import BaseModel, Field, HttpUrl
 
+from ...core.utils import uuid7str
 from ...security import SecurityManager
 from ..middleware.authentication_middleware import get_current_user
-from ...core.utils import uuid7str
+
+WEBHOOK_URL_HTTPS_REQUIRED = "Webhook URL must use HTTPS"
+WEBHOOK_URL_CREDENTIALS_BLOCKED = "Webhook URL must not include credentials"
+WEBHOOK_URL_HOST_REQUIRED = "Webhook URL must include a host"
+WEBHOOK_URL_HOST_BLOCKED = "Webhook host is not allowed"
+WEBHOOK_URL_RESOLUTION_FAILED = "Webhook host could not be resolved"
+WEBHOOK_URL_NON_PUBLIC_ADDRESS = "Webhook host resolves to a non-public address"
+
+
+class UnsafeWebhookUrlError(ValueError):
+    """Raised when a webhook URL would allow unsafe outbound access."""
+
+
+def validate_public_webhook_url(raw_url: str) -> str:
+    """Validate webhook targets before storage and before delivery."""
+    parsed = urlparse(str(raw_url))
+
+    if parsed.scheme != "https":
+        raise UnsafeWebhookUrlError(WEBHOOK_URL_HTTPS_REQUIRED)
+    if parsed.username or parsed.password:
+        raise UnsafeWebhookUrlError(WEBHOOK_URL_CREDENTIALS_BLOCKED)
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise UnsafeWebhookUrlError(WEBHOOK_URL_HOST_REQUIRED)
+
+    normalized_host = hostname.rstrip(".").lower()
+    if normalized_host == "localhost":
+        raise UnsafeWebhookUrlError(WEBHOOK_URL_HOST_BLOCKED)
+
+    _assert_global_address(hostname)
+    return str(raw_url)
+
+
+def _assert_global_address(hostname: str) -> None:
+    try:
+        addresses = [ipaddress.ip_address(hostname)]
+    except ValueError:
+        try:
+            records = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
+        except socket.gaierror as exc:
+            raise UnsafeWebhookUrlError(WEBHOOK_URL_RESOLUTION_FAILED) from exc
+        addresses = [ipaddress.ip_address(record[4][0]) for record in records]
+
+    if not addresses:
+        raise UnsafeWebhookUrlError(WEBHOOK_URL_RESOLUTION_FAILED)
+
+    for address in addresses:
+        if not address.is_global:
+            raise UnsafeWebhookUrlError(WEBHOOK_URL_NON_PUBLIC_ADDRESS)
+
 
 class WebhookEventType(str, Enum):
     """Webhook event types"""
@@ -172,10 +226,11 @@ class WebhookManager:
     async def create_webhook(self, user_id: str, request: WebhookCreateRequest) -> str:
         """Create new webhook"""
         webhook_id = uuid7str()
+        webhook_url = validate_public_webhook_url(str(request.url))
 
         webhook = {
             "webhook_id": webhook_id,
-            "url": str(request.url),
+            "url": webhook_url,
             "events": request.events,
             "secret": request.secret,
             "active": request.active,
@@ -232,6 +287,8 @@ class WebhookManager:
         ]
         for field, value in updates.items():
             if field in allowed_updates:
+                if field == "url":
+                    value = validate_public_webhook_url(str(value))
                 webhook[field] = value
 
         webhook["updated_at"] = datetime.now(timezone.utc)
@@ -378,9 +435,10 @@ class WebhookManager:
             try:
                 import httpx
 
+                webhook_url = validate_public_webhook_url(webhook["url"])
                 async with httpx.AsyncClient(timeout=webhook["timeout"]) as client:
                     response = await client.post(
-                        webhook["url"], json=payload, headers=headers
+                        webhook_url, json=payload, headers=headers
                     )
 
                     end_time = datetime.now(timezone.utc)
@@ -667,6 +725,8 @@ class WebhookEndpoints:
 
         except HTTPException:
             raise
+        except UnsafeWebhookUrlError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
             self.logger.error(f"Webhook creation failed: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
@@ -728,6 +788,8 @@ class WebhookEndpoints:
 
         except HTTPException:
             raise
+        except UnsafeWebhookUrlError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
             self.logger.error(f"Webhook update failed: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
