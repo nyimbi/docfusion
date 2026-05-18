@@ -6,7 +6,7 @@
 [project]
 name = "docfusion"
 version = "0.1.0"
-description = "docfusion - A modern Python project built with best practices"
+description = "AI-powered document intelligence platform for RFP response and proposal generation"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
@@ -17,11 +17,11 @@ maintainers = [
 ]
 requires-python = ">=3.10"
 keywords = [
-    "python",
     "docfusion",
-    "modern-development",
-    "uv",
-    "automation"
+    "document-intelligence",
+    "rfp",
+    "proposal-generation",
+    "fastapi"
 ]
 classifiers = [
     # Development Status
@@ -205,13 +205,11 @@ docfusion = "docfusion.main:main"
 
 # Project URLs
 [project.urls]
-Homepage = "https://github.com/yourusername/docfusion"
-Documentation = "https://docfusion.readthedocs.io/"
-Repository = "https://github.com/yourusername/docfusion.git"
-"Bug Tracker" = "https://github.com/yourusername/docfusion/issues"
-Changelog = "https://github.com/yourusername/docfusion/blob/main/CHANGELOG.md"
-Discussions = "https://github.com/yourusername/docfusion/discussions"
-Funding = "https://github.com/sponsors/yourusername"
+Homepage = "https://github.com/nyimbi/docfusion"
+Repository = "https://github.com/nyimbi/docfusion.git"
+"Bug Tracker" = "https://github.com/nyimbi/docfusion/issues"
+Changelog = "https://github.com/nyimbi/docfusion/blob/main/CHANGELOG.md"
+Discussions = "https://github.com/nyimbi/docfusion/discussions"
 
 # ============================================================================
 # BUILD SYSTEM CONFIGURATION

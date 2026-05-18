@@ -1,10 +1,8 @@
-import logging
+"""Executable module entrypoint for `python -m docfusion`."""
 
-logger = logging.getLogger(__name__)
+from __future__ import annotations
 
-def main() -> None:
-	"""Entry point."""
-	logger.info("Hello from docfusion!")
+from docfusion.main import main
 
 if __name__ == "__main__":
-	main()
+	raise SystemExit(main())
