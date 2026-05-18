@@ -10,13 +10,12 @@ Copyright (c) 2025
 """
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
@@ -229,8 +228,11 @@ class TaskExecutor:
             # Check service requirements
             await self._validate_service_requirements(task_def)
 
-            # Execute the task function
-            result = await self._execute_task_function(task_def)
+            # Execute the task function within the task-specific timeout.
+            result = await asyncio.wait_for(
+                self._execute_task_function(task_def),
+                timeout=task_def.timeout_seconds,
+            )
 
             # Create success result
             completed_at = datetime.now()
@@ -424,8 +426,6 @@ class TaskExecutor:
 
     async def _execute_task_function(self, task_def: TaskDefinition) -> Any:
         """Execute the actual task function with timeout"""
-        timeout = task_def.timeout_seconds
-
         # This would be implemented to call the actual function
         # For now, return a mock result based on task name
         await asyncio.sleep(0.1)  # Simulate work
