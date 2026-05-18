@@ -1,19 +1,18 @@
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Set, Union, Callable
-from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 from ..core.agent import Agent
-from ..core.messages import AgentMessage, MessageType, MessageTemplates
+from ..core.messages import MessageTemplates
 from ..specialists.analysis_agent import AnalysisAgent
 from ..specialists.coordinator_agent import CoordinatorAgent
 from ..specialists.quality_agent import QualityAgent
 from ..specialists.research_agent import ResearchAgent
 from ..specialists.reviewer_agent import ReviewerAgent
 from ..specialists.writer_agent import WriterAgent
-import re
 from ...core.utils import uuid7str
 
 """
@@ -485,8 +484,8 @@ class AgentCrew:
 					if task.status == "in_progress":
 						# Check if task is completed (simplified)
 						if task.assigned_agent:
-							agent = self.agents[task.assigned_agent]
 							# Would check actual task completion status
+							pass
 							
 				# Facilitate inter-agent communication
 				await self._facilitate_communication()

@@ -3,20 +3,18 @@ import logging
 import random
 import secrets
 import math
-from typing import Any, Dict, List, Optional, Set, Union, Callable, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 from ..core.agent import Agent, AgentState
-from ..core.messages import AgentMessage, MessageType, MessageTemplates
 from ..specialists.analysis_agent import AnalysisAgent
 from ..specialists.coordinator_agent import CoordinatorAgent
 from ..specialists.quality_agent import QualityAgent
 from ..specialists.research_agent import ResearchAgent
 from ..specialists.reviewer_agent import ReviewerAgent
 from ..specialists.writer_agent import WriterAgent
-import re
 from ...core.utils import uuid7str
 
 """
@@ -445,7 +443,6 @@ class AgentSwarm:
 		"""Implement hierarchical communication patterns"""
 		# Leaders communicate with subordinates
 		leaders = [aid for aid, role in self.agent_roles.items() if role == AgentRole.LEADER]
-		coordinators = [aid for aid, role in self.agent_roles.items() if role == AgentRole.COORDINATOR]
 		
 		# Top-down communication
 		for leader_id in leaders:
@@ -633,7 +630,6 @@ class AgentSwarm:
 	
 	def _calculate_capability_match(self, agent_id: str, task: SwarmTask) -> float:
 		"""Calculate how well an agent's capabilities match task requirements"""
-		agent_caps = self.agent_capabilities.get(agent_id, [])
 		preferred_roles = set(task.preferred_roles)
 		
 		if not preferred_roles:
