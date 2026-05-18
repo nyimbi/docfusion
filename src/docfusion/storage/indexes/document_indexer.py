@@ -15,10 +15,9 @@ import mimetypes
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Set, Any, Optional, Union, Tuple
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict
 import aiofiles
-import pickle
 import re
 from ...core.utils import uuid7str
 
@@ -235,6 +234,7 @@ class DocumentIndexer:
 					document_id = uuid7str()
 				
 				# Handle file-based indexing
+				file_metadata = {}
 				if file_path:
 					file_path = Path(file_path)
 					if not file_path.exists():
@@ -286,7 +286,7 @@ class DocumentIndexer:
 					word_count=word_count,
 					char_count=char_count,
 					extracted_keywords=keywords,
-					custom_fields=custom_fields or {}
+					custom_fields={**file_metadata, **(custom_fields or {})}
 				)
 				
 				# Remove old document if exists

@@ -10,9 +10,7 @@ import asyncio
 import logging
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Any, Optional, Union, Tuple
-from pathlib import Path
-import json
+from typing import Dict, List, Any, Optional, Tuple
 import hashlib
 from datetime import datetime
 import aiohttp
@@ -298,7 +296,7 @@ class EmbeddingService:
 	def _init_load_balancer(self):
 		"""Initialize Ollama load balancer"""
 		try:
-			from .ollama_loadbalancer import create_load_balancer_config, OllamaLoadBalancer, LoadBalancingStrategy
+			from .ollama_loadbalancer import create_load_balancer_config, OllamaLoadBalancer
 			
 			# Create load balancer config
 			lb_config = create_load_balancer_config(

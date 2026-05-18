@@ -15,9 +15,8 @@ import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
-import pickle
 from collections import Counter, defaultdict
 from difflib import SequenceMatcher
 

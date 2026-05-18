@@ -6,12 +6,10 @@ Security-enhanced storage service that integrates authentication, authorization,
 encryption, and audit logging with the existing storage system.
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import timezone, datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from ..security import (
     AuditEventType,
@@ -109,7 +107,7 @@ class SecureStorageService:
 
         try:
             # Encrypt sensitive content if enabled
-            encrypted_content = content
+            _encrypted_content = content
             encryption_metadata = {}
 
             if self.config.enable_document_encryption and (
@@ -120,7 +118,7 @@ class SecureStorageService:
                 )
 
                 if encryption_result.success:
-                    encrypted_content = encryption_result.encrypted_data
+                    _encrypted_content = encryption_result.encrypted_data
                     encryption_metadata = {
                         "encrypted": True,
                         "encryption_key_id": encryption_result.key_id,
@@ -137,7 +135,7 @@ class SecureStorageService:
             document_id = uuid7str()
 
             # Prepare metadata with security information
-            secure_metadata = {
+            _secure_metadata = {
                 **(metadata or {}),
                 "created_by": user_id,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -324,7 +322,7 @@ class SecureStorageService:
             }
 
             # Encrypt new content if provided
-            encrypted_content = None
+            _encrypted_content = None
             encryption_metadata = {}
 
             if content and self.config.enable_document_encryption:
@@ -333,7 +331,7 @@ class SecureStorageService:
                 )
 
                 if encryption_result.success:
-                    encrypted_content = encryption_result.encrypted_data
+                    _encrypted_content = encryption_result.encrypted_data
                     encryption_metadata = {
                         "encrypted": True,
                         "encryption_key_id": encryption_result.key_id,
@@ -515,7 +513,7 @@ class SecureStorageService:
                         "query": query,
                         "results_count": len(search_results),
                         "semantic_search": use_semantic_search,
-                        "filters": filters,
+                        "filters": security_filters,
                     },
                 )
 

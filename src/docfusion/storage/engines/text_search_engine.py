@@ -7,7 +7,6 @@ result ranking by relevance (TF-IDF), fuzzy search capabilities, and search resu
 Designed to handle 1000+ documents with optimized performance.
 """
 
-import asyncio
 import logging
 logger = logging.getLogger(__name__)
 import json
@@ -24,7 +23,6 @@ from difflib import SequenceMatcher
 
 # Stemming and text processing
 try:
-	import nltk
 	from nltk.corpus import stopwords
 	from nltk.stem import PorterStemmer
 	from nltk.tokenize import word_tokenize
@@ -33,7 +31,6 @@ try:
 except ImportError:
 	nltk_available = False
 
-from ...core.utils import uuid7str
 import time
 
 @dataclass
@@ -238,7 +235,6 @@ class TextSearchEngine:
     ) -> List[str]:
         """Generate highlighted text fragments"""
         highlights = []
-        text_lower = text.lower()
 
         for token in query_tokens:
             # Find matches in text

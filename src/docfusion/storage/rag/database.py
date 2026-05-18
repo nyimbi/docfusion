@@ -6,20 +6,14 @@ Implements the database connection and management layer for the RAG system
 using PostgreSQL with pgai extensions for vector operations and embeddings.
 """
 
-import asyncio
 import logging
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Any, Optional, Union
-from pathlib import Path
+from typing import Dict, List, Any, Optional
 import json
-import os
 from datetime import datetime
 
 import asyncpg
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from ...core.utils import uuid7str
 
 VALID_SCHEMA_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
 

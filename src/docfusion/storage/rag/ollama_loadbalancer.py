@@ -12,13 +12,13 @@ import logging
 import secrets
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Union, Tuple
+from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 from enum import Enum
 import aiohttp
 from collections import deque
 
-from .ollama_manager import OllamaManager, OllamaHealth, OllamaMetrics
+from .ollama_manager import OllamaManager, OllamaHealth
 
 
 class LoadBalancingStrategy(Enum):

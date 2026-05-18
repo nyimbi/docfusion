@@ -15,14 +15,13 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-from .engines.document_retrieval import DocumentMetadata, DocumentRetrieval
-from .engines.text_search_engine import SearchQuery, SearchResult, TextSearchEngine
+from .engines.document_retrieval import DocumentRetrieval
+from .engines.text_search_engine import SearchQuery, TextSearchEngine
 from .indexes.document_indexer import (
     DocumentIndexer,
     IndexConfiguration,
-    IndexedDocument,
 )
 from .retrievers.document_retriever import ContentRecommendation, DocumentRetriever
 from ..core.utils import uuid7str
@@ -569,7 +568,7 @@ class StorageService:
                 self._stats.total_indexed_documents = index_stats.total_documents
 
             if self._document_retriever:
-                retriever_stats = await self._document_retriever.get_retrieval_stats()
+                await self._document_retriever.get_retrieval_stats()
                 self._stats.total_content_blocks = len(
                     [
                         block

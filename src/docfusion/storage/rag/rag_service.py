@@ -7,16 +7,13 @@ to provide a complete RAG (Retrieval-Augmented Generation) system
 using PostgreSQL with pgai extensions.
 """
 
-import asyncio
-import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
-from .database import DatabaseConfiguration, DocumentChunk, RAGDatabase, RAGDocument
-from .embedding_service import EmbeddingConfiguration, EmbeddingResult, EmbeddingService
+from .database import DatabaseConfiguration, RAGDatabase, RAGDocument
+from .embedding_service import EmbeddingConfiguration, EmbeddingService
 from ...core.utils import uuid7str
 
 @dataclass

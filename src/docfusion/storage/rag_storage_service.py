@@ -6,22 +6,17 @@ Extends the existing storage service with RAG capabilities using PostgreSQL
 and pgai for semantic search, document embeddings, and intelligent retrieval.
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from .rag import (
     RAGConfiguration,
-    RAGQueryResult,
-    RAGSearchResult,
     RAGService,
-    create_rag_service,
-    get_default_rag_config,
 )
-from .storage_service import StorageConfiguration, StorageService, StorageStats
+from .storage_service import StorageConfiguration, StorageService
 from ..core.utils import uuid7str
 
 @dataclass
