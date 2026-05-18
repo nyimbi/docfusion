@@ -392,6 +392,7 @@ async def initialize_endpoints(container: ServiceContainer) -> ServiceContainer:
 		try:
 			container.websocket_endpoints = WebSocketEndpoints(
 				security_manager=container.security_manager,
+				storage_service=container.storage_service,
 			)
 			logger.info("WebSocket endpoints initialized")
 		except Exception as e:

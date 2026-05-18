@@ -339,8 +339,13 @@ class ConnectionManager:
 class WebSocketEndpoints:
 	"""WebSocket endpoint handlers"""
 	
-	def __init__(self, security_manager: SecurityManager):
+	def __init__(
+		self,
+		security_manager: SecurityManager,
+		storage_service: Optional[Any] = None,
+	):
 		self.security = security_manager
+		self.storage = storage_service
 		self.connection_manager = ConnectionManager(security_manager)
 		self.logger = logging.getLogger(__name__)
 		
@@ -361,7 +366,7 @@ class WebSocketEndpoints:
 				try:
 					user_info = await get_websocket_user(token)
 					user_id = user_info['user_id']
-				except Exception as e:
+				except Exception:
 					await websocket.accept()
 					await websocket.send_text(json.dumps({
 						'type': MessageType.AUTH_FAILED,
@@ -628,9 +633,13 @@ class WebSocketEndpoints:
 		try:
 			document_id = message.data.get('document_id')
 			content = message.data.get('content')
+			title = message.data.get('title')
+			metadata = message.data.get('metadata')
 			
 			if not document_id:
 				raise ValueError("document_id required")
+			if content is None and title is None and metadata is None:
+				raise ValueError("content, title, or metadata required")
 			
 			# Check document permissions
 			context = self._build_context(user_info)
@@ -645,14 +654,38 @@ class WebSocketEndpoints:
 					{'error': 'Permission denied for document saving'}
 				)
 				return
-			
-			# In production, would save to storage service
-			# For now, just confirm save
+
+			if self.storage is None:
+				await self.connection_manager.send_to_user(
+					user_id,
+					MessageType.ERROR,
+					{'error': 'Document save service unavailable'}
+				)
+				return
+
+			result = await self.storage.update_document(
+				document_id=document_id,
+				user_id=user_id,
+				title=title,
+				content=content,
+				metadata=metadata,
+				context=context,
+			)
+
+			if not result.get('success'):
+				await self.connection_manager.send_to_user(
+					user_id,
+					MessageType.ERROR,
+					{'error': result.get('error', 'Document save failed')}
+				)
+				return
+
+			version = result.get('version') or result.get('document', {}).get('version') or 'updated'
 			save_result = {
 				'document_id': document_id,
 				'saved_at': datetime.now(timezone.utc).isoformat(),
 				'saved_by': user_id,
-				'version': '1.0',  # Would be actual version
+				'version': version,
 				'success': True
 			}
 			
@@ -807,6 +840,9 @@ class WebSocketEndpoints:
 		return self.connection_manager.get_document_users(document_id)
 
 # Factory function
-def create_websocket_endpoints(security_manager: SecurityManager) -> WebSocketEndpoints:
+def create_websocket_endpoints(
+	security_manager: SecurityManager,
+	storage_service: Optional[Any] = None,
+) -> WebSocketEndpoints:
 	"""Create WebSocketEndpoints instance with security manager"""
-	return WebSocketEndpoints(security_manager)
+	return WebSocketEndpoints(security_manager, storage_service=storage_service)
