@@ -7,18 +7,15 @@ pattern matching, and Ollama-based AI analysis for understanding connections
 between entities and concepts in documents.
 """
 
-import asyncio
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 # spaCy integration for dependency parsing
 try:
     import spacy
-    from spacy import displacy
     from spacy.matcher import DependencyMatcher, Matcher
     from spacy.tokens import Doc, Span, Token
 
@@ -1035,7 +1032,6 @@ Provide comprehensive analysis:
 
         current_source = None
         current_target = None
-        current_evidence = None
 
         for line in lines:
             line = line.strip()

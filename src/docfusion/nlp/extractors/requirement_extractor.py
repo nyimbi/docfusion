@@ -6,13 +6,11 @@ Specialized extractor for identifying and analyzing RFP (Request for Proposal)
 requirements using pattern matching, NLP analysis, and Ollama-based AI understanding.
 """
 
-import asyncio
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 # Ollama integration for AI-powered requirement analysis
 import json

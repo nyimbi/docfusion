@@ -6,20 +6,16 @@ Advanced named entity recognition with custom domain entities for proposal
 writing, including organizations, technologies, deadlines, and domain-specific terms.
 """
 
-import asyncio
 import logging
 import re
-from typing import Dict, List, Optional, Any, Union, Tuple, Set
-from datetime import datetime, date
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
 # spaCy integration for NER
 try:
 	import spacy
-	from spacy.tokens import Doc, Token, Span
 	from spacy.matcher import Matcher, PhraseMatcher
-	from spacy.lang.en import English
 	HAS_SPACY_SUPPORT = True
 except ImportError:
 	HAS_SPACY_SUPPORT = False
@@ -475,7 +471,6 @@ class EntityExtractor:
 	async def _extract_domain_entities(self, text: str) -> List[Entity]:
 		"""Extract domain-specific entities"""
 		entities = []
-		text_lower = text.lower()
 		
 		# Technology entities
 		for tech in self.technologies:
