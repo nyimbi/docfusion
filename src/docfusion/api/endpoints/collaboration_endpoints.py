@@ -6,16 +6,14 @@ FastAPI endpoints for document collaboration features including real-time editin
 comments, suggestions, and team management with comprehensive security integration.
 """
 
-import asyncio
 import logging
 from datetime import timezone, datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import Path as PathParam
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from ...security import SecurityManager
 from ...storage.secure_storage_service import SecureStorageService

@@ -10,8 +10,7 @@ import asyncio
 import logging
 from datetime import timezone, datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -23,14 +22,13 @@ from fastapi import (
     UploadFile,
 )
 from fastapi import Path as PathParam
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from ...document_engine.secure_document_engine import SecureDocumentEngine
 from ...security import SecurityManager
 from ...storage.secure_storage_service import SecureStorageService
 from ..middleware.authentication_middleware import get_current_user
-from ..serializers.document_serializers import DocumentCreateRequest, DocumentResponse
+from ..serializers.document_serializers import DocumentCreateRequest
 from ...core.utils import uuid7str
 
 class BatchJobStatus(str, Enum):
