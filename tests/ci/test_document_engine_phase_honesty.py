@@ -34,6 +34,8 @@ from docfusion.document_engine.document_engine import (
 	DocumentGenerationRequest,
 	DocumentGenerationResult,
 )
+from docfusion.document_engine.assembler.content_assembler import ContentBlock
+from docfusion.document_engine.assembler.structure_builder import StructureBuilder
 from docfusion.document_engine.formatter.brand_formatter import BrandFormattingResult
 from docfusion.document_engine.formatter.document_formatter import FormattingResult
 
@@ -74,19 +76,36 @@ class _StructureRaiser:
 
 
 class _StructureSucceeder:
+	def __init__(self, structure_quality_score: float = 0.67) -> None:
+		self._structure_quality_score = structure_quality_score
+
+	async def create_document_structure(self, **_: Any) -> Any:
+		return SimpleNamespace(
+			sections=["s1", "s2", "s3"],
+			structure_quality_score=self._structure_quality_score,
+		)
+
+
+class _StructureSucceederWithoutScore:
 	async def create_document_structure(self, **_: Any) -> Any:
 		return SimpleNamespace(sections=["s1", "s2", "s3"])
 
 
 class TestStructureBuildingFallback:
-	async def test_happy_path_omits_hardcoded_score(self):
+	async def test_happy_path_routes_real_structure_quality_score(self):
 		engine = _make_engine(structure_builder=_StructureSucceeder())
 		result = await engine._execute_structure_building(_make_request(), None)
 		assert result.build_successful is True
-		# B.fix.2: orchestrator no longer fabricates 0.89; StructureBuilder
-		# does not yet compute its own score so None is the honest signal.
-		assert result.structure_quality_score is None
+		# TASK-046: StructureBuilder now emits a real coverage metric and
+		# the orchestrator routes it through without rewriting it.
+		assert result.structure_quality_score == 0.67
 		assert result.section_count == 3
+
+	async def test_happy_path_without_score_still_omits_fabricated_score(self):
+		engine = _make_engine(structure_builder=_StructureSucceederWithoutScore())
+		result = await engine._execute_structure_building(_make_request(), None)
+		assert result.build_successful is True
+		assert result.structure_quality_score is None
 
 	async def test_fallback_reports_failure_and_no_score(self):
 		engine = _make_engine(structure_builder=_StructureRaiser())
@@ -94,6 +113,38 @@ class TestStructureBuildingFallback:
 		assert result.build_successful is False
 		assert result.structure_quality_score is None
 		assert "boom" in result.failure_reason
+
+	async def test_structure_builder_score_is_mapped_content_coverage(self):
+		builder = StructureBuilder()
+		mapped = ContentBlock(
+			block_type="text",
+			content="Executive summary content",
+			title="Executive Summary",
+		)
+		unmapped = ContentBlock(
+			block_type="video",
+			content="A media artifact with no proposal section mapping",
+			title="Walkthrough",
+		)
+
+		structure = await builder.create_document_structure(
+			template_name="proposal",
+			document_id="doc-1",
+			content_blocks=[mapped, unmapped],
+		)
+
+		assert structure.structure_quality_score == pytest.approx(0.5)
+
+	async def test_structure_builder_score_is_none_without_content_blocks(self):
+		builder = StructureBuilder()
+
+		structure = await builder.create_document_structure(
+			template_name="proposal",
+			document_id="doc-1",
+			content_blocks=[],
+		)
+
+		assert structure.structure_quality_score is None
 
 
 # ---------------------------------------------------------------------------

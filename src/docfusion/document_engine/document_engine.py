@@ -597,10 +597,7 @@ class DocumentEngine:
 				'build_successful': True,
 				'document_id': request.request_id,
 				'section_count': len(structure.sections) if hasattr(structure, 'sections') else len(blocks),
-				# StructureBuilder does not yet compute its own quality score.
-				# None here — quality validation skips None contributors rather
-				# than averaging in a fabricated constant.
-				'structure_quality_score': None,
+				'structure_quality_score': getattr(structure, 'structure_quality_score', None),
 				'structure': structure
 			})()
 		except Exception as e:

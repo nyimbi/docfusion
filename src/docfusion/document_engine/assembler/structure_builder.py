@@ -23,7 +23,7 @@ from collections import defaultdict, deque
 from copy import deepcopy
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Protocol, Optional, Union
+from typing import Any, Protocol, Union
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -219,6 +219,7 @@ class DocumentStructure:
 	# Integration points
 	content_block_mapping: dict[str, str] = Field(default_factory=dict)  # block_id -> section_id
 	template_variables: dict[str, Any] = Field(default_factory=dict)
+	structure_quality_score: float | None = None
 
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_by_name=True, validate_assignment=True))
@@ -1471,6 +1472,10 @@ class StructureBuilder:
 			# Generate TOC
 			toc = await self.toc_generator.generate_toc(structure)
 			structure.generated_toc = toc.entries
+
+			structure.structure_quality_score = self._calculate_structure_quality_score(
+				structure, content_blocks
+			)
 			
 			# Update performance stats
 			self._update_performance_stats(start_time)
@@ -1481,6 +1486,24 @@ class StructureBuilder:
 		except Exception as e:
 			self._log_structure_error(f"Error creating document structure: {e}")
 			raise
+
+	def _calculate_structure_quality_score(
+		self,
+		structure: DocumentStructure,
+		content_blocks: list[ContentBlock],
+	) -> float | None:
+		"""Measure input-content coverage by structure assignment.
+
+		This intentionally ignores hierarchy depth and TOC generation. Those
+		are product-weighted judgments; the current honest metric is only:
+		unique input content blocks mapped to a section / input content blocks.
+		"""
+		if not content_blocks:
+			return None
+
+		input_block_ids = {block.block_id for block in content_blocks}
+		mapped_block_ids = input_block_ids.intersection(structure.content_block_mapping)
+		return len(mapped_block_ids) / len(input_block_ids)
 	
 	async def generate_table_of_contents(
 		self,
