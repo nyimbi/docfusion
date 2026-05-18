@@ -11,15 +11,14 @@ import asyncio
 import json
 import logging
 import re
-import statistics
-from typing import Dict, List, Optional, Any, Tuple, Set
-from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
 import tempfile
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from ...core.utils import uuid7str
 
 from ..models.opportunity_models import OpportunityData as Opportunity
@@ -903,9 +902,6 @@ class DataValidator:
 		
 		try:
 			# Count issues by category and level
-			completeness_issues = len([i for i in issues if i.category == ValidationCategory.COMPLETENESS])
-			accuracy_issues = len([i for i in issues if i.category == ValidationCategory.ACCURACY])
-			consistency_issues = len([i for i in issues if i.category == ValidationCategory.CONSISTENCY])
 			format_issues = len([i for i in issues if i.category == ValidationCategory.FORMAT])
 			business_rule_issues = len([i for i in issues if i.category == ValidationCategory.BUSINESS_RULES])
 			

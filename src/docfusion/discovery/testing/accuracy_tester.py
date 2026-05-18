@@ -11,19 +11,19 @@ import asyncio
 import json
 import logging
 import statistics
-from typing import Dict, List, Optional, Any, Tuple, Set
-from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
 import tempfile
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from ...core.utils import uuid7str
 
 from ..crawlers.source_databases.global_source_db import GlobalSourceDB, ProcurementSource
 from ..crawlers.ai_driven.universal_scraper import UniversalScraper, ScrapingConfiguration
-from ..crawlers.ai_driven.structure_learner import StructureLearner, create_extraction_attempt
+from ..crawlers.ai_driven.structure_learner import StructureLearner
 from ..models.opportunity_models import OpportunityData as Opportunity
 import time
 
@@ -619,7 +619,6 @@ class AccuracyTester:
 			end_idx = start_idx + fold_size if fold < 4 else len(sources)
 			
 			validation_sources = sources[start_idx:end_idx]
-			training_sources = sources[:start_idx] + sources[end_idx:]
 			
 			# Test on validation set
 			fold_result = TestResult(
