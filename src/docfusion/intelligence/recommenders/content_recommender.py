@@ -9,19 +9,16 @@ benchmarking to optimize proposal competitiveness.
 import asyncio
 import logging
 logger = logging.getLogger(__name__)
-import json
 import re
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple, Set, Union
-from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 
 import numpy as np
 from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 
-from ..predictors.scoring_predictor import ProposalSection, SectionFeatures
-from ...core.models.base import BaseEntity
+from ..predictors.scoring_predictor import ProposalSection
 
 
 class ContentType(str, Enum):
@@ -829,7 +826,6 @@ class ContentRecommender:
 	def _estimate_implementation_timeline(self, suggestions: List[ContentSuggestion]) -> str:
 		"""Estimate implementation timeline"""
 		
-		high_priority_count = sum(1 for s in suggestions if s.priority == "high")
 		moderate_effort_count = sum(1 for s in suggestions if s.implementation_effort == "moderate")
 		significant_effort_count = sum(1 for s in suggestions if s.implementation_effort == "significant")
 		

@@ -9,20 +9,16 @@ optimization for competitive proposal development.
 import asyncio
 import logging
 logger = logging.getLogger(__name__)
-import json
 import numpy as np
-import pandas as pd
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple, Union
-from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 from enum import Enum
 
 from pydantic import BaseModel, Field, ConfigDict
 from uuid import uuid4
 
-from ..predictors.win_probability_predictor import WinProbabilityPredictor, PredictionFeatures, PredictionResult
-from ..predictors.scoring_predictor import ScoringPredictor, SectionFeatures, ProposalSection
-from ...core.models.base import BaseEntity
+from ..predictors.win_probability_predictor import WinProbabilityPredictor, PredictionFeatures
+from ..predictors.scoring_predictor import ScoringPredictor
 
 
 class RecommendationType(str, Enum):
