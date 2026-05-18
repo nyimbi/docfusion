@@ -15,10 +15,7 @@ from docfusion.document_engine.packager.rfp_packager import RFPResponsePackage
 from docfusion.rfp.compliance_matrix import (
     ComplianceMatrix,
     ComplianceMatrixGenerator,
-    ComplianceStatus,
-    RequirementModality,
     RequirementMapping,
-    RequirementType,
 )
 
 
