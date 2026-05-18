@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, ConfigDict
 import asyncio
 
 from ..validators.regulatory_validator import (
-	RegulatoryValidator, ComplianceReport, ComplianceStatus, ViolationSeverity
+	RegulatoryValidator, ComplianceStatus, ViolationSeverity
 )
 from ..validators.format_validator import FormatValidator, FormatReport
 from ..frameworks.compliance_framework import ComplianceFramework

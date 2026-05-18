@@ -831,7 +831,6 @@ class LogoManager:
 			return 100.0  # Default size
 		
 		# Extract numeric value
-		import re
 		match = re.match(r'([\d.]+)', str(size_str))
 		if match:
 			return float(match.group(1))

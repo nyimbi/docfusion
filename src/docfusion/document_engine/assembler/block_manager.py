@@ -945,13 +945,13 @@ class VersionManager:
 		}
 		
 		# Compare each field
-		for field in set(data1.keys()) | set(data2.keys()):
-			old_value = data1.get(field)
-			new_value = data2.get(field)
+		for field_name in set(data1.keys()) | set(data2.keys()):
+			old_value = data1.get(field_name)
+			new_value = data2.get(field_name)
 			
 			if old_value != new_value:
 				diff['changes'].append({
-					'field': field,
+					'field': field_name,
 					'old_value': old_value,
 					'new_value': new_value,
 					'change_type': self._classify_change(old_value, new_value)
@@ -1444,9 +1444,9 @@ class MockBlockStorage:
 			return False
 		
 		block = self.blocks[block_id]
-		for field, value in updates.items():
-			if hasattr(block, field):
-				setattr(block, field, value)
+		for field_name, value in updates.items():
+			if hasattr(block, field_name):
+				setattr(block, field_name, value)
 		
 		self.operation_log.append({
 			'operation': 'update',

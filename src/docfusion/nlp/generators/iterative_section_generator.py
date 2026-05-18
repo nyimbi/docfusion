@@ -1290,8 +1290,6 @@ Return only a single number between 0.0 and 1.0:"""
     def _extract_key_concepts(self, content: str) -> List[str]:
         """Extract key concepts from section content"""
         # Simple keyword extraction (would use NLP in production)
-        import re
-
         # Find important phrases (capitalized terms, technical terms, etc.)
         concepts = []
 
@@ -1318,8 +1316,6 @@ Return only a single number between 0.0 and 1.0:"""
     def _extract_value_propositions(self, content: str) -> List[str]:
         """Extract value propositions from content"""
         # Look for sentences that contain value indicators
-        import re
-
         value_indicators = [
             "benefit",
             "advantage",

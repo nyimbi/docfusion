@@ -387,16 +387,6 @@ class SecretsManager:
 		return ""
 
 	@staticmethod
-	def get_environment() -> Environment:
-		"""Get current environment."""
-		return _detect_environment()
-
-	@staticmethod
-	def is_production() -> bool:
-		"""Check if running in production environment."""
-		return _detect_environment() == Environment.PRODUCTION
-
-	@staticmethod
 	def is_strict_mode() -> bool:
 		"""Check if strict secret validation is enabled."""
 		return _is_strict_mode()

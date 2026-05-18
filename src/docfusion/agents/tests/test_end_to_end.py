@@ -10,7 +10,6 @@ Copyright (c) 2025
 """
 
 import logging
-import logging
 logger = logging.getLogger(__name__)
 import pytest
 import asyncio

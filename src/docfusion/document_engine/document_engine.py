@@ -1745,8 +1745,6 @@ async def create_document_engine_with_storage(
 	enable_caching: bool = True
 ) -> DocumentEngine:
 	"""Create DocumentEngine with integrated storage service"""
-	from pathlib import Path
-	
 	# Create default config with storage enabled
 	if config is None:
 		config = create_default_generation_configuration(

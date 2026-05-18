@@ -28,7 +28,6 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, ConfigDict, AfterValidator
 from pydantic.dataclasses import dataclass as pydantic_dataclass, rebuild_dataclass
 
-from uuid import uuid4
 from ...core.utils import uuid7str
 
 # ============================================================================

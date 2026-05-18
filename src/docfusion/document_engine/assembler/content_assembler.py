@@ -671,9 +671,9 @@ class ContentValidator:
 			result: Validation result dictionary to update
 		"""
 		# Required fields validation
-		for field in self._validation_rules['required_fields']:
-			if not hasattr(block, field) or not getattr(block, field):
-				result['errors'].append(f"Required field '{field}' is missing or empty")
+		for field_name in self._validation_rules['required_fields']:
+			if not hasattr(block, field_name) or not getattr(block, field_name):
+				result['errors'].append(f"Required field '{field_name}' is missing or empty")
 		
 		# Block type validation
 		if block.block_type not in self._validation_rules['allowed_block_types']:

@@ -747,9 +747,9 @@ class DataEncryption:
     async def _encrypt_aes_cbc(self, data: bytes, key: bytes) -> Tuple[bytes, bytes]:
         """Encrypt data using AES-CBC"""
         # Pad data to block size
-        from cryptography.hazmat.primitives import padding
+        from cryptography.hazmat.primitives import padding as symmetric_padding
 
-        padder = padding.PKCS7(128).padder()
+        padder = symmetric_padding.PKCS7(128).padder()
         padded_data = padder.update(data) + padder.finalize()
 
         nonce = secrets.token_bytes(16)  # IV for CBC
@@ -774,9 +774,9 @@ class DataEncryption:
         padded_data = decryptor.update(ciphertext) + decryptor.finalize()
 
         # Remove padding
-        from cryptography.hazmat.primitives import padding
+        from cryptography.hazmat.primitives import padding as symmetric_padding
 
-        unpadder = padding.PKCS7(128).unpadder()
+        unpadder = symmetric_padding.PKCS7(128).unpadder()
         data = unpadder.update(padded_data) + unpadder.finalize()
 
         return data

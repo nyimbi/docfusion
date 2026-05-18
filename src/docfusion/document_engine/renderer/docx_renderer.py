@@ -796,7 +796,6 @@ class DOCXRenderer:
 		config: DOCXRenderConfiguration
 	) -> bytes:
 		"""Generate valid DOCX binary content as an OPC package."""
-		import io
 		import zipfile
 		from xml.etree.ElementTree import Element, SubElement, tostring
 		

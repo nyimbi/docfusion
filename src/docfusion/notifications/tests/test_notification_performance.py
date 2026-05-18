@@ -30,8 +30,7 @@ from ..channels import (
 	EmailChannel, EmailConfiguration, EmailProvider,
 	SMSChannel, SMSConfiguration, SMSProvider,
 	PushChannel, PushConfiguration,
-	InAppChannel, InAppConfiguration,
-	ChannelType
+	InAppChannel, InAppConfiguration
 )
 from ..workflow_notification_integration import (
 	WorkflowNotificationIntegration, WorkflowEventType,
