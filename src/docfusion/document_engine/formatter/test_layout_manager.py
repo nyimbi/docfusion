@@ -15,7 +15,6 @@ Comprehensive test suite for the LayoutManager module covering:
 import asyncio
 import pytest
 from datetime import datetime
-from typing import Any
 
 from .layout_manager import (
 	LayoutManager,
@@ -26,22 +25,16 @@ from .layout_manager import (
 	PageMargins,
 	ColumnLayout,
 	ContentPositioning,
-	HeaderFooterConfig,
 	LayoutConstraint,
 	LayoutSpecification,
 	PageGeometry,
 	ColumnLayoutResult,
 	PositioningResult,
 	LayoutResult,
-	LayoutManagerMetrics,
 	create_default_layout_manager,
 	create_responsive_layout_specification,
 	quick_layout_computation,
-	validate_layout_manager_installation,
-	LayoutManagerException,
-	PageConfigurationException,
-	ColumnLayoutException,
-	ContentPositioningException
+	validate_layout_manager_installation
 )
 
 
@@ -830,7 +823,6 @@ class TestLayoutManager:
 	def test_generate_multi_format_output(self, layout_manager):
 		"""Test multi-format output generation"""
 		# Create a mock layout result
-		from datetime import datetime
 		mock_result = LayoutResult(
 			layout_specification=LayoutSpecification(),
 			page_geometry=PageGeometry(
@@ -1093,14 +1085,10 @@ class TestLayoutManagerPerformance:
 		layout_requirements = {'page_size': 'A4', 'columns': 1}
 		
 		# First computation (no cache)
-		start_time = datetime.now()
 		result1 = await layout_manager.compute_document_layout(sample_content_elements, layout_requirements)
-		first_time = (datetime.now() - start_time).total_seconds()
 		
 		# Second computation (with cache)
-		start_time = datetime.now()
 		result2 = await layout_manager.compute_document_layout(sample_content_elements, layout_requirements)
-		second_time = (datetime.now() - start_time).total_seconds()
 		
 		assert layout_manager.metrics['cache_hits'] > 0
 		assert result1.result_id == result2.result_id  # Should be same cached result

@@ -6,12 +6,8 @@ Comprehensive testing for the document formatting system including
 CSS-like styling, typography optimization, responsive layouts, and multi-format output.
 """
 
-import asyncio
 import json
 import pytest
-from datetime import datetime
-from typing import Any
-from unittest.mock import AsyncMock, patch
 import time
 
 from .document_formatter import (
@@ -26,11 +22,6 @@ from .document_formatter import (
 	TypographyEngine,
 	ResponsiveEngine,
 	OutputGenerator,
-	DocumentFormatterException,
-	StyleParsingException,
-	StyleComputationException,
-	TypographyException,
-	OutputGenerationException,
 	create_document_formatter,
 	quick_format_text,
 	validate_formatter_installation
@@ -509,6 +500,7 @@ class TestResponsiveEngine:
 		
 		context = {"page_size": "A4", "content_density": "normal"}
 		breakpoints = await responsive_engine.calculate_responsive_breakpoints(context)
+		assert breakpoints
 		
 		adapted_style = await responsive_engine.adapt_style_responsive(
 			style, context, sample_responsive_config
@@ -564,6 +556,7 @@ class TestResponsiveEngine:
 		
 		context = {"output_format": "print"}
 		breakpoints = await responsive_engine.calculate_responsive_breakpoints(context)
+		assert breakpoints
 		
 		adapted_style = await responsive_engine.adapt_style_responsive(
 			style, context, sample_responsive_config

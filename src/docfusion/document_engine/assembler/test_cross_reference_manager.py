@@ -7,12 +7,7 @@ reference detection, numbering, validation, citation management, and Git + LaTeX
 """
 
 import pytest
-import asyncio
-from datetime import datetime
-from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch
 import json
-import re
 
 from .cross_reference_manager import (
 	CrossReferenceManager,
@@ -25,12 +20,7 @@ from .cross_reference_manager import (
 	ReferenceTarget,
 	Citation,
 	ReferenceGraph,
-	NumberingScheme,
-	ValidationResult,
-	CrossReferenceException,
-	ReferenceNotFoundException,
-	InvalidReferenceException,
-	CircularReferenceException
+	NumberingScheme
 )
 from .content_assembler import ContentBlock
 from .structure_builder import DocumentStructure, DocumentSection
@@ -972,7 +962,7 @@ class TestErrorHandling:
 		)
 		
 		# Test circular reference detection
-		circulars = field_validator.detect_circular_references(circular_graph)
+		field_validator.detect_circular_references(circular_graph)
 		# Should detect at least some circular patterns
 
 	async def test_performance_with_large_document(self, reference_manager):

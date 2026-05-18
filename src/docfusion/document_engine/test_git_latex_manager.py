@@ -7,10 +7,9 @@ LaTeX compilation, and document assembly functionality.
 
 import asyncio
 import json
-import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 import git
@@ -20,7 +19,6 @@ from .git_latex_manager import (
 	GitLatexContentManager,
 	GitLatexAssembler,
 	LaTeXCompiler,
-	LaTeXTemplate,
 	CompilationResult
 )
 
@@ -46,7 +44,7 @@ async def git_latex_manager(temp_repo):
 async def git_latex_assembler(temp_repo):
 	"""Create GitLatexAssembler instance for testing"""
 	# First initialize with manager to create repo structure
-	manager = GitLatexContentManager(temp_repo)
+	GitLatexContentManager(temp_repo)
 	assembler = GitLatexAssembler(temp_repo)
 	yield assembler
 

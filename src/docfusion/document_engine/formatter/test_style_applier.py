@@ -10,10 +10,8 @@ Comprehensive test suite for the StyleApplier module covering:
 - Integration with DocumentFormatter
 """
 
-import asyncio
 import pytest
 from datetime import datetime
-from typing import Any
 
 from .style_applier import (
 	StyleApplier,
@@ -23,14 +21,8 @@ from .style_applier import (
 	ColorPalette,
 	TypographyProfile,
 	BrandGuidelines,
-	BrandStyleRule,
-	StyleApplicationResult,
-	ComplianceResult,
 	create_default_brand_guidelines,
-	quick_apply_brand_styles,
-	ColorManagementException,
-	TypographyException,
-	BrandComplianceException
+	quick_apply_brand_styles
 )
 
 from .document_formatter import ComputedStyle
@@ -480,7 +472,7 @@ class TestStyleApplier:
 	async def test_apply_brand_styles_caching(self, style_applier, sample_computed_styles, sample_brand_guidelines):
 		"""Test style caching functionality"""
 		# First application
-		result1 = await style_applier.apply_brand_styles(
+		await style_applier.apply_brand_styles(
 			sample_computed_styles,
 			sample_brand_guidelines
 		)
@@ -621,14 +613,10 @@ class TestStyleApplierPerformance:
 	async def test_cache_performance(self, style_applier, sample_computed_styles, sample_brand_guidelines):
 		"""Test caching performance improvement"""
 		# First run (no cache)
-		start_time = datetime.now()
-		result1 = await style_applier.apply_brand_styles(sample_computed_styles, sample_brand_guidelines)
-		first_run_time = (datetime.now() - start_time).total_seconds()
+		await style_applier.apply_brand_styles(sample_computed_styles, sample_brand_guidelines)
 		
 		# Second run (with cache)
-		start_time = datetime.now()
 		result2 = await style_applier.apply_brand_styles(sample_computed_styles, sample_brand_guidelines)
-		second_run_time = (datetime.now() - start_time).total_seconds()
 		
 		assert result2.cache_hit_rate > 0
 		# Note: In real scenarios, cached run should be faster

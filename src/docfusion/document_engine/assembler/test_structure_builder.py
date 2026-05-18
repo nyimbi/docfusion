@@ -5,10 +5,8 @@ Tests all components of the StructureBuilder including template engine,
 structure management, TOC generation, and outline creation.
 """
 
-import asyncio
 import json
 from datetime import datetime
-from typing import Any
 
 import pytest
 
@@ -26,14 +24,11 @@ from .structure_builder import (
 	TableOfContents,
 	DocumentOutline,
 	SectionDefinition,
-	TemplateVariable,
 	CompiledTemplate,
 	ValidationResult,
 	NumberingSystem,
 	TemplateCache,
 	TemplateNotFound,
-	TemplateInvalid,
-	HierarchyInvalid,
 	create_mock_content_blocks
 )
 from .content_assembler import ContentBlock
@@ -959,6 +954,7 @@ class TestIntegrationScenarios:
 		outline_time = (datetime.now() - start_time).total_seconds()
 		
 		assert outline_time < 2.0  # Outline generation under 2 seconds
+		assert outline
 		
 		# Verify performance stats tracking
 		stats = structure_builder.get_performance_stats()

@@ -15,8 +15,6 @@ import logging
 logger = logging.getLogger(__name__)
 import pytest
 from datetime import datetime, timedelta
-from typing import Any
-from unittest.mock import AsyncMock, patch
 import time
 
 from .content_assembler import (
@@ -33,7 +31,6 @@ from .content_assembler import (
 	MockStorageService,
 	MockVoiceDNAService,
 	AssemblerException,
-	InvalidBlockException,
 	MissingDependencyException,
 	CircularDependencyException
 )
@@ -716,8 +713,7 @@ class TestContentAssembler:
 		
 		# Verify dependency order maintained
 		assembled_blocks = result.assembled_blocks
-		base_block = next(b for b in assembled_blocks if b.title == "Base Block")
-		base_index = next(i for i, b in enumerate(assembled_blocks) if b.block_id == base_block.block_id)
+		assert any(b.title == "Base Block" for b in assembled_blocks)
 		
 		# All dependent blocks should come after their dependencies
 		for i, block in enumerate(assembled_blocks):
