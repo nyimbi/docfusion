@@ -783,7 +783,7 @@ class PriorityManager:
             metadata_richness += 0.2
         if metadata.deadline_timestamp:
             metadata_richness += 0.1
-        if metadata.business_impact_score > 0:
+        if metadata.revenue_impact_estimate and metadata.revenue_impact_estimate > 0:
             metadata_richness += 0.1
         if metadata.title_keywords or metadata.content_keywords:
             metadata_richness += 0.1

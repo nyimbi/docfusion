@@ -545,6 +545,11 @@ class NotificationAnalytics:
         self, events: List[NotificationEvent], start_time: datetime, end_time: datetime
     ) -> AnalyticsMetrics:
         """Calculate comprehensive metrics from events."""
+        def bounded_rate(numerator: int, denominator: int) -> float:
+            if denominator <= 0:
+                return 0.0
+            return min(numerator / denominator, 1.0)
+
         # Count events by type
         event_counts = defaultdict(int)
         for event in events:
@@ -559,13 +564,11 @@ class NotificationAnalytics:
         total_converted = event_counts[AnalyticsEvent.CONVERTED]
 
         # Calculate rates
-        delivery_rate = total_delivered / total_sent if total_sent > 0 else 0.0
-        failure_rate = total_failed / total_sent if total_sent > 0 else 0.0
-        open_rate = total_opened / total_delivered if total_delivered > 0 else 0.0
-        click_rate = total_clicked / total_delivered if total_delivered > 0 else 0.0
-        conversion_rate = (
-            total_converted / total_delivered if total_delivered > 0 else 0.0
-        )
+        delivery_rate = bounded_rate(total_delivered, total_sent)
+        failure_rate = bounded_rate(total_failed, total_sent)
+        open_rate = bounded_rate(total_opened, total_delivered)
+        click_rate = bounded_rate(total_clicked, total_delivered)
+        conversion_rate = bounded_rate(total_converted, total_delivered)
 
         # Calculate performance metrics
         delivery_times = [
@@ -597,12 +600,8 @@ class NotificationAnalytics:
                 "sent": channel_sent,
                 "delivered": channel_delivered,
                 "opened": channel_opened,
-                "delivery_rate": channel_delivered / channel_sent
-                if channel_sent > 0
-                else 0.0,
-                "open_rate": channel_opened / channel_delivered
-                if channel_delivered > 0
-                else 0.0,
+                "delivery_rate": bounded_rate(channel_delivered, channel_sent),
+                "open_rate": bounded_rate(channel_opened, channel_delivered),
             }
 
         # Priority breakdown
@@ -622,9 +621,7 @@ class NotificationAnalytics:
             priority_metrics[priority] = {
                 "sent": priority_sent,
                 "delivered": priority_delivered,
-                "delivery_rate": priority_delivered / priority_sent
-                if priority_sent > 0
-                else 0.0,
+                "delivery_rate": bounded_rate(priority_delivered, priority_sent),
             }
 
         # Hourly distribution

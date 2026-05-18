@@ -681,21 +681,36 @@ class WorkflowNotificationIntegration:
                     event_type, event_data
                 )
 
+                metadata_kwargs = {
+                    "workflow_id": workflow_id,
+                    "workflow_stage": event_data.get("workflow_stage"),
+                    "project_id": event_data.get("project_id"),
+                    "stakeholder_priority": event_data.get("stakeholder_priority"),
+                    "requires_immediate_response": event_data.get(
+                        "requires_immediate_response", False
+                    ),
+                    "involves_external_stakeholders": event_data.get(
+                        "involves_external_stakeholders", False
+                    ),
+                    "importance_contexts": importance_contexts,
+                }
+
                 metadata = create_notification_metadata(
                     notification_id=uuid7str(),
                     user_id=user_id,
                     title_keywords=title.split(),
                     content_keywords=content.split(),
-                    importance_contexts=importance_contexts,
-                    workflow_id=workflow_id,
-                    **event_data,
+                    **metadata_kwargs,
                 )
 
                 if self.priority_manager:
                     priority_score = await self.priority_manager.calculate_priority(
                         metadata
                     )
-                    final_priority = Priority(priority_score.final_priority.value)
+                    if priority_score.final_priority == PriorityLevel.VERY_LOW:
+                        final_priority = Priority.LOW
+                    else:
+                        final_priority = Priority(priority_score.final_priority.value)
                 else:
                     final_priority = Priority.MEDIUM
 
@@ -729,6 +744,7 @@ class WorkflowNotificationIntegration:
                             "user_id": user_id,
                         }
                     )
+                    notification_ids.append(message.id)
                 else:
                     if self.notification_delivery:
                         notification_id = (

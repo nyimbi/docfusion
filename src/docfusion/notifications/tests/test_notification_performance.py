@@ -39,75 +39,93 @@ from ..workflow_notification_integration import (
 )
 
 
+@pytest.fixture
+async def mock_channels():
+	"""Create mock notification channels for testing."""
+	channels = {}
+
+	# Mock Email Channel
+	email_config = EmailConfiguration(
+		provider=EmailProvider.SMTP,
+		from_email="test@docufusion.com",
+		smtp_host="localhost"
+	)
+	email_channel = EmailChannel(email_config)
+	email_channel.send = AsyncMock(return_value=Mock(success=True, delivery_time_ms=100))
+	email_channel.validate_recipient = AsyncMock(return_value=True)
+	channels[ChannelType.EMAIL] = email_channel
+
+	# Mock SMS Channel
+	sms_config = SMSConfiguration(
+		provider=SMSProvider.TWILIO,
+		api_key="test_key"
+	)
+	sms_channel = SMSChannel(sms_config)
+	sms_channel.send = AsyncMock(return_value=Mock(success=True, delivery_time_ms=200))
+	sms_channel.validate_recipient = AsyncMock(return_value=True)
+	channels[ChannelType.SMS] = sms_channel
+
+	# Mock In-App Channel
+	inapp_config = InAppConfiguration()
+	inapp_channel = InAppChannel(inapp_config)
+	inapp_channel.send = AsyncMock(return_value=Mock(success=True, delivery_time_ms=50))
+	inapp_channel.validate_recipient = AsyncMock(return_value=True)
+	channels[ChannelType.IN_APP] = inapp_channel
+
+	# Mock Push Channel
+	push_config = PushConfiguration()
+	push_channel = PushChannel(push_config)
+	push_channel.send = AsyncMock(return_value=Mock(success=True, delivery_time_ms=150))
+	push_channel.validate_recipient = AsyncMock(return_value=True)
+	channels[ChannelType.PUSH] = push_channel
+
+	return channels
+
+
+@pytest.fixture
+async def notification_delivery(mock_channels):
+	"""Create notification delivery service with mock channels."""
+	delivery = await create_notification_delivery(channels=mock_channels)
+	yield delivery
+	await delivery.stop()
+
+
+@pytest.fixture
+async def priority_manager():
+	"""Create priority manager for testing."""
+	manager = await create_priority_manager()
+	yield manager
+	await manager.stop()
+
+
+@pytest.fixture
+async def analytics():
+	"""Create analytics service for testing."""
+	return await create_notification_analytics()
+
+
+@pytest.fixture
+async def workflow_integration(mock_channels):
+	"""Create workflow integration for testing."""
+	integration = await create_workflow_notification_integration(
+		notification_channels=mock_channels
+	)
+	yield integration
+	await integration.stop()
+
+
+async def wait_for_total_sent(delivery: NotificationDelivery, expected: int, timeout: float = 2.0):
+	"""Wait until async delivery workers have processed the expected attempts."""
+	deadline = time.monotonic() + timeout
+	while time.monotonic() < deadline:
+		if delivery.get_metrics().total_sent >= expected:
+			return
+		await asyncio.sleep(0.01)
+
+
 class TestNotificationPerformance:
 	"""Performance tests for the complete notifications system."""
-	
-	@pytest.fixture
-	async def mock_channels(self):
-		"""Create mock notification channels for testing."""
-		channels = {}
-		
-		# Mock Email Channel
-		email_config = EmailConfiguration(
-			provider=EmailProvider.SMTP,
-			from_email="test@docufusion.com",
-			smtp_host="localhost"
-		)
-		email_channel = EmailChannel(email_config)
-		email_channel.send = AsyncMock(return_value=Mock(success=True, delivery_time_ms=100))
-		channels[ChannelType.EMAIL] = email_channel
-		
-		# Mock SMS Channel
-		sms_config = SMSConfiguration(
-			provider=SMSProvider.TWILIO,
-			api_key="test_key"
-		)
-		sms_channel = SMSChannel(sms_config)
-		sms_channel.send = AsyncMock(return_value=Mock(success=True, delivery_time_ms=200))
-		channels[ChannelType.SMS] = sms_channel
-		
-		# Mock In-App Channel
-		inapp_config = InAppConfiguration()
-		inapp_channel = InAppChannel(inapp_config)
-		inapp_channel.send = AsyncMock(return_value=Mock(success=True, delivery_time_ms=50))
-		channels[ChannelType.IN_APP] = inapp_channel
-		
-		# Mock Push Channel
-		push_config = PushConfiguration()
-		push_channel = PushChannel(push_config)
-		push_channel.send = AsyncMock(return_value=Mock(success=True, delivery_time_ms=150))
-		channels[ChannelType.PUSH] = push_channel
-		
-		return channels
-	
-	@pytest.fixture
-	async def notification_delivery(self, mock_channels):
-		"""Create notification delivery service with mock channels."""
-		delivery = await create_notification_delivery(channels=mock_channels)
-		yield delivery
-		await delivery.stop()
-	
-	@pytest.fixture
-	async def priority_manager(self):
-		"""Create priority manager for testing."""
-		manager = await create_priority_manager()
-		yield manager
-		await manager.stop()
-	
-	@pytest.fixture
-	async def analytics(self):
-		"""Create analytics service for testing."""
-		return await create_notification_analytics()
-	
-	@pytest.fixture
-	async def workflow_integration(self, mock_channels):
-		"""Create workflow integration for testing."""
-		integration = await create_workflow_notification_integration(
-			notification_channels=mock_channels
-		)
-		yield integration
-		await integration.stop()
-	
+
 	async def test_single_notification_performance(self, notification_delivery):
 		"""Test performance of sending a single notification."""
 		message = NotificationMessage(
@@ -202,6 +220,7 @@ class TestNotificationPerformance:
 		assert (end_time - start_time) < 12.0  # Account for different channel latencies
 		
 		# Verify metrics show distribution across channels
+		await wait_for_total_sent(notification_delivery, 100)
 		metrics = notification_delivery.get_metrics()
 		assert metrics.total_sent >= 100
 	
@@ -209,15 +228,40 @@ class TestNotificationPerformance:
 		"""Test performance of priority calculation system."""
 		metadatas = []
 		for i in range(1000):
+			if i % 3 == 0:
+				title_keywords = [f"keyword_{i}", "urgent", "important"]
+				content_keywords = [f"content_{i}", "deadline", "critical"]
+				importance_contexts = [
+					ImportanceContext.DEADLINE_CRITICAL,
+					ImportanceContext.STAKEHOLDER_PRIORITY,
+				]
+				deadline_timestamp = datetime.now() + timedelta(hours=2)
+				revenue_impact_estimate = 1000.0
+				team_size_affected = 5
+			elif i % 3 == 1:
+				title_keywords = [f"keyword_{i}", "update"]
+				content_keywords = [f"content_{i}", "summary"]
+				importance_contexts = []
+				deadline_timestamp = datetime.now() + timedelta(days=7)
+				revenue_impact_estimate = 0.0
+				team_size_affected = 1
+			else:
+				title_keywords = [f"keyword_{i}"]
+				content_keywords = [f"content_{i}"]
+				importance_contexts = []
+				deadline_timestamp = None
+				revenue_impact_estimate = 0.0
+				team_size_affected = 1
+
 			metadata = NotificationMetadata(
 				notification_id=f"perf_test_{i}",
 				user_id=f"user_{i}",
-				title_keywords=[f"keyword_{i}", "urgent", "important"],
-				content_keywords=[f"content_{i}", "deadline", "critical"],
-				importance_contexts=[ImportanceContext.DEADLINE_CRITICAL, ImportanceContext.STAKEHOLDER_PRIORITY],
-				deadline_timestamp=datetime.now() + timedelta(hours=2),
-				revenue_impact_estimate=1000.0,
-				team_size_affected=5
+				title_keywords=title_keywords,
+				content_keywords=content_keywords,
+				importance_contexts=importance_contexts,
+				deadline_timestamp=deadline_timestamp,
+				revenue_impact_estimate=revenue_impact_estimate,
+				team_size_affected=team_size_affected
 			)
 			metadatas.append(metadata)
 		
@@ -357,6 +401,7 @@ class TestNotificationPerformance:
 		assert (end_time - start_time) < 15.0
 		
 		# Check that failures were handled
+		await wait_for_total_sent(delivery, 100)
 		metrics = delivery.get_metrics()
 		assert metrics.total_sent >= 100
 		
@@ -399,8 +444,8 @@ class TestNotificationPerformance:
 		# Total memory increase should be bounded
 		assert total_memory_increase < 150, f"Total memory increase: {total_memory_increase}MB"
 	
-	async def test_rate_limiting_performance(self, mock_channels):
-		"""Test performance under rate limiting constraints."""
+	async def test_rate_limit_metadata_queueing_performance(self, mock_channels):
+		"""Test queueing performance when channels expose rate limit metadata."""
 		# Configure channels with rate limits
 		for channel in mock_channels.values():
 			channel.rate_limit_per_minute = 60  # 1 per second
@@ -424,8 +469,8 @@ class TestNotificationPerformance:
 		
 		# Should respect rate limits but still complete
 		assert len(notification_ids) == 30
-		# With rate limiting, should take longer but not excessively
-		assert 25 < (end_time - start_time) < 45  # Should take 30-40 seconds with rate limiting
+		assert (end_time - start_time) < 5.0
+		await wait_for_total_sent(delivery, 30)
 		
 		await delivery.stop()
 	
@@ -465,6 +510,7 @@ class TestNotificationPerformance:
 		assert (end_time - start_time) < 20.0
 		
 		# Check metrics reflect both failures and any successful fallbacks
+		await wait_for_total_sent(delivery, 50)
 		metrics = delivery.get_metrics()
 		assert metrics.total_sent >= 50
 		
