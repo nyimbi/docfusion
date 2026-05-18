@@ -9,12 +9,10 @@ scheduling, deadline-driven optimization, and schedule conflict resolution.
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Callable, Tuple
-from concurrent.futures import ThreadPoolExecutor
 import heapq
-import json
 
 from pydantic import BaseModel, Field, ConfigDict
 from ...core.utils import uuid7str
