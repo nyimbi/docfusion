@@ -6,17 +6,15 @@ Implements GDPR (General Data Protection Regulation) compliance features
 including data export, deletion, consent management, and privacy controls.
 """
 
-import asyncio
-import io
 import json
 import logging
 import tempfile
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 from ...core.utils import uuid7str
