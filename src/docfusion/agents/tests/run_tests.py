@@ -11,9 +11,7 @@ Copyright (c) 2025
 import sys
 import logging
 logger = logging.getLogger(__name__)
-import os
 import pytest
-import asyncio
 from pathlib import Path
 
 # Add the agents directory to Python path

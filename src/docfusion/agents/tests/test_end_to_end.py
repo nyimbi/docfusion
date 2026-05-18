@@ -21,10 +21,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Import all major system components
-from core.agent import Agent, AgentConfig
+from core.agent import AgentConfig
 from specialists.research_agent import ResearchAgent
 from specialists.writer_agent import WriterAgent
-from specialists.reviewer_agent import ReviewerAgent
 from specialists.quality_agent import QualityAgent
 from orchestration.crew_manager import AgentCrew, CrewConfig, CrewTask
 from orchestration.swarm_manager import AgentSwarm, SwarmConfig, SwarmTask

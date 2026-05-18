@@ -10,8 +10,6 @@ Copyright (c) 2025
 """
 
 import pytest
-import asyncio
-from datetime import datetime
 from unittest.mock import Mock, AsyncMock
 
 import sys
@@ -21,7 +19,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from orchestration.crew_manager import AgentCrew, CrewConfig, CrewTask, TaskPriority
 from orchestration.swarm_manager import AgentSwarm, SwarmConfig, SwarmTask
 from orchestration.task_orchestrator import TaskOrchestrator, WorkflowEngine, WorkflowDefinition, TaskType, ExecutionMode
-from core.agent import AgentConfig
 
 
 class TestCrewManagement:

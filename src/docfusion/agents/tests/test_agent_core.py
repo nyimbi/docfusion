@@ -10,17 +10,15 @@ Copyright (c) 2025
 """
 
 import pytest
-import asyncio
-from datetime import datetime
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock
 
 # Import test utilities
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from core.agent import Agent, AgentConfig, AgentState, AgentMetrics, AgentGoal
-from core.roles import AgentRole, get_role_definition, CapabilityDefinition, RoleDefinition
+from core.agent import Agent, AgentConfig, AgentState, AgentMetrics
+from core.roles import AgentRole, get_role_definition
 from core.messages import AgentMessage, MessageType, MessageHeader, MessagePayload, MessageBuilder
 from specialists.research_agent import ResearchAgent
 from specialists.writer_agent import WriterAgent

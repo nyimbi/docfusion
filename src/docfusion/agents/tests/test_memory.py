@@ -10,17 +10,15 @@ Copyright (c) 2025
 
 import pytest
 import asyncio
-from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock
 
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from memory.memory_manager import MemoryManager, MemoryConfig, MemoryType, MemoryScope, MemoryPriority
-from memory.context_manager import ContextManager, ContextScope, SharedContext
+from memory.memory_manager import MemoryManager, MemoryConfig, MemoryType, MemoryScope
+from memory.context_manager import ContextManager, ContextScope
 from memory.knowledge_base import KnowledgeBase, KnowledgeEntry, KnowledgeType
-from memory.learning_system import LearningSystem, ExperienceRecord, LearningType
+from memory.learning_system import LearningSystem
 
 
 class TestMemoryManager:

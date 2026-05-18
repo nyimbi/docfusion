@@ -11,16 +11,14 @@ Copyright (c) 2025
 
 import pytest
 import asyncio
-from datetime import datetime
-from unittest.mock import Mock, AsyncMock
 
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from communication.message_bus import MessageBus, MessageBusConfig, CommunicationProtocol
+from communication.message_bus import MessageBus, MessageBusConfig
 from communication.channels import DirectChannel, BroadcastChannel, AgentChannel, ChannelConfig, ChannelType
-from core.messages import AgentMessage, MessageType, MessageHeader, MessagePayload, MessageBuilder
+from core.messages import MessageType, MessageBuilder
 
 
 class TestMessageBus:
