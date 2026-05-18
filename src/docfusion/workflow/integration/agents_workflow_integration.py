@@ -16,23 +16,22 @@ This module provides:
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Union, Callable
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
+from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
-from uuid import uuid4
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict
 
 # Import workflow components
-from ..coordination.task_coordinator import TaskCoordinator, TaskAssignment, TaskProgress
-from ..coordination.deadline_manager import DeadlineManager, WorkflowDeadline
-from ..monitoring.workflow_monitor import WorkflowMonitor, WorkflowMetrics
+from ..coordination.task_coordinator import TaskCoordinator, TaskAssignment
+from ..coordination.deadline_manager import DeadlineManager
+from ..monitoring.workflow_monitor import WorkflowMonitor
 
 # Import agent system components
-from ...agents.core.agent import Agent, AgentState, AgentConfig, AgentMetrics, AgentCapabilities
-from ...agents.orchestration.task_orchestrator import TaskOrchestrator, WorkflowDefinition, WorkflowExecution
-from ...agents.orchestration.crew_manager import AgentCrew, CrewTask, CrewConfiguration
-from ...agents.orchestration.swarm_manager import AgentSwarm, SwarmTask, SwarmConfiguration
+from ...agents.core.agent import Agent, AgentState, AgentConfig, AgentCapabilities
+from ...agents.orchestration.task_orchestrator import TaskOrchestrator
+from ...agents.orchestration.crew_manager import AgentCrew, CrewConfig
+from ...agents.orchestration.swarm_manager import AgentSwarm
 from ...agents.specialists.writer_agent import WriterAgent
 from ...agents.specialists.research_agent import ResearchAgent
 from ...agents.specialists.quality_agent import QualityAgent
@@ -377,9 +376,7 @@ class AgentsWorkflowIntegration:
 		try:
 			# Analyze workflow requirements
 			required_roles = workflow_requirements.get('required_roles', [])
-			task_types = workflow_requirements.get('task_types', [])
 			priority = workflow_requirements.get('priority', 0.5)
-			deadline = workflow_requirements.get('deadline')
 			
 			# Find suitable agents for each required role
 			for role_str in required_roles:
@@ -437,12 +434,12 @@ class AgentsWorkflowIntegration:
 				return None
 			
 			# Create crew configuration
-			crew_config = CrewConfiguration(
-				crew_name=f"Workflow_Crew_{workflow_id[:8]}",
+			crew_config = CrewConfig(
+				name=f"Workflow_Crew_{workflow_id[:8]}",
 				description=f"Agent crew for workflow {workflow_id}",
-				max_agents=len(workflow_assignments),
-				collaboration_pattern=crew_configuration.get('collaboration_pattern', 'hierarchical'),
-				decision_making=crew_configuration.get('decision_making', 'consensus'),
+				required_roles=[assignment.role.value for assignment in workflow_assignments],
+				max_agents=max(2, min(len(workflow_assignments), 20)),
+				collaboration_mode=crew_configuration.get('collaboration_pattern', 'hierarchical'),
 				quality_threshold=crew_configuration.get('quality_threshold', 0.8)
 			)
 			
@@ -572,7 +569,7 @@ class AgentsWorkflowIntegration:
 			self.logger.error(f"Failed to coordinate agent tasks: {e}")
 			return task_assignments
 	
-	async def monitor_agent_task_progress(self, workflow_id: str) -> Dict[str, TaskProgress]:
+	async def monitor_agent_task_progress(self, workflow_id: str) -> Dict[str, Any]:
 		"""Monitor progress of agent tasks within workflow"""
 		try:
 			task_progress = {}
@@ -647,7 +644,6 @@ class AgentsWorkflowIntegration:
 			}
 			
 			# Get current assignments and performance
-			assignments = self.workflow_assignments.get(workflow_id, [])
 			current_performance = await self.get_agent_workflow_performance(workflow_id=workflow_id)
 			
 			# Analyze performance bottlenecks
