@@ -18,42 +18,26 @@ Key Features:
 import asyncio
 import json
 import logging
-from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import HTTPException, Request, Response
+from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-from ...api.serializers.document_serializers import (
-    DocumentCreateRequest,
-    DocumentResponse,
-)
-
-# Import document engine components
-from ...document_engine.document_engine import (
-    DocumentGenerationRequest,
-    DocumentGenerationResult,
-)
-
 # Import workflow integration components
 from .workflow_document_bridge import (
     DocumentWorkflowEvent,
     WorkflowDocumentBridge,
-    WorkflowDocumentConfiguration,
-    WorkflowProgress,
 )
 from ...core.utils import uuid7str
 import time
 from .workflow_request_extensions import (
     TeamRole,
-    WorkflowConfiguration,
     WorkflowEnabledDocumentRequest,
     WorkflowIntegrationLevel,
-    WorkflowTemplateManager,
     create_workflow_request_builder,
     template_manager,
 )
@@ -923,7 +907,6 @@ def add_workflow_middleware_to_app(
             workflow_bridge: The workflow document bridge
             config: Optional middleware configuration
     """
-    middleware = WorkflowMiddleware(app, workflow_bridge, config)
     app.add_middleware(
         WorkflowMiddleware, workflow_bridge=workflow_bridge, config=config
     )
