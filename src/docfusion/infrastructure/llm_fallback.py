@@ -689,7 +689,7 @@ class LLMFallbackChain:
 			# Record success after complete stream
 			self._record_success(provider.name, start_time)
 
-		except Exception as e:
+		except Exception:
 			self._record_failure(provider.name, start_time)
 			raise
 

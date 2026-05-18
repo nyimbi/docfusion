@@ -21,7 +21,7 @@ Usage:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Dict, Optional, Type, TypeVar
 
@@ -37,8 +37,6 @@ TEMPORAL_TASK_QUEUE = SecretsManager.get_temporal_task_queue()
 # Try to import temporal client
 try:
     from temporalio.client import Client, WorkflowHandle
-    from temporalio.common import RetryPolicy
-    from temporalio.workflow import workflow_method
     TEMPORAL_AVAILABLE = True
 except ImportError:
     TEMPORAL_AVAILABLE = False
