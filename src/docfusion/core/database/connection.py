@@ -15,7 +15,6 @@ import asyncpg
 from sqlalchemy import create_engine, Engine, event, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncSession
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import QueuePool
 
 from .config import DatabaseConfig, get_database_config
 

@@ -7,7 +7,7 @@ DocuFusion components with support for different environments and connection poo
 
 import os
 from typing import Optional, Dict, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from urllib.parse import urlparse
 import logging

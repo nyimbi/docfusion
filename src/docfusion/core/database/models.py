@@ -6,9 +6,9 @@ Provides base entities with timestamps, UUIDs, and common fields.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text, func
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.hybrid import hybrid_property

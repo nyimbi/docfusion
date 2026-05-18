@@ -8,7 +8,7 @@ allowing fine-grained control over model selection, parameters, and resource all
 
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -18,7 +18,6 @@ try:
 except ImportError:
 	yaml = None
 
-from ..core.utils import uuid7str
 
 logger = logging.getLogger(__name__)
 
