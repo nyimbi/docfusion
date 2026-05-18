@@ -7,18 +7,13 @@ for managing user devices accessing the system. Integrates with WebAuthn
 for device-based authentication and provides comprehensive device security.
 """
 
-import asyncio
 import hashlib
 import ipaddress
-import json
 import logging
-import secrets
-import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set
 
 from pydantic import BaseModel, Field, field_validator
 from ...core.utils import uuid7str
@@ -775,9 +770,6 @@ class DeviceManager:
             # Check for private/internal IPs (generally less risky)
             if ip.is_private:
                 return False
-
-            # Check for known suspicious ranges (simplified)
-            suspicious_ranges = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
 
             return False  # Simplified - always return False for now
 

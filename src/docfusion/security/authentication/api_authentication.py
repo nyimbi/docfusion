@@ -6,16 +6,14 @@ Provides secure API authentication with API key management, JWT token handling,
 rate limiting, and API security features.
 """
 
-import asyncio
 import hashlib
-import hmac
 import logging
 import secrets
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 # JWT handling
 import jwt
@@ -221,8 +219,6 @@ class APIAuthentication:
         method: Optional[str] = None,
     ) -> APIKeyResult:
         """Authenticate API request using API key"""
-        start_time = time.time()
-
         try:
             # Hash the provided key for lookup
             key_hash = self._hash_api_key(api_key)

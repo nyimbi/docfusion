@@ -6,10 +6,7 @@ Provides secure user authentication with password hashing, JWT tokens,
 multi-factor authentication, and account security features.
 """
 
-import asyncio
 import base64
-import hashlib
-import hmac
 import logging
 import secrets
 import time
@@ -17,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from io import BytesIO
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 # Password hashing with bcrypt
 import bcrypt
@@ -29,7 +26,7 @@ import qrcode
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 # Pydantic models
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
 
 class AuthenticationStatus(Enum):
@@ -222,8 +219,6 @@ class UserAuthentication:
 
     async def authenticate(self, credentials: UserCredentials) -> AuthenticationResult:
         """Authenticate user with comprehensive security checks"""
-        start_time = time.time()
-
         try:
             # Rate limiting check
             if not self._check_rate_limit(credentials.ip_address):

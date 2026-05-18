@@ -6,25 +6,16 @@ Implements WebAuthn (Web Authentication) and FIDO2 protocols for passwordless
 authentication using hardware security keys, biometrics, and platform authenticators.
 """
 
-import asyncio
-import base64
 import hashlib
 import secrets
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from enum import Enum
 import logging
 
 try:
-	from fido2.webauthn import PublicKeyCredentialRpEntity, PublicKeyCredentialUserEntity
-	from fido2.webauthn import PublicKeyCredentialParameters, PublicKeyCredentialCreationOptions
-	from fido2.webauthn import PublicKeyCredentialRequestOptions, AuthenticatorSelectionCriteria
-	from fido2.webauthn import UserVerificationRequirement, AuthenticatorAttachment
-	from fido2.webauthn import AttestationConveyancePreference, ResidentKeyRequirement
-	from fido2.client import ClientData
-	from fido2.ctap2.attestation import AttestationStatement
 	from fido2.utils import websafe_decode, websafe_encode
 	from fido2 import cbor
 	HAS_FIDO2 = True
@@ -403,8 +394,6 @@ class WebAuthnAuthentication:
 			# Parse attestation object
 			attestation = cbor.decode(attestation_obj)
 			auth_data = attestation["authData"]
-			fmt = attestation["fmt"]
-			att_stmt = attestation["attStmt"]
 			
 			# Parse authenticator data
 			rp_id_hash = auth_data[:32]
@@ -889,7 +878,7 @@ class WebAuthnAuthentication:
 			
 			# Create signed data (authenticator data + client data hash)
 			client_data_hash = hashlib.sha256(client_data_json).digest()
-			signed_data = auth_data + client_data_hash
+			_signed_data = auth_data + client_data_hash
 			
 			# For now, return True as signature verification would require
 			# proper COSE key parsing and cryptographic signature verification

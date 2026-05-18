@@ -6,13 +6,10 @@ Implements SAML 2.0 Single Sign-On (SSO) for enterprise authentication
 with support for multiple identity providers and advanced security features.
 """
 
-import asyncio
 import base64
-import hashlib
+import importlib.util
 import logging
-import secrets
-import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 # Security: use defusedxml to prevent XXE attacks when available
 try:
@@ -31,14 +28,14 @@ import zlib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import urlencode
 
 try:
-    import xmlsec
-    from lxml import etree
-
-    HAS_XMLSEC = True
-except ImportError:
+    HAS_XMLSEC = (
+        importlib.util.find_spec("xmlsec") is not None
+        and importlib.util.find_spec("lxml") is not None
+    )
+except ValueError:
     HAS_XMLSEC = False
 
 from pydantic import BaseModel, Field

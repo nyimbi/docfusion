@@ -6,20 +6,17 @@ Implements OAuth 2.0 authentication with support for multiple providers
 (Google, Microsoft, GitHub) including token management and security validation.
 """
 
-import asyncio
 import base64
 import hashlib
 import logging
 import secrets
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
-from urllib.parse import parse_qs, urlencode, urlparse
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlencode
 
 import aiohttp
-import jwt
 from pydantic import BaseModel, Field
 from ...config.secrets import SecretsManager
 from ...core.utils import uuid7str
