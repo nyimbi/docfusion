@@ -15,7 +15,7 @@ import { db } from "@/lib/db";
 import { documentApprovals, workflowAssignments } from "@/lib/db/schema-comments-workflow";
 import { documents, proposalDocuments } from "@/lib/db/schema";
 import { user } from "@/lib/db/auth-schema";
-import { eq, and, desc, asc, sql, inArray, gte, lt } from "drizzle-orm";
+import { eq, and, or, desc, asc, sql, inArray, gte, lt, type SQL } from "drizzle-orm";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import type {
@@ -44,6 +44,59 @@ async function requireCurrentUserId(): Promise<string> {
 		throw new Error("Unauthorized");
 	}
 	return userId;
+}
+
+function ownedDocumentCondition(documentId: string, userId: string): SQL {
+	return sql`documents.id = ${documentId} and documents.owner_id = ${userId}`;
+}
+
+function ownedDocumentExistsSql(documentId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and documents.owner_id = ${userId}
+	)`;
+}
+
+function visibleApprovalRowsCondition(userId: string): SQL {
+	return or(
+		eq(documentApprovals.assignedTo, userId),
+		ownedDocumentExistsSql(documentApprovals.documentId, userId)
+	)!;
+}
+
+function visibleApprovalCondition(id: string, userId: string): SQL {
+	return and(
+		eq(documentApprovals.id, id),
+		visibleApprovalRowsCondition(userId)
+	)!;
+}
+
+function ownedApprovalCondition(id: string, userId: string): SQL {
+	return and(
+		eq(documentApprovals.id, id),
+		ownedDocumentExistsSql(documentApprovals.documentId, userId)
+	)!;
+}
+
+function visibleWorkflowAssignmentsForDocumentCondition(documentId: string, userId: string): SQL {
+	return and(
+		eq(workflowAssignments.documentId, documentId),
+		ownedDocumentExistsSql(documentId, userId)
+	)!;
+}
+
+async function assertOwnedDocument(documentId: string, userId: string): Promise<void> {
+	const [document] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(ownedDocumentCondition(documentId, userId))
+		.limit(1);
+
+	if (!document) {
+		throw new Error("Document not found");
+	}
 }
 
 // ============================================================================
@@ -199,8 +252,8 @@ function mapDocumentApproval(row: typeof documentApprovals.$inferSelect): Docume
 /**
  * Build where clause for approval filters.
  */
-function buildApprovalWhereClause(filters: ApprovalFilters) {
-	const conditions = [];
+function buildApprovalWhereClause(filters: ApprovalFilters, actorId: string) {
+	const conditions = [visibleApprovalRowsCondition(actorId)];
 
 	if (filters.documentId) {
 		conditions.push(eq(documentApprovals.documentId, filters.documentId));
@@ -232,11 +285,11 @@ function buildApprovalWhereClause(filters: ApprovalFilters) {
 			and(
 				sql`${documentApprovals.dueDate} < ${now}`,
 				sql`${documentApprovals.completedAt} IS NULL`
-			)
+			)!
 		);
 	}
 
-	return conditions.length > 0 ? and(...conditions) : undefined;
+	return and(...conditions)!;
 }
 
 /**
@@ -257,12 +310,12 @@ function calculateUrgency(daysRemaining: number): DeadlineUrgency {
  * Get a single approval by ID.
  */
 export async function getApproval(id: string): Promise<DocumentApproval | null> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const [row] = await db
 		.select()
 		.from(documentApprovals)
-		.where(eq(documentApprovals.id, id))
+		.where(visibleApprovalCondition(id, userId))
 		.limit(1);
 
 	if (!row) return null;
@@ -276,9 +329,9 @@ export async function getApprovals(
 	filters: ApprovalFilters = {},
 	options: { limit?: number; offset?: number; orderBy?: "asc" | "desc" } = {}
 ): Promise<{ approvals: DocumentApproval[]; total: number }> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
-	const whereClause = buildApprovalWhereClause(filters);
+	const whereClause = buildApprovalWhereClause(filters, userId);
 
 	// Get total count
 	const countResult = await db
@@ -334,7 +387,7 @@ export async function getOverdueApprovals(
  * Create a new approval workflow entry.
  */
 export async function createApproval(input: CreateApprovalInput): Promise<DocumentApproval> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const {
 		documentId,
@@ -345,6 +398,8 @@ export async function createApproval(input: CreateApprovalInput): Promise<Docume
 		sequenceOrder = 0,
 		dueDate,
 	} = input;
+
+	await assertOwnedDocument(documentId, userId);
 
 	const [approval] = await db
 		.insert(documentApprovals)
@@ -385,7 +440,7 @@ export async function submitReview(
 	const [existing] = await db
 		.select()
 		.from(documentApprovals)
-		.where(eq(documentApprovals.id, approvalId))
+		.where(visibleApprovalCondition(approvalId, userId))
 		.limit(1);
 
 	if (!existing) {
@@ -411,7 +466,10 @@ export async function submitReview(
 	const [updated] = await db
 		.update(documentApprovals)
 		.set(updateData)
-		.where(eq(documentApprovals.id, approvalId))
+		.where(and(
+			eq(documentApprovals.id, approvalId),
+			eq(documentApprovals.assignedTo, userId)
+		))
 		.returning();
 
 	// If approved, advance to next stage
@@ -439,7 +497,7 @@ export async function updateApproval(
 	id: string,
 	input: UpdateApprovalInput
 ): Promise<DocumentApproval> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const updateData: Partial<typeof documentApprovals.$inferInsert> = {
 		updatedAt: new Date(),
@@ -457,7 +515,7 @@ export async function updateApproval(
 	const [updated] = await db
 		.update(documentApprovals)
 		.set(updateData)
-		.where(eq(documentApprovals.id, id))
+		.where(ownedApprovalCondition(id, userId))
 		.returning();
 
 	if (!updated) {
@@ -471,9 +529,9 @@ export async function updateApproval(
  * Delete an approval record.
  */
 export async function deleteApproval(id: string): Promise<void> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
-	await db.delete(documentApprovals).where(eq(documentApprovals.id, id));
+	await db.delete(documentApprovals).where(ownedApprovalCondition(id, userId));
 }
 
 // ============================================================================
@@ -495,7 +553,7 @@ export async function initializeWorkflow(
 		stageFlow?: WorkflowStage[];
 	} = {}
 ): Promise<WorkflowStatus> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const {
 		proposalDocumentId,
@@ -505,11 +563,13 @@ export async function initializeWorkflow(
 		stageFlow = ["writer", "reviewer", "approver"],
 	} = options;
 
+	await assertOwnedDocument(documentId, userId);
+
 	// Get existing assignments
 	const assignments = await db
 		.select()
 		.from(workflowAssignments)
-		.where(eq(workflowAssignments.documentId, documentId))
+		.where(visibleWorkflowAssignmentsForDocumentCondition(documentId, userId))
 		.orderBy(asc(workflowAssignments.sequenceOrder));
 
 	// Create approvals from assignments or use provided options
@@ -563,7 +623,7 @@ export async function initializeWorkflow(
  * Get the current workflow status for a document.
  */
 export async function getWorkflowStatus(documentId: string): Promise<WorkflowStatus> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const approvals = await getApprovals({ documentId });
 
@@ -571,13 +631,13 @@ export async function getWorkflowStatus(documentId: string): Promise<WorkflowSta
 	const [doc] = await db
 		.select({ title: documents.title })
 		.from(documents)
-		.where(eq(documents.id, documentId))
+		.where(ownedDocumentCondition(documentId, userId))
 		.limit(1);
 
 	const assignments = await db
 		.select()
 		.from(workflowAssignments)
-		.where(eq(workflowAssignments.documentId, documentId));
+		.where(visibleWorkflowAssignmentsForDocumentCondition(documentId, userId));
 
 	// Build stage statuses
 	const stages: WorkflowStage[] = ["writer", "reviewer", "approver"];
@@ -719,7 +779,10 @@ export async function getUpcomingDeadlines(
 	userId: string,
 	days: number = 30
 ): Promise<DeadlineSummary> {
-	await requireCurrentUserId();
+	const actorId = await requireCurrentUserId();
+	if (userId !== actorId) {
+		throw new Error("Unauthorized");
+	}
 
 	const now = new Date();
 	const future = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
@@ -803,7 +866,7 @@ export async function updateApprovalDueDate(
 	id: string,
 	dueDate: Date | null
 ): Promise<DocumentApproval> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const [updated] = await db
 		.update(documentApprovals)
@@ -811,7 +874,7 @@ export async function updateApprovalDueDate(
 			dueDate,
 			updatedAt: new Date(),
 		})
-		.where(eq(documentApprovals.id, id))
+		.where(ownedApprovalCondition(id, userId))
 		.returning();
 
 	if (!updated) {
@@ -833,15 +896,20 @@ export async function reassignApprovals(
 	toUserId: string,
 	documentId?: string
 ): Promise<number> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	let whereClause = and(
 		eq(documentApprovals.assignedTo, fromUserId),
-		inArray(documentApprovals.status, ["pending", "in_review"])
+		inArray(documentApprovals.status, ["pending", "in_review"]),
+		ownedDocumentExistsSql(documentApprovals.documentId, userId)
 	);
 
 	if (documentId) {
-		whereClause = and(whereClause, eq(documentApprovals.documentId, documentId));
+		whereClause = and(
+			whereClause,
+			eq(documentApprovals.documentId, documentId),
+			ownedDocumentExistsSql(documentId, userId)
+		);
 	}
 
 	const result = await db
@@ -859,14 +927,15 @@ export async function reassignApprovals(
  * Cancel all pending approvals for a document.
  */
 export async function cancelWorkflow(documentId: string): Promise<number> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const result = await db
 		.delete(documentApprovals)
 		.where(
 			and(
 				eq(documentApprovals.documentId, documentId),
-				inArray(documentApprovals.status, ["pending", "in_review"])
+				inArray(documentApprovals.status, ["pending", "in_review"]),
+				ownedDocumentExistsSql(documentId, userId)
 			)
 		);
 
