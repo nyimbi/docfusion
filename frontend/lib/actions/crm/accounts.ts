@@ -47,6 +47,12 @@ async function requireCrmActor(): Promise<{ userId: string; userName: string | n
 	};
 }
 
+function assertCrmActorUser(actor: { userId: string }, userId?: string): void {
+	if (userId && userId !== actor.userId) {
+		throw new Error("Unauthorized");
+	}
+}
+
 // ============================================================================
 // CRUD OPERATIONS
 // ============================================================================
@@ -188,8 +194,9 @@ export async function deleteAccount(
  * Get a single account by ID.
  */
 export async function getAccount(id: string): Promise<AccountRow | null> {
+	const actor = await requireCrmActor();
 	const account = await db.query.accounts.findFirst({
-		where: eq(accounts.id, id),
+		where: and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)),
 	});
 	return account ?? null;
 }
@@ -201,11 +208,12 @@ export async function getAccount(id: string): Promise<AccountRow | null> {
 export async function getAccountWithRelations(
 	id: string
 ): Promise<AccountWithRelations | null> {
+	const actor = await requireCrmActor();
 	// Fetch account first
 	const [account] = await db
 		.select()
 		.from(accounts)
-		.where(eq(accounts.id, id))
+		.where(and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)))
 		.limit(1);
 
 	if (!account) return null;
@@ -302,7 +310,10 @@ export async function getAccounts(
 	sort?: SortConfig<AccountSortField>,
 	pagination?: Pagination
 ): Promise<PaginatedResponse<AccountRow>> {
+	const actor = await requireCrmActor();
+	assertCrmActorUser(actor, filters?.ownerId);
 	const conditions = buildAccountFilterConditions(filters);
+	conditions.push(eq(accounts.ownerId, actor.userId));
 
 	// Build order by clause
 	const sortColumn = sort
@@ -548,6 +559,7 @@ export async function convertProspectToLead(
 export async function getAccountStats(
 	type?: AccountType
 ): Promise<AccountStats[]> {
+	const actor = await requireCrmActor();
 	const types: AccountType[] = type
 		? [type]
 		: ["partner", "prospect", "lead", "customer", "vendor", "other"];
@@ -559,7 +571,7 @@ export async function getAccountStats(
 		const [{ total }] = await db
 			.select({ total: count() })
 			.from(accounts)
-			.where(eq(accounts.type, accountType));
+			.where(and(eq(accounts.type, accountType), eq(accounts.ownerId, actor.userId)));
 
 		// Get counts by status
 		const statusCounts = await db
@@ -568,7 +580,7 @@ export async function getAccountStats(
 				count: count(),
 			})
 			.from(accounts)
-			.where(eq(accounts.type, accountType))
+			.where(and(eq(accounts.type, accountType), eq(accounts.ownerId, actor.userId)))
 			.groupBy(accounts.status);
 
 		const byStatus: Record<string, number> = {};
@@ -583,7 +595,7 @@ export async function getAccountStats(
 				count: count(),
 			})
 			.from(accounts)
-			.where(eq(accounts.type, accountType))
+			.where(and(eq(accounts.type, accountType), eq(accounts.ownerId, actor.userId)))
 			.groupBy(accounts.stage);
 
 		const byStage: Record<string, number> = {};
@@ -598,7 +610,7 @@ export async function getAccountStats(
 				count: count(),
 			})
 			.from(accounts)
-			.where(and(eq(accounts.type, accountType), sql`${accounts.region} IS NOT NULL`))
+			.where(and(eq(accounts.type, accountType), eq(accounts.ownerId, actor.userId), sql`${accounts.region} IS NOT NULL`))
 			.groupBy(accounts.region);
 
 		const byRegion: Record<string, number> = {};
@@ -617,7 +629,7 @@ export async function getAccountStats(
 					avgLeadScore: sql<number>`AVG(${accounts.leadScore})`,
 				})
 				.from(accounts)
-				.where(eq(accounts.type, accountType));
+				.where(and(eq(accounts.type, accountType), eq(accounts.ownerId, actor.userId)));
 			avgLeadScore = scores.avgLeadScore;
 		}
 
@@ -627,7 +639,7 @@ export async function getAccountStats(
 					avgHealthScore: sql<number>`AVG(${accounts.customerHealthScore})`,
 				})
 				.from(accounts)
-				.where(eq(accounts.type, accountType));
+				.where(and(eq(accounts.type, accountType), eq(accounts.ownerId, actor.userId)));
 			avgHealthScore = scores.avgHealthScore;
 		}
 
@@ -637,7 +649,7 @@ export async function getAccountStats(
 					avgFitScore: sql<number>`AVG(${accounts.partnershipFitScore})`,
 				})
 				.from(accounts)
-				.where(eq(accounts.type, accountType));
+				.where(and(eq(accounts.type, accountType), eq(accounts.ownerId, actor.userId)));
 			avgFitScore = scores.avgFitScore;
 		}
 
@@ -662,7 +674,10 @@ export async function getAccountStats(
 export async function getAccountsByRegion(
 	type?: AccountType
 ): Promise<{ region: string; count: number; types: Record<string, number> }[]> {
-	const whereClause = type ? eq(accounts.type, type) : undefined;
+	const actor = await requireCrmActor();
+	const whereClause = type
+		? and(eq(accounts.type, type), eq(accounts.ownerId, actor.userId))
+		: eq(accounts.ownerId, actor.userId);
 
 	const results = await db
 		.select({
@@ -700,6 +715,7 @@ export async function getAccountsByRegion(
 export async function getPipelineMetrics(
 	type: AccountType
 ): Promise<PipelineMetrics> {
+	const actor = await requireCrmActor();
 	// Get counts by stage
 	const stageCounts = await db
 		.select({
@@ -707,7 +723,7 @@ export async function getPipelineMetrics(
 			count: count(),
 		})
 		.from(accounts)
-		.where(eq(accounts.type, type))
+		.where(and(eq(accounts.type, type), eq(accounts.ownerId, actor.userId)))
 		.groupBy(accounts.stage);
 
 	const total = stageCounts.reduce((sum, row) => sum + row.count, 0);
@@ -896,7 +912,11 @@ export async function searchAccounts(
 	type?: AccountType,
 	limit = 10
 ): Promise<Pick<AccountRow, "id" | "name" | "type" | "country" | "industry">[]> {
-	const conditions = [ilike(accounts.name, `%${query}%`)];
+	const actor = await requireCrmActor();
+	const conditions = [
+		ilike(accounts.name, `%${query}%`),
+		eq(accounts.ownerId, actor.userId),
+	];
 
 	if (type) {
 		conditions.push(eq(accounts.type, type));
@@ -924,20 +944,19 @@ export async function getAccountsNeedingFollowup(
 	type?: AccountType,
 	userId?: string
 ): Promise<AccountRow[]> {
+	const actor = await requireCrmActor();
+	assertCrmActorUser(actor, userId);
 	const cutoffDate = new Date();
 	cutoffDate.setDate(cutoffDate.getDate() - daysOverdue);
 
 	const conditions = [
 		lte(accounts.nextFollowUpDate, cutoffDate),
 		eq(accounts.status, "active"),
+		eq(accounts.ownerId, actor.userId),
 	];
 
 	if (type) {
 		conditions.push(eq(accounts.type, type));
-	}
-
-	if (userId) {
-		conditions.push(eq(accounts.ownerId, userId));
 	}
 
 	return db.query.accounts.findMany({

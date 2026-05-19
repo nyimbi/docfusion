@@ -45,6 +45,12 @@ async function requireCrmActor(): Promise<{ userId: string; userName: string | n
 	};
 }
 
+function assertCrmActorUser(actor: { userId: string }, userId?: string): void {
+	if (userId && userId !== actor.userId) {
+		throw new Error("Unauthorized");
+	}
+}
+
 // Default stage probabilities
 const STAGE_PROBABILITIES: Record<DealStage, number> = {
 	qualification: 10,
@@ -155,8 +161,9 @@ export async function deleteDeal(id: string): Promise<boolean> {
  * Get a single deal by ID.
  */
 export async function getDeal(id: string): Promise<DealRow | null> {
+	const actor = await requireCrmActor();
 	const deal = await db.query.deals.findFirst({
-		where: eq(deals.id, id),
+		where: and(eq(deals.id, id), eq(deals.ownerId, actor.userId)),
 	});
 	return deal ?? null;
 }
@@ -167,8 +174,9 @@ export async function getDeal(id: string): Promise<DealRow | null> {
 export async function getDealWithRelations(
 	id: string
 ): Promise<DealWithRelations | null> {
+	const actor = await requireCrmActor();
 	const deal = await db.query.deals.findFirst({
-		where: eq(deals.id, id),
+		where: and(eq(deals.id, id), eq(deals.ownerId, actor.userId)),
 		with: {
 			account: true,
 			primaryContact: true,
@@ -205,7 +213,10 @@ export async function getDeals(
 	filters?: DealFilters,
 	pagination?: Pagination
 ): Promise<PaginatedResponse<DealRow>> {
+	const actor = await requireCrmActor();
+	assertCrmActorUser(actor, filters?.ownerId);
 	const conditions = buildDealFilterConditions(filters);
+	conditions.push(eq(deals.ownerId, actor.userId));
 
 	// Get total count
 	const [{ total }] = await db
@@ -243,8 +254,9 @@ export async function getDeals(
  * Get all deals for a specific account.
  */
 export async function getAccountDeals(accountId: string): Promise<DealRow[]> {
+	const actor = await requireCrmActor();
 	return db.query.deals.findMany({
-		where: eq(deals.accountId, accountId),
+		where: and(eq(deals.accountId, accountId), eq(deals.ownerId, actor.userId)),
 		orderBy: [desc(deals.status), desc(deals.expectedCloseDate)],
 	});
 }
@@ -503,6 +515,7 @@ export async function reactivateDeal(
 export async function getDealPipelineValue(
 	pipelineId = "default"
 ): Promise<DealPipelineValue> {
+	const actor = await requireCrmActor();
 	const stages: DealStage[] = [
 		"qualification",
 		"discovery",
@@ -528,7 +541,8 @@ export async function getDealPipelineValue(
 				and(
 					eq(deals.pipelineId, pipelineId),
 					eq(deals.stage, stage),
-					eq(deals.status, "open")
+					eq(deals.status, "open"),
+					eq(deals.ownerId, actor.userId)
 				)
 			);
 
@@ -566,6 +580,7 @@ export async function getDealPipelineValue(
  * Get deal forecast for upcoming months.
  */
 export async function getDealForecast(months = 6): Promise<DealForecast[]> {
+	const actor = await requireCrmActor();
 	const forecast: DealForecast[] = [];
 	const now = new Date();
 
@@ -584,7 +599,8 @@ export async function getDealForecast(months = 6): Promise<DealForecast[]> {
 				and(
 					eq(deals.status, "open"),
 					gte(deals.expectedCloseDate, startDate),
-					lte(deals.expectedCloseDate, endDate)
+					lte(deals.expectedCloseDate, endDate),
+					eq(deals.ownerId, actor.userId)
 				)
 			);
 
@@ -608,7 +624,8 @@ export async function getWinLossAnalysis(
 	startDate?: Date,
 	endDate?: Date
 ): Promise<WinLossAnalysis> {
-	const conditions = [];
+	const actor = await requireCrmActor();
+	const conditions = [eq(deals.ownerId, actor.userId)];
 
 	if (startDate) {
 		conditions.push(gte(deals.actualCloseDate, startDate));
@@ -712,6 +729,8 @@ export async function getDealsClosingSoon(
 	days = 30,
 	userId?: string
 ): Promise<DealRow[]> {
+	const actor = await requireCrmActor();
+	assertCrmActorUser(actor, userId);
 	const now = new Date();
 	const futureDate = new Date();
 	futureDate.setDate(futureDate.getDate() + days);
@@ -720,11 +739,8 @@ export async function getDealsClosingSoon(
 		eq(deals.status, "open"),
 		gte(deals.expectedCloseDate, now),
 		lte(deals.expectedCloseDate, futureDate),
+		eq(deals.ownerId, actor.userId),
 	];
-
-	if (userId) {
-		conditions.push(eq(deals.ownerId, userId));
-	}
 
 	return db.query.deals.findMany({
 		where: and(...conditions),
@@ -737,16 +753,15 @@ export async function getDealsClosingSoon(
  * Get overdue deals (past expected close date).
  */
 export async function getOverdueDeals(userId?: string): Promise<DealRow[]> {
+	const actor = await requireCrmActor();
+	assertCrmActorUser(actor, userId);
 	const now = new Date();
 
 	const conditions = [
 		eq(deals.status, "open"),
 		lte(deals.expectedCloseDate, now),
+		eq(deals.ownerId, actor.userId),
 	];
-
-	if (userId) {
-		conditions.push(eq(deals.ownerId, userId));
-	}
 
 	return db.query.deals.findMany({
 		where: and(...conditions),
@@ -844,7 +859,11 @@ export async function searchDeals(
 	accountId?: string,
 	limit = 10
 ): Promise<Pick<DealRow, "id" | "name" | "value" | "stage" | "accountId">[]> {
-	const conditions = [ilike(deals.name, `%${query}%`)];
+	const actor = await requireCrmActor();
+	const conditions = [
+		ilike(deals.name, `%${query}%`),
+		eq(deals.ownerId, actor.userId),
+	];
 
 	if (accountId) {
 		conditions.push(eq(deals.accountId, accountId));
