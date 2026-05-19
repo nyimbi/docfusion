@@ -97,7 +97,7 @@ vi.mock("@/lib/db/schema-competitors", () => ({
 	discriminators: {
 		id: "d.id", statement: "d.stmt", discriminatorType: "d.type", isActive: "d.active",
 		effectiveAgainst: "d.against", effectivenessScore: "d.score", useCount: "d.useCount",
-		winCount: "d.winCount",
+		winCount: "d.winCount", organizationId: "d.orgId",
 	},
 	ghostThemes: {
 		id: "g.id", competitorId: "g.compId", useCount: "g.useCount",
@@ -106,7 +106,7 @@ vi.mock("@/lib/db/schema-competitors", () => ({
 		id: "co.id", competitorId: "co.compId", opportunityId: "co.oppId",
 	},
 	competitiveAnalyses: {
-		id: "ca.id", opportunityId: "ca.oppId",
+		id: "ca.id", opportunityId: "ca.oppId", analyzedAt: "ca.analyzedAt",
 	},
 }));
 
@@ -114,9 +114,9 @@ vi.mock("@/lib/db/schema", () => ({
 	opportunities: {
 		id: "o.id", title: "o.title", category: "o.cat", organization: "o.org",
 		countryRegion: "o.region", metadata: "o.meta", budgetValue: "o.budget",
-		keyRequirements: "o.reqs",
+		keyRequirements: "o.reqs", assignedTo: "o.assignedTo",
 	},
-	partners: { id: "p.id" },
+	partners: { id: "p.id", status: "p.status" },
 	companySettings: { id: "cs.id", organizationId: "cs.orgId" },
 }));
 
@@ -136,7 +136,12 @@ import {
 	createGhostTheme,
 	listGhostThemes,
 	addCompetitorToOpportunity,
+	identifyLikelyCompetitors,
+	listCompetitorsForOpportunity,
 	generateSWOT,
+	suggestDiscriminators,
+	generateCompetitiveMatrix,
+	getLatestCompetitiveAnalysis,
 } from "@/lib/actions/competitive";
 
 // ============================================================================
@@ -193,6 +198,43 @@ function makeDiscriminator(overrides: Record<string, unknown> = {}) {
 		updatedAt: new Date(),
 		...overrides,
 	};
+}
+
+function makeOpportunity(overrides: Record<string, unknown> = {}) {
+	return {
+		id: "00000000-0000-4000-8000-000000000002",
+		title: "GIS modernization",
+		category: "IT",
+		organization: "Agency",
+		countryRegion: "Kenya",
+		budgetValue: "$1M",
+		budgetNumeric: 1000000,
+		daysLeft: 30,
+		keyRequirements: "Implementation support",
+		technicalRequirements: "Cloud GIS",
+		metadata: { contractVehicle: "GSA" },
+		assignedTo: "competitive-user-1",
+		...overrides,
+	};
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) =>
+		collectSqlFragments(item, seen)
+	);
 }
 
 // ============================================================================
@@ -478,6 +520,119 @@ describe("Competitive analysis auth", () => {
 
 		expect(result.success).toBe(false);
 		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("scopes likely competitor opportunity and link reads to assigned opportunities", async () => {
+		let opportunityWhere: unknown;
+		let linkWhere: unknown;
+		const opportunityChain = createChainableQuery([makeOpportunity()]);
+		(opportunityChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			opportunityWhere = value;
+			return opportunityChain;
+		});
+		const linksChain = createChainableQuery([]);
+		(linksChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			linkWhere = value;
+			return linksChain;
+		});
+
+		dbMock.select
+			.mockImplementationOnce(() => opportunityChain)
+			.mockImplementationOnce(() => createChainableQuery([makeCompetitor({ contractVehicles: ["GSA"] })]))
+			.mockImplementationOnce(() => linksChain);
+
+		const result = await identifyLikelyCompetitors("00000000-0000-4000-8000-000000000002");
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("o.assignedTo");
+		expect(collectSqlFragments(linkWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	test("scopes competitor opportunity lists to assigned opportunities", async () => {
+		let where: unknown;
+		const chain = createChainableQuery([]);
+		(chain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			where = value;
+			return chain;
+		});
+		dbMock.select.mockImplementationOnce(() => chain);
+
+		const result = await listCompetitorsForOpportunity("00000000-0000-4000-8000-000000000002");
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	test("scopes SWOT competitor links to assigned opportunities", async () => {
+		let linkWhere: unknown;
+		const linkChain = createChainableQuery([]);
+		(linkChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			linkWhere = value;
+			return linkChain;
+		});
+
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([makeOpportunity()]))
+			.mockImplementationOnce(() => linkChain)
+			.mockImplementationOnce(() => createChainableQuery([]));
+		dbMock.insert.mockImplementationOnce(() => createChainableQuery([{ id: "analysis-1" }]));
+
+		const result = await generateSWOT("00000000-0000-4000-8000-000000000002");
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(linkWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	test("scopes discriminator suggestions to assigned opportunity links", async () => {
+		let linkWhere: unknown;
+		const linkChain = createChainableQuery([]);
+		(linkChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			linkWhere = value;
+			return linkChain;
+		});
+
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([makeOpportunity()]))
+			.mockImplementationOnce(() => linkChain)
+			.mockImplementationOnce(() => createChainableQuery([]));
+
+		const result = await suggestDiscriminators("00000000-0000-4000-8000-000000000002");
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(linkWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	test("scopes competitive matrix links to assigned opportunities", async () => {
+		let linkWhere: unknown;
+		const linkChain = createChainableQuery([]);
+		(linkChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			linkWhere = value;
+			return linkChain;
+		});
+
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([makeOpportunity()]))
+			.mockImplementationOnce(() => linkChain);
+
+		const result = await generateCompetitiveMatrix("00000000-0000-4000-8000-000000000002");
+
+		expect(result.success).toBe(false);
+		expect(collectSqlFragments(linkWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	test("scopes latest competitive analysis reads to assigned opportunities", async () => {
+		let where: unknown;
+		const chain = createChainableQuery([]);
+		(chain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			where = value;
+			return chain;
+		});
+		dbMock.select.mockImplementationOnce(() => chain);
+
+		const result = await getLatestCompetitiveAnalysis("00000000-0000-4000-8000-000000000002");
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 	});
 });
 

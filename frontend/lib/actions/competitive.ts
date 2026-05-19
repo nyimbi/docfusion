@@ -31,7 +31,7 @@ import {
 	type CompetitiveAnalysis,
 } from "@/lib/db/schema-competitors";
 import { opportunities, partners, companySettings } from "@/lib/db/schema";
-import { eq, and, desc, sql, like, or, inArray, asc, ne, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, desc, sql, like, or, inArray, asc, ne, isNull, isNotNull, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm/column";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
@@ -71,6 +71,36 @@ function mutableOrganizationCondition(column: OrganizationColumn, userContext: U
 
 function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
 	return inputOrganizationId ?? userContext.organizationId;
+}
+
+function assignedOpportunityByIdCondition(opportunityId: string, userContext: UserContext): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		eq(opportunities.assignedTo, userContext.userId)
+	)!;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: UserContext): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userContext.userId}
+	)`;
+}
+
+function competitorOpportunityByOpportunityCondition(opportunityId: string, userContext: UserContext): SQL {
+	return and(
+		eq(competitorOpportunities.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userContext)
+	)!;
+}
+
+function competitiveAnalysisByOpportunityCondition(opportunityId: string, userContext: UserContext): SQL {
+	return and(
+		eq(competitiveAnalyses.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userContext)
+	)!;
 }
 
 /**
@@ -818,11 +848,13 @@ export async function identifyLikelyCompetitors(
 	opportunityId: string
 ): Promise<ActionResult<CompetitorMatch[]>> {
 	try {
+		const userContext = await requireCompetitiveContext();
+
 		// Fetch opportunity details
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(assignedOpportunityByIdCondition(opportunityId, userContext))
 			.limit(1);
 
 		if (!opportunity) {
@@ -833,6 +865,7 @@ export async function identifyLikelyCompetitors(
 		const allCompetitors = await db
 			.select()
 			.from(competitors)
+			.where(visibleOrganizationCondition(competitors.organizationId, userContext))
 			.orderBy(asc(competitors.name));
 
 		if (allCompetitors.length === 0) {
@@ -843,7 +876,7 @@ export async function identifyLikelyCompetitors(
 		const existingLinks = await db
 			.select()
 			.from(competitorOpportunities)
-			.where(eq(competitorOpportunities.opportunityId, opportunityId));
+			.where(competitorOpportunityByOpportunityCondition(opportunityId, userContext));
 
 		const existingCompetitorIds = new Set(existingLinks.map(l => l.competitorId));
 
@@ -1184,11 +1217,11 @@ export async function listCompetitorsForOpportunity(
 	opportunityId: string
 ): Promise<ActionResult<CompetitorOpportunity[]>> {
 	try {
-		await requireCompetitiveContext();
+		const userContext = await requireCompetitiveContext();
 		const links = await db
 			.select()
 			.from(competitorOpportunities)
-			.where(eq(competitorOpportunities.opportunityId, opportunityId))
+			.where(competitorOpportunityByOpportunityCondition(opportunityId, userContext))
 			.orderBy(desc(competitorOpportunities.createdAt));
 
 		return { success: true, data: links };
@@ -1215,7 +1248,7 @@ export async function generateSWOT(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(assignedOpportunityByIdCondition(opportunityId, userContext))
 			.limit(1);
 
 		if (!opportunity) {
@@ -1231,7 +1264,7 @@ export async function generateSWOT(
 			.from(competitorOpportunities)
 			.innerJoin(competitors, eq(competitorOpportunities.competitorId, competitors.id))
 			.where(and(
-				eq(competitorOpportunities.opportunityId, opportunityId),
+				competitorOpportunityByOpportunityCondition(opportunityId, userContext),
 				visibleOrganizationCondition(competitors.organizationId, userContext)
 			));
 
@@ -1459,11 +1492,13 @@ export async function suggestDiscriminators(
 	opportunityId: string
 ): Promise<ActionResult<DiscriminatorSuggestion[]>> {
 	try {
+		const userContext = await requireCompetitiveContext();
+
 		// Fetch opportunity
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(assignedOpportunityByIdCondition(opportunityId, userContext))
 			.limit(1);
 
 		if (!opportunity) {
@@ -1477,7 +1512,10 @@ export async function suggestDiscriminators(
 			})
 			.from(competitorOpportunities)
 			.innerJoin(competitors, eq(competitorOpportunities.competitorId, competitors.id))
-			.where(eq(competitorOpportunities.opportunityId, opportunityId));
+			.where(and(
+				competitorOpportunityByOpportunityCondition(opportunityId, userContext),
+				visibleOrganizationCondition(competitors.organizationId, userContext)
+			));
 
 		const competitorIds = competitorLinks.map(cl => cl.competitor.id);
 
@@ -1485,7 +1523,10 @@ export async function suggestDiscriminators(
 		const existingDiscriminators = await db
 			.select()
 			.from(discriminators)
-			.where(eq(discriminators.isActive, true));
+			.where(and(
+				eq(discriminators.isActive, true),
+				visibleOrganizationCondition(discriminators.organizationId, userContext)
+			));
 
 		// Find discriminators effective against identified competitors
 		const relevantDiscriminators = existingDiscriminators.filter(d => {
@@ -1634,7 +1675,7 @@ export async function generateCompetitiveMatrix(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(assignedOpportunityByIdCondition(opportunityId, userContext))
 			.limit(1);
 
 		if (!opportunity) {
@@ -1650,7 +1691,7 @@ export async function generateCompetitiveMatrix(
 			.from(competitorOpportunities)
 			.innerJoin(competitors, eq(competitorOpportunities.competitorId, competitors.id))
 			.where(and(
-				eq(competitorOpportunities.opportunityId, opportunityId),
+				competitorOpportunityByOpportunityCondition(opportunityId, userContext),
 				visibleOrganizationCondition(competitors.organizationId, userContext)
 			));
 
@@ -1899,7 +1940,7 @@ export async function suggestTeamingPartners(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(assignedOpportunityByIdCondition(opportunityId, userContext))
 			.limit(1);
 
 		if (!opportunity) {
@@ -2345,10 +2386,11 @@ export async function getLatestCompetitiveAnalysis(
 	opportunityId: string
 ): Promise<ActionResult<CompetitiveAnalysis | null>> {
 	try {
+		const userContext = await requireCompetitiveContext();
 		const [analysis] = await db
 			.select()
 			.from(competitiveAnalyses)
-			.where(eq(competitiveAnalyses.opportunityId, opportunityId))
+			.where(competitiveAnalysisByOpportunityCondition(opportunityId, userContext))
 			.orderBy(desc(competitiveAnalyses.analyzedAt))
 			.limit(1);
 
