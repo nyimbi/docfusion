@@ -38,6 +38,7 @@ import { transformRows, generateValidationResult, createUniqueKey, convertDatesT
 import { getTableSchema } from "@/lib/import/table-schemas";
 import type { ColumnMappingConfig } from "@/lib/db/schema-import";
 import { logger } from "@/lib/utils/logger";
+import { requireUserContext } from "@/lib/auth-utils";
 
 // ============================================================================
 // Types
@@ -57,6 +58,17 @@ interface ParsedData {
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+async function requireMatchingUserContext(input: UserContext): Promise<UserContext> {
+	const current = await requireUserContext();
+	if (current.userId !== input.userId) {
+		throw new Error("Unauthorized");
+	}
+	if (input.organizationId && current.organizationId !== input.organizationId) {
+		throw new Error("Unauthorized");
+	}
+	return current;
+}
 
 /**
  * Get the Drizzle table for a target table name.
@@ -336,6 +348,7 @@ export async function executeImport(
 	options: ImportOptions,
 	userContext: UserContext
 ): Promise<ImportResult> {
+	const currentUserContext = await requireMatchingUserContext(userContext);
 	const startTime = Date.now();
 	const importedIds: string[] = [];
 	const errors: ValidationIssue[] = [];
@@ -348,7 +361,7 @@ export async function executeImport(
 	const [importRecord] = await db
 		.insert(dataImports)
 		.values({
-			organizationId: userContext.organizationId,
+			organizationId: currentUserContext.organizationId,
 			filename: parsedData.metadata.filename,
 			fileType: parsedData.metadata.fileType,
 			fileSize: parsedData.metadata.fileSize,
@@ -364,7 +377,7 @@ export async function executeImport(
 			status: "processing",
 			duplicateHandling: options.duplicateHandling,
 			batchSize: options.batchSize,
-			importedBy: userContext.userId,
+			importedBy: currentUserContext.userId,
 			startedAt: new Date(),
 		})
 		.returning({ id: dataImports.id });
@@ -374,7 +387,7 @@ export async function executeImport(
 
 	try {
 		// Get existing records for duplicate detection
-		const existingKeys = await findExistingRecords(targetTable, schema.uniqueKeyFields, userContext);
+		const existingKeys = await findExistingRecords(targetTable, schema.uniqueKeyFields, currentUserContext);
 
 		// Transform all rows
 		const allRows = transformRows(parsedData.sampleRows, mappings, targetTable);
@@ -425,7 +438,7 @@ export async function executeImport(
 			const batch = toInsert.slice(i, i + batchSize);
 			const batchStartRow = i + 1; // 1-based row numbers
 
-			const result = await insertRecords(targetTable, batch, userContext);
+			const result = await insertRecords(targetTable, batch, currentUserContext);
 
 			// Track successful inserts
 			importedIds.push(...result.insertedIds);
@@ -475,7 +488,7 @@ export async function executeImport(
 			const [template] = await db
 				.insert(importMappingTemplates)
 				.values({
-					organizationId: userContext.organizationId,
+					organizationId: currentUserContext.organizationId,
 					name: options.templateName,
 					description: options.templateDescription,
 					targetTable,
@@ -487,7 +500,7 @@ export async function executeImport(
 						defaultValue: m.defaultValue,
 						required: m.required,
 					})),
-					createdBy: userContext.userId,
+					createdBy: currentUserContext.userId,
 				})
 				.returning({ id: importMappingTemplates.id });
 			savedTemplateId = template.id;
@@ -544,13 +557,15 @@ export async function getImportProgress(
 	importId: string,
 	userContext: UserContext
 ): Promise<ImportProgress | null> {
+	const currentUserContext = await requireMatchingUserContext(userContext);
+
 	const [record] = await db
 		.select()
 		.from(dataImports)
 		.where(
 			and(
 				eq(dataImports.id, importId),
-				eq(dataImports.importedBy, userContext.userId)
+				eq(dataImports.importedBy, currentUserContext.userId)
 			)
 		);
 
@@ -609,6 +624,8 @@ export async function getImportHistory(
 	startedAt: string;
 	completedAt?: string;
 }>> {
+	const currentUserContext = await requireMatchingUserContext(userContext);
+
 	const records = await db
 		.select({
 			id: dataImports.id,
@@ -622,7 +639,7 @@ export async function getImportHistory(
 			completedAt: dataImports.completedAt,
 		})
 		.from(dataImports)
-		.where(eq(dataImports.importedBy, userContext.userId))
+		.where(eq(dataImports.importedBy, currentUserContext.userId))
 		.orderBy(sql`${dataImports.startedAt} DESC`)
 		.limit(limit);
 
@@ -647,6 +664,8 @@ export async function rollbackImport(
 	userContext: UserContext
 ): Promise<{ success: boolean; deletedCount: number; error?: string }> {
 	try {
+		const currentUserContext = await requireMatchingUserContext(userContext);
+
 		// Get import record
 		const [record] = await db
 			.select()
@@ -654,7 +673,7 @@ export async function rollbackImport(
 			.where(
 				and(
 					eq(dataImports.id, importId),
-					eq(dataImports.importedBy, userContext.userId)
+					eq(dataImports.importedBy, currentUserContext.userId)
 				)
 			);
 
@@ -698,11 +717,13 @@ export async function getTemplates(
 	userContext: UserContext,
 	targetTable?: ImportTargetTable
 ): Promise<ImportTemplateSummary[]> {
+	const currentUserContext = await requireMatchingUserContext(userContext);
+
 	// Build conditions array
 	const conditions = [
 		or(
-			eq(importMappingTemplates.organizationId, userContext.organizationId || ""),
-			eq(importMappingTemplates.createdBy, userContext.userId)
+			eq(importMappingTemplates.organizationId, currentUserContext.organizationId || ""),
+			eq(importMappingTemplates.createdBy, currentUserContext.userId)
 		),
 	];
 
@@ -742,6 +763,8 @@ export async function getTemplateDetail(
 	templateId: string,
 	userContext: UserContext
 ): Promise<ImportTemplateDetail | null> {
+	const currentUserContext = await requireMatchingUserContext(userContext);
+
 	const [record] = await db
 		.select()
 		.from(importMappingTemplates)
@@ -749,8 +772,8 @@ export async function getTemplateDetail(
 			and(
 				eq(importMappingTemplates.id, templateId),
 				or(
-					eq(importMappingTemplates.organizationId, userContext.organizationId || ""),
-					eq(importMappingTemplates.createdBy, userContext.userId)
+					eq(importMappingTemplates.organizationId, currentUserContext.organizationId || ""),
+					eq(importMappingTemplates.createdBy, currentUserContext.userId)
 				)
 			)
 		);
@@ -787,12 +810,13 @@ export async function deleteTemplate(
 	userContext: UserContext
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		const currentUserContext = await requireMatchingUserContext(userContext);
 		const result = await db
 			.delete(importMappingTemplates)
 			.where(
 				and(
 					eq(importMappingTemplates.id, templateId),
-					eq(importMappingTemplates.createdBy, userContext.userId)
+					eq(importMappingTemplates.createdBy, currentUserContext.userId)
 				)
 			);
 
