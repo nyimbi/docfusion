@@ -77,12 +77,15 @@ import {
 	listGraphics,
 	recordGraphicFeedback,
 	searchGraphics,
+	suggestGraphics,
 	updateGraphic,
 	validateGraphicConsistency,
 } from "@/lib/actions/graphics";
 
 const opportunityId = "33333333-3333-4333-8333-333333333333";
 const graphicId = "44444444-4444-4444-8444-444444444444";
+const sectionId = "55555555-5555-4555-8555-555555555555";
+const proposalDocumentId = "66666666-6666-4666-8666-666666666666";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -199,5 +202,28 @@ describe("graphics opportunity scoping", () => {
 		expect(result).toMatchObject({ success: false });
 		expect(dbMock.insert).not.toHaveBeenCalled();
 		expect(collectSqlFragments(graphicWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("scopes graphic suggestions through assigned opportunity proposal documents", async () => {
+		const wheres: unknown[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{ id: sectionId, proposalDocumentId }],
+				onWhere: (value) => wheres.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => wheres.push(value),
+			}));
+
+		const result = await suggestGraphics(sectionId);
+
+		expect(result).toEqual({ success: false, error: "Proposal document not found" });
+		expect(wheres).toHaveLength(2);
+		for (const where of wheres) {
+			const sqlText = collectSqlFragments(where).join(" ");
+			expect(sqlText).toContain("opportunities.assigned_to");
+			expect(sqlText).toContain("graphics-user-1");
+		}
 	});
 });

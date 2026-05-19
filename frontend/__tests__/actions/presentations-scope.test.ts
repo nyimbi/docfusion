@@ -79,10 +79,12 @@ vi.mock("next/cache", () => ({
 import {
 	anticipateQuestions,
 	createPresentation,
+	generateSlidesFromProposal,
 } from "@/lib/actions/presentations";
 
 const opportunityId = "33333333-3333-4333-8333-333333333333";
 const presentationId = "44444444-4444-4444-8444-444444444444";
+const proposalDocumentId = "55555555-5555-4555-8555-555555555555";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -138,5 +140,33 @@ describe("presentation opportunity scoping", () => {
 		expect(dbMock.insert).not.toHaveBeenCalled();
 		expect(revalidatePathMock).toHaveBeenCalledWith(`/presentations/${presentationId}`);
 		expect(collectSqlFragments(requirementsWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("scopes slide generation proposal reads through assigned opportunities", async () => {
+		const wheres: unknown[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: presentationId,
+					opportunityId,
+					title: "Oral presentation",
+					timeLimit: 60,
+					qaTimeLimit: 15,
+					audienceDescription: "Evaluation panel",
+					evaluationCriteria: [],
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => wheres.push(value),
+			}));
+
+		const result = await generateSlidesFromProposal(presentationId, proposalDocumentId);
+
+		expect(result).toEqual({ success: false, error: "Proposal document not found" });
+		expect(wheres).toHaveLength(1);
+		const sqlText = collectSqlFragments(wheres[0]).join(" ");
+		expect(sqlText).toContain("opportunities.assigned_to");
+		expect(sqlText).toContain("presentations-user-1");
 	});
 });

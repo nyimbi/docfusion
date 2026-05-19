@@ -158,6 +158,36 @@ function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, 
 	)!;
 }
 
+function visibleProposalDocumentCondition(proposalDocumentId: string, userId: string): SQL {
+	return and(
+		eq(proposalDocuments.id, proposalDocumentId),
+		assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId)
+	)!;
+}
+
+function visibleSectionCondition(sectionId: string, userId: string): SQL {
+	return sql`document_sections.id = ${sectionId}
+		and exists (
+			select 1
+			from proposal_documents
+			join opportunities on opportunities.id = proposal_documents.opportunity_id
+			where proposal_documents.id = document_sections.proposal_document_id
+				and opportunities.assigned_to = ${userId}
+		)`;
+}
+
+function visibleDocumentForProposalCondition(documentId: string, proposalDocumentId: string, userId: string): SQL {
+	return sql`documents.id = ${documentId}
+		and exists (
+			select 1
+			from proposal_documents
+			join opportunities on opportunities.id = proposal_documents.opportunity_id
+			where proposal_documents.id = ${proposalDocumentId}
+				and proposal_documents.document_id = documents.id
+				and opportunities.assigned_to = ${userId}
+		)`;
+}
+
 async function assertVisibleOpportunity(opportunityId: string, userId: string): Promise<void> {
 	const [opportunity] = await db
 		.select({ id: opportunities.id })
@@ -532,13 +562,13 @@ export async function listGraphics(
 export async function suggestGraphics(
 	sectionId: string
 ): Promise<ActionResult<GraphicSuggestion[]>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		// Fetch section and related document content
 		const [section] = await db
 			.select()
 			.from(documentSections)
-			.where(eq(documentSections.id, sectionId));
+			.where(visibleSectionCondition(sectionId, actorId));
 
 		if (!section) {
 			return { success: false, error: "Section not found" };
@@ -548,7 +578,7 @@ export async function suggestGraphics(
 		const [proposalDoc] = await db
 			.select()
 			.from(proposalDocuments)
-			.where(eq(proposalDocuments.id, section.proposalDocumentId));
+			.where(visibleProposalDocumentCondition(section.proposalDocumentId, actorId));
 
 		if (!proposalDoc) {
 			return { success: false, error: "Proposal document not found" };
@@ -558,7 +588,7 @@ export async function suggestGraphics(
 		const [doc] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, proposalDoc.documentId));
+			.where(visibleDocumentForProposalCondition(proposalDoc.documentId, proposalDoc.id, actorId));
 
 		if (!doc) {
 			return { success: false, error: "Document not found" };

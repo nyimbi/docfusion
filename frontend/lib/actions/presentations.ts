@@ -131,6 +131,25 @@ function visibleRequirementsForOpportunityCondition(opportunityId: string, userI
 	)!;
 }
 
+function visibleProposalDocumentCondition(proposalDocumentId: string, userId: string): SQL {
+	return and(
+		eq(proposalDocuments.id, proposalDocumentId),
+		assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId)
+	)!;
+}
+
+function visibleDocumentForProposalCondition(documentId: string, proposalDocumentId: string, userId: string): SQL {
+	return sql`documents.id = ${documentId}
+		and exists (
+			select 1
+			from proposal_documents
+			join opportunities on opportunities.id = proposal_documents.opportunity_id
+			where proposal_documents.id = ${proposalDocumentId}
+				and proposal_documents.document_id = documents.id
+				and opportunities.assigned_to = ${userId}
+		)`;
+}
+
 async function getScopedPresentation(
 	id: string,
 	context: PresentationActionContext
@@ -610,7 +629,7 @@ export async function generateSlidesFromProposal(
 		const [proposalDoc] = await db
 			.select()
 			.from(proposalDocuments)
-			.where(eq(proposalDocuments.id, proposalId))
+			.where(visibleProposalDocumentCondition(proposalId, context.userId))
 			.limit(1);
 
 		if (!proposalDoc) {
@@ -621,7 +640,7 @@ export async function generateSlidesFromProposal(
 		const [doc] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, proposalDoc.documentId))
+			.where(visibleDocumentForProposalCondition(proposalDoc.documentId, proposalDoc.id, context.userId))
 			.limit(1);
 
 		if (!doc) {
