@@ -36,25 +36,30 @@ export async function GET(request: NextRequest) {
 	if (tokens?.accessToken) {
 		try {
 			const response = await fetch(
-				"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=" + tokens.accessToken
+				"https://www.googleapis.com/oauth2/v2/userinfo",
+				{
+					headers: {
+						Authorization: `Bearer ${tokens.accessToken}`,
+					},
+				}
 			);
 			isValid = response.ok;
 		} catch {
-      isValid = false;
-    }
-  }
+			isValid = false;
+		}
+	}
 
 	return NextResponse.json({
 		configured: isConfigured,
 		connected: isConnected,
 		valid: isValid || !!tokens?.refreshToken, // Refresh token can get new access token
 		email: isConnected ? tokens?.userEmail : null,
-    message: !isConfigured
-      ? "Google OAuth is not configured. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to your environment."
-      : !isConnected
-      ? "Not connected to Google. Click 'Connect Google Account' to enable Google Docs import."
-      : "Connected to Google",
-  });
+		message: !isConfigured
+			? "Google OAuth is not configured. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to your environment."
+			: !isConnected
+				? "Not connected to Google. Click 'Connect Google Account' to enable Google Docs import."
+				: "Connected to Google",
+	});
 }
 
 /**
@@ -73,5 +78,5 @@ export async function DELETE() {
 
 	clearGoogleTokenCookies(response);
 
-  return response;
+	return response;
 }
