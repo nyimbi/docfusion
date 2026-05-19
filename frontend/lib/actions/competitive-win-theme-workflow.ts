@@ -12,7 +12,7 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type CompetitiveAnalysisRow = typeof competitiveAnalyses.$inferSelect;
 type ThemeAnalysisRow = typeof themeAnalysisResults.$inferSelect;
@@ -93,6 +93,49 @@ const INJECTION_SUBJECT_TYPE = "theme_injection_point";
 const CONSISTENCY_WORKFLOW_KEY = "win_theme_consistency";
 const CONSISTENCY_SUBJECT_TYPE = "theme_analysis_result";
 
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleCompetitiveAnalysisCondition(analysisId: string, userId: string): SQL {
+	return and(
+		eq(competitiveAnalyses.id, analysisId),
+		assignedOpportunityExistsSql(competitiveAnalyses.opportunityId, userId)
+	)!;
+}
+
+function visibleWinThemeCondition(themeId: string, userId: string): SQL {
+	return and(
+		eq(winThemes.id, themeId),
+		assignedOpportunityExistsSql(winThemes.opportunityId, userId)
+	)!;
+}
+
+function visibleThemeInjectionCondition(injectionId: string, userId: string): SQL {
+	return and(
+		eq(themeInjectionPoints.id, injectionId),
+		sql`exists (
+			select 1
+			from win_themes
+			join opportunities on opportunities.id = win_themes.opportunity_id
+			where win_themes.id = ${themeInjectionPoints.themeId}
+				and opportunities.assigned_to = ${userId}
+		)`
+	)!;
+}
+
+function visibleThemeAnalysisCondition(analysisId: string, userId: string): SQL {
+	return and(
+		eq(themeAnalysisResults.id, analysisId),
+		assignedOpportunityExistsSql(themeAnalysisResults.opportunityId, userId)
+	)!;
+}
+
 export async function transitionCompetitiveIntelWorkflow(
 	input: CompetitiveIntelWorkflowInput
 ): Promise<StrategyWorkflowResult> {
@@ -101,7 +144,7 @@ export async function transitionCompetitiveIntelWorkflow(
 	const [analysis] = await db
 		.select()
 		.from(competitiveAnalyses)
-		.where(eq(competitiveAnalyses.id, input.analysisId))
+		.where(visibleCompetitiveAnalysisCondition(input.analysisId, userContext.userId))
 		.limit(1);
 	if (!analysis) {
 		throw new Error("Competitive analysis not found");
@@ -112,7 +155,7 @@ export async function transitionCompetitiveIntelWorkflow(
 	const [updated] = await db
 		.update(competitiveAnalyses)
 		.set(transition.patch)
-		.where(eq(competitiveAnalyses.id, input.analysisId))
+		.where(visibleCompetitiveAnalysisCondition(input.analysisId, userContext.userId))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update competitive intelligence state");
@@ -157,7 +200,7 @@ export async function transitionWinThemeLifecycleWorkflow(
 	const [theme] = await db
 		.select()
 		.from(winThemes)
-		.where(eq(winThemes.id, input.themeId))
+		.where(visibleWinThemeCondition(input.themeId, userContext.userId))
 		.limit(1);
 	if (!theme) {
 		throw new Error("Win theme not found");
@@ -168,7 +211,7 @@ export async function transitionWinThemeLifecycleWorkflow(
 	const [updated] = await db
 		.update(winThemes)
 		.set(transition.patch)
-		.where(eq(winThemes.id, input.themeId))
+		.where(visibleWinThemeCondition(input.themeId, userContext.userId))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update win theme state");
@@ -214,7 +257,7 @@ export async function transitionThemeInjectionWorkflow(
 	const [injection] = await db
 		.select()
 		.from(themeInjectionPoints)
-		.where(eq(themeInjectionPoints.id, input.injectionId))
+		.where(visibleThemeInjectionCondition(input.injectionId, userContext.userId))
 		.limit(1);
 	if (!injection) {
 		throw new Error("Theme injection point not found");
@@ -223,7 +266,7 @@ export async function transitionThemeInjectionWorkflow(
 	const [theme] = await db
 		.select()
 		.from(winThemes)
-		.where(eq(winThemes.id, injection.themeId))
+		.where(visibleWinThemeCondition(injection.themeId, userContext.userId))
 		.limit(1);
 	if (!theme) {
 		throw new Error("Win theme not found for injection");
@@ -234,7 +277,7 @@ export async function transitionThemeInjectionWorkflow(
 	const [updated] = await db
 		.update(themeInjectionPoints)
 		.set(transition.patch)
-		.where(eq(themeInjectionPoints.id, input.injectionId))
+		.where(visibleThemeInjectionCondition(input.injectionId, userContext.userId))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update theme injection state");
@@ -281,7 +324,7 @@ export async function transitionThemeConsistencyWorkflow(
 	const [analysis] = await db
 		.select()
 		.from(themeAnalysisResults)
-		.where(eq(themeAnalysisResults.id, input.analysisId))
+		.where(visibleThemeAnalysisCondition(input.analysisId, userContext.userId))
 		.limit(1);
 	if (!analysis) {
 		throw new Error("Theme analysis result not found");

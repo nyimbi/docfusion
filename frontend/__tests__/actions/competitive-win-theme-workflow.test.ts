@@ -19,13 +19,18 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -34,6 +39,31 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Reflect.ownKeys(value).flatMap((key) =>
+		collectSqlFragments((value as Record<PropertyKey, unknown>)[key], seen)
+	);
+}
+
+function expectAssignedOpportunityScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("strategist-1");
 }
 
 var dbMock: any;
@@ -160,11 +190,20 @@ beforeEach(() => {
 describe("competitive and win-theme workflows", () => {
 	it("marks competitive intelligence stale and projects a refresh task", async () => {
 		let patch: Record<string, unknown> | undefined;
-		dbMock.select.mockReturnValueOnce(createChain({ result: [competitiveAnalysis] }));
+		const wheres: unknown[] = [];
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [competitiveAnalysis],
+			onWhere: (value) => {
+				wheres.push(value);
+			},
+		}));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [{ ...competitiveAnalysis, isOutdated: true }],
 			onSet: (value) => {
 				patch = value;
+			},
+			onWhere: (value) => {
+				wheres.push(value);
 			},
 		}));
 
@@ -183,6 +222,9 @@ describe("competitive and win-theme workflows", () => {
 			taskProjected: true,
 		});
 		expect(patch).toMatchObject({ isOutdated: true });
+		expect(wheres).toHaveLength(2);
+		expectAssignedOpportunityScope(wheres[0]);
+		expectAssignedOpportunityScope(wheres[1]);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "competitive_intelligence_governance",
 			subjectType: "competitive_analysis",
@@ -199,11 +241,20 @@ describe("competitive and win-theme workflows", () => {
 
 	it("archives a win theme and records a terminal lifecycle transition", async () => {
 		let patch: Record<string, unknown> | undefined;
-		dbMock.select.mockReturnValueOnce(createChain({ result: [winTheme] }));
+		const wheres: unknown[] = [];
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [winTheme],
+			onWhere: (value) => {
+				wheres.push(value);
+			},
+		}));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [{ ...winTheme, isActive: false }],
 			onSet: (value) => {
 				patch = value;
+			},
+			onWhere: (value) => {
+				wheres.push(value);
 			},
 		}));
 
@@ -219,6 +270,9 @@ describe("competitive and win-theme workflows", () => {
 			opportunityId: "opp-1",
 		});
 		expect(patch).toMatchObject({ isActive: false });
+		expect(wheres).toHaveLength(2);
+		expectAssignedOpportunityScope(wheres[0]);
+		expectAssignedOpportunityScope(wheres[1]);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "win_theme_lifecycle",
 			subjectType: "win_theme",
@@ -230,9 +284,20 @@ describe("competitive and win-theme workflows", () => {
 
 	it("accepts a theme injection with modifications and preserves reviewer text", async () => {
 		let patch: Record<string, unknown> | undefined;
+		const wheres: unknown[] = [];
 		dbMock.select
-			.mockReturnValueOnce(createChain({ result: [injection] }))
-			.mockReturnValueOnce(createChain({ result: [winTheme] }));
+			.mockReturnValueOnce(createChain({
+				result: [injection],
+				onWhere: (value) => {
+					wheres.push(value);
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [winTheme],
+				onWhere: (value) => {
+					wheres.push(value);
+				},
+			}));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [{
 				...injection,
@@ -241,6 +306,9 @@ describe("competitive and win-theme workflows", () => {
 			}],
 			onSet: (value) => {
 				patch = value;
+			},
+			onWhere: (value) => {
+				wheres.push(value);
 			},
 		}));
 
@@ -262,6 +330,10 @@ describe("competitive and win-theme workflows", () => {
 			acceptedBy: "strategist-1",
 			reviewNotes: "Improve narrative continuity",
 		});
+		expect(wheres).toHaveLength(3);
+		for (const where of wheres) {
+			expectAssignedOpportunityScope(where);
+		}
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "win_theme_injection",
 			actionUrl: "/documents/doc-1",
@@ -270,7 +342,13 @@ describe("competitive and win-theme workflows", () => {
 	});
 
 	it("flags theme consistency gaps without mutating analysis rows", async () => {
-		dbMock.select.mockReturnValueOnce(createChain({ result: [themeAnalysis] }));
+		let analysisWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [themeAnalysis],
+			onWhere: (value) => {
+				analysisWhere = value;
+			},
+		}));
 
 		const result = await transitionThemeConsistencyWorkflow({
 			analysisId: "theme-analysis-1",
@@ -285,6 +363,7 @@ describe("competitive and win-theme workflows", () => {
 			opportunityId: "opp-1",
 		});
 		expect(dbMock.update).not.toHaveBeenCalled();
+		expectAssignedOpportunityScope(analysisWhere);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "win_theme_consistency",
 			subjectType: "theme_analysis_result",
