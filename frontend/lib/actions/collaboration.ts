@@ -8,7 +8,8 @@
 
 import { db } from "@/lib/db";
 import { documentYjsStates, documents } from "@/lib/db/schema";
-import { eq, desc, and, sql, gte } from "drizzle-orm";
+import { getServerSession } from "@/lib/auth-utils";
+import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import type {
 	UserPresence,
 	DocumentCollaborators,
@@ -41,6 +42,67 @@ const CURSOR_COLORS = [
 	"#85C1E9", // Light Blue
 ];
 
+async function requireCollaborationActor(): Promise<{
+	userId: string;
+	userName: string;
+}> {
+	const session = await getServerSession();
+	if (!session?.user?.id) {
+		throw new Error("Unauthorized");
+	}
+
+	return {
+		userId: session.user.id,
+		userName: session.user.name ?? session.user.email ?? session.user.id,
+	};
+}
+
+function readableDocumentCondition(documentId: string, userId: string): SQL {
+	return and(
+		eq(documents.id, documentId),
+		or(
+			eq(documents.ownerId, userId),
+			eq(documents.visibility, "public"),
+			sql`${documents.collaboratorIds} ? ${userId}`
+		)!
+	)!;
+}
+
+function writableDocumentCondition(documentId: string, userId: string): SQL {
+	return and(
+		eq(documents.id, documentId),
+		or(
+			eq(documents.ownerId, userId),
+			sql`${documents.collaboratorIds} ? ${userId}`
+		)!
+	)!;
+}
+
+async function canReadDocument(documentId: string, userId: string): Promise<boolean> {
+	const [document] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(readableDocumentCondition(documentId, userId))
+		.limit(1);
+
+	return !!document;
+}
+
+async function requireWritableDocument(
+	documentId: string,
+	userId: string
+): Promise<void> {
+	const [document] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(writableDocumentCondition(documentId, userId))
+		.limit(1);
+
+	if (!document) {
+		throw new Error("Unauthorized");
+	}
+}
+
 function getUserColor(userId: string): string {
 	// Generate consistent color based on userId hash
 	let hash = 0;
@@ -61,6 +123,11 @@ function getUserColor(userId: string): string {
 export async function getYjsState(
 	documentId: string
 ): Promise<YjsDocumentState | null> {
+	const actor = await requireCollaborationActor();
+	if (!(await canReadDocument(documentId, actor.userId))) {
+		return null;
+	}
+
 	const [row] = await db
 		.select()
 		.from(documentYjsStates)
@@ -84,6 +151,9 @@ export async function saveYjsState(
 	state: string,
 	stateVector: string
 ): Promise<YjsDocumentState> {
+	const actor = await requireCollaborationActor();
+	await requireWritableDocument(documentId, actor.userId);
+
 	const [existing] = await db
 		.select()
 		.from(documentYjsStates)
@@ -120,6 +190,9 @@ export async function saveYjsState(
  * Delete Yjs state for a document.
  */
 export async function deleteYjsState(documentId: string): Promise<void> {
+	const actor = await requireCollaborationActor();
+	await requireWritableDocument(documentId, actor.userId);
+
 	await db
 		.delete(documentYjsStates)
 		.where(eq(documentYjsStates.documentId, documentId));
@@ -135,7 +208,12 @@ export async function deleteYjsState(documentId: string): Promise<void> {
 export async function updatePresence(
 	input: UpdatePresenceInput
 ): Promise<UserPresence> {
-	const { documentId, userId, userName, cursorPosition } = input;
+	const actor = await requireCollaborationActor();
+	if (!(await canReadDocument(input.documentId, actor.userId))) {
+		throw new Error("Unauthorized");
+	}
+
+	const { documentId, cursorPosition } = input;
 
 	// Get or create document presence map
 	let docPresence = presenceStore.get(documentId);
@@ -147,14 +225,14 @@ export async function updatePresence(
 	// Update user presence
 	const presence: UserPresence = {
 		documentId,
-		userId,
-		userName,
-		userColor: getUserColor(userId),
+		userId: actor.userId,
+		userName: actor.userName,
+		userColor: getUserColor(actor.userId),
 		cursorPosition,
 		lastActiveAt: new Date(),
 	};
 
-	docPresence.set(userId, presence);
+	docPresence.set(actor.userId, presence);
 
 	return presence;
 }
@@ -164,11 +242,16 @@ export async function updatePresence(
  */
 export async function removePresence(
 	documentId: string,
-	userId: string
+	_userId: string
 ): Promise<void> {
+	const actor = await requireCollaborationActor();
+	if (!(await canReadDocument(documentId, actor.userId))) {
+		throw new Error("Unauthorized");
+	}
+
 	const docPresence = presenceStore.get(documentId);
 	if (docPresence) {
-		docPresence.delete(userId);
+		docPresence.delete(actor.userId);
 		if (docPresence.size === 0) {
 			presenceStore.delete(documentId);
 		}
@@ -181,6 +264,15 @@ export async function removePresence(
 export async function getActiveCollaborators(
 	documentId: string
 ): Promise<DocumentCollaborators> {
+	const actor = await requireCollaborationActor();
+	if (!(await canReadDocument(documentId, actor.userId))) {
+		return {
+			documentId,
+			collaborators: [],
+			lastUpdated: new Date(),
+		};
+	}
+
 	const docPresence = presenceStore.get(documentId);
 
 	// Filter out stale presence (inactive for more than 5 minutes)
@@ -211,6 +303,7 @@ export async function getActiveCollaborators(
 export async function getActiveCollaborationSessions(): Promise<
 	DocumentCollaborationSummary[]
 > {
+	const actor = await requireCollaborationActor();
 	const sessions: DocumentCollaborationSummary[] = [];
 	const documentIds = Array.from(presenceStore.keys());
 
@@ -223,11 +316,22 @@ export async function getActiveCollaborationSessions(): Promise<
 			title: documents.title,
 		})
 		.from(documents)
-		.where(sql`${documents.id} = ANY(${documentIds})`);
+		.where(
+			and(
+				inArray(documents.id, documentIds),
+				or(
+					eq(documents.ownerId, actor.userId),
+					eq(documents.visibility, "public"),
+					sql`${documents.collaboratorIds} ? ${actor.userId}`
+				)!
+			)
+		);
 
 	const titleMap = new Map(docs.map((d) => [d.id, d.title]));
 
 	for (const [documentId, presence] of presenceStore) {
+		if (!titleMap.has(documentId)) continue;
+
 		// Filter active users
 		const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 		const activeUsers = Array.from(presence.values()).filter(
@@ -266,11 +370,29 @@ export async function getDocumentCollaborationStats(documentId: string): Promise
 	lastEditedAt: Date | null;
 	hasYjsState: boolean;
 }> {
+	const actor = await requireCollaborationActor();
+	if (!(await canReadDocument(documentId, actor.userId))) {
+		return {
+			currentCollaborators: 0,
+			totalEdits: 0,
+			lastEditedAt: null,
+			hasYjsState: false,
+		};
+	}
+
 	// Get current collaborators
-	const { collaborators } = await getActiveCollaborators(documentId);
+	const docPresence = presenceStore.get(documentId);
+	const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+	const collaborators = docPresence
+		? Array.from(docPresence.values()).filter((p) => p.lastActiveAt > fiveMinutesAgo)
+		: [];
 
 	// Check for Yjs state
-	const yjsState = await getYjsState(documentId);
+	const [yjsState] = await db
+		.select()
+		.from(documentYjsStates)
+		.where(eq(documentYjsStates.documentId, documentId))
+		.limit(1);
 
 	// Get document details
 	const [doc] = await db
@@ -279,7 +401,8 @@ export async function getDocumentCollaborationStats(documentId: string): Promise
 			updatedAt: documents.updatedAt,
 		})
 		.from(documents)
-		.where(eq(documents.id, documentId));
+		.where(readableDocumentCondition(documentId, actor.userId))
+		.limit(1);
 
 	return {
 		currentCollaborators: collaborators.length,
@@ -301,6 +424,7 @@ export async function getAllActiveUsers(): Promise<
 		lastActiveAt: Date;
 	}>
 > {
+	const actor = await requireCollaborationActor();
 	const users: Array<{
 		userId: string;
 		userName: string;
@@ -319,13 +443,24 @@ export async function getAllActiveUsers(): Promise<
 			title: documents.title,
 		})
 		.from(documents)
-		.where(sql`${documents.id} = ANY(${documentIds})`);
+		.where(
+			and(
+				inArray(documents.id, documentIds),
+				or(
+					eq(documents.ownerId, actor.userId),
+					eq(documents.visibility, "public"),
+					sql`${documents.collaboratorIds} ? ${actor.userId}`
+				)!
+			)
+		);
 
 	const titleMap = new Map(docs.map((d) => [d.id, d.title]));
 	const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
 	for (const [documentId, presence] of presenceStore) {
 		for (const userPresence of presence.values()) {
+			if (!titleMap.has(documentId)) continue;
+
 			if (userPresence.lastActiveAt > fiveMinutesAgo) {
 				users.push({
 					userId: userPresence.userId,
@@ -352,12 +487,15 @@ const documentLocks = new Map<string, { userId: string; lockedAt: Date }>();
  */
 export async function acquireDocumentLock(
 	documentId: string,
-	userId: string
+	_userId: string
 ): Promise<{ success: boolean; lockedBy?: string }> {
+	const actor = await requireCollaborationActor();
+	await requireWritableDocument(documentId, actor.userId);
+
 	const existingLock = documentLocks.get(documentId);
 
 	// Check if already locked by another user
-	if (existingLock && existingLock.userId !== userId) {
+	if (existingLock && existingLock.userId !== actor.userId) {
 		// Check if lock is stale (older than 30 minutes)
 		const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
 		if (existingLock.lockedAt > thirtyMinutesAgo) {
@@ -366,7 +504,7 @@ export async function acquireDocumentLock(
 	}
 
 	// Acquire or renew lock
-	documentLocks.set(documentId, { userId, lockedAt: new Date() });
+	documentLocks.set(documentId, { userId: actor.userId, lockedAt: new Date() });
 	return { success: true };
 }
 
@@ -375,11 +513,14 @@ export async function acquireDocumentLock(
  */
 export async function releaseDocumentLock(
 	documentId: string,
-	userId: string
+	_userId: string
 ): Promise<boolean> {
+	const actor = await requireCollaborationActor();
+	await requireWritableDocument(documentId, actor.userId);
+
 	const existingLock = documentLocks.get(documentId);
 
-	if (!existingLock || existingLock.userId !== userId) {
+	if (!existingLock || existingLock.userId !== actor.userId) {
 		return false;
 	}
 
@@ -393,6 +534,11 @@ export async function releaseDocumentLock(
 export async function checkDocumentLock(
 	documentId: string
 ): Promise<{ isLocked: boolean; lockedBy?: string; lockedAt?: Date }> {
+	const actor = await requireCollaborationActor();
+	if (!(await canReadDocument(documentId, actor.userId))) {
+		return { isLocked: false };
+	}
+
 	const lock = documentLocks.get(documentId);
 
 	if (!lock) {
