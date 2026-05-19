@@ -2034,12 +2034,15 @@ export async function calculateTotalPrice(
 	try {
 		const userContext = await requirePricingContext();
 		const orgId = userContext.organizationId;
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		// Get all cost elements
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId));
+			.where(costElementsByOpportunityCondition(opportunityId, userContext));
 
 		// Get effective indirect rates
 		const rates = await db
@@ -2317,12 +2320,15 @@ export async function applyEscalation(
 	startYear?: number
 ): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId));
+			.where(costElementsByOpportunityCondition(opportunityId, userContext));
 
 		await db.transaction(async (tx) => {
 			for (const element of elements) {
@@ -2353,7 +2359,7 @@ export async function applyEscalation(
 				await tx
 					.update(costElements)
 					.set(updates)
-					.where(eq(costElements.id, element.id));
+					.where(costElementByIdCondition(element.id, userContext));
 			}
 		});
 
@@ -2554,7 +2560,7 @@ export async function analyzeCostRealism(
 	opportunityId: string
 ): Promise<ActionResult<CostRealismAnalysis>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		// Get pricing summary
 		const priceResult = await calculateTotalPrice(opportunityId);
@@ -2568,7 +2574,7 @@ export async function analyzeCostRealism(
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId));
+			.where(costElementsByOpportunityCondition(opportunityId, userContext));
 
 		// Prepare analysis using AI
 		const ai = getAIClient();
@@ -2703,6 +2709,9 @@ export async function exportCostVolume(
 ): Promise<ActionResult<{ content: string; filename: string; mimeType: string }>> {
 	try {
 		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		// Calculate latest pricing
 		const priceResult = await calculateTotalPrice(opportunityId);
@@ -2714,7 +2723,7 @@ export async function exportCostVolume(
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId))
+			.where(costElementsByOpportunityCondition(opportunityId, userContext))
 			.orderBy(asc(costElements.wbsCode), asc(costElements.periodNumber));
 
 		// Get labor categories for rate lookup based on IDs used in cost elements
@@ -2841,12 +2850,15 @@ export async function exportBOEPackage(
 ): Promise<ActionResult<{ content: string; filename: string; mimeType: string }>> {
 	try {
 		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		// Get all cost elements with BOE narratives
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId))
+			.where(costElementsByOpportunityCondition(opportunityId, userContext))
 			.orderBy(asc(costElements.wbsCode));
 
 		// Generate any missing BOEs
@@ -2858,7 +2870,7 @@ export async function exportBOEPackage(
 		const updatedElements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId))
+			.where(costElementsByOpportunityCondition(opportunityId, userContext))
 			.orderBy(asc(costElements.wbsCode));
 
 		// Get labor categories for context - fetch by IDs referenced in cost elements

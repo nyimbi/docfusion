@@ -137,6 +137,11 @@ import {
 	applyBOETemplate,
 	generateBOENarrative,
 	recalculateCostElement,
+	calculateTotalPrice,
+	applyEscalation,
+	analyzeCostRealism,
+	exportCostVolume,
+	exportBOEPackage,
 	createCostElement,
 	updateCostElement,
 	deleteCostElement,
@@ -637,6 +642,83 @@ describe("BOE template tenant scoping", () => {
 		}
 		expect(dbMock.select).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+});
+
+describe("Opportunity-wide pricing tenant scoping", () => {
+	const opportunityId = "00000000-0000-4000-8000-000000000001";
+
+	test("requires organization context before calculating totals", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await calculateTotalPrice(opportunityId);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("rejects total calculation for unassigned opportunities", async () => {
+		dbMock.select.mockImplementationOnce(() => createChainableQuery([]));
+
+		const result = await calculateTotalPrice(opportunityId);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("Opportunity not found");
+		}
+		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before applying escalation", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await applyEscalation(opportunityId, 0.03);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before cost realism analysis", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await analyzeCostRealism(opportunityId);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before exporting cost volume", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await exportCostVolume(opportunityId, "csv");
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before exporting BOE packages", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await exportBOEPackage(opportunityId);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
 	});
 });
 
