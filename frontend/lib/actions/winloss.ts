@@ -33,10 +33,12 @@ import {
 } from "@/lib/db/schema-winloss";
 import { opportunities, companySettings } from "@/lib/db/schema";
 import { competitors, competitorOpportunities } from "@/lib/db/schema-competitors";
-import { eq, and, desc, sql, gte, lte, inArray, count, avg, sum, or, asc, isNotNull } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, inArray, count, avg, sum, or, asc, isNotNull, isNull } from "drizzle-orm";
+import type { AnyColumn } from "drizzle-orm/column";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/utils/logger";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 
 // ============================================================================
 // Types
@@ -46,6 +48,32 @@ import { logger } from "@/lib/utils/logger";
  * Standard action result type for consistent API responses.
  */
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+
+type OrganizationColumn = AnyColumn<{ data: string; notNull: false }>;
+
+async function requireWinLossContext(organizationId?: string | null): Promise<UserContext> {
+	const userContext = await requireUserContext();
+	if (organizationId && organizationId !== userContext.organizationId) {
+		throw new Error("Unauthorized");
+	}
+	return userContext;
+}
+
+function visibleOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
+	return userContext.organizationId
+		? or(isNull(column), eq(column, userContext.organizationId))
+		: isNull(column);
+}
+
+function mutableOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
+	return userContext.organizationId
+		? eq(column, userContext.organizationId)
+		: isNull(column);
+}
+
+function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
+	return inputOrganizationId ?? userContext.organizationId;
+}
 
 /**
  * Input for creating a new debrief record.
@@ -300,6 +328,8 @@ export async function createDebrief(
 	try {
 		// Validate input
 		const validated = createDebriefSchema.parse(data);
+		const userContext = await requireWinLossContext(validated.organizationId);
+		const organizationId = organizationForInsert(validated.organizationId, userContext);
 
 		// Verify opportunity exists
 		const [opportunity] = await db
@@ -316,7 +346,10 @@ export async function createDebrief(
 		const [existing] = await db
 			.select()
 			.from(debriefs)
-			.where(eq(debriefs.opportunityId, validated.opportunityId))
+			.where(and(
+				eq(debriefs.opportunityId, validated.opportunityId),
+				mutableOrganizationCondition(debriefs.organizationId, userContext)
+			))
 			.limit(1);
 
 		if (existing) {
@@ -328,7 +361,7 @@ export async function createDebrief(
 			.insert(debriefs)
 			.values({
 				opportunityId: validated.opportunityId,
-				organizationId: validated.organizationId,
+				organizationId,
 				outcome: validated.outcome,
 				debriefDate: validated.debriefDate,
 				debriefType: validated.debriefType,
@@ -354,6 +387,7 @@ export async function createDebrief(
 				actionItems: [],
 				createdAt: new Date(),
 				updatedAt: new Date(),
+				createdBy: userContext.userId,
 			})
 			.returning();
 
@@ -397,12 +431,13 @@ export async function updateDebrief(
 	try {
 		// Validate input
 		const validated = updateDebriefSchema.parse(data);
+		const userContext = await requireWinLossContext(validated.organizationId);
 
 		// Verify debrief exists
 		const [existing] = await db
 			.select()
 			.from(debriefs)
-			.where(eq(debriefs.id, id))
+			.where(and(eq(debriefs.id, id), mutableOrganizationCondition(debriefs.organizationId, userContext)))
 			.limit(1);
 
 		if (!existing) {
@@ -443,7 +478,7 @@ export async function updateDebrief(
 		const [updated] = await db
 			.update(debriefs)
 			.set(updateData)
-			.where(eq(debriefs.id, id))
+			.where(and(eq(debriefs.id, id), mutableOrganizationCondition(debriefs.organizationId, userContext)))
 			.returning();
 
 		revalidatePath("/winloss");
@@ -466,10 +501,11 @@ export async function getDebrief(
 	id: string
 ): Promise<ActionResult<Debrief & { opportunity?: typeof opportunities.$inferSelect }>> {
 	try {
+		const userContext = await requireWinLossContext();
 		const [debrief] = await db
 			.select()
 			.from(debriefs)
-			.where(eq(debriefs.id, id))
+			.where(and(eq(debriefs.id, id), mutableOrganizationCondition(debriefs.organizationId, userContext)))
 			.limit(1);
 
 		if (!debrief) {
@@ -505,7 +541,9 @@ export async function listDebriefs(
 	filters?: WinLossFilters
 ): Promise<ActionResult<Array<Debrief & { opportunityTitle?: string }>>> {
 	try {
+		const userContext = await requireWinLossContext(filters?.organizationId);
 		const conditions: ReturnType<typeof eq>[] = [];
+		conditions.push(mutableOrganizationCondition(debriefs.organizationId, userContext));
 
 		// Apply filters
 		if (filters?.outcome) {
@@ -526,10 +564,6 @@ export async function listDebriefs(
 
 		if (filters?.maxValue !== undefined) {
 			conditions.push(lte(debriefs.contractValue, filters.maxValue));
-		}
-
-		if (filters?.organizationId) {
-			conditions.push(eq(debriefs.organizationId, filters.organizationId));
 		}
 
 		if (filters?.competitorId) {
@@ -570,11 +604,12 @@ export async function deleteDebrief(
 	id: string
 ): Promise<ActionResult<{ deleted: boolean }>> {
 	try {
+		const userContext = await requireWinLossContext();
 		// Fetch debrief to get opportunity ID
 		const [existing] = await db
 			.select()
 			.from(debriefs)
-			.where(eq(debriefs.id, id))
+			.where(and(eq(debriefs.id, id), mutableOrganizationCondition(debriefs.organizationId, userContext)))
 			.limit(1);
 
 		if (!existing) {
@@ -582,7 +617,10 @@ export async function deleteDebrief(
 		}
 
 		// Delete the debrief
-		await db.delete(debriefs).where(eq(debriefs.id, id));
+		await db.delete(debriefs).where(and(
+			eq(debriefs.id, id),
+			mutableOrganizationCondition(debriefs.organizationId, userContext)
+		));
 
 		// Reset opportunity status to pending
 		if (existing.opportunityId) {
@@ -614,6 +652,7 @@ export async function deleteDebrief(
  */
 export async function analyzeWinLossPatterns(): Promise<ActionResult<PatternAnalysis>> {
 	try {
+		const userContext = await requireWinLossContext();
 		// Fetch all debriefs with opportunity data
 		const allDebriefs = await db
 			.select({
@@ -622,6 +661,7 @@ export async function analyzeWinLossPatterns(): Promise<ActionResult<PatternAnal
 			})
 			.from(debriefs)
 			.leftJoin(opportunities, eq(debriefs.opportunityId, opportunities.id))
+			.where(mutableOrganizationCondition(debriefs.organizationId, userContext))
 			.orderBy(desc(debriefs.createdAt));
 
 		if (allDebriefs.length < 3) {
@@ -704,6 +744,7 @@ export async function analyzeWinLossPatterns(): Promise<ActionResult<PatternAnal
 				.insert(winLossPatterns)
 				.values({
 					patternType: pattern.patternType,
+					organizationId: organizationForInsert(undefined, userContext),
 					patternName: pattern.patternName,
 					description: pattern.description,
 					winCorrelation: pattern.winCorrelation,
@@ -984,7 +1025,9 @@ export async function getWinLossStatistics(
 	filters?: WinLossFilters
 ): Promise<ActionResult<WinLossStats>> {
 	try {
+		const userContext = await requireWinLossContext(filters?.organizationId);
 		const conditions: ReturnType<typeof eq>[] = [];
+		conditions.push(mutableOrganizationCondition(debriefs.organizationId, userContext));
 
 		// Apply filters
 		if (filters?.outcome) {
@@ -1005,10 +1048,6 @@ export async function getWinLossStatistics(
 
 		if (filters?.maxValue !== undefined) {
 			conditions.push(lte(debriefs.contractValue, filters.maxValue));
-		}
-
-		if (filters?.organizationId) {
-			conditions.push(eq(debriefs.organizationId, filters.organizationId));
 		}
 
 		const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -1196,10 +1235,12 @@ export async function getWinLossStatistics(
  */
 export async function generateLessonsLearnedReport(): Promise<ActionResult<LessonsReport>> {
 	try {
+		const userContext = await requireWinLossContext();
 		// Fetch all debriefs with lessons
 		const allDebriefs = await db
 			.select()
 			.from(debriefs)
+			.where(mutableOrganizationCondition(debriefs.organizationId, userContext))
 			.orderBy(desc(debriefs.createdAt));
 
 		if (allDebriefs.length === 0) {
@@ -1357,6 +1398,8 @@ What specific improvements should the organization prioritize?`;
  */
 export async function calculateProposalROI(): Promise<ActionResult<ROIAnalysis>> {
 	try {
+		const userContext = await requireWinLossContext();
+		const organizationId = organizationForInsert(undefined, userContext);
 		// Get current period (last 12 months)
 		const periodEnd = new Date();
 		const periodStart = new Date();
@@ -1368,6 +1411,7 @@ export async function calculateProposalROI(): Promise<ActionResult<ROIAnalysis>>
 			.from(debriefs)
 			.where(
 				and(
+					mutableOrganizationCondition(debriefs.organizationId, userContext),
 					gte(debriefs.createdAt, periodStart),
 					lte(debriefs.createdAt, periodEnd)
 				)
@@ -1398,6 +1442,7 @@ export async function calculateProposalROI(): Promise<ActionResult<ROIAnalysis>>
 			.from(debriefs)
 			.where(
 				and(
+					mutableOrganizationCondition(debriefs.organizationId, userContext),
 					gte(debriefs.createdAt, previousPeriodStart),
 					lte(debriefs.createdAt, periodStart)
 				)
@@ -1445,6 +1490,7 @@ export async function calculateProposalROI(): Promise<ActionResult<ROIAnalysis>>
 
 		// Store ROI record
 		await db.insert(proposalROI).values({
+			organizationId,
 			periodStart,
 			periodEnd,
 			totalProposals: periodDebriefs.length,
@@ -1490,6 +1536,7 @@ export async function calculateProposalROI(): Promise<ActionResult<ROIAnalysis>>
  */
 export async function identifyImprovementAreas(): Promise<ActionResult<ImprovementArea[]>> {
 	try {
+		const userContext = await requireWinLossContext();
 		// Fetch debriefs with weaknesses
 		const debriefsWithWeaknesses = await db
 			.select({
@@ -1498,7 +1545,10 @@ export async function identifyImprovementAreas(): Promise<ActionResult<Improveme
 			})
 			.from(debriefs)
 			.leftJoin(opportunities, eq(debriefs.opportunityId, opportunities.id))
-			.where(sql`jsonb_array_length(${debriefs.weaknessesIdentified}) > 0`)
+			.where(and(
+				mutableOrganizationCondition(debriefs.organizationId, userContext),
+				sql`jsonb_array_length(${debriefs.weaknessesIdentified}) > 0`
+			))
 			.orderBy(desc(debriefs.createdAt));
 
 		if (debriefsWithWeaknesses.length === 0) {
@@ -1727,12 +1777,13 @@ export async function trackDebriefActionItems(
 	try {
 		// Validate action item
 		const validated = actionItemSchema.parse(actionItem);
+		const userContext = await requireWinLossContext();
 
 		// Fetch existing debrief
 		const [existing] = await db
 			.select()
 			.from(debriefs)
-			.where(eq(debriefs.id, debriefId))
+			.where(and(eq(debriefs.id, debriefId), mutableOrganizationCondition(debriefs.organizationId, userContext)))
 			.limit(1);
 
 		if (!existing) {
@@ -1757,7 +1808,7 @@ export async function trackDebriefActionItems(
 				actionItems: currentItems,
 				updatedAt: new Date(),
 			})
-			.where(eq(debriefs.id, debriefId))
+			.where(and(eq(debriefs.id, debriefId), mutableOrganizationCondition(debriefs.organizationId, userContext)))
 			.returning();
 
 		revalidatePath(`/winloss/${debriefId}`);
@@ -1781,11 +1832,12 @@ export async function updateActionItemStatus(
 	status: ActionItem["status"]
 ): Promise<ActionResult<Debrief>> {
 	try {
+		const userContext = await requireWinLossContext();
 		// Fetch existing debrief
 		const [existing] = await db
 			.select()
 			.from(debriefs)
-			.where(eq(debriefs.id, debriefId))
+			.where(and(eq(debriefs.id, debriefId), mutableOrganizationCondition(debriefs.organizationId, userContext)))
 			.limit(1);
 
 		if (!existing) {
@@ -1812,7 +1864,7 @@ export async function updateActionItemStatus(
 				actionItems: currentItems,
 				updatedAt: new Date(),
 			})
-			.where(eq(debriefs.id, debriefId))
+			.where(and(eq(debriefs.id, debriefId), mutableOrganizationCondition(debriefs.organizationId, userContext)))
 			.returning();
 
 		revalidatePath(`/winloss/${debriefId}`);
@@ -1835,11 +1887,15 @@ export async function compareToCompetitors(
 	competitorId: string
 ): Promise<ActionResult<CompetitorComparison>> {
 	try {
+		const userContext = await requireWinLossContext();
 		// Fetch competitor
 		const [competitor] = await db
 			.select()
 			.from(competitors)
-			.where(eq(competitors.id, competitorId))
+			.where(and(
+				eq(competitors.id, competitorId),
+				visibleOrganizationCondition(competitors.organizationId, userContext)
+			))
 			.limit(1);
 
 		if (!competitor) {
@@ -1854,7 +1910,10 @@ export async function compareToCompetitors(
 			})
 			.from(debriefs)
 			.leftJoin(opportunities, eq(debriefs.opportunityId, opportunities.id))
-			.where(eq(debriefs.winnerId, competitorId));
+			.where(and(
+				eq(debriefs.winnerId, competitorId),
+				mutableOrganizationCondition(debriefs.organizationId, userContext)
+			));
 
 		// Find debriefs where we won against this competitor
 		const ourWins = await db
@@ -1866,6 +1925,7 @@ export async function compareToCompetitors(
 			.leftJoin(competitorOpportunities, eq(debriefs.opportunityId, competitorOpportunities.opportunityId))
 			.where(
 				and(
+					mutableOrganizationCondition(debriefs.organizationId, userContext),
 					eq(debriefs.outcome, "win"),
 					eq(competitorOpportunities.competitorId, competitorId)
 				)
@@ -2023,6 +2083,7 @@ export async function exportWinLossReport(
 	format: "pdf" | "csv"
 ): Promise<ActionResult<{ content: string; filename: string; mimeType: string }>> {
 	try {
+		await requireWinLossContext();
 		// Fetch all required data
 		const statisticsResult = await getWinLossStatistics();
 		if (!statisticsResult.success) {
@@ -2191,6 +2252,7 @@ export async function getWinLossInsights(
 	opportunityId?: string
 ): Promise<ActionResult<string[]>> {
 	try {
+		const userContext = await requireWinLossContext();
 		let contextData: {
 			opportunity?: typeof opportunities.$inferSelect;
 			debriefs: Debrief[];
@@ -2213,9 +2275,12 @@ export async function getWinLossInsights(
 				.select()
 				.from(debriefs)
 				.where(
-					or(
-						eq(debriefs.opportunityId, opportunityId),
-						sql`${debriefs.strengthsIdentified}::text ILIKE ${'%' + (opportunity.category || '') + '%'}`
+					and(
+						mutableOrganizationCondition(debriefs.organizationId, userContext),
+						or(
+							eq(debriefs.opportunityId, opportunityId),
+							sql`${debriefs.strengthsIdentified}::text ILIKE ${'%' + (opportunity.category || '') + '%'}`
+						)
 					)
 				)
 				.limit(10);
@@ -2223,7 +2288,10 @@ export async function getWinLossInsights(
 			const activePatterns = await db
 				.select()
 				.from(winLossPatterns)
-				.where(eq(winLossPatterns.isActive, true))
+				.where(and(
+					eq(winLossPatterns.isActive, true),
+					mutableOrganizationCondition(winLossPatterns.organizationId, userContext)
+				))
 				.limit(5);
 
 			contextData = {
@@ -2236,13 +2304,17 @@ export async function getWinLossInsights(
 			const recentDebriefs = await db
 				.select()
 				.from(debriefs)
+				.where(mutableOrganizationCondition(debriefs.organizationId, userContext))
 				.orderBy(desc(debriefs.createdAt))
 				.limit(10);
 
 			const activePatterns = await db
 				.select()
 				.from(winLossPatterns)
-				.where(eq(winLossPatterns.isActive, true))
+				.where(and(
+					eq(winLossPatterns.isActive, true),
+					mutableOrganizationCondition(winLossPatterns.organizationId, userContext)
+				))
 				.limit(5);
 
 			contextData = {
@@ -2340,7 +2412,9 @@ export async function getPatterns(
 	filters?: { patternType?: string }
 ): Promise<ActionResult<WinLossPattern[]>> {
 	try {
+		const userContext = await requireWinLossContext();
 		const conditions: ReturnType<typeof eq>[] = [];
+		conditions.push(mutableOrganizationCondition(winLossPatterns.organizationId, userContext));
 
 		if (filters?.patternType) {
 			conditions.push(eq(winLossPatterns.patternType, filters.patternType));
@@ -2368,13 +2442,17 @@ export async function acknowledgePattern(
 	patternId: string
 ): Promise<ActionResult<WinLossPattern>> {
 	try {
+		const userContext = await requireWinLossContext();
 		const [updated] = await db
 			.update(winLossPatterns)
 			.set({
 				lastAnalyzedAt: new Date(),
 				updatedAt: new Date(),
 			})
-			.where(eq(winLossPatterns.id, patternId))
+			.where(and(
+				eq(winLossPatterns.id, patternId),
+				mutableOrganizationCondition(winLossPatterns.organizationId, userContext)
+			))
 			.returning();
 
 		if (!updated) {
@@ -2399,10 +2477,12 @@ export async function acknowledgePattern(
  */
 export async function getDashboardMetrics(): Promise<ActionResult<DashboardMetrics>> {
 	try {
+		const userContext = await requireWinLossContext();
 		// Total debriefs count
 		const [debriefCount] = await db
 			.select({ count: count() })
-			.from(debriefs);
+			.from(debriefs)
+			.where(mutableOrganizationCondition(debriefs.organizationId, userContext));
 
 		// Recent win rate (last 6 months)
 		const sixMonthsAgo = new Date();
@@ -2411,7 +2491,10 @@ export async function getDashboardMetrics(): Promise<ActionResult<DashboardMetri
 		const recentDebriefs = await db
 			.select()
 			.from(debriefs)
-			.where(gte(debriefs.createdAt, sixMonthsAgo));
+			.where(and(
+				mutableOrganizationCondition(debriefs.organizationId, userContext),
+				gte(debriefs.createdAt, sixMonthsAgo)
+			));
 
 		const recentWins = recentDebriefs.filter(d => d.outcome === "win");
 		const recentLosses = recentDebriefs.filter(d => d.outcome === "loss");
@@ -2423,10 +2506,16 @@ export async function getDashboardMetrics(): Promise<ActionResult<DashboardMetri
 		const [valueResult] = await db
 			.select({ total: sum(debriefs.contractValue) })
 			.from(debriefs)
-			.where(eq(debriefs.outcome, "win"));
+			.where(and(
+				mutableOrganizationCondition(debriefs.organizationId, userContext),
+				eq(debriefs.outcome, "win")
+			));
 
 		// Pending action items
-		const allDebriefs = await db.select().from(debriefs);
+		const allDebriefs = await db
+			.select()
+			.from(debriefs)
+			.where(mutableOrganizationCondition(debriefs.organizationId, userContext));
 		let pendingActionItems = 0;
 		for (const debrief of allDebriefs) {
 			const items = (debrief.actionItems as ActionItem[]) || [];
@@ -2437,12 +2526,16 @@ export async function getDashboardMetrics(): Promise<ActionResult<DashboardMetri
 		const [patternCount] = await db
 			.select({ count: count() })
 			.from(winLossPatterns)
-			.where(eq(winLossPatterns.isActive, true));
+			.where(and(
+				eq(winLossPatterns.isActive, true),
+				mutableOrganizationCondition(winLossPatterns.organizationId, userContext)
+			));
 
 		// Calculate ROI
 		const [investmentResult] = await db
 			.select({ total: sum(debriefs.proposalInvestment) })
-			.from(debriefs);
+			.from(debriefs)
+			.where(mutableOrganizationCondition(debriefs.organizationId, userContext));
 
 		const totalContractValue = Number(valueResult?.total) || 0;
 		const totalInvestment = Number(investmentResult?.total) || 0;
@@ -2476,6 +2569,7 @@ export async function getDashboardMetrics(): Promise<ActionResult<DashboardMetri
 			})
 			.from(debriefs)
 			.leftJoin(opportunities, eq(debriefs.opportunityId, opportunities.id))
+			.where(mutableOrganizationCondition(debriefs.organizationId, userContext))
 			.orderBy(desc(debriefs.createdAt))
 			.limit(5);
 
@@ -2514,11 +2608,15 @@ export async function getDebriefTimeline(
 	opportunityId: string
 ): Promise<ActionResult<DebriefTimelineEvent[]>> {
 	try {
+		const userContext = await requireWinLossContext();
 		// Fetch debrief for this opportunity
 		const [debrief] = await db
 			.select()
 			.from(debriefs)
-			.where(eq(debriefs.opportunityId, opportunityId))
+			.where(and(
+				eq(debriefs.opportunityId, opportunityId),
+				mutableOrganizationCondition(debriefs.organizationId, userContext)
+			))
 			.limit(1);
 
 		if (!debrief) {
