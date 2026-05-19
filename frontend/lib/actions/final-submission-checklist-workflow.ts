@@ -13,7 +13,7 @@ import {
 	scanDocumentsForDlpFindings,
 	type DlpFinding,
 } from "@/lib/security/dlp-policy";
-import { eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type ProposalDocumentWithDocument = {
 	proposalDocumentId: string;
@@ -69,13 +69,39 @@ const REQUIRED_DOCUMENT_TYPES = [
 	"cost_proposal",
 ];
 
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(proposalDocuments.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
+function visibleComplianceMatricesForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(complianceMatrices.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
 export async function evaluateFinalSubmissionChecklistWorkflow(
 	opportunityId: string
 ): Promise<FinalSubmissionChecklistResult> {
 	const userContext = await requireUserContext();
 	const [docs, matrices] = await Promise.all([
-		loadProposalDocuments(opportunityId),
-		db.select().from(complianceMatrices).where(eq(complianceMatrices.opportunityId, opportunityId)),
+		loadProposalDocuments(opportunityId, userContext.userId),
+		db
+			.select()
+			.from(complianceMatrices)
+			.where(visibleComplianceMatricesForOpportunityCondition(opportunityId, userContext.userId)),
 	]);
 	const dlpFindings = scanDocumentsForDlpFindings(docs.map((doc) => ({
 		documentId: doc.documentId,
@@ -149,7 +175,7 @@ export async function evaluateFinalSubmissionChecklistWorkflow(
 	};
 }
 
-async function loadProposalDocuments(opportunityId: string): Promise<ProposalDocumentWithDocument[]> {
+async function loadProposalDocuments(opportunityId: string, userId: string): Promise<ProposalDocumentWithDocument[]> {
 	return db
 		.select({
 			proposalDocumentId: proposalDocuments.id,
@@ -165,7 +191,7 @@ async function loadProposalDocuments(opportunityId: string): Promise<ProposalDoc
 		})
 		.from(proposalDocuments)
 		.innerJoin(documents, eq(documents.id, proposalDocuments.documentId))
-		.where(eq(proposalDocuments.opportunityId, opportunityId));
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId));
 }
 
 function buildChecklistItems(

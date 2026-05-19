@@ -18,16 +18,38 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 
 interface ChainConfig {
 	result?: unknown[];
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "innerJoin", "where"]) {
+	for (const method of ["from", "innerJoin"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
 var dbMock: any;
@@ -124,8 +146,10 @@ beforeEach(() => {
 
 describe("final submission checklist workflow", () => {
 	it("blocks submission when required documents, artifacts, signatures, compliance, or DLP clearance are missing", async () => {
+		const wheres: unknown[] = [];
 		dbMock.select
 			.mockReturnValueOnce(createChain({
+				onWhere: (value) => wheres.push(value),
 				result: [
 					docFixture({
 						proposalStatus: "approved",
@@ -135,7 +159,10 @@ describe("final submission checklist workflow", () => {
 					}),
 				],
 			}))
-			.mockReturnValueOnce(createChain({ result: [{ ...lockedMatrix, status: "review", approvedBy: null, approvedAt: null }] }));
+			.mockReturnValueOnce(createChain({
+				onWhere: (value) => wheres.push(value),
+				result: [{ ...lockedMatrix, status: "review", approvedBy: null, approvedAt: null }],
+			}));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
 
@@ -166,6 +193,10 @@ describe("final submission checklist workflow", () => {
 				priority: "critical",
 			})
 		);
+		expect(wheres).toHaveLength(2);
+		for (const where of wheres) {
+			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		}
 	});
 
 	it("passes when every required document has approval, signature, artifact, compliance lock, and DLP clearance", async () => {
