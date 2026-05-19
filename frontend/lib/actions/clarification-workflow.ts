@@ -7,7 +7,7 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type RequirementRow = typeof rfpRequirements.$inferSelect;
 
@@ -77,6 +77,22 @@ interface ClarificationMetadata {
 const WORKFLOW_KEY = "requirement_clarification";
 const SUBJECT_TYPE = "requirement_clarification";
 
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleRequirementCondition(requirementId: string, userId: string): SQL {
+	return and(
+		eq(rfpRequirements.id, requirementId),
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId)
+	)!;
+}
+
 export async function transitionClarificationWorkflow(
 	input: ClarificationWorkflowInput
 ): Promise<ClarificationWorkflowResult> {
@@ -89,7 +105,7 @@ export async function transitionClarificationWorkflow(
 	const [requirement] = await db
 		.select()
 		.from(rfpRequirements)
-		.where(eq(rfpRequirements.id, input.requirementId))
+		.where(visibleRequirementCondition(input.requirementId, userContext.userId))
 		.limit(1);
 	if (!requirement) {
 		throw new Error("Requirement not found");
@@ -124,7 +140,7 @@ export async function transitionClarificationWorkflow(
 			metadata: updatedMetadata,
 			updatedAt: now,
 		})
-		.where(eq(rfpRequirements.id, input.requirementId))
+		.where(visibleRequirementCondition(input.requirementId, userContext.userId))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update clarification workflow state");

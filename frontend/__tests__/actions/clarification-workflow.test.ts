@@ -12,13 +12,18 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -27,6 +32,31 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Reflect.ownKeys(value).flatMap((key) =>
+		collectSqlFragments((value as Record<PropertyKey, unknown>)[key], seen)
+	);
+}
+
+function expectAssignedRequirementScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("proposal-manager-1");
 }
 
 var dbMock: any;
@@ -92,7 +122,13 @@ beforeEach(() => {
 describe("clarification workflow", () => {
 	it("drafts a clarification question and projects approval work", async () => {
 		let requirementUpdate: Record<string, unknown> | undefined;
-		dbMock.select.mockReturnValueOnce(createChain({ result: [baseRequirement] }));
+		const whereClauses: unknown[] = [];
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [baseRequirement],
+			onWhere: (value) => {
+				whereClauses.push(value);
+			},
+		}));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [{
 				...baseRequirement,
@@ -101,6 +137,9 @@ describe("clarification workflow", () => {
 			}],
 			onSet: (value) => {
 				requirementUpdate = value;
+			},
+			onWhere: (value) => {
+				whereClauses.push(value);
 			},
 		}));
 
@@ -125,6 +164,9 @@ describe("clarification workflow", () => {
 			state: "drafted",
 			questions: [expect.objectContaining({ question: "Which incumbent system APIs are in scope?" })],
 		});
+		expect(whereClauses).toHaveLength(2);
+		expectAssignedRequirementScope(whereClauses[0]);
+		expectAssignedRequirementScope(whereClauses[1]);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "requirement_clarification",
 			subjectType: "requirement_clarification",
