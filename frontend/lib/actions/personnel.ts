@@ -30,6 +30,7 @@ import {
 } from "@/lib/db/schema-personnel";
 import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, ne, isNull, isNotNull } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
@@ -538,12 +539,22 @@ function calculateAvailabilityMatchScore(
 // CRUD Operations
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 /**
  * Create a new personnel record
  */
 export async function createPersonnel(
 	data: z.infer<typeof PersonnelSchema>
 ): Promise<ActionResult<{ id: string }>> {
+	await requireCurrentUserId();
+
 	try {
 		const validated = PersonnelSchema.parse(data);
 
@@ -606,6 +617,8 @@ export async function updatePersonnel(
 	id: string,
 	data: Partial<z.infer<typeof PersonnelSchema>>
 ): Promise<ActionResult<void>> {
+	await requireCurrentUserId();
+
 	try {
 		const validated = PersonnelSchema.partial().parse(data);
 
@@ -679,6 +692,8 @@ export async function updatePersonnel(
 export async function deletePersonnel(
 	id: string
 ): Promise<ActionResult<void>> {
+	await requireCurrentUserId();
+
 	try {
 		const result = await db
 			.update(personnel)
@@ -708,6 +723,8 @@ export async function deletePersonnel(
 export async function getPersonnel(
 	id: string
 ): Promise<ActionResult<ReturnType<typeof mapDBPersonnelToPersonnel>>> {
+	await requireCurrentUserId();
+
 	try {
 		const [row] = await db
 			.select()
@@ -733,6 +750,8 @@ export async function searchPersonnel(
 	query: string,
 	filters?: PersonnelFilters
 ): Promise<ActionResult<ReturnType<typeof mapDBPersonnelToPersonnel>[]>> {
+	await requireCurrentUserId();
+
 	try {
 		const conditions = [];
 
@@ -828,6 +847,8 @@ export async function parseResume(
 	fileContent: string,
 	fileName: string
 ): Promise<ActionResult<ParsedResume>> {
+	await requireCurrentUserId();
+
 	try {
 		const prompt = `Parse the following resume content and extract structured information. Return a JSON object with these fields:
 - firstName: string
@@ -896,6 +917,8 @@ Return ONLY valid JSON, no additional text.`;
 export async function bulkImportResumes(
 	files: Array<{ content: string; fileName: string }>
 ): Promise<{ success: boolean; imported: number; errors: number; details?: string[] }> {
+	await requireCurrentUserId();
+
 	try {
 		const results = {
 			imported: 0,
@@ -980,6 +1003,8 @@ export async function generateResume(
 	personnelId: string,
 	format: "federal" | "commercial" | "brief" | "technical"
 ): Promise<ActionResult<string>> {
+	await requireCurrentUserId();
+
 	try {
 		// Fetch personnel with experience
 		const [person] = await db
@@ -1182,6 +1207,8 @@ async function createPersonnelExperience(
 export async function matchPersonnelToPosition(
 	positionId: string
 ): Promise<ActionResult<PersonnelMatch[]>> {
+	await requireCurrentUserId();
+
 	try {
 		// Fetch position requirements
 		const [position] = await db
@@ -1286,6 +1313,8 @@ export async function matchPersonnelToPosition(
 export async function analyzeStaffingGaps(
 	opportunityId: string
 ): Promise<ActionResult<GapAnalysis>> {
+	await requireCurrentUserId();
+
 	try {
 		// Fetch all positions for the opportunity
 		const positions = await db
@@ -1410,8 +1439,10 @@ export async function analyzeStaffingGaps(
 export async function assignPersonnelToPosition(
 	personnelId: string,
 	positionId: string,
-	assignedBy?: string
+	_assignedBy?: string
 ): Promise<ActionResult<void>> {
+	const assignedBy = await requireCurrentUserId();
+
 	try {
 		// Verify personnel exists and is available
 		const [person] = await db
@@ -1459,7 +1490,7 @@ export async function assignPersonnelToPosition(
 				assignedPersonnelId: personnelId,
 				assignmentStatus: "assigned",
 				assignedAt: new Date(),
-				assignedBy: assignedBy ?? null,
+				assignedBy,
 				matchScore: overallScore,
 				matchDetails: {
 					skillsMatch: skillResult.score,
@@ -1505,6 +1536,8 @@ export async function assignPersonnelToPosition(
 export async function unassignFromPosition(
 	positionId: string
 ): Promise<ActionResult<void>> {
+	await requireCurrentUserId();
+
 	try {
 		const [position] = await db
 			.select()
@@ -1588,6 +1621,8 @@ export async function getPersonnelAvailability(
 	}>;
 	totalCommitmentInRange: number;
 }>> {
+	await requireCurrentUserId();
+
 	try {
 		const [person] = await db
 			.select()
@@ -1654,6 +1689,8 @@ export async function checkAvailability(
 	personnelIds: string[],
 	dates: DateRange
 ): Promise<ActionResult<Record<string, { available: boolean; commitment: number; conflicts: string[] }>>> {
+	await requireCurrentUserId();
+
 	try {
 		const availability: Record<string, { available: boolean; commitment: number; conflicts: string[] }> = {};
 
@@ -1694,6 +1731,8 @@ export async function updateAvailability(
 	personnelId: string,
 	availability: z.infer<typeof AvailabilitySchema>
 ): Promise<ActionResult<{ id: string }>> {
+	await requireCurrentUserId();
+
 	try {
 		const validated = AvailabilitySchema.parse(availability);
 
@@ -1773,6 +1812,8 @@ export async function getExpiringCertifications(
 	expirationDate: string;
 	daysUntilExpiration: number;
 }>>> {
+	await requireCurrentUserId();
+
 	try {
 		const futureDate = new Date();
 		futureDate.setDate(futureDate.getDate() + daysAhead);
@@ -1826,6 +1867,8 @@ export async function getExpiringCertifications(
 export async function sendCertificationReminders(
 	personnelIds: string[]
 ): Promise<ActionResult<{ sent: number }>> {
+	await requireCurrentUserId();
+
 	try {
 		// In production, this would send emails via email service
 		// For now, just count and return
@@ -1855,6 +1898,8 @@ export async function sendCertificationReminders(
 export async function generateOrgChart(
 	opportunityId: string
 ): Promise<ActionResult<OrgChartData>> {
+	await requireCurrentUserId();
+
 	try {
 		// Fetch all positions for the opportunity with assigned personnel
 		const positions = await db
@@ -1945,6 +1990,8 @@ export async function generateOrgChart(
 export async function generateStaffingMatrix(
 	opportunityId: string
 ): Promise<ActionResult<StaffingMatrix>> {
+	await requireCurrentUserId();
+
 	try {
 		const positions = await db
 			.select()
@@ -2030,6 +2077,8 @@ export async function searchSkills(
 	query: string,
 	category?: string
 ): Promise<ActionResult<Array<{ id: string; name: string; category: string }>>> {
+	await requireCurrentUserId();
+
 	try {
 		const conditions = [eq(skillsTaxonomy.isActive, true)];
 
@@ -2071,6 +2120,8 @@ export async function searchSkills(
 export async function suggestSkillsForTitle(
 	title: string
 ): Promise<ActionResult<string[]>> {
+	await requireCurrentUserId();
+
 	try {
 		const titleLower = title.toLowerCase();
 
@@ -2111,6 +2162,8 @@ export async function suggestSkillsForTitle(
 export async function createPosition(
 	data: z.infer<typeof PositionSchema>
 ): Promise<ActionResult<{ id: string }>> {
+	await requireCurrentUserId();
+
 	try {
 		const validated = PositionSchema.parse(data);
 
@@ -2173,6 +2226,8 @@ export async function getPositionsForOpportunity(
 	assignedPersonnel: { id: string; name: string } | null;
 	matchScore: number | null;
 }>>> {
+	await requireCurrentUserId();
+
 	try {
 		const positions = await db
 			.select()
@@ -2226,6 +2281,8 @@ export async function updatePosition(
 	id: string,
 	data: Partial<z.infer<typeof PositionSchema>>
 ): Promise<ActionResult<void>> {
+	await requireCurrentUserId();
+
 	try {
 		const validated = PositionSchema.partial().parse(data);
 
@@ -2285,6 +2342,8 @@ export async function updatePosition(
 export async function deletePosition(
 	id: string
 ): Promise<ActionResult<void>> {
+	await requireCurrentUserId();
+
 	try {
 		const result = await db
 			.delete(positionRequirements)
