@@ -3,13 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -18,6 +23,23 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
 const recordTransitionMock = vi.hoisted(() => vi.fn());
@@ -61,7 +83,7 @@ const opportunity = {
 	decisionStatus: "pending",
 	decisionReason: null,
 	isReviewed: false,
-	assignedTo: "capture-1",
+	assignedTo: "pm-1",
 	deadline: new Date("2026-06-01T12:00:00.000Z"),
 	priorityRank: 5,
 	fitScore: 82,
@@ -81,10 +103,14 @@ beforeEach(() => {
 describe("opportunity lifecycle actions", () => {
 	it("shortlists an opportunity and projects triage workflow work", async () => {
 		let patch: Record<string, unknown> | undefined;
+		let updateWhere: unknown;
 		dbMock.select.mockReturnValueOnce(createChain({ result: [opportunity] }));
 		dbMock.update.mockReturnValueOnce(createChain({
 			onSet: (value) => {
 				patch = value;
+			},
+			onWhere: (value) => {
+				updateWhere = value;
 			},
 		}));
 
@@ -108,6 +134,7 @@ describe("opportunity lifecycle actions", () => {
 			eventType: "opportunity_shortlist",
 			priority: "critical",
 		}));
+		expect(collectSqlFragments(updateWhere).join(" ")).toContain("assigned_to");
 		expect(upsertTaskMock).toHaveBeenCalledWith(expect.objectContaining({
 			workflowInstanceId: "workflow-1",
 			taskKey: "opportunity_triage:shortlisted",

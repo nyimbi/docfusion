@@ -6,7 +6,7 @@ import { opportunities } from "@/lib/db/schema";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { requireServerSession } from "@/lib/auth-utils";
 import type { DecisionStatus } from "@/lib/types/opportunity";
-import { eq } from "drizzle-orm";
+import { and, eq, type SQL } from "drizzle-orm";
 
 export type OpportunityTriageAction =
 	| "mark_interested"
@@ -52,7 +52,7 @@ export async function transitionOpportunityTriage(input: {
 }): Promise<OpportunityLifecycleResult> {
 	try {
 		const actor = await requireLifecycleActor();
-		const opportunity = await loadOpportunity(input.opportunityId);
+		const opportunity = await loadOpportunity(input.opportunityId, actor.userId);
 		const target = TRIAGE_STATE_BY_ACTION[input.action];
 		const reason = input.reason.trim();
 		if (!reason) return { success: false, error: "A triage reason is required" };
@@ -77,7 +77,7 @@ export async function transitionOpportunityTriage(input: {
 				metadata,
 				updatedAt: new Date(),
 			})
-			.where(eq(opportunities.id, input.opportunityId));
+			.where(visibleOpportunityCondition(input.opportunityId, actor.userId));
 
 		const workflow = await recordWorkflowRuntimeTransition({
 			workflowKey: "opportunity_triage",
@@ -139,7 +139,7 @@ export async function recordOpportunityAnalysisAcceptance(input: {
 }): Promise<OpportunityLifecycleResult> {
 	try {
 		const actor = await requireLifecycleActor();
-		const opportunity = await loadOpportunity(input.opportunityId);
+		const opportunity = await loadOpportunity(input.opportunityId, actor.userId);
 		const reason = input.reason.trim();
 		if (!reason) return { success: false, error: "An analysis acceptance reason is required" };
 		const confidence = Math.max(0, Math.min(100, Math.round(input.confidence)));
@@ -166,7 +166,7 @@ export async function recordOpportunityAnalysisAcceptance(input: {
 				metadata,
 				updatedAt: new Date(),
 			})
-			.where(eq(opportunities.id, input.opportunityId));
+			.where(visibleOpportunityCondition(input.opportunityId, actor.userId));
 
 		await recordWorkflowRuntimeTransition({
 			workflowKey: "opportunity_analysis_acceptance",
@@ -201,7 +201,7 @@ export async function transitionOpportunityDeadline(input: {
 }): Promise<OpportunityLifecycleResult> {
 	try {
 		const actor = await requireLifecycleActor();
-		const opportunity = await loadOpportunity(input.opportunityId);
+		const opportunity = await loadOpportunity(input.opportunityId, actor.userId);
 		const reason = input.reason.trim();
 		if (!reason) return { success: false, error: "A deadline reason is required" };
 		const deadline = input.acceptedDeadline ? parseDeadlineInput(input.acceptedDeadline) : opportunity.deadline;
@@ -227,7 +227,7 @@ export async function transitionOpportunityDeadline(input: {
 				metadata,
 				updatedAt: new Date(),
 			})
-			.where(eq(opportunities.id, input.opportunityId));
+			.where(visibleOpportunityCondition(input.opportunityId, actor.userId));
 
 		const workflow = await recordWorkflowRuntimeTransition({
 			workflowKey: "opportunity_deadline_acceptance",
@@ -284,11 +284,18 @@ async function requireLifecycleActor() {
 	};
 }
 
-async function loadOpportunity(opportunityId: string) {
+function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		eq(opportunities.assignedTo, userId)
+	)!;
+}
+
+async function loadOpportunity(opportunityId: string, userId: string) {
 	const [opportunity] = await db
 		.select()
 		.from(opportunities)
-		.where(eq(opportunities.id, opportunityId))
+		.where(visibleOpportunityCondition(opportunityId, userId))
 		.limit(1);
 	if (!opportunity) throw new Error("Opportunity not found");
 	return opportunity;
