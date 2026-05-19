@@ -21,6 +21,15 @@ import {
 	substitutePlaceholders as substituteContentPlaceholders,
 	substitutePlaceholdersInString as substituteStringPlaceholders,
 } from "@/lib/placeholders/substitution";
+import { getCurrentUserId } from "@/lib/auth-utils";
+
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
 
 // ============================================================================
 // Template Categories
@@ -404,6 +413,7 @@ export interface RateTemplateResult {
 export async function rateTemplate(
 	input: RateTemplateInput
 ): Promise<RateTemplateResult> {
+	await requireCurrentUserId();
 	const { templateId, rating } = input;
 
 	// Validate rating range
@@ -481,9 +491,9 @@ export interface CreateFromTemplateResult {
  * - Returns the new document ID
  */
 export async function createDocumentFromTemplate(
-	input: UseTemplateInput,
-	userId: string = "system"
+	input: UseTemplateInput
 ): Promise<CreateFromTemplateResult> {
+	const userId = await requireCurrentUserId();
 	const { templateId, title, placeholderValues, useAIFill } = input;
 
 	// Get the template

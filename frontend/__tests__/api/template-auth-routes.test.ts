@@ -60,8 +60,7 @@ describe("template write API auth", () => {
 				title: "Response Draft",
 				placeholderValues: { company: "Acme" },
 				useAIFill: false,
-			},
-			"session-user-1",
+			}
 		);
 	});
 

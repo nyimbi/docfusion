@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 			useAIFill: body.useAIFill ?? false,
 		};
 
-		const result = await createDocumentFromTemplate(input, userId);
+		const result = await createDocumentFromTemplate(input);
 
 		return NextResponse.json({
 			id: result.documentId,
