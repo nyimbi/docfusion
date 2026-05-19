@@ -28,6 +28,21 @@ import {
 } from "@/lib/db/schema-reviews";
 import { eq, and, desc, sql, inArray, gte, lte, isNull, count, avg } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
+import { getCurrentUserId } from "@/lib/auth-utils";
+
+async function requireReviewActorId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
+function assertReviewerActor(reviewerUserId: string | null | undefined, actorId: string): void {
+	if (reviewerUserId !== actorId) {
+		throw new Error("Unauthorized");
+	}
+}
 
 // ============================================================================
 // INPUT VALIDATION SCHEMAS
@@ -1102,6 +1117,7 @@ export async function addReviewComment(
 	comment: CommentInput
 ): Promise<{ success: boolean; commentId?: string; error?: string }> {
 	try {
+		const actorId = await requireReviewActorId();
 		const validated = CommentInputSchema.parse(comment);
 
 		// Verify reviewer exists and belongs to this review
@@ -1115,6 +1131,7 @@ export async function addReviewComment(
 		if (!reviewer) {
 			return { success: false, error: "Reviewer not found or not assigned to this review" };
 		}
+		assertReviewerActor(reviewer.userId, actorId);
 
 		const [newComment] = await db.insert(reviewComments).values({
 			reviewId,
@@ -1295,9 +1312,10 @@ export async function deleteComment(
 export async function resolveComment(
 	commentId: string,
 	resolution: ResolutionInput,
-	resolvedBy: string
+	_resolvedBy: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		const actorId = await requireReviewActorId();
 		const validated = ResolutionInputSchema.parse(resolution);
 
 		const comment = await db.query.reviewComments.findFirst({
@@ -1313,7 +1331,7 @@ export async function resolveComment(
 				resolutionStatus: validated.resolutionStatus,
 				resolutionNotes: validated.resolutionNotes,
 				resolutionAction: validated.resolutionAction,
-				resolvedBy,
+				resolvedBy: actorId,
 				resolvedAt: validated.resolutionStatus === "resolved" ? new Date() : null,
 				isDuplicate: validated.resolutionStatus === "duplicate",
 				duplicateOfId: validated.duplicateOfId,
@@ -1341,10 +1359,11 @@ export async function resolveComment(
  */
 export async function verifyResolution(
 	commentId: string,
-	verifiedBy: string,
+	_verifiedBy: string,
 	verificationNotes?: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		const actorId = await requireReviewActorId();
 		const comment = await db.query.reviewComments.findFirst({
 			where: eq(reviewComments.id, commentId),
 		});
@@ -1359,7 +1378,7 @@ export async function verifyResolution(
 
 		await db.update(reviewComments)
 			.set({
-				verifiedBy,
+				verifiedBy: actorId,
 				verifiedAt: new Date(),
 				verificationNotes,
 				updatedAt: new Date(),
@@ -1558,6 +1577,7 @@ export async function submitReviewerScores(
 	scores: ScoreInput[]
 ): Promise<{ success: boolean; scoresSubmitted?: number; error?: string }> {
 	try {
+		const actorId = await requireReviewActorId();
 		const validatedScores = scores.map(s => ScoreInputSchema.parse(s));
 
 		// Get reviewer to find the review
@@ -1568,6 +1588,7 @@ export async function submitReviewerScores(
 		if (!reviewer) {
 			return { success: false, error: "Reviewer not found" };
 		}
+		assertReviewerActor(reviewer.userId, actorId);
 
 		// Calculate derived values and insert
 		const processedScores = validatedScores.map(score => ({

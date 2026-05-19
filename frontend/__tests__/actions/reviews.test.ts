@@ -27,6 +27,12 @@ vi.mock("@/lib/utils/logger", () => ({
 	logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
+const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/auth-utils", () => ({
+	getCurrentUserId: getCurrentUserIdMock,
+}));
+
 // ---------------------------------------------------------------------------
 // Chainable query builder mock
 // ---------------------------------------------------------------------------
@@ -350,6 +356,7 @@ function makeScoreRow(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	getCurrentUserIdMock.mockResolvedValue("user-100");
 	// Recreate fresh db mock chains
 	dbMock.select.mockImplementation(() => createChainableQuery([]));
 	dbMock.insert.mockImplementation(() => createChainableQuery([]));
@@ -963,6 +970,21 @@ describe("Comment Management", () => {
 			expect(result.error).toContain("not found or not assigned");
 		});
 
+		test("rejects comments submitted as another reviewer", async () => {
+			dbMock.query.reviewers.findFirst.mockResolvedValue(
+				makeReviewerRow({ userId: "other-user" })
+			);
+
+			const result = await addReviewComment(UUID, UUID3, {
+				commentType: "strength",
+				comment: "Good executive summary.",
+			});
+
+			expect(result.success).toBe(false);
+			expect(result.error).toBe("Unauthorized");
+			expect(dbMock.insert).not.toHaveBeenCalled();
+		});
+
 		test("validates comment input schema", async () => {
 			const result = await addReviewComment(UUID, UUID3, {
 				commentType: "invalid_type" as never,
@@ -1045,6 +1067,8 @@ describe("Comment Management", () => {
 		test("resolves a comment with notes and action", async () => {
 			dbMock.query.reviewComments.findFirst.mockResolvedValue(makeCommentRow());
 			dbMock.query.reviewComments.findMany.mockResolvedValue([]);
+			const updateChain = createChainableQuery([]);
+			dbMock.update.mockReturnValue(updateChain);
 
 			const result = await resolveComment(
 				"comment-1",
@@ -1057,7 +1081,9 @@ describe("Comment Management", () => {
 			);
 
 			expect(result.success).toBe(true);
-			expect(dbMock.update).toHaveBeenCalled();
+			expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+				resolvedBy: "user-100",
+			}));
 		});
 
 		test("marks comment as deferred", async () => {
@@ -1102,6 +1128,8 @@ describe("Comment Management", () => {
 			dbMock.query.reviewComments.findFirst.mockResolvedValue(
 				makeCommentRow({ resolutionStatus: "resolved" })
 			);
+			const updateChain = createChainableQuery([]);
+			dbMock.update.mockReturnValue(updateChain);
 
 			const result = await verifyResolution(
 				"comment-1",
@@ -1110,6 +1138,9 @@ describe("Comment Management", () => {
 			);
 
 			expect(result.success).toBe(true);
+			expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+				verifiedBy: "user-100",
+			}));
 		});
 
 		test("rejects verification of non-resolved comments", async () => {
@@ -1304,6 +1335,20 @@ describe("Scoring", () => {
 
 			expect(result.success).toBe(false);
 			expect(result.error).toBe("Reviewer not found");
+		});
+
+		test("rejects scores submitted as another reviewer", async () => {
+			dbMock.query.reviewers.findFirst.mockResolvedValue(
+				makeReviewerRow({ userId: "other-user" })
+			);
+
+			const result = await submitReviewerScores(UUID3, [
+				{ score: 80, maxScore: 100 },
+			]);
+
+			expect(result.success).toBe(false);
+			expect(result.error).toBe("Unauthorized");
+			expect(dbMock.insert).not.toHaveBeenCalled();
 		});
 
 		test("rejects negative scores via Zod validation", async () => {
