@@ -8,7 +8,7 @@ import {
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
 import type { FreshnessStatus } from "@/lib/types/content-library";
-import { eq } from "drizzle-orm";
+import { and, eq, or, type SQL } from "drizzle-orm";
 
 type TemplateSnippetRow = typeof templateSnippets.$inferSelect;
 type SnippetAnalyticsRow = typeof snippetAnalytics.$inferSelect;
@@ -41,6 +41,22 @@ export interface ContentGovernanceResult {
 const WORKFLOW_KEY = "content_library_governance";
 const SUBJECT_TYPE = "template_snippet";
 
+function visibleSnippetCondition(
+	snippetId: string,
+	userContext: { userId: string; organizationId?: string }
+): SQL {
+	const accessCondition = userContext.organizationId
+		? or(
+			eq(templateSnippets.createdBy, userContext.userId),
+			eq(templateSnippets.organizationId, userContext.organizationId)
+		)!
+		: eq(templateSnippets.createdBy, userContext.userId);
+	return and(
+		eq(templateSnippets.id, snippetId),
+		accessCondition
+	)!;
+}
+
 export async function transitionContentGovernanceWorkflow(
 	input: ContentGovernanceInput
 ): Promise<ContentGovernanceResult> {
@@ -53,7 +69,7 @@ export async function transitionContentGovernanceWorkflow(
 	const [snippet] = await db
 		.select()
 		.from(templateSnippets)
-		.where(eq(templateSnippets.id, input.snippetId))
+		.where(visibleSnippetCondition(input.snippetId, userContext))
 		.limit(1);
 	if (!snippet) {
 		throw new Error("Snippet not found");

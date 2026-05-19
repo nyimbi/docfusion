@@ -20,13 +20,18 @@ interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
 	onValues?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -39,6 +44,31 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Reflect.ownKeys(value).flatMap((key) =>
+		collectSqlFragments((value as Record<PropertyKey, unknown>)[key], seen)
+	);
+}
+
+function expectVisibleSnippetScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("content-governor-1");
+	expect(sqlText).toContain("org-1");
 }
 
 var dbMock: any;
@@ -121,8 +151,14 @@ beforeEach(() => {
 describe("content governance workflow", () => {
 	it("marks a snippet for review, updates freshness analytics, and projects a review task", async () => {
 		let analyticsPatch: Record<string, unknown> | undefined;
+		let snippetWhere: unknown;
 		dbMock.select
-			.mockReturnValueOnce(createChain({ result: [baseSnippet] }))
+			.mockReturnValueOnce(createChain({
+				result: [baseSnippet],
+				onWhere: (value) => {
+					snippetWhere = value;
+				},
+			}))
 			.mockReturnValueOnce(createChain({ result: [baseAnalytics] }));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [{
@@ -155,6 +191,7 @@ describe("content governance workflow", () => {
 			reviewDueDate: new Date("2026-05-10T00:00:00.000Z"),
 			wordCount: 5,
 		});
+		expectVisibleSnippetScope(snippetWhere);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "content_library_governance",
 			subjectType: "template_snippet",
