@@ -34,6 +34,18 @@ import type {
 	ACCOUNT_STAGES,
 } from "@/lib/types/crm";
 import type { AccountRow, NewAccount } from "@/lib/db/schema-crm";
+import { getServerSession } from "@/lib/auth-utils";
+
+async function requireCrmActor(): Promise<{ userId: string; userName: string | null }> {
+	const session = await getServerSession();
+	if (!session?.user?.id) {
+		throw new Error("Unauthorized");
+	}
+	return {
+		userId: session.user.id,
+		userName: session.user.name ?? session.user.email ?? null,
+	};
+}
 
 // ============================================================================
 // CRUD OPERATIONS
@@ -44,8 +56,9 @@ import type { AccountRow, NewAccount } from "@/lib/db/schema-crm";
  */
 export async function createAccount(
 	input: CreateAccountInput,
-	userId?: string
+	_userId?: string
 ): Promise<AccountRow> {
+	const actor = await requireCrmActor();
 	const now = new Date();
 
 	// Set default stage based on type if not provided
@@ -79,8 +92,8 @@ export async function createAccount(
 		corporateStatus: input.corporateStatus,
 		stage: input.stage ?? defaultStage,
 		status: input.status ?? "active",
-		ownerId: input.ownerId,
-		ownerName: input.ownerName,
+		ownerId: actor.userId,
+		ownerName: actor.userName ?? input.ownerName,
 		teamId: input.teamId,
 		leadScore: input.leadScore,
 		leadSource: input.leadSource,
@@ -90,8 +103,8 @@ export async function createAccount(
 		customFields: input.customFields,
 		source: input.source ?? "manual",
 		sourceFile: input.sourceFile,
-		createdBy: userId,
-		updatedBy: userId,
+		createdBy: actor.userId,
+		updatedBy: actor.userId,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -104,7 +117,7 @@ export async function createAccount(
 		previousStage: null,
 		newStage: created.stage ?? defaultStage,
 		newType: created.type,
-		changedBy: userId,
+		changedBy: actor.userId,
 		reason: "Account created",
 	});
 
@@ -117,24 +130,26 @@ export async function createAccount(
 export async function updateAccount(
 	id: string,
 	input: UpdateAccountInput,
-	userId?: string
+	_userId?: string
 ): Promise<AccountRow | null> {
+	const actor = await requireCrmActor();
 	const existing = await db.query.accounts.findFirst({
-		where: eq(accounts.id, id),
+		where: and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)),
 	});
 
 	if (!existing) {
 		return null;
 	}
 
+	const { ownerId: _ownerId, ownerName: _ownerName, ...safeInput } = input;
 	const [updated] = await db
 		.update(accounts)
 		.set({
-			...input,
+			...safeInput,
 			updatedAt: new Date(),
-			updatedBy: userId,
+			updatedBy: actor.userId,
 		})
-		.where(eq(accounts.id, id))
+		.where(and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)))
 		.returning();
 
 	return updated;
@@ -145,11 +160,14 @@ export async function updateAccount(
  */
 export async function deleteAccount(
 	id: string,
-	userId?: string,
+	_userId?: string,
 	hard = false
 ): Promise<boolean> {
+	const actor = await requireCrmActor();
 	if (hard) {
-		const result = await db.delete(accounts).where(eq(accounts.id, id));
+		const result = await db
+			.delete(accounts)
+			.where(and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)));
 		return (result.rowCount ?? 0) > 0;
 	}
 
@@ -158,9 +176,9 @@ export async function deleteAccount(
 		.set({
 			status: "archived",
 			updatedAt: new Date(),
-			updatedBy: userId,
+			updatedBy: actor.userId,
 		})
-		.where(eq(accounts.id, id))
+		.where(and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)))
 		.returning();
 
 	return !!updated;
@@ -398,10 +416,11 @@ export async function updateAccountStage(
 	id: string,
 	newStage: string,
 	reason?: string,
-	userId?: string
+	_userId?: string
 ): Promise<AccountRow | null> {
+	const actor = await requireCrmActor();
 	const existing = await db.query.accounts.findFirst({
-		where: eq(accounts.id, id),
+		where: and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)),
 	});
 
 	if (!existing) {
@@ -416,9 +435,9 @@ export async function updateAccountStage(
 		.set({
 			stage: newStage,
 			updatedAt: new Date(),
-			updatedBy: userId,
+			updatedBy: actor.userId,
 		})
-		.where(eq(accounts.id, id))
+		.where(and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)))
 		.returning();
 
 	// Record stage change in history
@@ -426,7 +445,7 @@ export async function updateAccountStage(
 		accountId: id,
 		previousStage,
 		newStage,
-		changedBy: userId,
+		changedBy: actor.userId,
 		reason,
 	});
 
@@ -439,10 +458,11 @@ export async function updateAccountStage(
 export async function convertLeadToCustomer(
 	id: string,
 	reason?: string,
-	userId?: string
+	_userId?: string
 ): Promise<AccountRow | null> {
+	const actor = await requireCrmActor();
 	const existing = await db.query.accounts.findFirst({
-		where: eq(accounts.id, id),
+		where: and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)),
 	});
 
 	if (!existing || !["lead", "prospect"].includes(existing.type)) {
@@ -456,9 +476,9 @@ export async function convertLeadToCustomer(
 			stage: "onboarding",
 			customerSince: new Date(),
 			updatedAt: new Date(),
-			updatedBy: userId,
+			updatedBy: actor.userId,
 		})
-		.where(eq(accounts.id, id))
+		.where(and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)))
 		.returning();
 
 	// Record type and stage change in history
@@ -468,7 +488,7 @@ export async function convertLeadToCustomer(
 		newStage: "onboarding",
 		previousType: existing.type,
 		newType: "customer",
-		changedBy: userId,
+		changedBy: actor.userId,
 		reason: reason ?? "Converted to customer",
 	});
 
@@ -481,10 +501,11 @@ export async function convertLeadToCustomer(
 export async function convertProspectToLead(
 	id: string,
 	reason?: string,
-	userId?: string
+	_userId?: string
 ): Promise<AccountRow | null> {
+	const actor = await requireCrmActor();
 	const existing = await db.query.accounts.findFirst({
-		where: eq(accounts.id, id),
+		where: and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)),
 	});
 
 	if (!existing || existing.type !== "prospect") {
@@ -498,9 +519,9 @@ export async function convertProspectToLead(
 			stage: "qualified",
 			qualificationStatus: "sql",
 			updatedAt: new Date(),
-			updatedBy: userId,
+			updatedBy: actor.userId,
 		})
-		.where(eq(accounts.id, id))
+		.where(and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)))
 		.returning();
 
 	// Record type and stage change in history
@@ -510,7 +531,7 @@ export async function convertProspectToLead(
 		newStage: "qualified",
 		previousType: "prospect",
 		newType: "lead",
-		changedBy: userId,
+		changedBy: actor.userId,
 		reason: reason ?? "Qualified as lead",
 	});
 
@@ -933,17 +954,18 @@ export async function bulkUpdateAccountOwner(
 	accountIds: string[],
 	ownerId: string,
 	ownerName: string,
-	userId?: string
+	_userId?: string
 ): Promise<number> {
+	const actor = await requireCrmActor();
 	const result = await db
 		.update(accounts)
 		.set({
 			ownerId,
 			ownerName,
 			updatedAt: new Date(),
-			updatedBy: userId,
+			updatedBy: actor.userId,
 		})
-		.where(inArray(accounts.id, accountIds));
+		.where(and(inArray(accounts.id, accountIds), eq(accounts.ownerId, actor.userId)));
 
 	return result.rowCount ?? 0;
 }
@@ -954,13 +976,14 @@ export async function bulkUpdateAccountOwner(
 export async function bulkAddAccountTags(
 	accountIds: string[],
 	tagsToAdd: string[],
-	userId?: string
+	_userId?: string
 ): Promise<number> {
+	const actor = await requireCrmActor();
 	let count = 0;
 
 	for (const id of accountIds) {
 		const account = await db.query.accounts.findFirst({
-			where: eq(accounts.id, id),
+			where: and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)),
 			columns: { tags: true },
 		});
 
@@ -973,9 +996,9 @@ export async function bulkAddAccountTags(
 				.set({
 					tags: newTags,
 					updatedAt: new Date(),
-					updatedBy: userId,
+					updatedBy: actor.userId,
 				})
-				.where(eq(accounts.id, id));
+				.where(and(eq(accounts.id, id), eq(accounts.ownerId, actor.userId)));
 
 			count++;
 		}

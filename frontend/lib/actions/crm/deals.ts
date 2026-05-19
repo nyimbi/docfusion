@@ -32,6 +32,18 @@ import type {
 	DEAL_STAGES,
 } from "@/lib/types/crm";
 import type { DealRow, NewDeal } from "@/lib/db/schema-crm";
+import { getServerSession } from "@/lib/auth-utils";
+
+async function requireCrmActor(): Promise<{ userId: string; userName: string | null }> {
+	const session = await getServerSession();
+	if (!session?.user?.id) {
+		throw new Error("Unauthorized");
+	}
+	return {
+		userId: session.user.id,
+		userName: session.user.name ?? session.user.email ?? null,
+	};
+}
 
 // Default stage probabilities
 const STAGE_PROBABILITIES: Record<DealStage, number> = {
@@ -52,8 +64,9 @@ const STAGE_PROBABILITIES: Record<DealStage, number> = {
  */
 export async function createDeal(
 	input: CreateDealInput,
-	userId?: string
+	_userId?: string
 ): Promise<DealRow> {
+	const actor = await requireCrmActor();
 	const now = new Date();
 	const stage = input.stage ?? "qualification";
 	const stageProbability = input.stageProbability ?? STAGE_PROBABILITIES[stage];
@@ -73,11 +86,11 @@ export async function createDeal(
 		stageProbability,
 		expectedCloseDate: input.expectedCloseDate,
 		status: "open",
-		ownerId: input.ownerId,
-		ownerName: input.ownerName,
+		ownerId: actor.userId,
+		ownerName: actor.userName ?? input.ownerName,
 		tags: input.tags ?? [],
 		customFields: input.customFields,
-		createdBy: userId,
+		createdBy: actor.userId,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -90,7 +103,7 @@ export async function createDeal(
 		previousStage: null,
 		newStage: stage,
 		valueAtChange: input.value,
-		changedBy: userId,
+		changedBy: actor.userId,
 		reason: "Deal created",
 	});
 
@@ -103,23 +116,25 @@ export async function createDeal(
 export async function updateDeal(
 	id: string,
 	input: UpdateDealInput,
-	userId?: string
+	_userId?: string
 ): Promise<DealRow | null> {
+	const actor = await requireCrmActor();
 	const existing = await db.query.deals.findFirst({
-		where: eq(deals.id, id),
+		where: and(eq(deals.id, id), eq(deals.ownerId, actor.userId)),
 	});
 
 	if (!existing) {
 		return null;
 	}
 
+	const { ownerId: _ownerId, ownerName: _ownerName, ...safeInput } = input;
 	const [updated] = await db
 		.update(deals)
 		.set({
-			...input,
+			...safeInput,
 			updatedAt: new Date(),
 		})
-		.where(eq(deals.id, id))
+		.where(and(eq(deals.id, id), eq(deals.ownerId, actor.userId)))
 		.returning();
 
 	return updated;
@@ -129,7 +144,10 @@ export async function updateDeal(
  * Delete a deal.
  */
 export async function deleteDeal(id: string): Promise<boolean> {
-	const result = await db.delete(deals).where(eq(deals.id, id));
+	const actor = await requireCrmActor();
+	const result = await db
+		.delete(deals)
+		.where(and(eq(deals.id, id), eq(deals.ownerId, actor.userId)));
 	return (result.rowCount ?? 0) > 0;
 }
 
@@ -242,10 +260,11 @@ export async function updateDealStage(
 	id: string,
 	newStage: DealStage,
 	reason?: string,
-	userId?: string
+	_userId?: string
 ): Promise<DealRow | null> {
+	const actor = await requireCrmActor();
 	const existing = await db.query.deals.findFirst({
-		where: eq(deals.id, id),
+		where: and(eq(deals.id, id), eq(deals.ownerId, actor.userId)),
 	});
 
 	if (!existing) {
@@ -273,7 +292,7 @@ export async function updateDealStage(
 			actualCloseDate: ["closed_won", "closed_lost"].includes(newStage) ? now : null,
 			updatedAt: now,
 		})
-		.where(eq(deals.id, id))
+		.where(and(eq(deals.id, id), eq(deals.ownerId, actor.userId)))
 		.returning();
 
 	// Record stage change in history
@@ -282,7 +301,7 @@ export async function updateDealStage(
 		previousStage,
 		newStage,
 		valueAtChange: existing.value,
-		changedBy: userId,
+		changedBy: actor.userId,
 		reason,
 	});
 
@@ -295,10 +314,11 @@ export async function updateDealStage(
 export async function markDealWon(
 	id: string,
 	reason?: string,
-	userId?: string
+	_userId?: string
 ): Promise<DealRow | null> {
+	const actor = await requireCrmActor();
 	const existing = await db.query.deals.findFirst({
-		where: eq(deals.id, id),
+		where: and(eq(deals.id, id), eq(deals.ownerId, actor.userId)),
 	});
 
 	if (!existing) {
@@ -317,7 +337,7 @@ export async function markDealWon(
 			winReason: reason,
 			updatedAt: now,
 		})
-		.where(eq(deals.id, id))
+		.where(and(eq(deals.id, id), eq(deals.ownerId, actor.userId)))
 		.returning();
 
 	// Record in history
@@ -326,7 +346,7 @@ export async function markDealWon(
 		previousStage: existing.stage,
 		newStage: "closed_won",
 		valueAtChange: existing.value,
-		changedBy: userId,
+		changedBy: actor.userId,
 		reason: reason ?? "Deal won",
 	});
 
@@ -346,7 +366,7 @@ export async function markDealWon(
 					customerSince: now,
 					updatedAt: now,
 				})
-				.where(eq(accounts.id, existing.accountId));
+				.where(and(eq(accounts.id, existing.accountId), eq(accounts.ownerId, actor.userId)));
 		}
 	}
 
@@ -360,10 +380,11 @@ export async function markDealLost(
 	id: string,
 	reason: string,
 	competitorId?: string,
-	userId?: string
+	_userId?: string
 ): Promise<DealRow | null> {
+	const actor = await requireCrmActor();
 	const existing = await db.query.deals.findFirst({
-		where: eq(deals.id, id),
+		where: and(eq(deals.id, id), eq(deals.ownerId, actor.userId)),
 	});
 
 	if (!existing) {
@@ -383,7 +404,7 @@ export async function markDealLost(
 			competitorLostTo: competitorId,
 			updatedAt: now,
 		})
-		.where(eq(deals.id, id))
+		.where(and(eq(deals.id, id), eq(deals.ownerId, actor.userId)))
 		.returning();
 
 	// Record in history
@@ -392,7 +413,7 @@ export async function markDealLost(
 		previousStage: existing.stage,
 		newStage: "closed_lost",
 		valueAtChange: existing.value,
-		changedBy: userId,
+		changedBy: actor.userId,
 		reason: `Lost: ${reason}`,
 	});
 
@@ -405,10 +426,11 @@ export async function markDealLost(
 export async function putDealOnHold(
 	id: string,
 	reason?: string,
-	userId?: string
+	_userId?: string
 ): Promise<DealRow | null> {
+	const actor = await requireCrmActor();
 	const existing = await db.query.deals.findFirst({
-		where: eq(deals.id, id),
+		where: and(eq(deals.id, id), eq(deals.ownerId, actor.userId)),
 	});
 
 	if (!existing) {
@@ -421,7 +443,7 @@ export async function putDealOnHold(
 			status: "on_hold",
 			updatedAt: new Date(),
 		})
-		.where(eq(deals.id, id))
+		.where(and(eq(deals.id, id), eq(deals.ownerId, actor.userId)))
 		.returning();
 
 	return updated;
@@ -433,10 +455,11 @@ export async function putDealOnHold(
 export async function reactivateDeal(
 	id: string,
 	stage?: DealStage,
-	userId?: string
+	_userId?: string
 ): Promise<DealRow | null> {
+	const actor = await requireCrmActor();
 	const existing = await db.query.deals.findFirst({
-		where: eq(deals.id, id),
+		where: and(eq(deals.id, id), eq(deals.ownerId, actor.userId)),
 	});
 
 	if (!existing) {
@@ -454,7 +477,7 @@ export async function reactivateDeal(
 			actualCloseDate: null,
 			updatedAt: new Date(),
 		})
-		.where(eq(deals.id, id))
+		.where(and(eq(deals.id, id), eq(deals.ownerId, actor.userId)))
 		.returning();
 
 	// Record in history
@@ -463,7 +486,7 @@ export async function reactivateDeal(
 		previousStage: existing.stage,
 		newStage,
 		valueAtChange: existing.value,
-		changedBy: userId,
+		changedBy: actor.userId,
 		reason: "Deal reactivated",
 	});
 
@@ -848,8 +871,9 @@ export async function bulkUpdateDealOwner(
 	dealIds: string[],
 	ownerId: string,
 	ownerName: string,
-	userId?: string
+	_userId?: string
 ): Promise<number> {
+	const actor = await requireCrmActor();
 	const result = await db
 		.update(deals)
 		.set({
@@ -857,7 +881,7 @@ export async function bulkUpdateDealOwner(
 			ownerName,
 			updatedAt: new Date(),
 		})
-		.where(inArray(deals.id, dealIds));
+		.where(and(inArray(deals.id, dealIds), eq(deals.ownerId, actor.userId)));
 
 	return result.rowCount ?? 0;
 }
@@ -868,10 +892,11 @@ export async function bulkUpdateDealOwner(
 export async function cloneDeal(
 	id: string,
 	newName?: string,
-	userId?: string
+	_userId?: string
 ): Promise<DealRow | null> {
+	const actor = await requireCrmActor();
 	const existing = await db.query.deals.findFirst({
-		where: eq(deals.id, id),
+		where: and(eq(deals.id, id), eq(deals.ownerId, actor.userId)),
 	});
 
 	if (!existing) {
@@ -895,11 +920,11 @@ export async function cloneDeal(
 		stageProbability: STAGE_PROBABILITIES.qualification,
 		expectedCloseDate: null,
 		status: "open",
-		ownerId: existing.ownerId,
-		ownerName: existing.ownerName,
+		ownerId: actor.userId,
+		ownerName: actor.userName ?? existing.ownerName,
 		tags: existing.tags as string[],
 		customFields: existing.customFields as Record<string, unknown>,
-		createdBy: userId,
+		createdBy: actor.userId,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -912,7 +937,7 @@ export async function cloneDeal(
 		previousStage: null,
 		newStage: "qualification",
 		valueAtChange: existing.value,
-		changedBy: userId,
+		changedBy: actor.userId,
 		reason: `Cloned from deal: ${existing.name}`,
 	});
 
