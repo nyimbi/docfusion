@@ -76,6 +76,133 @@ function workflowCostElementCondition(costElementId: string, actorId: string): S
 	)!;
 }
 
+function workflowOpportunityCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		eq(opportunities.assignedTo, actorId)
+	)!;
+}
+
+function assignedPipelineExistsSql(pipelineId: unknown, actorId: string): SQL {
+	return sql`exists (
+		select 1
+		from capture_pipeline
+		join opportunities on opportunities.id = capture_pipeline.opportunity_id
+		where capture_pipeline.id = ${pipelineId}
+			and opportunities.assigned_to = ${actorId}
+	)`;
+}
+
+function workflowGateReviewCondition(gateReviewId: string, actorId: string): SQL {
+	return and(
+		eq(gateReviews.id, gateReviewId),
+		assignedPipelineExistsSql(gateReviews.pipelineId, actorId)
+	)!;
+}
+
+function workflowProposalTaskCondition(taskId: string, actorId: string): SQL {
+	return and(
+		eq(proposalTasks.id, taskId),
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, actorId)
+	)!;
+}
+
+function workflowProposalReviewCondition(reviewId: string, actorId: string): SQL {
+	return and(
+		eq(proposalReviews.id, reviewId),
+		assignedOpportunityExistsSql(proposalReviews.opportunityId, actorId)
+	)!;
+}
+
+function assignedProposalReviewExistsSql(reviewId: unknown, actorId: string): SQL {
+	return sql`exists (
+		select 1
+		from proposal_reviews
+		join opportunities on opportunities.id = proposal_reviews.opportunity_id
+		where proposal_reviews.id = ${reviewId}
+			and opportunities.assigned_to = ${actorId}
+	)`;
+}
+
+function workflowReviewCommentCondition(commentId: string, actorId: string): SQL {
+	return and(
+		eq(reviewComments.id, commentId),
+		assignedProposalReviewExistsSql(reviewComments.reviewId, actorId)
+	)!;
+}
+
+function assignedProposalDocumentForDocumentExistsSql(documentId: unknown, actorId: string): SQL {
+	return sql`exists (
+		select 1
+		from proposal_documents
+		join opportunities on opportunities.id = proposal_documents.opportunity_id
+		where proposal_documents.document_id = ${documentId}
+			and opportunities.assigned_to = ${actorId}
+	)`;
+}
+
+function workflowDocumentCondition(documentId: string, actorId: string): SQL {
+	return and(
+		eq(documents.id, documentId),
+		assignedProposalDocumentForDocumentExistsSql(documents.id, actorId)
+	)!;
+}
+
+function workflowProposalDocumentsForDocumentCondition(documentId: string, actorId: string): SQL {
+	return and(
+		eq(proposalDocuments.documentId, documentId),
+		assignedOpportunityExistsSql(proposalDocuments.opportunityId, actorId)
+	)!;
+}
+
+function assignedDocumentApprovalExistsSql(actorId: string): SQL {
+	return sql`exists (
+		select 1
+		from proposal_documents
+		join opportunities on opportunities.id = proposal_documents.opportunity_id
+		where (
+			proposal_documents.id = document_approvals.proposal_document_id
+			or proposal_documents.document_id = document_approvals.document_id
+		)
+			and opportunities.assigned_to = ${actorId}
+	)`;
+}
+
+function workflowDocumentApprovalCondition(approvalId: string, actorId: string): SQL {
+	return and(
+		eq(documentApprovals.id, approvalId),
+		assignedDocumentApprovalExistsSql(actorId)
+	)!;
+}
+
+function workflowSubmissionCondition(submissionId: string, actorId: string): SQL {
+	return and(
+		eq(submissions.id, submissionId),
+		assignedOpportunityExistsSql(submissions.opportunityId, actorId)
+	)!;
+}
+
+function workflowClaimAnalysisCondition(claimId: string, actorId: string): SQL {
+	return and(
+		eq(claimAnalysis.id, claimId),
+		assignedOpportunityExistsSql(claimAnalysis.opportunityId, actorId)
+	)!;
+}
+
+function workflowDataImportCondition(importId: string, organizationId: string): SQL {
+	return and(
+		eq(dataImports.id, importId),
+		eq(dataImports.organizationId, organizationId)
+	)!;
+}
+
+function workflowOpportunityPartnerCondition(assignmentId: string, actorId: string): SQL {
+	return and(
+		eq(opportunityPartners.id, assignmentId),
+		assignedOpportunityExistsSql(opportunityPartners.opportunityId, actorId)
+	)!;
+}
+
 type DomainWorkflowAction = "start" | "transition" | "reopen" | "cancel" | "resolve";
 type CompensationAction = "reopen" | "cancel" | "resolve";
 
@@ -374,7 +501,7 @@ async function applyDomainCompensation(input: {
 						isReviewed: true,
 						updatedAt: now,
 					};
-			await db.update(opportunities).set(patch).where(eq(opportunities.id, input.instance.subjectId));
+			await db.update(opportunities).set(patch).where(workflowOpportunityCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		case "document": {
@@ -382,7 +509,7 @@ async function applyDomainCompensation(input: {
 			const [document] = await db
 				.select()
 				.from(documents)
-				.where(eq(documents.id, input.instance.subjectId))
+				.where(workflowDocumentCondition(input.instance.subjectId, input.actorId))
 				.limit(1);
 			if (!document) {
 				throw new Error("Document not found for workflow compensation");
@@ -394,11 +521,11 @@ async function applyDomainCompensation(input: {
 				now,
 				metadata: document.metadata,
 			});
-			await db.update(documents).set(patch).where(eq(documents.id, input.instance.subjectId));
+			await db.update(documents).set(patch).where(workflowDocumentCondition(input.instance.subjectId, input.actorId));
 			await db
 				.update(proposalDocuments)
 				.set(proposalDocumentFinalizationPatch(input.action, input.actorId, input.reason, now))
-				.where(eq(proposalDocuments.documentId, input.instance.subjectId));
+				.where(workflowProposalDocumentsForDocumentCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		case "rfp_parse":
@@ -525,7 +652,7 @@ async function applyDomainCompensation(input: {
 						rationale: `Resolved by workflow: ${input.reason}`,
 						updatedAt: now,
 					};
-			await db.update(gateReviews).set(patch).where(eq(gateReviews.id, input.instance.subjectId));
+			await db.update(gateReviews).set(patch).where(workflowGateReviewCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		case "proposal_task": {
@@ -552,7 +679,7 @@ async function applyDomainCompensation(input: {
 						progress: 100,
 						updatedAt: now,
 					};
-			await db.update(proposalTasks).set(patch).where(eq(proposalTasks.id, input.instance.subjectId));
+			await db.update(proposalTasks).set(patch).where(workflowProposalTaskCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		case "proposal_review": {
@@ -577,7 +704,7 @@ async function applyDomainCompensation(input: {
 						recommendation: "ready_to_submit",
 						updatedAt: now,
 					};
-			await db.update(proposalReviews).set(patch).where(eq(proposalReviews.id, input.instance.subjectId));
+			await db.update(proposalReviews).set(patch).where(workflowProposalReviewCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		case "review_comment": {
@@ -614,7 +741,7 @@ async function applyDomainCompensation(input: {
 						verificationNotes: `Verified by workflow: ${input.reason}`,
 						updatedAt: now,
 					};
-			await db.update(reviewComments).set(patch).where(eq(reviewComments.id, input.instance.subjectId));
+			await db.update(reviewComments).set(patch).where(workflowReviewCommentCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		case "document_approval": {
@@ -642,7 +769,7 @@ async function applyDomainCompensation(input: {
 						rejectionReason: null,
 						updatedAt: now,
 					};
-			await db.update(documentApprovals).set(patch).where(eq(documentApprovals.id, input.instance.subjectId));
+			await db.update(documentApprovals).set(patch).where(workflowDocumentApprovalCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		case "submission": {
@@ -668,7 +795,7 @@ async function applyDomainCompensation(input: {
 						outcomeNotes: `Resolved by workflow: ${input.reason}`,
 						updatedAt: now,
 					};
-			await db.update(submissions).set(patch).where(eq(submissions.id, input.instance.subjectId));
+			await db.update(submissions).set(patch).where(workflowSubmissionCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		case "scraper_run": {
@@ -723,7 +850,7 @@ async function applyDomainCompensation(input: {
 						resolvedAt: now,
 						resolutionNotes: `Resolved by workflow: ${input.reason}`,
 					};
-			await db.update(claimAnalysis).set(patch).where(eq(claimAnalysis.id, input.instance.subjectId));
+			await db.update(claimAnalysis).set(patch).where(workflowClaimAnalysisCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		case "pricing_package": {
@@ -751,7 +878,7 @@ async function applyDomainCompensation(input: {
 				: input.action === "cancel"
 					? { status: "cancelled", completedAt: now }
 					: { status: "completed", completedAt: now };
-			await db.update(dataImports).set(patch).where(eq(dataImports.id, input.instance.subjectId));
+			await db.update(dataImports).set(patch).where(workflowDataImportCondition(input.instance.subjectId, input.organizationId));
 			break;
 		}
 		case "partner_assignment": {
@@ -761,7 +888,7 @@ async function applyDomainCompensation(input: {
 				: input.action === "cancel"
 					? { status: "rejected", updatedAt: now }
 					: { status: "accepted", updatedAt: now };
-			await db.update(opportunityPartners).set(patch).where(eq(opportunityPartners.id, input.instance.subjectId));
+			await db.update(opportunityPartners).set(patch).where(workflowOpportunityPartnerCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		default: {
