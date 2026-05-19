@@ -18,6 +18,15 @@ import type {
 	UpdateDocumentInput,
 } from "@/lib/types/crm";
 import type { CrmDocumentRow, NewCrmDocument } from "@/lib/db/schema-crm";
+import { getCurrentUserId } from "@/lib/auth-utils";
+
+async function requireDocumentActor(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
 
 // ============================================================================
 // CRUD OPERATIONS
@@ -28,8 +37,9 @@ import type { CrmDocumentRow, NewCrmDocument } from "@/lib/db/schema-crm";
  */
 export async function uploadDocument(
 	input: UploadDocumentInput,
-	userId?: string
+	_userId?: string
 ): Promise<CrmDocumentRow> {
+	const actorId = await requireDocumentActor();
 	const now = new Date();
 
 	const newDocument: NewCrmDocument = {
@@ -48,7 +58,7 @@ export async function uploadDocument(
 		validFrom: input.validFrom,
 		validTo: input.validTo,
 		issuedBy: input.issuedBy,
-		createdBy: userId,
+		createdBy: actorId,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -64,10 +74,11 @@ export async function uploadDocument(
 export async function updateDocument(
 	id: string,
 	input: UpdateDocumentInput,
-	userId?: string
+	_userId?: string
 ): Promise<CrmDocumentRow | null> {
+	const actorId = await requireDocumentActor();
 	const existing = await db.query.crmDocuments.findFirst({
-		where: eq(crmDocuments.id, id),
+		where: and(eq(crmDocuments.id, id), eq(crmDocuments.createdBy, actorId)),
 	});
 
 	if (!existing) {
@@ -80,7 +91,7 @@ export async function updateDocument(
 			...input,
 			updatedAt: new Date(),
 		})
-		.where(eq(crmDocuments.id, id))
+		.where(and(eq(crmDocuments.id, id), eq(crmDocuments.createdBy, actorId)))
 		.returning();
 
 	return updated;
@@ -90,7 +101,10 @@ export async function updateDocument(
  * Delete a document.
  */
 export async function deleteDocument(id: string): Promise<boolean> {
-	const result = await db.delete(crmDocuments).where(eq(crmDocuments.id, id));
+	const actorId = await requireDocumentActor();
+	const result = await db
+		.delete(crmDocuments)
+		.where(and(eq(crmDocuments.id, id), eq(crmDocuments.createdBy, actorId)));
 	return (result.rowCount ?? 0) > 0;
 }
 
@@ -248,10 +262,11 @@ export async function getExpiredDocuments(): Promise<CrmDocumentRow[]> {
 export async function uploadNewVersion(
 	existingDocumentId: string,
 	input: Omit<UploadDocumentInput, "accountId" | "contactId" | "dealId" | "activityId">,
-	userId?: string
+	_userId?: string
 ): Promise<CrmDocumentRow | null> {
+	const actorId = await requireDocumentActor();
 	const existing = await db.query.crmDocuments.findFirst({
-		where: eq(crmDocuments.id, existingDocumentId),
+		where: and(eq(crmDocuments.id, existingDocumentId), eq(crmDocuments.createdBy, actorId)),
 	});
 
 	if (!existing) {
@@ -278,7 +293,7 @@ export async function uploadNewVersion(
 		validFrom: input.validFrom ?? existing.validFrom,
 		validTo: input.validTo ?? existing.validTo,
 		issuedBy: input.issuedBy ?? existing.issuedBy,
-		createdBy: userId,
+		createdBy: actorId,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -415,9 +430,10 @@ export async function getAccountStorageUsage(
 export async function bulkDeleteDocuments(
 	documentIds: string[]
 ): Promise<number> {
+	const actorId = await requireDocumentActor();
 	const result = await db
 		.delete(crmDocuments)
-		.where(inArray(crmDocuments.id, documentIds));
+		.where(and(inArray(crmDocuments.id, documentIds), eq(crmDocuments.createdBy, actorId)));
 
 	return result.rowCount ?? 0;
 }
@@ -430,6 +446,7 @@ export async function moveDocument(
 	newEntityId: string,
 	entityType: "account" | "contact" | "deal" | "activity"
 ): Promise<CrmDocumentRow | null> {
+	const actorId = await requireDocumentActor();
 	const updateData: Record<string, string | null> = {
 		accountId: null,
 		contactId: null,
@@ -458,7 +475,7 @@ export async function moveDocument(
 			...updateData,
 			updatedAt: new Date(),
 		})
-		.where(eq(crmDocuments.id, documentId))
+		.where(and(eq(crmDocuments.id, documentId), eq(crmDocuments.createdBy, actorId)))
 		.returning();
 
 	return updated;
@@ -471,10 +488,11 @@ export async function copyDocument(
 	documentId: string,
 	targetEntityId: string,
 	entityType: "account" | "contact" | "deal" | "activity",
-	userId?: string
+	_userId?: string
 ): Promise<CrmDocumentRow | null> {
+	const actorId = await requireDocumentActor();
 	const existing = await db.query.crmDocuments.findFirst({
-		where: eq(crmDocuments.id, documentId),
+		where: and(eq(crmDocuments.id, documentId), eq(crmDocuments.createdBy, actorId)),
 	});
 
 	if (!existing) {
@@ -499,7 +517,7 @@ export async function copyDocument(
 		validFrom: existing.validFrom,
 		validTo: existing.validTo,
 		issuedBy: existing.issuedBy,
-		createdBy: userId,
+		createdBy: actorId,
 		createdAt: now,
 		updatedAt: now,
 	};
