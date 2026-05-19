@@ -135,6 +135,8 @@ import {
 	updateIndirectRate,
 	deleteIndirectRate,
 	applyBOETemplate,
+	generateBOENarrative,
+	recalculateCostElement,
 	createCostElement,
 	updateCostElement,
 	deleteCostElement,
@@ -587,6 +589,19 @@ describe("Indirect Rate tenant scoping", () => {
 });
 
 describe("BOE template tenant scoping", () => {
+	test("requires organization context before generating a BOE narrative", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await generateBOENarrative("ce-1");
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
 	test("requires organization context before applying a template", async () => {
 		mockUserContext.organizationId = undefined;
 
@@ -597,6 +612,31 @@ describe("BOE template tenant scoping", () => {
 			expect(result.error).toContain("No organization context");
 		}
 		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("does not apply a template when the scoped cost element is missing", async () => {
+		dbMock.select.mockImplementationOnce(() => createChainableQuery([]));
+
+		const result = await applyBOETemplate("ce-1", "bt-1");
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("Cost element not found");
+		}
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before recalculating a cost element", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await recalculateCostElement("ce-1");
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 });
 

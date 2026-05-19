@@ -1676,9 +1676,12 @@ Respond in JSON format:
  */
 export async function generateBOENarrative(costElementId: string): Promise<ActionResult<string>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
-		const [element] = await db.select().from(costElements).where(eq(costElements.id, costElementId));
+		const [element] = await db
+			.select()
+			.from(costElements)
+			.where(costElementByIdCondition(costElementId, userContext));
 		if (!element) {
 			return { success: false, error: "Cost element not found" };
 		}
@@ -1801,7 +1804,7 @@ Write in a professional, third-person style suitable for DCAA review.
 				boeNarrative: result.content,
 				updatedAt: new Date(),
 			})
-			.where(eq(costElements.id, costElementId));
+			.where(costElementByIdCondition(costElementId, userContext));
 
 		revalidatePath(`/opportunities/${element.opportunityId}/pricing`);
 
@@ -1825,14 +1828,14 @@ export async function generateBOEForOpportunity(
 	opportunityId: string
 ): Promise<ActionResult<{ elementId: string; narrative: string }[]>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		const elements = await db
 			.select()
 			.from(costElements)
 			.where(
 				and(
-					eq(costElements.opportunityId, opportunityId),
+					costElementsByOpportunityCondition(opportunityId, userContext),
 					isNull(costElements.boeNarrative)
 				)
 			);
@@ -1947,7 +1950,10 @@ export async function applyBOETemplate(
 	try {
 		const userContext = await requirePricingContext();
 
-		const [element] = await db.select().from(costElements).where(eq(costElements.id, costElementId));
+		const [element] = await db
+			.select()
+			.from(costElements)
+			.where(costElementByIdCondition(costElementId, userContext));
 		if (!element) {
 			return { success: false, error: "Cost element not found" };
 		}
@@ -1990,7 +1996,7 @@ export async function applyBOETemplate(
 				boeNarrative: narrative,
 				updatedAt: new Date(),
 			})
-			.where(eq(costElements.id, costElementId));
+			.where(costElementByIdCondition(costElementId, userContext));
 
 		// Update template use count
 		await db
@@ -2258,9 +2264,9 @@ export async function calculateTotalPrice(
  */
 export async function recalculateCostElement(id: string): Promise<ActionResult<CostElement>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
-		const [element] = await db.select().from(costElements).where(eq(costElements.id, id));
+		const [element] = await db.select().from(costElements).where(costElementByIdCondition(id, userContext));
 		if (!element) {
 			return { success: false, error: "Cost element not found" };
 		}
@@ -2285,7 +2291,7 @@ export async function recalculateCostElement(id: string): Promise<ActionResult<C
 		const [updated] = await db
 			.update(costElements)
 			.set(updates)
-			.where(eq(costElements.id, id))
+			.where(costElementByIdCondition(id, userContext))
 			.returning();
 
 		return { success: true, data: updated };
