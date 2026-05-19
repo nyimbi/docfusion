@@ -260,6 +260,19 @@ function visibleProposalTaskCondition(taskId: string, actor: TaskActor): SQL {
 	)!;
 }
 
+function visibleTaskActivityCondition(taskId: string, actor: TaskActor): SQL {
+	return and(
+		eq(taskActivity.taskId, taskId),
+		sql`exists (
+			select 1
+			from proposal_tasks
+			join opportunities on opportunities.id = proposal_tasks.opportunity_id
+			where proposal_tasks.id = ${taskActivity.taskId}
+				and opportunities.assigned_to = ${actor.userId}
+		)`
+	)!;
+}
+
 function requirementsByOpportunityCondition(opportunityId: string, actor: TaskActor): SQL {
 	return and(
 		eq(rfpRequirements.opportunityId, opportunityId),
@@ -890,6 +903,7 @@ export async function suggestAssignment(
 				.where(
 					and(
 						eq(proposalTasks.assignedTo, author.userName),
+						assignedOpportunityExistsSql(proposalTasks.opportunityId, actor),
 						or(
 							eq(proposalTasks.status, "assigned"),
 							eq(proposalTasks.status, "in_progress")
@@ -1276,6 +1290,7 @@ export async function getWorkloadSummary(
 	userId: string
 ): Promise<{ success: boolean; data?: WorkloadSummary; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		// Get author details
 		const [author] = await db
 			.select()
@@ -1290,7 +1305,10 @@ export async function getWorkloadSummary(
 		const allTasks = await db
 			.select()
 			.from(proposalTasks)
-			.where(eq(proposalTasks.assignedTo, userName));
+			.where(and(
+				eq(proposalTasks.assignedTo, userName),
+				assignedOpportunityExistsSql(proposalTasks.opportunityId, actor)
+			));
 
 		const now = new Date();
 		const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -1383,13 +1401,14 @@ export async function getTeamWorkload(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: WorkloadSummary[]; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		// Get all unique assignees for the opportunity
 		const assignees = await db
 			.selectDistinct({ assignedTo: proposalTasks.assignedTo })
 			.from(proposalTasks)
 			.where(
 				and(
-					eq(proposalTasks.opportunityId, opportunityId),
+					proposalTasksByOpportunityCondition(opportunityId, actor),
 					sql`${proposalTasks.assignedTo} IS NOT NULL`
 				)
 			);
@@ -1431,6 +1450,7 @@ export async function balanceWorkload(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: RebalanceResult; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		// Get team workload
 		const teamResult = await getTeamWorkload(opportunityId);
 		if (!teamResult.success || !teamResult.data) {
@@ -1458,7 +1478,7 @@ export async function balanceWorkload(
 				.from(proposalTasks)
 				.where(
 					and(
-						eq(proposalTasks.opportunityId, opportunityId),
+						proposalTasksByOpportunityCondition(opportunityId, actor),
 						eq(proposalTasks.assignedTo, overloadedUser.userName),
 						or(
 							eq(proposalTasks.status, "pending"),
@@ -1567,6 +1587,7 @@ export async function detectBottlenecks(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: Bottleneck[]; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		const bottlenecks: Bottleneck[] = [];
 
 		// Get all non-completed tasks
@@ -1575,7 +1596,7 @@ export async function detectBottlenecks(
 			.from(proposalTasks)
 			.where(
 				and(
-					eq(proposalTasks.opportunityId, opportunityId),
+					proposalTasksByOpportunityCondition(opportunityId, actor),
 					ne(proposalTasks.status, "completed"),
 					ne(proposalTasks.status, "cancelled")
 				)
@@ -1709,7 +1730,7 @@ export async function escalateOverdueTasks(
 			.from(proposalTasks)
 			.where(
 				and(
-					eq(proposalTasks.opportunityId, opportunityId),
+					proposalTasksByOpportunityCondition(opportunityId, actor),
 					ne(proposalTasks.status, "completed"),
 					ne(proposalTasks.status, "cancelled"),
 					eq(proposalTasks.escalated, false),
@@ -1728,7 +1749,7 @@ export async function escalateOverdueTasks(
 					escalatedAt: now,
 					updatedAt: now,
 				})
-				.where(eq(proposalTasks.id, task.id));
+				.where(visibleProposalTaskCondition(task.id, actor));
 
 			// Log escalation activity
 			await logTaskActivity(
@@ -1752,7 +1773,7 @@ export async function escalateOverdueTasks(
 			.from(proposalTasks)
 			.where(
 				and(
-					eq(proposalTasks.opportunityId, opportunityId),
+					proposalTasksByOpportunityCondition(opportunityId, actor),
 					ne(proposalTasks.status, "completed"),
 					ne(proposalTasks.status, "cancelled"),
 					eq(proposalTasks.escalated, false),
@@ -1770,7 +1791,7 @@ export async function escalateOverdueTasks(
 					escalatedAt: now,
 					updatedAt: now,
 				})
-				.where(eq(proposalTasks.id, task.id));
+				.where(visibleProposalTaskCondition(task.id, actor));
 
 			await logTaskActivity(
 				task.id,
@@ -2169,10 +2190,11 @@ export async function getTaskActivity(
 	taskId: string
 ): Promise<{ success: boolean; data?: TaskActivityType[]; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		const activities = await db
 			.select()
 			.from(taskActivity)
-			.where(eq(taskActivity.taskId, taskId))
+			.where(visibleTaskActivityCondition(taskId, actor))
 			.orderBy(desc(taskActivity.createdAt));
 
 		return { success: true, data: activities };
@@ -2203,7 +2225,7 @@ export async function logTime(
 		const [task] = await db
 			.select()
 			.from(proposalTasks)
-			.where(eq(proposalTasks.id, taskId))
+			.where(visibleProposalTaskCondition(taskId, actor))
 			.limit(1);
 
 		if (!task) {
@@ -2237,7 +2259,7 @@ export async function logTime(
 				actualHours: totalActualHours,
 				updatedAt: new Date(),
 			})
-			.where(eq(proposalTasks.id, taskId));
+			.where(visibleProposalTaskCondition(taskId, actor));
 
 		// Log activity
 		await logTaskActivity(

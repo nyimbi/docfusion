@@ -268,4 +268,53 @@ describe("task-management action auth", () => {
 		expect(collectSqlFragments(deleteReadWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(collectSqlFragments(deleteWriteWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
+
+	it("scopes workload, task activity, and time logging by assigned opportunity", async () => {
+		let workloadWhere: unknown;
+		let activityWhere: unknown;
+		let timeReadWhere: unknown;
+		let timeWriteWhere: unknown;
+		const authorChain = createChainableQuery([{ userId: "author-2", userName: "Author Two" }]);
+		const workloadChain = createChainableQuery([]);
+		(workloadChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			workloadWhere = value;
+			return workloadChain;
+		});
+		const activityChain = createChainableQuery([]);
+		(activityChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			activityWhere = value;
+			return activityChain;
+		});
+		const taskChain = createChainableQuery([{
+			id: "task-1",
+			opportunityId: "00000000-0000-4000-8000-000000000001",
+			hoursLogged: [],
+			actualHours: 0,
+		}]);
+		(taskChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			timeReadWhere = value;
+			return taskChain;
+		});
+		const timeUpdateChain = createChainableQuery([]);
+		(timeUpdateChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			timeWriteWhere = value;
+			return timeUpdateChain;
+		});
+		mockDb.select
+			.mockImplementationOnce(() => authorChain)
+			.mockImplementationOnce(() => workloadChain)
+			.mockImplementationOnce(() => activityChain)
+			.mockImplementationOnce(() => taskChain);
+		mockDb.update.mockImplementationOnce(() => timeUpdateChain);
+		const { getWorkloadSummary, getTaskActivity, logTime } = await import("@/lib/actions/task-management");
+
+		await expect(getWorkloadSummary("author-2")).resolves.toMatchObject({ success: true });
+		await expect(getTaskActivity("task-1")).resolves.toMatchObject({ success: true });
+		await expect(logTime("task-1", 2, "Drafting")).resolves.toMatchObject({ success: true });
+
+		expect(collectSqlFragments(workloadWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(activityWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(timeReadWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(timeWriteWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
 });
