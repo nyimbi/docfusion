@@ -8,7 +8,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext } from "@/lib/auth-utils";
 import {
 	companyVariables,
 	companySettings,
@@ -29,15 +29,12 @@ import type {
 // Configuration
 // ============================================================================
 
-/** Organization ID for Datacraft */
-const ORGANIZATION_ID = "datacraft";
-
-async function requireCurrentUserId(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
-		throw new Error("Unauthorized");
+async function requireCompanyVariableOrganizationId(): Promise<string> {
+	const context = await requireUserContext();
+	if (!context.organizationId) {
+		throw new Error("Organization context required");
 	}
-	return userId;
+	return context.organizationId;
 }
 
 // ============================================================================
@@ -50,9 +47,9 @@ async function requireCurrentUserId(): Promise<string> {
 export async function getCompanyVariables(
 	filters?: VariableFilters
 ): Promise<CompanyVariable[]> {
-	await requireCurrentUserId();
+	const organizationId = await requireCompanyVariableOrganizationId();
 
-	const conditions = [eq(companyVariables.organizationId, ORGANIZATION_ID)];
+	const conditions = [eq(companyVariables.organizationId, organizationId)];
 
 	if (filters?.search) {
 		conditions.push(
@@ -81,12 +78,12 @@ export async function getCompanyVariables(
  * Get a single company variable by ID.
  */
 export async function getCompanyVariable(id: string): Promise<CompanyVariable | null> {
-	await requireCurrentUserId();
+	const organizationId = await requireCompanyVariableOrganizationId();
 
 	const [row] = await db
 		.select()
 		.from(companyVariables)
-		.where(and(eq(companyVariables.id, id), eq(companyVariables.organizationId, ORGANIZATION_ID)));
+		.where(and(eq(companyVariables.id, id), eq(companyVariables.organizationId, organizationId)));
 
 	return row ? transformVariable(row) : null;
 }
@@ -95,14 +92,14 @@ export async function getCompanyVariable(id: string): Promise<CompanyVariable | 
  * Get a company variable by name.
  */
 export async function getCompanyVariableByName(name: string): Promise<CompanyVariable | null> {
-	await requireCurrentUserId();
+	const organizationId = await requireCompanyVariableOrganizationId();
 
 	const [row] = await db
 		.select()
 		.from(companyVariables)
 		.where(and(
 			eq(companyVariables.name, name),
-			eq(companyVariables.organizationId, ORGANIZATION_ID)
+			eq(companyVariables.organizationId, organizationId)
 		));
 
 	return row ? transformVariable(row) : null;
@@ -114,7 +111,7 @@ export async function getCompanyVariableByName(name: string): Promise<CompanyVar
 export async function createCompanyVariable(
 	input: CreateVariableInput
 ): Promise<CompanyVariable> {
-	await requireCurrentUserId();
+	const organizationId = await requireCompanyVariableOrganizationId();
 
 	// Validate name format (must be a valid identifier)
 	const nameRegex = /^[a-z][a-z0-9_]*$/i;
@@ -135,14 +132,14 @@ export async function createCompanyVariable(
 		.select({ maxOrder: sql<number>`COALESCE(MAX(sort_order), 0)` })
 		.from(companyVariables)
 		.where(and(
-			eq(companyVariables.organizationId, ORGANIZATION_ID),
+			eq(companyVariables.organizationId, organizationId),
 			input.category ? eq(companyVariables.category, input.category) : sql`TRUE`
 		));
 
 	const [row] = await db
 		.insert(companyVariables)
 		.values({
-			organizationId: ORGANIZATION_ID,
+			organizationId,
 			name: input.name,
 			label: input.label,
 			value: input.value ?? null,
@@ -164,7 +161,7 @@ export async function updateCompanyVariable(
 	id: string,
 	input: UpdateVariableInput
 ): Promise<CompanyVariable> {
-	await requireCurrentUserId();
+	const organizationId = await requireCompanyVariableOrganizationId();
 
 	// If updating name, validate format and check for duplicates
 	if (input.name !== undefined) {
@@ -197,7 +194,7 @@ export async function updateCompanyVariable(
 	const [row] = await db
 		.update(companyVariables)
 		.set(updateData)
-		.where(and(eq(companyVariables.id, id), eq(companyVariables.organizationId, ORGANIZATION_ID)))
+		.where(and(eq(companyVariables.id, id), eq(companyVariables.organizationId, organizationId)))
 		.returning();
 
 	if (!row) {
@@ -211,11 +208,11 @@ export async function updateCompanyVariable(
  * Delete a company variable.
  */
 export async function deleteCompanyVariable(id: string): Promise<void> {
-	await requireCurrentUserId();
+	const organizationId = await requireCompanyVariableOrganizationId();
 
 	await db
 		.delete(companyVariables)
-		.where(and(eq(companyVariables.id, id), eq(companyVariables.organizationId, ORGANIZATION_ID)));
+		.where(and(eq(companyVariables.id, id), eq(companyVariables.organizationId, organizationId)));
 }
 
 /**
@@ -224,7 +221,7 @@ export async function deleteCompanyVariable(id: string): Promise<void> {
 export async function updateVariableSortOrder(
 	updates: { id: string; sortOrder: number }[]
 ): Promise<void> {
-	await requireCurrentUserId();
+	const organizationId = await requireCompanyVariableOrganizationId();
 
 	for (const update of updates) {
 		await db
@@ -232,7 +229,7 @@ export async function updateVariableSortOrder(
 			.set({ sortOrder: update.sortOrder, updatedAt: new Date() })
 			.where(and(
 				eq(companyVariables.id, update.id),
-				eq(companyVariables.organizationId, ORGANIZATION_ID)
+				eq(companyVariables.organizationId, organizationId)
 			));
 	}
 }
@@ -241,12 +238,12 @@ export async function updateVariableSortOrder(
  * Get unique variable categories.
  */
 export async function getVariableCategories(): Promise<string[]> {
-	await requireCurrentUserId();
+	const organizationId = await requireCompanyVariableOrganizationId();
 
 	const rows = await db
 		.select({ category: companyVariables.category })
 		.from(companyVariables)
-		.where(eq(companyVariables.organizationId, ORGANIZATION_ID))
+		.where(eq(companyVariables.organizationId, organizationId))
 		.groupBy(companyVariables.category)
 		.orderBy(companyVariables.category);
 
@@ -272,7 +269,7 @@ export async function getVariableCategories(): Promise<string[]> {
  * - custom.variableName - Custom variable
  */
 export async function getAllTemplateVariables(): Promise<Record<string, string | null>> {
-	await requireCurrentUserId();
+	const organizationId = await requireCompanyVariableOrganizationId();
 
 	const variables: Record<string, string | null> = {};
 
@@ -280,6 +277,7 @@ export async function getAllTemplateVariables(): Promise<Record<string, string |
 	const [settings] = await db
 		.select()
 		.from(companySettings)
+		.where(eq(companySettings.organizationId, organizationId))
 		.limit(1);
 
 	if (settings) {
@@ -368,7 +366,7 @@ export async function getAllTemplateVariables(): Promise<Record<string, string |
 	const productRows = await db
 		.select()
 		.from(products)
-		.where(eq(products.organizationId, ORGANIZATION_ID));
+		.where(eq(products.organizationId, organizationId));
 
 	for (const product of productRows) {
 		const safeName = product.name.replace(/[^a-zA-Z0-9]/g, "_");
@@ -393,7 +391,7 @@ export async function getAllTemplateVariables(): Promise<Record<string, string |
 		.select()
 		.from(companyVariables)
 		.where(and(
-			eq(companyVariables.organizationId, ORGANIZATION_ID),
+			eq(companyVariables.organizationId, organizationId),
 			eq(companyVariables.isActive, true)
 		));
 
@@ -411,8 +409,6 @@ export async function getAllTemplateVariables(): Promise<Record<string, string |
 export async function previewTemplateVariable(
 	variablePath: string
 ): Promise<string | null> {
-	await requireCurrentUserId();
-
 	const allVars = await getAllTemplateVariables();
 	return allVars[variablePath] ?? null;
 }
@@ -424,7 +420,7 @@ export async function validateVariableName(name: string): Promise<{
 	valid: boolean;
 	error?: string;
 }> {
-	await requireCurrentUserId();
+	await requireCompanyVariableOrganizationId();
 
 	if (!name) {
 		return { valid: false, error: "Variable name is required" };
