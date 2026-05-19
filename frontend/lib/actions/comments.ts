@@ -12,6 +12,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import { documentComments, commentReactions, commentReads } from "@/lib/db/schema-comments-workflow";
 import { documents } from "@/lib/db/schema";
 import { eq, and, desc, asc, isNull, sql, ne, inArray } from "drizzle-orm";
@@ -29,6 +30,14 @@ import { isAdmin } from "@/lib/auth";
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
 
 /**
  * Maps database row to DocumentComment type.
@@ -195,8 +204,9 @@ export async function getSectionComments(
  */
 export async function createComment(
 	input: CreateCommentInput,
-	userId: string
+	_userId: string
 ): Promise<DocumentComment> {
+	const userId = await requireCurrentUserId();
 	const { documentId, sectionId, content, type = "comment", parentId, position } = input;
 
 	// Validate document exists
@@ -251,8 +261,10 @@ export async function createComment(
 export async function updateComment(
 	id: string,
 	input: UpdateCommentInput,
-	userId: string
+	_userId: string
 ): Promise<DocumentComment> {
+	const userId = await requireCurrentUserId();
+
 	// Verify ownership
 	const [existing] = await db
 		.select({ userId: documentComments.userId })
@@ -288,7 +300,9 @@ export async function updateComment(
 /**
  * Delete a comment (and its replies).
  */
-export async function deleteComment(id: string, userId: string): Promise<void> {
+export async function deleteComment(id: string, _userId: string): Promise<void> {
+	const userId = await requireCurrentUserId();
+
 	// Verify ownership
 	const [existing] = await db
 		.select({ userId: documentComments.userId })
@@ -321,8 +335,10 @@ export async function deleteComment(id: string, userId: string): Promise<void> {
 export async function resolveComment(
 	id: string,
 	input: ResolveCommentInput,
-	userId: string
+	_userId: string
 ): Promise<DocumentComment> {
+	const userId = await requireCurrentUserId();
+
 	const updateData: Partial<typeof documentComments.$inferInsert> = {
 		updatedAt: new Date(),
 	};
@@ -408,8 +424,10 @@ export async function getCommentStats(documentId: string): Promise<CommentStats>
 export async function addCommentReaction(
 	commentId: string,
 	reaction: AvailableReaction,
-	userId: string
+	_userId: string
 ): Promise<void> {
+	const userId = await requireCurrentUserId();
+
 	await db
 		.insert(commentReactions)
 		.values({
@@ -427,8 +445,10 @@ export async function addCommentReaction(
  */
 export async function removeCommentReaction(
 	commentId: string,
-	userId: string
+	_userId: string
 ): Promise<void> {
+	const userId = await requireCurrentUserId();
+
 	await db
 		.delete(commentReactions)
 		.where(and(eq(commentReactions.commentId, commentId), eq(commentReactions.userId, userId)));
@@ -466,8 +486,10 @@ export async function getCommentReactions(
  */
 export async function resolveSectionComments(
 	sectionId: string,
-	userId: string
+	_userId: string
 ): Promise<number> {
+	const userId = await requireCurrentUserId();
+
 	const result = await db
 		.update(documentComments)
 		.set({
@@ -491,8 +513,10 @@ export async function resolveSectionComments(
  */
 export async function markCommentsRead(
 	documentId: string,
-	userId: string
+	_userId: string
 ): Promise<void> {
+	const userId = await requireCurrentUserId();
+
 	// Get all unresolved comments on this document that the user didn't create
 	const unresolvedComments = await db.query.documentComments.findMany({
 		where: and(
