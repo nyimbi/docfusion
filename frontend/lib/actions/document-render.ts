@@ -85,6 +85,33 @@ function readableDocumentCondition(documentId: string, userId: string): SQL {
 	)!;
 }
 
+function assignedOpportunityCondition(userId: string): SQL {
+	return sql`opportunities.assigned_to = ${userId}`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		assignedOpportunityCondition(userId)
+	)!;
+}
+
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(proposalDocuments.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
 /**
  * Get document content from database.
  */
@@ -647,7 +674,7 @@ export async function renderDocument(
 export async function preSubmissionAudit(
 	opportunityId: string
 ): Promise<PreSubmissionAudit> {
-	await requireCurrentUserId();
+	const currentUserId = await requireCurrentUserId();
 
 	const checks: AuditCheck[] = [];
 	const issues: string[] = [];
@@ -662,7 +689,7 @@ export async function preSubmissionAudit(
 			decisionStatus: opportunities.decisionStatus,
 		})
 		.from(opportunities)
-		.where(eq(opportunities.id, opportunityId))
+		.where(visibleOpportunityCondition(opportunityId, currentUserId))
 		.limit(1);
 
 	if (!opportunity) {
@@ -694,7 +721,7 @@ export async function preSubmissionAudit(
 		})
 		.from(proposalDocuments)
 		.innerJoin(documents, eq(proposalDocuments.documentId, documents.id))
-		.where(eq(proposalDocuments.opportunityId, opportunityId));
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, currentUserId));
 
 	// Check for missing required documents
 	const existingTypes = new Set(propDocs.map((d) => d.documentType));
