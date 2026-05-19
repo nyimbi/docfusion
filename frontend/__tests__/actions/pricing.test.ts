@@ -149,6 +149,12 @@ import {
 	listContractPeriods,
 	getWBSTree,
 	getPricingSummary,
+	createWBSNode,
+	updateWBSNode,
+	deleteWBSNode,
+	reorderWBSNodes,
+	linkWBSToSection,
+	recalculatePricing,
 	createCostElement,
 	updateCostElement,
 	deleteCostElement,
@@ -810,6 +816,81 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 			expect(result.error).toContain("No organization context");
 		}
 		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before creating WBS nodes", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await createWBSNode({
+			opportunityId,
+			wbsCode: "1.1",
+			title: "Task",
+		});
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires opportunity ID before updating WBS nodes by code", async () => {
+		const result = await updateWBSNode("wbs-1.1", { title: "Task" });
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("Opportunity ID is required");
+		}
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before deleting WBS nodes", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await deleteWBSNode("wbs-1.1", opportunityId, true);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.delete).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before reordering WBS nodes", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await reorderWBSNodes(opportunityId, ["wbs-1.1"]);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before linking WBS to sections", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await linkWBSToSection(opportunityId, "1.1", "section-1");
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before recalculating pricing", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await recalculatePricing(opportunityId);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 });
 

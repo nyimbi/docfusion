@@ -585,7 +585,7 @@ export function WBSTree({
 		if (!deleteDialogNode) return;
 
 		setIsDeleting(true);
-		const result = await deleteWBSNode(deleteDialogNode.id, true);
+		const result = await deleteWBSNode(deleteDialogNode.id, opportunityId, true);
 		if (result.success) {
 			// Reload WBS
 			const wbsResult = await getWBSTree(opportunityId);

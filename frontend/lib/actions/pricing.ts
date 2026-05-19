@@ -515,6 +515,18 @@ function costElementsByOpportunityCondition(opportunityId: string, userContext: 
 	)!;
 }
 
+function costElementsByWbsCondition(
+	wbsCode: string,
+	userContext: PricingUserContext,
+	options: { cascade?: boolean; opportunityId?: string } = {}
+): SQL {
+	return and(
+		options.cascade ? like(costElements.wbsCode, `${wbsCode}%`) : eq(costElements.wbsCode, wbsCode),
+		options.opportunityId ? eq(costElements.opportunityId, options.opportunityId) : undefined,
+		assignedOpportunityExistsSql(costElements.opportunityId, userContext)
+	)!;
+}
+
 async function ensureAssignedOpportunity(
 	opportunityId: string,
 	userContext: PricingUserContext
@@ -3652,7 +3664,10 @@ export async function createWBSNode(
 	input: CreateWBSNodeInput
 ): Promise<ActionResult<WBSNodeData>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(input.opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		// Create placeholder cost element for WBS tracking
 		const node: WBSNodeData = {
@@ -3694,7 +3709,13 @@ export async function updateWBSNode(
 	input: Partial<CreateWBSNodeInput>
 ): Promise<ActionResult<WBSNodeData>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!input.opportunityId) {
+			return { success: false, error: "Opportunity ID is required" };
+		}
+		if (!(await ensureAssignedOpportunity(input.opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		const wbsCode = nodeId.replace("wbs-", "");
 
@@ -3707,14 +3728,14 @@ export async function updateWBSNode(
 			await db
 				.update(costElements)
 				.set(updateData)
-				.where(eq(costElements.wbsCode, wbsCode));
+				.where(costElementsByWbsCondition(wbsCode, userContext, { opportunityId: input.opportunityId }));
 		}
 
 		// Get updated elements to build the node
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.wbsCode, wbsCode));
+			.where(costElementsByWbsCondition(wbsCode, userContext, { opportunityId: input.opportunityId }));
 
 		const firstElement = elements[0];
 		const totalCost = elements.reduce((sum, e) => sum + (e.totalCost ?? 0), 0);
@@ -3755,19 +3776,21 @@ export async function updateWBSNode(
  */
 export async function deleteWBSNode(
 	nodeId: string,
+	opportunityId: string,
 	cascade: boolean = false
 ): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		const wbsCode = nodeId.replace("wbs-", "");
 
 		// Delete cost elements with this WBS code
-		if (cascade) {
-			await db.delete(costElements).where(like(costElements.wbsCode, `${wbsCode}%`));
-		} else {
-			await db.delete(costElements).where(eq(costElements.wbsCode, wbsCode));
-		}
+		await db
+			.delete(costElements)
+			.where(costElementsByWbsCondition(wbsCode, userContext, { cascade, opportunityId }));
 
 		return { success: true, data: undefined };
 	} catch (error) {
@@ -3791,7 +3814,10 @@ export async function reorderWBSNodes(
 	nodeIds: string[]
 ): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 		// Reordering would update sort orders on cost elements
 		revalidatePath(`/opportunities/${opportunityId}/pricing`);
 		return { success: true, data: undefined };
@@ -3812,16 +3838,20 @@ export async function reorderWBSNodes(
  * @returns Success indicator
  */
 export async function linkWBSToSection(
+	opportunityId: string,
 	wbsCode: string,
 	sectionId: string
 ): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		await db
 			.update(costElements)
 			.set({ technicalSectionId: sectionId })
-			.where(eq(costElements.wbsCode, wbsCode));
+			.where(costElementsByWbsCondition(wbsCode, userContext, { opportunityId }));
 
 		return { success: true, data: undefined };
 	} catch (error) {
@@ -4068,13 +4098,16 @@ export async function recalculatePricing(
 	opportunityId: string
 ): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		// Get all cost elements
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId));
+			.where(costElementsByOpportunityCondition(opportunityId, userContext));
 
 		// Recalculate each element's total cost
 		for (const element of elements) {
@@ -4082,7 +4115,7 @@ export async function recalculatePricing(
 			await db
 				.update(costElements)
 				.set({ totalCost, updatedAt: new Date() })
-				.where(eq(costElements.id, element.id));
+				.where(costElementByIdCondition(element.id, userContext));
 		}
 
 		revalidatePath(`/opportunities/${opportunityId}/pricing`);
