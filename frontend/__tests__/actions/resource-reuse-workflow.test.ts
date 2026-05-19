@@ -19,13 +19,18 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -34,6 +39,35 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Reflect.ownKeys(value).flatMap((key) =>
+		collectSqlFragments((value as Record<PropertyKey, unknown>)[key], seen)
+	);
+}
+
+function expectAssignedOpportunityScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("capture-manager-1");
+}
+
+function expectOrganizationScope(where: unknown) {
+	expect(collectSqlFragments(where).join(" ")).toContain("org-1");
 }
 
 var dbMock: any;
@@ -119,9 +153,21 @@ describe("resource reuse workflow", () => {
 	it("assigns personnel to a position, updates proposal membership, and projects workflow work", async () => {
 		let positionPatch: Record<string, unknown> | undefined;
 		let personnelPatch: Record<string, unknown> | undefined;
+		const positionWheres: unknown[] = [];
+		const personnelWheres: unknown[] = [];
 		dbMock.select
-			.mockReturnValueOnce(createChain({ result: [position] }))
-			.mockReturnValueOnce(createChain({ result: [person] }));
+			.mockReturnValueOnce(createChain({
+				result: [position],
+				onWhere: (value) => {
+					positionWheres.push(value);
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [person],
+				onWhere: (value) => {
+					personnelWheres.push(value);
+				},
+			}));
 		dbMock.update
 			.mockReturnValueOnce(createChain({
 				result: [{
@@ -132,11 +178,17 @@ describe("resource reuse workflow", () => {
 				onSet: (value) => {
 					positionPatch = value;
 				},
+				onWhere: (value) => {
+					positionWheres.push(value);
+				},
 			}))
 			.mockReturnValueOnce(createChain({
 				result: [{ ...person, currentProposals: ["opp-1"] }],
 				onSet: (value) => {
 					personnelPatch = value;
+				},
+				onWhere: (value) => {
+					personnelWheres.push(value);
 				},
 			}));
 
@@ -165,6 +217,12 @@ describe("resource reuse workflow", () => {
 		expect(personnelPatch).toMatchObject({
 			currentProposals: ["opp-1"],
 		});
+		expect(positionWheres).toHaveLength(2);
+		expectAssignedOpportunityScope(positionWheres[0]);
+		expectAssignedOpportunityScope(positionWheres[1]);
+		expect(personnelWheres).toHaveLength(2);
+		expectOrganizationScope(personnelWheres[0]);
+		expectOrganizationScope(personnelWheres[1]);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "personnel_resource_reuse",
 			subjectType: "position_requirement",
@@ -233,9 +291,21 @@ describe("resource reuse workflow", () => {
 
 	it("selects a past-performance project for opportunity reuse", async () => {
 		let relevancePatch: Record<string, unknown> | undefined;
+		let projectWhere: unknown;
+		const relevanceWheres: unknown[] = [];
 		dbMock.select
-			.mockReturnValueOnce(createChain({ result: [project] }))
-			.mockReturnValueOnce(createChain({ result: [relevance] }));
+			.mockReturnValueOnce(createChain({
+				result: [project],
+				onWhere: (value) => {
+					projectWhere = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [relevance],
+				onWhere: (value) => {
+					relevanceWheres.push(value);
+				},
+			}));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [{
 				...relevance,
@@ -245,6 +315,9 @@ describe("resource reuse workflow", () => {
 			}],
 			onSet: (value) => {
 				relevancePatch = value;
+			},
+			onWhere: (value) => {
+				relevanceWheres.push(value);
 			},
 		}));
 
@@ -269,6 +342,10 @@ describe("resource reuse workflow", () => {
 			selectionNotes: "Strong platform modernisation relevance",
 			calculatedBy: "capture-manager-1",
 		});
+		expectOrganizationScope(projectWhere);
+		expect(relevanceWheres).toHaveLength(2);
+		expectAssignedOpportunityScope(relevanceWheres[0]);
+		expectAssignedOpportunityScope(relevanceWheres[1]);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "past_performance_reuse",
 			subjectType: "past_performance_project",

@@ -12,7 +12,7 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type PersonnelRow = typeof personnel.$inferSelect;
 type PositionRow = typeof positionRequirements.$inferSelect;
@@ -55,6 +55,50 @@ const PERSONNEL_SUBJECT_TYPE = "position_requirement";
 const PAST_PERFORMANCE_WORKFLOW_KEY = "past_performance_reuse";
 const PAST_PERFORMANCE_SUBJECT_TYPE = "past_performance_project";
 
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visiblePositionCondition(positionId: string, userId: string): SQL {
+	return and(
+		eq(positionRequirements.id, positionId),
+		assignedOpportunityExistsSql(positionRequirements.opportunityId, userId)
+	)!;
+}
+
+function visiblePersonnelCondition(
+	personnelId: string,
+	userContext: { organizationId?: string }
+): SQL {
+	return and(
+		eq(personnel.id, personnelId),
+		userContext.organizationId ? eq(personnel.organizationId, userContext.organizationId) : sql`false`
+	)!;
+}
+
+function visibleProjectCondition(
+	projectId: string,
+	userContext: { organizationId?: string }
+): SQL {
+	return and(
+		eq(projects.id, projectId),
+		userContext.organizationId ? eq(projects.organizationId, userContext.organizationId) : sql`false`
+	)!;
+}
+
+function visibleRelevanceScorePairCondition(projectId: string, opportunityId: string, userId: string): SQL {
+	return and(
+		eq(projectRelevanceScores.projectId, projectId),
+		eq(projectRelevanceScores.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
 export async function transitionPersonnelReuseWorkflow(
 	input: PersonnelReuseInput
 ): Promise<ResourceReuseWorkflowResult> {
@@ -67,21 +111,21 @@ export async function transitionPersonnelReuseWorkflow(
 	const [position] = await db
 		.select()
 		.from(positionRequirements)
-		.where(eq(positionRequirements.id, input.positionId))
+		.where(visiblePositionCondition(input.positionId, userContext.userId))
 		.limit(1);
 	if (!position) {
 		throw new Error("Position requirement not found");
 	}
 
 	const personnelId = input.personnelId ?? position.assignedPersonnelId ?? null;
-	const person = personnelId ? await getPersonnel(personnelId) : null;
+	const person = personnelId ? await getPersonnel(personnelId, userContext) : null;
 	const transition = buildPersonnelTransition(input, position, person, userContext.userId);
 	const fromState = position.assignmentStatus ?? "open";
 
 	const [updatedPosition] = await db
 		.update(positionRequirements)
 		.set(transition.positionPatch)
-		.where(eq(positionRequirements.id, input.positionId))
+		.where(visiblePositionCondition(input.positionId, userContext.userId))
 		.returning();
 	if (!updatedPosition) {
 		throw new Error("Failed to update personnel reuse state");
@@ -90,6 +134,7 @@ export async function transitionPersonnelReuseWorkflow(
 	if (person && position.opportunityId) {
 		await updatePersonnelProposalMembership({
 			person,
+			userContext,
 			opportunityId: position.opportunityId,
 			include: transition.includeOpportunity,
 		});
@@ -163,7 +208,7 @@ export async function transitionPastPerformanceReuseWorkflow(
 	const [project] = await db
 		.select()
 		.from(projects)
-		.where(eq(projects.id, input.projectId))
+		.where(visibleProjectCondition(input.projectId, userContext))
 		.limit(1);
 	if (!project) {
 		throw new Error("Past performance project not found");
@@ -172,10 +217,7 @@ export async function transitionPastPerformanceReuseWorkflow(
 	const [relevance] = await db
 		.select()
 		.from(projectRelevanceScores)
-		.where(and(
-			eq(projectRelevanceScores.projectId, input.projectId),
-			eq(projectRelevanceScores.opportunityId, input.opportunityId)
-		))
+		.where(visibleRelevanceScorePairCondition(input.projectId, input.opportunityId, userContext.userId))
 		.limit(1);
 	if (!relevance) {
 		throw new Error("Project relevance score not found for opportunity");
@@ -187,7 +229,7 @@ export async function transitionPastPerformanceReuseWorkflow(
 	const [updatedRelevance] = await db
 		.update(projectRelevanceScores)
 		.set(transition.relevancePatch)
-		.where(eq(projectRelevanceScores.id, relevance.id))
+		.where(visibleRelevanceScorePairCondition(input.projectId, input.opportunityId, userContext.userId))
 		.returning();
 	if (!updatedRelevance) {
 		throw new Error("Failed to update past performance reuse state");
@@ -249,11 +291,14 @@ export async function transitionPastPerformanceReuseWorkflow(
 	};
 }
 
-async function getPersonnel(personnelId: string): Promise<PersonnelRow> {
+async function getPersonnel(
+	personnelId: string,
+	userContext: { organizationId?: string }
+): Promise<PersonnelRow> {
 	const [person] = await db
 		.select()
 		.from(personnel)
-		.where(eq(personnel.id, personnelId))
+		.where(visiblePersonnelCondition(personnelId, userContext))
 		.limit(1);
 	if (!person) {
 		throw new Error("Personnel not found");
@@ -462,6 +507,7 @@ function buildPastPerformanceTransition(
 
 async function updatePersonnelProposalMembership(input: {
 	person: PersonnelRow;
+	userContext: { organizationId?: string };
 	opportunityId: string;
 	include: boolean;
 }) {
@@ -478,7 +524,7 @@ async function updatePersonnelProposalMembership(input: {
 			currentProposals: next,
 			updatedAt: new Date(),
 		})
-		.where(eq(personnel.id, input.person.id));
+		.where(visiblePersonnelCondition(input.person.id, input.userContext));
 }
 
 function enforceProjectReuseAccess(
