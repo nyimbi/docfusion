@@ -2011,7 +2011,8 @@ export async function updateAuthorExpertise(
 	userId: string
 ): Promise<{ success: boolean; data?: AuthorExpertiseType; error?: string }> {
 	try {
-		await requireTaskActor();
+		const actor = await requireTaskActor();
+		ensureTaskActorMatches(actor, userId);
 
 		// Get the author's current expertise
 		const [author] = await db
@@ -2031,7 +2032,8 @@ export async function updateAuthorExpertise(
 			.where(
 				and(
 					eq(proposalTasks.assignedTo, author.userName),
-					eq(proposalTasks.status, "completed")
+					eq(proposalTasks.status, "completed"),
+					assignedOpportunityExistsSql(proposalTasks.opportunityId, actor)
 				)
 			);
 
@@ -2119,6 +2121,8 @@ export async function getAuthorExpertise(
 	userId: string
 ): Promise<{ success: boolean; data?: AuthorExpertiseType; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
+		ensureTaskActorMatches(actor, userId);
 		const [author] = await db
 			.select()
 			.from(authorExpertise)
@@ -2148,6 +2152,7 @@ export async function listTeamMembers(
 	}
 ): Promise<{ success: boolean; data?: AuthorExpertiseType[]; error?: string }> {
 	try {
+		await requireTaskActor();
 		const conditions: ReturnType<typeof eq>[] = [];
 
 		if (filters?.availability) {

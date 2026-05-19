@@ -317,4 +317,32 @@ describe("task-management action auth", () => {
 		expect(collectSqlFragments(timeReadWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(collectSqlFragments(timeWriteWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
+
+	it("prevents spoofed author expertise reads before querying", async () => {
+		const { getAuthorExpertise } = await import("@/lib/actions/task-management");
+
+		const result = await getAuthorExpertise("other-user");
+
+		expect(result).toEqual({ success: false, error: "Unauthorized" });
+		expect(mockDb.select).not.toHaveBeenCalled();
+	});
+
+	it("scopes author expertise refresh task metrics by assigned opportunity", async () => {
+		let completedTasksWhere: unknown;
+		const authorChain = createChainableQuery([{ userId: "author-1", userName: "Author One" }]);
+		const completedTasksChain = createChainableQuery([]);
+		(completedTasksChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			completedTasksWhere = value;
+			return completedTasksChain;
+		});
+		mockDb.select
+			.mockImplementationOnce(() => authorChain)
+			.mockImplementationOnce(() => completedTasksChain);
+		mockDb.update.mockImplementationOnce(() => createChainableQuery([{ userId: "author-1" }]));
+		const { updateAuthorExpertise } = await import("@/lib/actions/task-management");
+
+		await expect(updateAuthorExpertise("author-1")).resolves.toMatchObject({ success: true });
+
+		expect(collectSqlFragments(completedTasksWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
 });
