@@ -1,7 +1,7 @@
 "use server";
 
 import { db, templateSnippets } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { and, eq, or, type SQL } from "drizzle-orm";
 import type { DocumentContent } from "@/lib/types/document";
 import type {
 	AdaptResolvedSnippetRequest,
@@ -24,9 +24,23 @@ import {
 	normalizeSnippetPayload,
 } from "@/lib/snippets/content-normalization";
 import { chat } from "@/lib/ai/client";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 
 function formatShortcut(shortcut: string): string {
 	return shortcut.startsWith("/") ? shortcut : `/${shortcut}`;
+}
+
+function visibleSnippetCondition(context: UserContext): SQL {
+	const organizationClauses = context.organizationId
+		? [
+			and(
+				eq(templateSnippets.createdBy, context.userId),
+				eq(templateSnippets.organizationId, context.organizationId)
+			),
+			eq(templateSnippets.organizationId, context.organizationId),
+		]
+		: [eq(templateSnippets.createdBy, context.userId)];
+	return or(...organizationClauses, eq(templateSnippets.isPublic, true))!;
 }
 
 function isResolvedValue(value: PlaceholderValue): value is string | number | boolean | string[] {
@@ -46,7 +60,7 @@ function setIfAvailable(
 	sources[normalizedKey] = source;
 }
 
-async function loadSnippetFromRequest(request: ResolveSnippetContentRequest): Promise<{
+async function loadSnippetFromRequest(request: ResolveSnippetContentRequest, context: UserContext): Promise<{
 	id?: string;
 	shortcut?: string;
 	content: DocumentContent;
@@ -62,9 +76,9 @@ async function loadSnippetFromRequest(request: ResolveSnippetContentRequest): Pr
 	}
 
 	const where = request.snippetId
-		? eq(templateSnippets.id, request.snippetId)
+		? and(eq(templateSnippets.id, request.snippetId), visibleSnippetCondition(context))
 		: request.shortcut
-			? eq(templateSnippets.shortcut, formatShortcut(request.shortcut))
+			? and(eq(templateSnippets.shortcut, formatShortcut(request.shortcut)), visibleSnippetCondition(context))
 			: undefined;
 
 	if (!where) return null;
@@ -83,7 +97,8 @@ async function loadSnippetFromRequest(request: ResolveSnippetContentRequest): Pr
 export async function resolveSnippetContent(
 	request: ResolveSnippetContentRequest
 ): Promise<ResolveSnippetContentResult> {
-	const snippet = await loadSnippetFromRequest(request);
+	const userContext = await requireUserContext();
+	const snippet = await loadSnippetFromRequest(request, userContext);
 	if (!snippet) {
 		throw new Error("Snippet content was not provided and no snippet matched the request");
 	}
@@ -110,6 +125,7 @@ export async function resolveSnippetContent(
 		opportunityId: request.opportunityId,
 		requirementId: request.requirementId,
 		requirementText: request.requirementText,
+		accessContext: userContext,
 	});
 
 	for (const [key, value] of Object.entries(context.values)) {

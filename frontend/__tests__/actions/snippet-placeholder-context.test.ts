@@ -6,6 +6,12 @@ const dbMock = vi.hoisted(() => ({
 
 vi.mock("drizzle-orm", () => ({
 	eq: vi.fn((left, right) => ({ left, right })),
+	and: vi.fn((...conditions) => ({ type: "and", conditions })),
+	sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
+		type: "sql",
+		text: Array.from(strings).join("?"),
+		values,
+	})),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -31,6 +37,7 @@ vi.mock("@/lib/db", () => ({
 	},
 	rfpRequirements: {
 		id: "rfp_requirements.id",
+		organizationId: "rfp_requirements.organization_id",
 		opportunityId: "rfp_requirements.opportunity_id",
 		requirementNumber: "rfp_requirements.requirement_number",
 		requirementText: "rfp_requirements.requirement_text",
@@ -39,11 +46,15 @@ vi.mock("@/lib/db", () => ({
 
 import { loadSnippetPlaceholderContext } from "@/lib/placeholders/context-resolution";
 
-function createSelectChain(result: unknown[]) {
+function createSelectChain(result: unknown[], onWhere?: (value: unknown) => void) {
 	const chain: Record<string, any> = {};
 	for (const method of ["from", "where", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		onWhere?.(value);
+		return chain;
+	});
 	chain.then = (resolve: (value: unknown[]) => void) => Promise.resolve(result).then(resolve);
 	return chain;
 }
@@ -174,6 +185,42 @@ describe("snippet placeholder context resolution", () => {
 			project_value: "750000",
 			solicitation_number: "SL-2026-01",
 		});
+	});
+
+	it("scopes document-derived placeholder context to the actor when access context is supplied", async () => {
+		const wheres: unknown[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createSelectChain(
+				[
+					{
+						id: "doc-1",
+						title: "Scoped Draft",
+						metadata: {},
+					},
+				],
+				(value) => {
+					wheres.push(value);
+				}
+			))
+			.mockReturnValueOnce(createSelectChain(
+				[],
+				(value) => {
+					wheres.push(value);
+				}
+			));
+
+		await loadSnippetPlaceholderContext({
+			documentId: "doc-1",
+			accessContext: {
+				userId: "user-1",
+				organizationId: "org-1",
+			},
+		});
+
+		expect(JSON.stringify(wheres[0])).toContain("doc-1");
+		expect(JSON.stringify(wheres[0])).toContain("user-1");
+		expect(JSON.stringify(wheres[1])).toContain("doc-1");
+		expect(JSON.stringify(wheres[1])).toContain("user-1");
 	});
 
 	it("falls back to document metadata opportunityId when no canonical links exist", async () => {

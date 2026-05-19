@@ -12,6 +12,12 @@ const aiMock = vi.hoisted(() => ({
 	chat: vi.fn(),
 }));
 
+const authMock = vi.hoisted(() => ({
+	requireUserContext: vi.fn(),
+}));
+
+vi.mock("@/lib/auth-utils", () => authMock);
+
 vi.mock("@/lib/db", () => ({
 	db: {
 		select: vi.fn(),
@@ -19,7 +25,16 @@ vi.mock("@/lib/db", () => ({
 	templateSnippets: {
 		id: "template_snippets.id",
 		shortcut: "template_snippets.shortcut",
+		createdBy: "template_snippets.created_by",
+		organizationId: "template_snippets.organization_id",
+		isPublic: "template_snippets.is_public",
 	},
+}));
+
+vi.mock("drizzle-orm", () => ({
+	eq: vi.fn((left, right) => ({ type: "eq", left, right })),
+	and: vi.fn((...conditions) => ({ type: "and", conditions })),
+	or: vi.fn((...conditions) => ({ type: "or", conditions })),
 }));
 
 vi.mock("@/lib/placeholders/context-resolution", () => contextMock);
@@ -38,6 +53,10 @@ import {
 describe("snippet placeholder resolution", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		authMock.requireUserContext.mockResolvedValue({
+			userId: "user-1",
+			organizationId: "org-1",
+		});
 		contextMock.loadSnippetPlaceholderContext.mockResolvedValue({
 			values: {
 				client_name: "Acme Health",
@@ -80,6 +99,12 @@ describe("snippet placeholder resolution", () => {
 			opportunity_name: "Digital Casework Modernisation",
 		});
 		expect(resolved.valueSources.client_name).toBe("opportunity.organization");
+		expect(contextMock.loadSnippetPlaceholderContext).toHaveBeenCalledWith(expect.objectContaining({
+			accessContext: {
+				userId: "user-1",
+				organizationId: "org-1",
+			},
+		}));
 		expect(resolved.unresolvedPlaceholders).toEqual([
 			expect.objectContaining({
 				key: "missing_scope",

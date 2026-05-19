@@ -1,5 +1,5 @@
 import { db, documents, opportunities, proposalDocuments, rfpRequirements } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { SnippetResolutionDiagnostic } from "@/lib/types/snippets";
 
 export interface SnippetPlaceholderContextInput {
@@ -7,6 +7,10 @@ export interface SnippetPlaceholderContextInput {
 	opportunityId?: string;
 	requirementId?: string;
 	requirementText?: string;
+	accessContext?: {
+		userId: string;
+		organizationId?: string;
+	};
 }
 
 export interface SnippetPlaceholderContext {
@@ -54,6 +58,28 @@ function formatDate(value: unknown): string | undefined {
 	return stringValue(value);
 }
 
+function readableDocumentExistsSql(documentId: unknown, userId: string) {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and (
+				documents.owner_id = ${userId}
+				or documents.visibility = 'public'
+				or documents.collaborator_ids ? ${userId}
+			)
+	)`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string) {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
 export async function loadSnippetPlaceholderContext(
 	input: SnippetPlaceholderContextInput
 ): Promise<SnippetPlaceholderContext> {
@@ -74,19 +100,35 @@ export async function loadSnippetPlaceholderContext(
 				metadata: documents.metadata,
 			})
 			.from(documents)
-			.where(eq(documents.id, input.documentId))
+			.where(
+				input.accessContext
+					? and(
+						eq(documents.id, input.documentId),
+						readableDocumentExistsSql(documents.id, input.accessContext.userId)
+					)
+					: eq(documents.id, input.documentId)
+			)
 			.limit(1);
 
 		documentRow = row ?? null;
 		documentMetadata = asRecord(row?.metadata);
 
-		const links = await db
-			.select({
-				id: proposalDocuments.id,
-				opportunityId: proposalDocuments.opportunityId,
-			})
-			.from(proposalDocuments)
-			.where(eq(proposalDocuments.documentId, input.documentId));
+		const links = documentRow
+			? await db
+				.select({
+					id: proposalDocuments.id,
+					opportunityId: proposalDocuments.opportunityId,
+				})
+				.from(proposalDocuments)
+				.where(
+					input.accessContext
+						? and(
+							eq(proposalDocuments.documentId, input.documentId),
+							readableDocumentExistsSql(proposalDocuments.documentId, input.accessContext.userId)
+						)
+						: eq(proposalDocuments.documentId, input.documentId)
+				)
+			: [];
 
 		const linkedOpportunityIds = [...new Set(links.map((link) => link.opportunityId))];
 
@@ -129,7 +171,17 @@ export async function loadSnippetPlaceholderContext(
 				requirementText: rfpRequirements.requirementText,
 			})
 			.from(rfpRequirements)
-			.where(eq(rfpRequirements.id, input.requirementId))
+			.where(
+				input.accessContext
+					? and(
+						eq(rfpRequirements.id, input.requirementId),
+						input.accessContext.organizationId
+							? eq(rfpRequirements.organizationId, input.accessContext.organizationId)
+							: sql`false`,
+						assignedOpportunityExistsSql(rfpRequirements.opportunityId, input.accessContext.userId)
+					)
+					: eq(rfpRequirements.id, input.requirementId)
+			)
 			.limit(1);
 
 		if (requirement) {
@@ -158,7 +210,14 @@ export async function loadSnippetPlaceholderContext(
 				metadata: opportunities.metadata,
 			})
 			.from(opportunities)
-			.where(eq(opportunities.id, resolvedOpportunityId))
+			.where(
+				input.accessContext
+					? and(
+						eq(opportunities.id, resolvedOpportunityId),
+						assignedOpportunityExistsSql(opportunities.id, input.accessContext.userId)
+					)
+					: eq(opportunities.id, resolvedOpportunityId)
+			)
 			.limit(1);
 		opportunityRow = row ?? null;
 	}
