@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const recordWorkflowRuntimeTransitionMock = vi.hoisted(() => vi.fn());
+const upsertWorkflowRuntimeTaskMock = vi.hoisted(() => vi.fn());
+
 vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
@@ -11,6 +15,15 @@ vi.mock("@/lib/utils/logger", () => ({
 		info: vi.fn(),
 		debug: vi.fn(),
 	},
+}));
+
+vi.mock("@/lib/auth-utils", () => ({
+	getCurrentUserId: getCurrentUserIdMock,
+}));
+
+vi.mock("@/lib/actions/workflow-runtime", () => ({
+	recordWorkflowRuntimeTransition: recordWorkflowRuntimeTransitionMock,
+	upsertWorkflowRuntimeTask: upsertWorkflowRuntimeTaskMock,
 }));
 
 interface ChainConfig {
@@ -65,9 +78,32 @@ const baseGate = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	getCurrentUserIdMock.mockResolvedValue("capture-lead-1");
+	recordWorkflowRuntimeTransitionMock.mockResolvedValue({ id: "workflow-1" });
+	upsertWorkflowRuntimeTaskMock.mockResolvedValue({ id: "task-1" });
 });
 
 describe("gate review workflow enforcement", () => {
+	it("rejects unauthenticated gate decisions before database access", async () => {
+		getCurrentUserIdMock.mockResolvedValueOnce(null);
+
+		const result = await conductGateReview("gate-1", {
+			decision: "pass",
+			rationale: "Ready to pursue",
+			reviewerVotes: [
+				{ name: "Capture Lead", vote: "approve" },
+				{ name: "Finance Lead", vote: "approve" },
+			],
+		});
+
+		expect(result).toMatchObject({
+			success: false,
+			error: "Unauthorized",
+		});
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
 	it("blocks pass decisions until required checklist items are complete", async () => {
 		dbMock.select.mockReturnValueOnce(createChain({
 			result: [{
@@ -173,5 +209,12 @@ describe("gate review workflow enforcement", () => {
 			bidDecision: "no_bid",
 			bidDecisionRationale: "Insufficient win probability",
 		});
+		expect(recordWorkflowRuntimeTransitionMock).toHaveBeenCalledWith(expect.objectContaining({
+			workflowKey: "capture_gate_review",
+			subjectId: "gate-1",
+			actorId: "capture-lead-1",
+			actorName: "capture-lead-1",
+			eventType: "gate_fail",
+		}));
 	});
 });

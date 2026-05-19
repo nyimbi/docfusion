@@ -31,6 +31,7 @@ import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/utils/logger";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
+import { getCurrentUserId } from "@/lib/auth-utils";
 
 // ============================================================================
 // Types
@@ -334,6 +335,14 @@ function revalidatePipelinePaths(opportunityId?: string): void {
 		revalidatePath(`/opportunities/${opportunityId}`);
 		revalidatePath(`/pipeline/${opportunityId}`);
 	}
+}
+
+async function requirePipelineActor(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
 }
 
 // ============================================================================
@@ -1229,6 +1238,8 @@ export async function conductGateReview(
 	decision: GateDecision
 ): Promise<ActionResult<GateReview>> {
 	try {
+		const actorId = await requirePipelineActor();
+
 		// Get the gate review
 		const [review] = await db
 			.select()
@@ -1317,8 +1328,8 @@ export async function conductGateReview(
 				fromState: review.status ?? "scheduled",
 				toState: decision.decision,
 				eventType: `gate_${decision.decision}`,
-				actorId: review.chairperson ?? review.createdBy ?? "system",
-				actorName: review.chairperson ?? review.createdBy ?? "System",
+				actorId,
+				actorName: actorId,
 				reason: decision.rationale,
 				priority: decision.decision === "fail" ? "critical" : decision.decision === "conditional_pass" ? "high" : "medium",
 				assignedTo: decision.decision === "conditional_pass" ? review.chairperson ?? null : null,
