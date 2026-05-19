@@ -70,7 +70,7 @@ import {
 
 // Re-export types needed by components
 export type { PeriodSummary, LaborMixEntry };
-import { documents } from "@/lib/db";
+import { documents, opportunities } from "@/lib/db";
 import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
@@ -485,6 +485,48 @@ function boeTemplateByIdCondition(id: string, userContext: PricingUserContext): 
 	)!;
 }
 
+function assignedOpportunityByIdCondition(opportunityId: string, userContext: PricingUserContext): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		eq(opportunities.assignedTo, userContext.userId)
+	)!;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: PricingUserContext): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userContext.userId}
+	)`;
+}
+
+function costElementByIdCondition(id: string, userContext: PricingUserContext): SQL {
+	return and(
+		eq(costElements.id, id),
+		assignedOpportunityExistsSql(costElements.opportunityId, userContext)
+	)!;
+}
+
+function costElementsByOpportunityCondition(opportunityId: string, userContext: PricingUserContext): SQL {
+	return and(
+		eq(costElements.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userContext)
+	)!;
+}
+
+async function ensureAssignedOpportunity(
+	opportunityId: string,
+	userContext: PricingUserContext
+): Promise<boolean> {
+	const [opportunity] = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(assignedOpportunityByIdCondition(opportunityId, userContext))
+		.limit(1);
+	return !!opportunity;
+}
+
 /**
  * Get AI client instance for pricing operations.
  */
@@ -805,8 +847,11 @@ export async function createCostElement(
 	data: CreateCostElementInput
 ): Promise<ActionResult<CostElement>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 		const validated = createCostElementSchema.parse(data);
+		if (!(await ensureAssignedOpportunity(validated.opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		// Calculate costs based on element type
 		let laborCost: number | undefined;
@@ -889,11 +934,11 @@ export async function updateCostElement(
 	data: UpdateCostElementInput
 ): Promise<ActionResult<CostElement>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 		const validated = updateCostElementSchema.parse(data);
 
 		// Get existing element
-		const [existing] = await db.select().from(costElements).where(eq(costElements.id, id));
+		const [existing] = await db.select().from(costElements).where(costElementByIdCondition(id, userContext));
 		if (!existing) {
 			return { success: false, error: "Cost element not found" };
 		}
@@ -921,7 +966,7 @@ export async function updateCostElement(
 		const [element] = await db
 			.update(costElements)
 			.set(updates)
-			.where(eq(costElements.id, id))
+			.where(costElementByIdCondition(id, userContext))
 			.returning();
 
 		revalidatePath(`/opportunities/${element.opportunityId}/pricing`);
@@ -946,14 +991,14 @@ export async function updateCostElement(
  */
 export async function deleteCostElement(id: string): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
-		const [element] = await db.select().from(costElements).where(eq(costElements.id, id));
+		const [element] = await db.select().from(costElements).where(costElementByIdCondition(id, userContext));
 		if (!element) {
 			return { success: false, error: "Cost element not found" };
 		}
 
-		await db.delete(costElements).where(eq(costElements.id, id));
+		await db.delete(costElements).where(costElementByIdCondition(id, userContext));
 
 		revalidatePath(`/opportunities/${element.opportunityId}/pricing`);
 
@@ -979,9 +1024,9 @@ export async function listCostElements(
 	filters?: CostElementFilters
 ): Promise<ActionResult<CostElement[]>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
-		const conditions = [eq(costElements.opportunityId, opportunityId)];
+		const conditions = [costElementsByOpportunityCondition(opportunityId, userContext)];
 
 		if (filters?.elementType) {
 			const types = Array.isArray(filters.elementType) ? filters.elementType : [filters.elementType];
@@ -1033,9 +1078,9 @@ export async function listCostElements(
  */
 export async function getCostElement(id: string): Promise<ActionResult<CostElement | null>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
-		const [element] = await db.select().from(costElements).where(eq(costElements.id, id));
+		const [element] = await db.select().from(costElements).where(costElementByIdCondition(id, userContext));
 
 		return { success: true, data: element || null };
 	} catch (error) {
@@ -1059,9 +1104,9 @@ export async function duplicateCostElement(
 	newPeriod?: number
 ): Promise<ActionResult<CostElement>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
-		const [original] = await db.select().from(costElements).where(eq(costElements.id, id));
+		const [original] = await db.select().from(costElements).where(costElementByIdCondition(id, userContext));
 		if (!original) {
 			return { success: false, error: "Cost element not found" };
 		}
@@ -1098,21 +1143,21 @@ export async function bulkUpdateCostElements(
 	updates: { id: string; data: Partial<CostElement> }[]
 ): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		await db.transaction(async (tx) => {
 			for (const update of updates) {
 				await tx
 					.update(costElements)
 					.set({ ...update.data, updatedAt: new Date() })
-					.where(eq(costElements.id, update.id));
+					.where(costElementByIdCondition(update.id, userContext));
 			}
 		});
 
 		// Revalidate paths for affected opportunities
 		const affectedOpportunities = new Set<string>();
 		for (const update of updates) {
-			const [element] = await db.select().from(costElements).where(eq(costElements.id, update.id));
+			const [element] = await db.select().from(costElements).where(costElementByIdCondition(update.id, userContext));
 			if (element) affectedOpportunities.add(element.opportunityId);
 		}
 		for (const oppId of affectedOpportunities) {
@@ -1144,7 +1189,7 @@ export async function linkCostToTechnical(
 	technicalSectionId: string
 ): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		await db
 			.update(costElements)
@@ -1152,7 +1197,7 @@ export async function linkCostToTechnical(
 				technicalSectionId,
 				updatedAt: new Date(),
 			})
-			.where(eq(costElements.id, costElementId));
+			.where(costElementByIdCondition(costElementId, userContext));
 
 		return { success: true, data: undefined };
 	} catch (error) {
@@ -1171,7 +1216,7 @@ export async function linkCostToTechnical(
  */
 export async function unlinkCostFromTechnical(costElementId: string): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		await db
 			.update(costElements)
@@ -1179,7 +1224,7 @@ export async function unlinkCostFromTechnical(costElementId: string): Promise<Ac
 				technicalSectionId: null,
 				updatedAt: new Date(),
 			})
-			.where(eq(costElements.id, costElementId));
+			.where(costElementByIdCondition(costElementId, userContext));
 
 		return { success: true, data: undefined };
 	} catch (error) {

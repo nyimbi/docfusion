@@ -100,7 +100,11 @@ function createDbMock() {
 
 vi.mock("@/lib/db", () => {
 	dbMock = createDbMock();
-	return { db: dbMock, documents: {} };
+	return {
+		db: dbMock,
+		documents: {},
+		opportunities: { id: "opp.id", assignedTo: "opp.assignedTo" },
+	};
 });
 
 // Schema mocks — provide objects with enough shape for eq/and/etc. to operate
@@ -153,6 +157,10 @@ beforeEach(() => {
 	dbMock.delete.mockImplementation(() => createChainableQuery([]));
 });
 
+function mockAssignedOpportunity(opportunityId = "00000000-0000-4000-8000-000000000001") {
+	dbMock.select.mockImplementationOnce(() => createChainableQuery([{ id: opportunityId }]));
+}
+
 // ---------------------------------------------------------------------------
 // Pure Calculation Logic — these functions are module-private, so we test them
 // indirectly via the public API that invokes them.
@@ -176,6 +184,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 			totalCost: 20000,
 			status: "draft",
 		};
+		mockAssignedOpportunity(baseLaborInput.opportunityId);
 		dbMock.insert.mockImplementation(() => createChainableQuery([created]));
 
 		const result = await createCostElement(baseLaborInput);
@@ -188,6 +197,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 	test("labor cost with zero hours yields 0", async () => {
 		const input = { ...baseLaborInput, hours: 0 };
 		const created = { id: "el-2", ...input, laborCost: 0, totalCost: 0, status: "draft" };
+		mockAssignedOpportunity(input.opportunityId);
 		dbMock.insert.mockImplementation(() => createChainableQuery([created]));
 
 		const result = await createCostElement(input);
@@ -205,6 +215,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 			odcAmount: 5000,
 		};
 		const created = { id: "el-3", ...input, totalCost: 5000, status: "draft" };
+		mockAssignedOpportunity(input.opportunityId);
 		dbMock.insert.mockImplementation(() => createChainableQuery([created]));
 
 		const result = await createCostElement(input);
@@ -219,6 +230,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 			travelCostPerTrip: 2500,
 		};
 		const created = { id: "el-4", ...input, travelCost: 10000, totalCost: 10000, status: "draft" };
+		mockAssignedOpportunity(input.opportunityId);
 		dbMock.insert.mockImplementation(() => createChainableQuery([created]));
 
 		const result = await createCostElement(input);
@@ -233,6 +245,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 			subcontractorName: "ACME Corp",
 		};
 		const created = { id: "el-5", ...input, totalCost: 75000, status: "draft" };
+		mockAssignedOpportunity(input.opportunityId);
 		dbMock.insert.mockImplementation(() => createChainableQuery([created]));
 
 		const result = await createCostElement(input);
@@ -247,6 +260,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 			materialDescription: "Server hardware",
 		};
 		const created = { id: "el-6", ...input, totalCost: 12000, status: "draft" };
+		mockAssignedOpportunity(input.opportunityId);
 		dbMock.insert.mockImplementation(() => createChainableQuery([created]));
 
 		const result = await createCostElement(input);
@@ -606,10 +620,36 @@ describe("Cost Element CRUD", () => {
 	describe("createCostElement", () => {
 		test("validates and creates a labor element", async () => {
 			const created = { id: "ce-1", ...validLaborInput, laborCost: 15000, totalCost: 15000, status: "draft" };
+			mockAssignedOpportunity(validLaborInput.opportunityId);
 			dbMock.insert.mockImplementation(() => createChainableQuery([created]));
 
 			const result = await createCostElement(validLaborInput);
 			expect(result.success).toBe(true);
+		});
+
+		test("requires organization context before creating a cost element", async () => {
+			mockUserContext.organizationId = undefined;
+
+			const result = await createCostElement(validLaborInput);
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("No organization context");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
+			expect(dbMock.insert).not.toHaveBeenCalled();
+		});
+
+		test("rejects cost element creation for unassigned opportunities", async () => {
+			dbMock.select.mockImplementationOnce(() => createChainableQuery([]));
+
+			const result = await createCostElement(validLaborInput);
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Opportunity not found");
+			}
+			expect(dbMock.insert).not.toHaveBeenCalled();
 		});
 
 		test("rejects invalid opportunity ID format", async () => {
@@ -638,6 +678,7 @@ describe("Cost Element CRUD", () => {
 				odcAmount: 1000,
 			};
 			const created = { id: "ce-2", ...input, periodNumber: 1, periodType: "base", totalCost: 1000, status: "draft" };
+			mockAssignedOpportunity(input.opportunityId);
 			dbMock.insert.mockImplementation(() => createChainableQuery([created]));
 
 			const result = await createCostElement(input);
@@ -654,6 +695,19 @@ describe("Cost Element CRUD", () => {
 
 			const result = await updateCostElement("ce-1", { hours: 200 });
 			expect(result.success).toBe(true);
+		});
+
+		test("requires organization context before updating a cost element", async () => {
+			mockUserContext.organizationId = undefined;
+
+			const result = await updateCostElement("ce-1", { hours: 200 });
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("No organization context");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
+			expect(dbMock.update).not.toHaveBeenCalled();
 		});
 
 		test("returns not found for missing element", async () => {
@@ -677,6 +731,19 @@ describe("Cost Element CRUD", () => {
 			expect(result.success).toBe(true);
 		});
 
+		test("requires organization context before deleting a cost element", async () => {
+			mockUserContext.organizationId = undefined;
+
+			const result = await deleteCostElement("ce-1");
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("No organization context");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
+			expect(dbMock.delete).not.toHaveBeenCalled();
+		});
+
 		test("returns not found for missing element", async () => {
 			dbMock.select.mockImplementation(() => createChainableQuery([]));
 
@@ -695,6 +762,18 @@ describe("Cost Element CRUD", () => {
 			if (result.success) {
 				expect(result.data?.totalCost).toBe(15000);
 			}
+		});
+
+		test("requires organization context before reading a cost element", async () => {
+			mockUserContext.organizationId = undefined;
+
+			const result = await getCostElement("ce-1");
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("No organization context");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
 		});
 
 		test("returns null when not found", async () => {
@@ -931,6 +1010,7 @@ describe("Validation edge cases", () => {
 	test("createCostElement accepts valid period types", async () => {
 		for (const pt of ["base", "option_1", "option_2", "option_3", "option_4"] as const) {
 			const created = { id: `ce-${pt}`, opportunityId: "00000000-0000-4000-8000-000000000001", elementType: "labor", periodType: pt, totalCost: 0, status: "draft" };
+			mockAssignedOpportunity(created.opportunityId);
 			dbMock.insert.mockImplementation(() => createChainableQuery([created]));
 
 			const result = await createCostElement({
