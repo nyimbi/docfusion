@@ -46,6 +46,13 @@ function assignedOpportunityByIdCondition(id: string, userId: string): SQL {
 	)!;
 }
 
+function assignedOpportunitiesByIdsCondition(ids: string[], userId: string): SQL {
+	return and(
+		inArray(opportunities.id, ids),
+		eq(opportunities.assignedTo, userId)
+	)!;
+}
+
 /**
  * Get all opportunities with optional filters, sorting, and pagination.
  */
@@ -283,6 +290,10 @@ export async function bulkUpdateStatus(
 	status: DecisionStatus,
 	reason?: string
 ): Promise<number> {
+	if (ids.length === 0) {
+		return 0;
+	}
+	const userId = await requireOpportunityUserId();
 	const result = await db
 		.update(opportunities)
 		.set({
@@ -290,7 +301,7 @@ export async function bulkUpdateStatus(
 			decisionReason: reason,
 			updatedAt: new Date(),
 		})
-		.where(inArray(opportunities.id, ids));
+		.where(assignedOpportunitiesByIdsCondition(ids, userId));
 
 	return result.rowCount ?? 0;
 }
@@ -299,13 +310,17 @@ export async function bulkUpdateStatus(
  * Bulk update priority rank.
  */
 export async function bulkUpdatePriority(ids: string[], priority: PriorityRank): Promise<number> {
+	if (ids.length === 0) {
+		return 0;
+	}
+	const userId = await requireOpportunityUserId();
 	const result = await db
 		.update(opportunities)
 		.set({
 			priorityRank: priority,
 			updatedAt: new Date(),
 		})
-		.where(inArray(opportunities.id, ids));
+		.where(assignedOpportunitiesByIdsCondition(ids, userId));
 
 	return result.rowCount ?? 0;
 }
@@ -314,13 +329,17 @@ export async function bulkUpdatePriority(ids: string[], priority: PriorityRank):
  * Mark opportunities as reviewed.
  */
 export async function markAsReviewed(ids: string[], reviewed: boolean = true): Promise<number> {
+	if (ids.length === 0) {
+		return 0;
+	}
+	const userId = await requireOpportunityUserId();
 	const result = await db
 		.update(opportunities)
 		.set({
 			isReviewed: reviewed,
 			updatedAt: new Date(),
 		})
-		.where(inArray(opportunities.id, ids));
+		.where(assignedOpportunitiesByIdsCondition(ids, userId));
 
 	return result.rowCount ?? 0;
 }
@@ -329,13 +348,17 @@ export async function markAsReviewed(ids: string[], reviewed: boolean = true): P
  * Assign opportunities to a user.
  */
 export async function assignOpportunities(ids: string[], assignedTo: string | null): Promise<number> {
+	if (ids.length === 0) {
+		return 0;
+	}
+	const userId = await requireOpportunityUserId();
 	const result = await db
 		.update(opportunities)
 		.set({
 			assignedTo,
 			updatedAt: new Date(),
 		})
-		.where(inArray(opportunities.id, ids));
+		.where(assignedOpportunitiesByIdsCondition(ids, userId));
 
 	return result.rowCount ?? 0;
 }

@@ -1220,6 +1220,7 @@ describe("Bulk Operations", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
+		getCurrentUserIdMock.mockResolvedValue("user-1");
 		const mod = await import("@/lib/actions/opportunities");
 		bulkUpdateStatus = mod.bulkUpdateStatus;
 		bulkUpdatePriority = mod.bulkUpdatePriority;
@@ -1228,10 +1229,16 @@ describe("Bulk Operations", () => {
 	});
 
 	it("bulkUpdateStatus returns count of updated rows", async () => {
+		let where: unknown;
 		const qb = createQueryBuilder({ rowCount: 5 });
+		qb.where.mockImplementation((value: unknown) => {
+			where = value;
+			return qb;
+		});
 		mockDb.update.mockReturnValue(qb);
 		const count = await bulkUpdateStatus(["a", "b", "c", "d", "e"], "pursuing", "Good fit");
 		expect(count).toBe(5);
+		expect(collectSqlFragments(where).join(" ")).toContain("assigned_to");
 	});
 
 	it("bulkUpdateStatus returns 0 when no rows match", async () => {
@@ -1247,15 +1254,27 @@ describe("Bulk Operations", () => {
 	});
 
 	it("bulkUpdatePriority returns count", async () => {
+		let where: unknown;
 		const qb = createQueryBuilder({ rowCount: 3 });
+		qb.where.mockImplementation((value: unknown) => {
+			where = value;
+			return qb;
+		});
 		mockDb.update.mockReturnValue(qb);
 		expect(await bulkUpdatePriority(["a", "b", "c"], 5)).toBe(3);
+		expect(collectSqlFragments(where).join(" ")).toContain("assigned_to");
 	});
 
 	it("markAsReviewed returns count", async () => {
+		let where: unknown;
 		const qb = createQueryBuilder({ rowCount: 2 });
+		qb.where.mockImplementation((value: unknown) => {
+			where = value;
+			return qb;
+		});
 		mockDb.update.mockReturnValue(qb);
 		expect(await markAsReviewed(["a", "b"], true)).toBe(2);
+		expect(collectSqlFragments(where).join(" ")).toContain("assigned_to");
 	});
 
 	it("markAsReviewed defaults reviewed to true", async () => {
@@ -1265,9 +1284,15 @@ describe("Bulk Operations", () => {
 	});
 
 	it("assignOpportunities assigns user", async () => {
+		let where: unknown;
 		const qb = createQueryBuilder({ rowCount: 2 });
+		qb.where.mockImplementation((value: unknown) => {
+			where = value;
+			return qb;
+		});
 		mockDb.update.mockReturnValue(qb);
 		expect(await assignOpportunities(["a", "b"], "user-42")).toBe(2);
+		expect(collectSqlFragments(where).join(" ")).toContain("assigned_to");
 	});
 
 	it("assignOpportunities unassigns with null", async () => {
