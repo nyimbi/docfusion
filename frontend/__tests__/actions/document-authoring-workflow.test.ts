@@ -185,6 +185,7 @@ beforeEach(() => {
 
 describe("document authoring workflow", () => {
 	it("creates a versioned proposal document from a template and projects drafting work", async () => {
+		let templateWhere: unknown;
 		let opportunityWhere: unknown;
 		let maxOrderWhere: unknown;
 		let documentValues: Record<string, unknown> | undefined;
@@ -193,7 +194,12 @@ describe("document authoring workflow", () => {
 		let sectionValues: Record<string, unknown>[] | undefined;
 
 		dbMock.select
-			.mockReturnValueOnce(createChain({ result: [template] }))
+			.mockReturnValueOnce(createChain({
+				result: [template],
+				onWhere: (value) => {
+					templateWhere = value;
+				},
+			}))
 			.mockReturnValueOnce(createChain({
 				result: [{ id: "opp-1" }],
 				onWhere: (value) => {
@@ -279,6 +285,10 @@ describe("document authoring workflow", () => {
 			sectionName: "Executive Summary",
 			status: "drafting",
 		});
+		const templateSql = collectSqlFragments(templateWhere).join(" ");
+		expect(templateSql).toContain("writer-1");
+		expect(templateSql).toContain("published");
+		expect(templateSql).toContain("organization");
 		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(collectSqlFragments(maxOrderWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({

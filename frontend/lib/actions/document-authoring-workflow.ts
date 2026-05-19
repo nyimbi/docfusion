@@ -14,7 +14,7 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, or, sql, type SQL } from "drizzle-orm";
 
 type DocumentRow = typeof documents.$inferSelect;
 type DocumentContent = Record<string, unknown>;
@@ -139,12 +139,28 @@ function visibleSectionCondition(sectionId: string, actorId: string): SQL {
 	)!;
 }
 
+function visibleTemplateCondition(templateId: string, actorId: string): SQL {
+	return and(
+		eq(templates.id, templateId),
+		or(
+			eq(templates.createdBy, actorId),
+			and(
+				eq(templates.status, "published"),
+				or(
+					eq(templates.visibility, "public"),
+					eq(templates.visibility, "organization")
+				)!
+			)!
+		)!
+	)!;
+}
+
 export async function createWorkflowDocumentFromTemplate(
 	input: CreateWorkflowDocumentInput
 ): Promise<DocumentCreationWorkflowResult> {
 	const userContext = await requireUserContext();
 	const reason = requireReason(input.reason, "Document creation transitions require a reason");
-	const template = input.templateId ? await loadTemplate(input.templateId) : null;
+	const template = input.templateId ? await loadTemplate(input.templateId, userContext.userId) : null;
 	const source = input.source ?? (template ? "template" : "blank");
 	const rawContent = cloneContent(input.content ?? template?.content ?? blankContent());
 	const processedContent = substitutePlaceholders(rawContent, input.placeholderValues ?? {});
@@ -369,11 +385,11 @@ export async function transitionDocumentAuthoringWorkflow(
 	};
 }
 
-async function loadTemplate(templateId: string): Promise<TemplateRow> {
+async function loadTemplate(templateId: string, actorId: string): Promise<TemplateRow> {
 	const [template] = await db
 		.select()
 		.from(templates)
-		.where(eq(templates.id, templateId))
+		.where(visibleTemplateCondition(templateId, actorId))
 		.limit(1);
 	if (!template) {
 		throw new Error("Template not found");
