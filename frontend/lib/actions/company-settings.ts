@@ -8,6 +8,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import { companySettings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import type {
@@ -21,11 +22,21 @@ import type {
 // Company Settings Operations
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 /**
  * Get the company settings.
  * Returns null if no settings exist yet.
  */
 export async function getCompanySettings(): Promise<CompanySettings | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db.select().from(companySettings).limit(1);
 
 	if (!row) {
@@ -42,6 +53,8 @@ export async function getCompanySettings(): Promise<CompanySettings | null> {
 export async function saveCompanySettings(
 	input: CompanySettingsInput
 ): Promise<CompanySettings> {
+	await requireCurrentUserId();
+
 	const existing = await getCompanySettings();
 
 	if (existing) {
@@ -145,6 +158,8 @@ export async function saveCompanySettings(
 export async function updateCompanySettings(
 	updates: Partial<CompanySettingsInput>
 ): Promise<CompanySettings> {
+	await requireCurrentUserId();
+
 	const existing = await getCompanySettings();
 
 	if (!existing) {
@@ -204,6 +219,8 @@ export async function updateCompanySettings(
  * Get branding config from company settings.
  */
 export async function getDefaultBranding(): Promise<BrandingConfig | null> {
+	await requireCurrentUserId();
+
 	const settings = await getCompanySettings();
 
 	if (!settings) {
@@ -245,6 +262,8 @@ export async function getDefaultBranding(): Promise<BrandingConfig | null> {
  * Check if company settings are configured.
  */
 export async function isCompanyConfigured(): Promise<boolean> {
+	await requireCurrentUserId();
+
 	const settings = await getCompanySettings();
 	return settings !== null && settings.companyName.length > 0;
 }
@@ -253,6 +272,8 @@ export async function isCompanyConfigured(): Promise<boolean> {
  * Get company boilerplate text for use in proposals.
  */
 export async function getCompanyBoilerplate(): Promise<string | null> {
+	await requireCurrentUserId();
+
 	const settings = await getCompanySettings();
 	return settings?.companyBoilerplate ?? null;
 }
@@ -265,6 +286,8 @@ export async function getCompanyCapabilities(): Promise<{
 	differentiators: string[];
 	certifications: SmallBusinessCertification[];
 }> {
+	await requireCurrentUserId();
+
 	const settings = await getCompanySettings();
 
 	return {
