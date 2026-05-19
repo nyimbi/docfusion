@@ -22,7 +22,7 @@ import {
 	accounts,
 } from "@/lib/db/schema";
 import { partners } from "@/lib/db/schema-partners";
-import { eq, and, or, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import type {
 	ImportTargetTable,
 	ColumnMapping,
@@ -46,7 +46,7 @@ import { requireUserContext } from "@/lib/auth-utils";
 
 interface UserContext {
 	userId: string;
-	organizationId?: string;
+	organizationId: string;
 }
 
 interface ParsedData {
@@ -64,10 +64,16 @@ async function requireMatchingUserContext(input: UserContext): Promise<UserConte
 	if (current.userId !== input.userId) {
 		throw new Error("Unauthorized");
 	}
-	if (input.organizationId && current.organizationId !== input.organizationId) {
+	if (!current.organizationId) {
+		throw new Error("No organization context");
+	}
+	if (current.organizationId !== input.organizationId) {
 		throw new Error("Unauthorized");
 	}
-	return current;
+	return {
+		userId: current.userId,
+		organizationId: current.organizationId,
+	};
 }
 
 /**
@@ -116,13 +122,17 @@ async function findExistingRecords(
 				query = db
 					.select({ email: contacts.email })
 					.from(contacts)
-					.where(eq(contacts.ownerId, userContext.userId));
+					.where(and(
+						eq(contacts.ownerId, userContext.userId),
+						eq(contacts.organizationId, userContext.organizationId)
+					));
 				break;
 			}
 			case "accounts": {
 				query = db
 					.select({ name: accounts.name, country: accounts.country, type: accounts.type })
-					.from(accounts);
+					.from(accounts)
+					.where(eq(accounts.ownerId, userContext.userId));
 				break;
 			}
 			case "partners": {
@@ -494,7 +504,11 @@ export async function executeImport(
 				importedIds,
 				completedAt: new Date(),
 			})
-			.where(eq(dataImports.id, importId));
+			.where(and(
+				eq(dataImports.id, importId),
+				eq(dataImports.importedBy, currentUserContext.userId),
+				eq(dataImports.organizationId, currentUserContext.organizationId)
+			));
 
 		// Save as template if requested
 		let savedTemplateId: string | undefined;
@@ -543,7 +557,11 @@ export async function executeImport(
 				errors: [{ row: 0, error: errorMsg }],
 				completedAt: new Date(),
 			})
-			.where(eq(dataImports.id, importId));
+			.where(and(
+				eq(dataImports.id, importId),
+				eq(dataImports.importedBy, currentUserContext.userId),
+				eq(dataImports.organizationId, currentUserContext.organizationId)
+			));
 
 		return {
 			importId,
@@ -579,7 +597,8 @@ export async function getImportProgress(
 		.where(
 			and(
 				eq(dataImports.id, importId),
-				eq(dataImports.importedBy, currentUserContext.userId)
+				eq(dataImports.importedBy, currentUserContext.userId),
+				eq(dataImports.organizationId, currentUserContext.organizationId)
 			)
 		);
 
@@ -653,7 +672,10 @@ export async function getImportHistory(
 			completedAt: dataImports.completedAt,
 		})
 		.from(dataImports)
-		.where(eq(dataImports.importedBy, currentUserContext.userId))
+		.where(and(
+			eq(dataImports.importedBy, currentUserContext.userId),
+			eq(dataImports.organizationId, currentUserContext.organizationId)
+		))
 		.orderBy(sql`${dataImports.startedAt} DESC`)
 		.limit(limit);
 
@@ -687,7 +709,8 @@ export async function rollbackImport(
 			.where(
 				and(
 					eq(dataImports.id, importId),
-					eq(dataImports.importedBy, currentUserContext.userId)
+					eq(dataImports.importedBy, currentUserContext.userId),
+					eq(dataImports.organizationId, currentUserContext.organizationId)
 				)
 			);
 
@@ -711,7 +734,11 @@ export async function rollbackImport(
 				status: "cancelled",
 				importedIds: [],
 			})
-			.where(eq(dataImports.id, importId));
+			.where(and(
+				eq(dataImports.id, importId),
+				eq(dataImports.importedBy, currentUserContext.userId),
+				eq(dataImports.organizationId, currentUserContext.organizationId)
+			));
 
 		return { success: true, deletedCount: importedIds.length };
 	} catch (error) {
@@ -735,10 +762,7 @@ export async function getTemplates(
 
 	// Build conditions array
 	const conditions = [
-		or(
-			eq(importMappingTemplates.organizationId, currentUserContext.organizationId || ""),
-			eq(importMappingTemplates.createdBy, currentUserContext.userId)
-		),
+		eq(importMappingTemplates.organizationId, currentUserContext.organizationId),
 	];
 
 	if (targetTable) {
@@ -785,10 +809,7 @@ export async function getTemplateDetail(
 		.where(
 			and(
 				eq(importMappingTemplates.id, templateId),
-				or(
-					eq(importMappingTemplates.organizationId, currentUserContext.organizationId || ""),
-					eq(importMappingTemplates.createdBy, currentUserContext.userId)
-				)
+				eq(importMappingTemplates.organizationId, currentUserContext.organizationId)
 			)
 		);
 
@@ -801,7 +822,10 @@ export async function getTemplateDetail(
 			useCount: (record.useCount || 0) + 1,
 			lastUsedAt: new Date(),
 		})
-		.where(eq(importMappingTemplates.id, templateId));
+		.where(and(
+			eq(importMappingTemplates.id, templateId),
+			eq(importMappingTemplates.organizationId, currentUserContext.organizationId)
+		));
 
 	return {
 		id: record.id,
@@ -830,7 +854,8 @@ export async function deleteTemplate(
 			.where(
 				and(
 					eq(importMappingTemplates.id, templateId),
-					eq(importMappingTemplates.createdBy, currentUserContext.userId)
+					eq(importMappingTemplates.createdBy, currentUserContext.userId),
+					eq(importMappingTemplates.organizationId, currentUserContext.organizationId)
 				)
 			);
 

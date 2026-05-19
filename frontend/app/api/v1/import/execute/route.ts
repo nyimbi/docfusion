@@ -6,7 +6,11 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import {
+	isTenantResponse,
+	requireRouteTenantContext,
+	type RouteTenantResult,
+} from "@/lib/auth/route-tenant";
 import { executeImport, generatePreview } from "@/lib/actions/import";
 import { decideSandboxMutation } from "@/lib/sandbox/runtime";
 import type { ImportTargetTable, ColumnMapping, ImportOptions } from "@/lib/types/import";
@@ -14,23 +18,15 @@ import type { ImportTargetTable, ColumnMapping, ImportOptions } from "@/lib/type
 /**
  * Get authenticated user context.
  */
-async function getUserContext() {
-	const session = await auth();
-	if (!session?.user) return null;
-	return {
-		userId: session.user.id,
-		organizationId: (session.user as { organizationId?: string }).organizationId,
-	};
+async function getUserContext(): Promise<RouteTenantResult> {
+	return requireRouteTenantContext();
 }
 
 export async function POST(request: NextRequest) {
 	// Authenticate
 	const userContext = await getUserContext();
-	if (!userContext) {
-		return NextResponse.json(
-			{ success: false, error: "Authentication required" },
-			{ status: 401 }
-		);
+	if (isTenantResponse(userContext)) {
+		return userContext;
 	}
 
 	try {

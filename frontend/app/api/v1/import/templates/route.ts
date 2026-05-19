@@ -6,23 +6,22 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import {
+	isTenantResponse,
+	requireRouteTenantContext,
+	type RouteTenantResult,
+} from "@/lib/auth/route-tenant";
 import { db } from "@/lib/db";
 import { importMappingTemplates } from "@/lib/db/schema";
-import { eq, or, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { ImportTargetTable, ColumnMapping } from "@/lib/types/import";
 import type { ColumnMappingConfig } from "@/lib/db/schema-import";
 
 /**
  * Get authenticated user context.
  */
-async function getUserContext() {
-	const session = await auth();
-	if (!session?.user) return null;
-	return {
-		userId: session.user.id,
-		organizationId: (session.user as { organizationId?: string }).organizationId,
-	};
+async function getUserContext(): Promise<RouteTenantResult> {
+	return requireRouteTenantContext();
 }
 
 /**
@@ -32,21 +31,15 @@ async function getUserContext() {
 export async function GET(request: NextRequest) {
 	// Authenticate
 	const userContext = await getUserContext();
-	if (!userContext) {
-		return NextResponse.json(
-			{ success: false, error: "Authentication required" },
-			{ status: 401 }
-		);
+	if (isTenantResponse(userContext)) {
+		return userContext;
 	}
 
 	try {
 		const { searchParams } = new URL(request.url);
 		const targetTable = searchParams.get("targetTable") as ImportTargetTable | null;
 
-		let whereClause = or(
-			eq(importMappingTemplates.organizationId, userContext.organizationId || ""),
-			eq(importMappingTemplates.createdBy, userContext.userId)
-		);
+		const whereClause = eq(importMappingTemplates.organizationId, userContext.organizationId);
 
 		const query = db
 			.select({
@@ -100,11 +93,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
 	// Authenticate
 	const userContext = await getUserContext();
-	if (!userContext) {
-		return NextResponse.json(
-			{ success: false, error: "Authentication required" },
-			{ status: 401 }
-		);
+	if (isTenantResponse(userContext)) {
+		return userContext;
 	}
 
 	try {

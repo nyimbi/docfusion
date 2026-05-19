@@ -40,6 +40,32 @@ describe("import action auth", () => {
 		expect(mockDb.select).not.toHaveBeenCalled();
 	});
 
+	it("requires organization context before import progress queries", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "importer-1",
+			organizationId: undefined,
+		});
+		const { getImportProgress } = await import("@/lib/actions/import");
+
+		await expect(getImportProgress("import-1", {
+			userId: "importer-1",
+			organizationId: "org-1",
+		})).rejects.toThrow("No organization context");
+
+		expect(mockDb.select).not.toHaveBeenCalled();
+	});
+
+	it("rejects missing caller organization before import progress queries", async () => {
+		const { getImportProgress } = await import("@/lib/actions/import");
+
+		await expect(getImportProgress("import-1", {
+			userId: "importer-1",
+			organizationId: "",
+		})).rejects.toThrow("Unauthorized");
+
+		expect(mockDb.select).not.toHaveBeenCalled();
+	});
+
 	it("requires a session before generating import previews", async () => {
 		requireUserContextMock.mockRejectedValueOnce(new Error("Unauthorized"));
 		const { generatePreview } = await import("@/lib/actions/import");

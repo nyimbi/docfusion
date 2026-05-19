@@ -8,7 +8,7 @@ import {
 } from "@/lib/actions/workflow-runtime";
 import { db } from "@/lib/db";
 import { dataImports, type ImportError } from "@/lib/db/schema-import";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 type DataImportRow = typeof dataImports.$inferSelect;
 
@@ -46,8 +46,14 @@ export async function transitionImportGovernanceWorkflow(
 	input: ImportGovernanceWorkflowInput
 ): Promise<ImportGovernanceWorkflowResult> {
 	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
 	const reason = requireReason(input.reason, "Import workflow transitions require a reason");
-	const record = await loadImport(input.importId);
+	const record = await loadImport(input.importId, {
+		userId: userContext.userId,
+		organizationId: userContext.organizationId,
+	});
 	if (record.importedBy && record.importedBy !== userContext.userId) {
 		throw new Error("Import workflow can only be changed by the initiating user");
 	}
@@ -67,7 +73,11 @@ export async function transitionImportGovernanceWorkflow(
 		await db
 			.update(dataImports)
 			.set(transition.patch)
-			.where(eq(dataImports.id, input.importId));
+			.where(and(
+				eq(dataImports.id, input.importId),
+				eq(dataImports.importedBy, userContext.userId),
+				eq(dataImports.organizationId, userContext.organizationId)
+			));
 	}
 
 	const instance = await recordWorkflowRuntimeTransition({
@@ -131,11 +141,18 @@ export async function transitionImportGovernanceWorkflow(
 	};
 }
 
-async function loadImport(importId: string) {
+async function loadImport(
+	importId: string,
+	userContext: { userId: string; organizationId: string }
+) {
 	const [record] = await db
 		.select()
 		.from(dataImports)
-		.where(eq(dataImports.id, importId))
+		.where(and(
+			eq(dataImports.id, importId),
+			eq(dataImports.importedBy, userContext.userId),
+			eq(dataImports.organizationId, userContext.organizationId)
+		))
 		.limit(1);
 	if (!record) {
 		throw new Error("Import not found");
@@ -146,7 +163,7 @@ async function loadImport(importId: string) {
 async function buildTransition(input: {
 	input: ImportGovernanceWorkflowInput;
 	record: DataImportRow;
-	userContext: { userId: string; organizationId?: string };
+	userContext: { userId: string; organizationId: string };
 	reason: string;
 }): Promise<{
 	toState: string;

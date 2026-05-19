@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-const authMock = vi.hoisted(() => vi.fn());
+const tenantMock = vi.hoisted(() => vi.fn());
 const importActionsMock = vi.hoisted(() => ({
 	executeImport: vi.fn(),
 	generatePreview: vi.fn(),
 }));
 
-vi.mock("@/lib/auth", () => ({ auth: authMock }));
+vi.mock("@/lib/auth/route-tenant", () => ({
+	requireRouteTenantContext: tenantMock,
+	isTenantResponse: (value: unknown) => value instanceof Response,
+}));
 vi.mock("@/lib/actions/import", () => importActionsMock);
 
 import { POST } from "@/app/api/v1/import/execute/route";
@@ -38,11 +41,9 @@ const validBody = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	authMock.mockResolvedValue({
-		user: {
-			id: "import-user-1",
-			organizationId: "org-1",
-		},
+	tenantMock.mockResolvedValue({
+		userId: "import-user-1",
+		organizationId: "org-1",
 	});
 	importActionsMock.generatePreview.mockResolvedValue({
 		rows: [],
@@ -65,11 +66,25 @@ beforeEach(() => {
 
 describe("import execute route sandbox behavior", () => {
 	it("requires authentication before executing or previewing imports", async () => {
-		authMock.mockResolvedValueOnce(null);
+		tenantMock.mockResolvedValueOnce(
+			NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+		);
 
 		const response = await POST(importRequest(validBody));
 
 		expect(response.status).toBe(401);
+		expect(importActionsMock.executeImport).not.toHaveBeenCalled();
+		expect(importActionsMock.generatePreview).not.toHaveBeenCalled();
+	});
+
+	it("requires organization context before executing or previewing imports", async () => {
+		tenantMock.mockResolvedValueOnce(
+			NextResponse.json({ error: "No organization context" }, { status: 403 })
+		);
+
+		const response = await POST(importRequest(validBody));
+
+		expect(response.status).toBe(403);
 		expect(importActionsMock.executeImport).not.toHaveBeenCalled();
 		expect(importActionsMock.generatePreview).not.toHaveBeenCalled();
 	});
