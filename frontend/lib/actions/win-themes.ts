@@ -171,7 +171,7 @@ function mapDBThemeToWinTheme(row: DBWinTheme): WinTheme {
 			subtletyLevel: 3,
 			phrasings: [],
 		} : undefined,
-		createdBy: row.createdBy || "system",
+		createdBy: row.createdBy ?? null,
 		createdAt: row.createdAt || new Date(),
 		updatedAt: row.updatedAt || new Date(),
 	};

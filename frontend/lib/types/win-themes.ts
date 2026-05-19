@@ -73,8 +73,8 @@ export interface WinTheme {
 	ghostTheme?: GhostTheme;
 	/** Coverage metrics */
 	coverageMetrics?: ThemeCoverageMetrics;
-	/** Created by user ID */
-	createdBy: string;
+	/** Created by user ID, if known for legacy rows */
+	createdBy: string | null;
 	createdAt: Date;
 	updatedAt: Date;
 }
