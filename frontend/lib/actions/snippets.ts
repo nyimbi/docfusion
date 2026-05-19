@@ -32,24 +32,52 @@ import { adaptResolvedSnippet, resolveSnippetContent } from "@/lib/snippets/reso
 // ============================================================================
 
 /**
- * Get current user ID from session.
+ * Get current tenant context from session.
  */
-async function getCurrentUserId(): Promise<string> {
+async function getCurrentSnippetContext(): Promise<{ userId: string; organizationId: string }> {
 	const session = await getServerSession();
 	if (!session?.user?.id) {
 		throw new Error("Unauthorized");
 	}
-	return session.user.id;
+	const organizationId = (session.user as { organizationId?: string }).organizationId;
+	if (!organizationId) {
+		throw new Error("No organization context");
+	}
+	return {
+		userId: session.user.id,
+		organizationId,
+	};
 }
 
 /**
- * Get current organization ID from session.
+ * Predicate for snippets readable by the current user.
  */
-async function getCurrentOrganizationId(): Promise<string | undefined> {
-	const session = await getServerSession();
-	// Organization ID would typically come from session or user's active org
-	// For now, return undefined as organizations are optional
-	return (session?.user as { organizationId?: string } | undefined)?.organizationId;
+function visibleSnippetCondition(context: { userId: string; organizationId: string }): SQL {
+	return or(
+		and(
+			eq(templateSnippets.createdBy, context.userId),
+			eq(templateSnippets.organizationId, context.organizationId)
+		),
+		eq(templateSnippets.organizationId, context.organizationId),
+		eq(templateSnippets.isPublic, true)
+	)!;
+}
+
+/**
+ * Predicate for snippets mutable by the current user.
+ */
+function mutableSnippetCondition(
+	id: string,
+	context: { userId: string; organizationId: string }
+): SQL {
+	return and(
+		eq(templateSnippets.id, id),
+		eq(templateSnippets.organizationId, context.organizationId),
+		or(
+			eq(templateSnippets.createdBy, context.userId),
+			eq(templateSnippets.isPublic, true)
+		)!
+	)!;
 }
 
 /**
@@ -123,19 +151,14 @@ export async function listSnippets(
 		limit = 20,
 	} = params;
 
-	const currentUserId = await getCurrentUserId();
-	const orgId = await getCurrentOrganizationId();
+	const context = await getCurrentSnippetContext();
 
 	// Build where conditions
 	const conditions: SQL[] = [];
 
 	// Filter by ownership or public
 	conditions.push(
-		or(
-			eq(templateSnippets.createdBy, currentUserId),
-			eq(templateSnippets.isPublic, true),
-			orgId ? eq(templateSnippets.organizationId, orgId) : undefined
-		)!
+		visibleSnippetCondition(context)
 	);
 
 	if (category) {
@@ -208,57 +231,39 @@ export async function listSnippets(
  * Get a single snippet by ID.
  */
 export async function getSnippet(id: string): Promise<TemplateSnippet | null> {
-	const currentUserId = await getCurrentUserId();
-	const orgId = await getCurrentOrganizationId();
+	const context = await getCurrentSnippetContext();
 
 	const rows = await db
 		.select()
 		.from(templateSnippets)
-		.where(eq(templateSnippets.id, id))
+		.where(and(
+			eq(templateSnippets.id, id),
+			visibleSnippetCondition(context)
+		))
 		.limit(1);
 
 	if (rows.length === 0) return null;
-
-	const row = rows[0];
-	
-	// Check access permissions
-	const hasAccess = 
-		row.createdBy === currentUserId ||
-		row.isPublic ||
-		(row.organizationId === orgId);
-
-	if (!hasAccess) return null;
-
-	return mapRowToSnippet(row);
+	return mapRowToSnippet(rows[0]);
 }
 
 /**
  * Get a snippet by shortcut.
  */
 export async function getSnippetByShortcut(shortcut: string): Promise<TemplateSnippet | null> {
-	const currentUserId = await getCurrentUserId();
-	const orgId = await getCurrentOrganizationId();
+	const context = await getCurrentSnippetContext();
 	const formattedShortcut = formatShortcut(shortcut);
 
 	const rows = await db
 		.select()
 		.from(templateSnippets)
-		.where(eq(templateSnippets.shortcut, formattedShortcut))
+		.where(and(
+			eq(templateSnippets.shortcut, formattedShortcut),
+			visibleSnippetCondition(context)
+		))
 		.limit(1);
 
 	if (rows.length === 0) return null;
-
-	const row = rows[0];
-	
-	// Check access permissions
-	const hasAccess = 
-		row.createdBy === currentUserId ||
-		row.isPublic ||
-		(row.organizationId === orgId);
-
-	if (!hasAccess) return null;
-
-	return mapRowToSnippet(row);
+	return mapRowToSnippet(rows[0]);
 }
 
 /**
@@ -267,8 +272,7 @@ export async function getSnippetByShortcut(shortcut: string): Promise<TemplateSn
 export async function createSnippet(
 	input: CreateSnippetInput
 ): Promise<TemplateSnippet> {
-	const currentUserId = await getCurrentUserId();
-	const orgId = await getCurrentOrganizationId();
+	const context = await getCurrentSnippetContext();
 
 	// Check if shortcut already exists for this org/user
 	const existingCheck = await db
@@ -277,10 +281,7 @@ export async function createSnippet(
 		.where(
 			and(
 				eq(templateSnippets.shortcut, formatShortcut(input.shortcut)),
-				or(
-					eq(templateSnippets.createdBy, currentUserId),
-					eq(templateSnippets.organizationId, orgId || "")
-				)!
+				eq(templateSnippets.organizationId, context.organizationId)
 			)
 		);
 
@@ -298,8 +299,8 @@ export async function createSnippet(
 			description: input.description,
 			tags: input.tags || [],
 			category: input.category,
-			createdBy: currentUserId,
-			organizationId: orgId,
+			createdBy: context.userId,
+			organizationId: context.organizationId,
 			useCount: 0,
 			isPublic: input.isPublic ?? false,
 		})
@@ -343,28 +344,16 @@ export async function updateSnippet(
 	id: string,
 	input: UpdateSnippetInput
 ): Promise<TemplateSnippet | null> {
-	const currentUserId = await getCurrentUserId();
-	const orgId = await getCurrentOrganizationId();
+	const context = await getCurrentSnippetContext();
 
 	// Check existence and ownership
 	const existing = await db
 		.select()
 		.from(templateSnippets)
-		.where(eq(templateSnippets.id, id))
+		.where(mutableSnippetCondition(id, context))
 		.limit(1);
 
 	if (existing.length === 0) return null;
-
-	const row = existing[0];
-
-	// Check modification permissions (only creator or org admin can edit)
-	const canEdit = 
-		row.createdBy === currentUserId ||
-		(row.organizationId === orgId && row.isPublic);
-
-	if (!canEdit) {
-		throw new Error("Not authorized to update this snippet");
-	}
 
 	// Check shortcut uniqueness if being updated
 	if (input.shortcut) {
@@ -375,10 +364,7 @@ export async function updateSnippet(
 			.where(
 				and(
 					eq(templateSnippets.shortcut, formattedShortcut),
-					or(
-						eq(templateSnippets.createdBy, currentUserId),
-						eq(templateSnippets.organizationId, orgId || "")
-					)!,
+					eq(templateSnippets.organizationId, context.organizationId),
 					// Exclude current snippet
 					sql`${templateSnippets.id} != ${id}`
 				)
@@ -407,7 +393,7 @@ export async function updateSnippet(
 	const [updated] = await db
 		.update(templateSnippets)
 		.set(updateData)
-		.where(eq(templateSnippets.id, id))
+		.where(mutableSnippetCondition(id, context))
 		.returning();
 
 	revalidatePath("/snippets");
@@ -419,32 +405,20 @@ export async function updateSnippet(
  * Delete a snippet.
  */
 export async function deleteSnippet(id: string): Promise<boolean> {
-	const currentUserId = await getCurrentUserId();
-	const orgId = await getCurrentOrganizationId();
+	const context = await getCurrentSnippetContext();
 
 	// Check existence and ownership
 	const existing = await db
 		.select()
 		.from(templateSnippets)
-		.where(eq(templateSnippets.id, id))
+		.where(mutableSnippetCondition(id, context))
 		.limit(1);
 
 	if (existing.length === 0) return false;
 
-	const row = existing[0];
-
-	// Check deletion permissions
-	const canDelete = 
-		row.createdBy === currentUserId ||
-		(row.organizationId === orgId && row.isPublic);
-
-	if (!canDelete) {
-		throw new Error("Not authorized to delete this snippet");
-	}
-
 	const result = await db
 		.delete(templateSnippets)
-		.where(eq(templateSnippets.id, id))
+		.where(mutableSnippetCondition(id, context))
 		.returning({ id: templateSnippets.id });
 
 	revalidatePath("/snippets");
@@ -456,8 +430,7 @@ export async function deleteSnippet(id: string): Promise<boolean> {
  * Called when a snippet is inserted into a document.
  */
 export async function incrementSnippetUseCount(id: string): Promise<void> {
-	const currentUserId = await getCurrentUserId();
-	const orgId = await getCurrentOrganizationId();
+	const context = await getCurrentSnippetContext();
 	const snippet = await db
 		.select({
 			useCount: templateSnippets.useCount,
@@ -466,16 +439,14 @@ export async function incrementSnippetUseCount(id: string): Promise<void> {
 			organizationId: templateSnippets.organizationId,
 		})
 		.from(templateSnippets)
-		.where(eq(templateSnippets.id, id))
+		.where(and(
+			eq(templateSnippets.id, id),
+			visibleSnippetCondition(context)
+		))
 		.limit(1);
 
 	if (snippet.length === 0) return;
 	const row = snippet[0];
-	const hasAccess =
-		row.createdBy === currentUserId ||
-		row.isPublic ||
-		row.organizationId === orgId;
-	if (!hasAccess) return;
 
 	await db
 		.update(templateSnippets)
@@ -483,7 +454,10 @@ export async function incrementSnippetUseCount(id: string): Promise<void> {
 			useCount: row.useCount + 1,
 			updatedAt: new Date(),
 		})
-		.where(eq(templateSnippets.id, id));
+		.where(and(
+			eq(templateSnippets.id, id),
+			visibleSnippetCondition(context)
+		));
 }
 
 /**
@@ -493,8 +467,7 @@ export async function searchSnippets(
 	query: string,
 	limit = 20
 ): Promise<SnippetSummary[]> {
-	const currentUserId = await getCurrentUserId();
-	const orgId = await getCurrentOrganizationId();
+	const context = await getCurrentSnippetContext();
 	const searchTerm = `%${query}%`;
 
 	const rows = await db
@@ -507,11 +480,7 @@ export async function searchSnippets(
 					ilike(templateSnippets.description, searchTerm),
 					ilike(templateSnippets.shortcut, searchTerm)
 				)!,
-				or(
-					eq(templateSnippets.createdBy, currentUserId),
-					eq(templateSnippets.isPublic, true),
-					orgId ? eq(templateSnippets.organizationId, orgId) : undefined
-				)!
+				visibleSnippetCondition(context)
 			)
 		)
 		.orderBy(desc(templateSnippets.useCount), asc(templateSnippets.name))
@@ -627,8 +596,7 @@ function buildSnippetInsertionProvenance(input: {
  * Get all snippets for a category.
  */
 export async function getSnippetsByCategory(category: string): Promise<SnippetSummary[]> {
-	const currentUserId = await getCurrentUserId();
-	const orgId = await getCurrentOrganizationId();
+	const context = await getCurrentSnippetContext();
 
 	const rows = await db
 		.select()
@@ -636,11 +604,7 @@ export async function getSnippetsByCategory(category: string): Promise<SnippetSu
 		.where(
 			and(
 				eq(templateSnippets.category, category),
-				or(
-					eq(templateSnippets.createdBy, currentUserId),
-					eq(templateSnippets.isPublic, true),
-					orgId ? eq(templateSnippets.organizationId, orgId) : undefined
-				)!
+				visibleSnippetCondition(context)
 			)
 		)
 		.orderBy(desc(templateSnippets.useCount));
