@@ -75,7 +75,7 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 	upsertWorkflowRuntimeTask: vi.fn(),
 }));
 
-import { updatePipelineStage } from "@/lib/actions/pipeline";
+import { updateActivity, updatePipelineStage } from "@/lib/actions/pipeline";
 
 const pipeline = {
 	id: "44444444-4444-4444-8444-444444444444",
@@ -118,6 +118,31 @@ describe("pipeline row scoping", () => {
 			data: { id: pipeline.id, currentStage: "qualification" },
 		});
 		expect(collectSqlFragments(loadWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("scopes activity updates through the owning pipeline opportunity", async () => {
+		let updateWhere: unknown;
+		dbMock.update.mockReturnValueOnce(createChain({
+			result: [{
+				id: "55555555-5555-4555-8555-555555555555",
+				pipelineId: pipeline.id,
+				title: "Updated activity",
+			}],
+			onWhere: (value) => {
+				updateWhere = value;
+			},
+		}));
+
+		const result = await updateActivity(
+			"55555555-5555-4555-8555-555555555555",
+			{ title: "Updated activity" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			data: { id: "55555555-5555-4555-8555-555555555555" },
+		});
 		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
 });

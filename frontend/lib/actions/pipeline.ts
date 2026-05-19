@@ -379,6 +379,34 @@ function visiblePipelineForOpportunityCondition(opportunityId: string, actorId: 
 	)!;
 }
 
+function assignedPipelineExistsSql(pipelineId: unknown, actorId: string): SQL {
+	return sql`exists (
+		select 1
+		from capture_pipeline
+		join opportunities on opportunities.id = capture_pipeline.opportunity_id
+		where capture_pipeline.id = ${pipelineId}
+			and opportunities.assigned_to = ${actorId}
+	)`;
+}
+
+function visibleActivitiesForPipelineCondition(pipelineId: string, actorId: string): SQL {
+	return and(
+		eq(captureActivities.pipelineId, pipelineId),
+		assignedPipelineExistsSql(pipelineId, actorId)
+	)!;
+}
+
+function visibleActivityCondition(activityId: string, actorId: string): SQL {
+	return and(
+		eq(captureActivities.id, activityId),
+		assignedPipelineExistsSql(captureActivities.pipelineId, actorId)
+	)!;
+}
+
+function visibleAssignedActivityCondition(actorId: string): SQL {
+	return assignedPipelineExistsSql(captureActivities.pipelineId, actorId);
+}
+
 async function loadVisiblePipeline(pipelineId: string, actorId: string): Promise<CapturePipeline | null> {
 	const [pipeline] = await db
 		.select()
@@ -979,11 +1007,7 @@ export async function recordActivity(
 		const { createdBy: _createdBy, ...activityData } = parsed.data;
 
 		// Verify pipeline exists
-		const [pipeline] = await db
-			.select()
-			.from(capturePipeline)
-			.where(eq(capturePipeline.id, pipelineId))
-			.limit(1);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -1010,7 +1034,7 @@ export async function recordActivity(
 					lastCustomerContact: new Date(),
 					updatedAt: new Date(),
 				})
-				.where(eq(capturePipeline.id, pipelineId));
+				.where(visiblePipelineCondition(pipelineId, actorId));
 		}
 
 		revalidatePipelinePaths(pipeline.opportunityId ?? undefined);
@@ -1029,7 +1053,7 @@ export async function updateActivity(
 	activityId: string,
 	data: Partial<CreateActivityInput>
 ): Promise<ActionResult<CaptureActivity>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		const parsed = createActivitySchema.partial().safeParse(data);
 		if (!parsed.success) {
@@ -1043,7 +1067,7 @@ export async function updateActivity(
 				...activityData,
 				updatedAt: new Date(),
 			})
-			.where(eq(captureActivities.id, activityId))
+			.where(visibleActivityCondition(activityId, actorId))
 			.returning();
 
 		if (!updated) {
@@ -1066,7 +1090,7 @@ export async function completeActivity(
 	successRating?: number,
 	nextSteps?: string[]
 ): Promise<ActionResult<CaptureActivity>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		if (successRating !== undefined && (successRating < 1 || successRating > 5)) {
 			return { success: false, error: "Success rating must be between 1 and 5" };
@@ -1082,7 +1106,7 @@ export async function completeActivity(
 				nextSteps,
 				updatedAt: new Date(),
 			})
-			.where(eq(captureActivities.id, activityId))
+			.where(visibleActivityCondition(activityId, actorId))
 			.returning();
 
 		if (!updated) {
@@ -1103,9 +1127,9 @@ export async function listActivities(
 	pipelineId: string,
 	filters?: ActivityFilters
 ): Promise<ActionResult<CaptureActivity[]>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
-		const conditions = [eq(captureActivities.pipelineId, pipelineId)];
+		const conditions: SQL[] = [visibleActivitiesForPipelineCondition(pipelineId, actorId)];
 
 		if (filters?.status) {
 			conditions.push(eq(captureActivities.status, filters.status));
@@ -1143,20 +1167,21 @@ export async function getUpcomingActivities(
 	pipelineId?: string,
 	days: number = 30
 ): Promise<ActionResult<CaptureActivity[]>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		const now = new Date();
 		const futureDate = new Date();
 		futureDate.setDate(futureDate.getDate() + days);
 
-		const conditions = [
+		const conditions: SQL[] = [
+			visibleAssignedActivityCondition(actorId),
 			eq(captureActivities.status, "scheduled"),
 			gte(captureActivities.scheduledDate, now),
 			lte(captureActivities.scheduledDate, futureDate),
 		];
 
 		if (pipelineId) {
-			conditions.push(eq(captureActivities.pipelineId, pipelineId));
+			conditions.push(visibleActivitiesForPipelineCondition(pipelineId, actorId));
 		}
 
 		const activities = await db
