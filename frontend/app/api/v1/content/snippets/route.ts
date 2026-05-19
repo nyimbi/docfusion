@@ -69,7 +69,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 	try {
 		// Authenticate user
 		const session = await requireServerSession();
-		const userId = session.user?.id ?? session.user?.email ?? "unknown";
+		const organizationId = (session.user as { organizationId?: string }).organizationId;
+		if (!organizationId) {
+			return NextResponse.json(
+				{ error: "Organization context required" },
+				{ status: 403 }
+			);
+		}
 
 		// Parse query parameters
 		const searchParams = request.nextUrl.searchParams;
@@ -86,7 +92,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 		const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
 		// Build base query conditions
-		const conditions: ReturnType<typeof eq>[] = [];
+		const conditions: ReturnType<typeof eq>[] = [
+			eq(templateSnippets.organizationId, organizationId),
+		];
 
 		// Search filter (on snippets table)
 		if (search) {
@@ -230,6 +238,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		// Authenticate user
 		const session = await requireServerSession();
 		const userId = session.user?.id ?? session.user?.email ?? "unknown";
+		const organizationId = (session.user as { organizationId?: string }).organizationId;
+		if (!organizationId) {
+			return NextResponse.json(
+				{ error: "Organization context required" },
+				{ status: 403 }
+			);
+		}
 
 		// Parse request body
 		const body = await request.json();
@@ -261,6 +276,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				category: category ?? null,
 				tags: tags ?? [],
 				createdBy: userId,
+				organizationId,
 			})
 			.returning();
 

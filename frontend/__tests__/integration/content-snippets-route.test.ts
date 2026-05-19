@@ -8,7 +8,7 @@ const dbMock = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth-utils", () => ({
 	requireServerSession: vi.fn(async () => ({
-		user: { id: "user-1", email: "user@example.test" },
+		user: { id: "user-1", email: "user@example.test", organizationId: "org-1" },
 	})),
 }));
 
@@ -39,6 +39,8 @@ vi.mock("@/lib/db/schema-additions", () => ({
 		tags: "template_snippets.tags",
 		shortcut: "template_snippets.shortcut",
 		createdBy: "template_snippets.created_by",
+		organizationId: "template_snippets.organization_id",
+		isPublic: "template_snippets.is_public",
 		createdAt: "template_snippets.created_at",
 		updatedAt: "template_snippets.updated_at",
 		placeholders: "template_snippets.placeholders",
@@ -75,6 +77,10 @@ function createChain(result: unknown[], capture?: (value: unknown) => void) {
 	for (const method of ["from", "where", "leftJoin", "orderBy", "limit", "offset"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		capture?.(value);
+		return chain;
+	});
 	chain.values = vi.fn((value: unknown) => {
 		capture?.(value);
 		return chain;
@@ -90,8 +96,12 @@ describe("content snippets route", () => {
 	});
 
 	it("returns normalized snippet content and placeholder metadata", async () => {
+		let countWhere: unknown;
+		let listWhere: unknown;
 		dbMock.select
-			.mockReturnValueOnce(createChain([{ count: 1 }]))
+			.mockReturnValueOnce(createChain([{ count: 1 }], (value) => {
+				countWhere = value;
+			}))
 			.mockReturnValueOnce(
 				createChain([
 					{
@@ -122,7 +132,9 @@ describe("content snippets route", () => {
 							winRate: 1,
 						},
 					},
-				])
+				], (value) => {
+					listWhere = value;
+				})
 			);
 
 		const response = await GET(
@@ -137,6 +149,8 @@ describe("content snippets route", () => {
 			key: "client_name",
 			variableName: "client_name",
 		});
+		expect(JSON.stringify(countWhere)).toContain("org-1");
+		expect(JSON.stringify(listWhere)).toContain("org-1");
 	});
 
 	it("normalizes created snippet content before storing it", async () => {
@@ -188,6 +202,7 @@ describe("content snippets route", () => {
 		expect(insertedSnippet).toMatchObject({
 			content: { type: "doc" },
 			placeholders: [expect.objectContaining({ key: "client_name" })],
+			organizationId: "org-1",
 		});
 		expect(insertedAnalytics).toMatchObject({ wordCount: 3 });
 		expect(body.plainTextPreview).toBe("Datacraft response narrative.");
