@@ -9,7 +9,7 @@
 
 import { db } from "@/lib/db";
 import { documents, documentAnalyses, paragraphAnalyses, proposalDocuments } from "@/lib/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql, type SQL } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import type {
@@ -939,11 +939,43 @@ async function requireCurrentUserId(): Promise<string> {
 	return userId;
 }
 
+function writableDocumentCondition(documentId: string, userId: string): SQL {
+	return sql`documents.id = ${documentId} and (
+		documents.owner_id = ${userId}
+		or documents.collaborator_ids ? ${userId}
+	)`;
+}
+
+function readableDocumentExistsSql(documentId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and (
+				documents.owner_id = ${userId}
+				or documents.visibility = 'public'
+				or documents.collaborator_ids ? ${userId}
+			)
+	)`;
+}
+
+function writableDocumentExistsSql(documentId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and (
+				documents.owner_id = ${userId}
+				or documents.collaborator_ids ? ${userId}
+			)
+	)`;
+}
+
 /**
  * Run full document analysis with 30+ factors.
  */
 export async function analyzeDocument(input: AnalyzeDocumentInput): Promise<DocumentAnalysis> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const startTime = Date.now();
 
@@ -951,11 +983,27 @@ export async function analyzeDocument(input: AnalyzeDocumentInput): Promise<Docu
 	const [doc] = await db
 		.select()
 		.from(documents)
-		.where(eq(documents.id, input.documentId))
+		.where(writableDocumentCondition(input.documentId, userId))
 		.limit(1);
 
 	if (!doc) {
 		throw new Error("Document not found");
+	}
+
+	if (input.proposalDocumentId) {
+		const [proposalDocument] = await db
+			.select({ id: proposalDocuments.id })
+			.from(proposalDocuments)
+			.where(and(
+				eq(proposalDocuments.id, input.proposalDocumentId),
+				eq(proposalDocuments.documentId, input.documentId),
+				writableDocumentExistsSql(proposalDocuments.documentId, userId)
+			))
+			.limit(1);
+
+		if (!proposalDocument) {
+			throw new Error("Proposal document not found");
+		}
 	}
 
 	// Extract text content
@@ -1059,7 +1107,11 @@ export async function analyzeDocument(input: AnalyzeDocumentInput): Promise<Docu
 				aiAnalysisAt: new Date(),
 				updatedAt: new Date(),
 			})
-			.where(eq(proposalDocuments.id, input.proposalDocumentId));
+			.where(and(
+				eq(proposalDocuments.id, input.proposalDocumentId),
+				eq(proposalDocuments.documentId, input.documentId),
+				writableDocumentExistsSql(proposalDocuments.documentId, userId)
+			));
 	}
 
 	const processingTime = Date.now() - startTime;
@@ -1085,12 +1137,15 @@ export async function analyzeDocument(input: AnalyzeDocumentInput): Promise<Docu
  * Get the latest analysis for a document.
  */
 export async function getAnalysis(documentId: string): Promise<DocumentAnalysis | null> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const [analysis] = await db
 		.select()
 		.from(documentAnalyses)
-		.where(eq(documentAnalyses.documentId, documentId))
+		.where(and(
+			eq(documentAnalyses.documentId, documentId),
+			readableDocumentExistsSql(documentAnalyses.documentId, userId)
+		))
 		.orderBy(desc(documentAnalyses.analyzedAt))
 		.limit(1);
 
@@ -1119,12 +1174,15 @@ export async function getAnalysisHistory(
 	documentId: string,
 	limit = 10
 ): Promise<AnalysisHistoryEntry[]> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const analyses = await db
 		.select()
 		.from(documentAnalyses)
-		.where(eq(documentAnalyses.documentId, documentId))
+		.where(and(
+			eq(documentAnalyses.documentId, documentId),
+			readableDocumentExistsSql(documentAnalyses.documentId, userId)
+		))
 		.orderBy(desc(documentAnalyses.analyzedAt))
 		.limit(limit);
 
@@ -1141,11 +1199,14 @@ export async function getAnalysisHistory(
  * Delete an analysis.
  */
 export async function deleteAnalysis(analysisId: string): Promise<boolean> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const result = await db
 		.delete(documentAnalyses)
-		.where(eq(documentAnalyses.id, analysisId))
+		.where(and(
+			eq(documentAnalyses.id, analysisId),
+			writableDocumentExistsSql(documentAnalyses.documentId, userId)
+		))
 		.returning({ id: documentAnalyses.id });
 
 	return result.length > 0;

@@ -37,9 +37,9 @@ import type {
 	AssessmentOptionsInput,
 } from "./quality-assessment-types";
 import { db } from "@/lib/db";
-import { documents, documentVersions } from "@/lib/db/schema";
+import { documents } from "@/lib/db/schema";
 import { qualityAssessments } from "@/lib/db/schema-additions";
-import { eq, desc, and, asc } from "drizzle-orm";
+import { eq, desc, and, sql, type SQL } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
 import { getCurrentUserId } from "@/lib/auth-utils";
 
@@ -116,6 +116,38 @@ async function requireCurrentUserId(): Promise<string> {
 	return userId;
 }
 
+function writableDocumentCondition(documentId: string, userId: string): SQL {
+	return sql`documents.id = ${documentId} and (
+		documents.owner_id = ${userId}
+		or documents.collaborator_ids ? ${userId}
+	)`;
+}
+
+function readableDocumentExistsSql(documentId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and (
+				documents.owner_id = ${userId}
+				or documents.visibility = 'public'
+				or documents.collaborator_ids ? ${userId}
+			)
+	)`;
+}
+
+function writableDocumentExistsSql(documentId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and (
+				documents.owner_id = ${userId}
+				or documents.collaborator_ids ? ${userId}
+			)
+	)`;
+}
+
 /**
  * Trigger a quality assessment for a document.
  */
@@ -123,7 +155,7 @@ export async function triggerQualityAssessment(
 	documentId: string,
 	options: AssessmentOptionsInput = {}
 ): Promise<QualityAssessmentResponse> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	try {
 		const { categories, strictMode = false } = options;
@@ -132,7 +164,7 @@ export async function triggerQualityAssessment(
 		const [doc] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, documentId))
+			.where(writableDocumentCondition(documentId, userId))
 			.limit(1);
 
 		if (!doc) {
@@ -202,13 +234,16 @@ export async function getQualityAssessment(
 	documentId: string,
 	options: AssessmentOptionsInput = {}
 ): Promise<QualityAssessmentResponse> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	try {
 		const [row] = await db
 			.select()
 			.from(qualityAssessments)
-			.where(eq(qualityAssessments.documentId, documentId))
+			.where(and(
+				eq(qualityAssessments.documentId, documentId),
+				readableDocumentExistsSql(qualityAssessments.documentId, userId)
+			))
 			.orderBy(desc(qualityAssessments.assessedAt))
 			.limit(1);
 
@@ -252,7 +287,7 @@ export async function getQualityAssessmentHistory(
 	documentId: string,
 	limit = 10
 ): Promise<QualityAssessmentsListResponse> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	try {
 		const rows = await db
@@ -267,7 +302,10 @@ export async function getQualityAssessmentHistory(
 				assessedAt: qualityAssessments.assessedAt,
 			})
 			.from(qualityAssessments)
-			.where(eq(qualityAssessments.documentId, documentId))
+			.where(and(
+				eq(qualityAssessments.documentId, documentId),
+				readableDocumentExistsSql(qualityAssessments.documentId, userId)
+			))
 			.orderBy(desc(qualityAssessments.assessedAt))
 			.limit(limit);
 
@@ -318,14 +356,17 @@ export async function compareQualityAssessments(
 	documentId: string,
 	previousAssessmentId?: string
 ): Promise<AssessmentComparisonResponse> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	try {
 		// Get current assessment
 		const [currentRow] = await db
 			.select()
 			.from(qualityAssessments)
-			.where(eq(qualityAssessments.documentId, documentId))
+			.where(and(
+				eq(qualityAssessments.documentId, documentId),
+				readableDocumentExistsSql(qualityAssessments.documentId, userId)
+			))
 			.orderBy(desc(qualityAssessments.assessedAt))
 			.limit(1);
 
@@ -344,7 +385,11 @@ export async function compareQualityAssessments(
 			const [previousRow] = await db
 				.select()
 				.from(qualityAssessments)
-				.where(eq(qualityAssessments.id, previousAssessmentId))
+				.where(and(
+					eq(qualityAssessments.id, previousAssessmentId),
+					eq(qualityAssessments.documentId, documentId),
+					readableDocumentExistsSql(qualityAssessments.documentId, userId)
+				))
 				.limit(1);
 
 			if (previousRow) {
@@ -355,7 +400,10 @@ export async function compareQualityAssessments(
 			const rows = await db
 				.select()
 				.from(qualityAssessments)
-				.where(eq(qualityAssessments.documentId, documentId))
+				.where(and(
+					eq(qualityAssessments.documentId, documentId),
+					readableDocumentExistsSql(qualityAssessments.documentId, userId)
+				))
 				.orderBy(desc(qualityAssessments.assessedAt))
 				.limit(2);
 
@@ -524,10 +572,20 @@ export async function getQualityFactors(): Promise<{
 export async function deleteQualityAssessment(
 	assessmentId: string
 ): Promise<{ success: boolean; error?: string }> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	try {
-		await db.delete(qualityAssessments).where(eq(qualityAssessments.id, assessmentId));
+		const deleted = await db
+			.delete(qualityAssessments)
+			.where(and(
+				eq(qualityAssessments.id, assessmentId),
+				writableDocumentExistsSql(qualityAssessments.documentId, userId)
+			))
+			.returning({ id: qualityAssessments.id });
+
+		if (deleted.length === 0) {
+			return { success: false, error: "Assessment not found" };
+		}
 
 		return { success: true };
 	} catch (error) {
