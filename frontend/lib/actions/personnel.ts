@@ -28,7 +28,7 @@ import {
 	type PositionRequirement as DBPositionRequirement,
 	type NewPositionRequirement,
 } from "@/lib/db/schema-personnel";
-import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, ne, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, ne, isNull, isNotNull, type SQL } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { logger } from "@/lib/utils/logger";
@@ -545,6 +545,22 @@ async function requireCurrentUserId(): Promise<string> {
 		throw new Error("Unauthorized");
 	}
 	return userId;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function positionRequirementsByOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(positionRequirements.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
 }
 
 /**
@@ -1313,14 +1329,14 @@ export async function matchPersonnelToPosition(
 export async function analyzeStaffingGaps(
 	opportunityId: string
 ): Promise<ActionResult<GapAnalysis>> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	try {
 		// Fetch all positions for the opportunity
 		const positions = await db
 			.select()
 			.from(positionRequirements)
-			.where(eq(positionRequirements.opportunityId, opportunityId));
+			.where(positionRequirementsByOpportunityCondition(opportunityId, userId));
 
 		if (positions.length === 0) {
 			return {
@@ -1898,14 +1914,14 @@ export async function sendCertificationReminders(
 export async function generateOrgChart(
 	opportunityId: string
 ): Promise<ActionResult<OrgChartData>> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	try {
 		// Fetch all positions for the opportunity with assigned personnel
 		const positions = await db
 			.select()
 			.from(positionRequirements)
-			.where(eq(positionRequirements.opportunityId, opportunityId))
+			.where(positionRequirementsByOpportunityCondition(opportunityId, userId))
 			.orderBy(asc(positionRequirements.positionCategory));
 
 		const nodes: OrgChartData["nodes"] = [];
@@ -1990,13 +2006,13 @@ export async function generateOrgChart(
 export async function generateStaffingMatrix(
 	opportunityId: string
 ): Promise<ActionResult<StaffingMatrix>> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	try {
 		const positions = await db
 			.select()
 			.from(positionRequirements)
-			.where(eq(positionRequirements.opportunityId, opportunityId));
+			.where(positionRequirementsByOpportunityCondition(opportunityId, userId));
 
 		const matrixPositions: StaffingMatrix["positions"] = [];
 		let totalHeadcount = 0;
@@ -2226,13 +2242,13 @@ export async function getPositionsForOpportunity(
 	assignedPersonnel: { id: string; name: string } | null;
 	matchScore: number | null;
 }>>> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	try {
 		const positions = await db
 			.select()
 			.from(positionRequirements)
-			.where(eq(positionRequirements.opportunityId, opportunityId))
+			.where(positionRequirementsByOpportunityCondition(opportunityId, userId))
 			.orderBy(asc(positionRequirements.positionTitle));
 
 		const results = [];
