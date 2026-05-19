@@ -30,6 +30,7 @@ import {
 	getDatacraftProposalDocumentContent,
 	getDatacraftProposalSectionSeeds,
 } from "@/lib/data/datacraft-response-content";
+import { getCurrentUserId } from "@/lib/auth-utils";
 
 // ============================================================================
 // Helper Functions
@@ -114,6 +115,14 @@ function countWords(text: string): number {
 	return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 // Label utility functions are in @/lib/utils/proposal-labels.ts
 // to avoid "use server" requirement for synchronous client functions
 
@@ -173,6 +182,7 @@ export async function getProposalDocuments(
 export async function createProposalDocument(
 	input: CreateProposalDocumentInput
 ): Promise<ProposalDocument> {
+	const userId = await requireCurrentUserId();
 	const { opportunityId, documentType, title, templateId, assignedTo, dueDate, notes } = input;
 
 	// Generate a title if not provided
@@ -198,7 +208,7 @@ export async function createProposalDocument(
 			plainText,
 			templateId: templateId || null,
 			status: "draft",
-			ownerId: assignedTo || "system",
+			ownerId: userId,
 			tags: ["datacraft", "proposal-response", documentType],
 			wordCount,
 			characterCount: plainText.length,
@@ -249,6 +259,7 @@ export async function createProposalDocument(
  * Link an existing document to a proposal.
  */
 export async function linkExistingDocument(input: LinkDocumentInput): Promise<ProposalDocument> {
+	await requireCurrentUserId();
 	const { opportunityId, documentId, documentType, sectionOrder, assignedTo, dueDate, notes } =
 		input;
 
@@ -311,6 +322,7 @@ export async function updateProposalDocument(
 	id: string,
 	input: UpdateProposalDocumentInput
 ): Promise<ProposalDocument> {
+	const userId = await requireCurrentUserId();
 	const updateData: Partial<typeof proposalDocuments.$inferInsert> = {
 		updatedAt: new Date(),
 	};
@@ -328,7 +340,7 @@ export async function updateProposalDocument(
 	// Handle approval
 	if (input.status === "approved" && !updateData.approvedAt) {
 		updateData.approvedAt = new Date();
-		// Note: approvedBy would need to come from auth context
+		updateData.approvedBy = userId;
 	}
 
 	const [updated] = await db
@@ -360,6 +372,7 @@ export async function updateProposalDocumentStatus(
  * Delete a proposal document link (does not delete the underlying document).
  */
 export async function unlinkProposalDocument(id: string): Promise<void> {
+	await requireCurrentUserId();
 	await db.delete(proposalDocuments).where(eq(proposalDocuments.id, id));
 }
 
@@ -367,6 +380,7 @@ export async function unlinkProposalDocument(id: string): Promise<void> {
  * Delete a proposal document and its underlying document.
  */
 export async function deleteProposalDocument(id: string): Promise<void> {
+	await requireCurrentUserId();
 	// Get the document ID first
 	const [proposalDoc] = await db
 		.select({ documentId: proposalDocuments.documentId })
@@ -392,6 +406,7 @@ export async function reorderProposalDocuments(
 	opportunityId: string,
 	orderedIds: string[]
 ): Promise<void> {
+	await requireCurrentUserId();
 	// Update each document with its new order
 	await Promise.all(
 		orderedIds.map((id, index) =>
@@ -529,6 +544,7 @@ export async function getDocumentSections(proposalDocumentId: string): Promise<D
  * Create a new document section.
  */
 export async function createSection(input: CreateSectionInput): Promise<DocumentSection> {
+	await requireCurrentUserId();
 	const {
 		proposalDocumentId,
 		sectionName,
@@ -575,6 +591,7 @@ export async function updateSection(
 	id: string,
 	input: UpdateSectionInput
 ): Promise<DocumentSection> {
+	await requireCurrentUserId();
 	const updateData: Partial<typeof documentSections.$inferInsert> = {
 		updatedAt: new Date(),
 	};
@@ -628,6 +645,7 @@ export async function linkRequirementsToSection(
  * Delete a document section.
  */
 export async function deleteSection(id: string): Promise<void> {
+	await requireCurrentUserId();
 	await db.delete(documentSections).where(eq(documentSections.id, id));
 }
 
@@ -638,6 +656,7 @@ export async function reorderSections(
 	proposalDocumentId: string,
 	orderedIds: string[]
 ): Promise<void> {
+	await requireCurrentUserId();
 	await Promise.all(
 		orderedIds.map((id, index) =>
 			db
@@ -691,6 +710,7 @@ export async function createStandardProposalSet(
 	opportunityId: string,
 	documentTypes?: ProposalDocumentType[]
 ): Promise<ProposalDocument[]> {
+	await requireCurrentUserId();
 	const types = documentTypes || [
 		"cover_letter",
 		"executive_summary",
@@ -721,6 +741,7 @@ export async function bulkUpdateStatus(
 	ids: string[],
 	status: ProposalDocumentStatus
 ): Promise<void> {
+	await requireCurrentUserId();
 	await db
 		.update(proposalDocuments)
 		.set({ status, updatedAt: new Date() })
@@ -731,6 +752,7 @@ export async function bulkUpdateStatus(
  * Bulk assign proposal documents.
  */
 export async function bulkAssign(ids: string[], assignedTo: string): Promise<void> {
+	await requireCurrentUserId();
 	await db
 		.update(proposalDocuments)
 		.set({ assignedTo, updatedAt: new Date() })
