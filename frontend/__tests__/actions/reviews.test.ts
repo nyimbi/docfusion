@@ -350,6 +350,31 @@ function makeScoreRow(overrides: Record<string, unknown> = {}) {
 	};
 }
 
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Reflect.ownKeys(value).flatMap((key) =>
+		collectSqlFragments((value as Record<PropertyKey, unknown>)[key], seen)
+	);
+}
+
+function expectAssignedReviewScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("user-100");
+}
+
 // ============================================================================
 // Reset mocks between tests
 // ============================================================================
@@ -692,6 +717,7 @@ describe("Review CRUD", () => {
 			expect(result.reviews).toHaveLength(2);
 			expect(result.reviews![0].reviewerCount).toBe(1);
 			expect(result.reviews![1].reviewerCount).toBe(0);
+			expectAssignedReviewScope(dbMock.query.proposalReviews.findMany.mock.calls[0][0].where);
 		});
 
 		test("returns empty array when no reviews exist", async () => {
@@ -715,6 +741,7 @@ describe("Review CRUD", () => {
 
 			expect(result.success).toBe(true);
 			expect(result.reviews).toHaveLength(1);
+			expectAssignedReviewScope(dbMock.query.proposalReviews.findMany.mock.calls[0][0].where);
 		});
 
 		test("applies status and reviewType filters", async () => {
@@ -728,6 +755,7 @@ describe("Review CRUD", () => {
 
 			expect(result.success).toBe(true);
 			expect(dbMock.query.proposalReviews.findMany).toHaveBeenCalled();
+			expectAssignedReviewScope(dbMock.query.proposalReviews.findMany.mock.calls[0][0].where);
 		});
 	});
 });
