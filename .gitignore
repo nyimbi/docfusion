@@ -263,6 +263,9 @@ build/Release
 
 # Dependency directories
 node_modules/
+.pnpm-store/
+frontend/pnpm-lock.yaml
+frontend/pnpm-workspace.yaml
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
@@ -270,6 +273,12 @@ web_modules/
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Generated local document/search indexes
+storage/indexes/catalog/*.json
+storage/documents/content/**/*.txt
+storage/documents/metadata/**/*.json
+storage/documents/versions/**/*.json
 
 # Optional npm cache directory
 .npm
