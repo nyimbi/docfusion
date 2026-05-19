@@ -11,7 +11,7 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type ProposalReviewRow = typeof proposalReviews.$inferSelect;
 type ReviewerRow = typeof reviewers.$inferSelect;
@@ -58,6 +58,44 @@ export interface ReviewPackageWorkflowResult {
 const WORKFLOW_KEY = "review_package_gate";
 const SUBJECT_TYPE = "proposal_review";
 
+function assignedReviewExistsSql(reviewId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from proposal_reviews
+		join opportunities on opportunities.id = proposal_reviews.opportunity_id
+		where proposal_reviews.id = ${reviewId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleReviewCondition(reviewId: string, userId: string): SQL {
+	return and(
+		eq(proposalReviews.id, reviewId),
+		assignedReviewExistsSql(reviewId, userId)
+	)!;
+}
+
+function visibleReviewersForReviewCondition(reviewId: string, userId: string): SQL {
+	return and(
+		eq(reviewers.reviewId, reviewId),
+		assignedReviewExistsSql(reviewId, userId)
+	)!;
+}
+
+function visibleCommentsForReviewCondition(reviewId: string, userId: string): SQL {
+	return and(
+		eq(reviewComments.reviewId, reviewId),
+		assignedReviewExistsSql(reviewId, userId)
+	)!;
+}
+
+function visibleReviewerCondition(reviewerId: string, reviewId: string, userId: string): SQL {
+	return and(
+		eq(reviewers.id, reviewerId),
+		assignedReviewExistsSql(reviewId, userId)
+	)!;
+}
+
 export async function transitionReviewPackageWorkflow(
 	input: ReviewPackageWorkflowInput
 ): Promise<ReviewPackageWorkflowResult> {
@@ -66,15 +104,15 @@ export async function transitionReviewPackageWorkflow(
 	const [review] = await db
 		.select()
 		.from(proposalReviews)
-		.where(eq(proposalReviews.id, input.reviewId))
+		.where(visibleReviewCondition(input.reviewId, userContext.userId))
 		.limit(1);
 	if (!review) {
 		throw new Error("Review package not found");
 	}
 
 	const [assignedReviewers, comments] = await Promise.all([
-		db.select().from(reviewers).where(eq(reviewers.reviewId, input.reviewId)),
-		db.select().from(reviewComments).where(eq(reviewComments.reviewId, input.reviewId)),
+		db.select().from(reviewers).where(visibleReviewersForReviewCondition(input.reviewId, userContext.userId)),
+		db.select().from(reviewComments).where(visibleCommentsForReviewCondition(input.reviewId, userContext.userId)),
 	]);
 	const reviewer = input.reviewerId
 		? assignedReviewers.find((candidate) => candidate.id === input.reviewerId) ?? null
@@ -97,7 +135,7 @@ export async function transitionReviewPackageWorkflow(
 		? await db
 			.update(proposalReviews)
 			.set(transition.reviewPatch)
-			.where(eq(proposalReviews.id, input.reviewId))
+			.where(visibleReviewCondition(input.reviewId, userContext.userId))
 			.returning()
 		: [review];
 	if (!updatedReview) {
@@ -108,7 +146,7 @@ export async function transitionReviewPackageWorkflow(
 		await db
 			.update(reviewers)
 			.set(transition.reviewerPatch)
-			.where(eq(reviewers.id, reviewer.id));
+			.where(visibleReviewerCondition(reviewer.id, input.reviewId, userContext.userId));
 	}
 
 	const instance = await recordWorkflowRuntimeTransition({

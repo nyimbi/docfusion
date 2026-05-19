@@ -19,13 +19,18 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -34,6 +39,31 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Reflect.ownKeys(value).flatMap((key) =>
+		collectSqlFragments((value as Record<PropertyKey, unknown>)[key], seen)
+	);
+}
+
+function expectAssignedReviewScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("review-lead-1");
 }
 
 var dbMock: any;
@@ -193,15 +223,17 @@ beforeEach(() => {
 describe("review package workflow", () => {
 	it("freezes a review package with a document snapshot and projects reviewer work", async () => {
 		let reviewPatch: Record<string, unknown> | undefined;
+		const wheres: unknown[] = [];
 		dbMock.select
-			.mockReturnValueOnce(createChain({ result: [review] }))
-			.mockReturnValueOnce(createChain({ result: [{ ...reviewerA, status: "pending" }, { ...reviewerB, status: "pending" }] }))
-			.mockReturnValueOnce(createChain({ result: [] }));
+			.mockReturnValueOnce(createChain({ result: [review], onWhere: (value) => wheres.push(value) }))
+			.mockReturnValueOnce(createChain({ result: [{ ...reviewerA, status: "pending" }, { ...reviewerB, status: "pending" }], onWhere: (value) => wheres.push(value) }))
+			.mockReturnValueOnce(createChain({ result: [], onWhere: (value) => wheres.push(value) }));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [{ ...review, status: "scheduled", documentSnapshot: "sha256:abc123" }],
 			onSet: (value) => {
 				reviewPatch = value;
 			},
+			onWhere: (value) => wheres.push(value),
 		}));
 
 		const result = await transitionReviewPackageWorkflow({
@@ -225,6 +257,9 @@ describe("review package workflow", () => {
 			documentSnapshot: "sha256:abc123",
 			documentVersionId: "11111111-1111-1111-1111-111111111111",
 		});
+		for (const where of wheres) {
+			expectAssignedReviewScope(where);
+		}
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "review_package_gate",
 			subjectType: "proposal_review",
