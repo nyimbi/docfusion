@@ -10,7 +10,7 @@
 
 import { db } from "@/lib/db";
 import { opportunityVotes, opportunities } from "@/lib/db/schema";
-import { eq, and, count, avg, sql, inArray } from "drizzle-orm";
+import { eq, and, count, avg, sql, inArray, type SQL } from "drizzle-orm";
 import type {
 	OpportunityVote,
 	CastVoteInput,
@@ -32,6 +32,77 @@ async function requireVoteActor(): Promise<{ userId: string; userName: string | 
 	};
 }
 
+function assignedOpportunityCondition(userId: string): SQL {
+	return sql`opportunities.assigned_to = ${userId}`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		assignedOpportunityCondition(userId)
+	)!;
+}
+
+function visibleVotesForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunityVotes.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
+function visibleVoteCondition(opportunityId: string, userId: string, targetUserId: string): SQL {
+	return and(
+		eq(opportunityVotes.opportunityId, opportunityId),
+		eq(opportunityVotes.userId, targetUserId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
+function visibleVotesForOpportunitiesCondition(opportunityIds: string[], userId: string): SQL {
+	return and(
+		inArray(opportunityVotes.opportunityId, opportunityIds),
+		assignedOpportunityExistsSql(opportunityVotes.opportunityId, userId)
+	)!;
+}
+
+async function assertVisibleOpportunity(opportunityId: string, userId: string): Promise<void> {
+	const [opportunity] = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(visibleOpportunityCondition(opportunityId, userId))
+		.limit(1);
+
+	if (!opportunity) {
+		throw new Error("Opportunity not found");
+	}
+}
+
+async function getVisibleOpportunityIds(opportunityIds: string[], userId: string): Promise<string[]> {
+	const uniqueIds = [...new Set(opportunityIds)];
+	if (uniqueIds.length === 0) {
+		return [];
+	}
+
+	const rows = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(and(
+			inArray(opportunities.id, uniqueIds),
+			assignedOpportunityCondition(userId)
+		));
+
+	return rows.map((row) => row.id);
+}
+
 // ============================================================================
 // Vote Operations
 // ============================================================================
@@ -43,6 +114,7 @@ async function requireVoteActor(): Promise<{ userId: string; userName: string | 
 export async function castVote(input: CastVoteInput): Promise<OpportunityVote> {
 	const actor = await requireVoteActor();
 	const now = new Date();
+	await assertVisibleOpportunity(input.opportunityId, actor.userId);
 
 	// Use upsert pattern - insert or update if user already voted
 	const [existing] = await db
@@ -51,7 +123,8 @@ export async function castVote(input: CastVoteInput): Promise<OpportunityVote> {
 		.where(
 			and(
 				eq(opportunityVotes.opportunityId, input.opportunityId),
-				eq(opportunityVotes.userId, actor.userId)
+				eq(opportunityVotes.userId, actor.userId),
+				assignedOpportunityExistsSql(input.opportunityId, actor.userId)
 			)
 		)
 		.limit(1);
@@ -95,12 +168,12 @@ export async function castVote(input: CastVoteInput): Promise<OpportunityVote> {
  * Get all votes for an opportunity.
  */
 export async function getVotes(opportunityId: string): Promise<OpportunityVote[]> {
-	await requireVoteActor();
+	const actor = await requireVoteActor();
 
 	const rows = await db
 		.select()
 		.from(opportunityVotes)
-		.where(eq(opportunityVotes.opportunityId, opportunityId))
+		.where(visibleVotesForOpportunityCondition(opportunityId, actor.userId))
 		.orderBy(opportunityVotes.createdAt);
 
 	return rows.map(mapToOpportunityVote);
@@ -113,17 +186,12 @@ export async function getUserVote(
 	opportunityId: string,
 	userId: string
 ): Promise<OpportunityVote | null> {
-	await requireVoteActor();
+	const actor = await requireVoteActor();
 
 	const [row] = await db
 		.select()
 		.from(opportunityVotes)
-		.where(
-			and(
-				eq(opportunityVotes.opportunityId, opportunityId),
-				eq(opportunityVotes.userId, userId)
-			)
-		)
+		.where(visibleVoteCondition(opportunityId, actor.userId, userId))
 		.limit(1);
 
 	return row ? mapToOpportunityVote(row) : null;
@@ -139,12 +207,7 @@ export async function deleteVote(
 	const actor = await requireVoteActor();
 	await db
 		.delete(opportunityVotes)
-		.where(
-			and(
-				eq(opportunityVotes.opportunityId, opportunityId),
-				eq(opportunityVotes.userId, actor.userId)
-			)
-		);
+		.where(visibleVoteCondition(opportunityId, actor.userId, actor.userId));
 }
 
 // ============================================================================
@@ -156,7 +219,7 @@ export async function deleteVote(
  * Calculates go/no-go counts, percentages, and consensus.
  */
 export async function getVoteSummary(opportunityId: string): Promise<VoteSummary> {
-	await requireVoteActor();
+	const actor = await requireVoteActor();
 
 	// Get vote counts by type
 	const voteCounts = await db
@@ -165,7 +228,7 @@ export async function getVoteSummary(opportunityId: string): Promise<VoteSummary
 			count: count(),
 		})
 		.from(opportunityVotes)
-		.where(eq(opportunityVotes.opportunityId, opportunityId))
+		.where(visibleVotesForOpportunityCondition(opportunityId, actor.userId))
 		.groupBy(opportunityVotes.vote);
 
 	// Get average confidence (excluding null values)
@@ -177,7 +240,8 @@ export async function getVoteSummary(opportunityId: string): Promise<VoteSummary
 		.where(
 			and(
 				eq(opportunityVotes.opportunityId, opportunityId),
-				sql`${opportunityVotes.confidence} IS NOT NULL`
+				sql`${opportunityVotes.confidence} IS NOT NULL`,
+				assignedOpportunityExistsSql(opportunityId, actor.userId)
 			)
 		);
 
@@ -246,7 +310,7 @@ export async function getVoteSummary(opportunityId: string): Promise<VoteSummary
 export async function updateDecisionFromVotes(
 	opportunityId: string
 ): Promise<{ updated: boolean; newStatus: DecisionStatus | null }> {
-	await requireVoteActor();
+	const actor = await requireVoteActor();
 
 	const summary = await getVoteSummary(opportunityId);
 
@@ -260,7 +324,7 @@ export async function updateDecisionFromVotes(
 	const [opportunity] = await db
 		.select({ decisionStatus: opportunities.decisionStatus })
 		.from(opportunities)
-		.where(eq(opportunities.id, opportunityId))
+		.where(visibleOpportunityCondition(opportunityId, actor.userId))
 		.limit(1);
 
 	if (!opportunity) {
@@ -291,7 +355,7 @@ export async function updateDecisionFromVotes(
 				decisionReason: `Auto-updated based on team vote (${summary.goCount} go, ${summary.noGoCount} no-go)`,
 				updatedAt: new Date(),
 			})
-			.where(eq(opportunities.id, opportunityId));
+			.where(visibleOpportunityCondition(opportunityId, actor.userId));
 
 		return { updated: true, newStatus };
 	}
@@ -328,9 +392,13 @@ export async function castVoteAndUpdateStatus(
 export async function getVoteSummariesBulk(
 	opportunityIds: string[]
 ): Promise<Map<string, VoteSummary>> {
-	await requireVoteActor();
+	const actor = await requireVoteActor();
 
 	if (opportunityIds.length === 0) {
+		return new Map();
+	}
+	const visibleOpportunityIds = await getVisibleOpportunityIds(opportunityIds, actor.userId);
+	if (visibleOpportunityIds.length === 0) {
 		return new Map();
 	}
 
@@ -342,7 +410,7 @@ export async function getVoteSummariesBulk(
 			count: count(),
 		})
 		.from(opportunityVotes)
-		.where(inArray(opportunityVotes.opportunityId, opportunityIds))
+		.where(visibleVotesForOpportunitiesCondition(visibleOpportunityIds, actor.userId))
 		.groupBy(opportunityVotes.opportunityId, opportunityVotes.vote);
 
 	// Get average confidences
@@ -354,8 +422,9 @@ export async function getVoteSummariesBulk(
 		.from(opportunityVotes)
 		.where(
 			and(
-				inArray(opportunityVotes.opportunityId, opportunityIds),
-				sql`${opportunityVotes.confidence} IS NOT NULL`
+				inArray(opportunityVotes.opportunityId, visibleOpportunityIds),
+				sql`${opportunityVotes.confidence} IS NOT NULL`,
+				assignedOpportunityExistsSql(opportunityVotes.opportunityId, actor.userId)
 			)
 		)
 		.groupBy(opportunityVotes.opportunityId);
@@ -364,7 +433,7 @@ export async function getVoteSummariesBulk(
 	const summaries = new Map<string, VoteSummary>();
 
 	// Initialize all requested opportunities with empty summaries
-	for (const id of opportunityIds) {
+	for (const id of visibleOpportunityIds) {
 		summaries.set(id, {
 			opportunityId: id,
 			totalVotes: 0,
