@@ -383,7 +383,8 @@ describe("Review CRUD", () => {
 		test("creates a review with minimal input", async () => {
 			dbMock.select.mockImplementation(() => createChainableQuery([]));
 			const insertedReview = makeReviewRow();
-			dbMock.insert.mockImplementation(() => createChainableQuery([insertedReview]));
+			const insertChain = createChainableQuery([insertedReview]);
+			dbMock.insert.mockImplementation(() => insertChain);
 
 			const result = await createReview({
 				opportunityId: UUID2,
@@ -393,6 +394,24 @@ describe("Review CRUD", () => {
 			expect(result.success).toBe(true);
 			expect(result.reviewId).toBe(UUID);
 			expect(dbMock.insert).toHaveBeenCalled();
+			expect(insertChain.values).toHaveBeenCalledWith(
+				expect.objectContaining({
+					createdBy: "user-100",
+				})
+			);
+		});
+
+		test("rejects unauthenticated review creation before database access", async () => {
+			getCurrentUserIdMock.mockResolvedValue(null);
+
+			const result = await createReview({
+				opportunityId: UUID2,
+				reviewType: "pink",
+			});
+
+			expect(result).toEqual({ success: false, error: "Unauthorized" });
+			expect(dbMock.select).not.toHaveBeenCalled();
+			expect(dbMock.insert).not.toHaveBeenCalled();
 		});
 
 		test("auto-generates review name when not provided", async () => {
@@ -1776,6 +1795,16 @@ describe("Reporting & Analytics", () => {
 	});
 
 	describe("trackReviewEffectiveness", () => {
+		test("rejects organization-scoped metrics before querying unsupported schema", async () => {
+			const result = await trackReviewEffectiveness(UUID, 30);
+
+			expect(result).toEqual({
+				success: false,
+				error: "Organization-scoped review metrics are not supported by the current review schema",
+			});
+			expect(dbMock.query.proposalReviews.findMany).not.toHaveBeenCalled();
+		});
+
 		test("returns effectiveness metrics for completed reviews", async () => {
 			const reviews = [
 				makeReviewRow({

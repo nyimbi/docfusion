@@ -386,6 +386,7 @@ export async function createReview(
 	input: CreateReviewInput
 ): Promise<{ success: boolean; reviewId?: string; error?: string }> {
 	try {
+		const actorId = await requireReviewActorId();
 		const validated = CreateReviewInputSchema.parse(input);
 
 		// Generate review name if not provided
@@ -425,6 +426,7 @@ export async function createReview(
 			focusAreas: validated.focusAreas,
 			evaluationCriteriaIds: validated.evaluationCriteriaIds,
 			status: validated.scheduledDate ? "scheduled" : "draft",
+			createdBy: actorId,
 		}).returning();
 
 		// If a template is provided, create checklist items from it
@@ -470,6 +472,7 @@ export async function updateReview(
 	data: UpdateReviewInput
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const validated = UpdateReviewInputSchema.parse(data);
 
 		// Get current review to check for status changes
@@ -536,6 +539,7 @@ export async function deleteReview(
 	id: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const review = await db.query.proposalReviews.findFirst({
 			where: eq(proposalReviews.id, id),
 		});
@@ -591,6 +595,7 @@ export async function listReviews(
 	error?: string;
 }> {
 	try {
+		await requireReviewActorId();
 		const reviewsData = await db.query.proposalReviews.findMany({
 			where: eq(proposalReviews.opportunityId, opportunityId),
 			with: {
@@ -654,6 +659,7 @@ export async function listAllReviews(
 	error?: string;
 }> {
 	try {
+		await requireReviewActorId();
 		const conditions: ReturnType<typeof eq>[] = [];
 
 		if (filters?.status) {
@@ -751,6 +757,7 @@ export async function getReview(id: string): Promise<{
 	error?: string;
 }> {
 	try {
+		await requireReviewActorId();
 		const reviewData = await db.query.proposalReviews.findFirst({
 			where: eq(proposalReviews.id, id),
 			with: {
@@ -830,6 +837,7 @@ export async function assignReviewers(
 	reviewerList: ReviewerAssignment[]
 ): Promise<{ success: boolean; assignedCount?: number; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const validatedReviewers = reviewerList.map(r =>
 			ReviewerAssignmentSchema.parse(r)
 		);
@@ -887,6 +895,7 @@ export async function updateReviewer(
 	}
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const reviewer = await db.query.reviewers.findFirst({
 			where: eq(reviewers.id, reviewerId),
 		});
@@ -951,6 +960,7 @@ export async function removeReviewer(
 	reviewerId: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const reviewer = await db.query.reviewers.findFirst({
 			where: eq(reviewers.id, reviewerId),
 		});
@@ -991,6 +1001,7 @@ export async function checkConflictsOfInterest(
 	error?: string;
 }> {
 	try {
+		await requireReviewActorId();
 		// Get all reviewers for this review
 		const reviewerList = await db.query.reviewers.findMany({
 			where: eq(reviewers.reviewId, reviewId),
@@ -1047,6 +1058,7 @@ export async function sendReviewerReminder(
 	reviewerId: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const reviewer = await db.query.reviewers.findFirst({
 			where: eq(reviewers.id, reviewerId),
 		});
@@ -1207,6 +1219,7 @@ export async function updateComment(
 	data: Partial<CommentInput>
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const existingComment = await db.query.reviewComments.findFirst({
 			where: eq(reviewComments.id, commentId),
 		});
@@ -1257,6 +1270,7 @@ export async function deleteComment(
 	commentId: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const comment = await db.query.reviewComments.findFirst({
 			where: eq(reviewComments.id, commentId),
 		});
@@ -1437,6 +1451,7 @@ export async function getReviewComments(
 	error?: string;
 }> {
 	try {
+		await requireReviewActorId();
 		// Build where conditions
 		const conditions = [eq(reviewComments.reviewId, reviewId)];
 
@@ -1507,6 +1522,7 @@ export async function updateCommentPriorities(
 	priorities: { commentId: string; priorityRank: number }[]
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		await db.transaction(async (tx) => {
 			for (const { commentId, priorityRank } of priorities) {
 				await tx.update(reviewComments)
@@ -1533,6 +1549,7 @@ export async function markCommentDuplicate(
 	duplicateOfId: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const comment = await db.query.reviewComments.findFirst({
 			where: eq(reviewComments.id, commentId),
 		});
@@ -1648,6 +1665,7 @@ export async function updateScore(
 	data: Partial<ScoreInput>
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const existingScore = await db.query.reviewScores.findFirst({
 			where: eq(reviewScores.id, scoreId),
 		});
@@ -1710,6 +1728,7 @@ export async function aggregateScores(
 	reviewId: string
 ): Promise<{ success: boolean; aggregation?: AggregatedScores; error?: string }> {
 	try {
+		await requireReviewActorId();
 		// Get all scores for this review with reviewer info
 		const scoresData = await db.query.reviewScores.findMany({
 			where: eq(reviewScores.reviewId, reviewId),
@@ -1881,6 +1900,7 @@ export async function generateReviewReport(
 	reviewId: string
 ): Promise<{ success: boolean; report?: ReviewReport; error?: string }> {
 	try {
+		await requireReviewActorId();
 		// Get review data
 		const review = await db.query.proposalReviews.findFirst({
 			where: eq(proposalReviews.id, reviewId),
@@ -2018,6 +2038,7 @@ export async function compareBeforeAfter(
 	reviewId: string
 ): Promise<{ success: boolean; comparison?: BeforeAfterComparison; error?: string }> {
 	try {
+		await requireReviewActorId();
 		// Get current review
 		const currentReview = await db.query.proposalReviews.findFirst({
 			where: eq(proposalReviews.id, reviewId),
@@ -2149,6 +2170,14 @@ export async function trackReviewEffectiveness(
 	timeframeDays?: number
 ): Promise<{ success: boolean; metrics?: EffectivenessMetrics; error?: string }> {
 	try {
+		await requireReviewActorId();
+		if (organizationId) {
+			return {
+				success: false,
+				error: "Organization-scoped review metrics are not supported by the current review schema",
+			};
+		}
+
 		const endDate = new Date();
 		const startDate = new Date();
 		startDate.setDate(startDate.getDate() - (timeframeDays || 90));
@@ -2311,6 +2340,7 @@ export async function exportReviewPackage(
 	format: "pdf" | "xlsx" | "docx"
 ): Promise<{ success: boolean; downloadUrl?: string; error?: string }> {
 	try {
+		await requireReviewActorId();
 		// Generate report data
 		const { report, error } = await generateReviewReport(reviewId);
 		if (!report || error) {
@@ -2397,6 +2427,7 @@ export async function completeReview(
 	}
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		// Aggregate final scores
 		const { aggregation } = await aggregateScores(reviewId);
 
@@ -2442,6 +2473,7 @@ export async function startReview(
 	reviewId: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const review = await db.query.proposalReviews.findFirst({
 			where: eq(proposalReviews.id, reviewId),
 		});
@@ -2479,6 +2511,7 @@ export async function cancelReview(
 	reason?: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireReviewActorId();
 		const review = await db.query.proposalReviews.findFirst({
 			where: eq(proposalReviews.id, reviewId),
 		});
