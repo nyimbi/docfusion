@@ -12,13 +12,18 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -27,6 +32,31 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Reflect.ownKeys(value).flatMap((key) =>
+		collectSqlFragments((value as Record<PropertyKey, unknown>)[key], seen)
+	);
+}
+
+function expectAssignedClaimScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("proposal-writer-1");
 }
 
 var dbMock: any;
@@ -78,11 +108,20 @@ beforeEach(() => {
 describe("claim remediation workflow", () => {
 	it("starts high-risk claim remediation and projects an owned task", async () => {
 		let claimUpdate: Record<string, unknown> | undefined;
-		dbMock.select.mockReturnValueOnce(createChain({ result: [baseClaim] }));
+		const whereClauses: unknown[] = [];
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [baseClaim],
+			onWhere: (value) => {
+				whereClauses.push(value);
+			},
+		}));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [{ ...baseClaim, status: "in_progress", resolutionNotes: "Needs evidence" }],
 			onSet: (value) => {
 				claimUpdate = value;
+			},
+			onWhere: (value) => {
+				whereClauses.push(value);
 			},
 		}));
 
@@ -108,6 +147,9 @@ describe("claim remediation workflow", () => {
 			resolvedBy: null,
 			resolvedAt: null,
 		});
+		expect(whereClauses).toHaveLength(2);
+		expectAssignedClaimScope(whereClauses[0]);
+		expectAssignedClaimScope(whereClauses[1]);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "evidence_claim_remediation",
 			subjectType: "evidence_claim",

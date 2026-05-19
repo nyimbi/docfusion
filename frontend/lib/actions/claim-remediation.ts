@@ -12,7 +12,7 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type ClaimAnalysisRow = typeof claimAnalysis.$inferSelect;
 
@@ -48,6 +48,22 @@ export interface ClaimRemediationResult {
 const WORKFLOW_KEY = "evidence_claim_remediation";
 const SUBJECT_TYPE = "evidence_claim";
 
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleClaimCondition(claimId: string, userId: string): SQL {
+	return and(
+		eq(claimAnalysis.id, claimId),
+		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userId)
+	)!;
+}
+
 export async function transitionClaimRemediationWorkflow(
 	input: ClaimRemediationInput
 ): Promise<ClaimRemediationResult> {
@@ -60,7 +76,7 @@ export async function transitionClaimRemediationWorkflow(
 	const [claim] = await db
 		.select()
 		.from(claimAnalysis)
-		.where(eq(claimAnalysis.id, input.claimId))
+		.where(visibleClaimCondition(input.claimId, userContext.userId))
 		.limit(1);
 	if (!claim) {
 		throw new Error("Claim not found");
@@ -71,7 +87,7 @@ export async function transitionClaimRemediationWorkflow(
 	const [updated] = await db
 		.update(claimAnalysis)
 		.set(transition.patch)
-		.where(eq(claimAnalysis.id, input.claimId))
+		.where(visibleClaimCondition(input.claimId, userContext.userId))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update claim remediation state");
