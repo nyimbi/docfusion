@@ -12,7 +12,8 @@
 import { db } from "@/lib/db";
 import { documentWorkflows, workflowAssignments } from "@/lib/db/schema-comments-workflow";
 import { documents } from "@/lib/db/schema";
-import { eq, and, desc, asc, sql } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, isNull } from "drizzle-orm";
+import type { AnyColumn } from "drizzle-orm/column";
 import type {
 	DocumentWorkflow,
 	WorkflowAssignment,
@@ -24,7 +25,7 @@ import type {
 	WorkflowStage,
 } from "@/lib/types/comments-workflow";
 import { logger } from "@/lib/utils/logger";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 
 // ============================================================================
 // Helper Functions
@@ -66,12 +67,34 @@ function mapWorkflowAssignment(row: typeof workflowAssignments.$inferSelect): Wo
 	};
 }
 
-async function requireWorkflowActor(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
+type OrganizationColumn = AnyColumn<{ data: string; notNull: false }>;
+
+async function requireWorkflowContext(organizationId?: string | null): Promise<UserContext> {
+	const userContext = await requireUserContext();
+	if (organizationId && organizationId !== userContext.organizationId) {
 		throw new Error("Unauthorized");
 	}
-	return userId;
+	return userContext;
+}
+
+async function requireWorkflowActor(): Promise<string> {
+	return (await requireWorkflowContext()).userId;
+}
+
+function visibleOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
+	return userContext.organizationId
+		? (or(isNull(column), eq(column, userContext.organizationId)) ?? isNull(column))
+		: isNull(column);
+}
+
+function mutableOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
+	return userContext.organizationId
+		? eq(column, userContext.organizationId)
+		: isNull(column);
+}
+
+function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
+	return inputOrganizationId ?? userContext.organizationId;
 }
 
 // ============================================================================
@@ -82,10 +105,14 @@ async function requireWorkflowActor(): Promise<string> {
  * Get a single workflow by ID.
  */
 export async function getWorkflow(id: string): Promise<DocumentWorkflow | null> {
+	const userContext = await requireWorkflowContext();
 	const [row] = await db
 		.select()
 		.from(documentWorkflows)
-		.where(eq(documentWorkflows.id, id))
+		.where(and(
+			eq(documentWorkflows.id, id),
+			visibleOrganizationCondition(documentWorkflows.organizationId, userContext)
+		))
 		.limit(1);
 
 	if (!row) return null;
@@ -102,13 +129,9 @@ export async function getWorkflows(options: {
 	limit?: number;
 	offset?: number;
 } = {}): Promise<{ workflows: DocumentWorkflow[]; total: number }> {
+	const userContext = await requireWorkflowContext(options.organizationId);
 	const conditions = [];
-
-	if (options.organizationId) {
-		conditions.push(
-			eq(documentWorkflows.organizationId, options.organizationId)
-		);
-	}
+	conditions.push(visibleOrganizationCondition(documentWorkflows.organizationId, userContext));
 
 	if (options.isDefault !== undefined) {
 		conditions.push(
@@ -149,13 +172,9 @@ export async function getWorkflows(options: {
 export async function getDefaultWorkflow(
 	organizationId?: string
 ): Promise<DocumentWorkflow | null> {
+	const userContext = await requireWorkflowContext(organizationId);
 	const conditions = [eq(documentWorkflows.isDefault, "true")];
-
-	if (organizationId) {
-		conditions.push(
-			eq(documentWorkflows.organizationId, organizationId)
-		);
-	}
+	conditions.push(visibleOrganizationCondition(documentWorkflows.organizationId, userContext));
 
 	const [row] = await db
 		.select()
@@ -173,7 +192,6 @@ export async function getDefaultWorkflow(
 export async function createWorkflow(
 	input: CreateWorkflowInput
 ): Promise<DocumentWorkflow> {
-	await requireWorkflowActor();
 	const {
 		name,
 		description,
@@ -182,13 +200,15 @@ export async function createWorkflow(
 		organizationId,
 		documentType,
 	} = input;
+	const userContext = await requireWorkflowContext(organizationId);
+	const workflowOrganizationId = organizationForInsert(organizationId, userContext);
 
 	// If setting as default, unset other defaults first
-	if (isDefault && organizationId) {
+	if (isDefault && workflowOrganizationId) {
 		await db
 			.update(documentWorkflows)
 			.set({ isDefault: "false" })
-			.where(eq(documentWorkflows.organizationId, organizationId));
+			.where(eq(documentWorkflows.organizationId, workflowOrganizationId));
 	}
 
 	const [workflow] = await db
@@ -198,7 +218,7 @@ export async function createWorkflow(
 			description: description || null,
 			stages: stages as unknown as typeof documentWorkflows.$inferInsert["stages"],
 			isDefault: isDefault.toString(),
-			organizationId: organizationId || null,
+			organizationId: workflowOrganizationId || null,
 			documentType: documentType || null,
 		})
 		.returning();
@@ -213,22 +233,29 @@ export async function updateWorkflow(
 	id: string,
 	input: UpdateWorkflowInput
 ): Promise<DocumentWorkflow> {
-	await requireWorkflowActor();
+	const userContext = await requireWorkflowContext();
+	const [existingWorkflow] = await db
+		.select({ organizationId: documentWorkflows.organizationId })
+		.from(documentWorkflows)
+		.where(and(
+			eq(documentWorkflows.id, id),
+			mutableOrganizationCondition(documentWorkflows.organizationId, userContext)
+		))
+		.limit(1);
+
+	if (!existingWorkflow) {
+		throw new Error("Workflow not found");
+	}
+
 	// If setting as default, handle the change
 	if (input.isDefault !== undefined && input.isDefault) {
-		const [existing] = await db
-			.select({ organizationId: documentWorkflows.organizationId })
-			.from(documentWorkflows)
-			.where(eq(documentWorkflows.id, id))
-			.limit(1);
-
-		if (existing?.organizationId) {
+		if (existingWorkflow.organizationId) {
 			await db
 				.update(documentWorkflows)
 				.set({ isDefault: "false" })
 				.where(
 					and(
-						eq(documentWorkflows.organizationId, existing.organizationId),
+						eq(documentWorkflows.organizationId, existingWorkflow.organizationId),
 						sql`${documentWorkflows.id} != ${id}`
 					)
 				);
@@ -251,7 +278,10 @@ export async function updateWorkflow(
 	const [updated] = await db
 		.update(documentWorkflows)
 		.set(updateData)
-		.where(eq(documentWorkflows.id, id))
+		.where(and(
+			eq(documentWorkflows.id, id),
+			mutableOrganizationCondition(documentWorkflows.organizationId, userContext)
+		))
 		.returning();
 
 	if (!updated) {
@@ -265,7 +295,20 @@ export async function updateWorkflow(
  * Delete a workflow.
  */
 export async function deleteWorkflow(id: string): Promise<void> {
-	await requireWorkflowActor();
+	const userContext = await requireWorkflowContext();
+	const [workflow] = await db
+		.select({ id: documentWorkflows.id })
+		.from(documentWorkflows)
+		.where(and(
+			eq(documentWorkflows.id, id),
+			mutableOrganizationCondition(documentWorkflows.organizationId, userContext)
+		))
+		.limit(1);
+
+	if (!workflow) {
+		throw new Error("Workflow not found");
+	}
+
 	// Check if workflow is in use
 	const existingAssignments = await db
 		.select({ count: sql<number>`COUNT(*)` })
@@ -276,7 +319,10 @@ export async function deleteWorkflow(id: string): Promise<void> {
 		throw new Error("Cannot delete workflow with active assignments");
 	}
 
-	await db.delete(documentWorkflows).where(eq(documentWorkflows.id, id));
+	await db.delete(documentWorkflows).where(and(
+		eq(documentWorkflows.id, id),
+		mutableOrganizationCondition(documentWorkflows.organizationId, userContext)
+	));
 }
 
 // ============================================================================
@@ -648,10 +694,10 @@ export async function createSoloWorkflow(organizationId?: string): Promise<Docum
  */
 export async function initializeDefaultWorkflow(
 	documentId: string,
-	creatorId: string,
+	_creatorId: string,
 	documentType?: string
 ): Promise<{ workflow: DocumentWorkflow | null; assignments: WorkflowAssignment[] }> {
-	await requireWorkflowActor();
+	const creatorId = await requireWorkflowActor();
 	// Find appropriate workflow
 	// 1. Try document-type specific
 	// 2. Try organization's default

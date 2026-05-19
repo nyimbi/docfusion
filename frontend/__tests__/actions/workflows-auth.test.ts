@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 const dbAccessMock = vi.hoisted(() => vi.fn());
 const blockedDb = vi.hoisted(() => new Proxy({}, {
 	get() {
@@ -10,7 +10,7 @@ const blockedDb = vi.hoisted(() => new Proxy({}, {
 }));
 
 vi.mock("@/lib/auth-utils", () => ({
-	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 vi.mock("@/lib/db", () => ({
 	db: blockedDb,
@@ -38,7 +38,7 @@ import {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	getCurrentUserIdMock.mockResolvedValue(null);
+	requireUserContextMock.mockRejectedValue(new Error("Unauthorized"));
 });
 
 describe("workflow action auth", () => {
@@ -70,6 +70,21 @@ describe("workflow action auth", () => {
 		await expect(applyWorkflowToDocument("doc-1", "workflow-1", {
 			reviewer: ["assignee-1"],
 		} as never)).rejects.toThrow("Unauthorized");
+
+		expect(dbAccessMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects spoofed workflow organization IDs before database access", async () => {
+		requireUserContextMock.mockResolvedValue({
+			userId: "workflow-user-1",
+			organizationId: "org-session",
+		});
+
+		await expect(createWorkflow({
+			name: "Review",
+			stages: [],
+			organizationId: "org-other",
+		})).rejects.toThrow("Unauthorized");
 
 		expect(dbAccessMock).not.toHaveBeenCalled();
 	});
