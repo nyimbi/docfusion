@@ -16,7 +16,7 @@ import {
 	type SubmissionRow,
 } from "@/lib/db/schema";
 import { requireUserContext } from "@/lib/auth-utils";
-import { eq, desc, and, gte, lte, sql, count, inArray } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, inArray, type SQL } from "drizzle-orm";
 import { evaluateFinalSubmissionChecklistWorkflow } from "@/lib/actions/final-submission-checklist-workflow";
 import { preSubmissionAudit } from "@/lib/actions/document-render";
 import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
@@ -65,6 +65,47 @@ function transformSubmission(row: SubmissionRow): Submission {
 // CRUD Operations
 // ============================================================================
 
+function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${actorId}
+	)`;
+}
+
+function assignedOpportunityCondition(actorId: string): SQL {
+	return sql`opportunities.assigned_to = ${actorId}`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		assignedOpportunityCondition(actorId)
+	)!;
+}
+
+function visibleSubmissionsForOpportunityCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(submissions.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, actorId)
+	)!;
+}
+
+function visibleSubmissionCondition(submissionId: string, actorId: string): SQL {
+	return and(
+		eq(submissions.id, submissionId),
+		assignedOpportunityExistsSql(submissions.opportunityId, actorId)
+	)!;
+}
+
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(proposalDocuments.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, actorId)
+	)!;
+}
+
 function buildAttachmentHash(input: {
 	documentId: string;
 	documentTitle: string;
@@ -101,6 +142,16 @@ export async function createSubmission(
 		throw new Error("Submission confirmation number or receipt reference is required");
 	}
 
+	const [opportunity] = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(visibleOpportunityCondition(input.opportunityId, submittedBy))
+		.limit(1);
+
+	if (!opportunity) {
+		throw new Error("Opportunity not found");
+	}
+
 	const audit = await preSubmissionAudit(input.opportunityId);
 	if (!audit.isReady) {
 		const auditSummary = audit.issues.length > 0
@@ -132,7 +183,7 @@ export async function createSubmission(
 			.innerJoin(documents, eq(documents.id, proposalDocuments.documentId))
 			.where(
 				and(
-					eq(proposalDocuments.opportunityId, input.opportunityId),
+					visibleProposalDocumentsForOpportunityCondition(input.opportunityId, submittedBy),
 					inArray(proposalDocuments.documentId, input.attachmentIds)
 				)
 			);
@@ -180,7 +231,7 @@ export async function createSubmission(
 			decisionStatus: "submitted",
 			updatedAt: new Date(),
 		})
-		.where(eq(opportunities.id, input.opportunityId));
+		.where(visibleOpportunityCondition(input.opportunityId, submittedBy));
 
 	try {
 		await recordWorkflowRuntimeTransition({
@@ -222,12 +273,12 @@ export async function createSubmission(
  * Get a submission by ID.
  */
 export async function getSubmission(id: string): Promise<Submission | null> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	const [row] = await db
 		.select()
 		.from(submissions)
-		.where(eq(submissions.id, id));
+		.where(visibleSubmissionCondition(id, userContext.userId));
 
 	return row ? transformSubmission(row) : null;
 }
@@ -238,12 +289,12 @@ export async function getSubmission(id: string): Promise<Submission | null> {
 export async function getSubmissionsByOpportunity(
 	opportunityId: string
 ): Promise<Submission[]> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	const rows = await db
 		.select()
 		.from(submissions)
-		.where(eq(submissions.opportunityId, opportunityId))
+		.where(visibleSubmissionsForOpportunityCondition(opportunityId, userContext.userId))
 		.orderBy(desc(submissions.submittedAt));
 
 	return rows.map(transformSubmission);
@@ -266,7 +317,7 @@ export async function getSubmissionHistory(
 export async function updateSubmissionStatus(
 	input: UpdateSubmissionStatusInput
 ): Promise<Submission> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	const [row] = await db
 		.update(submissions)
@@ -277,7 +328,7 @@ export async function updateSubmissionStatus(
 				: undefined,
 			updatedAt: new Date(),
 		})
-		.where(eq(submissions.id, input.submissionId))
+		.where(visibleSubmissionCondition(input.submissionId, userContext.userId))
 		.returning();
 
 	if (!row) {
@@ -293,7 +344,7 @@ export async function updateSubmissionStatus(
 export async function recordOutcome(
 	input: RecordOutcomeInput
 ): Promise<Submission> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	const [row] = await db
 		.update(submissions)
@@ -308,7 +359,7 @@ export async function recordOutcome(
 			status: input.outcome as SubmissionStatus,
 			updatedAt: new Date(),
 		})
-		.where(eq(submissions.id, input.submissionId))
+		.where(visibleSubmissionCondition(input.submissionId, userContext.userId))
 		.returning();
 
 	if (!row) {
@@ -331,7 +382,7 @@ export async function recordOutcome(
 			decisionStatus,
 			updatedAt: new Date(),
 		})
-		.where(eq(opportunities.id, row.opportunityId));
+		.where(visibleOpportunityCondition(row.opportunityId, userContext.userId));
 
 	return transformSubmission(row);
 }
@@ -346,7 +397,7 @@ export async function recordOutcome(
 export async function getPreSubmissionChecklist(
 	opportunityId: string
 ): Promise<PreSubmissionChecklistItem[]> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	// Get proposal documents for this opportunity
 	const docs = await db
@@ -358,13 +409,13 @@ export async function getPreSubmissionChecklist(
 		})
 		.from(proposalDocuments)
 		.innerJoin(documents, eq(documents.id, proposalDocuments.documentId))
-		.where(eq(proposalDocuments.opportunityId, opportunityId));
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userContext.userId));
 
 	// Get opportunity details
 	const [opp] = await db
 		.select()
 		.from(opportunities)
-		.where(eq(opportunities.id, opportunityId));
+		.where(visibleOpportunityCondition(opportunityId, userContext.userId));
 
 	const checklist: PreSubmissionChecklistItem[] = [];
 
@@ -455,15 +506,18 @@ export async function getWinLossAnalytics(filters?: {
 	endDate?: Date;
 	category?: string;
 }): Promise<WinLossAnalytics> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	// Build conditions
-	const conditions = [];
+	const conditions: SQL[] = [assignedOpportunityCondition(userContext.userId)];
 	if (filters?.startDate) {
 		conditions.push(gte(submissions.submittedAt, filters.startDate));
 	}
 	if (filters?.endDate) {
 		conditions.push(lte(submissions.submittedAt, filters.endDate));
+	}
+	if (filters?.category) {
+		conditions.push(eq(opportunities.category, filters.category));
 	}
 
 	// Get all submissions with opportunity data
@@ -479,7 +533,7 @@ export async function getWinLossAnalytics(filters?: {
 		})
 		.from(submissions)
 		.innerJoin(opportunities, eq(opportunities.id, submissions.opportunityId))
-		.where(conditions.length > 0 ? and(...conditions) : undefined)
+		.where(and(...conditions))
 		.orderBy(desc(submissions.submittedAt));
 
 	// Calculate totals
@@ -594,7 +648,7 @@ export async function getRecentSubmissions(limit: number = 10): Promise<
 		opportunityTitle: string;
 	}>
 > {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	const rows = await db
 		.select({
@@ -603,6 +657,7 @@ export async function getRecentSubmissions(limit: number = 10): Promise<
 		})
 		.from(submissions)
 		.innerJoin(opportunities, eq(opportunities.id, submissions.opportunityId))
+		.where(assignedOpportunityCondition(userContext.userId))
 		.orderBy(desc(submissions.submittedAt))
 		.limit(limit);
 
