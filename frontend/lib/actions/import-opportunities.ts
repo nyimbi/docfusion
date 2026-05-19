@@ -35,6 +35,8 @@ import {
 	updateOpportunity,
 } from "./opportunities";
 
+type ImportFileData = Buffer | ArrayBuffer | Uint8Array;
+
 // ============================================================================
 // File Processing
 // ============================================================================
@@ -64,6 +66,12 @@ function resolveConfiguredImportPath(
 	}
 
 	return resolvedPath;
+}
+
+function toImportBuffer(data: ImportFileData): Buffer {
+	if (Buffer.isBuffer(data)) return data;
+	if (data instanceof ArrayBuffer) return Buffer.from(data);
+	return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 }
 
 /**
@@ -326,11 +334,12 @@ export async function importFromFile(
  * Import opportunities from uploaded file data.
  */
 export async function importFromBuffer(
-	buffer: Buffer,
+	data: ImportFileData,
 	filename: string,
 	config?: Partial<ImportConfig>
 ): Promise<SpreadsheetImportResult> {
 	await requireCurrentUserId();
+	const buffer = toImportBuffer(data);
 
 	return executeSpreadsheetImport(
 		[{ name: "Data", data: parseDelimitedRows(buffer.toString("utf-8"), filename) }],
@@ -339,22 +348,16 @@ export async function importFromBuffer(
 	);
 }
 
-/**
- * Preview import without actually importing.
- */
-export async function previewImport(
-	filePath: string,
+function buildImportPreview(
+	sheets: { name: string; data: RawSpreadsheetRow[] }[],
+	filename: string,
 	config?: Partial<ImportConfig>
-): Promise<{
+): {
 	filename: string;
 	sheets: { name: string; format: DetectedFormat; rowCount: number }[];
 	preview: NormalizedOpportunity[];
 	totalRows: number;
-}> {
-	await requireCurrentUserId();
-
-	const allowedPath = resolveConfiguredImportPath(filePath, "OPPORTUNITY_IMPORT_ROOT");
-	const { sheets, filename } = await parseDelimitedFile(allowedPath);
+} {
 	const sheetFormats = detectSheetFormats(sheets);
 
 	if (sheetFormats.length === 0) {
@@ -383,6 +386,47 @@ export async function previewImport(
 		preview,
 		totalRows: sheetData.data.length,
 	};
+}
+
+/**
+ * Preview an uploaded file without relying on server filesystem paths.
+ */
+export async function previewImportFromBuffer(
+	data: ImportFileData,
+	filename: string,
+	config?: Partial<ImportConfig>
+): Promise<{
+	filename: string;
+	sheets: { name: string; format: DetectedFormat; rowCount: number }[];
+	preview: NormalizedOpportunity[];
+	totalRows: number;
+}> {
+	await requireCurrentUserId();
+	const buffer = toImportBuffer(data);
+	return buildImportPreview(
+		[{ name: "Data", data: parseDelimitedRows(buffer.toString("utf-8"), filename) }],
+		filename,
+		config
+	);
+}
+
+/**
+ * Preview import without actually importing.
+ */
+export async function previewImport(
+	filePath: string,
+	config?: Partial<ImportConfig>
+): Promise<{
+	filename: string;
+	sheets: { name: string; format: DetectedFormat; rowCount: number }[];
+	preview: NormalizedOpportunity[];
+	totalRows: number;
+}> {
+	await requireCurrentUserId();
+
+	const allowedPath = resolveConfiguredImportPath(filePath, "OPPORTUNITY_IMPORT_ROOT");
+	const { sheets, filename } = await parseDelimitedFile(allowedPath);
+	return buildImportPreview(sheets, filename, config);
 }
 
 // ============================================================================

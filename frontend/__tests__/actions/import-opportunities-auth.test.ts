@@ -43,6 +43,7 @@ import {
 	importFromFile,
 	importFromScraperExport,
 	previewImport,
+	previewImportFromBuffer,
 } from "@/lib/actions/import-opportunities";
 
 beforeEach(() => {
@@ -57,6 +58,7 @@ describe("opportunity import action auth", () => {
 		await expect(importFromFile("/tmp/opportunities.csv")).rejects.toThrow("Unauthorized");
 		await expect(importFromBuffer(Buffer.from("title\nExample"), "opportunities.csv")).rejects.toThrow("Unauthorized");
 		await expect(previewImport("/tmp/opportunities.csv")).rejects.toThrow("Unauthorized");
+		await expect(previewImportFromBuffer(Buffer.from("title\nExample"), "opportunities.csv")).rejects.toThrow("Unauthorized");
 		await expect(importFromScraperExport("/tmp/export.jsonl")).rejects.toThrow("Unauthorized");
 		await expect(importAllScraperExports("/tmp/sync")).rejects.toThrow("Unauthorized");
 		await expect(importFromDirectory("/tmp/imports")).rejects.toThrow("Unauthorized");
@@ -111,6 +113,25 @@ describe("opportunity import action auth", () => {
 			"Import path is outside the configured import root"
 		);
 
+		expect(readFileMock).not.toHaveBeenCalled();
+		expect(readdirMock).not.toHaveBeenCalled();
+		expect(dbAccessMock).not.toHaveBeenCalled();
+	});
+
+	it("previews uploaded buffers without requiring a server filesystem root", async () => {
+		getCurrentUserIdMock.mockResolvedValue("importer-1");
+
+		const result = await previewImportFromBuffer(
+			Buffer.from("title,organization,country,deadline,budget\nDemo RFP,Acme,Kenya,2026-08-01,1000"),
+			"opportunities.csv"
+		);
+
+		expect(result.filename).toBe("opportunities.csv");
+		expect(result.totalRows).toBe(1);
+		expect(result.preview[0]).toMatchObject({
+			title: "Demo RFP",
+			organization: "Acme",
+		});
 		expect(readFileMock).not.toHaveBeenCalled();
 		expect(readdirMock).not.toHaveBeenCalled();
 		expect(dbAccessMock).not.toHaveBeenCalled();

@@ -14,7 +14,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { importFromBuffer, previewImport } from "@/lib/actions/import-opportunities";
+import { importFromBuffer, previewImportFromBuffer } from "@/lib/actions/import-opportunities";
 import { getImportHistory } from "@/lib/actions/opportunities";
 import type { NormalizedOpportunity, OpportunityImport } from "@/lib/types/opportunity";
 import { Button } from "@/components/ui/Button";
@@ -91,11 +91,12 @@ export default function ImportOpportunitiesPage() {
 
 		try {
 			const buffer = await file.arrayBuffer();
+			const result = await previewImportFromBuffer(buffer, file.name, { updateExisting: true });
 			setState((prev) => ({
 				...prev,
 				step: "preview",
-				preview: [],
-				totalRows: 0,
+				preview: result.preview,
+				totalRows: result.totalRows,
 			}));
 		} catch (err) {
 			setState((prev) => ({
@@ -117,7 +118,7 @@ export default function ImportOpportunitiesPage() {
 		try {
 			const buffer = await state.file.arrayBuffer();
 			const result = await importFromBuffer(
-				Buffer.from(buffer),
+				buffer,
 				state.file.name,
 				{ updateExisting: true }
 			);
@@ -327,10 +328,52 @@ export default function ImportOpportunitiesPage() {
 						<p className="text-sm text-muted-foreground mb-4">
 							File: {state.file.name} ({(state.file.size / 1024).toFixed(1)} KB)
 						</p>
+						<div className="mb-5 rounded-lg border bg-muted/30">
+							<div className="flex items-center justify-between border-b px-4 py-3">
+								<div>
+									<p className="text-sm font-medium text-foreground">
+										Preview
+									</p>
+									<p className="text-xs text-muted-foreground">
+										Detected {state.totalRows} rows. Showing {Math.min(state.preview.length, 5)} sample rows.
+									</p>
+								</div>
+								<span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+									{state.preview.length} parsed
+								</span>
+							</div>
+							<div className="divide-y">
+								{state.preview.slice(0, 5).map((opportunity, index) => (
+									<div key={`${opportunity.title}-${index}`} className="px-4 py-3">
+										<div className="flex items-start justify-between gap-3">
+											<div className="min-w-0">
+												<p className="truncate text-sm font-medium text-foreground">
+													{opportunity.title}
+												</p>
+												<p className="mt-1 text-xs text-muted-foreground">
+													{opportunity.organization || "Unknown organization"}
+													{opportunity.countryRegion ? ` · ${opportunity.countryRegion}` : ""}
+												</p>
+											</div>
+											{opportunity.deadline && (
+												<span className="shrink-0 text-xs text-muted-foreground">
+													{new Date(opportunity.deadline).toLocaleDateString()}
+												</span>
+											)}
+										</div>
+									</div>
+								))}
+								{state.preview.length === 0 && (
+									<div className="px-4 py-5 text-sm text-muted-foreground">
+										No valid opportunity rows were detected in the preview.
+									</div>
+								)}
+							</div>
+						</div>
 						<div className="flex items-center gap-4">
 							<Button
 								onClick={handleImport}
-								disabled={isLoading}
+								disabled={isLoading || state.preview.length === 0}
 							>
 								{isLoading ? (
 									<>
