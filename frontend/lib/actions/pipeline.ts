@@ -26,7 +26,7 @@ import {
 	type NewPipelineMilestone,
 } from "@/lib/db/schema-pipeline";
 import { opportunities, opportunityPartners, partners } from "@/lib/db/schema";
-import { eq, and, desc, asc, sql, gte, lte, inArray, isNull, count, avg, sum } from "drizzle-orm";
+import { eq, and, desc, asc, sql, gte, lte, inArray, isNull, count, avg, sum, type SQL } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/utils/logger";
@@ -349,6 +349,46 @@ async function requirePipelineActor(): Promise<string> {
 	return (await requirePipelineContext()).userId;
 }
 
+function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${actorId}
+	)`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		eq(opportunities.assignedTo, actorId)
+	)!;
+}
+
+function visiblePipelineCondition(pipelineId: string, actorId: string): SQL {
+	return and(
+		eq(capturePipeline.id, pipelineId),
+		assignedOpportunityExistsSql(capturePipeline.opportunityId, actorId)
+	)!;
+}
+
+function visiblePipelineForOpportunityCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(capturePipeline.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, actorId)
+	)!;
+}
+
+async function loadVisiblePipeline(pipelineId: string, actorId: string): Promise<CapturePipeline | null> {
+	const [pipeline] = await db
+		.select()
+		.from(capturePipeline)
+		.where(visiblePipelineCondition(pipelineId, actorId))
+		.limit(1);
+
+	return pipeline ?? null;
+}
+
 // ============================================================================
 // PIPELINE LIFECYCLE
 // ============================================================================
@@ -358,13 +398,13 @@ async function requirePipelineActor(): Promise<string> {
  * Creates the pipeline record with initial stage and default milestones.
  */
 export async function initializePipeline(opportunityId: string): Promise<ActionResult<CapturePipeline>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		// Validate opportunity exists
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(visibleOpportunityCondition(opportunityId, actorId))
 			.limit(1);
 
 		if (!opportunity) {
@@ -375,7 +415,7 @@ export async function initializePipeline(opportunityId: string): Promise<ActionR
 		const [existingPipeline] = await db
 			.select()
 			.from(capturePipeline)
-			.where(eq(capturePipeline.opportunityId, opportunityId))
+			.where(visiblePipelineForOpportunityCondition(opportunityId, actorId))
 			.limit(1);
 
 		if (existingPipeline) {
@@ -487,12 +527,12 @@ export async function initializePipeline(opportunityId: string): Promise<ActionR
  * Get pipeline by opportunity ID.
  */
 export async function getPipeline(opportunityId: string): Promise<ActionResult<CapturePipeline | null>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		const [pipeline] = await db
 			.select()
 			.from(capturePipeline)
-			.where(eq(capturePipeline.opportunityId, opportunityId))
+			.where(visiblePipelineForOpportunityCondition(opportunityId, actorId))
 			.limit(1);
 
 		return { success: true, data: pipeline ?? null };
@@ -509,7 +549,7 @@ export async function listPipelines(): Promise<ActionResult<{
 	pipelines: CapturePipeline[];
 	opportunities: Map<string, { title: string; organization: string; budgetNumeric: number | null; deadline: Date | null }>;
 }>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		const pipelinesWithOpps = await db
 			.select({
@@ -518,6 +558,7 @@ export async function listPipelines(): Promise<ActionResult<{
 			})
 			.from(capturePipeline)
 			.innerJoin(opportunities, eq(capturePipeline.opportunityId, opportunities.id))
+			.where(eq(opportunities.assignedTo, actorId))
 			.orderBy(desc(capturePipeline.updatedAt));
 
 		const pipelines = pipelinesWithOpps.map(p => p.pipeline);
@@ -547,7 +588,7 @@ export async function updatePipelineStage(
 	newStage: string,
 	notes?: string
 ): Promise<ActionResult<CapturePipeline>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		// Validate stage is valid
 		if (!PIPELINE_STAGES.includes(newStage as typeof PIPELINE_STAGES[number])) {
@@ -555,11 +596,7 @@ export async function updatePipelineStage(
 		}
 
 		// Get current pipeline
-		const [currentPipeline] = await db
-			.select()
-			.from(capturePipeline)
-			.where(eq(capturePipeline.id, pipelineId))
-			.limit(1);
+		const currentPipeline = await loadVisiblePipeline(pipelineId, actorId);
 
 		if (!currentPipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -599,7 +636,7 @@ export async function updatePipelineStage(
 				notes: notes ? `${currentPipeline.notes ?? ""}\n\n[${now.toISOString()}] Stage changed to ${newStage}: ${notes}` : currentPipeline.notes,
 				updatedAt: now,
 			})
-			.where(eq(capturePipeline.id, pipelineId))
+			.where(visiblePipelineCondition(pipelineId, actorId))
 			.returning();
 
 		revalidatePipelinePaths(currentPipeline.opportunityId ?? undefined);
@@ -618,7 +655,7 @@ export async function updatePipeline(
 	pipelineId: string,
 	data: Partial<UpdatePipelineInput>
 ): Promise<ActionResult<CapturePipeline>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		// Validate input
 		const parsed = updatePipelineSchema.partial().safeParse(data);
@@ -627,11 +664,7 @@ export async function updatePipeline(
 		}
 
 		// Get current pipeline for opportunityId
-		const [currentPipeline] = await db
-			.select()
-			.from(capturePipeline)
-			.where(eq(capturePipeline.id, pipelineId))
-			.limit(1);
+		const currentPipeline = await loadVisiblePipeline(pipelineId, actorId);
 
 		if (!currentPipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -654,7 +687,7 @@ export async function updatePipeline(
 		const [updated] = await db
 			.update(capturePipeline)
 			.set(updateData)
-			.where(eq(capturePipeline.id, pipelineId))
+			.where(visiblePipelineCondition(pipelineId, actorId))
 			.returning();
 
 		revalidatePipelinePaths(currentPipeline.opportunityId ?? undefined);
@@ -687,11 +720,7 @@ export async function updatePwin(
 		}
 
 		// Get current pipeline
-		const [currentPipeline] = await db
-			.select()
-			.from(capturePipeline)
-			.where(eq(capturePipeline.id, pipelineId))
-			.limit(1);
+		const currentPipeline = await loadVisiblePipeline(pipelineId, actorId);
 
 		if (!currentPipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -716,7 +745,7 @@ export async function updatePwin(
 				pwinHistory,
 				updatedAt: now,
 			})
-			.where(eq(capturePipeline.id, pipelineId))
+			.where(visiblePipelineCondition(pipelineId, actorId))
 			.returning();
 
 		revalidatePipelinePaths(currentPipeline.opportunityId ?? undefined);
@@ -732,19 +761,19 @@ export async function updatePwin(
  * Calculate suggested PWin using AI and multiple factors.
  */
 export async function calculateSuggestedPwin(opportunityId: string): Promise<ActionResult<PwinCalculation>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		// Fetch all relevant data
 		const [pipeline] = await db
 			.select()
 			.from(capturePipeline)
-			.where(eq(capturePipeline.opportunityId, opportunityId))
+			.where(visiblePipelineForOpportunityCondition(opportunityId, actorId))
 			.limit(1);
 
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(visibleOpportunityCondition(opportunityId, actorId))
 			.limit(1);
 
 		if (!opportunity) {
