@@ -31,7 +31,7 @@ import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/utils/logger";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 
 // ============================================================================
 // Types
@@ -337,12 +337,16 @@ function revalidatePipelinePaths(opportunityId?: string): void {
 	}
 }
 
-async function requirePipelineActor(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
+async function requirePipelineContext(organizationId?: string | null): Promise<UserContext> {
+	const userContext = await requireUserContext();
+	if (organizationId && organizationId !== userContext.organizationId) {
 		throw new Error("Unauthorized");
 	}
-	return userId;
+	return userContext;
+}
+
+async function requirePipelineActor(): Promise<string> {
+	return (await requirePipelineContext()).userId;
 }
 
 // ============================================================================
@@ -354,6 +358,7 @@ async function requirePipelineActor(): Promise<string> {
  * Creates the pipeline record with initial stage and default milestones.
  */
 export async function initializePipeline(opportunityId: string): Promise<ActionResult<CapturePipeline>> {
+	await requirePipelineActor();
 	try {
 		// Validate opportunity exists
 		const [opportunity] = await db
@@ -482,6 +487,7 @@ export async function initializePipeline(opportunityId: string): Promise<ActionR
  * Get pipeline by opportunity ID.
  */
 export async function getPipeline(opportunityId: string): Promise<ActionResult<CapturePipeline | null>> {
+	await requirePipelineActor();
 	try {
 		const [pipeline] = await db
 			.select()
@@ -503,6 +509,7 @@ export async function listPipelines(): Promise<ActionResult<{
 	pipelines: CapturePipeline[];
 	opportunities: Map<string, { title: string; organization: string; budgetNumeric: number | null; deadline: Date | null }>;
 }>> {
+	await requirePipelineActor();
 	try {
 		const pipelinesWithOpps = await db
 			.select({
@@ -540,6 +547,7 @@ export async function updatePipelineStage(
 	newStage: string,
 	notes?: string
 ): Promise<ActionResult<CapturePipeline>> {
+	await requirePipelineActor();
 	try {
 		// Validate stage is valid
 		if (!PIPELINE_STAGES.includes(newStage as typeof PIPELINE_STAGES[number])) {
@@ -610,6 +618,7 @@ export async function updatePipeline(
 	pipelineId: string,
 	data: Partial<UpdatePipelineInput>
 ): Promise<ActionResult<CapturePipeline>> {
+	await requirePipelineActor();
 	try {
 		// Validate input
 		const parsed = updatePipelineSchema.partial().safeParse(data);
@@ -668,8 +677,9 @@ export async function updatePwin(
 	pipelineId: string,
 	newPwin: number,
 	reason: string,
-	updatedBy?: string
+	_updatedBy?: string
 ): Promise<ActionResult<CapturePipeline>> {
+	const actorId = await requirePipelineActor();
 	try {
 		// Validate pwin
 		if (newPwin < 0 || newPwin > 100) {
@@ -695,7 +705,7 @@ export async function updatePwin(
 			date: now.toISOString(),
 			value: newPwin,
 			reason,
-			updatedBy,
+			updatedBy: actorId,
 		});
 
 		// Update pipeline
@@ -722,6 +732,7 @@ export async function updatePwin(
  * Calculate suggested PWin using AI and multiple factors.
  */
 export async function calculateSuggestedPwin(opportunityId: string): Promise<ActionResult<PwinCalculation>> {
+	await requirePipelineActor();
 	try {
 		// Fetch all relevant data
 		const [pipeline] = await db
@@ -929,12 +940,14 @@ export async function recordActivity(
 	pipelineId: string,
 	activity: CreateActivityInput
 ): Promise<ActionResult<CaptureActivity>> {
+	const actorId = await requirePipelineActor();
 	try {
 		// Validate input
 		const parsed = createActivitySchema.safeParse(activity);
 		if (!parsed.success) {
 			return { success: false, error: `Validation error: ${parsed.error.message}` };
 		}
+		const { createdBy: _createdBy, ...activityData } = parsed.data;
 
 		// Verify pipeline exists
 		const [pipeline] = await db
@@ -951,9 +964,10 @@ export async function recordActivity(
 			.insert(captureActivities)
 			.values({
 				pipelineId,
-				...parsed.data,
-				status: parsed.data.scheduledDate && parsed.data.scheduledDate > new Date() ? "scheduled" : "completed",
-				completedDate: (!parsed.data.scheduledDate || parsed.data.scheduledDate <= new Date()) ? new Date() : undefined,
+				...activityData,
+				createdBy: actorId,
+				status: activityData.scheduledDate && activityData.scheduledDate > new Date() ? "scheduled" : "completed",
+				completedDate: (!activityData.scheduledDate || activityData.scheduledDate <= new Date()) ? new Date() : undefined,
 			} satisfies NewCaptureActivity)
 			.returning();
 
@@ -986,16 +1000,18 @@ export async function updateActivity(
 	activityId: string,
 	data: Partial<CreateActivityInput>
 ): Promise<ActionResult<CaptureActivity>> {
+	await requirePipelineActor();
 	try {
 		const parsed = createActivitySchema.partial().safeParse(data);
 		if (!parsed.success) {
 			return { success: false, error: `Validation error: ${parsed.error.message}` };
 		}
+		const { createdBy: _createdBy, ...activityData } = parsed.data;
 
 		const [updated] = await db
 			.update(captureActivities)
 			.set({
-				...parsed.data,
+				...activityData,
 				updatedAt: new Date(),
 			})
 			.where(eq(captureActivities.id, activityId))
@@ -1021,6 +1037,7 @@ export async function completeActivity(
 	successRating?: number,
 	nextSteps?: string[]
 ): Promise<ActionResult<CaptureActivity>> {
+	await requirePipelineActor();
 	try {
 		if (successRating !== undefined && (successRating < 1 || successRating > 5)) {
 			return { success: false, error: "Success rating must be between 1 and 5" };
@@ -1057,6 +1074,7 @@ export async function listActivities(
 	pipelineId: string,
 	filters?: ActivityFilters
 ): Promise<ActionResult<CaptureActivity[]>> {
+	await requirePipelineActor();
 	try {
 		const conditions = [eq(captureActivities.pipelineId, pipelineId)];
 
@@ -1096,6 +1114,7 @@ export async function getUpcomingActivities(
 	pipelineId?: string,
 	days: number = 30
 ): Promise<ActionResult<CaptureActivity[]>> {
+	await requirePipelineActor();
 	try {
 		const now = new Date();
 		const futureDate = new Date();
@@ -1137,6 +1156,7 @@ export async function scheduleGateReview(
 	scheduledDate: Date,
 	reviewers?: string[]
 ): Promise<ActionResult<GateReview>> {
+	const actorId = await requirePipelineActor();
 	try {
 		// Verify pipeline exists
 		const [pipeline] = await db
@@ -1185,6 +1205,7 @@ export async function scheduleGateReview(
 				status: "scheduled",
 				checklistItems,
 				reviewers: reviewerList,
+				createdBy: actorId,
 			} satisfies NewGateReview)
 			.returning();
 
@@ -1204,6 +1225,7 @@ export async function updateGateReview(
 	gateReviewId: string,
 	data: Partial<UpdateGateReviewInput>
 ): Promise<ActionResult<GateReview>> {
+	await requirePipelineActor();
 	try {
 		const parsed = updateGateReviewSchema.partial().safeParse(data);
 		if (!parsed.success) {
@@ -1237,9 +1259,8 @@ export async function conductGateReview(
 	gateReviewId: string,
 	decision: GateDecision
 ): Promise<ActionResult<GateReview>> {
+	const actorId = await requirePipelineActor();
 	try {
-		const actorId = await requirePipelineActor();
-
 		// Get the gate review
 		const [review] = await db
 			.select()
@@ -1473,6 +1494,7 @@ export async function getGateReviewChecklist(gateType: string): Promise<ActionRe
  * List gate reviews for a pipeline.
  */
 export async function listGateReviews(pipelineId: string): Promise<ActionResult<GateReview[]>> {
+	await requirePipelineActor();
 	try {
 		const reviews = await db
 			.select()
@@ -1495,6 +1517,7 @@ export async function listGateReviews(pipelineId: string): Promise<ActionResult<
  * Generate a comprehensive bid decision package using AI.
  */
 export async function generateBidDecisionPackage(pipelineId: string): Promise<ActionResult<BidDecisionPackage>> {
+	await requirePipelineActor();
 	try {
 		// Fetch pipeline
 		const [pipeline] = await db
@@ -1646,8 +1669,9 @@ export async function recordBidDecision(
 	pipelineId: string,
 	decision: "bid" | "no_bid",
 	rationale: string,
-	madeBy: string
+	_madeBy: string
 ): Promise<ActionResult<CapturePipeline>> {
+	const actorId = await requirePipelineActor();
 	try {
 		const [pipeline] = await db
 			.select()
@@ -1661,12 +1685,12 @@ export async function recordBidDecision(
 
 		const now = new Date();
 		const updateData: Partial<typeof capturePipeline.$inferSelect> = {
-			bidDecision: decision,
-			bidDecisionDate: now,
-			bidDecisionRationale: rationale,
-			bidDecisionMadeBy: madeBy,
-			updatedAt: now,
-		};
+				bidDecision: decision,
+				bidDecisionDate: now,
+				bidDecisionRationale: rationale,
+				bidDecisionMadeBy: actorId,
+				updatedAt: now,
+			};
 
 		// If no_bid, move to no_bid stage
 		if (decision === "no_bid") {
@@ -1712,6 +1736,7 @@ export async function createMilestone(
 	pipelineId: string,
 	milestone: CreateMilestoneInput
 ): Promise<ActionResult<PipelineMilestone>> {
+	await requirePipelineActor();
 	try {
 		const parsed = createMilestoneSchema.safeParse(milestone);
 		if (!parsed.success) {
@@ -1754,6 +1779,7 @@ export async function updateMilestone(
 	milestoneId: string,
 	data: Partial<CreateMilestoneInput>
 ): Promise<ActionResult<PipelineMilestone>> {
+	await requirePipelineActor();
 	try {
 		const parsed = createMilestoneSchema.partial().safeParse(data);
 		if (!parsed.success) {
@@ -1784,6 +1810,7 @@ export async function completeMilestone(
 	milestoneId: string,
 	actualDate?: Date
 ): Promise<ActionResult<PipelineMilestone>> {
+	await requirePipelineActor();
 	try {
 		const [updated] = await db
 			.update(pipelineMilestones)
@@ -1809,6 +1836,7 @@ export async function completeMilestone(
  * List milestones for a pipeline.
  */
 export async function listMilestones(pipelineId: string): Promise<ActionResult<PipelineMilestone[]>> {
+	await requirePipelineActor();
 	try {
 		const milestones = await db
 			.select()
@@ -1831,6 +1859,7 @@ export async function listMilestones(pipelineId: string): Promise<ActionResult<P
  * Get comprehensive pipeline analytics.
  */
 export async function getPipelineAnalytics(organizationId?: string): Promise<ActionResult<PipelineAnalytics>> {
+	await requirePipelineContext(organizationId);
 	try {
 		// Get all pipelines with their opportunities
 		const pipelinesWithOpps = await db
@@ -1946,6 +1975,7 @@ export async function getPipelineAnalytics(organizationId?: string): Promise<Act
  * Forecast pipeline outcomes.
  */
 export async function forecastPipeline(organizationId?: string): Promise<ActionResult<PipelineForecast>> {
+	await requirePipelineContext(organizationId);
 	try {
 		// Get pipelines with opportunities that have award dates
 		const pipelinesWithOpps = await db
@@ -2033,6 +2063,7 @@ export async function forecastPipeline(organizationId?: string): Promise<ActionR
  * Identify opportunities at risk.
  */
 export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRiskOpportunity[]>> {
+	await requirePipelineActor();
 	try {
 		const now = new Date();
 		const twoWeeksAgo = new Date(now);
@@ -2172,6 +2203,7 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
  * Get comprehensive pipeline summary.
  */
 export async function getPipelineSummary(pipelineId: string): Promise<ActionResult<PipelineSummary>> {
+	await requirePipelineActor();
 	try {
 		// Fetch pipeline
 		const [pipeline] = await db
