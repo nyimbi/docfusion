@@ -366,12 +366,13 @@ export async function deleteWorkflow(id: string): Promise<void> {
 export async function getWorkflowAssignments(
 	documentId: string
 ): Promise<WorkflowAssignment[]> {
+	const userId = await requireWorkflowActor();
 	const rows = await db
 		.select()
 		.from(workflowAssignments)
 		.where(
 			and(
-				eq(workflowAssignments.documentId, documentId),
+				visibleAssignmentsForDocumentCondition(documentId, userId),
 				eq(workflowAssignments.isActive, "true")
 			)
 		)
@@ -387,12 +388,13 @@ export async function getStageAssignments(
 	documentId: string,
 	stage: WorkflowStage
 ): Promise<WorkflowAssignment[]> {
+	const userId = await requireWorkflowActor();
 	const rows = await db
 		.select()
 		.from(workflowAssignments)
 		.where(
 			and(
-				eq(workflowAssignments.documentId, documentId),
+				visibleAssignmentsForDocumentCondition(documentId, userId),
 				eq(workflowAssignments.stage, stage),
 				eq(workflowAssignments.isActive, "true")
 			)
@@ -429,7 +431,7 @@ export async function createAssignment(
 		.from(workflowAssignments)
 		.where(
 			and(
-				eq(workflowAssignments.documentId, documentId),
+				visibleAssignmentsForDocumentCondition(documentId, assignedBy),
 				eq(workflowAssignments.stage, stage),
 				eq(workflowAssignments.sequenceOrder, sequenceOrder)
 			)

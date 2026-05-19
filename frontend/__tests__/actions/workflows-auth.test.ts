@@ -31,6 +31,8 @@ import {
 	createWorkflow,
 	deleteAssignment,
 	deleteWorkflow,
+	getStageAssignments,
+	getWorkflowAssignments,
 	initializeDefaultWorkflow,
 	updateAssignment,
 	updateWorkflow,
@@ -50,6 +52,8 @@ describe("workflow action auth", () => {
 		await expect(updateWorkflow("workflow-1", { name: "Updated" })).rejects.toThrow("Unauthorized");
 		await expect(deleteWorkflow("workflow-1")).rejects.toThrow("Unauthorized");
 
+		await expect(getWorkflowAssignments("doc-1")).rejects.toThrow("Unauthorized");
+		await expect(getStageAssignments("doc-1", "reviewer")).rejects.toThrow("Unauthorized");
 		await expect(createAssignment({
 			documentId: "doc-1",
 			stage: "reviewer",

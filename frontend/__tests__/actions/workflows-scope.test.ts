@@ -105,6 +105,8 @@ vi.mock("@/lib/db", () => {
 import {
 	clearDocumentAssignments,
 	createAssignment,
+	getStageAssignments,
+	getWorkflowAssignments,
 	updateAssignment,
 } from "@/lib/actions/workflows";
 
@@ -132,6 +134,7 @@ beforeEach(() => {
 describe("workflow assignment scoping", () => {
 	it("scopes assignment creation to documents owned by the actor", async () => {
 		let documentWhere: unknown;
+		let duplicateWhere: unknown;
 		dbMock.select
 			.mockReturnValueOnce(createChain({
 				result: [{ id: "doc-1" }],
@@ -139,7 +142,12 @@ describe("workflow assignment scoping", () => {
 					documentWhere = value;
 				},
 			}))
-			.mockReturnValueOnce(createChain({ result: [] }));
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => {
+					duplicateWhere = value;
+				},
+			}));
 		dbMock.insert.mockReturnValueOnce(createChain({ result: [assignment] }));
 
 		const result = await createAssignment({
@@ -150,6 +158,32 @@ describe("workflow assignment scoping", () => {
 
 		expect(result.id).toBe("assignment-1");
 		expectOwnerScope(documentWhere);
+		expectOwnerScope(duplicateWhere);
+	});
+
+	it("scopes assignment reads through document ownership", async () => {
+		const wheres: unknown[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [assignment],
+				onWhere: (value) => {
+					wheres.push(value);
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [assignment],
+				onWhere: (value) => {
+					wheres.push(value);
+				},
+			}));
+
+		await expect(getWorkflowAssignments("doc-1")).resolves.toHaveLength(1);
+		await expect(getStageAssignments("doc-1", "reviewer")).resolves.toHaveLength(1);
+
+		expect(wheres).toHaveLength(2);
+		for (const where of wheres) {
+			expectOwnerScope(where);
+		}
 	});
 
 	it("scopes assignment update and document clears through document ownership", async () => {
