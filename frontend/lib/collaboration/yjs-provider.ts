@@ -10,6 +10,7 @@ import { IndexeddbPersistence } from "y-indexeddb";
 import type { DocumentId } from "@/lib/types/document";
 import { fetcher } from "@/lib/api/client";
 import { loggers } from "@/lib/utils/debug-logger";
+import { decodeBase64Bytes, encodeBytesBase64 } from "@/lib/utils/base64";
 
 const log = loggers.yjs;
 
@@ -335,27 +336,14 @@ export function hasUnsavedChanges(doc: Y.Doc, lastServerState: Uint8Array | null
  * Utility: Encode Uint8Array to base64.
  */
 function base64Encode(data: Uint8Array): string {
-	if (typeof btoa === "function") {
-		return btoa(String.fromCharCode(...data));
-	}
-	// Node.js fallback
-	return Buffer.from(data).toString("base64");
+	return encodeBytesBase64(data);
 }
 
 /**
  * Utility: Decode base64 to Uint8Array.
  */
 function base64Decode(base64: string): Uint8Array {
-	if (typeof atob === "function") {
-		const binary = atob(base64);
-		const bytes = new Uint8Array(binary.length);
-		for (let i = 0; i < binary.length; i++) {
-			bytes[i] = binary.charCodeAt(i);
-		}
-		return bytes;
-	}
-	// Node.js fallback
-	return new Uint8Array(Buffer.from(base64, "base64"));
+	return decodeBase64Bytes(base64);
 }
 
 /**

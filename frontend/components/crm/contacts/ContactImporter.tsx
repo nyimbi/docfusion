@@ -16,6 +16,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/lib/utils";
+import { encodeUtf8Base64 } from "@/lib/utils/base64";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -248,7 +249,7 @@ export function ContactImporter({
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					importId,
-					fileContent: Buffer.from(fileContent).toString("base64"),
+					fileContent: encodeUtf8Base64(fileContent),
 					mapping: csvInfo ? mapping : undefined,
 					options: {
 						updateExisting,
