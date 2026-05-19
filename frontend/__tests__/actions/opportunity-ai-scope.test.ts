@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const promptMock = vi.hoisted(() => vi.fn());
 const getProviderManagerMock = vi.hoisted(() => vi.fn());
+const getCompanyCapabilitiesMock = vi.hoisted(() => vi.fn());
 
 interface ChainConfig {
 	result?: unknown[];
@@ -61,12 +63,12 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/ai/providers", () => ({
-	prompt: vi.fn(),
+	prompt: promptMock,
 	getProviderManager: getProviderManagerMock,
 }));
 
 vi.mock("@/lib/actions/company-settings", () => ({
-	getCompanyCapabilities: vi.fn(),
+	getCompanyCapabilities: getCompanyCapabilitiesMock,
 }));
 
 vi.mock("@/lib/utils/logger", () => ({
@@ -77,7 +79,7 @@ vi.mock("@/lib/utils/logger", () => ({
 	},
 }));
 
-import { calculateFitScore } from "@/lib/actions/opportunity-ai";
+import { calculateFitScore, calculateFitScoreWithLLM } from "@/lib/actions/opportunity-ai";
 
 const opportunity = {
 	id: "11111111-1111-4111-8111-111111111111",
@@ -142,5 +144,21 @@ describe("opportunity AI row scoping", () => {
 		});
 		expect(collectSqlFragments(loadWhere).join(" ")).toContain("assigned_to");
 		expect(collectSqlFragments(updateWhere).join(" ")).toContain("assigned_to");
+	});
+
+	it("awaits provider availability before falling back from LLM scoring", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({ result: [opportunity] }));
+		dbMock.insert.mockReturnValueOnce(createChain({ result: [score] }));
+		dbMock.update.mockReturnValueOnce(createChain());
+
+		const result = await calculateFitScoreWithLLM(opportunity.id);
+
+		expect(result).toMatchObject({
+			id: score.id,
+			opportunityId: opportunity.id,
+			scoreType: "fit",
+		});
+		expect(promptMock).not.toHaveBeenCalled();
+		expect(getCompanyCapabilitiesMock).not.toHaveBeenCalled();
 	});
 });

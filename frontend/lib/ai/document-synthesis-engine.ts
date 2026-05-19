@@ -885,7 +885,7 @@ async function generateEmbedding(content: string): Promise<number[]> {
 	const manager = getProviderManager();
 	await manager.initialize();
 
-	if (!manager.isAvailable()) {
+	if (!(await manager.isAvailable())) {
 		// Fallback to simple embedding if no AI provider available
 		const simpleEmbedding = generateSimpleEmbedding(content);
 		setCachedEmbedding(contentHash, simpleEmbedding);

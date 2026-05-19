@@ -1137,7 +1137,7 @@ export async function calculateFitScoreWithLLM(opportunityId: string): Promise<O
 	// Check if AI is available
 	const manager = getProviderManager();
 	await manager.initialize();
-	if (!manager.isAvailable()) {
+	if (!(await manager.isAvailable())) {
 		logger.debug("[AI] No provider available, using heuristic scoring");
 		return calculateFitScore(opportunityId);
 	}
@@ -1252,7 +1252,7 @@ export async function calculateWinProbabilityWithLLM(opportunityId: string): Pro
 
 	const manager = getProviderManager();
 	await manager.initialize();
-	if (!manager.isAvailable()) {
+	if (!(await manager.isAvailable())) {
 		return calculateWinProbability(opportunityId);
 	}
 
@@ -1356,7 +1356,7 @@ export async function calculateRiskScoreWithLLM(opportunityId: string): Promise<
 
 	const manager = getProviderManager();
 	await manager.initialize();
-	if (!manager.isAvailable()) {
+	if (!(await manager.isAvailable())) {
 		return calculateRiskScore(opportunityId);
 	}
 
@@ -1465,7 +1465,7 @@ export async function generateOpportunitySummary(opportunityId: string): Promise
 
 	const manager = getProviderManager();
 	await manager.initialize();
-	if (!manager.isAvailable()) {
+	if (!(await manager.isAvailable())) {
 		return "AI summary not available. Configure an AI provider to enable this feature.";
 	}
 

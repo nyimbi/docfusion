@@ -755,7 +755,7 @@ async function analyzeFactorWithAI(
 	const manager = getProviderManager();
 	await manager.initialize();
 
-	if (!manager.isAvailable()) {
+	if (!(await manager.isAvailable())) {
 		// Return a reasonable default when AI is unavailable
 		return {
 			id: factor.id,
