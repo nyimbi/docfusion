@@ -58,6 +58,7 @@ import {
 } from "@/lib/diagrams/code-tools";
 import type { DiagramFormat, DiagramTheme } from "@/lib/diagrams/types";
 import { logger } from "@/lib/utils/logger";
+import { getCurrentUserId } from "@/lib/auth-utils";
 
 // ============================================================================
 // Result Type Wrapper
@@ -70,6 +71,14 @@ import { logger } from "@/lib/utils/logger";
 export type ActionResult<T> =
 	| { success: true; data: T }
 	| { success: false; error: string };
+
+async function requireGraphicActor(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
 
 // ============================================================================
 // Helper Types
@@ -235,6 +244,7 @@ const CreateTemplateSchema = z.object({
 export async function createGraphic(
 	input: z.infer<typeof CreateGraphicSchema>
 ): Promise<ActionResult<ProposalGraphic>> {
+	await requireGraphicActor();
 	try {
 		const validated = CreateGraphicSchema.parse(input);
 
@@ -287,6 +297,7 @@ export async function updateGraphic(
 	id: string,
 	data: Partial<z.infer<typeof CreateGraphicSchema>>
 ): Promise<ActionResult<ProposalGraphic>> {
+	await requireGraphicActor();
 	try {
 		const validated = UpdateGraphicSchema.parse(data);
 
@@ -325,6 +336,7 @@ export async function updateGraphic(
 export async function deleteGraphic(
 	id: string
 ): Promise<ActionResult<{ deleted: boolean }>> {
+	await requireGraphicActor();
 	try {
 		const result = await db
 			.delete(proposalGraphics)
@@ -972,6 +984,7 @@ const ACTION_VERBS = [
 export async function generateActionCaption(
 	graphicId: string
 ): Promise<ActionResult<string>> {
+	await requireGraphicActor();
 	try {
 		// Fetch the graphic
 		const [graphic] = await db
@@ -1216,6 +1229,7 @@ export async function exportGraphics(
 	opportunityId: string,
 	format: "zip" | "pdf"
 ): Promise<ActionResult<{ downloadUrl: string }>> {
+	const actorId = await requireGraphicActor();
 	try {
 		// Get all graphics for this opportunity
 		const graphics = await db
@@ -1255,6 +1269,7 @@ export async function exportGraphics(
 				}),
 				aiGenerated: false,
 				status: "pending",
+				createdBy: actorId,
 			});
 
 		return {
@@ -1283,6 +1298,7 @@ export async function exportGraphics(
 export async function createGraphicTemplate(
 	input: CreateTemplateInput
 ): Promise<ActionResult<GraphicTemplate>> {
+	const actorId = await requireGraphicActor();
 	try {
 		const validated = CreateTemplateSchema.parse(input);
 
@@ -1296,6 +1312,7 @@ export async function createGraphicTemplate(
 			previewImageUrl: validated.previewImageUrl,
 			isPublic: validated.isPublic ?? false,
 			organizationId: validated.organizationId,
+			createdBy: actorId,
 			useCount: 0,
 		};
 
@@ -1356,6 +1373,7 @@ export async function applyTemplate(
 	templateId: string,
 	data: Record<string, string>
 ): Promise<ActionResult<string>> {
+	await requireGraphicActor();
 	try {
 		const [template] = await db
 			.select()
@@ -1446,6 +1464,7 @@ export async function updateStyleGuide(
 	id: string,
 	data: Partial<GraphicStyleGuide>
 ): Promise<ActionResult<GraphicStyleGuide>> {
+	await requireGraphicActor();
 	try {
 		// Remove id, createdAt from update data if present
 		const { id: _, createdAt: __, ...updateData } = data as Record<string, unknown>;
@@ -1529,6 +1548,7 @@ export async function copyGraphic(
 	targetOpportunityId: string,
 	targetDocumentId?: string
 ): Promise<ActionResult<ProposalGraphic>> {
+	await requireGraphicActor();
 	try {
 		const [source] = await db
 			.select()
@@ -1622,8 +1642,9 @@ export async function recordGraphicFeedback(
 	graphicId: string,
 	feedbackType: "suggestion" | "critique" | "approval",
 	content: string,
-	userId?: string
+	_userId?: string
 ): Promise<ActionResult<{ recorded: boolean }>> {
+	const actorId = await requireGraphicActor();
 	try {
 		await db.insert(graphicFeedback).values({
 			graphicId,
@@ -1631,7 +1652,7 @@ export async function recordGraphicFeedback(
 			content,
 			aiGenerated: false,
 			status: "pending",
-			createdBy: userId,
+			createdBy: actorId,
 		});
 
 		return { success: true, data: { recorded: true } };
@@ -1650,14 +1671,15 @@ export async function recordGraphicFeedback(
  */
 export async function approveGraphic(
 	graphicId: string,
-	approvedBy: string
+	_approvedBy: string
 ): Promise<ActionResult<ProposalGraphic>> {
+	const actorId = await requireGraphicActor();
 	try {
 		const [graphic] = await db
 			.update(proposalGraphics)
 			.set({
 				status: "approved",
-				approvedBy,
+				approvedBy: actorId,
 				approvedAt: new Date(),
 				updatedAt: new Date(),
 			})
@@ -1687,6 +1709,7 @@ export async function approveGraphic(
 export async function reorderGraphics(
 	updates: Array<{ id: string; figureNumber: string }>
 ): Promise<ActionResult<{ updated: number }>> {
+	await requireGraphicActor();
 	try {
 		let updatedCount = 0;
 
@@ -1915,6 +1938,7 @@ export async function createGraphicFromLibraryTemplate(
 		placeholderValues?: Record<string, string>;
 	}
 ): Promise<ActionResult<ProposalGraphic>> {
+	await requireGraphicActor();
 	try {
 		const template = getDiagramLibTemplateById(templateId);
 
