@@ -7,6 +7,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import {
 	roles,
 	companyProfiles,
@@ -43,6 +44,14 @@ import type {
 /** Organization ID for Datacraft */
 const ORGANIZATION_ID = "datacraft";
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 // ============================================================================
 // Role CRUD
 // ============================================================================
@@ -51,6 +60,8 @@ const ORGANIZATION_ID = "datacraft";
  * Get all roles with optional filtering.
  */
 export async function getRoles(filters?: RoleFilters): Promise<Role[]> {
+	await requireCurrentUserId();
+
 	const conditions = [eq(roles.organizationId, ORGANIZATION_ID)];
 
 	if (filters?.search) {
@@ -80,6 +91,8 @@ export async function getRoles(filters?: RoleFilters): Promise<Role[]> {
  * Get a single role by ID.
  */
 export async function getRole(id: string): Promise<Role | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.select()
 		.from(roles)
@@ -92,6 +105,8 @@ export async function getRole(id: string): Promise<Role | null> {
  * Create a new role.
  */
 export async function createRole(input: CreateRoleInput): Promise<Role> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.insert(roles)
 		.values({
@@ -112,6 +127,8 @@ export async function createRole(input: CreateRoleInput): Promise<Role> {
  * Update a role.
  */
 export async function updateRole(id: string, input: UpdateRoleInput): Promise<Role> {
+	await requireCurrentUserId();
+
 	const updateData: Partial<RoleRow> = {
 		updatedAt: new Date(),
 	};
@@ -140,6 +157,8 @@ export async function updateRole(id: string, input: UpdateRoleInput): Promise<Ro
  * Delete a role.
  */
 export async function deleteRole(id: string): Promise<void> {
+	await requireCurrentUserId();
+
 	await db
 		.delete(roles)
 		.where(and(eq(roles.id, id), eq(roles.organizationId, ORGANIZATION_ID)));
@@ -149,6 +168,8 @@ export async function deleteRole(id: string): Promise<void> {
  * Get unique departments.
  */
 export async function getDepartments(): Promise<string[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select({ department: roles.department })
 		.from(roles)
@@ -167,6 +188,8 @@ export async function getDepartments(): Promise<string[]> {
  * Get the company profile.
  */
 export async function getCompanyProfile(): Promise<CompanyProfile | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.select()
 		.from(companyProfiles)
@@ -179,6 +202,8 @@ export async function getCompanyProfile(): Promise<CompanyProfile | null> {
  * Create or update the company profile.
  */
 export async function saveCompanyProfile(input: CompanyProfileInput): Promise<CompanyProfile> {
+	await requireCurrentUserId();
+
 	const existing = await getCompanyProfile();
 
 	if (existing) {
@@ -237,6 +262,8 @@ export async function saveCompanyProfile(input: CompanyProfileInput): Promise<Co
  * Get all products with optional filtering.
  */
 export async function getProducts(filters?: ProductFilters): Promise<Product[]> {
+	await requireCurrentUserId();
+
 	const conditions = [eq(products.organizationId, ORGANIZATION_ID)];
 
 	if (filters?.search) {
@@ -266,6 +293,8 @@ export async function getProducts(filters?: ProductFilters): Promise<Product[]> 
  * Get a single product by ID.
  */
 export async function getProduct(id: string): Promise<Product | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.select()
 		.from(products)
@@ -278,6 +307,8 @@ export async function getProduct(id: string): Promise<Product | null> {
  * Create a new product.
  */
 export async function createProduct(input: CreateProductInput): Promise<Product> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.insert(products)
 		.values({
@@ -305,6 +336,8 @@ export async function createProduct(input: CreateProductInput): Promise<Product>
  * Update a product.
  */
 export async function updateProduct(id: string, input: UpdateProductInput): Promise<Product> {
+	await requireCurrentUserId();
+
 	const updateData: Partial<ProductRow> = {
 		updatedAt: new Date(),
 	};
@@ -340,6 +373,8 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
  * Delete a product.
  */
 export async function deleteProduct(id: string): Promise<void> {
+	await requireCurrentUserId();
+
 	await db
 		.delete(products)
 		.where(and(eq(products.id, id), eq(products.organizationId, ORGANIZATION_ID)));
@@ -349,6 +384,8 @@ export async function deleteProduct(id: string): Promise<void> {
  * Get unique product categories.
  */
 export async function getProductCategories(): Promise<string[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select({ category: products.category })
 		.from(products)
@@ -367,6 +404,8 @@ export async function getProductCategories(): Promise<string[]> {
  * Get all services with optional filtering.
  */
 export async function getServices(filters?: ServiceFilters): Promise<Service[]> {
+	await requireCurrentUserId();
+
 	const conditions = [eq(services.organizationId, ORGANIZATION_ID)];
 
 	if (filters?.search) {
@@ -396,6 +435,8 @@ export async function getServices(filters?: ServiceFilters): Promise<Service[]> 
  * Get a single service by ID.
  */
 export async function getService(id: string): Promise<Service | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.select()
 		.from(services)
@@ -408,6 +449,8 @@ export async function getService(id: string): Promise<Service | null> {
  * Create a new service.
  */
 export async function createService(input: CreateServiceInput): Promise<Service> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.insert(services)
 		.values({
@@ -430,6 +473,8 @@ export async function createService(input: CreateServiceInput): Promise<Service>
  * Update a service.
  */
 export async function updateService(id: string, input: UpdateServiceInput): Promise<Service> {
+	await requireCurrentUserId();
+
 	const updateData: Partial<ServiceRow> = {
 		updatedAt: new Date(),
 	};
@@ -460,6 +505,8 @@ export async function updateService(id: string, input: UpdateServiceInput): Prom
  * Delete a service.
  */
 export async function deleteService(id: string): Promise<void> {
+	await requireCurrentUserId();
+
 	await db
 		.delete(services)
 		.where(and(eq(services.id, id), eq(services.organizationId, ORGANIZATION_ID)));
@@ -469,6 +516,8 @@ export async function deleteService(id: string): Promise<void> {
  * Get unique service categories.
  */
 export async function getServiceCategories(): Promise<string[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select({ category: services.category })
 		.from(services)
@@ -487,6 +536,8 @@ export async function getServiceCategories(): Promise<string[]> {
  * Get company setup statistics.
  */
 export async function getCompanyStats(): Promise<CompanyStats> {
+	await requireCurrentUserId();
+
 	// Get basic counts
 	const [roleResult, productResult, serviceResult] = await Promise.all([
 		db.select({ count: sql<number>`COUNT(*)` }).from(roles).where(eq(roles.organizationId, ORGANIZATION_ID)),
