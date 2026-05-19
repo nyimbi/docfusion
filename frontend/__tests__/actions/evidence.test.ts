@@ -101,9 +101,11 @@ vi.mock("@/lib/db/schema-evidence", () => ({
 	},
 	evidenceUsages: {
 		id: "eu.id", evidenceId: "eu.evidenceId", documentId: "eu.docId",
+		opportunityId: "eu.opportunityId",
 	},
 	claimAnalysis: {
 		id: "ca.id", documentId: "ca.docId", sectionId: "ca.secId",
+		opportunityId: "ca.opportunityId",
 	},
 	evidenceMatrices: {
 		id: "em.id", opportunityId: "em.oppId",
@@ -126,6 +128,7 @@ import {
 	getMostUsedEvidence,
 	archiveEvidence,
 	getEvidenceUsageStats,
+	calculateEvidenceCoverage,
 } from "@/lib/actions/evidence";
 
 // ============================================================================
@@ -177,6 +180,25 @@ async function mockMissingOrganizationContextOnce() {
 		userId: "user-001",
 		organizationId: undefined,
 	});
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) =>
+		collectSqlFragments(item, seen)
+	);
 }
 
 // ============================================================================
@@ -677,6 +699,37 @@ describe("DB-to-API evidence mapping", () => {
 			expect(result.data.status).toBe("draft");
 			expect(result.data.createdAt).toBeInstanceOf(Date);
 			expect(result.data.updatedAt).toBeInstanceOf(Date);
+		}
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Opportunity-scoped coverage
+// ---------------------------------------------------------------------------
+
+describe("Evidence opportunity scoping", () => {
+	test("scopes coverage usage and claim reads through assigned opportunities", async () => {
+		const wheres: unknown[] = [];
+		const usagesQuery = createChainableQuery([]);
+		const claimsQuery = createChainableQuery([]);
+		(usagesQuery.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			wheres.push(value);
+			return usagesQuery;
+		});
+		(claimsQuery.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			wheres.push(value);
+			return claimsQuery;
+		});
+		dbMock.select
+			.mockReturnValueOnce(usagesQuery)
+			.mockReturnValueOnce(claimsQuery);
+
+		const result = await calculateEvidenceCoverage("33333333-3333-4333-8333-333333333333");
+
+		expect(result.success).toBe(true);
+		expect(wheres).toHaveLength(2);
+		for (const where of wheres) {
+			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 		}
 	});
 });

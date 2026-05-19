@@ -147,6 +147,29 @@ function visibleEvidenceIdsCondition(ids: string[], userContext: EvidenceUserCon
 	)!;
 }
 
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleEvidenceUsagesForOpportunityCondition(opportunityId: string, userContext: EvidenceUserContext): SQL {
+	return and(
+		eq(evidenceUsages.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userContext.userId)
+	)!;
+}
+
+function visibleClaimsForOpportunityCondition(opportunityId: string, userContext: EvidenceUserContext): SQL {
+	return and(
+		eq(claimAnalysis.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userContext.userId)
+	)!;
+}
+
 // ============================================================================
 // Type Definitions
 // ============================================================================
@@ -1654,13 +1677,19 @@ export async function calculateEvidenceDistribution(documentId: string): Promise
  */
 export async function calculateEvidenceCoverage(opportunityId: string): Promise<ActionResult<CoverageAnalysis>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		// Get all evidence used for this opportunity
-		const usages = await db.select().from(evidenceUsages).where(eq(evidenceUsages.opportunityId, opportunityId));
+		const usages = await db
+			.select()
+			.from(evidenceUsages)
+			.where(visibleEvidenceUsagesForOpportunityCondition(opportunityId, userContext));
 
 	// Get claims for this opportunity
-	const claims = await db.select().from(claimAnalysis).where(eq(claimAnalysis.opportunityId, opportunityId));
+	const claims = await db
+		.select()
+		.from(claimAnalysis)
+		.where(visibleClaimsForOpportunityCondition(opportunityId, userContext));
 
 	const totalClaims = claims.length || 1;
 	const claimsWithEvidence = claims.filter((c) => c.hasEvidence).length;
