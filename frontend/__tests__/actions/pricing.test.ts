@@ -142,6 +142,13 @@ import {
 	analyzeCostRealism,
 	exportCostVolume,
 	exportBOEPackage,
+	validateCostTechnicalAlignment,
+	generateWBSFromTechnical,
+	updateWBSCodes,
+	validateWBSStructure,
+	listContractPeriods,
+	getWBSTree,
+	getPricingSummary,
 	createCostElement,
 	updateCostElement,
 	deleteCostElement,
@@ -713,6 +720,90 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		mockUserContext.organizationId = undefined;
 
 		const result = await exportBOEPackage(opportunityId);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before validating cost technical alignment", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await validateCostTechnicalAlignment(opportunityId);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before generating WBS from technical data", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await generateWBSFromTechnical(opportunityId);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before updating WBS codes", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await updateWBSCodes(opportunityId, [{ elementId: "ce-1", wbsCode: "1.1" }]);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.transaction).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before validating WBS structure", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await validateWBSStructure(opportunityId);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before listing contract periods", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await listContractPeriods(opportunityId);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before building WBS tree", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await getWBSTree(opportunityId);
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before reading pricing summary", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await getPricingSummary(opportunityId);
 
 		expect(result.success).toBe(false);
 		if (!result.success) {

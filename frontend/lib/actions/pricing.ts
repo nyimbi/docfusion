@@ -1247,13 +1247,16 @@ export async function validateCostTechnicalAlignment(
 	opportunityId: string
 ): Promise<ActionResult<AlignmentReport>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		// Get all cost elements for the opportunity
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId));
+			.where(costElementsByOpportunityCondition(opportunityId, userContext));
 
 		// Get technical tracking records
 		const tracking = await db
@@ -3146,7 +3149,10 @@ export async function generateWBSFromTechnical(
 	opportunityId: string
 ): Promise<ActionResult<WBSItem[]>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		// Get technical tracking records
 		const tracking = await db
@@ -3158,7 +3164,7 @@ export async function generateWBSFromTechnical(
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId));
+			.where(costElementsByOpportunityCondition(opportunityId, userContext));
 
 		// Use AI to suggest WBS structure
 		const ai = getAIClient();
@@ -3240,7 +3246,10 @@ export async function updateWBSCodes(
 	mappings: { elementId: string; wbsCode: string }[]
 ): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		await db.transaction(async (tx) => {
 			for (const mapping of mappings) {
@@ -3252,7 +3261,7 @@ export async function updateWBSCodes(
 					})
 					.where(
 						and(
-							eq(costElements.id, mapping.elementId),
+							costElementByIdCondition(mapping.elementId, userContext),
 							eq(costElements.opportunityId, opportunityId)
 						)
 					);
@@ -3281,12 +3290,15 @@ export async function validateWBSStructure(
 	opportunityId: string
 ): Promise<ActionResult<{ valid: boolean; issues: string[] }>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId));
+			.where(costElementsByOpportunityCondition(opportunityId, userContext));
 
 		const issues: string[] = [];
 
@@ -3459,13 +3471,16 @@ export async function listContractPeriods(
 	opportunityId: string
 ): Promise<ActionResult<ContractPeriodData[]>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		// Get cost elements grouped by period
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId));
+			.where(costElementsByOpportunityCondition(opportunityId, userContext));
 
 		// Group by period number
 		const periodMap = new Map<number, CostElement[]>();
@@ -3524,13 +3539,16 @@ export async function getWBSTree(
 	opportunityId: string
 ): Promise<ActionResult<WBSTreeData>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		// Get all cost elements to derive WBS structure
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId))
+			.where(costElementsByOpportunityCondition(opportunityId, userContext))
 			.orderBy(asc(costElements.wbsCode));
 
 		// Build tree from WBS codes
@@ -3826,12 +3844,15 @@ export async function getPricingSummary(
 ): Promise<ActionResult<PricingSummaryUIData>> {
 	try {
 		const userContext = await requirePricingContext();
+		if (!(await ensureAssignedOpportunity(opportunityId, userContext))) {
+			return { success: false, error: "Opportunity not found" };
+		}
 
 		// Get cost elements
 		const elements = await db
 			.select()
 			.from(costElements)
-			.where(eq(costElements.opportunityId, opportunityId));
+			.where(costElementsByOpportunityCondition(opportunityId, userContext));
 
 		// Get indirect rates
 		const orgId = userContext.organizationId;
