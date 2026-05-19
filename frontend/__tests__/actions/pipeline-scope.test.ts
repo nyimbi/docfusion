@@ -217,6 +217,7 @@ describe("pipeline row scoping", () => {
 
 	it("scopes suggested PWin activity reads through the owning pipeline opportunity", async () => {
 		let activityWhere: unknown;
+		let partnersWhere: unknown;
 		dbMock.select
 			.mockReturnValueOnce(createChain({ result: [pipeline] }))
 			.mockReturnValueOnce(createChain({ result: [{ ...opportunity, fitScore: 65, organization: "Acme" }] }))
@@ -226,7 +227,12 @@ describe("pipeline row scoping", () => {
 					activityWhere = value;
 				},
 			}))
-			.mockReturnValueOnce(createChain({ result: [] }));
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => {
+					partnersWhere = value;
+				},
+			}));
 
 		const result = await calculateSuggestedPwin(opportunity.id);
 
@@ -235,6 +241,7 @@ describe("pipeline row scoping", () => {
 			data: { confidence: 0.7 },
 		});
 		expect(collectSqlFragments(activityWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(partnersWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
 
 	it("scopes analytics reads to assigned opportunities", async () => {

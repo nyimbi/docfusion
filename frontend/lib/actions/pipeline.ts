@@ -383,6 +383,13 @@ function visiblePipelineForOpportunityCondition(opportunityId: string, actorId: 
 	)!;
 }
 
+function visibleOpportunityPartnersForOpportunityCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(opportunityPartners.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, actorId)
+	)!;
+}
+
 function assignedPipelineExistsSql(pipelineId: unknown, actorId: string): SQL {
 	return sql`exists (
 		select 1
@@ -859,7 +866,7 @@ export async function calculateSuggestedPwin(opportunityId: string): Promise<Act
 		const partnerResults = await db
 			.select()
 			.from(opportunityPartners)
-			.where(eq(opportunityPartners.opportunityId, opportunityId));
+			.where(visibleOpportunityPartnersForOpportunityCondition(opportunityId, actorId));
 
 		// Define scoring factors
 		const factors: PwinCalculation["factors"] = [];
