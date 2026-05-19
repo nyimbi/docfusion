@@ -98,6 +98,13 @@ function visibleCostElementsByOpportunityCondition(opportunityId: string, userId
 	)!;
 }
 
+function visibleCostTechnicalTrackingByOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(costTechnicalTracking.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
 export async function transitionCostElementPricingWorkflow(
 	input: CostElementPricingWorkflowInput
 ): Promise<PricingApprovalWorkflowResult> {
@@ -205,7 +212,9 @@ export async function transitionPricingPackageWorkflow(
 
 	const [elements, trackingRows] = await Promise.all([
 		db.select().from(costElements).where(visibleCostElementsByOpportunityCondition(summary.opportunityId, userContext.userId)),
-		db.select().from(costTechnicalTracking).where(eq(costTechnicalTracking.opportunityId, summary.opportunityId)),
+		db.select().from(costTechnicalTracking).where(
+			visibleCostTechnicalTrackingByOpportunityCondition(summary.opportunityId, userContext.userId)
+		),
 	]);
 	const fromState = derivePricingSummaryState(summary, elements);
 	const transition = buildPricingPackageTransition({

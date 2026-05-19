@@ -19,13 +19,18 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -34,6 +39,25 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) =>
+		collectSqlFragments(item, seen)
+	);
 }
 
 var dbMock: any;
@@ -325,10 +349,16 @@ describe("pricing approval workflow", () => {
 
 	it("locks the pricing package when approved costs and authorized waiver gates pass", async () => {
 		let patch: Record<string, unknown> | undefined;
+		let trackingWhere: unknown;
 		dbMock.select
 			.mockReturnValueOnce(createChain({ result: [pricingSummary] }))
 			.mockReturnValueOnce(createChain({ result: [{ ...baseCostElement, status: "approved" }] }))
-			.mockReturnValueOnce(createChain({ result: [criticalTrackingRow] }));
+			.mockReturnValueOnce(createChain({
+				result: [criticalTrackingRow],
+				onWhere: (value) => {
+					trackingWhere = value;
+				},
+			}));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [{ ...pricingSummary, calculatedBy: "pricing-lead-1" }],
 			onSet: (value) => {
@@ -354,6 +384,7 @@ describe("pricing approval workflow", () => {
 			calculatedBy: "pricing-lead-1",
 		});
 		expect(patch?.calculatedAt).toBeInstanceOf(Date);
+		expect(collectSqlFragments(trackingWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({
 				workflowKey: "pricing_package_approval",
