@@ -8,6 +8,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import { savedSearches } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import type { OpportunityFilters, OpportunitySort } from "@/lib/types/opportunity";
@@ -40,13 +41,23 @@ export interface SavedSearchInput {
 // CRUD Operations
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 /**
  * Create a new saved search.
  */
 export async function createSavedSearch(
-	userId: string,
+	_userId: string,
 	input: SavedSearchInput
 ): Promise<SavedSearch> {
+	const userId = await requireCurrentUserId();
+
 	// If setting as default, unset any existing default for this user
 	if (input.isDefault) {
 		await db
@@ -73,7 +84,9 @@ export async function createSavedSearch(
 /**
  * List all saved searches for a user.
  */
-export async function listSavedSearches(userId: string): Promise<SavedSearch[]> {
+export async function listSavedSearches(_userId: string): Promise<SavedSearch[]> {
+	const userId = await requireCurrentUserId();
+
 	const rows = await db
 		.select()
 		.from(savedSearches)
@@ -86,7 +99,9 @@ export async function listSavedSearches(userId: string): Promise<SavedSearch[]> 
 /**
  * Get the default saved search for a user.
  */
-export async function getDefaultSavedSearch(userId: string): Promise<SavedSearch | null> {
+export async function getDefaultSavedSearch(_userId: string): Promise<SavedSearch | null> {
+	const userId = await requireCurrentUserId();
+
 	const [row] = await db
 		.select()
 		.from(savedSearches)
@@ -101,9 +116,11 @@ export async function getDefaultSavedSearch(userId: string): Promise<SavedSearch
  */
 export async function updateSavedSearch(
 	id: string,
-	userId: string,
+	_userId: string,
 	input: Partial<SavedSearchInput>
 ): Promise<SavedSearch> {
+	const userId = await requireCurrentUserId();
+
 	// If setting as default, unset others
 	if (input.isDefault) {
 		await db
@@ -138,7 +155,9 @@ export async function updateSavedSearch(
 /**
  * Delete a saved search.
  */
-export async function deleteSavedSearch(id: string, userId: string): Promise<void> {
+export async function deleteSavedSearch(id: string, _userId: string): Promise<void> {
+	const userId = await requireCurrentUserId();
+
 	await db
 		.delete(savedSearches)
 		.where(and(eq(savedSearches.id, id), eq(savedSearches.userId, userId)));
@@ -147,7 +166,9 @@ export async function deleteSavedSearch(id: string, userId: string): Promise<voi
 /**
  * Set a saved search as the default for a user.
  */
-export async function setDefaultSavedSearch(id: string, userId: string): Promise<SavedSearch> {
+export async function setDefaultSavedSearch(id: string, _userId: string): Promise<SavedSearch> {
+	const userId = await requireCurrentUserId();
+
 	// Unset existing default
 	await db
 		.update(savedSearches)
