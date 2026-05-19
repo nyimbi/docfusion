@@ -14,6 +14,7 @@ import { initializeAIConfig } from "@/lib/ai/config";
 import { getProviderManager } from "@/lib/ai/providers";
 import type { DocumentContent, DocumentBlock } from "@/lib/types/document";
 import { logger } from "@/lib/utils/logger";
+import { getCurrentUserId } from "@/lib/auth-utils";
 
 // ============================================================================
 // Types
@@ -108,6 +109,14 @@ const WORD_TARGETS = {
 // Approximate tokens per word for estimation
 const TOKENS_PER_WORD = 1.5;
 
+async function requireDocumentGenerationUserId(expectedUserId?: string): Promise<string> {
+	const currentUserId = await getCurrentUserId();
+	if (!currentUserId || (expectedUserId && currentUserId !== expectedUserId)) {
+		throw new Error("Unauthorized");
+	}
+	return currentUserId;
+}
+
 // ============================================================================
 // Structure Generation
 // ============================================================================
@@ -119,6 +128,7 @@ const TOKENS_PER_WORD = 1.5;
 export async function generateDocumentStructure(
 	input: GenerateStructureInput
 ): Promise<DocumentStructure[]> {
+	await requireDocumentGenerationUserId();
 	const { prompt, documentType, tone = "professional", audience, minSections = 5, maxSections = 10 } = input;
 
 	// Ensure AI config is initialized (server action context)
@@ -384,6 +394,7 @@ function parseContentResponse(responseContent: string): DocumentContent {
 export async function generateSectionContent(
 	input: GenerateSectionInput
 ): Promise<{ content: DocumentContent; wordCount: number; charCount: number }> {
+	await requireDocumentGenerationUserId();
 	const { sectionTitle, parentContext, tone, length, keyPoints, references } = input;
 
 	const targetWords = WORD_TARGETS[length];
@@ -494,6 +505,7 @@ Style: ${style}`;
 export async function generateDiagram(
 	input: GenerateDiagramInput
 ): Promise<GeneratedDiagram> {
+	await requireDocumentGenerationUserId();
 	const { description, type, style = "modern" } = input;
 
 	// Check if AI provider is available
@@ -693,7 +705,8 @@ export async function createDocumentFromStructure(
 	}
 ): Promise<{ id: string; content: DocumentContent }> {
 	try {
-		logger.debug("[Server] createDocumentFromStructure called", { title, structureCount: structure.length, userId });
+		const currentUserId = await requireDocumentGenerationUserId(userId);
+		logger.debug("[Server] createDocumentFromStructure called", { title, structureCount: structure.length, userId: currentUserId });
 		// Convert structure to document content
 		const content = structureToDocumentContent(structure);
 
@@ -702,7 +715,7 @@ export async function createDocumentFromStructure(
 			.values({
 				title,
 				content,
-				ownerId: userId,
+				ownerId: currentUserId,
 				templateId: options?.templateId ? uuidv4() : null,
 				status: "draft",
 				wordCount: 0,
@@ -715,7 +728,7 @@ export async function createDocumentFromStructure(
 			versionNumber: 1,
 			content,
 			changeDescription: "Document created from AI-generated structure",
-			createdBy: userId,
+			createdBy: currentUserId,
 		});
 
 		logger.debug("[Server] Document created successfully:", doc.id);
