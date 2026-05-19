@@ -22,6 +22,7 @@ import {
 	sql,
 	count,
 } from "drizzle-orm";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import type {
 	DecisionStatus,
 	PriorityRank,
@@ -242,6 +243,14 @@ function mapToOpportunityListItem(row: typeof opportunities.$inferSelect): Oppor
 // CRUD Operations
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 /**
  * Create a new opportunity.
  *
@@ -251,6 +260,8 @@ function mapToOpportunityListItem(row: typeof opportunities.$inferSelect): Oppor
 export async function createOpportunity(
 	input: CreateOpportunityInput
 ): Promise<OpportunityListItem> {
+	await requireCurrentUserId();
+
 	const now = new Date();
 
 	// Parse dates
@@ -346,6 +357,8 @@ export async function createOpportunity(
 export async function getOpportunityById(
 	id: string
 ): Promise<OpportunityListItem | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.select()
 		.from(opportunities)
@@ -367,6 +380,8 @@ export async function updateOpportunity(
 	id: string,
 	input: UpdateOpportunityInput
 ): Promise<OpportunityListItem> {
+	await requireCurrentUserId();
+
 	const now = new Date();
 
 	// Build update data
@@ -519,6 +534,8 @@ export async function updateOpportunity(
  * @throws Error if deletion fails
  */
 export async function deleteOpportunity(id: string): Promise<void> {
+	await requireCurrentUserId();
+
 	// Delete associated votes first (cascade should handle this, but being explicit)
 	await db.delete(opportunityVotes).where(eq(opportunityVotes.opportunityId, id));
 
@@ -545,6 +562,8 @@ export async function listOpportunities(
 	page: number = 1,
 	pageSize: number = 25
 ): Promise<OpportunityListResponse> {
+	await requireCurrentUserId();
+
 	const offset = (page - 1) * pageSize;
 
 	// Build WHERE conditions
@@ -745,6 +764,8 @@ export async function listOpportunities(
 export async function duplicateOpportunity(
 	id: string
 ): Promise<OpportunityListItem> {
+	await requireCurrentUserId();
+
 	// Get the original opportunity
 	const [original] = await db
 		.select()
@@ -832,6 +853,8 @@ export async function bulkUpdateStatus(
 	status: DecisionStatus,
 	reason?: string
 ): Promise<number> {
+	await requireCurrentUserId();
+
 	const result = await db
 		.update(opportunities)
 		.set({
@@ -851,6 +874,8 @@ export async function bulkUpdateStatus(
  * @returns Number of opportunities deleted
  */
 export async function bulkDeleteOpportunities(ids: string[]): Promise<number> {
+	await requireCurrentUserId();
+
 	// Delete votes first
 	await db.delete(opportunityVotes).where(inArray(opportunityVotes.opportunityId, ids));
 
@@ -867,6 +892,8 @@ export async function bulkDeleteOpportunities(ids: string[]): Promise<number> {
  * @returns Number of opportunities updated
  */
 export async function refreshExpirationStatus(): Promise<number> {
+	await requireCurrentUserId();
+
 	const now = new Date();
 
 	const result = await db.execute(sql`
@@ -914,6 +941,8 @@ export interface CalendarDeadline {
  * @returns Array of calendar deadlines
  */
 export async function getUpcomingDeadlines(daysAhead: number = 30): Promise<CalendarDeadline[]> {
+	await requireCurrentUserId();
+
 	const now = new Date();
 	const futureDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
 
