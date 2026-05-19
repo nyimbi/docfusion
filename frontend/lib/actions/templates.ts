@@ -623,15 +623,15 @@ export async function getAvailableTemplateVariables(): Promise<
  */
 export async function duplicateTemplate(
 	templateId: string,
-	options?: { newName?: string; createdBy?: string }
+	options?: { newName?: string }
 ): Promise<Template | null> {
+	const userId = await requireCurrentUserId();
 	const original = await getTemplate(templateId);
 	if (!original) {
 		return null;
 	}
 
 	const newName = options?.newName || `${original.name} (Copy)`;
-	const createdBy = options?.createdBy || original.createdBy;
 
 	const [duplicated] = await db
 		.insert(templates)
@@ -641,7 +641,7 @@ export async function duplicateTemplate(
 			content: original.content,
 			status: "draft", // Always start as draft
 			visibility: "private", // Start as private
-			createdBy,
+			createdBy: userId,
 			categoryIds: original.categoryIds,
 			tags: original.tags,
 			placeholders: original.placeholders,
