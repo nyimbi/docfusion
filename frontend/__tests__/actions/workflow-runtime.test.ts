@@ -565,6 +565,7 @@ describe("workflow runtime", () => {
 					id: "notification-1",
 					channel: "email",
 					actionUrl: "/workflows",
+					metadata: { existing: true },
 				},
 				instance: {
 					workflowKey: "requirement_acceptance",
@@ -592,7 +593,7 @@ describe("workflow runtime", () => {
 		expect(result).toEqual({ attempted: 1, delivered: 0, failed: 1, skipped: 0 });
 		expect(failurePatch).toMatchObject({
 			deliveryStatus: "failed",
-			metadata: { error: "Recipient email is missing" },
+			metadata: { existing: true, error: "Recipient email is missing" },
 		});
 	});
 

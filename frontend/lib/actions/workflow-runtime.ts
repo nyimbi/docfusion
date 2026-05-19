@@ -798,7 +798,7 @@ export async function deliverWorkflowNotifications(options: {
 		}
 		if (!row.recipient.email) {
 			failed += 1;
-			await markNotificationFailed(row.notification.id, "Recipient email is missing");
+			await markNotificationFailed(row.notification, "Recipient email is missing");
 			continue;
 		}
 
@@ -819,7 +819,7 @@ export async function deliverWorkflowNotifications(options: {
 				.where(eq(workflowNotifications.id, row.notification.id));
 		} catch (error) {
 			failed += 1;
-			await markNotificationFailed(row.notification.id, error instanceof Error ? error.message : "Delivery failed");
+			await markNotificationFailed(row.notification, error instanceof Error ? error.message : "Delivery failed");
 		}
 	}
 
@@ -881,14 +881,17 @@ async function enqueueWorkflowNotifications(
 	})));
 }
 
-async function markNotificationFailed(notificationId: string, error: string) {
+async function markNotificationFailed(notification: WorkflowNotificationRow, error: string) {
 	await db
 		.update(workflowNotifications)
 		.set({
 			deliveryStatus: "failed",
-			metadata: { error },
+			metadata: {
+				...(isRecord(notification.metadata) ? notification.metadata : {}),
+				error,
+			},
 		})
-		.where(eq(workflowNotifications.id, notificationId));
+		.where(eq(workflowNotifications.id, notification.id));
 }
 
 function isWithinNotificationQuietHours(preferences: unknown, now: Date): boolean {
