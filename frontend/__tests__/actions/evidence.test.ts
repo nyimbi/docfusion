@@ -105,7 +105,7 @@ vi.mock("@/lib/db/schema-evidence", () => ({
 	},
 	claimAnalysis: {
 		id: "ca.id", documentId: "ca.docId", sectionId: "ca.secId",
-		opportunityId: "ca.opportunityId",
+		opportunityId: "ca.opportunityId", analyzedAt: "ca.analyzedAt",
 	},
 	evidenceMatrices: {
 		id: "em.id", opportunityId: "em.oppId",
@@ -128,6 +128,14 @@ import {
 	getMostUsedEvidence,
 	archiveEvidence,
 	getEvidenceUsageStats,
+	analyzeClaimsInDocument,
+	analyzeClaimsInSection,
+	getClaimAnalysis,
+	resolveClaim,
+	linkEvidenceToClaim,
+	suggestEvidenceForClaim,
+	suggestEvidenceForSection,
+	getClaimsSummary,
 	calculateEvidenceCoverage,
 	generateEvidenceMatrix,
 	generateEvidenceReport,
@@ -176,6 +184,33 @@ function makeDbEvidenceRow(overrides: Record<string, unknown> = {}) {
 	};
 }
 
+function makeDbClaimRow(overrides: Record<string, unknown> = {}) {
+	return {
+		id: "claim-001",
+		documentId: "doc-001",
+		sectionId: "section-001",
+		opportunityId: "opp-001",
+		claimText: "We deliver measurable uptime improvements.",
+		claimType: "performance",
+		claimLocation: null,
+		hasEvidence: false,
+		evidenceStrength: "none",
+		linkedEvidenceIds: [],
+		suggestedEvidence: [],
+		quantificationSuggestion: null,
+		riskLevel: "medium",
+		evaluatorImpact: null,
+		status: "open",
+		resolution: null,
+		resolvedBy: null,
+		resolvedAt: null,
+		resolutionNotes: null,
+		analyzedAt: new Date("2026-05-01T00:00:00.000Z"),
+		createdAt: new Date("2026-05-01T00:00:00.000Z"),
+		...overrides,
+	};
+}
+
 async function mockMissingOrganizationContextOnce() {
 	const { requireUserContext } = await import("@/lib/auth-utils");
 	(requireUserContext as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
@@ -201,6 +236,10 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	return Object.values(value as Record<string, unknown>).flatMap((item) =>
 		collectSqlFragments(item, seen)
 	);
+}
+
+function expectAssignedOpportunityScope(where: unknown) {
+	expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 }
 
 // ============================================================================
@@ -778,6 +817,110 @@ describe("Evidence opportunity scoping", () => {
 
 		expect(result.success).toBe(true);
 		expect(collectSqlFragments(usageWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	test("scopes document and section claim reads through assigned opportunities", async () => {
+		const wheres: unknown[] = [];
+		const documentClaimsQuery = createChainableQuery([makeDbClaimRow()]);
+		const sectionClaimsQuery = createChainableQuery([makeDbClaimRow()]);
+		const summaryClaimsQuery = createChainableQuery([makeDbClaimRow()]);
+		for (const query of [documentClaimsQuery, sectionClaimsQuery, summaryClaimsQuery]) {
+			(query.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+				wheres.push(value);
+				return query;
+			});
+		}
+		dbMock.select
+			.mockReturnValueOnce(documentClaimsQuery)
+			.mockReturnValueOnce(sectionClaimsQuery)
+			.mockReturnValueOnce(summaryClaimsQuery);
+
+		const documentResult = await analyzeClaimsInDocument("doc-001");
+		const sectionResult = await analyzeClaimsInSection("section-001");
+		const summaryResult = await getClaimsSummary("doc-001");
+		if (!documentResult.success) throw new Error(documentResult.error);
+		if (!sectionResult.success) throw new Error(sectionResult.error);
+		if (!summaryResult.success) throw new Error(summaryResult.error);
+
+		expect(wheres).toHaveLength(3);
+		for (const where of wheres) {
+			expectAssignedOpportunityScope(where);
+		}
+	});
+
+	test("scopes direct claim lookup, mutation, and suggestions through assigned opportunities", async () => {
+		const wheres: unknown[] = [];
+		const claimReadQuery = createChainableQuery([makeDbClaimRow()]);
+		const claimUpdateQuery = createChainableQuery([]);
+		const linkClaimQuery = createChainableQuery([makeDbClaimRow()]);
+		const evidenceQuery = createChainableQuery([makeDbEvidenceRow()]);
+		const linkUpdateQuery = createChainableQuery([]);
+		const suggestClaimQuery = createChainableQuery([makeDbClaimRow()]);
+		const approvedEvidenceQuery = createChainableQuery([makeDbEvidenceRow()]);
+
+		for (const query of [
+			claimReadQuery,
+			claimUpdateQuery,
+			linkClaimQuery,
+			evidenceQuery,
+			linkUpdateQuery,
+			suggestClaimQuery,
+			approvedEvidenceQuery,
+		]) {
+			(query.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+				wheres.push(value);
+				return query;
+			});
+		}
+		(claimUpdateQuery as Record<string, unknown>).then = (resolve: (v: unknown) => void) =>
+			Promise.resolve({ rowCount: 1 }).then(resolve);
+
+		dbMock.select
+			.mockReturnValueOnce(claimReadQuery)
+			.mockReturnValueOnce(linkClaimQuery)
+			.mockReturnValueOnce(evidenceQuery)
+			.mockReturnValueOnce(suggestClaimQuery)
+			.mockReturnValueOnce(approvedEvidenceQuery);
+		dbMock.update
+			.mockReturnValueOnce(claimUpdateQuery)
+			.mockReturnValueOnce(linkUpdateQuery);
+
+		expect((await getClaimAnalysis("claim-001")).success).toBe(true);
+		expect((await resolveClaim("claim-001", {
+			resolution: "evidence_added",
+			notes: "Linked verified evidence",
+		})).success).toBe(true);
+		expect((await linkEvidenceToClaim("claim-001", "ev-001")).success).toBe(true);
+		expect((await suggestEvidenceForClaim("claim-001")).success).toBe(true);
+
+		expect(wheres).toHaveLength(7);
+		for (const where of [wheres[0], wheres[1], wheres[2], wheres[4], wheres[5]]) {
+			expectAssignedOpportunityScope(where);
+		}
+	});
+
+	test("scopes section evidence suggestions through assigned claim reads", async () => {
+		const wheres: unknown[] = [];
+		const sectionClaimsQuery = createChainableQuery([makeDbClaimRow()]);
+		const claimQuery = createChainableQuery([makeDbClaimRow()]);
+		const evidenceQuery = createChainableQuery([]);
+		for (const query of [sectionClaimsQuery, claimQuery, evidenceQuery]) {
+			(query.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+				wheres.push(value);
+				return query;
+			});
+		}
+		dbMock.select
+			.mockReturnValueOnce(sectionClaimsQuery)
+			.mockReturnValueOnce(claimQuery)
+			.mockReturnValueOnce(evidenceQuery);
+
+		const result = await suggestEvidenceForSection("section-001");
+
+		if (!result.success) throw new Error(result.error);
+		expect(wheres.length).toBeGreaterThanOrEqual(2);
+		expectAssignedOpportunityScope(wheres[0]);
+		expectAssignedOpportunityScope(wheres[1]);
 	});
 });
 
