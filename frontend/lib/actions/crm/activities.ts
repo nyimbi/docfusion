@@ -29,6 +29,15 @@ import type {
 } from "@/lib/types/crm";
 import type { ActivityRow, NewActivity } from "@/lib/db/schema-crm";
 import { recordContactInteractionInternal } from "./contacts";
+import { getCurrentUserId } from "@/lib/auth-utils";
+
+async function requireActivityActor(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
 
 // ============================================================================
 // CRUD OPERATIONS
@@ -39,8 +48,9 @@ import { recordContactInteractionInternal } from "./contacts";
  */
 export async function createActivity(
 	input: CreateActivityInput,
-	userId?: string
+	_userId?: string
 ): Promise<ActivityRow> {
+	const actorId = await requireActivityActor();
 	const now = new Date();
 
 	const newActivity: NewActivity = {
@@ -65,7 +75,7 @@ export async function createActivity(
 		attachments: input.attachments ?? [],
 		externalId: input.externalId,
 		source: input.source ?? "manual",
-		createdBy: userId,
+		createdBy: actorId,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -83,7 +93,7 @@ export async function createActivity(
 					lastContactDate: contactDate,
 					updatedAt: now,
 				})
-				.where(eq(accounts.id, input.accountId));
+				.where(and(eq(accounts.id, input.accountId), eq(accounts.ownerId, actorId)));
 		}
 
 		if (input.contactId) {
@@ -100,10 +110,11 @@ export async function createActivity(
 export async function updateActivity(
 	id: string,
 	input: UpdateActivityInput,
-	userId?: string
+	_userId?: string
 ): Promise<ActivityRow | null> {
+	const actorId = await requireActivityActor();
 	const existing = await db.query.activities.findFirst({
-		where: eq(activities.id, id),
+		where: and(eq(activities.id, id), eq(activities.createdBy, actorId)),
 	});
 
 	if (!existing) {
@@ -118,7 +129,7 @@ export async function updateActivity(
 			...input,
 			updatedAt: now,
 		})
-		.where(eq(activities.id, id))
+		.where(and(eq(activities.id, id), eq(activities.createdBy, actorId)))
 		.returning();
 
 	// Update last contact date if activity was just completed
@@ -136,7 +147,7 @@ export async function updateActivity(
 					lastContactDate: contactDate,
 					updatedAt: now,
 				})
-				.where(eq(accounts.id, updated.accountId));
+				.where(and(eq(accounts.id, updated.accountId), eq(accounts.ownerId, actorId)));
 		}
 
 		if (updated.contactId) {
@@ -151,7 +162,10 @@ export async function updateActivity(
  * Delete an activity.
  */
 export async function deleteActivity(id: string): Promise<boolean> {
-	const result = await db.delete(activities).where(eq(activities.id, id));
+	const actorId = await requireActivityActor();
+	const result = await db
+		.delete(activities)
+		.where(and(eq(activities.id, id), eq(activities.createdBy, actorId)));
 	return (result.rowCount ?? 0) > 0;
 }
 
@@ -454,12 +468,13 @@ export async function getActivitiesNeedingFollowup(
 export async function completeActivity(
 	id: string,
 	outcome?: string,
-	userId?: string
+	_userId?: string
 ): Promise<ActivityRow | null> {
+	const actorId = await requireActivityActor();
 	const now = new Date();
 
 	const existing = await db.query.activities.findFirst({
-		where: eq(activities.id, id),
+		where: and(eq(activities.id, id), eq(activities.createdBy, actorId)),
 	});
 
 	if (!existing) {
@@ -474,7 +489,7 @@ export async function completeActivity(
 			outcome: outcome ?? existing.outcome,
 			updatedAt: now,
 		})
-		.where(eq(activities.id, id))
+		.where(and(eq(activities.id, id), eq(activities.createdBy, actorId)))
 		.returning();
 
 	// Update last contact date on related entities
@@ -485,7 +500,7 @@ export async function completeActivity(
 				lastContactDate: now,
 				updatedAt: now,
 			})
-			.where(eq(accounts.id, updated.accountId));
+			.where(and(eq(accounts.id, updated.accountId), eq(accounts.ownerId, actorId)));
 	}
 
 	if (updated.contactId) {
@@ -502,10 +517,11 @@ export async function rescheduleActivity(
 	id: string,
 	newScheduledAt: Date,
 	reason?: string,
-	userId?: string
+	_userId?: string
 ): Promise<ActivityRow | null> {
+	const actorId = await requireActivityActor();
 	const existing = await db.query.activities.findFirst({
-		where: eq(activities.id, id),
+		where: and(eq(activities.id, id), eq(activities.createdBy, actorId)),
 	});
 
 	if (!existing) {
@@ -525,7 +541,7 @@ export async function rescheduleActivity(
 			description,
 			updatedAt: now,
 		})
-		.where(eq(activities.id, id))
+		.where(and(eq(activities.id, id), eq(activities.createdBy, actorId)))
 		.returning();
 
 	return updated;
@@ -537,10 +553,11 @@ export async function rescheduleActivity(
 export async function cancelActivity(
 	id: string,
 	reason?: string,
-	userId?: string
+	_userId?: string
 ): Promise<ActivityRow | null> {
+	const actorId = await requireActivityActor();
 	const existing = await db.query.activities.findFirst({
-		where: eq(activities.id, id),
+		where: and(eq(activities.id, id), eq(activities.createdBy, actorId)),
 	});
 
 	if (!existing) {
@@ -559,7 +576,7 @@ export async function cancelActivity(
 			description,
 			updatedAt: now,
 		})
-		.where(eq(activities.id, id))
+		.where(and(eq(activities.id, id), eq(activities.createdBy, actorId)))
 		.returning();
 
 	return updated;
