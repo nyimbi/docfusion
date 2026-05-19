@@ -25,7 +25,7 @@ import {
 	upsertWorkflowRuntimeTask,
 	type WorkflowRuntimeStatus,
 } from "@/lib/actions/workflow-runtime";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/auth/tenant-context";
 
@@ -52,6 +52,29 @@ const rfpRequirementWorkflowPatchSchema = z.object({
 	assignedTo: z.string().optional(),
 	updatedAt: z.date().optional(),
 });
+
+function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${actorId}
+	)`;
+}
+
+function workflowPricingPackageCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(costElements.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, actorId)
+	)!;
+}
+
+function workflowCostElementCondition(costElementId: string, actorId: string): SQL {
+	return and(
+		eq(costElements.id, costElementId),
+		assignedOpportunityExistsSql(costElements.opportunityId, actorId)
+	)!;
+}
 
 type DomainWorkflowAction = "start" | "transition" | "reopen" | "cancel" | "resolve";
 type CompensationAction = "reopen" | "cancel" | "resolve";
@@ -706,13 +729,19 @@ async function applyDomainCompensation(input: {
 		case "pricing_package": {
 			handler = "pricing_package_cost_elements";
 			patch = pricingPatch(input.action, input.actorId, now);
-			await db.update(costElements).set(patch).where(eq(costElements.opportunityId, input.instance.subjectId));
+			await db
+				.update(costElements)
+				.set(patch)
+				.where(workflowPricingPackageCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		case "cost_element": {
 			handler = "cost_element";
 			patch = pricingPatch(input.action, input.actorId, now);
-			await db.update(costElements).set(patch).where(eq(costElements.id, input.instance.subjectId));
+			await db
+				.update(costElements)
+				.set(patch)
+				.where(workflowCostElementCondition(input.instance.subjectId, input.actorId));
 			break;
 		}
 		case "import_sync_job": {

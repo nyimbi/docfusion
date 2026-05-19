@@ -468,6 +468,15 @@ describe("workflow domain integrations", () => {
 			},
 		},
 		{
+			subjectType: "cost_element",
+			action: "resolve",
+			reason: "Element approved by finance",
+			expectedPatch: {
+				status: "approved",
+				approvedBy: "owner-1",
+			},
+		},
+		{
 			subjectType: "opportunity",
 			action: "resolve",
 			reason: "Pursuit accepted",
