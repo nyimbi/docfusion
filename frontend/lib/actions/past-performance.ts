@@ -21,7 +21,7 @@ import {
 } from "@/lib/db/schema-past-performance";
 import { opportunities } from "@/lib/db/schema";
 import { rfpRequirements } from "@/lib/db/schema-rfp";
-import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, type SQL } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { logger } from "@/lib/utils/logger";
@@ -214,6 +214,48 @@ async function requireCurrentUserId(): Promise<string> {
 		throw new Error("Unauthorized");
 	}
 	return userId;
+}
+
+function assignedOpportunityCondition(userId: string): SQL {
+	return sql`opportunities.assigned_to = ${userId}`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		assignedOpportunityCondition(userId)
+	)!;
+}
+
+function visibleRequirementsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(rfpRequirements.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
+function visibleRelevanceScoresForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(projectRelevanceScores.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
+function visibleRelevanceScorePairCondition(projectId: string, opportunityId: string, userId: string): SQL {
+	return and(
+		eq(projectRelevanceScores.projectId, projectId),
+		eq(projectRelevanceScores.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
 }
 
 /**
@@ -598,7 +640,7 @@ export async function calculateRelevanceScores(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(visibleOpportunityCondition(opportunityId, currentUserId))
 			.limit(1);
 
 		if (!opportunity) {
@@ -609,7 +651,7 @@ export async function calculateRelevanceScores(
 		const oppRequirements = await db
 			.select()
 			.from(rfpRequirements)
-			.where(eq(rfpRequirements.opportunityId, opportunityId));
+			.where(visibleRequirementsForOpportunityCondition(opportunityId, currentUserId));
 
 		// Fetch all active projects
 		const allProjects = await db
@@ -917,7 +959,7 @@ function identifyGaps(
 export async function generateRelevanceMatrix(
 	input: z.infer<typeof RelevanceMatrixInput>
 ): Promise<ActionResult<RelevanceMatrix>> {
-	await requireCurrentUserId();
+	const currentUserId = await requireCurrentUserId();
 
 	try {
 		const validatedInput = RelevanceMatrixInput.parse(input);
@@ -926,7 +968,7 @@ export async function generateRelevanceMatrix(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, validatedInput.opportunityId))
+			.where(visibleOpportunityCondition(validatedInput.opportunityId, currentUserId))
 			.limit(1);
 
 		if (!opportunity) {
@@ -937,7 +979,7 @@ export async function generateRelevanceMatrix(
 		const oppRequirements = await db
 			.select()
 			.from(rfpRequirements)
-			.where(eq(rfpRequirements.opportunityId, validatedInput.opportunityId));
+			.where(visibleRequirementsForOpportunityCondition(validatedInput.opportunityId, currentUserId));
 
 		// Fetch selected projects with their relevance scores
 		const selectedProjects = await db
@@ -950,7 +992,7 @@ export async function generateRelevanceMatrix(
 			.from(projectRelevanceScores)
 			.where(
 				and(
-					eq(projectRelevanceScores.opportunityId, validatedInput.opportunityId),
+					visibleRelevanceScoresForOpportunityCondition(validatedInput.opportunityId, currentUserId),
 					inArray(projectRelevanceScores.projectId, validatedInput.projectIds)
 				)
 			);
@@ -1311,13 +1353,13 @@ export async function generateRelevanceNarrative(
 	projectId: string,
 	opportunityId: string
 ): Promise<ActionResult<NarrativeResult>> {
-	await requireCurrentUserId();
+	const currentUserId = await requireCurrentUserId();
 
 	try {
 		// Fetch project and opportunity details
 		const [[project], [opportunity]] = await Promise.all([
 			db.select().from(projects).where(eq(projects.id, projectId)).limit(1),
-			db.select().from(opportunities).where(eq(opportunities.id, opportunityId)).limit(1),
+			db.select().from(opportunities).where(visibleOpportunityCondition(opportunityId, currentUserId)).limit(1),
 		]);
 
 		if (!project) return { success: false, error: "Project not found" };
@@ -1327,12 +1369,7 @@ export async function generateRelevanceNarrative(
 		const [relevanceScore] = await db
 			.select()
 			.from(projectRelevanceScores)
-			.where(
-				and(
-					eq(projectRelevanceScores.projectId, projectId),
-					eq(projectRelevanceScores.opportunityId, opportunityId)
-				)
-			)
+			.where(visibleRelevanceScorePairCondition(projectId, opportunityId, currentUserId))
 			.limit(1);
 
 		// Build AI prompt
@@ -1565,14 +1602,14 @@ export async function exportPastPerformanceVolume(
 	opportunityId: string,
 	format: "docx" | "pdf"
 ): Promise<ActionResult<{ downloadUrl: string; volumeData: PastPerformanceVolumeData }>> {
-	await requireCurrentUserId();
+	const currentUserId = await requireCurrentUserId();
 
 	try {
 		// Fetch opportunity details
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(visibleOpportunityCondition(opportunityId, currentUserId))
 			.limit(1);
 
 		if (!opportunity) {
@@ -1589,7 +1626,7 @@ export async function exportPastPerformanceVolume(
 			.innerJoin(projects, eq(projectRelevanceScores.projectId, projects.id))
 			.where(
 				and(
-					eq(projectRelevanceScores.opportunityId, opportunityId),
+					visibleRelevanceScoresForOpportunityCondition(opportunityId, currentUserId),
 					eq(projectRelevanceScores.isSelected, true)
 				)
 			)
@@ -1933,14 +1970,14 @@ function normalizeAgencyName(agency: string): string {
 export async function analyzePortfolioGaps(
 	opportunityId: string
 ): Promise<ActionResult<GapAnalysis>> {
-	await requireCurrentUserId();
+	const currentUserId = await requireCurrentUserId();
 
 	try {
 		// Fetch opportunity details and requirements
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(visibleOpportunityCondition(opportunityId, currentUserId))
 			.limit(1);
 
 		if (!opportunity) {
@@ -1950,7 +1987,7 @@ export async function analyzePortfolioGaps(
 		const oppRequirements = await db
 			.select()
 			.from(rfpRequirements)
-			.where(eq(rfpRequirements.opportunityId, opportunityId));
+			.where(visibleRequirementsForOpportunityCondition(opportunityId, currentUserId));
 
 		// Fetch all active projects
 		const allProjects = await db
