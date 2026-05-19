@@ -49,7 +49,7 @@ import {
 	type ValidationSeverity,
 	type ValidationIssueType,
 } from "@/lib/db/schema-formatting";
-import { eq, and, sql, desc, asc, ilike, or } from "drizzle-orm";
+import { eq, and, sql, desc, asc, ilike, or, type SQL } from "drizzle-orm";
 import { requireUserContext } from "@/lib/auth-utils";
 import { z } from "zod";
 import { logger } from "@/lib/utils/logger";
@@ -435,6 +435,60 @@ async function requireFormattingContext(): Promise<{ userId: string; organizatio
 		userId: userContext.userId,
 		organizationId: userContext.organizationId,
 	};
+}
+
+function readableDocumentCondition(documentId: string, userId: string): SQL {
+	return sql`documents.id = ${documentId} and (
+		documents.owner_id = ${userId}
+		or documents.visibility = 'public'
+		or documents.collaborator_ids ? ${userId}
+	)`;
+}
+
+function writableDocumentCondition(documentId: string, userId: string): SQL {
+	return sql`documents.id = ${documentId} and (
+		documents.owner_id = ${userId}
+		or documents.collaborator_ids ? ${userId}
+	)`;
+}
+
+function readableDocumentExistsSql(documentId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and (
+				documents.owner_id = ${userId}
+				or documents.visibility = 'public'
+				or documents.collaborator_ids ? ${userId}
+			)
+	)`;
+}
+
+function writableDocumentExistsSql(documentId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and (
+				documents.owner_id = ${userId}
+				or documents.collaborator_ids ? ${userId}
+			)
+	)`;
+}
+
+function readableDocumentFormatCondition(documentId: string, userId: string): SQL {
+	return and(
+		eq(documentFormats.documentId, documentId),
+		readableDocumentExistsSql(documentFormats.documentId, userId)
+	)!;
+}
+
+function writableDocumentFormatCondition(documentId: string, userId: string): SQL {
+	return and(
+		eq(documentFormats.documentId, documentId),
+		writableDocumentExistsSql(documentFormats.documentId, userId)
+	)!;
 }
 
 /**
@@ -1556,7 +1610,7 @@ export async function applyFormatTemplate(
 		const [document] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, documentId))
+			.where(writableDocumentCondition(documentId, userContext.userId))
 			.limit(1);
 
 		if (!document) {
@@ -1573,7 +1627,7 @@ export async function applyFormatTemplate(
 		const [existingFormat] = await db
 			.select()
 			.from(documentFormats)
-			.where(eq(documentFormats.documentId, documentId))
+			.where(writableDocumentFormatCondition(documentId, userContext.userId))
 			.limit(1);
 
 		let row: DocumentFormatRow;
@@ -1631,14 +1685,14 @@ export async function applyFormatTemplate(
  * ```
  */
 export async function removeDocumentFormat(documentId: string): Promise<void> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	try {
 		// Check if locked
 		const [existing] = await db
 			.select()
 			.from(documentFormats)
-			.where(eq(documentFormats.documentId, documentId))
+			.where(writableDocumentFormatCondition(documentId, userContext.userId))
 			.limit(1);
 
 		if (existing?.isLocked) {
@@ -1647,7 +1701,7 @@ export async function removeDocumentFormat(documentId: string): Promise<void> {
 
 		await db
 			.delete(documentFormats)
-			.where(eq(documentFormats.documentId, documentId));
+			.where(writableDocumentFormatCondition(documentId, userContext.userId));
 	} catch (error) {
 		logger.error("Error removing document format:", error);
 		throw new Error("Failed to remove document format");
@@ -1669,13 +1723,13 @@ export async function removeDocumentFormat(documentId: string): Promise<void> {
  * ```
  */
 export async function getDocumentFormat(documentId: string): Promise<DocumentFormat | null> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	try {
 		const [row] = await db
 			.select()
 			.from(documentFormats)
-			.where(eq(documentFormats.documentId, documentId))
+			.where(readableDocumentFormatCondition(documentId, userContext.userId))
 			.limit(1);
 
 		return row ? mapDocumentFormat(row) : null;
@@ -1716,7 +1770,7 @@ export async function validateFormatCompliance(
 		const [document] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, documentId))
+			.where(writableDocumentCondition(documentId, userContext.userId))
 			.limit(1);
 
 		if (!document) {
@@ -1863,7 +1917,7 @@ export async function validateFormatCompliance(
 				lastValidatedAt: new Date(),
 				updatedAt: new Date(),
 			})
-			.where(eq(documentFormats.documentId, documentId));
+			.where(writableDocumentFormatCondition(documentId, userContext.userId));
 
 		return {
 			isValid,
@@ -1910,13 +1964,13 @@ export async function checkPageCount(
 	isValid: boolean;
 	byVolume?: Record<string, { current: number; limit: number; isValid: boolean }>;
 }> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	try {
 		const [document] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, documentId))
+			.where(readableDocumentCondition(documentId, userContext.userId))
 			.limit(1);
 
 		if (!document) {
@@ -1997,13 +2051,13 @@ export async function checkPageCount(
 export async function validateAccessibility(
 	documentId: string
 ): Promise<{ score: number; level: string; issues: AccessibilityIssue[] }> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	try {
 		const [document] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, documentId))
+			.where(readableDocumentCondition(documentId, userContext.userId))
 			.limit(1);
 
 		if (!document) {
@@ -2114,13 +2168,13 @@ export async function validateAccessibility(
  * ```
  */
 export async function generateTOC(documentId: string): Promise<TOCEntry[]> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	try {
 		const [document] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, documentId))
+			.where(writableDocumentCondition(documentId, userContext.userId))
 			.limit(1);
 
 		if (!document) {
@@ -2239,13 +2293,13 @@ export async function generateTOC(documentId: string): Promise<TOCEntry[]> {
  * ```
  */
 export async function generateListOfFigures(documentId: string): Promise<TOCEntry[]> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	try {
 		const [document] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, documentId))
+			.where(writableDocumentCondition(documentId, userContext.userId))
 			.limit(1);
 
 		if (!document) {
@@ -2313,13 +2367,13 @@ export async function generateListOfFigures(documentId: string): Promise<TOCEntr
  * ```
  */
 export async function generateListOfTables(documentId: string): Promise<TOCEntry[]> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	try {
 		const [document] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, documentId))
+			.where(writableDocumentCondition(documentId, userContext.userId))
 			.limit(1);
 
 		if (!document) {
@@ -2393,13 +2447,13 @@ export async function generateListOfTables(documentId: string): Promise<TOCEntry
 export async function generateAcronymList(
 	documentId: string
 ): Promise<{ acronym: string; definition: string; firstOccurrence: number }[]> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	try {
 		const [document] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, documentId))
+			.where(writableDocumentCondition(documentId, userContext.userId))
 			.limit(1);
 
 		if (!document) {
@@ -2477,7 +2531,7 @@ export async function applyHeaderFooter(
 		const [existingFormat] = await db
 			.select()
 			.from(documentFormats)
-			.where(eq(documentFormats.documentId, documentId))
+			.where(writableDocumentFormatCondition(documentId, userContext.userId))
 			.limit(1);
 
 		// Build custom settings with header/footer overrides
@@ -2674,14 +2728,14 @@ export async function exportFormattedDocument(
 	documentId: string,
 	format: "pdf" | "docx"
 ): Promise<{ url: string; filename: string }> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
 
 	try {
 		// Get document
 		const [document] = await db
 			.select()
 			.from(documents)
-			.where(eq(documents.id, documentId))
+			.where(readableDocumentCondition(documentId, userContext.userId))
 			.limit(1);
 
 		if (!document) {
@@ -2927,7 +2981,7 @@ export async function applyFormatPreset(
 		const [existingFormat] = await db
 			.select()
 			.from(documentFormats)
-			.where(eq(documentFormats.documentId, documentId))
+			.where(writableDocumentFormatCondition(documentId, userContext.userId))
 			.limit(1);
 
 		let row: DocumentFormatRow;
