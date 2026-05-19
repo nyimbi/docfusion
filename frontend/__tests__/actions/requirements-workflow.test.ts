@@ -17,16 +17,21 @@ interface ChainConfig {
 	onSet?: (value: Record<string, unknown>) => void;
 	onValues?: (value: Record<string, unknown>) => void;
 	onReturning?: () => unknown[];
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	const methods = ["from", "where", "limit", "orderBy"];
+	const methods = ["from", "limit", "orderBy"];
 
 	for (const method of methods) {
 		chain[method] = vi.fn(() => chain);
 	}
 
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -40,6 +45,23 @@ function createChain(config: ChainConfig = {}) {
 		Promise.resolve(config.result ?? []).then(resolve);
 
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
 var dbMock: {
@@ -202,6 +224,8 @@ describe("transitionRequirementWorkflow", () => {
 	it("reuses an existing projected task on repeated acceptance", async () => {
 		const existingTask = { id: "00000000-0000-4000-8000-000000000040" };
 		let taskUpdate: Record<string, unknown> | undefined;
+		let existingTaskWhere: unknown;
+		let taskUpdateWhere: unknown;
 		let requirementUpdate: Record<string, unknown> | undefined;
 
 		dbMock.select
@@ -210,12 +234,20 @@ describe("transitionRequirementWorkflow", () => {
 				assignedTo: "writer-1",
 				dueDate: new Date("2026-05-10T00:00:00.000Z"),
 			}] }))
-			.mockReturnValueOnce(createChain({ result: [existingTask] }));
+			.mockReturnValueOnce(createChain({
+				result: [existingTask],
+				onWhere: (value) => {
+					existingTaskWhere = value;
+				},
+			}));
 		dbMock.insert.mockReturnValueOnce(createChain());
 		dbMock.update
 			.mockReturnValueOnce(createChain({
 				onSet: (value) => {
 					taskUpdate = value;
+				},
+				onWhere: (value) => {
+					taskUpdateWhere = value;
 				},
 			}))
 			.mockReturnValueOnce(createChain({
@@ -245,6 +277,12 @@ describe("transitionRequirementWorkflow", () => {
 			assignedToEmail: "writer-2@example.com",
 			status: "assigned",
 		});
+		const existingTaskSql = collectSqlFragments(existingTaskWhere).join(" ");
+		const taskUpdateSql = collectSqlFragments(taskUpdateWhere).join(" ");
+		expect(existingTaskSql).toContain("opportunities.assigned_to");
+		expect(existingTaskSql).toContain("opportunity_id");
+		expect(taskUpdateSql).toContain("opportunities.assigned_to");
+		expect(taskUpdateSql).toContain("opportunity_id");
 		expect((requirementUpdate?.metadata as any).workflow.projectedTaskId).toBe(existingTask.id);
 	});
 

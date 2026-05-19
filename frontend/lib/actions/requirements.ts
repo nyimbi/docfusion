@@ -131,6 +131,27 @@ function visibleRequirementIdsCondition(ids: string[], organizationId: string, u
 	)!;
 }
 
+function projectedRequirementTaskCondition(
+	requirementId: string,
+	opportunityId: string,
+	userId: string
+): SQL {
+	return and(
+		eq(proposalTasks.requirementId, requirementId),
+		eq(proposalTasks.opportunityId, opportunityId),
+		eq(proposalTasks.sourceType, "requirement_workflow"),
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
+	)!;
+}
+
+function visibleProposalTaskCondition(taskId: string, opportunityId: string, userId: string): SQL {
+	return and(
+		eq(proposalTasks.id, taskId),
+		eq(proposalTasks.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
+	)!;
+}
+
 async function assertVisibleOpportunity(opportunityId: string, userId: string): Promise<void> {
 	const [opportunity] = await db
 		.select({ id: opportunities.id })
@@ -494,16 +515,10 @@ export async function transitionRequirementWorkflow(
 		let projectedTaskId = currentWorkflow?.projectedTaskId;
 
 		if (input.action === "accept") {
-			// TODO(W2): tenant-scope proposalTasks once schema gains organizationId
 			const [existingTask] = await tx
 				.select()
 				.from(proposalTasks)
-				.where(
-					and(
-						eq(proposalTasks.requirementId, row.id),
-						eq(proposalTasks.sourceType, "requirement_workflow")
-					)
-				)
+				.where(projectedRequirementTaskCondition(row.id, row.opportunityId!, userId))
 				.limit(1);
 
 			const taskSyncData = {
@@ -522,7 +537,7 @@ export async function transitionRequirementWorkflow(
 				await tx
 					.update(proposalTasks)
 					.set(taskSyncData)
-					.where(eq(proposalTasks.id, existingTask.id));
+					.where(visibleProposalTaskCondition(existingTask.id, row.opportunityId!, userId));
 			} else {
 				const [createdTask] = await tx
 					.insert(proposalTasks)
