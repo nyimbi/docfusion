@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const recordTransitionMock = vi.hoisted(() => vi.fn());
+const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
 const opportunityActionsMock = vi.hoisted(() => ({
 	getSavedSearches: vi.fn(),
 	getOpportunities: vi.fn(),
@@ -11,6 +12,10 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 }));
 
 vi.mock("@/lib/actions/opportunities", () => opportunityActionsMock);
+
+vi.mock("@/lib/auth-utils", () => ({
+	getCurrentUserId: getCurrentUserIdMock,
+}));
 
 vi.mock("@/lib/utils/logger", () => ({
 	logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
@@ -50,6 +55,7 @@ const opportunity = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	getCurrentUserIdMock.mockResolvedValue("pm-1");
 	recordTransitionMock.mockResolvedValue({
 		id: "00000000-0000-4000-8000-00000000wf01",
 	});
@@ -91,6 +97,7 @@ describe("sendOpportunityDigestWorkflow", () => {
 			subjectId: "pm-1:2026-05-05",
 			toState: "queued_for_delivery",
 			eventType: "opportunity_digest_queued",
+			actorId: "pm-1",
 			assignedTo: "pm-1",
 			notificationRecipients: ["pm-1"],
 			metadata: expect.objectContaining({
@@ -124,8 +131,21 @@ describe("sendOpportunityDigestWorkflow", () => {
 		expect(recordTransitionMock).toHaveBeenCalledWith(expect.objectContaining({
 			toState: "skipped_empty",
 			eventType: "opportunity_digest_skipped_empty",
+			actorId: "pm-1",
 			terminal: true,
 			notificationRecipients: [],
 		}));
+	});
+
+	it("rejects attempts to evaluate another user's digest", async () => {
+		getCurrentUserIdMock.mockResolvedValueOnce("attacker-1");
+
+		await expect(sendOpportunityDigestWorkflow({
+			userId: "pm-1",
+			digestDate: "2026-05-05T06:30:00.000Z",
+		})).rejects.toThrow("Unauthorized");
+
+		expect(opportunityActionsMock.getSavedSearches).not.toHaveBeenCalled();
+		expect(recordTransitionMock).not.toHaveBeenCalled();
 	});
 });

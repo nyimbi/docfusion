@@ -8,13 +8,13 @@ import {
 } from "@/lib/actions/opportunities";
 import type { OpportunityListItem } from "@/lib/types/opportunity";
 import { logger } from "@/lib/utils/logger";
+import { getCurrentUserId } from "@/lib/auth-utils";
 
 export interface OpportunityDigestWorkflowInput {
 	userId: string;
 	digestDate?: Date | string;
 	reason?: string;
 	maxPerSearch?: number;
-	actorId?: string;
 }
 
 export interface OpportunityDigestWorkflowResult {
@@ -36,10 +36,10 @@ interface DigestCandidate {
 export async function sendOpportunityDigestWorkflow(
 	input: OpportunityDigestWorkflowInput
 ): Promise<OpportunityDigestWorkflowResult> {
+	const actorId = await requireDigestActor(input.userId);
 	const digestDate = normalizeDigestDate(input.digestDate);
 	const digestKey = makeDigestKey(input.userId, digestDate);
 	const maxPerSearch = Math.max(1, Math.min(25, input.maxPerSearch ?? 5));
-	const actorId = input.actorId ?? "system";
 	const reason = input.reason?.trim() || "Daily opportunity digest evaluation.";
 
 	try {
@@ -107,6 +107,14 @@ export async function sendOpportunityDigestWorkflow(
 			error: error instanceof Error ? error.message : "Failed to send opportunity digest",
 		};
 	}
+}
+
+async function requireDigestActor(userId: string): Promise<string> {
+	const currentUserId = await getCurrentUserId();
+	if (!currentUserId || currentUserId !== userId) {
+		throw new Error("Unauthorized");
+	}
+	return currentUserId;
 }
 
 async function collectDigestCandidates(
