@@ -19,13 +19,18 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -34,6 +39,25 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) =>
+		collectSqlFragments(item, seen)
+	);
 }
 
 var dbMock: any;
@@ -92,21 +116,46 @@ beforeEach(() => {
 });
 
 describe("submission correction workflow", () => {
+	it("rejects submissions outside the actor's assigned opportunities", async () => {
+		let submissionWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => {
+				submissionWhere = value;
+			},
+		}));
+
+		await expect(transitionSubmissionCorrectionWorkflow({
+			submissionId: "submission-1",
+			action: "request_correction",
+			reason: "Portal rejected the cost volume filename",
+		})).rejects.toThrow("Submission not found");
+
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(collectSqlFragments(submissionWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
 	it("requests post-dispatch correction and projects blocked correction work", async () => {
 		let submissionPatch: Record<string, unknown> | undefined;
 		let opportunityPatch: Record<string, unknown> | undefined;
-		dbMock.select.mockReturnValueOnce(createChain({ result: [submission] }));
+		const wheres: unknown[] = [];
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [submission],
+			onWhere: (value) => wheres.push(value),
+		}));
 		dbMock.update
 			.mockReturnValueOnce(createChain({
 				result: [{ ...submission, status: "under_review" }],
 				onSet: (value) => {
 					submissionPatch = value;
 				},
+				onWhere: (value) => wheres.push(value),
 			}))
 			.mockReturnValueOnce(createChain({
 				onSet: (value) => {
 					opportunityPatch = value;
 				},
+				onWhere: (value) => wheres.push(value),
 			}));
 
 		const result = await transitionSubmissionCorrectionWorkflow({
@@ -130,6 +179,10 @@ describe("submission correction workflow", () => {
 			decisionStatus: "submitted",
 			decisionReason: "Submission correction requested: Portal rejected the cost volume filename",
 		});
+		expect(wheres).toHaveLength(3);
+		for (const where of wheres) {
+			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		}
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({
 				workflowKey: "submission_correction_compensation",

@@ -8,7 +8,7 @@ import {
 import { db } from "@/lib/db";
 import { opportunities, submissions } from "@/lib/db/schema";
 import type { SubmissionAttachment } from "@/lib/types/opportunity";
-import { eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type SubmissionRow = typeof submissions.$inferSelect;
 
@@ -46,7 +46,7 @@ export async function transitionSubmissionCorrectionWorkflow(
 ): Promise<SubmissionCorrectionWorkflowResult> {
 	const userContext = await requireUserContext();
 	const reason = requireReason(input.reason, "Submission correction transitions require a reason");
-	const submission = await loadSubmission(input.submissionId);
+	const submission = await loadSubmission(input.submissionId, userContext.userId);
 	const fromState = submission.status;
 	const transition = buildTransition({
 		input,
@@ -58,7 +58,7 @@ export async function transitionSubmissionCorrectionWorkflow(
 	const [updatedSubmission] = await db
 		.update(submissions)
 		.set(transition.submissionPatch)
-		.where(eq(submissions.id, input.submissionId))
+		.where(visibleSubmissionCondition(input.submissionId, userContext.userId))
 		.returning();
 	if (!updatedSubmission) {
 		throw new Error("Failed to update submission correction state");
@@ -72,7 +72,7 @@ export async function transitionSubmissionCorrectionWorkflow(
 				decisionReason: transition.opportunityDecisionReason,
 				updatedAt: new Date(),
 			})
-			.where(eq(opportunities.id, updatedSubmission.opportunityId));
+			.where(visibleOpportunityCondition(updatedSubmission.opportunityId, userContext.userId));
 	}
 
 	const instance = await recordWorkflowRuntimeTransition({
@@ -132,11 +132,38 @@ export async function transitionSubmissionCorrectionWorkflow(
 	};
 }
 
-async function loadSubmission(submissionId: string) {
+function assignedOpportunityCondition(userId: string): SQL {
+	return sql`opportunities.assigned_to = ${userId}`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		assignedOpportunityCondition(userId)
+	)!;
+}
+
+function visibleSubmissionCondition(submissionId: string, userId: string): SQL {
+	return and(
+		eq(submissions.id, submissionId),
+		assignedOpportunityExistsSql(submissions.opportunityId, userId)
+	)!;
+}
+
+async function loadSubmission(submissionId: string, userId: string) {
 	const [submission] = await db
 		.select()
 		.from(submissions)
-		.where(eq(submissions.id, submissionId))
+		.where(visibleSubmissionCondition(submissionId, userId))
 		.limit(1);
 	if (!submission) {
 		throw new Error("Submission not found");
