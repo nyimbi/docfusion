@@ -16,11 +16,20 @@ import type {
 	DiagramTemplate,
 	DiagramMetadata,
 } from "../diagrams/types";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
 // AI Diagram Generation Helper
 // ============================================================================
+
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
 
 /**
  * Call AI API to generate diagram code based on description
@@ -161,6 +170,8 @@ export interface SaveDiagramOutput {
 export async function generateDiagram(
 	input: GenerateDiagramInput
 ): Promise<GeneratedDiagram> {
+	await requireCurrentUserId();
+
 	const {
 		description,
 		format = "plantuml",
@@ -628,6 +639,8 @@ async function generateMermaidDiagram(
 export async function convertDiagramFormat(
 	input: ConvertDiagramInput
 ): Promise<ConvertDiagramOutput> {
+	await requireCurrentUserId();
+
 	const { code, fromFormat, toFormat } = input;
 
 	try {
@@ -710,6 +723,8 @@ export interface BatchProcessOutput {
 export async function batchProcessDiagrams(
 	input: BatchProcessInput
 ): Promise<BatchProcessOutput> {
+	await requireCurrentUserId();
+
 	const { diagrams, operation, exportFormat } = input;
 
 	const results = await Promise.all(
@@ -804,6 +819,8 @@ export interface DiagramAnalytics {
 export async function getDiagramAnalytics(
 	documentId: string
 ): Promise<DiagramAnalytics> {
+	await requireCurrentUserId();
+
 	// Returns zero state - diagram analytics tracking can be added by creating
 	// a diagram_analytics table that records diagram usage events
 	return {
