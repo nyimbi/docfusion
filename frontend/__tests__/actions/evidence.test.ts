@@ -121,6 +121,11 @@ import {
 	getEvidence,
 	listEvidence,
 	bulkImportEvidence,
+	rateEvidenceStrength,
+	recordEvidenceUsage,
+	getMostUsedEvidence,
+	archiveEvidence,
+	getEvidenceUsageStats,
 } from "@/lib/actions/evidence";
 
 // ============================================================================
@@ -495,6 +500,70 @@ describe("Evidence CRUD", () => {
 				expect(result.error).toContain("Organization context required");
 			}
 			expect(dbMock.insert).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("evidence helper tenant scoping", () => {
+		test("requires organization context before rating evidence strength", async () => {
+			await mockMissingOrganizationContextOnce();
+
+			const result = await rateEvidenceStrength("ev-001");
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Organization context required");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
+		});
+
+		test("requires organization context before recording evidence usage", async () => {
+			await mockMissingOrganizationContextOnce();
+
+			const result = await recordEvidenceUsage("ev-001", {
+				documentId: "00000000-0000-4000-8000-000000000001",
+			});
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Organization context required");
+			}
+			expect(dbMock.insert).not.toHaveBeenCalled();
+		});
+
+		test("requires organization context before listing most-used evidence", async () => {
+			await mockMissingOrganizationContextOnce();
+
+			const result = await getMostUsedEvidence();
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Organization context required");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
+		});
+
+		test("requires organization context before archiving evidence", async () => {
+			await mockMissingOrganizationContextOnce();
+
+			const result = await archiveEvidence("ev-001");
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Organization context required");
+			}
+			expect(dbMock.update).not.toHaveBeenCalled();
+		});
+
+		test("requires organization context before reading evidence usage stats", async () => {
+			await mockMissingOrganizationContextOnce();
+
+			const result = await getEvidenceUsageStats("ev-001");
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Organization context required");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
 		});
 	});
 });

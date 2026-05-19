@@ -140,6 +140,13 @@ function evidenceByIdCondition(id: string, userContext: EvidenceUserContext): SQ
 	)!;
 }
 
+function visibleEvidenceIdsCondition(ids: string[], userContext: EvidenceUserContext): SQL {
+	return and(
+		inArray(evidenceLibrary.id, ids),
+		visibleEvidenceCondition(userContext)
+	)!;
+}
+
 // ============================================================================
 // Type Definitions
 // ============================================================================
@@ -1127,7 +1134,7 @@ export async function bulkImportEvidence(
  */
 export async function analyzeClaimsInDocument(documentId: string): Promise<ActionResult<ClaimAnalysisResult[]>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		// Get existing claims for this document
 		const existingClaims = await db
@@ -1148,7 +1155,7 @@ export async function analyzeClaimsInDocument(documentId: string): Promise<Actio
 				const evidenceItems = await db
 					.select()
 					.from(evidenceLibrary)
-					.where(inArray(evidenceLibrary.id, linkedIds));
+					.where(visibleEvidenceIdsCondition(linkedIds, userContext));
 
 				linkedEvidence.push(
 					...evidenceItems.map((e) => ({
@@ -1180,7 +1187,7 @@ export async function analyzeClaimsInDocument(documentId: string): Promise<Actio
  */
 export async function analyzeClaimsInSection(sectionId: string): Promise<ActionResult<ClaimAnalysisResult[]>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		const claims = await db.select().from(claimAnalysis).where(eq(claimAnalysis.sectionId, sectionId));
 
@@ -1194,7 +1201,7 @@ export async function analyzeClaimsInSection(sectionId: string): Promise<ActionR
 				const evidenceItems = await db
 					.select()
 					.from(evidenceLibrary)
-					.where(inArray(evidenceLibrary.id, linkedIds));
+					.where(visibleEvidenceIdsCondition(linkedIds, userContext));
 
 				linkedEvidence.push(
 					...evidenceItems.map((e) => ({
@@ -1225,7 +1232,7 @@ export async function analyzeClaimsInSection(sectionId: string): Promise<ActionR
  */
 export async function getClaimAnalysis(claimId: string): Promise<ActionResult<ClaimAnalysisResult>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		const [claim] = await db.select().from(claimAnalysis).where(eq(claimAnalysis.id, claimId));
 
@@ -1237,7 +1244,7 @@ export async function getClaimAnalysis(claimId: string): Promise<ActionResult<Cl
 		const linkedEvidence: { id: string; title: string; relevance: number }[] = [];
 
 		if (linkedIds.length > 0) {
-			const evidenceItems = await db.select().from(evidenceLibrary).where(inArray(evidenceLibrary.id, linkedIds));
+			const evidenceItems = await db.select().from(evidenceLibrary).where(visibleEvidenceIdsCondition(linkedIds, userContext));
 
 			linkedEvidence.push(
 				...evidenceItems.map((e) => ({
@@ -1316,7 +1323,7 @@ export async function resolveClaim(claimId: string, resolution: ClaimResolutionI
  */
 export async function linkEvidenceToClaim(claimId: string, evidenceId: string): Promise<ActionResult<{ linked: boolean }>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		// Get current claim
 		const [claim] = await db.select().from(claimAnalysis).where(eq(claimAnalysis.id, claimId));
@@ -1326,7 +1333,7 @@ export async function linkEvidenceToClaim(claimId: string, evidenceId: string): 
 		}
 
 		// Verify evidence exists
-		const [evidence] = await db.select().from(evidenceLibrary).where(eq(evidenceLibrary.id, evidenceId));
+		const [evidence] = await db.select().from(evidenceLibrary).where(evidenceByIdCondition(evidenceId, userContext));
 
 		if (!evidence) {
 			return { success: false, error: "Evidence not found" };
@@ -1383,7 +1390,7 @@ export async function linkEvidenceToClaim(claimId: string, evidenceId: string): 
  */
 export async function suggestEvidenceForClaim(claimId: string): Promise<ActionResult<EvidenceSuggestion[]>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		// Get the claim
 		const [claim] = await db.select().from(claimAnalysis).where(eq(claimAnalysis.id, claimId));
@@ -1396,7 +1403,10 @@ export async function suggestEvidenceForClaim(claimId: string): Promise<ActionRe
 		const allEvidence = await db
 			.select()
 			.from(evidenceLibrary)
-			.where(eq(evidenceLibrary.status, "approved"))
+			.where(and(
+				visibleEvidenceCondition(userContext),
+				eq(evidenceLibrary.status, "approved")
+			))
 			.limit(100);
 
 		if (allEvidence.length === 0) {
@@ -1457,7 +1467,7 @@ export async function suggestEvidenceForClaim(claimId: string): Promise<ActionRe
  */
 export async function suggestEvidenceForSection(sectionId: string): Promise<ActionResult<EvidenceSuggestion[]>> {
 	try {
-		await requireUserContext();
+		await requireEvidenceContext();
 
 		// Get claims in this section
 		const claims = await db.select().from(claimAnalysis).where(eq(claimAnalysis.sectionId, sectionId));
@@ -1496,13 +1506,17 @@ export async function suggestEvidenceForSection(sectionId: string): Promise<Acti
  */
 export async function suggestEvidenceForCriteria(criteriaId: string): Promise<ActionResult<EvidenceSuggestion[]>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		// Get approved evidence with high strength scores
 		const allEvidence = await db
 			.select()
 			.from(evidenceLibrary)
-			.where(and(eq(evidenceLibrary.status, "approved"), gte(evidenceLibrary.strengthScore, 60)))
+			.where(and(
+				visibleEvidenceCondition(userContext),
+				eq(evidenceLibrary.status, "approved"),
+				gte(evidenceLibrary.strengthScore, 60)
+			))
 			.orderBy(desc(evidenceLibrary.strengthScore))
 			.limit(20);
 
@@ -1546,7 +1560,7 @@ export async function suggestEvidenceForCriteria(criteriaId: string): Promise<Ac
  */
 export async function calculateEvidenceDistribution(documentId: string): Promise<ActionResult<DistributionAnalysis>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		// Get all evidence used in this document
 		const usages = await db.select().from(evidenceUsages).where(eq(evidenceUsages.documentId, documentId));
@@ -1555,7 +1569,7 @@ export async function calculateEvidenceDistribution(documentId: string): Promise
 
 	// Get evidence details
 	const evidenceItems =
-		evidenceIds.length > 0 ? await db.select().from(evidenceLibrary).where(inArray(evidenceLibrary.id, evidenceIds)) : [];
+		evidenceIds.length > 0 ? await db.select().from(evidenceLibrary).where(visibleEvidenceIdsCondition(evidenceIds, userContext)) : [];
 
 	// Calculate distribution by type
 	const byType: Record<string, { count: number; percentage: number }> = {};
@@ -1733,7 +1747,7 @@ export async function generateEvidenceMatrix(
 	matrixType: EvidenceMatrixType
 ): Promise<ActionResult<EvidenceMatrixResult>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 	// Check for existing matrix
 	const [existingMatrix] = await db
@@ -1791,7 +1805,7 @@ export async function generateEvidenceMatrix(
 
 	const evidenceIds = [...new Set(usages.map((u) => u.evidenceId))];
 	const evidenceItems =
-		evidenceIds.length > 0 ? await db.select().from(evidenceLibrary).where(inArray(evidenceLibrary.id, evidenceIds)) : [];
+		evidenceIds.length > 0 ? await db.select().from(evidenceLibrary).where(visibleEvidenceIdsCondition(evidenceIds, userContext)) : [];
 
 	// Build cells mapping evidence to rows/columns
 	const cells: EvidenceMatrixCell[] = [];
@@ -2151,10 +2165,10 @@ export async function suggestMetrics(
  */
 export async function rateEvidenceStrength(evidenceId: string): Promise<ActionResult<StrengthRating>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		// Get evidence
-		const [evidence] = await db.select().from(evidenceLibrary).where(eq(evidenceLibrary.id, evidenceId));
+		const [evidence] = await db.select().from(evidenceLibrary).where(evidenceByIdCondition(evidenceId, userContext));
 
 		if (!evidence) {
 			return { success: false, error: "Evidence not found" };
@@ -2287,7 +2301,7 @@ export async function rateEvidenceStrength(evidenceId: string): Promise<ActionRe
 			],
 			updatedAt: new Date(),
 		})
-		.where(eq(evidenceLibrary.id, evidenceId));
+		.where(evidenceByIdCondition(evidenceId, userContext));
 
 		return {
 			success: true,
@@ -2350,8 +2364,17 @@ export async function batchRateEvidence(evidenceIds: string[]): Promise<ActionRe
  */
 export async function recordEvidenceUsage(evidenceId: string, usage: EvidenceUsageInput): Promise<ActionResult<{ recorded: boolean }>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireEvidenceContext();
 		const validated = evidenceUsageInputSchema.parse(usage);
+
+		const [evidence] = await db
+			.select({ id: evidenceLibrary.id })
+			.from(evidenceLibrary)
+			.where(evidenceByIdCondition(evidenceId, userContext));
+
+		if (!evidence) {
+			return { success: false, error: "Evidence not found" };
+		}
 
 		await db.insert(evidenceUsages).values({
 			evidenceId,
@@ -2373,7 +2396,7 @@ export async function recordEvidenceUsage(evidenceId: string, usage: EvidenceUsa
 				lastUsedAt: new Date(),
 				lastUsedInOpportunityId: validated.opportunityId,
 			})
-			.where(eq(evidenceLibrary.id, evidenceId));
+			.where(evidenceByIdCondition(evidenceId, userContext));
 
 		revalidatePath("/evidence");
 		return { success: true, data: { recorded: true } };
@@ -2396,7 +2419,16 @@ export async function recordEvidenceUsage(evidenceId: string, usage: EvidenceUsa
  */
 export async function getEvidenceUsageHistory(evidenceId: string): Promise<ActionResult<DBEvidenceUsage[]>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
+
+		const [evidence] = await db
+			.select({ id: evidenceLibrary.id })
+			.from(evidenceLibrary)
+			.where(evidenceByIdCondition(evidenceId, userContext));
+
+		if (!evidence) {
+			return { success: false, error: "Evidence not found" };
+		}
 
 		const usages = await db
 			.select()
@@ -2421,12 +2453,15 @@ export async function getEvidenceUsageHistory(evidenceId: string): Promise<Actio
  */
 export async function getMostUsedEvidence(limit: number = 10): Promise<ActionResult<{ evidence: Evidence; useCount: number }[]>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		const results = await db
 			.select()
 			.from(evidenceLibrary)
-			.where(gte(evidenceLibrary.useCount, 1))
+			.where(and(
+				visibleEvidenceCondition(userContext),
+				gte(evidenceLibrary.useCount, 1)
+			))
 			.orderBy(desc(evidenceLibrary.useCount))
 			.limit(limit);
 
@@ -2465,14 +2500,14 @@ export async function getMostUsedEvidence(limit: number = 10): Promise<ActionRes
  */
 export async function generateEvidenceReport(opportunityId: string): Promise<ActionResult<EvidenceReport>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		// Get all evidence used for this opportunity
 		const usages = await db.select().from(evidenceUsages).where(eq(evidenceUsages.opportunityId, opportunityId));
 
 	const evidenceIds = [...new Set(usages.map((u) => u.evidenceId))];
 	const evidenceItems =
-		evidenceIds.length > 0 ? await db.select().from(evidenceLibrary).where(inArray(evidenceLibrary.id, evidenceIds)) : [];
+		evidenceIds.length > 0 ? await db.select().from(evidenceLibrary).where(visibleEvidenceIdsCondition(evidenceIds, userContext)) : [];
 
 	// Calculate summary statistics
 	const byType: Record<string, number> = {};
@@ -2774,15 +2809,7 @@ export async function duplicateEvidence(id: string): Promise<ActionResult<Eviden
  */
 export async function archiveEvidence(id: string): Promise<ActionResult<{ archived: boolean }>> {
 	try {
-		const userContext = await requireUserContext();
-
-		// Build where clause - if user has organizationId, filter by it
-		const whereClause = userContext.organizationId
-			? and(
-					eq(evidenceLibrary.id, id),
-					eq(evidenceLibrary.organizationId, userContext.organizationId)
-				)
-			: eq(evidenceLibrary.id, id);
+		const userContext = await requireEvidenceContext();
 
 		await db
 			.update(evidenceLibrary)
@@ -2790,7 +2817,7 @@ export async function archiveEvidence(id: string): Promise<ActionResult<{ archiv
 				status: "archived",
 				updatedAt: new Date(),
 			})
-			.where(whereClause);
+			.where(evidenceByIdCondition(id, userContext));
 
 		revalidatePath("/evidence");
 		return { success: true, data: { archived: true } };
@@ -3060,7 +3087,16 @@ export interface EvidenceUsageStats {
  */
 export async function getEvidenceUsageStats(evidenceId: string): Promise<ActionResult<EvidenceUsageStats>> {
 	try {
-		const { organizationId } = await requireUserContext();
+		const userContext = await requireEvidenceContext();
+
+		const [evidence] = await db
+			.select({ id: evidenceLibrary.id })
+			.from(evidenceLibrary)
+			.where(evidenceByIdCondition(evidenceId, userContext));
+
+		if (!evidence) {
+			return { success: false, error: "Evidence not found" };
+		}
 
 		// Get all usages for this evidence
 		const usages = await db
