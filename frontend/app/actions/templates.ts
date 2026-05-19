@@ -28,6 +28,35 @@ import { substitutePlaceholders } from "@/lib/placeholders/substitution";
 // Helper Functions
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
+function visibleTemplateCondition(id: string, userId: string): SQL {
+	return and(
+		eq(templates.id, id),
+		or(
+			eq(templates.createdBy, userId),
+			eq(templates.visibility, "public")
+		)!
+	)!;
+}
+
+function ownedTemplateCondition(id: string, userId: string): SQL {
+	return and(eq(templates.id, id), eq(templates.createdBy, userId))!;
+}
+
+function currentUserTemplateScope(userId: string): SQL {
+	return or(
+		eq(templates.createdBy, userId),
+		eq(templates.visibility, "public")
+	)!;
+}
+
 /**
  * Map database row to Template type.
  */
@@ -106,6 +135,7 @@ function mapRowToCategory(row: typeof templateCategories.$inferSelect, templateC
 export async function listTemplates(
 	params: TemplateListParams = {}
 ): Promise<TemplateListResponse> {
+	const userId = await requireCurrentUserId();
 	const {
 		status,
 		visibility,
@@ -120,7 +150,7 @@ export async function listTemplates(
 	} = params;
 
 	// Build where conditions
-	const conditions: SQL[] = [];
+	const conditions: SQL[] = [currentUserTemplateScope(userId)];
 
 	// Only show published templates by default
 	if (status) {
@@ -188,10 +218,11 @@ export async function listTemplates(
  * Get a single template by ID.
  */
 export async function getTemplate(id: string): Promise<Template | null> {
+	const userId = await requireCurrentUserId();
 	const rows = await db
 		.select()
 		.from(templates)
-		.where(eq(templates.id, id))
+		.where(visibleTemplateCondition(id, userId))
 		.limit(1);
 
 	if (rows.length === 0) return null;
@@ -204,8 +235,7 @@ export async function getTemplate(id: string): Promise<Template | null> {
 export async function createTemplate(
 	input: CreateTemplateInput
 ): Promise<Template> {
-	// Get authenticated user
-	const userId = await getCurrentUserId() || "anonymous";
+	const userId = await requireCurrentUserId();
 
 	const [row] = await db
 		.insert(templates)
@@ -238,7 +268,12 @@ export async function updateTemplate(
 	id: string,
 	input: UpdateTemplateInput
 ): Promise<Template | null> {
-	const current = await getTemplate(id);
+	const userId = await requireCurrentUserId();
+	const [current] = await db
+		.select()
+		.from(templates)
+		.where(ownedTemplateCondition(id, userId))
+		.limit(1);
 	if (!current) return null;
 
 	const updateData: Partial<typeof templates.$inferInsert> = {
@@ -263,7 +298,7 @@ export async function updateTemplate(
 	const [row] = await db
 		.update(templates)
 		.set(updateData)
-		.where(eq(templates.id, id))
+		.where(ownedTemplateCondition(id, userId))
 		.returning();
 
 	revalidatePath("/templates");
@@ -275,9 +310,10 @@ export async function updateTemplate(
  * Delete a template.
  */
 export async function deleteTemplate(id: string): Promise<boolean> {
+	const userId = await requireCurrentUserId();
 	const result = await db
 		.delete(templates)
-		.where(eq(templates.id, id))
+		.where(ownedTemplateCondition(id, userId))
 		.returning({ id: templates.id });
 
 	revalidatePath("/templates");
@@ -347,13 +383,18 @@ function applyPlaceholders(
 export async function useTemplate(
 	input: UseTemplateInput
 ): Promise<Document> {
-	const template = await getTemplate(input.templateId);
+	const userId = await requireCurrentUserId();
+	const [template] = await db
+		.select()
+		.from(templates)
+		.where(visibleTemplateCondition(input.templateId, userId))
+		.limit(1);
 	if (!template) {
 		throw new Error(`Template not found: ${input.templateId}`);
 	}
 
 	// Apply placeholder values to content
-	const content = applyPlaceholders(template.content, input.placeholderValues);
+	const content = applyPlaceholders(template.content as DocumentContent, input.placeholderValues);
 
 	// Extract plain text for search
 	const extractPlainText = (node: DocumentContent): string => {
@@ -364,9 +405,6 @@ export async function useTemplate(
 		return "";
 	};
 	const plainText = extractPlainText(content).trim();
-
-	// Get authenticated user
-	const userId = await getCurrentUserId() || "anonymous";
 
 	// Create the document
 	const [row] = await db
@@ -424,11 +462,13 @@ export async function searchTemplates(
 	query: string,
 	limit = 20
 ): Promise<TemplateSummary[]> {
+	const userId = await requireCurrentUserId();
 	const rows = await db
 		.select()
 		.from(templates)
 		.where(
 			and(
+				currentUserTemplateScope(userId),
 				eq(templates.status, "published"),
 				or(
 					ilike(templates.name, `%${query}%`),

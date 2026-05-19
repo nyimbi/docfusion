@@ -54,6 +54,47 @@ function countWords(text: string): number {
 		.filter((word) => word.length > 0).length;
 }
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
+function readableDocumentCondition(id: string, userId: string): SQL {
+	return and(
+		eq(documents.id, id),
+		or(
+			eq(documents.ownerId, userId),
+			eq(documents.visibility, "public"),
+			sql`${documents.collaboratorIds} ? ${userId}`
+		)!
+	)!;
+}
+
+function writableDocumentCondition(id: string, userId: string): SQL {
+	return and(
+		eq(documents.id, id),
+		or(
+			eq(documents.ownerId, userId),
+			sql`${documents.collaboratorIds} ? ${userId}`
+		)!
+	)!;
+}
+
+function ownedDocumentCondition(id: string, userId: string): SQL {
+	return and(eq(documents.id, id), eq(documents.ownerId, userId))!;
+}
+
+function currentUserDocumentScope(userId: string): SQL {
+	return or(
+		eq(documents.ownerId, userId),
+		eq(documents.visibility, "public"),
+		sql`${documents.collaboratorIds} ? ${userId}`
+	)!;
+}
+
 /**
  * Map database row to Document type.
  */
@@ -109,6 +150,7 @@ function mapRowToSummary(row: typeof documents.$inferSelect): DocumentSummary {
 export async function listDocuments(
 	params: DocumentListParams = {}
 ): Promise<DocumentListResponse> {
+	const userId = await requireCurrentUserId();
 	const {
 		status,
 		visibility,
@@ -122,7 +164,7 @@ export async function listDocuments(
 	} = params;
 
 	// Build where conditions
-	const conditions: SQL[] = [];
+	const conditions: SQL[] = [currentUserDocumentScope(userId)];
 
 	if (status) {
 		conditions.push(eq(documents.status, status));
@@ -185,10 +227,11 @@ export async function listDocuments(
  * Get a single document by ID.
  */
 export async function getDocument(id: string): Promise<Document | null> {
+	const userId = await requireCurrentUserId();
 	const rows = await db
 		.select()
 		.from(documents)
-		.where(eq(documents.id, id))
+		.where(readableDocumentCondition(id, userId))
 		.limit(1);
 
 	if (rows.length === 0) return null;
@@ -197,7 +240,7 @@ export async function getDocument(id: string): Promise<Document | null> {
 	await db
 		.update(documents)
 		.set({ lastAccessedAt: new Date() })
-		.where(eq(documents.id, id));
+		.where(readableDocumentCondition(id, userId));
 
 	return mapRowToDocument(rows[0]);
 }
@@ -208,13 +251,11 @@ export async function getDocument(id: string): Promise<Document | null> {
 export async function createDocument(
 	input: CreateDocumentInput
 ): Promise<Document> {
+	const userId = await requireCurrentUserId();
 	const content = input.content || { type: "doc", content: [{ type: "paragraph" }] };
 	const plainText = extractPlainText(content);
 	const wordCount = countWords(plainText);
 	const characterCount = plainText.length;
-
-	// Get authenticated user
-	const userId = await getCurrentUserId() || "anonymous";
 
 	const [row] = await db
 		.insert(documents)
@@ -252,8 +293,13 @@ export async function updateDocument(
 	id: string,
 	input: UpdateDocumentInput
 ): Promise<Document | null> {
+	const userId = await requireCurrentUserId();
 	// Fetch current document
-	const current = await getDocument(id);
+	const [current] = await db
+		.select()
+		.from(documents)
+		.where(writableDocumentCondition(id, userId))
+		.limit(1);
 	if (!current) return null;
 
 	// Prepare update data
@@ -283,8 +329,6 @@ export async function updateDocument(
 		updateData.characterCount = (updateData.plainText || "").length;
 		updateData.currentVersion = current.currentVersion + 1;
 
-		// Create new version
-		const userId = await getCurrentUserId() || "anonymous";
 		await db.insert(documentVersions).values({
 			documentId: id,
 			versionNumber: current.currentVersion + 1,
@@ -297,7 +341,7 @@ export async function updateDocument(
 	const [row] = await db
 		.update(documents)
 		.set(updateData)
-		.where(eq(documents.id, id))
+		.where(writableDocumentCondition(id, userId))
 		.returning();
 
 	revalidatePath("/documents");
@@ -309,9 +353,10 @@ export async function updateDocument(
  * Delete a document.
  */
 export async function deleteDocument(id: string): Promise<boolean> {
+	const userId = await requireCurrentUserId();
 	const result = await db
 		.delete(documents)
-		.where(eq(documents.id, id))
+		.where(ownedDocumentCondition(id, userId))
 		.returning({ id: documents.id });
 
 	revalidatePath("/documents");
@@ -328,6 +373,14 @@ export async function deleteDocument(id: string): Promise<boolean> {
 export async function getDocumentYjsState(
 	documentId: string
 ): Promise<DocumentYjsState | null> {
+	const userId = await requireCurrentUserId();
+	const [document] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(readableDocumentCondition(documentId, userId))
+		.limit(1);
+	if (!document) return null;
+
 	const rows = await db
 		.select()
 		.from(documentYjsStates)
@@ -352,6 +405,16 @@ export async function saveDocumentYjsState(
 	state: string,
 	stateVector: string
 ): Promise<void> {
+	const userId = await requireCurrentUserId();
+	const [document] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(writableDocumentCondition(documentId, userId))
+		.limit(1);
+	if (!document) {
+		throw new Error("Unauthorized");
+	}
+
 	await db
 		.insert(documentYjsStates)
 		.values({
@@ -381,13 +444,17 @@ export async function searchDocuments(
 	query: string,
 	limit = 20
 ): Promise<DocumentSummary[]> {
+	const userId = await requireCurrentUserId();
 	const rows = await db
 		.select()
 		.from(documents)
 		.where(
-			or(
-				ilike(documents.title, `%${query}%`),
-				ilike(documents.plainText, `%${query}%`)
+			and(
+				currentUserDocumentScope(userId),
+				or(
+					ilike(documents.title, `%${query}%`),
+					ilike(documents.plainText, `%${query}%`)
+				)
 			)
 		)
 		.orderBy(desc(documents.updatedAt))
