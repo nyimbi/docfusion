@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { documents, documentAnalyses, paragraphAnalyses, proposalDocuments } from "@/lib/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import type {
 	DocumentAnalysis,
 	ParagraphAnalysis,
@@ -930,10 +931,20 @@ function analyzeParagraphContent(
 // Server Actions
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 /**
  * Run full document analysis with 30+ factors.
  */
 export async function analyzeDocument(input: AnalyzeDocumentInput): Promise<DocumentAnalysis> {
+	await requireCurrentUserId();
+
 	const startTime = Date.now();
 
 	// Fetch document
@@ -1074,6 +1085,8 @@ export async function analyzeDocument(input: AnalyzeDocumentInput): Promise<Docu
  * Get the latest analysis for a document.
  */
 export async function getAnalysis(documentId: string): Promise<DocumentAnalysis | null> {
+	await requireCurrentUserId();
+
 	const [analysis] = await db
 		.select()
 		.from(documentAnalyses)
@@ -1106,6 +1119,8 @@ export async function getAnalysisHistory(
 	documentId: string,
 	limit = 10
 ): Promise<AnalysisHistoryEntry[]> {
+	await requireCurrentUserId();
+
 	const analyses = await db
 		.select()
 		.from(documentAnalyses)
@@ -1126,6 +1141,8 @@ export async function getAnalysisHistory(
  * Delete an analysis.
  */
 export async function deleteAnalysis(analysisId: string): Promise<boolean> {
+	await requireCurrentUserId();
+
 	const result = await db
 		.delete(documentAnalyses)
 		.where(eq(documentAnalyses.id, analysisId))
