@@ -426,6 +426,17 @@ const createFormatTemplateSchema = z.object({
 // Helper Functions
 // ============================================================================
 
+async function requireFormattingContext(): Promise<{ userId: string; organizationId: string }> {
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+	return {
+		userId: userContext.userId,
+		organizationId: userContext.organizationId,
+	};
+}
+
 /**
  * Maps a database format template row to the FormatTemplate interface.
  */
@@ -2732,7 +2743,7 @@ export async function saveFormatPreset(
 	customSettings: CustomFormatSettings,
 	baseTemplateId?: string
 ): Promise<FormatPreset> {
-	const userContext = await requireUserContext();
+	const userContext = await requireFormattingContext();
 
 	if (!name || name.trim().length === 0) {
 		throw new Error("Preset name is required");
@@ -2753,7 +2764,7 @@ export async function saveFormatPreset(
 				baseTemplateId: baseTemplateId ?? null,
 				customSettings: validationResult.data,
 				userId: userContext.userId,
-				organizationId: userContext.organizationId ?? null,
+				organizationId: userContext.organizationId,
 				isShared: false,
 			})
 			.returning();
@@ -2776,7 +2787,7 @@ export async function saveFormatPreset(
  * ```
  */
 export async function getFormatPresets(): Promise<FormatPreset[]> {
-	const userContext = await requireUserContext();
+	const userContext = await requireFormattingContext();
 
 	try {
 		// Get user's own presets and shared presets from their organization
@@ -2787,11 +2798,14 @@ export async function getFormatPresets(): Promise<FormatPreset[]> {
 				and(
 					eq(formatPresets.isActive, true),
 					or(
-						eq(formatPresets.userId, userContext.userId),
+						and(
+							eq(formatPresets.userId, userContext.userId),
+							eq(formatPresets.organizationId, userContext.organizationId)
+						),
 						and(
 							eq(formatPresets.isShared, true),
 							or(
-								eq(formatPresets.organizationId, userContext.organizationId ?? ""),
+								eq(formatPresets.organizationId, userContext.organizationId),
 								eq(formatPresets.isPublic, true)
 							)
 						)
@@ -2818,22 +2832,22 @@ export async function getFormatPresets(): Promise<FormatPreset[]> {
  * ```
  */
 export async function deleteFormatPreset(id: string): Promise<void> {
-	const userContext = await requireUserContext();
+	const userContext = await requireFormattingContext();
 
 	try {
 		// Verify ownership
 		const [preset] = await db
 			.select()
 			.from(formatPresets)
-			.where(eq(formatPresets.id, id))
+			.where(and(
+				eq(formatPresets.id, id),
+				eq(formatPresets.userId, userContext.userId),
+				eq(formatPresets.organizationId, userContext.organizationId)
+			))
 			.limit(1);
 
 		if (!preset) {
 			throw new Error("Format preset not found");
-		}
-
-		if (preset.userId !== userContext.userId) {
-			throw new Error("You do not have permission to delete this preset");
 		}
 
 		// Soft delete by setting isActive to false
@@ -2843,7 +2857,11 @@ export async function deleteFormatPreset(id: string): Promise<void> {
 				isActive: false,
 				updatedAt: new Date(),
 			})
-			.where(eq(formatPresets.id, id));
+			.where(and(
+				eq(formatPresets.id, id),
+				eq(formatPresets.userId, userContext.userId),
+				eq(formatPresets.organizationId, userContext.organizationId)
+			));
 	} catch (error) {
 		logger.error("Error deleting format preset:", error);
 		throw new Error("Failed to delete format preset");
@@ -2867,14 +2885,29 @@ export async function applyFormatPreset(
 	documentId: string,
 	presetId: string
 ): Promise<DocumentFormat> {
-	const userContext = await requireUserContext();
+	const userContext = await requireFormattingContext();
 
 	try {
 		// Get preset
 		const [preset] = await db
 			.select()
 			.from(formatPresets)
-			.where(eq(formatPresets.id, presetId))
+			.where(and(
+				eq(formatPresets.id, presetId),
+				or(
+					and(
+						eq(formatPresets.userId, userContext.userId),
+						eq(formatPresets.organizationId, userContext.organizationId)
+					),
+					and(
+						eq(formatPresets.isShared, true),
+						or(
+							eq(formatPresets.organizationId, userContext.organizationId),
+							eq(formatPresets.isPublic, true)
+						)
+					)
+				)
+			))
 			.limit(1);
 
 		if (!preset) {
@@ -2944,7 +2977,22 @@ export async function applyFormatPreset(
 				useCount: sql`${formatPresets.useCount} + 1`,
 				lastUsedAt: new Date(),
 			})
-			.where(eq(formatPresets.id, presetId));
+			.where(and(
+				eq(formatPresets.id, presetId),
+				or(
+					and(
+						eq(formatPresets.userId, userContext.userId),
+						eq(formatPresets.organizationId, userContext.organizationId)
+					),
+					and(
+						eq(formatPresets.isShared, true),
+						or(
+							eq(formatPresets.organizationId, userContext.organizationId),
+							eq(formatPresets.isPublic, true)
+						)
+					)
+				)
+			));
 
 		return mapDocumentFormat(row);
 	} catch (error) {
