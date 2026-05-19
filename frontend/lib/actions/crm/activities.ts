@@ -39,6 +39,12 @@ async function requireActivityActor(): Promise<string> {
 	return userId;
 }
 
+function assertActivityActorUser(actorId: string, userId?: string): void {
+	if (userId && userId !== actorId) {
+		throw new Error("Unauthorized");
+	}
+}
+
 // ============================================================================
 // CRUD OPERATIONS
 // ============================================================================
@@ -51,6 +57,7 @@ export async function createActivity(
 	_userId?: string
 ): Promise<ActivityRow> {
 	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, _userId);
 	const now = new Date();
 
 	const newActivity: NewActivity = {
@@ -113,6 +120,7 @@ export async function updateActivity(
 	_userId?: string
 ): Promise<ActivityRow | null> {
 	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, _userId);
 	const existing = await db.query.activities.findFirst({
 		where: and(eq(activities.id, id), eq(activities.createdBy, actorId)),
 	});
@@ -173,8 +181,9 @@ export async function deleteActivity(id: string): Promise<boolean> {
  * Get a single activity by ID.
  */
 export async function getActivity(id: string): Promise<ActivityRow | null> {
+	const actorId = await requireActivityActor();
 	const activity = await db.query.activities.findFirst({
-		where: eq(activities.id, id),
+		where: and(eq(activities.id, id), eq(activities.createdBy, actorId)),
 	});
 	return activity ?? null;
 }
@@ -185,8 +194,9 @@ export async function getActivity(id: string): Promise<ActivityRow | null> {
 export async function getActivityWithRelations(
 	id: string
 ): Promise<ActivityWithRelations | null> {
+	const actorId = await requireActivityActor();
 	const activity = await db.query.activities.findFirst({
-		where: eq(activities.id, id),
+		where: and(eq(activities.id, id), eq(activities.createdBy, actorId)),
 		with: {
 			account: true,
 			contact: true,
@@ -208,7 +218,10 @@ export async function getActivities(
 	filters?: ActivityFilters,
 	pagination?: Pagination
 ): Promise<PaginatedResponse<ActivityRow>> {
+	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, filters?.createdBy);
 	const conditions = buildActivityFilterConditions(filters);
+	conditions.push(eq(activities.createdBy, actorId));
 
 	// Get total count
 	const [{ total }] = await db
@@ -253,8 +266,11 @@ export async function getAccountTimeline(
 	filters?: ActivityFilters,
 	pagination?: Pagination
 ): Promise<PaginatedResponse<ActivityRow>> {
+	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, filters?.createdBy);
 	const conditions = [
 		eq(activities.accountId, accountId),
+		eq(activities.createdBy, actorId),
 		...buildActivityFilterConditions(filters),
 	];
 
@@ -298,8 +314,11 @@ export async function getContactTimeline(
 	filters?: ActivityFilters,
 	pagination?: Pagination
 ): Promise<PaginatedResponse<ActivityRow>> {
+	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, filters?.createdBy);
 	const conditions = [
 		eq(activities.contactId, contactId),
+		eq(activities.createdBy, actorId),
 		...buildActivityFilterConditions(filters),
 	];
 
@@ -341,8 +360,11 @@ export async function getDealTimeline(
 	filters?: ActivityFilters,
 	pagination?: Pagination
 ): Promise<PaginatedResponse<ActivityRow>> {
+	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, filters?.createdBy);
 	const conditions = [
 		eq(activities.dealId, dealId),
+		eq(activities.createdBy, actorId),
 		...buildActivityFilterConditions(filters),
 	];
 
@@ -387,6 +409,8 @@ export async function getUpcomingTasks(
 	userId?: string,
 	days = 7
 ): Promise<ActivityRow[]> {
+	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, userId);
 	const now = new Date();
 	const futureDate = new Date();
 	futureDate.setDate(futureDate.getDate() + days);
@@ -396,11 +420,8 @@ export async function getUpcomingTasks(
 		inArray(activities.status, ["scheduled"]),
 		gte(activities.scheduledAt, now),
 		lte(activities.scheduledAt, futureDate),
+		eq(activities.createdBy, actorId),
 	];
-
-	if (userId) {
-		conditions.push(eq(activities.createdBy, userId));
-	}
 
 	return db.query.activities.findMany({
 		where: and(...conditions),
@@ -413,17 +434,16 @@ export async function getUpcomingTasks(
  * Get overdue tasks.
  */
 export async function getOverdueTasks(userId?: string): Promise<ActivityRow[]> {
+	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, userId);
 	const now = new Date();
 
 	const conditions = [
 		eq(activities.type, "task"),
 		inArray(activities.status, ["scheduled"]),
 		lte(activities.scheduledAt, now),
+		eq(activities.createdBy, actorId),
 	];
-
-	if (userId) {
-		conditions.push(eq(activities.createdBy, userId));
-	}
 
 	return db.query.activities.findMany({
 		where: and(...conditions),
@@ -439,6 +459,8 @@ export async function getActivitiesNeedingFollowup(
 	userId?: string,
 	daysOverdue = 0
 ): Promise<ActivityRow[]> {
+	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, userId);
 	const cutoffDate = new Date();
 	cutoffDate.setDate(cutoffDate.getDate() - daysOverdue);
 
@@ -449,11 +471,8 @@ export async function getActivitiesNeedingFollowup(
 			isNull(activities.status),
 			inArray(activities.status, ["scheduled", "completed"])
 		),
+		eq(activities.createdBy, actorId),
 	];
-
-	if (userId) {
-		conditions.push(eq(activities.createdBy, userId));
-	}
 
 	return db.query.activities.findMany({
 		where: and(...conditions),
@@ -471,6 +490,7 @@ export async function completeActivity(
 	_userId?: string
 ): Promise<ActivityRow | null> {
 	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, _userId);
 	const now = new Date();
 
 	const existing = await db.query.activities.findFirst({
@@ -520,6 +540,7 @@ export async function rescheduleActivity(
 	_userId?: string
 ): Promise<ActivityRow | null> {
 	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, _userId);
 	const existing = await db.query.activities.findFirst({
 		where: and(eq(activities.id, id), eq(activities.createdBy, actorId)),
 	});
@@ -556,6 +577,7 @@ export async function cancelActivity(
 	_userId?: string
 ): Promise<ActivityRow | null> {
 	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, _userId);
 	const existing = await db.query.activities.findFirst({
 		where: and(eq(activities.id, id), eq(activities.createdBy, actorId)),
 	});
@@ -592,7 +614,10 @@ export async function cancelActivity(
 export async function getActivityStats(
 	filters?: ActivityFilters
 ): Promise<ActivityStats> {
+	const actorId = await requireActivityActor();
+	assertActivityActorUser(actorId, filters?.createdBy);
 	const conditions = buildActivityFilterConditions(filters);
+	conditions.push(eq(activities.createdBy, actorId));
 
 	// Get total count
 	const [{ total }] = await db
@@ -691,7 +716,8 @@ export async function getActivityCountsByUser(
 	startDate?: Date,
 	endDate?: Date
 ): Promise<{ userId: string; count: number; completedCount: number }[]> {
-	const conditions = [];
+	const actorId = await requireActivityActor();
+	const conditions = [eq(activities.createdBy, actorId)];
 
 	if (startDate) {
 		conditions.push(gte(activities.createdAt, startDate));

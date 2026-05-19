@@ -31,6 +31,17 @@ import {
 	completeActivity,
 	createActivity,
 	deleteActivity,
+	getAccountTimeline,
+	getActivities,
+	getActivitiesNeedingFollowup,
+	getActivity,
+	getActivityCountsByUser,
+	getActivityStats,
+	getActivityWithRelations,
+	getContactTimeline,
+	getDealTimeline,
+	getOverdueTasks,
+	getUpcomingTasks,
 	rescheduleActivity,
 	updateActivity,
 } from "@/lib/actions/crm/activities";
@@ -51,6 +62,38 @@ describe("CRM activity auth", () => {
 		await expect(completeActivity("activity-1")).rejects.toThrow("Unauthorized");
 		await expect(rescheduleActivity("activity-1", new Date("2026-01-01T00:00:00Z"))).rejects.toThrow("Unauthorized");
 		await expect(cancelActivity("activity-1")).rejects.toThrow("Unauthorized");
+
+		expect(dbAccessMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects unauthenticated activity reads before database access", async () => {
+		await expect(getActivity("activity-1")).rejects.toThrow("Unauthorized");
+		await expect(getActivityWithRelations("activity-1")).rejects.toThrow("Unauthorized");
+		await expect(getActivities()).rejects.toThrow("Unauthorized");
+		await expect(getAccountTimeline("account-1")).rejects.toThrow("Unauthorized");
+		await expect(getContactTimeline("contact-1")).rejects.toThrow("Unauthorized");
+		await expect(getDealTimeline("deal-1")).rejects.toThrow("Unauthorized");
+		await expect(getUpcomingTasks()).rejects.toThrow("Unauthorized");
+		await expect(getOverdueTasks()).rejects.toThrow("Unauthorized");
+		await expect(getActivitiesNeedingFollowup()).rejects.toThrow("Unauthorized");
+		await expect(getActivityStats()).rejects.toThrow("Unauthorized");
+		await expect(getActivityCountsByUser()).rejects.toThrow("Unauthorized");
+
+		expect(dbAccessMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects spoofed activity actor parameters before database access", async () => {
+		getCurrentUserIdMock.mockResolvedValue("crm-user-1");
+
+		await expect(createActivity({
+			type: "note",
+			subject: "Spoofed activity",
+		}, "other-user")).rejects.toThrow("Unauthorized");
+		await expect(getActivities({ createdBy: "other-user" })).rejects.toThrow("Unauthorized");
+		await expect(getUpcomingTasks("other-user")).rejects.toThrow("Unauthorized");
+		await expect(getOverdueTasks("other-user")).rejects.toThrow("Unauthorized");
+		await expect(getActivitiesNeedingFollowup("other-user")).rejects.toThrow("Unauthorized");
+		await expect(getActivityStats({ createdBy: "other-user" })).rejects.toThrow("Unauthorized");
 
 		expect(dbAccessMock).not.toHaveBeenCalled();
 	});
