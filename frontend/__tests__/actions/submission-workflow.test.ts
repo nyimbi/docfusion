@@ -123,6 +123,9 @@ describe("submission workflow gates", () => {
 	});
 
 	it("blocks submission when pre-submission audit is not ready", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{ id: "opp-1" }],
+		}));
 		vi.mocked(preSubmissionAudit).mockResolvedValueOnce({
 			...readyAudit,
 			isReady: false,
@@ -144,6 +147,9 @@ describe("submission workflow gates", () => {
 	});
 
 	it("blocks submission when the final checklist has unresolved hard gates", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{ id: "opp-1" }],
+		}));
 		vi.mocked(evaluateFinalSubmissionChecklistWorkflow).mockResolvedValueOnce({
 			opportunityId: "opp-1",
 			allowed: false,
@@ -173,17 +179,21 @@ describe("submission workflow gates", () => {
 		let insertedSubmission: Record<string, unknown> | undefined;
 		let opportunityUpdate: Record<string, unknown> | undefined;
 
-		dbMock.select.mockReturnValueOnce(createChain({
-			result: [{
-				id: "proposal-doc-1",
-				documentId: "doc-1",
-				documentType: "technical_approach",
-				status: "final",
-				title: "Technical Approach",
-				content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Final text" }] }] },
-				updatedAt: new Date("2026-04-01T00:00:00.000Z"),
-			}],
-		}));
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "opp-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "proposal-doc-1",
+					documentId: "doc-1",
+					documentType: "technical_approach",
+					status: "final",
+					title: "Technical Approach",
+					content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Final text" }] }] },
+					updatedAt: new Date("2026-04-01T00:00:00.000Z"),
+				}],
+			}));
 		dbMock.insert.mockReturnValueOnce(createChain({
 			onValues: (value) => {
 				insertedSubmission = value;
