@@ -37,7 +37,8 @@ import {
 	type NewGraphicTemplate,
 } from "@/lib/db/schema-graphics";
 import { documents, documentSections, proposalDocuments } from "@/lib/db/schema";
-import { eq, and, desc, sql, like, inArray, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, isNull, or } from "drizzle-orm";
+import type { AnyColumn } from "drizzle-orm/column";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
 // Integration with existing diagram library
@@ -58,7 +59,7 @@ import {
 } from "@/lib/diagrams/code-tools";
 import type { DiagramFormat, DiagramTheme } from "@/lib/diagrams/types";
 import { logger } from "@/lib/utils/logger";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 
 // ============================================================================
 // Result Type Wrapper
@@ -72,12 +73,41 @@ export type ActionResult<T> =
 	| { success: true; data: T }
 	| { success: false; error: string };
 
-async function requireGraphicActor(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
+type OrganizationColumn = AnyColumn<{ data: string; notNull: false }>;
+
+async function requireGraphicContext(organizationId?: string | null): Promise<UserContext> {
+	const userContext = await requireUserContext();
+	if (organizationId && organizationId !== userContext.organizationId) {
 		throw new Error("Unauthorized");
 	}
-	return userId;
+	return userContext;
+}
+
+async function requireGraphicActor(): Promise<string> {
+	return (await requireGraphicContext()).userId;
+}
+
+function mutableOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
+	return userContext.organizationId
+		? eq(column, userContext.organizationId)
+		: isNull(column);
+}
+
+function visibleTemplateCondition(userContext: UserContext) {
+	return userContext.organizationId
+		? or(
+			isNull(graphicTemplates.organizationId),
+			eq(graphicTemplates.organizationId, userContext.organizationId),
+			eq(graphicTemplates.isPublic, true)
+		)
+		: or(
+			isNull(graphicTemplates.organizationId),
+			eq(graphicTemplates.isPublic, true)
+		);
+}
+
+function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
+	return inputOrganizationId ?? userContext.organizationId;
 }
 
 // ============================================================================
@@ -366,6 +396,7 @@ export async function deleteGraphic(
 export async function getGraphic(
 	id: string
 ): Promise<ActionResult<ProposalGraphic>> {
+	await requireGraphicActor();
 	try {
 		const [graphic] = await db
 			.select()
@@ -392,6 +423,7 @@ export async function getGraphic(
 export async function listGraphics(
 	opportunityId: string
 ): Promise<ActionResult<ProposalGraphic[]>> {
+	await requireGraphicActor();
 	try {
 		const graphics = await db
 			.select()
@@ -422,6 +454,7 @@ export async function listGraphics(
 export async function suggestGraphics(
 	sectionId: string
 ): Promise<ActionResult<GraphicSuggestion[]>> {
+	await requireGraphicActor();
 	try {
 		// Fetch section and related document content
 		const [section] = await db
@@ -1072,6 +1105,7 @@ Return only the caption text, no quotes or additional formatting.`;
 export async function validateGraphicConsistency(
 	opportunityId: string
 ): Promise<ActionResult<ConsistencyReport>> {
+	await requireGraphicActor();
 	try {
 		// Get all graphics for this opportunity
 		const graphics = await db
@@ -1298,9 +1332,11 @@ export async function exportGraphics(
 export async function createGraphicTemplate(
 	input: CreateTemplateInput
 ): Promise<ActionResult<GraphicTemplate>> {
-	const actorId = await requireGraphicActor();
+	const userContext = await requireGraphicContext(input.organizationId);
 	try {
 		const validated = CreateTemplateSchema.parse(input);
+		const actorId = userContext.userId;
+		const organizationId = organizationForInsert(validated.organizationId, userContext);
 
 		const insertData: NewGraphicTemplate = {
 			name: validated.name,
@@ -1311,7 +1347,7 @@ export async function createGraphicTemplate(
 			placeholders: validated.placeholders,
 			previewImageUrl: validated.previewImageUrl,
 			isPublic: validated.isPublic ?? false,
-			organizationId: validated.organizationId,
+			organizationId,
 			createdBy: actorId,
 			useCount: 0,
 		};
@@ -1342,15 +1378,18 @@ export async function createGraphicTemplate(
 export async function getGraphicTemplates(
 	graphicType?: string
 ): Promise<ActionResult<GraphicTemplate[]>> {
+	const userContext = await requireGraphicContext();
 	try {
-		let query = db
+		const conditions = [visibleTemplateCondition(userContext)];
+		if (graphicType) {
+			conditions.push(eq(graphicTemplates.graphicType, graphicType));
+		}
+
+		const templates = await db
 			.select()
 			.from(graphicTemplates)
+			.where(and(...conditions))
 			.orderBy(desc(graphicTemplates.useCount));
-
-		const templates = graphicType
-			? await query.where(eq(graphicTemplates.graphicType, graphicType))
-			: await query;
 
 		return { success: true, data: templates };
 	} catch (error) {
@@ -1373,12 +1412,15 @@ export async function applyTemplate(
 	templateId: string,
 	data: Record<string, string>
 ): Promise<ActionResult<string>> {
-	await requireGraphicActor();
+	const userContext = await requireGraphicContext();
 	try {
 		const [template] = await db
 			.select()
 			.from(graphicTemplates)
-			.where(eq(graphicTemplates.id, templateId));
+			.where(and(
+				eq(graphicTemplates.id, templateId),
+				visibleTemplateCondition(userContext)
+			));
 
 		if (!template) {
 			return { success: false, error: "Template not found" };
@@ -1410,7 +1452,10 @@ export async function applyTemplate(
 				useCount: sql`${graphicTemplates.useCount} + 1`,
 				updatedAt: new Date(),
 			})
-			.where(eq(graphicTemplates.id, templateId));
+			.where(and(
+				eq(graphicTemplates.id, templateId),
+				visibleTemplateCondition(userContext)
+			));
 
 		return { success: true, data: result };
 	} catch (error) {
@@ -1435,6 +1480,7 @@ export async function applyTemplate(
 export async function getStyleGuide(
 	organizationId: string
 ): Promise<ActionResult<GraphicStyleGuide | null>> {
+	await requireGraphicContext(organizationId);
 	try {
 		const [styleGuide] = await db
 			.select()
@@ -1464,10 +1510,13 @@ export async function updateStyleGuide(
 	id: string,
 	data: Partial<GraphicStyleGuide>
 ): Promise<ActionResult<GraphicStyleGuide>> {
-	await requireGraphicActor();
+	const requestedOrganizationId = typeof data.organizationId === "string"
+		? data.organizationId
+		: undefined;
+	const userContext = await requireGraphicContext(requestedOrganizationId);
 	try {
-		// Remove id, createdAt from update data if present
-		const { id: _, createdAt: __, ...updateData } = data as Record<string, unknown>;
+		// Keep ownership immutable; the row predicate scopes which style guides can change.
+		const { id: _, createdAt: __, organizationId: ___, ...updateData } = data as Record<string, unknown>;
 
 		const [styleGuide] = await db
 			.update(graphicStyleGuides)
@@ -1475,7 +1524,10 @@ export async function updateStyleGuide(
 				...updateData,
 				updatedAt: new Date(),
 			})
-			.where(eq(graphicStyleGuides.id, id))
+			.where(and(
+				eq(graphicStyleGuides.id, id),
+				mutableOrganizationCondition(graphicStyleGuides.organizationId, userContext)
+			))
 			.returning();
 
 		if (!styleGuide) {
@@ -1506,6 +1558,7 @@ export async function getNextFigureNumber(
 	opportunityId: string,
 	prefix?: string
 ): Promise<ActionResult<string>> {
+	await requireGraphicActor();
 	try {
 		const graphics = await db
 			.select({ figureNumber: proposalGraphics.figureNumber })
@@ -1606,6 +1659,7 @@ export async function searchGraphics(
 	query: string,
 	limit: number = 20
 ): Promise<ActionResult<ProposalGraphic[]>> {
+	await requireGraphicActor();
 	try {
 		const searchPattern = `%${query}%`;
 
@@ -1800,6 +1854,7 @@ export async function renderGraphicToSvg(
 	graphicId: string,
 	theme?: DiagramTheme
 ): Promise<ActionResult<{ svg: string }>> {
+	await requireGraphicActor();
 	try {
 		const [graphic] = await db
 			.select()
