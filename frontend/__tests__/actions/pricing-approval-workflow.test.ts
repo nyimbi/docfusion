@@ -154,6 +154,36 @@ beforeEach(() => {
 });
 
 describe("pricing approval workflow", () => {
+	it("requires organization context before cost element pricing transitions", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "pricing-lead-1",
+			organizationId: "",
+		});
+
+		await expect(transitionCostElementPricingWorkflow({
+			costElementId: "cost-1",
+			action: "submit_review",
+			reason: "BOE is ready for price review",
+		})).rejects.toThrow("No organization context");
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("requires organization context before pricing package transitions", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "pricing-lead-1",
+			organizationId: "",
+		});
+
+		await expect(transitionPricingPackageWorkflow({
+			pricingSummaryId: "pricing-1",
+			action: "request_review",
+			reason: "Package is ready",
+		})).rejects.toThrow("No organization context");
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
 	it("submits a cost element for BOE review and projects reviewer work", async () => {
 		let patch: Record<string, unknown> | undefined;
 		dbMock.select.mockReturnValueOnce(createChain({ result: [baseCostElement] }));

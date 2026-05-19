@@ -12,7 +12,7 @@ import {
 	pricingSummaries,
 	type AlignmentIssue,
 } from "@/lib/db/schema-pricing";
-import { eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type CostElementRow = typeof costElements.$inferSelect;
 type CostTechnicalTrackingRow = typeof costTechnicalTracking.$inferSelect;
@@ -62,15 +62,52 @@ export interface PricingApprovalWorkflowResult {
 const COST_ELEMENT_WORKFLOW_KEY = "cost_element_pricing_approval";
 const PRICING_PACKAGE_WORKFLOW_KEY = "pricing_package_approval";
 
+function requirePricingApprovalContext(userContext: { userId: string; organizationId?: string | null }) {
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleCostElementByIdCondition(costElementId: string, userId: string): SQL {
+	return and(
+		eq(costElements.id, costElementId),
+		assignedOpportunityExistsSql(costElements.opportunityId, userId)
+	)!;
+}
+
+function visiblePricingSummaryByIdCondition(pricingSummaryId: string, userId: string): SQL {
+	return and(
+		eq(pricingSummaries.id, pricingSummaryId),
+		assignedOpportunityExistsSql(pricingSummaries.opportunityId, userId)
+	)!;
+}
+
+function visibleCostElementsByOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(costElements.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
 export async function transitionCostElementPricingWorkflow(
 	input: CostElementPricingWorkflowInput
 ): Promise<PricingApprovalWorkflowResult> {
 	const userContext = await requireUserContext();
+	requirePricingApprovalContext(userContext);
 	const reason = requireReason(input.reason, "Pricing cost element transitions require a reason");
 	const [costElement] = await db
 		.select()
 		.from(costElements)
-		.where(eq(costElements.id, input.costElementId))
+		.where(visibleCostElementByIdCondition(input.costElementId, userContext.userId))
 		.limit(1);
 	if (!costElement) {
 		throw new Error("Cost element not found");
@@ -86,7 +123,7 @@ export async function transitionCostElementPricingWorkflow(
 	const [updatedCostElement] = await db
 		.update(costElements)
 		.set(transition.patch)
-		.where(eq(costElements.id, input.costElementId))
+		.where(visibleCostElementByIdCondition(input.costElementId, userContext.userId))
 		.returning();
 	if (!updatedCostElement) {
 		throw new Error("Failed to update cost element pricing state");
@@ -155,18 +192,19 @@ export async function transitionPricingPackageWorkflow(
 	input: PricingPackageWorkflowInput
 ): Promise<PricingApprovalWorkflowResult> {
 	const userContext = await requireUserContext();
+	requirePricingApprovalContext(userContext);
 	const reason = requireReason(input.reason, "Pricing package transitions require a reason");
 	const [summary] = await db
 		.select()
 		.from(pricingSummaries)
-		.where(eq(pricingSummaries.id, input.pricingSummaryId))
+		.where(visiblePricingSummaryByIdCondition(input.pricingSummaryId, userContext.userId))
 		.limit(1);
 	if (!summary) {
 		throw new Error("Pricing summary not found");
 	}
 
 	const [elements, trackingRows] = await Promise.all([
-		db.select().from(costElements).where(eq(costElements.opportunityId, summary.opportunityId)),
+		db.select().from(costElements).where(visibleCostElementsByOpportunityCondition(summary.opportunityId, userContext.userId)),
 		db.select().from(costTechnicalTracking).where(eq(costTechnicalTracking.opportunityId, summary.opportunityId)),
 	]);
 	const fromState = derivePricingSummaryState(summary, elements);
@@ -181,7 +219,7 @@ export async function transitionPricingPackageWorkflow(
 	const [updatedSummary] = await db
 		.update(pricingSummaries)
 		.set(transition.patch)
-		.where(eq(pricingSummaries.id, input.pricingSummaryId))
+		.where(visiblePricingSummaryByIdCondition(input.pricingSummaryId, userContext.userId))
 		.returning();
 	if (!updatedSummary) {
 		throw new Error("Failed to update pricing summary workflow projection");
