@@ -17,6 +17,7 @@ import { documents, proposalDocuments } from "@/lib/db/schema";
 import { user } from "@/lib/db/auth-schema";
 import { eq, and, desc, asc, sql, inArray, gte, lt } from "drizzle-orm";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import type {
 	DocumentApproval,
 	CreateApprovalInput,
@@ -36,6 +37,14 @@ import { logger } from "@/lib/utils/logger";
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
 
 // ============================================================================
 // Notification System
@@ -248,6 +257,8 @@ function calculateUrgency(daysRemaining: number): DeadlineUrgency {
  * Get a single approval by ID.
  */
 export async function getApproval(id: string): Promise<DocumentApproval | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.select()
 		.from(documentApprovals)
@@ -265,6 +276,8 @@ export async function getApprovals(
 	filters: ApprovalFilters = {},
 	options: { limit?: number; offset?: number; orderBy?: "asc" | "desc" } = {}
 ): Promise<{ approvals: DocumentApproval[]; total: number }> {
+	await requireCurrentUserId();
+
 	const whereClause = buildApprovalWhereClause(filters);
 
 	// Get total count
@@ -298,6 +311,8 @@ export async function getPendingApprovalsForUser(
 	userId: string,
 	options: { limit?: number; offset?: number } = {}
 ): Promise<{ approvals: DocumentApproval[]; total: number }> {
+	await requireCurrentUserId();
+
 	return getApprovals(
 		{ assignedTo: userId, status: "pending" },
 		options
@@ -310,6 +325,8 @@ export async function getPendingApprovalsForUser(
 export async function getOverdueApprovals(
 	options: { limit?: number; offset?: number } = {}
 ): Promise<{ approvals: DocumentApproval[]; total: number }> {
+	await requireCurrentUserId();
+
 	return getApprovals({ isOverdue: true }, options);
 }
 
@@ -317,6 +334,8 @@ export async function getOverdueApprovals(
  * Create a new approval workflow entry.
  */
 export async function createApproval(input: CreateApprovalInput): Promise<DocumentApproval> {
+	await requireCurrentUserId();
+
 	const {
 		documentId,
 		sectionId,
@@ -358,8 +377,9 @@ export async function createApproval(input: CreateApprovalInput): Promise<Docume
  */
 export async function submitReview(
 	input: SubmitReviewInput,
-	userId: string
+	_userId: string
 ): Promise<DocumentApproval> {
+	const userId = await requireCurrentUserId();
 	const { approvalId, status, notes, rejectionReason } = input;
 
 	const [existing] = await db
@@ -419,6 +439,8 @@ export async function updateApproval(
 	id: string,
 	input: UpdateApprovalInput
 ): Promise<DocumentApproval> {
+	await requireCurrentUserId();
+
 	const updateData: Partial<typeof documentApprovals.$inferInsert> = {
 		updatedAt: new Date(),
 	};
@@ -449,6 +471,8 @@ export async function updateApproval(
  * Delete an approval record.
  */
 export async function deleteApproval(id: string): Promise<void> {
+	await requireCurrentUserId();
+
 	await db.delete(documentApprovals).where(eq(documentApprovals.id, id));
 }
 
@@ -471,6 +495,8 @@ export async function initializeWorkflow(
 		stageFlow?: WorkflowStage[];
 	} = {}
 ): Promise<WorkflowStatus> {
+	await requireCurrentUserId();
+
 	const {
 		proposalDocumentId,
 		writerId,
@@ -537,6 +563,8 @@ export async function initializeWorkflow(
  * Get the current workflow status for a document.
  */
 export async function getWorkflowStatus(documentId: string): Promise<WorkflowStatus> {
+	await requireCurrentUserId();
+
 	const approvals = await getApprovals({ documentId });
 
 	// Get document info and assignments
@@ -691,6 +719,8 @@ export async function getUpcomingDeadlines(
 	userId: string,
 	days: number = 30
 ): Promise<DeadlineSummary> {
+	await requireCurrentUserId();
+
 	const now = new Date();
 	const future = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
@@ -773,6 +803,8 @@ export async function updateApprovalDueDate(
 	id: string,
 	dueDate: Date | null
 ): Promise<DocumentApproval> {
+	await requireCurrentUserId();
+
 	const [updated] = await db
 		.update(documentApprovals)
 		.set({
@@ -801,6 +833,8 @@ export async function reassignApprovals(
 	toUserId: string,
 	documentId?: string
 ): Promise<number> {
+	await requireCurrentUserId();
+
 	let whereClause = and(
 		eq(documentApprovals.assignedTo, fromUserId),
 		inArray(documentApprovals.status, ["pending", "in_review"])
@@ -825,6 +859,8 @@ export async function reassignApprovals(
  * Cancel all pending approvals for a document.
  */
 export async function cancelWorkflow(documentId: string): Promise<number> {
+	await requireCurrentUserId();
+
 	const result = await db
 		.delete(documentApprovals)
 		.where(
