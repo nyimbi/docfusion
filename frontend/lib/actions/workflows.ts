@@ -12,7 +12,7 @@
 import { db } from "@/lib/db";
 import { documentWorkflows, workflowAssignments } from "@/lib/db/schema-comments-workflow";
 import { documents } from "@/lib/db/schema";
-import { eq, and, desc, asc, sql, or, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, isNull, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm/column";
 import type {
 	DocumentWorkflow,
@@ -95,6 +95,37 @@ function mutableOrganizationCondition(column: OrganizationColumn, userContext: U
 
 function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
 	return inputOrganizationId ?? userContext.organizationId;
+}
+
+function visibleDocumentCondition(documentId: string, userId: string): SQL {
+	return and(
+		eq(documents.id, documentId),
+		eq(documents.ownerId, userId)
+	)!;
+}
+
+function visibleAssignmentCondition(assignmentId: string, userId: string): SQL {
+	return and(
+		eq(workflowAssignments.id, assignmentId),
+		sql`exists (
+			select 1
+			from documents
+			where documents.id = workflow_assignments.document_id
+				and documents.owner_id = ${userId}
+		)`
+	)!;
+}
+
+function visibleAssignmentsForDocumentCondition(documentId: string, userId: string): SQL {
+	return and(
+		eq(workflowAssignments.documentId, documentId),
+		sql`exists (
+			select 1
+			from documents
+			where documents.id = ${documentId}
+				and documents.owner_id = ${userId}
+		)`
+	)!;
 }
 
 // ============================================================================
@@ -385,7 +416,7 @@ export async function createAssignment(
 	const [doc] = await db
 		.select({ id: documents.id })
 		.from(documents)
-		.where(eq(documents.id, documentId))
+		.where(visibleDocumentCondition(documentId, assignedBy))
 		.limit(1);
 
 	if (!doc) {
@@ -472,7 +503,7 @@ export async function updateAssignment(
 		isActive?: boolean;
 	}
 ): Promise<WorkflowAssignment> {
-	await requireWorkflowActor();
+	const userId = await requireWorkflowActor();
 	const updateData: Partial<typeof workflowAssignments.$inferInsert> = {
 		updatedAt: new Date(),
 	};
@@ -485,7 +516,7 @@ export async function updateAssignment(
 	const [updated] = await db
 		.update(workflowAssignments)
 		.set(updateData)
-		.where(eq(workflowAssignments.id, id))
+		.where(visibleAssignmentCondition(id, userId))
 		.returning();
 
 	if (!updated) {
@@ -499,21 +530,21 @@ export async function updateAssignment(
  * Delete (deactivate) an assignment.
  */
 export async function deleteAssignment(id: string): Promise<void> {
-	await requireWorkflowActor();
+	const userId = await requireWorkflowActor();
 	await db
 		.update(workflowAssignments)
 		.set({
 			isActive: "false",
 			updatedAt: new Date(),
 		})
-		.where(eq(workflowAssignments.id, id));
+		.where(visibleAssignmentCondition(id, userId));
 }
 
 /**
  * Remove all assignments for a document.
  */
 export async function clearDocumentAssignments(documentId: string): Promise<number> {
-	await requireWorkflowActor();
+	const userId = await requireWorkflowActor();
 	const result = await db
 		.update(workflowAssignments)
 		.set({
@@ -522,7 +553,7 @@ export async function clearDocumentAssignments(documentId: string): Promise<numb
 		})
 		.where(
 			and(
-				eq(workflowAssignments.documentId, documentId),
+				visibleAssignmentsForDocumentCondition(documentId, userId),
 				eq(workflowAssignments.isActive, "true")
 			)
 		);
