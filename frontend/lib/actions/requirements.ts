@@ -10,7 +10,8 @@
 import { db } from "@/lib/db";
 import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { proposalTasks, taskActivity } from "@/lib/db/schema-tasks";
-import { eq, and, or, ilike, inArray, isNull, isNotNull, lt, sql, desc, asc } from "drizzle-orm";
+import { opportunities } from "@/lib/db/schema";
+import { eq, and, or, ilike, inArray, isNull, isNotNull, lt, sql, desc, asc, type SQL } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { requireTenantContext } from "@/lib/auth/tenant-context";
@@ -82,6 +83,85 @@ interface RequirementWorkflowHistoryEntry {
 	evidenceLinks?: string[];
 }
 
+function assignedOpportunityCondition(userId: string): SQL {
+	return sql`opportunities.assigned_to = ${userId}`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		assignedOpportunityCondition(userId)
+	)!;
+}
+
+function visibleRequirementsForOpportunityCondition(
+	opportunityId: string,
+	organizationId: string,
+	userId: string
+): SQL {
+	return and(
+		eq(rfpRequirements.opportunityId, opportunityId),
+		eq(rfpRequirements.organizationId, organizationId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
+function visibleRequirementCondition(id: string, organizationId: string, userId: string): SQL {
+	return and(
+		eq(rfpRequirements.id, id),
+		eq(rfpRequirements.organizationId, organizationId),
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId)
+	)!;
+}
+
+function visibleRequirementIdsCondition(ids: string[], organizationId: string, userId: string): SQL {
+	return and(
+		inArray(rfpRequirements.id, ids),
+		eq(rfpRequirements.organizationId, organizationId),
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId)
+	)!;
+}
+
+async function assertVisibleOpportunity(opportunityId: string, userId: string): Promise<void> {
+	const [opportunity] = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(visibleOpportunityCondition(opportunityId, userId))
+		.limit(1);
+
+	if (!opportunity) {
+		throw new Error("Opportunity not found");
+	}
+}
+
+async function assertVisibleOpportunities(opportunityIds: string[], userId: string): Promise<void> {
+	const uniqueIds = [...new Set(opportunityIds)];
+	if (uniqueIds.length === 0) {
+		return;
+	}
+
+	const visibleRows = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(and(
+			inArray(opportunities.id, uniqueIds),
+			assignedOpportunityCondition(userId)
+		));
+
+	if (visibleRows.length !== uniqueIds.length) {
+		throw new Error("Opportunity not found");
+	}
+}
+
 // ============================================================================
 // CRUD Operations
 // ============================================================================
@@ -90,11 +170,11 @@ interface RequirementWorkflowHistoryEntry {
  * Get a single requirement by ID.
  */
 export async function getRequirement(id: string): Promise<Requirement | null> {
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
 	const result = await db
 		.select()
 		.from(rfpRequirements)
-		.where(and(eq(rfpRequirements.id, id), eq(rfpRequirements.organizationId, organizationId)))
+		.where(visibleRequirementCondition(id, organizationId, userId))
 		.limit(1);
 
 	if (result.length === 0) return null;
@@ -111,10 +191,9 @@ export async function getRequirements(
 	sort?: RequirementSort,
 	pagination?: PaginationOptions
 ): Promise<PaginatedResponse<Requirement>> {
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
 	const conditions = [
-		eq(rfpRequirements.opportunityId, opportunityId),
-		eq(rfpRequirements.organizationId, organizationId),
+		visibleRequirementsForOpportunityCondition(opportunityId, organizationId, userId),
 	];
 
 	// Apply filters
@@ -215,7 +294,9 @@ export async function getRequirements(
  * Create a new requirement.
  */
 export async function createRequirement(input: RequirementInput): Promise<Requirement> {
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
+	await assertVisibleOpportunity(input.opportunityId, userId);
+
 	const [result] = await db
 		.insert(rfpRequirements)
 		.values({
@@ -244,8 +325,9 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
  * Create multiple requirements at once.
  */
 export async function createRequirements(inputs: RequirementInput[]): Promise<Requirement[]> {
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
 	if (inputs.length === 0) return [];
+	await assertVisibleOpportunities(inputs.map((input) => input.opportunityId), userId);
 
 	const results = await db
 		.insert(rfpRequirements)
@@ -280,7 +362,7 @@ export async function updateRequirement(
 	id: string,
 	input: RequirementUpdateInput
 ): Promise<Requirement | null> {
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
 	const updateData: Record<string, unknown> = {
 		updatedAt: new Date(),
 	};
@@ -304,7 +386,7 @@ export async function updateRequirement(
 	const [result] = await db
 		.update(rfpRequirements)
 		.set(updateData)
-		.where(and(eq(rfpRequirements.id, id), eq(rfpRequirements.organizationId, organizationId)))
+		.where(visibleRequirementCondition(id, organizationId, userId))
 		.returning();
 
 	if (!result) return null;
@@ -320,7 +402,7 @@ export async function bulkUpdateRequirements(
 ): Promise<{ updated: number }> {
 	if (ids.length === 0) return { updated: 0 };
 
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
 	const updateData: Record<string, unknown> = {
 		updatedAt: new Date(),
 	};
@@ -337,7 +419,7 @@ export async function bulkUpdateRequirements(
 	const results = await db
 		.update(rfpRequirements)
 		.set(updateData)
-		.where(and(inArray(rfpRequirements.id, ids), eq(rfpRequirements.organizationId, organizationId)))
+		.where(visibleRequirementIdsCondition(ids, organizationId, userId))
 		.returning({ id: rfpRequirements.id });
 
 	return { updated: results.length };
@@ -351,7 +433,7 @@ export async function assignRequirement(
 	assignedTo: string,
 	dueDate?: Date | string
 ): Promise<Requirement | null> {
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
 	const [result] = await db
 		.update(rfpRequirements)
 		.set({
@@ -359,7 +441,7 @@ export async function assignRequirement(
 			dueDate: dueDate ? new Date(dueDate) : null,
 			updatedAt: new Date(),
 		})
-		.where(and(eq(rfpRequirements.id, id), eq(rfpRequirements.organizationId, organizationId)))
+		.where(visibleRequirementCondition(id, organizationId, userId))
 		.returning();
 
 	if (!result) return null;
@@ -381,7 +463,7 @@ export async function transitionRequirementWorkflow(
 		throw new Error("Requirement workflow transition requires a reason.");
 	}
 
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
 
 	return db.transaction(async (tx) => {
 		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.requirementId}))`);
@@ -389,7 +471,7 @@ export async function transitionRequirementWorkflow(
 		const [row] = await tx
 			.select()
 			.from(rfpRequirements)
-			.where(and(eq(rfpRequirements.id, input.requirementId), eq(rfpRequirements.organizationId, organizationId)))
+			.where(visibleRequirementCondition(input.requirementId, organizationId, userId))
 			.limit(1);
 
 		if (!row) return null;
@@ -494,7 +576,7 @@ export async function transitionRequirementWorkflow(
 		const [updated] = await tx
 			.update(rfpRequirements)
 			.set(updateData)
-			.where(and(eq(rfpRequirements.id, input.requirementId), eq(rfpRequirements.organizationId, organizationId)))
+			.where(visibleRequirementCondition(input.requirementId, organizationId, userId))
 			.returning();
 
 		if (!updated) return null;
@@ -586,10 +668,10 @@ export async function transitionRequirementWorkflow(
  * Delete a requirement.
  */
 export async function deleteRequirement(id: string): Promise<boolean> {
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
 	const result = await db
 		.delete(rfpRequirements)
-		.where(and(eq(rfpRequirements.id, id), eq(rfpRequirements.organizationId, organizationId)))
+		.where(visibleRequirementCondition(id, organizationId, userId))
 		.returning({ id: rfpRequirements.id });
 
 	return result.length > 0;
@@ -601,10 +683,10 @@ export async function deleteRequirement(id: string): Promise<boolean> {
 export async function deleteRequirements(ids: string[]): Promise<{ deleted: number }> {
 	if (ids.length === 0) return { deleted: 0 };
 
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
 	const result = await db
 		.delete(rfpRequirements)
-		.where(and(inArray(rfpRequirements.id, ids), eq(rfpRequirements.organizationId, organizationId)))
+		.where(visibleRequirementIdsCondition(ids, organizationId, userId))
 		.returning({ id: rfpRequirements.id });
 
 	return { deleted: result.length };
@@ -618,11 +700,11 @@ export async function deleteRequirements(ids: string[]): Promise<{ deleted: numb
  * Get requirement statistics for an opportunity.
  */
 export async function getRequirementStats(opportunityId: string): Promise<RequirementStats> {
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
 	const allRequirements = await db
 		.select()
 		.from(rfpRequirements)
-		.where(and(eq(rfpRequirements.opportunityId, opportunityId), eq(rfpRequirements.organizationId, organizationId)));
+		.where(visibleRequirementsForOpportunityCondition(opportunityId, organizationId, userId));
 
 	const now = new Date();
 
@@ -714,11 +796,11 @@ export async function getRequirementStats(opportunityId: string): Promise<Requir
 export async function analyzeRequirementGaps(
 	opportunityId: string
 ): Promise<RequirementGapAnalysis> {
-	const { organizationId } = await requireTenantContext();
+	const { organizationId, userId } = await requireTenantContext();
 	const allRequirements = await db
 		.select()
 		.from(rfpRequirements)
-		.where(and(eq(rfpRequirements.opportunityId, opportunityId), eq(rfpRequirements.organizationId, organizationId)));
+		.where(visibleRequirementsForOpportunityCondition(opportunityId, organizationId, userId));
 
 	const gaps: RequirementGapAnalysis["gaps"] = [];
 	const recommendations: string[] = [];
@@ -823,7 +905,8 @@ export async function extractRequirements(
 	opportunityId: string,
 	documentContent: string
 ): Promise<ExtractionResult> {
-	await requireTenantContext();
+	const { userId } = await requireTenantContext();
+	await assertVisibleOpportunity(opportunityId, userId);
 
 	const startTime = Date.now();
 
@@ -1078,7 +1161,8 @@ export async function saveExtractedRequirements(
 	opportunityId: string,
 	extracted: ExtractedRequirement[]
 ): Promise<Requirement[]> {
-	await requireTenantContext();
+	const { userId } = await requireTenantContext();
+	await assertVisibleOpportunity(opportunityId, userId);
 
 	const inputs: RequirementInput[] = extracted.map((req, index) => ({
 		opportunityId,
