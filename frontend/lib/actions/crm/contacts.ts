@@ -32,6 +32,7 @@ import type {
 	ContactWithRelations,
 } from "@/lib/types/crm";
 import type { ContactRow, NewContact, AccountRow } from "@/lib/db/schema-crm";
+import { requireUserContext } from "@/lib/auth-utils";
 
 // ============================================================================
 // TYPES FOR PRIVACY/SHARING
@@ -53,6 +54,17 @@ export interface ChangeVisibilityInput {
 	contactId: string;
 	visibility: ContactVisibility;
 	sharedWith?: string[];
+}
+
+async function requireContactUserContext(input?: UserContext): Promise<UserContext> {
+	const current = await requireUserContext();
+	if (input?.userId && input.userId !== current.userId) {
+		throw new Error("Unauthorized");
+	}
+	if (input?.organizationId && input.organizationId !== current.organizationId) {
+		throw new Error("Unauthorized");
+	}
+	return current;
 }
 
 // ============================================================================
@@ -102,6 +114,7 @@ async function canUserAccessContact(
 	contactId: string,
 	userContext: UserContext
 ): Promise<{ canAccess: boolean; isOwner: boolean; contact: ContactRow | null }> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	const contact = await db.query.contacts.findFirst({
 		where: eq(contacts.id, contactId),
 	});
@@ -110,7 +123,7 @@ async function canUserAccessContact(
 		return { canAccess: false, isOwner: false, contact: null };
 	}
 
-	const isOwner = contact.ownerId === userContext.userId;
+	const isOwner = contact.ownerId === currentUserContext.userId;
 
 	// Owner always has access
 	if (isOwner) {
@@ -120,14 +133,14 @@ async function canUserAccessContact(
 	// Check shared visibility
 	if (contact.visibility === "shared") {
 		const sharedWith = (contact.sharedWith as string[]) ?? [];
-		if (sharedWith.includes(userContext.userId)) {
+		if (sharedWith.includes(currentUserContext.userId)) {
 			return { canAccess: true, isOwner: false, contact };
 		}
 	}
 
 	// Check organization visibility
 	if (contact.visibility === "organization") {
-		if (userContext.organizationId && contact.organizationId === userContext.organizationId) {
+		if (currentUserContext.organizationId && contact.organizationId === currentUserContext.organizationId) {
 			return { canAccess: true, isOwner: false, contact };
 		}
 	}
@@ -153,6 +166,7 @@ export async function createContact(
 	visibility: ContactVisibility = "private",
 	sharedWith: string[] = []
 ): Promise<ContactRow> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	const now = new Date();
 
 	// Compute full name if not provided
@@ -190,12 +204,12 @@ export async function createContact(
 		notes: input.notes,
 		tags: input.tags ?? [],
 		// Privacy fields
-		ownerId: userContext.userId,
+		ownerId: currentUserContext.userId,
 		visibility,
 		sharedWith: visibility === "shared" ? sharedWith : [],
-		organizationId: userContext.organizationId,
+		organizationId: currentUserContext.organizationId,
 		// Audit
-		createdBy: userContext.userId,
+		createdBy: currentUserContext.userId,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -230,10 +244,8 @@ export async function createContactLegacy(
 	input: CreateContactInput,
 	userId?: string
 ): Promise<ContactRow> {
-	if (!userId) {
-		throw new Error("userId is required to create a contact");
-	}
-	return createContact(input, { userId }, "private", []);
+	const currentUserContext = await requireContactUserContext(userId ? { userId } : undefined);
+	return createContact(input, currentUserContext, "private", []);
 }
 
 /**
@@ -303,10 +315,8 @@ export async function updateContactLegacy(
 	input: UpdateContactInput,
 	userId?: string
 ): Promise<ContactRow | null> {
-	if (!userId) {
-		throw new Error("userId is required to update a contact");
-	}
-	return updateContact(id, input, { userId });
+	const currentUserContext = await requireContactUserContext(userId ? { userId } : undefined);
+	return updateContact(id, input, currentUserContext);
 }
 
 /**
@@ -341,10 +351,8 @@ export async function deleteContactLegacy(
 	id: string,
 	userId?: string
 ): Promise<boolean> {
-	if (!userId) {
-		throw new Error("userId is required to delete a contact");
-	}
-	return deleteContact(id, { userId });
+	const currentUserContext = await requireContactUserContext(userId ? { userId } : undefined);
+	return deleteContact(id, currentUserContext);
 }
 
 /**
@@ -428,10 +436,11 @@ export async function getContacts(
 	filters?: ContactFilters,
 	pagination?: Pagination
 ): Promise<PaginatedResponse<ContactRow>> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	const filterConditions = buildContactFilterConditions(filters);
 
 	// Add visibility condition
-	const visibilityCondition = buildVisibilityCondition(userContext);
+	const visibilityCondition = buildVisibilityCondition(currentUserContext);
 
 	// Combine all conditions
 	const allConditions: SQL<unknown>[] = [];
@@ -481,7 +490,8 @@ export async function getAccountContacts(
 	accountId: string,
 	userContext: UserContext
 ): Promise<ContactRow[]> {
-	const visibilityCondition = buildVisibilityCondition(userContext);
+	const currentUserContext = await requireContactUserContext(userContext);
+	const visibilityCondition = buildVisibilityCondition(currentUserContext);
 
 	const results = await db
 		.select()
@@ -504,7 +514,8 @@ export async function getPrimaryContact(
 	accountId: string,
 	userContext: UserContext
 ): Promise<ContactRow | null> {
-	const visibilityCondition = buildVisibilityCondition(userContext);
+	const currentUserContext = await requireContactUserContext(userContext);
+	const visibilityCondition = buildVisibilityCondition(currentUserContext);
 
 	const results = await db
 		.select()
@@ -544,6 +555,7 @@ export async function importContacts(
 	userContext: UserContext,
 	options: ImportOptions = {}
 ): Promise<ImportResult> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	const { visibility = "private", sharedWith = [], updateExisting = true } = options;
 
 	const result: ImportResult = {
@@ -587,7 +599,7 @@ export async function importContacts(
 						.values({
 							name: row.accountName,
 							type: row.accountType,
-							createdBy: userContext.userId,
+							createdBy: currentUserContext.userId,
 						})
 						.returning({ id: accounts.id });
 					accountId = newAccount.id;
@@ -600,21 +612,21 @@ export async function importContacts(
 				existingContact = await db.query.contacts.findFirst({
 					where: and(
 						eq(contacts.email, row.email),
-						eq(contacts.ownerId, userContext.userId)
+						eq(contacts.ownerId, currentUserContext.userId)
 					),
 				});
 			}
 
 			if (existingContact && updateExisting) {
 				// Update existing contact (only if user owns it)
-				await updateContact(existingContact.id, { ...row, accountId }, userContext);
+				await updateContact(existingContact.id, { ...row, accountId }, currentUserContext);
 				result.updatedCount++;
 			} else if (existingContact && !updateExisting) {
 				// Skip if exists and updateExisting is false
 				result.skippedCount++;
 			} else {
 				// Create new contact owned by the importing user
-				await createContact({ ...row, accountId }, userContext, visibility, sharedWith);
+				await createContact({ ...row, accountId }, currentUserContext, visibility, sharedWith);
 				result.importedCount++;
 			}
 		} catch (error) {
@@ -671,13 +683,14 @@ export async function bulkDeleteContacts(
 	contactIds: string[],
 	userContext: UserContext
 ): Promise<number> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	// Only delete contacts the user owns
 	const result = await db
 		.delete(contacts)
 		.where(
 			and(
 				inArray(contacts.id, contactIds),
-				eq(contacts.ownerId, userContext.userId)
+				eq(contacts.ownerId, currentUserContext.userId)
 			)
 		);
 	return result.rowCount ?? 0;
@@ -693,7 +706,8 @@ export async function moveContactsToAccount(
 	newAccountId: string,
 	userContext: UserContext
 ): Promise<number> {
-	const visibilityCondition = buildVisibilityCondition(userContext);
+	const currentUserContext = await requireContactUserContext(userContext);
+	const visibilityCondition = buildVisibilityCondition(currentUserContext);
 
 	const result = await db
 		.update(contacts)
@@ -727,8 +741,9 @@ export async function searchContacts(
 	accountId?: string,
 	limit = 10
 ): Promise<Pick<ContactRow, "id" | "firstName" | "lastName" | "fullName" | "email" | "title" | "accountId">[]> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	const searchTerm = `%${query}%`;
-	const visibilityCondition = buildVisibilityCondition(userContext);
+	const visibilityCondition = buildVisibilityCondition(currentUserContext);
 
 	const conditions: (SQL<unknown> | undefined)[] = [
 		visibilityCondition,
@@ -767,7 +782,8 @@ export async function findContactByEmail(
 	email: string,
 	userContext: UserContext
 ): Promise<ContactRow | null> {
-	const visibilityCondition = buildVisibilityCondition(userContext);
+	const currentUserContext = await requireContactUserContext(userContext);
+	const visibilityCondition = buildVisibilityCondition(currentUserContext);
 
 	const results = await db
 		.select()
@@ -790,10 +806,11 @@ export async function findOwnedContactByEmail(
 	email: string,
 	userId: string
 ): Promise<ContactRow | null> {
+	const currentUserContext = await requireContactUserContext({ userId });
 	const contact = await db.query.contacts.findFirst({
 		where: and(
 			eq(contacts.email, email),
-			eq(contacts.ownerId, userId)
+			eq(contacts.ownerId, currentUserContext.userId)
 		),
 	});
 	return contact ?? null;
@@ -806,10 +823,11 @@ export async function getContactsNeedingFollowup(
 	userContext: UserContext,
 	daysOverdue = 0
 ): Promise<ContactRow[]> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	const cutoffDate = new Date();
 	cutoffDate.setDate(cutoffDate.getDate() - daysOverdue);
 
-	const visibilityCondition = buildVisibilityCondition(userContext);
+	const visibilityCondition = buildVisibilityCondition(currentUserContext);
 
 	const results = await db
 		.select()
@@ -980,7 +998,8 @@ export async function getContactRoleCounts(
 	accountId: string,
 	userContext: UserContext
 ): Promise<{ role: string; count: number }[]> {
-	const visibilityCondition = buildVisibilityCondition(userContext);
+	const currentUserContext = await requireContactUserContext(userContext);
+	const visibilityCondition = buildVisibilityCondition(currentUserContext);
 
 	const results = await db
 		.select({
@@ -1017,8 +1036,9 @@ export async function getStandaloneContacts(
 	filters?: ContactFilters,
 	pagination?: Pagination
 ): Promise<PaginatedResponse<ContactRow>> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	const filterConditions = buildContactFilterConditions(filters);
-	const visibilityCondition = buildVisibilityCondition(userContext);
+	const visibilityCondition = buildVisibilityCondition(currentUserContext);
 
 	// Combine all conditions
 	const allConditions: SQL<unknown>[] = [isNull(contacts.accountId)];
@@ -1071,8 +1091,9 @@ export async function getLinkedContacts(
 	filters?: ContactFilters,
 	pagination?: Pagination
 ): Promise<PaginatedResponse<ContactRow>> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	const filterConditions = buildContactFilterConditions(filters);
-	const visibilityCondition = buildVisibilityCondition(userContext);
+	const visibilityCondition = buildVisibilityCondition(currentUserContext);
 
 	// Combine all conditions
 	const allConditions: SQL<unknown>[] = [isNotNull(contacts.accountId)];
@@ -1232,7 +1253,7 @@ export async function setContactVisibility(
 	}
 
 	if (visibility === "organization" && !contact.organizationId) {
-		updates.organizationId = userContext.organizationId;
+		updates.organizationId = (await requireContactUserContext(userContext)).organizationId;
 	}
 
 	const [updated] = await db.update(contacts)
@@ -1269,11 +1290,12 @@ export async function getContactImports(
 	userContext: UserContext,
 	pagination?: Pagination
 ): Promise<PaginatedResponse<ContactImportRow>> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	const page = pagination?.page ?? 1;
 	const pageSize = pagination?.pageSize ?? 20;
 	const offset = (page - 1) * pageSize;
 
-	const whereClause = eq(contactImports.importedBy, userContext.userId);
+	const whereClause = eq(contactImports.importedBy, currentUserContext.userId);
 
 	const [{ total }] = await db.select({ total: count() }).from(contactImports).where(whereClause);
 
@@ -1291,8 +1313,9 @@ export async function getContactImports(
  * Get a specific contact import (only if user owns it).
  */
 export async function getContactImport(id: string, userContext: UserContext): Promise<ContactImportRow | null> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	const importRecord = await db.query.contactImports.findFirst({
-		where: and(eq(contactImports.id, id), eq(contactImports.importedBy, userContext.userId)),
+		where: and(eq(contactImports.id, id), eq(contactImports.importedBy, currentUserContext.userId)),
 	});
 	return importRecord ?? null;
 }
@@ -1301,8 +1324,9 @@ export async function getContactImport(id: string, userContext: UserContext): Pr
  * Delete a contact import record (only if user owns it).
  */
 export async function deleteContactImport(id: string, userContext: UserContext): Promise<boolean> {
+	const currentUserContext = await requireContactUserContext(userContext);
 	const result = await db.delete(contactImports)
-		.where(and(eq(contactImports.id, id), eq(contactImports.importedBy, userContext.userId)));
+		.where(and(eq(contactImports.id, id), eq(contactImports.importedBy, currentUserContext.userId)));
 	return (result.rowCount ?? 0) > 0;
 }
 
@@ -1316,7 +1340,8 @@ export async function getImportStatsSummary(userContext: UserContext): Promise<{
 	totalFailed: number;
 	recentImports: ContactImportRow[];
 }> {
-	const whereClause = eq(contactImports.importedBy, userContext.userId);
+	const currentUserContext = await requireContactUserContext(userContext);
+	const whereClause = eq(contactImports.importedBy, currentUserContext.userId);
 
 	const [stats] = await db.select({
 		totalImports: count(),
