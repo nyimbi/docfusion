@@ -23,6 +23,7 @@ import { opportunities } from "@/lib/db/schema";
 import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
@@ -207,12 +208,22 @@ interface GapAnalysis {
 // Project CRUD Actions
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 /**
  * Create a new past performance project
  */
 export async function createProject(
 	input: z.infer<typeof CreateProjectInput>
 ): Promise<ActionResult<Project>> {
+	const currentUserId = await requireCurrentUserId();
+
 	try {
 		const validatedInput = CreateProjectInput.parse(input);
 
@@ -249,6 +260,7 @@ export async function createProject(
 				referenceStatus: validatedInput.referenceStatus ?? "available",
 				referenceNotes: validatedInput.referenceNotes,
 				isActive: true,
+				createdBy: currentUserId,
 			})
 			.returning();
 
@@ -298,6 +310,8 @@ export async function updateProject(
 	id: string,
 	input: z.infer<typeof UpdateProjectInput>
 ): Promise<ActionResult<Project>> {
+	await requireCurrentUserId();
+
 	try {
 		const validatedInput = UpdateProjectInput.parse(input);
 
@@ -364,6 +378,8 @@ export async function updateProject(
  * Delete a project
  */
 export async function deleteProject(id: string): Promise<ActionResult<void>> {
+	await requireCurrentUserId();
+
 	try {
 		const result = await db
 			.delete(projects)
@@ -388,6 +404,8 @@ export async function deleteProject(id: string): Promise<ActionResult<void>> {
  * Creates a copy of an existing project with "(Copy)" appended to the name
  */
 export async function duplicateProject(id: string): Promise<ActionResult<Project>> {
+	const currentUserId = await requireCurrentUserId();
+
 	try {
 		// Fetch the original project
 		const [originalProject] = await db
@@ -433,6 +451,7 @@ export async function duplicateProject(id: string): Promise<ActionResult<Project
 				referenceStatus: originalProject.referenceStatus ?? "available",
 				referenceNotes: originalProject.referenceNotes,
 				isActive: true,
+				createdBy: currentUserId,
 			})
 			.returning();
 
@@ -453,6 +472,8 @@ export async function duplicateProject(id: string): Promise<ActionResult<Project
 export async function searchProjects(
 	filters: z.infer<typeof ProjectFilters>
 ): Promise<ActionResult<{ projects: Project[]; total: number }>> {
+	await requireCurrentUserId();
+
 	try {
 		const validatedFilters = ProjectFilters.parse(filters);
 
@@ -540,6 +561,8 @@ export async function searchProjects(
  * Get a single project by ID
  */
 export async function getProject(id: string): Promise<ActionResult<Project>> {
+	await requireCurrentUserId();
+
 	try {
 		const [row] = await db
 			.select()
@@ -568,6 +591,8 @@ export async function getProject(id: string): Promise<ActionResult<Project>> {
 export async function calculateRelevanceScores(
 	opportunityId: string
 ): Promise<ActionResult<RelevanceScore[]>> {
+	const currentUserId = await requireCurrentUserId();
+
 	try {
 		// Fetch opportunity details
 		const [opportunity] = await db
@@ -657,6 +682,7 @@ export async function calculateRelevanceScores(
 					matchingRequirements,
 					gaps,
 					calculatedAt: new Date(),
+					calculatedBy: currentUserId,
 				})
 				.onConflictDoUpdate({
 					target: [projectRelevanceScores.projectId, projectRelevanceScores.opportunityId],
@@ -669,6 +695,7 @@ export async function calculateRelevanceScores(
 						matchingRequirements,
 						gaps,
 						calculatedAt: new Date(),
+						calculatedBy: currentUserId,
 					},
 				});
 
@@ -890,6 +917,8 @@ function identifyGaps(
 export async function generateRelevanceMatrix(
 	input: z.infer<typeof RelevanceMatrixInput>
 ): Promise<ActionResult<RelevanceMatrix>> {
+	await requireCurrentUserId();
+
 	try {
 		const validatedInput = RelevanceMatrixInput.parse(input);
 
@@ -990,6 +1019,8 @@ export async function suggestProjects(
 	opportunityId: string,
 	limit: number = 5
 ): Promise<ActionResult<RelevanceScore[]>> {
+	await requireCurrentUserId();
+
 	try {
 		// Calculate scores for all projects and return top matches
 		const scoresResult = await calculateRelevanceScores(opportunityId);
@@ -1019,6 +1050,8 @@ export async function suggestProjects(
 export async function generateCPARNarrative(
 	projectId: string
 ): Promise<ActionResult<NarrativeResult>> {
+	await requireCurrentUserId();
+
 	try {
 		// Fetch project details
 		const [project] = await db
@@ -1168,6 +1201,8 @@ export async function generateBriefDescription(
 	projectId: string,
 	maxWords: number = 100
 ): Promise<ActionResult<NarrativeResult>> {
+	await requireCurrentUserId();
+
 	try {
 		// Fetch project details
 		const [project] = await db
@@ -1276,6 +1311,8 @@ export async function generateRelevanceNarrative(
 	projectId: string,
 	opportunityId: string
 ): Promise<ActionResult<NarrativeResult>> {
+	await requireCurrentUserId();
+
 	try {
 		// Fetch project and opportunity details
 		const [[project], [opportunity]] = await Promise.all([
@@ -1410,6 +1447,8 @@ function generateFallbackRelevanceNarrative(
 export async function checkReferenceAvailability(
 	projectId: string
 ): Promise<ActionResult<{ status: string; lastChecked: string; notes?: string }>> {
+	await requireCurrentUserId();
+
 	try {
 		// Fetch project with reference info
 		const [project] = await db
@@ -1465,6 +1504,8 @@ export async function importProjectFromCPARS(
 		description?: string;
 	}
 ): Promise<ActionResult<Project>> {
+	const currentUserId = await requireCurrentUserId();
+
 	try {
 		// Map CPAR ratings to our standard format
 		const cparRatings = {
@@ -1501,6 +1542,7 @@ export async function importProjectFromCPARS(
 				cparNarrative: Object.values(cparData.narratives).filter(Boolean).join("\n\n"),
 				isActive: true,
 				referenceStatus: "available",
+				createdBy: currentUserId,
 			})
 			.returning();
 
@@ -1523,6 +1565,8 @@ export async function exportPastPerformanceVolume(
 	opportunityId: string,
 	format: "docx" | "pdf"
 ): Promise<ActionResult<{ downloadUrl: string; volumeData: PastPerformanceVolumeData }>> {
+	await requireCurrentUserId();
+
 	try {
 		// Fetch opportunity details
 		const [opportunity] = await db
@@ -1664,6 +1708,8 @@ export async function getPastPerformanceAnalytics(): Promise<ActionResult<{
 	totalContractValue: number;
 	winRateWithPastPerf: number;
 }>> {
+	await requireCurrentUserId();
+
 	try {
 		// Fetch all active projects
 		const allProjects = await db
@@ -1887,6 +1933,8 @@ function normalizeAgencyName(agency: string): string {
 export async function analyzePortfolioGaps(
 	opportunityId: string
 ): Promise<ActionResult<GapAnalysis>> {
+	await requireCurrentUserId();
+
 	try {
 		// Fetch opportunity details and requirements
 		const [opportunity] = await db
