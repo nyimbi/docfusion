@@ -33,7 +33,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, desc, asc, sql, ilike, or, inArray, gte, lte, isNotNull, between } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 import {
 	generateEmbedding,
 	cosineSimilarity,
@@ -65,6 +65,18 @@ import { logger } from "@/lib/utils/logger";
 // ============================================================================
 // Helper Functions for Type Conversion
 // ============================================================================
+
+async function requireContentContext(organizationId?: string | null): Promise<UserContext> {
+	const userContext = await requireUserContext();
+	if (organizationId && organizationId !== userContext.organizationId) {
+		throw new Error("Unauthorized");
+	}
+	return userContext;
+}
+
+async function requireContentActor(): Promise<string> {
+	return (await requireContentContext()).userId;
+}
 
 /**
  * Convert null to undefined for optional fields
@@ -239,6 +251,7 @@ function calculateRollingWinRate(
  */
 export async function semanticSearch(input: SemanticSearchInput): Promise<SemanticSearchResponse> {
 	const startTime = Date.now();
+	await requireContentContext(input.filters?.organizationId);
 	try {
 		const { query, contentTypes = ["snippet", "template"], limit = 10, filters } = input;
 
@@ -420,12 +433,8 @@ export async function semanticSearch(input: SemanticSearchInput): Promise<Semant
  * Record content usage in a document
  */
 export async function recordContentUsage(input: RecordUsageInput): Promise<{ success: boolean; error?: string }> {
+	const userId = await requireContentActor();
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
-			return { success: false, error: "Not authenticated" };
-		}
-
 		if (input.contentType === "snippet") {
 			await db.insert(snippetUsageLog).values({
 				snippetId: input.contentId,
@@ -485,12 +494,8 @@ export async function recordProposalOutcome(input: ContentOutcomeInput): Promise
 	templatesUpdated: number;
 	error?: string;
 }> {
+	await requireContentActor();
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
-			return { success: false, snippetsUpdated: 0, templatesUpdated: 0, error: "Not authenticated" };
-		}
-
 		const now = new Date();
 
 		// Update all snippet usages for this opportunity
@@ -631,12 +636,8 @@ export async function updateSnippetFreshness(
 	freshnessStatus: FreshnessStatus,
 	reviewDueDate?: string
 ): Promise<{ success: boolean; error?: string }> {
+	await requireContentActor();
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
-			return { success: false, error: "Not authenticated" };
-		}
-
 		// Upsert analytics record
 		const existing = await db.query.snippetAnalytics.findFirst({
 			where: eq(snippetAnalytics.snippetId, snippetId),
@@ -672,6 +673,7 @@ export async function updateSnippetFreshness(
  * Get snippets that need review
  */
 export async function getSnippetsNeedingReview(limit = 20): Promise<SnippetWithAnalytics[]> {
+	await requireContentActor();
 	try {
 		const analytics = await db.query.snippetAnalytics.findMany({
 			where: or(
@@ -710,6 +712,7 @@ export async function getSnippetsNeedingReview(limit = 20): Promise<SnippetWithA
  * Generate content suggestions for a document section
  */
 export async function generateContentSuggestions(input: GenerateSuggestionsInput): Promise<ContentSuggestionRow[]> {
+	await requireContentActor();
 	try {
 		const { documentId, opportunityId, section, contextText, limit = 5 } = input;
 
@@ -821,12 +824,8 @@ export async function generateContentSuggestions(input: GenerateSuggestionsInput
  * Provide feedback on a content suggestion
  */
 export async function provideSuggestionFeedback(input: SuggestionFeedbackInput): Promise<{ success: boolean; error?: string }> {
+	const userId = await requireContentActor();
 	try {
-		const userId = await getCurrentUserId();
-		if (!userId) {
-			return { success: false, error: "Not authenticated" };
-		}
-
 		await db.update(contentSuggestions)
 			.set({
 				userAction: input.action,
@@ -851,9 +850,10 @@ export async function provideSuggestionFeedback(input: SuggestionFeedbackInput):
  * Get content library statistics for dashboard
  */
 export async function getContentLibraryStats(organizationId?: string): Promise<ContentLibraryStats> {
+	const userContext = await requireContentContext(organizationId);
 	try {
-		const snippetCondition = organizationId
-			? eq(templateSnippets.organizationId, organizationId)
+		const snippetCondition = userContext.organizationId
+			? eq(templateSnippets.organizationId, userContext.organizationId)
 			: undefined;
 
 		// Count totals
@@ -1008,6 +1008,7 @@ export async function getContentEffectivenessReport(
 	contentId: string,
 	contentType: "snippet" | "template"
 ): Promise<ContentEffectivenessReport | null> {
+	await requireContentActor();
 	try {
 		if (contentType === "snippet") {
 			const usages = await db.query.snippetUsageLog.findMany({
