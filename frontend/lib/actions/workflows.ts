@@ -24,6 +24,7 @@ import type {
 	WorkflowStage,
 } from "@/lib/types/comments-workflow";
 import { logger } from "@/lib/utils/logger";
+import { getCurrentUserId } from "@/lib/auth-utils";
 
 // ============================================================================
 // Helper Functions
@@ -63,6 +64,14 @@ function mapWorkflowAssignment(row: typeof workflowAssignments.$inferSelect): Wo
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};
+}
+
+async function requireWorkflowActor(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
 }
 
 // ============================================================================
@@ -164,6 +173,7 @@ export async function getDefaultWorkflow(
 export async function createWorkflow(
 	input: CreateWorkflowInput
 ): Promise<DocumentWorkflow> {
+	await requireWorkflowActor();
 	const {
 		name,
 		description,
@@ -203,6 +213,7 @@ export async function updateWorkflow(
 	id: string,
 	input: UpdateWorkflowInput
 ): Promise<DocumentWorkflow> {
+	await requireWorkflowActor();
 	// If setting as default, handle the change
 	if (input.isDefault !== undefined && input.isDefault) {
 		const [existing] = await db
@@ -254,6 +265,7 @@ export async function updateWorkflow(
  * Delete a workflow.
  */
 export async function deleteWorkflow(id: string): Promise<void> {
+	await requireWorkflowActor();
 	// Check if workflow is in use
 	const existingAssignments = await db
 		.select({ count: sql<number>`COUNT(*)` })
@@ -318,8 +330,9 @@ export async function getStageAssignments(
  */
 export async function createAssignment(
 	input: CreateAssignmentInput,
-	assignedBy: string
+	_assignedBy: string
 ): Promise<WorkflowAssignment> {
+	const assignedBy = await requireWorkflowActor();
 	const { documentId, workflowId, stage, userId, sequenceOrder = 0, dueDate } = input;
 
 	// Validate document exists
@@ -372,8 +385,9 @@ export async function createAssignment(
  */
 export async function bulkCreateAssignments(
 	input: BulkAssignmentInput,
-	assignedBy: string
+	_assignedBy: string
 ): Promise<WorkflowAssignment[]> {
+	const assignedBy = await requireWorkflowActor();
 	const { documentId, assignments } = input;
 
 	const created: WorkflowAssignment[] = [];
@@ -412,6 +426,7 @@ export async function updateAssignment(
 		isActive?: boolean;
 	}
 ): Promise<WorkflowAssignment> {
+	await requireWorkflowActor();
 	const updateData: Partial<typeof workflowAssignments.$inferInsert> = {
 		updatedAt: new Date(),
 	};
@@ -438,6 +453,7 @@ export async function updateAssignment(
  * Delete (deactivate) an assignment.
  */
 export async function deleteAssignment(id: string): Promise<void> {
+	await requireWorkflowActor();
 	await db
 		.update(workflowAssignments)
 		.set({
@@ -451,6 +467,7 @@ export async function deleteAssignment(id: string): Promise<void> {
  * Remove all assignments for a document.
  */
 export async function clearDocumentAssignments(documentId: string): Promise<number> {
+	await requireWorkflowActor();
 	const result = await db
 		.update(workflowAssignments)
 		.set({
@@ -634,6 +651,7 @@ export async function initializeDefaultWorkflow(
 	creatorId: string,
 	documentType?: string
 ): Promise<{ workflow: DocumentWorkflow | null; assignments: WorkflowAssignment[] }> {
+	await requireWorkflowActor();
 	// Find appropriate workflow
 	// 1. Try document-type specific
 	// 2. Try organization's default
@@ -687,6 +705,7 @@ export async function applyWorkflowToDocument(
 	workflowId: string,
 	assignments: Record<WorkflowStage, string[]>
 ): Promise<WorkflowAssignment[]> {
+	const actorId = await requireWorkflowActor();
 	const workflow = await getWorkflow(workflowId);
 	
 	if (!workflow) {
@@ -710,7 +729,7 @@ export async function applyWorkflowToDocument(
 					userId: userIds[i],
 					sequenceOrder: i,
 				},
-				systemUserId
+				actorId
 			);
 			created.push(assignment);
 		}
@@ -718,6 +737,3 @@ export async function applyWorkflowToDocument(
 
 	return created;
 }
-
-// Default system user for auto-operations
-const systemUserId = "system";
