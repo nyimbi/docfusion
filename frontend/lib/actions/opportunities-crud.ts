@@ -21,6 +21,7 @@ import {
 	asc,
 	sql,
 	count,
+	type SQL,
 } from "drizzle-orm";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import type {
@@ -215,6 +216,29 @@ function parseDateInput(input: Date | string | undefined): Date | null {
 	return input instanceof Date ? input : new Date(input);
 }
 
+function assignedOpportunityByIdCondition(id: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, id),
+		eq(opportunities.assignedTo, userId)
+	)!;
+}
+
+function assignedOpportunityExistsSql(id: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${id}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function opportunityVotesByAssignedOpportunityCondition(id: string, userId: string): SQL {
+	return and(
+		eq(opportunityVotes.opportunityId, id),
+		assignedOpportunityExistsSql(id, userId)
+	)!;
+}
+
 /**
  * Map database row to OpportunityListItem.
  */
@@ -357,12 +381,12 @@ export async function createOpportunity(
 export async function getOpportunityById(
 	id: string
 ): Promise<OpportunityListItem | null> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const [row] = await db
 		.select()
 		.from(opportunities)
-		.where(eq(opportunities.id, id))
+		.where(assignedOpportunityByIdCondition(id, userId))
 		.limit(1);
 
 	return row ? mapToOpportunityListItem(row) : null;
@@ -380,7 +404,7 @@ export async function updateOpportunity(
 	id: string,
 	input: UpdateOpportunityInput
 ): Promise<OpportunityListItem> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const now = new Date();
 
@@ -474,7 +498,7 @@ export async function updateOpportunity(
 		const [existing] = await db
 			.select({ metadata: opportunities.metadata })
 			.from(opportunities)
-			.where(eq(opportunities.id, id))
+			.where(assignedOpportunityByIdCondition(id, userId))
 			.limit(1);
 
 		const existingMetadata = (existing?.metadata as Record<string, unknown>) ?? {};
@@ -517,7 +541,7 @@ export async function updateOpportunity(
 	const [row] = await db
 		.update(opportunities)
 		.set(updateData)
-		.where(eq(opportunities.id, id))
+		.where(assignedOpportunityByIdCondition(id, userId))
 		.returning();
 
 	if (!row) {
@@ -534,13 +558,13 @@ export async function updateOpportunity(
  * @throws Error if deletion fails
  */
 export async function deleteOpportunity(id: string): Promise<void> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	// Delete associated votes first (cascade should handle this, but being explicit)
-	await db.delete(opportunityVotes).where(eq(opportunityVotes.opportunityId, id));
+	await db.delete(opportunityVotes).where(opportunityVotesByAssignedOpportunityCondition(id, userId));
 
 	// Delete opportunity
-	const result = await db.delete(opportunities).where(eq(opportunities.id, id));
+	const result = await db.delete(opportunities).where(assignedOpportunityByIdCondition(id, userId));
 
 	if (!result) {
 		throw new Error(`Failed to delete opportunity: ${id}`);
@@ -764,13 +788,13 @@ export async function listOpportunities(
 export async function duplicateOpportunity(
 	id: string
 ): Promise<OpportunityListItem> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	// Get the original opportunity
 	const [original] = await db
 		.select()
 		.from(opportunities)
-		.where(eq(opportunities.id, id))
+		.where(assignedOpportunityByIdCondition(id, userId))
 		.limit(1);
 
 	if (!original) {
@@ -829,7 +853,7 @@ export async function duplicateOpportunity(
 	const originalVotes = await db
 		.select()
 		.from(opportunityVotes)
-		.where(eq(opportunityVotes.opportunityId, id));
+		.where(opportunityVotesByAssignedOpportunityCondition(id, userId));
 
 	// We don't copy votes - this is a new opportunity
 
