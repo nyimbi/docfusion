@@ -4,9 +4,9 @@ const requireUserContextMock = vi.hoisted(() => vi.fn());
 
 const sessionOrganizationId = "11111111-1111-1111-1111-111111111111";
 const otherOrganizationId = "22222222-2222-2222-2222-222222222222";
-const opportunityId = "33333333-3333-3333-3333-333333333333";
-const debriefId = "44444444-4444-4444-4444-444444444444";
-const competitorId = "55555555-5555-5555-5555-555555555555";
+const opportunityId = "33333333-3333-4333-8333-333333333333";
+const debriefId = "44444444-4444-4444-8444-444444444444";
+const competitorId = "55555555-5555-4555-8555-555555555555";
 
 const dbMock = vi.hoisted(() => ({
 	select: vi.fn(),
@@ -66,6 +66,7 @@ vi.mock("@/lib/db/schema", () => ({
 		id: "opportunities.id",
 		title: "opportunities.title",
 		organization: "opportunities.organization",
+		assignedTo: "opportunities.assignedTo",
 	},
 	companySettings: {
 		id: "companySettings.id",
@@ -87,10 +88,45 @@ import {
 	calculateProposalROI,
 	compareToCompetitors,
 	createDebrief,
+	deleteDebrief,
+	getDebrief,
+	getWinLossInsights,
 	getPatterns,
 	listDebriefs,
 	updateDebrief,
 } from "@/lib/actions/winloss";
+
+function createChainableQuery(returnValue: unknown = []) {
+	const chain: Record<string, unknown> = {};
+	for (const method of ["from", "where", "limit", "orderBy", "leftJoin", "values", "returning", "set"]) {
+		chain[method] = vi.fn(() => chain);
+	}
+	(chain.returning as ReturnType<typeof vi.fn>).mockResolvedValue(
+		Array.isArray(returnValue) ? returnValue : [returnValue]
+	);
+	(chain as Record<string, unknown>).then = (resolve: (value: unknown) => void) =>
+		Promise.resolve(Array.isArray(returnValue) ? returnValue : [returnValue]).then(resolve);
+	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Reflect.ownKeys(value).flatMap((key) =>
+		collectSqlFragments((value as Record<PropertyKey, unknown>)[key], seen)
+	);
+}
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -98,6 +134,10 @@ beforeEach(() => {
 		userId: "winloss-user-1",
 		organizationId: sessionOrganizationId,
 	});
+	dbMock.select.mockImplementation(() => createChainableQuery([]));
+	dbMock.insert.mockImplementation(() => createChainableQuery([]));
+	dbMock.update.mockImplementation(() => createChainableQuery([]));
+	dbMock.delete.mockImplementation(() => createChainableQuery([]));
 });
 
 describe("Win/loss action auth", () => {
@@ -167,5 +207,80 @@ describe("Win/loss action auth", () => {
 
 		expect(result.success).toBe(false);
 		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("scopes debrief creation opportunity reads and status updates by assignment", async () => {
+		let opportunityWhere: unknown;
+		let updateWhere: unknown;
+		const opportunityChain = createChainableQuery([{ id: opportunityId }]);
+		(opportunityChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			opportunityWhere = value;
+			return opportunityChain;
+		});
+		const updateChain = createChainableQuery([]);
+		(updateChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			updateWhere = value;
+			return updateChain;
+		});
+		dbMock.select
+			.mockImplementationOnce(() => opportunityChain)
+			.mockImplementationOnce(() => createChainableQuery([]));
+		dbMock.insert.mockImplementationOnce(() => createChainableQuery([{ id: debriefId, opportunityId }]));
+		dbMock.update.mockImplementationOnce(() => updateChain);
+
+		const result = await createDebrief({ opportunityId, outcome: "loss" });
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assignedTo");
+		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assignedTo");
+	});
+
+	test("scopes debrief opportunity hydration by assignment", async () => {
+		let opportunityWhere: unknown;
+		const opportunityChain = createChainableQuery([{ id: opportunityId }]);
+		(opportunityChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			opportunityWhere = value;
+			return opportunityChain;
+		});
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([{ id: debriefId, opportunityId }]))
+			.mockImplementationOnce(() => opportunityChain);
+
+		const result = await getDebrief(debriefId);
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assignedTo");
+	});
+
+	test("scopes debrief deletion opportunity reset by assignment", async () => {
+		let updateWhere: unknown;
+		const updateChain = createChainableQuery([]);
+		(updateChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			updateWhere = value;
+			return updateChain;
+		});
+		dbMock.select.mockImplementationOnce(() => createChainableQuery([{ id: debriefId, opportunityId }]));
+		dbMock.delete.mockImplementationOnce(() => createChainableQuery([]));
+		dbMock.update.mockImplementationOnce(() => updateChain);
+
+		const result = await deleteDebrief(debriefId);
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assignedTo");
+	});
+
+	test("scopes opportunity-specific insights by assignment", async () => {
+		let opportunityWhere: unknown;
+		const opportunityChain = createChainableQuery([]);
+		(opportunityChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			opportunityWhere = value;
+			return opportunityChain;
+		});
+		dbMock.select.mockImplementationOnce(() => opportunityChain);
+
+		const result = await getWinLossInsights(opportunityId);
+
+		expect(result.success).toBe(false);
+		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assignedTo");
 	});
 });

@@ -33,7 +33,7 @@ import {
 } from "@/lib/db/schema-winloss";
 import { opportunities, companySettings } from "@/lib/db/schema";
 import { competitors, competitorOpportunities } from "@/lib/db/schema-competitors";
-import { eq, and, desc, sql, gte, lte, inArray, count, avg, sum, or, asc, isNotNull, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, inArray, count, avg, sum, or, asc, isNotNull, isNull, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm/column";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
@@ -73,6 +73,13 @@ function mutableOrganizationCondition(column: OrganizationColumn, userContext: U
 
 function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
 	return inputOrganizationId ?? userContext.organizationId;
+}
+
+function assignedOpportunityByIdCondition(opportunityId: string, userContext: UserContext): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		eq(opportunities.assignedTo, userContext.userId)
+	)!;
 }
 
 /**
@@ -335,7 +342,7 @@ export async function createDebrief(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, validated.opportunityId))
+			.where(assignedOpportunityByIdCondition(validated.opportunityId, userContext))
 			.limit(1);
 
 		if (!opportunity) {
@@ -405,7 +412,7 @@ export async function createDebrief(
 				decisionStatus: statusMap[validated.outcome],
 				updatedAt: new Date(),
 			})
-			.where(eq(opportunities.id, validated.opportunityId));
+			.where(assignedOpportunityByIdCondition(validated.opportunityId, userContext));
 
 		revalidatePath("/winloss");
 		revalidatePath(`/opportunities/${validated.opportunityId}`);
@@ -518,7 +525,7 @@ export async function getDebrief(
 			const [opp] = await db
 				.select()
 				.from(opportunities)
-				.where(eq(opportunities.id, debrief.opportunityId))
+				.where(assignedOpportunityByIdCondition(debrief.opportunityId, userContext))
 				.limit(1);
 			opportunity = opp;
 		}
@@ -630,7 +637,7 @@ export async function deleteDebrief(
 					decisionStatus: "pending",
 					updatedAt: new Date(),
 				})
-				.where(eq(opportunities.id, existing.opportunityId));
+				.where(assignedOpportunityByIdCondition(existing.opportunityId, userContext));
 		}
 
 		revalidatePath("/winloss");
@@ -2264,7 +2271,7 @@ export async function getWinLossInsights(
 			const [opportunity] = await db
 				.select()
 				.from(opportunities)
-				.where(eq(opportunities.id, opportunityId))
+				.where(assignedOpportunityByIdCondition(opportunityId, userContext))
 				.limit(1);
 
 			if (!opportunity) {
