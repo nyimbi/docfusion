@@ -20,7 +20,7 @@
  */
 
 import { db } from "@/lib/db";
-import { eq, and, desc, asc, inArray, sql, like, or, isNull, gte, lte, count } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, sql, like, or, gte, lte, count, type SQL } from "drizzle-orm";
 import { requireUserContext } from "@/lib/auth-utils";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
@@ -112,6 +112,33 @@ export type ExtendedEvidenceStatus =
 export type ActionResult<T> =
 	| { success: true; data: T }
 	| { success: false; error: string };
+
+type EvidenceUserContext = {
+	userId: string;
+	organizationId: string;
+};
+
+async function requireEvidenceContext(): Promise<EvidenceUserContext> {
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
+	return {
+		userId: userContext.userId,
+		organizationId: userContext.organizationId,
+	};
+}
+
+function visibleEvidenceCondition(userContext: EvidenceUserContext): SQL {
+	return eq(evidenceLibrary.organizationId, userContext.organizationId);
+}
+
+function evidenceByIdCondition(id: string, userContext: EvidenceUserContext): SQL {
+	return and(
+		eq(evidenceLibrary.id, id),
+		visibleEvidenceCondition(userContext)
+	)!;
+}
 
 // ============================================================================
 // Type Definitions
@@ -624,11 +651,7 @@ function calculateInitialStrengthScore(data: CreateEvidenceInput): number {
  */
 export async function createEvidence(data: CreateEvidenceInput): Promise<ActionResult<Evidence>> {
 	try {
-		const userContext = await requireUserContext();
-
-		if (!userContext.organizationId) {
-			return { success: false, error: "Organization context required to create evidence" };
-		}
+		const userContext = await requireEvidenceContext();
 
 		const validated = createEvidenceSchema.parse(data);
 
@@ -638,7 +661,7 @@ export async function createEvidence(data: CreateEvidenceInput): Promise<ActionR
 		const [evidence] = await db
 			.insert(evidenceLibrary)
 			.values({
-				organizationId: userContext.organizationId as string,
+				organizationId: userContext.organizationId,
 				title: validated.title,
 				content: validated.content,
 				summary: validated.summary,
@@ -692,7 +715,7 @@ export async function createEvidence(data: CreateEvidenceInput): Promise<ActionR
  */
 export async function updateEvidence(id: string, data: UpdateEvidenceInput): Promise<ActionResult<Evidence>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 		const validated = updateEvidenceSchema.parse(data);
 
 		// Build update object with only provided fields
@@ -722,7 +745,11 @@ export async function updateEvidence(id: string, data: UpdateEvidenceInput): Pro
 		if (validated.relatedAgencies !== undefined) updates.relatedAgencies = validated.relatedAgencies;
 		if (validated.status !== undefined) updates.status = validated.status as EvidenceStatus;
 
-		const [evidence] = await db.update(evidenceLibrary).set(updates).where(eq(evidenceLibrary.id, id)).returning();
+		const [evidence] = await db
+			.update(evidenceLibrary)
+			.set(updates)
+			.where(evidenceByIdCondition(id, userContext))
+			.returning();
 
 		if (!evidence) {
 			return { success: false, error: "Evidence not found" };
@@ -752,9 +779,9 @@ export async function updateEvidence(id: string, data: UpdateEvidenceInput): Pro
  */
 export async function deleteEvidence(id: string): Promise<ActionResult<{ deleted: boolean }>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
-		const result = await db.delete(evidenceLibrary).where(eq(evidenceLibrary.id, id));
+		const result = await db.delete(evidenceLibrary).where(evidenceByIdCondition(id, userContext));
 
 		if (result.rowCount === 0) {
 			return { success: false, error: "Evidence not found" };
@@ -778,9 +805,9 @@ export async function deleteEvidence(id: string): Promise<ActionResult<{ deleted
  */
 export async function getEvidence(id: string): Promise<ActionResult<Evidence>> {
 	try {
-		await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
-		const [evidence] = await db.select().from(evidenceLibrary).where(eq(evidenceLibrary.id, id));
+		const [evidence] = await db.select().from(evidenceLibrary).where(evidenceByIdCondition(id, userContext));
 
 		if (!evidence) {
 			return { success: false, error: "Evidence not found" };
@@ -816,76 +843,72 @@ export async function getEvidence(id: string): Promise<ActionResult<Evidence>> {
  */
 export async function listEvidence(filters?: EvidenceFilters): Promise<ActionResult<Evidence[]>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
-	// Build query conditions
-	const conditions = [];
+		// Build query conditions
+		const conditions: SQL[] = [];
 
-	// Organization scope - allow org evidence and shared (null org) evidence
-	if (userContext.organizationId) {
-		conditions.push(
-			or(eq(evidenceLibrary.organizationId, userContext.organizationId), isNull(evidenceLibrary.organizationId))
-		);
-	}
+		// Organization scope
+		conditions.push(visibleEvidenceCondition(userContext));
 
-	// Type filter
-	if (filters?.evidenceType) {
-		const types = Array.isArray(filters.evidenceType) ? filters.evidenceType : [filters.evidenceType];
-		conditions.push(inArray(evidenceLibrary.evidenceType, types as EvidenceType[]));
-	}
+		// Type filter
+		if (filters?.evidenceType) {
+			const types = Array.isArray(filters.evidenceType) ? filters.evidenceType : [filters.evidenceType];
+			conditions.push(inArray(evidenceLibrary.evidenceType, types as EvidenceType[]));
+		}
 
-	// Category filter
-	if (filters?.category) {
-		const categories = Array.isArray(filters.category) ? filters.category : [filters.category];
-		conditions.push(inArray(evidenceLibrary.category, categories as EvidenceCategory[]));
-	}
+		// Category filter
+		if (filters?.category) {
+			const categories = Array.isArray(filters.category) ? filters.category : [filters.category];
+			conditions.push(inArray(evidenceLibrary.category, categories as EvidenceCategory[]));
+		}
 
-	// Status filter
-	if (filters?.status) {
-		const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
-		conditions.push(inArray(evidenceLibrary.status, statuses as EvidenceStatus[]));
-	}
+		// Status filter
+		if (filters?.status) {
+			const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
+			conditions.push(inArray(evidenceLibrary.status, statuses as EvidenceStatus[]));
+		}
 
-	// Quantified filter
-	if (filters?.isQuantified !== undefined) {
-		conditions.push(eq(evidenceLibrary.isQuantified, filters.isQuantified));
-	}
+		// Quantified filter
+		if (filters?.isQuantified !== undefined) {
+			conditions.push(eq(evidenceLibrary.isQuantified, filters.isQuantified));
+		}
 
-	// Strength score range
-	if (filters?.minStrengthScore !== undefined) {
-		conditions.push(gte(evidenceLibrary.strengthScore, filters.minStrengthScore));
-	}
-	if (filters?.maxStrengthScore !== undefined) {
-		conditions.push(lte(evidenceLibrary.strengthScore, filters.maxStrengthScore));
-	}
+		// Strength score range
+		if (filters?.minStrengthScore !== undefined) {
+			conditions.push(gte(evidenceLibrary.strengthScore, filters.minStrengthScore));
+		}
+		if (filters?.maxStrengthScore !== undefined) {
+			conditions.push(lte(evidenceLibrary.strengthScore, filters.maxStrengthScore));
+		}
 
-	// Text search across title, content, summary
-	if (filters?.search) {
-		const searchTerm = `%${filters.search}%`;
-		conditions.push(
-			or(
-				like(evidenceLibrary.title, searchTerm),
-				like(evidenceLibrary.content, searchTerm),
-				sql`${evidenceLibrary.summary} ILIKE ${searchTerm}`
-			)
-		);
-	}
+		// Text search across title, content, summary
+		if (filters?.search) {
+			const searchTerm = `%${filters.search}%`;
+			conditions.push(
+				or(
+					like(evidenceLibrary.title, searchTerm),
+					like(evidenceLibrary.content, searchTerm),
+					sql`${evidenceLibrary.summary} ILIKE ${searchTerm}`
+				)!
+			);
+		}
 
-	// Determine sort order
-	const orderField = filters?.orderBy || "createdAt";
-	const orderDirection = filters?.orderDirection || "desc";
+		// Determine sort order
+		const orderField = filters?.orderBy || "createdAt";
+		const orderDirection = filters?.orderDirection || "desc";
 
-	// Map field names to actual columns
-	const fieldMap: Record<string, ReturnType<typeof asc>> = {
-		title: orderDirection === "asc" ? asc(evidenceLibrary.title) : desc(evidenceLibrary.title),
-		strengthScore:
-			orderDirection === "asc" ? asc(evidenceLibrary.strengthScore) : desc(evidenceLibrary.strengthScore),
-		useCount: orderDirection === "asc" ? asc(evidenceLibrary.useCount) : desc(evidenceLibrary.useCount),
-		createdAt: orderDirection === "asc" ? asc(evidenceLibrary.createdAt) : desc(evidenceLibrary.createdAt),
-		updatedAt: orderDirection === "asc" ? asc(evidenceLibrary.updatedAt) : desc(evidenceLibrary.updatedAt),
-	};
+		// Map field names to actual columns
+		const fieldMap: Record<string, ReturnType<typeof asc>> = {
+			title: orderDirection === "asc" ? asc(evidenceLibrary.title) : desc(evidenceLibrary.title),
+			strengthScore:
+				orderDirection === "asc" ? asc(evidenceLibrary.strengthScore) : desc(evidenceLibrary.strengthScore),
+			useCount: orderDirection === "asc" ? asc(evidenceLibrary.useCount) : desc(evidenceLibrary.useCount),
+			createdAt: orderDirection === "asc" ? asc(evidenceLibrary.createdAt) : desc(evidenceLibrary.createdAt),
+			updatedAt: orderDirection === "asc" ? asc(evidenceLibrary.updatedAt) : desc(evidenceLibrary.updatedAt),
+		};
 
-	const orderClause = fieldMap[orderField] || desc(evidenceLibrary.createdAt);
+		const orderClause = fieldMap[orderField] || desc(evidenceLibrary.createdAt);
 
 		// Execute query
 		const results = await db
@@ -925,7 +948,7 @@ export async function listEvidence(filters?: EvidenceFilters): Promise<ActionRes
  */
 export async function searchEvidence(query: string, filters?: EvidenceFilters): Promise<ActionResult<SearchResult[]>> {
 	try {
-		await requireUserContext();
+		await requireEvidenceContext();
 
 		// Get all evidence that matches basic filters
 		const listResult = await listEvidence({
@@ -1024,10 +1047,7 @@ export async function bulkImportEvidence(
 	items: CreateEvidenceInput[]
 ): Promise<ActionResult<{ imported: number; errors: string[] }>> {
 	try {
-		const userContext = await requireUserContext();
-		if (!userContext.organizationId) {
-			return { success: false, error: "Organization context required to import evidence" };
-		}
+		const userContext = await requireEvidenceContext();
 
 		const errors: string[] = [];
 		let imported = 0;
@@ -1038,7 +1058,7 @@ export async function bulkImportEvidence(
 				const strengthScore = calculateInitialStrengthScore(validated);
 
 				await db.insert(evidenceLibrary).values({
-					organizationId: userContext.organizationId as string,
+					organizationId: userContext.organizationId,
 					title: validated.title,
 					content: validated.content,
 					summary: validated.summary,

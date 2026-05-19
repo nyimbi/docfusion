@@ -120,6 +120,7 @@ import {
 	deleteEvidence,
 	getEvidence,
 	listEvidence,
+	bulkImportEvidence,
 } from "@/lib/actions/evidence";
 
 // ============================================================================
@@ -163,6 +164,14 @@ function makeDbEvidenceRow(overrides: Record<string, unknown> = {}) {
 		updatedAt: new Date("2024-01-20"),
 		...overrides,
 	};
+}
+
+async function mockMissingOrganizationContextOnce() {
+	const { requireUserContext } = await import("@/lib/auth-utils");
+	(requireUserContext as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+		userId: "user-001",
+		organizationId: undefined,
+	});
 }
 
 // ============================================================================
@@ -269,11 +278,7 @@ describe("Evidence CRUD", () => {
 		});
 
 		test("requires organization context", async () => {
-			const { requireUserContext } = await import("@/lib/auth-utils");
-			(requireUserContext as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-				userId: "user-001",
-				organizationId: undefined,
-			});
+			await mockMissingOrganizationContextOnce();
 
 			const result = await createEvidence({
 				title: "Test",
@@ -315,6 +320,18 @@ describe("Evidence CRUD", () => {
 	});
 
 	describe("updateEvidence", () => {
+		test("requires organization context before updating", async () => {
+			await mockMissingOrganizationContextOnce();
+
+			const result = await updateEvidence("ev-001", { title: "Updated Title" });
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Organization context required");
+			}
+			expect(dbMock.update).not.toHaveBeenCalled();
+		});
+
 		test("updates specified fields", async () => {
 			const updated = makeDbEvidenceRow({ title: "Updated Title" });
 			dbMock.update.mockImplementation(() => createChainableQuery([updated]));
@@ -349,6 +366,18 @@ describe("Evidence CRUD", () => {
 	});
 
 	describe("deleteEvidence", () => {
+		test("requires organization context before deleting", async () => {
+			await mockMissingOrganizationContextOnce();
+
+			const result = await deleteEvidence("ev-001");
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Organization context required");
+			}
+			expect(dbMock.delete).not.toHaveBeenCalled();
+		});
+
 		test("deletes existing evidence", async () => {
 			dbMock.delete.mockImplementation(() => {
 				const chain = createChainableQuery([]);
@@ -381,6 +410,18 @@ describe("Evidence CRUD", () => {
 	});
 
 	describe("getEvidence", () => {
+		test("requires organization context before loading by id", async () => {
+			await mockMissingOrganizationContextOnce();
+
+			const result = await getEvidence("ev-001");
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Organization context required");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
+		});
+
 		test("returns evidence when found", async () => {
 			const row = makeDbEvidenceRow();
 			dbMock.select.mockImplementation(() => createChainableQuery([row]));
@@ -406,6 +447,18 @@ describe("Evidence CRUD", () => {
 	});
 
 	describe("listEvidence", () => {
+		test("requires organization context before listing", async () => {
+			await mockMissingOrganizationContextOnce();
+
+			const result = await listEvidence();
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Organization context required");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
+		});
+
 		test("returns array of evidence items", async () => {
 			const rows = [
 				makeDbEvidenceRow({ id: "ev-001" }),
@@ -428,6 +481,20 @@ describe("Evidence CRUD", () => {
 			if (result.success) {
 				expect(result.data).toHaveLength(0);
 			}
+		});
+	});
+
+	describe("bulkImportEvidence", () => {
+		test("requires organization context before importing", async () => {
+			await mockMissingOrganizationContextOnce();
+
+			const result = await bulkImportEvidence([{ title: "Bulk", content: "Evidence" }]);
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Organization context required");
+			}
+			expect(dbMock.insert).not.toHaveBeenCalled();
 		});
 	});
 });
