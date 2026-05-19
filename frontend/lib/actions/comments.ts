@@ -60,6 +60,45 @@ function writableDocumentCondition(documentId: string, userId: string): SQL {
 	)!;
 }
 
+function readableDocumentExistsSql(documentId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and (
+				documents.owner_id = ${userId}
+				or documents.visibility = 'public'
+				or documents.collaborator_ids ? ${userId}
+			)
+	)`;
+}
+
+function writableDocumentExistsSql(documentId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and (
+				documents.owner_id = ${userId}
+				or documents.collaborator_ids ? ${userId}
+			)
+	)`;
+}
+
+function readableCommentCondition(commentId: string, userId: string): SQL {
+	return and(
+		eq(documentComments.id, commentId),
+		readableDocumentExistsSql(documentComments.documentId, userId)
+	)!;
+}
+
+function writableCommentCondition(commentId: string, userId: string): SQL {
+	return and(
+		eq(documentComments.id, commentId),
+		writableDocumentExistsSql(documentComments.documentId, userId)
+	)!;
+}
+
 async function assertReadableDocument(documentId: string, userId: string): Promise<void> {
 	const [document] = await db
 		.select({ id: documents.id })
@@ -94,22 +133,26 @@ async function getCommentAccess(
 			userId: documentComments.userId,
 		})
 		.from(documentComments)
-		.where(eq(documentComments.id, commentId))
+		.where(readableCommentCondition(commentId, userId))
 		.limit(1);
 
-	if (!comment) return null;
-	await assertReadableDocument(comment.documentId, userId);
-	return comment;
+	return comment ?? null;
 }
 
 async function getWritableCommentAccess(
 	commentId: string,
 	userId: string
 ): Promise<{ documentId: string; userId: string } | null> {
-	const comment = await getCommentAccess(commentId, userId);
-	if (!comment) return null;
-	await assertWritableDocument(comment.documentId, userId);
-	return comment;
+	const [comment] = await db
+		.select({
+			documentId: documentComments.documentId,
+			userId: documentComments.userId,
+		})
+		.from(documentComments)
+		.where(writableCommentCondition(commentId, userId))
+		.limit(1);
+
+	return comment ?? null;
 }
 
 /**
@@ -195,17 +238,19 @@ export async function getComment(id: string): Promise<DocumentComment | null> {
 	const [comment] = await db
 		.select()
 		.from(documentComments)
-		.where(eq(documentComments.id, id))
+		.where(readableCommentCondition(id, userId))
 		.limit(1);
 
 	if (!comment) return null;
-	await assertReadableDocument(comment.documentId, userId);
 
 	// Fetch replies
 	const replyRows = await db
 		.select()
 		.from(documentComments)
-		.where(eq(documentComments.parentId, id))
+		.where(and(
+			eq(documentComments.parentId, id),
+			eq(documentComments.documentId, comment.documentId)
+		))
 		.orderBy(asc(documentComments.createdAt));
 
 	const replies = replyRows.map((row) => mapDocumentComment(row));
@@ -253,7 +298,10 @@ export async function getComments(
 				const replyRows = await db
 					.select()
 					.from(documentComments)
-					.where(eq(documentComments.parentId, row.id))
+					.where(and(
+						eq(documentComments.parentId, row.id),
+						eq(documentComments.documentId, row.documentId)
+					))
 					.orderBy(asc(documentComments.createdAt));
 
 				const replies = replyRows.map((r) => mapDocumentComment(r));
@@ -299,16 +347,14 @@ export async function createComment(
 		const [parent] = await db
 			.select({ id: documentComments.id, documentId: documentComments.documentId })
 			.from(documentComments)
-			.where(eq(documentComments.id, parentId))
+			.where(and(
+				eq(documentComments.id, parentId),
+				eq(documentComments.documentId, documentId)
+			))
 			.limit(1);
 
 		if (!parent) {
 			throw new Error("Parent comment not found");
-		}
-
-		// Ensure reply is on same document
-		if (parent.documentId !== documentId) {
-			throw new Error("Reply must be on the same document");
 		}
 	}
 
