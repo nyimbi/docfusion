@@ -1,22 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
-const dbAccessMock = vi.hoisted(() => vi.fn());
-const blockedDb = vi.hoisted(() => new Proxy({}, {
-	get() {
-		dbAccessMock();
-		throw new Error("database should not be touched before auth");
-	},
+const requireUserContextMock = vi.hoisted(() => vi.fn());
+const dbMock = vi.hoisted(() => ({
+	select: vi.fn(),
+	insert: vi.fn(),
+	update: vi.fn(),
 }));
+const eqMock = vi.hoisted(() => vi.fn((column, value) => ({ type: "eq", column, value })));
+const andMock = vi.hoisted(() => vi.fn((...conditions) => ({ type: "and", conditions })));
 
 vi.mock("@/lib/auth-utils", () => ({
-	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 vi.mock("@/lib/db", () => ({
-	db: blockedDb,
+	db: dbMock,
 }));
 vi.mock("@/lib/db/schema", () => ({
-	companySettings: {},
+	companySettings: {
+		id: "company_settings.id",
+		organizationId: "company_settings.organization_id",
+	},
+}));
+vi.mock("drizzle-orm", () => ({
+	eq: eqMock,
+	and: andMock,
 }));
 
 import {
@@ -31,7 +38,7 @@ import {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	getCurrentUserIdMock.mockResolvedValue(null);
+	requireUserContextMock.mockRejectedValue(new Error("Unauthorized"));
 });
 
 describe("company settings action auth", () => {
@@ -44,6 +51,31 @@ describe("company settings action auth", () => {
 		await expect(getCompanyBoilerplate()).rejects.toThrow("Unauthorized");
 		await expect(getCompanyCapabilities()).rejects.toThrow("Unauthorized");
 
-		expect(dbAccessMock).not.toHaveBeenCalled();
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("filters settings reads by the authenticated organization", async () => {
+		requireUserContextMock.mockResolvedValue({
+			userId: "user-1",
+			organizationId: "org-1",
+		});
+		const limitMock = vi.fn(async () => []);
+		const whereMock = vi.fn(() => ({ limit: limitMock }));
+		const fromMock = vi.fn(() => ({ where: whereMock }));
+		dbMock.select.mockReturnValueOnce({ from: fromMock });
+
+		await expect(getCompanySettings()).resolves.toBeNull();
+
+		expect(eqMock).toHaveBeenCalledWith(
+			"company_settings.organization_id",
+			"org-1"
+		);
+		expect(whereMock).toHaveBeenCalledWith({
+			type: "eq",
+			column: "company_settings.organization_id",
+			value: "org-1",
+		});
 	});
 });

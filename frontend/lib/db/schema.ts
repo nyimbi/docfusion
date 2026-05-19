@@ -981,6 +981,8 @@ export const companySettings = pgTable(
 	"company_settings",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		/** Organization ID for tenant isolation */
+		organizationId: varchar("organization_id", { length: 100 }),
 		/** Organization name (formal/legal name) */
 		companyName: varchar("company_name", { length: 500 }).notNull(),
 		/** Short name (abbreviated for casual use) */
@@ -1067,7 +1069,10 @@ export const companySettings = pgTable(
 		customFields: jsonb("custom_fields").notNull().default({}),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-	}
+	},
+	(table) => [
+		uniqueIndex("company_settings_org_idx").on(table.organizationId),
+	]
 );
 
 // ============================================================================

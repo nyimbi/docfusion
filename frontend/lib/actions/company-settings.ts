@@ -8,9 +8,9 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext } from "@/lib/auth-utils";
 import { companySettings } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type {
 	CompanySettings,
 	CompanySettingsInput,
@@ -22,12 +22,32 @@ import type {
 // Company Settings Operations
 // ============================================================================
 
-async function requireCurrentUserId(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
-		throw new Error("Unauthorized");
+interface CompanySettingsContext {
+	userId: string;
+	organizationId: string;
+}
+
+async function requireCompanySettingsContext(): Promise<CompanySettingsContext> {
+	const context = await requireUserContext();
+	if (!context.organizationId) {
+		throw new Error("Organization context required");
 	}
-	return userId;
+	return {
+		userId: context.userId,
+		organizationId: context.organizationId,
+	};
+}
+
+async function getCompanySettingsForOrganization(
+	organizationId: string
+): Promise<CompanySettings | null> {
+	const [row] = await db
+		.select()
+		.from(companySettings)
+		.where(eq(companySettings.organizationId, organizationId))
+		.limit(1);
+
+	return row ? mapToCompanySettings(row) : null;
 }
 
 /**
@@ -35,15 +55,8 @@ async function requireCurrentUserId(): Promise<string> {
  * Returns null if no settings exist yet.
  */
 export async function getCompanySettings(): Promise<CompanySettings | null> {
-	await requireCurrentUserId();
-
-	const [row] = await db.select().from(companySettings).limit(1);
-
-	if (!row) {
-		return null;
-	}
-
-	return mapToCompanySettings(row);
+	const context = await requireCompanySettingsContext();
+	return getCompanySettingsForOrganization(context.organizationId);
 }
 
 /**
@@ -53,9 +66,8 @@ export async function getCompanySettings(): Promise<CompanySettings | null> {
 export async function saveCompanySettings(
 	input: CompanySettingsInput
 ): Promise<CompanySettings> {
-	await requireCurrentUserId();
-
-	const existing = await getCompanySettings();
+	const context = await requireCompanySettingsContext();
+	const existing = await getCompanySettingsForOrganization(context.organizationId);
 
 	if (existing) {
 		// Update existing
@@ -100,7 +112,10 @@ export async function saveCompanySettings(
 				customFields: input.customFields ?? {},
 				updatedAt: new Date(),
 			})
-			.where(eq(companySettings.id, existing.id))
+			.where(and(
+				eq(companySettings.id, existing.id),
+				eq(companySettings.organizationId, context.organizationId)
+			))
 			.returning();
 
 		return mapToCompanySettings(updated);
@@ -109,6 +124,7 @@ export async function saveCompanySettings(
 		const [created] = await db
 			.insert(companySettings)
 			.values({
+				organizationId: context.organizationId,
 				companyName: input.companyName,
 				legalName: input.legalName ?? null,
 				registrationNumber: input.registrationNumber ?? null,
@@ -158,9 +174,8 @@ export async function saveCompanySettings(
 export async function updateCompanySettings(
 	updates: Partial<CompanySettingsInput>
 ): Promise<CompanySettings> {
-	await requireCurrentUserId();
-
-	const existing = await getCompanySettings();
+	const context = await requireCompanySettingsContext();
+	const existing = await getCompanySettingsForOrganization(context.organizationId);
 
 	if (!existing) {
 		throw new Error("Company settings not found. Create settings first.");
@@ -209,7 +224,10 @@ export async function updateCompanySettings(
 	const [updated] = await db
 		.update(companySettings)
 		.set(updateData)
-		.where(eq(companySettings.id, existing.id))
+		.where(and(
+			eq(companySettings.id, existing.id),
+			eq(companySettings.organizationId, context.organizationId)
+		))
 		.returning();
 
 	return mapToCompanySettings(updated);
@@ -219,8 +237,6 @@ export async function updateCompanySettings(
  * Get branding config from company settings.
  */
 export async function getDefaultBranding(): Promise<BrandingConfig | null> {
-	await requireCurrentUserId();
-
 	const settings = await getCompanySettings();
 
 	if (!settings) {
@@ -262,8 +278,6 @@ export async function getDefaultBranding(): Promise<BrandingConfig | null> {
  * Check if company settings are configured.
  */
 export async function isCompanyConfigured(): Promise<boolean> {
-	await requireCurrentUserId();
-
 	const settings = await getCompanySettings();
 	return settings !== null && settings.companyName.length > 0;
 }
@@ -272,8 +286,6 @@ export async function isCompanyConfigured(): Promise<boolean> {
  * Get company boilerplate text for use in proposals.
  */
 export async function getCompanyBoilerplate(): Promise<string | null> {
-	await requireCurrentUserId();
-
 	const settings = await getCompanySettings();
 	return settings?.companyBoilerplate ?? null;
 }
@@ -286,8 +298,6 @@ export async function getCompanyCapabilities(): Promise<{
 	differentiators: string[];
 	certifications: SmallBusinessCertification[];
 }> {
-	await requireCurrentUserId();
-
 	const settings = await getCompanySettings();
 
 	return {
