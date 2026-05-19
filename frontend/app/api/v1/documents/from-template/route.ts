@@ -13,6 +13,11 @@ import type { UseTemplateInput } from "@/lib/types/template";
 
 export async function POST(request: NextRequest) {
 	try {
+		const userId = await getCurrentUserId();
+		if (!userId) {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
+
 		const body = await request.json();
 
 		// Validate required fields
@@ -36,10 +41,6 @@ export async function POST(request: NextRequest) {
 			placeholderValues: body.placeholderValues || {},
 			useAIFill: body.useAIFill ?? false,
 		};
-
-		// Get authenticated user or use provided userId as fallback
-		const authUserId = await getCurrentUserId();
-		const userId = authUserId || body.userId || "anonymous";
 
 		const result = await createDocumentFromTemplate(input, userId);
 

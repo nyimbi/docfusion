@@ -17,6 +17,11 @@ interface RouteParams {
 export async function POST(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { id: templateId } = await params;
+		const userId = await getCurrentUserId();
+		if (!userId) {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
+
 		const body = await request.json();
 
 		// Validate rating
@@ -27,10 +32,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 				{ status: 400 }
 			);
 		}
-
-		// Get authenticated user or use provided userId as fallback
-		const authUserId = await getCurrentUserId();
-		const userId = authUserId || body.userId || "anonymous";
 
 		const result = await rateTemplate({
 			templateId,
