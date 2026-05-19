@@ -8,6 +8,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { requireServerSession } from "@/lib/auth-utils";
 import {
 	scraperRuns,
 	scraperSources,
@@ -24,13 +25,11 @@ import {
 	lte,
 	inArray,
 	ilike,
-	isNull,
 	sql,
 	count,
-	sum,
-	avg,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { getScraperStatsForPeriod } from "@/lib/scrapers/run-stats";
 
 function escapeLikePattern(value: string): string {
 	return value.replace(/[\\%_]/g, "\\$&");
@@ -42,6 +41,10 @@ function safeRevalidatePath(path: string): void {
 	} catch {
 		// Scraper workers can run outside a Next request/static-generation store.
 	}
+}
+
+async function requireScraperRunActionSession(): Promise<void> {
+	await requireServerSession();
 }
 
 // ============================================================================
@@ -158,6 +161,7 @@ export async function getScraperRuns(
 	sort?: ScraperRunSort,
 	pagination?: PaginationOptions
 ): Promise<PaginatedRuns> {
+	await requireScraperRunActionSession();
 	const page = pagination?.page ?? 1;
 	const pageSize = pagination?.pageSize ?? 25;
 	const offset = (page - 1) * pageSize;
@@ -307,6 +311,7 @@ export async function getScraperRuns(
  * Get a single scraper run by ID
  */
 export async function getScraperRun(id: string): Promise<ScraperRunWithSource | null> {
+	await requireScraperRunActionSession();
 	const [run] = await db
 		.select()
 		.from(scraperRuns)
@@ -343,6 +348,7 @@ export async function getScraperRun(id: string): Promise<ScraperRunWithSource | 
 export async function createScraperRun(
 	data: Omit<NewScraperRun, "id">
 ): Promise<ScraperRun> {
+	await requireScraperRunActionSession();
 	const [run] = await db
 		.insert(scraperRuns)
 		.values({
@@ -374,6 +380,7 @@ export async function updateScraperRun(
 	id: string,
 	data: Partial<Omit<NewScraperRun, "id">>
 ): Promise<ScraperRun | null> {
+	await requireScraperRunActionSession();
 	const [updated] = await db
 		.update(scraperRuns)
 		.set(data)
@@ -393,6 +400,7 @@ export async function completeScraperRun(
 	id: string,
 	results: CompleteRunResults
 ): Promise<ScraperRun | null> {
+	await requireScraperRunActionSession();
 	// Get the run to calculate duration
 	const [existingRun] = await db
 		.select({ startedAt: scraperRuns.startedAt })
@@ -455,6 +463,7 @@ export async function failScraperRun(
 	id: string,
 	error: FailRunError
 ): Promise<ScraperRun | null> {
+	await requireScraperRunActionSession();
 	// Get the run to calculate duration
 	const [existingRun] = await db
 		.select({ startedAt: scraperRuns.startedAt, sourceId: scraperRuns.sourceId })
@@ -504,102 +513,15 @@ export async function failScraperRun(
 export async function getScraperStats(
 	filters?: Pick<ScraperRunFilters, "sourceId" | "startedAfter" | "startedBefore">
 ): Promise<ScraperStats> {
-	// Build WHERE conditions
-	const conditions: ReturnType<typeof eq>[] = [];
-
-	if (filters?.sourceId) {
-		conditions.push(eq(scraperRuns.sourceId, filters.sourceId));
-	}
-
-	if (filters?.startedAfter) {
-		conditions.push(gte(scraperRuns.startedAt, filters.startedAfter));
-	}
-
-	if (filters?.startedBefore) {
-		conditions.push(lte(scraperRuns.startedAt, filters.startedBefore));
-	}
-
-	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-	// Get status counts
-	const statusCounts = await db
-		.select({
-			status: scraperRuns.status,
-			count: count(),
-		})
-		.from(scraperRuns)
-		.where(whereClause)
-		.groupBy(scraperRuns.status);
-
-	// Get aggregate metrics
-	const [aggregateResult] = await db
-		.select({
-			totalRuns: count(),
-			totalOpportunitiesFound: sum(scraperRuns.opportunitiesFound),
-			totalOpportunitiesNew: sum(scraperRuns.opportunitiesNew),
-			totalOpportunitiesUpdated: sum(scraperRuns.opportunitiesUpdated),
-			avgDuration: avg(scraperRuns.durationSeconds),
-			avgDataQuality: avg(scraperRuns.dataQualityScore),
-		})
-		.from(scraperRuns)
-		.where(whereClause);
-
-	// Calculate derived stats
-	const byStatus: Record<ScraperRunStatus, number> = {
-		pending: 0,
-		running: 0,
-		success: 0,
-		partial: 0,
-		failed: 0,
-		timeout: 0,
-		cancelled: 0,
-	};
-
-	for (const row of statusCounts) {
-		if (row.status) {
-			byStatus[row.status] = row.count;
-		}
-	}
-
-	const successfulRuns = byStatus.success + byStatus.partial;
-	const failedRuns = byStatus.failed + byStatus.timeout;
-	const partialRuns = byStatus.partial;
-	const totalRuns = aggregateResult?.totalRuns ?? 0;
-
-	// Calculate averages
-	const totalOpportunitiesFound = Number(aggregateResult?.totalOpportunitiesFound ?? 0);
-	const avgDurationSeconds = aggregateResult?.avgDuration
-		? Number(aggregateResult.avgDuration)
-		: null;
-	const avgDataQualityScore = aggregateResult?.avgDataQuality
-		? Number(aggregateResult.avgDataQuality)
-		: null;
-
-	const avgOpportunitiesPerRun =
-		successfulRuns > 0 ? totalOpportunitiesFound / successfulRuns : null;
-
-	const successRate = totalRuns > 0 ? (successfulRuns / totalRuns) * 100 : 0;
-
-	return {
-		totalRuns,
-		byStatus,
-		successfulRuns,
-		failedRuns,
-		partialRuns,
-		totalOpportunitiesFound,
-		totalOpportunitiesNew: Number(aggregateResult?.totalOpportunitiesNew ?? 0),
-		totalOpportunitiesUpdated: Number(aggregateResult?.totalOpportunitiesUpdated ?? 0),
-		avgDurationSeconds,
-		avgOpportunitiesPerRun,
-		successRate,
-		avgDataQualityScore,
-	};
+	await requireScraperRunActionSession();
+	return getScraperStatsForPeriod(filters);
 }
 
 /**
  * Get health status by source
  */
 export async function getSourceHealth(): Promise<SourceHealthItem[]> {
+	await requireScraperRunActionSession();
 	// Join runs with sources to compute health metrics
 	const sources = await db
 		.select({
@@ -651,6 +573,7 @@ export async function getSourceHealth(): Promise<SourceHealthItem[]> {
 export async function getBatchRuns(
 	batchId: string
 ): Promise<{ batchId: string; runs: ScraperRunWithSource[] }> {
+	await requireScraperRunActionSession();
 	const runs = await db
 		.select()
 		.from(scraperRuns)
@@ -690,6 +613,7 @@ export async function getBatchRuns(
 export async function getRecentRuns(
 	limit: number = 50
 ): Promise<ScraperRunWithSource[]> {
+	await requireScraperRunActionSession();
 	const runs = await db
 		.select()
 		.from(scraperRuns)
@@ -811,6 +735,7 @@ async function updateSourceHealthAfterRun(sourceId: string): Promise<void> {
  * Cancel a pending or running scraper run
  */
 export async function cancelScraperRun(id: string): Promise<ScraperRun | null> {
+	await requireScraperRunActionSession();
 	const [updated] = await db
 		.update(scraperRuns)
 		.set({
@@ -840,6 +765,7 @@ export async function cancelScraperRun(id: string): Promise<ScraperRun | null> {
 export async function getRunCountsBySource(
 	days: number = 7
 ): Promise<Map<string, { total: number; successful: number; failed: number }>> {
+	await requireScraperRunActionSession();
 	const since = new Date();
 	since.setDate(since.getDate() - days);
 
@@ -880,6 +806,7 @@ export async function getRunTimeline(
 		groupBy?: "day" | "hour";
 	}
 ): Promise<{ date: string; runs: number; opportunities: number; avgDuration: number | null }[]> {
+	await requireScraperRunActionSession();
 	const startDate = options?.startDate ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 	const endDate = options?.endDate ?? new Date();
 	const groupBy = options?.groupBy ?? "day";

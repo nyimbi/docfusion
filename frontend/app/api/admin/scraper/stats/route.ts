@@ -9,8 +9,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getScraperStats } from "@/lib/actions/scraper-runs";
 import { isControlPlaneResponse, requireControlPlaneAdmin } from "@/lib/auth/control-plane";
+import { getScraperStatsForPeriod } from "@/lib/scrapers/run-stats";
 
 export async function GET(request: NextRequest) {
 	try {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 		const now = new Date();
 		const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-		const stats = await getScraperStats({
+		const stats = await getScraperStatsForPeriod({
 			startedAfter: twentyFourHoursAgo,
 			startedBefore: now,
 		});
