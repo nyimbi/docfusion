@@ -13,6 +13,7 @@ import { eq, and } from "drizzle-orm";
 import Papa from "papaparse";
 import path from "path";
 import fs from "fs/promises";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import {
 	detectFormat,
 	processRows,
@@ -37,6 +38,14 @@ import {
 // ============================================================================
 // File Processing
 // ============================================================================
+
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
 
 /**
  * Read and parse a delimited file.
@@ -287,6 +296,8 @@ export async function importFromFile(
 	filePath: string,
 	config?: Partial<ImportConfig>
 ): Promise<SpreadsheetImportResult> {
+	await requireCurrentUserId();
+
 	const { sheets, filename } = await parseDelimitedFile(filePath);
 	return executeSpreadsheetImport(sheets, filename, config);
 }
@@ -299,6 +310,8 @@ export async function importFromBuffer(
 	filename: string,
 	config?: Partial<ImportConfig>
 ): Promise<SpreadsheetImportResult> {
+	await requireCurrentUserId();
+
 	return executeSpreadsheetImport(
 		[{ name: "Data", data: parseDelimitedRows(buffer.toString("utf-8"), filename) }],
 		filename,
@@ -318,6 +331,8 @@ export async function previewImport(
 	preview: NormalizedOpportunity[];
 	totalRows: number;
 }> {
+	await requireCurrentUserId();
+
 	const { sheets, filename } = await parseDelimitedFile(filePath);
 	const sheetFormats = detectSheetFormats(sheets);
 
@@ -372,6 +387,8 @@ export async function importFromScraperExport(
 	};
 	errors: ImportRecordResult[];
 }> {
+	await requireCurrentUserId();
+
 	const content = await fs.readFile(jsonlPath, "utf-8");
 	const lines = content.trim().split("\n").filter(Boolean);
 
@@ -524,6 +541,8 @@ export async function importAllScraperExports(
 		error?: string;
 	}[];
 }> {
+	await requireCurrentUserId();
+
 	let files: string[];
 	try {
 		files = await fs.readdir(syncDir);
@@ -618,6 +637,8 @@ export async function importFromDirectory(
 		error?: string;
 	}[];
 }> {
+	await requireCurrentUserId();
+
 	const files = await fs.readdir(dirPath);
 	const delimitedFiles = files.filter((f) => f.endsWith(".csv") || f.endsWith(".tsv"));
 
