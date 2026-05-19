@@ -129,6 +129,8 @@ import {
 	archiveEvidence,
 	getEvidenceUsageStats,
 	calculateEvidenceCoverage,
+	generateEvidenceMatrix,
+	generateEvidenceReport,
 } from "@/lib/actions/evidence";
 
 // ============================================================================
@@ -731,6 +733,51 @@ describe("Evidence opportunity scoping", () => {
 		for (const where of wheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 		}
+	});
+
+	test("scopes matrix lookup and usage reads through assigned opportunities", async () => {
+		const wheres: unknown[] = [];
+		const matrixQuery = createChainableQuery([]);
+		const usagesQuery = createChainableQuery([]);
+		const insertedMatrix = {
+			id: "matrix-1",
+			name: "requirements Matrix",
+		};
+		(matrixQuery.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			wheres.push(value);
+			return matrixQuery;
+		});
+		(usagesQuery.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			wheres.push(value);
+			return usagesQuery;
+		});
+		dbMock.select
+			.mockReturnValueOnce(matrixQuery)
+			.mockReturnValueOnce(usagesQuery);
+		dbMock.insert.mockReturnValueOnce(createChainableQuery([insertedMatrix]));
+
+		const result = await generateEvidenceMatrix("33333333-3333-4333-8333-333333333333", "requirements");
+
+		expect(result.success).toBe(true);
+		expect(wheres).toHaveLength(2);
+		for (const where of wheres) {
+			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		}
+	});
+
+	test("scopes report usage reads through assigned opportunities", async () => {
+		let usageWhere: unknown;
+		const usagesQuery = createChainableQuery([]);
+		(usagesQuery.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			usageWhere = value;
+			return usagesQuery;
+		});
+		dbMock.select.mockReturnValueOnce(usagesQuery);
+
+		const result = await generateEvidenceReport("33333333-3333-4333-8333-333333333333");
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(usageWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
 });
 

@@ -170,6 +170,18 @@ function visibleClaimsForOpportunityCondition(opportunityId: string, userContext
 	)!;
 }
 
+function visibleEvidenceMatrixForOpportunityCondition(
+	opportunityId: string,
+	matrixType: EvidenceMatrixType,
+	userContext: EvidenceUserContext
+): SQL {
+	return and(
+		eq(evidenceMatrices.opportunityId, opportunityId),
+		eq(evidenceMatrices.matrixType, matrixType),
+		assignedOpportunityExistsSql(opportunityId, userContext.userId)
+	)!;
+}
+
 // ============================================================================
 // Type Definitions
 // ============================================================================
@@ -1782,7 +1794,7 @@ export async function generateEvidenceMatrix(
 	const [existingMatrix] = await db
 		.select()
 		.from(evidenceMatrices)
-		.where(and(eq(evidenceMatrices.opportunityId, opportunityId), eq(evidenceMatrices.matrixType, matrixType)));
+		.where(visibleEvidenceMatrixForOpportunityCondition(opportunityId, matrixType, userContext));
 
 	if (existingMatrix) {
 		return {
@@ -1830,7 +1842,10 @@ export async function generateEvidenceMatrix(
 	];
 
 	// Get evidence used for this opportunity
-	const usages = await db.select().from(evidenceUsages).where(eq(evidenceUsages.opportunityId, opportunityId));
+	const usages = await db
+		.select()
+		.from(evidenceUsages)
+		.where(visibleEvidenceUsagesForOpportunityCondition(opportunityId, userContext));
 
 	const evidenceIds = [...new Set(usages.map((u) => u.evidenceId))];
 	const evidenceItems =
@@ -2532,7 +2547,10 @@ export async function generateEvidenceReport(opportunityId: string): Promise<Act
 		const userContext = await requireEvidenceContext();
 
 		// Get all evidence used for this opportunity
-		const usages = await db.select().from(evidenceUsages).where(eq(evidenceUsages.opportunityId, opportunityId));
+		const usages = await db
+			.select()
+			.from(evidenceUsages)
+			.where(visibleEvidenceUsagesForOpportunityCondition(opportunityId, userContext));
 
 	const evidenceIds = [...new Set(usages.map((u) => u.evidenceId))];
 	const evidenceItems =
