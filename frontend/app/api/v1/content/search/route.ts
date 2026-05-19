@@ -8,8 +8,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireServerSession } from "@/lib/auth-utils";
 import { db } from "@/lib/db";
 import { templateSnippets } from "@/lib/db/schema-additions";
-import { snippetAnalytics, snippetEmbeddings } from "@/lib/db/schema-content-library";
-import { eq, sql, desc } from "drizzle-orm";
+import { snippetAnalytics } from "@/lib/db/schema-content-library";
+import { and, eq, sql } from "drizzle-orm";
 import type { ContentType, FreshnessStatus } from "@/lib/db/schema-content-library";
 
 // ============================================================================
@@ -43,7 +43,14 @@ interface SearchResponse {
 export async function POST(request: NextRequest): Promise<NextResponse> {
 	try {
 		// Authenticate user
-		await requireServerSession();
+		const session = await requireServerSession();
+		const organizationId = (session.user as { organizationId?: string }).organizationId;
+		if (!organizationId) {
+			return NextResponse.json(
+				{ error: "Organization context required" },
+				{ status: 403 }
+			);
+		}
 
 		// Parse request body
 		const body = await request.json();
@@ -75,11 +82,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			.from(templateSnippets)
 			.leftJoin(snippetAnalytics, eq(templateSnippets.id, snippetAnalytics.snippetId))
 			.where(
-				sql`(
-					LOWER(${templateSnippets.name}) LIKE ${searchPattern} OR
-					LOWER(${templateSnippets.content}) LIKE ${searchPattern} OR
-					LOWER(${templateSnippets.description}) LIKE ${searchPattern}
-				)`
+				and(
+					eq(templateSnippets.organizationId, organizationId),
+					sql`(
+						LOWER(${templateSnippets.name}) LIKE ${searchPattern} OR
+						LOWER(${templateSnippets.content}) LIKE ${searchPattern} OR
+						LOWER(${templateSnippets.description}) LIKE ${searchPattern}
+					)`
+				)
 			)
 			.limit(limit);
 
