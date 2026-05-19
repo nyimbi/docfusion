@@ -13,13 +13,18 @@ interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
 	onValues?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -32,6 +37,23 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
 var dbMock: any;
@@ -131,8 +153,14 @@ describe("review comment workflow", () => {
 	it("projects an open review comment into an assigned proposal task", async () => {
 		let commentUpdate: Record<string, unknown> | undefined;
 		let taskInsert: Record<string, unknown> | undefined;
+		let commentWhere: unknown;
 		dbMock.select
-			.mockReturnValueOnce(createChain({ result: [baseComment] }))
+			.mockReturnValueOnce(createChain({
+				result: [baseComment],
+				onWhere: (value) => {
+					commentWhere = value;
+				},
+			}))
 			.mockReturnValueOnce(createChain({ result: [{ opportunityId: "opp-1" }] }))
 			.mockReturnValueOnce(createChain({ result: [] }));
 		dbMock.update.mockReturnValueOnce(createChain({
@@ -169,6 +197,7 @@ describe("review comment workflow", () => {
 		expect(commentUpdate).toMatchObject({
 			resolutionStatus: "open",
 		});
+		expect(collectSqlFragments(commentWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(taskInsert).toMatchObject({
 			opportunityId: "opp-1",
 			taskNumber: "RC-11111111",

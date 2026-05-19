@@ -8,7 +8,7 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type ReviewCommentRow = typeof reviewComments.$inferSelect;
 type ProposalTaskRow = typeof proposalTasks.$inferSelect;
@@ -37,6 +37,54 @@ export interface ReviewCommentWorkflowResult {
 const WORKFLOW_KEY = "review_comment_resolution";
 const SUBJECT_TYPE = "review_comment";
 
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function assignedReviewExistsSql(reviewId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from proposal_reviews
+		join opportunities on opportunities.id = proposal_reviews.opportunity_id
+		where proposal_reviews.id = ${reviewId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleReviewCommentCondition(commentId: string, userId: string): SQL {
+	return and(
+		eq(reviewComments.id, commentId),
+		assignedReviewExistsSql(reviewComments.reviewId, userId)
+	)!;
+}
+
+function visibleProposalReviewCondition(reviewId: string, userId: string): SQL {
+	return and(
+		eq(proposalReviews.id, reviewId),
+		assignedOpportunityExistsSql(proposalReviews.opportunityId, userId)
+	)!;
+}
+
+function visibleReviewCommentTaskCondition(commentId: string, userId: string): SQL {
+	return and(
+		eq(proposalTasks.sourceType, "review_comment"),
+		eq(proposalTasks.sourceId, commentId),
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
+	)!;
+}
+
+function visibleProposalTaskCondition(taskId: string, userId: string): SQL {
+	return and(
+		eq(proposalTasks.id, taskId),
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
+	)!;
+}
+
 export async function transitionReviewCommentWorkflow(
 	input: ReviewCommentWorkflowInput
 ): Promise<ReviewCommentWorkflowResult> {
@@ -49,7 +97,7 @@ export async function transitionReviewCommentWorkflow(
 	const [comment] = await db
 		.select()
 		.from(reviewComments)
-		.where(eq(reviewComments.id, input.commentId))
+		.where(visibleReviewCommentCondition(input.commentId, userContext.userId))
 		.limit(1);
 	if (!comment) {
 		throw new Error("Review comment not found");
@@ -57,7 +105,7 @@ export async function transitionReviewCommentWorkflow(
 	const [review] = await db
 		.select({ opportunityId: proposalReviews.opportunityId })
 		.from(proposalReviews)
-		.where(eq(proposalReviews.id, comment.reviewId))
+		.where(visibleProposalReviewCondition(comment.reviewId, userContext.userId))
 		.limit(1);
 	if (!review?.opportunityId) {
 		throw new Error("Review comment is not linked to an opportunity");
@@ -66,10 +114,7 @@ export async function transitionReviewCommentWorkflow(
 	const [existingTask] = await db
 		.select()
 		.from(proposalTasks)
-		.where(and(
-			eq(proposalTasks.sourceType, "review_comment"),
-			eq(proposalTasks.sourceId, input.commentId)
-		))
+		.where(visibleReviewCommentTaskCondition(input.commentId, userContext.userId))
 		.limit(1);
 
 	const fromState = comment.resolutionStatus ?? "open";
@@ -77,7 +122,7 @@ export async function transitionReviewCommentWorkflow(
 	const [updatedComment] = await db
 		.update(reviewComments)
 		.set(transition.commentPatch)
-		.where(eq(reviewComments.id, input.commentId))
+		.where(visibleReviewCommentCondition(input.commentId, userContext.userId))
 		.returning();
 	if (!updatedComment) {
 		throw new Error("Failed to update review comment workflow state");
@@ -279,7 +324,7 @@ async function upsertCommentTask(input: {
 		const [updated] = await db
 			.update(proposalTasks)
 			.set(taskPatch)
-			.where(eq(proposalTasks.id, input.existingTask.id))
+			.where(visibleProposalTaskCondition(input.existingTask.id, input.actorId))
 			.returning();
 		return updated ?? null;
 	}
