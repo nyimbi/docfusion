@@ -4,8 +4,12 @@ vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
+const requireServerSessionMock = vi.hoisted(() => vi.fn(async () => ({
+	user: { id: "ops-user", role: "operations" as string | undefined, roles: undefined as string[] | undefined },
+})));
+
 vi.mock("@/lib/auth-utils", () => ({
-	getCurrentUserId: vi.fn(async () => "ops-user"),
+	requireServerSession: requireServerSessionMock,
 }));
 
 const workflowRuntimeMock = vi.hoisted(() => ({
@@ -103,6 +107,7 @@ import {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	requireServerSessionMock.mockResolvedValue({ user: { id: "ops-user", role: "operations", roles: undefined } });
 	dbMock.query.scraperSources.findFirst.mockResolvedValue(sourceRow);
 	dbMock.query.scraperJobs.findFirst.mockResolvedValue(null);
 	dbMock.update.mockReturnValue(createChain());
@@ -112,6 +117,51 @@ beforeEach(() => {
 });
 
 describe("scraper source workflows", () => {
+	it("rejects unauthenticated workflow actions before database access", async () => {
+		requireServerSessionMock.mockRejectedValue(new Error("Unauthorized"));
+
+		await expect(startScraperSourceRunWorkflow(sourceRow.id)).rejects.toThrow("Unauthorized");
+		await expect(transitionScraperSourceEnabledWorkflow(sourceRow.id, false)).rejects.toThrow("Unauthorized");
+		await expect(cancelScraperJobWorkflow(activeJobRow.id)).rejects.toThrow("Unauthorized");
+		await expect(evaluateScraperSourceHealthWorkflow(sourceRow.id)).rejects.toThrow("Unauthorized");
+
+		expect(dbMock.query.scraperSources.findFirst).not.toHaveBeenCalled();
+		expect(dbMock.query.scraperJobs.findFirst).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(scraperQueueMock.add).not.toHaveBeenCalled();
+		expect(scraperQueueMock.cancel).not.toHaveBeenCalled();
+	});
+
+	it("rejects non-control-plane roles before workflow side effects", async () => {
+		requireServerSessionMock.mockResolvedValue({ user: { id: "writer-1", role: "writer", roles: ["writer"] } });
+
+		await expect(startScraperSourceRunWorkflow(sourceRow.id)).rejects.toThrow("requires operations or admin");
+		await expect(transitionScraperSourceEnabledWorkflow(sourceRow.id, true)).rejects.toThrow("requires operations or admin");
+
+		expect(dbMock.query.scraperSources.findFirst).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).not.toHaveBeenCalled();
+		expect(scraperQueueMock.add).not.toHaveBeenCalled();
+	});
+
+	it("allows sessions with an admin role in the roles array", async () => {
+		requireServerSessionMock.mockResolvedValue({ user: { id: "admin-1", role: undefined, roles: ["admin"] } });
+
+		const result = await startScraperSourceRunWorkflow(sourceRow.id, {
+			reason: "Admin test run",
+		});
+
+		expect(result).toMatchObject({ success: true, state: "queued" });
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				actorId: "admin-1",
+				authorityPolicy: expect.objectContaining({
+					requiredRoles: ["operations", "admin"],
+				}),
+			})
+		);
+	});
+
 	it("queues enabled source runs and projects a monitor task", async () => {
 		const result = await startScraperSourceRunWorkflow(sourceRow.id, {
 			reason: "Operator test run",

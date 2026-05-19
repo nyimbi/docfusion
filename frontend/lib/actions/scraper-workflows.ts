@@ -3,15 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { scraperJobs, scraperSources, type ScraperSource } from "@/lib/db/schema";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireServerSession } from "@/lib/auth-utils";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { scraperQueue } from "@/lib/scrapers/queue";
 import { initializeScraperQueue, scraperRuntime } from "@/lib/scrapers/runtime";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 import { and, eq, inArray } from "drizzle-orm";
 
 initializeScraperQueue();
 
 type ScraperWorkflowPriority = "critical" | "high" | "medium" | "low";
+
+const SCRAPER_WORKFLOW_REQUIRED_ROLES = ["operations", "admin"] as const;
+const SCRAPER_WORKFLOW_ROLE_SET = new Set<string>(SCRAPER_WORKFLOW_REQUIRED_ROLES);
 
 export interface ScraperRunWorkflowResult {
 	success: boolean;
@@ -348,11 +352,24 @@ export async function evaluateScraperSourceHealthWorkflow(
 }
 
 async function requireWorkflowActor(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
+	const session = await requireServerSession();
+	const user = session.user as { id?: string; role?: string | null; roles?: string[] | null } | undefined;
+	if (!user?.id) {
 		throw new Error("Unauthorized");
 	}
-	return userId;
+
+	const roles = normalizeActorRoles(user.role, user.roles);
+	if (!roles.some((role) => SCRAPER_WORKFLOW_ROLE_SET.has(role))) {
+		throw new WorkflowAuthorityDeniedError({
+			action: "scraper source workflow",
+			requiredRoles: [...SCRAPER_WORKFLOW_REQUIRED_ROLES],
+		});
+	}
+	return user.id;
+}
+
+function normalizeActorRoles(role?: string | null, roles?: string[] | null): string[] {
+	return [...new Set([role, ...(roles ?? [])].filter((value): value is string => Boolean(value)))];
 }
 
 async function findActiveScraperJob(sourceId: string) {
