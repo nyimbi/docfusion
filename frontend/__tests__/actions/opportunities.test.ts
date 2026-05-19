@@ -42,6 +42,25 @@ function createQueryBuilder(resolvedValue: unknown = []) {
 	return builder;
 }
 
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Reflect.ownKeys(value).flatMap((key) =>
+		collectSqlFragments((value as Record<PropertyKey, unknown>)[key], seen)
+	);
+}
+
 // Shared mock db instance
 const mockDb = {
 	select: vi.fn(),
@@ -919,6 +938,7 @@ describe("CRUD Operations", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
+		getCurrentUserIdMock.mockResolvedValue("user-1");
 		const mod = await import("@/lib/actions/opportunities");
 		getOpportunity = mod.getOpportunity;
 		createOpportunity = mod.createOpportunity;
@@ -999,6 +1019,20 @@ describe("CRUD Operations", () => {
 			expect(result!.priorityRank).toBe(3);
 			expect(result!.decisionStatus).toBe("pending");
 			expect(result!.opportunityType).toBe("rfp");
+		});
+
+		it("scopes reads to assigned opportunities", async () => {
+			let where: unknown;
+			const qb = createQueryBuilder([]);
+			qb.where.mockImplementation((value: unknown) => {
+				where = value;
+				return qb;
+			});
+			mockDb.select.mockReturnValue(qb);
+
+			await getOpportunity("opp-1");
+
+			expect(collectSqlFragments(where).join(" ")).toContain("assigned_to");
 		});
 	});
 
@@ -1134,6 +1168,20 @@ describe("CRUD Operations", () => {
 			expect(result.title).toBe("Updated RFP");
 			expect(result.tags).toEqual(["updated"]);
 		});
+
+		it("scopes updates to assigned opportunities", async () => {
+			let where: unknown;
+			const qb = createQueryBuilder([]);
+			qb.where.mockImplementation((value: unknown) => {
+				where = value;
+				return qb;
+			});
+			mockDb.update.mockReturnValue(qb);
+
+			await expect(updateOpportunity("opp-1", { title: "Updated" })).rejects.toThrow("Opportunity not found");
+
+			expect(collectSqlFragments(where).join(" ")).toContain("assigned_to");
+		});
 	});
 
 	describe("deleteOpportunity", () => {
@@ -1142,6 +1190,20 @@ describe("CRUD Operations", () => {
 			mockDb.delete.mockReturnValue(qb);
 			await deleteOpportunity("opp-1");
 			expect(mockDb.delete).toHaveBeenCalled();
+		});
+
+		it("scopes deletes to assigned opportunities", async () => {
+			let where: unknown;
+			const qb = createQueryBuilder(undefined);
+			qb.where.mockImplementation((value: unknown) => {
+				where = value;
+				return qb;
+			});
+			mockDb.delete.mockReturnValue(qb);
+
+			await deleteOpportunity("opp-1");
+
+			expect(collectSqlFragments(where).join(" ")).toContain("assigned_to");
 		});
 	});
 });

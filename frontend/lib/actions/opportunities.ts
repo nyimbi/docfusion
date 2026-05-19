@@ -10,7 +10,7 @@
 import { db } from "@/lib/db";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { opportunities, opportunityImports, savedSearches } from "@/lib/db/schema";
-import { eq, and, or, gte, lte, inArray, isNull, desc, asc, sql, count } from "drizzle-orm";
+import { eq, and, or, gte, lte, inArray, isNull, desc, asc, sql, count, type SQL } from "drizzle-orm";
 
 import { buildOpportunityConditions } from "./opportunity-filters";
 import type {
@@ -30,6 +30,21 @@ import type {
 // ============================================================================
 // CRUD Operations
 // ============================================================================
+
+async function requireOpportunityUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
+function assignedOpportunityByIdCondition(id: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, id),
+		eq(opportunities.assignedTo, userId)
+	)!;
+}
 
 /**
  * Get all opportunities with optional filters, sorting, and pagination.
@@ -131,10 +146,11 @@ export async function getOpportunities(
  * Get a single opportunity by ID.
  */
 export async function getOpportunity(id: string): Promise<Opportunity | null> {
+	const userId = await requireOpportunityUserId();
 	const [row] = await db
 		.select()
 		.from(opportunities)
-		.where(eq(opportunities.id, id))
+		.where(assignedOpportunityByIdCondition(id, userId))
 		.limit(1);
 
 	if (!row) return null;
@@ -216,6 +232,7 @@ export async function createOpportunity(input: OpportunityInput): Promise<Opport
  * Update an existing opportunity.
  */
 export async function updateOpportunity(id: string, input: Partial<OpportunityInput>): Promise<Opportunity> {
+	const userId = await requireOpportunityUserId();
 	const now = new Date();
 	let updateData: Record<string, unknown> = { ...input, updatedAt: now };
 
@@ -232,7 +249,7 @@ export async function updateOpportunity(id: string, input: Partial<OpportunityIn
 	const [row] = await db
 		.update(opportunities)
 		.set(updateData)
-		.where(eq(opportunities.id, id))
+		.where(assignedOpportunityByIdCondition(id, userId))
 		.returning();
 
 	if (!row) {
@@ -254,7 +271,8 @@ export async function updateOpportunity(id: string, input: Partial<OpportunityIn
  * Delete an opportunity.
  */
 export async function deleteOpportunity(id: string): Promise<void> {
-	await db.delete(opportunities).where(eq(opportunities.id, id));
+	const userId = await requireOpportunityUserId();
+	await db.delete(opportunities).where(assignedOpportunityByIdCondition(id, userId));
 }
 
 /**
