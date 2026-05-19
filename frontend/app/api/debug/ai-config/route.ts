@@ -17,22 +17,20 @@ export async function GET() {
 		);
 	}
 
-	// Only allow in development mode
-	if (process.env.NODE_ENV === "production") {
+	// Only expose debug configuration checks during local development.
+	if (process.env.NODE_ENV !== "development") {
 		return NextResponse.json(
-			{ error: "Debug endpoint not available in production" },
-			{ status: 403 }
+			{ error: "Debug endpoint not available" },
+			{ status: 404 }
 		);
 	}
-	// Check environment variables directly
+
 	const envVars = {
-		AZURE_OPENAI_API_KEY: process.env.AZURE_OPENAI_API_KEY 
-			? `Present (${process.env.AZURE_OPENAI_API_KEY.length} chars)` 
-			: "Missing",
-		AZURE_OPENAI_ENDPOINT: process.env.AZURE_OPENAI_ENDPOINT || "Missing",
-		AZURE_OPENAI_DEPLOYMENT_NAME: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || "Missing",
-		AZURE_OPENAI_API_VERSION: process.env.AZURE_OPENAI_API_VERSION || "Missing",
-		OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL || "Missing",
+		AZURE_OPENAI_API_KEY: Boolean(process.env.AZURE_OPENAI_API_KEY),
+		AZURE_OPENAI_ENDPOINT: Boolean(process.env.AZURE_OPENAI_ENDPOINT),
+		AZURE_OPENAI_DEPLOYMENT_NAME: Boolean(process.env.AZURE_OPENAI_DEPLOYMENT_NAME),
+		AZURE_OPENAI_API_VERSION: Boolean(process.env.AZURE_OPENAI_API_VERSION),
+		OLLAMA_BASE_URL: Boolean(process.env.OLLAMA_BASE_URL),
 		NODE_ENV: process.env.NODE_ENV,
 	};
 
@@ -46,11 +44,10 @@ export async function GET() {
 			source: azureConfig.source,
 			userConfigurable: azureConfig.userConfigurable,
 			config: azureConfig.value ? {
-				endpoint: azureConfig.value.endpoint,
-				deploymentName: azureConfig.value.deploymentName,
-				apiVersion: azureConfig.value.apiVersion,
 				hasKey: !!azureConfig.value.apiKey,
-				keyLength: azureConfig.value.apiKey?.length,
+				hasEndpoint: !!azureConfig.value.endpoint,
+				hasDeploymentName: !!azureConfig.value.deploymentName,
+				hasApiVersion: !!azureConfig.value.apiVersion,
 			} : null,
 		},
 	});
