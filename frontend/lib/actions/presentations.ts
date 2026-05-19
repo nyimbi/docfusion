@@ -36,12 +36,14 @@ import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { eq, and, or, ilike, desc, asc, sql, inArray, gte, lte } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
 import { logger } from "@/lib/utils/logger";
+import { requireUserContext } from "@/lib/auth-utils";
 
 // ============================================================================
 // Types
 // ============================================================================
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+type PresentationActionContext = { userId: string; organizationId: string };
 
 interface SlideContent {
 	type: "text" | "bullet" | "image" | "chart" | "table" | "video" | "code" | "quote";
@@ -82,6 +84,101 @@ interface SupportingEvidence {
 	evidence: string;
 	source: string;
 	slideId?: string;
+}
+
+async function requirePresentationContext(): Promise<PresentationActionContext> {
+	const context = await requireUserContext();
+	if (!context.organizationId) {
+		throw new Error("Organization context required");
+	}
+	return {
+		userId: context.userId,
+		organizationId: context.organizationId,
+	};
+}
+
+function scopedPresentationWhere(id: string, organizationId: string) {
+	return and(
+		eq(oralPresentations.id, id),
+		eq(oralPresentations.organizationId, organizationId)
+	);
+}
+
+async function getScopedPresentation(
+	id: string,
+	context: PresentationActionContext
+): Promise<OralPresentation | null> {
+	const [presentation] = await db
+		.select()
+		.from(oralPresentations)
+		.where(scopedPresentationWhere(id, context.organizationId))
+		.limit(1);
+
+	return presentation ?? null;
+}
+
+async function getScopedSlide(
+	slideId: string,
+	context: PresentationActionContext
+): Promise<{ slide: PresentationSlide; presentation: OralPresentation } | null> {
+	const [slide] = await db
+		.select()
+		.from(presentationSlides)
+		.where(eq(presentationSlides.id, slideId))
+		.limit(1);
+
+	if (!slide?.presentationId) return null;
+
+	const presentation = await getScopedPresentation(slide.presentationId, context);
+	return presentation ? { slide, presentation } : null;
+}
+
+async function getScopedQAItem(
+	id: string,
+	context: PresentationActionContext
+): Promise<{ qaItem: DBPresentationQA; presentation: OralPresentation } | null> {
+	const [qaItem] = await db
+		.select()
+		.from(presentationQA)
+		.where(eq(presentationQA.id, id))
+		.limit(1);
+
+	if (!qaItem?.presentationId) return null;
+
+	const presentation = await getScopedPresentation(qaItem.presentationId, context);
+	return presentation ? { qaItem, presentation } : null;
+}
+
+async function getScopedRecording(
+	id: string,
+	context: PresentationActionContext
+): Promise<{ recording: PracticeRecording; presentation: OralPresentation } | null> {
+	const [recording] = await db
+		.select()
+		.from(practiceRecordings)
+		.where(eq(practiceRecordings.id, id))
+		.limit(1);
+
+	if (!recording?.presentationId) return null;
+
+	const presentation = await getScopedPresentation(recording.presentationId, context);
+	return presentation ? { recording, presentation } : null;
+}
+
+async function getScopedTeamMember(
+	id: string,
+	context: PresentationActionContext
+): Promise<{ member: PresentationTeamMember; presentation: OralPresentation } | null> {
+	const [member] = await db
+		.select()
+		.from(presentationTeam)
+		.where(eq(presentationTeam.id, id))
+		.limit(1);
+
+	if (!member?.presentationId) return null;
+
+	const presentation = await getScopedPresentation(member.presentationId, context);
+	return presentation ? { member, presentation } : null;
 }
 
 // ============================================================================
@@ -203,6 +300,7 @@ export async function createPresentation(
 	data: z.infer<typeof CreatePresentationInputSchema>
 ): Promise<ActionResult<OralPresentation>> {
 	try {
+		const context = await requirePresentationContext();
 		const validated = CreatePresentationInputSchema.parse(data);
 
 		// Verify opportunity exists
@@ -218,6 +316,7 @@ export async function createPresentation(
 
 		const presentationData: NewOralPresentation = {
 			opportunityId,
+			organizationId: context.organizationId,
 			title: validated.title,
 			description: validated.description,
 			timeLimit: validated.timeLimit,
@@ -232,6 +331,7 @@ export async function createPresentation(
 			venue: validated.venue,
 			isVirtual: validated.isVirtual ?? false,
 			status: "draft",
+			createdBy: context.userId,
 		};
 
 		const [inserted] = await db
@@ -265,11 +365,8 @@ export async function getPresentation(
 	recordings: PracticeRecording[];
 }>> {
 	try {
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, id))
-			.limit(1);
+		const context = await requirePresentationContext();
+		const presentation = await getScopedPresentation(id, context);
 
 		if (!presentation) {
 			return { success: false, error: "Presentation not found" };
@@ -322,6 +419,7 @@ export async function updatePresentation(
 	data: z.infer<typeof UpdatePresentationInputSchema>
 ): Promise<ActionResult<OralPresentation>> {
 	try {
+		const context = await requirePresentationContext();
 		const validated = UpdatePresentationInputSchema.parse(data);
 
 		const updateData: Partial<NewOralPresentation> = {
@@ -346,7 +444,7 @@ export async function updatePresentation(
 		const [updated] = await db
 			.update(oralPresentations)
 			.set(updateData)
-			.where(eq(oralPresentations.id, id))
+			.where(scopedPresentationWhere(id, context.organizationId))
 			.returning();
 
 		if (!updated) {
@@ -372,11 +470,8 @@ export async function updatePresentation(
 export async function deletePresentation(id: string): Promise<ActionResult<void>> {
 	try {
 		// Get the presentation to find opportunityId for path revalidation
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, id))
-			.limit(1);
+		const context = await requirePresentationContext();
+		const presentation = await getScopedPresentation(id, context);
 
 		if (!presentation) {
 			return { success: false, error: "Presentation not found" };
@@ -385,7 +480,7 @@ export async function deletePresentation(id: string): Promise<ActionResult<void>
 		// Delete cascades handle related records
 		await db
 			.delete(oralPresentations)
-			.where(eq(oralPresentations.id, id));
+			.where(scopedPresentationWhere(id, context.organizationId));
 
 		revalidatePath("/presentations");
 		if (presentation.opportunityId) {
@@ -406,8 +501,9 @@ export async function listPresentations(
 	filters?: z.infer<typeof PresentationFiltersSchema>
 ): Promise<ActionResult<{ presentations: OralPresentation[]; total: number }>> {
 	try {
+		const context = await requirePresentationContext();
 		const validated = filters ? PresentationFiltersSchema.parse(filters) : { limit: 50, offset: 0 };
-		const conditions = [];
+		const conditions = [eq(oralPresentations.organizationId, context.organizationId)];
 
 		if (validated.opportunityId) {
 			conditions.push(eq(oralPresentations.opportunityId, validated.opportunityId));
@@ -419,12 +515,11 @@ export async function listPresentations(
 
 		if (validated.search) {
 			const searchTerm = `%${validated.search}%`;
-			conditions.push(
-				or(
-					ilike(oralPresentations.title, searchTerm),
-					ilike(oralPresentations.description, searchTerm)
-				)
+			const searchCondition = or(
+				ilike(oralPresentations.title, searchTerm),
+				ilike(oralPresentations.description, searchTerm)
 			);
+			if (searchCondition) conditions.push(searchCondition);
 		}
 
 		if (validated.fromDate) {
@@ -476,12 +571,9 @@ export async function generateSlidesFromProposal(
 	proposalId: string
 ): Promise<ActionResult<PresentationSlide[]>> {
 	try {
+		const context = await requirePresentationContext();
 		// Fetch presentation
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, presentationId))
-			.limit(1);
+		const presentation = await getScopedPresentation(presentationId, context);
 
 		if (!presentation) {
 			return { success: false, error: "Presentation not found" };
@@ -608,7 +700,7 @@ Return ONLY the JSON array, no additional text.`;
 				sourceProposalId: proposalId,
 				updatedAt: new Date(),
 			})
-			.where(eq(oralPresentations.id, presentationId));
+			.where(scopedPresentationWhere(presentationId, context.organizationId));
 
 		revalidatePath(`/presentations/${presentationId}`);
 
@@ -721,14 +813,11 @@ export async function createSlide(
 	data: z.infer<typeof CreateSlideInputSchema>
 ): Promise<ActionResult<PresentationSlide>> {
 	try {
+		const context = await requirePresentationContext();
 		const validated = CreateSlideInputSchema.parse(data);
 
 		// Verify presentation exists
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, presentationId))
-			.limit(1);
+		const presentation = await getScopedPresentation(presentationId, context);
 
 		if (!presentation) {
 			return { success: false, error: "Presentation not found" };
@@ -769,7 +858,7 @@ export async function createSlide(
 				slideCount: slideCount[0]?.count ?? 0,
 				updatedAt: new Date(),
 			})
-			.where(eq(oralPresentations.id, presentationId));
+			.where(scopedPresentationWhere(presentationId, context.organizationId));
 
 		revalidatePath(`/presentations/${presentationId}`);
 
@@ -791,6 +880,11 @@ export async function updateSlide(
 	data: z.infer<typeof UpdateSlideInputSchema>
 ): Promise<ActionResult<PresentationSlide>> {
 	try {
+		const context = await requirePresentationContext();
+		const scoped = await getScopedSlide(slideId, context);
+		if (!scoped) {
+			return { success: false, error: "Slide not found" };
+		}
 		const validated = UpdateSlideInputSchema.parse(data);
 
 		const updateData: Partial<NewPresentationSlide> = {
@@ -815,7 +909,12 @@ export async function updateSlide(
 		const [updated] = await db
 			.update(presentationSlides)
 			.set(updateData)
-			.where(eq(presentationSlides.id, slideId))
+			.where(
+				and(
+					eq(presentationSlides.id, slideId),
+					eq(presentationSlides.presentationId, scoped.presentation.id)
+				)
+			)
 			.returning();
 
 		if (!updated) {
@@ -839,9 +938,20 @@ export async function updateSlide(
  */
 export async function deleteSlide(slideId: string): Promise<ActionResult<void>> {
 	try {
+		const context = await requirePresentationContext();
+		const scoped = await getScopedSlide(slideId, context);
+		if (!scoped) {
+			return { success: false, error: "Slide not found" };
+		}
+
 		const [deleted] = await db
 			.delete(presentationSlides)
-			.where(eq(presentationSlides.id, slideId))
+			.where(
+				and(
+					eq(presentationSlides.id, slideId),
+					eq(presentationSlides.presentationId, scoped.presentation.id)
+				)
+			)
 			.returning();
 
 		if (!deleted) {
@@ -863,7 +973,7 @@ export async function deleteSlide(slideId: string): Promise<ActionResult<void>> 
 				slideCount: slideCount[0]?.count ?? 0,
 				updatedAt: new Date(),
 			})
-			.where(eq(oralPresentations.id, deleted.presentationId!));
+			.where(scopedPresentationWhere(deleted.presentationId!, context.organizationId));
 
 		revalidatePath(`/presentations/${deleted.presentationId}`);
 
@@ -899,6 +1009,12 @@ export async function reorderSlides(
 	slideOrder: string[]
 ): Promise<ActionResult<PresentationSlide[]>> {
 	try {
+		const context = await requirePresentationContext();
+		const presentation = await getScopedPresentation(presentationId, context);
+		if (!presentation) {
+			return { success: false, error: "Presentation not found" };
+		}
+
 		// Update each slide's position
 		for (let i = 0; i < slideOrder.length; i++) {
 			await db
@@ -907,7 +1023,12 @@ export async function reorderSlides(
 					slideNumber: i + 1,
 					updatedAt: new Date(),
 				})
-				.where(eq(presentationSlides.id, slideOrder[i]));
+				.where(
+					and(
+						eq(presentationSlides.id, slideOrder[i]),
+						eq(presentationSlides.presentationId, presentationId)
+					)
+				);
 		}
 
 		// Fetch updated slides
@@ -920,7 +1041,7 @@ export async function reorderSlides(
 		await db
 			.update(oralPresentations)
 			.set({ updatedAt: new Date() })
-			.where(eq(oralPresentations.id, presentationId));
+			.where(scopedPresentationWhere(presentationId, context.organizationId));
 
 		revalidatePath(`/presentations/${presentationId}`);
 
@@ -936,11 +1057,9 @@ export async function reorderSlides(
  */
 export async function duplicateSlide(slideId: string): Promise<ActionResult<PresentationSlide>> {
 	try {
-		const [original] = await db
-			.select()
-			.from(presentationSlides)
-			.where(eq(presentationSlides.id, slideId))
-			.limit(1);
+		const context = await requirePresentationContext();
+		const scoped = await getScopedSlide(slideId, context);
+		const original = scoped?.slide;
 
 		if (!original) {
 			return { success: false, error: "Slide not found" };
@@ -995,7 +1114,7 @@ export async function duplicateSlide(slideId: string): Promise<ActionResult<Pres
 				slideCount: slideCount[0]?.count ?? 0,
 				updatedAt: new Date(),
 			})
-			.where(eq(oralPresentations.id, original.presentationId!));
+			.where(scopedPresentationWhere(original.presentationId!, context.organizationId));
 
 		revalidatePath(`/presentations/${original.presentationId}`);
 
@@ -1011,22 +1130,14 @@ export async function duplicateSlide(slideId: string): Promise<ActionResult<Pres
  */
 export async function generateSpeakerNotes(slideId: string): Promise<ActionResult<string>> {
 	try {
-		const [slide] = await db
-			.select()
-			.from(presentationSlides)
-			.where(eq(presentationSlides.id, slideId))
-			.limit(1);
+		const context = await requirePresentationContext();
+		const scoped = await getScopedSlide(slideId, context);
+		const slide = scoped?.slide;
 
 		if (!slide) {
 			return { success: false, error: "Slide not found" };
 		}
-
-		// Fetch presentation context
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, slide.presentationId!))
-			.limit(1);
+		const presentation = scoped.presentation;
 
 		const prompt = `Generate professional speaker notes for this presentation slide.
 
@@ -1069,7 +1180,12 @@ Keep notes concise but comprehensive. Target ${Math.ceil((slide.estimatedDuratio
 				speakerNotes,
 				updatedAt: new Date(),
 			})
-			.where(eq(presentationSlides.id, slideId));
+			.where(
+				and(
+					eq(presentationSlides.id, slideId),
+					eq(presentationSlides.presentationId, presentation.id)
+				)
+			);
 
 		revalidatePath(`/presentations/${slide.presentationId}`);
 
@@ -1121,12 +1237,9 @@ export async function anticipateQuestions(
 	presentationId: string
 ): Promise<ActionResult<DBPresentationQA[]>> {
 	try {
+		const context = await requirePresentationContext();
 		// Fetch presentation with slides
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, presentationId))
-			.limit(1);
+		const presentation = await getScopedPresentation(presentationId, context);
 
 		if (!presentation) {
 			return { success: false, error: "Presentation not found" };
@@ -1335,6 +1448,11 @@ export async function createQAItem(
 	data: z.infer<typeof CreateQAInputSchema>
 ): Promise<ActionResult<DBPresentationQA>> {
 	try {
+		const context = await requirePresentationContext();
+		const presentation = await getScopedPresentation(presentationId, context);
+		if (!presentation) {
+			return { success: false, error: "Presentation not found" };
+		}
 		const validated = CreateQAInputSchema.parse(data);
 
 		const qaData: NewPresentationQA = {
@@ -1378,6 +1496,11 @@ export async function updateQAItem(
 	data: z.infer<typeof UpdateQAInputSchema>
 ): Promise<ActionResult<DBPresentationQA>> {
 	try {
+		const context = await requirePresentationContext();
+		const scoped = await getScopedQAItem(id, context);
+		if (!scoped) {
+			return { success: false, error: "Q&A item not found" };
+		}
 		const validated = UpdateQAInputSchema.parse(data);
 
 		const updateData: Partial<NewPresentationQA> = {
@@ -1401,7 +1524,12 @@ export async function updateQAItem(
 		const [updated] = await db
 			.update(presentationQA)
 			.set(updateData)
-			.where(eq(presentationQA.id, id))
+			.where(
+				and(
+					eq(presentationQA.id, id),
+					eq(presentationQA.presentationId, scoped.presentation.id)
+				)
+			)
 			.returning();
 
 		if (!updated) {
@@ -1425,22 +1553,14 @@ export async function updateQAItem(
  */
 export async function generateAnswerSuggestion(questionId: string): Promise<ActionResult<string>> {
 	try {
-		const [qaItem] = await db
-			.select()
-			.from(presentationQA)
-			.where(eq(presentationQA.id, questionId))
-			.limit(1);
+		const context = await requirePresentationContext();
+		const scoped = await getScopedQAItem(questionId, context);
+		const qaItem = scoped?.qaItem;
 
 		if (!qaItem) {
 			return { success: false, error: "Q&A item not found" };
 		}
-
-		// Get presentation context
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, qaItem.presentationId!))
-			.limit(1);
+		const presentation = scoped.presentation;
 
 		// Get related slides if any
 		let slideContext = "";
@@ -1500,7 +1620,12 @@ Format the answer for verbal delivery (no bullet points).`;
 				suggestedAnswer,
 				updatedAt: new Date(),
 			})
-			.where(eq(presentationQA.id, questionId));
+			.where(
+				and(
+					eq(presentationQA.id, questionId),
+					eq(presentationQA.presentationId, presentation.id)
+				)
+			);
 
 		revalidatePath(`/presentations/${qaItem.presentationId}`);
 
@@ -1539,6 +1664,12 @@ export async function listQAItems(
 	presentationId: string
 ): Promise<ActionResult<DBPresentationQA[]>> {
 	try {
+		const context = await requirePresentationContext();
+		const presentation = await getScopedPresentation(presentationId, context);
+		if (!presentation) {
+			return { success: false, error: "Presentation not found" };
+		}
+
 		const items = await db
 			.select()
 			.from(presentationQA)
@@ -1557,17 +1688,28 @@ export async function listQAItems(
  */
 export async function markQAReviewed(
 	id: string,
-	reviewedBy?: string
+	_reviewedBy?: string
 ): Promise<ActionResult<DBPresentationQA>> {
 	try {
+		const context = await requirePresentationContext();
+		const scoped = await getScopedQAItem(id, context);
+		if (!scoped) {
+			return { success: false, error: "Q&A item not found" };
+		}
+
 		const [updated] = await db
 			.update(presentationQA)
 			.set({
 				isReviewed: true,
-				reviewedBy,
+				reviewedBy: context.userId,
 				updatedAt: new Date(),
 			})
-			.where(eq(presentationQA.id, id))
+			.where(
+				and(
+					eq(presentationQA.id, id),
+					eq(presentationQA.presentationId, scoped.presentation.id)
+				)
+			)
 			.returning();
 
 		if (!updated) {
@@ -1588,17 +1730,20 @@ export async function markQAReviewed(
  */
 export async function deleteQAItem(id: string): Promise<ActionResult<void>> {
 	try {
-		const [qa] = await db
-			.select({ presentationId: presentationQA.presentationId })
-			.from(presentationQA)
-			.where(eq(presentationQA.id, id))
-			.limit(1);
+		const context = await requirePresentationContext();
+		const scoped = await getScopedQAItem(id, context);
+		const qa = scoped?.qaItem;
 
 		if (!qa) {
 			return { success: false, error: "Q&A item not found" };
 		}
 
-		await db.delete(presentationQA).where(eq(presentationQA.id, id));
+		await db.delete(presentationQA).where(
+			and(
+				eq(presentationQA.id, id),
+				eq(presentationQA.presentationId, scoped.presentation.id)
+			)
+		);
 
 		if (qa.presentationId) {
 			revalidatePath(`/presentations/${qa.presentationId}`);
@@ -1629,11 +1774,8 @@ export async function validateTimelimits(
 	recommendations: string[];
 }>> {
 	try {
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, presentationId))
-			.limit(1);
+		const context = await requirePresentationContext();
+		const presentation = await getScopedPresentation(presentationId, context);
 
 		if (!presentation) {
 			return { success: false, error: "Presentation not found" };
@@ -1688,7 +1830,7 @@ export async function validateTimelimits(
 				totalDuration: totalEstimatedSeconds,
 				updatedAt: new Date(),
 			})
-			.where(eq(oralPresentations.id, presentationId));
+			.where(scopedPresentationWhere(presentationId, context.organizationId));
 
 		return {
 			success: true,
@@ -1721,11 +1863,8 @@ export async function calculateSlideTiming(
 	rationale: string;
 }>>> {
 	try {
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, presentationId))
-			.limit(1);
+		const context = await requirePresentationContext();
+		const presentation = await getScopedPresentation(presentationId, context);
 
 		if (!presentation) {
 			return { success: false, error: "Presentation not found" };
@@ -1830,11 +1969,8 @@ export async function suggestSlideReduction(
 	}>;
 }>> {
 	try {
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, presentationId))
-			.limit(1);
+		const context = await requirePresentationContext();
+		const presentation = await getScopedPresentation(presentationId, context);
 
 		if (!presentation) {
 			return { success: false, error: "Presentation not found" };
@@ -1988,12 +2124,9 @@ export async function recordPractice(
 	}
 ): Promise<ActionResult<PracticeRecording>> {
 	try {
+		const context = await requirePresentationContext();
 		// Verify presentation exists
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, presentationId))
-			.limit(1);
+		const presentation = await getScopedPresentation(presentationId, context);
 
 		if (!presentation) {
 			return { success: false, error: "Presentation not found" };
@@ -2004,7 +2137,7 @@ export async function recordPractice(
 			recordingUrl,
 			duration,
 			recordingType: options?.recordingType ?? "full",
-			recordedBy: options?.recordedBy,
+			recordedBy: context.userId,
 			recordedAt: new Date(),
 		};
 
@@ -2035,11 +2168,9 @@ export async function analyzePracticeRecording(
 	recommendations: string[];
 }>> {
 	try {
-		const [recording] = await db
-			.select()
-			.from(practiceRecordings)
-			.where(eq(practiceRecordings.id, recordingId))
-			.limit(1);
+		const context = await requirePresentationContext();
+		const scoped = await getScopedRecording(recordingId, context);
+		const recording = scoped?.recording;
 
 		if (!recording) {
 			return { success: false, error: "Recording not found" };
@@ -2066,7 +2197,12 @@ export async function analyzePracticeRecording(
 				overallScore: analysis.overallScore,
 				recommendations: analysis.recommendations,
 			})
-			.where(eq(practiceRecordings.id, recordingId));
+			.where(
+				and(
+					eq(practiceRecordings.id, recordingId),
+					eq(practiceRecordings.presentationId, scoped.presentation.id)
+				)
+			);
 
 		revalidatePath(`/presentations/${recording.presentationId}`);
 
@@ -2169,6 +2305,12 @@ export async function getPracticeHistory(
 	presentationId: string
 ): Promise<ActionResult<PracticeRecording[]>> {
 	try {
+		const context = await requirePresentationContext();
+		const presentation = await getScopedPresentation(presentationId, context);
+		if (!presentation) {
+			return { success: false, error: "Presentation not found" };
+		}
+
 		const recordings = await db
 			.select()
 			.from(practiceRecordings)
@@ -2189,11 +2331,9 @@ export async function generatePracticeFeedback(
 	recordingId: string
 ): Promise<ActionResult<string>> {
 	try {
-		const [recording] = await db
-			.select()
-			.from(practiceRecordings)
-			.where(eq(practiceRecordings.id, recordingId))
-			.limit(1);
+		const context = await requirePresentationContext();
+		const scoped = await getScopedRecording(recordingId, context);
+		const recording = scoped?.recording;
 
 		if (!recording) {
 			return { success: false, error: "Recording not found" };
@@ -2241,7 +2381,12 @@ Keep feedback constructive and motivating. Target 150-200 words.`;
 			.set({
 				aiFeedback: feedback,
 			})
-			.where(eq(practiceRecordings.id, recordingId));
+			.where(
+				and(
+					eq(practiceRecordings.id, recordingId),
+					eq(practiceRecordings.presentationId, scoped.presentation.id)
+				)
+			);
 
 		revalidatePath(`/presentations/${recording.presentationId}`);
 
@@ -2288,14 +2433,11 @@ export async function assignTeamMember(
 	data: z.infer<typeof TeamMemberInputSchema>
 ): Promise<ActionResult<PresentationTeamMember>> {
 	try {
+		const context = await requirePresentationContext();
 		const validated = TeamMemberInputSchema.parse(data);
 
 		// Verify presentation exists
-		const [presentation] = await db
-			.select()
-			.from(oralPresentations)
-			.where(eq(oralPresentations.id, presentationId))
-			.limit(1);
+		const presentation = await getScopedPresentation(presentationId, context);
 
 		if (!presentation) {
 			return { success: false, error: "Presentation not found" };
@@ -2337,6 +2479,11 @@ export async function updateTeamAssignment(
 	data: z.infer<typeof UpdateTeamInputSchema>
 ): Promise<ActionResult<PresentationTeamMember>> {
 	try {
+		const context = await requirePresentationContext();
+		const scoped = await getScopedTeamMember(id, context);
+		if (!scoped) {
+			return { success: false, error: "Team member not found" };
+		}
 		const validated = UpdateTeamInputSchema.parse(data);
 
 		const updateData: Partial<NewPresentationTeamMember> = {};
@@ -2352,7 +2499,12 @@ export async function updateTeamAssignment(
 		const [updated] = await db
 			.update(presentationTeam)
 			.set(updateData)
-			.where(eq(presentationTeam.id, id))
+			.where(
+				and(
+					eq(presentationTeam.id, id),
+					eq(presentationTeam.presentationId, scoped.presentation.id)
+				)
+			)
 			.returning();
 
 		if (!updated) {
@@ -2376,9 +2528,20 @@ export async function updateTeamAssignment(
  */
 export async function removeTeamMember(id: string): Promise<ActionResult<void>> {
 	try {
+		const context = await requirePresentationContext();
+		const scoped = await getScopedTeamMember(id, context);
+		if (!scoped) {
+			return { success: false, error: "Team member not found" };
+		}
+
 		const [deleted] = await db
 			.delete(presentationTeam)
-			.where(eq(presentationTeam.id, id))
+			.where(
+				and(
+					eq(presentationTeam.id, id),
+					eq(presentationTeam.presentationId, scoped.presentation.id)
+				)
+			)
 			.returning();
 
 		if (!deleted) {
@@ -2401,6 +2564,12 @@ export async function listTeamMembers(
 	presentationId: string
 ): Promise<ActionResult<PresentationTeamMember[]>> {
 	try {
+		const context = await requirePresentationContext();
+		const presentation = await getScopedPresentation(presentationId, context);
+		if (!presentation) {
+			return { success: false, error: "Presentation not found" };
+		}
+
 		const team = await db
 			.select()
 			.from(presentationTeam)
