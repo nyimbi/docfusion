@@ -47,6 +47,25 @@ async function requireCurrentUserId(): Promise<string> {
 	return userId;
 }
 
+function resolveConfiguredImportPath(
+	inputPath: string,
+	rootEnvVar: "OPPORTUNITY_IMPORT_ROOT" | "SCRAPER_EXPORT_ROOT"
+): string {
+	const root = process.env[rootEnvVar];
+	if (!root) {
+		throw new Error(`${rootEnvVar} is not configured`);
+	}
+
+	const rootPath = path.resolve(root);
+	const resolvedPath = path.resolve(inputPath);
+	const relativePath = path.relative(rootPath, resolvedPath);
+	if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+		throw new Error("Import path is outside the configured import root");
+	}
+
+	return resolvedPath;
+}
+
 /**
  * Read and parse a delimited file.
  */
@@ -298,7 +317,8 @@ export async function importFromFile(
 ): Promise<SpreadsheetImportResult> {
 	await requireCurrentUserId();
 
-	const { sheets, filename } = await parseDelimitedFile(filePath);
+	const allowedPath = resolveConfiguredImportPath(filePath, "OPPORTUNITY_IMPORT_ROOT");
+	const { sheets, filename } = await parseDelimitedFile(allowedPath);
 	return executeSpreadsheetImport(sheets, filename, config);
 }
 
@@ -333,7 +353,8 @@ export async function previewImport(
 }> {
 	await requireCurrentUserId();
 
-	const { sheets, filename } = await parseDelimitedFile(filePath);
+	const allowedPath = resolveConfiguredImportPath(filePath, "OPPORTUNITY_IMPORT_ROOT");
+	const { sheets, filename } = await parseDelimitedFile(allowedPath);
 	const sheetFormats = detectSheetFormats(sheets);
 
 	if (sheetFormats.length === 0) {
@@ -389,12 +410,13 @@ export async function importFromScraperExport(
 }> {
 	await requireCurrentUserId();
 
-	const content = await fs.readFile(jsonlPath, "utf-8");
+	const allowedPath = resolveConfiguredImportPath(jsonlPath, "SCRAPER_EXPORT_ROOT");
+	const content = await fs.readFile(allowedPath, "utf-8");
 	const lines = content.trim().split("\n").filter(Boolean);
 
 	const records = lines.map((line) => JSON.parse(line));
 
-	const filename = path.basename(jsonlPath);
+	const filename = path.basename(allowedPath);
 
 	// Create import record
 	const importId = await createImportRecord(filename, records.length, {
@@ -543,9 +565,10 @@ export async function importAllScraperExports(
 }> {
 	await requireCurrentUserId();
 
+	const allowedSyncDir = resolveConfiguredImportPath(syncDir, "SCRAPER_EXPORT_ROOT");
 	let files: string[];
 	try {
-		files = await fs.readdir(syncDir);
+		files = await fs.readdir(allowedSyncDir);
 	} catch {
 		// Directory doesn't exist yet
 		return {
@@ -577,7 +600,7 @@ export async function importAllScraperExports(
 	};
 
 	for (const file of jsonlFiles) {
-		const filePath = path.join(syncDir, file);
+		const filePath = path.join(allowedSyncDir, file);
 
 		try {
 			const { results: importResults } = await importFromScraperExport(filePath);
@@ -639,7 +662,8 @@ export async function importFromDirectory(
 }> {
 	await requireCurrentUserId();
 
-	const files = await fs.readdir(dirPath);
+	const allowedDir = resolveConfiguredImportPath(dirPath, "OPPORTUNITY_IMPORT_ROOT");
+	const files = await fs.readdir(allowedDir);
 	const delimitedFiles = files.filter((f) => f.endsWith(".csv") || f.endsWith(".tsv"));
 
 	const results = {
@@ -659,7 +683,7 @@ export async function importFromDirectory(
 	};
 
 	for (const file of delimitedFiles) {
-		const filePath = path.join(dirPath, file);
+		const filePath = path.join(allowedDir, file);
 
 		try {
 			const { results: importResults } = await importFromFile(filePath, config);
