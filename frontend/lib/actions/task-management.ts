@@ -24,7 +24,7 @@ import {
 	type TaskActivity as TaskActivityType,
 } from "@/lib/db/schema-tasks";
 import { rfpRequirements } from "@/lib/db/schema-rfp";
-import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, isNull, count, sum, ne, lt, gt } from "drizzle-orm";
+import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, isNull, count, sum, ne, lt, gt, type SQL } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
 import { requireServerSession } from "@/lib/auth-utils";
 
@@ -237,14 +237,44 @@ function ensureTaskActorMatches(actor: TaskActor, userId?: string): void {
 	}
 }
 
+function assignedOpportunityExistsSql(opportunityId: unknown, actor: TaskActor): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${actor.userId}
+	)`;
+}
+
+function proposalTasksByOpportunityCondition(opportunityId: string, actor: TaskActor): SQL {
+	return and(
+		eq(proposalTasks.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, actor)
+	)!;
+}
+
+function requirementsByOpportunityCondition(opportunityId: string, actor: TaskActor): SQL {
+	return and(
+		eq(rfpRequirements.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, actor)
+	)!;
+}
+
+function taskSummaryByOpportunityCondition(opportunityId: string, actor: TaskActor): SQL {
+	return and(
+		eq(opportunityTaskSummary.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, actor)
+	)!;
+}
+
 /**
  * Generate a unique task number for an opportunity.
  */
-async function generateTaskNumber(opportunityId: string): Promise<string> {
+async function generateTaskNumber(opportunityId: string, actor: TaskActor): Promise<string> {
 	const result = await db
 		.select({ count: count() })
 		.from(proposalTasks)
-		.where(eq(proposalTasks.opportunityId, opportunityId));
+		.where(proposalTasksByOpportunityCondition(opportunityId, actor));
 
 	const taskCount = result[0]?.count ?? 0;
 	const nextNumber = taskCount + 1;
@@ -314,7 +344,7 @@ export async function createTask(
 		const validated = CreateTaskInput.parse(input);
 
 		// Generate task number
-		const taskNumber = await generateTaskNumber(validated.opportunityId);
+		const taskNumber = await generateTaskNumber(validated.opportunityId, actor);
 
 		// Prepare task data
 		const taskData: NewProposalTask = {
@@ -371,7 +401,7 @@ export async function createTask(
 		}
 
 		// Update opportunity task summary
-		await updateOpportunityTaskSummary(validated.opportunityId);
+		await updateOpportunityTaskSummary(validated.opportunityId, actor);
 
 		revalidatePath("/opportunities/[id]/tasks", "page");
 
@@ -489,7 +519,7 @@ export async function updateTask(
 			.returning();
 
 		// Update opportunity task summary
-		await updateOpportunityTaskSummary(currentTask.opportunityId);
+		await updateOpportunityTaskSummary(currentTask.opportunityId, actor);
 
 		revalidatePath("/opportunities/[id]/tasks", "page");
 
@@ -505,7 +535,7 @@ export async function updateTask(
  */
 export async function deleteTask(id: string): Promise<{ success: boolean; error?: string }> {
 	try {
-		await requireTaskActor();
+		const actor = await requireTaskActor();
 
 		// Get task to find opportunityId for summary update
 		const [task] = await db
@@ -525,7 +555,7 @@ export async function deleteTask(id: string): Promise<{ success: boolean; error?
 		await db.delete(proposalTasks).where(eq(proposalTasks.id, id));
 
 		// Update opportunity task summary
-		await updateOpportunityTaskSummary(task.opportunityId);
+		await updateOpportunityTaskSummary(task.opportunityId, actor);
 
 		revalidatePath("/opportunities/[id]/tasks", "page");
 
@@ -723,7 +753,7 @@ export async function generateTasksFromCompliance(
 		const reqs = await db
 			.select()
 			.from(rfpRequirements)
-			.where(eq(rfpRequirements.opportunityId, opportunityId));
+			.where(requirementsByOpportunityCondition(opportunityId, actor));
 
 		if (reqs.length === 0) {
 			return { success: true, data: { tasksCreated: 0, tasks: [] } };
@@ -733,7 +763,7 @@ export async function generateTasksFromCompliance(
 
 		for (const req of reqs) {
 			// Generate task number
-			const taskNumber = await generateTaskNumber(opportunityId);
+			const taskNumber = await generateTaskNumber(opportunityId, actor);
 
 			// Determine task category based on requirement category
 			const taskCategory = req.category?.toLowerCase().includes("technical")
@@ -786,7 +816,7 @@ export async function generateTasksFromCompliance(
 		}
 
 		// Update opportunity task summary
-		await updateOpportunityTaskSummary(opportunityId);
+		await updateOpportunityTaskSummary(opportunityId, actor);
 
 		revalidatePath("/opportunities/[id]/tasks", "page");
 
@@ -1769,11 +1799,13 @@ export async function generateProgressReport(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: ProgressReport; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
+
 		// Get all tasks for the opportunity
 		const tasks = await db
 			.select()
 			.from(proposalTasks)
-			.where(eq(proposalTasks.opportunityId, opportunityId));
+			.where(proposalTasksByOpportunityCondition(opportunityId, actor));
 
 		const now = new Date();
 
@@ -2227,12 +2259,12 @@ export async function logTime(
 /**
  * Update the opportunity task summary (aggregated metrics).
  */
-async function updateOpportunityTaskSummary(opportunityId: string): Promise<void> {
+async function updateOpportunityTaskSummary(opportunityId: string, actor: TaskActor): Promise<void> {
 	try {
 		const tasks = await db
 			.select()
 			.from(proposalTasks)
-			.where(eq(proposalTasks.opportunityId, opportunityId));
+			.where(proposalTasksByOpportunityCondition(opportunityId, actor));
 
 		const now = new Date();
 
@@ -2303,7 +2335,7 @@ async function updateOpportunityTaskSummary(opportunityId: string): Promise<void
 		const existing = await db
 			.select()
 			.from(opportunityTaskSummary)
-			.where(eq(opportunityTaskSummary.opportunityId, opportunityId))
+			.where(taskSummaryByOpportunityCondition(opportunityId, actor))
 			.limit(1);
 
 		const summaryData = {
@@ -2335,7 +2367,7 @@ async function updateOpportunityTaskSummary(opportunityId: string): Promise<void
 			await db
 				.update(opportunityTaskSummary)
 				.set(summaryData)
-				.where(eq(opportunityTaskSummary.opportunityId, opportunityId));
+				.where(taskSummaryByOpportunityCondition(opportunityId, actor));
 		} else {
 			await db.insert(opportunityTaskSummary).values(summaryData);
 		}
