@@ -24,6 +24,11 @@ import {
 	castVote,
 	castVoteAndUpdateStatus,
 	deleteVote,
+	getUserVote,
+	getVoteSummariesBulk,
+	getVoteSummary,
+	getVotes,
+	updateDecisionFromVotes,
 } from "@/lib/actions/opportunity-votes";
 
 beforeEach(() => {
@@ -45,6 +50,16 @@ describe("opportunity vote action auth", () => {
 			vote: "no_go",
 		})).rejects.toThrow("Unauthorized");
 		await expect(deleteVote("opp-1", "spoofed-user")).rejects.toThrow("Unauthorized");
+
+		expect(dbAccessMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects unauthenticated vote reads and summaries before database access", async () => {
+		await expect(getVotes("opp-1")).rejects.toThrow("Unauthorized");
+		await expect(getUserVote("opp-1", "spoofed-user")).rejects.toThrow("Unauthorized");
+		await expect(getVoteSummary("opp-1")).rejects.toThrow("Unauthorized");
+		await expect(updateDecisionFromVotes("opp-1")).rejects.toThrow("Unauthorized");
+		await expect(getVoteSummariesBulk(["opp-1"])).rejects.toThrow("Unauthorized");
 
 		expect(dbAccessMock).not.toHaveBeenCalled();
 	});

@@ -95,6 +95,8 @@ export async function castVote(input: CastVoteInput): Promise<OpportunityVote> {
  * Get all votes for an opportunity.
  */
 export async function getVotes(opportunityId: string): Promise<OpportunityVote[]> {
+	await requireVoteActor();
+
 	const rows = await db
 		.select()
 		.from(opportunityVotes)
@@ -111,6 +113,8 @@ export async function getUserVote(
 	opportunityId: string,
 	userId: string
 ): Promise<OpportunityVote | null> {
+	await requireVoteActor();
+
 	const [row] = await db
 		.select()
 		.from(opportunityVotes)
@@ -152,6 +156,8 @@ export async function deleteVote(
  * Calculates go/no-go counts, percentages, and consensus.
  */
 export async function getVoteSummary(opportunityId: string): Promise<VoteSummary> {
+	await requireVoteActor();
+
 	// Get vote counts by type
 	const voteCounts = await db
 		.select({
@@ -240,6 +246,8 @@ export async function getVoteSummary(opportunityId: string): Promise<VoteSummary
 export async function updateDecisionFromVotes(
 	opportunityId: string
 ): Promise<{ updated: boolean; newStatus: DecisionStatus | null }> {
+	await requireVoteActor();
+
 	const summary = await getVoteSummary(opportunityId);
 
 	// Need at least 2 decision votes for auto-update
@@ -320,6 +328,8 @@ export async function castVoteAndUpdateStatus(
 export async function getVoteSummariesBulk(
 	opportunityIds: string[]
 ): Promise<Map<string, VoteSummary>> {
+	await requireVoteActor();
+
 	if (opportunityIds.length === 0) {
 		return new Map();
 	}
