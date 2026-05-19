@@ -261,7 +261,12 @@ export async function deleteDocumentVersion(versionId: string): Promise<void> {
 		throw new Error("Cannot delete current version");
 	}
 
-	await db.delete(documentVersions).where(eq(documentVersions.id, versionId));
+	await db.delete(documentVersions).where(
+		and(
+			eq(documentVersions.id, versionId),
+			eq(documentVersions.documentId, version.documentId)
+		)
+	);
 }
 
 /**
@@ -522,7 +527,7 @@ export async function convertDocumentToTemplate(
 	const [doc] = await db
 		.select()
 		.from(documents)
-		.where(readableDocumentCondition(documentId, userId))
+		.where(writableDocumentCondition(documentId, userId))
 		.limit(1);
 
 	if (!doc) {
@@ -545,7 +550,7 @@ export async function convertDocumentToTemplate(
 
 	await db.update(documents)
 		.set({ templateId: template.id, updatedAt: new Date() })
-		.where(eq(documents.id, documentId));
+		.where(writableDocumentCondition(documentId, userId));
 
 	return { id: template.id, name: template.name };
 }
@@ -580,7 +585,7 @@ export async function inviteCollaborator(
 			collaboratorIds: sql`array_append(${documents.collaboratorIds}, ${userId})`,
 			updatedAt: new Date(),
 		})
-		.where(eq(documents.id, documentId));
+		.where(ownedDocumentCondition(documentId, currentUserId));
 }
 
 /**
@@ -609,7 +614,7 @@ export async function removeCollaborator(
 			collaboratorIds: sql`array_remove(${documents.collaboratorIds}, ${userId})`,
 			updatedAt: new Date(),
 		})
-		.where(eq(documents.id, documentId));
+		.where(ownedDocumentCondition(documentId, currentUserId));
 }
 
 /**
