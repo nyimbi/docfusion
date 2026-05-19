@@ -7,6 +7,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import { clients, type ClientRow } from "@/lib/db/schema";
 import { eq, and, ilike, desc } from "drizzle-orm";
 import type {
@@ -24,6 +25,14 @@ import type {
 /** Organization ID for Datacraft */
 const ORGANIZATION_ID = "datacraft";
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 // ============================================================================
 // Client CRUD
 // ============================================================================
@@ -32,6 +41,8 @@ const ORGANIZATION_ID = "datacraft";
  * Get all clients with optional filtering.
  */
 export async function getClients(filters?: ClientFilters): Promise<Client[]> {
+	await requireCurrentUserId();
+
 	const conditions = [eq(clients.organizationId, ORGANIZATION_ID)];
 
 	if (filters?.search) {
@@ -65,6 +76,8 @@ export async function getClients(filters?: ClientFilters): Promise<Client[]> {
  * Get a client by ID.
  */
 export async function getClient(id: string): Promise<Client | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.select()
 		.from(clients)
@@ -82,6 +95,8 @@ export async function getClient(id: string): Promise<Client | null> {
  * Create a new client.
  */
 export async function createClient(input: CreateClientInput): Promise<Client> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.insert(clients)
 		.values({
@@ -113,6 +128,8 @@ export async function updateClient(
 	id: string,
 	input: UpdateClientInput
 ): Promise<Client> {
+	await requireCurrentUserId();
+
 	const updateData: Partial<ClientRow> = {
 		updatedAt: new Date(),
 	};
@@ -158,6 +175,8 @@ export async function updateClientStatus(
 	id: string,
 	status: ClientStatus
 ): Promise<Client> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.update(clients)
 		.set({
@@ -178,6 +197,8 @@ export async function updateClientStatus(
  * Delete a client.
  */
 export async function deleteClient(id: string): Promise<void> {
+	await requireCurrentUserId();
+
 	await db
 		.delete(clients)
 		.where(and(eq(clients.id, id), eq(clients.organizationId, ORGANIZATION_ID)));
@@ -197,6 +218,8 @@ export async function getClientStats(): Promise<{
 	prospectClients: number;
 	totalContractValue: number;
 }> {
+	await requireCurrentUserId();
+
 	const counts = await db.execute(
 		`SELECT 
 			COUNT(*) as total,
@@ -223,6 +246,8 @@ export async function getClientStats(): Promise<{
  * Get unique industries.
  */
 export async function getIndustries(): Promise<string[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select({ industry: clients.industry })
 		.from(clients)
@@ -239,6 +264,8 @@ export async function getIndustries(): Promise<string[]> {
 export async function getClientsByIndustry(): Promise<
 	{ industry: string; count: number; active: number }[]
 > {
+	await requireCurrentUserId();
+
 	const result = await db.execute(`
 		SELECT 
 			industry,
