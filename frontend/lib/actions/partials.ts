@@ -8,6 +8,7 @@
  */
 
 import { db, templatePartials } from "@/lib/db";
+import { getUserContext } from "@/lib/auth-utils";
 import { eq, desc, asc, ilike, and, or, sql, SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { nanoid } from "nanoid";
@@ -27,17 +28,31 @@ import { substitutePlaceholders } from "@/lib/placeholders/substitution";
 // ============================================================================
 
 /**
+ * Get current user context from session.
+ */
+async function requireCurrentUserContext(): Promise<{
+  userId: string;
+  organizationId?: string;
+}> {
+  const context = await getUserContext();
+  if (!context) {
+    throw new Error("Unauthorized");
+  }
+  return context;
+}
+
+/**
  * Get current user ID from session.
  */
 async function getCurrentUserId(): Promise<string> {
-  return "system";
+  return (await requireCurrentUserContext()).userId;
 }
 
 /**
  * Get current organization ID from session.
  */
 async function getCurrentOrganizationId(): Promise<string | undefined> {
-  return undefined;
+  return (await requireCurrentUserContext()).organizationId;
 }
 
 /**

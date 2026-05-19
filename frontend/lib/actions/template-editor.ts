@@ -7,6 +7,7 @@
  */
 
 import { db, templates, templateEdits, templateVersions } from "@/lib/db";
+import { getCurrentUserId as getSessionUserId } from "@/lib/auth-utils";
 import { eq, desc, asc, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type {
@@ -27,7 +28,11 @@ import type { DocumentContent } from "@/lib/types/document";
  * Get current user ID from session.
  */
 async function getCurrentUserId(): Promise<string> {
-  return "system";
+  const userId = await getSessionUserId();
+  if (!userId) {
+    throw new Error("Unauthorized");
+  }
+  return userId;
 }
 
 /**
@@ -351,10 +356,9 @@ export async function revertTemplateToVersion(
     comment?: string;
   }
 ): Promise<TemplateVersionHistory | null> {
+  await getCurrentUserId();
   const version = await getTemplateVersion(templateId, versionNumber);
   if (!version) return null;
-
-  const userId = await getCurrentUserId();
 
   // Update the template with the old content
   await db
@@ -429,6 +433,8 @@ export async function deleteTemplateVersion(
   templateId: string,
   versionNumber: number
 ): Promise<boolean> {
+  await getCurrentUserId();
+
   const result = await db
     .delete(templateVersions)
     .where(
