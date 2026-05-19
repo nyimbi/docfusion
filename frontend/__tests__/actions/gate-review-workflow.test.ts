@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 const recordWorkflowRuntimeTransitionMock = vi.hoisted(() => vi.fn());
 const upsertWorkflowRuntimeTaskMock = vi.hoisted(() => vi.fn());
 
@@ -18,7 +18,7 @@ vi.mock("@/lib/utils/logger", () => ({
 }));
 
 vi.mock("@/lib/auth-utils", () => ({
-	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
@@ -78,28 +78,26 @@ const baseGate = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	getCurrentUserIdMock.mockResolvedValue("capture-lead-1");
+	requireUserContextMock.mockResolvedValue({
+		userId: "capture-lead-1",
+		organizationId: "org-1",
+	});
 	recordWorkflowRuntimeTransitionMock.mockResolvedValue({ id: "workflow-1" });
 	upsertWorkflowRuntimeTaskMock.mockResolvedValue({ id: "task-1" });
 });
 
 describe("gate review workflow enforcement", () => {
 	it("rejects unauthenticated gate decisions before database access", async () => {
-		getCurrentUserIdMock.mockResolvedValueOnce(null);
+		requireUserContextMock.mockRejectedValueOnce(new Error("Unauthorized"));
 
-		const result = await conductGateReview("gate-1", {
+		await expect(conductGateReview("gate-1", {
 			decision: "pass",
 			rationale: "Ready to pursue",
 			reviewerVotes: [
 				{ name: "Capture Lead", vote: "approve" },
 				{ name: "Finance Lead", vote: "approve" },
 			],
-		});
-
-		expect(result).toMatchObject({
-			success: false,
-			error: "Unauthorized",
-		});
+		})).rejects.toThrow("Unauthorized");
 		expect(dbMock.select).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});

@@ -407,6 +407,20 @@ function visibleAssignedActivityCondition(actorId: string): SQL {
 	return assignedPipelineExistsSql(captureActivities.pipelineId, actorId);
 }
 
+function visibleGateReviewsForPipelineCondition(pipelineId: string, actorId: string): SQL {
+	return and(
+		eq(gateReviews.pipelineId, pipelineId),
+		assignedPipelineExistsSql(pipelineId, actorId)
+	)!;
+}
+
+function visibleGateReviewCondition(gateReviewId: string, actorId: string): SQL {
+	return and(
+		eq(gateReviews.id, gateReviewId),
+		assignedPipelineExistsSql(gateReviews.pipelineId, actorId)
+	)!;
+}
+
 async function loadVisiblePipeline(pipelineId: string, actorId: string): Promise<CapturePipeline | null> {
 	const [pipeline] = await db
 		.select()
@@ -1213,11 +1227,7 @@ export async function scheduleGateReview(
 	const actorId = await requirePipelineActor();
 	try {
 		// Verify pipeline exists
-		const [pipeline] = await db
-			.select()
-			.from(capturePipeline)
-			.where(eq(capturePipeline.id, pipelineId))
-			.limit(1);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -1227,7 +1237,7 @@ export async function scheduleGateReview(
 		const existingGates = await db
 			.select()
 			.from(gateReviews)
-			.where(eq(gateReviews.pipelineId, pipelineId))
+			.where(visibleGateReviewsForPipelineCondition(pipelineId, actorId))
 			.orderBy(desc(gateReviews.gateNumber));
 
 		const nextGateNumber = (existingGates[0]?.gateNumber ?? 0) + 1;
@@ -1279,7 +1289,7 @@ export async function updateGateReview(
 	gateReviewId: string,
 	data: Partial<UpdateGateReviewInput>
 ): Promise<ActionResult<GateReview>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		const parsed = updateGateReviewSchema.partial().safeParse(data);
 		if (!parsed.success) {
@@ -1292,7 +1302,7 @@ export async function updateGateReview(
 				...parsed.data,
 				updatedAt: new Date(),
 			})
-			.where(eq(gateReviews.id, gateReviewId))
+			.where(visibleGateReviewCondition(gateReviewId, actorId))
 			.returning();
 
 		if (!updated) {
@@ -1319,7 +1329,7 @@ export async function conductGateReview(
 		const [review] = await db
 			.select()
 			.from(gateReviews)
-			.where(eq(gateReviews.id, gateReviewId))
+			.where(visibleGateReviewCondition(gateReviewId, actorId))
 			.limit(1);
 
 		if (!review) {
@@ -1363,7 +1373,7 @@ export async function conductGateReview(
 				reviewers: reviewerVotes,
 				updatedAt: now,
 			})
-			.where(eq(gateReviews.id, gateReviewId))
+			.where(visibleGateReviewCondition(gateReviewId, actorId))
 			.returning();
 
 		// If this is a bid/no-bid gate and decision is fail, update pipeline stage
@@ -1377,7 +1387,7 @@ export async function conductGateReview(
 					bidDecisionRationale: decision.rationale,
 					updatedAt: now,
 				})
-				.where(eq(capturePipeline.id, review.pipelineId!));
+				.where(visiblePipelineCondition(review.pipelineId!, actorId));
 		}
 
 		// Create action items from conditions if conditional pass
@@ -1392,7 +1402,7 @@ export async function conductGateReview(
 			await db
 				.update(gateReviews)
 				.set({ actionItems })
-				.where(eq(gateReviews.id, gateReviewId));
+				.where(visibleGateReviewCondition(gateReviewId, actorId));
 		}
 
 		try {
@@ -1548,12 +1558,12 @@ export async function getGateReviewChecklist(gateType: string): Promise<ActionRe
  * List gate reviews for a pipeline.
  */
 export async function listGateReviews(pipelineId: string): Promise<ActionResult<GateReview[]>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		const reviews = await db
 			.select()
 			.from(gateReviews)
-			.where(eq(gateReviews.pipelineId, pipelineId))
+			.where(visibleGateReviewsForPipelineCondition(pipelineId, actorId))
 			.orderBy(asc(gateReviews.gateNumber));
 
 		return { success: true, data: reviews };
