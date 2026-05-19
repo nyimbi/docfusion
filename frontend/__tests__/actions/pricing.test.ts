@@ -128,6 +128,9 @@ import {
 	listLaborCategories,
 	importLaborCategories,
 	listIndirectRates,
+	updateIndirectRate,
+	deleteIndirectRate,
+	applyBOETemplate,
 	createCostElement,
 	updateCostElement,
 	deleteCostElement,
@@ -333,6 +336,18 @@ describe("Labor Category CRUD", () => {
 	});
 
 	describe("updateLaborCategory", () => {
+		test("requires organization context before updating", async () => {
+			mockUserContext.organizationId = undefined;
+
+			const result = await updateLaborCategory("lc-1", { directRate: 175 });
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("No organization context");
+			}
+			expect(dbMock.update).not.toHaveBeenCalled();
+		});
+
 		test("updates provided fields and returns success", async () => {
 			const updated = {
 				id: "lc-1",
@@ -367,10 +382,26 @@ describe("Labor Category CRUD", () => {
 	});
 
 	describe("deleteLaborCategory", () => {
+		test("requires organization context before deleting", async () => {
+			mockUserContext.organizationId = undefined;
+
+			const result = await deleteLaborCategory("lc-1");
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("No organization context");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
+			expect(dbMock.delete).not.toHaveBeenCalled();
+		});
+
 		test("deletes when category is not in use", async () => {
+			const categoryChain = createChainableQuery([{ id: "lc-1" }]);
 			// First select (usage check) returns count 0
 			const usageChain = createChainableQuery([{ count: 0 }]);
-			dbMock.select.mockReturnValueOnce(usageChain as never);
+			dbMock.select
+				.mockReturnValueOnce(categoryChain as never)
+				.mockReturnValueOnce(usageChain as never);
 			dbMock.delete.mockImplementation(() => createChainableQuery([]));
 
 			const result = await deleteLaborCategory("lc-1");
@@ -378,8 +409,11 @@ describe("Labor Category CRUD", () => {
 		});
 
 		test("refuses deletion when category is in use", async () => {
+			const categoryChain = createChainableQuery([{ id: "lc-1" }]);
 			const usageChain = createChainableQuery([{ count: 3 }]);
-			dbMock.select.mockReturnValueOnce(usageChain as never);
+			dbMock.select
+				.mockReturnValueOnce(categoryChain as never)
+				.mockReturnValueOnce(usageChain as never);
 
 			const result = await deleteLaborCategory("lc-1");
 			expect(result.success).toBe(false);
@@ -390,6 +424,18 @@ describe("Labor Category CRUD", () => {
 	});
 
 	describe("getLaborCategory", () => {
+		test("requires organization context before loading by id", async () => {
+			mockUserContext.organizationId = undefined;
+
+			const result = await getLaborCategory("lc-1");
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("No organization context");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
+		});
+
 		test("returns category when found", async () => {
 			const cat = { id: "lc-1", ...validInput };
 			dbMock.select.mockImplementation(() => createChainableQuery([cat]));
@@ -497,6 +543,44 @@ describe("Indirect Rate tenant scoping", () => {
 		expect(result.success).toBe(false);
 		if (!result.success) {
 			expect(result.error).toContain("Not authorized for organization");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before updating by id", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await updateIndirectRate("ir-1", { rateValue: 0.15 });
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before deleting by id", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await deleteIndirectRate("ir-1");
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.delete).not.toHaveBeenCalled();
+	});
+});
+
+describe("BOE template tenant scoping", () => {
+	test("requires organization context before applying a template", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await applyBOETemplate("ce-1", "bt-1");
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
 		}
 		expect(dbMock.select).not.toHaveBeenCalled();
 	});

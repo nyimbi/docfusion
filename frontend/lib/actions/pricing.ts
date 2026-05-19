@@ -28,7 +28,7 @@
  */
 
 import { db } from "@/lib/db";
-import { eq, and, desc, asc, inArray, sql, like, or, gte, lte, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, sql, like, or, gte, lte, isNull, type SQL } from "drizzle-orm";
 import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
@@ -457,6 +457,34 @@ function resolvePricingOrganizationId(
 	return userContext.organizationId;
 }
 
+function laborCategoryByIdCondition(id: string, userContext: PricingUserContext): SQL {
+	return and(
+		eq(laborCategories.id, id),
+		eq(laborCategories.organizationId, userContext.organizationId)
+	)!;
+}
+
+function visibleLaborCategoryIdsCondition(ids: string[], userContext: PricingUserContext): SQL {
+	return and(
+		inArray(laborCategories.id, ids),
+		eq(laborCategories.organizationId, userContext.organizationId)
+	)!;
+}
+
+function indirectRateByIdCondition(id: string, userContext: PricingUserContext): SQL {
+	return and(
+		eq(indirectRates.id, id),
+		eq(indirectRates.organizationId, userContext.organizationId)
+	)!;
+}
+
+function boeTemplateByIdCondition(id: string, userContext: PricingUserContext): SQL {
+	return and(
+		eq(boeTemplates.id, id),
+		eq(boeTemplates.organizationId, userContext.organizationId)
+	)!;
+}
+
 /**
  * Get AI client instance for pricing operations.
  */
@@ -567,7 +595,7 @@ export async function updateLaborCategory(
 	data: UpdateLaborCategoryInput
 ): Promise<ActionResult<LaborCategory>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 		const validated = updateLaborCategorySchema.parse(data);
 
 		const updates: Partial<LaborCategory> = { updatedAt: new Date() };
@@ -589,7 +617,7 @@ export async function updateLaborCategory(
 		const [category] = await db
 			.update(laborCategories)
 			.set(updates)
-			.where(eq(laborCategories.id, id))
+			.where(laborCategoryByIdCondition(id, userContext))
 			.returning();
 
 		if (!category) {
@@ -618,7 +646,16 @@ export async function updateLaborCategory(
  */
 export async function deleteLaborCategory(id: string): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
+
+		const [category] = await db
+			.select({ id: laborCategories.id })
+			.from(laborCategories)
+			.where(laborCategoryByIdCondition(id, userContext));
+
+		if (!category) {
+			return { success: false, error: "Labor category not found" };
+		}
 
 		// Check if category is in use
 		const usageCount = await db
@@ -633,7 +670,7 @@ export async function deleteLaborCategory(id: string): Promise<ActionResult<void
 			};
 		}
 
-		await db.delete(laborCategories).where(eq(laborCategories.id, id));
+		await db.delete(laborCategories).where(laborCategoryByIdCondition(id, userContext));
 
 		revalidatePath("/pricing/labor-categories");
 
@@ -684,12 +721,12 @@ export async function listLaborCategories(
  */
 export async function getLaborCategory(id: string): Promise<ActionResult<LaborCategory | null>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		const [category] = await db
 			.select()
 			.from(laborCategories)
-			.where(eq(laborCategories.id, id));
+			.where(laborCategoryByIdCondition(id, userContext));
 
 		return { success: true, data: category || null };
 	} catch (error) {
@@ -1863,14 +1900,14 @@ export async function applyBOETemplate(
 	templateId: string
 ): Promise<ActionResult<string>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		const [element] = await db.select().from(costElements).where(eq(costElements.id, costElementId));
 		if (!element) {
 			return { success: false, error: "Cost element not found" };
 		}
 
-		const [template] = await db.select().from(boeTemplates).where(eq(boeTemplates.id, templateId));
+		const [template] = await db.select().from(boeTemplates).where(boeTemplateByIdCondition(templateId, userContext));
 		if (!template) {
 			return { success: false, error: "BOE template not found" };
 		}
@@ -1918,7 +1955,7 @@ export async function applyBOETemplate(
 				lastUsedAt: new Date(),
 				updatedAt: new Date(),
 			})
-			.where(eq(boeTemplates.id, templateId));
+			.where(boeTemplateByIdCondition(templateId, userContext));
 
 		return { success: true, data: narrative };
 	} catch (error) {
@@ -2344,7 +2381,7 @@ export async function updateIndirectRate(
 	data: Partial<IndirectRateInput>
 ): Promise<ActionResult<IndirectRate>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 		const validated = indirectRateSchema.partial().parse(data);
 
 		const updates: Partial<IndirectRate> = { updatedAt: new Date() };
@@ -2357,7 +2394,7 @@ export async function updateIndirectRate(
 		const [rate] = await db
 			.update(indirectRates)
 			.set(updates)
-			.where(eq(indirectRates.id, id))
+			.where(indirectRateByIdCondition(id, userContext))
 			.returning();
 
 		if (!rate) {
@@ -2614,7 +2651,7 @@ export async function exportCostVolume(
 	format: "csv" | "pdf"
 ): Promise<ActionResult<{ content: string; filename: string; mimeType: string }>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		// Calculate latest pricing
 		const priceResult = await calculateTotalPrice(opportunityId);
@@ -2632,7 +2669,7 @@ export async function exportCostVolume(
 		// Get labor categories for rate lookup based on IDs used in cost elements
 		const laborCategoryIds = [...new Set(elements.map(e => e.laborCategoryId).filter(Boolean))] as string[];
 		const categories = laborCategoryIds.length > 0
-			? await db.select().from(laborCategories).where(inArray(laborCategories.id, laborCategoryIds))
+			? await db.select().from(laborCategories).where(visibleLaborCategoryIdsCondition(laborCategoryIds, userContext))
 			: [];
 
 		const categoryMap = new Map(categories.map(c => [c.id, c]));
@@ -2752,7 +2789,7 @@ export async function exportBOEPackage(
 	opportunityId: string
 ): Promise<ActionResult<{ content: string; filename: string; mimeType: string }>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		// Get all cost elements with BOE narratives
 		const elements = await db
@@ -2780,7 +2817,7 @@ export async function exportBOEPackage(
 		)];
 
 		const categories = laborCategoryIds.length > 0
-			? await db.select().from(laborCategories).where(inArray(laborCategories.id, laborCategoryIds))
+			? await db.select().from(laborCategories).where(visibleLaborCategoryIdsCondition(laborCategoryIds, userContext))
 			: [];
 
 		const categoryMap = new Map(categories.map(c => [c.id, c]));
@@ -4096,9 +4133,9 @@ export async function calculateTravelCosts(
  */
 export async function deleteIndirectRate(id: string): Promise<ActionResult<void>> {
 	try {
-		await requireUserContext();
+		const userContext = await requirePricingContext();
 
-		await db.delete(indirectRates).where(eq(indirectRates.id, id));
+		await db.delete(indirectRates).where(indirectRateByIdCondition(id, userContext));
 
 		revalidatePath("/pricing/rates");
 
