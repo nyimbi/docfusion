@@ -31,6 +31,10 @@ import {
 	addCommentReaction,
 	createComment,
 	deleteComment,
+	getComment,
+	getCommentReactions,
+	getComments,
+	getCommentStats,
 	markCommentsRead,
 	removeCommentReaction,
 	resolveComment,
@@ -44,7 +48,11 @@ beforeEach(() => {
 });
 
 describe("comment action auth", () => {
-	it("rejects unauthenticated comment mutations before database access", async () => {
+	it("rejects unauthenticated comment reads and mutations before database access", async () => {
+		await expect(getComment("comment-1")).rejects.toThrow("Unauthorized");
+		await expect(getComments({ documentId: "doc-1" })).rejects.toThrow("Unauthorized");
+		await expect(getCommentStats("doc-1")).rejects.toThrow("Unauthorized");
+		await expect(getCommentReactions("comment-1")).rejects.toThrow("Unauthorized");
 		await expect(createComment({
 			documentId: "doc-1",
 			content: "Spoofed comment",
@@ -54,7 +62,7 @@ describe("comment action auth", () => {
 		await expect(resolveComment("comment-1", { resolved: true }, "spoofed-user")).rejects.toThrow("Unauthorized");
 		await expect(addCommentReaction("comment-1", "check" as never, "spoofed-user")).rejects.toThrow("Unauthorized");
 		await expect(removeCommentReaction("comment-1", "spoofed-user")).rejects.toThrow("Unauthorized");
-		await expect(resolveSectionComments("section-1", "spoofed-user")).rejects.toThrow("Unauthorized");
+		await expect(resolveSectionComments("section-1", "spoofed-user", "doc-1")).rejects.toThrow("Unauthorized");
 		await expect(markCommentsRead("doc-1", "spoofed-user")).rejects.toThrow("Unauthorized");
 
 		expect(dbAccessMock).not.toHaveBeenCalled();

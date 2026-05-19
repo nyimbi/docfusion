@@ -149,7 +149,7 @@ export function CommentsPanel({
 	// Resolve all in section
 	const handleResolveSection = async () => {
 		if (!selectedSectionId) return;
-		await resolveSectionComments(selectedSectionId, currentUserId);
+		await resolveSectionComments(selectedSectionId, currentUserId, documentId);
 		fetchComments();
 	};
 

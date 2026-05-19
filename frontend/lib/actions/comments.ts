@@ -15,7 +15,7 @@ import { db } from "@/lib/db";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { documentComments, commentReactions, commentReads } from "@/lib/db/schema-comments-workflow";
 import { documents } from "@/lib/db/schema";
-import { eq, and, desc, asc, isNull, sql, ne, inArray } from "drizzle-orm";
+import { eq, and, or, desc, asc, isNull, sql, ne, inArray, type SQL } from "drizzle-orm";
 import type {
 	DocumentComment,
 	CreateCommentInput,
@@ -37,6 +37,79 @@ async function requireCurrentUserId(): Promise<string> {
 		throw new Error("Unauthorized");
 	}
 	return userId;
+}
+
+function readableDocumentCondition(documentId: string, userId: string): SQL {
+	return and(
+		eq(documents.id, documentId),
+		or(
+			eq(documents.ownerId, userId),
+			eq(documents.visibility, "public"),
+			sql`${documents.collaboratorIds} ? ${userId}`
+		)!
+	)!;
+}
+
+function writableDocumentCondition(documentId: string, userId: string): SQL {
+	return and(
+		eq(documents.id, documentId),
+		or(
+			eq(documents.ownerId, userId),
+			sql`${documents.collaboratorIds} ? ${userId}`
+		)!
+	)!;
+}
+
+async function assertReadableDocument(documentId: string, userId: string): Promise<void> {
+	const [document] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(readableDocumentCondition(documentId, userId))
+		.limit(1);
+
+	if (!document) {
+		throw new Error("Document not found");
+	}
+}
+
+async function assertWritableDocument(documentId: string, userId: string): Promise<void> {
+	const [document] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(writableDocumentCondition(documentId, userId))
+		.limit(1);
+
+	if (!document) {
+		throw new Error("Document not found");
+	}
+}
+
+async function getCommentAccess(
+	commentId: string,
+	userId: string
+): Promise<{ documentId: string; userId: string } | null> {
+	const [comment] = await db
+		.select({
+			documentId: documentComments.documentId,
+			userId: documentComments.userId,
+		})
+		.from(documentComments)
+		.where(eq(documentComments.id, commentId))
+		.limit(1);
+
+	if (!comment) return null;
+	await assertReadableDocument(comment.documentId, userId);
+	return comment;
+}
+
+async function getWritableCommentAccess(
+	commentId: string,
+	userId: string
+): Promise<{ documentId: string; userId: string } | null> {
+	const comment = await getCommentAccess(commentId, userId);
+	if (!comment) return null;
+	await assertWritableDocument(comment.documentId, userId);
+	return comment;
 }
 
 /**
@@ -118,6 +191,7 @@ function buildCommentWhereClause(filters: CommentFilters) {
  * Get a single comment by ID with its replies.
  */
 export async function getComment(id: string): Promise<DocumentComment | null> {
+	const userId = await requireCurrentUserId();
 	const [comment] = await db
 		.select()
 		.from(documentComments)
@@ -125,6 +199,7 @@ export async function getComment(id: string): Promise<DocumentComment | null> {
 		.limit(1);
 
 	if (!comment) return null;
+	await assertReadableDocument(comment.documentId, userId);
 
 	// Fetch replies
 	const replyRows = await db
@@ -145,6 +220,12 @@ export async function getComments(
 	filters: CommentFilters = {},
 	options: { limit?: number; offset?: number } = {}
 ): Promise<{ comments: DocumentComment[]; total: number }> {
+	const userId = await requireCurrentUserId();
+	if (!filters.documentId) {
+		throw new Error("Document filter required");
+	}
+	await assertReadableDocument(filters.documentId, userId);
+
 	const whereClause = buildCommentWhereClause(filters);
 
 	// Get total count
@@ -190,9 +271,11 @@ export async function getComments(
  */
 export async function getSectionComments(
 	sectionId: string,
+	documentId: string,
 	includeResolved = false
 ): Promise<DocumentComment[]> {
 	return getComments({
+		documentId,
 		sectionId,
 		parentId: null,
 		resolved: includeResolved ? undefined : false,
@@ -209,16 +292,7 @@ export async function createComment(
 	const userId = await requireCurrentUserId();
 	const { documentId, sectionId, content, type = "comment", parentId, position } = input;
 
-	// Validate document exists
-	const [doc] = await db
-		.select({ id: documents.id })
-		.from(documents)
-		.where(eq(documents.id, documentId))
-		.limit(1);
-
-	if (!doc) {
-		throw new Error("Document not found");
-	}
+	await assertWritableDocument(documentId, userId);
 
 	// If replying to a comment, ensure parent exists
 	if (parentId) {
@@ -265,12 +339,8 @@ export async function updateComment(
 ): Promise<DocumentComment> {
 	const userId = await requireCurrentUserId();
 
-	// Verify ownership
-	const [existing] = await db
-		.select({ userId: documentComments.userId })
-		.from(documentComments)
-		.where(eq(documentComments.id, id))
-		.limit(1);
+	// Verify ownership and document access
+	const existing = await getWritableCommentAccess(id, userId);
 
 	if (!existing) {
 		throw new Error("Comment not found");
@@ -291,8 +361,16 @@ export async function updateComment(
 	const [updated] = await db
 		.update(documentComments)
 		.set(updateData)
-		.where(eq(documentComments.id, id))
+		.where(and(
+			eq(documentComments.id, id),
+			eq(documentComments.userId, userId),
+			eq(documentComments.documentId, existing.documentId)
+		))
 		.returning();
+
+	if (!updated) {
+		throw new Error("Comment not found");
+	}
 
 	return getComment(id) as Promise<DocumentComment>;
 }
@@ -303,12 +381,8 @@ export async function updateComment(
 export async function deleteComment(id: string, _userId: string): Promise<void> {
 	const userId = await requireCurrentUserId();
 
-	// Verify ownership
-	const [existing] = await db
-		.select({ userId: documentComments.userId })
-		.from(documentComments)
-		.where(eq(documentComments.id, id))
-		.limit(1);
+	// Verify ownership and document access
+	const existing = await getWritableCommentAccess(id, userId);
 
 	if (!existing) {
 		throw new Error("Comment not found");
@@ -323,10 +397,16 @@ export async function deleteComment(id: string, _userId: string): Promise<void> 
 	}
 
 	// Delete replies first
-	await db.delete(documentComments).where(eq(documentComments.parentId, id));
+	await db.delete(documentComments).where(and(
+		eq(documentComments.parentId, id),
+		eq(documentComments.documentId, existing.documentId)
+	));
 
 	// Delete the comment
-	await db.delete(documentComments).where(eq(documentComments.id, id));
+	await db.delete(documentComments).where(and(
+		eq(documentComments.id, id),
+		eq(documentComments.documentId, existing.documentId)
+	));
 }
 
 /**
@@ -338,6 +418,10 @@ export async function resolveComment(
 	_userId: string
 ): Promise<DocumentComment> {
 	const userId = await requireCurrentUserId();
+	const existing = await getWritableCommentAccess(id, userId);
+	if (!existing) {
+		throw new Error("Comment not found");
+	}
 
 	const updateData: Partial<typeof documentComments.$inferInsert> = {
 		updatedAt: new Date(),
@@ -354,7 +438,10 @@ export async function resolveComment(
 	const [updated] = await db
 		.update(documentComments)
 		.set(updateData)
-		.where(eq(documentComments.id, id))
+		.where(and(
+			eq(documentComments.id, id),
+			eq(documentComments.documentId, existing.documentId)
+		))
 		.returning();
 
 	if (!updated) {
@@ -372,6 +459,9 @@ export async function resolveComment(
  * Get comment statistics for a document.
  */
 export async function getCommentStats(documentId: string): Promise<CommentStats> {
+	const userId = await requireCurrentUserId();
+	await assertReadableDocument(documentId, userId);
+
 	const [totalResult, resolvedResult] = await Promise.all([
 		db
 			.select({ count: sql<number>`COUNT(*)` })
@@ -427,6 +517,10 @@ export async function addCommentReaction(
 	_userId: string
 ): Promise<void> {
 	const userId = await requireCurrentUserId();
+	const existing = await getCommentAccess(commentId, userId);
+	if (!existing) {
+		throw new Error("Comment not found");
+	}
 
 	await db
 		.insert(commentReactions)
@@ -448,6 +542,10 @@ export async function removeCommentReaction(
 	_userId: string
 ): Promise<void> {
 	const userId = await requireCurrentUserId();
+	const existing = await getCommentAccess(commentId, userId);
+	if (!existing) {
+		throw new Error("Comment not found");
+	}
 
 	await db
 		.delete(commentReactions)
@@ -460,6 +558,12 @@ export async function removeCommentReaction(
 export async function getCommentReactions(
 	commentId: string
 ): Promise<Record<string, number>> {
+	const userId = await requireCurrentUserId();
+	const existing = await getCommentAccess(commentId, userId);
+	if (!existing) {
+		throw new Error("Comment not found");
+	}
+
 	const rows = await db
 		.select({
 			reaction: commentReactions.reaction,
@@ -486,9 +590,11 @@ export async function getCommentReactions(
  */
 export async function resolveSectionComments(
 	sectionId: string,
-	_userId: string
+	_userId: string,
+	documentId: string
 ): Promise<number> {
 	const userId = await requireCurrentUserId();
+	await assertWritableDocument(documentId, userId);
 
 	const result = await db
 		.update(documentComments)
@@ -499,6 +605,7 @@ export async function resolveSectionComments(
 		})
 		.where(
 			and(
+				eq(documentComments.documentId, documentId),
 				eq(documentComments.sectionId, sectionId),
 				sql`${documentComments.resolvedAt} IS NULL`
 			)
@@ -516,6 +623,7 @@ export async function markCommentsRead(
 	_userId: string
 ): Promise<void> {
 	const userId = await requireCurrentUserId();
+	await assertReadableDocument(documentId, userId);
 
 	// Get all unresolved comments on this document that the user didn't create
 	const unresolvedComments = await db.query.documentComments.findMany({
