@@ -8,8 +8,9 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import { documents, proposalDocuments, opportunities } from "@/lib/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, or, sql, type SQL } from "drizzle-orm";
 import type { JSONContent } from "@tiptap/react";
 import type {
 	ExportFormat,
@@ -65,10 +66,29 @@ const REQUIRED_DOCUMENT_TYPES: ProposalDocumentType[] = [
 // Helper Functions
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
+function readableDocumentCondition(documentId: string, userId: string): SQL {
+	return and(
+		eq(documents.id, documentId),
+		or(
+			eq(documents.ownerId, userId),
+			eq(documents.visibility, "public"),
+			sql`${documents.collaboratorIds} ? ${userId}`
+		)!
+	)!;
+}
+
 /**
  * Get document content from database.
  */
-async function getDocumentContent(documentId: string): Promise<{
+async function getDocumentContent(documentId: string, userId: string): Promise<{
 	content: JSONContent;
 	title: string;
 	wordCount: number;
@@ -80,7 +100,7 @@ async function getDocumentContent(documentId: string): Promise<{
 			wordCount: documents.wordCount,
 		})
 		.from(documents)
-		.where(eq(documents.id, documentId))
+		.where(readableDocumentCondition(documentId, userId))
 		.limit(1);
 
 	if (!doc) return null;
@@ -328,10 +348,11 @@ export async function renderToPDF(
 	documentId: string,
 	options: RenderOptions = { format: "pdf" }
 ): Promise<RenderResult> {
+	const userId = await requireCurrentUserId();
 	const startTime = Date.now();
 
 	try {
-		const doc = await getDocumentContent(documentId);
+		const doc = await getDocumentContent(documentId, userId);
 		if (!doc) {
 			return { success: false, format: "pdf", error: "Document not found" };
 		}
@@ -379,10 +400,11 @@ export async function renderToDOCX(
 	documentId: string,
 	options: RenderOptions = { format: "docx" }
 ): Promise<RenderResult> {
+	const userId = await requireCurrentUserId();
 	const startTime = Date.now();
 
 	try {
-		const doc = await getDocumentContent(documentId);
+		const doc = await getDocumentContent(documentId, userId);
 		if (!doc) {
 			return { success: false, format: "docx", error: "Document not found" };
 		}
@@ -420,10 +442,11 @@ export async function renderToPPTX(
 	documentId: string,
 	options: RenderOptions = { format: "pptx" }
 ): Promise<RenderResult> {
+	const userId = await requireCurrentUserId();
 	const startTime = Date.now();
 
 	try {
-		const doc = await getDocumentContent(documentId);
+		const doc = await getDocumentContent(documentId, userId);
 		if (!doc) {
 			return { success: false, format: "pptx", error: "Document not found" };
 		}
@@ -464,10 +487,11 @@ export async function renderToLaTeX(
 	documentId: string,
 	options: RenderOptions = { format: "latex" }
 ): Promise<RenderResult> {
+	const userId = await requireCurrentUserId();
 	const startTime = Date.now();
 
 	try {
-		const doc = await getDocumentContent(documentId);
+		const doc = await getDocumentContent(documentId, userId);
 		if (!doc) {
 			return { success: false, format: "latex", error: "Document not found" };
 		}
@@ -507,10 +531,11 @@ export async function renderToMarkdown(
 	documentId: string,
 	options: RenderOptions = { format: "markdown" }
 ): Promise<RenderResult> {
+	const userId = await requireCurrentUserId();
 	const startTime = Date.now();
 
 	try {
-		const doc = await getDocumentContent(documentId);
+		const doc = await getDocumentContent(documentId, userId);
 		if (!doc) {
 			return { success: false, format: "markdown", error: "Document not found" };
 		}
@@ -543,10 +568,11 @@ export async function renderToHTML(
 	documentId: string,
 	options: RenderOptions = { format: "html" }
 ): Promise<RenderResult> {
+	const userId = await requireCurrentUserId();
 	const startTime = Date.now();
 
 	try {
-		const doc = await getDocumentContent(documentId);
+		const doc = await getDocumentContent(documentId, userId);
 		if (!doc) {
 			return { success: false, format: "html", error: "Document not found" };
 		}
@@ -586,6 +612,8 @@ export async function renderDocument(
 	documentId: string,
 	options: RenderOptions
 ): Promise<RenderResult> {
+	await requireCurrentUserId();
+
 	switch (options.format) {
 		case "pdf":
 			return renderToPDF(documentId, options);
@@ -619,6 +647,8 @@ export async function renderDocument(
 export async function preSubmissionAudit(
 	opportunityId: string
 ): Promise<PreSubmissionAudit> {
+	await requireCurrentUserId();
+
 	const checks: AuditCheck[] = [];
 	const issues: string[] = [];
 	const recommendations: string[] = [];
@@ -845,6 +875,8 @@ function auditSeverityForDlp(severity: DlpSeverity): AuditCheck["severity"] {
  * In production, these would come from a database or configuration.
  */
 export async function getBrandingConfigs(): Promise<BrandingConfig[]> {
+	await requireCurrentUserId();
+
 	// Default branding options
 	return [
 		{
