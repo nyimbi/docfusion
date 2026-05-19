@@ -12,6 +12,7 @@ import { contacts } from "@/lib/db/schema-crm";
 import { eq, and } from "drizzle-orm";
 import type { UserContext } from "./contacts";
 import { logger } from "@/lib/utils/logger";
+import { requireUserContext } from "@/lib/auth-utils";
 
 // ============================================================================
 // Types
@@ -91,6 +92,17 @@ export interface ContactResearchFindings {
 	confidenceScore: number;
 }
 
+async function requireMatchingUserContext(input: UserContext): Promise<UserContext> {
+	const current = await requireUserContext();
+	if (input.userId !== current.userId) {
+		throw new Error("Unauthorized");
+	}
+	if (input.organizationId && input.organizationId !== current.organizationId) {
+		throw new Error("Unauthorized");
+	}
+	return current;
+}
+
 // ============================================================================
 // Search Query Builders
 // ============================================================================
@@ -143,13 +155,14 @@ export async function researchContact(
 	request: ContactResearchRequest,
 	userContext: UserContext
 ): Promise<ContactResearchResponse> {
+	const currentUserContext = await requireMatchingUserContext(userContext);
 	const { contactId, fullName, email, company, title, categories } = request;
 
 	// Verify contact exists and user has access
 	const contact = await db.query.contacts.findFirst({
 		where: and(
 			eq(contacts.id, contactId),
-			eq(contacts.ownerId, userContext.userId)
+			eq(contacts.ownerId, currentUserContext.userId)
 		),
 	});
 
@@ -218,11 +231,12 @@ export async function saveContactResearch(
 	userContext: UserContext
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		const currentUserContext = await requireMatchingUserContext(userContext);
 		// Verify access
 		const contact = await db.query.contacts.findFirst({
 			where: and(
 				eq(contacts.id, contactId),
-				eq(contacts.ownerId, userContext.userId)
+				eq(contacts.ownerId, currentUserContext.userId)
 			),
 		});
 
