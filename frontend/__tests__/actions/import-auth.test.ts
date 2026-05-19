@@ -40,6 +40,30 @@ describe("import action auth", () => {
 		expect(mockDb.select).not.toHaveBeenCalled();
 	});
 
+	it("requires a session before generating import previews", async () => {
+		requireUserContextMock.mockRejectedValueOnce(new Error("Unauthorized"));
+		const { generatePreview } = await import("@/lib/actions/import");
+
+		await expect(generatePreview(
+			{
+				headers: ["name"],
+				sampleRows: [{ name: "Acme" }],
+				totalRows: 1,
+			},
+			"accounts",
+			[{
+				id: "mapping-1",
+				targetColumn: "name",
+				sourceColumns: ["name"],
+				separator: ", ",
+				transform: "none",
+				defaultValue: "",
+				required: true,
+			}],
+			1
+		)).rejects.toThrow("Unauthorized");
+	});
+
 	it("rejects mismatched import execution context before creating records", async () => {
 		const { executeImport } = await import("@/lib/actions/import");
 

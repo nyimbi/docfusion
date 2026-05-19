@@ -313,6 +313,20 @@ export async function generatePreview(
 	validation: ReturnType<typeof generateValidationResult>;
 	totalRows: number;
 }> {
+	await requireUserContext();
+	return buildPreview(parsedData, targetTable, mappings, previewCount);
+}
+
+function buildPreview(
+	parsedData: ParsedData,
+	targetTable: ImportTargetTable,
+	mappings: ColumnMapping[],
+	previewCount: number
+): {
+	rows: PreviewRow[];
+	validation: ReturnType<typeof generateValidationResult>;
+	totalRows: number;
+} {
 	// Transform sample rows
 	const previewRows = transformRows(
 		parsedData.sampleRows.slice(0, previewCount),
