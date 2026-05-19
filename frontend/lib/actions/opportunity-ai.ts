@@ -15,6 +15,7 @@ import { opportunityAIScores, opportunities } from "@/lib/db/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
 import { prompt, getProviderManager } from "@/lib/ai/providers";
 import { getCompanyCapabilities } from "./company-settings";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import type {
 	OpportunityAIScore,
 	OpportunityAIScoreSummary,
@@ -28,11 +29,21 @@ import { logger } from "@/lib/utils/logger";
 // AI Score Operations
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 /**
  * Calculate fit score for an opportunity.
  * Analyzes how well the opportunity matches our capabilities and strategy.
  */
 export async function calculateFitScore(opportunityId: string): Promise<OpportunityAIScore> {
+	await requireCurrentUserId();
+
 	// Get the opportunity data
 	const [opp] = await db
 		.select()
@@ -82,6 +93,8 @@ export async function calculateFitScore(opportunityId: string): Promise<Opportun
  * Estimates likelihood of winning based on various factors.
  */
 export async function calculateWinProbability(opportunityId: string): Promise<OpportunityAIScore> {
+	await requireCurrentUserId();
+
 	const [opp] = await db
 		.select()
 		.from(opportunities)
@@ -127,6 +140,8 @@ export async function calculateWinProbability(opportunityId: string): Promise<Op
  * Higher score = higher risk.
  */
 export async function calculateRiskScore(opportunityId: string): Promise<OpportunityAIScore> {
+	await requireCurrentUserId();
+
 	const [opp] = await db
 		.select()
 		.from(opportunities)
@@ -166,6 +181,8 @@ export async function calculateAllScores(opportunityId: string): Promise<{
 	winProbability: OpportunityAIScore;
 	risk: OpportunityAIScore;
 }> {
+	await requireCurrentUserId();
+
 	const [fit, winProbability, risk] = await Promise.all([
 		calculateFitScore(opportunityId),
 		calculateWinProbability(opportunityId),
@@ -183,6 +200,8 @@ export async function calculateAllScores(opportunityId: string): Promise<{
  * Get the latest AI scores for an opportunity.
  */
 export async function getLatestScores(opportunityId: string): Promise<OpportunityAIScoreSummary> {
+	await requireCurrentUserId();
+
 	// Get latest score for each type
 	const scoreTypes: AIScoreType[] = ["fit", "win_probability", "risk", "effort"];
 
@@ -241,6 +260,8 @@ export async function getAIScoreHistory(
 	scoreType?: AIScoreType,
 	limit: number = 10
 ): Promise<OpportunityAIScore[]> {
+	await requireCurrentUserId();
+
 	let query = db
 		.select()
 		.from(opportunityAIScores)
@@ -270,6 +291,8 @@ export async function getAIScoreHistory(
  * Get a specific AI score by ID.
  */
 export async function getAIScore(scoreId: string): Promise<OpportunityAIScore | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.select()
 		.from(opportunityAIScores)
@@ -1077,6 +1100,8 @@ function mapToAIScore(row: typeof opportunityAIScores.$inferSelect): Opportunity
  * Falls back to heuristic scoring if no AI provider is available.
  */
 export async function calculateFitScoreWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
+	await requireCurrentUserId();
+
 	// Check if AI is available
 	const manager = getProviderManager();
 	await manager.initialize();
@@ -1199,6 +1224,8 @@ Provide your fit analysis as JSON.`;
  * Calculate win probability using LLM analysis.
  */
 export async function calculateWinProbabilityWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
+	await requireCurrentUserId();
+
 	const manager = getProviderManager();
 	await manager.initialize();
 	if (!manager.isAvailable()) {
@@ -1309,6 +1336,8 @@ Provide your win probability analysis as JSON.`;
  * Calculate risk score using LLM analysis.
  */
 export async function calculateRiskScoreWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
+	await requireCurrentUserId();
+
 	const manager = getProviderManager();
 	await manager.initialize();
 	if (!manager.isAvailable()) {
@@ -1409,6 +1438,8 @@ export async function calculateAllScoresWithLLM(opportunityId: string): Promise<
 	winProbability: OpportunityAIScore;
 	risk: OpportunityAIScore;
 }> {
+	await requireCurrentUserId();
+
 	const [fit, winProbability, risk] = await Promise.all([
 		calculateFitScoreWithLLM(opportunityId),
 		calculateWinProbabilityWithLLM(opportunityId),
@@ -1422,6 +1453,8 @@ export async function calculateAllScoresWithLLM(opportunityId: string): Promise<
  * Generate AI-powered executive summary for an opportunity.
  */
 export async function generateOpportunitySummary(opportunityId: string): Promise<string> {
+	await requireCurrentUserId();
+
 	const manager = getProviderManager();
 	await manager.initialize();
 	if (!manager.isAvailable()) {
