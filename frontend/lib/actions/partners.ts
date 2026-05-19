@@ -7,6 +7,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import {
 	partners,
 	opportunityPartners,
@@ -77,10 +78,20 @@ function transformOpportunityPartner(
 // Partner CRUD
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 /**
  * Create a new partner.
  */
 export async function createPartner(input: CreatePartnerInput): Promise<Partner> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.insert(partners)
 		.values({
@@ -102,6 +113,8 @@ export async function createPartner(input: CreatePartnerInput): Promise<Partner>
  * Get a partner by ID.
  */
 export async function getPartner(id: string): Promise<Partner | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db.select().from(partners).where(eq(partners.id, id));
 	return row ? transformPartner(row) : null;
 }
@@ -113,6 +126,8 @@ export async function updatePartner(
 	id: string,
 	input: UpdatePartnerInput
 ): Promise<Partner> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.update(partners)
 		.set({
@@ -133,6 +148,8 @@ export async function updatePartner(
  * Delete a partner.
  */
 export async function deletePartner(id: string): Promise<void> {
+	await requireCurrentUserId();
+
 	await db.delete(partners).where(eq(partners.id, id));
 }
 
@@ -140,6 +157,8 @@ export async function deletePartner(id: string): Promise<void> {
  * Get partners with optional filtering.
  */
 export async function getPartners(filters?: PartnerFilters): Promise<PartnerListItem[]> {
+	await requireCurrentUserId();
+
 	// Build conditions
 	const conditions = [];
 
@@ -208,6 +227,8 @@ export async function getPartners(filters?: PartnerFilters): Promise<PartnerList
 export async function searchPartnersByCapability(
 	capability: string
 ): Promise<PartnerListItem[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select()
 		.from(partners)
@@ -243,6 +264,8 @@ export async function searchPartnersByCapability(
 export async function assignPartnerToOpportunity(
 	input: AssignPartnerInput
 ): Promise<OpportunityPartner> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.insert(opportunityPartners)
 		.values({
@@ -270,6 +293,8 @@ export async function assignPartnerToOpportunity(
 export async function updatePartnerAssignment(
 	input: UpdatePartnerAssignmentInput
 ): Promise<OpportunityPartner> {
+	await requireCurrentUserId();
+
 	const updateData: Partial<OpportunityPartnerRow> = {
 		updatedAt: new Date(),
 	};
@@ -319,6 +344,8 @@ export async function updatePartnerAssignment(
 export async function removePartnerFromOpportunity(
 	assignmentId: string
 ): Promise<void> {
+	await requireCurrentUserId();
+
 	await db
 		.delete(opportunityPartners)
 		.where(eq(opportunityPartners.id, assignmentId));
@@ -330,6 +357,8 @@ export async function removePartnerFromOpportunity(
 export async function getOpportunityPartners(
 	opportunityId: string
 ): Promise<OpportunityPartner[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select({
 			assignment: opportunityPartners,
@@ -357,6 +386,8 @@ export async function getPartnerOpportunities(
 		deadline: Date | null;
 	}>
 > {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select({
 			assignment: opportunityPartners,
@@ -388,6 +419,8 @@ export async function getPartnerOpportunities(
 export async function getPartnerPerformance(
 	partnerId: string
 ): Promise<PartnerPerformance> {
+	await requireCurrentUserId();
+
 	// Get partner details
 	const [partner] = await db
 		.select()
@@ -462,6 +495,8 @@ export async function updatePartnerRating(
 	partnerId: string,
 	rating: number
 ): Promise<Partner> {
+	await requireCurrentUserId();
+
 	if (rating < 1 || rating > 5) {
 		throw new Error("Rating must be between 1 and 5");
 	}
@@ -486,6 +521,8 @@ export async function updatePartnerRating(
  * Get top performing partners.
  */
 export async function getTopPartners(limit: number = 10): Promise<PartnerListItem[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select()
 		.from(partners)
@@ -516,6 +553,8 @@ export async function getTopPartners(limit: number = 10): Promise<PartnerListIte
  * Get all unique capabilities across partners.
  */
 export async function getUniqueCapabilities(): Promise<string[]> {
+	await requireCurrentUserId();
+
 	const rows = await db.select({ capabilities: partners.capabilities }).from(partners);
 
 	const allCapabilities = new Set<string>();
@@ -580,6 +619,8 @@ export async function getPartnersGroupedByRegion(): Promise<{
 	}>;
 	ungrouped: ExtendedPartnerListItem[];
 }> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select()
 		.from(partners)
@@ -665,6 +706,8 @@ export async function getPartnersGroupedByRegion(): Promise<{
  * Get all unique regions.
  */
 export async function getUniqueRegions(): Promise<string[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.selectDistinct({ region: partners.region })
 		.from(partners)
@@ -678,6 +721,8 @@ export async function getUniqueRegions(): Promise<string[]> {
  * Get all unique countries.
  */
 export async function getUniqueCountries(): Promise<string[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.selectDistinct({ country: partners.country })
 		.from(partners)
@@ -691,6 +736,8 @@ export async function getUniqueCountries(): Promise<string[]> {
  * Get partners filtered by region.
  */
 export async function getPartnersByRegion(region: string): Promise<ExtendedPartnerListItem[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select()
 		.from(partners)
@@ -732,6 +779,8 @@ export async function getPartnersByRegion(region: string): Promise<ExtendedPartn
  * Get partners filtered by country.
  */
 export async function getPartnersByCountry(country: string): Promise<ExtendedPartnerListItem[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select()
 		.from(partners)
@@ -773,6 +822,8 @@ export async function getPartnersByCountry(country: string): Promise<ExtendedPar
  * Get tier 1 partners (fit score 8+).
  */
 export async function getTier1Partners(): Promise<ExtendedPartnerListItem[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select()
 		.from(partners)
@@ -822,6 +873,8 @@ export async function getPartnerStats(): Promise<{
 	countryCount: number;
 	averageFitScore: number;
 }> {
+	await requireCurrentUserId();
+
 	const [stats] = await db
 		.select({
 			totalPartners: sql<number>`count(*)::int`,
