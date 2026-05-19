@@ -8,6 +8,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import {
 	companyVariables,
 	companySettings,
@@ -31,6 +32,14 @@ import type {
 /** Organization ID for Datacraft */
 const ORGANIZATION_ID = "datacraft";
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 // ============================================================================
 // Company Variables CRUD
 // ============================================================================
@@ -41,6 +50,8 @@ const ORGANIZATION_ID = "datacraft";
 export async function getCompanyVariables(
 	filters?: VariableFilters
 ): Promise<CompanyVariable[]> {
+	await requireCurrentUserId();
+
 	const conditions = [eq(companyVariables.organizationId, ORGANIZATION_ID)];
 
 	if (filters?.search) {
@@ -70,6 +81,8 @@ export async function getCompanyVariables(
  * Get a single company variable by ID.
  */
 export async function getCompanyVariable(id: string): Promise<CompanyVariable | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.select()
 		.from(companyVariables)
@@ -82,6 +95,8 @@ export async function getCompanyVariable(id: string): Promise<CompanyVariable | 
  * Get a company variable by name.
  */
 export async function getCompanyVariableByName(name: string): Promise<CompanyVariable | null> {
+	await requireCurrentUserId();
+
 	const [row] = await db
 		.select()
 		.from(companyVariables)
@@ -99,6 +114,8 @@ export async function getCompanyVariableByName(name: string): Promise<CompanyVar
 export async function createCompanyVariable(
 	input: CreateVariableInput
 ): Promise<CompanyVariable> {
+	await requireCurrentUserId();
+
 	// Validate name format (must be a valid identifier)
 	const nameRegex = /^[a-z][a-z0-9_]*$/i;
 	if (!nameRegex.test(input.name)) {
@@ -147,6 +164,8 @@ export async function updateCompanyVariable(
 	id: string,
 	input: UpdateVariableInput
 ): Promise<CompanyVariable> {
+	await requireCurrentUserId();
+
 	// If updating name, validate format and check for duplicates
 	if (input.name !== undefined) {
 		const nameRegex = /^[a-z][a-z0-9_]*$/i;
@@ -192,6 +211,8 @@ export async function updateCompanyVariable(
  * Delete a company variable.
  */
 export async function deleteCompanyVariable(id: string): Promise<void> {
+	await requireCurrentUserId();
+
 	await db
 		.delete(companyVariables)
 		.where(and(eq(companyVariables.id, id), eq(companyVariables.organizationId, ORGANIZATION_ID)));
@@ -203,6 +224,8 @@ export async function deleteCompanyVariable(id: string): Promise<void> {
 export async function updateVariableSortOrder(
 	updates: { id: string; sortOrder: number }[]
 ): Promise<void> {
+	await requireCurrentUserId();
+
 	for (const update of updates) {
 		await db
 			.update(companyVariables)
@@ -218,6 +241,8 @@ export async function updateVariableSortOrder(
  * Get unique variable categories.
  */
 export async function getVariableCategories(): Promise<string[]> {
+	await requireCurrentUserId();
+
 	const rows = await db
 		.select({ category: companyVariables.category })
 		.from(companyVariables)
@@ -247,6 +272,8 @@ export async function getVariableCategories(): Promise<string[]> {
  * - custom.variableName - Custom variable
  */
 export async function getAllTemplateVariables(): Promise<Record<string, string | null>> {
+	await requireCurrentUserId();
+
 	const variables: Record<string, string | null> = {};
 
 	// Get company settings
@@ -384,6 +411,8 @@ export async function getAllTemplateVariables(): Promise<Record<string, string |
 export async function previewTemplateVariable(
 	variablePath: string
 ): Promise<string | null> {
+	await requireCurrentUserId();
+
 	const allVars = await getAllTemplateVariables();
 	return allVars[variablePath] ?? null;
 }
@@ -395,6 +424,8 @@ export async function validateVariableName(name: string): Promise<{
 	valid: boolean;
 	error?: string;
 }> {
+	await requireCurrentUserId();
+
 	if (!name) {
 		return { valid: false, error: "Variable name is required" };
 	}
