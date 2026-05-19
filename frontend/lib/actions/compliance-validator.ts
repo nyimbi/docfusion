@@ -255,6 +255,13 @@ function visibleComplianceMatrixCondition(matrixId: string, organizationId: stri
 	);
 }
 
+function visibleComplianceMatrixForOpportunityCondition(opportunityId: string, organizationId: string) {
+	return and(
+		eq(complianceMatrices.opportunityId, opportunityId),
+		eq(complianceMatrices.organizationId, organizationId)
+	);
+}
+
 function visibleComplianceEntriesForMatrixCondition(matrixId: string, organizationId: string) {
 	return and(
 		eq(complianceEntries.matrixId, matrixId),
@@ -932,10 +939,11 @@ function calculateMatrixStats(
  */
 export async function validateCompliance(opportunityId: string): Promise<ValidationResult> {
 	const userContext = await requireUserContext();
+	const organizationId = requireComplianceOrganization(userContext);
 
 	// Get the latest compliance matrix for this opportunity
 	const matrix = await db.query.complianceMatrices.findFirst({
-		where: eq(complianceMatrices.opportunityId, opportunityId),
+		where: visibleComplianceMatrixForOpportunityCondition(opportunityId, organizationId),
 		orderBy: (matrices, { desc }) => [desc(matrices.version)],
 	});
 
@@ -972,7 +980,10 @@ export async function validateCompliance(opportunityId: string): Promise<Validat
 		})
 		.from(complianceEntries)
 		.innerJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
-		.where(eq(complianceEntries.matrixId, matrix.id));
+		.where(and(
+			visibleComplianceEntriesForMatrixCondition(matrix.id, organizationId),
+			eq(rfpRequirements.organizationId, organizationId)
+		));
 
 	// Analyze compliance
 	const issues: ComplianceIssue[] = [];

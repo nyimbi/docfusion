@@ -47,7 +47,9 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	if (Array.isArray(value)) {
 		return value.flatMap((item) => collectSqlFragments(item, seen));
 	}
-	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
+	return Reflect.ownKeys(value).flatMap((key) =>
+		collectSqlFragments((value as Record<PropertyKey, unknown>)[key], seen)
+	);
 }
 
 var dbMock: any;
@@ -57,6 +59,11 @@ vi.mock("@/lib/db", () => {
 		select: vi.fn(() => createChain()),
 		update: vi.fn(() => createChain()),
 		execute: vi.fn(async () => []),
+		query: {
+			complianceMatrices: {
+				findFirst: vi.fn(),
+			},
+		},
 		transaction: vi.fn(async (fn: (tx: any) => Promise<unknown>) => fn(dbMock)),
 	};
 	return { db: dbMock };
@@ -65,6 +72,7 @@ vi.mock("@/lib/db", () => {
 import {
 	transitionComplianceEntryWorkflow,
 	transitionComplianceMatrixWorkflow,
+	validateCompliance,
 } from "@/lib/actions/compliance-validator";
 
 const baseEntry: Record<string, any> = {
@@ -149,9 +157,35 @@ beforeEach(() => {
 	dbMock.select.mockReset();
 	dbMock.update.mockReset();
 	dbMock.execute.mockReset();
+	dbMock.query.complianceMatrices.findFirst.mockReset();
 	dbMock.transaction.mockReset();
 	dbMock.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(dbMock));
 	dbMock.execute.mockResolvedValue([]);
+});
+
+describe("compliance validation access scope", () => {
+	it("scopes opportunity validation matrix and entries to the actor organization", async () => {
+		let matrixWhere: unknown;
+		let entriesWhere: unknown;
+		dbMock.query.complianceMatrices.findFirst.mockImplementation(async (args: { where: unknown }) => {
+			matrixWhere = args.where;
+			return baseMatrix;
+		});
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{ entry: baseEntry, requirement: baseRequirement }],
+			onWhere: (value) => {
+				entriesWhere = value;
+			},
+		}));
+
+		const result = await validateCompliance("opp-1");
+
+		expect(result.totalRequirements).toBe(1);
+		expect(collectSqlFragments(matrixWhere).join(" ")).toContain("organization_id");
+		expect(collectSqlFragments(matrixWhere).join(" ")).toContain("org-1");
+		expect(collectSqlFragments(entriesWhere).join(" ")).toContain("organization_id");
+		expect(collectSqlFragments(entriesWhere).join(" ")).toContain("org-1");
+	});
 });
 
 describe("compliance entry workflow", () => {
