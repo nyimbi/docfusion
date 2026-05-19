@@ -89,6 +89,13 @@ function organizationForInsert(inputOrganizationId: string | undefined, userCont
 	return inputOrganizationId ?? userContext.organizationId;
 }
 
+function visibleOpportunityCondition(opportunityId: string, userContext: UserContext) {
+	return and(
+		eq(opportunities.id, opportunityId),
+		eq(opportunities.assignedTo, userContext.userId)
+	);
+}
+
 /**
  * Factor score entry for PWin assessment.
  */
@@ -814,7 +821,7 @@ export async function assessPwin(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(visibleOpportunityCondition(opportunityId, userContext))
 			.limit(1);
 
 		if (!opportunity) {
@@ -888,7 +895,7 @@ export async function assessPwin(
 				winProbability: pwin,
 				updatedAt: new Date(),
 			})
-			.where(eq(opportunities.id, opportunityId));
+			.where(visibleOpportunityCondition(opportunityId, userContext));
 
 		revalidatePwinPaths(opportunityId);
 
@@ -1213,7 +1220,7 @@ export async function getRecommendationsToImprovePwin(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(visibleOpportunityCondition(opportunityId, userContext))
 			.limit(1);
 
 		if (!opportunity) {
@@ -1427,7 +1434,7 @@ export async function identifyPwinRisks(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(visibleOpportunityCondition(opportunityId, userContext))
 			.limit(1);
 
 		if (!opportunity) {
@@ -1554,7 +1561,7 @@ export async function generatePwinReport(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(visibleOpportunityCondition(opportunityId, userContext))
 			.limit(1);
 
 		if (!opportunity) {
@@ -2737,7 +2744,7 @@ export async function predictOutcome(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(visibleOpportunityCondition(opportunityId, userContext))
 			.limit(1);
 
 		if (!opportunity) {
