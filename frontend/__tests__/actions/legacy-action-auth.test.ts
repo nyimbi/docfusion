@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const getServerSessionMock = vi.hoisted(() => vi.fn());
 const dbAccessMock = vi.hoisted(() => vi.fn());
 const blockedDb = vi.hoisted(() => new Proxy({}, {
 	get() {
@@ -11,6 +12,7 @@ const blockedDb = vi.hoisted(() => new Proxy({}, {
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	getServerSession: getServerSessionMock,
 }));
 vi.mock("@/lib/db", () => ({
 	db: blockedDb,
@@ -19,6 +21,7 @@ vi.mock("@/lib/db", () => ({
 	documentYjsStates: {},
 	templates: {},
 	templateCategories: {},
+	templateSnippets: {},
 }));
 vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
@@ -43,10 +46,23 @@ import {
 	updateTemplate,
 	useTemplate,
 } from "@/app/actions/templates";
+import {
+	createSnippet,
+	deleteSnippet,
+	expandShortcut,
+	getSnippet,
+	getSnippetByShortcut,
+	getSnippetsByCategory,
+	incrementSnippetUseCount,
+	listSnippets,
+	searchSnippets,
+	updateSnippet,
+} from "@/lib/actions/snippets";
 
 beforeEach(() => {
 	vi.clearAllMocks();
 	getCurrentUserIdMock.mockResolvedValue(null);
+	getServerSessionMock.mockResolvedValue(null);
 });
 
 describe("legacy server action auth gates", () => {
@@ -79,6 +95,25 @@ describe("legacy server action auth gates", () => {
 			placeholderValues: {},
 		})).rejects.toThrow("Unauthorized");
 		await expect(searchTemplates("template")).rejects.toThrow("Unauthorized");
+
+		expect(dbAccessMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects unauthenticated snippet actions before database access", async () => {
+		await expect(listSnippets()).rejects.toThrow("Unauthorized");
+		await expect(getSnippet("snippet-1")).rejects.toThrow("Unauthorized");
+		await expect(getSnippetByShortcut("/intro")).rejects.toThrow("Unauthorized");
+		await expect(createSnippet({
+			name: "Intro",
+			shortcut: "/intro",
+			content: { type: "doc", content: [] },
+		})).rejects.toThrow("Unauthorized");
+		await expect(updateSnippet("snippet-1", { name: "Updated" })).rejects.toThrow("Unauthorized");
+		await expect(deleteSnippet("snippet-1")).rejects.toThrow("Unauthorized");
+		await expect(incrementSnippetUseCount("snippet-1")).rejects.toThrow("Unauthorized");
+		await expect(searchSnippets("intro")).rejects.toThrow("Unauthorized");
+		await expect(expandShortcut("/intro")).rejects.toThrow("Unauthorized");
+		await expect(getSnippetsByCategory("general")).rejects.toThrow("Unauthorized");
 
 		expect(dbAccessMock).not.toHaveBeenCalled();
 	});

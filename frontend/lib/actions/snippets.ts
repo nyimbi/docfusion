@@ -36,7 +36,10 @@ import { adaptResolvedSnippet, resolveSnippetContent } from "@/lib/snippets/reso
  */
 async function getCurrentUserId(): Promise<string> {
 	const session = await getServerSession();
-	return session?.user?.id || "anonymous";
+	if (!session?.user?.id) {
+		throw new Error("Unauthorized");
+	}
+	return session.user.id;
 }
 
 /**
@@ -453,18 +456,31 @@ export async function deleteSnippet(id: string): Promise<boolean> {
  * Called when a snippet is inserted into a document.
  */
 export async function incrementSnippetUseCount(id: string): Promise<void> {
+	const currentUserId = await getCurrentUserId();
+	const orgId = await getCurrentOrganizationId();
 	const snippet = await db
-		.select({ useCount: templateSnippets.useCount })
+		.select({
+			useCount: templateSnippets.useCount,
+			createdBy: templateSnippets.createdBy,
+			isPublic: templateSnippets.isPublic,
+			organizationId: templateSnippets.organizationId,
+		})
 		.from(templateSnippets)
 		.where(eq(templateSnippets.id, id))
 		.limit(1);
 
 	if (snippet.length === 0) return;
+	const row = snippet[0];
+	const hasAccess =
+		row.createdBy === currentUserId ||
+		row.isPublic ||
+		row.organizationId === orgId;
+	if (!hasAccess) return;
 
 	await db
 		.update(templateSnippets)
 		.set({
-			useCount: snippet[0].useCount + 1,
+			useCount: row.useCount + 1,
 			updatedAt: new Date(),
 		})
 		.where(eq(templateSnippets.id, id));
