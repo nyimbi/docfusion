@@ -19,7 +19,7 @@ const dbMock = vi.hoisted(() => ({
 
 function createChain(result: unknown = []) {
 	const chain: Record<string, unknown> = {};
-	for (const method of ["from", "where", "values", "returning"]) {
+	for (const method of ["from", "where", "limit", "values", "returning"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	(chain.returning as ReturnType<typeof vi.fn>).mockResolvedValue(Array.isArray(result) ? result : [result]);
@@ -42,6 +42,14 @@ vi.mock("@/lib/db/schema-bibliography", () => ({
 		isPublic: "bibliographyEntries.isPublic",
 	},
 	documentCitations: {},
+}));
+vi.mock("@/lib/db/schema", () => ({
+	documents: {
+		id: "documents.id",
+		ownerId: "documents.ownerId",
+		visibility: "documents.visibility",
+		collaboratorIds: "documents.collaboratorIds",
+	},
 }));
 vi.mock("@/lib/utils/logger", () => ({
 	logger: { error: vi.fn() },
@@ -74,6 +82,7 @@ const entryInput = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	requireUserContextMock.mockRejectedValue(new Error("Unauthorized"));
+	dbMock.select.mockImplementation(() => createChain([]));
 	dbMock.insert.mockImplementation(() => createChain([]));
 });
 
@@ -129,5 +138,19 @@ describe("bibliography action auth", () => {
 				createdBy: "bibliography-user-1",
 			})
 		);
+	});
+
+	it("checks document write access before creating citations", async () => {
+		requireUserContextMock.mockResolvedValue({
+			userId: "bibliography-user-1",
+			organizationId: "11111111-1111-4111-8111-111111111111",
+		});
+		dbMock.select.mockReturnValueOnce(createChain([]));
+
+		const result = await citeInDocument("doc-1", "entry-1");
+
+		expect(result.success).toBe(false);
+		expect(dbMock.query.bibliographyEntries.findFirst).not.toHaveBeenCalled();
+		expect(dbMock.insert).not.toHaveBeenCalled();
 	});
 });

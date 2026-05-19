@@ -15,6 +15,7 @@ import {
 	type BibliographyEntryType,
 	type CitationStyleType,
 } from "@/lib/db/schema-bibliography";
+import { documents } from "@/lib/db/schema";
 import { eq, and, desc, asc, ilike, or, inArray, sql, type SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireUserContext } from "@/lib/auth-utils";
@@ -163,6 +164,51 @@ function scopedEntryCondition(id: string, context: BibliographyContext): SQL {
 		eq(bibliographyEntries.id, id),
 		readableEntryCondition(context)
 	)!;
+}
+
+function readableDocumentCondition(documentId: string, context: BibliographyContext): SQL {
+	return and(
+		eq(documents.id, documentId),
+		or(
+			eq(documents.ownerId, context.userId),
+			eq(documents.visibility, "public"),
+			sql`${documents.collaboratorIds} ? ${context.userId}`
+		)!
+	)!;
+}
+
+function writableDocumentCondition(documentId: string, context: BibliographyContext): SQL {
+	return and(
+		eq(documents.id, documentId),
+		or(
+			eq(documents.ownerId, context.userId),
+			sql`${documents.collaboratorIds} ? ${context.userId}`
+		)!
+	)!;
+}
+
+async function assertReadableDocument(documentId: string, context: BibliographyContext): Promise<void> {
+	const [document] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(readableDocumentCondition(documentId, context))
+		.limit(1);
+
+	if (!document) {
+		throw new Error("Document not found");
+	}
+}
+
+async function assertWritableDocument(documentId: string, context: BibliographyContext): Promise<void> {
+	const [document] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(writableDocumentCondition(documentId, context))
+		.limit(1);
+
+	if (!document) {
+		throw new Error("Document not found");
+	}
 }
 
 // ============================================================================
@@ -390,6 +436,7 @@ export async function citeInDocument(
 ): Promise<ActionResult<{ citationId: string; formattedCitation: string }>> {
 	try {
 		const context = await requireBibliographyContext();
+		await assertWritableDocument(documentId, context);
 
 		// Get the entry
 		const entry = await db.query.bibliographyEntries.findFirst({
@@ -447,7 +494,9 @@ export async function getDocumentCitations(
 	documentId: string
 ): Promise<ActionResult<BibliographyEntry[]>> {
 	try {
-		await requireBibliographyContext();
+		const context = await requireBibliographyContext();
+		await assertReadableDocument(documentId, context);
+
 		const citations = await db.query.documentCitations.findMany({
 			where: eq(documentCitations.documentId, documentId),
 			with: {
