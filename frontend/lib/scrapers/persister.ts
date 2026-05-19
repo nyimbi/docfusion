@@ -6,7 +6,11 @@
  * does not depend directly on the actions layer.
  */
 
-import { createScraperRun, updateScraperRun, updateSourceMetrics } from "@/lib/actions/scraper-sources";
+import {
+	createScraperRunRecord,
+	updateScraperRunRecord,
+	updateSourceMetricsForRun,
+} from "@/lib/scrapers/source-persistence";
 import type { ScraperJobResult } from "./queue";
 
 // ============================================================================
@@ -33,7 +37,7 @@ export interface RunRecord {
  * Called at the start of job execution before any pages are fetched.
  */
 export async function createRun(params: CreateRunParams): Promise<RunRecord> {
-	return createScraperRun({
+	return createScraperRunRecord({
 		sourceId: params.sourceId,
 		sourceKey: params.sourceKey,
 		runId: params.runId,
@@ -53,7 +57,7 @@ export async function finaliseRunSuccess(
 	sourceId: string,
 	result: ScraperJobResult
 ): Promise<void> {
-	await updateScraperRun(runId, {
+	await updateScraperRunRecord(runId, {
 		status: result.partial ? "partial" : "success",
 		completedAt: new Date(),
 		durationSeconds: result.durationSeconds,
@@ -67,7 +71,7 @@ export async function finaliseRunSuccess(
 		warnings: result.warnings ?? null,
 	});
 
-	await updateSourceMetrics(sourceId, {
+	await updateSourceMetricsForRun(sourceId, {
 		success: true,
 		opportunitiesFound: result.opportunitiesFound,
 		uniqueOpportunities: result.opportunitiesNew,
@@ -89,7 +93,7 @@ export async function finaliseRunFailure(
 		progress: number;
 	}
 ): Promise<void> {
-	await updateScraperRun(runId, {
+	await updateScraperRunRecord(runId, {
 		status: options.aborted ? "cancelled" : "failed",
 		completedAt: new Date(),
 		durationSeconds: result.durationSeconds,
@@ -105,7 +109,7 @@ export async function finaliseRunFailure(
 		warnings: result.warnings ?? null,
 	});
 
-	await updateSourceMetrics(sourceId, {
+	await updateSourceMetricsForRun(sourceId, {
 		success: false,
 		opportunitiesFound: result.opportunitiesFound,
 		uniqueOpportunities: result.opportunitiesNew,
