@@ -51,9 +51,14 @@ const mockDb = {
 	delete: vi.fn(),
 	execute: vi.fn(),
 };
+const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/db", () => ({
 	db: mockDb,
+}));
+
+vi.mock("@/lib/auth-utils", () => ({
+	getCurrentUserId: getCurrentUserIdMock,
 }));
 
 // ---------------------------------------------------------------------------
@@ -752,6 +757,7 @@ describe("Saved Searches", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
+		getCurrentUserIdMock.mockResolvedValue("user-1");
 		const mod = await import("@/lib/actions/opportunities");
 		saveSearch = mod.saveSearch;
 		getSavedSearches = mod.getSavedSearches;
@@ -833,9 +839,15 @@ describe("Saved Searches", () => {
 		});
 
 		it("returns empty array for user with no saved searches", async () => {
+			getCurrentUserIdMock.mockResolvedValueOnce("user-none");
 			mockChain([]);
 			const result = await getSavedSearches("user-none");
 			expect(result).toEqual([]);
+		});
+
+		it("rejects reads for another user's saved searches before querying", async () => {
+			await expect(getSavedSearches("other-user")).rejects.toThrow("Unauthorized");
+			expect(mockDb.select).not.toHaveBeenCalled();
 		});
 	});
 
@@ -868,6 +880,13 @@ describe("Saved Searches", () => {
 			mockChain([]);
 			const result = await getSavedSearch("nonexistent");
 			expect(result).toBeNull();
+		});
+
+		it("rejects unauthenticated single-search reads before querying", async () => {
+			getCurrentUserIdMock.mockResolvedValueOnce(null);
+
+			await expect(getSavedSearch("ss-1")).rejects.toThrow("Unauthorized");
+			expect(mockDb.select).not.toHaveBeenCalled();
 		});
 	});
 

@@ -8,6 +8,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import { opportunities, opportunityImports, savedSearches } from "@/lib/db/schema";
 import { eq, and, or, gte, lte, inArray, isNull, desc, asc, sql, count } from "drizzle-orm";
 
@@ -933,6 +934,14 @@ function hydrateSavedSearch(row: typeof savedSearches.$inferSelect): SavedSearch
 	};
 }
 
+async function requireSavedSearchUserId(userId?: string): Promise<string> {
+	const currentUserId = await getCurrentUserId();
+	if (!currentUserId || (userId && currentUserId !== userId)) {
+		throw new Error("Unauthorized");
+	}
+	return currentUserId;
+}
+
 /**
  * Serialize a SavedSearch into the JSONB payload stored in the `filters` column.
  */
@@ -951,10 +960,12 @@ function serializeSavedSearchFilters(
  * Get all saved searches for a user, ordered by most recently updated.
  */
 export async function getSavedSearches(userId: string): Promise<SavedSearch[]> {
+	const currentUserId = await requireSavedSearchUserId(userId);
+
 	const rows = await db
 		.select()
 		.from(savedSearches)
-		.where(eq(savedSearches.userId, userId))
+		.where(eq(savedSearches.userId, currentUserId))
 		.orderBy(desc(savedSearches.updatedAt));
 
 	return rows.map(hydrateSavedSearch);
@@ -964,10 +975,12 @@ export async function getSavedSearches(userId: string): Promise<SavedSearch[]> {
  * Get a saved search by ID.
  */
 export async function getSavedSearch(id: string): Promise<SavedSearch | null> {
+	const currentUserId = await requireSavedSearchUserId();
+
 	const [row] = await db
 		.select()
 		.from(savedSearches)
-		.where(eq(savedSearches.id, id))
+		.where(and(eq(savedSearches.id, id), eq(savedSearches.userId, currentUserId)))
 		.limit(1);
 
 	return row ? hydrateSavedSearch(row) : null;
@@ -980,10 +993,12 @@ export async function saveSearch(
 	userId: string,
 	search: Omit<SavedSearch, "id" | "userId" | "createdAt" | "updatedAt">
 ): Promise<SavedSearch> {
+	const currentUserId = await requireSavedSearchUserId(userId);
+
 	const [row] = await db
 		.insert(savedSearches)
 		.values({
-			userId,
+			userId: currentUserId,
 			name: search.name,
 			filters: serializeSavedSearchFilters(search),
 		})
@@ -999,6 +1014,7 @@ export async function updateSavedSearch(
 	id: string,
 	updates: Partial<Omit<SavedSearch, "id" | "userId" | "createdAt">>
 ): Promise<SavedSearch | null> {
+	const currentUserId = await requireSavedSearchUserId();
 	const existing = await getSavedSearch(id);
 	if (!existing) return null;
 
@@ -1010,7 +1026,7 @@ export async function updateSavedSearch(
 			filters: serializeSavedSearchFilters(merged),
 			updatedAt: new Date(),
 		})
-		.where(eq(savedSearches.id, id))
+		.where(and(eq(savedSearches.id, id), eq(savedSearches.userId, currentUserId)))
 		.returning();
 
 	return row ? hydrateSavedSearch(row) : null;
@@ -1020,9 +1036,10 @@ export async function updateSavedSearch(
  * Delete a saved search.
  */
 export async function deleteSavedSearch(id: string): Promise<boolean> {
+	const currentUserId = await requireSavedSearchUserId();
 	const result = await db
 		.delete(savedSearches)
-		.where(eq(savedSearches.id, id));
+		.where(and(eq(savedSearches.id, id), eq(savedSearches.userId, currentUserId)));
 
 	return (result.rowCount ?? 0) > 0;
 }
@@ -1032,6 +1049,7 @@ export async function deleteSavedSearch(id: string): Promise<boolean> {
  * Clears the default flag on all other searches for the same user first.
  */
 export async function setDefaultSavedSearch(id: string): Promise<boolean> {
+	const currentUserId = await requireSavedSearchUserId();
 	const existing = await getSavedSearch(id);
 	if (!existing) return false;
 
@@ -1039,7 +1057,7 @@ export async function setDefaultSavedSearch(id: string): Promise<boolean> {
 	const userSearches = await db
 		.select()
 		.from(savedSearches)
-		.where(eq(savedSearches.userId, existing.userId));
+		.where(eq(savedSearches.userId, currentUserId));
 
 	for (const row of userSearches) {
 		const data = row.filters as Record<string, unknown>;
@@ -1050,7 +1068,7 @@ export async function setDefaultSavedSearch(id: string): Promise<boolean> {
 					filters: { ...data, isDefault: false },
 					updatedAt: new Date(),
 				})
-				.where(eq(savedSearches.id, row.id));
+				.where(and(eq(savedSearches.id, row.id), eq(savedSearches.userId, currentUserId)));
 		}
 	}
 
@@ -1058,7 +1076,7 @@ export async function setDefaultSavedSearch(id: string): Promise<boolean> {
 	const existingData = (await db
 		.select({ filters: savedSearches.filters })
 		.from(savedSearches)
-		.where(eq(savedSearches.id, id))
+		.where(and(eq(savedSearches.id, id), eq(savedSearches.userId, currentUserId)))
 		.limit(1))[0];
 
 	if (!existingData) return false;
@@ -1069,7 +1087,7 @@ export async function setDefaultSavedSearch(id: string): Promise<boolean> {
 			filters: { ...(existingData.filters as Record<string, unknown>), isDefault: true },
 			updatedAt: new Date(),
 		})
-		.where(eq(savedSearches.id, id));
+		.where(and(eq(savedSearches.id, id), eq(savedSearches.userId, currentUserId)));
 
 	return true;
 }
@@ -1078,10 +1096,11 @@ export async function setDefaultSavedSearch(id: string): Promise<boolean> {
  * Get the default saved search for a user.
  */
 export async function getDefaultSavedSearch(userId: string): Promise<SavedSearch | null> {
+	const currentUserId = await requireSavedSearchUserId(userId);
 	const rows = await db
 		.select()
 		.from(savedSearches)
-		.where(eq(savedSearches.userId, userId));
+		.where(eq(savedSearches.userId, currentUserId));
 
 	for (const row of rows) {
 		const data = row.filters as Record<string, unknown>;
