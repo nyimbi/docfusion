@@ -111,12 +111,19 @@ export async function getOpportunityCommandCenterProjection(
 		throw new Error("Authentication is required to load the opportunity command center");
 	}
 
-	const [opportunity, documents, taskResult, workflowDashboard] = await Promise.all([
+	const [opportunity, taskResult, workflowDashboard] = await Promise.all([
 		getOpportunity(opportunityId),
-		getOpportunityDocuments(opportunityId),
 		listTasks(opportunityId),
 		getWorkflowDashboard(scope, { opportunityId, limit: 80 }),
 	]);
+	const canReadOpportunity =
+		scope.isGlobalWorkflowViewer ||
+		Boolean(opportunity) ||
+		workflowDashboard.items.length > 0;
+	if (!canReadOpportunity) {
+		throw new Error("Opportunity not found or not permitted");
+	}
+	const documents = await getOpportunityDocuments(opportunityId);
 	const canReadOpportunityAudit =
 		scope.isGlobalWorkflowViewer ||
 		opportunity?.assignedTo === scope.userId ||

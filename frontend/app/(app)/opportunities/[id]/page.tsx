@@ -31,19 +31,19 @@ interface PageProps {
 export default async function OpportunityDetailPage({ params }: PageProps) {
 	const { id } = await params;
 
-	// Fetch data in parallel
-	const [opportunity, voteSummary, votes, aiScores, documents, commandCenter] = await Promise.all([
-		getOpportunity(id),
+	const opportunity = await getOpportunity(id);
+	if (!opportunity) {
+		notFound();
+	}
+
+	// Fetch dependent data only after the opportunity access gate passes.
+	const [voteSummary, votes, aiScores, documents, commandCenter] = await Promise.all([
 		getVoteSummary(id),
 		getVotes(id),
 		getLatestScores(id),
 		getOpportunityDocuments(id),
 		getOpportunityCommandCenterProjection(id),
 	]);
-
-	if (!opportunity) {
-		notFound();
-	}
 
 	return (
 		<div className="min-h-screen bg-background">

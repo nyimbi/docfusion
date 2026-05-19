@@ -12,14 +12,11 @@ interface PageProps {
 
 export default async function OpportunityCommandCenterPage({ params }: PageProps) {
 	const { id } = await params;
-	const [opportunity, projection] = await Promise.all([
-		getOpportunity(id),
-		getOpportunityCommandCenterProjection(id),
-	]);
-
+	const opportunity = await getOpportunity(id);
 	if (!opportunity) {
 		notFound();
 	}
+	const projection = await getOpportunityCommandCenterProjection(id);
 
 	return (
 		<div className="min-h-screen bg-background">
@@ -70,4 +67,3 @@ export default async function OpportunityCommandCenterPage({ params }: PageProps
 		</div>
 	);
 }
-

@@ -11,7 +11,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { and, eq } from "drizzle-orm";
 import { requireServerSession } from "@/lib/auth-utils";
+import { db } from "@/lib/db";
+import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { 
   discoverDocuments, 
   downloadDocument, 
@@ -26,6 +29,59 @@ import {
 } from "@/lib/services/rfp-document-service";
 import { discoverDocumentsWithAgent } from "@/lib/services/document-discovery-agent";
 import { logger } from "@/lib/utils/logger";
+
+async function requireOpportunityDocumentUserId(): Promise<string> {
+  const session = await requireServerSession();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+  return session.user.id;
+}
+
+async function assertAssignedOpportunityAccess(
+  opportunityId: string,
+  userId: string
+): Promise<void> {
+  const [row] = await db
+    .select({ id: opportunities.id })
+    .from(opportunities)
+    .where(and(eq(opportunities.id, opportunityId), eq(opportunities.assignedTo, userId)))
+    .limit(1);
+
+  if (!row) {
+    throw new Error("Opportunity not found or not permitted");
+  }
+}
+
+async function assertAssignedDocumentAccess(
+  documentId: string,
+  userId: string
+): Promise<{ opportunityId: string }> {
+  const [row] = await db
+    .select({
+      id: opportunityDocuments.id,
+      opportunityId: opportunityDocuments.opportunityId,
+    })
+    .from(opportunityDocuments)
+    .innerJoin(opportunities, eq(opportunityDocuments.opportunityId, opportunities.id))
+    .where(and(eq(opportunityDocuments.id, documentId), eq(opportunities.assignedTo, userId)))
+    .limit(1);
+
+  if (!row) {
+    throw new Error("Document not found or not permitted");
+  }
+
+  return { opportunityId: row.opportunityId };
+}
+
+function assertDocumentBelongsToOpportunity(
+  actualOpportunityId: string,
+  expectedOpportunityId: string
+): void {
+  if (actualOpportunityId !== expectedOpportunityId) {
+    throw new Error("Document does not belong to this opportunity");
+  }
+}
 
 // ============================================================================
 // Document Discovery - AI Agent
@@ -47,16 +103,8 @@ export async function discoverOpportunityDocuments(
   error?: string;
 }> {
   try {
-    const session = await requireServerSession();
-    if (!session?.user) {
-      return { 
-        success: false, 
-        error: "Unauthorized", 
-        documents: [], 
-        strategiesAttempted: [],
-        strategiesSucceeded: [],
-      };
-    }
+    const userId = await requireOpportunityDocumentUserId();
+    await assertAssignedOpportunityAccess(opportunityId, userId);
 
     // Use the AI discovery agent
     const result = await discoverDocumentsWithAgent(opportunityId, 5, sourceUrl);
@@ -105,10 +153,8 @@ export async function discoverOpportunityDocumentsLegacy(
   error?: string;
 }> {
   try {
-    const session = await requireServerSession();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized", documents: [], sourceUrl };
-    }
+    const userId = await requireOpportunityDocumentUserId();
+    await assertAssignedOpportunityAccess(opportunityId, userId);
 
     const result = await discoverDocuments(opportunityId, sourceUrl);
 
@@ -142,10 +188,8 @@ export async function discoverOpportunityDocumentsLegacy(
  */
 export async function getOpportunityDocumentsAction(opportunityId: string) {
   try {
-    const session = await requireServerSession();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized" };
-    }
+    const userId = await requireOpportunityDocumentUserId();
+    await assertAssignedOpportunityAccess(opportunityId, userId);
 
     const documents = await getOpportunityDocuments(opportunityId);
     
@@ -174,12 +218,11 @@ export async function downloadOpportunityDocument(
   documentId: string
 ) {
   try {
-    const session = await requireServerSession();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized" };
-    }
+    const userId = await requireOpportunityDocumentUserId();
+    const documentAccess = await assertAssignedDocumentAccess(documentId, userId);
+    assertDocumentBelongsToOpportunity(documentAccess.opportunityId, opportunityId);
 
-    const result = await downloadDocument(documentId, session.user.id, opportunityId);
+    const result = await downloadDocument(documentId, userId, opportunityId);
 
     if (result.success) {
       revalidatePath(`/opportunities/${opportunityId}`);
@@ -206,12 +249,10 @@ export async function downloadSelectedOpportunityDocuments(opportunityId: string
   results: DownloadResult[];
 }> {
   try {
-    const session = await requireServerSession();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized", downloaded: 0, failed: 0, results: [] };
-    }
+    const userId = await requireOpportunityDocumentUserId();
+    await assertAssignedOpportunityAccess(opportunityId, userId);
 
-    const result = await downloadSelectedDocuments(opportunityId, session.user.id);
+    const result = await downloadSelectedDocuments(opportunityId, userId);
 
     revalidatePath(`/opportunities/${opportunityId}`);
 
@@ -245,10 +286,8 @@ export async function toggleDocumentSelection(
   isSelected: boolean
 ) {
   try {
-    const session = await requireServerSession();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized" };
-    }
+    const userId = await requireOpportunityDocumentUserId();
+    await assertAssignedDocumentAccess(documentId, userId);
 
     const result = await updateDocumentSelection(documentId, isSelected);
     
@@ -273,10 +312,8 @@ export async function toggleAllDocumentSelections(
   isSelected: boolean
 ) {
   try {
-    const session = await requireServerSession();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized" };
-    }
+    const userId = await requireOpportunityDocumentUserId();
+    await assertAssignedOpportunityAccess(opportunityId, userId);
 
     await updateAllDocumentSelections(opportunityId, isSelected);
 
@@ -307,10 +344,9 @@ export async function deleteOpportunityDocument(
   documentId: string
 ) {
   try {
-    const session = await requireServerSession();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized" };
-    }
+    const userId = await requireOpportunityDocumentUserId();
+    const documentAccess = await assertAssignedDocumentAccess(documentId, userId);
+    assertDocumentBelongsToOpportunity(documentAccess.opportunityId, opportunityId);
 
     const success = await deleteDocument(documentId);
 
@@ -339,10 +375,8 @@ export async function deleteOpportunityDocument(
  */
 export async function getDocumentsForAnalysis(opportunityId: string) {
   try {
-    const session = await requireServerSession();
-    if (!session?.user) {
-      return { success: false, error: "Unauthorized" };
-    }
+    const userId = await requireOpportunityDocumentUserId();
+    await assertAssignedOpportunityAccess(opportunityId, userId);
 
     const documents = await getOpportunityDocuments(opportunityId);
     
