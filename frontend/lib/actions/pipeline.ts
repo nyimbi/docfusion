@@ -358,10 +358,14 @@ function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): 
 	)`;
 }
 
+function assignedOpportunityCondition(actorId: string): SQL {
+	return sql`opportunities.assigned_to = ${actorId}`;
+}
+
 function visibleOpportunityCondition(opportunityId: string, actorId: string): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		eq(opportunities.assignedTo, actorId)
+		assignedOpportunityCondition(actorId)
 	)!;
 }
 
@@ -614,7 +618,7 @@ export async function listPipelines(): Promise<ActionResult<{
 			})
 			.from(capturePipeline)
 			.innerJoin(opportunities, eq(capturePipeline.opportunityId, opportunities.id))
-			.where(eq(opportunities.assignedTo, actorId))
+			.where(assignedOpportunityCondition(actorId))
 			.orderBy(desc(capturePipeline.updatedAt));
 
 		const pipelines = pipelinesWithOpps.map(p => p.pipeline);
@@ -844,7 +848,7 @@ export async function calculateSuggestedPwin(opportunityId: string): Promise<Act
 				.from(captureActivities)
 				.where(
 					and(
-						eq(captureActivities.pipelineId, pipeline.id),
+						visibleActivitiesForPipelineCondition(pipeline.id, actorId),
 						eq(captureActivities.status, "completed")
 					)
 				);
@@ -1925,7 +1929,7 @@ export async function listMilestones(pipelineId: string): Promise<ActionResult<P
  * Get comprehensive pipeline analytics.
  */
 export async function getPipelineAnalytics(organizationId?: string): Promise<ActionResult<PipelineAnalytics>> {
-	await requirePipelineContext(organizationId);
+	const { userId: actorId } = await requirePipelineContext(organizationId);
 	try {
 		// Get all pipelines with their opportunities
 		const pipelinesWithOpps = await db
@@ -1934,7 +1938,8 @@ export async function getPipelineAnalytics(organizationId?: string): Promise<Act
 				opportunity: opportunities,
 			})
 			.from(capturePipeline)
-			.innerJoin(opportunities, eq(capturePipeline.opportunityId, opportunities.id));
+			.innerJoin(opportunities, eq(capturePipeline.opportunityId, opportunities.id))
+			.where(assignedOpportunityCondition(actorId));
 
 		// Aggregate by stage
 		const byStage: PipelineAnalytics["byStage"] = [];
@@ -2041,7 +2046,7 @@ export async function getPipelineAnalytics(organizationId?: string): Promise<Act
  * Forecast pipeline outcomes.
  */
 export async function forecastPipeline(organizationId?: string): Promise<ActionResult<PipelineForecast>> {
-	await requirePipelineContext(organizationId);
+	const { userId: actorId } = await requirePipelineContext(organizationId);
 	try {
 		// Get pipelines with opportunities that have award dates
 		const pipelinesWithOpps = await db
@@ -2052,7 +2057,10 @@ export async function forecastPipeline(organizationId?: string): Promise<ActionR
 			.from(capturePipeline)
 			.innerJoin(opportunities, eq(capturePipeline.opportunityId, opportunities.id))
 			.where(
-				inArray(capturePipeline.currentStage, ["capture", "proposal", "submitted", "evaluation"])
+				and(
+					inArray(capturePipeline.currentStage, ["capture", "proposal", "submitted", "evaluation"]),
+					assignedOpportunityCondition(actorId)
+				)
 			);
 
 		// Group by quarter
@@ -2129,7 +2137,7 @@ export async function forecastPipeline(organizationId?: string): Promise<ActionR
  * Identify opportunities at risk.
  */
 export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRiskOpportunity[]>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		const now = new Date();
 		const twoWeeksAgo = new Date(now);
@@ -2144,7 +2152,10 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
 			.from(capturePipeline)
 			.innerJoin(opportunities, eq(capturePipeline.opportunityId, opportunities.id))
 			.where(
-				inArray(capturePipeline.currentStage, ["discovery", "qualification", "capture", "proposal", "submitted", "evaluation"])
+				and(
+					inArray(capturePipeline.currentStage, ["discovery", "qualification", "capture", "proposal", "submitted", "evaluation"]),
+					assignedOpportunityCondition(actorId)
+				)
 			);
 
 		const atRisk: AtRiskOpportunity[] = [];
@@ -2170,7 +2181,7 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
 				.from(pipelineMilestones)
 				.where(
 					and(
-						eq(pipelineMilestones.pipelineId, pipeline.id),
+						visibleMilestonesForPipelineCondition(pipeline.id, actorId),
 						eq(pipelineMilestones.status, "pending"),
 						lte(pipelineMilestones.targetDate, now)
 					)
@@ -2185,7 +2196,7 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
 			const [lastActivity] = await db
 				.select()
 				.from(captureActivities)
-				.where(eq(captureActivities.pipelineId, pipeline.id))
+				.where(visibleActivitiesForPipelineCondition(pipeline.id, actorId))
 				.orderBy(desc(captureActivities.completedDate))
 				.limit(1);
 
@@ -2211,7 +2222,7 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
 						.from(gateReviews)
 						.where(
 							and(
-								eq(gateReviews.pipelineId, pipeline.id),
+								visibleGateReviewsForPipelineCondition(pipeline.id, actorId),
 								eq(gateReviews.gateType, "proposal_ready"),
 								eq(gateReviews.status, "completed")
 							)
@@ -2269,14 +2280,10 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
  * Get comprehensive pipeline summary.
  */
 export async function getPipelineSummary(pipelineId: string): Promise<ActionResult<PipelineSummary>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		// Fetch pipeline
-		const [pipeline] = await db
-			.select()
-			.from(capturePipeline)
-			.where(eq(capturePipeline.id, pipelineId))
-			.limit(1);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -2286,7 +2293,7 @@ export async function getPipelineSummary(pipelineId: string): Promise<ActionResu
 		const recentActivities = await db
 			.select()
 			.from(captureActivities)
-			.where(eq(captureActivities.pipelineId, pipelineId))
+			.where(visibleActivitiesForPipelineCondition(pipelineId, actorId))
 			.orderBy(desc(captureActivities.createdAt))
 			.limit(5);
 
@@ -2296,7 +2303,7 @@ export async function getPipelineSummary(pipelineId: string): Promise<ActionResu
 			.from(gateReviews)
 			.where(
 				and(
-					eq(gateReviews.pipelineId, pipelineId),
+					visibleGateReviewsForPipelineCondition(pipelineId, actorId),
 					eq(gateReviews.status, "scheduled")
 				)
 			)
@@ -2307,7 +2314,7 @@ export async function getPipelineSummary(pipelineId: string): Promise<ActionResu
 		const allMilestones = await db
 			.select()
 			.from(pipelineMilestones)
-			.where(eq(pipelineMilestones.pipelineId, pipelineId));
+			.where(visibleMilestonesForPipelineCondition(pipelineId, actorId));
 
 		const now = new Date();
 		const milestoneStatus = {

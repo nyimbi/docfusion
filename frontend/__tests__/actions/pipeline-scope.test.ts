@@ -75,14 +75,33 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 	upsertWorkflowRuntimeTask: vi.fn(),
 }));
 
-import { updateActivity, updateGateReview, updateMilestone, updatePipelineStage } from "@/lib/actions/pipeline";
+import {
+	calculateSuggestedPwin,
+	forecastPipeline,
+	getPipelineAnalytics,
+	getPipelineSummary,
+	identifyAtRiskOpportunities,
+	updateActivity,
+	updateGateReview,
+	updateMilestone,
+	updatePipelineStage,
+} from "@/lib/actions/pipeline";
 
 const pipeline = {
 	id: "44444444-4444-4444-8444-444444444444",
 	opportunityId: "33333333-3333-4333-8333-333333333333",
 	currentStage: "discovery",
+	stageEnteredAt: new Date("2026-05-01T12:00:00.000Z"),
 	stageHistory: [{ stage: "discovery", enteredAt: "2026-05-19T12:00:00.000Z" }],
+	pwinCurrent: 55,
 	notes: null,
+};
+
+const opportunity = {
+	id: pipeline.opportunityId,
+	title: "Modernization RFP",
+	budgetNumeric: 100_000,
+	deadline: new Date("2026-08-01T12:00:00.000Z"),
 };
 
 beforeEach(() => {
@@ -194,5 +213,121 @@ describe("pipeline row scoping", () => {
 			data: { id: "77777777-7777-4777-8777-777777777777" },
 		});
 		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("scopes suggested PWin activity reads through the owning pipeline opportunity", async () => {
+		let activityWhere: unknown;
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [pipeline] }))
+			.mockReturnValueOnce(createChain({ result: [{ ...opportunity, fitScore: 65, organization: "Acme" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{ count: 2 }],
+				onWhere: (value) => {
+					activityWhere = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		const result = await calculateSuggestedPwin(opportunity.id);
+
+		expect(result).toMatchObject({
+			success: true,
+			data: { confidence: 0.7 },
+		});
+		expect(collectSqlFragments(activityWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("scopes analytics reads to assigned opportunities", async () => {
+		let analyticsWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{ pipeline, opportunity }],
+			onWhere: (value) => {
+				analyticsWhere = value;
+			},
+		}));
+
+		const result = await getPipelineAnalytics();
+
+		expect(result).toMatchObject({
+			success: true,
+			data: { totalOpportunities: 1 },
+		});
+		expect(collectSqlFragments(analyticsWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("scopes forecast reads to assigned opportunities", async () => {
+		let forecastWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{ pipeline: { ...pipeline, currentStage: "capture" }, opportunity }],
+			onWhere: (value) => {
+				forecastWhere = value;
+			},
+		}));
+
+		const result = await forecastPipeline();
+
+		expect(result).toMatchObject({
+			success: true,
+			data: { totalForecastedValue: 55_000 },
+		});
+		expect(collectSqlFragments(forecastWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("scopes at-risk reads to assigned opportunities", async () => {
+		let atRiskWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => {
+				atRiskWhere = value;
+			},
+		}));
+
+		const result = await identifyAtRiskOpportunities();
+
+		expect(result).toMatchObject({
+			success: true,
+			data: [],
+		});
+		expect(collectSqlFragments(atRiskWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("scopes pipeline summary reads through the assigned opportunity", async () => {
+		const wheres: unknown[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [pipeline],
+				onWhere: (value) => {
+					wheres.push(value);
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => {
+					wheres.push(value);
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => {
+					wheres.push(value);
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => {
+					wheres.push(value);
+				},
+			}));
+
+		const result = await getPipelineSummary(pipeline.id);
+
+		expect(result).toMatchObject({
+			success: true,
+			data: { pipeline: { id: pipeline.id } },
+		});
+		expect(wheres).toHaveLength(4);
+		for (const where of wheres) {
+			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		}
 	});
 });
