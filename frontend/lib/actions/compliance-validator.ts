@@ -20,7 +20,7 @@ import {
 import type { ComplianceEntryRow, ComplianceMatrixRow } from "@/lib/db/schema-rfp";
 import { documents } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { requireUserContext } from "@/lib/auth-utils";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { logger } from "@/lib/utils/logger";
 
@@ -241,6 +241,41 @@ type ComplianceEntryPatch = {
 
 type ComplianceWorkflowDb = Pick<typeof db, "select" | "update" | "execute">;
 
+function requireComplianceOrganization(userContext: UserContext): string {
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+	return userContext.organizationId;
+}
+
+function visibleComplianceMatrixCondition(matrixId: string, organizationId: string) {
+	return and(
+		eq(complianceMatrices.id, matrixId),
+		eq(complianceMatrices.organizationId, organizationId)
+	);
+}
+
+function visibleComplianceEntriesForMatrixCondition(matrixId: string, organizationId: string) {
+	return and(
+		eq(complianceEntries.matrixId, matrixId),
+		eq(complianceEntries.organizationId, organizationId)
+	);
+}
+
+function visibleComplianceEntryCondition(entryId: string, organizationId: string) {
+	return and(
+		eq(complianceEntries.id, entryId),
+		eq(complianceEntries.organizationId, organizationId)
+	);
+}
+
+function visibleRfpRequirementCondition(requirementId: string, organizationId: string) {
+	return and(
+		eq(rfpRequirements.id, requirementId),
+		eq(rfpRequirements.organizationId, organizationId)
+	);
+}
+
 // ============================================================================
 // Main Validation Functions
 // ============================================================================
@@ -249,6 +284,7 @@ export async function transitionComplianceEntryWorkflow(
 	input: ComplianceEntryWorkflowInput
 ): Promise<ComplianceEntryWorkflowResult> {
 	const userContext = await requireUserContext();
+	const organizationId = requireComplianceOrganization(userContext);
 	const reason = input.reason?.trim();
 
 	if (!input.matrixId || !input.entryId) {
@@ -270,7 +306,9 @@ export async function transitionComplianceEntryWorkflow(
 			.innerJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
 			.where(and(
 				eq(complianceEntries.id, input.entryId),
-				eq(complianceEntries.matrixId, input.matrixId)
+				eq(complianceEntries.matrixId, input.matrixId),
+				eq(complianceEntries.organizationId, organizationId),
+				eq(rfpRequirements.organizationId, organizationId)
 			))
 			.limit(1);
 
@@ -306,9 +344,9 @@ export async function transitionComplianceEntryWorkflow(
 		await tx
 			.update(complianceEntries)
 			.set(entryPatch)
-			.where(eq(complianceEntries.id, input.entryId));
+			.where(visibleComplianceEntryCondition(input.entryId, organizationId));
 
-		const matrixStats = await recalculateComplianceMatrixStats(tx, input.matrixId);
+		const matrixStats = await recalculateComplianceMatrixStats(tx, input.matrixId, organizationId);
 		try {
 			const runtimeInstance = await recordWorkflowRuntimeTransition({
 				workflowKey: "compliance_matrix_governance",
@@ -378,6 +416,7 @@ export async function transitionComplianceMatrixWorkflow(
 	input: ComplianceMatrixWorkflowInput
 ): Promise<ComplianceMatrixWorkflowResult> {
 	const userContext = await requireUserContext();
+	const organizationId = requireComplianceOrganization(userContext);
 	const reason = input.reason?.trim();
 	if (!input.matrixId) {
 		throw new Error("Compliance matrix is required");
@@ -392,7 +431,7 @@ export async function transitionComplianceMatrixWorkflow(
 		const [matrix] = await tx
 			.select()
 			.from(complianceMatrices)
-			.where(eq(complianceMatrices.id, input.matrixId))
+			.where(visibleComplianceMatrixCondition(input.matrixId, organizationId))
 			.limit(1);
 		if (!matrix) {
 			throw new Error("Compliance matrix not found");
@@ -407,7 +446,10 @@ export async function transitionComplianceMatrixWorkflow(
 			})
 			.from(complianceEntries)
 			.innerJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
-			.where(eq(complianceEntries.matrixId, input.matrixId));
+			.where(and(
+				visibleComplianceEntriesForMatrixCondition(input.matrixId, organizationId),
+				eq(rfpRequirements.organizationId, organizationId)
+			));
 		const blockers = input.action === "lock_final" ? getMatrixFinalLockBlockers(entries) : [];
 		if (blockers.length > 0) {
 			throw new Error(`Compliance matrix final lock blocked: ${blockers.join("; ")}`);
@@ -434,9 +476,9 @@ export async function transitionComplianceMatrixWorkflow(
 			reviewNotes: reason,
 			metadata,
 			updatedAt: now,
-		}).where(eq(complianceMatrices.id, input.matrixId));
+		}).where(visibleComplianceMatrixCondition(input.matrixId, organizationId));
 
-		const matrixStats = await recalculateComplianceMatrixStats(tx, input.matrixId);
+		const matrixStats = await recalculateComplianceMatrixStats(tx, input.matrixId, organizationId);
 		await recordWorkflowRuntimeTransition({
 			workflowKey: "compliance_matrix_final_lock",
 			subjectType: "compliance_matrix",
@@ -796,7 +838,8 @@ function getComplianceMatrixMetadata(matrix: ComplianceMatrixRow): Record<string
 
 async function recalculateComplianceMatrixStats(
 	tx: ComplianceWorkflowDb,
-	matrixId: string
+	matrixId: string,
+	organizationId: string
 ): Promise<MatrixStats> {
 	const entries = await tx
 		.select({
@@ -805,7 +848,10 @@ async function recalculateComplianceMatrixStats(
 		})
 		.from(complianceEntries)
 		.leftJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
-		.where(eq(complianceEntries.matrixId, matrixId));
+		.where(and(
+			visibleComplianceEntriesForMatrixCondition(matrixId, organizationId),
+			eq(rfpRequirements.organizationId, organizationId)
+		));
 
 	const stats = calculateMatrixStats(entries);
 
@@ -822,7 +868,7 @@ async function recalculateComplianceMatrixStats(
 			mandatoryComplianceScore: stats.mandatoryComplianceScore,
 			updatedAt: new Date(),
 		})
-		.where(eq(complianceMatrices.id, matrixId));
+		.where(visibleComplianceMatrixCondition(matrixId, organizationId));
 
 	return stats;
 }
@@ -1054,11 +1100,12 @@ export async function validateCompliance(opportunityId: string): Promise<Validat
  * have responses and all response sections map to requirements.
  */
 export async function validateBidirectional(matrixId: string): Promise<BidirectionalValidation> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
+	const organizationId = requireComplianceOrganization(userContext);
 
 	// Get matrix with entries
 	const matrix = await db.query.complianceMatrices.findFirst({
-		where: eq(complianceMatrices.id, matrixId),
+		where: visibleComplianceMatrixCondition(matrixId, organizationId),
 	});
 
 	if (!matrix) {
@@ -1073,7 +1120,10 @@ export async function validateBidirectional(matrixId: string): Promise<Bidirecti
 		})
 		.from(complianceEntries)
 		.innerJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
-		.where(eq(complianceEntries.matrixId, matrixId));
+		.where(and(
+			visibleComplianceEntriesForMatrixCondition(matrixId, organizationId),
+			eq(rfpRequirements.organizationId, organizationId)
+		));
 
 	// Find requirements without responses
 	const requirementsWithoutResponse: MissingReference[] = entries
@@ -1105,7 +1155,8 @@ export async function validateBidirectional(matrixId: string): Promise<Bidirecti
  * Generates heat map data showing compliance coverage by category.
  */
 export async function generateComplianceHeatMap(matrixId: string): Promise<HeatMapData> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
+	const organizationId = requireComplianceOrganization(userContext);
 
 	// Get all entries with requirements
 	const entries = await db
@@ -1115,7 +1166,10 @@ export async function generateComplianceHeatMap(matrixId: string): Promise<HeatM
 		})
 		.from(complianceEntries)
 		.innerJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
-		.where(eq(complianceEntries.matrixId, matrixId));
+		.where(and(
+			visibleComplianceEntriesForMatrixCondition(matrixId, organizationId),
+			eq(rfpRequirements.organizationId, organizationId)
+		));
 
 	if (entries.length === 0) {
 		return {
@@ -1202,10 +1256,11 @@ export async function generateComplianceHeatMap(matrixId: string): Promise<HeatM
 export async function suggestCrossReferenceLocations(
 	requirementId: string
 ): Promise<SuggestedLocation[]> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
+	const organizationId = requireComplianceOrganization(userContext);
 
 	const requirement = await db.query.rfpRequirements.findFirst({
-		where: eq(rfpRequirements.id, requirementId),
+		where: visibleRfpRequirementCondition(requirementId, organizationId),
 	});
 
 	if (!requirement) {
@@ -1243,7 +1298,8 @@ export async function autoLinkRequirements(documentId: string): Promise<AutoLink
 export async function detectMissingCrossReferences(
 	documentId: string
 ): Promise<MissingReference[]> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
+	const organizationId = requireComplianceOrganization(userContext);
 
 	// Find the document and associated opportunity
 	const document = await db.query.documents.findFirst({
@@ -1266,7 +1322,8 @@ export async function detectMissingCrossReferences(
 	const requirements = await db.query.rfpRequirements.findMany({
 		where: and(
 			eq(rfpRequirements.opportunityId, opportunityId),
-			eq(rfpRequirements.complianceStatus, "not_addressed")
+			eq(rfpRequirements.complianceStatus, "not_addressed"),
+			eq(rfpRequirements.organizationId, organizationId)
 		),
 	});
 
@@ -1299,11 +1356,12 @@ export async function exportComplianceReport(
 	matrixId: string,
 	format: "pdf" | "xlsx"
 ): Promise<{ downloadUrl: string; reportData: ComplianceReportData }> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
+	const organizationId = requireComplianceOrganization(userContext);
 
 	// Fetch compliance matrix
 	const matrix = await db.query.complianceMatrices.findFirst({
-		where: eq(complianceMatrices.id, matrixId),
+		where: visibleComplianceMatrixCondition(matrixId, organizationId),
 	});
 
 	if (!matrix) {
@@ -1318,7 +1376,10 @@ export async function exportComplianceReport(
 		})
 		.from(complianceEntries)
 		.leftJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
-		.where(eq(complianceEntries.matrixId, matrixId));
+		.where(and(
+			visibleComplianceEntriesForMatrixCondition(matrixId, organizationId),
+			eq(rfpRequirements.organizationId, organizationId)
+		));
 
 	// Calculate scores
 	const totalRequirements = entries.length;

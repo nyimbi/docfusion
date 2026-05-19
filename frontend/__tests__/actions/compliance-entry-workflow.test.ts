@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: vi.fn(async () => ({ userId: "compliance-lead" })),
+	requireUserContext: vi.fn(async () => ({ userId: "compliance-lead", organizationId: "org-1" })),
 }));
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
@@ -11,13 +11,18 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "innerJoin", "leftJoin", "where", "limit", "orderBy"]) {
+	for (const method of ["from", "innerJoin", "leftJoin", "limit", "orderBy"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -26,6 +31,23 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
 var dbMock: any;
@@ -47,6 +69,7 @@ import {
 
 const baseEntry: Record<string, any> = {
 	id: "entry-1",
+	organizationId: "org-1",
 	matrixId: "matrix-1",
 	requirementId: "req-1",
 	complianceStatus: "partial",
@@ -69,6 +92,7 @@ const baseEntry: Record<string, any> = {
 
 const baseRequirement = {
 	id: "req-1",
+	organizationId: "org-1",
 	requirementNumber: "REQ-001",
 	priority: "mandatory",
 	riskLevel: "high",
@@ -77,6 +101,7 @@ const baseRequirement = {
 
 const baseMatrix: Record<string, any> = {
 	id: "matrix-1",
+	organizationId: "org-1",
 	opportunityId: "opp-1",
 	rfpDocumentId: "rfp-1",
 	name: "Compliance Matrix",
@@ -285,8 +310,14 @@ describe("compliance entry workflow", () => {
 
 	it("locks a compliant matrix and records final lock workflow", async () => {
 		let matrixUpdate: Record<string, unknown> | undefined;
+		let matrixWhere: unknown;
 		dbMock.select
-			.mockReturnValueOnce(createChain({ result: [baseMatrix] }))
+			.mockReturnValueOnce(createChain({
+				result: [baseMatrix],
+				onWhere: (value) => {
+					matrixWhere = value;
+				},
+			}))
 			.mockReturnValueOnce(createChain({
 				result: [{
 					entry: {
@@ -339,6 +370,7 @@ describe("compliance entry workflow", () => {
 			approvedBy: "compliance-lead",
 			reviewNotes: "All mandatory entries approved",
 		});
+		expect(collectSqlFragments(matrixWhere).join(" ")).toContain("organization_id");
 		expect((matrixUpdate?.metadata as any).complianceMatrixWorkflow).toMatchObject({
 			state: "locked",
 			reason: "All mandatory entries approved",
