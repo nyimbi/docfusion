@@ -37,10 +37,10 @@ vi.mock("@/lib/db", () => {
 
 import { transitionRfpParseWorkflow } from "@/lib/actions/rfp-parser";
 import {
-	listOperationalExceptions,
-	remediateOperationalException,
-	syncOperationalExceptionWorkflows,
-} from "@/lib/actions/operational-exceptions";
+	listOperationalExceptionsForActor as listOperationalExceptions,
+	remediateOperationalExceptionForActor as remediateOperationalException,
+	syncOperationalExceptionWorkflowsForActor as syncOperationalExceptionWorkflows,
+} from "@/lib/workflows/operational-exceptions";
 
 const rfpRow = {
 	document: {

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-	syncOperationalExceptionWorkflows,
+	syncOperationalExceptionWorkflowsForActor,
 	type OperationalExceptionSubjectType,
-} from "@/lib/actions/operational-exceptions";
+} from "@/lib/workflows/operational-exceptions";
 import { isWorkflowApiResponse, requireWorkflowApiActor } from "@/lib/workflows/api-auth";
 
 const VALID_SUBJECT_TYPES = new Set<OperationalExceptionSubjectType>(["rfp_parse", "scraper_run"]);
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				typeof item === "string" && VALID_SUBJECT_TYPES.has(item as OperationalExceptionSubjectType)
 			)
 			: undefined;
-		const result = await syncOperationalExceptionWorkflows({
+		const result = await syncOperationalExceptionWorkflowsForActor({
 			limit: typeof body.limit === "number" ? body.limit : undefined,
 			subjectTypes,
 		}, actor.userId);
