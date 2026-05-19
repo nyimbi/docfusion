@@ -17,6 +17,7 @@ import {
 	documents,
 } from "@/lib/db/schema";
 import { eq, gte, lte, and, or, isNotNull, desc, asc, sql } from "drizzle-orm";
+import { getCurrentUserId } from "@/lib/auth-utils";
 import type {
 	DeadlineItem,
 	DeadlineType,
@@ -339,12 +340,22 @@ function formatDocumentType(type: string): string {
 // Public Server Actions
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 /**
  * Get all deadlines within a date range.
  */
 export async function getDeadlinesByDateRange(
 	input: DateRangeInput
 ): Promise<DeadlineItem[]> {
+	await requireCurrentUserId();
+
 	const startDate = parseDate(input.startDate);
 	const endDate = parseDate(input.endDate);
 
@@ -377,6 +388,8 @@ export async function getDeadlinesByDateRange(
 export async function getUpcomingDeadlines(
 	input: UpcomingDeadlinesInput
 ): Promise<DeadlineItem[]> {
+	await requireCurrentUserId();
+
 	const now = new Date();
 	const endDate = new Date();
 	endDate.setDate(endDate.getDate() + input.days);
@@ -401,6 +414,8 @@ export async function getUpcomingDeadlines(
 export async function getOverdueItems(
 	filters?: DeadlineFilters
 ): Promise<DeadlineItem[]> {
+	await requireCurrentUserId();
+
 	const now = new Date();
 	const farPast = new Date("2000-01-01");
 
@@ -421,6 +436,8 @@ export async function getOverdueItems(
 export async function getMilestones(
 	opportunityId: string
 ): Promise<OpportunityMilestone[]> {
+	await requireCurrentUserId();
+
 	const milestones: OpportunityMilestone[] = [];
 	const now = new Date();
 
@@ -597,6 +614,8 @@ export async function getMilestones(
 export async function getDeadlinesGroupedByDate(
 	input: DateRangeInput
 ): Promise<DeadlinesByDate[]> {
+	await requireCurrentUserId();
+
 	const deadlines = await getDeadlinesByDateRange(input);
 
 	// Group by date
@@ -633,6 +652,8 @@ export async function getCalendarMonthSummary(
 	year: number,
 	filters?: DeadlineFilters
 ): Promise<CalendarMonthSummary> {
+	await requireCurrentUserId();
+
 	// Calculate start and end of month
 	const startDate = new Date(year, month - 1, 1);
 	const endDate = new Date(year, month, 0, 23, 59, 59, 999);
@@ -675,6 +696,8 @@ export async function getCalendarMonthSummary(
 export async function getDeadlineStats(
 	filters?: DeadlineFilters
 ): Promise<DeadlineStats> {
+	await requireCurrentUserId();
+
 	const now = new Date();
 	const today = new Date(now);
 	today.setHours(0, 0, 0, 0);
@@ -766,6 +789,8 @@ export async function getDeadlineStats(
 export async function getTodaysDeadlines(
 	filters?: DeadlineFilters
 ): Promise<DeadlineItem[]> {
+	await requireCurrentUserId();
+
 	const today = new Date();
 	today.setHours(0, 0, 0, 0);
 
@@ -786,6 +811,8 @@ export async function getDeadlinesForUser(
 	userId: string,
 	days: number = 30
 ): Promise<DeadlineItem[]> {
+	await requireCurrentUserId();
+
 	return getUpcomingDeadlines({
 		days,
 		filters: { assignedTo: userId },
@@ -803,6 +830,8 @@ export async function getDeadlinesForUser(
 export async function exportToICS(
 	options: ICSExportOptions = {}
 ): Promise<string> {
+	await requireCurrentUserId();
+
 	const {
 		includeAlarm = true,
 		alarmMinutes = 1440, // 24 hours before by default
@@ -841,6 +870,8 @@ export async function exportDeadlineToICS(
 	deadlineId: string,
 	options: Omit<ICSExportOptions, "filters"> = {}
 ): Promise<string | null> {
+	await requireCurrentUserId();
+
 	const { includeAlarm = true, alarmMinutes = 1440 } = options;
 
 	// Get all deadlines in a wide range to find the specific one
@@ -865,6 +896,8 @@ export async function exportOpportunityMilestonesToICS(
 	opportunityId: string,
 	options: Omit<ICSExportOptions, "filters"> = {}
 ): Promise<string> {
+	await requireCurrentUserId();
+
 	const { includeAlarm = true, alarmMinutes = 1440 } = options;
 
 	const milestones = await getMilestones(opportunityId);
