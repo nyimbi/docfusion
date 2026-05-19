@@ -117,7 +117,7 @@ vi.mock("@/lib/db/schema", () => ({
 		keyRequirements: "o.reqs",
 	},
 	partners: { id: "p.id" },
-	companySettings: { id: "cs.id" },
+	companySettings: { id: "cs.id", organizationId: "cs.orgId" },
 }));
 
 // Import subjects under test
@@ -136,6 +136,7 @@ import {
 	createGhostTheme,
 	listGhostThemes,
 	addCompetitorToOpportunity,
+	generateSWOT,
 } from "@/lib/actions/competitive";
 
 // ============================================================================
@@ -466,6 +467,17 @@ describe("Competitor CRUD", () => {
 				expect(result.data).toHaveLength(0);
 			}
 		});
+	});
+});
+
+describe("Competitive analysis auth", () => {
+	test("rejects SWOT generation before database access when unauthenticated", async () => {
+		requireUserContextMock.mockRejectedValueOnce(new Error("Unauthorized"));
+
+		const result = await generateSWOT("opp-1");
+
+		expect(result.success).toBe(false);
+		expect(dbMock.select).not.toHaveBeenCalled();
 	});
 });
 

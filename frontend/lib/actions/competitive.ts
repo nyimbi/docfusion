@@ -1209,6 +1209,8 @@ export async function generateSWOT(
 	opportunityId: string
 ): Promise<ActionResult<SWOTAnalysis>> {
 	try {
+		const userContext = await requireCompetitiveContext();
+
 		// Fetch opportunity details
 		const [opportunity] = await db
 			.select()
@@ -1228,12 +1230,16 @@ export async function generateSWOT(
 			})
 			.from(competitorOpportunities)
 			.innerJoin(competitors, eq(competitorOpportunities.competitorId, competitors.id))
-			.where(eq(competitorOpportunities.opportunityId, opportunityId));
+			.where(and(
+				eq(competitorOpportunities.opportunityId, opportunityId),
+				visibleOrganizationCondition(competitors.organizationId, userContext)
+			));
 
 		// Fetch company capabilities
 		const [company] = await db
 			.select()
 			.from(companySettings)
+			.where(mutableOrganizationCondition(companySettings.organizationId, userContext))
 			.limit(1);
 
 		const companyCapabilities = (company?.coreCapabilities as string[]) || [];
@@ -1622,6 +1628,8 @@ export async function generateCompetitiveMatrix(
 	opportunityId: string
 ): Promise<ActionResult<CompetitiveMatrix>> {
 	try {
+		const userContext = await requireCompetitiveContext();
+
 		// Fetch opportunity
 		const [opportunity] = await db
 			.select()
@@ -1641,7 +1649,10 @@ export async function generateCompetitiveMatrix(
 			})
 			.from(competitorOpportunities)
 			.innerJoin(competitors, eq(competitorOpportunities.competitorId, competitors.id))
-			.where(eq(competitorOpportunities.opportunityId, opportunityId));
+			.where(and(
+				eq(competitorOpportunities.opportunityId, opportunityId),
+				visibleOrganizationCondition(competitors.organizationId, userContext)
+			));
 
 		if (competitorLinks.length === 0) {
 			return { success: false, error: "No competitors identified for this opportunity" };
@@ -1651,6 +1662,7 @@ export async function generateCompetitiveMatrix(
 		const [company] = await db
 			.select()
 			.from(companySettings)
+			.where(mutableOrganizationCondition(companySettings.organizationId, userContext))
 			.limit(1);
 
 		// Define evaluation criteria based on opportunity type
@@ -1881,6 +1893,8 @@ export async function suggestTeamingPartners(
 	opportunityId: string
 ): Promise<ActionResult<TeamingSuggestion[]>> {
 	try {
+		const userContext = await requireCompetitiveContext();
+
 		// Fetch opportunity
 		const [opportunity] = await db
 			.select()
@@ -1896,6 +1910,7 @@ export async function suggestTeamingPartners(
 		const [company] = await db
 			.select()
 			.from(companySettings)
+			.where(mutableOrganizationCondition(companySettings.organizationId, userContext))
 			.limit(1);
 
 		const ourCapabilities = (company?.coreCapabilities as string[]) || [];
