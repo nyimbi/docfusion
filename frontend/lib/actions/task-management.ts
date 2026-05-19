@@ -253,6 +253,13 @@ function proposalTasksByOpportunityCondition(opportunityId: string, actor: TaskA
 	)!;
 }
 
+function visibleProposalTaskCondition(taskId: string, actor: TaskActor): SQL {
+	return and(
+		eq(proposalTasks.id, taskId),
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, actor)
+	)!;
+}
+
 function requirementsByOpportunityCondition(opportunityId: string, actor: TaskActor): SQL {
 	return and(
 		eq(rfpRequirements.opportunityId, opportunityId),
@@ -427,7 +434,7 @@ export async function updateTask(
 		const [currentTask] = await db
 			.select()
 			.from(proposalTasks)
-			.where(eq(proposalTasks.id, id))
+			.where(visibleProposalTaskCondition(id, actor))
 			.limit(1);
 
 		if (!currentTask) {
@@ -515,7 +522,7 @@ export async function updateTask(
 		const [updatedTask] = await db
 			.update(proposalTasks)
 			.set(updateData)
-			.where(eq(proposalTasks.id, id))
+			.where(visibleProposalTaskCondition(id, actor))
 			.returning();
 
 		// Update opportunity task summary
@@ -541,7 +548,7 @@ export async function deleteTask(id: string): Promise<{ success: boolean; error?
 		const [task] = await db
 			.select({ opportunityId: proposalTasks.opportunityId })
 			.from(proposalTasks)
-			.where(eq(proposalTasks.id, id))
+			.where(visibleProposalTaskCondition(id, actor))
 			.limit(1);
 
 		if (!task) {
@@ -552,7 +559,7 @@ export async function deleteTask(id: string): Promise<{ success: boolean; error?
 		await db.delete(taskActivity).where(eq(taskActivity.taskId, id));
 
 		// Delete task
-		await db.delete(proposalTasks).where(eq(proposalTasks.id, id));
+		await db.delete(proposalTasks).where(visibleProposalTaskCondition(id, actor));
 
 		// Update opportunity task summary
 		await updateOpportunityTaskSummary(task.opportunityId, actor);
@@ -573,7 +580,9 @@ export async function listAllTasks(
 	filters?: TaskFilters & { limit?: number }
 ): Promise<{ success: boolean; data?: ProposalTask[]; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		const conditions = [];
+		conditions.push(assignedOpportunityExistsSql(proposalTasks.opportunityId, actor));
 
 		if (filters?.status) {
 			conditions.push(eq(proposalTasks.status, filters.status));
@@ -643,8 +652,9 @@ export async function listTasks(
 	filters?: TaskFilters
 ): Promise<{ success: boolean; data?: ProposalTask[]; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		// Build where conditions
-		const conditions = [eq(proposalTasks.opportunityId, opportunityId)];
+		const conditions = [proposalTasksByOpportunityCondition(opportunityId, actor)];
 
 		if (filters?.status) {
 			conditions.push(eq(proposalTasks.status, filters.status));
@@ -717,10 +727,11 @@ export async function getTask(
 	id: string
 ): Promise<{ success: boolean; data?: ProposalTask; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		const [task] = await db
 			.select()
 			.from(proposalTasks)
-			.where(eq(proposalTasks.id, id))
+			.where(visibleProposalTaskCondition(id, actor))
 			.limit(1);
 
 		if (!task) {
@@ -844,11 +855,12 @@ export async function suggestAssignment(
 	taskId: string
 ): Promise<{ success: boolean; data?: AssignmentSuggestion[]; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		// Get the task details
 		const [task] = await db
 			.select()
 			.from(proposalTasks)
-			.where(eq(proposalTasks.id, taskId))
+			.where(visibleProposalTaskCondition(taskId, actor))
 			.limit(1);
 
 		if (!task) {
@@ -1071,13 +1083,14 @@ export async function calculateCriticalPath(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: CriticalPath; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		// Get all tasks for the opportunity
 		const tasks = await db
 			.select()
 			.from(proposalTasks)
 			.where(
 				and(
-					eq(proposalTasks.opportunityId, opportunityId),
+					proposalTasksByOpportunityCondition(opportunityId, actor),
 					ne(proposalTasks.status, "cancelled")
 				)
 			)

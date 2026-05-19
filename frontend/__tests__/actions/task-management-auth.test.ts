@@ -173,4 +173,99 @@ describe("task-management action auth", () => {
 		expect(collectSqlFragments(summaryTasksWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(collectSqlFragments(summaryReadWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
+
+	it("scopes task listing and single-task reads by assigned opportunity", async () => {
+		let listAllWhere: unknown;
+		let listWhere: unknown;
+		let getWhere: unknown;
+		const listAllChain = createChainableQuery([]);
+		(listAllChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			listAllWhere = value;
+			return listAllChain;
+		});
+		const listChain = createChainableQuery([]);
+		(listChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			listWhere = value;
+			return listChain;
+		});
+		const getChain = createChainableQuery([{
+			id: "task-1",
+			opportunityId: "00000000-0000-4000-8000-000000000001",
+		}]);
+		(getChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			getWhere = value;
+			return getChain;
+		});
+		mockDb.select
+			.mockImplementationOnce(() => listAllChain)
+			.mockImplementationOnce(() => listChain)
+			.mockImplementationOnce(() => getChain);
+		const { listAllTasks, listTasks, getTask } = await import("@/lib/actions/task-management");
+
+		await expect(listAllTasks()).resolves.toMatchObject({ success: true });
+		await expect(listTasks("00000000-0000-4000-8000-000000000001")).resolves.toMatchObject({ success: true });
+		await expect(getTask("task-1")).resolves.toMatchObject({ success: true });
+
+		expect(collectSqlFragments(listAllWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(listWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(getWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("scopes task updates and deletes by assigned opportunity", async () => {
+		let updateReadWhere: unknown;
+		let updateWriteWhere: unknown;
+		let deleteReadWhere: unknown;
+		let deleteWriteWhere: unknown;
+		const task = {
+			id: "task-1",
+			opportunityId: "00000000-0000-4000-8000-000000000001",
+			status: "pending",
+			assignedTo: null,
+			progress: 0,
+		};
+		const updateReadChain = createChainableQuery([task]);
+		(updateReadChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			updateReadWhere = value;
+			return updateReadChain;
+		});
+		const updateWriteChain = createChainableQuery([{ ...task, title: "Updated" }]);
+		(updateWriteChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			updateWriteWhere = value;
+			return updateWriteChain;
+		});
+		const summaryTasksChain = createChainableQuery([]);
+		const summaryReadChain = createChainableQuery([]);
+		const deleteReadChain = createChainableQuery([{ opportunityId: task.opportunityId }]);
+		(deleteReadChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			deleteReadWhere = value;
+			return deleteReadChain;
+		});
+		const deleteActivityChain = createChainableQuery([]);
+		const deleteTaskChain = createChainableQuery([]);
+		(deleteTaskChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			deleteWriteWhere = value;
+			return deleteTaskChain;
+		});
+
+		mockDb.select
+			.mockImplementationOnce(() => updateReadChain)
+			.mockImplementationOnce(() => summaryTasksChain)
+			.mockImplementationOnce(() => summaryReadChain)
+			.mockImplementationOnce(() => deleteReadChain)
+			.mockImplementationOnce(() => summaryTasksChain)
+			.mockImplementationOnce(() => summaryReadChain);
+		mockDb.update.mockImplementationOnce(() => updateWriteChain);
+		mockDb.delete
+			.mockImplementationOnce(() => deleteActivityChain)
+			.mockImplementationOnce(() => deleteTaskChain);
+		const { updateTask, deleteTask } = await import("@/lib/actions/task-management");
+
+		await expect(updateTask("task-1", { title: "Updated" })).resolves.toMatchObject({ success: true });
+		await expect(deleteTask("task-1")).resolves.toMatchObject({ success: true });
+
+		expect(collectSqlFragments(updateReadWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(updateWriteWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(deleteReadWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(deleteWriteWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
 });
