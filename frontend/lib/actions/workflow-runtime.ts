@@ -1,5 +1,3 @@
-"use server";
-
 import net from "node:net";
 import tls from "node:tls";
 import { db } from "@/lib/db";
