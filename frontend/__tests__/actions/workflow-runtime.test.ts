@@ -73,6 +73,7 @@ beforeEach(() => {
 
 describe("workflow runtime", () => {
 	it("creates a durable workflow instance, audit event, and notification", async () => {
+		const futureDueAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 		const createdInstance = {
 			id: "workflow-1",
 			workflowKey: "requirement_acceptance",
@@ -82,7 +83,7 @@ describe("workflow runtime", () => {
 			state: "accepted",
 			priority: "high",
 			assignedTo: "writer-1",
-			dueAt: new Date("2026-05-10T00:00:00.000Z"),
+			dueAt: futureDueAt,
 		};
 		let instanceInsert: unknown;
 		let auditInsert: unknown;
@@ -119,7 +120,7 @@ describe("workflow runtime", () => {
 			reason: "Ready",
 			priority: "high",
 			assignedTo: "writer-1",
-			dueAt: "2026-05-10",
+			dueAt: futureDueAt.toISOString(),
 			notificationRecipients: ["writer-1"],
 			terminal: false,
 		});

@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/auth/tenant-context", () => ({
+	requireTenantContext: vi.fn(async () => ({
+		userId: "workflow-operator-1",
+		organizationId: "org-1",
+		roles: ["admin"],
+	})),
+}));
+
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;

@@ -51,7 +51,7 @@ const freshSnippetEmbedding = {
 	embedding: [0.1, 0.2, 0.3],
 	plainText: "Datacraft delivers evidence-led programme management and accountable governance.",
 	modelVersion: "text-embedding-3-small",
-	generatedAt: new Date("2026-05-01T00:00:00.000Z"),
+	generatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
 };
 
 const staleSnippetEmbedding = {
@@ -68,7 +68,7 @@ const freshTemplateEmbedding = {
 	embedding: [0.4, 0.5, 0.6],
 	plainText: "Technical proposal template for implementation governance.",
 	modelVersion: "text-embedding-3-small",
-	generatedAt: new Date("2026-05-01T00:00:00.000Z"),
+	generatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
 };
 
 beforeEach(() => {

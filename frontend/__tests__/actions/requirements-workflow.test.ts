@@ -4,6 +4,14 @@ vi.mock("@/lib/utils/logger", () => ({
 	logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
+vi.mock("@/lib/auth/tenant-context", () => ({
+	requireTenantContext: vi.fn(async () => ({
+		userId: "capture-lead",
+		organizationId: "org-1",
+		roles: ["admin"],
+	})),
+}));
+
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
