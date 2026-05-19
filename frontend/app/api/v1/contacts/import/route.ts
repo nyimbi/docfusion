@@ -13,10 +13,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { contactImports, contacts, accounts } from "@/lib/db/schema-crm";
 import { eq, ilike, and } from "drizzle-orm";
-import { auth } from "@/lib/auth";
+import {
+	isTenantResponse,
+	requireRouteTenantContext,
+	type RouteTenantResult,
+} from "@/lib/auth/route-tenant";
 import {
 	autoParseContacts,
-	parseCSV,
 	detectCSVFields,
 	type ParsedContact,
 	type FieldMapping,
@@ -26,13 +29,8 @@ import type { ContactVisibility } from "@/lib/actions/crm/contacts";
 /**
  * Get authenticated user context.
  */
-async function getUserContext() {
-	const session = await auth();
-	if (!session?.user) return null;
-	return {
-		userId: session.user.id,
-		organizationId: session.user.organizationId ?? undefined,
-	};
+async function getUserContext(): Promise<RouteTenantResult> {
+	return requireRouteTenantContext();
 }
 
 // ============================================================================
@@ -57,8 +55,8 @@ async function getUserContext() {
 export async function POST(request: NextRequest) {
 	try {
 		const userContext = await getUserContext();
-		if (!userContext) {
-			return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+		if (isTenantResponse(userContext)) {
+			return userContext;
 		}
 
 		const formData = await request.formData();
@@ -145,7 +143,8 @@ export async function POST(request: NextRequest) {
 
 		// Enrich preview contacts with account lookup
 		const previewContacts = await enrichContactsPreview(
-			parseResult.contacts.slice(0, 50)
+			parseResult.contacts.slice(0, 50),
+			userContext
 		);
 
 		return NextResponse.json({
@@ -201,8 +200,8 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
 	try {
 		const userContext = await getUserContext();
-		if (!userContext) {
-			return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+		if (isTenantResponse(userContext)) {
+			return userContext;
 		}
 
 		const body = await request.json();
@@ -236,7 +235,8 @@ export async function PUT(request: NextRequest) {
 		const importRecord = await db.query.contactImports.findFirst({
 			where: and(
 				eq(contactImports.id, importId),
-				eq(contactImports.importedBy, userContext.userId)
+				eq(contactImports.importedBy, userContext.userId),
+				eq(contactImports.organizationId, userContext.organizationId)
 			),
 		});
 
@@ -258,7 +258,11 @@ export async function PUT(request: NextRequest) {
 		await db
 			.update(contactImports)
 			.set({ status: "processing" })
-			.where(eq(contactImports.id, importId));
+			.where(and(
+				eq(contactImports.id, importId),
+				eq(contactImports.importedBy, userContext.userId),
+				eq(contactImports.organizationId, userContext.organizationId)
+			));
 
 		// Decode and parse file content
 		const content = Buffer.from(fileContent, "base64").toString("utf-8");
@@ -328,7 +332,11 @@ export async function PUT(request: NextRequest) {
 				},
 				completedAt: new Date(),
 			})
-			.where(eq(contactImports.id, importId));
+			.where(and(
+				eq(contactImports.id, importId),
+				eq(contactImports.importedBy, userContext.userId),
+				eq(contactImports.organizationId, userContext.organizationId)
+			));
 
 		return NextResponse.json({
 			success: true,
@@ -360,7 +368,7 @@ interface ImportOptions {
 	visibility: ContactVisibility;
 	sharedWith: string[];
 	ownerId: string;
-	organizationId?: string;
+	organizationId: string;
 }
 
 interface ImportSingleResult {
@@ -386,7 +394,8 @@ async function importSingleContact(
 		existingContact = await db.query.contacts.findFirst({
 			where: and(
 				eq(contacts.email, parsed.email),
-				eq(contacts.ownerId, options.ownerId)
+				eq(contacts.ownerId, options.ownerId),
+				eq(contacts.organizationId, options.organizationId)
 			),
 		});
 	}
@@ -420,17 +429,37 @@ async function importSingleContact(
 					? [...new Set([...(existingContact.tags as string[] || []), ...options.defaultTags])]
 					: existingContact.tags,
 				updatedAt: new Date(),
-			}).where(eq(contacts.id, existingContact.id));
+			}).where(and(
+				eq(contacts.id, existingContact.id),
+				eq(contacts.ownerId, options.ownerId),
+				eq(contacts.organizationId, options.organizationId)
+			));
 
 			return { action: "updated", contactId: existingContact.id };
 		}
 	}
 
 	// Look up account by company name if provided
-	let accountId = options.defaultAccountId;
+	let accountId: string | undefined;
+	if (options.defaultAccountId) {
+		const account = await db.query.accounts.findFirst({
+			where: and(
+				eq(accounts.id, options.defaultAccountId),
+				eq(accounts.ownerId, options.ownerId)
+			),
+			columns: { id: true },
+		});
+		if (!account) {
+			throw new Error("Default account not found or access denied");
+		}
+		accountId = account.id;
+	}
 	if (parsed.company && !accountId) {
 		const account = await db.query.accounts.findFirst({
-			where: ilike(accounts.name, parsed.company),
+			where: and(
+				ilike(accounts.name, parsed.company),
+				eq(accounts.ownerId, options.ownerId)
+			),
 			columns: { id: true },
 		});
 		if (account) accountId = account.id;
@@ -471,7 +500,8 @@ async function importSingleContact(
  * Enrich preview contacts with account lookup.
  */
 async function enrichContactsPreview(
-	parsedContacts: ParsedContact[]
+	parsedContacts: ParsedContact[],
+	userContext: { userId: string; organizationId: string }
 ): Promise<Array<ParsedContact & { existingAccount?: string; existingContact?: boolean }>> {
 	const enriched = [];
 
@@ -481,7 +511,11 @@ async function enrichContactsPreview(
 		// Check if contact exists
 		if (contact.email) {
 			const existing = await db.query.contacts.findFirst({
-				where: eq(contacts.email, contact.email),
+				where: and(
+					eq(contacts.email, contact.email),
+					eq(contacts.ownerId, userContext.userId),
+					eq(contacts.organizationId, userContext.organizationId)
+				),
 				columns: { id: true },
 			});
 			result.existingContact = !!existing;
@@ -490,7 +524,10 @@ async function enrichContactsPreview(
 		// Look up potential account
 		if (contact.company) {
 			const account = await db.query.accounts.findFirst({
-				where: ilike(accounts.name, contact.company),
+				where: and(
+					ilike(accounts.name, contact.company),
+					eq(accounts.ownerId, userContext.userId)
+				),
 				columns: { name: true },
 			});
 			if (account) result.existingAccount = account.name;
