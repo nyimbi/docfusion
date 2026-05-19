@@ -26,6 +26,7 @@ import {
 import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, isNull, count, sum, ne, lt, gt } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
+import { requireServerSession } from "@/lib/auth-utils";
 
 // ============================================================================
 // Types
@@ -63,6 +64,11 @@ interface TaskAssignment {
 	taskId: string;
 	userId: string;
 	assignedBy: string;
+}
+
+interface TaskActor {
+	userId: string;
+	userName: string;
 }
 
 interface CriticalPathNode {
@@ -212,6 +218,25 @@ const UpdateTaskInput = z.object({
 // Helper Functions
 // ============================================================================
 
+async function requireTaskActor(): Promise<TaskActor> {
+	const session = await requireServerSession();
+	const userId = session.user?.id;
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+
+	return {
+		userId,
+		userName: session.user?.name ?? session.user?.email ?? userId,
+	};
+}
+
+function ensureTaskActorMatches(actor: TaskActor, userId?: string): void {
+	if (userId && userId !== actor.userId) {
+		throw new Error("Unauthorized");
+	}
+}
+
 /**
  * Generate a unique task number for an opportunity.
  */
@@ -285,6 +310,7 @@ export async function createTask(
 	input: z.infer<typeof CreateTaskInput>
 ): Promise<{ success: boolean; data?: ProposalTask; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		const validated = CreateTaskInput.parse(input);
 
 		// Generate task number
@@ -325,7 +351,9 @@ export async function createTask(
 			"created",
 			"Task created",
 			undefined,
-			task.status ?? undefined
+			task.status ?? undefined,
+			actor.userId,
+			actor.userName
 		);
 
 		// If assigned, log assignment activity
@@ -335,7 +363,10 @@ export async function createTask(
 				"assigned",
 				`Assigned to ${validated.assignedTo}`,
 				undefined,
-				validated.assignedTo
+				validated.assignedTo,
+				actor.userId,
+				actor.userName,
+				"assignedTo"
 			);
 		}
 
@@ -359,6 +390,7 @@ export async function updateTask(
 	input: z.infer<typeof UpdateTaskInput>
 ): Promise<{ success: boolean; data?: ProposalTask; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		const validated = UpdateTaskInput.parse(input);
 
 		// Get current task state
@@ -405,8 +437,8 @@ export async function updateTask(
 					`Assigned to ${validated.assignedTo || "unassigned"}`,
 					currentTask.assignedTo ?? undefined,
 					validated.assignedTo ?? undefined,
-					undefined,
-					undefined,
+					actor.userId,
+					actor.userName,
 					"assignedTo"
 				);
 			}
@@ -429,8 +461,8 @@ export async function updateTask(
 				`Status changed to ${validated.status}`,
 				currentTask.status ?? undefined,
 				validated.status,
-				undefined,
-				undefined,
+				actor.userId,
+				actor.userName,
 				"status"
 			);
 		}
@@ -443,8 +475,8 @@ export async function updateTask(
 				`Progress updated to ${validated.progress}%`,
 				String(currentTask.progress ?? 0),
 				String(validated.progress),
-				undefined,
-				undefined,
+				actor.userId,
+				actor.userName,
 				"progress"
 			);
 		}
@@ -473,6 +505,8 @@ export async function updateTask(
  */
 export async function deleteTask(id: string): Promise<{ success: boolean; error?: string }> {
 	try {
+		await requireTaskActor();
+
 		// Get task to find opportunityId for summary update
 		const [task] = await db
 			.select({ opportunityId: proposalTasks.opportunityId })
@@ -683,6 +717,8 @@ export async function generateTasksFromCompliance(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: { tasksCreated: number; tasks: ProposalTask[] }; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
+
 		// Fetch requirements from the compliance matrix
 		const reqs = await db
 			.select()
@@ -743,7 +779,9 @@ export async function generateTasksFromCompliance(
 				"created",
 				`Task auto-generated from compliance matrix requirement ${req.requirementNumber ?? req.id}`,
 				undefined,
-				"pending"
+				"pending",
+				actor.userId,
+				actor.userName
 			);
 		}
 
@@ -948,6 +986,7 @@ export async function bulkAssignTasks(
 	assignments: TaskAssignment[]
 ): Promise<{ success: boolean; data?: { assigned: number; failed: number }; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		let assigned = 0;
 		let failed = 0;
 
@@ -969,9 +1008,12 @@ export async function bulkAssignTasks(
 				await logTaskActivity(
 					assignment.taskId,
 					"bulk_assigned",
-					`Bulk assigned by ${assignment.assignedBy}`,
+					`Bulk assigned by ${actor.userName}`,
 					undefined,
-					author?.userName ?? assignment.userId
+					author?.userName ?? assignment.userId,
+					actor.userId,
+					actor.userName,
+					"assignedTo"
 				);
 				assigned++;
 			} else {
@@ -1615,6 +1657,7 @@ export async function escalateOverdueTasks(
 	opportunityId: string
 ): Promise<{ success: boolean; data?: { escalated: number; tasks: string[] }; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
 		const now = new Date();
 
 		// Find overdue, non-completed, non-escalated tasks
@@ -1651,8 +1694,8 @@ export async function escalateOverdueTasks(
 				`Task escalated due to overdue deadline (was due ${task.dueDate?.toISOString()})`,
 				undefined,
 				undefined,
-				undefined,
-				undefined,
+				actor.userId,
+				actor.userName,
 				"escalated"
 			);
 
@@ -1692,8 +1735,8 @@ export async function escalateOverdueTasks(
 				`Task escalated due to deadline risk (due in 24 hours with ${task.progress ?? 0}% progress)`,
 				undefined,
 				undefined,
-				undefined,
-				undefined,
+				actor.userId,
+				actor.userName,
 				"escalated"
 			);
 
@@ -1902,6 +1945,8 @@ export async function updateAuthorExpertise(
 	userId: string
 ): Promise<{ success: boolean; data?: AuthorExpertiseType; error?: string }> {
 	try {
+		await requireTaskActor();
+
 		// Get the author's current expertise
 		const [author] = await db
 			.select()
@@ -2106,6 +2151,9 @@ export async function logTime(
 	userId?: string
 ): Promise<{ success: boolean; data?: { id: string; taskId: string; hours: number }; error?: string }> {
 	try {
+		const actor = await requireTaskActor();
+		ensureTaskActorMatches(actor, userId);
+
 		// Get current task
 		const [task] = await db
 			.select()
@@ -2129,7 +2177,7 @@ export async function logTime(
 		const newEntry = {
 			date: new Date().toISOString(),
 			hours,
-			userId: userId ?? task.assignedTo ?? "unknown",
+			userId: actor.userId,
 			notes,
 		};
 
@@ -2153,8 +2201,8 @@ export async function logTime(
 			`Logged ${hours} hours${notes ? `: ${notes}` : ""}`,
 			String(task.actualHours ?? 0),
 			String(totalActualHours),
-			userId,
-			undefined,
+			actor.userId,
+			actor.userName,
 			"actualHours"
 		);
 
