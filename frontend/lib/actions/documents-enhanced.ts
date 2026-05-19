@@ -56,6 +56,53 @@ function ownedDocumentCondition(id: string, userId: string): SQL {
 	return and(eq(documents.id, id), eq(documents.ownerId, userId))!;
 }
 
+function readableDocumentExistsSql(documentId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and (
+				documents.owner_id = ${userId}
+				or documents.visibility = 'public'
+				or documents.collaborator_ids ? ${userId}
+			)
+	)`;
+}
+
+function writableDocumentExistsSql(documentId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from documents
+		where documents.id = ${documentId}
+			and (
+				documents.owner_id = ${userId}
+				or documents.collaborator_ids ? ${userId}
+			)
+	)`;
+}
+
+function readableDocumentVersionCondition(versionId: string, userId: string): SQL {
+	return and(
+		eq(documentVersions.id, versionId),
+		readableDocumentExistsSql(documentVersions.documentId, userId)
+	)!;
+}
+
+function writableDocumentVersionCondition(
+	versionId: string,
+	userId: string,
+	documentId?: DocumentId
+): SQL {
+	const conditions = [
+		eq(documentVersions.id, versionId),
+		writableDocumentExistsSql(documentVersions.documentId, userId),
+	];
+	if (documentId) {
+		conditions.push(eq(documentVersions.documentId, documentId));
+	}
+	return and(...conditions)!;
+}
+
 async function assertReadableDocument(documentId: DocumentId, userId: string): Promise<void> {
 	const [doc] = await db
 		.select({ id: documents.id })
@@ -142,7 +189,10 @@ export async function getDocumentVersions(
 	const results = await db
 		.select()
 		.from(documentVersions)
-		.where(eq(documentVersions.documentId, documentId))
+		.where(and(
+			eq(documentVersions.documentId, documentId),
+			readableDocumentExistsSql(documentVersions.documentId, userId)
+		))
 		.orderBy(desc(documentVersions.versionNumber));
 
 	return results.map((v) => ({
@@ -170,11 +220,10 @@ export async function getDocumentVersion(
 	const [version] = await db
 		.select()
 		.from(documentVersions)
-		.where(eq(documentVersions.id, versionId))
+		.where(readableDocumentVersionCondition(versionId, userId))
 		.limit(1);
 
 	if (!version) return null;
-	await assertReadableDocument(version.documentId, userId);
 
 	return {
 		id: version.id,
@@ -202,7 +251,7 @@ export async function restoreDocumentVersion(
 	const [version] = await db
 		.select()
 		.from(documentVersions)
-		.where(eq(documentVersions.id, versionId))
+		.where(writableDocumentVersionCondition(versionId, userId, documentId))
 		.limit(1);
 
 	if (!version) {
@@ -240,7 +289,7 @@ export async function deleteDocumentVersion(versionId: string): Promise<void> {
 			versionNumber: documentVersions.versionNumber,
 		})
 		.from(documentVersions)
-		.where(eq(documentVersions.id, versionId))
+		.where(writableDocumentVersionCondition(versionId, userId))
 		.limit(1);
 
 	if (!version) {
@@ -638,7 +687,10 @@ export async function getDocumentCollaborators(
 	const results = await db
 		.select()
 		.from(documentCollaborators)
-		.where(eq(documentCollaborators.documentId, documentId))
+		.where(and(
+			eq(documentCollaborators.documentId, documentId),
+			readableDocumentExistsSql(documentCollaborators.documentId, userId)
+		))
 		.orderBy(asc(documentCollaborators.joinedAt));
 
 	return results.map((c) => ({
