@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const requireUserContextMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/auth-utils", () => ({
+	requireUserContext: requireUserContextMock,
+}));
+
 vi.mock("@/lib/actions/document-render", () => ({
 	preSubmissionAudit: vi.fn(),
 }));
@@ -87,6 +93,7 @@ const submissionRow = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	requireUserContextMock.mockResolvedValue({ userId: "session-user-1" });
 	vi.mocked(preSubmissionAudit).mockResolvedValue(readyAudit);
 	vi.mocked(evaluateFinalSubmissionChecklistWorkflow).mockResolvedValue({
 		opportunityId: "opp-1",
@@ -202,7 +209,7 @@ describe("submission workflow gates", () => {
 
 		expect(insertedSubmission).toMatchObject({
 			opportunityId: "opp-1",
-			submittedBy: "Proposal Lead",
+			submittedBy: "session-user-1",
 			confirmationNumber: "PORTAL-123",
 			status: "submitted",
 		});

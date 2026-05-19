@@ -15,6 +15,7 @@ import {
 	opportunities,
 	type SubmissionRow,
 } from "@/lib/db/schema";
+import { requireUserContext } from "@/lib/auth-utils";
 import { eq, desc, and, gte, lte, sql, count, inArray } from "drizzle-orm";
 import { evaluateFinalSubmissionChecklistWorkflow } from "@/lib/actions/final-submission-checklist-workflow";
 import { preSubmissionAudit } from "@/lib/actions/document-render";
@@ -90,9 +91,9 @@ function buildAttachmentHash(input: {
 export async function createSubmission(
 	input: CreateSubmissionInput
 ): Promise<Submission> {
-	if (!input.submittedBy.trim()) {
-		throw new Error("Submitted-by identity is required");
-	}
+	const userContext = await requireUserContext();
+	const submittedBy = userContext.userId;
+
 	if (input.attachmentIds.length === 0) {
 		throw new Error("At least one submission attachment is required");
 	}
@@ -163,7 +164,7 @@ export async function createSubmission(
 		.values({
 			opportunityId: input.opportunityId,
 			submittedAt: new Date(),
-			submittedBy: input.submittedBy.trim(),
+			submittedBy,
 			submissionMethod: input.submissionMethod,
 			confirmationNumber: input.confirmationNumber.trim(),
 			attachments,
@@ -190,8 +191,8 @@ export async function createSubmission(
 			fromState: "final_review",
 			toState: "submitted",
 			eventType: "submission_dispatched",
-			actorId: input.submittedBy.trim(),
-			actorName: input.submittedBy.trim(),
+			actorId: submittedBy,
+			actorName: submittedBy,
 			reason: `Submission receipt ${input.confirmationNumber.trim()} recorded`,
 			evidenceLinks: [input.confirmationNumber.trim()],
 			priority: "critical",
@@ -221,6 +222,8 @@ export async function createSubmission(
  * Get a submission by ID.
  */
 export async function getSubmission(id: string): Promise<Submission | null> {
+	await requireUserContext();
+
 	const [row] = await db
 		.select()
 		.from(submissions)
@@ -235,6 +238,8 @@ export async function getSubmission(id: string): Promise<Submission | null> {
 export async function getSubmissionsByOpportunity(
 	opportunityId: string
 ): Promise<Submission[]> {
+	await requireUserContext();
+
 	const rows = await db
 		.select()
 		.from(submissions)
@@ -250,6 +255,8 @@ export async function getSubmissionsByOpportunity(
 export async function getSubmissionHistory(
 	opportunityId: string
 ): Promise<Submission[]> {
+	await requireUserContext();
+
 	return getSubmissionsByOpportunity(opportunityId);
 }
 
@@ -259,6 +266,8 @@ export async function getSubmissionHistory(
 export async function updateSubmissionStatus(
 	input: UpdateSubmissionStatusInput
 ): Promise<Submission> {
+	await requireUserContext();
+
 	const [row] = await db
 		.update(submissions)
 		.set({
@@ -284,6 +293,8 @@ export async function updateSubmissionStatus(
 export async function recordOutcome(
 	input: RecordOutcomeInput
 ): Promise<Submission> {
+	await requireUserContext();
+
 	const [row] = await db
 		.update(submissions)
 		.set({
@@ -335,6 +346,8 @@ export async function recordOutcome(
 export async function getPreSubmissionChecklist(
 	opportunityId: string
 ): Promise<PreSubmissionChecklistItem[]> {
+	await requireUserContext();
+
 	// Get proposal documents for this opportunity
 	const docs = await db
 		.select({
@@ -442,6 +455,8 @@ export async function getWinLossAnalytics(filters?: {
 	endDate?: Date;
 	category?: string;
 }): Promise<WinLossAnalytics> {
+	await requireUserContext();
+
 	// Build conditions
 	const conditions = [];
 	if (filters?.startDate) {
@@ -579,6 +594,8 @@ export async function getRecentSubmissions(limit: number = 10): Promise<
 		opportunityTitle: string;
 	}>
 > {
+	await requireUserContext();
+
 	const rows = await db
 		.select({
 			submission: submissions,
