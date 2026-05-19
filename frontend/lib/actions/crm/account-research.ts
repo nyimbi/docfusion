@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { accounts, type CommercialInsights } from "@/lib/db/schema-crm";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
+import { requireUserContext } from "@/lib/auth-utils";
 
 // ============================================================================
 // Types
@@ -86,6 +87,10 @@ export interface ResearchFindingsData {
 // ============================================================================
 // Research Functions
 // ============================================================================
+
+async function requireResearchActor(): Promise<string> {
+	return (await requireUserContext()).userId;
+}
 
 /**
  * Build search queries for different research categories
@@ -177,6 +182,8 @@ function getCategoryTitle(category: ResearchCategory): string {
 export async function researchAccount(
 	request: ResearchRequest
 ): Promise<AccountResearchResponse> {
+	await requireResearchActor();
+
 	try {
 		// Validate account exists
 		const account = await db.query.accounts.findFirst({
@@ -253,6 +260,8 @@ export async function saveResearchFindings(
 	valueProposition?: string | null,
 	thinkingTrace?: string | null
 ): Promise<{ success: boolean; error?: string }> {
+	await requireResearchActor();
+
 	try {
 		const updateData: Record<string, unknown> = {};
 
@@ -361,6 +370,8 @@ export async function getResearchQueries(
 	queries: Array<{ category: ResearchCategory; query: string; title: string }>;
 	error?: string;
 }> {
+	await requireResearchActor();
+
 	try {
 		const account = await db.query.accounts.findFirst({
 			where: eq(accounts.id, accountId),
