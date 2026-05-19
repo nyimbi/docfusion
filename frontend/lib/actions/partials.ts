@@ -28,31 +28,50 @@ import { substitutePlaceholders } from "@/lib/placeholders/substitution";
 // ============================================================================
 
 /**
- * Get current user context from session.
+ * Get current tenant context from session.
  */
-async function requireCurrentUserContext(): Promise<{
+async function getCurrentPartialContext(): Promise<{
   userId: string;
-  organizationId?: string;
+  organizationId: string;
 }> {
   const context = await getUserContext();
   if (!context) {
     throw new Error("Unauthorized");
   }
-  return context;
+  if (!context.organizationId) {
+    throw new Error("No organization context");
+  }
+  return {
+    userId: context.userId,
+    organizationId: context.organizationId,
+  };
 }
 
 /**
- * Get current user ID from session.
+ * Predicate for partials readable by the current tenant.
  */
-async function getCurrentUserId(): Promise<string> {
-  return (await requireCurrentUserContext()).userId;
+function visiblePartialCondition(context: { userId: string; organizationId: string }): SQL {
+  return or(
+    and(
+      eq(templatePartials.createdBy, context.userId),
+      eq(templatePartials.organizationId, context.organizationId)
+    ),
+    eq(templatePartials.organizationId, context.organizationId)
+  )!;
 }
 
 /**
- * Get current organization ID from session.
+ * Predicate for partials mutable by the current creator within the current tenant.
  */
-async function getCurrentOrganizationId(): Promise<string | undefined> {
-  return (await requireCurrentUserContext()).organizationId;
+function mutablePartialCondition(
+  id: PartialId,
+  context: { userId: string; organizationId: string }
+): SQL {
+  return and(
+    eq(templatePartials.id, id),
+    eq(templatePartials.createdBy, context.userId),
+    eq(templatePartials.organizationId, context.organizationId)
+  )!;
 }
 
 /**
@@ -90,18 +109,12 @@ export async function listPartials(
     offset?: number;
   }
 ): Promise<{ partials: TemplatePartial[]; total: number }> {
-  const currentUserId = await getCurrentUserId();
-  const orgId = await getCurrentOrganizationId();
+  const context = await getCurrentPartialContext();
 
   const conditions: SQL[] = [];
 
-  // Show partials from this user or shared org
-  conditions.push(
-    or(
-      eq(templatePartials.createdBy, currentUserId),
-      orgId ? eq(templatePartials.organizationId, orgId) : undefined
-    )!
-  );
+  // Show partials from this tenant only.
+  conditions.push(visiblePartialCondition(context));
 
   if (params?.search) {
     conditions.push(
@@ -152,25 +165,19 @@ export async function listPartials(
  * Get a single partial by ID.
  */
 export async function getPartial(id: PartialId): Promise<TemplatePartial | null> {
-  const currentUserId = await getCurrentUserId();
-  const orgId = await getCurrentOrganizationId();
+  const context = await getCurrentPartialContext();
 
   const rows = await db
     .select()
     .from(templatePartials)
-    .where(eq(templatePartials.id, id))
+    .where(and(
+      eq(templatePartials.id, id),
+      visiblePartialCondition(context)
+    ))
     .limit(1);
 
   if (rows.length === 0) return null;
-
-  const row = rows[0];
-
-  // Check access permissions
-  const hasAccess =
-    row.createdBy === currentUserId ||
-    (row.organizationId && row.organizationId === orgId);
-
-  return hasAccess ? mapRowToPartial(row) : null;
+  return mapRowToPartial(rows[0]);
 }
 
 /**
@@ -179,8 +186,7 @@ export async function getPartial(id: PartialId): Promise<TemplatePartial | null>
 export async function createPartial(
   input: CreatePartialInput
 ): Promise<TemplatePartial> {
-  const currentUserId = await getCurrentUserId();
-  const orgId = await getCurrentOrganizationId();
+  const context = await getCurrentPartialContext();
 
   const [row] = await db
     .insert(templatePartials)
@@ -191,8 +197,8 @@ export async function createPartial(
       content: input.content,
       placeholders: input.placeholders || [],
       usage: { templateIds: [], useCount: 0 },
-      createdBy: currentUserId,
-      organizationId: orgId,
+      createdBy: context.userId,
+      organizationId: context.organizationId,
     })
     .returning();
 
@@ -207,28 +213,16 @@ export async function updatePartial(
   id: PartialId,
   input: UpdatePartialInput
 ): Promise<TemplatePartial | null> {
-  const currentUserId = await getCurrentUserId();
-  const orgId = await getCurrentOrganizationId();
+  const context = await getCurrentPartialContext();
 
   // Check existence and ownership
   const existing = await db
     .select()
     .from(templatePartials)
-    .where(eq(templatePartials.id, id))
+    .where(mutablePartialCondition(id, context))
     .limit(1);
 
   if (existing.length === 0) return null;
-
-  const row = existing[0];
-
-  // Check modification permissions
-  const canEdit =
-    row.createdBy === currentUserId ||
-    (row.organizationId && row.organizationId === orgId);
-
-  if (!canEdit) {
-    throw new Error("Not authorized to update this partial");
-  }
 
   const updateData: Partial<typeof templatePartials.$inferInsert> = {
     updatedAt: new Date(),
@@ -244,7 +238,7 @@ export async function updatePartial(
   const [updated] = await db
     .update(templatePartials)
     .set(updateData)
-    .where(eq(templatePartials.id, id))
+    .where(mutablePartialCondition(id, context))
     .returning();
 
   revalidatePath("/partials");
@@ -255,32 +249,20 @@ export async function updatePartial(
  * Delete a partial.
  */
 export async function deletePartial(id: PartialId): Promise<boolean> {
-  const currentUserId = await getCurrentUserId();
-  const orgId = await getCurrentOrganizationId();
+  const context = await getCurrentPartialContext();
 
   // Check existence and ownership
   const existing = await db
     .select()
     .from(templatePartials)
-    .where(eq(templatePartials.id, id))
+    .where(mutablePartialCondition(id, context))
     .limit(1);
 
   if (existing.length === 0) return false;
 
-  const row = existing[0];
-
-  // Check deletion permissions
-  const canDelete =
-    row.createdBy === currentUserId ||
-    (row.organizationId && row.organizationId === orgId);
-
-  if (!canDelete) {
-    throw new Error("Not authorized to delete this partial");
-  }
-
   const result = await db
     .delete(templatePartials)
-    .where(eq(templatePartials.id, id))
+    .where(mutablePartialCondition(id, context))
     .returning({ id: templatePartials.id });
 
   revalidatePath("/partials");
@@ -297,8 +279,7 @@ export async function deletePartial(id: PartialId): Promise<boolean> {
 export async function getPartialsByIds(ids: PartialId[]): Promise<TemplatePartial[]> {
   if (ids.length === 0) return [];
 
-  const currentUserId = await getCurrentUserId();
-  const orgId = await getCurrentOrganizationId();
+  const context = await getCurrentPartialContext();
 
   const rows = await db
     .select()
@@ -306,10 +287,7 @@ export async function getPartialsByIds(ids: PartialId[]): Promise<TemplatePartia
     .where(
       and(
         sql`${templatePartials.id} = ANY(${ids})`,
-        or(
-          eq(templatePartials.createdBy, currentUserId),
-          orgId ? eq(templatePartials.organizationId, orgId) : undefined
-        )!
+        visiblePartialCondition(context)
       )
     );
 
@@ -411,10 +389,19 @@ export async function trackPartialUsage(
   partialId: PartialId,
   templateId: string
 ): Promise<void> {
-  const partial = await getPartial(partialId);
-  if (!partial) return;
+  const context = await getCurrentPartialContext();
+  const rows = await db
+    .select()
+    .from(templatePartials)
+    .where(and(
+      eq(templatePartials.id, partialId),
+      visiblePartialCondition(context)
+    ))
+    .limit(1);
 
-  const usage = partial.usage;
+  if (rows.length === 0) return;
+
+  const usage = (rows[0].usage as PartialUsage) || { templateIds: [], useCount: 0 };
   if (!usage.templateIds.includes(templateId)) {
     usage.templateIds.push(templateId);
   }
@@ -426,15 +413,17 @@ export async function trackPartialUsage(
       usage,
       updatedAt: new Date(),
     })
-    .where(eq(templatePartials.id, partialId));
+    .where(and(
+      eq(templatePartials.id, partialId),
+      visiblePartialCondition(context)
+    ));
 }
 
 /**
  * Get partials that aren't used in any templates.
  */
 export async function getUnusedPartials(): Promise<TemplatePartial[]> {
-  const currentUserId = await getCurrentUserId();
-  const orgId = await getCurrentOrganizationId();
+  const context = await getCurrentPartialContext();
 
   const rows = await db
     .select()
@@ -442,10 +431,7 @@ export async function getUnusedPartials(): Promise<TemplatePartial[]> {
     .where(
       and(
         sql`(${templatePartials.usage}->>'useCount')::int = 0 OR ${templatePartials.usage}->>'useCount' IS NULL`,
-        or(
-          eq(templatePartials.createdBy, currentUserId),
-          orgId ? eq(templatePartials.organizationId, orgId) : undefined
-        )!
+        visiblePartialCondition(context)
       )
     )
     .orderBy(desc(templatePartials.createdAt));
@@ -475,8 +461,7 @@ export async function searchPartials(
   query: string,
   limit = 20
 ): Promise<TemplatePartial[]> {
-  const currentUserId = await getCurrentUserId();
-  const orgId = await getCurrentOrganizationId();
+  const context = await getCurrentPartialContext();
   const searchTerm = `%${query}%`;
 
   const rows = await db
@@ -488,10 +473,7 @@ export async function searchPartials(
           ilike(templatePartials.name, searchTerm),
           ilike(templatePartials.description, searchTerm)
         )!,
-        or(
-          eq(templatePartials.createdBy, currentUserId),
-          orgId ? eq(templatePartials.organizationId, orgId) : undefined
-        )!
+        visiblePartialCondition(context)
       )
     )
     .orderBy(templatePartials.name)
