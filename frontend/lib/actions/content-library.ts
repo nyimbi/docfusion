@@ -31,7 +31,7 @@ import {
 	type TemplateUsageLogRow,
 	type ContentSuggestionRow,
 } from "@/lib/db/schema";
-import { eq, and, desc, asc, sql, ilike, or, inArray, gte, lte, isNotNull, between } from "drizzle-orm";
+import { eq, and, desc, asc, sql, ilike, or, inArray, gte, lte, isNotNull, between, type SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 import {
@@ -76,6 +76,42 @@ async function requireContentContext(organizationId?: string | null): Promise<Us
 
 async function requireContentActor(): Promise<string> {
 	return (await requireContentContext()).userId;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1 from ${opportunities}
+		where ${opportunities.id} = ${opportunityId}
+		and ${opportunities.assignedTo} = ${userId}
+	)`;
+}
+
+function snippetUsageForAssignedOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(snippetUsageLog.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
+function pendingSnippetUsageForAssignedOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		snippetUsageForAssignedOpportunityCondition(opportunityId, userId),
+		eq(snippetUsageLog.proposalOutcome, "pending")
+	)!;
+}
+
+function templateUsageForAssignedOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(templateUsageLog.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
+function pendingTemplateUsageForAssignedOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		templateUsageForAssignedOpportunityCondition(opportunityId, userId),
+		eq(templateUsageLog.proposalOutcome, "pending")
+	)!;
 }
 
 /**
@@ -494,7 +530,7 @@ export async function recordProposalOutcome(input: ContentOutcomeInput): Promise
 	templatesUpdated: number;
 	error?: string;
 }> {
-	await requireContentActor();
+	const userId = await requireContentActor();
 	try {
 		const now = new Date();
 
@@ -504,12 +540,7 @@ export async function recordProposalOutcome(input: ContentOutcomeInput): Promise
 				proposalOutcome: input.outcome,
 				outcomeRecordedAt: now,
 			})
-			.where(
-				and(
-					eq(snippetUsageLog.opportunityId, input.opportunityId),
-					eq(snippetUsageLog.proposalOutcome, "pending"),
-				)
-			);
+			.where(pendingSnippetUsageForAssignedOpportunityCondition(input.opportunityId, userId));
 
 		// Update all template usages for this opportunity
 		const templateResult = await db.update(templateUsageLog)
@@ -518,16 +549,11 @@ export async function recordProposalOutcome(input: ContentOutcomeInput): Promise
 				outcomeRecordedAt: now,
 				evaluatorFeedback: input.evaluatorFeedback,
 			})
-			.where(
-				and(
-					eq(templateUsageLog.opportunityId, input.opportunityId),
-					eq(templateUsageLog.proposalOutcome, "pending"),
-				)
-			);
+			.where(pendingTemplateUsageForAssignedOpportunityCondition(input.opportunityId, userId));
 
 		// Recalculate win rates for affected snippets
 		const snippetUsages = await db.query.snippetUsageLog.findMany({
-			where: eq(snippetUsageLog.opportunityId, input.opportunityId),
+			where: snippetUsageForAssignedOpportunityCondition(input.opportunityId, userId),
 			columns: { snippetId: true },
 		});
 
@@ -538,7 +564,7 @@ export async function recordProposalOutcome(input: ContentOutcomeInput): Promise
 
 		// Recalculate win rates for affected templates
 		const templateUsages = await db.query.templateUsageLog.findMany({
-			where: eq(templateUsageLog.opportunityId, input.opportunityId),
+			where: templateUsageForAssignedOpportunityCondition(input.opportunityId, userId),
 			columns: { templateId: true },
 		});
 
