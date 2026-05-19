@@ -66,7 +66,6 @@ dependencies = [
     "beautifulsoup4>=4.13.4",
     "chardet>=5.2.0",
     "cloudscraper>=1.2.71",
-    "crawl4ai>=0.8.6",
     "crawlee>=0.0.6",
     "gitpython>=3.1.50",
     "nltk>=3.9.4",
@@ -75,6 +74,7 @@ dependencies = [
     "opencv-python>=4.12.0.88",
     "pandas>=2.3.1",
     "pgai>=0.11.4",
+    "pillow>=12.2.0",
     "playwright>=1.53.0",
     "psycopg2-binary>=2.9.10", # Required for Alembic migrations, Airflow, and sync operations
     "psutil>=6.1.0",
@@ -102,6 +102,9 @@ dependencies = [
 
 # Optional dependency groups
 [project.optional-dependencies]
+crawler-ai = [
+    "crawl4ai>=0.8.6",
+]
 
 # Development dependencies
 dev = [

@@ -319,8 +319,8 @@ CAPABILITIES: dict[str, bool] = {
 
 # Attempt to set capability flags based on import outcomes
 try:
-	from .crawlers.ai_driven.universal_scraper import UniversalScraper
-	CAPABILITIES["crawl4ai"] = True
+	from .crawlers.ai_driven.universal_scraper import HAS_CRAWL4AI, UniversalScraper
+	CAPABILITIES["crawl4ai"] = HAS_CRAWL4AI
 	CAPABILITIES["cloudscraper"] = True
 except Exception:
 	pass

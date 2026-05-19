@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from docfusion.discovery import CAPABILITIES
+from docfusion.discovery.crawlers.ai_driven.universal_scraper import HAS_CRAWL4AI
 
 
 def test_capabilities_is_dict():
@@ -24,3 +25,7 @@ def test_capabilities_has_expected_keys():
 		"monitoring",
 	}
 	assert expected.issubset(set(CAPABILITIES.keys()))
+
+
+def test_crawl4ai_capability_matches_optional_dependency():
+	assert CAPABILITIES["crawl4ai"] is HAS_CRAWL4AI
