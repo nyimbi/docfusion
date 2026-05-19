@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	MAX_RENDER_CONTENT_BYTES,
+	buildIsolatedPrintHtml,
 	describeRenderError,
 	sanitizeRenderFilename,
 } from "@/lib/document/server-export";
@@ -104,5 +105,22 @@ describe("MAX_RENDER_CONTENT_BYTES", () => {
 		// the client guard must always be <= server limit so we never
 		// leak the raw 422 phrasing to the user.
 		expect(MAX_RENDER_CONTENT_BYTES).toBe(2_000_000);
+	});
+});
+
+describe("buildIsolatedPrintHtml", () => {
+	it("escapes title text while preserving document body markup", () => {
+		const html = buildIsolatedPrintHtml(
+			"<Quarterly & Review>",
+			"<h1>Executive Summary</h1>",
+		);
+
+		expect(html).toContain("<title>&lt;Quarterly &amp; Review&gt;</title>");
+		expect(html).toContain("<main><h1>Executive Summary</h1></main>");
+		expect(html).toContain("window.print()");
+	});
+
+	it("falls back to an empty paragraph for empty documents", () => {
+		expect(buildIsolatedPrintHtml("", "")).toContain("<main><p></p></main>");
 	});
 });

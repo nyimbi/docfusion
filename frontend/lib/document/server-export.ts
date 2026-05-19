@@ -89,3 +89,74 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
 	document.body.removeChild(anchor);
 	setTimeout(() => URL.revokeObjectURL(url), 0);
 }
+
+function escapeHtml(value: string): string {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
+export function buildIsolatedPrintHtml(title: string, bodyHtml: string): string {
+	return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title || "Document")}</title>
+<style>
+	body {
+		margin: 0;
+		padding: 32px;
+		color: #111827;
+		background: #fff;
+		font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+		line-height: 1.55;
+	}
+	main {
+		max-width: 760px;
+		margin: 0 auto;
+	}
+	img, svg {
+		max-width: 100%;
+	}
+	table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+	th, td {
+		border: 1px solid #d1d5db;
+		padding: 6px 8px;
+	}
+	@page {
+		margin: 0.75in;
+	}
+</style>
+</head>
+<body>
+<main>${bodyHtml || "<p></p>"}</main>
+<script>
+	window.addEventListener("load", function () {
+		window.focus();
+		window.print();
+	});
+	window.addEventListener("afterprint", function () {
+		window.close();
+	});
+</script>
+</body>
+</html>`;
+}
+
+export function printIsolatedHtmlDocument(title: string, bodyHtml: string): void {
+	const printWindow = window.open("", "_blank");
+	if (!printWindow) {
+		throw new Error("Print window was blocked. Allow pop-ups and try again.");
+	}
+
+	printWindow.opener = null;
+	printWindow.document.open();
+	printWindow.document.write(buildIsolatedPrintHtml(title, bodyHtml));
+	printWindow.document.close();
+}

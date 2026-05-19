@@ -61,6 +61,7 @@ import {
 import {
 	MAX_RENDER_CONTENT_BYTES,
 	describeRenderError,
+	printIsolatedHtmlDocument,
 	sanitizeRenderFilename,
 	triggerBlobDownload,
 } from "@/lib/document/server-export";
@@ -173,11 +174,24 @@ export function DocumentActionsMenu({
 
 	const handlePrint = React.useCallback(() => {
 		try {
-			window.print();
+			const content = editor?.getHTML() ?? "";
+			if (editor && content.length > MAX_RENDER_CONTENT_BYTES) {
+				toast.error(
+					"Document is too large to print — split it or remove embedded assets.",
+				);
+				return;
+			}
+
+			if (!editor) {
+				void handleExport("pdf");
+				return;
+			}
+
+			printIsolatedHtmlDocument(document.title, content);
 		} catch (error) {
-			toast.error("Print failed");
+			toast.error(error instanceof Error ? error.message : "Print failed");
 		}
-	}, []);
+	}, [document.title, editor, handleExport]);
 
 	const handleDocumentSettings = React.useCallback(() => {
 		router.push(`/documents/${document.id}/settings`);
@@ -411,4 +425,3 @@ export function DocumentActionsMenu({
 		</>
 	);
 }
-
