@@ -33,7 +33,7 @@ import {
 } from "@/lib/db/schema-presentations";
 import { opportunities, proposalDocuments, documents } from "@/lib/db/schema";
 import { rfpRequirements } from "@/lib/db/schema-rfp";
-import { eq, and, or, ilike, desc, asc, sql, inArray, gte, lte } from "drizzle-orm";
+import { eq, and, or, ilike, desc, asc, sql, inArray, gte, lte, type SQL } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
 import { logger } from "@/lib/utils/logger";
 import { requireUserContext } from "@/lib/auth-utils";
@@ -102,6 +102,33 @@ function scopedPresentationWhere(id: string, organizationId: string) {
 		eq(oralPresentations.id, id),
 		eq(oralPresentations.organizationId, organizationId)
 	);
+}
+
+function assignedOpportunityCondition(userId: string): SQL {
+	return sql`opportunities.assigned_to = ${userId}`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		assignedOpportunityCondition(userId)
+	)!;
+}
+
+function visibleRequirementsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(rfpRequirements.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
 }
 
 async function getScopedPresentation(
@@ -307,7 +334,7 @@ export async function createPresentation(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, opportunityId))
+			.where(visibleOpportunityCondition(opportunityId, context.userId))
 			.limit(1);
 
 		if (!opportunity) {
@@ -1257,7 +1284,7 @@ export async function anticipateQuestions(
 			const reqs = await db
 				.select()
 				.from(rfpRequirements)
-				.where(eq(rfpRequirements.opportunityId, presentation.opportunityId))
+				.where(visibleRequirementsForOpportunityCondition(presentation.opportunityId, context.userId))
 				.limit(20);
 
 			reqContext = reqs.map((r) => `- ${r.requirementText}`).join("\n");
