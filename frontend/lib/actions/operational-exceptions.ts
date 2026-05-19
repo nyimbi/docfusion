@@ -136,9 +136,11 @@ export async function remediateOperationalException(
 }
 
 export async function syncOperationalExceptionWorkflows(
-	filters: OperationalExceptionFilters = {}
+	filters: OperationalExceptionFilters = {},
+	actorId = "system"
 ): Promise<{ synced: number }> {
 	const exceptions = await listOperationalExceptions(filters);
+	const actorName = actorId === "system" ? "System" : actorId;
 
 	for (const exception of exceptions) {
 		const instance = await recordWorkflowRuntimeTransition({
@@ -150,8 +152,8 @@ export async function syncOperationalExceptionWorkflows(
 				: null,
 			toState: exception.status,
 			eventType: "operational_exception_detected",
-			actorId: "system",
-			actorName: "System",
+			actorId,
+			actorName,
 			reason: exception.lastError ?? exception.title,
 			priority: exception.severity,
 			assignedTo: exception.ownerHint,

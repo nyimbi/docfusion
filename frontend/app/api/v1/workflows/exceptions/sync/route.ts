@@ -24,7 +24,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		const result = await syncOperationalExceptionWorkflows({
 			limit: typeof body.limit === "number" ? body.limit : undefined,
 			subjectTypes,
-		});
+		}, actor.userId);
 
 		return NextResponse.json({ ...result, actorId: actor.userId });
 	} catch (error) {

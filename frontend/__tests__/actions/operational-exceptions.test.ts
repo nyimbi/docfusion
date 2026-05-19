@@ -4,6 +4,14 @@ vi.mock("@/lib/actions/rfp-parser", () => ({
 	transitionRfpParseWorkflow: vi.fn(),
 }));
 
+const recordWorkflowRuntimeTransitionMock = vi.hoisted(() => vi.fn());
+const upsertWorkflowRuntimeTaskMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/actions/workflow-runtime", () => ({
+	recordWorkflowRuntimeTransition: recordWorkflowRuntimeTransitionMock,
+	upsertWorkflowRuntimeTask: upsertWorkflowRuntimeTaskMock,
+}));
+
 interface ChainConfig {
 	result?: unknown[];
 }
@@ -31,6 +39,7 @@ import { transitionRfpParseWorkflow } from "@/lib/actions/rfp-parser";
 import {
 	listOperationalExceptions,
 	remediateOperationalException,
+	syncOperationalExceptionWorkflows,
 } from "@/lib/actions/operational-exceptions";
 
 const rfpRow = {
@@ -77,6 +86,8 @@ const scraperRow = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	recordWorkflowRuntimeTransitionMock.mockResolvedValue({ id: "workflow-1" });
+	upsertWorkflowRuntimeTaskMock.mockResolvedValue({ id: "task-1" });
 });
 
 describe("operational exception queue", () => {
@@ -161,5 +172,25 @@ describe("operational exception queue", () => {
 				reason: "Run source again",
 			})
 		).rejects.toThrow("Only RFP parse exceptions support remediation");
+	});
+
+	it("uses the supplied actor when syncing exception workflows", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({ result: [rfpRow] }));
+
+		await expect(syncOperationalExceptionWorkflows({
+			subjectTypes: ["rfp_parse"],
+		}, "operations-admin-1")).resolves.toEqual({ synced: 1 });
+
+		expect(recordWorkflowRuntimeTransitionMock).toHaveBeenCalledWith(expect.objectContaining({
+			workflowKey: "operations_exception_queue",
+			subjectType: "rfp_parse",
+			subjectId: "rfp-1",
+			actorId: "operations-admin-1",
+			actorName: "operations-admin-1",
+		}));
+		expect(upsertWorkflowRuntimeTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+			workflowInstanceId: "workflow-1",
+			taskKey: "exception:rfp_parse:rfp-1",
+		}));
 	});
 });
