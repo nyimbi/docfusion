@@ -515,6 +515,20 @@ function costElementsByOpportunityCondition(opportunityId: string, userContext: 
 	)!;
 }
 
+function costTechnicalTrackingByOpportunityCondition(opportunityId: string, userContext: PricingUserContext): SQL {
+	return and(
+		eq(costTechnicalTracking.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userContext)
+	)!;
+}
+
+function pricingSummaryByOpportunityCondition(opportunityId: string, userContext: PricingUserContext): SQL {
+	return and(
+		eq(pricingSummaries.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userContext)
+	)!;
+}
+
 function costElementsByWbsCondition(
 	wbsCode: string,
 	userContext: PricingUserContext,
@@ -1274,7 +1288,7 @@ export async function validateCostTechnicalAlignment(
 		const tracking = await db
 			.select()
 			.from(costTechnicalTracking)
-			.where(eq(costTechnicalTracking.opportunityId, opportunityId));
+			.where(costTechnicalTrackingByOpportunityCondition(opportunityId, userContext));
 
 		// Get documents for the opportunity to analyze technical sections
 		const docs = await db
@@ -2208,7 +2222,7 @@ export async function calculateTotalPrice(
 		const existingSummary = await db
 			.select()
 			.from(pricingSummaries)
-			.where(eq(pricingSummaries.opportunityId, opportunityId));
+			.where(pricingSummaryByOpportunityCondition(opportunityId, userContext));
 
 		if (existingSummary.length > 0) {
 			await db
@@ -2231,7 +2245,7 @@ export async function calculateTotalPrice(
 					calculatedAt: new Date(),
 					updatedAt: new Date(),
 				})
-				.where(eq(pricingSummaries.opportunityId, opportunityId));
+				.where(pricingSummaryByOpportunityCondition(opportunityId, userContext));
 		} else {
 			await db.insert(pricingSummaries).values({
 				opportunityId,
@@ -3170,7 +3184,7 @@ export async function generateWBSFromTechnical(
 		const tracking = await db
 			.select()
 			.from(costTechnicalTracking)
-			.where(eq(costTechnicalTracking.opportunityId, opportunityId));
+			.where(costTechnicalTrackingByOpportunityCondition(opportunityId, userContext));
 
 		// Get existing cost elements
 		const elements = await db

@@ -181,6 +181,25 @@ function mockAssignedOpportunity(opportunityId = "00000000-0000-4000-8000-000000
 	dbMock.select.mockImplementationOnce(() => createChainableQuery([{ id: opportunityId }]));
 }
 
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) =>
+		collectSqlFragments(item, seen)
+	);
+}
+
 // ---------------------------------------------------------------------------
 // Pure Calculation Logic — these functions are module-private, so we test them
 // indirectly via the public API that invokes them.
@@ -673,6 +692,34 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		expect(dbMock.select).not.toHaveBeenCalled();
 	});
 
+	test("scopes pricing summary reads and updates through the assigned opportunity", async () => {
+		let summaryReadWhere: unknown;
+		let summaryUpdateWhere: unknown;
+		const summaryReadChain = createChainableQuery([{ opportunityId }]);
+		(summaryReadChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			summaryReadWhere = value;
+			return summaryReadChain;
+		});
+		const summaryUpdateChain = createChainableQuery([]);
+		(summaryUpdateChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			summaryUpdateWhere = value;
+			return summaryUpdateChain;
+		});
+
+		mockAssignedOpportunity(opportunityId);
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([]))
+			.mockImplementationOnce(() => createChainableQuery([]))
+			.mockImplementationOnce(() => summaryReadChain);
+		dbMock.update.mockImplementationOnce(() => summaryUpdateChain);
+
+		const result = await calculateTotalPrice(opportunityId);
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(summaryReadWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(summaryUpdateWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
 	test("rejects total calculation for unassigned opportunities", async () => {
 		dbMock.select.mockImplementationOnce(() => createChainableQuery([]));
 
@@ -746,6 +793,26 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		expect(dbMock.select).not.toHaveBeenCalled();
 	});
 
+	test("scopes cost-technical alignment tracking through the assigned opportunity", async () => {
+		let trackingWhere: unknown;
+		const trackingChain = createChainableQuery([]);
+		(trackingChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			trackingWhere = value;
+			return trackingChain;
+		});
+
+		mockAssignedOpportunity(opportunityId);
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([]))
+			.mockImplementationOnce(() => trackingChain)
+			.mockImplementationOnce(() => createChainableQuery([]));
+
+		const result = await validateCostTechnicalAlignment(opportunityId);
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(trackingWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
 	test("requires organization context before generating WBS from technical data", async () => {
 		mockUserContext.organizationId = undefined;
 
@@ -756,6 +823,25 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 			expect(result.error).toContain("No organization context");
 		}
 		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	test("scopes generated WBS tracking reads through the assigned opportunity", async () => {
+		let trackingWhere: unknown;
+		const trackingChain = createChainableQuery([{ sectionName: "Technical Approach" }]);
+		(trackingChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			trackingWhere = value;
+			return trackingChain;
+		});
+
+		mockAssignedOpportunity(opportunityId);
+		dbMock.select
+			.mockImplementationOnce(() => trackingChain)
+			.mockImplementationOnce(() => createChainableQuery([]));
+
+		const result = await generateWBSFromTechnical(opportunityId);
+
+		expect(result.success).toBe(true);
+		expect(collectSqlFragments(trackingWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
 
 	test("requires organization context before updating WBS codes", async () => {
