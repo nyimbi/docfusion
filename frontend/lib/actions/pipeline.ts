@@ -421,6 +421,20 @@ function visibleGateReviewCondition(gateReviewId: string, actorId: string): SQL 
 	)!;
 }
 
+function visibleMilestonesForPipelineCondition(pipelineId: string, actorId: string): SQL {
+	return and(
+		eq(pipelineMilestones.pipelineId, pipelineId),
+		assignedPipelineExistsSql(pipelineId, actorId)
+	)!;
+}
+
+function visibleMilestoneCondition(milestoneId: string, actorId: string): SQL {
+	return and(
+		eq(pipelineMilestones.id, milestoneId),
+		assignedPipelineExistsSql(pipelineMilestones.pipelineId, actorId)
+	)!;
+}
+
 async function loadVisiblePipeline(pipelineId: string, actorId: string): Promise<CapturePipeline | null> {
 	const [pipeline] = await db
 		.select()
@@ -1581,14 +1595,10 @@ export async function listGateReviews(pipelineId: string): Promise<ActionResult<
  * Generate a comprehensive bid decision package using AI.
  */
 export async function generateBidDecisionPackage(pipelineId: string): Promise<ActionResult<BidDecisionPackage>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		// Fetch pipeline
-		const [pipeline] = await db
-			.select()
-			.from(capturePipeline)
-			.where(eq(capturePipeline.id, pipelineId))
-			.limit(1);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -1598,7 +1608,7 @@ export async function generateBidDecisionPackage(pipelineId: string): Promise<Ac
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.id, pipeline.opportunityId!))
+			.where(visibleOpportunityCondition(pipeline.opportunityId!, actorId))
 			.limit(1);
 
 		if (!opportunity) {
@@ -1609,7 +1619,7 @@ export async function generateBidDecisionPackage(pipelineId: string): Promise<Ac
 		const activities = await db
 			.select()
 			.from(captureActivities)
-			.where(eq(captureActivities.pipelineId, pipelineId));
+			.where(visibleActivitiesForPipelineCondition(pipelineId, actorId));
 
 		// Calculate pwin factors
 		const pwinResult = await calculateSuggestedPwin(pipeline.opportunityId!);
@@ -1737,11 +1747,7 @@ export async function recordBidDecision(
 ): Promise<ActionResult<CapturePipeline>> {
 	const actorId = await requirePipelineActor();
 	try {
-		const [pipeline] = await db
-			.select()
-			.from(capturePipeline)
-			.where(eq(capturePipeline.id, pipelineId))
-			.limit(1);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -1777,7 +1783,7 @@ export async function recordBidDecision(
 		const [updated] = await db
 			.update(capturePipeline)
 			.set(updateData)
-			.where(eq(capturePipeline.id, pipelineId))
+			.where(visiblePipelineCondition(pipelineId, actorId))
 			.returning();
 
 		revalidatePipelinePaths(pipeline.opportunityId ?? undefined);
@@ -1800,7 +1806,7 @@ export async function createMilestone(
 	pipelineId: string,
 	milestone: CreateMilestoneInput
 ): Promise<ActionResult<PipelineMilestone>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		const parsed = createMilestoneSchema.safeParse(milestone);
 		if (!parsed.success) {
@@ -1808,11 +1814,7 @@ export async function createMilestone(
 		}
 
 		// Verify pipeline exists
-		const [pipeline] = await db
-			.select()
-			.from(capturePipeline)
-			.where(eq(capturePipeline.id, pipelineId))
-			.limit(1);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -1843,7 +1845,7 @@ export async function updateMilestone(
 	milestoneId: string,
 	data: Partial<CreateMilestoneInput>
 ): Promise<ActionResult<PipelineMilestone>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		const parsed = createMilestoneSchema.partial().safeParse(data);
 		if (!parsed.success) {
@@ -1853,7 +1855,7 @@ export async function updateMilestone(
 		const [updated] = await db
 			.update(pipelineMilestones)
 			.set(parsed.data)
-			.where(eq(pipelineMilestones.id, milestoneId))
+			.where(visibleMilestoneCondition(milestoneId, actorId))
 			.returning();
 
 		if (!updated) {
@@ -1874,7 +1876,7 @@ export async function completeMilestone(
 	milestoneId: string,
 	actualDate?: Date
 ): Promise<ActionResult<PipelineMilestone>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		const [updated] = await db
 			.update(pipelineMilestones)
@@ -1882,7 +1884,7 @@ export async function completeMilestone(
 				status: "completed",
 				actualDate: actualDate ?? new Date(),
 			})
-			.where(eq(pipelineMilestones.id, milestoneId))
+			.where(visibleMilestoneCondition(milestoneId, actorId))
 			.returning();
 
 		if (!updated) {
@@ -1900,12 +1902,12 @@ export async function completeMilestone(
  * List milestones for a pipeline.
  */
 export async function listMilestones(pipelineId: string): Promise<ActionResult<PipelineMilestone[]>> {
-	await requirePipelineActor();
+	const actorId = await requirePipelineActor();
 	try {
 		const milestones = await db
 			.select()
 			.from(pipelineMilestones)
-			.where(eq(pipelineMilestones.pipelineId, pipelineId))
+			.where(visibleMilestonesForPipelineCondition(pipelineId, actorId))
 			.orderBy(asc(pipelineMilestones.targetDate));
 
 		return { success: true, data: milestones };
