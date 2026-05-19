@@ -16,12 +16,19 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 // Mocks
 // ---------------------------------------------------------------------------
 
+const requireUserContextMock = vi.hoisted(() => vi.fn());
+const testOrganizationId = "11111111-1111-1111-1111-111111111111";
+
 vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
 vi.mock("@/lib/utils/logger", () => ({
 	logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
+}));
+
+vi.mock("@/lib/auth-utils", () => ({
+	requireUserContext: requireUserContextMock,
 }));
 
 vi.mock("@/lib/ai/providers", () => ({
@@ -193,6 +200,10 @@ function makeDiscriminator(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	requireUserContextMock.mockResolvedValue({
+		userId: "competitive-user-1",
+		organizationId: testOrganizationId,
+	});
 	dbMock.select.mockImplementation(() => createChainableQuery([]));
 	dbMock.insert.mockImplementation(() => createChainableQuery([]));
 	dbMock.update.mockImplementation(() => createChainableQuery([]));
@@ -306,6 +317,16 @@ describe("Competitor CRUD", () => {
 			});
 			expect(result.success).toBe(false);
 		});
+
+		test("rejects spoofed organization ID before insert", async () => {
+			const result = await createCompetitor({
+				name: "Spoofed Org",
+				organizationId: "22222222-2222-2222-2222-222222222222",
+			});
+
+			expect(result.success).toBe(false);
+			expect(dbMock.insert).not.toHaveBeenCalled();
+		});
 	});
 
 	describe("updateCompetitor", () => {
@@ -389,8 +410,15 @@ describe("Competitor CRUD", () => {
 			const comp = makeCompetitor();
 			dbMock.select.mockImplementation(() => createChainableQuery([comp]));
 
-			const result = await listCompetitors("org-001");
+			const result = await listCompetitors(testOrganizationId);
 			expect(result.success).toBe(true);
+		});
+
+		test("rejects spoofed organization filter before querying", async () => {
+			const result = await listCompetitors("22222222-2222-2222-2222-222222222222");
+
+			expect(result.success).toBe(false);
+			expect(dbMock.select).not.toHaveBeenCalled();
 		});
 
 		test("returns empty array when no competitors exist", async () => {

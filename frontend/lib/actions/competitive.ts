@@ -32,9 +32,11 @@ import {
 } from "@/lib/db/schema-competitors";
 import { opportunities, partners, companySettings } from "@/lib/db/schema";
 import { eq, and, desc, sql, like, or, inArray, asc, ne, isNull, isNotNull } from "drizzle-orm";
+import type { AnyColumn } from "drizzle-orm/column";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/utils/logger";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 
 // ============================================================================
 // Types
@@ -44,6 +46,32 @@ import { logger } from "@/lib/utils/logger";
  * Standard action result type for consistent API responses.
  */
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+
+type OrganizationColumn = AnyColumn<{ data: string; notNull: false }>;
+
+async function requireCompetitiveContext(organizationId?: string | null): Promise<UserContext> {
+	const userContext = await requireUserContext();
+	if (organizationId && organizationId !== userContext.organizationId) {
+		throw new Error("Unauthorized");
+	}
+	return userContext;
+}
+
+function visibleOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
+	return userContext.organizationId
+		? or(isNull(column), eq(column, userContext.organizationId))
+		: isNull(column);
+}
+
+function mutableOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
+	return userContext.organizationId
+		? eq(column, userContext.organizationId)
+		: isNull(column);
+}
+
+function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
+	return inputOrganizationId ?? userContext.organizationId;
+}
 
 /**
  * Competitor match with likelihood scoring for opportunity analysis.
@@ -245,11 +273,13 @@ export async function createCompetitor(
 ): Promise<ActionResult<Competitor>> {
 	try {
 		const validated = createCompetitorSchema.parse(input);
+		const userContext = await requireCompetitiveContext(validated.organizationId);
 
 		const [competitor] = await db
 			.insert(competitors)
 			.values({
 				...validated,
+				organizationId: organizationForInsert(validated.organizationId, userContext),
 				createdAt: new Date(),
 				updatedAt: new Date(),
 			})
@@ -274,10 +304,11 @@ export async function updateCompetitor(
 	data: Partial<CreateCompetitorInput>
 ): Promise<ActionResult<Competitor>> {
 	try {
+		const userContext = await requireCompetitiveContext(data.organizationId);
 		const existing = await db
 			.select()
 			.from(competitors)
-			.where(eq(competitors.id, id))
+			.where(and(eq(competitors.id, id), mutableOrganizationCondition(competitors.organizationId, userContext)))
 			.limit(1);
 
 		if (existing.length === 0) {
@@ -288,9 +319,10 @@ export async function updateCompetitor(
 			.update(competitors)
 			.set({
 				...data,
+				organizationId: organizationForInsert(data.organizationId, userContext),
 				updatedAt: new Date(),
 			})
-			.where(eq(competitors.id, id))
+			.where(and(eq(competitors.id, id), mutableOrganizationCondition(competitors.organizationId, userContext)))
 			.returning();
 
 		revalidatePath("/competitive");
@@ -308,9 +340,10 @@ export async function deleteCompetitor(
 	id: string
 ): Promise<ActionResult<{ deleted: boolean }>> {
 	try {
+		const userContext = await requireCompetitiveContext();
 		const deleted = await db
 			.delete(competitors)
-			.where(eq(competitors.id, id))
+			.where(and(eq(competitors.id, id), mutableOrganizationCondition(competitors.organizationId, userContext)))
 			.returning();
 
 		if (deleted.length === 0) {
@@ -332,10 +365,11 @@ export async function getCompetitor(
 	id: string
 ): Promise<ActionResult<Competitor>> {
 	try {
+		const userContext = await requireCompetitiveContext();
 		const [competitor] = await db
 			.select()
 			.from(competitors)
-			.where(eq(competitors.id, id))
+			.where(and(eq(competitors.id, id), visibleOrganizationCondition(competitors.organizationId, userContext)))
 			.limit(1);
 
 		if (!competitor) {
@@ -356,6 +390,7 @@ export async function listCompetitors(
 	organizationId?: string
 ): Promise<ActionResult<Competitor[]>> {
 	try {
+		const userContext = await requireCompetitiveContext(organizationId);
 		const result = organizationId
 			? await db
 					.select()
@@ -365,6 +400,7 @@ export async function listCompetitors(
 			: await db
 					.select()
 					.from(competitors)
+					.where(visibleOrganizationCondition(competitors.organizationId, userContext))
 					.orderBy(asc(competitors.name));
 
 		return { success: true, data: result };
@@ -382,7 +418,8 @@ export async function searchCompetitors(
 	filters?: CompetitorFilters
 ): Promise<ActionResult<Competitor[]>> {
 	try {
-		const conditions: ReturnType<typeof eq>[] = [];
+		const userContext = await requireCompetitiveContext();
+		const conditions = [visibleOrganizationCondition(competitors.organizationId, userContext)];
 
 		// Text search on name and description
 		if (query && query.trim()) {
@@ -438,11 +475,13 @@ export async function createDiscriminator(
 ): Promise<ActionResult<Discriminator>> {
 	try {
 		const validated = createDiscriminatorSchema.parse(input);
+		const userContext = await requireCompetitiveContext(validated.organizationId);
 
 		const [discriminator] = await db
 			.insert(discriminators)
 			.values({
 				...validated,
+				organizationId: organizationForInsert(validated.organizationId, userContext),
 				isActive: true,
 				useCount: 0,
 				winCount: 0,
@@ -470,13 +509,15 @@ export async function updateDiscriminator(
 	data: Partial<CreateDiscriminatorInput>
 ): Promise<ActionResult<Discriminator>> {
 	try {
+		const userContext = await requireCompetitiveContext(data.organizationId);
 		const [updated] = await db
 			.update(discriminators)
 			.set({
 				...data,
+				organizationId: organizationForInsert(data.organizationId, userContext),
 				updatedAt: new Date(),
 			})
-			.where(eq(discriminators.id, id))
+			.where(and(eq(discriminators.id, id), mutableOrganizationCondition(discriminators.organizationId, userContext)))
 			.returning();
 
 		if (!updated) {
@@ -498,9 +539,10 @@ export async function deleteDiscriminator(
 	id: string
 ): Promise<ActionResult<{ deleted: boolean }>> {
 	try {
+		const userContext = await requireCompetitiveContext();
 		const deleted = await db
 			.delete(discriminators)
-			.where(eq(discriminators.id, id))
+			.where(and(eq(discriminators.id, id), mutableOrganizationCondition(discriminators.organizationId, userContext)))
 			.returning();
 
 		if (deleted.length === 0) {
@@ -522,7 +564,8 @@ export async function listDiscriminators(
 	filters?: DiscriminatorFilters
 ): Promise<ActionResult<Discriminator[]>> {
 	try {
-		const conditions: ReturnType<typeof eq>[] = [];
+		const userContext = await requireCompetitiveContext();
+		const conditions = [visibleOrganizationCondition(discriminators.organizationId, userContext)];
 
 		if (filters?.type) {
 			conditions.push(eq(discriminators.discriminatorType, filters.type));
@@ -559,10 +602,11 @@ export async function recordDiscriminatorUsage(
 	won: boolean
 ): Promise<ActionResult<Discriminator>> {
 	try {
+		const userContext = await requireCompetitiveContext();
 		const [existing] = await db
 			.select()
 			.from(discriminators)
-			.where(eq(discriminators.id, id))
+			.where(and(eq(discriminators.id, id), mutableOrganizationCondition(discriminators.organizationId, userContext)))
 			.limit(1);
 
 		if (!existing) {
@@ -581,7 +625,7 @@ export async function recordDiscriminatorUsage(
 				effectivenessScore,
 				updatedAt: new Date(),
 			})
-			.where(eq(discriminators.id, id))
+			.where(and(eq(discriminators.id, id), mutableOrganizationCondition(discriminators.organizationId, userContext)))
 			.returning();
 
 		return { success: true, data: updated };
@@ -603,12 +647,13 @@ export async function createGhostTheme(
 ): Promise<ActionResult<GhostTheme>> {
 	try {
 		const validated = createGhostThemeSchema.parse(input);
+		const userContext = await requireCompetitiveContext(validated.organizationId);
 
 		// Verify competitor exists
 		const [competitor] = await db
 			.select()
 			.from(competitors)
-			.where(eq(competitors.id, validated.competitorId))
+			.where(and(eq(competitors.id, validated.competitorId), visibleOrganizationCondition(competitors.organizationId, userContext)))
 			.limit(1);
 
 		if (!competitor) {
@@ -619,6 +664,7 @@ export async function createGhostTheme(
 			.insert(ghostThemes)
 			.values({
 				...validated,
+				organizationId: organizationForInsert(validated.organizationId, userContext),
 				isEthical: true,
 				useCount: 0,
 				createdAt: new Date(),
@@ -643,15 +689,17 @@ export async function listGhostThemes(
 	competitorId?: string
 ): Promise<ActionResult<GhostTheme[]>> {
 	try {
+		const userContext = await requireCompetitiveContext();
 		const result = competitorId
 			? await db
 					.select()
 					.from(ghostThemes)
-					.where(eq(ghostThemes.competitorId, competitorId))
+					.where(and(eq(ghostThemes.competitorId, competitorId), visibleOrganizationCondition(ghostThemes.organizationId, userContext)))
 					.orderBy(desc(ghostThemes.useCount))
 			: await db
 					.select()
 					.from(ghostThemes)
+					.where(visibleOrganizationCondition(ghostThemes.organizationId, userContext))
 					.orderBy(desc(ghostThemes.useCount));
 
 		return { success: true, data: result };
@@ -671,11 +719,12 @@ export async function generateGhostTheme(
 	weakness: string
 ): Promise<ActionResult<string>> {
 	try {
+		const userContext = await requireCompetitiveContext();
 		// Validate competitor exists
 		const [competitor] = await db
 			.select()
 			.from(competitors)
-			.where(eq(competitors.id, competitorId))
+			.where(and(eq(competitors.id, competitorId), visibleOrganizationCondition(competitors.organizationId, userContext)))
 			.limit(1);
 
 		if (!competitor) {
@@ -1060,6 +1109,7 @@ export async function addCompetitorToOpportunity(
 ): Promise<ActionResult<CompetitorOpportunity>> {
 	try {
 		const validated = addCompetitorToOpportunitySchema.parse(input);
+		await requireCompetitiveContext();
 
 		// Check if link already exists
 		const [existing] = await db
@@ -1105,6 +1155,7 @@ export async function updateCompetitorOpportunity(
 	data: Partial<AddCompetitorToOpportunityInput>
 ): Promise<ActionResult<CompetitorOpportunity>> {
 	try {
+		await requireCompetitiveContext();
 		const [updated] = await db
 			.update(competitorOpportunities)
 			.set({
@@ -1133,6 +1184,7 @@ export async function listCompetitorsForOpportunity(
 	opportunityId: string
 ): Promise<ActionResult<CompetitorOpportunity[]>> {
 	try {
+		await requireCompetitiveContext();
 		const links = await db
 			.select()
 			.from(competitorOpportunities)
