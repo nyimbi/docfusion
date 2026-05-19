@@ -22,7 +22,7 @@ import { requireUserContext } from "@/lib/auth-utils";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { AIClient } from "@/lib/ai/client";
-import { opportunities } from "@/lib/db/schema";
+import { documents, opportunities, proposalDocuments } from "@/lib/db/schema";
 import {
 	winThemes,
 	themeOccurrences,
@@ -250,6 +250,13 @@ function visibleCompetitorByIdCondition(competitorId: string, userId: string): S
 	return and(
 		eq(competitorProfiles.id, competitorId),
 		assignedOpportunityExistsSql(competitorProfiles.opportunityId, userId)
+	)!;
+}
+
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(proposalDocuments.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
 	)!;
 }
 
@@ -1315,7 +1322,6 @@ export async function scanForOccurrences(
 		}
 
 		// Get documents for this opportunity via proposalDocuments join table
-		const { proposalDocuments, documents } = await import("@/lib/db/schema");
 		const opportunityDocs = await db
 			.select({
 				id: documents.id,
@@ -1325,7 +1331,7 @@ export async function scanForOccurrences(
 			})
 			.from(proposalDocuments)
 			.innerJoin(documents, eq(proposalDocuments.documentId, documents.id))
-			.where(eq(proposalDocuments.opportunityId, opportunityId));
+			.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userContext.userId));
 
 		if (opportunityDocs.length === 0) {
 			return { success: true, count: 0 };

@@ -9,7 +9,7 @@ interface ChainConfig {
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "limit", "orderBy"]) {
+	for (const method of ["from", "innerJoin", "limit", "orderBy"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	chain.set = vi.fn(() => chain);
@@ -74,7 +74,7 @@ vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
-import { updateTheme } from "@/lib/actions/win-themes";
+import { scanForOccurrences, updateTheme } from "@/lib/actions/win-themes";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -105,5 +105,23 @@ describe("win theme authorization", () => {
 		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(dbMock.insert).not.toHaveBeenCalled();
 		expect(dbMock.delete).not.toHaveBeenCalled();
+	});
+
+	it("scopes occurrence document scans to proposal documents on assigned opportunities", async () => {
+		let docsWhere: unknown;
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({ result: [{ id: "theme-1" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => {
+					docsWhere = value;
+				},
+			}));
+
+		const result = await scanForOccurrences("22222222-2222-4222-8222-222222222222");
+
+		expect(result).toEqual({ success: true, count: 0 });
+		expect(collectSqlFragments(docsWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
 });
