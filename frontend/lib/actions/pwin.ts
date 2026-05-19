@@ -47,10 +47,12 @@ import {
 } from "@/lib/db/schema-pwin";
 import { opportunities } from "@/lib/db/schema";
 import { debriefs } from "@/lib/db/schema-winloss";
-import { eq, and, desc, asc, sql, gte, lte, inArray, count, avg, sum, isNotNull, or } from "drizzle-orm";
+import { eq, and, desc, asc, sql, gte, lte, inArray, count, avg, sum, isNotNull, or, isNull } from "drizzle-orm";
+import type { AnyColumn } from "drizzle-orm/column";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/utils/logger";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 
 // ============================================================================
 // Types
@@ -60,6 +62,32 @@ import { logger } from "@/lib/utils/logger";
  * Standard action result type for consistent API responses.
  */
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+
+type OrganizationColumn = AnyColumn<{ data: string; notNull: false }>;
+
+async function requirePwinContext(organizationId?: string | null): Promise<UserContext> {
+	const userContext = await requireUserContext();
+	if (organizationId && organizationId !== userContext.organizationId) {
+		throw new Error("Unauthorized");
+	}
+	return userContext;
+}
+
+function visibleOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
+	return userContext.organizationId
+		? or(isNull(column), eq(column, userContext.organizationId))
+		: isNull(column);
+}
+
+function mutableOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
+	return userContext.organizationId
+		? eq(column, userContext.organizationId)
+		: isNull(column);
+}
+
+function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
+	return inputOrganizationId ?? userContext.organizationId;
+}
 
 /**
  * Factor score entry for PWin assessment.
@@ -542,12 +570,11 @@ export async function listPwinFactors(
 	organizationId?: string
 ): Promise<ActionResult<PwinFactor[]>> {
 	try {
-		const conditions = organizationId
-			? and(
-					eq(pwinFactors.isActive, true),
-					or(eq(pwinFactors.organizationId, organizationId), sql`${pwinFactors.organizationId} IS NULL`)
-				)
-			: eq(pwinFactors.isActive, true);
+		const userContext = await requirePwinContext(organizationId);
+		const conditions = and(
+			eq(pwinFactors.isActive, true),
+			visibleOrganizationCondition(pwinFactors.organizationId, userContext)
+		);
 
 		const factors = await db
 			.select()
@@ -570,6 +597,8 @@ export async function createPwinFactor(
 ): Promise<ActionResult<PwinFactor>> {
 	try {
 		const validated = createFactorSchema.parse(data);
+		const userContext = await requirePwinContext(validated.organizationId);
+		const organizationId = organizationForInsert(validated.organizationId, userContext);
 
 		// Check for duplicate factor name within organization
 		const [existing] = await db
@@ -578,9 +607,9 @@ export async function createPwinFactor(
 			.where(
 				and(
 					eq(pwinFactors.factorName, validated.factorName),
-					validated.organizationId
-						? eq(pwinFactors.organizationId, validated.organizationId)
-						: sql`${pwinFactors.organizationId} IS NULL`
+					organizationId
+						? eq(pwinFactors.organizationId, organizationId)
+						: isNull(pwinFactors.organizationId)
 				)
 			)
 			.limit(1);
@@ -599,7 +628,7 @@ export async function createPwinFactor(
 				minScore: validated.minScore,
 				maxScore: validated.maxScore,
 				scoringGuidelines: validated.scoringGuidelines,
-				organizationId: validated.organizationId,
+				organizationId,
 				isActive: true,
 				isDefault: false,
 				createdAt: new Date(),
@@ -628,12 +657,13 @@ export async function updatePwinFactor(
 ): Promise<ActionResult<PwinFactor>> {
 	try {
 		const validated = updateFactorSchema.parse(data);
+		const userContext = await requirePwinContext(validated.organizationId);
 
 		// Verify factor exists
 		const [existing] = await db
 			.select()
 			.from(pwinFactors)
-			.where(eq(pwinFactors.id, id))
+			.where(and(eq(pwinFactors.id, id), mutableOrganizationCondition(pwinFactors.organizationId, userContext)))
 			.limit(1);
 
 		if (!existing) {
@@ -658,7 +688,7 @@ export async function updatePwinFactor(
 		const [updated] = await db
 			.update(pwinFactors)
 			.set(updateData)
-			.where(eq(pwinFactors.id, id))
+			.where(and(eq(pwinFactors.id, id), mutableOrganizationCondition(pwinFactors.organizationId, userContext)))
 			.returning();
 
 		revalidatePath("/pwin/factors");
@@ -678,10 +708,11 @@ export async function updatePwinFactor(
  */
 export async function deletePwinFactor(id: string): Promise<ActionResult<{ deleted: boolean }>> {
 	try {
+		const userContext = await requirePwinContext();
 		const [existing] = await db
 			.select()
 			.from(pwinFactors)
-			.where(eq(pwinFactors.id, id))
+			.where(and(eq(pwinFactors.id, id), mutableOrganizationCondition(pwinFactors.organizationId, userContext)))
 			.limit(1);
 
 		if (!existing) {
@@ -692,7 +723,7 @@ export async function deletePwinFactor(id: string): Promise<ActionResult<{ delet
 		await db
 			.update(pwinFactors)
 			.set({ isActive: false, updatedAt: new Date() })
-			.where(eq(pwinFactors.id, id));
+			.where(and(eq(pwinFactors.id, id), mutableOrganizationCondition(pwinFactors.organizationId, userContext)));
 
 		revalidatePath("/pwin/factors");
 
@@ -711,6 +742,8 @@ export async function initializeDefaultFactors(
 	organizationId: string
 ): Promise<ActionResult<PwinFactor[]>> {
 	try {
+		await requirePwinContext(organizationId);
+
 		// Check if factors already exist for this organization
 		const existingFactors = await db
 			.select()
@@ -774,6 +807,8 @@ export async function assessPwin(
 			scores,
 			...options,
 		});
+		const userContext = await requirePwinContext(validated.organizationId);
+		const organizationId = organizationForInsert(validated.organizationId, userContext);
 
 		// Verify opportunity exists
 		const [opportunity] = await db
@@ -790,7 +825,10 @@ export async function assessPwin(
 		const factors = await db
 			.select()
 			.from(pwinFactors)
-			.where(eq(pwinFactors.isActive, true));
+			.where(and(
+				eq(pwinFactors.isActive, true),
+				visibleOrganizationCondition(pwinFactors.organizationId, userContext)
+			));
 
 		// Calculate PWin
 		const { pwin, weightedScore, maxPossibleScore } = calculatePwinFromScores(validated.scores, factors);
@@ -799,7 +837,10 @@ export async function assessPwin(
 		const [previousAssessment] = await db
 			.select()
 			.from(pwinAssessments)
-			.where(eq(pwinAssessments.opportunityId, opportunityId))
+			.where(and(
+				eq(pwinAssessments.opportunityId, opportunityId),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			))
 			.orderBy(desc(pwinAssessments.assessedAt))
 			.limit(1);
 
@@ -818,9 +859,9 @@ export async function assessPwin(
 			.insert(pwinAssessments)
 			.values({
 				opportunityId,
-				organizationId: validated.organizationId,
+				organizationId,
 				assessedAt: new Date(),
-				assessedBy: validated.assessedBy,
+				assessedBy: userContext.userId,
 				assessmentType: validated.assessmentType ?? "initial",
 				factorScores: validated.scores,
 				calculatedPwin: pwin,
@@ -931,10 +972,11 @@ function calculateSensitivityAnalysis(
  */
 export async function getPwinAssessment(id: string): Promise<ActionResult<PwinAssessment>> {
 	try {
+		const userContext = await requirePwinContext();
 		const [assessment] = await db
 			.select()
 			.from(pwinAssessments)
-			.where(eq(pwinAssessments.id, id))
+			.where(and(eq(pwinAssessments.id, id), mutableOrganizationCondition(pwinAssessments.organizationId, userContext)))
 			.limit(1);
 
 		if (!assessment) {
@@ -955,10 +997,14 @@ export async function listPwinAssessments(
 	opportunityId: string
 ): Promise<ActionResult<PwinAssessment[]>> {
 	try {
+		const userContext = await requirePwinContext();
 		const assessments = await db
 			.select()
 			.from(pwinAssessments)
-			.where(eq(pwinAssessments.opportunityId, opportunityId))
+			.where(and(
+				eq(pwinAssessments.opportunityId, opportunityId),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			))
 			.orderBy(desc(pwinAssessments.assessedAt));
 
 		return { success: true, data: assessments };
@@ -975,6 +1021,7 @@ export async function getPwinHistory(
 	opportunityId: string
 ): Promise<ActionResult<Array<{ date: string; pwin: number; assessmentType: string }>>> {
 	try {
+		const userContext = await requirePwinContext();
 		const assessments = await db
 			.select({
 				assessedAt: pwinAssessments.assessedAt,
@@ -982,7 +1029,10 @@ export async function getPwinHistory(
 				assessmentType: pwinAssessments.assessmentType,
 			})
 			.from(pwinAssessments)
-			.where(eq(pwinAssessments.opportunityId, opportunityId))
+			.where(and(
+				eq(pwinAssessments.opportunityId, opportunityId),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			))
 			.orderBy(asc(pwinAssessments.assessedAt));
 
 		const history = assessments.map(a => ({
@@ -1012,6 +1062,7 @@ export async function comparePwinAssessments(
 	}[];
 }>> {
 	try {
+		const userContext = await requirePwinContext();
 		if (assessmentIds.length < 2) {
 			return { success: false, error: "At least 2 assessments required for comparison" };
 		}
@@ -1019,7 +1070,10 @@ export async function comparePwinAssessments(
 		const assessments = await db
 			.select()
 			.from(pwinAssessments)
-			.where(inArray(pwinAssessments.id, assessmentIds))
+			.where(and(
+				inArray(pwinAssessments.id, assessmentIds),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			))
 			.orderBy(asc(pwinAssessments.assessedAt));
 
 		if (assessments.length < 2) {
@@ -1076,11 +1130,15 @@ export async function runSensitivityAnalysis(
 	opportunityId: string
 ): Promise<ActionResult<SensitivityResult[]>> {
 	try {
+		const userContext = await requirePwinContext();
 		// Get latest assessment
 		const [latestAssessment] = await db
 			.select()
 			.from(pwinAssessments)
-			.where(eq(pwinAssessments.opportunityId, opportunityId))
+			.where(and(
+				eq(pwinAssessments.opportunityId, opportunityId),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			))
 			.orderBy(desc(pwinAssessments.assessedAt))
 			.limit(1);
 
@@ -1109,7 +1167,10 @@ export async function runSensitivityAnalysis(
 		const factors = await db
 			.select()
 			.from(pwinFactors)
-			.where(eq(pwinFactors.isActive, true));
+			.where(and(
+				eq(pwinFactors.isActive, true),
+				visibleOrganizationCondition(pwinFactors.organizationId, userContext)
+			));
 
 		const scores = latestAssessment.factorScores as FactorScore[];
 		const currentPwin = latestAssessment.calculatedPwin ?? 0;
@@ -1128,7 +1189,10 @@ export async function runSensitivityAnalysis(
 		await db
 			.update(pwinAssessments)
 			.set({ sensitivityAnalysis: dbFormat })
-			.where(eq(pwinAssessments.id, latestAssessment.id));
+			.where(and(
+				eq(pwinAssessments.id, latestAssessment.id),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			));
 
 		return { success: true, data: analysis };
 	} catch (error) {
@@ -1144,6 +1208,7 @@ export async function getRecommendationsToImprovePwin(
 	opportunityId: string
 ): Promise<ActionResult<PwinRecommendation[]>> {
 	try {
+		const userContext = await requirePwinContext();
 		// Get opportunity and latest assessment
 		const [opportunity] = await db
 			.select()
@@ -1158,7 +1223,10 @@ export async function getRecommendationsToImprovePwin(
 		const [latestAssessment] = await db
 			.select()
 			.from(pwinAssessments)
-			.where(eq(pwinAssessments.opportunityId, opportunityId))
+			.where(and(
+				eq(pwinAssessments.opportunityId, opportunityId),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			))
 			.orderBy(desc(pwinAssessments.assessedAt))
 			.limit(1);
 
@@ -1209,7 +1277,10 @@ export async function getRecommendationsToImprovePwin(
 		await db
 			.update(pwinAssessments)
 			.set({ recommendations })
-			.where(eq(pwinAssessments.id, latestAssessment.id));
+			.where(and(
+				eq(pwinAssessments.id, latestAssessment.id),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			));
 
 		return { success: true, data: recommendations };
 	} catch (error) {
@@ -1351,6 +1422,7 @@ export async function identifyPwinRisks(
 	opportunityId: string
 ): Promise<ActionResult<PwinRisk[]>> {
 	try {
+		const userContext = await requirePwinContext();
 		// Get opportunity and latest assessment
 		const [opportunity] = await db
 			.select()
@@ -1365,7 +1437,10 @@ export async function identifyPwinRisks(
 		const assessments = await db
 			.select()
 			.from(pwinAssessments)
-			.where(eq(pwinAssessments.opportunityId, opportunityId))
+			.where(and(
+				eq(pwinAssessments.opportunityId, opportunityId),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			))
 			.orderBy(desc(pwinAssessments.assessedAt))
 			.limit(5);
 
@@ -1474,6 +1549,7 @@ export async function generatePwinReport(
 	opportunityId: string
 ): Promise<ActionResult<PwinReport>> {
 	try {
+		const userContext = await requirePwinContext();
 		// Get opportunity
 		const [opportunity] = await db
 			.select()
@@ -1489,7 +1565,10 @@ export async function generatePwinReport(
 		const assessments = await db
 			.select()
 			.from(pwinAssessments)
-			.where(eq(pwinAssessments.opportunityId, opportunityId))
+			.where(and(
+				eq(pwinAssessments.opportunityId, opportunityId),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			))
 			.orderBy(desc(pwinAssessments.assessedAt));
 
 		if (assessments.length === 0) {
@@ -1564,6 +1643,8 @@ export async function optimizePortfolio(
 ): Promise<ActionResult<PortfolioOptimization>> {
 	try {
 		const validated = optimizationParamsSchema.parse(params);
+		const userContext = await requirePwinContext(validated.organizationId);
+		const organizationId = organizationForInsert(validated.organizationId, userContext);
 
 		// Build query conditions
 		const conditions: ReturnType<typeof eq>[] = [];
@@ -1675,7 +1756,7 @@ export async function optimizePortfolio(
 		const [optimization] = await db
 			.insert(portfolioOptimizations)
 			.values({
-				organizationId: validated.organizationId,
+				organizationId,
 				optimizationType: validated.optimizationType,
 				resourceConstraint: validated.resourceConstraint,
 				selectedOpportunities: selectedOpportunities.map(o => ({
@@ -1691,6 +1772,7 @@ export async function optimizePortfolio(
 				portfolioPwin,
 				diversificationScore,
 				createdAt: new Date(),
+				createdBy: userContext.userId,
 			})
 			.returning();
 
@@ -1713,6 +1795,7 @@ export async function compareOpportunities(
 	opportunityIds: string[]
 ): Promise<ActionResult<OpportunityComparison[]>> {
 	try {
+		const userContext = await requirePwinContext();
 		if (opportunityIds.length < 2) {
 			return { success: false, error: "At least 2 opportunities required for comparison" };
 		}
@@ -1731,7 +1814,10 @@ export async function compareOpportunities(
 		const assessments = await db
 			.select()
 			.from(pwinAssessments)
-			.where(inArray(pwinAssessments.opportunityId, opportunityIds))
+			.where(and(
+				inArray(pwinAssessments.opportunityId, opportunityIds),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			))
 			.orderBy(desc(pwinAssessments.assessedAt));
 
 		// Group assessments by opportunity (latest only)
@@ -1821,6 +1907,7 @@ export async function rankOpportunities(
 }>>> {
 	try {
 		const validated = filters ? rankingFiltersSchema.parse(filters) : {};
+		await requirePwinContext(validated.organizationId);
 
 		// Build query conditions
 		const conditions: ReturnType<typeof eq>[] = [];
@@ -1914,6 +2001,7 @@ export async function getPortfolioMetrics(
 	organizationId?: string
 ): Promise<ActionResult<PortfolioMetrics>> {
 	try {
+		await requirePwinContext(organizationId);
 		// Fetch all active opportunities
 		const opps = await db
 			.select()
@@ -2042,6 +2130,8 @@ export async function trainPwinModel(
 ): Promise<ActionResult<PwinModelPerformance>> {
 	try {
 		const validated = params ? trainingParamsSchema.parse(params) : {};
+		const userContext = await requirePwinContext(validated.organizationId);
+		const organizationId = organizationForInsert(validated.organizationId, userContext);
 
 		// Fetch historical data from debriefs
 		const historicalData = await db
@@ -2051,7 +2141,10 @@ export async function trainPwinModel(
 			})
 			.from(debriefs)
 			.innerJoin(opportunities, eq(debriefs.opportunityId, opportunities.id))
-			.where(inArray(debriefs.outcome, ["win", "loss"]));
+			.where(and(
+				inArray(debriefs.outcome, ["win", "loss"]),
+				mutableOrganizationCondition(debriefs.organizationId, userContext)
+			));
 
 		if (historicalData.length < 10) {
 			return {
@@ -2067,7 +2160,10 @@ export async function trainPwinModel(
 		const assessments = await db
 			.select()
 			.from(pwinAssessments)
-			.where(inArray(pwinAssessments.opportunityId, opportunityIds))
+			.where(and(
+				inArray(pwinAssessments.opportunityId, opportunityIds),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			))
 			.orderBy(desc(pwinAssessments.assessedAt));
 
 		for (const assessment of assessments) {
@@ -2194,7 +2290,7 @@ export async function trainPwinModel(
 		const [modelPerf] = await db
 			.insert(pwinModelPerformance)
 			.values({
-				organizationId: validated.organizationId,
+				organizationId,
 				modelVersion,
 				modelType,
 				accuracy,
@@ -2211,6 +2307,7 @@ export async function trainPwinModel(
 				crossValidationScores: [accuracy], // Simplified
 				isActive: true,
 				trainedAt: new Date(),
+				trainedBy: userContext.userId,
 			})
 			.returning();
 
@@ -2220,9 +2317,7 @@ export async function trainPwinModel(
 			.set({ isActive: false })
 			.where(
 				and(
-					validated.organizationId
-						? eq(pwinModelPerformance.organizationId, validated.organizationId)
-						: sql`true`,
+					mutableOrganizationCondition(pwinModelPerformance.organizationId, userContext),
 					sql`${pwinModelPerformance.id} != ${modelPerf.id}`
 				)
 			);
@@ -2232,7 +2327,10 @@ export async function trainPwinModel(
 			await db
 				.update(pwinFactors)
 				.set({ winCorrelation: importance.importance, updatedAt: new Date() })
-				.where(eq(pwinFactors.factorName, importance.factorName));
+				.where(and(
+					eq(pwinFactors.factorName, importance.factorName),
+					mutableOrganizationCondition(pwinFactors.organizationId, userContext)
+				));
 		}
 
 		revalidatePath("/pwin/model");
@@ -2252,10 +2350,14 @@ export async function trainPwinModel(
  */
 export async function evaluateModelPerformance(): Promise<ActionResult<ModelEvaluation>> {
 	try {
+		const userContext = await requirePwinContext();
 		const [activeModel] = await db
 			.select()
 			.from(pwinModelPerformance)
-			.where(eq(pwinModelPerformance.isActive, true))
+			.where(and(
+				eq(pwinModelPerformance.isActive, true),
+				mutableOrganizationCondition(pwinModelPerformance.organizationId, userContext)
+			))
 			.orderBy(desc(pwinModelPerformance.trainedAt))
 			.limit(1);
 
@@ -2324,9 +2426,11 @@ export async function evaluateModelPerformance(): Promise<ActionResult<ModelEval
  */
 export async function getModelHistory(): Promise<ActionResult<PwinModelPerformance[]>> {
 	try {
+		const userContext = await requirePwinContext();
 		const models = await db
 			.select()
 			.from(pwinModelPerformance)
+			.where(mutableOrganizationCondition(pwinModelPerformance.organizationId, userContext))
 			.orderBy(desc(pwinModelPerformance.trainedAt))
 			.limit(10);
 
@@ -2357,6 +2461,7 @@ export async function validateModelPredictions(): Promise<ActionResult<{
 	};
 }>> {
 	try {
+		const userContext = await requirePwinContext();
 		// Get recent completed opportunities with predictions
 		const completedOpps = await db
 			.select({
@@ -2365,7 +2470,10 @@ export async function validateModelPredictions(): Promise<ActionResult<{
 			})
 			.from(debriefs)
 			.innerJoin(opportunities, eq(debriefs.opportunityId, opportunities.id))
-			.where(inArray(debriefs.outcome, ["win", "loss"]))
+			.where(and(
+				inArray(debriefs.outcome, ["win", "loss"]),
+				mutableOrganizationCondition(debriefs.organizationId, userContext)
+			))
 			.orderBy(desc(debriefs.createdAt))
 			.limit(50);
 
@@ -2429,6 +2537,7 @@ export async function validateModelPredictions(): Promise<ActionResult<{
  */
 export async function forecastWinProbabilities(): Promise<ActionResult<PwinForecast>> {
 	try {
+		await requirePwinContext();
 		// Get active pipeline opportunities
 		const pipelineOpps = await db
 			.select()
@@ -2491,11 +2600,15 @@ export async function forecastWinProbabilities(): Promise<ActionResult<PwinForec
  */
 export async function getCalibrationData(): Promise<ActionResult<CalibrationData>> {
 	try {
+		const userContext = await requirePwinContext();
 		// Get active model calibration data
 		const [activeModel] = await db
 			.select()
 			.from(pwinModelPerformance)
-			.where(eq(pwinModelPerformance.isActive, true))
+			.where(and(
+				eq(pwinModelPerformance.isActive, true),
+				mutableOrganizationCondition(pwinModelPerformance.organizationId, userContext)
+			))
 			.limit(1);
 
 		if (!activeModel) {
@@ -2507,7 +2620,10 @@ export async function getCalibrationData(): Promise<ActionResult<CalibrationData
 				})
 				.from(debriefs)
 				.innerJoin(opportunities, eq(debriefs.opportunityId, opportunities.id))
-				.where(inArray(debriefs.outcome, ["win", "loss"]));
+				.where(and(
+					inArray(debriefs.outcome, ["win", "loss"]),
+					mutableOrganizationCondition(debriefs.organizationId, userContext)
+				));
 
 			const buckets: CalibrationData["buckets"] = [];
 			const ranges = [
@@ -2616,6 +2732,7 @@ export async function predictOutcome(
 	}>;
 }>> {
 	try {
+		const userContext = await requirePwinContext();
 		// Get opportunity
 		const [opportunity] = await db
 			.select()
@@ -2631,7 +2748,10 @@ export async function predictOutcome(
 		const [latestAssessment] = await db
 			.select()
 			.from(pwinAssessments)
-			.where(eq(pwinAssessments.opportunityId, opportunityId))
+			.where(and(
+				eq(pwinAssessments.opportunityId, opportunityId),
+				mutableOrganizationCondition(pwinAssessments.organizationId, userContext)
+			))
 			.orderBy(desc(pwinAssessments.assessedAt))
 			.limit(1);
 
