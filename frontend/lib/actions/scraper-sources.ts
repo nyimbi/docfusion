@@ -8,7 +8,6 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { requireServerSession } from "@/lib/auth-utils";
 import {
 	scraperSources,
 	scraperRuns,
@@ -25,6 +24,7 @@ import {
 	updateScraperRunRecord,
 	updateSourceMetricsForRun,
 } from "@/lib/scrapers/source-persistence";
+import { requireScraperOperatorSession } from "@/lib/scrapers/session-auth";
 
 function escapeLikePattern(value: string): string {
 	return value.replace(/[\\%_]/g, "\\$&");
@@ -53,7 +53,7 @@ function safeRevalidatePath(path: string): void {
 }
 
 async function requireScraperActionSession(): Promise<void> {
-	await requireServerSession();
+	await requireScraperOperatorSession();
 }
 
 // ============================================================================

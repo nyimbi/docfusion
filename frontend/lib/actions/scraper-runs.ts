@@ -8,7 +8,6 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { requireServerSession } from "@/lib/auth-utils";
 import {
 	scraperRuns,
 	scraperSources,
@@ -30,6 +29,7 @@ import {
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getScraperStatsForPeriod } from "@/lib/scrapers/run-stats";
+import { requireScraperOperatorSession } from "@/lib/scrapers/session-auth";
 
 function escapeLikePattern(value: string): string {
 	return value.replace(/[\\%_]/g, "\\$&");
@@ -44,7 +44,7 @@ function safeRevalidatePath(path: string): void {
 }
 
 async function requireScraperRunActionSession(): Promise<void> {
-	await requireServerSession();
+	await requireScraperOperatorSession();
 }
 
 // ============================================================================
