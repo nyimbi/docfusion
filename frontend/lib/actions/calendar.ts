@@ -16,7 +16,7 @@ import {
 	documentSections,
 	documents,
 } from "@/lib/db/schema";
-import { eq, gte, lte, and, or, isNotNull, desc, asc, sql } from "drizzle-orm";
+import { eq, gte, lte, and, or, isNotNull, desc, asc, sql, type SQL } from "drizzle-orm";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import type {
 	DeadlineItem,
@@ -108,6 +108,26 @@ function matchesFilters(item: DeadlineItem, filters?: DeadlineFilters): boolean 
 	return true;
 }
 
+function assignedOpportunityCondition(userId: string): SQL {
+	return sql`opportunities.assigned_to = ${userId}`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		assignedOpportunityCondition(userId)
+	)!;
+}
+
 // ============================================================================
 // Deadline Fetching Functions
 // ============================================================================
@@ -117,7 +137,8 @@ function matchesFilters(item: DeadlineItem, filters?: DeadlineFilters): boolean 
  */
 async function fetchOpportunityDeadlines(
 	startDate: Date,
-	endDate: Date
+	endDate: Date,
+	userId: string
 ): Promise<DeadlineItem[]> {
 	const rows = await db
 		.select({
@@ -133,7 +154,8 @@ async function fetchOpportunityDeadlines(
 			and(
 				isNotNull(opportunities.deadline),
 				gte(opportunities.deadline, startDate),
-				lte(opportunities.deadline, endDate)
+				lte(opportunities.deadline, endDate),
+				assignedOpportunityCondition(userId)
 			)
 		);
 
@@ -164,7 +186,8 @@ async function fetchOpportunityDeadlines(
  */
 async function fetchRequirementDeadlines(
 	startDate: Date,
-	endDate: Date
+	endDate: Date,
+	userId: string
 ): Promise<DeadlineItem[]> {
 	const rows = await db
 		.select({
@@ -183,7 +206,8 @@ async function fetchRequirementDeadlines(
 			and(
 				isNotNull(rfpRequirements.dueDate),
 				gte(rfpRequirements.dueDate, startDate),
-				lte(rfpRequirements.dueDate, endDate)
+				lte(rfpRequirements.dueDate, endDate),
+				assignedOpportunityCondition(userId)
 			)
 		);
 
@@ -215,7 +239,8 @@ async function fetchRequirementDeadlines(
  */
 async function fetchProposalDocumentDeadlines(
 	startDate: Date,
-	endDate: Date
+	endDate: Date,
+	userId: string
 ): Promise<DeadlineItem[]> {
 	const rows = await db
 		.select({
@@ -235,7 +260,8 @@ async function fetchProposalDocumentDeadlines(
 			and(
 				isNotNull(proposalDocuments.dueDate),
 				gte(proposalDocuments.dueDate, startDate),
-				lte(proposalDocuments.dueDate, endDate)
+				lte(proposalDocuments.dueDate, endDate),
+				assignedOpportunityCondition(userId)
 			)
 		);
 
@@ -266,7 +292,8 @@ async function fetchProposalDocumentDeadlines(
  */
 async function fetchSectionDeadlines(
 	startDate: Date,
-	endDate: Date
+	endDate: Date,
+	userId: string
 ): Promise<DeadlineItem[]> {
 	const rows = await db
 		.select({
@@ -290,7 +317,8 @@ async function fetchSectionDeadlines(
 			and(
 				isNotNull(documentSections.dueDate),
 				gte(documentSections.dueDate, startDate),
-				lte(documentSections.dueDate, endDate)
+				lte(documentSections.dueDate, endDate),
+				assignedOpportunityCondition(userId)
 			)
 		);
 
@@ -354,7 +382,7 @@ async function requireCurrentUserId(): Promise<string> {
 export async function getDeadlinesByDateRange(
 	input: DateRangeInput
 ): Promise<DeadlineItem[]> {
-	await requireCurrentUserId();
+	const currentUserId = await requireCurrentUserId();
 
 	const startDate = parseDate(input.startDate);
 	const endDate = parseDate(input.endDate);
@@ -362,10 +390,10 @@ export async function getDeadlinesByDateRange(
 	// Fetch deadlines from all sources in parallel
 	const [oppDeadlines, reqDeadlines, docDeadlines, secDeadlines] =
 		await Promise.all([
-			fetchOpportunityDeadlines(startDate, endDate),
-			fetchRequirementDeadlines(startDate, endDate),
-			fetchProposalDocumentDeadlines(startDate, endDate),
-			fetchSectionDeadlines(startDate, endDate),
+			fetchOpportunityDeadlines(startDate, endDate, currentUserId),
+			fetchRequirementDeadlines(startDate, endDate, currentUserId),
+			fetchProposalDocumentDeadlines(startDate, endDate, currentUserId),
+			fetchSectionDeadlines(startDate, endDate, currentUserId),
 		]);
 
 	// Combine and filter
@@ -436,7 +464,7 @@ export async function getOverdueItems(
 export async function getMilestones(
 	opportunityId: string
 ): Promise<OpportunityMilestone[]> {
-	await requireCurrentUserId();
+	const currentUserId = await requireCurrentUserId();
 
 	const milestones: OpportunityMilestone[] = [];
 	const now = new Date();
@@ -451,7 +479,7 @@ export async function getMilestones(
 			assignedTo: opportunities.assignedTo,
 		})
 		.from(opportunities)
-		.where(eq(opportunities.id, opportunityId))
+		.where(visibleOpportunityCondition(opportunityId, currentUserId))
 		.limit(1);
 
 	if (opportunity?.deadline) {
@@ -488,7 +516,8 @@ export async function getMilestones(
 		.where(
 			and(
 				eq(rfpRequirements.opportunityId, opportunityId),
-				isNotNull(rfpRequirements.dueDate)
+				isNotNull(rfpRequirements.dueDate),
+				assignedOpportunityExistsSql(opportunityId, currentUserId)
 			)
 		);
 
@@ -533,7 +562,8 @@ export async function getMilestones(
 		.where(
 			and(
 				eq(proposalDocuments.opportunityId, opportunityId),
-				isNotNull(proposalDocuments.dueDate)
+				isNotNull(proposalDocuments.dueDate),
+				assignedOpportunityExistsSql(opportunityId, currentUserId)
 			)
 		);
 
@@ -577,7 +607,8 @@ export async function getMilestones(
 		.where(
 			and(
 				eq(proposalDocuments.opportunityId, opportunityId),
-				isNotNull(documentSections.dueDate)
+				isNotNull(documentSections.dueDate),
+				assignedOpportunityExistsSql(opportunityId, currentUserId)
 			)
 		);
 
