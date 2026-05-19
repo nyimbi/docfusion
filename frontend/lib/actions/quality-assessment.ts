@@ -41,6 +41,7 @@ import { documents, documentVersions } from "@/lib/db/schema";
 import { qualityAssessments } from "@/lib/db/schema-additions";
 import { eq, desc, and, asc } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
+import { getCurrentUserId } from "@/lib/auth-utils";
 
 // ============================================================================
 // Helper Functions
@@ -107,6 +108,14 @@ function dbRowToAssessment(row: typeof qualityAssessments.$inferSelect): Quality
 // Server Actions
 // ============================================================================
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 /**
  * Trigger a quality assessment for a document.
  */
@@ -114,6 +123,8 @@ export async function triggerQualityAssessment(
 	documentId: string,
 	options: AssessmentOptionsInput = {}
 ): Promise<QualityAssessmentResponse> {
+	await requireCurrentUserId();
+
 	try {
 		const { categories, strictMode = false } = options;
 
@@ -191,6 +202,8 @@ export async function getQualityAssessment(
 	documentId: string,
 	options: AssessmentOptionsInput = {}
 ): Promise<QualityAssessmentResponse> {
+	await requireCurrentUserId();
+
 	try {
 		const [row] = await db
 			.select()
@@ -239,6 +252,8 @@ export async function getQualityAssessmentHistory(
 	documentId: string,
 	limit = 10
 ): Promise<QualityAssessmentsListResponse> {
+	await requireCurrentUserId();
+
 	try {
 		const rows = await db
 			.select({
@@ -303,6 +318,8 @@ export async function compareQualityAssessments(
 	documentId: string,
 	previousAssessmentId?: string
 ): Promise<AssessmentComparisonResponse> {
+	await requireCurrentUserId();
+
 	try {
 		// Get current assessment
 		const [currentRow] = await db
@@ -377,6 +394,8 @@ export async function compareQualityAssessments(
 export async function generateQualityReport(
 	documentId: string
 ): Promise<{ success: boolean; report?: string; error?: string }> {
+	await requireCurrentUserId();
+
 	try {
 		const response = await getQualityAssessment(documentId);
 
@@ -424,6 +443,8 @@ export async function getQualityMetrics(
 	};
 	error?: string;
 }> {
+	await requireCurrentUserId();
+
 	try {
 		const response = await getQualityAssessment(documentId);
 
@@ -489,6 +510,8 @@ export async function getQualityFactors(): Promise<{
 	factors?: typeof QUALITY_FACTORS;
 	error?: string;
 }> {
+	await requireCurrentUserId();
+
 	return {
 		success: true,
 		factors: QUALITY_FACTORS,
@@ -501,6 +524,8 @@ export async function getQualityFactors(): Promise<{
 export async function deleteQualityAssessment(
 	assessmentId: string
 ): Promise<{ success: boolean; error?: string }> {
+	await requireCurrentUserId();
+
 	try {
 		await db.delete(qualityAssessments).where(eq(qualityAssessments.id, assessmentId));
 
