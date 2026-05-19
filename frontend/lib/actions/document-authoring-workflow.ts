@@ -5,6 +5,7 @@ import {
 	documentSections,
 	documentVersions,
 	documents,
+	opportunities,
 	proposalDocuments,
 	templates,
 } from "@/lib/db/schema";
@@ -13,7 +14,7 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type DocumentRow = typeof documents.$inferSelect;
 type DocumentContent = Record<string, unknown>;
@@ -88,6 +89,56 @@ const CREATION_WORKFLOW_KEY = "document_creation_from_template";
 const AUTHORING_WORKFLOW_KEY = "document_authoring";
 const DOCUMENT_SUBJECT_TYPE = "document";
 
+function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${actorId}
+	)`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, actorId)
+	)!;
+}
+
+function visibleDocumentCondition(documentId: string, actorId: string): SQL {
+	return and(
+		eq(documents.id, documentId),
+		sql`documents.owner_id = ${actorId}`
+	)!;
+}
+
+function visibleProposalDocumentCondition(proposalDocumentId: string, actorId: string): SQL {
+	return and(
+		eq(proposalDocuments.id, proposalDocumentId),
+		assignedOpportunityExistsSql(proposalDocuments.opportunityId, actorId)
+	)!;
+}
+
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(proposalDocuments.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, actorId)
+	)!;
+}
+
+function visibleSectionCondition(sectionId: string, actorId: string): SQL {
+	return and(
+		eq(documentSections.id, sectionId),
+		sql`exists (
+			select 1
+			from proposal_documents
+			join opportunities on opportunities.id = proposal_documents.opportunity_id
+			where proposal_documents.id = ${documentSections.proposalDocumentId}
+				and opportunities.assigned_to = ${actorId}
+		)`
+	)!;
+}
+
 export async function createWorkflowDocumentFromTemplate(
 	input: CreateWorkflowDocumentInput
 ): Promise<DocumentCreationWorkflowResult> {
@@ -100,6 +151,17 @@ export async function createWorkflowDocumentFromTemplate(
 	const plainText = extractPlainText(processedContent);
 	const now = new Date();
 	const title = substitutePlaceholdersInString(input.title.trim(), input.placeholderValues ?? {});
+
+	if (input.opportunityId) {
+		const [opportunity] = await db
+			.select({ id: opportunities.id })
+			.from(opportunities)
+			.where(visibleOpportunityCondition(input.opportunityId, userContext.userId))
+			.limit(1);
+		if (!opportunity) {
+			throw new Error("Opportunity not found");
+		}
+	}
 
 	const [document] = await db
 		.insert(documents)
@@ -151,6 +213,7 @@ export async function createWorkflowDocumentFromTemplate(
 			assignedTo: input.assignedTo ?? userContext.userId,
 			dueAt: input.dueAt,
 			reason,
+			actorId: userContext.userId,
 			sectionSeeds: input.sectionSeeds ?? inferSections(processedContent),
 		})
 		: null;
@@ -219,16 +282,16 @@ export async function transitionDocumentAuthoringWorkflow(
 	const [document] = await db
 		.select()
 		.from(documents)
-		.where(eq(documents.id, input.documentId))
+		.where(visibleDocumentCondition(input.documentId, userContext.userId))
 		.limit(1);
 	if (!document) {
 		throw new Error("Document not found");
 	}
 
 	const proposalDocument = input.proposalDocumentId
-		? await loadProposalDocument(input.proposalDocumentId)
+		? await loadProposalDocument(input.proposalDocumentId, userContext.userId)
 		: null;
-	const section = input.sectionId ? await loadSection(input.sectionId) : null;
+	const section = input.sectionId ? await loadSection(input.sectionId, userContext.userId) : null;
 	const fromState = authoringState(document, proposalDocument, section);
 	const transition = buildAuthoringTransition(input, document, proposalDocument, section, userContext.userId);
 	const updatedDocument = await applyDocumentPatch(input, document, transition.documentPatch, userContext.userId, reason);
@@ -237,13 +300,13 @@ export async function transitionDocumentAuthoringWorkflow(
 		await db
 			.update(proposalDocuments)
 			.set(transition.proposalPatch)
-			.where(eq(proposalDocuments.id, proposalDocument.id));
+			.where(visibleProposalDocumentCondition(proposalDocument.id, userContext.userId));
 	}
 	if (section && transition.sectionPatch) {
 		await db
 			.update(documentSections)
 			.set(transition.sectionPatch)
-			.where(eq(documentSections.id, section.id));
+			.where(visibleSectionCondition(section.id, userContext.userId));
 	}
 
 	const instance = await recordWorkflowRuntimeTransition({
@@ -318,11 +381,11 @@ async function loadTemplate(templateId: string): Promise<TemplateRow> {
 	return template;
 }
 
-async function loadProposalDocument(id: string): Promise<ProposalDocumentRow> {
+async function loadProposalDocument(id: string, actorId: string): Promise<ProposalDocumentRow> {
 	const [proposalDocument] = await db
 		.select()
 		.from(proposalDocuments)
-		.where(eq(proposalDocuments.id, id))
+		.where(visibleProposalDocumentCondition(id, actorId))
 		.limit(1);
 	if (!proposalDocument) {
 		throw new Error("Proposal document not found");
@@ -330,11 +393,11 @@ async function loadProposalDocument(id: string): Promise<ProposalDocumentRow> {
 	return proposalDocument;
 }
 
-async function loadSection(id: string): Promise<SectionRow> {
+async function loadSection(id: string, actorId: string): Promise<SectionRow> {
 	const [section] = await db
 		.select()
 		.from(documentSections)
-		.where(eq(documentSections.id, id))
+		.where(visibleSectionCondition(id, actorId))
 		.limit(1);
 	if (!section) {
 		throw new Error("Document section not found");
@@ -349,12 +412,13 @@ async function createProposalLink(input: {
 	assignedTo: string;
 	dueAt?: Date | string | null;
 	reason: string;
+	actorId: string;
 	sectionSeeds: Array<{ sectionName: string; targetWordCount?: number | null; requirementIds?: string[] }>;
 }): Promise<ProposalDocumentRow> {
 	const existingDocs = await db
 		.select({ maxOrder: sql<number>`MAX(${proposalDocuments.sectionOrder})` })
 		.from(proposalDocuments)
-		.where(eq(proposalDocuments.opportunityId, input.opportunityId));
+		.where(visibleProposalDocumentsForOpportunityCondition(input.opportunityId, input.actorId));
 	const nextOrder = (existingDocs[0]?.maxOrder ?? -1) + 1;
 	const [proposalDocument] = await db
 		.insert(proposalDocuments)
@@ -400,7 +464,7 @@ async function applyDocumentPatch(
 		const [updated] = await db
 			.update(documents)
 			.set(patch)
-			.where(eq(documents.id, document.id))
+			.where(visibleDocumentCondition(document.id, actorId))
 			.returning();
 		if (!updated) {
 			throw new Error("Failed to update document authoring state");
@@ -427,7 +491,7 @@ async function applyDocumentPatch(
 				lastAuthoringProvenance: input.provenance ?? null,
 			},
 		})
-		.where(eq(documents.id, document.id))
+		.where(visibleDocumentCondition(document.id, actorId))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update document content");

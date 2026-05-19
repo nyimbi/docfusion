@@ -18,15 +18,20 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 
 interface ChainConfig {
 	result?: unknown[];
+	onWhere?: (value: unknown) => void;
 	onValues?: (value: Record<string, unknown> | Record<string, unknown>[]) => void;
 	onSet?: (value: Record<string, unknown>) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.values = vi.fn((value: Record<string, unknown> | Record<string, unknown>[]) => {
 		config.onValues?.(value);
 		return chain;
@@ -39,6 +44,23 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
 var dbMock: any;
@@ -163,6 +185,8 @@ beforeEach(() => {
 
 describe("document authoring workflow", () => {
 	it("creates a versioned proposal document from a template and projects drafting work", async () => {
+		let opportunityWhere: unknown;
+		let maxOrderWhere: unknown;
 		let documentValues: Record<string, unknown> | undefined;
 		let versionValues: Record<string, unknown> | undefined;
 		let proposalValues: Record<string, unknown> | undefined;
@@ -170,7 +194,18 @@ describe("document authoring workflow", () => {
 
 		dbMock.select
 			.mockReturnValueOnce(createChain({ result: [template] }))
-			.mockReturnValueOnce(createChain({ result: [{ maxOrder: 0 }] }));
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "opp-1" }],
+				onWhere: (value) => {
+					opportunityWhere = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ maxOrder: 0 }],
+				onWhere: (value) => {
+					maxOrderWhere = value;
+				},
+			}));
 		dbMock.insert
 			.mockReturnValueOnce(createChain({
 				result: [documentRow],
@@ -244,6 +279,8 @@ describe("document authoring workflow", () => {
 			sectionName: "Executive Summary",
 			status: "drafting",
 		});
+		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(maxOrderWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "document_creation_from_template",
 			subjectType: "document",
@@ -260,6 +297,8 @@ describe("document authoring workflow", () => {
 	});
 
 	it("persists editor content, creates a new document version, updates section progress, and records provenance", async () => {
+		const documentWheres: unknown[] = [];
+		const opportunityWheres: unknown[] = [];
 		let documentPatch: Record<string, unknown> | undefined;
 		let versionValues: Record<string, unknown> | undefined;
 		let sectionPatch: Record<string, unknown> | undefined;
@@ -271,21 +310,47 @@ describe("document authoring workflow", () => {
 			}],
 		};
 		dbMock.select
-			.mockReturnValueOnce(createChain({ result: [documentRow] }))
-			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
-			.mockReturnValueOnce(createChain({ result: [section] }));
+			.mockReturnValueOnce(createChain({
+				result: [documentRow],
+				onWhere: (value) => {
+					documentWheres.push(value);
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [proposalDocument],
+				onWhere: (value) => {
+					opportunityWheres.push(value);
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [section],
+				onWhere: (value) => {
+					opportunityWheres.push(value);
+				},
+			}));
 		dbMock.update
 			.mockReturnValueOnce(createChain({
 				result: [{ ...documentRow, currentVersion: 2, plainText: "Datacraft provides governed delivery with measurable assurance.", wordCount: 7 }],
 				onSet: (value) => {
 					documentPatch = value;
 				},
+				onWhere: (value) => {
+					documentWheres.push(value);
+				},
 			}))
-			.mockReturnValueOnce(createChain({ result: [{ ...proposalDocument, status: "drafting" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{ ...proposalDocument, status: "drafting" }],
+				onWhere: (value) => {
+					opportunityWheres.push(value);
+				},
+			}))
 			.mockReturnValueOnce(createChain({
 				result: [{ ...section, wordCount: 7 }],
 				onSet: (value) => {
 					sectionPatch = value;
+				},
+				onWhere: (value) => {
+					opportunityWheres.push(value);
 				},
 			}));
 		dbMock.insert.mockReturnValueOnce(createChain({
@@ -331,6 +396,12 @@ describe("document authoring workflow", () => {
 			status: "drafting",
 			wordCount: 7,
 		});
+		for (const where of documentWheres) {
+			expect(collectSqlFragments(where).join(" ")).toContain("documents.owner_id");
+		}
+		for (const where of opportunityWheres) {
+			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		}
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "document_authoring",
 			toState: "draft_saved",
