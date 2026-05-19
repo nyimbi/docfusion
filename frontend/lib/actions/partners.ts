@@ -16,7 +16,7 @@ import {
 	type PartnerRow,
 	type OpportunityPartnerRow,
 } from "@/lib/db/schema";
-import { eq, desc, and, ilike, sql, or, inArray } from "drizzle-orm";
+import { eq, desc, and, ilike, sql, or, inArray, type SQL } from "drizzle-orm";
 import type {
 	Partner,
 	PartnerListItem,
@@ -84,6 +84,56 @@ async function requireCurrentUserId(): Promise<string> {
 		throw new Error("Unauthorized");
 	}
 	return userId;
+}
+
+function assignedOpportunityCondition(userId: string): SQL {
+	return sql`opportunities.assigned_to = ${userId}`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		assignedOpportunityCondition(userId)
+	)!;
+}
+
+function visiblePartnerAssignmentsCondition(userId: string): SQL {
+	return assignedOpportunityExistsSql(opportunityPartners.opportunityId, userId);
+}
+
+function visiblePartnerAssignmentCondition(assignmentId: string, userId: string): SQL {
+	return and(
+		eq(opportunityPartners.id, assignmentId),
+		visiblePartnerAssignmentsCondition(userId)
+	)!;
+}
+
+function visibleOpportunityPartnersCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunityPartners.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
+async function assertVisibleOpportunity(opportunityId: string, userId: string): Promise<void> {
+	const [opportunity] = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(visibleOpportunityCondition(opportunityId, userId))
+		.limit(1);
+
+	if (!opportunity) {
+		throw new Error("Opportunity not found");
+	}
 }
 
 /**
@@ -157,7 +207,7 @@ export async function deletePartner(id: string): Promise<void> {
  * Get partners with optional filtering.
  */
 export async function getPartners(filters?: PartnerFilters): Promise<PartnerListItem[]> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	// Build conditions
 	const conditions = [];
@@ -199,7 +249,10 @@ export async function getPartners(filters?: PartnerFilters): Promise<PartnerList
 		})
 		.from(opportunityPartners)
 		.where(
-			inArray(opportunityPartners.status, ["invited", "accepted", "active"])
+			and(
+				inArray(opportunityPartners.status, ["invited", "accepted", "active"]),
+				visiblePartnerAssignmentsCondition(userId)
+			)
 		)
 		.groupBy(opportunityPartners.partnerId);
 
@@ -264,7 +317,8 @@ export async function searchPartnersByCapability(
 export async function assignPartnerToOpportunity(
 	input: AssignPartnerInput
 ): Promise<OpportunityPartner> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
+	await assertVisibleOpportunity(input.opportunityId, userId);
 
 	const [row] = await db
 		.insert(opportunityPartners)
@@ -293,7 +347,7 @@ export async function assignPartnerToOpportunity(
 export async function updatePartnerAssignment(
 	input: UpdatePartnerAssignmentInput
 ): Promise<OpportunityPartner> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const updateData: Partial<OpportunityPartnerRow> = {
 		updatedAt: new Date(),
@@ -311,7 +365,7 @@ export async function updatePartnerAssignment(
 	const [row] = await db
 		.update(opportunityPartners)
 		.set(updateData)
-		.where(eq(opportunityPartners.id, input.assignmentId))
+		.where(visiblePartnerAssignmentCondition(input.assignmentId, userId))
 		.returning();
 
 	if (!row) {
@@ -344,11 +398,11 @@ export async function updatePartnerAssignment(
 export async function removePartnerFromOpportunity(
 	assignmentId: string
 ): Promise<void> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	await db
 		.delete(opportunityPartners)
-		.where(eq(opportunityPartners.id, assignmentId));
+		.where(visiblePartnerAssignmentCondition(assignmentId, userId));
 }
 
 /**
@@ -357,7 +411,7 @@ export async function removePartnerFromOpportunity(
 export async function getOpportunityPartners(
 	opportunityId: string
 ): Promise<OpportunityPartner[]> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const rows = await db
 		.select({
@@ -366,7 +420,7 @@ export async function getOpportunityPartners(
 		})
 		.from(opportunityPartners)
 		.innerJoin(partners, eq(partners.id, opportunityPartners.partnerId))
-		.where(eq(opportunityPartners.opportunityId, opportunityId))
+		.where(visibleOpportunityPartnersCondition(opportunityId, userId))
 		.orderBy(opportunityPartners.createdAt);
 
 	return rows.map((row) =>
@@ -386,7 +440,7 @@ export async function getPartnerOpportunities(
 		deadline: Date | null;
 	}>
 > {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const rows = await db
 		.select({
@@ -399,7 +453,10 @@ export async function getPartnerOpportunities(
 			opportunities,
 			eq(opportunities.id, opportunityPartners.opportunityId)
 		)
-		.where(eq(opportunityPartners.partnerId, partnerId))
+		.where(and(
+			eq(opportunityPartners.partnerId, partnerId),
+			assignedOpportunityCondition(userId)
+		))
 		.orderBy(desc(opportunities.deadline));
 
 	return rows.map((row) => ({
@@ -419,7 +476,7 @@ export async function getPartnerOpportunities(
 export async function getPartnerPerformance(
 	partnerId: string
 ): Promise<PartnerPerformance> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	// Get partner details
 	const [partner] = await db
@@ -442,7 +499,10 @@ export async function getPartnerPerformance(
 			submissions,
 			eq(submissions.opportunityId, opportunityPartners.opportunityId)
 		)
-		.where(eq(opportunityPartners.partnerId, partnerId));
+		.where(and(
+			eq(opportunityPartners.partnerId, partnerId),
+			visiblePartnerAssignmentsCondition(userId)
+		));
 
 	// Calculate metrics
 	const totalOpportunities = assignments.length;
