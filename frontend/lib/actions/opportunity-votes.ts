@@ -19,6 +19,18 @@ import type {
 	ConfidenceLevel,
 	DecisionStatus,
 } from "@/lib/types/opportunity";
+import { getServerSession } from "@/lib/auth-utils";
+
+async function requireVoteActor(): Promise<{ userId: string; userName: string | null }> {
+	const session = await getServerSession();
+	if (!session?.user?.id) {
+		throw new Error("Unauthorized");
+	}
+	return {
+		userId: session.user.id,
+		userName: session.user.name ?? session.user.email ?? null,
+	};
+}
 
 // ============================================================================
 // Vote Operations
@@ -29,6 +41,7 @@ import type {
  * Uses upsert to allow users to change their vote.
  */
 export async function castVote(input: CastVoteInput): Promise<OpportunityVote> {
+	const actor = await requireVoteActor();
 	const now = new Date();
 
 	// Use upsert pattern - insert or update if user already voted
@@ -38,7 +51,7 @@ export async function castVote(input: CastVoteInput): Promise<OpportunityVote> {
 		.where(
 			and(
 				eq(opportunityVotes.opportunityId, input.opportunityId),
-				eq(opportunityVotes.userId, input.userId)
+				eq(opportunityVotes.userId, actor.userId)
 			)
 		)
 		.limit(1);
@@ -51,7 +64,7 @@ export async function castVote(input: CastVoteInput): Promise<OpportunityVote> {
 				vote: input.vote,
 				confidence: input.confidence ?? null,
 				justification: input.justification ?? null,
-				userName: input.userName ?? existing.userName,
+				userName: actor.userName ?? existing.userName,
 				updatedAt: now,
 			})
 			.where(eq(opportunityVotes.id, existing.id))
@@ -64,8 +77,8 @@ export async function castVote(input: CastVoteInput): Promise<OpportunityVote> {
 			.insert(opportunityVotes)
 			.values({
 				opportunityId: input.opportunityId,
-				userId: input.userId,
-				userName: input.userName ?? null,
+				userId: actor.userId,
+				userName: actor.userName,
 				vote: input.vote,
 				confidence: input.confidence ?? null,
 				justification: input.justification ?? null,
@@ -117,14 +130,15 @@ export async function getUserVote(
  */
 export async function deleteVote(
 	opportunityId: string,
-	userId: string
+	_userId: string
 ): Promise<void> {
+	const actor = await requireVoteActor();
 	await db
 		.delete(opportunityVotes)
 		.where(
 			and(
 				eq(opportunityVotes.opportunityId, opportunityId),
-				eq(opportunityVotes.userId, userId)
+				eq(opportunityVotes.userId, actor.userId)
 			)
 		);
 }

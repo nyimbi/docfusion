@@ -33,11 +33,12 @@ export function GoNoGoPanel({
 	initialVotes,
 }: GoNoGoPanelProps) {
 	const { data: session } = useSession();
-	const currentUserId = session?.user?.id || "anonymous";
+	const currentUserId = session?.user?.id ?? null;
 	const currentUserName = session?.user?.name || "You";
 	const [summary, setSummary] = useState(initialSummary);
 	const [votes, setVotes] = useState(initialVotes);
 	const [selectedVote, setSelectedVote] = useState<VoteDecision | null>(() => {
+		if (!currentUserId) return null;
 		const existingVote = initialVotes.find((v) => v.userId === currentUserId);
 		return existingVote?.vote ?? null;
 	});
@@ -58,7 +59,7 @@ export function GoNoGoPanel({
 	};
 
 	const submitVote = () => {
-		if (!selectedVote) return;
+		if (!selectedVote || !currentUserId) return;
 
 		startTransition(async () => {
 			try {
