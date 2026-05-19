@@ -15,9 +15,9 @@ import {
 	type BibliographyEntryType,
 	type CitationStyleType,
 } from "@/lib/db/schema-bibliography";
-import { eq, and, desc, asc, ilike, or, inArray, sql } from "drizzle-orm";
+import { eq, and, desc, asc, ilike, or, inArray, sql, type SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext } from "@/lib/auth-utils";
 import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
@@ -100,6 +100,11 @@ interface ActionResult<T> {
 	error?: string;
 }
 
+type BibliographyContext = {
+	userId: string;
+	organizationId?: string;
+};
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -137,12 +142,27 @@ function mapRowToEntry(row: BibliographyEntryRow): BibliographyEntry {
 	};
 }
 
+async function requireBibliographyContext(): Promise<BibliographyContext> {
+	return requireUserContext();
+}
+
 async function requireCurrentUserId(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
-		throw new Error("Unauthorized");
-	}
-	return userId;
+	return (await requireBibliographyContext()).userId;
+}
+
+function readableEntryCondition(context: BibliographyContext): SQL {
+	return or(
+		eq(bibliographyEntries.createdBy, context.userId),
+		eq(bibliographyEntries.isPublic, true),
+		context.organizationId ? eq(bibliographyEntries.organizationId, context.organizationId) : undefined
+	)!;
+}
+
+function scopedEntryCondition(id: string, context: BibliographyContext): SQL {
+	return and(
+		eq(bibliographyEntries.id, id),
+		readableEntryCondition(context)
+	)!;
 }
 
 // ============================================================================
@@ -161,6 +181,7 @@ export async function listBibliographyEntries(options?: {
 	offset?: number;
 }): Promise<ActionResult<{ entries: BibliographyEntry[]; total: number }>> {
 	try {
+		const context = await requireBibliographyContext();
 		const {
 			search,
 			type,
@@ -171,17 +192,16 @@ export async function listBibliographyEntries(options?: {
 		} = options ?? {};
 
 		// Build conditions
-		const conditions = [];
+		const conditions = [readableEntryCondition(context)];
 
 		if (search) {
 			const searchTerm = `%${search}%`;
-			conditions.push(
-				or(
-					ilike(bibliographyEntries.title, searchTerm),
-					ilike(bibliographyEntries.citeKey, searchTerm),
-					sql`${bibliographyEntries.authors}::text ILIKE ${searchTerm}`
-				)
+			const searchCondition = or(
+				ilike(bibliographyEntries.title, searchTerm),
+				ilike(bibliographyEntries.citeKey, searchTerm),
+				sql`${bibliographyEntries.authors}::text ILIKE ${searchTerm}`
 			);
+			if (searchCondition) conditions.push(searchCondition);
 		}
 
 		if (type) {
@@ -233,8 +253,9 @@ export async function listBibliographyEntries(options?: {
  */
 export async function getBibliographyEntry(id: string): Promise<ActionResult<BibliographyEntry>> {
 	try {
+		const context = await requireBibliographyContext();
 		const entry = await db.query.bibliographyEntries.findFirst({
-			where: eq(bibliographyEntries.id, id),
+			where: scopedEntryCondition(id, context),
 		});
 
 		if (!entry) {
@@ -255,11 +276,12 @@ export async function createBibliographyEntry(
 	input: CreateEntryInput
 ): Promise<ActionResult<BibliographyEntry>> {
 	try {
-		const userId = await requireCurrentUserId();
+		const context = await requireBibliographyContext();
 
 		const [inserted] = await db
 			.insert(bibliographyEntries)
 			.values({
+				organizationId: context.organizationId,
 				citeKey: input.citeKey,
 				entryType: input.entryType,
 				title: input.title,
@@ -283,7 +305,7 @@ export async function createBibliographyEntry(
 				address: input.address,
 				institution: input.institution,
 				school: input.school,
-				createdBy: userId,
+				createdBy: context.userId,
 			})
 			.returning();
 
@@ -367,11 +389,11 @@ export async function citeInDocument(
 	style?: CitationStyleType
 ): Promise<ActionResult<{ citationId: string; formattedCitation: string }>> {
 	try {
-		await requireCurrentUserId();
+		const context = await requireBibliographyContext();
 
 		// Get the entry
 		const entry = await db.query.bibliographyEntries.findFirst({
-			where: eq(bibliographyEntries.id, entryId),
+			where: scopedEntryCondition(entryId, context),
 		});
 
 		if (!entry) {
@@ -403,7 +425,7 @@ export async function citeInDocument(
 				citationCount: sql`${bibliographyEntries.citationCount} + 1`,
 				lastCitedAt: new Date(),
 			})
-			.where(eq(bibliographyEntries.id, entryId));
+			.where(scopedEntryCondition(entryId, context));
 
 		return {
 			success: true,
@@ -425,6 +447,7 @@ export async function getDocumentCitations(
 	documentId: string
 ): Promise<ActionResult<BibliographyEntry[]>> {
 	try {
+		await requireBibliographyContext();
 		const citations = await db.query.documentCitations.findMany({
 			where: eq(documentCitations.documentId, documentId),
 			with: {
@@ -455,7 +478,7 @@ export async function importFromBibTeX(
 	bibtex: string
 ): Promise<ActionResult<{ imported: number; errors: string[] }>> {
 	try {
-		await requireCurrentUserId();
+		await requireBibliographyContext();
 
 		const entries = parseBibTeX(bibtex);
 		const errors: string[] = [];
@@ -486,14 +509,20 @@ export async function importFromBibTeX(
  */
 export async function exportToBibTeX(entryIds?: string[]): Promise<ActionResult<string>> {
 	try {
+		const context = await requireBibliographyContext();
 		let entries: BibliographyEntryRow[];
 
 		if (entryIds && entryIds.length > 0) {
 			entries = await db.query.bibliographyEntries.findMany({
-				where: inArray(bibliographyEntries.id, entryIds),
+				where: and(
+					inArray(bibliographyEntries.id, entryIds),
+					readableEntryCondition(context)
+				),
 			});
 		} else {
-			entries = await db.query.bibliographyEntries.findMany();
+			entries = await db.query.bibliographyEntries.findMany({
+				where: readableEntryCondition(context),
+			});
 		}
 
 		const bibtex = entries.map((e) => entryToBibTeX(mapRowToEntry(e))).join("\n\n");
@@ -514,7 +543,9 @@ export async function exportToBibTeX(entryIds?: string[]): Promise<ActionResult<
  */
 export async function getBibliographyStats(): Promise<ActionResult<BibliographyStats>> {
 	try {
+		const context = await requireBibliographyContext();
 		const allEntries = await db.query.bibliographyEntries.findMany({
+			where: readableEntryCondition(context),
 			orderBy: [desc(bibliographyEntries.citationCount)],
 		});
 
@@ -536,6 +567,7 @@ export async function getBibliographyStats(): Promise<ActionResult<BibliographyS
 
 		// Recent additions (last 10)
 		const recentEntries = await db.query.bibliographyEntries.findMany({
+			where: readableEntryCondition(context),
 			orderBy: [desc(bibliographyEntries.createdAt)],
 			limit: 10,
 		});
