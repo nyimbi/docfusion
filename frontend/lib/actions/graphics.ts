@@ -36,8 +36,8 @@ import {
 	type NewProposalGraphic,
 	type NewGraphicTemplate,
 } from "@/lib/db/schema-graphics";
-import { documents, documentSections, proposalDocuments } from "@/lib/db/schema";
-import { eq, and, desc, sql, inArray, isNull, or } from "drizzle-orm";
+import { documents, documentSections, proposalDocuments, opportunities } from "@/lib/db/schema";
+import { eq, and, desc, sql, inArray, isNull, or, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm/column";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
@@ -108,6 +108,78 @@ function visibleTemplateCondition(userContext: UserContext) {
 
 function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
 	return inputOrganizationId ?? userContext.organizationId;
+}
+
+function assignedOpportunityCondition(userId: string): SQL {
+	return sql`opportunities.assigned_to = ${userId}`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		assignedOpportunityCondition(userId)
+	)!;
+}
+
+function visibleGraphicRowsCondition(userId: string): SQL {
+	return or(
+		isNull(proposalGraphics.opportunityId),
+		assignedOpportunityExistsSql(proposalGraphics.opportunityId, userId)
+	)!;
+}
+
+function visibleGraphicCondition(graphicId: string, userId: string): SQL {
+	return and(
+		eq(proposalGraphics.id, graphicId),
+		visibleGraphicRowsCondition(userId)
+	)!;
+}
+
+function visibleGraphicsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(proposalGraphics.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(proposalDocuments.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
+}
+
+async function assertVisibleOpportunity(opportunityId: string, userId: string): Promise<void> {
+	const [opportunity] = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(visibleOpportunityCondition(opportunityId, userId))
+		.limit(1);
+
+	if (!opportunity) {
+		throw new Error("Opportunity not found");
+	}
+}
+
+async function assertVisibleGraphic(graphicId: string, userId: string): Promise<void> {
+	const [graphic] = await db
+		.select({ id: proposalGraphics.id })
+		.from(proposalGraphics)
+		.where(visibleGraphicCondition(graphicId, userId))
+		.limit(1);
+
+	if (!graphic) {
+		throw new Error("Graphic not found");
+	}
 }
 
 // ============================================================================
@@ -274,9 +346,12 @@ const CreateTemplateSchema = z.object({
 export async function createGraphic(
 	input: z.infer<typeof CreateGraphicSchema>
 ): Promise<ActionResult<ProposalGraphic>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		const validated = CreateGraphicSchema.parse(input);
+		if (validated.opportunityId) {
+			await assertVisibleOpportunity(validated.opportunityId, actorId);
+		}
 
 		const insertData: NewProposalGraphic = {
 			opportunityId: validated.opportunityId,
@@ -327,9 +402,12 @@ export async function updateGraphic(
 	id: string,
 	data: Partial<z.infer<typeof CreateGraphicSchema>>
 ): Promise<ActionResult<ProposalGraphic>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		const validated = UpdateGraphicSchema.parse(data);
+		if (validated.opportunityId) {
+			await assertVisibleOpportunity(validated.opportunityId, actorId);
+		}
 
 		const [graphic] = await db
 			.update(proposalGraphics)
@@ -337,7 +415,7 @@ export async function updateGraphic(
 				...validated,
 				updatedAt: new Date(),
 			})
-			.where(eq(proposalGraphics.id, id))
+			.where(visibleGraphicCondition(id, actorId))
 			.returning();
 
 		if (!graphic) {
@@ -366,11 +444,11 @@ export async function updateGraphic(
 export async function deleteGraphic(
 	id: string
 ): Promise<ActionResult<{ deleted: boolean }>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		const result = await db
 			.delete(proposalGraphics)
-			.where(eq(proposalGraphics.id, id))
+			.where(visibleGraphicCondition(id, actorId))
 			.returning({ id: proposalGraphics.id });
 
 		if (result.length === 0) {
@@ -396,12 +474,12 @@ export async function deleteGraphic(
 export async function getGraphic(
 	id: string
 ): Promise<ActionResult<ProposalGraphic>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		const [graphic] = await db
 			.select()
 			.from(proposalGraphics)
-			.where(eq(proposalGraphics.id, id));
+			.where(visibleGraphicCondition(id, actorId));
 
 		if (!graphic) {
 			return { success: false, error: "Graphic not found" };
@@ -423,12 +501,12 @@ export async function getGraphic(
 export async function listGraphics(
 	opportunityId: string
 ): Promise<ActionResult<ProposalGraphic[]>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		const graphics = await db
 			.select()
 			.from(proposalGraphics)
-			.where(eq(proposalGraphics.opportunityId, opportunityId))
+			.where(visibleGraphicsForOpportunityCondition(opportunityId, actorId))
 			.orderBy(desc(proposalGraphics.createdAt));
 
 		return { success: true, data: graphics };
@@ -1017,13 +1095,13 @@ const ACTION_VERBS = [
 export async function generateActionCaption(
 	graphicId: string
 ): Promise<ActionResult<string>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		// Fetch the graphic
 		const [graphic] = await db
 			.select()
 			.from(proposalGraphics)
-			.where(eq(proposalGraphics.id, graphicId));
+			.where(visibleGraphicCondition(graphicId, actorId));
 
 		if (!graphic) {
 			return { success: false, error: "Graphic not found" };
@@ -1075,7 +1153,7 @@ Return only the caption text, no quotes or additional formatting.`;
 				actionCaption: finalCaption,
 				updatedAt: new Date(),
 			})
-			.where(eq(proposalGraphics.id, graphicId));
+			.where(visibleGraphicCondition(graphicId, actorId));
 
 		revalidatePath("/opportunities");
 		revalidatePath("/documents");
@@ -1105,13 +1183,13 @@ Return only the caption text, no quotes or additional formatting.`;
 export async function validateGraphicConsistency(
 	opportunityId: string
 ): Promise<ActionResult<ConsistencyReport>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		// Get all graphics for this opportunity
 		const graphics = await db
 			.select()
 			.from(proposalGraphics)
-			.where(eq(proposalGraphics.opportunityId, opportunityId))
+			.where(visibleGraphicsForOpportunityCondition(opportunityId, actorId))
 			.orderBy(proposalGraphics.figureNumber);
 
 		// Get all graphic references
@@ -1129,7 +1207,7 @@ export async function validateGraphicConsistency(
 		const propDocs = await db
 			.select()
 			.from(proposalDocuments)
-			.where(eq(proposalDocuments.opportunityId, opportunityId));
+			.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, actorId));
 
 		// Get document contents to scan for figure references
 		const docs = await db
@@ -1269,7 +1347,7 @@ export async function exportGraphics(
 		const graphics = await db
 			.select()
 			.from(proposalGraphics)
-			.where(eq(proposalGraphics.opportunityId, opportunityId))
+			.where(visibleGraphicsForOpportunityCondition(opportunityId, actorId))
 			.orderBy(proposalGraphics.figureNumber);
 
 		if (graphics.length === 0) {
@@ -1558,12 +1636,12 @@ export async function getNextFigureNumber(
 	opportunityId: string,
 	prefix?: string
 ): Promise<ActionResult<string>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		const graphics = await db
 			.select({ figureNumber: proposalGraphics.figureNumber })
 			.from(proposalGraphics)
-			.where(eq(proposalGraphics.opportunityId, opportunityId));
+			.where(visibleGraphicsForOpportunityCondition(opportunityId, actorId));
 
 		// Extract numeric portion of figure numbers
 		const numbers = graphics
@@ -1601,12 +1679,13 @@ export async function copyGraphic(
 	targetOpportunityId: string,
 	targetDocumentId?: string
 ): Promise<ActionResult<ProposalGraphic>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
+		await assertVisibleOpportunity(targetOpportunityId, actorId);
 		const [source] = await db
 			.select()
 			.from(proposalGraphics)
-			.where(eq(proposalGraphics.id, graphicId));
+			.where(visibleGraphicCondition(graphicId, actorId));
 
 		if (!source) {
 			return { success: false, error: "Source graphic not found" };
@@ -1659,7 +1738,7 @@ export async function searchGraphics(
 	query: string,
 	limit: number = 20
 ): Promise<ActionResult<ProposalGraphic[]>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		const searchPattern = `%${query}%`;
 
@@ -1667,11 +1746,14 @@ export async function searchGraphics(
 			.select()
 			.from(proposalGraphics)
 			.where(
-				sql`(
-					${proposalGraphics.title} ILIKE ${searchPattern} OR
-					${proposalGraphics.caption} ILIKE ${searchPattern} OR
-					${proposalGraphics.actionCaption} ILIKE ${searchPattern}
-				)`
+				and(
+					sql`(
+						${proposalGraphics.title} ILIKE ${searchPattern} OR
+						${proposalGraphics.caption} ILIKE ${searchPattern} OR
+						${proposalGraphics.actionCaption} ILIKE ${searchPattern}
+					)`,
+					visibleGraphicRowsCondition(actorId)
+				)
 			)
 			.orderBy(desc(proposalGraphics.updatedAt))
 			.limit(limit);
@@ -1700,6 +1782,7 @@ export async function recordGraphicFeedback(
 ): Promise<ActionResult<{ recorded: boolean }>> {
 	const actorId = await requireGraphicActor();
 	try {
+		await assertVisibleGraphic(graphicId, actorId);
 		await db.insert(graphicFeedback).values({
 			graphicId,
 			feedbackType,
@@ -1737,7 +1820,7 @@ export async function approveGraphic(
 				approvedAt: new Date(),
 				updatedAt: new Date(),
 			})
-			.where(eq(proposalGraphics.id, graphicId))
+			.where(visibleGraphicCondition(graphicId, actorId))
 			.returning();
 
 		if (!graphic) {
@@ -1763,7 +1846,7 @@ export async function approveGraphic(
 export async function reorderGraphics(
 	updates: Array<{ id: string; figureNumber: string }>
 ): Promise<ActionResult<{ updated: number }>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		let updatedCount = 0;
 
@@ -1774,7 +1857,7 @@ export async function reorderGraphics(
 					figureNumber: update.figureNumber,
 					updatedAt: new Date(),
 				})
-				.where(eq(proposalGraphics.id, update.id))
+				.where(visibleGraphicCondition(update.id, actorId))
 				.returning({ id: proposalGraphics.id });
 
 			if (result.length > 0) updatedCount++;
@@ -1854,12 +1937,12 @@ export async function renderGraphicToSvg(
 	graphicId: string,
 	theme?: DiagramTheme
 ): Promise<ActionResult<{ svg: string }>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
 		const [graphic] = await db
 			.select()
 			.from(proposalGraphics)
-			.where(eq(proposalGraphics.id, graphicId))
+			.where(visibleGraphicCondition(graphicId, actorId))
 			.limit(1);
 
 		if (!graphic || !graphic.diagramCode) {
