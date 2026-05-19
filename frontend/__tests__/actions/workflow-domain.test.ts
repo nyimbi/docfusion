@@ -180,6 +180,35 @@ describe("workflow domain integrations", () => {
 		expect(dbMock.insert).not.toHaveBeenCalled();
 	});
 
+	it("blocks opportunity workflow starts before persistence when the actor is not assigned", async () => {
+		const template = {
+			id: "template-1",
+			templateKey: "opportunity_decision",
+			name: "Opportunity Decision",
+			subjectType: "opportunity",
+			version: 1,
+			status: "active",
+			states: ["draft", "review"],
+			transitions: [
+				{ action: "submit", from: ["draft"], to: "review", requiredRoles: ["proposal_manager"] },
+			],
+			slaPolicy: {},
+			portalPolicy: {},
+			metadata: {},
+		};
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [template] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		await expect(startDomainWorkflowFromTemplate({
+			templateKey: "opportunity_decision",
+			subjectId: "00000000-0000-4000-8000-000000000111",
+			actorId: "pm-1",
+			actorRoles: ["proposal_manager"],
+		})).rejects.toThrow("Opportunity not found for workflow");
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
 	it("applies template transitions and resolves pricing packages into approved cost elements", async () => {
 		const instance = {
 			id: "workflow-1",

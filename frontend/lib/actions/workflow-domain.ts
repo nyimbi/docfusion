@@ -83,6 +83,17 @@ function workflowOpportunityCondition(opportunityId: string, actorId: string): S
 	)!;
 }
 
+async function assertWorkflowOpportunityAccess(opportunityId: string, actorId: string): Promise<void> {
+	const [opportunity] = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(workflowOpportunityCondition(opportunityId, actorId))
+		.limit(1);
+	if (!opportunity) {
+		throw new Error("Opportunity not found for workflow");
+	}
+}
+
 function assignedPipelineExistsSql(pipelineId: unknown, actorId: string): SQL {
 	return sql`exists (
 		select 1
@@ -282,6 +293,10 @@ export async function startDomainWorkflowFromTemplate(
 		policy: getStartAuthorityPolicy(template, initialState),
 		action: "start",
 	});
+	const scopedOpportunityId = getWorkflowStartOpportunityId(input, template);
+	if (scopedOpportunityId) {
+		await assertWorkflowOpportunityAccess(scopedOpportunityId, input.actorId);
+	}
 
 	const dueAt = computeDueAt(template.slaPolicy);
 	const instance = await recordWorkflowRuntimeTransition({
@@ -336,6 +351,20 @@ export async function startDomainWorkflowFromTemplate(
 	});
 
 	return instance;
+}
+
+function getWorkflowStartOpportunityId(
+	input: StartDomainWorkflowInput,
+	template: WorkflowTemplateRow
+): string | undefined {
+	if (input.opportunityId) {
+		return input.opportunityId;
+	}
+	const subjectType = input.subjectType ?? template.subjectType;
+	if (subjectType === "opportunity" && isUuid(input.subjectId)) {
+		return input.subjectId;
+	}
+	return undefined;
 }
 
 export async function transitionDomainWorkflow(
@@ -1287,6 +1316,10 @@ function compact(values: Array<string | null | undefined>): string[] {
 
 function unique(values: string[]): string[] {
 	return [...new Set(values)];
+}
+
+function isUuid(value: string): boolean {
+	return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
