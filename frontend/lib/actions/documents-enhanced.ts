@@ -9,7 +9,7 @@
 
 import { db } from "@/lib/db";
 import { documents, documentVersions, templates, documentCollaborators } from "@/lib/db/schema";
-import { eq, desc, asc, and, sql, inArray } from "drizzle-orm";
+import { eq, desc, asc, and, or, sql, inArray, type SQL } from "drizzle-orm";
 import type {
 	DocumentId,
 	Document,
@@ -21,6 +21,52 @@ import type {
 	UpdateDocumentInput,
 } from "@/lib/types/document";
 import { generateId } from "@/lib/utils";
+import { getCurrentUserId } from "@/lib/auth-utils";
+
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
+function readableDocumentCondition(id: string, userId: string): SQL {
+	return and(
+		eq(documents.id, id),
+		or(
+			eq(documents.ownerId, userId),
+			eq(documents.visibility, "public"),
+			sql`${documents.collaboratorIds} ? ${userId}`
+		)!
+	)!;
+}
+
+function writableDocumentCondition(id: string, userId: string): SQL {
+	return and(
+		eq(documents.id, id),
+		or(
+			eq(documents.ownerId, userId),
+			sql`${documents.collaboratorIds} ? ${userId}`
+		)!
+	)!;
+}
+
+function ownedDocumentCondition(id: string, userId: string): SQL {
+	return and(eq(documents.id, id), eq(documents.ownerId, userId))!;
+}
+
+async function assertReadableDocument(documentId: DocumentId, userId: string): Promise<void> {
+	const [doc] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(readableDocumentCondition(documentId, userId))
+		.limit(1);
+
+	if (!doc) {
+		throw new Error("Document not found");
+	}
+}
 
 // ============================================================================
 // Version Control
@@ -34,11 +80,13 @@ export async function saveDocumentVersion(
 	description: string,
 	content?: DocumentContent
 ): Promise<DocumentVersion> {
+	const userId = await requireCurrentUserId();
+
 	// Get current document
 	const [doc] = await db
 		.select()
 		.from(documents)
-		.where(eq(documents.id, documentId))
+		.where(writableDocumentCondition(documentId, userId))
 		.limit(1);
 
 	if (!doc) {
@@ -55,7 +103,7 @@ export async function saveDocumentVersion(
 			versionNumber: doc.currentVersion + 1,
 			content: versionContent,
 			changeDescription: description,
-			createdBy: doc.ownerId, // Would use current user from auth
+			createdBy: userId,
 		})
 		.returning();
 
@@ -66,7 +114,7 @@ export async function saveDocumentVersion(
 			currentVersion: version.versionNumber,
 			updatedAt: new Date(),
 		})
-		.where(eq(documents.id, documentId));
+		.where(writableDocumentCondition(documentId, userId));
 
 	return {
 		id: version.id,
@@ -88,6 +136,9 @@ export async function saveDocumentVersion(
 export async function getDocumentVersions(
 	documentId: DocumentId
 ): Promise<DocumentVersion[]> {
+	const userId = await requireCurrentUserId();
+	await assertReadableDocument(documentId, userId);
+
 	const results = await db
 		.select()
 		.from(documentVersions)
@@ -114,6 +165,8 @@ export async function getDocumentVersions(
 export async function getDocumentVersion(
 	versionId: string
 ): Promise<DocumentVersion | null> {
+	const userId = await requireCurrentUserId();
+
 	const [version] = await db
 		.select()
 		.from(documentVersions)
@@ -121,6 +174,7 @@ export async function getDocumentVersion(
 		.limit(1);
 
 	if (!version) return null;
+	await assertReadableDocument(version.documentId, userId);
 
 	return {
 		id: version.id,
@@ -143,6 +197,8 @@ export async function restoreDocumentVersion(
 	documentId: DocumentId,
 	versionId: string
 ): Promise<Document> {
+	const userId = await requireCurrentUserId();
+
 	const [version] = await db
 		.select()
 		.from(documentVersions)
@@ -161,7 +217,7 @@ export async function restoreDocumentVersion(
 			currentVersion: version.versionNumber,
 			updatedAt: new Date(),
 		})
-		.where(eq(documents.id, documentId))
+		.where(writableDocumentCondition(documentId, userId))
 		.returning();
 
 	if (!updated) {
@@ -175,6 +231,8 @@ export async function restoreDocumentVersion(
  * Delete a version (only if not current).
  */
 export async function deleteDocumentVersion(versionId: string): Promise<void> {
+	const userId = await requireCurrentUserId();
+
 	// Don't allow deleting the current version
 	const [version] = await db
 		.select({
@@ -192,8 +250,12 @@ export async function deleteDocumentVersion(versionId: string): Promise<void> {
 	const [doc] = await db
 		.select({ currentVersion: documents.currentVersion })
 		.from(documents)
-		.where(eq(documents.id, version.documentId))
+		.where(writableDocumentCondition(version.documentId, userId))
 		.limit(1);
+
+	if (!doc) {
+		throw new Error("Document not found");
+	}
 
 	if (doc?.currentVersion === version.versionNumber) {
 		throw new Error("Cannot delete current version");
@@ -206,13 +268,14 @@ export async function deleteDocumentVersion(versionId: string): Promise<void> {
  * Archive a document (soft delete by setting status to "archived").
  */
 export async function archiveDocument(documentId: DocumentId): Promise<Document> {
+	const userId = await requireCurrentUserId();
 	const [updated] = await db
 		.update(documents)
 		.set({
 			status: "archived",
 			updatedAt: new Date(),
 		})
-		.where(eq(documents.id, documentId))
+		.where(ownedDocumentCondition(documentId, userId))
 		.returning();
 
 	if (!updated) {
@@ -226,13 +289,14 @@ export async function archiveDocument(documentId: DocumentId): Promise<Document>
  * Unarchive a document (restore status to "draft").
  */
 export async function unarchiveDocument(documentId: DocumentId): Promise<Document> {
+	const userId = await requireCurrentUserId();
 	const [updated] = await db
 		.update(documents)
 		.set({
 			status: "draft",
 			updatedAt: new Date(),
 		})
-		.where(eq(documents.id, documentId))
+		.where(ownedDocumentCondition(documentId, userId))
 		.returning();
 
 	if (!updated) {
@@ -250,10 +314,11 @@ export async function unarchiveDocument(documentId: DocumentId): Promise<Documen
  * Duplicate a document.
  */
 export async function duplicateDocument(documentId: DocumentId): Promise<Document> {
+	const userId = await requireCurrentUserId();
 	const [original] = await db
 		.select()
 		.from(documents)
-		.where(eq(documents.id, documentId))
+		.where(readableDocumentCondition(documentId, userId))
 		.limit(1);
 
 	if (!original) {
@@ -269,7 +334,7 @@ export async function duplicateDocument(documentId: DocumentId): Promise<Documen
 			plainText: original.plainText,
 			status: "draft",
 			visibility: original.visibility,
-			ownerId: original.ownerId, // Would use current user
+			ownerId: userId,
 			templateId: original.templateId,
 			tags: original.tags,
 			wordCount: original.wordCount,
@@ -295,10 +360,11 @@ export async function applyTemplateToDocument(
 	templateId: string,
 	mode: TemplateApplyMode = "append"
 ): Promise<Document> {
+	const userId = await requireCurrentUserId();
 	const [doc] = await db
 		.select()
 		.from(documents)
-		.where(eq(documents.id, documentId))
+		.where(writableDocumentCondition(documentId, userId))
 		.limit(1);
 
 	if (!doc) {
@@ -355,7 +421,7 @@ export async function applyTemplateToDocument(
 			templateId,
 			updatedAt: new Date(),
 		})
-		.where(eq(documents.id, documentId))
+		.where(writableDocumentCondition(documentId, userId))
 		.returning();
 
 	return mapDocument(updated);
@@ -452,10 +518,11 @@ export async function convertDocumentToTemplate(
 		tags?: string[];
 	}
 ): Promise<{ id: string; name: string }> {
+	const userId = await requireCurrentUserId();
 	const [doc] = await db
 		.select()
 		.from(documents)
-		.where(eq(documents.id, documentId))
+		.where(readableDocumentCondition(documentId, userId))
 		.limit(1);
 
 	if (!doc) {
@@ -469,14 +536,14 @@ export async function convertDocumentToTemplate(
 			description: options?.description ?? "",
 			content: doc.content,
 			visibility: "team",
-			createdBy: doc.ownerId,
+			createdBy: userId,
 			categoryIds: options?.categoryIds ?? [],
 			tags: options?.tags ?? [],
 			status: "draft",
 		})
 		.returning();
 
-	db.update(documents)
+	await db.update(documents)
 		.set({ templateId: template.id, updatedAt: new Date() })
 		.where(eq(documents.id, documentId));
 
@@ -495,6 +562,9 @@ export async function inviteCollaborator(
 	userId: string,
 	role: "editor" | "viewer" | "commenter" = "viewer"
 ): Promise<void> {
+	const currentUserId = await requireCurrentUserId();
+	await assertOwnedDocument(documentId, currentUserId);
+
 	await db.insert(documentCollaborators).values({
 		documentId,
 		userId,
@@ -520,6 +590,9 @@ export async function removeCollaborator(
 	documentId: DocumentId,
 	userId: string
 ): Promise<void> {
+	const currentUserId = await requireCurrentUserId();
+	await assertOwnedDocument(documentId, currentUserId);
+
 	await db
 		.delete(documentCollaborators)
 		.where(
@@ -554,6 +627,9 @@ export async function getDocumentCollaborators(
 		avatarUrl?: string;
 	}[]
 > {
+	const userId = await requireCurrentUserId();
+	await assertReadableDocument(documentId, userId);
+
 	const results = await db
 		.select()
 		.from(documentCollaborators)
@@ -576,7 +652,8 @@ export async function getDocumentCollaborators(
  * Export document to Markdown.
  */
 export async function exportToMarkdown(documentId: DocumentId): Promise<string> {
-	const doc = await getDocument(documentId);
+	const userId = await requireCurrentUserId();
+	const doc = await getDocument(documentId, userId);
 	if (!doc) throw new Error("Document not found");
 
 	// Basic conversion - could be enhanced with proper handling
@@ -587,7 +664,8 @@ export async function exportToMarkdown(documentId: DocumentId): Promise<string> 
  * Export document to HTML.
  */
 export async function exportToHTML(documentId: DocumentId): Promise<string> {
-	const doc = await getDocument(documentId);
+	const userId = await requireCurrentUserId();
+	const doc = await getDocument(documentId, userId);
 	if (!doc) throw new Error("Document not found");
 
 	return `<!DOCTYPE html>
@@ -610,6 +688,11 @@ export async function importFromHTML(
 	html: string,
 	options: { title?: string; ownerId: string }
 ): Promise<Document> {
+	const userId = await requireCurrentUserId();
+	if (options.ownerId !== userId) {
+		throw new Error("Unauthorized");
+	}
+
 	const [doc] = await db
 		.insert(documents)
 		.values({
@@ -625,7 +708,7 @@ export async function importFromHTML(
 			},
 			plainText: html.replace(/<[^>]*>/g, " "),
 			status: "draft",
-			ownerId: options.ownerId,
+			ownerId: userId,
 		})
 		.returning();
 
@@ -669,8 +752,24 @@ function mapDocument(row: typeof documents.$inferSelect): Document {
 	};
 }
 
-async function getDocument(documentId: DocumentId) {
-	const [doc] = await db.select().from(documents).where(eq(documents.id, documentId)).limit(1);
+async function assertOwnedDocument(documentId: DocumentId, userId: string): Promise<void> {
+	const [doc] = await db
+		.select({ id: documents.id })
+		.from(documents)
+		.where(ownedDocumentCondition(documentId, userId))
+		.limit(1);
+
+	if (!doc) {
+		throw new Error("Document not found");
+	}
+}
+
+async function getDocument(documentId: DocumentId, userId: string) {
+	const [doc] = await db
+		.select()
+		.from(documents)
+		.where(readableDocumentCondition(documentId, userId))
+		.limit(1);
 	return doc ? mapDocument(doc) : null;
 }
 
