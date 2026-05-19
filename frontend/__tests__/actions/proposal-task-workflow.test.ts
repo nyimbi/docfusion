@@ -13,13 +13,18 @@ interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
 	onValues?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit"]) {
+	for (const method of ["from", "limit"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -32,6 +37,31 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Reflect.ownKeys(value).flatMap((key) =>
+		collectSqlFragments((value as Record<PropertyKey, unknown>)[key], seen)
+	);
+}
+
+function expectAssignedTaskScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("proposal-manager-1");
 }
 
 var dbMock: any;
@@ -115,12 +145,14 @@ describe("proposal task workflow", () => {
 	it("starts an assigned task and mirrors it into the workflow queue", async () => {
 		let taskUpdate: Record<string, unknown> | undefined;
 		let activity: Record<string, unknown> | undefined;
-		dbMock.select.mockReturnValueOnce(createChain({ result: [baseTask] }));
+		const wheres: unknown[] = [];
+		dbMock.select.mockReturnValueOnce(createChain({ result: [baseTask], onWhere: (value) => wheres.push(value) }));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [{ ...baseTask, status: "in_progress", progress: 1 }],
 			onSet: (value) => {
 				taskUpdate = value;
 			},
+			onWhere: (value) => wheres.push(value),
 		}));
 		dbMock.insert.mockReturnValueOnce(createChain({
 			onValues: (value) => {
@@ -153,6 +185,9 @@ describe("proposal task workflow", () => {
 			newValue: "in_progress",
 			userId: "proposal-manager-1",
 		});
+		for (const where of wheres) {
+			expectAssignedTaskScope(where);
+		}
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "proposal_task_lifecycle",
 			subjectType: "proposal_task",

@@ -7,7 +7,7 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type ProposalTaskRow = typeof proposalTasks.$inferSelect;
 type ProposalTaskStatus = "pending" | "assigned" | "in_progress" | "review" | "blocked" | "completed" | "cancelled";
@@ -45,6 +45,22 @@ export interface ProposalTaskWorkflowResult {
 const WORKFLOW_KEY = "proposal_task_lifecycle";
 const SUBJECT_TYPE = "proposal_task";
 
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleProposalTaskCondition(taskId: string, userId: string): SQL {
+	return and(
+		eq(proposalTasks.id, taskId),
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
+	)!;
+}
+
 export async function transitionProposalTaskWorkflow(
 	input: ProposalTaskWorkflowInput
 ): Promise<ProposalTaskWorkflowResult> {
@@ -57,7 +73,7 @@ export async function transitionProposalTaskWorkflow(
 	const [task] = await db
 		.select()
 		.from(proposalTasks)
-		.where(eq(proposalTasks.id, input.taskId))
+		.where(visibleProposalTaskCondition(input.taskId, userContext.userId))
 		.limit(1);
 	if (!task) {
 		throw new Error("Task not found");
@@ -68,7 +84,7 @@ export async function transitionProposalTaskWorkflow(
 	const [updated] = await db
 		.update(proposalTasks)
 		.set(transition.patch)
-		.where(eq(proposalTasks.id, input.taskId))
+		.where(visibleProposalTaskCondition(input.taskId, userContext.userId))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update task workflow state");
