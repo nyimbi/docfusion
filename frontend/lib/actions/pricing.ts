@@ -434,6 +434,19 @@ const boeTemplateSchema = z.object({
 // Helper Functions
 // ============================================================================
 
+type PricingUserContext = UserContext & { organizationId: string };
+
+async function requirePricingContext(): Promise<PricingUserContext> {
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+	return {
+		userId: userContext.userId,
+		organizationId: userContext.organizationId,
+	};
+}
+
 /**
  * Get AI client instance for pricing operations.
  */
@@ -493,13 +506,13 @@ export async function createLaborCategory(
 	data: CreateLaborCategoryInput
 ): Promise<ActionResult<LaborCategory>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requirePricingContext();
 		const validated = createLaborCategorySchema.parse(data);
 
 		const [category] = await db
 			.insert(laborCategories)
 			.values({
-				organizationId: userContext.organizationId ?? userContext.userId,
+				organizationId: userContext.organizationId,
 				name: validated.name,
 				code: validated.code,
 				description: validated.description,
@@ -1761,13 +1774,13 @@ export async function saveBOETemplate(
 	template: BOETemplateInput
 ): Promise<ActionResult<BoeTemplate>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requirePricingContext();
 		const validated = boeTemplateSchema.parse(template);
 
 		const [saved] = await db
 			.insert(boeTemplates)
 			.values({
-				organizationId: userContext.organizationId ?? userContext.userId,
+				organizationId: userContext.organizationId,
 				name: validated.name,
 				costElementType: validated.costElementType,
 				category: validated.category,
@@ -2272,13 +2285,13 @@ export async function createIndirectRate(
 	data: IndirectRateInput
 ): Promise<ActionResult<IndirectRate>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requirePricingContext();
 		const validated = indirectRateSchema.parse(data);
 
 		const [rate] = await db
 			.insert(indirectRates)
 			.values({
-				organizationId: userContext.organizationId ?? userContext.userId,
+				organizationId: userContext.organizationId,
 				rateName: validated.rateName,
 				rateType: validated.rateType,
 				rateValue: validated.rateValue,

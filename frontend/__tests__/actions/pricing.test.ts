@@ -17,7 +17,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 // Mocks — declared before any import that transitively touches these modules
 // ---------------------------------------------------------------------------
 
-const mockUserContext = {
+const mockUserContext: { userId: string; organizationId?: string } = {
 	userId: "user-001",
 	organizationId: "org-001",
 };
@@ -120,6 +120,8 @@ vi.mock("@/lib/db/schema-pricing", () => ({
 // Import subjects under test
 import {
 	createLaborCategory,
+	createIndirectRate,
+	saveBOETemplate,
 	updateLaborCategory,
 	deleteLaborCategory,
 	getLaborCategory,
@@ -139,6 +141,7 @@ import {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	mockUserContext.organizationId = "org-001";
 	// Recreate fresh db mock chains for each test
 	dbMock.select.mockImplementation(() => createChainableQuery([]));
 	dbMock.insert.mockImplementation(() => createChainableQuery([]));
@@ -263,6 +266,18 @@ describe("Labor Category CRUD", () => {
 	};
 
 	describe("createLaborCategory", () => {
+		test("requires organization context before inserting", async () => {
+			mockUserContext.organizationId = undefined;
+
+			const result = await createLaborCategory(validInput);
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("No organization context");
+			}
+			expect(dbMock.insert).not.toHaveBeenCalled();
+		});
+
 		test("creates with valid input and returns success", async () => {
 			const created = { id: "lc-1", ...validInput, organizationId: "org-001", isActive: true };
 			dbMock.insert.mockImplementation(() => createChainableQuery([created]));
@@ -726,6 +741,40 @@ describe("lookupPerDiem", () => {
 		if (result.success) {
 			expect(result.data.location).toBe("Chicago Metro Area");
 		}
+	});
+});
+
+describe("Pricing organization context", () => {
+	test("requires organization context before saving BOE templates", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await saveBOETemplate({
+			name: "Labor BOE",
+			templateText: "Use {hours} hours.",
+		});
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
+	test("requires organization context before creating indirect rates", async () => {
+		mockUserContext.organizationId = undefined;
+
+		const result = await createIndirectRate({
+			rateName: "Overhead",
+			rateType: "overhead",
+			rateValue: 0.15,
+			effectiveStartDate: "2026-01-01",
+		});
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("No organization context");
+		}
+		expect(dbMock.insert).not.toHaveBeenCalled();
 	});
 });
 
