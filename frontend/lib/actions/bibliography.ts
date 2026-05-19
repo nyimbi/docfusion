@@ -137,6 +137,14 @@ function mapRowToEntry(row: BibliographyEntryRow): BibliographyEntry {
 	};
 }
 
+async function requireCurrentUserId(): Promise<string> {
+	const userId = await getCurrentUserId();
+	if (!userId) {
+		throw new Error("Unauthorized");
+	}
+	return userId;
+}
+
 // ============================================================================
 // Entry CRUD Operations
 // ============================================================================
@@ -247,7 +255,7 @@ export async function createBibliographyEntry(
 	input: CreateEntryInput
 ): Promise<ActionResult<BibliographyEntry>> {
 	try {
-		const userId = await getCurrentUserId();
+		const userId = await requireCurrentUserId();
 
 		const [inserted] = await db
 			.insert(bibliographyEntries)
@@ -275,7 +283,7 @@ export async function createBibliographyEntry(
 				address: input.address,
 				institution: input.institution,
 				school: input.school,
-				createdBy: userId ?? undefined,
+				createdBy: userId,
 			})
 			.returning();
 
@@ -295,6 +303,7 @@ export async function updateBibliographyEntry(
 	input: UpdateEntryInput
 ): Promise<ActionResult<BibliographyEntry>> {
 	try {
+		const userId = await requireCurrentUserId();
 		const { id, ...updateData } = input;
 
 		const [updated] = await db
@@ -304,7 +313,7 @@ export async function updateBibliographyEntry(
 				entryType: updateData.entryType,
 				updatedAt: new Date(),
 			})
-			.where(eq(bibliographyEntries.id, id))
+			.where(and(eq(bibliographyEntries.id, id), eq(bibliographyEntries.createdBy, userId)))
 			.returning();
 
 		if (!updated) {
@@ -325,9 +334,11 @@ export async function updateBibliographyEntry(
  */
 export async function deleteBibliographyEntry(id: string): Promise<ActionResult<void>> {
 	try {
+		const userId = await requireCurrentUserId();
+
 		const result = await db
 			.delete(bibliographyEntries)
-			.where(eq(bibliographyEntries.id, id))
+			.where(and(eq(bibliographyEntries.id, id), eq(bibliographyEntries.createdBy, userId)))
 			.returning({ id: bibliographyEntries.id });
 
 		if (result.length === 0) {
@@ -356,6 +367,8 @@ export async function citeInDocument(
 	style?: CitationStyleType
 ): Promise<ActionResult<{ citationId: string; formattedCitation: string }>> {
 	try {
+		await requireCurrentUserId();
+
 		// Get the entry
 		const entry = await db.query.bibliographyEntries.findFirst({
 			where: eq(bibliographyEntries.id, entryId),
@@ -442,14 +455,20 @@ export async function importFromBibTeX(
 	bibtex: string
 ): Promise<ActionResult<{ imported: number; errors: string[] }>> {
 	try {
+		await requireCurrentUserId();
+
 		const entries = parseBibTeX(bibtex);
 		const errors: string[] = [];
 		let imported = 0;
 
 		for (const entry of entries) {
 			try {
-				await createBibliographyEntry(entry);
-				imported++;
+				const result = await createBibliographyEntry(entry);
+				if (result.success) {
+					imported++;
+				} else {
+					errors.push(`Failed to import ${entry.citeKey}: ${result.error ?? "Unknown error"}`);
+				}
 			} catch (err) {
 				errors.push(`Failed to import ${entry.citeKey}: ${String(err)}`);
 			}
