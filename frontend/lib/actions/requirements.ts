@@ -244,9 +244,9 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
  * Create multiple requirements at once.
  */
 export async function createRequirements(inputs: RequirementInput[]): Promise<Requirement[]> {
+	const { organizationId } = await requireTenantContext();
 	if (inputs.length === 0) return [];
 
-	const { organizationId } = await requireTenantContext();
 	const results = await db
 		.insert(rfpRequirements)
 		.values(
@@ -823,6 +823,8 @@ export async function extractRequirements(
 	opportunityId: string,
 	documentContent: string
 ): Promise<ExtractionResult> {
+	await requireTenantContext();
+
 	const startTime = Date.now();
 
 	const manager = getProviderManager();
@@ -1076,6 +1078,8 @@ export async function saveExtractedRequirements(
 	opportunityId: string,
 	extracted: ExtractedRequirement[]
 ): Promise<Requirement[]> {
+	await requireTenantContext();
+
 	const inputs: RequirementInput[] = extracted.map((req, index) => ({
 		opportunityId,
 		requirementId: `REQ-${String(index + 1).padStart(3, "0")}`,
