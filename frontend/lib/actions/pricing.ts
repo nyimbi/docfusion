@@ -447,6 +447,16 @@ async function requirePricingContext(): Promise<PricingUserContext> {
 	};
 }
 
+function resolvePricingOrganizationId(
+	userContext: PricingUserContext,
+	organizationId?: string
+): string {
+	if (organizationId && organizationId !== userContext.organizationId) {
+		throw new Error("Not authorized for organization");
+	}
+	return userContext.organizationId;
+}
+
 /**
  * Get AI client instance for pricing operations.
  */
@@ -647,8 +657,8 @@ export async function listLaborCategories(
 	organizationId?: string
 ): Promise<ActionResult<LaborCategory[]>> {
 	try {
-		const userContext = await requireUserContext();
-		const orgId = organizationId ?? userContext.organizationId ?? userContext.userId;
+		const userContext = await requirePricingContext();
+		const orgId = resolvePricingOrganizationId(userContext, organizationId);
 
 		const categories = await db
 			.select()
@@ -701,8 +711,8 @@ export async function importLaborCategories(
 	data: LaborCategoryImport[]
 ): Promise<ActionResult<{ imported: number; errors: string[] }>> {
 	try {
-		const userContext = await requireUserContext();
-		const orgId = userContext.organizationId ?? userContext.userId;
+		const userContext = await requirePricingContext();
+		const orgId = userContext.organizationId;
 
 		const errors: string[] = [];
 		let imported = 0;
@@ -1289,7 +1299,7 @@ export async function suggestCostForSection(
 	technicalSectionId: string
 ): Promise<ActionResult<CostSuggestion[]>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		// Get the technical section tracking record
 		const [tracking] = await db
@@ -1302,7 +1312,7 @@ export async function suggestCostForSection(
 		}
 
 		// Get available labor categories
-		const orgId = userContext.organizationId ?? userContext.userId;
+		const orgId = userContext.organizationId;
 		const categories = await db
 			.select()
 			.from(laborCategories)
@@ -1390,7 +1400,7 @@ export async function estimateHoursFromTechnical(
 	technicalSectionId: string
 ): Promise<ActionResult<HoursEstimate>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		// Get technical section tracking
 		const [tracking] = await db
@@ -1403,7 +1413,7 @@ export async function estimateHoursFromTechnical(
 		}
 
 		// Get available labor categories
-		const orgId = userContext.organizationId ?? userContext.userId;
+		const orgId = userContext.organizationId;
 		const categories = await db
 			.select()
 			.from(laborCategories)
@@ -1498,10 +1508,10 @@ export async function estimateHoursFromScope(
 	complexity: "low" | "medium" | "high"
 ): Promise<ActionResult<HoursEstimate>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		// Get available labor categories
-		const orgId = userContext.organizationId ?? userContext.userId;
+		const orgId = userContext.organizationId;
 		const categories = await db
 			.select()
 			.from(laborCategories)
@@ -1813,8 +1823,8 @@ export async function listBOETemplates(
 	elementType?: CostElementType
 ): Promise<ActionResult<BoeTemplate[]>> {
 	try {
-		const userContext = await requireUserContext();
-		const orgId = userContext.organizationId ?? userContext.userId;
+		const userContext = await requirePricingContext();
+		const orgId = userContext.organizationId;
 
 		const conditions = [
 			eq(boeTemplates.organizationId, orgId),
@@ -1934,8 +1944,8 @@ export async function calculateTotalPrice(
 	opportunityId: string
 ): Promise<ActionResult<PricingSummaryResult>> {
 	try {
-		const userContext = await requireUserContext();
-		const orgId = userContext.organizationId ?? userContext.userId;
+		const userContext = await requirePricingContext();
+		const orgId = userContext.organizationId;
 
 		// Get all cost elements
 		const elements = await db
@@ -2379,8 +2389,8 @@ export async function listIndirectRates(
 	organizationId?: string
 ): Promise<ActionResult<IndirectRate[]>> {
 	try {
-		const userContext = await requireUserContext();
-		const orgId = organizationId ?? userContext.organizationId ?? userContext.userId;
+		const userContext = await requirePricingContext();
+		const orgId = resolvePricingOrganizationId(userContext, organizationId);
 
 		const rates = await db
 			.select()
@@ -2408,8 +2418,8 @@ export async function getEffectiveRates(
 	date?: Date
 ): Promise<ActionResult<{ overhead: number; ga: number; fee: number }>> {
 	try {
-		const userContext = await requireUserContext();
-		const orgId = userContext.organizationId ?? userContext.userId;
+		const userContext = await requirePricingContext();
+		const orgId = userContext.organizationId;
 		const checkDate = date || new Date();
 		const dateStr = checkDate.toISOString().split("T")[0];
 
@@ -3715,7 +3725,7 @@ export async function getPricingSummary(
 	opportunityId: string
 ): Promise<ActionResult<PricingSummaryUIData>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requirePricingContext();
 
 		// Get cost elements
 		const elements = await db
@@ -3724,7 +3734,7 @@ export async function getPricingSummary(
 			.where(eq(costElements.opportunityId, opportunityId));
 
 		// Get indirect rates
-		const orgId = userContext.organizationId ?? userContext.userId;
+		const orgId = userContext.organizationId;
 		const rates = await db
 			.select()
 			.from(indirectRates)

@@ -127,6 +127,7 @@ import {
 	getLaborCategory,
 	listLaborCategories,
 	importLaborCategories,
+	listIndirectRates,
 	createCostElement,
 	updateCostElement,
 	deleteCostElement,
@@ -412,6 +413,28 @@ describe("Labor Category CRUD", () => {
 	});
 
 	describe("listLaborCategories", () => {
+		test("requires organization context before listing", async () => {
+			mockUserContext.organizationId = undefined;
+
+			const result = await listLaborCategories();
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("No organization context");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
+		});
+
+		test("rejects caller-supplied organization IDs outside the session tenant", async () => {
+			const result = await listLaborCategories("org-999");
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("Not authorized for organization");
+			}
+			expect(dbMock.select).not.toHaveBeenCalled();
+		});
+
 		test("returns array scoped to organization", async () => {
 			const cats = [
 				{ id: "lc-1", name: "Analyst", organizationId: "org-001" },
@@ -438,6 +461,18 @@ describe("Labor Category CRUD", () => {
 	});
 
 	describe("importLaborCategories", () => {
+		test("requires organization context before importing", async () => {
+			mockUserContext.organizationId = undefined;
+
+			const result = await importLaborCategories([{ name: "PM", directRate: 200 }]);
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toContain("No organization context");
+			}
+			expect(dbMock.insert).not.toHaveBeenCalled();
+		});
+
 		test("imports valid categories and reports count", async () => {
 			dbMock.insert.mockImplementation(() => createChainableQuery([]));
 
@@ -452,6 +487,18 @@ describe("Labor Category CRUD", () => {
 				expect(result.data.errors).toHaveLength(0);
 			}
 		});
+	});
+});
+
+describe("Indirect Rate tenant scoping", () => {
+	test("rejects caller-supplied organization IDs outside the session tenant", async () => {
+		const result = await listIndirectRates("org-999");
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain("Not authorized for organization");
+		}
+		expect(dbMock.select).not.toHaveBeenCalled();
 	});
 });
 
