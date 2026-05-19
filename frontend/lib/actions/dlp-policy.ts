@@ -13,7 +13,7 @@ import {
 	type DlpFinding,
 	type DlpSeverity,
 } from "@/lib/security/dlp-policy";
-import { eq } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 
 export interface DlpPolicyEvaluationResult {
 	opportunityId: string;
@@ -21,6 +21,22 @@ export interface DlpPolicyEvaluationResult {
 	findings: DlpFinding[];
 	blockingCount: number;
 	workflowInstanceIds: string[];
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(proposalDocuments.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(opportunityId, userId)
+	)!;
 }
 
 export async function evaluateDlpExportPolicyWorkflow(
@@ -35,7 +51,7 @@ export async function evaluateDlpExportPolicyWorkflow(
 		})
 		.from(proposalDocuments)
 		.innerJoin(documents, eq(proposalDocuments.documentId, documents.id))
-		.where(eq(proposalDocuments.opportunityId, opportunityId));
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userContext.userId));
 
 	const findings = scanDocumentsForDlpFindings(docs.map((doc) => ({
 		documentId: doc.documentId,

@@ -9,13 +9,34 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 	upsertWorkflowRuntimeTask: vi.fn(async () => ({ id: "dlp-task-1" })),
 }));
 
-function createChain(result: unknown[] = []) {
+function createChain(result: unknown[] = [], onWhere?: (value: unknown) => void) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "innerJoin", "where"]) {
+	for (const method of ["from", "innerJoin"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		onWhere?.(value);
+		return chain;
+	});
 	chain.then = (resolve: (value: unknown[]) => void) => Promise.resolve(result).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
 var dbMock: any;
@@ -40,11 +61,14 @@ beforeEach(() => {
 
 describe("DLP export policy workflow", () => {
 	it("records a cleared terminal scan when no findings exist", async () => {
+		let docsWhere: unknown;
 		dbMock.select.mockReturnValueOnce(createChain([{
 			documentId: "doc-1",
 			title: "Management Plan",
 			content: "Clean proposal content with no sensitive tokens.",
-		}]));
+		}], (value) => {
+			docsWhere = value;
+		}));
 
 		const result = await evaluateDlpExportPolicyWorkflow("opp-1");
 
@@ -63,14 +87,18 @@ describe("DLP export policy workflow", () => {
 			terminal: true,
 		}));
 		expect(upsertWorkflowRuntimeTask).not.toHaveBeenCalled();
+		expect(collectSqlFragments(docsWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
 
 	it("blocks export and projects a security review task for classified findings", async () => {
+		let docsWhere: unknown;
 		dbMock.select.mockReturnValueOnce(createChain([{
 			documentId: "doc-2",
 			title: "Technical Volume",
 			content: "This appendix is marked TOP SECRET and must not be exported.",
-		}]));
+		}], (value) => {
+			docsWhere = value;
+		}));
 
 		const result = await evaluateDlpExportPolicyWorkflow("opp-2");
 
@@ -99,5 +127,6 @@ describe("DLP export policy workflow", () => {
 			priority: "high",
 			assignedRole: "security_reviewer",
 		}));
+		expect(collectSqlFragments(docsWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
 });
