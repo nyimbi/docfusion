@@ -30,6 +30,11 @@ function escapeLikePattern(value: string): string {
 	return value.replace(/[\\%_]/g, "\\$&");
 }
 
+function normalizePositiveInteger(value: number | undefined, fallback: number, maximum = 1000): number {
+	if (value === undefined || !Number.isFinite(value)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(value)));
+}
+
 function buildSourceSearchCondition(search?: string) {
 	const term = search?.trim();
 	if (!term) return undefined;
@@ -145,8 +150,8 @@ export async function getScraperSources(options?: {
 		query.where(and(...conditions));
 	}
 
-	if (options?.limit) {
-		query.limit(options.limit);
+	if (options?.limit !== undefined) {
+		query.limit(normalizePositiveInteger(options.limit, 50));
 	}
 
 	const sources = await query;
@@ -183,7 +188,9 @@ export async function getPaginatedScraperSources(options: {
 	search?: string;
 }): Promise<PaginatedSources> {
 	await requireScraperActionSession();
-	const { page, pageSize, search, ...filters } = options;
+	const { page: rawPage, pageSize: rawPageSize, search, ...filters } = options;
+	const page = normalizePositiveInteger(rawPage, 1);
+	const pageSize = normalizePositiveInteger(rawPageSize, 25);
 	const offset = (page - 1) * pageSize;
 
 	// Build conditions
@@ -456,7 +463,7 @@ export async function getSourceRuns(
 		.from(scraperRuns)
 		.where(and(...conditions))
 		.orderBy(desc(scraperRuns.startedAt))
-		.limit(options?.limit || 50);
+		.limit(normalizePositiveInteger(options?.limit, 50));
 }
 
 /**
