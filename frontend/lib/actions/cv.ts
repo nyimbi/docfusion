@@ -15,21 +15,17 @@ import type {
 	UpdateCVInput,
 	CVFilters,
 } from "@/lib/types/company";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext } from "@/lib/auth-utils";
 
-// ============================================================================
-// Configuration
-// ============================================================================
-
-/** Organization ID for Datacraft */
-const ORGANIZATION_ID = "datacraft";
-
-async function requireCVActor(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
-		throw new Error("Unauthorized");
+async function requireCVContext(): Promise<{ userId: string; organizationId: string }> {
+	const context = await requireUserContext();
+	if (!context.organizationId) {
+		throw new Error("Organization context required");
 	}
-	return userId;
+	return {
+		userId: context.userId,
+		organizationId: context.organizationId,
+	};
 }
 
 // ============================================================================
@@ -40,7 +36,8 @@ async function requireCVActor(): Promise<string> {
  * Get all CVs with optional filtering.
  */
 export async function getCVs(filters?: CVFilters): Promise<CV[]> {
-	const conditions = [eq(cvs.organizationId, ORGANIZATION_ID)];
+	const { organizationId } = await requireCVContext();
+	const conditions = [eq(cvs.organizationId, organizationId)];
 
 	if (filters?.search) {
 		conditions.push(
@@ -65,10 +62,12 @@ export async function getCVs(filters?: CVFilters): Promise<CV[]> {
  * Get a CV by ID.
  */
 export async function getCV(id: string): Promise<CV | null> {
+	const { organizationId } = await requireCVContext();
+
 	const [row] = await db
 		.select()
 		.from(cvs)
-		.where(eq(cvs.id, id));
+		.where(and(eq(cvs.id, id), eq(cvs.organizationId, organizationId)));
 
 	return row ? transformCV(row) : null;
 }
@@ -77,13 +76,15 @@ export async function getCV(id: string): Promise<CV | null> {
  * Get the active CV for a user.
  */
 export async function getUserCV(userId: string): Promise<CV | null> {
+	const { organizationId } = await requireCVContext();
+
 	const [row] = await db
 		.select()
 		.from(cvs)
 		.where(
 			and(
 				eq(cvs.userId, userId),
-				eq(cvs.organizationId, ORGANIZATION_ID),
+				eq(cvs.organizationId, organizationId),
 				eq(cvs.isActive, true)
 			)
 		)
@@ -97,11 +98,11 @@ export async function getUserCV(userId: string): Promise<CV | null> {
  * Create a new CV.
  */
 export async function createCV(input: CreateCVInput): Promise<CV> {
-	const actorId = await requireCVActor();
+	const { userId: actorId, organizationId } = await requireCVContext();
 	const [row] = await db
 		.insert(cvs)
 		.values({
-			organizationId: ORGANIZATION_ID,
+			organizationId,
 			userId: actorId,
 			fullName: input.fullName,
 			title: input.title ?? null,
@@ -129,7 +130,7 @@ export async function createCV(input: CreateCVInput): Promise<CV> {
  * Update a CV.
  */
 export async function updateCV(id: string, input: UpdateCVInput): Promise<CV> {
-	const actorId = await requireCVActor();
+	const { userId: actorId, organizationId } = await requireCVContext();
 	const updateData: Partial<CVRow> = {
 		updatedAt: new Date(),
 	};
@@ -152,7 +153,7 @@ export async function updateCV(id: string, input: UpdateCVInput): Promise<CV> {
 	const [row] = await db
 		.update(cvs)
 		.set(updateData)
-		.where(and(eq(cvs.id, id), eq(cvs.userId, actorId), eq(cvs.organizationId, ORGANIZATION_ID)))
+		.where(and(eq(cvs.id, id), eq(cvs.userId, actorId), eq(cvs.organizationId, organizationId)))
 		.returning();
 
 	if (!row) {
@@ -166,11 +167,11 @@ export async function updateCV(id: string, input: UpdateCVInput): Promise<CV> {
  * Create a new version of a CV.
  */
 export async function createCVVersion(id: string, _userId?: string): Promise<CV> {
-	const actorId = await requireCVActor();
+	const { userId: actorId, organizationId } = await requireCVContext();
 	const [existingRow] = await db
 		.select()
 		.from(cvs)
-		.where(and(eq(cvs.id, id), eq(cvs.userId, actorId), eq(cvs.organizationId, ORGANIZATION_ID)))
+		.where(and(eq(cvs.id, id), eq(cvs.userId, actorId), eq(cvs.organizationId, organizationId)))
 		.limit(1);
 
 	if (!existingRow) {
@@ -183,13 +184,13 @@ export async function createCVVersion(id: string, _userId?: string): Promise<CV>
 	await db
 		.update(cvs)
 		.set({ isActive: false, updatedAt: new Date() })
-		.where(and(eq(cvs.id, id), eq(cvs.userId, actorId), eq(cvs.organizationId, ORGANIZATION_ID)));
+		.where(and(eq(cvs.id, id), eq(cvs.userId, actorId), eq(cvs.organizationId, organizationId)));
 
 	// Create new version
 	const [row] = await db
 		.insert(cvs)
 		.values({
-			organizationId: ORGANIZATION_ID,
+			organizationId,
 			userId: actorId,
 			fullName: existing.fullName,
 			title: existing.title,
@@ -217,20 +218,22 @@ export async function createCVVersion(id: string, _userId?: string): Promise<CV>
  * Delete a CV.
  */
 export async function deleteCV(id: string): Promise<void> {
-	const actorId = await requireCVActor();
+	const { userId: actorId, organizationId } = await requireCVContext();
 	await db
 		.delete(cvs)
-		.where(and(eq(cvs.id, id), eq(cvs.userId, actorId), eq(cvs.organizationId, ORGANIZATION_ID)));
+		.where(and(eq(cvs.id, id), eq(cvs.userId, actorId), eq(cvs.organizationId, organizationId)));
 }
 
 /**
  * Get CV versions for a user.
  */
 export async function getCVVersions(userId: string): Promise<CV[]> {
+	const { organizationId } = await requireCVContext();
+
 	const rows = await db
 		.select()
 		.from(cvs)
-		.where(and(eq(cvs.userId, userId), eq(cvs.organizationId, ORGANIZATION_ID)))
+		.where(and(eq(cvs.userId, userId), eq(cvs.organizationId, organizationId)))
 		.orderBy(desc(cvs.version));
 
 	return rows.map(transformCV);
