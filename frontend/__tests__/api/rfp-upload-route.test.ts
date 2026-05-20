@@ -16,6 +16,16 @@ function createChain(config: ChainConfig = {}) {
 	return chain;
 }
 
+function createSelectChain(result: unknown[] = []) {
+	const chain: Record<string, any> = {};
+	chain.from = vi.fn(() => chain);
+	chain.where = vi.fn(() => chain);
+	chain.limit = vi.fn(() => chain);
+	chain.then = (resolve: (value: unknown[]) => void, reject: (reason: unknown) => void) =>
+		Promise.resolve(result).then(resolve, reject);
+	return chain;
+}
+
 const authMock = vi.hoisted(() => vi.fn());
 const dbMock = vi.hoisted(() => ({
 	query: {
@@ -23,6 +33,7 @@ const dbMock = vi.hoisted(() => ({
 			findFirst: vi.fn(),
 		},
 	},
+	select: vi.fn(),
 	insert: vi.fn(),
 }));
 const storageMock = vi.hoisted(() => ({
@@ -50,12 +61,14 @@ function uploadRequest(file: File) {
 beforeEach(() => {
 	vi.clearAllMocks();
 	vi.stubEnv("DOCFUSION_TENANT_HEADER_SECRET", "test-tenant-secret");
+	dbMock.select.mockReset();
 	dbMock.insert.mockReset();
 	dbMock.query.rfpDocuments.findFirst.mockReset();
 	storageMock.getLinodeE3ConfigFromEnv.mockReset();
 	storageMock.uploadToLinodeE3.mockReset();
 	storageMock.buildRfpObjectKey.mockReset();
 	storageMock.buildRfpObjectKey.mockReturnValue("rfp/opportunity/document.pdf");
+	dbMock.select.mockImplementation(() => createSelectChain([{ id: "opportunity-1" }]));
 	dbMock.query.rfpDocuments.findFirst.mockResolvedValue(null);
 	dbMock.insert.mockImplementation(() => createChain({ result: [{ id: "created-row" }] }));
 	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue(null);
@@ -92,6 +105,21 @@ describe("RFP upload route", () => {
 
 		expect(response.status).toBe(400);
 		expect(fetch).not.toHaveBeenCalled();
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
+	it("rejects uploads attached to opportunities outside the caller scope", async () => {
+		authMock.mockResolvedValueOnce({
+			user: { id: "user-1", email: "user@example.test", organizationId: "org-1" },
+		});
+		dbMock.select.mockImplementationOnce(() => createSelectChain([]));
+
+		const response = await POST(uploadRequest(new File(["pdf"], "rfp.pdf", { type: "application/pdf" })));
+
+		expect(response.status).toBe(404);
+		expect(await response.json()).toEqual({ error: "Opportunity not found" });
+		expect(fetch).not.toHaveBeenCalled();
+		expect(storageMock.getLinodeE3ConfigFromEnv).not.toHaveBeenCalled();
 		expect(dbMock.insert).not.toHaveBeenCalled();
 	});
 

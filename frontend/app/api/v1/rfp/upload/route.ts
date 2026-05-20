@@ -12,6 +12,7 @@ import {
 } from "@/lib/auth/route-tenant";
 import { buildSignedTenantHeaders } from "@/lib/auth/tenant-signature";
 import { db } from "@/lib/db";
+import { opportunities } from "@/lib/db/schema";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import { and, eq } from "drizzle-orm";
 import {
@@ -24,6 +25,7 @@ import crypto from "crypto";
 
 const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
 const USE_PYTHON_RFP = process.env.USE_PYTHON_RFP !== "false";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // ============================================================================
 // Types
@@ -42,6 +44,38 @@ interface UploadResponse {
 // Handler
 // ============================================================================
 
+async function validateOpportunityAccess(
+	opportunityId: string | null,
+	userId: string
+): Promise<NextResponse | null> {
+	if (!opportunityId) return null;
+
+	if (!UUID_PATTERN.test(opportunityId)) {
+		return NextResponse.json(
+			{ error: "Invalid opportunity ID" },
+			{ status: 400 }
+		);
+	}
+
+	const [opportunity] = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(and(
+			eq(opportunities.id, opportunityId),
+			eq(opportunities.assignedTo, userId)
+		))
+		.limit(1);
+
+	if (!opportunity) {
+		return NextResponse.json(
+			{ error: "Opportunity not found" },
+			{ status: 404 }
+		);
+	}
+
+	return null;
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
 	const ctx = await requireRouteTenantContext();
 	if (isTenantResponse(ctx)) return ctx;
@@ -53,7 +87,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		// Parse form data only after authentication.
 		const formData = await request.formData();
 		const file = formData.get("file") as File | null;
-		const opportunityId = formData.get("opportunityId") as string | null;
+		const opportunityIdValue = formData.get("opportunityId");
+		const opportunityId = typeof opportunityIdValue === "string" && opportunityIdValue.trim()
+			? opportunityIdValue.trim()
+			: null;
 
 		if (!file) {
 			return NextResponse.json(
@@ -84,6 +121,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				{ status: 400 }
 			);
 		}
+
+		const opportunityAccessError = await validateOpportunityAccess(opportunityId, userId);
+		if (opportunityAccessError) return opportunityAccessError;
 
 		const objectStoreConfig = getLinodeE3ConfigFromEnv();
 
