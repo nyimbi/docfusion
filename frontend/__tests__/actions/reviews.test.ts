@@ -839,6 +839,7 @@ describe("Reviewer Management", () => {
 
 			expect(result.success).toBe(true);
 			expect(dbMock.update).toHaveBeenCalled();
+			expectAssignedReviewScope(dbMock.query.reviewers.findFirst.mock.calls[0][0].where);
 		});
 
 		test("sets acceptedAt when status changes to accepted", async () => {
@@ -892,6 +893,7 @@ describe("Reviewer Management", () => {
 			expect(result.success).toBe(true);
 			// Should delete scores, comments, checklists, then reviewer record
 			expect(dbMock.delete).toHaveBeenCalledTimes(4);
+			expectAssignedReviewScope(dbMock.query.reviewers.findFirst.mock.calls[0][0].where);
 		});
 
 		test("returns error when reviewer not found", async () => {
@@ -916,6 +918,7 @@ describe("Reviewer Management", () => {
 			expect(result.results).toHaveLength(1);
 			expect(result.results![0].hasConflict).toBe(false);
 			expect(result.results![0].conflictReasons).toHaveLength(0);
+			expectAssignedReviewScope(dbMock.query.reviewers.findMany.mock.calls[0][0].where);
 		});
 
 		test("detects declared conflict of interest", async () => {
@@ -975,6 +978,7 @@ describe("Reviewer Management", () => {
 
 			expect(result.success).toBe(true);
 			expect(dbMock.update).toHaveBeenCalled();
+			expectAssignedReviewScope(dbMock.query.reviewers.findFirst.mock.calls[0][0].where);
 		});
 
 		test("returns error when reviewer not found", async () => {
@@ -1885,6 +1889,7 @@ describe("Reporting & Analytics", () => {
 			expect(metrics.averageScoreImprovement).toBe(15);
 			expect(metrics.reviewTypeEffectiveness).toHaveLength(1);
 			expect(metrics.commonIssueCategories.length).toBeGreaterThan(0);
+			expectAssignedReviewScope(dbMock.query.proposalReviews.findMany.mock.calls[0][0].where);
 		});
 
 		test("handles no completed reviews in timeframe", async () => {

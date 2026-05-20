@@ -99,6 +99,20 @@ function assignedCommentsForReviewCondition(reviewId: string, actorId: string): 
 	)!;
 }
 
+function assignedReviewerByIdCondition(reviewerId: string, actorId: string): SQL {
+	return and(
+		eq(reviewers.id, reviewerId),
+		assignedReviewExistsSql(reviewers.reviewId, actorId)
+	)!;
+}
+
+function assignedReviewersForReviewCondition(reviewId: string, actorId: string): SQL {
+	return and(
+		eq(reviewers.reviewId, reviewId),
+		assignedReviewExistsSql(reviewId, actorId)
+	)!;
+}
+
 // ============================================================================
 // INPUT VALIDATION SCHEMAS
 // ============================================================================
@@ -963,9 +977,9 @@ export async function updateReviewer(
 	}
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		await requireReviewActorId();
+		const actorId = await requireReviewActorId();
 		const reviewer = await db.query.reviewers.findFirst({
-			where: eq(reviewers.id, reviewerId),
+			where: assignedReviewerByIdCondition(reviewerId, actorId),
 		});
 
 		if (!reviewer) {
@@ -1007,7 +1021,7 @@ export async function updateReviewer(
 
 		await db.update(reviewers)
 			.set(updates)
-			.where(eq(reviewers.id, reviewerId));
+			.where(assignedReviewerByIdCondition(reviewerId, actorId));
 
 		revalidatePath(`/reviews/${reviewer.reviewId}`);
 
@@ -1028,9 +1042,9 @@ export async function removeReviewer(
 	reviewerId: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		await requireReviewActorId();
+		const actorId = await requireReviewActorId();
 		const reviewer = await db.query.reviewers.findFirst({
-			where: eq(reviewers.id, reviewerId),
+			where: assignedReviewerByIdCondition(reviewerId, actorId),
 		});
 
 		if (!reviewer) {
@@ -1041,7 +1055,7 @@ export async function removeReviewer(
 		await db.delete(reviewScores).where(eq(reviewScores.reviewerId, reviewerId));
 		await db.delete(reviewComments).where(eq(reviewComments.reviewerId, reviewerId));
 		await db.delete(reviewChecklists).where(eq(reviewChecklists.reviewerId, reviewerId));
-		await db.delete(reviewers).where(eq(reviewers.id, reviewerId));
+		await db.delete(reviewers).where(assignedReviewerByIdCondition(reviewerId, actorId));
 
 		// Update review statistics
 		await updateReviewStatistics(reviewer.reviewId);
@@ -1069,10 +1083,10 @@ export async function checkConflictsOfInterest(
 	error?: string;
 }> {
 	try {
-		await requireReviewActorId();
+		const actorId = await requireReviewActorId();
 		// Get all reviewers for this review
 		const reviewerList = await db.query.reviewers.findMany({
-			where: eq(reviewers.reviewId, reviewId),
+			where: assignedReviewersForReviewCondition(reviewId, actorId),
 		});
 
 		// Check conflict status for each reviewer
@@ -1126,9 +1140,9 @@ export async function sendReviewerReminder(
 	reviewerId: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		await requireReviewActorId();
+		const actorId = await requireReviewActorId();
 		const reviewer = await db.query.reviewers.findFirst({
-			where: eq(reviewers.id, reviewerId),
+			where: assignedReviewerByIdCondition(reviewerId, actorId),
 		});
 
 		if (!reviewer) {
@@ -1142,12 +1156,12 @@ export async function sendReviewerReminder(
 				reminderCount: sql`COALESCE(${reviewers.reminderCount}, 0) + 1`,
 				updatedAt: new Date(),
 			})
-			.where(eq(reviewers.id, reviewerId));
+			.where(assignedReviewerByIdCondition(reviewerId, actorId));
 
 		// Fetch associated review for context
 		const review = reviewer.reviewId
 			? await db.query.proposalReviews.findFirst({
-					where: eq(proposalReviews.id, reviewer.reviewId),
+					where: assignedReviewByIdCondition(reviewer.reviewId, actorId),
 				})
 			: null;
 
@@ -2239,7 +2253,7 @@ export async function trackReviewEffectiveness(
 	timeframeDays?: number
 ): Promise<{ success: boolean; metrics?: EffectivenessMetrics; error?: string }> {
 	try {
-		await requireReviewActorId();
+		const actorId = await requireReviewActorId();
 		if (organizationId) {
 			return {
 				success: false,
@@ -2256,7 +2270,8 @@ export async function trackReviewEffectiveness(
 			where: and(
 				gte(proposalReviews.createdAt, startDate),
 				lte(proposalReviews.createdAt, endDate),
-				eq(proposalReviews.status, "completed")
+				eq(proposalReviews.status, "completed"),
+				assignedOpportunityExistsSql(proposalReviews.opportunityId, actorId)
 			),
 			with: {
 				reviewers: true,
