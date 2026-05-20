@@ -124,6 +124,13 @@ function visibleOpportunityPartnersCondition(opportunityId: string, userId: stri
 	)!;
 }
 
+function normalizePartnerLimit(limit: number | undefined, fallback = 10, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) {
+		return fallback;
+	}
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
 async function assertVisibleOpportunity(opportunityId: string, userId: string): Promise<void> {
 	const [opportunity] = await db
 		.select({ id: opportunities.id })
@@ -593,7 +600,7 @@ export async function getTopPartners(limit: number = 10): Promise<PartnerListIte
 			)
 		)
 		.orderBy(desc(partners.performanceRating), desc(partners.pastCollaborations))
-		.limit(limit);
+		.limit(normalizePartnerLimit(limit));
 
 	return rows.map((row) => ({
 		id: row.id,

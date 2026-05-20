@@ -69,6 +69,7 @@ import {
 	getPartnerOpportunities,
 	getPartnerPerformance,
 	getPartners,
+	getTopPartners,
 	removePartnerFromOpportunity,
 	updatePartnerAssignment,
 } from "@/lib/actions/partners";
@@ -210,5 +211,19 @@ describe("partner opportunity scoping", () => {
 
 		expect(result.totalOpportunities).toBe(0);
 		expect(collectSqlFragments(performanceWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("normalizes top-partner listing limits before querying", async () => {
+		const lowLimitChain = createChain({ result: [] });
+		const highLimitChain = createChain({ result: [] });
+		dbMock.select
+			.mockReturnValueOnce(lowLimitChain)
+			.mockReturnValueOnce(highLimitChain);
+
+		await expect(getTopPartners(-10)).resolves.toEqual([]);
+		await expect(getTopPartners(2500)).resolves.toEqual([]);
+
+		expect(lowLimitChain.limit).toHaveBeenCalledWith(1);
+		expect(highLimitChain.limit).toHaveBeenCalledWith(1000);
 	});
 });
