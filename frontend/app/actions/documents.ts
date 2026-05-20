@@ -95,6 +95,20 @@ function currentUserDocumentScope(userId: string): SQL {
 	)!;
 }
 
+function normalizeDocumentLimit(limit: number | undefined, fallback: number, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) {
+		return fallback;
+	}
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
+function normalizeDocumentOffset(offset: number | undefined): number {
+	if (offset === undefined || !Number.isFinite(offset)) {
+		return 0;
+	}
+	return Math.max(0, Math.floor(offset));
+}
+
 /**
  * Map database row to Document type.
  */
@@ -159,9 +173,11 @@ export async function listDocuments(
 		search,
 		sortBy = "updatedAt",
 		sortOrder = "desc",
-		offset = 0,
-		limit = 50,
+		offset: rawOffset,
+		limit: rawLimit,
 	} = params;
+	const offset = normalizeDocumentOffset(rawOffset);
+	const limit = normalizeDocumentLimit(rawLimit, 50);
 
 	// Build where conditions
 	const conditions: SQL[] = [currentUserDocumentScope(userId)];
@@ -445,6 +461,7 @@ export async function searchDocuments(
 	limit = 20
 ): Promise<DocumentSummary[]> {
 	const userId = await requireCurrentUserId();
+	const normalizedLimit = normalizeDocumentLimit(limit, 20);
 	const rows = await db
 		.select()
 		.from(documents)
@@ -458,7 +475,7 @@ export async function searchDocuments(
 			)
 		)
 		.orderBy(desc(documents.updatedAt))
-		.limit(limit);
+		.limit(normalizedLimit);
 
 	return rows.map(mapRowToSummary);
 }
