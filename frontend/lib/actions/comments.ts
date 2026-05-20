@@ -39,6 +39,16 @@ async function requireCurrentUserId(): Promise<string> {
 	return userId;
 }
 
+function normalizeCommentLimit(limit: number | undefined, fallback: number, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
+function normalizeCommentOffset(offset: number | undefined): number {
+	if (offset === undefined || !Number.isFinite(offset)) return 0;
+	return Math.max(0, Math.floor(offset));
+}
+
 function readableDocumentCondition(documentId: string, userId: string): SQL {
 	return and(
 		eq(documents.id, documentId),
@@ -287,8 +297,8 @@ export async function getComments(
 		.from(documentComments)
 		.where(whereClause)
 		.orderBy(desc(documentComments.createdAt))
-		.limit(options.limit ?? 1000)
-		.offset(options.offset ?? 0);
+		.limit(normalizeCommentLimit(options.limit, 1000))
+		.offset(normalizeCommentOffset(options.offset));
 
 	// For top-level comments, fetch their replies
 	const comments = await Promise.all(

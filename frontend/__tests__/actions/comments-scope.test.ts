@@ -79,11 +79,12 @@ vi.mock("@/lib/db/schema-comments-workflow", () => ({
 import {
 	createComment,
 	getComment,
+	getComments,
 } from "@/lib/actions/comments";
 
 function createChain(result: unknown[], onWhere?: (value: unknown) => void) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "limit", "orderBy", "set", "values"]) {
+	for (const method of ["from", "limit", "offset", "orderBy", "set", "values"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	chain.where = vi.fn((value: unknown) => {
@@ -171,5 +172,22 @@ describe("comment document scoping", () => {
 		expect(asText(documentWhere)).toContain("user-1");
 		expect(asText(parentWhere)).toContain("parent-1");
 		expect(asText(parentWhere)).toContain("doc-1");
+	});
+
+	it("normalizes comment list pagination before querying", async () => {
+		const rowsChain = createChain([]);
+		dbMock.select
+			.mockReturnValueOnce(createChain([{ id: "doc-1" }]))
+			.mockReturnValueOnce(createChain([{ count: 0 }]))
+			.mockReturnValueOnce(rowsChain);
+
+		const result = await getComments(
+			{ documentId: "doc-1" },
+			{ limit: -20, offset: -5 }
+		);
+
+		expect(result).toEqual({ comments: [], total: 0 });
+		expect(rowsChain.limit).toHaveBeenCalledWith(1);
+		expect(rowsChain.offset).toHaveBeenCalledWith(0);
 	});
 });
