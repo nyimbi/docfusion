@@ -35,6 +35,20 @@ async function getCurrentUserId(): Promise<string> {
   return userId;
 }
 
+function normalizeTemplateHistoryLimit(limit: number | undefined, fallback: number, maximum = 1000): number {
+  if (limit === undefined || !Number.isFinite(limit)) {
+    return fallback;
+  }
+  return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
+function normalizeTemplateHistoryOffset(offset: number | undefined): number {
+  if (offset === undefined || !Number.isFinite(offset)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(offset));
+}
+
 /**
  * Get next version number for a template.
  */
@@ -215,8 +229,9 @@ export async function getTemplateEditHistory(
     offset?: number;
   }
 ): Promise<{ edits: TemplateEdit[]; total: number }> {
-  const limit = options?.limit ?? 50;
-  const offset = options?.offset ?? 0;
+  await getCurrentUserId();
+  const limit = normalizeTemplateHistoryLimit(options?.limit, 50);
+  const offset = normalizeTemplateHistoryOffset(options?.offset);
 
   const [edits, countResult] = await Promise.all([
     db
@@ -242,6 +257,7 @@ export async function getTemplateEditHistory(
  * Get a specific edit by ID.
  */
 export async function getEdit(editId: string): Promise<TemplateEdit | null> {
+  await getCurrentUserId();
   const edit = await db
     .select()
     .from(templateEdits)
@@ -302,8 +318,9 @@ export async function getTemplateVersions(
     offset?: number;
   }
 ): Promise<{ versions: TemplateVersionHistory[]; total: number }> {
-  const limit = options?.limit ?? 20;
-  const offset = options?.offset ?? 0;
+  await getCurrentUserId();
+  const limit = normalizeTemplateHistoryLimit(options?.limit, 20);
+  const offset = normalizeTemplateHistoryOffset(options?.offset);
 
   const [versions, countResult] = await Promise.all([
     db
@@ -332,6 +349,7 @@ export async function getTemplateVersion(
   templateId: string,
   versionNumber: number
 ): Promise<TemplateVersionHistory | null> {
+  await getCurrentUserId();
   const version = await db
     .select()
     .from(templateVersions)

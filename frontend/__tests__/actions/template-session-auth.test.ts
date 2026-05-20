@@ -42,6 +42,10 @@ import {
 import {
 	createTemplateVersion,
 	deleteTemplateVersion,
+	getEdit,
+	getTemplateEditHistory,
+	getTemplateVersion,
+	getTemplateVersions,
 	logTemplateEdit,
 	recordContentChange,
 	recordTemplatePublish,
@@ -84,6 +88,15 @@ describe("template session auth", () => {
 		await expect(createTemplateVersion("template-1", emptyDoc)).rejects.toThrow("Unauthorized");
 		await expect(revertTemplateToVersion("template-1", 1)).rejects.toThrow("Unauthorized");
 		await expect(deleteTemplateVersion("template-1", 1)).rejects.toThrow("Unauthorized");
+
+		expect(dbAccessMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects unauthenticated template edit reads before database access", async () => {
+		await expect(getTemplateEditHistory("template-1")).rejects.toThrow("Unauthorized");
+		await expect(getEdit("edit-1")).rejects.toThrow("Unauthorized");
+		await expect(getTemplateVersions("template-1")).rejects.toThrow("Unauthorized");
+		await expect(getTemplateVersion("template-1", 1)).rejects.toThrow("Unauthorized");
 
 		expect(dbAccessMock).not.toHaveBeenCalled();
 	});
