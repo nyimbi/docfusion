@@ -61,6 +61,12 @@ interface SnippetsListResponse {
 	totalPages: number;
 }
 
+function normalizePositiveQueryInt(value: string | null, fallback: number, maximum = Number.MAX_SAFE_INTEGER): number {
+	const parsed = Number.parseInt(value ?? "", 10);
+	if (!Number.isFinite(parsed)) return fallback;
+	return Math.max(1, Math.min(maximum, parsed));
+}
+
 // ============================================================================
 // Handler
 // ============================================================================
@@ -79,8 +85,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
 		// Parse query parameters
 		const searchParams = request.nextUrl.searchParams;
-		const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
-		const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") ?? "50")));
+		const page = normalizePositiveQueryInt(searchParams.get("page"), 1);
+		const pageSize = normalizePositiveQueryInt(searchParams.get("pageSize"), 50, 100);
 		const search = searchParams.get("search") ?? "";
 		const contentType = searchParams.get("contentType") as ContentType | null;
 		const freshnessStatus = searchParams.get("freshnessStatus") as FreshnessStatus | null;

@@ -98,12 +98,13 @@ describe("content snippets route", () => {
 	it("returns normalized snippet content and placeholder metadata", async () => {
 		let countWhere: unknown;
 		let listWhere: unknown;
+		let listChain: Record<string, any> | undefined;
 		dbMock.select
 			.mockReturnValueOnce(createChain([{ count: 1 }], (value) => {
 				countWhere = value;
 			}))
-			.mockReturnValueOnce(
-				createChain([
+			.mockImplementationOnce(() => {
+				listChain = createChain([
 					{
 						snippet: {
 							id: "snippet-1",
@@ -134,21 +135,26 @@ describe("content snippets route", () => {
 					},
 				], (value) => {
 					listWhere = value;
-				})
-			);
+				});
+				return listChain;
+			});
 
 		const response = await GET(
-			new NextRequest("https://docfusion.test/api/v1/content/snippets")
+			new NextRequest("https://docfusion.test/api/v1/content/snippets?page=bad&pageSize=bad")
 		);
 		const body = await response.json();
 
 		expect(response.status).toBe(200);
+		expect(body.page).toBe(1);
+		expect(body.pageSize).toBe(50);
 		expect(body.snippets[0].content).toMatchObject({ type: "doc" });
 		expect(body.snippets[0].plainTextPreview).toBe("Dear {{ client_name }}");
 		expect(body.snippets[0].placeholders[0]).toMatchObject({
 			key: "client_name",
 			variableName: "client_name",
 		});
+		expect(listChain?.limit).toHaveBeenCalledWith(50);
+		expect(listChain?.offset).toHaveBeenCalledWith(0);
 		expect(JSON.stringify(countWhere)).toContain("org-1");
 		expect(JSON.stringify(listWhere)).toContain("org-1");
 	});
