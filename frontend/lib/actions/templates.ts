@@ -8,7 +8,7 @@
 
 import { db } from "@/lib/db";
 import { templates, templateCategories, documents } from "@/lib/db/schema";
-import { eq, and, ilike, desc, asc, sql, inArray } from "drizzle-orm";
+import { eq, and, ilike, desc, asc, sql, inArray, or, type SQL } from "drizzle-orm";
 import type {
 	TemplateSummary,
 	TemplateCategory,
@@ -29,6 +29,16 @@ async function requireCurrentUserId(): Promise<string> {
 		throw new Error("Unauthorized");
 	}
 	return userId;
+}
+
+function visibleTemplateCondition(templateId: string, userId: string): SQL {
+	return and(
+		eq(templates.id, templateId),
+		or(
+			eq(templates.status, "published"),
+			eq(templates.createdBy, userId)
+		)
+	)!;
 }
 
 // ============================================================================
@@ -413,7 +423,7 @@ export interface RateTemplateResult {
 export async function rateTemplate(
 	input: RateTemplateInput
 ): Promise<RateTemplateResult> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 	const { templateId, rating } = input;
 
 	// Validate rating range
@@ -428,7 +438,7 @@ export async function rateTemplate(
 			ratingCount: templates.ratingCount,
 		})
 		.from(templates)
-		.where(eq(templates.id, templateId));
+		.where(visibleTemplateCondition(templateId, userId));
 
 	if (!template) {
 		throw new Error("Template not found");
@@ -500,7 +510,7 @@ export async function createDocumentFromTemplate(
 	const [template] = await db
 		.select()
 		.from(templates)
-		.where(eq(templates.id, templateId));
+		.where(visibleTemplateCondition(templateId, userId));
 
 	if (!template) {
 		throw new Error("Template not found");

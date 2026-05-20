@@ -16,6 +16,8 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/db/schema", () => ({
 	templates: {
 		id: "templates.id",
+		status: "templates.status",
+		createdBy: "templates.createdBy",
 		rating: "templates.rating",
 		ratingCount: "templates.ratingCount",
 	},
@@ -28,6 +30,7 @@ vi.mock("@/lib/actions/company-variables", () => ({
 vi.mock("drizzle-orm", () => ({
 	eq: vi.fn((left, right) => ({ op: "eq", left, right })),
 	and: vi.fn((...conditions) => ({ op: "and", conditions })),
+	or: vi.fn((...conditions) => ({ op: "or", conditions })),
 	ilike: vi.fn((left, right) => ({ op: "ilike", left, right })),
 	desc: vi.fn((field) => ({ op: "desc", field })),
 	asc: vi.fn((field) => ({ op: "asc", field })),
@@ -69,6 +72,53 @@ describe("template server action auth", () => {
 		})).rejects.toThrow("Unauthorized");
 
 		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	it("scopes template ratings to the session user's visible templates", async () => {
+		const whereMock = vi.fn(async () => [{ rating: 4, ratingCount: 2 }]);
+		const updateWhereMock = vi.fn(async () => []);
+		getCurrentUserIdMock.mockResolvedValue("session-user-1");
+		dbMock.select.mockReturnValueOnce({
+			from: vi.fn(() => ({
+				where: whereMock,
+			})),
+		});
+		dbMock.update.mockReturnValueOnce({
+			set: vi.fn(() => ({
+				where: updateWhereMock,
+			})),
+		});
+
+		const result = await rateTemplate({
+			templateId: "template-1",
+			rating: 5,
+			userId: "spoofed-user",
+		});
+
+		expect(result).toMatchObject({ success: true, newRating: 4.33, newRatingCount: 3 });
+		const whereCondition = (whereMock.mock.calls[0] as unknown as [unknown])[0];
+		expect(JSON.stringify(whereCondition)).toContain("session-user-1");
+		expect(JSON.stringify(whereCondition)).not.toContain("spoofed-user");
+	});
+
+	it("rejects document creation from templates outside the session user's visibility", async () => {
+		const whereMock = vi.fn(async () => []);
+		getCurrentUserIdMock.mockResolvedValue("session-user-1");
+		dbMock.select.mockReturnValueOnce({
+			from: vi.fn(() => ({
+				where: whereMock,
+			})),
+		});
+
+		await expect(createDocumentFromTemplate({
+			templateId: "template-1",
+			title: "Draft",
+			placeholderValues: {},
+		})).rejects.toThrow("Template not found");
+
+		expect(dbMock.insert).not.toHaveBeenCalled();
+		const whereCondition = (whereMock.mock.calls[0] as unknown as [unknown])[0];
+		expect(JSON.stringify(whereCondition)).toContain("session-user-1");
 	});
 
 	it("rejects unauthenticated template duplication before database access", async () => {
