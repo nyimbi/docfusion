@@ -659,7 +659,7 @@ export async function getRecentSubmissions(limit: number = 10): Promise<
 		.innerJoin(opportunities, eq(opportunities.id, submissions.opportunityId))
 		.where(assignedOpportunityCondition(userContext.userId))
 		.orderBy(desc(submissions.submittedAt))
-		.limit(limit);
+		.limit(normalizeSubmissionLimit(limit));
 
 	return rows.map((row) => ({
 		submission: transformSubmission(row.submission),
@@ -670,6 +670,13 @@ export async function getRecentSubmissions(limit: number = 10): Promise<
 // ============================================================================
 // Helpers
 // ============================================================================
+
+function normalizeSubmissionLimit(limit: number | undefined, fallback = 10, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) {
+		return fallback;
+	}
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
 
 function formatDocumentType(type: string): string {
 	const labels: Record<string, string> = {

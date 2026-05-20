@@ -234,16 +234,18 @@ describe("submission row scoping", () => {
 
 	it("scopes recent submissions to assigned opportunities", async () => {
 		let recentWhere: unknown;
-		dbMock.select.mockReturnValueOnce(createChain({
+		const recentChain = createChain({
 			result: [],
 			onWhere: (value) => {
 				recentWhere = value;
 			},
-		}));
+		});
+		dbMock.select.mockReturnValueOnce(recentChain);
 
-		const result = await getRecentSubmissions();
+		const result = await getRecentSubmissions(-20);
 
 		expect(result).toEqual([]);
+		expect(recentChain.limit).toHaveBeenCalledWith(1);
 		expect(collectSqlFragments(recentWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
 });
