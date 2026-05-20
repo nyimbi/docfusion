@@ -119,4 +119,17 @@ describe("content search route", () => {
 		expect(body.error).toBe("Organization context required");
 		expect(dbMock.select).not.toHaveBeenCalled();
 	});
+
+	it("normalizes request body limits before querying", async () => {
+		const chain = createChain([]);
+		dbMock.select.mockReturnValueOnce(chain);
+
+		const response = await POST(new NextRequest("https://docfusion.test/api/v1/content/search", {
+			method: "POST",
+			body: JSON.stringify({ query: "delivery", limit: -20, minSimilarity: 0 }),
+		}));
+
+		expect(response.status).toBe(200);
+		expect(chain.limit).toHaveBeenCalledWith(1);
+	});
 });

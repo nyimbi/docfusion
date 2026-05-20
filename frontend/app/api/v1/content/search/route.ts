@@ -36,6 +36,11 @@ interface SearchResponse {
 	total: number;
 }
 
+function normalizeSearchLimit(limit: unknown, fallback = 20, maximum = 100): number {
+	if (typeof limit !== "number" || !Number.isFinite(limit)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
 // ============================================================================
 // Handler
 // ============================================================================
@@ -54,7 +59,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
 		// Parse request body
 		const body = await request.json();
-		const { query, limit = 20, minSimilarity = 0.5 } = body;
+		const { query, limit, minSimilarity = 0.5 } = body;
+		const normalizedLimit = normalizeSearchLimit(limit);
 
 		if (!query || typeof query !== "string") {
 			return NextResponse.json(
@@ -91,7 +97,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 					)`
 				)
 			)
-			.limit(limit);
+			.limit(normalizedLimit);
 
 		// Calculate pseudo-similarity scores based on text matching
 		const scoredResults: SearchResult[] = results.map(({ snippet, analytics }) => {
