@@ -81,6 +81,16 @@ async function requireWorkflowActor(): Promise<string> {
 	return (await requireWorkflowContext()).userId;
 }
 
+function normalizeWorkflowListLimit(limit: number | undefined, fallback: number, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
+function normalizeWorkflowListOffset(offset: number | undefined): number {
+	if (offset === undefined || !Number.isFinite(offset)) return 0;
+	return Math.max(0, Math.floor(offset));
+}
+
 function visibleOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
 	return userContext.organizationId
 		? (or(isNull(column), eq(column, userContext.organizationId)) ?? isNull(column))
@@ -190,8 +200,8 @@ export async function getWorkflows(options: {
 		.from(documentWorkflows)
 		.where(whereClause)
 		.orderBy(desc(documentWorkflows.isDefault), asc(documentWorkflows.name))
-		.limit(options.limit ?? 1000)
-		.offset(options.offset ?? 0);
+		.limit(normalizeWorkflowListLimit(options.limit, 1000))
+		.offset(normalizeWorkflowListOffset(options.offset));
 	const workflows = rows.map(mapDocumentWorkflow);
 
 	return { workflows, total };

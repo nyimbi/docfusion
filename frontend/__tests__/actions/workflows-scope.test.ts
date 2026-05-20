@@ -11,7 +11,10 @@ vi.mock("@/lib/utils/logger", () => ({
 vi.mock("@/lib/db/schema-comments-workflow", () => ({
 	documentWorkflows: {
 		id: "document_workflows.id",
+		isDefault: "document_workflows.is_default",
+		name: "document_workflows.name",
 		organizationId: "document_workflows.organization_id",
+		documentType: "document_workflows.document_type",
 	},
 	workflowAssignments: {
 		id: "workflow_assignments.id",
@@ -45,7 +48,7 @@ interface ChainConfig {
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "limit", "orderBy"]) {
+	for (const method of ["from", "limit", "offset", "orderBy"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	chain.where = vi.fn((value: unknown) => {
@@ -106,6 +109,7 @@ import {
 	clearDocumentAssignments,
 	createAssignment,
 	getStageAssignments,
+	getWorkflows,
 	getWorkflowAssignments,
 	updateAssignment,
 } from "@/lib/actions/workflows";
@@ -132,6 +136,29 @@ beforeEach(() => {
 });
 
 describe("workflow assignment scoping", () => {
+	it("normalizes workflow list pagination", async () => {
+		const wheres: unknown[] = [];
+		const rowsChain = createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{ count: 0 }],
+				onWhere: (value) => wheres.push(value),
+			}))
+			.mockReturnValueOnce(rowsChain);
+
+		await expect(getWorkflows({ limit: -20, offset: -5 })).resolves.toEqual({
+			workflows: [],
+			total: 0,
+		});
+
+		expect(wheres).toHaveLength(2);
+		expect(rowsChain.limit).toHaveBeenCalledWith(1);
+		expect(rowsChain.offset).toHaveBeenCalledWith(0);
+	});
+
 	it("scopes assignment creation to documents owned by the actor", async () => {
 		let documentWhere: unknown;
 		let duplicateWhere: unknown;
