@@ -49,6 +49,16 @@ async function getCurrentSnippetContext(): Promise<{ userId: string; organizatio
 	};
 }
 
+function normalizeSnippetLimit(limit: number | undefined, fallback: number, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
+function normalizeSnippetOffset(offset: number | undefined): number {
+	if (offset === undefined || !Number.isFinite(offset)) return 0;
+	return Math.max(0, Math.floor(offset));
+}
+
 /**
  * Predicate for snippets readable by the current user.
  */
@@ -150,6 +160,8 @@ export async function listSnippets(
 		offset = 0,
 		limit = 20,
 	} = params;
+	const normalizedLimit = normalizeSnippetLimit(limit, 20);
+	const normalizedOffset = normalizeSnippetOffset(offset);
 
 	const context = await getCurrentSnippetContext();
 
@@ -199,8 +211,8 @@ export async function listSnippets(
 			.from(templateSnippets)
 			.where(whereClause)
 			.orderBy(orderFn(sortColumn))
-			.limit(limit)
-			.offset(offset),
+			.limit(normalizedLimit)
+			.offset(normalizedOffset),
 		db
 			.select({ count: sql<number>`count(*)` })
 			.from(templateSnippets)
@@ -220,9 +232,9 @@ export async function listSnippets(
 	return {
 		snippets: rows.map(mapRowToSummary),
 		total,
-		offset,
-		limit,
-		hasMore: offset + rows.length < total,
+		offset: normalizedOffset,
+		limit: normalizedLimit,
+		hasMore: normalizedOffset + rows.length < total,
 		categories,
 	};
 }
@@ -484,7 +496,7 @@ export async function searchSnippets(
 			)
 		)
 		.orderBy(desc(templateSnippets.useCount), asc(templateSnippets.name))
-		.limit(limit);
+		.limit(normalizeSnippetLimit(limit, 20));
 
 	return rows.map(mapRowToSummary);
 }
@@ -623,7 +635,7 @@ export async function getPopularSnippets(
 		.from(templateSnippets)
 		.where(eq(templateSnippets.isPublic, true))
 		.orderBy(desc(templateSnippets.useCount))
-		.limit(limit);
+		.limit(normalizeSnippetLimit(limit, 10));
 
 	return rows.map(mapRowToSummary);
 }

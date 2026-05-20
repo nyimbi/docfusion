@@ -72,7 +72,10 @@ vi.mock("@/lib/db", () => ({
 
 import {
 	createSnippet,
+	getPopularSnippets,
 	getSnippet,
+	listSnippets,
+	searchSnippets,
 } from "@/lib/actions/snippets";
 
 beforeEach(() => {
@@ -127,6 +130,36 @@ describe("snippet tenant scoping", () => {
 		expect(eqMock).toHaveBeenCalledWith("template_snippets.created_by", "snippet-user-1");
 		expect(eqMock).toHaveBeenCalledWith("template_snippets.organization_id", "org-1");
 		expect(eqMock).toHaveBeenCalledWith("template_snippets.is_public", true);
+	});
+
+	it("normalizes snippet list pagination", async () => {
+		const rowsChain = createSelectChain([]);
+		dbMock.select
+			.mockReturnValueOnce(rowsChain)
+			.mockReturnValueOnce(createSelectChain([{ count: 0 }]))
+			.mockReturnValueOnce(createSelectChain([]));
+
+		const result = await listSnippets({ limit: -20, offset: -5 });
+
+		expect(result.snippets).toEqual([]);
+		expect(result.limit).toBe(1);
+		expect(result.offset).toBe(0);
+		expect(rowsChain.limit).toHaveBeenCalledWith(1);
+		expect(rowsChain.offset).toHaveBeenCalledWith(0);
+	});
+
+	it("normalizes snippet search and popular limits", async () => {
+		const searchChain = createSelectChain([]);
+		const popularChain = createSelectChain([]);
+		dbMock.select
+			.mockReturnValueOnce(searchChain)
+			.mockReturnValueOnce(popularChain);
+
+		await expect(searchSnippets("intro", Number.POSITIVE_INFINITY)).resolves.toEqual([]);
+		await expect(getPopularSnippets(-10)).resolves.toEqual([]);
+
+		expect(searchChain.limit).toHaveBeenCalledWith(20);
+		expect(popularChain.limit).toHaveBeenCalledWith(1);
 	});
 });
 
