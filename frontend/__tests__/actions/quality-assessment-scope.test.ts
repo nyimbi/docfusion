@@ -127,27 +127,31 @@ beforeEach(() => {
 describe("quality assessment document scoping", () => {
 	it("scopes quality assessment document reads through readable documents", async () => {
 		const wheres: unknown[] = [];
+		const triggerChain = createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		});
+		const latestAssessmentChain = createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		});
+		const historyChain = createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		});
 		dbMock.select
-			.mockReturnValueOnce(createChain({
-				result: [],
-				onWhere: (value) => wheres.push(value),
-			}))
-			.mockReturnValueOnce(createChain({
-				result: [],
-				onWhere: (value) => wheres.push(value),
-			}))
-			.mockReturnValueOnce(createChain({
-				result: [],
-				onWhere: (value) => wheres.push(value),
-			}));
+			.mockReturnValueOnce(triggerChain)
+			.mockReturnValueOnce(latestAssessmentChain)
+			.mockReturnValueOnce(historyChain);
 
 		await expect(triggerQualityAssessment(documentId)).resolves.toMatchObject({
 			success: false,
 			error: "Document not found",
 		});
 		await expect(getQualityAssessment(documentId)).resolves.toMatchObject({ success: false });
-		await expect(getQualityAssessmentHistory(documentId)).resolves.toMatchObject({ success: true });
+		await expect(getQualityAssessmentHistory(documentId, -25)).resolves.toMatchObject({ success: true });
 
+		expect(historyChain.limit).toHaveBeenCalledWith(1);
 		expect(wheres).toHaveLength(3);
 		for (const where of wheres) {
 			expectDocumentScope(where);

@@ -104,6 +104,17 @@ function dbRowToAssessment(row: typeof qualityAssessments.$inferSelect): Quality
 	};
 }
 
+function normalizeQualityAssessmentHistoryLimit(
+	limit: number | undefined,
+	fallback = 10,
+	maximum = 1000
+): number {
+	if (limit === undefined || !Number.isFinite(limit)) {
+		return fallback;
+	}
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
 // ============================================================================
 // Server Actions
 // ============================================================================
@@ -307,7 +318,7 @@ export async function getQualityAssessmentHistory(
 				readableDocumentExistsSql(qualityAssessments.documentId, userId)
 			))
 			.orderBy(desc(qualityAssessments.assessedAt))
-			.limit(limit);
+			.limit(normalizeQualityAssessmentHistoryLimit(limit));
 
 		const assessments: QualityAssessmentSummary[] = rows.map((row) => {
 			const categoryScores = (row.categoryScores as Record<string, unknown>[]).map((cs) => ({
