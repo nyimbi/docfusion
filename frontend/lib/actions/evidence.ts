@@ -129,6 +129,16 @@ async function requireEvidenceContext(): Promise<EvidenceUserContext> {
 	};
 }
 
+function normalizeEvidenceLimit(limit: number | undefined, fallback: number, maximum = 10000): number {
+	if (limit === undefined || !Number.isFinite(limit)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
+function normalizeEvidenceOffset(offset: number | undefined): number {
+	if (offset === undefined || !Number.isFinite(offset)) return 0;
+	return Math.max(0, Math.floor(offset));
+}
+
 function visibleEvidenceCondition(userContext: EvidenceUserContext): SQL {
 	return eq(evidenceLibrary.organizationId, userContext.organizationId);
 }
@@ -979,8 +989,8 @@ export async function listEvidence(filters?: EvidenceFilters): Promise<ActionRes
 			.from(evidenceLibrary)
 			.where(conditions.length > 0 ? and(...conditions) : undefined)
 			.orderBy(orderClause)
-			.limit(filters?.limit || 100)
-			.offset(filters?.offset || 0);
+			.limit(normalizeEvidenceLimit(filters?.limit, 100))
+			.offset(normalizeEvidenceOffset(filters?.offset));
 
 		return { success: true, data: results.map(mapDBEvidenceToEvidence) };
 	} catch (error) {
@@ -2528,7 +2538,7 @@ export async function getMostUsedEvidence(limit: number = 10): Promise<ActionRes
 				gte(evidenceLibrary.useCount, 1)
 			))
 			.orderBy(desc(evidenceLibrary.useCount))
-			.limit(limit);
+			.limit(normalizeEvidenceLimit(limit, 10));
 
 		return {
 			success: true,

@@ -550,6 +550,17 @@ describe("Evidence CRUD", () => {
 				expect(result.data).toHaveLength(0);
 			}
 		});
+
+		test("normalizes evidence list pagination", async () => {
+			const chain = createChainableQuery([]);
+			dbMock.select.mockReturnValueOnce(chain);
+
+			const result = await listEvidence({ limit: -20, offset: -5 });
+
+			expect(result.success).toBe(true);
+			expect(chain.limit as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(1);
+			expect(chain.offset as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(0);
+		});
 	});
 
 	describe("bulkImportEvidence", () => {
@@ -567,6 +578,16 @@ describe("Evidence CRUD", () => {
 	});
 
 	describe("evidence helper tenant scoping", () => {
+		test("normalizes most-used evidence limits", async () => {
+			const chain = createChainableQuery([]);
+			dbMock.select.mockReturnValueOnce(chain);
+
+			const result = await getMostUsedEvidence(Number.POSITIVE_INFINITY);
+
+			expect(result.success).toBe(true);
+			expect(chain.limit as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(10);
+		});
+
 		test("requires organization context before rating evidence strength", async () => {
 			await mockMissingOrganizationContextOnce();
 
