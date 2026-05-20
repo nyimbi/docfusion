@@ -159,6 +159,7 @@ import {
 	updateCostElement,
 	deleteCostElement,
 	getCostElement,
+	listCostElements,
 	lookupPerDiem,
 	calculateTravelCosts,
 } from "@/lib/actions/pricing";
@@ -1164,6 +1165,22 @@ describe("Cost Element CRUD", () => {
 			if (result.success) {
 				expect(result.data).toBeNull();
 			}
+		});
+	});
+
+	describe("listCostElements", () => {
+		test("normalizes pagination filters", async () => {
+			const chain = createChainableQuery([]);
+			dbMock.select.mockReturnValueOnce(chain);
+
+			const result = await listCostElements(validLaborInput.opportunityId, {
+				limit: -20,
+				offset: -5,
+			});
+
+			expect(result.success).toBe(true);
+			expect(chain.limit as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(1);
+			expect(chain.offset as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(0);
 		});
 	});
 });

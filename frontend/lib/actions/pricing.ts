@@ -447,6 +447,16 @@ async function requirePricingContext(): Promise<PricingUserContext> {
 	};
 }
 
+function normalizePricingLimit(limit: number | undefined, fallback: number, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
+function normalizePricingOffset(offset: number | undefined): number {
+	if (offset === undefined || !Number.isFinite(offset)) return 0;
+	return Math.max(0, Math.floor(offset));
+}
+
 function resolvePricingOrganizationId(
 	userContext: PricingUserContext,
 	organizationId?: string
@@ -1077,11 +1087,11 @@ export async function listCostElements(
 			.where(and(...conditions))
 			.orderBy(asc(costElements.wbsCode), asc(costElements.periodNumber));
 
-		if (filters?.limit) {
-			query = query.limit(filters.limit) as typeof query;
+		if (filters?.limit !== undefined) {
+			query = query.limit(normalizePricingLimit(filters.limit, 100)) as typeof query;
 		}
-		if (filters?.offset) {
-			query = query.offset(filters.offset) as typeof query;
+		if (filters?.offset !== undefined) {
+			query = query.offset(normalizePricingOffset(filters.offset)) as typeof query;
 		}
 
 		const elements = await query;
