@@ -47,6 +47,13 @@ async function requireScraperRunActionSession(): Promise<void> {
 	await requireScraperOperatorSession();
 }
 
+function normalizePositiveInt(value: number | undefined, fallback: number, maximum = 1000): number {
+	if (value === undefined || !Number.isFinite(value)) {
+		return fallback;
+	}
+	return Math.max(1, Math.min(maximum, Math.floor(value)));
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -162,8 +169,8 @@ export async function getScraperRuns(
 	pagination?: PaginationOptions
 ): Promise<PaginatedRuns> {
 	await requireScraperRunActionSession();
-	const page = pagination?.page ?? 1;
-	const pageSize = pagination?.pageSize ?? 25;
+	const page = normalizePositiveInt(pagination?.page, 1);
+	const pageSize = normalizePositiveInt(pagination?.pageSize, 25);
 	const offset = (page - 1) * pageSize;
 
 	// Build WHERE conditions
@@ -618,7 +625,7 @@ export async function getRecentRuns(
 		.select()
 		.from(scraperRuns)
 		.orderBy(desc(scraperRuns.startedAt))
-		.limit(limit);
+		.limit(normalizePositiveInt(limit, 50));
 
 	// Get source info
 	const sourceIds = [...new Set(runs.map((r) => r.sourceId))];
