@@ -167,6 +167,20 @@ interface ActionResult<T> {
 	error?: string;
 }
 
+function normalizePersonnelLimit(limit: number | undefined, fallback = 50, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) {
+		return fallback;
+	}
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
+function normalizePersonnelOffset(offset: number | undefined): number {
+	if (offset === undefined || !Number.isFinite(offset)) {
+		return 0;
+	}
+	return Math.max(0, Math.floor(offset));
+}
+
 // ============================================================================
 // Validation Schemas
 // ============================================================================
@@ -815,8 +829,8 @@ export async function searchPersonnel(
 			conditions.push(gte(personnel.yearsOfExperience, filters.minExperience));
 		}
 
-		const limit = filters?.limit ?? 50;
-		const offset = filters?.offset ?? 0;
+		const limit = normalizePersonnelLimit(filters?.limit);
+		const offset = normalizePersonnelOffset(filters?.offset);
 
 		const rows = await db
 			.select()

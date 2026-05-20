@@ -4,7 +4,7 @@ const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
 
 function createChainableQuery(returnValue: unknown = []) {
 	const chain: Record<string, unknown> = {};
-	for (const method of ["from", "where", "orderBy", "limit", "values", "returning"]) {
+	for (const method of ["from", "where", "orderBy", "limit", "offset", "values", "returning"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	(chain.returning as ReturnType<typeof vi.fn>).mockResolvedValue(
@@ -55,7 +55,21 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/db/schema-personnel", () => ({
-	personnel: { id: "p.id", firstName: "p.firstName", lastName: "p.lastName" },
+	personnel: {
+		id: "p.id",
+		firstName: "p.firstName",
+		lastName: "p.lastName",
+		currentTitle: "p.currentTitle",
+		professionalSummary: "p.professionalSummary",
+		email: "p.email",
+		department: "p.department",
+		employmentType: "p.employmentType",
+		clearanceLevel: "p.clearanceLevel",
+		availability: "p.availability",
+		yearsOfExperience: "p.yearsOfExperience",
+		isActive: "p.isActive",
+		updatedAt: "p.updatedAt",
+	},
 	personnelExperience: {},
 	personnelAvailability: {},
 	positionRequirements: {
@@ -86,6 +100,7 @@ import {
 	generateOrgChart,
 	generateStaffingMatrix,
 	getPositionsForOpportunity,
+	searchPersonnel,
 } from "@/lib/actions/personnel";
 
 describe("personnel opportunity scoping", () => {
@@ -158,5 +173,16 @@ describe("personnel opportunity scoping", () => {
 
 		expect(result.success).toBe(true);
 		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("normalizes personnel search pagination before querying", async () => {
+		const chain = createChainableQuery([]);
+		dbMock.select.mockImplementationOnce(() => chain);
+
+		const result = await searchPersonnel("ada", { limit: -20, offset: -5 });
+
+		expect(result.success).toBe(true);
+		expect(chain.limit as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(1);
+		expect(chain.offset as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(0);
 	});
 });
