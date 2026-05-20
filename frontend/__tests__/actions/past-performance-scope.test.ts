@@ -11,7 +11,7 @@ interface ChainConfig {
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "innerJoin", "limit", "orderBy"]) {
+	for (const method of ["from", "innerJoin", "limit", "offset", "orderBy"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	chain.where = vi.fn((value: unknown) => {
@@ -81,8 +81,14 @@ vi.mock("next/cache", () => ({
 import {
 	analyzePortfolioGaps,
 	calculateRelevanceScores,
+	deleteProject,
+	duplicateProject,
 	exportPastPerformanceVolume,
 	generateRelevanceMatrix,
+	getPastPerformanceAnalytics,
+	getProject,
+	searchProjects,
+	updateProject,
 } from "@/lib/actions/past-performance";
 
 const opportunityId = "11111111-1111-4111-8111-111111111111";
@@ -113,6 +119,16 @@ beforeEach(() => {
 });
 
 describe("past performance opportunity scoping", () => {
+	function expectAssignedOpportunityScope(where: unknown) {
+		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+	}
+
+	function expectProjectOwnerScope(where: unknown) {
+		const sqlText = collectSqlFragments(where).join(" ");
+		expect(sqlText).toContain("created_by");
+		expect(sqlText).toContain("past-performance-user-1");
+	}
+
 	it("scopes relevance score calculation to the assigned opportunity and requirements", async () => {
 		const wheres: unknown[] = [];
 		dbMock.select
@@ -124,15 +140,18 @@ describe("past performance opportunity scoping", () => {
 				result: [],
 				onWhere: (value) => wheres.push(value),
 			}))
-			.mockReturnValueOnce(createChain({ result: [] }));
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => wheres.push(value),
+			}));
 
 		const result = await calculateRelevanceScores(opportunityId);
 
 		expect(result).toMatchObject({ success: true, data: [] });
-		expect(wheres).toHaveLength(2);
-		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
-		}
+		expect(wheres).toHaveLength(3);
+		expectAssignedOpportunityScope(wheres[0]);
+		expectAssignedOpportunityScope(wheres[1]);
+		expectProjectOwnerScope(wheres[2]);
 		expect(dbMock.insert).not.toHaveBeenCalled();
 	});
 
@@ -147,7 +166,10 @@ describe("past performance opportunity scoping", () => {
 				result: [requirement],
 				onWhere: (value) => wheres.push(value),
 			}))
-			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => wheres.push(value),
+			}))
 			.mockReturnValueOnce(createChain({
 				result: [],
 				onWhere: (value) => wheres.push(value),
@@ -165,10 +187,11 @@ describe("past performance opportunity scoping", () => {
 				opportunityTitle: opportunity.title,
 			},
 		});
-		expect(wheres).toHaveLength(3);
-		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
-		}
+		expect(wheres).toHaveLength(4);
+		expectAssignedOpportunityScope(wheres[0]);
+		expectAssignedOpportunityScope(wheres[1]);
+		expectProjectOwnerScope(wheres[2]);
+		expectAssignedOpportunityScope(wheres[3]);
 	});
 
 	it("scopes past performance exports to assigned opportunities and selected scores", async () => {
@@ -190,9 +213,8 @@ describe("past performance opportunity scoping", () => {
 			error: "No past performance projects selected for this opportunity",
 		});
 		expect(wheres).toHaveLength(2);
-		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
-		}
+		expectAssignedOpportunityScope(wheres[0]);
+		expectAssignedOpportunityScope(wheres[1]);
 	});
 
 	it("scopes portfolio gap analysis to assigned opportunities and requirements", async () => {
@@ -206,14 +228,70 @@ describe("past performance opportunity scoping", () => {
 				result: [requirement],
 				onWhere: (value) => wheres.push(value),
 			}))
-			.mockReturnValueOnce(createChain({ result: [] }));
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => wheres.push(value),
+			}));
 
 		const result = await analyzePortfolioGaps(opportunityId);
 
 		expect(result).toMatchObject({ success: true });
-		expect(wheres).toHaveLength(2);
-		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
-		}
+		expect(wheres).toHaveLength(3);
+		expectAssignedOpportunityScope(wheres[0]);
+		expectAssignedOpportunityScope(wheres[1]);
+		expectProjectOwnerScope(wheres[2]);
+	});
+
+	it("scopes project search and analytics to projects created by the caller", async () => {
+		const wheres: unknown[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => wheres.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ count: 0 }],
+				onWhere: (value) => wheres.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => wheres.push(value),
+			}));
+
+		const searchResult = await searchProjects({ limit: 10, offset: 0 });
+		const analyticsResult = await getPastPerformanceAnalytics();
+
+		expect(searchResult).toMatchObject({ success: true, data: { projects: [], total: 0 } });
+		expect(analyticsResult).toMatchObject({ success: true });
+		expect(wheres).toHaveLength(3);
+		wheres.forEach(expectProjectOwnerScope);
+	});
+
+	it("scopes project ID reads and mutations to projects created by the caller", async () => {
+		const wheres: unknown[] = [];
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		}));
+		dbMock.update.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		}));
+		dbMock.delete.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		}));
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		}));
+
+		await getProject(projectId);
+		await updateProject(projectId, { description: "Updated" });
+		await deleteProject(projectId);
+		await duplicateProject(projectId);
+
+		expect(wheres).toHaveLength(4);
+		wheres.forEach(expectProjectOwnerScope);
 	});
 });
