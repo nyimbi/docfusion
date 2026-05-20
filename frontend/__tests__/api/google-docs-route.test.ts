@@ -44,6 +44,21 @@ beforeEach(() => {
 });
 
 describe("Google Docs route", () => {
+	it("rejects document IDs that would alter the upstream Google API URL", async () => {
+		const fetchMock = vi.mocked(fetch);
+
+		const response = await GET(googleDocsRequest({
+			google_app_user_id: "user-1",
+			google_access_token: "access-token",
+		}), {
+			params: Promise.resolve({ docId: "doc-1?fields=*" }),
+		});
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({ error: "Invalid Google document ID" });
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it("persists a refreshed access token when the first document fetch succeeds", async () => {
 		const fetchMock = vi.mocked(fetch);
 		fetchMock

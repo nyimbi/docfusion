@@ -17,6 +17,7 @@ import {
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_DOC_ID_PATTERN = /^[A-Za-z0-9_-]{1,256}$/;
 
 interface GoogleDocElement {
   paragraph?: {
@@ -204,6 +205,10 @@ function createGoogleDocSuccessResponse(
 	return response;
 }
 
+function getGoogleDocApiUrl(docId: string): string {
+	return `https://docs.googleapis.com/v1/documents/${encodeURIComponent(docId)}`;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ docId: string }> }
@@ -218,6 +223,13 @@ export async function GET(
   if (!docId) {
     return NextResponse.json(
       { error: "Document ID is required" },
+      { status: 400 }
+    );
+  }
+
+  if (!GOOGLE_DOC_ID_PATTERN.test(docId)) {
+    return NextResponse.json(
+      { error: "Invalid Google document ID" },
       { status: 400 }
     );
   }
@@ -247,7 +259,7 @@ export async function GET(
   try {
     // Fetch the document from Google Docs API
     const docResponse = await fetch(
-      `https://docs.googleapis.com/v1/documents/${docId}`,
+      getGoogleDocApiUrl(docId),
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -266,7 +278,7 @@ export async function GET(
           if (newToken) {
             // Retry with new token
             const retryResponse = await fetch(
-              `https://docs.googleapis.com/v1/documents/${docId}`,
+              getGoogleDocApiUrl(docId),
               {
                 headers: {
                   Authorization: `Bearer ${newToken}`,
