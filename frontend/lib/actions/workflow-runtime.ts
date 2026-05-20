@@ -133,6 +133,15 @@ const TERMINAL_STATES = new Set([
 	"locked",
 ]);
 
+function normalizeWorkflowLimit(
+	limit: number | undefined,
+	fallback: number,
+	maximum = 500
+): number {
+	if (limit === undefined || !Number.isFinite(limit)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
 export async function recordWorkflowRuntimeTransition(
 	input: WorkflowRuntimeTransitionInput,
 	client: WorkflowClient = db
@@ -291,6 +300,7 @@ export async function evaluateWorkflowSla(
 	options: { now?: Date; escalationRecipient?: string; limit?: number } = {}
 ): Promise<{ breached: number; escalated: number }> {
 	const now = options.now ?? new Date();
+	const limit = normalizeWorkflowLimit(options.limit, 100);
 	const rows = await db
 		.select()
 		.from(workflowInstances)
@@ -300,7 +310,7 @@ export async function evaluateWorkflowSla(
 			lt(workflowInstances.dueAt, now)
 		))
 		.orderBy(asc(workflowInstances.dueAt))
-		.limit(options.limit ?? 100);
+		.limit(limit);
 
 	let breached = 0;
 	let escalated = 0;
@@ -361,12 +371,12 @@ export async function getWorkflowDashboard(
 		conditions.push(scopeCondition);
 	}
 
+	const limit = normalizeWorkflowLimit(filters.limit, 100);
 	const rows = await db
 		.select()
 		.from(workflowInstances)
 		.where(conditions.length ? and(...conditions) : sql`true`)
 		.orderBy(desc(workflowInstances.updatedAt));
-	const limit = filters.limit ?? 100;
 	const items = rows.slice(0, limit);
 	const dueSoonThreshold = Date.now() + 48 * 60 * 60 * 1000;
 
@@ -415,7 +425,7 @@ export async function listPortalWorkflowItems(
 			return visibility.portalRole === options.portalRole;
 		}
 		return true;
-	}).slice(0, options.limit ?? 50);
+	}).slice(0, normalizeWorkflowLimit(options.limit, 50));
 }
 
 export async function assertWorkflowAuthority(input: {
@@ -757,7 +767,7 @@ export async function listWorkflowTemplates(filters: {
 		.from(workflowTemplates)
 		.where(conditions.length ? and(...conditions) : sql`true`)
 		.orderBy(desc(workflowTemplates.updatedAt))
-		.limit(filters.limit ?? 100);
+		.limit(normalizeWorkflowLimit(filters.limit, 100));
 }
 
 export async function deliverWorkflowNotifications(options: {
@@ -780,7 +790,7 @@ export async function deliverWorkflowNotifications(options: {
 		.innerJoin(user, eq(workflowNotifications.recipientId, user.id))
 		.where(and(...conditions))
 		.orderBy(asc(workflowNotifications.createdAt))
-		.limit(options.limit ?? 50);
+		.limit(normalizeWorkflowLimit(options.limit, 50));
 
 	let delivered = 0;
 	let failed = 0;

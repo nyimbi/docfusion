@@ -253,6 +253,17 @@ describe("workflow runtime", () => {
 
 		dbMock.select.mockReturnValueOnce(createChain({
 			result: [
+				{ id: "workflow-1", subjectType: "requirement", status: "active", updatedAt: new Date() },
+				{ id: "workflow-2", subjectType: "requirement", status: "active", updatedAt: new Date() },
+			],
+		}));
+
+		const normalizedDashboard = await getWorkflowDashboard(adminWorkflowScope, { limit: -10 });
+		expect(normalizedDashboard.total).toBe(2);
+		expect(normalizedDashboard.items).toHaveLength(1);
+
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [
 				{ id: "portal-1", portalVisibility: { visibleToPortal: true, portalRole: "partner" } },
 				{ id: "portal-2", portalVisibility: { visibleToPortal: true, portalRole: "reviewer" } },
 			],
