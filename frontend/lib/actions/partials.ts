@@ -47,6 +47,16 @@ async function getCurrentPartialContext(): Promise<{
   };
 }
 
+function normalizePartialLimit(limit: number | undefined, fallback: number, maximum = 1000): number {
+  if (limit === undefined || !Number.isFinite(limit)) return fallback;
+  return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
+function normalizePartialOffset(offset: number | undefined): number {
+  if (offset === undefined || !Number.isFinite(offset)) return 0;
+  return Math.max(0, Math.floor(offset));
+}
+
 /**
  * Predicate for partials readable by the current tenant.
  */
@@ -147,8 +157,8 @@ export async function listPartials(
       .from(templatePartials)
       .where(whereClause)
       .orderBy(orderFn(sortColumn))
-      .limit(params?.limit ?? 50)
-      .offset(params?.offset ?? 0),
+      .limit(normalizePartialLimit(params?.limit, 50))
+      .offset(normalizePartialOffset(params?.offset)),
     db
       .select({ count: sql<number>`count(*)` })
       .from(templatePartials)
@@ -477,7 +487,7 @@ export async function searchPartials(
       )
     )
     .orderBy(templatePartials.name)
-    .limit(limit);
+    .limit(normalizePartialLimit(limit, 20));
 
   return rows.map(mapRowToPartial);
 }

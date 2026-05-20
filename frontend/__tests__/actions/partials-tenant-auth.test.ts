@@ -82,6 +82,8 @@ vi.mock("@/lib/db", () => ({
 import {
   createPartial,
   getPartial,
+  listPartials,
+  searchPartials,
   trackPartialUsage,
   updatePartial,
 } from "@/lib/actions/partials";
@@ -164,6 +166,30 @@ describe("partial tenant scoping", () => {
     });
     expect(eqMock).toHaveBeenCalledWith("template_partials.id", "partial-1");
     expect(eqMock).toHaveBeenCalledWith("template_partials.organization_id", "org-1");
+  });
+
+  it("normalizes partial list pagination", async () => {
+    const rowsChain = createSelectChain([]);
+    dbMock.select
+      .mockReturnValueOnce(rowsChain)
+      .mockReturnValueOnce(createSelectChain([{ count: 0 }]));
+
+    await expect(listPartials({ limit: -20, offset: -5 })).resolves.toEqual({
+      partials: [],
+      total: 0,
+    });
+
+    expect(rowsChain.limit).toHaveBeenCalledWith(1);
+    expect(rowsChain.offset).toHaveBeenCalledWith(0);
+  });
+
+  it("normalizes partial search limits", async () => {
+    const rowsChain = createSelectChain([]);
+    dbMock.select.mockReturnValueOnce(rowsChain);
+
+    await expect(searchPartials("management", Number.POSITIVE_INFINITY)).resolves.toEqual([]);
+
+    expect(rowsChain.limit).toHaveBeenCalledWith(20);
   });
 });
 
