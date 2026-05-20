@@ -776,12 +776,13 @@ describe("Review CRUD", () => {
 			const result = await listAllReviews({
 				status: "completed",
 				reviewType: "red",
-				limit: 10,
+				limit: -10,
 			});
 
 			expect(result.success).toBe(true);
 			expect(dbMock.query.proposalReviews.findMany).toHaveBeenCalled();
 			expectAssignedReviewScope(dbMock.query.proposalReviews.findMany.mock.calls[0][0].where);
+			expect(dbMock.query.proposalReviews.findMany.mock.calls[0][0].limit).toBe(1);
 		});
 	});
 });

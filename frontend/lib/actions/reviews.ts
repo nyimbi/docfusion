@@ -113,6 +113,11 @@ function assignedReviewersForReviewCondition(reviewId: string, actorId: string):
 	)!;
 }
 
+function normalizeReviewLimit(limit: number | undefined, fallback: number, maximum = 500): number {
+	if (limit === undefined || !Number.isFinite(limit)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
 // ============================================================================
 // INPUT VALIDATION SCHEMAS
 // ============================================================================
@@ -757,7 +762,7 @@ export async function listAllReviews(
 				reviewers: true,
 			},
 			orderBy: [desc(proposalReviews.scheduledDate), desc(proposalReviews.createdAt)],
-			limit: filters?.limit ?? 50,
+			limit: normalizeReviewLimit(filters?.limit, 50),
 		});
 
 		const reviews = reviewsData.map(review => ({
