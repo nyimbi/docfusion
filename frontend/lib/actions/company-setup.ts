@@ -7,7 +7,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext } from "@/lib/auth-utils";
 import {
 	roles,
 	companyProfiles,
@@ -18,7 +18,7 @@ import {
 	type ProductRow,
 	type ServiceRow,
 } from "@/lib/db/schema";
-import { eq, and, ilike, desc, sql } from "drizzle-orm";
+import { eq, and, ilike, sql } from "drizzle-orm";
 import type {
 	Role,
 	CompanyProfile,
@@ -37,19 +37,12 @@ import type {
 	CompanyStats,
 } from "@/lib/types/company";
 
-// ============================================================================
-// Configuration
-// ============================================================================
-
-/** Organization ID for Datacraft */
-const ORGANIZATION_ID = "datacraft";
-
-async function requireCurrentUserId(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
-		throw new Error("Unauthorized");
+async function requireCompanySetupContext(): Promise<{ organizationId: string }> {
+	const context = await requireUserContext();
+	if (!context.organizationId) {
+		throw new Error("Organization context required");
 	}
-	return userId;
+	return { organizationId: context.organizationId };
 }
 
 // ============================================================================
@@ -60,9 +53,9 @@ async function requireCurrentUserId(): Promise<string> {
  * Get all roles with optional filtering.
  */
 export async function getRoles(filters?: RoleFilters): Promise<Role[]> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
-	const conditions = [eq(roles.organizationId, ORGANIZATION_ID)];
+	const conditions = [eq(roles.organizationId, organizationId)];
 
 	if (filters?.search) {
 		conditions.push(
@@ -91,12 +84,12 @@ export async function getRoles(filters?: RoleFilters): Promise<Role[]> {
  * Get a single role by ID.
  */
 export async function getRole(id: string): Promise<Role | null> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const [row] = await db
 		.select()
 		.from(roles)
-		.where(and(eq(roles.id, id), eq(roles.organizationId, ORGANIZATION_ID)));
+		.where(and(eq(roles.id, id), eq(roles.organizationId, organizationId)));
 
 	return row ? transformRole(row) : null;
 }
@@ -105,12 +98,12 @@ export async function getRole(id: string): Promise<Role | null> {
  * Create a new role.
  */
 export async function createRole(input: CreateRoleInput): Promise<Role> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const [row] = await db
 		.insert(roles)
 		.values({
-			organizationId: ORGANIZATION_ID,
+			organizationId,
 			name: input.name,
 			description: input.description ?? null,
 			department: input.department ?? null,
@@ -127,7 +120,7 @@ export async function createRole(input: CreateRoleInput): Promise<Role> {
  * Update a role.
  */
 export async function updateRole(id: string, input: UpdateRoleInput): Promise<Role> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const updateData: Partial<RoleRow> = {
 		updatedAt: new Date(),
@@ -143,7 +136,7 @@ export async function updateRole(id: string, input: UpdateRoleInput): Promise<Ro
 	const [row] = await db
 		.update(roles)
 		.set(updateData)
-		.where(and(eq(roles.id, id), eq(roles.organizationId, ORGANIZATION_ID)))
+		.where(and(eq(roles.id, id), eq(roles.organizationId, organizationId)))
 		.returning();
 
 	if (!row) {
@@ -157,23 +150,23 @@ export async function updateRole(id: string, input: UpdateRoleInput): Promise<Ro
  * Delete a role.
  */
 export async function deleteRole(id: string): Promise<void> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	await db
 		.delete(roles)
-		.where(and(eq(roles.id, id), eq(roles.organizationId, ORGANIZATION_ID)));
+		.where(and(eq(roles.id, id), eq(roles.organizationId, organizationId)));
 }
 
 /**
  * Get unique departments.
  */
 export async function getDepartments(): Promise<string[]> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const rows = await db
 		.select({ department: roles.department })
 		.from(roles)
-		.where(eq(roles.organizationId, ORGANIZATION_ID))
+		.where(eq(roles.organizationId, organizationId))
 		.groupBy(roles.department)
 		.orderBy(roles.department);
 
@@ -188,12 +181,16 @@ export async function getDepartments(): Promise<string[]> {
  * Get the company profile.
  */
 export async function getCompanyProfile(): Promise<CompanyProfile | null> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
+	return getCompanyProfileForOrganization(organizationId);
+}
+
+async function getCompanyProfileForOrganization(organizationId: string): Promise<CompanyProfile | null> {
 	const [row] = await db
 		.select()
 		.from(companyProfiles)
-		.where(eq(companyProfiles.organizationId, ORGANIZATION_ID));
+		.where(eq(companyProfiles.organizationId, organizationId));
 
 	return row ? transformCompanyProfile(row) : null;
 }
@@ -202,9 +199,9 @@ export async function getCompanyProfile(): Promise<CompanyProfile | null> {
  * Create or update the company profile.
  */
 export async function saveCompanyProfile(input: CompanyProfileInput): Promise<CompanyProfile> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
-	const existing = await getCompanyProfile();
+	const existing = await getCompanyProfileForOrganization(organizationId);
 
 	if (existing) {
 		const [row] = await db
@@ -225,7 +222,10 @@ export async function saveCompanyProfile(input: CompanyProfileInput): Promise<Co
 				keyClients: input.keyClients ?? [],
 				updatedAt: new Date(),
 			})
-			.where(eq(companyProfiles.id, existing.id))
+			.where(and(
+				eq(companyProfiles.id, existing.id),
+				eq(companyProfiles.organizationId, organizationId)
+			))
 			.returning();
 
 		return transformCompanyProfile(row);
@@ -234,7 +234,7 @@ export async function saveCompanyProfile(input: CompanyProfileInput): Promise<Co
 	const [row] = await db
 		.insert(companyProfiles)
 		.values({
-			organizationId: ORGANIZATION_ID,
+			organizationId,
 			name: input.name,
 			description: input.description ?? null,
 			mission: input.mission ?? null,
@@ -262,9 +262,9 @@ export async function saveCompanyProfile(input: CompanyProfileInput): Promise<Co
  * Get all products with optional filtering.
  */
 export async function getProducts(filters?: ProductFilters): Promise<Product[]> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
-	const conditions = [eq(products.organizationId, ORGANIZATION_ID)];
+	const conditions = [eq(products.organizationId, organizationId)];
 
 	if (filters?.search) {
 		conditions.push(
@@ -293,12 +293,12 @@ export async function getProducts(filters?: ProductFilters): Promise<Product[]> 
  * Get a single product by ID.
  */
 export async function getProduct(id: string): Promise<Product | null> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const [row] = await db
 		.select()
 		.from(products)
-		.where(and(eq(products.id, id), eq(products.organizationId, ORGANIZATION_ID)));
+		.where(and(eq(products.id, id), eq(products.organizationId, organizationId)));
 
 	return row ? transformProduct(row) : null;
 }
@@ -307,12 +307,12 @@ export async function getProduct(id: string): Promise<Product | null> {
  * Create a new product.
  */
 export async function createProduct(input: CreateProductInput): Promise<Product> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const [row] = await db
 		.insert(products)
 		.values({
-			organizationId: ORGANIZATION_ID,
+			organizationId,
 			name: input.name,
 			category: input.category ?? null,
 			description: input.description ?? null,
@@ -336,7 +336,7 @@ export async function createProduct(input: CreateProductInput): Promise<Product>
  * Update a product.
  */
 export async function updateProduct(id: string, input: UpdateProductInput): Promise<Product> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const updateData: Partial<ProductRow> = {
 		updatedAt: new Date(),
@@ -359,7 +359,7 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
 	const [row] = await db
 		.update(products)
 		.set(updateData)
-		.where(and(eq(products.id, id), eq(products.organizationId, ORGANIZATION_ID)))
+		.where(and(eq(products.id, id), eq(products.organizationId, organizationId)))
 		.returning();
 
 	if (!row) {
@@ -373,23 +373,23 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
  * Delete a product.
  */
 export async function deleteProduct(id: string): Promise<void> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	await db
 		.delete(products)
-		.where(and(eq(products.id, id), eq(products.organizationId, ORGANIZATION_ID)));
+		.where(and(eq(products.id, id), eq(products.organizationId, organizationId)));
 }
 
 /**
  * Get unique product categories.
  */
 export async function getProductCategories(): Promise<string[]> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const rows = await db
 		.select({ category: products.category })
 		.from(products)
-		.where(eq(products.organizationId, ORGANIZATION_ID))
+		.where(eq(products.organizationId, organizationId))
 		.groupBy(products.category)
 		.orderBy(products.category);
 
@@ -404,9 +404,9 @@ export async function getProductCategories(): Promise<string[]> {
  * Get all services with optional filtering.
  */
 export async function getServices(filters?: ServiceFilters): Promise<Service[]> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
-	const conditions = [eq(services.organizationId, ORGANIZATION_ID)];
+	const conditions = [eq(services.organizationId, organizationId)];
 
 	if (filters?.search) {
 		conditions.push(
@@ -435,12 +435,12 @@ export async function getServices(filters?: ServiceFilters): Promise<Service[]> 
  * Get a single service by ID.
  */
 export async function getService(id: string): Promise<Service | null> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const [row] = await db
 		.select()
 		.from(services)
-		.where(and(eq(services.id, id), eq(services.organizationId, ORGANIZATION_ID)));
+		.where(and(eq(services.id, id), eq(services.organizationId, organizationId)));
 
 	return row ? transformService(row) : null;
 }
@@ -449,12 +449,12 @@ export async function getService(id: string): Promise<Service | null> {
  * Create a new service.
  */
 export async function createService(input: CreateServiceInput): Promise<Service> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const [row] = await db
 		.insert(services)
 		.values({
-			organizationId: ORGANIZATION_ID,
+			organizationId,
 			name: input.name,
 			category: input.category ?? null,
 			description: input.description ?? null,
@@ -473,7 +473,7 @@ export async function createService(input: CreateServiceInput): Promise<Service>
  * Update a service.
  */
 export async function updateService(id: string, input: UpdateServiceInput): Promise<Service> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const updateData: Partial<ServiceRow> = {
 		updatedAt: new Date(),
@@ -491,7 +491,7 @@ export async function updateService(id: string, input: UpdateServiceInput): Prom
 	const [row] = await db
 		.update(services)
 		.set(updateData)
-		.where(and(eq(services.id, id), eq(services.organizationId, ORGANIZATION_ID)))
+		.where(and(eq(services.id, id), eq(services.organizationId, organizationId)))
 		.returning();
 
 	if (!row) {
@@ -505,23 +505,23 @@ export async function updateService(id: string, input: UpdateServiceInput): Prom
  * Delete a service.
  */
 export async function deleteService(id: string): Promise<void> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	await db
 		.delete(services)
-		.where(and(eq(services.id, id), eq(services.organizationId, ORGANIZATION_ID)));
+		.where(and(eq(services.id, id), eq(services.organizationId, organizationId)));
 }
 
 /**
  * Get unique service categories.
  */
 export async function getServiceCategories(): Promise<string[]> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	const rows = await db
 		.select({ category: services.category })
 		.from(services)
-		.where(eq(services.organizationId, ORGANIZATION_ID))
+		.where(eq(services.organizationId, organizationId))
 		.groupBy(services.category)
 		.orderBy(services.category);
 
@@ -536,31 +536,31 @@ export async function getServiceCategories(): Promise<string[]> {
  * Get company setup statistics.
  */
 export async function getCompanyStats(): Promise<CompanyStats> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireCompanySetupContext();
 
 	// Get basic counts
 	const [roleResult, productResult, serviceResult] = await Promise.all([
-		db.select({ count: sql<number>`COUNT(*)` }).from(roles).where(eq(roles.organizationId, ORGANIZATION_ID)),
-		db.select({ count: sql<number>`COUNT(*)` }).from(products).where(eq(products.organizationId, ORGANIZATION_ID)),
-		db.select({ count: sql<number>`COUNT(*)` }).from(services).where(eq(services.organizationId, ORGANIZATION_ID)),
+		db.select({ count: sql<number>`COUNT(*)` }).from(roles).where(eq(roles.organizationId, organizationId)),
+		db.select({ count: sql<number>`COUNT(*)` }).from(products).where(eq(products.organizationId, organizationId)),
+		db.select({ count: sql<number>`COUNT(*)` }).from(services).where(eq(services.organizationId, organizationId)),
 	]);
 
 	// Get profile
 	const profileResult = await db
 		.select({ description: companyProfiles.description })
 		.from(companyProfiles)
-		.where(eq(companyProfiles.organizationId, ORGANIZATION_ID))
+		.where(eq(companyProfiles.organizationId, organizationId))
 		.limit(1);
 
 	// Get client counts using a simpler query
 	const activeClients = await db.execute(
-		`SELECT COUNT(*) as count FROM clients WHERE organization_id = '${ORGANIZATION_ID}' AND status = 'active'`
+		sql`SELECT COUNT(*) as count FROM clients WHERE organization_id = ${organizationId} AND status = 'active'`
 	);
 	const formerClients = await db.execute(
-		`SELECT COUNT(*) as count FROM clients WHERE organization_id = '${ORGANIZATION_ID}' AND status = 'former'`
+		sql`SELECT COUNT(*) as count FROM clients WHERE organization_id = ${organizationId} AND status = 'former'`
 	);
 	const totalClients = await db.execute(
-		`SELECT COUNT(*) as count FROM clients WHERE organization_id = '${ORGANIZATION_ID}'`
+		sql`SELECT COUNT(*) as count FROM clients WHERE organization_id = ${organizationId}`
 	);
 
 	return {

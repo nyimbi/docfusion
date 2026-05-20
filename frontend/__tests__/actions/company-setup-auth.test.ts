@@ -1,25 +1,83 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+function createInsertChain(result: unknown[], onValues?: (value: Record<string, unknown>) => void) {
+	const chain: Record<string, any> = {};
+	chain.values = vi.fn((value: Record<string, unknown>) => {
+		onValues?.(value);
+		return chain;
+	});
+	chain.returning = vi.fn(async () => result);
+	return chain;
+}
+
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 const dbAccessMock = vi.hoisted(() => vi.fn());
-const blockedDb = vi.hoisted(() => new Proxy({}, {
-	get() {
+const dbMock = vi.hoisted(() => ({
+	select: vi.fn(() => {
 		dbAccessMock();
 		throw new Error("database should not be touched before auth");
-	},
+	}),
+	insert: vi.fn(() => {
+		dbAccessMock();
+		throw new Error("database should not be touched before auth");
+	}),
+	update: vi.fn(() => {
+		dbAccessMock();
+		throw new Error("database should not be touched before auth");
+	}),
+	delete: vi.fn(() => {
+		dbAccessMock();
+		throw new Error("database should not be touched before auth");
+	}),
+	execute: vi.fn(() => {
+		dbAccessMock();
+		throw new Error("database should not be touched before auth");
+	}),
 }));
+const eqMock = vi.hoisted(() => vi.fn((column: unknown, value: unknown) => ({ type: "eq", column, value })));
+const andMock = vi.hoisted(() => vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })));
+const ilikeMock = vi.hoisted(() => vi.fn((column: unknown, value: unknown) => ({ type: "ilike", column, value })));
+const sqlMock = vi.hoisted(() => vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })));
 
 vi.mock("@/lib/auth-utils", () => ({
-	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 vi.mock("@/lib/db", () => ({
-	db: blockedDb,
+	db: dbMock,
 }));
 vi.mock("@/lib/db/schema", () => ({
-	roles: {},
-	companyProfiles: {},
-	products: {},
-	services: {},
+	roles: {
+		id: "roles.id",
+		organizationId: "roles.organization_id",
+		name: "roles.name",
+		department: "roles.department",
+		level: "roles.level",
+	},
+	companyProfiles: {
+		id: "company_profiles.id",
+		organizationId: "company_profiles.organization_id",
+		description: "company_profiles.description",
+	},
+	products: {
+		id: "products.id",
+		organizationId: "products.organization_id",
+		name: "products.name",
+		category: "products.category",
+		status: "products.status",
+	},
+	services: {
+		id: "services.id",
+		organizationId: "services.organization_id",
+		name: "services.name",
+		category: "services.category",
+		status: "services.status",
+	},
+}));
+vi.mock("drizzle-orm", () => ({
+	eq: eqMock,
+	and: andMock,
+	ilike: ilikeMock,
+	sql: sqlMock,
 }));
 
 import {
@@ -48,7 +106,27 @@ import {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	getCurrentUserIdMock.mockResolvedValue(null);
+	requireUserContextMock.mockRejectedValue(new Error("Unauthorized"));
+	dbMock.select.mockImplementation(() => {
+		dbAccessMock();
+		throw new Error("database should not be touched before auth");
+	});
+	dbMock.insert.mockImplementation(() => {
+		dbAccessMock();
+		throw new Error("database should not be touched before auth");
+	});
+	dbMock.update.mockImplementation(() => {
+		dbAccessMock();
+		throw new Error("database should not be touched before auth");
+	});
+	dbMock.delete.mockImplementation(() => {
+		dbAccessMock();
+		throw new Error("database should not be touched before auth");
+	});
+	dbMock.execute.mockImplementation(() => {
+		dbAccessMock();
+		throw new Error("database should not be touched before auth");
+	});
 });
 
 describe("company setup action auth", () => {
@@ -79,5 +157,35 @@ describe("company setup action auth", () => {
 		await expect(getServiceCategories()).rejects.toThrow("Unauthorized");
 
 		expect(dbAccessMock).not.toHaveBeenCalled();
+	});
+
+	it("creates roles in the caller organization", async () => {
+		let inserted: Record<string, unknown> | undefined;
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "user-1",
+			organizationId: "org-1",
+		});
+		dbMock.insert.mockReturnValueOnce(createInsertChain([{
+			id: "role-1",
+			organizationId: "org-1",
+			name: "Engineer",
+			description: null,
+			department: null,
+			level: null,
+			responsibilities: [],
+			skillsRequired: [],
+			createdAt: new Date("2026-01-01T00:00:00.000Z"),
+			updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+		}], (value) => {
+			inserted = value;
+		}) as never);
+
+		const role = await createRole({ name: "Engineer" });
+
+		expect(inserted).toMatchObject({
+			organizationId: "org-1",
+			name: "Engineer",
+		});
+		expect(role.organizationId).toBe("org-1");
 	});
 });
