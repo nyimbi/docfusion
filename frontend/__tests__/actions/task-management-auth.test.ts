@@ -224,6 +224,21 @@ describe("task-management action auth", () => {
 		expect(collectSqlFragments(getWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
 
+	it("normalizes task and team member list limits", async () => {
+		const taskChain = createChainableQuery([]);
+		const teamChain = createChainableQuery([]);
+		mockDb.select
+			.mockImplementationOnce(() => taskChain)
+			.mockImplementationOnce(() => teamChain);
+		const { listAllTasks, listTeamMembers } = await import("@/lib/actions/task-management");
+
+		await expect(listAllTasks({ limit: -20 })).resolves.toMatchObject({ success: true });
+		await expect(listTeamMembers({ limit: Number.POSITIVE_INFINITY })).resolves.toMatchObject({ success: true });
+
+		expect(taskChain.limit as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(1);
+		expect(teamChain.limit as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(100);
+	});
+
 	it("scopes task updates and deletes by assigned opportunity", async () => {
 		let updateReadWhere: unknown;
 		let updateWriteWhere: unknown;

@@ -237,6 +237,11 @@ async function requireTaskActor(): Promise<TaskActor> {
 	};
 }
 
+function normalizeTaskLimit(limit: number | undefined, fallback: number, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
 function ensureTaskActorMatches(actor: TaskActor, userId?: string): void {
 	if (userId && userId !== actor.userId) {
 		throw new Error("Unauthorized");
@@ -659,7 +664,7 @@ export async function listAllTasks(
 			query = query.where(and(...conditions)) as typeof query;
 		}
 
-		const tasks = await query.limit(filters?.limit ?? 100);
+		const tasks = await query.limit(normalizeTaskLimit(filters?.limit, 100));
 
 		return { success: true, data: tasks };
 	} catch (error) {
@@ -2179,7 +2184,7 @@ export async function listTeamMembers(
 			.from(authorExpertise)
 			.where(conditions.length > 0 ? and(...conditions) : undefined)
 			.orderBy(desc(authorExpertise.totalTasksCompleted))
-			.limit(filters?.limit ?? 100);
+			.limit(normalizeTaskLimit(filters?.limit, 100));
 
 		// If expertiseArea filter is specified, filter in memory (JSONB field)
 		if (filters?.expertiseArea) {
