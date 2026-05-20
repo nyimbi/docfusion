@@ -46,6 +46,7 @@ vi.mock("drizzle-orm", () => ({
 import {
 	createDocumentFromTemplate,
 	duplicateTemplate,
+	getTemplate,
 	rateTemplate,
 } from "@/lib/actions/templates";
 
@@ -72,6 +73,52 @@ describe("template server action auth", () => {
 		})).rejects.toThrow("Unauthorized");
 
 		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	it("rejects unauthenticated template reads before database access", async () => {
+		await expect(getTemplate("template-1")).rejects.toThrow("Unauthorized");
+
+		expect(dbMock.select).not.toHaveBeenCalled();
+	});
+
+	it("scopes template reads to the session user's visible templates", async () => {
+		const whereMock = vi.fn(async () => [
+			{
+				id: "template-1",
+				name: "Visible",
+				description: "Visible template",
+				content: { type: "doc", content: [] },
+				status: "published",
+				visibility: "organization",
+				createdBy: "source-owner",
+				categoryIds: [],
+				tags: [],
+				placeholders: [],
+				aiInstructions: [],
+				complianceRequirements: [],
+				useCount: 1,
+				rating: null,
+				ratingCount: 0,
+				previewImageUrl: null,
+				estimatedTime: null,
+				difficulty: null,
+				defaultMetadata: null,
+				createdAt: new Date("2025-01-01T00:00:00.000Z"),
+				updatedAt: new Date("2025-01-01T00:00:00.000Z"),
+			},
+		]);
+		getCurrentUserIdMock.mockResolvedValue("session-user-1");
+		dbMock.select.mockReturnValueOnce({
+			from: vi.fn(() => ({
+				where: whereMock,
+			})),
+		});
+
+		const result = await getTemplate("template-1");
+
+		expect(result?.id).toBe("template-1");
+		const whereCondition = (whereMock.mock.calls[0] as unknown as [unknown])[0];
+		expect(JSON.stringify(whereCondition)).toContain("session-user-1");
 	});
 
 	it("scopes template ratings to the session user's visible templates", async () => {

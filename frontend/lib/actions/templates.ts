@@ -294,10 +294,11 @@ export async function getTemplates(
  * Get a single template by ID with full details.
  */
 export async function getTemplate(id: string): Promise<Template | null> {
+	const userId = await requireCurrentUserId();
 	const [row] = await db
 		.select()
 		.from(templates)
-		.where(eq(templates.id, id));
+		.where(visibleTemplateCondition(id, userId));
 
 	if (!row) return null;
 
