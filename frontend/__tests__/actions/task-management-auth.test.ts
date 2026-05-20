@@ -24,11 +24,15 @@ vi.mock("@/lib/utils/logger", () => ({
 	logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
-function createChainableQuery(returnValue: unknown = []) {
+function createChainableQuery(returnValue: unknown = [], onValues?: (value: unknown) => void) {
 	const chain: Record<string, unknown> = {};
-	for (const method of ["from", "where", "limit", "orderBy", "values", "returning", "set"]) {
+	for (const method of ["from", "where", "limit", "orderBy", "returning", "set"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.values = vi.fn((value: unknown) => {
+		onValues?.(value);
+		return chain;
+	});
 	(chain.returning as ReturnType<typeof vi.fn>).mockResolvedValue(
 		Array.isArray(returnValue) ? returnValue : [returnValue]
 	);
@@ -60,7 +64,12 @@ describe("task-management action auth", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		requireServerSessionMock.mockResolvedValue({
-			user: { id: "author-1", name: "Author One", email: "author@example.com" },
+			user: {
+				id: "author-1",
+				name: "Author One",
+				email: "author@example.com",
+				organizationId: "org-1",
+			},
 		});
 		mockDb.select.mockImplementation(() => createChainableQuery([]));
 		mockDb.insert.mockImplementation(() => createChainableQuery([]));
@@ -133,6 +142,7 @@ describe("task-management action auth", () => {
 		let numberWhere: unknown;
 		let summaryTasksWhere: unknown;
 		let summaryReadWhere: unknown;
+		let insertedTask: Record<string, unknown> | undefined;
 		const numberChain = createChainableQuery([{ count: 0 }]);
 		(numberChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
 			numberWhere = value;
@@ -157,7 +167,9 @@ describe("task-management action auth", () => {
 				id: "task-1",
 				opportunityId: "00000000-0000-4000-8000-000000000001",
 				status: "pending",
-			}]))
+			}], (value) => {
+				insertedTask = value as Record<string, unknown>;
+			}))
 			.mockImplementation(() => createChainableQuery([]));
 		const { createTask } = await import("@/lib/actions/task-management");
 
@@ -169,6 +181,7 @@ describe("task-management action auth", () => {
 		});
 
 		expect(result.success).toBe(true);
+		expect(insertedTask).toMatchObject({ organizationId: "org-1" });
 		expect(collectSqlFragments(numberWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(collectSqlFragments(summaryTasksWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(collectSqlFragments(summaryReadWhere).join(" ")).toContain("opportunities.assigned_to");

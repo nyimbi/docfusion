@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: vi.fn(async () => ({ userId: "proposal-manager-1" })),
+	requireUserContext: vi.fn(async () => ({ userId: "proposal-manager-1", organizationId: "org-1" })),
 }));
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
@@ -62,6 +62,7 @@ function expectAssignedTaskScope(where: unknown) {
 	const sqlText = collectSqlFragments(where).join(" ");
 	expect(sqlText).toContain("opportunities.assigned_to");
 	expect(sqlText).toContain("proposal-manager-1");
+	expect(sqlText).toContain("org-1");
 }
 
 var dbMock: any;
@@ -83,6 +84,7 @@ import {
 
 const baseTask: Record<string, any> = {
 	id: "task-1",
+	organizationId: "org-1",
 	opportunityId: "opp-1",
 	taskNumber: "T-0001",
 	title: "Draft technical response",

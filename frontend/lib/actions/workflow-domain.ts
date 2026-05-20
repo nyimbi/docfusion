@@ -111,8 +111,9 @@ function workflowGateReviewCondition(gateReviewId: string, actorId: string): SQL
 	)!;
 }
 
-function workflowProposalTaskCondition(taskId: string, actorId: string): SQL {
+function workflowProposalTaskCondition(taskId: string, organizationId: string, actorId: string): SQL {
 	return and(
+		eq(proposalTasks.organizationId, organizationId),
 		eq(proposalTasks.id, taskId),
 		assignedOpportunityExistsSql(proposalTasks.opportunityId, actorId)
 	)!;
@@ -708,7 +709,7 @@ async function applyDomainCompensation(input: {
 						progress: 100,
 						updatedAt: now,
 					};
-			await db.update(proposalTasks).set(patch).where(workflowProposalTaskCondition(input.instance.subjectId, input.actorId));
+			await db.update(proposalTasks).set(patch).where(workflowProposalTaskCondition(input.instance.subjectId, input.organizationId, input.actorId));
 			break;
 		}
 		case "proposal_review": {

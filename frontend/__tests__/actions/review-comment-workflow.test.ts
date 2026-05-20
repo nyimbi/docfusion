@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: vi.fn(async () => ({ userId: "review-lead-1" })),
+	requireUserContext: vi.fn(async () => ({ userId: "review-lead-1", organizationId: "org-1" })),
 }));
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
@@ -119,6 +119,7 @@ const baseComment: Record<string, any> = {
 
 const existingTask: Record<string, any> = {
 	id: "task-1",
+	organizationId: "org-1",
 	opportunityId: "opp-1",
 	taskNumber: "RC-11111111",
 	title: "Substantiate integration claim",
@@ -199,6 +200,7 @@ describe("review comment workflow", () => {
 		});
 		expect(collectSqlFragments(commentWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(taskInsert).toMatchObject({
+			organizationId: "org-1",
 			opportunityId: "opp-1",
 			taskNumber: "RC-11111111",
 			title: "Substantiate integration claim",

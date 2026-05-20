@@ -134,9 +134,11 @@ function visibleRequirementIdsCondition(ids: string[], organizationId: string, u
 function projectedRequirementTaskCondition(
 	requirementId: string,
 	opportunityId: string,
+	organizationId: string,
 	userId: string
 ): SQL {
 	return and(
+		eq(proposalTasks.organizationId, organizationId),
 		eq(proposalTasks.requirementId, requirementId),
 		eq(proposalTasks.opportunityId, opportunityId),
 		eq(proposalTasks.sourceType, "requirement_workflow"),
@@ -144,8 +146,9 @@ function projectedRequirementTaskCondition(
 	)!;
 }
 
-function visibleProposalTaskCondition(taskId: string, opportunityId: string, userId: string): SQL {
+function visibleProposalTaskCondition(taskId: string, opportunityId: string, organizationId: string, userId: string): SQL {
 	return and(
+		eq(proposalTasks.organizationId, organizationId),
 		eq(proposalTasks.id, taskId),
 		eq(proposalTasks.opportunityId, opportunityId),
 		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
@@ -518,7 +521,7 @@ export async function transitionRequirementWorkflow(
 			const [existingTask] = await tx
 				.select()
 				.from(proposalTasks)
-				.where(projectedRequirementTaskCondition(row.id, row.opportunityId!, userId))
+				.where(projectedRequirementTaskCondition(row.id, row.opportunityId!, organizationId, userId))
 				.limit(1);
 
 			const taskSyncData = {
@@ -537,11 +540,12 @@ export async function transitionRequirementWorkflow(
 				await tx
 					.update(proposalTasks)
 					.set(taskSyncData)
-					.where(visibleProposalTaskCondition(existingTask.id, row.opportunityId!, userId));
+					.where(visibleProposalTaskCondition(existingTask.id, row.opportunityId!, organizationId, userId));
 			} else {
 				const [createdTask] = await tx
 					.insert(proposalTasks)
 					.values({
+						organizationId,
 						opportunityId: row.opportunityId!,
 						taskNumber: makeRequirementTaskNumber(row),
 						title: `Draft response for ${row.requirementNumber ?? "requirement"}`,

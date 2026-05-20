@@ -54,8 +54,9 @@ function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): S
 	)`;
 }
 
-function visibleProposalTaskCondition(taskId: string, userId: string): SQL {
+function visibleProposalTaskCondition(taskId: string, organizationId: string, userId: string): SQL {
 	return and(
+		eq(proposalTasks.organizationId, organizationId),
 		eq(proposalTasks.id, taskId),
 		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
 	)!;
@@ -65,6 +66,9 @@ export async function transitionProposalTaskWorkflow(
 	input: ProposalTaskWorkflowInput
 ): Promise<ProposalTaskWorkflowResult> {
 	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
 	const reason = input.reason.trim();
 	if (!reason) {
 		throw new Error("Task workflow transitions require a reason");
@@ -73,7 +77,7 @@ export async function transitionProposalTaskWorkflow(
 	const [task] = await db
 		.select()
 		.from(proposalTasks)
-		.where(visibleProposalTaskCondition(input.taskId, userContext.userId))
+		.where(visibleProposalTaskCondition(input.taskId, userContext.organizationId, userContext.userId))
 		.limit(1);
 	if (!task) {
 		throw new Error("Task not found");
@@ -84,7 +88,7 @@ export async function transitionProposalTaskWorkflow(
 	const [updated] = await db
 		.update(proposalTasks)
 		.set(transition.patch)
-		.where(visibleProposalTaskCondition(input.taskId, userContext.userId))
+		.where(visibleProposalTaskCondition(input.taskId, userContext.organizationId, userContext.userId))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update task workflow state");

@@ -70,16 +70,18 @@ function visibleProposalReviewCondition(reviewId: string, userId: string): SQL {
 	)!;
 }
 
-function visibleReviewCommentTaskCondition(commentId: string, userId: string): SQL {
+function visibleReviewCommentTaskCondition(commentId: string, organizationId: string, userId: string): SQL {
 	return and(
+		eq(proposalTasks.organizationId, organizationId),
 		eq(proposalTasks.sourceType, "review_comment"),
 		eq(proposalTasks.sourceId, commentId),
 		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
 	)!;
 }
 
-function visibleProposalTaskCondition(taskId: string, userId: string): SQL {
+function visibleProposalTaskCondition(taskId: string, organizationId: string, userId: string): SQL {
 	return and(
+		eq(proposalTasks.organizationId, organizationId),
 		eq(proposalTasks.id, taskId),
 		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
 	)!;
@@ -89,6 +91,9 @@ export async function transitionReviewCommentWorkflow(
 	input: ReviewCommentWorkflowInput
 ): Promise<ReviewCommentWorkflowResult> {
 	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
 	const reason = input.reason.trim();
 	if (!reason) {
 		throw new Error("Review comment workflow transitions require a reason");
@@ -114,7 +119,7 @@ export async function transitionReviewCommentWorkflow(
 	const [existingTask] = await db
 		.select()
 		.from(proposalTasks)
-		.where(visibleReviewCommentTaskCondition(input.commentId, userContext.userId))
+		.where(visibleReviewCommentTaskCondition(input.commentId, userContext.organizationId, userContext.userId))
 		.limit(1);
 
 	const fromState = comment.resolutionStatus ?? "open";
@@ -135,6 +140,7 @@ export async function transitionReviewCommentWorkflow(
 		input,
 		status: transition.taskStatus,
 		actorId: userContext.userId,
+		organizationId: userContext.organizationId,
 	});
 
 	if (task) {
@@ -295,6 +301,7 @@ async function upsertCommentTask(input: {
 	input: ReviewCommentWorkflowInput;
 	status: "pending" | "assigned" | "in_progress" | "completed";
 	actorId: string;
+	organizationId: string;
 }): Promise<ProposalTaskRow | null> {
 	const now = new Date();
 	const assignedTo = input.input.assignedTo ?? input.existingTask?.assignedTo ?? null;
@@ -324,7 +331,7 @@ async function upsertCommentTask(input: {
 		const [updated] = await db
 			.update(proposalTasks)
 			.set(taskPatch)
-			.where(visibleProposalTaskCondition(input.existingTask.id, input.actorId))
+			.where(visibleProposalTaskCondition(input.existingTask.id, input.organizationId, input.actorId))
 			.returning();
 		return updated ?? null;
 	}
@@ -332,6 +339,7 @@ async function upsertCommentTask(input: {
 	const [created] = await db
 		.insert(proposalTasks)
 		.values({
+			organizationId: input.organizationId,
 			opportunityId: input.opportunityId,
 			taskNumber: `RC-${input.comment.id.slice(0, 8)}`,
 			createdBy: input.actorId,

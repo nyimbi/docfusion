@@ -69,6 +69,7 @@ interface TaskAssignment {
 interface TaskActor {
 	userId: string;
 	userName: string;
+	organizationId: string;
 }
 
 interface CriticalPathNode {
@@ -224,10 +225,15 @@ async function requireTaskActor(): Promise<TaskActor> {
 	if (!userId) {
 		throw new Error("Unauthorized");
 	}
+	const organizationId = (session.user as { organizationId?: string }).organizationId;
+	if (!organizationId) {
+		throw new Error("Organization context required");
+	}
 
 	return {
 		userId,
 		userName: session.user?.name ?? session.user?.email ?? userId,
+		organizationId,
 	};
 }
 
@@ -248,6 +254,7 @@ function assignedOpportunityExistsSql(opportunityId: unknown, actor: TaskActor):
 
 function proposalTasksByOpportunityCondition(opportunityId: string, actor: TaskActor): SQL {
 	return and(
+		eq(proposalTasks.organizationId, actor.organizationId),
 		eq(proposalTasks.opportunityId, opportunityId),
 		assignedOpportunityExistsSql(opportunityId, actor)
 	)!;
@@ -255,6 +262,7 @@ function proposalTasksByOpportunityCondition(opportunityId: string, actor: TaskA
 
 function visibleProposalTaskCondition(taskId: string, actor: TaskActor): SQL {
 	return and(
+		eq(proposalTasks.organizationId, actor.organizationId),
 		eq(proposalTasks.id, taskId),
 		assignedOpportunityExistsSql(proposalTasks.opportunityId, actor)
 	)!;
@@ -268,6 +276,7 @@ function visibleTaskActivityCondition(taskId: string, actor: TaskActor): SQL {
 			from proposal_tasks
 			join opportunities on opportunities.id = proposal_tasks.opportunity_id
 			where proposal_tasks.id = ${taskActivity.taskId}
+				and proposal_tasks.organization_id = ${actor.organizationId}
 				and opportunities.assigned_to = ${actor.userId}
 		)`
 	)!;
@@ -368,6 +377,7 @@ export async function createTask(
 
 		// Prepare task data
 		const taskData: NewProposalTask = {
+			organizationId: actor.organizationId,
 			opportunityId: validated.opportunityId,
 			taskNumber,
 			title: validated.title,
@@ -595,6 +605,7 @@ export async function listAllTasks(
 	try {
 		const actor = await requireTaskActor();
 		const conditions = [];
+		conditions.push(eq(proposalTasks.organizationId, actor.organizationId));
 		conditions.push(assignedOpportunityExistsSql(proposalTasks.opportunityId, actor));
 
 		if (filters?.status) {
@@ -808,6 +819,7 @@ export async function generateTasksFromCompliance(
 					: "low";
 
 			const taskData: NewProposalTask = {
+				organizationId: actor.organizationId,
 				opportunityId,
 				taskNumber,
 				title: `Address Requirement ${req.requirementNumber ?? req.id.slice(0, 8)} - ${req.category ?? "General"}`,
@@ -902,6 +914,7 @@ export async function suggestAssignment(
 				.from(proposalTasks)
 				.where(
 					and(
+						eq(proposalTasks.organizationId, actor.organizationId),
 						eq(proposalTasks.assignedTo, author.userName),
 						assignedOpportunityExistsSql(proposalTasks.opportunityId, actor),
 						or(
@@ -1306,6 +1319,7 @@ export async function getWorkloadSummary(
 			.select()
 			.from(proposalTasks)
 			.where(and(
+				eq(proposalTasks.organizationId, actor.organizationId),
 				eq(proposalTasks.assignedTo, userName),
 				assignedOpportunityExistsSql(proposalTasks.opportunityId, actor)
 			));
@@ -2031,6 +2045,7 @@ export async function updateAuthorExpertise(
 			.from(proposalTasks)
 			.where(
 				and(
+					eq(proposalTasks.organizationId, actor.organizationId),
 					eq(proposalTasks.assignedTo, author.userName),
 					eq(proposalTasks.status, "completed"),
 					assignedOpportunityExistsSql(proposalTasks.opportunityId, actor)

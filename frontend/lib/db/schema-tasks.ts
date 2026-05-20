@@ -40,6 +40,7 @@ import { relations } from "drizzle-orm";
  */
 export const proposalTasks = pgTable("proposal_tasks", {
 	id: uuid("id").primaryKey().defaultRandom(),
+	organizationId: varchar("organization_id", { length: 100 }),
 	opportunityId: uuid("opportunity_id").notNull(),
 
 	// Task identification
@@ -135,6 +136,7 @@ export const proposalTasks = pgTable("proposal_tasks", {
 	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => ({
+	organizationIdx: index("proposal_tasks_organization_idx").on(table.organizationId),
 	opportunityIdx: index("proposal_tasks_opportunity_idx").on(table.opportunityId),
 	assignedToIdx: index("proposal_tasks_assigned_to_idx").on(table.assignedTo),
 	statusIdx: index("proposal_tasks_status_idx").on(table.status),
