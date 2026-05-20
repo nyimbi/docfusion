@@ -17,6 +17,12 @@ import type { RequirementCategory, RequirementPriority, ComplianceStatus, RiskLe
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function normalizePositiveQueryInt(value: string | null, fallback: number, maximum = Number.MAX_SAFE_INTEGER): number {
+	const parsed = Number.parseInt(value ?? "", 10);
+	if (!Number.isFinite(parsed)) return fallback;
+	return Math.max(1, Math.min(maximum, parsed));
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -78,8 +84,8 @@ export async function GET(
 
 		// Parse query parameters
 		const searchParams = request.nextUrl.searchParams;
-		const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
-		const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") ?? "50")));
+		const page = normalizePositiveQueryInt(searchParams.get("page"), 1);
+		const pageSize = normalizePositiveQueryInt(searchParams.get("pageSize"), 50, 100);
 		const search = searchParams.get("search") ?? "";
 		const category = searchParams.get("category") as RequirementCategory | null;
 		const priority = searchParams.get("priority") as RequirementPriority | null;

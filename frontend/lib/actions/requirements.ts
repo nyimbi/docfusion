@@ -36,6 +36,16 @@ import type {
 } from "@/lib/types/opportunity";
 import { logger } from "@/lib/utils/logger";
 
+function normalizeRequirementPage(page: number | undefined, fallback = 1): number {
+	if (page === undefined || !Number.isFinite(page)) return fallback;
+	return Math.max(1, Math.floor(page));
+}
+
+function normalizeRequirementPageSize(pageSize: number | undefined, fallback = 50, maximum = 1000): number {
+	if (pageSize === undefined || !Number.isFinite(pageSize)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(pageSize)));
+}
+
 type RequirementWorkflowAction = "accept" | "reject" | "reopen";
 
 interface RequirementWorkflowTransitionInput {
@@ -299,8 +309,8 @@ export async function getRequirements(
 	}
 
 	// Apply pagination
-	const page = pagination?.page ?? 1;
-	const pageSize = pagination?.pageSize ?? 50;
+	const page = normalizeRequirementPage(pagination?.page);
+	const pageSize = normalizeRequirementPageSize(pagination?.pageSize);
 	const offset = (page - 1) * pageSize;
 
 	const results = await query.limit(pageSize).offset(offset);

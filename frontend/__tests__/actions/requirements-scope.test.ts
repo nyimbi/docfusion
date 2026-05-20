@@ -100,20 +100,26 @@ beforeEach(() => {
 describe("requirements opportunity scoping", () => {
 	it("scopes paginated requirement reads through assigned opportunities", async () => {
 		const wheres: unknown[] = [];
+		const rowsChain = createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		});
 		dbMock.select
 			.mockReturnValueOnce(createChain({
 				result: [{ count: 0 }],
 				onWhere: (value) => wheres.push(value),
 			}))
-			.mockReturnValueOnce(createChain({
-				result: [],
-				onWhere: (value) => wheres.push(value),
-			}));
+			.mockReturnValueOnce(rowsChain);
 
-		const result = await getRequirements(opportunityId);
+		const result = await getRequirements(opportunityId, undefined, undefined, {
+			page: -5,
+			pageSize: -20,
+		});
 
-		expect(result).toMatchObject({ data: [], total: 0 });
+		expect(result).toMatchObject({ data: [], total: 0, page: 1, pageSize: 1 });
 		expect(wheres).toHaveLength(2);
+		expect(rowsChain.limit).toHaveBeenCalledWith(1);
+		expect(rowsChain.offset).toHaveBeenCalledWith(0);
 		for (const where of wheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 		}
