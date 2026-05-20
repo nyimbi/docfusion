@@ -135,22 +135,25 @@ describe("approval document scoping", () => {
 
 	it("scopes approval lists to assigned rows or documents owned by the actor", async () => {
 		const wheres: unknown[] = [];
+		const rowsChain = createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		});
 		dbMock.select
 			.mockReturnValueOnce(createChain({
 				result: [{ count: 0 }],
 				onWhere: (value) => wheres.push(value),
 			}))
-			.mockReturnValueOnce(createChain({
-				result: [],
-				onWhere: (value) => wheres.push(value),
-			}));
+			.mockReturnValueOnce(rowsChain);
 
-		await expect(getApprovals()).resolves.toEqual({ approvals: [], total: 0 });
+		await expect(getApprovals({}, { limit: -20, offset: -5 })).resolves.toEqual({ approvals: [], total: 0 });
 
 		expect(wheres).toHaveLength(2);
 		for (const where of wheres) {
 			expectVisibleApprovalScope(where);
 		}
+		expect(rowsChain.limit).toHaveBeenCalledWith(1);
+		expect(rowsChain.offset).toHaveBeenCalledWith(0);
 	});
 
 	it("scopes review submission reads to visible approval rows", async () => {

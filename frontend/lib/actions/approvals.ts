@@ -46,6 +46,16 @@ async function requireCurrentUserId(): Promise<string> {
 	return userId;
 }
 
+function normalizeApprovalLimit(limit: number | undefined, fallback: number, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) return fallback;
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
+function normalizeApprovalOffset(offset: number | undefined): number {
+	if (offset === undefined || !Number.isFinite(offset)) return 0;
+	return Math.max(0, Math.floor(offset));
+}
+
 function ownedDocumentCondition(documentId: string, userId: string): SQL {
 	return sql`documents.id = ${documentId} and documents.owner_id = ${userId}`;
 }
@@ -350,8 +360,8 @@ export async function getApprovals(
 			asc(documentApprovals.sequenceOrder),
 			desc(documentApprovals.createdAt)
 		)
-		.limit(options.limit ?? 1000)
-		.offset(options.offset ?? 0);
+		.limit(normalizeApprovalLimit(options.limit, 1000))
+		.offset(normalizeApprovalOffset(options.offset));
 	const approvals = rows.map(mapDocumentApproval);
 
 	return { approvals, total };
