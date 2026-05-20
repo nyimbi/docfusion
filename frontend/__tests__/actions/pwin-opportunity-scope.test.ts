@@ -9,7 +9,7 @@ interface ChainConfig {
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "limit", "orderBy"]) {
+	for (const method of ["from", "limit", "orderBy", "values"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	chain.where = vi.fn((value: unknown) => {
@@ -73,7 +73,14 @@ vi.mock("@/lib/ai/providers", () => ({
 	})),
 }));
 
-import { assessPwin } from "@/lib/actions/pwin";
+import {
+	assessPwin,
+	compareOpportunities,
+	forecastWinProbabilities,
+	getPortfolioMetrics,
+	optimizePortfolio,
+	rankOpportunities,
+} from "@/lib/actions/pwin";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -84,6 +91,12 @@ beforeEach(() => {
 });
 
 describe("PWin opportunity scoping", () => {
+	function expectAssignedOpportunityScope(where: unknown) {
+		const sqlText = collectSqlFragments(where).join(" ");
+		expect(sqlText).toContain("assigned_to");
+		expect(sqlText).toContain("pwin-user-1");
+	}
+
 	it("scopes opportunity assessment lookup to the assigned user", async () => {
 		let opportunityWhere: unknown;
 		dbMock.select.mockReturnValueOnce(createChain({
@@ -106,8 +119,87 @@ describe("PWin opportunity scoping", () => {
 		);
 
 		expect(result).toEqual({ success: false, error: "Opportunity not found" });
-		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("assigned_to");
+		expectAssignedOpportunityScope(opportunityWhere);
 		expect(dbMock.insert).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("scopes portfolio optimization candidates to the assigned user", async () => {
+		let candidatesWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => {
+				candidatesWhere = value;
+			},
+		}));
+		dbMock.insert.mockReturnValueOnce(createChain({ result: [{ id: "optimization-1" }] }));
+
+		const result = await optimizePortfolio({ optimizationType: "balanced" });
+
+		expect(result.success).toBe(true);
+		expectAssignedOpportunityScope(candidatesWhere);
+	});
+
+	it("scopes opportunity comparisons to the assigned user", async () => {
+		let comparisonWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => {
+				comparisonWhere = value;
+			},
+		}));
+
+		const result = await compareOpportunities([
+			"33333333-3333-4333-8333-333333333333",
+			"55555555-5555-4555-8555-555555555555",
+		]);
+
+		expect(result).toEqual({ success: false, error: "Could not find all requested opportunities" });
+		expectAssignedOpportunityScope(comparisonWhere);
+	});
+
+	it("scopes opportunity rankings to the assigned user", async () => {
+		let rankingWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => {
+				rankingWhere = value;
+			},
+		}));
+
+		const result = await rankOpportunities();
+
+		expect(result).toEqual({ success: true, data: [] });
+		expectAssignedOpportunityScope(rankingWhere);
+	});
+
+	it("scopes portfolio metrics to the assigned user", async () => {
+		let metricsWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => {
+				metricsWhere = value;
+			},
+		}));
+
+		const result = await getPortfolioMetrics();
+
+		expect(result.success).toBe(true);
+		expectAssignedOpportunityScope(metricsWhere);
+	});
+
+	it("scopes win forecasts to the assigned user", async () => {
+		let forecastWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => {
+				forecastWhere = value;
+			},
+		}));
+
+		const result = await forecastWinProbabilities();
+
+		expect(result.success).toBe(true);
+		expectAssignedOpportunityScope(forecastWhere);
 	});
 });

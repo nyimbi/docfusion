@@ -47,7 +47,7 @@ import {
 } from "@/lib/db/schema-pwin";
 import { opportunities } from "@/lib/db/schema";
 import { debriefs } from "@/lib/db/schema-winloss";
-import { eq, and, desc, asc, sql, gte, lte, inArray, count, avg, sum, isNotNull, or, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, sql, gte, lte, inArray, count, avg, sum, isNotNull, or, isNull, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm/column";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
@@ -94,6 +94,13 @@ function visibleOpportunityCondition(opportunityId: string, userContext: UserCon
 		eq(opportunities.id, opportunityId),
 		eq(opportunities.assignedTo, userContext.userId)
 	);
+}
+
+function assignedOpportunityConditions(userContext: UserContext, conditions: SQL[] = []): SQL {
+	return and(
+		eq(opportunities.assignedTo, userContext.userId),
+		...conditions
+	)!;
 }
 
 /**
@@ -1654,7 +1661,7 @@ export async function optimizePortfolio(
 		const organizationId = organizationForInsert(validated.organizationId, userContext);
 
 		// Build query conditions
-		const conditions: ReturnType<typeof eq>[] = [];
+		const conditions: SQL[] = [];
 
 		if (validated.minPwin !== undefined) {
 			conditions.push(gte(opportunities.winProbability, validated.minPwin));
@@ -1665,7 +1672,7 @@ export async function optimizePortfolio(
 		}
 
 		// Fetch candidate opportunities
-		const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+		const whereClause = assignedOpportunityConditions(userContext, conditions);
 
 		let candidateQuery = db
 			.select()
@@ -1811,7 +1818,9 @@ export async function compareOpportunities(
 		const opps = await db
 			.select()
 			.from(opportunities)
-			.where(inArray(opportunities.id, opportunityIds));
+			.where(assignedOpportunityConditions(userContext, [
+				inArray(opportunities.id, opportunityIds),
+			]));
 
 		if (opps.length < 2) {
 			return { success: false, error: "Could not find all requested opportunities" };
@@ -1914,10 +1923,10 @@ export async function rankOpportunities(
 }>>> {
 	try {
 		const validated = filters ? rankingFiltersSchema.parse(filters) : {};
-		await requirePwinContext(validated.organizationId);
+		const userContext = await requirePwinContext(validated.organizationId);
 
 		// Build query conditions
-		const conditions: ReturnType<typeof eq>[] = [];
+		const conditions: SQL[] = [];
 
 		if (validated.minPwin !== undefined) {
 			conditions.push(gte(opportunities.winProbability, validated.minPwin));
@@ -1941,7 +1950,7 @@ export async function rankOpportunities(
 			conditions.push(eq(opportunities.category, validated.stage));
 		}
 
-		const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+		const whereClause = assignedOpportunityConditions(userContext, conditions);
 
 		// Determine sort order
 		let orderByClause;
@@ -2008,16 +2017,16 @@ export async function getPortfolioMetrics(
 	organizationId?: string
 ): Promise<ActionResult<PortfolioMetrics>> {
 	try {
-		await requirePwinContext(organizationId);
+		const userContext = await requirePwinContext(organizationId);
 		// Fetch all active opportunities
 		const opps = await db
 			.select()
 			.from(opportunities)
 			.where(
-				and(
+				assignedOpportunityConditions(userContext, [
 					eq(opportunities.isExpired, false),
-					isNotNull(opportunities.winProbability)
-				)
+					isNotNull(opportunities.winProbability),
+				])
 			);
 
 		if (opps.length === 0) {
@@ -2544,12 +2553,14 @@ export async function validateModelPredictions(): Promise<ActionResult<{
  */
 export async function forecastWinProbabilities(): Promise<ActionResult<PwinForecast>> {
 	try {
-		await requirePwinContext();
+		const userContext = await requirePwinContext();
 		// Get active pipeline opportunities
 		const pipelineOpps = await db
 			.select()
 			.from(opportunities)
-			.where(eq(opportunities.isExpired, false));
+			.where(assignedOpportunityConditions(userContext, [
+				eq(opportunities.isExpired, false),
+			]));
 
 		const forecasts: PwinForecast["opportunities"] = [];
 
