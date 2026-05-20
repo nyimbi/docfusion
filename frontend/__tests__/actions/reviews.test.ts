@@ -375,6 +375,18 @@ function expectAssignedReviewScope(where: unknown) {
 	expect(sqlText).toContain("user-100");
 }
 
+function mockCreateReviewSelects(
+	existingReviews: Array<Record<string, unknown>> = [],
+	opportunityRows: Array<Record<string, unknown>> = [{ id: UUID2 }]
+) {
+	const opportunityChain = createChainableQuery(opportunityRows);
+	const existingReviewsChain = createChainableQuery(existingReviews);
+	dbMock.select
+		.mockImplementationOnce(() => opportunityChain)
+		.mockImplementationOnce(() => existingReviewsChain);
+	return { opportunityChain, existingReviewsChain };
+}
+
 // ============================================================================
 // Reset mocks between tests
 // ============================================================================
@@ -406,7 +418,7 @@ beforeEach(() => {
 describe("Review CRUD", () => {
 	describe("createReview", () => {
 		test("creates a review with minimal input", async () => {
-			dbMock.select.mockImplementation(() => createChainableQuery([]));
+			mockCreateReviewSelects();
 			const insertedReview = makeReviewRow();
 			const insertChain = createChainableQuery([insertedReview]);
 			dbMock.insert.mockImplementation(() => insertChain);
@@ -426,6 +438,22 @@ describe("Review CRUD", () => {
 			);
 		});
 
+		test("rejects review creation for opportunities not assigned to the caller", async () => {
+			const { opportunityChain } = mockCreateReviewSelects([], []);
+
+			const result = await createReview({
+				opportunityId: UUID2,
+				reviewType: "pink",
+			});
+
+			expect(result).toEqual({ success: false, error: "Opportunity not found" });
+			expect(dbMock.insert).not.toHaveBeenCalled();
+			const where = (opportunityChain.where as ReturnType<typeof vi.fn>).mock.calls[0][0];
+			const sqlText = collectSqlFragments(where).join(" ");
+			expect(sqlText).toContain("assigned_to");
+			expect(sqlText).toContain("user-100");
+		});
+
 		test("rejects unauthenticated review creation before database access", async () => {
 			getCurrentUserIdMock.mockResolvedValue(null);
 
@@ -440,7 +468,7 @@ describe("Review CRUD", () => {
 		});
 
 		test("auto-generates review name when not provided", async () => {
-			dbMock.select.mockImplementation(() => createChainableQuery([]));
+			mockCreateReviewSelects();
 			const insertedReview = makeReviewRow({ reviewName: "Pink Team Review" });
 			dbMock.insert.mockImplementation(() => createChainableQuery([insertedReview]));
 
@@ -453,7 +481,7 @@ describe("Review CRUD", () => {
 		});
 
 		test("uses provided review name when given", async () => {
-			dbMock.select.mockImplementation(() => createChainableQuery([]));
+			mockCreateReviewSelects();
 			const insertedReview = makeReviewRow({ reviewName: "Custom Review" });
 			dbMock.insert.mockImplementation(() => createChainableQuery([insertedReview]));
 
@@ -467,7 +495,7 @@ describe("Review CRUD", () => {
 		});
 
 		test("sets status to 'scheduled' when scheduledDate is provided", async () => {
-			dbMock.select.mockImplementation(() => createChainableQuery([]));
+			mockCreateReviewSelects();
 			const insertedReview = makeReviewRow({ status: "scheduled" });
 			dbMock.insert.mockImplementation(() => createChainableQuery([insertedReview]));
 
@@ -481,9 +509,7 @@ describe("Review CRUD", () => {
 		});
 
 		test("increments review number for the same opportunity and type", async () => {
-			dbMock.select.mockImplementation(() =>
-				createChainableQuery([{ reviewNumber: 2 }])
-			);
+			mockCreateReviewSelects([{ reviewNumber: 2 }]);
 			const insertedReview = makeReviewRow({ reviewNumber: 3 });
 			dbMock.insert.mockImplementation(() => createChainableQuery([insertedReview]));
 
@@ -496,7 +522,7 @@ describe("Review CRUD", () => {
 		});
 
 		test("creates checklist items from template when templateId is provided", async () => {
-			dbMock.select.mockImplementation(() => createChainableQuery([]));
+			mockCreateReviewSelects();
 			const insertedReview = makeReviewRow();
 			dbMock.insert.mockImplementation(() => createChainableQuery([insertedReview]));
 			dbMock.query.reviewTemplates.findFirst.mockResolvedValue({
@@ -1949,7 +1975,7 @@ describe("Reporting & Analytics", () => {
 
 describe("Edge Cases", () => {
 	test("createReview with all optional fields populated", async () => {
-		dbMock.select.mockImplementation(() => createChainableQuery([]));
+		mockCreateReviewSelects();
 		dbMock.insert.mockImplementation(() => createChainableQuery([makeReviewRow()]));
 
 		const result = await createReview({

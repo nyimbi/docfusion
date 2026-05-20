@@ -26,6 +26,7 @@ import {
 	reviewTemplates,
 	reviewChecklists,
 } from "@/lib/db/schema-reviews";
+import { opportunities } from "@/lib/db/schema";
 import { eq, and, desc, sql, inArray, gte, lte, isNull, count, avg, type SQL } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
 import { getCurrentUserId } from "@/lib/auth-utils";
@@ -74,6 +75,13 @@ function assignedReviewsForOpportunityCondition(opportunityId: string, actorId: 
 	return and(
 		eq(proposalReviews.opportunityId, opportunityId),
 		assignedOpportunityExistsSql(opportunityId, actorId)
+	)!;
+}
+
+function assignedOpportunityByIdCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		eq(opportunities.assignedTo, actorId)
 	)!;
 }
 
@@ -440,6 +448,16 @@ export async function createReview(
 		const reviewName = validated.reviewName ||
 			`${validated.reviewType.charAt(0).toUpperCase() + validated.reviewType.slice(1)} Team Review`;
 
+		const [opportunity] = await db
+			.select({ id: opportunities.id })
+			.from(opportunities)
+			.where(assignedOpportunityByIdCondition(validated.opportunityId, actorId))
+			.limit(1);
+
+		if (!opportunity) {
+			return { success: false, error: "Opportunity not found" };
+		}
+
 		// Get the next review number for this opportunity and type
 		const existingReviews = await db
 			.select({ reviewNumber: proposalReviews.reviewNumber })
@@ -447,7 +465,8 @@ export async function createReview(
 			.where(
 				and(
 					eq(proposalReviews.opportunityId, validated.opportunityId),
-					eq(proposalReviews.reviewType, validated.reviewType)
+					eq(proposalReviews.reviewType, validated.reviewType),
+					assignedOpportunityExistsSql(validated.opportunityId, actorId)
 				)
 			)
 			.orderBy(desc(proposalReviews.reviewNumber))
