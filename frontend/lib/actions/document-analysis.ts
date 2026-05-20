@@ -449,6 +449,13 @@ function generateId(): string {
 	return Math.random().toString(36).substring(2, 15);
 }
 
+function normalizeAnalysisHistoryLimit(limit: number | undefined, fallback = 10, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) {
+		return fallback;
+	}
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
 // ============================================================================
 // Analysis Engine
 // ============================================================================
@@ -1184,7 +1191,7 @@ export async function getAnalysisHistory(
 			readableDocumentExistsSql(documentAnalyses.documentId, userId)
 		))
 		.orderBy(desc(documentAnalyses.analyzedAt))
-		.limit(limit);
+		.limit(normalizeAnalysisHistoryLimit(limit));
 
 	return analyses.map((a) => ({
 		id: a.id,

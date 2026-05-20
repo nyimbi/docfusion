@@ -125,19 +125,22 @@ describe("document analysis document scoping", () => {
 
 	it("scopes analysis reads and history through readable documents", async () => {
 		const wheres: unknown[] = [];
+		const latestAnalysisChain = createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		});
+		const historyChain = createChain({
+			result: [],
+			onWhere: (value) => wheres.push(value),
+		});
 		dbMock.select
-			.mockReturnValueOnce(createChain({
-				result: [],
-				onWhere: (value) => wheres.push(value),
-			}))
-			.mockReturnValueOnce(createChain({
-				result: [],
-				onWhere: (value) => wheres.push(value),
-			}));
+			.mockReturnValueOnce(latestAnalysisChain)
+			.mockReturnValueOnce(historyChain);
 
 		await expect(getAnalysis(documentId)).resolves.toBeNull();
-		await expect(getAnalysisHistory(documentId)).resolves.toEqual([]);
+		await expect(getAnalysisHistory(documentId, -25)).resolves.toEqual([]);
 
+		expect(historyChain.limit).toHaveBeenCalledWith(1);
 		expect(wheres).toHaveLength(2);
 		for (const where of wheres) {
 			expectDocumentScope(where);
