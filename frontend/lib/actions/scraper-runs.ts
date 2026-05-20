@@ -824,13 +824,13 @@ export async function getRunTimeline(
 
 	const results = await db.execute(sql`
 		SELECT
-			TO_CHAR(started_at, ${sql.raw(`'${dateFormat}'`)}) as date,
+			TO_CHAR(started_at, ${dateFormat}) as date,
 			COUNT(*) as runs,
 			SUM(opportunities_found) as opportunities,
 			AVG(duration_seconds) as avg_duration
 		FROM scraper_runs
 		WHERE ${conditions.length > 0 ? sql`(${and(...conditions)})` : sql`TRUE`}
-		GROUP BY TO_CHAR(started_at, ${sql.raw(`'${dateFormat}'`)})
+		GROUP BY TO_CHAR(started_at, ${dateFormat})
 		ORDER BY date ASC
 	`);
 
