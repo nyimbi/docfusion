@@ -175,16 +175,24 @@ describe("graphics opportunity scoping", () => {
 
 	it("scopes search results to visible graphics", async () => {
 		let searchWhere: unknown;
-		dbMock.select.mockReturnValueOnce(createChain({
+		const lowLimitChain = createChain({
 			result: [],
 			onWhere: (value) => {
 				searchWhere = value;
 			},
-		}));
+		});
+		const highLimitChain = createChain({ result: [] });
+		dbMock.select
+			.mockReturnValueOnce(lowLimitChain)
+			.mockReturnValueOnce(highLimitChain);
 
-		const result = await searchGraphics("transition");
+		const result = await searchGraphics("transition", -10);
+		const highLimitResult = await searchGraphics("transition", 2500);
 
 		expect(result).toMatchObject({ success: true, data: [] });
+		expect(highLimitResult).toMatchObject({ success: true, data: [] });
+		expect(lowLimitChain.limit).toHaveBeenCalledWith(1);
+		expect(highLimitChain.limit).toHaveBeenCalledWith(1000);
 		expect(collectSqlFragments(searchWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
 

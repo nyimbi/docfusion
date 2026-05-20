@@ -110,6 +110,13 @@ function organizationForInsert(inputOrganizationId: string | undefined, userCont
 	return inputOrganizationId ?? userContext.organizationId;
 }
 
+function normalizeGraphicSearchLimit(limit: number | undefined, fallback = 20, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) {
+		return fallback;
+	}
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
 function assignedOpportunityCondition(userId: string): SQL {
 	return sql`opportunities.assigned_to = ${userId}`;
 }
@@ -1786,7 +1793,7 @@ export async function searchGraphics(
 				)
 			)
 			.orderBy(desc(proposalGraphics.updatedAt))
-			.limit(limit);
+			.limit(normalizeGraphicSearchLimit(limit));
 
 		return { success: true, data: graphics };
 	} catch (error) {
