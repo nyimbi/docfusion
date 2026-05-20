@@ -79,7 +79,11 @@ vi.mock("@/lib/utils/logger", () => ({
 	},
 }));
 
-import { calculateFitScore, calculateFitScoreWithLLM } from "@/lib/actions/opportunity-ai";
+import {
+	calculateFitScore,
+	calculateFitScoreWithLLM,
+	getAIScoreHistory,
+} from "@/lib/actions/opportunity-ai";
 
 const opportunity = {
 	id: "11111111-1111-4111-8111-111111111111",
@@ -160,5 +164,28 @@ describe("opportunity AI row scoping", () => {
 		});
 		expect(promptMock).not.toHaveBeenCalled();
 		expect(getCompanyCapabilitiesMock).not.toHaveBeenCalled();
+	});
+
+	it("scopes AI score history and normalizes caller limits", async () => {
+		let historyWhere: unknown;
+		const historyChain = createChain({
+			result: [],
+			onWhere: (value) => {
+				historyWhere = value;
+			},
+		});
+		const unusedInitialChain = createChain({ result: [] });
+		const typedHistoryChain = createChain({ result: [] });
+		dbMock.select
+			.mockReturnValueOnce(historyChain)
+			.mockReturnValueOnce(unusedInitialChain)
+			.mockReturnValueOnce(typedHistoryChain);
+
+		await expect(getAIScoreHistory(opportunity.id, undefined, -20)).resolves.toEqual([]);
+		await expect(getAIScoreHistory(opportunity.id, "fit", 2500)).resolves.toEqual([]);
+
+		expect(historyChain.limit).toHaveBeenCalledWith(1);
+		expect(typedHistoryChain.limit).toHaveBeenCalledWith(1000);
+		expect(collectSqlFragments(historyWhere).join(" ")).toContain("assigned_to");
 	});
 });

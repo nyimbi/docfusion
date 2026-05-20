@@ -37,6 +37,13 @@ async function requireCurrentUserId(): Promise<string> {
 	return userId;
 }
 
+function normalizeAIScoreHistoryLimit(limit: number | undefined, fallback = 10, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) {
+		return fallback;
+	}
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
 function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
@@ -281,13 +288,14 @@ export async function getAIScoreHistory(
 	limit: number = 10
 ): Promise<OpportunityAIScore[]> {
 	const userId = await requireCurrentUserId();
+	const normalizedLimit = normalizeAIScoreHistoryLimit(limit);
 
 	let query = db
 		.select()
 		.from(opportunityAIScores)
 		.where(visibleOpportunityScoresCondition(opportunityId, userId))
 		.orderBy(desc(opportunityAIScores.createdAt))
-		.limit(limit);
+		.limit(normalizedLimit);
 
 	if (scoreType) {
 		query = db
@@ -300,7 +308,7 @@ export async function getAIScoreHistory(
 				)
 			)
 			.orderBy(desc(opportunityAIScores.createdAt))
-			.limit(limit);
+			.limit(normalizedLimit);
 	}
 
 	const rows = await query;
