@@ -8,6 +8,15 @@ const mockDb = vi.hoisted(() => ({
 	delete: vi.fn(),
 }));
 
+function createChain(result: unknown[] = []) {
+	const chain: Record<string, any> = {};
+	for (const method of ["from", "where", "orderBy", "limit"]) {
+		chain[method] = vi.fn(() => chain);
+	}
+	chain.then = (resolve: (value: unknown[]) => void) => Promise.resolve(result).then(resolve);
+	return chain;
+}
+
 vi.mock("@/lib/auth-utils", () => ({
 	requireUserContext: requireUserContextMock,
 }));
@@ -64,6 +73,27 @@ describe("import action auth", () => {
 		})).rejects.toThrow("Unauthorized");
 
 		expect(mockDb.select).not.toHaveBeenCalled();
+	});
+
+	it("normalizes import history limits after matching caller context", async () => {
+		const lowLimitChain = createChain([]);
+		const highLimitChain = createChain([]);
+		mockDb.select
+			.mockReturnValueOnce(lowLimitChain)
+			.mockReturnValueOnce(highLimitChain);
+		const { getImportHistory } = await import("@/lib/actions/import");
+
+		await expect(getImportHistory({
+			userId: "importer-1",
+			organizationId: "org-1",
+		}, -10)).resolves.toEqual([]);
+		await expect(getImportHistory({
+			userId: "importer-1",
+			organizationId: "org-1",
+		}, 2500)).resolves.toEqual([]);
+
+		expect(lowLimitChain.limit).toHaveBeenCalledWith(1);
+		expect(highLimitChain.limit).toHaveBeenCalledWith(1000);
 	});
 
 	it("requires a session before generating import previews", async () => {

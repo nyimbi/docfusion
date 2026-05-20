@@ -76,6 +76,13 @@ async function requireMatchingUserContext(input: UserContext): Promise<UserConte
 	};
 }
 
+function normalizeImportHistoryLimit(limit: number | undefined, fallback = 20, maximum = 1000): number {
+	if (limit === undefined || !Number.isFinite(limit)) {
+		return fallback;
+	}
+	return Math.max(1, Math.min(maximum, Math.floor(limit)));
+}
+
 /**
  * Get the Drizzle table for a target table name.
  */
@@ -677,7 +684,7 @@ export async function getImportHistory(
 			eq(dataImports.organizationId, currentUserContext.organizationId)
 		))
 		.orderBy(sql`${dataImports.startedAt} DESC`)
-		.limit(limit);
+		.limit(normalizeImportHistoryLimit(limit));
 
 	return records.map((r) => ({
 		id: r.id,
