@@ -7,9 +7,9 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext } from "@/lib/auth-utils";
 import { clients, type ClientRow } from "@/lib/db/schema";
-import { eq, and, ilike, desc } from "drizzle-orm";
+import { eq, and, ilike, desc, sql } from "drizzle-orm";
 import type {
 	Client,
 	CreateClientInput,
@@ -18,19 +18,15 @@ import type {
 	ClientStatus,
 } from "@/lib/types/company";
 
-// ============================================================================
-// Configuration
-// ============================================================================
-
-/** Organization ID for Datacraft */
-const ORGANIZATION_ID = "datacraft";
-
-async function requireCurrentUserId(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
-		throw new Error("Unauthorized");
+async function requireClientContext(): Promise<{ userId: string; organizationId: string }> {
+	const context = await requireUserContext();
+	if (!context.organizationId) {
+		throw new Error("Organization context required");
 	}
-	return userId;
+	return {
+		userId: context.userId,
+		organizationId: context.organizationId,
+	};
 }
 
 // ============================================================================
@@ -41,9 +37,9 @@ async function requireCurrentUserId(): Promise<string> {
  * Get all clients with optional filtering.
  */
 export async function getClients(filters?: ClientFilters): Promise<Client[]> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireClientContext();
 
-	const conditions = [eq(clients.organizationId, ORGANIZATION_ID)];
+	const conditions = [eq(clients.organizationId, organizationId)];
 
 	if (filters?.search) {
 		conditions.push(
@@ -76,7 +72,7 @@ export async function getClients(filters?: ClientFilters): Promise<Client[]> {
  * Get a client by ID.
  */
 export async function getClient(id: string): Promise<Client | null> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireClientContext();
 
 	const [row] = await db
 		.select()
@@ -84,7 +80,7 @@ export async function getClient(id: string): Promise<Client | null> {
 		.where(
 			and(
 				eq(clients.id, id),
-				eq(clients.organizationId, ORGANIZATION_ID)
+				eq(clients.organizationId, organizationId)
 			)
 		);
 
@@ -95,12 +91,12 @@ export async function getClient(id: string): Promise<Client | null> {
  * Create a new client.
  */
 export async function createClient(input: CreateClientInput): Promise<Client> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireClientContext();
 
 	const [row] = await db
 		.insert(clients)
 		.values({
-			organizationId: ORGANIZATION_ID,
+			organizationId,
 			name: input.name,
 			industry: input.industry ?? null,
 			size: input.size ?? null,
@@ -128,7 +124,7 @@ export async function updateClient(
 	id: string,
 	input: UpdateClientInput
 ): Promise<Client> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireClientContext();
 
 	const updateData: Partial<ClientRow> = {
 		updatedAt: new Date(),
@@ -158,7 +154,7 @@ export async function updateClient(
 	const [row] = await db
 		.update(clients)
 		.set(updateData)
-		.where(and(eq(clients.id, id), eq(clients.organizationId, ORGANIZATION_ID)))
+		.where(and(eq(clients.id, id), eq(clients.organizationId, organizationId)))
 		.returning();
 
 	if (!row) {
@@ -175,7 +171,7 @@ export async function updateClientStatus(
 	id: string,
 	status: ClientStatus
 ): Promise<Client> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireClientContext();
 
 	const [row] = await db
 		.update(clients)
@@ -183,7 +179,7 @@ export async function updateClientStatus(
 			status,
 			updatedAt: new Date(),
 		})
-		.where(and(eq(clients.id, id), eq(clients.organizationId, ORGANIZATION_ID)))
+		.where(and(eq(clients.id, id), eq(clients.organizationId, organizationId)))
 		.returning();
 
 	if (!row) {
@@ -197,11 +193,11 @@ export async function updateClientStatus(
  * Delete a client.
  */
 export async function deleteClient(id: string): Promise<void> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireClientContext();
 
 	await db
 		.delete(clients)
-		.where(and(eq(clients.id, id), eq(clients.organizationId, ORGANIZATION_ID)));
+		.where(and(eq(clients.id, id), eq(clients.organizationId, organizationId)));
 }
 
 // ============================================================================
@@ -218,17 +214,17 @@ export async function getClientStats(): Promise<{
 	prospectClients: number;
 	totalContractValue: number;
 }> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireClientContext();
 
 	const counts = await db.execute(
-		`SELECT 
+		sql`SELECT
 			COUNT(*) as total,
 			SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
 			SUM(CASE WHEN status = 'former' THEN 1 ELSE 0 END) as former,
 			SUM(CASE WHEN status = 'prospect' THEN 1 ELSE 0 END) as prospect,
 			SUM(COALESCE(contract_value, 0)) as total_value
-		FROM clients 
-		WHERE organization_id = '${ORGANIZATION_ID}'
+		FROM clients
+		WHERE organization_id = ${organizationId}
 	`);
 
 	const row = counts.rows[0] as Record<string, unknown>;
@@ -246,12 +242,12 @@ export async function getClientStats(): Promise<{
  * Get unique industries.
  */
 export async function getIndustries(): Promise<string[]> {
-	await requireCurrentUserId();
+	const { organizationId } = await requireClientContext();
 
 	const rows = await db
 		.select({ industry: clients.industry })
 		.from(clients)
-		.where(eq(clients.organizationId, ORGANIZATION_ID))
+		.where(eq(clients.organizationId, organizationId))
 		.groupBy(clients.industry)
 		.orderBy(clients.industry);
 
@@ -264,15 +260,15 @@ export async function getIndustries(): Promise<string[]> {
 export async function getClientsByIndustry(): Promise<
 	{ industry: string; count: number; active: number }[]
 > {
-	await requireCurrentUserId();
+	const { organizationId } = await requireClientContext();
 
-	const result = await db.execute(`
-		SELECT 
+	const result = await db.execute(sql`
+			SELECT
 			industry,
 			COUNT(*) as count,
 			SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active
-		FROM clients 
-		WHERE organization_id = '${ORGANIZATION_ID}'
+			FROM clients
+		WHERE organization_id = ${organizationId}
 		GROUP BY industry
 		ORDER BY count DESC
 	`);
