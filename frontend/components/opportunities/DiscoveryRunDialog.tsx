@@ -11,7 +11,10 @@ import {
 } from "@/lib/actions/saved-searches";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import type { DiscoveryImportInput } from "@/lib/services/opportunity-discovery-import";
+import type {
+	DiscoveryImportInput,
+	DiscoveryRunWarning,
+} from "@/lib/services/opportunity-discovery-import";
 
 interface DiscoveryRunDialogProps {
 	open: boolean;
@@ -26,6 +29,12 @@ interface DiscoveryRunSummary {
 	updated: number;
 	skipped: number;
 	failed: number;
+	warnings: DiscoveryRunWarning[];
+	errors: Array<{
+		rowIndex: number;
+		error?: string;
+		data?: { title?: string; rfpLink?: string };
+	}>;
 }
 
 function parseQueries(value: string): string[] {
@@ -190,6 +199,17 @@ export function DiscoveryRunDialog({
 					updated: result.results.updated,
 					skipped: result.results.skipped,
 					failed: result.results.failed,
+					warnings: result.warnings ?? [],
+					errors: result.errors
+						.filter((item) => item.status === "failed")
+						.map((item) => ({
+							rowIndex: item.rowIndex,
+							error: item.error,
+							data: {
+								title: item.data?.title,
+								rfpLink: item.data?.rfpLink,
+							},
+						})),
 				});
 				onCompleted?.();
 			} catch (err) {
@@ -386,8 +406,43 @@ export function DiscoveryRunDialog({
 					</div>
 
 					{summary && (
-						<div className="rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-300">
-							{summary.imported} created, {summary.updated} updated, {summary.skipped} skipped, {summary.failed} failed from {summary.total} results.
+						<div
+							className={cn(
+								"space-y-2 rounded-md border px-3 py-2 text-sm",
+								summary.failed > 0 || summary.warnings.length > 0
+									? "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+									: "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300"
+							)}
+						>
+							<p>
+								{summary.imported} created, {summary.updated} updated, {summary.skipped} skipped, {summary.failed} failed from {summary.total} results.
+							</p>
+							{summary.warnings.length > 0 && (
+								<div>
+									<p className="font-medium">Discovery warnings ({summary.warnings.length})</p>
+									<ul className="mt-1 list-disc space-y-1 pl-5">
+										{summary.warnings.slice(0, 3).map((warning, index) => (
+											<li key={`${warning.type}-${warning.url}-${index}`}>
+												<span className="font-medium">{warning.title}:</span>{" "}
+												{warning.message}
+											</li>
+										))}
+									</ul>
+								</div>
+							)}
+							{summary.errors.length > 0 && (
+								<div>
+									<p className="font-medium">Failed records ({summary.errors.length})</p>
+									<ul className="mt-1 list-disc space-y-1 pl-5">
+										{summary.errors.slice(0, 3).map((item) => (
+											<li key={item.rowIndex}>
+												<span className="font-medium">{item.data?.title ?? `Row ${item.rowIndex}`}:</span>{" "}
+												{item.error ?? "Import failed"}
+											</li>
+										))}
+									</ul>
+								</div>
+							)}
 						</div>
 					)}
 					{error && (

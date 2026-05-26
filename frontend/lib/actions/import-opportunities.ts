@@ -15,7 +15,11 @@ import path from "path";
 import fs from "fs/promises";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { executeOpportunityDiscoveryImport } from "@/lib/services/opportunity-discovery-import";
-import type { DiscoveryImportInput, ImportResultsSummary } from "@/lib/services/opportunity-discovery-import";
+import type {
+	DiscoveryImportInput,
+	DiscoveryImportResult,
+	ImportResultsSummary,
+} from "@/lib/services/opportunity-discovery-import";
 import {
 	detectFormat,
 	processRows,
@@ -38,7 +42,11 @@ import {
 } from "./opportunities";
 
 type ImportFileData = Buffer | ArrayBuffer | Uint8Array;
-export type { DiscoveryImportInput, ImportResultsSummary } from "@/lib/services/opportunity-discovery-import";
+export type {
+	DiscoveryImportInput,
+	DiscoveryImportResult,
+	ImportResultsSummary,
+} from "@/lib/services/opportunity-discovery-import";
 
 // ============================================================================
 // File Processing
@@ -446,11 +454,7 @@ export async function previewImport(
  */
 export async function discoverAndImportOpportunities(
 	input: DiscoveryImportInput = {}
-): Promise<{
-	importId: string;
-	results: ImportResultsSummary;
-	errors: ImportRecordResult[];
-}> {
+): Promise<DiscoveryImportResult> {
 	const userId = await requireCurrentUserId();
 	return executeOpportunityDiscoveryImport(input, userId);
 }

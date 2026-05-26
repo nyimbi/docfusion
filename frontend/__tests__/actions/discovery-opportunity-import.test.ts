@@ -263,6 +263,67 @@ describe("discoverAndImportOpportunities", () => {
 				}),
 			}),
 		}));
+		expect(result.warnings).toEqual([
+			expect.objectContaining({
+				type: "browser_fallback_used",
+				title: "Procurement notice for records platform",
+				url: "https://blocked.example.com/tender/records-platform",
+				message: "SCRAPE_ALL_ENGINES_FAILED",
+			}),
+		]);
+	});
+
+	it("surfaces enrichment warnings when Firecrawl and browser fallback fail but the opportunity is still imported", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Tender for records management system",
+					url: "https://blocked.example.com/tender/records-management",
+					content: "Tender notice with enough search metadata to import.",
+					engine: "brave",
+					score: 9,
+					category: "general",
+				},
+			],
+		});
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "SCRAPE_ALL_ENGINES_FAILED",
+		});
+		fetchMock.mockResolvedValue({
+			ok: false,
+			status: 503,
+			text: async () => "browser unavailable",
+			json: async () => ({ success: false, error: "browser unavailable" }),
+		});
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "records management tender",
+			scrapeTopResults: true,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Tender for records management system",
+			projectSummary: "Tender notice with enough search metadata to import.",
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					scrapedWithFirecrawl: false,
+					scrapedWithBrowserFallback: false,
+					scrapeMethod: "firecrawl",
+					scrapeError: expect.stringContaining("browser fallback"),
+				}),
+			}),
+		}));
+		expect(result.warnings).toEqual([
+			expect.objectContaining({
+				type: "firecrawl_failed",
+				title: "Tender for records management system",
+				url: "https://blocked.example.com/tender/records-management",
+				message: expect.stringContaining("SCRAPE_ALL_ENGINES_FAILED"),
+			}),
+		]);
 	});
 
 	it("records search failures without touching opportunity rows", async () => {

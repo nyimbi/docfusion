@@ -784,6 +784,30 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Check discovery run telemetry and UI surfacing for partial SearXNG/Firecrawl failures.
 
+### 2026-05-26 - Discovery Partial Failure Telemetry
+
+Status: implemented and verified.
+
+Purpose: make live discovery runs operationally honest by surfacing enrichment warnings and failed records instead of showing only aggregate created/updated counts.
+
+Changes in this slice:
+- Add `warnings` to discovery import results for Firecrawl failures, browser fallback failures, and browser fallback recoveries.
+- Preserve imports when search metadata is sufficient while reporting enrichment degradation separately from hard row failures.
+- Surface discovery warnings and failed record details in the live discovery dialog.
+- Update the discovery action return type so callers can consume the warning telemetry.
+- Add focused coverage for browser fallback recovery warnings and Firecrawl/browser fallback failure warnings.
+
+Verification:
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts` passed.
+- `npx tsc --noEmit` passed.
+
+Testing scope note:
+- Full frontend suite, component tests, and production build remain intentionally skipped while on battery. This slice used focused discovery import coverage plus TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Improve discovery run/import history so warning telemetry remains visible after the dialog closes.
+
 ### 2026-05-26 - Actionable DLP Checklist Details
 
 Status: implemented and verified.

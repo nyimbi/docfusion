@@ -51,10 +51,19 @@ export type ImportResultsSummary = {
 	failed: number;
 };
 
+export interface DiscoveryRunWarning {
+	type: "firecrawl_failed" | "browser_fallback_failed" | "browser_fallback_used";
+	query: string;
+	title: string;
+	url: string;
+	message: string;
+}
+
 export interface DiscoveryImportResult {
 	importId: string;
 	results: ImportResultsSummary;
 	errors: ImportRecordResult[];
+	warnings: DiscoveryRunWarning[];
 }
 
 const DEFAULT_DISCOVERY_QUERIES = [
@@ -291,6 +300,42 @@ function isUsefulBrowserFallback(scrape: DiscoveryCandidate["scrape"]): boolean 
 	);
 }
 
+function collectDiscoveryWarnings(candidates: DiscoveryCandidate[]): DiscoveryRunWarning[] {
+	const warnings: DiscoveryRunWarning[] = [];
+	for (const candidate of candidates) {
+		if (!candidate.scrape) continue;
+		const base = {
+			query: candidate.query,
+			title: candidate.result.title,
+			url: candidate.result.url,
+		};
+		if (candidate.scrape.method === "browser_fallback" && candidate.scrape.success) {
+			warnings.push({
+				...base,
+				type: "browser_fallback_used",
+				message: candidate.scrape.fallbackReason ?? "Firecrawl required browser fallback",
+			});
+			continue;
+		}
+		if (candidate.scrape.method === "browser_fallback" && !candidate.scrape.success) {
+			warnings.push({
+				...base,
+				type: "browser_fallback_failed",
+				message: candidate.scrape.error ?? candidate.scrape.fallbackReason ?? "Browser fallback failed",
+			});
+			continue;
+		}
+		if (candidate.scrape.method === "firecrawl" && !candidate.scrape.success) {
+			warnings.push({
+				...base,
+				type: "firecrawl_failed",
+				message: candidate.scrape.error ?? "Firecrawl scrape failed",
+			});
+		}
+	}
+	return warnings;
+}
+
 async function scrapeWithBrowserFallback(
 	url: string,
 	fallbackReason: string
@@ -398,6 +443,7 @@ export async function executeOpportunityDiscoveryImport(
 			input
 		);
 	}
+	const warnings = collectDiscoveryWarnings(candidates);
 
 	const totalRecords = candidates.length + searchFailures.length;
 	const importId = await createImportRecord("searxng-discovery", totalRecords, {
@@ -477,5 +523,6 @@ export async function executeOpportunityDiscoveryImport(
 		importId,
 		results: importResults,
 		errors: allErrors,
+		warnings,
 	};
 }
