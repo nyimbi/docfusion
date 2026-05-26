@@ -9,6 +9,13 @@ const { requireUserContextMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth-utils", () => ({
 	requireUserContext: requireUserContextMock,
+	userHasAuthorityRole: (context: { role?: string | null; roles?: string[] | null }, requiredRole: string) => {
+		const roles = new Set([
+			context.role,
+			...(context.roles ?? []),
+		].filter(Boolean).map((role) => String(role).trim().toLowerCase()));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	},
 }));
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
@@ -458,6 +465,72 @@ describe("document authoring workflow", () => {
 			assignedTo: "reviewer-1",
 			assignedRole: "proposal_reviewer",
 			terminal: false,
+		}));
+	});
+
+	it("rejects ready approval when the session lacks proposal authority", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["writer"],
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [documentRow] }))
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }));
+
+		await expect(
+			transitionDocumentAuthoringWorkflow({
+				documentId: "doc-1",
+				proposalDocumentId: "proposal-doc-1",
+				action: "mark_ready",
+				reason: "Ready for final approval",
+			})
+		).rejects.toThrow("requires proposal_manager or capture_manager");
+
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("marks a proposal document ready only for a proposal authority session", async () => {
+		let documentPatch: Record<string, unknown> | undefined;
+		let proposalPatch: Record<string, unknown> | undefined;
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["proposal_manager"],
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [documentRow] }))
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }));
+		dbMock.update
+			.mockReturnValueOnce(createChain({
+				result: [{ ...documentRow, status: "approved" }],
+				onSet: (value) => {
+					documentPatch = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ ...proposalDocument, status: "approved", approvedBy: "writer-1" }],
+				onSet: (value) => {
+					proposalPatch = value;
+				},
+			}));
+
+		const result = await transitionDocumentAuthoringWorkflow({
+			documentId: "doc-1",
+			proposalDocumentId: "proposal-doc-1",
+			action: "mark_ready",
+			reason: "Ready for final approval",
+		});
+
+		expect(result.toState).toBe("ready");
+		expect(documentPatch).toMatchObject({ status: "approved" });
+		expect(proposalPatch).toMatchObject({
+			status: "approved",
+			approvedBy: "writer-1",
+		});
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
+			toState: "ready",
+			terminal: true,
 		}));
 	});
 

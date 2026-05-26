@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Document Authoring Ready Approval Authority Checks
+
+Status: implemented and verified.
+
+Purpose: prevent the authoring workflow from marking proposal documents approved through `mark_ready` without proposal approval authority.
+
+Changes in this slice:
+- Require proposal or capture authority before authoring `mark_ready` can set document/proposal status to approved.
+- Require the same authority before authoring `reopen` clears approval fields.
+- Preserve drafting, persistence, review submission, and AI accept/reject transitions for writer sessions.
+- Add focused denial and authorized-ready coverage for the authoring workflow.
+
+Verification:
+- `npm run test -- __tests__/actions/document-authoring-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets authoring ready-approval authority with focused workflow tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct approval/status mutation surfaces outside the hardened final-mile workflows.
+- Add linked-requirement readiness checks to authoring `mark_ready` if product intent is that ready equals proposal approval.
+
 ### 2026-05-26 - Proposal Document Direct Approval Authority Checks
 
 Status: implemented and verified.

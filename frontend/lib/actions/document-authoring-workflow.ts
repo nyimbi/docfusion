@@ -9,7 +9,11 @@ import {
 	proposalDocuments,
 	templates,
 } from "@/lib/db/schema";
-import { requireUserContext } from "@/lib/auth-utils";
+import {
+	requireUserContext,
+	userHasAuthorityRole,
+	type UserContext,
+} from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
@@ -308,6 +312,7 @@ export async function transitionDocumentAuthoringWorkflow(
 		? await loadProposalDocument(input.proposalDocumentId, userContext.userId)
 		: null;
 	const section = input.sectionId ? await loadSection(input.sectionId, userContext.userId) : null;
+	requireAuthoringApprovalAuthority(userContext, input.action);
 	const fromState = authoringState(document, proposalDocument, section);
 	const transition = buildAuthoringTransition(input, document, proposalDocument, section, userContext.userId);
 	const updatedDocument = await applyDocumentPatch(input, document, transition.documentPatch, userContext.userId, reason);
@@ -419,6 +424,22 @@ async function loadSection(id: string, actorId: string): Promise<SectionRow> {
 		throw new Error("Document section not found");
 	}
 	return section;
+}
+
+function requireAuthoringApprovalAuthority(
+	userContext: UserContext,
+	action: DocumentAuthoringAction
+) {
+	if (action !== "mark_ready" && action !== "reopen") {
+		return;
+	}
+	const requiredRoles = ["proposal_manager", "capture_manager"];
+	if (requiredRoles.some((role) => userHasAuthorityRole(userContext, role))) {
+		return;
+	}
+	throw new Error(
+		`Marking proposal authoring ready or reopening approval requires proposal approval authority: requires ${requiredRoles.join(" or ")}`
+	);
 }
 
 async function createProposalLink(input: {
