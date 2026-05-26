@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Scraper Run Authority Denial Responses
+
+Status: implemented and verified.
+
+Purpose: make individual scraper run and cancel API routes return explicit 403 responses when the workflow authority layer denies the operation instead of surfacing authority failures as generic 500 errors.
+
+Changes in this slice:
+- Map manual scraper run `WorkflowAuthorityDeniedError` failures to generic 403 `Forbidden` responses.
+- Map scraper job cancellation authority denials to generic 403 `Forbidden` responses.
+- Add focused route coverage for run and cancel authority denial responses.
+
+Verification:
+- `npm run test -- __tests__/api/scraper-run-routes.test.ts __tests__/api/scraper-batch-route.test.ts __tests__/actions/scraper-workflows.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets scraper run/cancel API authority response behavior with focused route/action tests and whitespace validation.
+
+Remaining after this slice:
+- Continue checking API routes that wrap authority-enforced workflows and currently collapse authorization denials into generic success/error envelopes.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Scraper Batch Authority Denial Response
 
 Status: implemented and verified.

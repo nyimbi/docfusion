@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireScraperAccess } from "@/lib/scrapers/api-auth";
 import { scraperQueue } from "@/lib/scrapers/queue";
 import { startScraperSourceRunWorkflow } from "@/lib/actions/scraper-workflows";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 
 export async function POST(request: NextRequest) {
 	try {
@@ -67,6 +68,12 @@ export async function POST(request: NextRequest) {
 		});
 
 	} catch (error) {
+		if (error instanceof WorkflowAuthorityDeniedError) {
+			return NextResponse.json(
+				{ success: false, message: "Forbidden" },
+				{ status: 403 }
+			);
+		}
 		console.error("Error triggering scraper run:", error);
 		return NextResponse.json(
 			{

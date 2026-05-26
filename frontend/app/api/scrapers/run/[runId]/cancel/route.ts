@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireScraperAccess } from "@/lib/scrapers/api-auth";
 import { cancelScraperJobWorkflow } from "@/lib/actions/scraper-workflows";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 
 export async function POST(
 	request: NextRequest,
@@ -48,6 +49,12 @@ export async function POST(
 		);
 
 	} catch (error) {
+		if (error instanceof WorkflowAuthorityDeniedError) {
+			return NextResponse.json(
+				{ success: false, message: "Forbidden" },
+				{ status: 403 }
+			);
+		}
 		console.error("Error cancelling job:", error);
 		return NextResponse.json(
 			{
