@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Capture Pipeline Platform Proof Scenario
+
+Status: implemented and verified.
+
+Purpose: make capture pipeline tenant-scope and auth coverage part of the durable platform-proof manifest instead of leaving it as an ad hoc test command.
+
+Changes in this slice:
+- Add `wave4-capture-pipeline-scope` to the platform-proof scenario manifest.
+- Cover `pipeline-scope.test.ts` and `pipeline-auth.test.ts` under the Wave 4 planning/capture proof family.
+- Close the earlier pipeline slice's gap that noted there was no dedicated platform-proof scenario for pipeline coverage.
+
+Verification:
+- `npm run platform:proof -- --run wave4-capture-pipeline-scope` from `frontend/` passed, running 2 pipeline test files and 11 tests.
+- `npm test -- platform-proof-scenarios.test.ts` from `frontend/` passed, running 3 manifest tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Prove a selected discovered opportunity can drive RFP/document intake and response-package generation end to end.
+- Add an environment-backed persistence proof only when a reachable test database is available.
+
 ### 2026-05-27 - Discovery Import Tenant Persistence Proof
 
 Status: implemented and verified.

@@ -174,6 +174,20 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: ["vitest:proposal-task-workflow", "vitest:review-comment-workflow", "vitest:clarification-workflow"],
 	},
 	{
+		id: "wave4-capture-pipeline-scope",
+		wave: 4,
+		title: "Wave 4 capture pipeline tenant-scope coverage",
+		kind: "integration",
+		proofTargets: ["F-013", "F-014", "UX-003"],
+		requiresLiveServices: false,
+		description: "Validates capture pipeline actions, analytics, gates, activities, milestones, and auth checks stay scoped through the owning opportunity tenant.",
+		command: {
+			command: "npm",
+			args: ["test", "--", "pipeline-scope.test.ts", "pipeline-auth.test.ts"],
+		},
+		expectedArtifacts: ["vitest:pipeline-scope", "vitest:pipeline-auth"],
+	},
+	{
 		id: "wave5-ai-content-governance",
 		wave: 5,
 		title: "Wave 5 AI and content governance coverage",
