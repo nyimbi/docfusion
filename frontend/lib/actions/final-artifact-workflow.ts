@@ -30,6 +30,27 @@ type ResponsePackageWorkflowRow = Pick<
 >;
 type FinalArtifactUserContext = UserContext & { organizationId: string };
 
+interface ResponsePackageReadinessSnapshot {
+	workflowInstanceId: string;
+	workflowState: string;
+	status: "ready_for_review" | "blocked" | "unknown";
+	blockers: string[];
+	warnings: string[];
+	missingRequirementIds: string[];
+	metrics: {
+		requirementCoverage: number;
+		documentsDrafted: number;
+		sectionsDrafted: number;
+		complianceEntriesCreated: number;
+		totalDraftWordCount: number;
+		minDocumentDraftWordCount: number;
+		evidenceChecklistCoverage: number;
+		reviewGateCoverage: number;
+		winThemeCoverage: number;
+		unresolvedPlaceholderCount: number;
+	};
+}
+
 export type FinalArtifactAction = "request_render" | "render" | "approve" | "signoff" | "reopen";
 
 export interface FinalArtifactManifest {
@@ -53,6 +74,7 @@ export interface FinalArtifactManifest {
 	sourceContentHash: string;
 	renderTimeMs: number | null;
 	pageCount: number | null;
+	responsePackageReadiness?: ResponsePackageReadinessSnapshot;
 }
 
 export interface FinalArtifactWorkflowInput {
@@ -187,12 +209,13 @@ export async function transitionFinalArtifactWorkflow(
 	const proposalDocument = await loadProposalDocument(input, finalArtifactContext);
 	const document = await loadDocument(input.documentId, finalArtifactContext, proposalDocument, input.opportunityId);
 	const fromState = finalArtifactState(document, proposalDocument);
-	await assertResponsePackageReadyForFinalRender(input, proposalDocument, finalArtifactContext);
+	const responsePackageReadiness = await assertResponsePackageReadyForFinalRender(input, proposalDocument, finalArtifactContext);
 	const transition = await buildTransition({
 		input,
 		document,
 		proposalDocument,
 		actor: userContext,
+		responsePackageReadiness,
 	});
 
 	const [updatedDocument] = await db
@@ -244,6 +267,7 @@ export async function transitionFinalArtifactWorkflow(
 			filename: transition.artifact?.filename ?? null,
 			size: transition.artifact?.size ?? null,
 			approvalRole: input.approvalRole ?? null,
+			responsePackageReadiness: transition.artifact?.responsePackageReadiness ?? responsePackageReadiness,
 		},
 		terminal: transition.terminal,
 		actionUrl: `/documents/${input.documentId}`,
@@ -266,6 +290,7 @@ export async function transitionFinalArtifactWorkflow(
 			fromState,
 			toState: transition.toState,
 			artifactHash: transition.artifact?.artifactHash ?? null,
+			responsePackageReadiness: transition.artifact?.responsePackageReadiness ?? responsePackageReadiness,
 		},
 	});
 
@@ -286,6 +311,7 @@ async function buildTransition(input: {
 	document: DocumentRow;
 	proposalDocument: ProposalDocumentRow | null;
 	actor: UserContext;
+	responsePackageReadiness: ResponsePackageReadinessSnapshot | null;
 }): Promise<{
 	toState: string;
 	terminal: boolean;
@@ -314,6 +340,7 @@ async function buildTransition(input: {
 							requestedAt: now.toISOString(),
 							requestedBy: input.actor.userId,
 							format: input.input.format ?? "pdf",
+							responsePackageReadiness: input.responsePackageReadiness,
 						},
 					}),
 					updatedAt: now,
@@ -347,6 +374,7 @@ async function buildTransition(input: {
 				renderedAt: now,
 				sourceDocumentVersion: input.document.currentVersion ?? null,
 				sourceContentHash: hashDocumentSource(input.document),
+				responsePackageReadiness: input.responsePackageReadiness ?? undefined,
 				renderResult: {
 					data: renderResult.data,
 					filename: renderResult.filename,
@@ -393,6 +421,7 @@ async function buildTransition(input: {
 							approvedAt: now.toISOString(),
 							approvedBy: input.actor.userId,
 							approvalRole,
+							responsePackageReadiness: artifact.responsePackageReadiness ?? null,
 						},
 					}),
 					updatedAt: now,
@@ -427,12 +456,14 @@ async function buildTransition(input: {
 							signedAt: now.toISOString(),
 							signedBy: input.actor.userId,
 							signoffRole: approvalRole,
+							responsePackageReadiness: artifact.responsePackageReadiness ?? null,
 						},
 						finalArtifactWorkflow: {
 							state: "submission_signed_off",
 							signedAt: now.toISOString(),
 							signedBy: input.actor.userId,
 							signoffRole: approvalRole,
+							responsePackageReadiness: artifact.responsePackageReadiness ?? null,
 						},
 					}),
 					updatedAt: now,
@@ -529,16 +560,16 @@ async function assertResponsePackageReadyForFinalRender(
 	input: FinalArtifactWorkflowInput,
 	proposalDocument: ProposalDocumentRow | null,
 	userContext: FinalArtifactUserContext
-): Promise<void> {
+): Promise<ResponsePackageReadinessSnapshot | null> {
 	if (!["request_render", "render"].includes(input.action)) {
-		return;
+		return null;
 	}
 	if (input.action === "render" && input.allowDraftRender) {
-		return;
+		return null;
 	}
 	const opportunityId = proposalDocument?.opportunityId ?? input.opportunityId ?? null;
 	if (!opportunityId) {
-		return;
+		return null;
 	}
 
 	const [instance] = await db
@@ -563,16 +594,12 @@ async function assertResponsePackageReadyForFinalRender(
 	if (readiness.status !== "ready_for_review") {
 		throw new Error(`Response package readiness is blocked before final rendering: ${responsePackageReadinessFailureMessage(readiness)}`);
 	}
+	return readiness;
 }
 
 function responsePackageReadinessFromWorkflow(
 	instance: ResponsePackageWorkflowRow | undefined
-): {
-	status: "ready_for_review" | "blocked" | "unknown";
-	blockers: string[];
-	missingRequirementIds: string[];
-	requirementCoverage: number;
-} | null {
+): ResponsePackageReadinessSnapshot | null {
 	if (!instance) {
 		return null;
 	}
@@ -582,12 +609,26 @@ function responsePackageReadinessFromWorkflow(
 	}
 	const metrics = asRecord(readiness.metrics);
 	return {
+		workflowInstanceId: instance.id,
+		workflowState: instance.state,
 		status: readiness.status === "ready_for_review" || readiness.status === "blocked"
 			? readiness.status
 			: "unknown",
 		blockers: stringArray(readiness.blockers),
+		warnings: stringArray(readiness.warnings),
 		missingRequirementIds: stringArray(readiness.missingRequirementIds),
-		requirementCoverage: clampRatio(numberMetric(metrics.requirementCoverage)),
+		metrics: {
+			requirementCoverage: clampRatio(numberMetric(metrics.requirementCoverage)),
+			documentsDrafted: numberMetric(metrics.documentsDrafted),
+			sectionsDrafted: numberMetric(metrics.sectionsDrafted),
+			complianceEntriesCreated: numberMetric(metrics.complianceEntriesCreated),
+			totalDraftWordCount: numberMetric(metrics.totalDraftWordCount),
+			minDocumentDraftWordCount: numberMetric(metrics.minDocumentDraftWordCount),
+			evidenceChecklistCoverage: clampRatio(numberMetric(metrics.evidenceChecklistCoverage)),
+			reviewGateCoverage: clampRatio(numberMetric(metrics.reviewGateCoverage)),
+			winThemeCoverage: clampRatio(numberMetric(metrics.winThemeCoverage)),
+			unresolvedPlaceholderCount: numberMetric(metrics.unresolvedPlaceholderCount),
+		},
 	};
 }
 
@@ -598,7 +639,7 @@ function responsePackageReadinessFailureMessage(readiness: NonNullable<ReturnTyp
 	const blockerSummary = readiness.blockers.length > 0
 		? readiness.blockers.slice(0, 3).join("; ")
 		: `${readiness.missingRequirementIds.length} accepted requirement${readiness.missingRequirementIds.length === 1 ? "" : "s"} missing from the response package`;
-	return `${Math.round(readiness.requirementCoverage * 100)}% accepted requirement coverage; ${blockerSummary}`;
+	return `${Math.round(readiness.metrics.requirementCoverage * 100)}% accepted requirement coverage; ${blockerSummary}`;
 }
 
 function enforceRenderable(
@@ -629,6 +670,7 @@ async function buildStoredManifest(input: {
 	renderedAt: Date;
 	sourceDocumentVersion: number | null;
 	sourceContentHash: string;
+	responsePackageReadiness?: ResponsePackageReadinessSnapshot;
 	renderResult: {
 		data: string;
 		filename: string;
@@ -660,6 +702,8 @@ async function buildStoredManifest(input: {
 			format: input.format,
 			sha256: artifactHash,
 			"rendered-by": input.renderedBy,
+			"response-readiness-status": input.responsePackageReadiness?.status ?? "",
+			"response-readiness-workflow-id": input.responsePackageReadiness?.workflowInstanceId ?? "",
 		},
 	});
 	const downloadUrl = `/api/v1/documents/${input.documentId}/final-artifact?artifactHash=${artifactHash}&filename=${encodeURIComponent(input.renderResult.filename)}`;
@@ -684,6 +728,7 @@ async function buildStoredManifest(input: {
 		sourceContentHash: input.sourceContentHash,
 		renderTimeMs: input.renderResult.renderTimeMs ?? null,
 		pageCount: input.renderResult.pageCount ?? null,
+		responsePackageReadiness: input.responsePackageReadiness,
 	};
 }
 
@@ -748,6 +793,7 @@ function mergeRenderedArtifact(metadata: unknown, artifact: FinalArtifactManifes
 			lastRenderedAt: artifact.renderedAt,
 			lastRenderedBy: artifact.renderedBy,
 			lastArtifactHash: artifact.artifactHash,
+			responsePackageReadiness: artifact.responsePackageReadiness ?? null,
 		},
 	};
 }

@@ -237,8 +237,35 @@ const readyResponsePackageWorkflow = {
 				documentsDrafted: 3,
 				sectionsDrafted: 9,
 				complianceEntriesCreated: 3,
+				totalDraftWordCount: 1400,
+				minDocumentDraftWordCount: 220,
+				evidenceChecklistCoverage: 1,
+				reviewGateCoverage: 1,
+				winThemeCoverage: 1,
+				unresolvedPlaceholderCount: 0,
 			},
 		},
+	},
+};
+
+const responseReadinessSnapshot = {
+	workflowInstanceId: "response-package-workflow-1",
+	workflowState: "response_package_drafted",
+	status: "ready_for_review",
+	blockers: [],
+	warnings: [],
+	missingRequirementIds: [],
+	metrics: {
+		requirementCoverage: 1,
+		documentsDrafted: 3,
+		sectionsDrafted: 9,
+		complianceEntriesCreated: 3,
+		totalDraftWordCount: 1400,
+		minDocumentDraftWordCount: 220,
+		evidenceChecklistCoverage: 1,
+		reviewGateCoverage: 1,
+		winThemeCoverage: 1,
+		unresolvedPlaceholderCount: 0,
 	},
 };
 
@@ -318,6 +345,7 @@ describe("final artifact workflow", () => {
 				state: "render_requested",
 				requestedBy: "production-lead-1",
 				format: "docx",
+				responsePackageReadiness: responseReadinessSnapshot,
 			},
 		});
 		expect(wheres).toHaveLength(3);
@@ -453,6 +481,7 @@ describe("final artifact workflow", () => {
 			format: "docx",
 			filename: "technical-approach.docx",
 			artifactHash: renderedHash,
+			responsePackageReadiness: responseReadinessSnapshot,
 			size: Buffer.byteLength("rendered final proposal"),
 			renderedBy: "production-lead-1",
 			renderTimeMs: 42,
@@ -474,6 +503,8 @@ describe("final artifact workflow", () => {
 					"proposal-document-id": "proposal-doc-1",
 					"opportunity-id": "opp-1",
 					sha256: renderedHash,
+					"response-readiness-status": "ready_for_review",
+					"response-readiness-workflow-id": "response-package-workflow-1",
 				}),
 			})
 		);
@@ -482,12 +513,14 @@ describe("final artifact workflow", () => {
 				docx: expect.objectContaining({
 					artifactHash: renderedHash,
 					storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
+					responsePackageReadiness: responseReadinessSnapshot,
 				}),
 			},
 			finalArtifactWorkflow: {
 				state: "artifact_rendered",
 				lastRenderedBy: "production-lead-1",
 				lastArtifactHash: renderedHash,
+				responsePackageReadiness: responseReadinessSnapshot,
 			},
 		});
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
@@ -499,6 +532,7 @@ describe("final artifact workflow", () => {
 				metadata: expect.objectContaining({
 					artifactHash: renderedHash,
 					filename: "technical-approach.docx",
+					responsePackageReadiness: responseReadinessSnapshot,
 				}),
 			})
 		);
@@ -563,7 +597,7 @@ describe("final artifact workflow", () => {
 	});
 
 	it("approves a rendered artifact and marks the proposal document final", async () => {
-		const artifact = storedArtifact();
+		const artifact = storedArtifact({ responsePackageReadiness: responseReadinessSnapshot });
 		let documentPatch: Record<string, unknown> | undefined;
 		let proposalPatch: Record<string, unknown> | undefined;
 		let proposalUpdateWhere: unknown;
@@ -610,6 +644,7 @@ describe("final artifact workflow", () => {
 					artifactHash: renderedHash,
 					approvedBy: "production-lead-1",
 					approvalRole: "proposal_manager",
+					responsePackageReadiness: responseReadinessSnapshot,
 				}),
 			},
 		});
@@ -625,6 +660,7 @@ describe("final artifact workflow", () => {
 				authorityPolicy: { requiredRoles: ["proposal_manager"] },
 				metadata: expect.objectContaining({
 					organizationId: "org-1",
+					responsePackageReadiness: responseReadinessSnapshot,
 				}),
 			})
 		);
@@ -663,7 +699,7 @@ describe("final artifact workflow", () => {
 	});
 
 	it("records executive signoff only after the final artifact is approved", async () => {
-		const artifact = storedArtifact();
+		const artifact = storedArtifact({ responsePackageReadiness: responseReadinessSnapshot });
 		let documentPatch: Record<string, unknown> | undefined;
 		let proposalPatch: Record<string, unknown> | undefined;
 		dbMock.select
@@ -707,11 +743,13 @@ describe("final artifact workflow", () => {
 			finalSubmissionSignoff: {
 				signedBy: "production-lead-1",
 				signoffRole: "executive_or_legal",
+				responsePackageReadiness: responseReadinessSnapshot,
 			},
 			finalArtifactWorkflow: {
 				state: "submission_signed_off",
 				signedBy: "production-lead-1",
 				signoffRole: "executive_or_legal",
+				responsePackageReadiness: responseReadinessSnapshot,
 			},
 		});
 		expect(proposalPatch).toMatchObject({
@@ -723,6 +761,9 @@ describe("final artifact workflow", () => {
 				eventType: "final_artifact_signoff",
 				terminal: true,
 				authorityPolicy: { requiredRoles: ["executive_or_legal"] },
+				metadata: expect.objectContaining({
+					responsePackageReadiness: responseReadinessSnapshot,
+				}),
 			})
 		);
 	});
