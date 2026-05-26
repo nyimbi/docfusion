@@ -11,7 +11,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, or, type SQL } from "drizzle-orm";
 import { requireServerSession } from "@/lib/auth-utils";
 import { db } from "@/lib/db";
 import { opportunities, opportunityDocuments } from "@/lib/db/schema";
@@ -31,22 +31,52 @@ import {
 import { discoverDocumentsWithAgent } from "@/lib/services/document-discovery-agent";
 import { logger } from "@/lib/utils/logger";
 
-async function requireOpportunityDocumentUserId(): Promise<string> {
+type OpportunityDocumentActor = {
+  userId: string;
+  organizationId: string;
+};
+
+async function requireOpportunityDocumentActor(): Promise<OpportunityDocumentActor> {
   const session = await requireServerSession();
   if (!session?.user?.id) {
     throw new Error("Unauthorized");
   }
-  return session.user.id;
+  const organizationId = (session.user as { organizationId?: string }).organizationId;
+  if (!organizationId) {
+    throw new Error("No organization context");
+  }
+  return {
+    userId: session.user.id,
+    organizationId,
+  };
+}
+
+function opportunityOrganizationCondition(organizationId: string): SQL {
+  return or(
+    eq(opportunities.organizationId, organizationId),
+    isNull(opportunities.organizationId)
+  )!;
+}
+
+function opportunityDocumentOrganizationCondition(organizationId: string): SQL {
+  return or(
+    eq(opportunityDocuments.organizationId, organizationId),
+    isNull(opportunityDocuments.organizationId)
+  )!;
 }
 
 async function assertAssignedOpportunityAccess(
   opportunityId: string,
-  userId: string
+  actor: OpportunityDocumentActor
 ): Promise<void> {
   const [row] = await db
     .select({ id: opportunities.id })
     .from(opportunities)
-    .where(and(eq(opportunities.id, opportunityId), eq(opportunities.assignedTo, userId)))
+    .where(and(
+      eq(opportunities.id, opportunityId),
+      opportunityOrganizationCondition(actor.organizationId),
+      eq(opportunities.assignedTo, actor.userId)
+    ))
     .limit(1);
 
   if (!row) {
@@ -56,9 +86,10 @@ async function assertAssignedOpportunityAccess(
 
 async function getAssignedOpportunitySource(
   opportunityId: string,
-  userId: string
+  actor: OpportunityDocumentActor
 ): Promise<{
   id: string;
+  organizationId: string | null;
   title: string;
   rfpLink: string | null;
   portalUrl: string | null;
@@ -67,13 +98,18 @@ async function getAssignedOpportunitySource(
   const [row] = await db
     .select({
       id: opportunities.id,
+      organizationId: opportunities.organizationId,
       title: opportunities.title,
       rfpLink: opportunities.rfpLink,
       portalUrl: opportunities.portalUrl,
       documentUrl: opportunities.documentUrl,
     })
     .from(opportunities)
-    .where(and(eq(opportunities.id, opportunityId), eq(opportunities.assignedTo, userId)))
+    .where(and(
+      eq(opportunities.id, opportunityId),
+      opportunityOrganizationCondition(actor.organizationId),
+      eq(opportunities.assignedTo, actor.userId)
+    ))
     .limit(1);
 
   if (!row) {
@@ -85,7 +121,7 @@ async function getAssignedOpportunitySource(
 
 async function assertAssignedDocumentAccess(
   documentId: string,
-  userId: string
+  actor: OpportunityDocumentActor
 ): Promise<{ opportunityId: string }> {
   const [row] = await db
     .select({
@@ -94,7 +130,12 @@ async function assertAssignedDocumentAccess(
     })
     .from(opportunityDocuments)
     .innerJoin(opportunities, eq(opportunityDocuments.opportunityId, opportunities.id))
-    .where(and(eq(opportunityDocuments.id, documentId), eq(opportunities.assignedTo, userId)))
+    .where(and(
+      eq(opportunityDocuments.id, documentId),
+      opportunityDocumentOrganizationCondition(actor.organizationId),
+      opportunityOrganizationCondition(actor.organizationId),
+      eq(opportunities.assignedTo, actor.userId)
+    ))
     .limit(1);
 
   if (!row) {
@@ -133,8 +174,8 @@ export async function discoverOpportunityDocuments(
   error?: string;
 }> {
   try {
-    const userId = await requireOpportunityDocumentUserId();
-    await assertAssignedOpportunityAccess(opportunityId, userId);
+    const actor = await requireOpportunityDocumentActor();
+    await assertAssignedOpportunityAccess(opportunityId, actor);
 
     // Use the AI discovery agent
     const result = await discoverDocumentsWithAgent(opportunityId, 5, sourceUrl);
@@ -183,8 +224,8 @@ export async function discoverOpportunityDocumentsLegacy(
   error?: string;
 }> {
   try {
-    const userId = await requireOpportunityDocumentUserId();
-    await assertAssignedOpportunityAccess(opportunityId, userId);
+    const actor = await requireOpportunityDocumentActor();
+    await assertAssignedOpportunityAccess(opportunityId, actor);
 
     const result = await discoverDocuments(opportunityId, sourceUrl);
 
@@ -218,8 +259,8 @@ export async function discoverOpportunityDocumentsLegacy(
  */
 export async function getOpportunityDocumentsAction(opportunityId: string) {
   try {
-    const userId = await requireOpportunityDocumentUserId();
-    await assertAssignedOpportunityAccess(opportunityId, userId);
+    const actor = await requireOpportunityDocumentActor();
+    await assertAssignedOpportunityAccess(opportunityId, actor);
 
     const documents = await getOpportunityDocuments(opportunityId);
     
@@ -250,8 +291,8 @@ export async function ingestOpportunitySourceDocument(
   opportunityId: string
 ): Promise<DownloadResult & { status?: "already_downloaded" | "queued_from_source" }> {
   try {
-    const userId = await requireOpportunityDocumentUserId();
-    const opportunity = await getAssignedOpportunitySource(opportunityId, userId);
+    const actor = await requireOpportunityDocumentActor();
+    const opportunity = await getAssignedOpportunitySource(opportunityId, actor);
     const sourceUrl = opportunity.documentUrl || opportunity.rfpLink;
     if (!sourceUrl) {
       return {
@@ -263,6 +304,7 @@ export async function ingestOpportunitySourceDocument(
     const existing = await db.query.opportunityDocuments.findFirst({
       where: and(
         eq(opportunityDocuments.opportunityId, opportunityId),
+        opportunityDocumentOrganizationCondition(actor.organizationId),
         eq(opportunityDocuments.sourceUrl, sourceUrl)
       ),
     });
@@ -285,10 +327,11 @@ export async function ingestOpportunitySourceDocument(
     const documentId = existing?.id ?? (await createSourceOpportunityDocument(
       opportunityId,
       sourceUrl,
-      opportunity.title
+      opportunity.title,
+      opportunity.organizationId ?? actor.organizationId
     ));
 
-    const result = await downloadDocument(documentId, userId, opportunityId);
+    const result = await downloadDocument(documentId, actor.userId, opportunityId);
     if (result.success) {
       revalidatePath(`/opportunities/${opportunityId}`);
     }
@@ -314,11 +357,11 @@ export async function downloadOpportunityDocument(
   documentId: string
 ) {
   try {
-    const userId = await requireOpportunityDocumentUserId();
-    const documentAccess = await assertAssignedDocumentAccess(documentId, userId);
+    const actor = await requireOpportunityDocumentActor();
+    const documentAccess = await assertAssignedDocumentAccess(documentId, actor);
     assertDocumentBelongsToOpportunity(documentAccess.opportunityId, opportunityId);
 
-    const result = await downloadDocument(documentId, userId, opportunityId);
+    const result = await downloadDocument(documentId, actor.userId, opportunityId);
 
     if (result.success) {
       revalidatePath(`/opportunities/${opportunityId}`);
@@ -392,9 +435,11 @@ async function getLinkedRfpParseReference(
 async function createSourceOpportunityDocument(
   opportunityId: string,
   sourceUrl: string,
-  opportunityTitle: string
+  opportunityTitle: string,
+  organizationId: string
 ): Promise<string> {
   const [row] = await db.insert(opportunityDocuments).values({
+    organizationId,
     opportunityId,
     documentName: sourceDocumentName(sourceUrl, opportunityTitle),
     documentType: inferSourceDocumentType(sourceUrl),
@@ -410,7 +455,10 @@ async function createSourceOpportunityDocument(
       documentsDiscoveredAt: new Date(),
       lastDocumentScanAt: new Date(),
     })
-    .where(eq(opportunities.id, opportunityId));
+    .where(and(
+      eq(opportunities.id, opportunityId),
+      opportunityOrganizationCondition(organizationId)
+    ));
 
   return row.id;
 }
@@ -426,10 +474,10 @@ export async function downloadSelectedOpportunityDocuments(opportunityId: string
   results: DownloadResult[];
 }> {
   try {
-    const userId = await requireOpportunityDocumentUserId();
-    await assertAssignedOpportunityAccess(opportunityId, userId);
+    const actor = await requireOpportunityDocumentActor();
+    await assertAssignedOpportunityAccess(opportunityId, actor);
 
-    const result = await downloadSelectedDocuments(opportunityId, userId);
+    const result = await downloadSelectedDocuments(opportunityId, actor.userId);
 
     revalidatePath(`/opportunities/${opportunityId}`);
 
@@ -463,8 +511,8 @@ export async function toggleDocumentSelection(
   isSelected: boolean
 ) {
   try {
-    const userId = await requireOpportunityDocumentUserId();
-    await assertAssignedDocumentAccess(documentId, userId);
+    const actor = await requireOpportunityDocumentActor();
+    await assertAssignedDocumentAccess(documentId, actor);
 
     const result = await updateDocumentSelection(documentId, isSelected);
     
@@ -489,8 +537,8 @@ export async function toggleAllDocumentSelections(
   isSelected: boolean
 ) {
   try {
-    const userId = await requireOpportunityDocumentUserId();
-    await assertAssignedOpportunityAccess(opportunityId, userId);
+    const actor = await requireOpportunityDocumentActor();
+    await assertAssignedOpportunityAccess(opportunityId, actor);
 
     await updateAllDocumentSelections(opportunityId, isSelected);
 
@@ -521,8 +569,8 @@ export async function deleteOpportunityDocument(
   documentId: string
 ) {
   try {
-    const userId = await requireOpportunityDocumentUserId();
-    const documentAccess = await assertAssignedDocumentAccess(documentId, userId);
+    const actor = await requireOpportunityDocumentActor();
+    const documentAccess = await assertAssignedDocumentAccess(documentId, actor);
     assertDocumentBelongsToOpportunity(documentAccess.opportunityId, opportunityId);
 
     const success = await deleteDocument(documentId);
@@ -552,8 +600,8 @@ export async function deleteOpportunityDocument(
  */
 export async function getDocumentsForAnalysis(opportunityId: string) {
   try {
-    const userId = await requireOpportunityDocumentUserId();
-    await assertAssignedOpportunityAccess(opportunityId, userId);
+    const actor = await requireOpportunityDocumentActor();
+    await assertAssignedOpportunityAccess(opportunityId, actor);
 
     const documents = await getOpportunityDocuments(opportunityId);
     

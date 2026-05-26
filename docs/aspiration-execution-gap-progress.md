@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Opportunity Document Action Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep source-document discovery, download, selection, deletion, and analysis action gates scoped to the current organization now that opportunity document rows carry tenant context.
+
+Changes in this slice:
+- Require organization context for opportunity document actions.
+- Add tenant predicates, with legacy null-row fallback, to opportunity and opportunity-document access checks.
+- Persist `organization_id` when creating a source opportunity document directly from an opportunity link.
+- Scope source-document lookup and opportunity discovery metadata updates by organization.
+- Extend opportunity document scope tests to assert organization predicates and inserted source-document ownership.
+
+Verification:
+- `npm test -- opportunity-documents-scope.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to RFP upload, AI scoring, requirements, and specialized response-support modules.
+
 ### 2026-05-26 - Opportunity Vote Tenant Predicates
 
 Status: implemented and verified.

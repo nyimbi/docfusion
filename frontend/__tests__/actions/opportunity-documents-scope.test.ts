@@ -53,6 +53,8 @@ function expectAssignedOpportunityScope(where: unknown) {
 	const sqlText = collectSqlFragments(where).join(" ");
 	expect(sqlText).toContain("opportunities.assignedTo");
 	expect(sqlText).toContain("document-user-1");
+	expect(sqlText).toContain("opportunities.organizationId");
+	expect(sqlText).toContain("org-1");
 }
 
 var dbMock: {
@@ -102,6 +104,7 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/db/schema", () => ({
 	opportunities: {
 		id: "opportunities.id",
+		organizationId: "opportunities.organizationId",
 		assignedTo: "opportunities.assignedTo",
 		title: "opportunities.title",
 		rfpLink: "opportunities.rfpLink",
@@ -113,6 +116,7 @@ vi.mock("@/lib/db/schema", () => ({
 	},
 	opportunityDocuments: {
 		id: "opportunityDocuments.id",
+		organizationId: "opportunityDocuments.organizationId",
 		opportunityId: "opportunityDocuments.opportunityId",
 		sourceUrl: "opportunityDocuments.sourceUrl",
 		documentName: "opportunityDocuments.documentName",
@@ -173,7 +177,12 @@ const documentId = "33333333-3333-4333-8333-333333333333";
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	requireServerSessionMock.mockResolvedValue({ user: { id: "document-user-1" } });
+	requireServerSessionMock.mockResolvedValue({
+		user: {
+			id: "document-user-1",
+			organizationId: "org-1",
+		},
+	});
 	dbMock.query.opportunityDocuments.findFirst.mockReset();
 	dbMock.query.rfpDocuments.findFirst.mockReset();
 	dbMock.query.rfpParsingJobs.findFirst.mockReset();
@@ -244,6 +253,7 @@ describe("opportunity document action scoping", () => {
 		expect(updateDocumentSelectionMock).toHaveBeenCalledWith(documentId, false);
 		expectAssignedOpportunityScope(where);
 		expect(collectSqlFragments(where).join(" ")).toContain("opportunityDocuments.id");
+		expect(collectSqlFragments(where).join(" ")).toContain("opportunityDocuments.organizationId");
 	});
 
 	it("refuses document deletes when the assigned document belongs to another opportunity", async () => {
@@ -303,6 +313,7 @@ describe("opportunity document action scoping", () => {
 			parsingJobId: "parse-1",
 		});
 		expect(insertedSourceDocument).toMatchObject({
+			organizationId: "org-1",
 			sourceUrl: "https://example.test/downloads/rfp.pdf",
 			documentName: "rfp.pdf",
 			documentType: "rfp",
