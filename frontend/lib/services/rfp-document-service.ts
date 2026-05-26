@@ -643,6 +643,9 @@ export async function downloadDocument(
     // Read file data
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    if (buffer.length > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      throw new Error(`File too large: ${(buffer.length / 1024 / 1024).toFixed(1)}MB (max ${MAX_FILE_SIZE_MB}MB)`);
+    }
 
     // Calculate hash
     const fileHash = createHash("sha256").update(buffer).digest("hex");

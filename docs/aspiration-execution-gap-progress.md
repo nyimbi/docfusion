@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Post-Download RFP Size Guard
+
+Status: implemented and verified.
+
+Purpose: prevent oversized RFP payloads from entering storage, Docling extraction, or parser queueing when a source omits or understates `content-length`.
+
+Changes in this slice:
+- Re-check downloaded byte length after reading the response body.
+- Fail oversized downloads before hashing, object storage upload, Docling processing, or parser job creation.
+- Preserve existing failure status and ingest workflow recording behavior.
+- Add focused coverage for an oversized response with no `content-length` header without allocating a large test buffer.
+
+Verification:
+- `npm run test -- __tests__/services/rfp-document-service.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets downloaded RFP intake safety with one focused service test file and whitespace validation.
+
+Remaining after this slice:
+- Continue hardening document classification, parse queue recovery, and response-generation readiness after RFP intake.
+
 ### 2026-05-26 - Primary Portal Browser Fallback for Document Discovery
 
 Status: implemented and verified.

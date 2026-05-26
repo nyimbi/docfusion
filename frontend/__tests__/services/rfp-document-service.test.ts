@@ -289,6 +289,45 @@ describe("RFP document fetch storage", () => {
 		);
 	});
 
+	it("rejects oversized downloads even when content-length is absent", async () => {
+		const updates: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		fetchPublicHttpUrlMock.mockResolvedValue({
+			ok: true,
+			headers: new Headers({
+				"content-type": "application/pdf",
+			}),
+			arrayBuffer: vi.fn(async () => new ArrayBuffer(1)),
+		});
+		const bufferFromSpy = vi
+			.spyOn(Buffer, "from")
+			.mockReturnValueOnce({ length: 101 * 1024 * 1024 } as unknown as Buffer);
+
+		let result;
+		try {
+			result = await downloadDocument(baseDocument.id, "capture-user");
+		} finally {
+			bufferFromSpy.mockRestore();
+		}
+
+		expect(result).toMatchObject({
+			success: false,
+			documentId: baseDocument.id,
+			error: "File too large: 101.0MB (max 100MB)",
+		});
+		expect(storageMock.uploadToLinodeE3).not.toHaveBeenCalled();
+		expect(doclingMock.processRfpDocument).not.toHaveBeenCalled();
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "failed",
+			lastError: "File too large: 101.0MB (max 100MB)",
+		}));
+	});
+
 	it("blocks download when the caller opportunity does not match the document", async () => {
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
 
