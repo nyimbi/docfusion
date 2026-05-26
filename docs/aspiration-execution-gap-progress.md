@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Command Center Claim Blocker Projection
+
+Status: implemented and verified.
+
+Purpose: make opportunity command-center readiness expose unresolved high-risk proposal claims before final submission workflows are run.
+
+Changes in this slice:
+- Load unresolved high-risk `claimAnalysis` rows directly into the opportunity command-center projection under assigned-opportunity scope.
+- Project blocking claims as critical command-center work items with document deep links and evidence/claim ownership.
+- Make readiness labels hard-block whenever any blocker exists, even if the numeric score would otherwise be in watch range.
+- Add focused command-center coverage for open versus resolved high-risk claims.
+
+Verification:
+- `npm run test -- __tests__/actions/work-items-command-center.test.ts __tests__/work-items/projections.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This was a focused command-center/readiness projection slice covered by affected projection tests and whitespace validation.
+
+Remaining after this slice:
+- Continue connecting command-center readiness to other final-gate blockers such as signature, render artifact, and submission receipt state.
+- Add authenticated browser proof for the command center when the power budget allows.
+
 ### 2026-05-26 - Final Submission Claim Evidence Gate
 
 Status: implemented and verified.

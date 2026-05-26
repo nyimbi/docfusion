@@ -194,7 +194,7 @@ export function deriveReadinessScore(items: WorkItem[], now = new Date()): Readi
 
 	return {
 		score,
-		label: score >= 85 ? "ready" : score >= 60 ? "watch" : "blocked",
+		label: summary.blocked > 0 ? "blocked" : score >= 85 ? "ready" : score >= 60 ? "watch" : "blocked",
 		reasons,
 	};
 }

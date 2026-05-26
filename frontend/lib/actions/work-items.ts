@@ -9,6 +9,7 @@ import {
 	type WorkflowNotificationRow,
 } from "@/lib/db/schema-workflow-runtime";
 import type { ProposalTask } from "@/lib/db/schema-tasks";
+import { claimAnalysis, type ClaimAnalysisRecord } from "@/lib/db/schema-evidence";
 import { getOpportunity } from "@/lib/actions/opportunities";
 import { listAllTasks, listTasks } from "@/lib/actions/task-management";
 import { getOpportunityDocuments } from "@/lib/services/rfp-document-service";
@@ -123,7 +124,10 @@ export async function getOpportunityCommandCenterProjection(
 	if (!canReadOpportunity) {
 		throw new Error("Opportunity not found or not permitted");
 	}
-	const documents = await getOpportunityDocuments(opportunityId);
+	const [documents, blockingClaims] = await Promise.all([
+		getOpportunityDocuments(opportunityId),
+		listBlockingOpportunityClaims(opportunityId, scope.userId),
+	]);
 	const canReadOpportunityAudit =
 		scope.isGlobalWorkflowViewer ||
 		opportunity?.assignedTo === scope.userId ||
@@ -154,7 +158,8 @@ export async function getOpportunityCommandCenterProjection(
 			actionUrl: `/opportunities/${opportunityId}`,
 			source: "rfp_document",
 		}));
-	const allItems = normalizeWorkItems([...workItems, ...documentWorkItems]);
+	const claimWorkItems = blockingClaims.map(claimToWorkItem);
+	const allItems = normalizeWorkItems([...workItems, ...documentWorkItems, ...claimWorkItems]);
 
 	if (opportunity?.deadline && new Date(opportunity.deadline).getTime() < Date.now()) {
 		allItems.unshift({
@@ -199,6 +204,47 @@ export async function getOpportunityCommandCenterProjection(
 			createdAt: toIso(event.createdAt),
 		})),
 		generatedAt: new Date().toISOString(),
+	};
+}
+
+async function listBlockingOpportunityClaims(opportunityId: string, userId: string): Promise<ClaimAnalysisRecord[]> {
+	const rows = await db
+		.select()
+		.from(claimAnalysis)
+		.where(and(
+			eq(claimAnalysis.opportunityId, opportunityId),
+			eq(claimAnalysis.riskLevel, "high"),
+			assignedOpportunityExistsSql(claimAnalysis.opportunityId, userId),
+		));
+
+	return rows.filter((claim) => claim.status !== "resolved" && claim.status !== "wont_fix");
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string) {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and opportunities.assigned_to = ${userId}
+	)`;
+}
+
+function claimToWorkItem(claim: ClaimAnalysisRecord): WorkItem {
+	const claimText = truncateClaim(claim.claimText);
+	return {
+		id: `claim:${claim.id}`,
+		kind: "exception",
+		title: `Resolve unsupported claim: ${claimText}`,
+		description: claim.evaluatorImpact,
+		status: claim.status ?? "open",
+		priority: claim.evidenceStrength === "none" ? "critical" : "high",
+		role: "proposal_writer",
+		opportunityId: claim.opportunityId,
+		subjectType: "evidence_claim",
+		subjectId: claim.id,
+		actionUrl: claim.documentId ? `/documents/${claim.documentId}` : "/evidence",
+		blocker: "High-risk unsupported claim requires remediation",
+		source: "claim_analysis",
 	};
 }
 
@@ -428,6 +474,10 @@ function normalizePriority(value: string | null | undefined): WorkItemPriority {
 
 function humanize(value: string): string {
 	return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function truncateClaim(value: string): string {
+	return value.length > 96 ? `${value.slice(0, 93)}...` : value;
 }
 
 function toIso(value: Date | string): string {
