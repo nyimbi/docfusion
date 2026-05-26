@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 
 interface ChainConfig {
 	result?: unknown[];
@@ -44,6 +45,7 @@ var dbMock: {
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -66,6 +68,11 @@ const dateRange = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	getCurrentUserIdMock.mockResolvedValue("calendar-user-1");
+	requireUserContextMock.mockResolvedValue({
+		userId: "calendar-user-1",
+		organizationId: "org-1",
+		roles: ["proposal_manager"],
+	});
 });
 
 describe("calendar opportunity scoping", () => {
@@ -94,7 +101,11 @@ describe("calendar opportunity scoping", () => {
 		expect(result).toEqual([]);
 		expect(wheres).toHaveLength(4);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			const sqlText = collectSqlFragments(where).join(" ");
+			expect(sqlText).toContain("opportunities.organization_id");
+			expect(sqlText).toContain("org-1");
+			expect(sqlText).toContain("opportunities.assigned_to");
+			expect(sqlText).toContain("calendar-user-1");
 		}
 	});
 
@@ -123,7 +134,11 @@ describe("calendar opportunity scoping", () => {
 		expect(result).toEqual([]);
 		expect(wheres).toHaveLength(4);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			const sqlText = collectSqlFragments(where).join(" ");
+			expect(sqlText).toContain("opportunities.organization_id");
+			expect(sqlText).toContain("org-1");
+			expect(sqlText).toContain("opportunities.assigned_to");
+			expect(sqlText).toContain("calendar-user-1");
 		}
 	});
 });

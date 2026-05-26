@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Calendar Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep calendar deadline and milestone aggregation scoped to the caller's organization through the relevant opportunity before exposing proposal deadlines.
+
+Changes in this slice:
+- Use full user context for deadline range and milestone reads instead of user id only.
+- Require organization context for opportunity-based calendar reads.
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to deadline and milestone source queries.
+- Extend calendar auth/scope tests to assert organization-aware opportunity predicates.
+
+Verification:
+- `npm test -- calendar-scope.test.ts calendar-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as work items, task management, workflow domain, submissions, pipeline, pricing, proposal documents, and win themes.
+
 ### 2026-05-27 - Reviews Opportunity Tenant Predicates
 
 Status: implemented and verified.

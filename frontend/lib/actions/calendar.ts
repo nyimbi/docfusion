@@ -17,7 +17,7 @@ import {
 	documents,
 } from "@/lib/db/schema";
 import { eq, gte, lte, and, or, isNotNull, desc, asc, sql, type SQL } from "drizzle-orm";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, requireUserContext, type UserContext } from "@/lib/auth-utils";
 import type {
 	DeadlineItem,
 	DeadlineType,
@@ -32,6 +32,8 @@ import type {
 	ICSEvent,
 	ICSExportOptions,
 } from "@/lib/types/opportunity";
+
+type CalendarUserContext = UserContext & { organizationId: string };
 
 // ============================================================================
 // Utility Functions
@@ -108,23 +110,30 @@ function matchesFilters(item: DeadlineItem, filters?: DeadlineFilters): boolean 
 	return true;
 }
 
-function assignedOpportunityCondition(userId: string): SQL {
-	return sql`opportunities.assigned_to = ${userId}`;
+function assignedOpportunityCondition(userContext: CalendarUserContext): SQL {
+	return sql`(
+		opportunities.organization_id = ${userContext.organizationId}
+		or opportunities.organization_id is null
+	) and opportunities.assigned_to = ${userContext.userId}`;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: CalendarUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleOpportunityCondition(opportunityId: string, userContext: CalendarUserContext): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		assignedOpportunityCondition(userId)
+		assignedOpportunityCondition(userContext)
 	)!;
 }
 
@@ -138,7 +147,7 @@ function visibleOpportunityCondition(opportunityId: string, userId: string): SQL
 async function fetchOpportunityDeadlines(
 	startDate: Date,
 	endDate: Date,
-	userId: string
+	userContext: CalendarUserContext
 ): Promise<DeadlineItem[]> {
 	const rows = await db
 		.select({
@@ -155,7 +164,7 @@ async function fetchOpportunityDeadlines(
 				isNotNull(opportunities.deadline),
 				gte(opportunities.deadline, startDate),
 				lte(opportunities.deadline, endDate),
-				assignedOpportunityCondition(userId)
+				assignedOpportunityCondition(userContext)
 			)
 		);
 
@@ -187,7 +196,7 @@ async function fetchOpportunityDeadlines(
 async function fetchRequirementDeadlines(
 	startDate: Date,
 	endDate: Date,
-	userId: string
+	userContext: CalendarUserContext
 ): Promise<DeadlineItem[]> {
 	const rows = await db
 		.select({
@@ -207,7 +216,7 @@ async function fetchRequirementDeadlines(
 				isNotNull(rfpRequirements.dueDate),
 				gte(rfpRequirements.dueDate, startDate),
 				lte(rfpRequirements.dueDate, endDate),
-				assignedOpportunityCondition(userId)
+				assignedOpportunityCondition(userContext)
 			)
 		);
 
@@ -240,7 +249,7 @@ async function fetchRequirementDeadlines(
 async function fetchProposalDocumentDeadlines(
 	startDate: Date,
 	endDate: Date,
-	userId: string
+	userContext: CalendarUserContext
 ): Promise<DeadlineItem[]> {
 	const rows = await db
 		.select({
@@ -261,7 +270,7 @@ async function fetchProposalDocumentDeadlines(
 				isNotNull(proposalDocuments.dueDate),
 				gte(proposalDocuments.dueDate, startDate),
 				lte(proposalDocuments.dueDate, endDate),
-				assignedOpportunityCondition(userId)
+				assignedOpportunityCondition(userContext)
 			)
 		);
 
@@ -293,7 +302,7 @@ async function fetchProposalDocumentDeadlines(
 async function fetchSectionDeadlines(
 	startDate: Date,
 	endDate: Date,
-	userId: string
+	userContext: CalendarUserContext
 ): Promise<DeadlineItem[]> {
 	const rows = await db
 		.select({
@@ -318,7 +327,7 @@ async function fetchSectionDeadlines(
 				isNotNull(documentSections.dueDate),
 				gte(documentSections.dueDate, startDate),
 				lte(documentSections.dueDate, endDate),
-				assignedOpportunityCondition(userId)
+				assignedOpportunityCondition(userContext)
 			)
 		);
 
@@ -376,13 +385,21 @@ async function requireCurrentUserId(): Promise<string> {
 	return userId;
 }
 
+async function requireCurrentUserContext(): Promise<CalendarUserContext> {
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+	return userContext as CalendarUserContext;
+}
+
 /**
  * Get all deadlines within a date range.
  */
 export async function getDeadlinesByDateRange(
 	input: DateRangeInput
 ): Promise<DeadlineItem[]> {
-	const currentUserId = await requireCurrentUserId();
+	const currentUserContext = await requireCurrentUserContext();
 
 	const startDate = parseDate(input.startDate);
 	const endDate = parseDate(input.endDate);
@@ -390,10 +407,10 @@ export async function getDeadlinesByDateRange(
 	// Fetch deadlines from all sources in parallel
 	const [oppDeadlines, reqDeadlines, docDeadlines, secDeadlines] =
 		await Promise.all([
-			fetchOpportunityDeadlines(startDate, endDate, currentUserId),
-			fetchRequirementDeadlines(startDate, endDate, currentUserId),
-			fetchProposalDocumentDeadlines(startDate, endDate, currentUserId),
-			fetchSectionDeadlines(startDate, endDate, currentUserId),
+			fetchOpportunityDeadlines(startDate, endDate, currentUserContext),
+			fetchRequirementDeadlines(startDate, endDate, currentUserContext),
+			fetchProposalDocumentDeadlines(startDate, endDate, currentUserContext),
+			fetchSectionDeadlines(startDate, endDate, currentUserContext),
 		]);
 
 	// Combine and filter
@@ -464,7 +481,7 @@ export async function getOverdueItems(
 export async function getMilestones(
 	opportunityId: string
 ): Promise<OpportunityMilestone[]> {
-	const currentUserId = await requireCurrentUserId();
+	const currentUserContext = await requireCurrentUserContext();
 
 	const milestones: OpportunityMilestone[] = [];
 	const now = new Date();
@@ -479,7 +496,7 @@ export async function getMilestones(
 			assignedTo: opportunities.assignedTo,
 		})
 		.from(opportunities)
-		.where(visibleOpportunityCondition(opportunityId, currentUserId))
+		.where(visibleOpportunityCondition(opportunityId, currentUserContext))
 		.limit(1);
 
 	if (opportunity?.deadline) {
@@ -517,7 +534,7 @@ export async function getMilestones(
 			and(
 				eq(rfpRequirements.opportunityId, opportunityId),
 				isNotNull(rfpRequirements.dueDate),
-				assignedOpportunityExistsSql(opportunityId, currentUserId)
+				assignedOpportunityExistsSql(opportunityId, currentUserContext)
 			)
 		);
 
@@ -563,7 +580,7 @@ export async function getMilestones(
 			and(
 				eq(proposalDocuments.opportunityId, opportunityId),
 				isNotNull(proposalDocuments.dueDate),
-				assignedOpportunityExistsSql(opportunityId, currentUserId)
+				assignedOpportunityExistsSql(opportunityId, currentUserContext)
 			)
 		);
 
@@ -608,7 +625,7 @@ export async function getMilestones(
 			and(
 				eq(proposalDocuments.opportunityId, opportunityId),
 				isNotNull(documentSections.dueDate),
-				assignedOpportunityExistsSql(opportunityId, currentUserId)
+				assignedOpportunityExistsSql(opportunityId, currentUserContext)
 			)
 		);
 

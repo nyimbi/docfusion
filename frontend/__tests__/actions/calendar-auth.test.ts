@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 const dbAccessMock = vi.hoisted(() => vi.fn());
 const blockedDb = vi.hoisted(() => new Proxy({}, {
 	get() {
@@ -11,6 +12,7 @@ const blockedDb = vi.hoisted(() => new Proxy({}, {
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 vi.mock("@/lib/db", () => ({
 	db: blockedDb,
@@ -46,6 +48,7 @@ const dateRange = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	getCurrentUserIdMock.mockResolvedValue(null);
+	requireUserContextMock.mockRejectedValue(new Error("Unauthorized"));
 });
 
 describe("calendar action auth", () => {
