@@ -61,6 +61,11 @@ function clampNumber(value: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, Math.trunc(value)));
 }
 
+const DEFAULT_DISCOVERY_SOURCE_URLS = [
+	"https://tenders.go.ke/tenders",
+	"https://procurement-notices.undp.org",
+];
+
 export function DiscoveryRunDialog({
 	open,
 	onClose,
@@ -77,7 +82,7 @@ export function DiscoveryRunDialog({
 	const [countryRegion, setCountryRegion] = React.useState("");
 	const [category, setCategory] = React.useState("External discovery");
 	const [engines, setEngines] = React.useState("");
-	const [sourceUrls, setSourceUrls] = React.useState("");
+	const [sourceUrls, setSourceUrls] = React.useState(DEFAULT_DISCOVERY_SOURCE_URLS.join("\n"));
 	const [sourceScrapeLimit, setSourceScrapeLimit] = React.useState(10);
 	const [limitPerQuery, setLimitPerQuery] = React.useState(10);
 	const [scrapeTopResults, setScrapeTopResults] = React.useState(true);
@@ -372,7 +377,7 @@ export function DiscoveryRunDialog({
 							value={sourceUrls}
 							onChange={(event) => setSourceUrls(event.target.value)}
 							rows={3}
-							placeholder="https://tenders.go.ke"
+							placeholder={DEFAULT_DISCOVERY_SOURCE_URLS.join("\n")}
 							className={cn(
 								"w-full rounded-md border border-input bg-background px-3 py-2 text-sm",
 								"focus:outline-none focus:ring-2 focus:ring-ring"

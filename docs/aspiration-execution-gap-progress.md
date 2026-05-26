@@ -16,6 +16,23 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Live-Proven Discovery Source Defaults
+
+Status: implemented and verified.
+
+Purpose: make the default live discovery dialog use sources that have current proof, rather than relying only on degraded metasearch engine results.
+
+Changes in this slice:
+- Preload the live discovery dialog with `https://tenders.go.ke/tenders` and `https://procurement-notices.undp.org` as configured source URLs.
+- Keep operators able to edit or replace the source list before running or saving a preset.
+
+Verification:
+- `npm run test -- discovery-presets.test.ts discovery-opportunity-import.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+
+Remaining after this slice:
+- Continue toward a full configured-source import plus document intake proof.
+
 ### 2026-05-26 - Kenya PPIP Document Download TLS Handling
 
 Status: implemented and verified.
