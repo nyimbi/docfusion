@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - RFP Upload Starts Real Parse Jobs
+
+Status: implemented and verified.
+
+Purpose: make browser/API RFP upload actually start the queued parser instead of returning a "Parsing started" success response while leaving the job idle.
+
+Changes in this slice:
+- Wire the local/E3-backed RFP upload route to `processRfpParsingJob` after the document and parsing job are persisted.
+- Preserve Python fallback behavior for validated uploads when local object storage is absent.
+- Add focused route assertions that invalid, unauthorized, out-of-scope, and proxied uploads do not start local parsing.
+- Add focused route coverage that E3-backed uploads start the real parser with tenant context.
+
+Verification:
+- `npm run test -- __tests__/api/rfp-upload-route.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This was a narrow upload-to-parse wiring slice covered by the affected API route tests and whitespace validation.
+
+Remaining after this slice:
+- Continue auditing discovery-to-RFP intake so discovered source documents can reach the same E3-backed parser path without manual re-upload.
+- Review stale docs that still describe the parse route as simulated.
+
 ### 2026-05-26 - Empty RFP Text Extraction Failure Gate
 
 Status: implemented and verified.

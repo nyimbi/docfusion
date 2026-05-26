@@ -21,6 +21,7 @@ import {
 	uploadToLinodeE3,
 } from "@/lib/storage/linode-e3";
 import { scanRfpUploadBuffer, validateRfpUploadMetadata } from "@/lib/rfp/upload-validation";
+import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
 import crypto from "crypto";
 
 const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
@@ -246,8 +247,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			})
 			.returning();
 
-		// In production, trigger async parsing job here
-		// await triggerParsingJob(parsingJob.id);
+		processRfpParsingJob({
+			jobId: parsingJob.id,
+			rfpDocumentId: documentId,
+			tenantContext: { userId, organizationId },
+		}).catch((error: unknown) => {
+			console.error("Background parsing job failed:", error);
+		});
 
 		const response: UploadResponse = {
 			rfpDocumentId: documentId,

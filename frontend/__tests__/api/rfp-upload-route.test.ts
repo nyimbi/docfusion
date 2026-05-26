@@ -41,10 +41,14 @@ const storageMock = vi.hoisted(() => ({
 	getLinodeE3ConfigFromEnv: vi.fn(),
 	uploadToLinodeE3: vi.fn(),
 }));
+const parserMock = vi.hoisted(() => ({
+	processRfpParsingJob: vi.fn(),
+}));
 
 vi.mock("@/lib/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 vi.mock("@/lib/storage/linode-e3", () => storageMock);
+vi.mock("@/lib/actions/rfp-parser", () => parserMock);
 
 import { POST } from "@/app/api/v1/rfp/upload/route";
 
@@ -67,10 +71,12 @@ beforeEach(() => {
 	storageMock.getLinodeE3ConfigFromEnv.mockReset();
 	storageMock.uploadToLinodeE3.mockReset();
 	storageMock.buildRfpObjectKey.mockReset();
+	parserMock.processRfpParsingJob.mockReset();
 	storageMock.buildRfpObjectKey.mockReturnValue("rfp/opportunity/document.pdf");
 	dbMock.select.mockImplementation(() => createSelectChain([{ id: "opportunity-1" }]));
 	dbMock.query.rfpDocuments.findFirst.mockResolvedValue(null);
 	dbMock.insert.mockImplementation(() => createChain({ result: [{ id: "created-row" }] }));
+	parserMock.processRfpParsingJob.mockResolvedValue(undefined);
 	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue(null);
 	storageMock.uploadToLinodeE3.mockResolvedValue({
 		bucket: "mansa",
@@ -94,6 +100,7 @@ describe("RFP upload route", () => {
 		expect(response.status).toBe(401);
 		expect(fetch).not.toHaveBeenCalled();
 		expect(storageMock.getLinodeE3ConfigFromEnv).not.toHaveBeenCalled();
+		expect(parserMock.processRfpParsingJob).not.toHaveBeenCalled();
 	});
 
 	it("rejects unsupported uploads before the Python fallback", async () => {
@@ -106,6 +113,7 @@ describe("RFP upload route", () => {
 		expect(response.status).toBe(400);
 		expect(fetch).not.toHaveBeenCalled();
 		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(parserMock.processRfpParsingJob).not.toHaveBeenCalled();
 	});
 
 	it("rejects uploads attached to opportunities outside the caller scope", async () => {
@@ -121,6 +129,7 @@ describe("RFP upload route", () => {
 		expect(fetch).not.toHaveBeenCalled();
 		expect(storageMock.getLinodeE3ConfigFromEnv).not.toHaveBeenCalled();
 		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(parserMock.processRfpParsingJob).not.toHaveBeenCalled();
 	});
 
 	it("proxies only validated uploads with authenticated user context when E3 is absent", async () => {
@@ -145,6 +154,7 @@ describe("RFP upload route", () => {
 			})
 		);
 		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(parserMock.processRfpParsingJob).not.toHaveBeenCalled();
 	});
 
 	it("stores validated uploads in Linode E3 when object storage is configured", async () => {
@@ -202,6 +212,14 @@ describe("RFP upload route", () => {
 			rfpDocumentId: expect.any(String),
 			status: "queued",
 			initiatedBy: "user-1",
+		});
+		expect(parserMock.processRfpParsingJob).toHaveBeenCalledWith({
+			jobId: "parse-job-1",
+			rfpDocumentId: expect.any(String),
+			tenantContext: {
+				userId: "user-1",
+				organizationId: "org-1",
+			},
 		});
 	});
 });
