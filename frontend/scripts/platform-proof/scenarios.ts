@@ -169,9 +169,9 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		description: "Validates proposal task workflow projection, review comment resolution, and clarification lifecycle handling.",
 		command: {
 			command: "npm",
-			args: ["test", "--", "proposal-task-workflow.test.ts", "review-comment-workflow.test.ts", "clarification-workflow.test.ts"],
+			args: ["test", "--", "proposal-task-workflow.test.ts", "review-comment-workflow.test.ts", "clarification-workflow.test.ts", "work-items-command-center.test.ts", "projections.test.ts"],
 		},
-		expectedArtifacts: ["vitest:proposal-task-workflow", "vitest:review-comment-workflow", "vitest:clarification-workflow"],
+		expectedArtifacts: ["vitest:proposal-task-workflow", "vitest:review-comment-workflow", "vitest:clarification-workflow", "vitest:work-items-command-center", "vitest:work-items-projections"],
 	},
 	{
 		id: "wave4-capture-pipeline-scope",

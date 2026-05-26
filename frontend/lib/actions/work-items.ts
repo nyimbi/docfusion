@@ -389,10 +389,12 @@ async function listOpportunityAuditEvents(
 
 function workflowInstanceToWorkItem(row: WorkflowInstanceRow): WorkItem {
 	const title = `${humanize(row.workflowKey)}: ${humanize(row.state)}`;
+	const blocker = workflowReadinessBlocker(row);
 	return {
 		id: `workflow:${row.id}`,
 		kind: row.status === "breached" || row.status === "escalated" ? "exception" : "workflow",
 		title,
+		description: workflowReadinessDescription(row),
 		status: row.status,
 		priority: normalizePriority(row.priority),
 		owner: row.assignedTo ?? row.escalatedTo,
@@ -404,10 +406,44 @@ function workflowInstanceToWorkItem(row: WorkflowInstanceRow): WorkItem {
 		subjectId: row.subjectId,
 		actionUrl: row.portalVisibility?.actionUrl ?? workflowSubjectUrl(row),
 		disabledReason: disabledReasonForWorkflow(row),
+		blocker,
 		portalVisible: row.portalVisibility?.visibleToPortal === true,
 		auditRef: row.id,
 		source: "workflow_runtime",
 	};
+}
+
+function workflowReadinessBlocker(row: WorkflowInstanceRow): string | null {
+	if (row.workflowKey !== "proposal_response_package") {
+		return null;
+	}
+	const readiness = asRecord(asRecord(row.metadata).readiness);
+	const status = readiness.status;
+	if (status === "ready_for_review") {
+		return null;
+	}
+	if (status === "blocked") {
+		const blockers = stringArray(readiness.blockers);
+		return `Response package readiness blocked${blockers[0] ? `: ${blockers[0]}` : ""}`;
+	}
+	if (Object.keys(readiness).length === 0) {
+		return "Response package readiness missing";
+	}
+	return "Response package readiness status is unrecognized";
+}
+
+function workflowReadinessDescription(row: WorkflowInstanceRow): string | null {
+	if (row.workflowKey !== "proposal_response_package") {
+		return null;
+	}
+	const readiness = asRecord(asRecord(row.metadata).readiness);
+	const metrics = asRecord(readiness.metrics);
+	return [
+		`Readiness: ${typeof readiness.status === "string" ? readiness.status : "missing"}`,
+		`Requirement coverage: ${formatPercent(numberMetric(metrics.requirementCoverage))}`,
+		`Review gates: ${formatPercent(numberMetric(metrics.reviewGateCoverage))}`,
+		`Win themes: ${formatPercent(numberMetric(metrics.winThemeCoverage))}`,
+	].join(" | ");
 }
 
 function taskToWorkItem(task: ProposalTask): WorkItem {
@@ -472,6 +508,18 @@ function disabledReasonForWorkflow(row: WorkflowInstanceRow): string | null {
 	return null;
 }
 
+function stringArray(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function numberMetric(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+}
+
+function formatPercent(value: number): string {
+	return `${Math.round(value * 100)}%`;
+}
+
 function normalizePriority(value: string | null | undefined): WorkItemPriority {
 	if (value === "critical" || value === "high" || value === "medium" || value === "low") return value;
 	return "medium";
@@ -497,4 +545,8 @@ function toIsoOrNull(value: Date | string | null | undefined): string | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+	return isRecord(value) ? value : {};
 }

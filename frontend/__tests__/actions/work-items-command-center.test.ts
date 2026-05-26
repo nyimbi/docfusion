@@ -185,4 +185,68 @@ describe("opportunity command center projection", () => {
 		}));
 		expect(projection.readiness.label).toBe("ready");
 	});
+
+	it("projects blocked response package readiness as a response quality blocker", async () => {
+		getWorkflowDashboardMock.mockResolvedValueOnce({
+			items: [{
+				id: "response-workflow-1",
+				workflowKey: "proposal_response_package",
+				organizationId: "org-1",
+				subjectType: "opportunity",
+				subjectId: "opp-1",
+				opportunityId: "opp-1",
+				status: "active",
+				state: "response_package_drafted",
+				priority: "critical",
+				assignedTo: null,
+				assignedRole: "proposal_manager",
+				dueAt: null,
+				portalVisibility: null,
+				authorityPolicy: null,
+				metadata: {
+					readiness: {
+						status: "blocked",
+						blockers: ["At least one drafted response section is missing a review gate"],
+						warnings: ["0/2 drafted response document(s) include approved win themes"],
+						metrics: {
+							requirementCoverage: 1,
+							reviewGateCoverage: 0.5,
+							winThemeCoverage: 0,
+						},
+					},
+				},
+				updatedAt: new Date("2026-05-05T00:00:00.000Z"),
+			}],
+			total: 1,
+			active: 1,
+			breached: 0,
+			escalated: 0,
+			completed: 0,
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		const projection = await getOpportunityCommandCenterProjection("opp-1");
+
+		expect(projection.readiness.label).toBe("blocked");
+		expect(projection.blockers).toContainEqual(expect.objectContaining({
+			id: "workflow:response-workflow-1",
+			label: "Response package readiness blocked: At least one drafted response section is missing a review gate",
+			severity: "critical",
+			owner: "proposal_manager",
+			actionUrl: "/opportunities/opp-1",
+		}));
+		expect(projection.nextActions).toContainEqual(expect.objectContaining({
+			id: "workflow:response-workflow-1",
+			source: "workflow_runtime",
+		}));
+		expect(projection.readinessDimensions).toContainEqual(expect.objectContaining({
+			key: "response_quality",
+			status: "block",
+			blockerCount: 1,
+			owner: "proposal_manager",
+			actionUrl: "/opportunities/opp-1",
+		}));
+	});
 });

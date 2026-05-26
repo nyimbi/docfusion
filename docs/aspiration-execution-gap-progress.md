@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Command Center Response Quality Blockers
+
+Status: implemented and verified.
+
+Purpose: make blocked response package readiness visible in the opportunity command center so operators see response-quality blockers in the same place as evidence, review, production, and dispatch blockers.
+
+Changes in this slice:
+- Project blocked, missing, or unrecognized `proposal_response_package` readiness metadata as command-center workflow blockers.
+- Add response-readiness descriptions with requirement coverage, review gate coverage, and win-theme coverage.
+- Add a dedicated `Response quality` readiness dimension keyed to response package, win theme, review gate, evidence checklist, and placeholder signals.
+- Extend the Wave 4 planning/collaboration proof scenario to include command-center and work-item projection coverage.
+
+Verification:
+- `npm test -- work-items-command-center.test.ts` from `frontend/` passed, running 3 tests.
+- `npm test -- projections.test.ts` from `frontend/` passed, running 3 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave4-planning-collaboration-tasks` from `frontend/` passed, running 5 test files and 18 tests.
+- `npm test -- platform-proof-scenarios.test.ts` from `frontend/` passed.
+- `git diff --check -- frontend/lib/actions/work-items.ts frontend/lib/work-items/projections.ts frontend/__tests__/actions/work-items-command-center.test.ts frontend/scripts/platform-proof/scenarios.ts` passed.
+
+Remaining after this slice:
+- Continue connecting final approval evidence and live persisted proof once PostgreSQL is reachable.
+- Consider adding browser-level command-center visual coverage after the next UI change.
+
 ### 2026-05-27 - Response Package Quality Readiness Metrics
 
 Status: implemented and verified.
