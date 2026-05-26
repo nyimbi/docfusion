@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Response Package Draft Runtime Evidence
+
+Status: implemented and verified.
+
+Purpose: make generated standard response packages visible in workflow runtime/audit evidence instead of only creating proposal documents and compliance rows.
+
+Changes in this slice:
+- Record a `proposal_response_package` workflow transition after standard response package drafting completes.
+- Link the workflow event directly to the generated compliance matrix, accepted requirements, proposal document rows, document rows, and document version.
+- Preserve drafting behavior when workflow telemetry is unavailable so response generation is not blocked by audit persistence.
+- Extend focused response-package coverage to assert runtime evidence links and metadata for the generated draft.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate wave9 proof scenario remain intentionally skipped while on battery. This slice verifies response-package workflow evidence with the focused proposal documents action test.
+
+Remaining after this slice:
+- Continue hardening generated response quality, win-theme injection, and final package readiness evidence.
+
 ### 2026-05-26 - Discovered Document URL Intake Handoff
 
 Status: implemented and verified.

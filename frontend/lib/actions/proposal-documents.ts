@@ -44,6 +44,7 @@ import {
 	userHasAuthorityRole,
 	type UserContext,
 } from "@/lib/auth-utils";
+import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
 
 export interface ProposalDocumentFinalizationInput {
 	action: FinalArtifactAction;
@@ -1953,8 +1954,7 @@ export async function createAndDraftStandardProposalSet(
 			draftResults.push(result);
 		}
 	}
-
-	return {
+	const responsePackageResult = {
 		documentsCreated: created.length,
 		documentsDrafted: draftResults.length,
 		sectionsDrafted: draftResults.reduce((total, result) => total + result.sectionsDrafted, 0),
@@ -1967,6 +1967,58 @@ export async function createAndDraftStandardProposalSet(
 			? Math.max(...draftResults.map((result) => result.versionNumber ?? 0))
 			: null,
 	};
+
+	await recordResponsePackageDraftTransition({
+		opportunityId,
+		userId,
+		result: responsePackageResult,
+	});
+
+	return responsePackageResult;
+}
+
+async function recordResponsePackageDraftTransition(input: {
+	opportunityId: string;
+	userId: string;
+	result: ResponsePackageDraftResult;
+}): Promise<void> {
+	try {
+		await recordWorkflowRuntimeTransition({
+			workflowKey: "proposal_response_package",
+			subjectType: "opportunity",
+			subjectId: input.opportunityId,
+			opportunityId: input.opportunityId,
+			fromState: "requirements_accepted",
+			toState: "response_package_drafted",
+			eventType: "response_package_drafted",
+			actorId: input.userId,
+			actorName: input.userId,
+			reason: "Standard response package drafted from accepted requirements",
+			evidenceLinks: responsePackageEvidenceLinks(input.result),
+			priority: "high",
+			visibility: "internal",
+			metadata: {
+				...input.result,
+				requirementCount: input.result.requirementIds.length,
+				proposalDocumentCount: input.result.proposalDocumentIds.length,
+				documentVersionNumber: input.result.versionNumber,
+			},
+			terminal: false,
+			actionUrl: `/opportunities/${input.opportunityId}/documents`,
+		});
+	} catch {
+		// Response package drafting should not fail because workflow telemetry is unavailable.
+	}
+}
+
+function responsePackageEvidenceLinks(result: ResponsePackageDraftResult): string[] {
+	return [
+		`compliance-matrix:${result.complianceMatrixId}`,
+		...result.requirementIds.map((id) => `requirement:${id}`),
+		...result.proposalDocumentIds.map((id) => `proposal-document:${id}`),
+		...result.documentIds.map((id) => `document:${id}`),
+		...(result.versionNumber ? [`document-version:${result.versionNumber}`] : []),
+	];
 }
 
 async function ensureAcceptedRequirementsComplianceMatrix(

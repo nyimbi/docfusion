@@ -2,9 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
 const requireUserContextMock = vi.hoisted(() => vi.fn());
+const recordWorkflowRuntimeTransitionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
+}));
+
+vi.mock("@/lib/actions/workflow-runtime", () => ({
+	recordWorkflowRuntimeTransition: recordWorkflowRuntimeTransitionMock,
 }));
 
 interface ChainConfig {
@@ -110,6 +115,7 @@ import {
 	updateProposalDocument,
 	updateSection,
 } from "@/lib/actions/proposal-documents";
+import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
 
 const proposalDocument = {
 	id: "55555555-5555-4555-8555-555555555555",
@@ -161,6 +167,7 @@ beforeEach(() => {
 		organizationId: "org-1",
 		roles: ["proposal_manager"],
 	});
+	recordWorkflowRuntimeTransitionMock.mockResolvedValue({ id: "response-package-workflow-1" });
 });
 
 describe("proposal document row scoping", () => {
@@ -835,5 +842,27 @@ describe("proposal document row scoping", () => {
 				status: "draft",
 			}),
 		]);
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
+			workflowKey: "proposal_response_package",
+			subjectType: "opportunity",
+			subjectId: proposalDocument.opportunityId,
+			opportunityId: proposalDocument.opportunityId,
+			toState: "response_package_drafted",
+			eventType: "response_package_drafted",
+			evidenceLinks: expect.arrayContaining([
+				"compliance-matrix:matrix-1",
+				`requirement:${requirement.id}`,
+				`proposal-document:${proposalDocument.id}`,
+				`document:${sourceDocument.id}`,
+				"document-version:2",
+			]),
+			metadata: expect.objectContaining({
+				sectionsDrafted: 1,
+				requirementCount: 1,
+				proposalDocumentCount: 1,
+				documentVersionNumber: 2,
+			}),
+			actionUrl: `/opportunities/${proposalDocument.opportunityId}/documents`,
+		}));
 	});
 });
