@@ -16,6 +16,19 @@ type StoredFinalArtifact = {
 	storagePath: string;
 };
 
+type DocumentArtifactSource = {
+	title: string;
+	content: unknown;
+	plainText: string | null;
+	currentVersion: number | null;
+	metadata: unknown;
+};
+
+type ArtifactLookupResult =
+	| { artifact: StoredFinalArtifact }
+	| { stale: true }
+	| { notFound: true };
+
 export async function GET(
 	request: NextRequest,
 	context: { params: Promise<{ documentId: string }> }
@@ -34,6 +47,9 @@ export async function GET(
 	const [document] = await db
 		.select({
 			title: documents.title,
+			content: documents.content,
+			plainText: documents.plainText,
+			currentVersion: documents.currentVersion,
 			metadata: documents.metadata,
 		})
 		.from(documents)
@@ -44,10 +60,14 @@ export async function GET(
 		return new NextResponse("Document not found", { status: 404 });
 	}
 
-	const artifact = findStoredArtifact(document.metadata, artifactHash);
-	if (!artifact) {
+	const lookup = findStoredArtifact(document, artifactHash);
+	if ("stale" in lookup) {
+		return new NextResponse("Final artifact requires re-rendering the current document version", { status: 409 });
+	}
+	if ("notFound" in lookup) {
 		return new NextResponse("Final artifact not found", { status: 404 });
 	}
+	const { artifact } = lookup;
 
 	const objectStoreConfig = getLinodeE3ConfigFromEnv();
 	if (!objectStoreConfig) {
@@ -88,21 +108,25 @@ function visibleDocumentCondition(documentId: string, actorId: string) {
 	)!;
 }
 
-function findStoredArtifact(metadata: unknown, artifactHash: string): StoredFinalArtifact | null {
-	const current = asRecord(metadata);
+function findStoredArtifact(document: DocumentArtifactSource, artifactHash: string): ArtifactLookupResult {
+	const current = asRecord(document.metadata);
 	const finalArtifact = toStoredArtifact(current.finalArtifact);
 	if (finalArtifact?.artifactHash === artifactHash) {
-		return finalArtifact;
+		return artifactMatchesCurrentDocument(current.finalArtifact, document, { requireApproval: true })
+			? { artifact: finalArtifact }
+			: { stale: true };
 	}
 
 	const renderedArtifacts = asRecord(current.renderedArtifacts);
 	for (const candidate of Object.values(renderedArtifacts)) {
 		const artifact = toStoredArtifact(candidate);
 		if (artifact?.artifactHash === artifactHash) {
-			return artifact;
+			return artifactMatchesCurrentDocument(candidate, document, { requireApproval: false })
+				? { artifact }
+				: { stale: true };
 		}
 	}
-	return null;
+	return { notFound: true };
 }
 
 function toStoredArtifact(value: unknown): StoredFinalArtifact | null {
@@ -120,6 +144,34 @@ function toStoredArtifact(value: unknown): StoredFinalArtifact | null {
 		mimeType: typeof record.mimeType === "string" ? record.mimeType : "application/octet-stream",
 		storagePath: record.storagePath,
 	};
+}
+
+function artifactMatchesCurrentDocument(
+	value: unknown,
+	document: DocumentArtifactSource,
+	options: { requireApproval: boolean }
+): boolean {
+	const record = asRecord(value);
+	const hasApprovalReceipt = !options.requireApproval ||
+		(typeof record.approvedBy === "string" &&
+			(typeof record.approvedAt === "string" || record.approvedAt instanceof Date));
+	return (
+		hasApprovalReceipt &&
+		"sourceDocumentVersion" in record &&
+		(record.sourceDocumentVersion === document.currentVersion ||
+			(record.sourceDocumentVersion === null && document.currentVersion === null)) &&
+		record.sourceContentHash === hashDocumentSource(document)
+	);
+}
+
+function hashDocumentSource(document: Pick<DocumentArtifactSource, "title" | "content" | "plainText">): string {
+	return createHash("sha256")
+		.update(JSON.stringify({
+			title: document.title,
+			content: document.content,
+			plainText: document.plainText,
+		}))
+		.digest("hex");
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

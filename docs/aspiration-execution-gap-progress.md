@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Final Artifact Download Freshness Guard
+
+Status: implemented and verified.
+
+Purpose: prevent final artifact downloads from streaming stale or unapproved stored objects after document source changes.
+
+Changes in this slice:
+- Load the current document source version and content when resolving final artifact downloads.
+- Require approved final artifacts to include approval metadata and source freshness receipts before object storage access.
+- Require rendered artifact previews to match the current document source before object storage access.
+- Reject stale or incomplete artifact receipts with a 409 re-render response before downloading from Linode E3.
+- Add focused API coverage for approved download success, stale receipt rejection, and missing approval receipt rejection.
+
+Verification:
+- `npm run test -- __tests__/api/documents-final-artifact-route.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate proof scenario remain intentionally skipped while on battery. This slice targets final artifact retrieval with one focused API test file and whitespace validation.
+
+Remaining after this slice:
+- Continue tightening final checklist freshness against live document content, then run `wave9-discovery-to-submission-core` when power allows.
+
 ### 2026-05-26 - Discovery-to-Submission Proof Scenario
 
 Status: implemented and verified.
