@@ -151,6 +151,7 @@ import {
 	transitionRfpParseWorkflow,
 } from "@/lib/actions/rfp-parser";
 import { parseRFPWithAI } from "@/lib/ai/rfp-parser";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -264,6 +265,27 @@ describe("RFP parse workflow", () => {
 			parsingError: "Duplicate upload",
 		});
 		expect((documentUpdate?.metadata as any).parseWorkflow.state).toBe("rejected");
+	});
+
+	it("requires proposal or operations authority before rejecting a failed parse", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["writer"],
+		});
+
+		await expect(
+			transitionRfpParseWorkflow({
+				rfpDocumentId: documentRow.id,
+				action: "reject",
+				reason: "Duplicate upload",
+				startProcessing: false,
+			})
+		).rejects.toBeInstanceOf(WorkflowAuthorityDeniedError);
+
+		expect(dbMock.transaction).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).not.toHaveBeenCalled();
 	});
 
 	it("blocks retry while a parse is already processing", async () => {

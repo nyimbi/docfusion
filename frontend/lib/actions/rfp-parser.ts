@@ -47,6 +47,7 @@ import {
 } from "@/lib/storage/linode-e3";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 import type {
 	RfpFormat,
 	RfpRequirementCategory,
@@ -102,11 +103,28 @@ async function requireRfpAuthorityUserContext(): Promise<RfpAuthorityUserContext
 }
 
 function hasProposalOrCaptureAuthority(context: Pick<UserContext, "role" | "roles">): boolean {
-	return ["proposal_manager", "capture_manager"].some((role) => userHasAuthorityRole(context, role));
+	return hasAnyRfpAuthorityRole(context, ["proposal_manager", "capture_manager"]);
 }
 
 function proposalOrCaptureAuthorityError(action: string): string {
 	return `${action} requires proposal or capture authority: requires proposal_manager or capture_manager`;
+}
+
+function hasAnyRfpAuthorityRole(
+	context: Pick<UserContext, "role" | "roles">,
+	requiredRoles: string[]
+): boolean {
+	return requiredRoles.some((role) => userHasAuthorityRole(context, role));
+}
+
+function requireRfpParseRejectAuthority(context: Pick<UserContext, "role" | "roles">): void {
+	const requiredRoles = ["proposal_manager", "operations"];
+	if (!hasAnyRfpAuthorityRole(context, requiredRoles)) {
+		throw new WorkflowAuthorityDeniedError({
+			action: "rfp parse reject",
+			requiredRoles,
+		});
+	}
 }
 
 interface RfpParseWorkflowMetadata {
@@ -1237,9 +1255,14 @@ export async function transitionRfpParseWorkflow(
 		throw new Error("RFP parse workflow transition requires a reason.");
 	}
 
-	const ctx = await requireTenantContext().catch(() => null);
+	const ctx = input.action === "reject"
+		? await requireRfpAuthorityUserContext().catch(() => null)
+		: await requireTenantContext().catch(() => null);
 	if (!ctx) {
 		throw new Error("Not authenticated");
+	}
+	if (input.action === "reject") {
+		requireRfpParseRejectAuthority(ctx);
 	}
 	const { userId, organizationId } = ctx;
 

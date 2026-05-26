@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - RFP Parse Reject Authority Check
+
+Status: implemented and verified.
+
+Purpose: prevent terminal RFP parse rejection from changing parsing job and document workflow metadata unless the authenticated actor has proposal or operations authority.
+
+Changes in this slice:
+- Resolve role-bearing user context for explicit parse rejection.
+- Require `proposal_manager`, `operations`, or admin authority before opening the parse workflow transaction.
+- Throw the shared workflow authority-denied error so the existing parse API returns a 403 denial.
+- Preserve retry, cancel, and manual extraction behavior on the existing tenant-context path.
+- Add focused coverage for unauthorized parse rejection before mutation.
+
+Verification:
+- `npm run test -- __tests__/actions/rfp-parse-workflow.test.ts __tests__/api/rfp-parse-route.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets parse-reject authority with focused workflow/API tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that only store authority metadata after mutations rather than enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - RFP Amendment Impact Authority Check
 
 Status: implemented and verified.
