@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Structure Document Creation Without Fake Content
+
+Status: implemented and verified.
+
+Purpose: prevent AI-generated document outlines from becoming draft documents that contain invented placeholder section text.
+
+Changes in this slice:
+- Replace generated structure placeholder paragraphs like `(medium content for technical approach)` with editable blank paragraphs.
+- Make the unused `autoFill` option fail explicitly instead of silently creating placeholder-filled documents.
+- Update the structure creation description so it no longer claims inline AI content filling.
+- Add focused tests for unauthorized owner spoofing, explicit auto-fill rejection, and blank outline content.
+
+Verification:
+- `npm run test -- __tests__/actions/document-generation-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This was a narrow response-generation honesty fix covered by focused action tests and TypeScript.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Wire any future structure auto-fill path to real section generation instead of reintroducing template placeholder prose.
+
 ### 2026-05-26 - Service Fallback Honesty Wording
 
 Status: implemented and verified.

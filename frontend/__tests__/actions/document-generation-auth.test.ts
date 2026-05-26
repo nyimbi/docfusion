@@ -6,6 +6,14 @@ const mockDb = vi.hoisted(() => ({
 	insert: vi.fn(),
 }));
 
+function createInsertChain(result: unknown[] = []) {
+	const chain = {
+		values: vi.fn(() => chain),
+		returning: vi.fn(async () => result),
+	};
+	return chain;
+}
+
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
 }));
@@ -56,5 +64,58 @@ describe("document generation action auth", () => {
 		)).rejects.toThrow("Unauthorized");
 
 		expect(mockDb.insert).not.toHaveBeenCalled();
+	});
+
+	it("rejects structure auto-fill instead of silently inserting generated placeholders", async () => {
+		const { createDocumentFromStructure } = await import("@/lib/actions/document-generation");
+
+		await expect(createDocumentFromStructure(
+			"Executive Summary",
+			[],
+			"author-1",
+			{ autoFill: true }
+		)).rejects.toThrow("AI auto-fill during structure creation is unavailable");
+
+		expect(mockDb.insert).not.toHaveBeenCalled();
+	});
+
+	it("creates an editable outline without fake section content", async () => {
+		const documentInsert = createInsertChain([{ id: "doc-1" }]);
+		const versionInsert = createInsertChain();
+		mockDb.insert
+			.mockReturnValueOnce(documentInsert)
+			.mockReturnValueOnce(versionInsert);
+
+		const { createDocumentFromStructure } = await import("@/lib/actions/document-generation");
+		const result = await createDocumentFromStructure(
+			"Executive Summary",
+			[{
+				id: "section-1",
+				type: "section",
+				title: "Technical Approach",
+				order: 1,
+				length: "medium",
+			}],
+			"author-1",
+			{ autoFill: false }
+		);
+
+		const content = result.content.content;
+		expect(JSON.stringify(content)).not.toContain("(medium content for technical approach)");
+		expect(content).toEqual([
+			{
+				type: "heading",
+				attrs: { level: 1 },
+				content: [{ type: "text", text: "Technical Approach" }],
+			},
+			{
+				type: "paragraph",
+				content: [],
+			},
+		]);
+		expect(documentInsert.values).toHaveBeenCalledWith(expect.objectContaining({
+			content: result.content,
+			wordCount: 0,
+		}));
 	});
 });

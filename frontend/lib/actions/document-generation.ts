@@ -692,7 +692,7 @@ export async function generateMultipleSections(
 // ============================================================================
 
 /**
- * Create a document from a generated structure, optionally filling with AI content.
+ * Create an editable outline document from a generated structure.
  */
 export async function createDocumentFromStructure(
 	title: string,
@@ -706,6 +706,9 @@ export async function createDocumentFromStructure(
 ): Promise<{ id: string; content: DocumentContent }> {
 	try {
 		const currentUserId = await requireDocumentGenerationUserId(userId);
+		if (options?.autoFill) {
+			throw new Error("AI auto-fill during structure creation is unavailable; create the outline first and generate section content from the editor.");
+		}
 		logger.debug("[Server] createDocumentFromStructure called", { title, structureCount: structure.length, userId: currentUserId });
 		// Convert structure to document content
 		const content = structureToDocumentContent(structure);
@@ -753,16 +756,10 @@ function structureToDocumentContent(structure: DocumentStructure[]): DocumentCon
 			content: [{ type: "text", text: node.title }],
 		});
 
-		// Add placeholder paragraph for content
+		// Add an editable blank paragraph without inventing section content.
 		content.push({
 			type: "paragraph",
-			content: [
-				{
-					type: "text",
-					text: `(${node.length || "medium"} content for ${node.title.toLowerCase()})`,
-					marks: [{ type: "italic" }],
-				},
-			],
+			content: [],
 		});
 
 		// Process children
