@@ -67,6 +67,7 @@ vi.mock("@/lib/db/schema-pwin", () => ({
 vi.mock("@/lib/db/schema", () => ({
 	opportunities: {
 		id: "opportunities.id",
+		organizationId: "opportunities.organizationId",
 		assignedTo: "opportunities.assigned_to",
 		title: "opportunities.title",
 		isExpired: "opportunities.isExpired",

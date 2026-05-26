@@ -95,6 +95,8 @@ describe("PWin opportunity scoping", () => {
 		const sqlText = collectSqlFragments(where).join(" ");
 		expect(sqlText).toContain("assigned_to");
 		expect(sqlText).toContain("pwin-user-1");
+		expect(sqlText).toContain("organization");
+		expect(sqlText).toContain("org-1");
 	}
 
 	it("scopes opportunity assessment lookup to the assigned user", async () => {

@@ -64,40 +64,42 @@ import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 type OrganizationColumn = AnyColumn<{ data: string; notNull: false }>;
+type PwinUserContext = UserContext & { organizationId: string };
 
-async function requirePwinContext(organizationId?: string | null): Promise<UserContext> {
+async function requirePwinContext(organizationId?: string | null): Promise<PwinUserContext> {
 	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
 	if (organizationId && organizationId !== userContext.organizationId) {
 		throw new Error("Unauthorized");
 	}
-	return userContext;
+	return userContext as PwinUserContext;
 }
 
-function visibleOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
-	return userContext.organizationId
-		? or(isNull(column), eq(column, userContext.organizationId))
-		: isNull(column);
+function visibleOrganizationCondition(column: OrganizationColumn, userContext: PwinUserContext) {
+	return or(isNull(column), eq(column, userContext.organizationId));
 }
 
-function mutableOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
-	return userContext.organizationId
-		? eq(column, userContext.organizationId)
-		: isNull(column);
+function mutableOrganizationCondition(column: OrganizationColumn, userContext: PwinUserContext) {
+	return eq(column, userContext.organizationId);
 }
 
-function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
+function organizationForInsert(inputOrganizationId: string | undefined, userContext: PwinUserContext): string {
 	return inputOrganizationId ?? userContext.organizationId;
 }
 
-function visibleOpportunityCondition(opportunityId: string, userContext: UserContext) {
+function visibleOpportunityCondition(opportunityId: string, userContext: PwinUserContext) {
 	return and(
 		eq(opportunities.id, opportunityId),
+		or(eq(opportunities.organizationId, userContext.organizationId), isNull(opportunities.organizationId))!,
 		eq(opportunities.assignedTo, userContext.userId)
 	);
 }
 
-function assignedOpportunityConditions(userContext: UserContext, conditions: SQL[] = []): SQL {
+function assignedOpportunityConditions(userContext: PwinUserContext, conditions: SQL[] = []): SQL {
 	return and(
+		or(eq(opportunities.organizationId, userContext.organizationId), isNull(opportunities.organizationId))!,
 		eq(opportunities.assignedTo, userContext.userId),
 		...conditions
 	)!;
