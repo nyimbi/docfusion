@@ -833,6 +833,12 @@ export interface ResponsePackageReadinessSummary {
 		documentsDrafted: number;
 		sectionsDrafted: number;
 		complianceEntriesCreated: number;
+		totalDraftWordCount: number;
+		minDocumentDraftWordCount: number;
+		evidenceChecklistCoverage: number;
+		reviewGateCoverage: number;
+		winThemeCoverage: number;
+		unresolvedPlaceholderCount: number;
 	};
 }
 

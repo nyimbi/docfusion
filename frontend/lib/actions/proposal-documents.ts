@@ -258,6 +258,11 @@ export interface RequirementAwareProposalDraftResult {
 	documentId: string;
 	sectionsDrafted: number;
 	requirementIds: string[];
+	winThemeIds: string[];
+	wordCount: number;
+	unresolvedPlaceholderCount: number;
+	evidenceChecklistCount: number;
+	reviewGateCount: number;
 	versionNumber: number | null;
 }
 
@@ -286,6 +291,12 @@ export interface ResponsePackageDraftReadiness {
 		documentsDrafted: number;
 		sectionsDrafted: number;
 		complianceEntriesCreated: number;
+		totalDraftWordCount: number;
+		minDocumentDraftWordCount: number;
+		evidenceChecklistCoverage: number;
+		reviewGateCoverage: number;
+		winThemeCoverage: number;
+		unresolvedPlaceholderCount: number;
 	};
 }
 
@@ -933,6 +944,12 @@ function responsePackageReadinessSummary(
 			documentsDrafted: numberMetric(metrics.documentsDrafted),
 			sectionsDrafted: numberMetric(metrics.sectionsDrafted),
 			complianceEntriesCreated: numberMetric(metrics.complianceEntriesCreated),
+			totalDraftWordCount: numberMetric(metrics.totalDraftWordCount),
+			minDocumentDraftWordCount: numberMetric(metrics.minDocumentDraftWordCount),
+			evidenceChecklistCoverage: clampRatio(numberMetric(metrics.evidenceChecklistCoverage)),
+			reviewGateCoverage: clampRatio(numberMetric(metrics.reviewGateCoverage)),
+			winThemeCoverage: clampRatio(numberMetric(metrics.winThemeCoverage)),
+			unresolvedPlaceholderCount: numberMetric(metrics.unresolvedPlaceholderCount),
 		},
 	};
 }
@@ -952,6 +969,12 @@ function missingResponsePackageReadiness(): ResponsePackageReadinessSummary {
 			documentsDrafted: 0,
 			sectionsDrafted: 0,
 			complianceEntriesCreated: 0,
+			totalDraftWordCount: 0,
+			minDocumentDraftWordCount: 0,
+			evidenceChecklistCoverage: 0,
+			reviewGateCoverage: 0,
+			winThemeCoverage: 0,
+			unresolvedPlaceholderCount: 0,
 		},
 	};
 }
@@ -1907,6 +1930,14 @@ export async function generateRequirementAwareProposalDraft(
 		documentId: proposalDocument.documentId,
 		sectionsDrafted: results.length,
 		requirementIds: uniqueStrings(results.flatMap((result) => result.requirementIds)),
+		winThemeIds: uniqueStrings(results.flatMap((result) => result.winThemeIds)),
+		wordCount: results.reduce((total, result) => total + result.wordCount, 0),
+		unresolvedPlaceholderCount: results.reduce(
+			(total, result) => total + countUnresolvedPlaceholders(result.plainText),
+			0
+		),
+		evidenceChecklistCount: results.filter((result) => result.plainText.includes("Evidence Checklist")).length,
+		reviewGateCount: results.filter((result) => result.plainText.includes("Review Gate")).length,
 		versionNumber: results.length > 0
 			? Math.max(...results.map((result) => result.versionNumber))
 			: null,
@@ -2196,6 +2227,7 @@ export async function createAndDraftStandardProposalSet(
 			documentsDrafted: draftResults.length,
 			sectionsDrafted: draftResults.reduce((total, result) => total + result.sectionsDrafted, 0),
 			complianceEntriesCreated: complianceMatrix.entriesCreated,
+			draftResults,
 		}),
 	};
 
@@ -2309,6 +2341,7 @@ function assessResponsePackageDraftReadiness(input: {
 	documentsDrafted: number;
 	sectionsDrafted: number;
 	complianceEntriesCreated: number;
+	draftResults: RequirementAwareProposalDraftResult[];
 }): ResponsePackageDraftReadiness {
 	const blockers: string[] = [];
 	const warnings: string[] = [];
@@ -2319,6 +2352,23 @@ function assessResponsePackageDraftReadiness(input: {
 	const requirementCoverage = acceptedRequirementIds.length > 0
 		? draftedRequirementCount / acceptedRequirementIds.length
 		: 1;
+	const totalDraftWordCount = input.draftResults.reduce((total, result) => total + result.wordCount, 0);
+	const minDocumentDraftWordCount = input.draftResults.length > 0
+		? Math.min(...input.draftResults.map((result) => result.wordCount))
+		: 0;
+	const evidenceChecklistCount = input.draftResults.reduce((total, result) => total + result.evidenceChecklistCount, 0);
+	const reviewGateCount = input.draftResults.reduce((total, result) => total + result.reviewGateCount, 0);
+	const unresolvedPlaceholderCount = input.draftResults.reduce((total, result) => total + result.unresolvedPlaceholderCount, 0);
+	const documentsWithWinThemes = input.draftResults.filter((result) => result.winThemeIds.length > 0).length;
+	const evidenceChecklistCoverage = input.sectionsDrafted > 0
+		? evidenceChecklistCount / input.sectionsDrafted
+		: 0;
+	const reviewGateCoverage = input.sectionsDrafted > 0
+		? reviewGateCount / input.sectionsDrafted
+		: 0;
+	const winThemeCoverage = input.documentsDrafted > 0
+		? documentsWithWinThemes / input.documentsDrafted
+		: 0;
 
 	if (acceptedRequirementIds.length === 0) {
 		blockers.push("No accepted requirements were available for response package drafting");
@@ -2332,8 +2382,23 @@ function assessResponsePackageDraftReadiness(input: {
 	if (input.sectionsDrafted === 0) {
 		blockers.push("No proposal sections were drafted");
 	}
+	if (unresolvedPlaceholderCount > 0) {
+		blockers.push(`${unresolvedPlaceholderCount} unresolved template placeholder(s) remain in drafted response documents`);
+	}
+	if (input.documentsDrafted > 0 && minDocumentDraftWordCount < 80) {
+		blockers.push(`At least one drafted response document is below the 80-word quality floor (${minDocumentDraftWordCount} words)`);
+	}
+	if (input.sectionsDrafted > 0 && evidenceChecklistCoverage < 1) {
+		blockers.push("At least one drafted response section is missing an evidence checklist");
+	}
+	if (input.sectionsDrafted > 0 && reviewGateCoverage < 1) {
+		blockers.push("At least one drafted response section is missing a review gate");
+	}
 	if (input.complianceEntriesCreated < acceptedRequirementIds.length) {
 		warnings.push(`${input.complianceEntriesCreated}/${acceptedRequirementIds.length} accepted requirement(s) received compliance matrix entries`);
+	}
+	if (input.documentsDrafted > 0 && winThemeCoverage < 1) {
+		warnings.push(`${documentsWithWinThemes}/${input.documentsDrafted} drafted response document(s) include approved win themes`);
 	}
 
 	return {
@@ -2348,8 +2413,18 @@ function assessResponsePackageDraftReadiness(input: {
 			documentsDrafted: input.documentsDrafted,
 			sectionsDrafted: input.sectionsDrafted,
 			complianceEntriesCreated: input.complianceEntriesCreated,
+			totalDraftWordCount,
+			minDocumentDraftWordCount,
+			evidenceChecklistCoverage,
+			reviewGateCoverage,
+			winThemeCoverage,
+			unresolvedPlaceholderCount,
 		},
 	};
+}
+
+function countUnresolvedPlaceholders(value: string): number {
+	return value.match(/\{\{[^}]+\}\}/g)?.length ?? 0;
 }
 
 async function ensureAcceptedRequirementsComplianceMatrix(
