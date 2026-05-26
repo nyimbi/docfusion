@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Requirements Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep requirement CRUD, extraction, gap analysis, workflow acceptance, and projected writing-task gates tied to the current organization as well as the assigned opportunity.
+
+Changes in this slice:
+- Add tenant predicates, with legacy null-opportunity fallback, to the shared assigned-opportunity helpers used by requirement actions.
+- Scope requirement creation, bulk creation, extraction, save-from-extraction, batch acceptance, projected-task lookup/update, and opportunity existence checks by organization.
+- Preserve existing `rfp_requirements.organization_id` and `proposal_tasks.organization_id` row predicates while aligning their opportunity subqueries to the same tenant boundary.
+- Extend requirements scope/workflow tests to assert opportunity organization predicates and mock auth utilities cleanly in isolated action tests.
+
+Verification:
+- `npm test -- requirements-scope.test.ts requirements-workflow.test.ts requirements-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to evidence, win themes, competitive analysis, and remaining workflow support modules that still use assignment-only checks.
+
 ### 2026-05-26 - Opportunity AI Score Tenant Predicates
 
 Status: implemented and verified.

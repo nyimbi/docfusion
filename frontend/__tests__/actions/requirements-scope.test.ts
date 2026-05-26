@@ -52,6 +52,10 @@ var dbMock: {
 vi.mock("@/lib/auth/tenant-context", () => ({
 	requireTenantContext: requireTenantContextMock,
 }));
+vi.mock("@/lib/auth-utils", () => ({
+	requireUserContext: vi.fn(),
+	userHasAuthorityRole: vi.fn(() => false),
+}));
 
 vi.mock("@/lib/db", () => ({
 	db: dbMock = {
@@ -121,7 +125,9 @@ describe("requirements opportunity scoping", () => {
 		expect(rowsChain.limit).toHaveBeenCalledWith(1);
 		expect(rowsChain.offset).toHaveBeenCalledWith(0);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			const sql = collectSqlFragments(where).join(" ");
+			expect(sql).toContain("opportunities.assigned_to");
+			expect(sql).toContain("opportunities.organization_id");
 		}
 	});
 
@@ -140,7 +146,9 @@ describe("requirements opportunity scoping", () => {
 		})).rejects.toThrow("Opportunity not found");
 
 		expect(dbMock.insert).not.toHaveBeenCalled();
-		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assigned_to");
+		const sql = collectSqlFragments(opportunityWhere).join(" ");
+		expect(sql).toContain("opportunities.assigned_to");
+		expect(sql).toContain("opportunities.organization_id");
 	});
 
 	it("scopes single requirement updates through the owning opportunity", async () => {
@@ -155,7 +163,9 @@ describe("requirements opportunity scoping", () => {
 		const result = await updateRequirement(requirementId, { complianceStatus: "partial" });
 
 		expect(result).toBeNull();
-		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+		const sql = collectSqlFragments(updateWhere).join(" ");
+		expect(sql).toContain("opportunities.assigned_to");
+		expect(sql).toContain("opportunities.organization_id");
 	});
 
 	it("scopes requirement stats to assigned opportunities", async () => {
@@ -170,7 +180,9 @@ describe("requirements opportunity scoping", () => {
 		const result = await getRequirementStats(opportunityId);
 
 		expect(result.total).toBe(0);
-		expect(collectSqlFragments(statsWhere).join(" ")).toContain("opportunities.assigned_to");
+		const sql = collectSqlFragments(statsWhere).join(" ");
+		expect(sql).toContain("opportunities.assigned_to");
+		expect(sql).toContain("opportunities.organization_id");
 	});
 
 	it("scopes requirement gap analysis to assigned opportunities", async () => {
@@ -185,6 +197,8 @@ describe("requirements opportunity scoping", () => {
 		const result = await analyzeRequirementGaps(opportunityId);
 
 		expect(result).toMatchObject({ opportunityId, overallReadiness: 0 });
-		expect(collectSqlFragments(analysisWhere).join(" ")).toContain("opportunities.assigned_to");
+		const sql = collectSqlFragments(analysisWhere).join(" ");
+		expect(sql).toContain("opportunities.assigned_to");
+		expect(sql).toContain("opportunities.organization_id");
 	});
 });

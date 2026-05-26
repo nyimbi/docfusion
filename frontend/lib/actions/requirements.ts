@@ -152,23 +152,33 @@ interface RequirementWorkflowHistoryEntry {
 	evidenceLinks?: string[];
 }
 
-function assignedOpportunityCondition(userId: string): SQL {
-	return sql`opportunities.assigned_to = ${userId}`;
+function opportunityOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(opportunities.organizationId, organizationId),
+		isNull(opportunities.organizationId)
+	)!;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityCondition(userId: string, organizationId: string): SQL {
+	return sql`(opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)
+		and opportunities.assigned_to = ${userId}`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string, organizationId: string): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
+			and (opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)
 			and opportunities.assigned_to = ${userId}
 	)`;
 }
 
-function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleOpportunityCondition(opportunityId: string, userId: string, organizationId: string): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		assignedOpportunityCondition(userId)
+		opportunityOrganizationCondition(organizationId),
+		assignedOpportunityCondition(userId, organizationId)
 	)!;
 }
 
@@ -180,7 +190,7 @@ function visibleRequirementsForOpportunityCondition(
 	return and(
 		eq(rfpRequirements.opportunityId, opportunityId),
 		eq(rfpRequirements.organizationId, organizationId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userId, organizationId)
 	)!;
 }
 
@@ -188,7 +198,7 @@ function visibleRequirementCondition(id: string, organizationId: string, userId:
 	return and(
 		eq(rfpRequirements.id, id),
 		eq(rfpRequirements.organizationId, organizationId),
-		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId)
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId, organizationId)
 	)!;
 }
 
@@ -196,7 +206,7 @@ function visibleRequirementIdsCondition(ids: string[], organizationId: string, u
 	return and(
 		inArray(rfpRequirements.id, ids),
 		eq(rfpRequirements.organizationId, organizationId),
-		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId)
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId, organizationId)
 	)!;
 }
 
@@ -211,7 +221,7 @@ function projectedRequirementTaskCondition(
 		eq(proposalTasks.requirementId, requirementId),
 		eq(proposalTasks.opportunityId, opportunityId),
 		eq(proposalTasks.sourceType, "requirement_workflow"),
-		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId, organizationId)
 	)!;
 }
 
@@ -220,15 +230,15 @@ function visibleProposalTaskCondition(taskId: string, opportunityId: string, org
 		eq(proposalTasks.organizationId, organizationId),
 		eq(proposalTasks.id, taskId),
 		eq(proposalTasks.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId, organizationId)
 	)!;
 }
 
-async function assertVisibleOpportunity(opportunityId: string, userId: string): Promise<void> {
+async function assertVisibleOpportunity(opportunityId: string, userId: string, organizationId: string): Promise<void> {
 	const [opportunity] = await db
 		.select({ id: opportunities.id })
 		.from(opportunities)
-		.where(visibleOpportunityCondition(opportunityId, userId))
+		.where(visibleOpportunityCondition(opportunityId, userId, organizationId))
 		.limit(1);
 
 	if (!opportunity) {
@@ -236,7 +246,11 @@ async function assertVisibleOpportunity(opportunityId: string, userId: string): 
 	}
 }
 
-async function assertVisibleOpportunities(opportunityIds: string[], userId: string): Promise<void> {
+async function assertVisibleOpportunities(
+	opportunityIds: string[],
+	userId: string,
+	organizationId: string
+): Promise<void> {
 	const uniqueIds = [...new Set(opportunityIds)];
 	if (uniqueIds.length === 0) {
 		return;
@@ -247,7 +261,8 @@ async function assertVisibleOpportunities(opportunityIds: string[], userId: stri
 		.from(opportunities)
 		.where(and(
 			inArray(opportunities.id, uniqueIds),
-			assignedOpportunityCondition(userId)
+			opportunityOrganizationCondition(organizationId),
+			assignedOpportunityCondition(userId, organizationId)
 		));
 
 	if (visibleRows.length !== uniqueIds.length) {
@@ -388,7 +403,7 @@ export async function getRequirements(
  */
 export async function createRequirement(input: RequirementInput): Promise<Requirement> {
 	const { organizationId, userId } = await requireTenantContext();
-	await assertVisibleOpportunity(input.opportunityId, userId);
+	await assertVisibleOpportunity(input.opportunityId, userId, organizationId);
 
 	const [result] = await db
 		.insert(rfpRequirements)
@@ -421,7 +436,7 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
 export async function createRequirements(inputs: RequirementInput[]): Promise<Requirement[]> {
 	const { organizationId, userId } = await requireTenantContext();
 	if (inputs.length === 0) return [];
-	await assertVisibleOpportunities(inputs.map((input) => input.opportunityId), userId);
+	await assertVisibleOpportunities(inputs.map((input) => input.opportunityId), userId, organizationId);
 
 	const results = await db
 		.insert(rfpRequirements)
@@ -805,7 +820,7 @@ export async function acceptParsedRequirementsForResponsePlan(
 			deadline: opportunities.deadline,
 		})
 		.from(opportunities)
-		.where(visibleOpportunityCondition(input.opportunityId, userId))
+		.where(visibleOpportunityCondition(input.opportunityId, userId, organizationId))
 		.limit(1);
 
 	if (!opportunity) {
@@ -1135,8 +1150,8 @@ export async function extractRequirements(
 	opportunityId: string,
 	documentContent: string
 ): Promise<ExtractionResult> {
-	const { userId } = await requireTenantContext();
-	await assertVisibleOpportunity(opportunityId, userId);
+	const { organizationId, userId } = await requireTenantContext();
+	await assertVisibleOpportunity(opportunityId, userId, organizationId);
 
 	const startTime = Date.now();
 
@@ -1391,8 +1406,8 @@ export async function saveExtractedRequirements(
 	opportunityId: string,
 	extracted: ExtractedRequirement[]
 ): Promise<Requirement[]> {
-	const { userId } = await requireTenantContext();
-	await assertVisibleOpportunity(opportunityId, userId);
+	const { organizationId, userId } = await requireTenantContext();
+	await assertVisibleOpportunity(opportunityId, userId, organizationId);
 
 	const inputs: RequirementInput[] = extracted.map((req, index) => ({
 		opportunityId,

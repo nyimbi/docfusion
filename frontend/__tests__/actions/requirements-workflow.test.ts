@@ -408,8 +408,10 @@ describe("transitionRequirementWorkflow", () => {
 		const existingTaskSql = collectSqlFragments(existingTaskWhere).join(" ");
 		const taskUpdateSql = collectSqlFragments(taskUpdateWhere).join(" ");
 		expect(existingTaskSql).toContain("opportunities.assigned_to");
+		expect(existingTaskSql).toContain("opportunities.organization_id");
 		expect(existingTaskSql).toContain("opportunity_id");
 		expect(taskUpdateSql).toContain("opportunities.assigned_to");
+		expect(taskUpdateSql).toContain("opportunities.organization_id");
 		expect(taskUpdateSql).toContain("opportunity_id");
 		expect((requirementUpdate?.metadata as any).workflow.projectedTaskId).toBe(existingTask.id);
 	});
