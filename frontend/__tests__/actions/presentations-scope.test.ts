@@ -44,6 +44,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	);
 }
 
+function expectAssignedOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("presentations-user-1");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("11111111-1111-4111-8111-111111111111");
+}
+
 var dbMock: {
 	select: ReturnType<typeof vi.fn>;
 	insert: ReturnType<typeof vi.fn>;
@@ -111,7 +119,7 @@ describe("presentation opportunity scoping", () => {
 
 		expect(result).toEqual({ success: false, error: "Opportunity not found" });
 		expect(dbMock.insert).not.toHaveBeenCalled();
-		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(opportunityWhere);
 	});
 
 	it("scopes Q&A requirement context to assigned opportunities", async () => {
@@ -139,7 +147,7 @@ describe("presentation opportunity scoping", () => {
 		expect(result).toEqual({ success: true, data: [] });
 		expect(dbMock.insert).not.toHaveBeenCalled();
 		expect(revalidatePathMock).toHaveBeenCalledWith(`/presentations/${presentationId}`);
-		expect(collectSqlFragments(requirementsWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(requirementsWhere);
 	});
 
 	it("scopes slide generation proposal reads through assigned opportunities", async () => {
@@ -165,8 +173,6 @@ describe("presentation opportunity scoping", () => {
 
 		expect(result).toEqual({ success: false, error: "Proposal document not found" });
 		expect(wheres).toHaveLength(1);
-		const sqlText = collectSqlFragments(wheres[0]).join(" ");
-		expect(sqlText).toContain("opportunities.assigned_to");
-		expect(sqlText).toContain("presentations-user-1");
+		expectAssignedOpportunityTenantScope(wheres[0]);
 	});
 });

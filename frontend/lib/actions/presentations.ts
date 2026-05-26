@@ -104,41 +104,49 @@ function scopedPresentationWhere(id: string, organizationId: string) {
 	);
 }
 
-function assignedOpportunityCondition(userId: string): SQL {
-	return sql`opportunities.assigned_to = ${userId}`;
+function assignedOpportunityCondition(context: PresentationActionContext): SQL {
+	return sql`(
+		opportunities.organization_id = ${context.organizationId}
+		or opportunities.organization_id is null
+	)
+	and opportunities.assigned_to = ${context.userId}`;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, context: PresentationActionContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${context.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${context.userId}
 	)`;
 }
 
-function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleOpportunityCondition(opportunityId: string, context: PresentationActionContext): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		assignedOpportunityCondition(userId)
+		assignedOpportunityCondition(context)
 	)!;
 }
 
-function visibleRequirementsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleRequirementsForOpportunityCondition(opportunityId: string, context: PresentationActionContext): SQL {
 	return and(
 		eq(rfpRequirements.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, context)
 	)!;
 }
 
-function visibleProposalDocumentCondition(proposalDocumentId: string, userId: string): SQL {
+function visibleProposalDocumentCondition(proposalDocumentId: string, context: PresentationActionContext): SQL {
 	return and(
 		eq(proposalDocuments.id, proposalDocumentId),
-		assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId)
+		assignedOpportunityExistsSql(proposalDocuments.opportunityId, context)
 	)!;
 }
 
-function visibleDocumentForProposalCondition(documentId: string, proposalDocumentId: string, userId: string): SQL {
+function visibleDocumentForProposalCondition(documentId: string, proposalDocumentId: string, context: PresentationActionContext): SQL {
 	return sql`documents.id = ${documentId}
 		and exists (
 			select 1
@@ -146,7 +154,11 @@ function visibleDocumentForProposalCondition(documentId: string, proposalDocumen
 			join opportunities on opportunities.id = proposal_documents.opportunity_id
 			where proposal_documents.id = ${proposalDocumentId}
 				and proposal_documents.document_id = documents.id
-				and opportunities.assigned_to = ${userId}
+				and (
+					opportunities.organization_id = ${context.organizationId}
+					or opportunities.organization_id is null
+				)
+				and opportunities.assigned_to = ${context.userId}
 		)`;
 }
 
@@ -353,7 +365,7 @@ export async function createPresentation(
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(visibleOpportunityCondition(opportunityId, context.userId))
+			.where(visibleOpportunityCondition(opportunityId, context))
 			.limit(1);
 
 		if (!opportunity) {
@@ -629,7 +641,7 @@ export async function generateSlidesFromProposal(
 		const [proposalDoc] = await db
 			.select()
 			.from(proposalDocuments)
-			.where(visibleProposalDocumentCondition(proposalId, context.userId))
+			.where(visibleProposalDocumentCondition(proposalId, context))
 			.limit(1);
 
 		if (!proposalDoc) {
@@ -640,7 +652,7 @@ export async function generateSlidesFromProposal(
 		const [doc] = await db
 			.select()
 			.from(documents)
-			.where(visibleDocumentForProposalCondition(proposalDoc.documentId, proposalDoc.id, context.userId))
+			.where(visibleDocumentForProposalCondition(proposalDoc.documentId, proposalDoc.id, context))
 			.limit(1);
 
 		if (!doc) {
@@ -1303,7 +1315,7 @@ export async function anticipateQuestions(
 			const reqs = await db
 				.select()
 				.from(rfpRequirements)
-				.where(visibleRequirementsForOpportunityCondition(presentation.opportunityId, context.userId))
+				.where(visibleRequirementsForOpportunityCondition(presentation.opportunityId, context))
 				.limit(20);
 
 			reqContext = reqs.map((r) => `- ${r.requirementText}`).join("\n");

@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Presentation Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep oral presentation creation, slide generation, proposal source reads, requirement context, and anticipated Q&A scoped to the caller's organization through assigned opportunities and proposal documents.
+
+Changes in this slice:
+- Require source opportunity predicates to include both assignment and the caller's organization, preserving the legacy null-opportunity fallback.
+- Thread the full presentation action context through proposal-document, source-document, opportunity, and requirement visibility helpers.
+- Extend presentation scope tests to assert organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- presentations-scope.test.ts presentations-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to partners, review comments, and remaining workflow support modules that still use unscoped or assignment-only checks.
+
 ### 2026-05-26 - Graphics Opportunity Tenant Predicates
 
 Status: implemented and verified.
