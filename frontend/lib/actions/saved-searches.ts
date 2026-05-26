@@ -341,6 +341,12 @@ function normalizeDiscoveryPresetInput(input: DiscoveryImportInput): DiscoveryIm
 	if (input.browserFallbackLimit !== undefined) {
 		normalized.browserFallbackLimit = normalizeBoundedNumber(input.browserFallbackLimit, 0, 10);
 	}
+	if (input.downloadDiscoveredDocuments !== undefined) {
+		normalized.downloadDiscoveredDocuments = input.downloadDiscoveredDocuments;
+	}
+	if (input.downloadLimit !== undefined) {
+		normalized.downloadLimit = normalizeBoundedNumber(input.downloadLimit, 0, 10);
+	}
 	if (input.language?.trim()) normalized.language = input.language.trim();
 	if (input.timeRange) normalized.timeRange = input.timeRange;
 	if (input.categories?.length) normalized.categories = input.categories;

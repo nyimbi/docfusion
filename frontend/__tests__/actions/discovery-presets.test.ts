@@ -111,6 +111,8 @@ describe("discovery presets", () => {
 				scrapeTopResults: true,
 				scrapeLimit: 12,
 				browserFallback: true,
+				downloadDiscoveredDocuments: true,
+				downloadLimit: 99,
 				includeUnmatchedResults: false,
 			},
 		});
@@ -130,6 +132,8 @@ describe("discovery presets", () => {
 					category: "ICT",
 					engines: ["bing", "wikipedia"],
 					scrapeLimit: 10,
+					downloadDiscoveredDocuments: true,
+					downloadLimit: 10,
 					updateExisting: true,
 				}),
 			}),

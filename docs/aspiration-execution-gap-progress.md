@@ -16,6 +16,23 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Discovery Presets Preserve Document Intake
+
+Status: implemented and verified.
+
+Purpose: keep live configured-source discovery moving into source-document intake when operators save or schedule reusable discovery presets.
+
+Changes in this slice:
+- Persist `downloadDiscoveredDocuments` and bounded `downloadLimit` in discovery presets.
+- Default the live discovery dialog to download seeded source documents with the existing bounded download limit.
+
+Verification:
+- `npm run test -- discovery-presets.test.ts discovery-opportunity-import.test.ts opportunity-discovery-route.test.ts opportunity-discovery-presets-route.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+
+Remaining after this slice:
+- Continue toward live import-to-parse proof.
+
 ### 2026-05-26 - Live-Proven Discovery Source Defaults
 
 Status: implemented and verified.

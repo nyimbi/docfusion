@@ -88,7 +88,7 @@ export function DiscoveryRunDialog({
 	const [scrapeTopResults, setScrapeTopResults] = React.useState(true);
 	const [scrapeLimit, setScrapeLimit] = React.useState(3);
 	const [browserFallback, setBrowserFallback] = React.useState(true);
-	const [downloadDiscoveredDocuments, setDownloadDiscoveredDocuments] = React.useState(false);
+	const [downloadDiscoveredDocuments, setDownloadDiscoveredDocuments] = React.useState(true);
 	const [downloadLimit, setDownloadLimit] = React.useState(3);
 	const [includeUnmatchedResults, setIncludeUnmatchedResults] = React.useState(false);
 	const [isRunning, startTransition] = React.useTransition();
