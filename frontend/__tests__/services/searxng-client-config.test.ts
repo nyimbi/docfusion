@@ -66,6 +66,23 @@ describe("SearXNG client configuration", () => {
 			})
 		);
 	});
+
+	it("passes explicit engine filters to SearXNG search", async () => {
+		const fetchMock = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({ query: "rfp", number_of_results: 0, results: [] }),
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		await searchSearxng("rfp", { engines: ["bing", "wikipedia"], safesearch: 1 });
+
+		const [requested] = fetchMock.mock.calls[0] as unknown as [string, RequestInit?];
+		const requestedUrl = new URL(requested);
+		expect(requestedUrl.searchParams.get("engines")).toBe("bing,wikipedia");
+		expect(requestedUrl.searchParams.get("safesearch")).toBe("1");
+	});
 });
 
 describe("Docling client configuration", () => {

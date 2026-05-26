@@ -127,6 +127,7 @@ describe("discoverAndImportOpportunities", () => {
 		const result = await discoverAndImportOpportunities({
 			query: "case management rfp Kenya",
 			limitPerQuery: 5,
+			engines: ["bing"],
 			countryRegion: "Kenya",
 		});
 
@@ -144,6 +145,9 @@ describe("discoverAndImportOpportunities", () => {
 			updateExisting: true,
 			matchBy: "sourceId",
 		}, "user-1");
+		expect(searchSearxngMock).toHaveBeenCalledWith("case management rfp Kenya", expect.objectContaining({
+			engines: ["bing"],
+		}));
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			assignedTo: "user-1",
 			title: "Request for Proposals: Case management platform",

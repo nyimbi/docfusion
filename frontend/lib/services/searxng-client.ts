@@ -41,6 +41,7 @@ export interface SearxngSearchResponse {
 
 export interface SearchOptions {
   categories?: string[]; // general, images, videos, news, it, science, files, social media
+  engines?: string[];
   language?: string;
   time_range?: string; // day, week, month, year
   safesearch?: 0 | 1 | 2;
@@ -63,6 +64,9 @@ export async function searchSearxng(
   // Optional parameters
   if (options.categories?.length) {
     url.searchParams.append("categories", options.categories.join(","));
+  }
+  if (options.engines?.length) {
+    url.searchParams.append("engines", options.engines.join(","));
   }
   if (options.language) {
     url.searchParams.append("language", options.language);

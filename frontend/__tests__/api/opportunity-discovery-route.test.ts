@@ -89,6 +89,7 @@ describe("opportunity discovery run route", () => {
 		const response = await POST(discoveryRequest({
 			query: "digital transformation tender Kenya",
 			limitPerQuery: 5,
+			engines: ["bing"],
 			countryRegion: "Kenya",
 			scrapeTopResults: true,
 			scrapeLimit: 1,
@@ -106,6 +107,7 @@ describe("opportunity discovery run route", () => {
 			language: undefined,
 			timeRange: undefined,
 			categories: undefined,
+			engines: ["bing"],
 			countryRegion: "Kenya",
 			category: undefined,
 			updateExisting: undefined,

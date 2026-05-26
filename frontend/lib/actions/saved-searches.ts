@@ -338,6 +338,9 @@ function normalizeDiscoveryPresetInput(input: DiscoveryImportInput): DiscoveryIm
 	if (input.language?.trim()) normalized.language = input.language.trim();
 	if (input.timeRange) normalized.timeRange = input.timeRange;
 	if (input.categories?.length) normalized.categories = input.categories;
+	if (input.engines?.length) {
+		normalized.engines = [...new Set(input.engines.map((engine) => engine.trim()).filter(Boolean))];
+	}
 	if (input.countryRegion?.trim()) normalized.countryRegion = input.countryRegion.trim();
 	if (input.category?.trim()) normalized.category = input.category.trim();
 	if (input.includeUnmatchedResults !== undefined) {

@@ -49,6 +49,13 @@ function parseQueries(value: string): string[] {
 		.filter(Boolean);
 }
 
+function parseDelimitedList(value: string): string[] {
+	return value
+		.split(/[,\n]/)
+		.map((item) => item.trim())
+		.filter(Boolean);
+}
+
 function clampNumber(value: number, min: number, max: number): number {
 	if (!Number.isFinite(value)) return min;
 	return Math.min(max, Math.max(min, Math.trunc(value)));
@@ -69,6 +76,7 @@ export function DiscoveryRunDialog({
 	);
 	const [countryRegion, setCountryRegion] = React.useState("");
 	const [category, setCategory] = React.useState("External discovery");
+	const [engines, setEngines] = React.useState("");
 	const [limitPerQuery, setLimitPerQuery] = React.useState(10);
 	const [scrapeTopResults, setScrapeTopResults] = React.useState(true);
 	const [scrapeLimit, setScrapeLimit] = React.useState(3);
@@ -90,6 +98,7 @@ export function DiscoveryRunDialog({
 		limitPerQuery: clampNumber(limitPerQuery, 1, 50),
 		countryRegion: countryRegion.trim() || undefined,
 		category: category.trim() || undefined,
+		engines: parseDelimitedList(engines),
 		updateExisting: true,
 		includeUnmatchedResults,
 		scrapeTopResults,
@@ -104,6 +113,7 @@ export function DiscoveryRunDialog({
 		countryRegion,
 		downloadDiscoveredDocuments,
 		downloadLimit,
+		engines,
 		includeUnmatchedResults,
 		limitPerQuery,
 		queries,
@@ -135,6 +145,7 @@ export function DiscoveryRunDialog({
 		setQueries((input.queries ?? (input.query ? [input.query] : [])).join("\n"));
 		setCountryRegion(input.countryRegion ?? "");
 		setCategory(input.category ?? "External discovery");
+		setEngines((input.engines ?? []).join(", "));
 		setLimitPerQuery(input.limitPerQuery ?? 10);
 		setScrapeTopResults(input.scrapeTopResults ?? true);
 		setScrapeLimit(input.scrapeLimit ?? 3);
@@ -344,7 +355,7 @@ export function DiscoveryRunDialog({
 						/>
 					</div>
 
-					<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+					<div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
 						<div className="space-y-2">
 							<label className="text-sm font-medium text-foreground" htmlFor="discovery-country">
 								Region
@@ -379,6 +390,18 @@ export function DiscoveryRunDialog({
 								max={50}
 								value={limitPerQuery}
 								onChange={(event) => setLimitPerQuery(Number(event.target.value))}
+								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+							/>
+						</div>
+						<div className="space-y-2">
+							<label className="text-sm font-medium text-foreground" htmlFor="discovery-engines">
+								Engines
+							</label>
+							<input
+								id="discovery-engines"
+								value={engines}
+								onChange={(event) => setEngines(event.target.value)}
+								placeholder="bing"
 								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
 							/>
 						</div>

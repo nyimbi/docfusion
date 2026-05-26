@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Discovery Engine Targeting
+
+Status: implemented and verified.
+
+Purpose: let operators route live discovery searches through explicit SearXNG engines when the default engine mix is degraded by CAPTCHA, access-denied, or rate-limit failures.
+
+Changes in this slice:
+- Add `engines` to frontend SearXNG search options and discovery import input.
+- Pass selected engines from discovery imports into SearXNG requests.
+- Accept engine lists through the discovery run API route.
+- Persist engine selections in reusable discovery presets.
+- Add an Engines control to the live discovery dialog.
+
+Verification:
+- `npm run test -- discovery-opportunity-import.test.ts searxng-client-config.test.ts discovery-presets.test.ts opportunity-discovery-route.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+
+Remaining after this slice:
+- Engine targeting gives operators a mitigation lever, but it does not repair blocked upstream engines or guarantee result quality from any single available engine.
+
 ### 2026-05-26 - SearXNG Engine Degradation Telemetry
 
 Status: implemented and verified.

@@ -27,6 +27,7 @@ export interface DiscoveryImportInput {
 	language?: string;
 	timeRange?: SearchOptions["time_range"];
 	categories?: SearchOptions["categories"];
+	engines?: SearchOptions["engines"];
 	countryRegion?: string;
 	category?: string;
 	updateExisting?: boolean;
@@ -628,6 +629,7 @@ export async function executeOpportunityDiscoveryImport(
 		try {
 			const response = await searchSearxng(query, {
 				categories: input.categories ?? ["general", "news", "files"],
+				engines: input.engines,
 				language: input.language,
 				time_range: input.timeRange,
 				safesearch: 1,
