@@ -230,6 +230,10 @@ export async function createSubmission(
 				storageKey: artifact.storageKey,
 				storageEtag: artifact.storageEtag,
 				storageEndpoint: artifact.storageEndpoint,
+				approvedBy: artifact.approvedBy,
+				approvedAt: artifact.approvedAt,
+				sourceDocumentVersion: artifact.sourceDocumentVersion,
+				sourceContentHash: artifact.sourceContentHash,
 				lockedAt,
 			});
 		}
@@ -310,6 +314,10 @@ type StoredFinalArtifactManifest = {
 	storageKey: string;
 	storageEtag: string | null;
 	storageEndpoint: string;
+	approvedBy: string;
+	approvedAt: string | Date;
+	sourceDocumentVersion: number | null;
+	sourceContentHash: string;
 };
 
 function finalArtifactManifest(metadata: unknown): StoredFinalArtifactManifest | null {
@@ -322,7 +330,12 @@ function finalArtifactManifest(metadata: unknown): StoredFinalArtifactManifest |
 		typeof artifact.storagePath !== "string" ||
 		typeof artifact.storageBucket !== "string" ||
 		typeof artifact.storageKey !== "string" ||
-		typeof artifact.storageEndpoint !== "string"
+		typeof artifact.storageEndpoint !== "string" ||
+		typeof artifact.approvedBy !== "string" ||
+		!(typeof artifact.approvedAt === "string" || artifact.approvedAt instanceof Date) ||
+		!("sourceDocumentVersion" in artifact) ||
+		!(typeof artifact.sourceDocumentVersion === "number" || artifact.sourceDocumentVersion === null) ||
+		typeof artifact.sourceContentHash !== "string"
 	) {
 		return null;
 	}
@@ -337,6 +350,10 @@ function finalArtifactManifest(metadata: unknown): StoredFinalArtifactManifest |
 		storageKey: artifact.storageKey,
 		storageEtag: typeof artifact.storageEtag === "string" ? artifact.storageEtag : null,
 		storageEndpoint: artifact.storageEndpoint,
+		approvedBy: artifact.approvedBy,
+		approvedAt: artifact.approvedAt,
+		sourceDocumentVersion: artifact.sourceDocumentVersion,
+		sourceContentHash: artifact.sourceContentHash,
 	};
 }
 

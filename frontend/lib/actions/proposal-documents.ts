@@ -136,6 +136,8 @@ function artifactSummary(value: unknown): ProposalDocument["finalArtifact"] {
 		storageEndpoint: typeof record.storageEndpoint === "string" ? record.storageEndpoint : null,
 		approvedBy: typeof record.approvedBy === "string" ? record.approvedBy : null,
 		approvedAt: typeof record.approvedAt === "string" || record.approvedAt instanceof Date ? record.approvedAt : null,
+		sourceDocumentVersion: typeof record.sourceDocumentVersion === "number" ? record.sourceDocumentVersion : null,
+		sourceContentHash: typeof record.sourceContentHash === "string" ? record.sourceContentHash : null,
 		renderedAt: typeof record.renderedAt === "string" || record.renderedAt instanceof Date ? record.renderedAt : null,
 	};
 }

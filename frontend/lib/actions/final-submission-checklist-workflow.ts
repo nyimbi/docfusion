@@ -32,6 +32,14 @@ type ProposalDocumentWithDocument = {
 
 type ComplianceMatrixRow = typeof complianceMatrices.$inferSelect;
 type ClaimAnalysisRow = typeof claimAnalysis.$inferSelect;
+type FinalArtifactMetadata = {
+	artifactHash?: unknown;
+	storagePath?: unknown;
+	approvedBy?: unknown;
+	approvedAt?: unknown;
+	sourceDocumentVersion?: unknown;
+	sourceContentHash?: unknown;
+};
 
 export type FinalChecklistCategory =
 	| "documents"
@@ -265,10 +273,7 @@ function approvalItem(doc: ProposalDocumentWithDocument): FinalSubmissionCheckli
 
 function artifactItem(doc: ProposalDocumentWithDocument): FinalSubmissionChecklistItem {
 	const artifact = finalArtifact(doc.metadata);
-	const passed = Boolean(
-		typeof artifact?.artifactHash === "string" &&
-		typeof artifact.storagePath === "string"
-	);
+	const passed = hasCompleteFinalArtifactReceipt(artifact);
 	return {
 		id: `artifact:${doc.documentId}`,
 		category: "artifact",
@@ -277,10 +282,35 @@ function artifactItem(doc: ProposalDocumentWithDocument): FinalSubmissionCheckli
 		passed,
 		message: passed
 			? `Final artifact ${artifact?.artifactHash} stored at ${artifact?.storagePath}`
-			: "Approved final artifact storage receipt is missing",
+			: finalArtifactFailureMessage(artifact),
 		subjectId: doc.documentId,
 		assignedRole: "production_specialist",
 	};
+}
+
+function hasCompleteFinalArtifactReceipt(artifact: FinalArtifactMetadata | null): boolean {
+	if (!artifact) {
+		return false;
+	}
+	return Boolean(
+		typeof artifact.artifactHash === "string" &&
+		typeof artifact.storagePath === "string" &&
+		typeof artifact.approvedBy === "string" &&
+		(typeof artifact.approvedAt === "string" || artifact.approvedAt instanceof Date) &&
+		"sourceDocumentVersion" in artifact &&
+		(typeof artifact.sourceDocumentVersion === "number" || artifact.sourceDocumentVersion === null) &&
+		typeof artifact.sourceContentHash === "string"
+	);
+}
+
+function finalArtifactFailureMessage(artifact: FinalArtifactMetadata | null): string {
+	if (!artifact || typeof artifact.artifactHash !== "string" || typeof artifact.storagePath !== "string") {
+		return "Approved final artifact storage receipt is missing";
+	}
+	if (typeof artifact.approvedBy !== "string" || !(typeof artifact.approvedAt === "string" || artifact.approvedAt instanceof Date)) {
+		return "Approved final artifact approval receipt is missing";
+	}
+	return "Approved final artifact freshness receipt is missing";
 }
 
 function signatureItem(doc: ProposalDocumentWithDocument): FinalSubmissionChecklistItem {
@@ -397,12 +427,12 @@ function dlpItem(findings: DlpFinding[]): FinalSubmissionChecklistItem {
 	};
 }
 
-function finalArtifact(metadata: unknown): { artifactHash?: unknown; storagePath?: unknown } | null {
+function finalArtifact(metadata: unknown): FinalArtifactMetadata | null {
 	const value = asRecord(metadata).finalArtifact;
 	if (!value || typeof value !== "object") {
 		return null;
 	}
-	return value as { artifactHash?: unknown; storagePath?: unknown };
+	return value as FinalArtifactMetadata;
 }
 
 function finalSubmissionSignoff(metadata: unknown): { signedBy?: unknown; signedAt?: unknown } | null {

@@ -125,6 +125,10 @@ const storedFinalArtifact = {
 	storageEndpoint: "https://objects.example.com",
 	renderedAt: "2026-05-05T00:00:00.000Z",
 	renderedBy: "production-lead-1",
+	approvedAt: "2026-05-05T01:00:00.000Z",
+	approvedBy: "proposal-manager-1",
+	sourceDocumentVersion: 4,
+	sourceContentHash: "source-hash-technical",
 	renderTimeMs: 40,
 	pageCount: 12,
 };
@@ -317,6 +321,41 @@ describe("submission workflow gates", () => {
 		expect(dbMock.insert).not.toHaveBeenCalled();
 	});
 
+	it("requires selected attachment artifacts to include approval and freshness receipts", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "opp-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "proposal-doc-1",
+					documentId: "doc-1",
+					documentType: "technical_approach",
+					status: "final",
+					title: "Technical Approach",
+					metadata: {
+						finalArtifact: {
+							...storedFinalArtifact,
+							approvedBy: undefined,
+							sourceContentHash: undefined,
+						},
+					},
+				}],
+			}));
+
+		await expect(
+			createSubmission({
+				opportunityId: "opp-1",
+				submittedBy: "Proposal Lead",
+				submissionMethod: "portal",
+				confirmationNumber: "PORTAL-123",
+				attachmentIds: ["doc-1"],
+			})
+		).rejects.toThrow("approved stored final artifact");
+
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
 	it("locks submitted attachments to final artifact storage receipts", async () => {
 		let insertedSubmission: Record<string, unknown> | undefined;
 		let opportunityUpdate: Record<string, unknown> | undefined;
@@ -382,6 +421,10 @@ describe("submission workflow gates", () => {
 			storageKey: "proposal/final-artifacts/opp-1/proposal-doc-1/technical-approach.docx",
 			storageEtag: "\"artifact-etag\"",
 			storageEndpoint: "https://objects.example.com",
+			approvedBy: "proposal-manager-1",
+			approvedAt: "2026-05-05T01:00:00.000Z",
+			sourceDocumentVersion: 4,
+			sourceContentHash: "source-hash-technical",
 		});
 		expect(attachments[0].lockedAt).toEqual(expect.any(String));
 		expect(opportunityUpdate).toMatchObject({

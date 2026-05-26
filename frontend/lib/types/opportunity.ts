@@ -808,6 +808,8 @@ export interface ProposalFinalArtifactSummary {
 	storageEndpoint?: string | null;
 	approvedBy?: string | null;
 	approvedAt?: Date | string | null;
+	sourceDocumentVersion?: number | null;
+	sourceContentHash?: string | null;
 	renderedAt?: Date | string | null;
 }
 
@@ -1455,6 +1457,10 @@ export interface SubmissionAttachment {
 	storageKey?: string;
 	storageEtag?: string | null;
 	storageEndpoint?: string;
+	approvedBy?: string;
+	approvedAt?: Date | string;
+	sourceDocumentVersion?: number | null;
+	sourceContentHash?: string;
 	lockedAt?: string;
 }
 

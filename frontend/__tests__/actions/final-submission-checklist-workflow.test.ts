@@ -84,6 +84,10 @@ const finalArtifact = {
 	storageEndpoint: "https://objects.example.com",
 	renderedAt: "2026-05-05T00:00:00.000Z",
 	renderedBy: "production-lead-1",
+	approvedAt: "2026-05-05T01:00:00.000Z",
+	approvedBy: "proposal-manager-1",
+	sourceDocumentVersion: 4,
+	sourceContentHash: "source-hash-technical",
 	renderTimeMs: 40,
 	pageCount: 12,
 };
@@ -384,6 +388,55 @@ describe("final submission checklist workflow", () => {
 		expect(result.allowed).toBe(false);
 		expect(result.blockers.join("\n")).toContain("stored final artifact");
 		expect(result.blockers.join("\n")).toContain("storage receipt is missing");
+	});
+
+	it("blocks approved final artifacts that do not prove the rendered source version", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					docFixture({
+						metadata: {
+							finalArtifact: {
+								...finalArtifact,
+								sourceDocumentVersion: undefined,
+								sourceContentHash: undefined,
+							},
+							finalSubmissionSignoff: {
+								signedBy: "executive-1",
+								signedAt: "2026-05-05T00:00:00.000Z",
+							},
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-management",
+						documentId: "doc-management",
+						documentType: "management_plan",
+						title: "Management Plan",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-management", proposalDocumentId: "pd-management" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-cost",
+						documentId: "doc-cost",
+						documentType: "cost_proposal",
+						title: "Cost Proposal",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-cost", proposalDocumentId: "pd-cost" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+				],
+			}))
+			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
+
+		expect(result.allowed).toBe(false);
+		expect(result.blockers.join("\n")).toContain("stored final artifact");
+		expect(result.blockers.join("\n")).toContain("freshness receipt is missing");
 	});
 
 	it("blocks unresolved high-risk unsupported claims before final submission", async () => {

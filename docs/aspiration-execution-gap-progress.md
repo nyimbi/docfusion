@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Final Submission Artifact Freshness Gate
+
+Status: implemented and verified.
+
+Purpose: prevent final submission readiness from accepting a stored artifact that lacks approval or source freshness receipts.
+
+Changes in this slice:
+- Require final submission checklist artifacts to include storage, approval, source document version, and source content hash receipts.
+- Require selected submission attachments to carry the same approval and source freshness receipts before locking them into a submission record.
+- Snapshot artifact approval and source freshness metadata on submission attachments.
+- Surface final artifact source freshness metadata in proposal document summaries.
+- Add focused coverage for missing final artifact freshness and attachment receipt metadata.
+
+Verification:
+- `npm run test -- __tests__/actions/final-submission-checklist-workflow.test.ts __tests__/actions/submission-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets final submission artifact readiness with two focused action test files and whitespace validation.
+
+Remaining after this slice:
+- Continue hardening submission package retrieval, correction/withdrawal compensation, and end-to-end discovery-to-submission proof.
+
 ### 2026-05-26 - Final Artifact Stale Render Guard
 
 Status: implemented and verified.
