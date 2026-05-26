@@ -6,6 +6,7 @@ interface ChainConfig {
 	result?: unknown[];
 	onWhere?: (value: unknown) => void;
 	onSet?: (value: Record<string, unknown>) => void;
+	onValues?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
@@ -21,7 +22,10 @@ function createChain(config: ChainConfig = {}) {
 		config.onSet?.(value);
 		return chain;
 	});
-	chain.values = vi.fn(() => chain);
+	chain.values = vi.fn((value: unknown) => {
+		config.onValues?.(value);
+		return chain;
+	});
 	chain.returning = vi.fn(async () => config.result ?? []);
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
@@ -43,6 +47,16 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 		return value.flatMap((item) => collectSqlFragments(item, seen));
 	}
 	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
+}
+
+function flattenText(value: unknown): string {
+	if (typeof value === "string") return value;
+	if (Array.isArray(value)) return value.map(flattenText).join(" ");
+	if (value && typeof value === "object") {
+		const record = value as Record<string, unknown>;
+		return [record.text, record.content].map(flattenText).join(" ");
+	}
+	return "";
 }
 
 var dbMock: {
@@ -139,6 +153,97 @@ describe("proposal document row scoping", () => {
 
 		expect(dbMock.insert).not.toHaveBeenCalled();
 		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("seeds new proposal drafts with opportunity context and matching requirement response plans", async () => {
+		const opportunity = {
+			id: proposalDocument.opportunityId,
+			title: "Offline Field Reporting Platform",
+			organization: "Regional Authority",
+			sector: "Government/SOE",
+			countryRegion: "East Africa",
+			category: "Digital Transformation",
+			deadline: new Date("2026-06-15T00:00:00.000Z"),
+			budgetValue: "USD 500,000",
+			projectSummary: "Deploy an offline-first reporting platform for field teams.",
+			projectScope: "Mobile data collection, workflow approvals, dashboards, and audit exports.",
+			keyRequirements: "Offline-first operation and source-linked reporting.",
+			technicalRequirements: "Role-based access control and immutable audit trails.",
+			submissionRequirements: "Provide a requirement-by-requirement technical response.",
+			fitScore: 91,
+			winProbability: 64,
+			strategicNotes: "Emphasize Datacraft's live institutional intelligence footprint.",
+		};
+		const technicalRequirement = {
+			id: "77777777-7777-4777-8777-777777777777",
+			requirementNumber: "REQ-007",
+			title: "Offline reporting",
+			requirementText: "The supplier shall support offline data capture and synchronized reporting.",
+			sourceQuote: "Offline data capture is mandatory.",
+			sourcePage: 12,
+			sourceSection: "Section C.4",
+			category: "technical",
+			priority: "mandatory",
+			riskLevel: "high",
+			complianceStatus: "not_addressed",
+			responseStrategy: "Use MeGuard field operations and Lindela source-cited evidence controls.",
+			suggestedApproach: null,
+		};
+		const financialRequirement = {
+			...technicalRequirement,
+			id: "88888888-8888-4888-8888-888888888888",
+			requirementNumber: "REQ-009",
+			category: "financial",
+			requirementText: "The supplier shall provide a fixed price schedule.",
+		};
+		let insertedDocument: Record<string, any> | undefined;
+		let insertedSections: unknown;
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [opportunity] }))
+			.mockReturnValueOnce(createChain({ result: [technicalRequirement, financialRequirement] }))
+			.mockReturnValueOnce(createChain({ result: [{ maxOrder: 0 }] }));
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ ...documentRow, title: "Technical Approach - Draft", content: {}, plainText: "" }],
+				onValues: (value) => {
+					insertedDocument = value as Record<string, any>;
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [proposalDocument],
+			}))
+			.mockReturnValueOnce(createChain({
+				onValues: (value) => {
+					insertedSections = value;
+				},
+			}));
+
+		const result = await createProposalDocument({
+			opportunityId: proposalDocument.opportunityId,
+			documentType: "technical_approach",
+		});
+
+		expect(result).toMatchObject({ id: proposalDocument.id, documentType: "technical_approach" });
+		expect(insertedDocument).toBeDefined();
+		const seededText = flattenText(insertedDocument?.content);
+		expect(seededText).toContain("Opportunity-Specific Response Plan");
+		expect(seededText).toContain("Offline Field Reporting Platform");
+		expect(seededText).toContain("Requirement Response Plan");
+		expect(seededText).toContain("REQ-007");
+		expect(seededText).toContain("offline data capture");
+		expect(seededText).toContain("Response strategy: Use MeGuard field operations");
+		expect(seededText).toContain("Compliance Gap Closure");
+		expect(seededText).toContain("Datacraft Proof Points");
+		expect(seededText).toContain("Lindela");
+		expect(seededText).not.toContain("REQ-009");
+		expect(insertedDocument?.plainText).toContain("Requirement Response Plan");
+		expect(insertedDocument?.metadata).toMatchObject({
+			documentType: "technical_approach",
+			opportunityId: proposalDocument.opportunityId,
+			seededRequirementIds: [technicalRequirement.id],
+		});
+		expect(insertedSections).toEqual(expect.any(Array));
 	});
 
 	it("scopes proposal document reads through the owning opportunity", async () => {

@@ -26,6 +26,7 @@ import type {
 	SectionProgress,
 	DocumentSectionStatus,
 } from "@/lib/types/opportunity";
+import type { DocumentContent } from "@/lib/types/document";
 import { getDocumentTypeLabel } from "@/lib/utils/proposal-labels";
 import {
 	getDatacraftProposalDocumentContent,
@@ -116,6 +117,70 @@ function countWords(text: string): number {
 	return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+type ContentNode = NonNullable<DocumentContent["content"]>[number];
+
+type OpportunityResponseContext = Pick<
+	typeof opportunities.$inferSelect,
+	| "id"
+	| "title"
+	| "organization"
+	| "sector"
+	| "countryRegion"
+	| "category"
+	| "deadline"
+	| "budgetValue"
+	| "projectSummary"
+	| "projectScope"
+	| "keyRequirements"
+	| "technicalRequirements"
+	| "submissionRequirements"
+	| "fitScore"
+	| "winProbability"
+	| "strategicNotes"
+>;
+
+function textNode(text: string): ContentNode {
+	return { type: "text", text };
+}
+
+function headingNode(level: number, text: string): ContentNode {
+	return {
+		type: "heading",
+		attrs: { level },
+		content: [textNode(text)],
+	};
+}
+
+function paragraphNode(text: string): ContentNode {
+	return {
+		type: "paragraph",
+		content: [textNode(text)],
+	};
+}
+
+function bulletListNode(items: string[]): ContentNode {
+	return {
+		type: "bulletList",
+		content: items.map((item) => ({
+			type: "listItem",
+			content: [paragraphNode(item)],
+		})),
+	};
+}
+
+function compactText(value: string | null | undefined, maxLength = 260): string | null {
+	const normalized = value?.replace(/\s+/g, " ").trim();
+	if (!normalized) return null;
+	return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 3)}...` : normalized;
+}
+
+function formatDate(value: Date | string | null | undefined): string | null {
+	if (!value) return null;
+	const date = value instanceof Date ? value : new Date(value);
+	if (Number.isNaN(date.getTime())) return null;
+	return date.toISOString().slice(0, 10);
+}
+
 function uniqueStrings(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))];
 }
@@ -198,6 +263,172 @@ function visibleRequirementCondition(id: string, userId: string): SQL {
 	)!;
 }
 
+function opportunityContextBullets(opportunity: OpportunityResponseContext): string[] {
+	return [
+		opportunity.organization ? `Client: ${opportunity.organization}` : null,
+		opportunity.sector ? `Sector: ${opportunity.sector}` : null,
+		opportunity.countryRegion ? `Region: ${opportunity.countryRegion}` : null,
+		opportunity.category ? `Opportunity category: ${opportunity.category}` : null,
+		opportunity.deadline ? `Submission deadline: ${formatDate(opportunity.deadline)}` : null,
+		opportunity.budgetValue ? `Budget signal: ${opportunity.budgetValue}` : null,
+		opportunity.fitScore != null ? `Fit score: ${Math.round(opportunity.fitScore)} / 100` : null,
+		opportunity.winProbability != null
+			? `Win probability: ${Math.round(opportunity.winProbability)} / 100`
+			: null,
+	]
+		.filter((item): item is string => Boolean(item));
+}
+
+function proofPointsForDocumentType(documentType: ProposalDocumentType): string[] {
+	const common = [
+		"Lindela proves source-cited intelligence, classification metadata, workflow state, and audit discipline in live institutional deployments.",
+		"MeGuard proves offline-aware field operations, biometric verification, dispatch workflows, compliance tracking, and large-site operational analytics.",
+		"Wakala proves transaction-grade reconciliation, idempotency, auditability, regulated payment integration, and disciplined exception handling.",
+	];
+
+	switch (documentType) {
+		case "technical_approach":
+			return [
+				"Lead with a workflow-backed platform architecture: canonical data spine, explicit state transitions, integration boundary, and audit trail.",
+				"Show how AI-assisted extraction, drafting, and triage preserve source references, confidence signals, and human approval.",
+				...common,
+			];
+		case "management_plan":
+			return [
+				"Convert requirements into governance gates, acceptance criteria, RAID items, review tasks, and implementation evidence.",
+				"Emphasize senior technical ownership, transparent delivery controls, change management, and customer-controlled release cadence.",
+				...common,
+			];
+		case "staffing_plan":
+			return [
+				"Show named delivery accountability across product, architecture, engineering, security, data, QA, training, and support.",
+				"Connect staffing to real operating needs: workflow modelling, migration, integrations, adoption, reporting, and hypercare.",
+				...common,
+			];
+		case "past_performance":
+			return [
+				"Use Lindela, MeGuard, and Wakala as proof of adjacent workloads rather than generic corporate experience.",
+				"Translate each proof point into evaluator risk reduction: production pressure, auditability, field constraints, and African-market fluency.",
+				...common,
+			];
+		case "cost_proposal":
+			return [
+				"Frame price around total cost of ownership, reusable platform foundations, avoided manual reconciliation, and reduced adaptation risk.",
+				"Separate assumptions, dependencies, optional scope, and value protection so evaluators can defend the commercial logic.",
+				...common,
+			];
+		case "executive_summary":
+		case "cover_letter":
+			return [
+				"Open with the client mandate, then position Datacraft as a lower-risk African institutional software partner.",
+				"Connect the offer to sovereignty, auditability, field reality, payment rails, and compounding institutional memory.",
+				...common,
+			];
+		default:
+			return common;
+	}
+}
+
+function requirementLabel(requirement: typeof rfpRequirements.$inferSelect): string {
+	return (
+		compactText(requirement.requirementNumber, 80) ||
+		compactText(requirement.title, 80) ||
+		requirement.id
+	);
+}
+
+function requirementResponseLine(requirement: typeof rfpRequirements.$inferSelect): string {
+	const label = requirementLabel(requirement);
+	const requirementText = compactText(requirement.requirementText, 220) ?? "No requirement text captured.";
+	const source =
+		compactText(requirement.sourceSection, 80) ??
+		(requirement.sourcePage != null ? `Page ${requirement.sourcePage}` : null);
+	const strategy =
+		compactText(requirement.responseStrategy, 180) ??
+		compactText(requirement.suggestedApproach, 180) ??
+		"Anchor the response in Datacraft's workflow, evidence, security, and delivery proof points.";
+	const risk = requirement.riskLevel ? ` Risk: ${requirement.riskLevel}.` : "";
+	const priority = requirement.priority ? ` Priority: ${requirement.priority}.` : "";
+	const sourceText = source ? ` Source: ${source}.` : "";
+
+	return `${label}: ${requirementText}${sourceText}${priority}${risk} Response strategy: ${strategy}`;
+}
+
+function complianceGapLine(requirement: typeof rfpRequirements.$inferSelect): string {
+	const label = requirementLabel(requirement);
+	const status = requirement.complianceStatus || "not_addressed";
+	const strategy =
+		compactText(requirement.responseStrategy, 160) ??
+		compactText(requirement.suggestedApproach, 160) ??
+		"Assign an owner, add evidence, and draft a direct compliant response.";
+
+	return `${label}: current status ${status}. Close by ${strategy}`;
+}
+
+function appendResponsePlanContent(
+	content: DocumentContent,
+	opportunity: OpportunityResponseContext,
+	documentType: ProposalDocumentType,
+	requirements: Array<typeof rfpRequirements.$inferSelect>
+): DocumentContent {
+	const opportunityBullets = opportunityContextBullets(opportunity);
+	const contextNotes = [
+		compactText(opportunity.projectSummary, 340),
+		compactText(opportunity.projectScope, 340),
+		compactText(opportunity.keyRequirements, 340),
+		compactText(opportunity.technicalRequirements, 340),
+		compactText(opportunity.submissionRequirements, 340),
+		compactText(opportunity.strategicNotes, 340),
+	].filter((note): note is string => Boolean(note));
+	const complianceGaps = requirements.filter(
+		(requirement) =>
+			!["addressed", "compliant"].includes(requirement.complianceStatus ?? "")
+	);
+
+	const planNodes: ContentNode[] = [
+		headingNode(2, "Opportunity-Specific Response Plan"),
+		paragraphNode(
+			`Use this section to tailor the ${getDocumentTypeLabel(documentType).toLowerCase()} for ${opportunity.title}. Replace generic claims with direct responses, source references, and evaluator-facing evidence.`
+		),
+	];
+
+	if (opportunityBullets.length > 0) {
+		planNodes.push(headingNode(3, "Opportunity Context"), bulletListNode(opportunityBullets));
+	}
+
+	if (contextNotes.length > 0) {
+		planNodes.push(headingNode(3, "Evaluator Signals To Address"), bulletListNode(contextNotes));
+	}
+
+	planNodes.push(headingNode(3, "Requirement Response Plan"));
+	if (requirements.length > 0) {
+		planNodes.push(bulletListNode(requirements.slice(0, 12).map(requirementResponseLine)));
+	} else {
+		planNodes.push(
+			paragraphNode(
+				"No extracted actionable requirements are linked to this document type yet. Once RFP requirements are extracted, regenerate or refresh this draft so every section has requirement-backed response cues."
+			)
+		);
+	}
+
+	planNodes.push(
+		headingNode(3, "Datacraft Proof Points To Weave In"),
+		bulletListNode(proofPointsForDocumentType(documentType))
+	);
+
+	if (complianceGaps.length > 0) {
+		planNodes.push(
+			headingNode(3, "Compliance Gap Closure"),
+			bulletListNode(complianceGaps.slice(0, 8).map(complianceGapLine))
+		);
+	}
+
+	return {
+		...content,
+		content: [...(content.content ?? []), ...planNodes],
+	};
+}
+
 // Label utility functions are in @/lib/utils/proposal-labels.ts
 // to avoid "use server" requirement for synchronous client functions
 
@@ -263,7 +494,24 @@ export async function createProposalDocument(
 	const { opportunityId, documentType, title, templateId, assignedTo, dueDate, notes } = input;
 
 	const [opportunity] = await db
-		.select({ id: opportunities.id })
+		.select({
+			id: opportunities.id,
+			title: opportunities.title,
+			organization: opportunities.organization,
+			sector: opportunities.sector,
+			countryRegion: opportunities.countryRegion,
+			category: opportunities.category,
+			deadline: opportunities.deadline,
+			budgetValue: opportunities.budgetValue,
+			projectSummary: opportunities.projectSummary,
+			projectScope: opportunities.projectScope,
+			keyRequirements: opportunities.keyRequirements,
+			technicalRequirements: opportunities.technicalRequirements,
+			submissionRequirements: opportunities.submissionRequirements,
+			fitScore: opportunities.fitScore,
+			winProbability: opportunities.winProbability,
+			strategicNotes: opportunities.strategicNotes,
+		})
 		.from(opportunities)
 		.where(visibleOpportunityCondition(opportunityId, userId))
 		.limit(1);
@@ -271,6 +519,16 @@ export async function createProposalDocument(
 	if (!opportunity) {
 		throw new Error("Opportunity not found");
 	}
+
+	const requirements = await db
+		.select()
+		.from(rfpRequirements)
+		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId));
+	const documentRequirements = requirements.filter(
+		(requirement) =>
+			requirement.complianceStatus !== "not_applicable" &&
+			documentTypeForRequirement(requirement) === documentType
+	);
 
 	// Generate a title if not provided
 	const documentTitle = title || `${getDocumentTypeLabel(documentType)} - Draft`;
@@ -284,7 +542,12 @@ export async function createProposalDocument(
 	const nextOrder = (existingDocs[0]?.maxOrder ?? -1) + 1;
 
 	// Create the underlying document first
-	const defaultContent = getDatacraftProposalDocumentContent(documentType);
+	const defaultContent = appendResponsePlanContent(
+		getDatacraftProposalDocumentContent(documentType),
+		opportunity,
+		documentType,
+		documentRequirements
+	);
 	const plainText = extractPlainText(defaultContent);
 	const wordCount = countWords(plainText);
 	const [newDoc] = await db
@@ -302,6 +565,9 @@ export async function createProposalDocument(
 			metadata: {
 				source: "datacraft_response_sections",
 				documentType,
+				opportunityId,
+				requirementResponsePlanVersion: "2026-05-26",
+				seededRequirementIds: documentRequirements.map((requirement) => requirement.id),
 			},
 		})
 		.returning();
