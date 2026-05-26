@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Discovered Document URL Intake Handoff
+
+Status: implemented and verified.
+
+Purpose: ensure scraped discovery document links are the URLs operators view and ingest into the RFP parser pipeline.
+
+Changes in this slice:
+- Prefer `opportunity.documentUrl` over portal/RFP page links for the opportunity detail page direct RFP link and source ingest controls.
+- Keep the portal/RFP link fallback for opportunities that do not yet have a direct document URL.
+- Extend opportunity document action coverage to prove source intake creates the discovered source document from `documentUrl`, not the portal page.
+
+Verification:
+- `npm run test -- __tests__/actions/opportunity-documents-scope.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate wave9 proof scenario remain intentionally skipped while on battery. This slice verifies the server-action intake source selection and applies a small page wiring change.
+
+Remaining after this slice:
+- Continue closing gaps between discovered RFP documents, requirements extraction, and response package generation.
+
 ### 2026-05-26 - Discovery Scrape Document URL Extraction
 
 Status: implemented and verified.

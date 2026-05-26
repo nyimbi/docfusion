@@ -261,20 +261,24 @@ describe("opportunity document action scoping", () => {
 	});
 
 	it("creates a source document and queues RFP intake for direct opportunity links", async () => {
+		let insertedSourceDocument: Record<string, unknown> | undefined;
 		dbMock.select.mockReturnValueOnce(createChain({
 			result: [{
 				id: opportunityId,
 				title: "Case Management Platform RFP",
-				rfpLink: "https://example.test/rfp.pdf",
+				rfpLink: "https://example.test/tender",
 				portalUrl: "https://example.test/tender",
-				documentUrl: null,
+				documentUrl: "https://example.test/downloads/rfp.pdf",
 			}],
 		}));
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(null);
 		dbMock.insert.mockReturnValueOnce({
-			values: vi.fn(() => ({
-				returning: vi.fn(async () => [{ id: documentId }]),
-			})),
+			values: vi.fn((value: Record<string, unknown>) => {
+				insertedSourceDocument = value;
+				return {
+					returning: vi.fn(async () => [{ id: documentId }]),
+				};
+			}),
 		});
 		dbMock.update.mockReturnValueOnce({
 			set: vi.fn(() => ({
@@ -297,6 +301,13 @@ describe("opportunity document action scoping", () => {
 			documentId,
 			rfpDocumentId: "rfp-1",
 			parsingJobId: "parse-1",
+		});
+		expect(insertedSourceDocument).toMatchObject({
+			sourceUrl: "https://example.test/downloads/rfp.pdf",
+			documentName: "rfp.pdf",
+			documentType: "rfp",
+			status: "discovered",
+			isSelected: true,
 		});
 		expect(downloadDocumentMock).toHaveBeenCalledWith(documentId, "document-user-1", opportunityId);
 	});

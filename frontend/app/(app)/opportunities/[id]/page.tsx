@@ -44,6 +44,8 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 		getOpportunityDocuments(id),
 		getOpportunityCommandCenterProjection(id),
 	]);
+	const sourceDocumentUrl = opportunity.documentUrl || opportunity.rfpLink;
+	const sourceIngestUrl = opportunity.documentUrl || opportunity.portalUrl || opportunity.rfpLink;
 
 	return (
 		<div className="min-h-screen bg-background">
@@ -114,8 +116,8 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 							<OpportunityHeaderActions
 								opportunityId={id}
 								opportunityTitle={opportunity.title}
-								sourceUrl={opportunity.portalUrl || opportunity.rfpLink}
-								rfpLink={opportunity.rfpLink}
+								sourceUrl={sourceIngestUrl}
+								rfpLink={sourceDocumentUrl}
 								documentsDiscovered={opportunity.documentsDiscovered || documents.length > 0}
 								documents={documents}
 							/>
@@ -152,7 +154,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 							<OpportunityDocumentsPanel
 								opportunityId={id}
 								opportunityTitle={opportunity.title}
-								sourceUrl={opportunity.portalUrl || opportunity.rfpLink}
+								sourceUrl={sourceIngestUrl}
 								documentsDiscovered={opportunity.documentsDiscovered || documents.length > 0}
 								initialDocuments={documents.map(d => ({
 									...d,
