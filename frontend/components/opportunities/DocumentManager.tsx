@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
@@ -34,6 +35,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   discoverOpportunityDocuments,
+  getOpportunityDocumentsAction,
   downloadOpportunityDocument,
   downloadSelectedOpportunityDocuments,
   toggleDocumentSelection,
@@ -90,7 +92,9 @@ export function DocumentManager({
   documentsDiscovered,
   initialDocuments,
 }: DocumentManagerProps) {
+  const router = useRouter();
   const [documents, setDocuments] = useState<OpportunityDocument[]>(initialDocuments);
+  const [hasDiscoveredDocuments, setHasDiscoveredDocuments] = useState(documentsDiscovered);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
@@ -108,6 +112,15 @@ export function DocumentManager({
 
   const [discoveryAnalysis, setDiscoveryAnalysis] = useState<string>("");
 
+  const refreshDocumentsFromServer = useCallback(async () => {
+    const result = await getOpportunityDocumentsAction(opportunityId);
+    if (result.success && result.documents) {
+      setDocuments(result.documents as OpportunityDocument[]);
+      setHasDiscoveredDocuments(result.documents.length > 0);
+    }
+    router.refresh();
+  }, [opportunityId, router]);
+
   const handleDiscover = useCallback(async () => {
     setIsDiscovering(true);
     toast.loading("AI Agent is searching for RFP documents across multiple sources...", { 
@@ -124,8 +137,7 @@ export function DocumentManager({
           `AI Agent found ${result.documents.length} documents using ${result.strategiesSucceeded.length} strategies`, 
           { id: "discover" }
         );
-        // Refresh page to get updated documents
-        window.location.reload();
+        await refreshDocumentsFromServer();
       } else {
         const strategyMsg = result.strategiesAttempted.length > 0 
           ? ` (tried ${result.strategiesAttempted.length} strategies)`
@@ -137,7 +149,7 @@ export function DocumentManager({
     } finally {
       setIsDiscovering(false);
     }
-  }, [opportunityId]);
+  }, [opportunityId, refreshDocumentsFromServer]);
 
   // ============================================================================
   // Selection
@@ -210,6 +222,7 @@ export function DocumentManager({
               : doc
           )
         );
+        router.refresh();
       } else {
         toast.error(result.error || "Download failed");
         // Update status to failed
@@ -230,7 +243,7 @@ export function DocumentManager({
         return next;
       });
     }
-  }, [opportunityId]);
+  }, [opportunityId, router]);
 
   const handleDownloadSelected = useCallback(async () => {
     const selectedDocs = documents.filter((d) => d.isSelected && d.status === "discovered");
@@ -266,6 +279,7 @@ export function DocumentManager({
           if (failed.has(doc.id)) return { ...doc, status: "failed" };
           return doc;
         }));
+        router.refresh();
       } else {
         toast.error(result.error || "Bulk download failed", { id: "bulk-download" });
       }
@@ -274,7 +288,7 @@ export function DocumentManager({
     } finally {
       setIsDownloading(false);
     }
-  }, [documents, opportunityId]);
+  }, [documents, opportunityId, router]);
 
   // ============================================================================
   // Delete
@@ -290,16 +304,17 @@ export function DocumentManager({
     if (result.success) {
       toast.success("Document deleted");
       setDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
+      router.refresh();
     } else {
       toast.error(result.error || "Delete failed");
     }
-  }, [opportunityId]);
+  }, [opportunityId, router]);
 
   // ============================================================================
   // Render
   // ============================================================================
 
-  if (!documentsDiscovered || documents.length === 0) {
+  if (!hasDiscoveredDocuments || documents.length === 0) {
     return (
       <div className="border rounded-lg p-6 bg-muted/30">
         <div className="text-center space-y-4">

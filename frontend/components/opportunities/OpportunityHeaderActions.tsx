@@ -15,10 +15,7 @@ import { toast } from "sonner";
 import { 
   Copy, 
   Check, 
-  Download, 
-  FileText, 
   ExternalLink,
-  Loader2,
   FolderSearch,
   FileStack,
 } from "lucide-react";
@@ -32,7 +29,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { DocumentManager } from "./DocumentManager";
-import { discoverOpportunityDocuments } from "@/lib/actions/opportunity-documents";
 
 interface OpportunityHeaderActionsProps {
   opportunityId: string;
@@ -66,7 +62,6 @@ export function OpportunityHeaderActions({
   documents = [],
 }: OpportunityHeaderActionsProps) {
   const [copied, setCopied] = useState(false);
-  const [isDiscovering, setIsDiscovering] = useState(false);
   const [showDocumentManager, setShowDocumentManager] = useState(false);
 
   // Copy opportunity name to clipboard
@@ -80,34 +75,6 @@ export function OpportunityHeaderActions({
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       toast.error("Failed to copy to clipboard");
-    }
-  };
-
-  // Discover documents from source URL
-  const handleDiscoverDocuments = async () => {
-    if (!sourceUrl) {
-      toast.error("No source URL available for this opportunity");
-      return;
-    }
-
-    setIsDiscovering(true);
-    toast.loading("Discovering RFP documents...", { id: "discover" });
-
-    try {
-      const result = await discoverOpportunityDocuments(opportunityId, sourceUrl);
-
-      if (result.success) {
-        toast.success(`Found ${result.documents.length} documents`, { id: "discover" });
-        setShowDocumentManager(true);
-        // Refresh to show discovered documents
-        window.location.reload();
-      } else {
-        toast.error(result.error || "Discovery failed", { id: "discover" });
-      }
-    } catch (error) {
-      toast.error("Discovery failed unexpectedly", { id: "discover" });
-    } finally {
-      setIsDiscovering(false);
     }
   };
 

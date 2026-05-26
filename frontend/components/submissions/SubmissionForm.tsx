@@ -11,6 +11,7 @@ import { RefreshCw } from "lucide-react";
 import type {
 	PreSubmissionChecklistItem,
 	SubmissionMethod,
+	Submission,
 	ProposalDocumentType,
 } from "@/lib/types/opportunity";
 import {
@@ -35,7 +36,7 @@ interface SubmissionFormProps {
 		status: string;
 	}>;
 	checklist?: PreSubmissionChecklistItem[];
-	onSubmissionComplete?: (submissionId: string) => void;
+	onSubmissionComplete?: (submission: Submission) => void;
 }
 
 // ============================================================================
@@ -135,7 +136,7 @@ export function SubmissionForm({
 					attachmentIds: selectedDocuments,
 					notes: notes.trim() || undefined,
 				});
-				onSubmissionComplete?.(submission.id);
+				onSubmissionComplete?.(submission);
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Failed to create submission");
 			}

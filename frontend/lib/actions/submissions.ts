@@ -7,6 +7,7 @@
 "use server";
 
 import { createHash } from "crypto";
+import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import {
 	submissions,
@@ -67,6 +68,11 @@ function transformSubmission(row: SubmissionRow): Submission {
 // ============================================================================
 // CRUD Operations
 // ============================================================================
+
+function revalidateSubmissionWorkflowPaths(opportunityId: string): void {
+	revalidatePath(`/opportunities/${opportunityId}`);
+	revalidatePath(`/opportunities/${opportunityId}/submission`);
+}
 
 function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): SQL {
 	return sql`exists (
@@ -294,6 +300,7 @@ export async function createSubmission(
 		logger.warn("Submission workflow runtime persistence failed:", error);
 	}
 
+	revalidateSubmissionWorkflowPaths(input.opportunityId);
 	return transformSubmission(row);
 }
 
@@ -363,6 +370,7 @@ export async function updateSubmissionStatus(
 		throw new Error(`Submission ${input.submissionId} not found`);
 	}
 
+	revalidateSubmissionWorkflowPaths(row.opportunityId);
 	return transformSubmission(row);
 }
 
@@ -412,6 +420,7 @@ export async function recordOutcome(
 		})
 		.where(visibleOpportunityCondition(row.opportunityId, userContext.userId));
 
+	revalidateSubmissionWorkflowPaths(row.opportunityId);
 	return transformSubmission(row);
 }
 

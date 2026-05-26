@@ -8,6 +8,7 @@
 
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { documents, documentVersions, proposalDocuments, documentSections, opportunities } from "@/lib/db/schema";
 import { complianceEntries, complianceMatrices, rfpRequirements } from "@/lib/db/schema-rfp";
@@ -44,6 +45,12 @@ export interface ProposalDocumentFinalizationInput {
 	reason: string;
 	format?: ExportFormat;
 	approvalRole?: string;
+}
+
+function revalidateProposalWorkflowPaths(opportunityId: string): void {
+	revalidatePath(`/opportunities/${opportunityId}`);
+	revalidatePath(`/opportunities/${opportunityId}/documents`);
+	revalidatePath(`/opportunities/${opportunityId}/submission`);
 }
 
 // ============================================================================
@@ -906,6 +913,7 @@ export async function createProposalDocument(
 		);
 	}
 
+	revalidateProposalWorkflowPaths(opportunityId);
 	return mapProposalDocument(proposalDoc, newDoc);
 }
 
@@ -980,6 +988,7 @@ export async function linkExistingDocument(input: LinkDocumentInput): Promise<Pr
 		})
 		.returning();
 
+	revalidateProposalWorkflowPaths(opportunityId);
 	return mapProposalDocument(proposalDoc, doc);
 }
 
@@ -1025,6 +1034,8 @@ export async function updateProposalDocument(
 		throw new Error("Proposal document not found");
 	}
 
+	revalidateProposalWorkflowPaths(updated.opportunityId);
+
 	// Fetch with document data
 	return getProposalDocument(id) as Promise<ProposalDocument>;
 }
@@ -1066,6 +1077,7 @@ export async function transitionProposalDocumentFinalization(
 	if (!updated) {
 		throw new Error("Proposal document not found after finalization transition");
 	}
+	revalidateProposalWorkflowPaths(updated.opportunityId);
 	return updated;
 }
 
@@ -1074,7 +1086,16 @@ export async function transitionProposalDocumentFinalization(
  */
 export async function unlinkProposalDocument(id: string): Promise<void> {
 	const userId = await requireCurrentUserId();
+	const [proposalDoc] = await db
+		.select({ opportunityId: proposalDocuments.opportunityId })
+		.from(proposalDocuments)
+		.where(visibleProposalDocumentCondition(id, userId))
+		.limit(1);
+
 	await db.delete(proposalDocuments).where(visibleProposalDocumentCondition(id, userId));
+	if (proposalDoc) {
+		revalidateProposalWorkflowPaths(proposalDoc.opportunityId);
+	}
 }
 
 /**
@@ -1084,7 +1105,10 @@ export async function deleteProposalDocument(id: string): Promise<void> {
 	const userId = await requireCurrentUserId();
 	// Get the document ID first
 	const [proposalDoc] = await db
-		.select({ documentId: proposalDocuments.documentId })
+		.select({
+			documentId: proposalDocuments.documentId,
+			opportunityId: proposalDocuments.opportunityId,
+		})
 		.from(proposalDocuments)
 		.where(visibleProposalDocumentCondition(id, userId))
 		.limit(1);
@@ -1103,6 +1127,7 @@ export async function deleteProposalDocument(id: string): Promise<void> {
 			eq(documents.ownerId, userId)
 		)
 	);
+	revalidateProposalWorkflowPaths(proposalDoc.opportunityId);
 }
 
 /**
@@ -1125,6 +1150,7 @@ export async function reorderProposalDocuments(
 				))
 		)
 	);
+	revalidateProposalWorkflowPaths(opportunityId);
 }
 
 // ============================================================================
@@ -1607,6 +1633,8 @@ export async function generateRequirementAwareProposalDraft(
 			.where(visibleProposalDocumentCondition(proposalDocumentId, userId));
 	}
 
+	revalidateProposalWorkflowPaths(proposalDocument.opportunityId);
+
 	return {
 		proposalDocumentId,
 		documentId: proposalDocument.documentId,
@@ -1808,6 +1836,7 @@ export async function createStandardProposalSet(
 		...created,
 	];
 	await linkRequirementsToStandardProposalSections(opportunityId, packageDocs, userId);
+	revalidateProposalWorkflowPaths(opportunityId);
 
 	return created;
 }

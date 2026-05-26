@@ -7,6 +7,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type {
 	Submission,
 	ProposalDocumentType,
@@ -45,7 +46,9 @@ export function SubmissionClientPage({
 	proposalDocuments,
 	existingSubmissions: initialSubmissions,
 }: SubmissionClientPageProps) {
+	const router = useRouter();
 	const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions);
+	const [currentDecisionStatus, setCurrentDecisionStatus] = useState(decisionStatus);
 	const [activeView, setActiveView] = useState<"form" | "history" | "outcome">(
 		submissions.length > 0 ? "history" : "form"
 	);
@@ -57,17 +60,30 @@ export function SubmissionClientPage({
 	const hasSubmissions = submissions.length > 0;
 	const canRecordOutcome = latestSubmission && !latestSubmission.outcome;
 
-	const handleSubmissionComplete = (submissionId: string) => {
-		// In a real app, we'd refetch the data
-		window.location.reload();
+	const handleSubmissionComplete = (submission: Submission) => {
+		setSubmissions((prev) => [submission, ...prev]);
+		setCurrentDecisionStatus("submitted");
+		setActiveView("history");
+		setSelectedSubmission(null);
+		router.refresh();
 	};
 
 	const handleOutcomeRecorded = (updatedSubmission: Submission) => {
 		setSubmissions((prev) =>
 			prev.map((s) => (s.id === updatedSubmission.id ? updatedSubmission : s))
 		);
+		setCurrentDecisionStatus(
+			updatedSubmission.outcome === "won"
+				? "won"
+				: updatedSubmission.outcome === "lost"
+					? "lost"
+					: updatedSubmission.outcome === "withdrawn"
+						? "declined"
+						: "submitted"
+		);
 		setActiveView("history");
 		setSelectedSubmission(null);
+		router.refresh();
 	};
 
 	return (
@@ -76,7 +92,7 @@ export function SubmissionClientPage({
 			{deadline && (
 				<StatusBanner
 					deadline={deadline}
-					decisionStatus={decisionStatus}
+					decisionStatus={currentDecisionStatus}
 					hasSubmissions={hasSubmissions}
 				/>
 			)}
@@ -86,7 +102,7 @@ export function SubmissionClientPage({
 				<TabButton
 					active={activeView === "form"}
 					onClick={() => setActiveView("form")}
-					disabled={hasSubmissions && decisionStatus === "submitted"}
+					disabled={hasSubmissions && currentDecisionStatus === "submitted"}
 				>
 					{hasSubmissions ? "New Submission" : "Submit Proposal"}
 				</TabButton>

@@ -9,6 +9,7 @@
  */
 
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +35,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   discoverOpportunityDocuments,
+  getOpportunityDocumentsAction,
   downloadOpportunityDocument,
   downloadSelectedOpportunityDocuments,
   ingestOpportunitySourceDocument,
@@ -98,7 +100,9 @@ export function OpportunityDocumentsPanel({
   documentsDiscovered,
   initialDocuments,
 }: OpportunityDocumentsPanelProps) {
+  const router = useRouter();
   const [documents, setDocuments] = useState<OpportunityDocument[]>(initialDocuments);
+  const [hasDiscoveredDocuments, setHasDiscoveredDocuments] = useState(documentsDiscovered);
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isSourceIngesting, setIsSourceIngesting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -157,6 +161,15 @@ export function OpportunityDocumentsPanel({
   // Discovery
   // ============================================================================
 
+  const refreshDocumentsFromServer = useCallback(async () => {
+    const result = await getOpportunityDocumentsAction(opportunityId);
+    if (result.success && result.documents) {
+      setDocuments(result.documents as OpportunityDocument[]);
+      setHasDiscoveredDocuments(result.documents.length > 0);
+    }
+    router.refresh();
+  }, [opportunityId, router]);
+
   const handleDiscover = useCallback(async () => {
     setIsDiscovering(true);
     toast.loading("AI Agent is searching for RFP documents across multiple sources...", { 
@@ -173,8 +186,7 @@ export function OpportunityDocumentsPanel({
           `AI Agent found ${result.documents.length} documents using ${result.strategiesSucceeded.length} strategies`, 
           { id: "discover" }
         );
-        // Refresh page to get updated documents
-        window.location.reload();
+        await refreshDocumentsFromServer();
       } else {
         const strategyMsg = result.strategiesAttempted.length > 0 
           ? ` (tried ${result.strategiesAttempted.length} strategies)`
@@ -186,7 +198,7 @@ export function OpportunityDocumentsPanel({
     } finally {
       setIsDiscovering(false);
     }
-  }, [opportunityId]);
+  }, [opportunityId, refreshDocumentsFromServer]);
 
   const handleIngestSource = useCallback(async () => {
     setIsSourceIngesting(true);
@@ -211,6 +223,7 @@ export function OpportunityDocumentsPanel({
           parsingJobId: result.parsingJobId,
           storagePath: result.storagePath,
         }]);
+        router.refresh();
       } else {
         toast.error(result.error || "Source document ingest failed", { id: "source-ingest" });
       }
@@ -219,7 +232,7 @@ export function OpportunityDocumentsPanel({
     } finally {
       setIsSourceIngesting(false);
     }
-  }, [opportunityId]);
+  }, [opportunityId, router]);
 
   // ============================================================================
   // Selection
@@ -271,6 +284,7 @@ export function OpportunityDocumentsPanel({
         setDocuments((prev) => prev.map((doc) =>
           doc.id === documentId ? { ...doc, status: "downloaded" } : doc
         ));
+        router.refresh();
       } else {
         toast.error(result.error || "Download failed");
         setDocuments((prev) => prev.map((doc) =>
@@ -286,7 +300,7 @@ export function OpportunityDocumentsPanel({
         return next;
       });
     }
-  }, [opportunityId]);
+  }, [opportunityId, router]);
 
   const handleDownloadSelected = useCallback(async () => {
     const selectedDocs = documents.filter((d) => d.isSelected && d.status === "discovered");
@@ -320,6 +334,7 @@ export function OpportunityDocumentsPanel({
           if (failed.has(doc.id)) return { ...doc, status: "failed" };
           return doc;
         }));
+        router.refresh();
       } else {
         toast.error(result.error || "Bulk download failed", { id: "bulk-download" });
       }
@@ -328,13 +343,13 @@ export function OpportunityDocumentsPanel({
     } finally {
       setIsDownloading(false);
     }
-  }, [documents, opportunityId]);
+  }, [documents, opportunityId, router]);
 
   // ============================================================================
   // Render - Empty State
   // ============================================================================
 
-  if (!documentsDiscovered || documents.length === 0) {
+  if (!hasDiscoveredDocuments || documents.length === 0) {
     return (
       <>
         <Card>

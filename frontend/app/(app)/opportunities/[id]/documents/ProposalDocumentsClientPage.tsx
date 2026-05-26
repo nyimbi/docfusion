@@ -7,8 +7,10 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import type { ProposalDocument, ProposalProgress } from "@/lib/types/opportunity";
+import { getProposalDocuments, getProposalProgress } from "@/lib/actions/proposal-documents";
 import { ProposalDocumentList } from "@/components/proposals/ProposalDocumentList";
 import { CreateProposalDialog } from "@/components/proposals/CreateProposalDialog";
 
@@ -23,65 +25,43 @@ export function ProposalDocumentsClientPage({
 	initialDocuments,
 	initialProgress,
 }: ProposalDocumentsClientPageProps) {
+	const router = useRouter();
 	const [documents, setDocuments] = useState(initialDocuments);
 	const [progress, setProgress] = useState(initialProgress);
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-	const recalculateProgress = useCallback(() => {
-		// Simplified progress recalculation
-		setProgress((prev) => {
-			const docs = documents;
-			const statusWeights: Record<string, number> = {
-				not_started: 0,
-				drafting: 20,
-				in_review: 60,
-				revising: 40,
-				approved: 80,
-				final: 100,
-			};
+	useEffect(() => {
+		setDocuments(initialDocuments);
+		setProgress(initialProgress);
+	}, [initialDocuments, initialProgress]);
 
-			let totalWeight = 0;
-			const byStatus: Record<string, number> = {
-				not_started: 0,
-				drafting: 0,
-				in_review: 0,
-				revising: 0,
-				approved: 0,
-				final: 0,
-			};
-
-			for (const doc of docs) {
-				totalWeight += statusWeights[doc.status] || 0;
-				byStatus[doc.status] = (byStatus[doc.status] || 0) + 1;
-			}
-
-			return {
-				...prev,
-				totalDocuments: docs.length,
-				byStatus: byStatus as typeof prev.byStatus,
-				completionPercentage: docs.length > 0 ? Math.round(totalWeight / docs.length) : 0,
-			};
-		});
-	}, [documents]);
+	const refreshProposalState = useCallback(async () => {
+		const [nextDocuments, nextProgress] = await Promise.all([
+			getProposalDocuments(opportunityId),
+			getProposalProgress(opportunityId),
+		]);
+		setDocuments(nextDocuments);
+		setProgress(nextProgress);
+		router.refresh();
+	}, [opportunityId, router]);
 
 	const handleDocumentUpdate = useCallback((updated: ProposalDocument) => {
 		setDocuments((prev) =>
 			prev.map((doc) => (doc.id === updated.id ? updated : doc))
 		);
-		// Recalculate progress (simplified - in production would refetch)
-		recalculateProgress();
-	}, [recalculateProgress]);
+		void refreshProposalState();
+	}, [refreshProposalState]);
 
 	const handleDocumentRemove = useCallback((id: string) => {
 		setDocuments((prev) => prev.filter((doc) => doc.id !== id));
-		recalculateProgress();
-	}, [recalculateProgress]);
+		void refreshProposalState();
+	}, [refreshProposalState]);
 
 	const handleDocumentsCreated = useCallback((newDocs: ProposalDocument[]) => {
 		setDocuments((prev) => [...prev, ...newDocs]);
 		setShowCreateDialog(false);
-		recalculateProgress();
-	}, [recalculateProgress]);
+		void refreshProposalState();
+	}, [refreshProposalState]);
 
 	return (
 		<>

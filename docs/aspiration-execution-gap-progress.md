@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Opportunity Workflow Refresh Integrity
+
+Status: implemented and verified.
+
+Purpose: keep proposal-document, RFP-document, and submission workflow screens synchronized with authoritative server state without full browser reloads or partial client-side progress guesses.
+
+Changes in this slice:
+- Add route revalidation to proposal-document mutations for opportunity overview, proposal documents, and submission pages.
+- Add route revalidation to submission status, submission recording, and outcome recording actions.
+- Replace opportunity document discovery full-page reloads with App Router refreshes and server-backed document refreshes.
+- Replace submission completion reload with local submission insertion plus App Router refresh.
+- Replace proposal-document progress recalculation with server-backed document and progress refreshes.
+- Remove a dead header-level discovery handler that still contained a full browser reload.
+
+Verification:
+- `npx tsc --noEmit` from `frontend/` passed.
+- `git diff --check` passed.
+- Targeted search found no `window.location.reload()` or simplified progress placeholder in the touched opportunity workflow surfaces.
+
+Testing scope note:
+- Full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This was a client/server refresh integrity slice verified with TypeScript, whitespace validation, and targeted source search.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Review remaining non-opportunity reloads in CRM/document error surfaces separately if they affect response workflows.
+
 ### 2026-05-26 - Discovery Infrastructure Alignment
 
 Status: implemented and verified.
