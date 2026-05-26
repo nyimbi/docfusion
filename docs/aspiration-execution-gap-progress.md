@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Full Non-Live Platform Proof
+
+Status: verified.
+
+Purpose: prove the complete non-live frontend platform proof manifest is green after tenant-scope remediation, live discovery validation, and discovery import persistence coverage.
+
+Verification:
+- `npm run platform:proof -- --all --continue-on-failure` from `frontend/` passed every non-live scenario.
+- Covered Wave 0 proof harness/typecheck/workflow runtime, Wave 1 browser control-plane and portal flows, Wave 2 RFP upload/parse/storage, Wave 3 compliance/evidence/readiness, Wave 4 planning/collaboration/capture pipeline, Wave 5 AI/content governance, Wave 6 submission/approval/production, Wave 7 import/operations, Wave 8 strategic capability workflows, and Wave 9 discovery-to-submission core.
+- Browser e2e scenarios passed for control-plane interactions, role homepage, and portal workflow queue.
+
+Remaining after this slice:
+- Live-safe proofs are green for search/scrape/source discovery; still need an environment-backed live database persistence proof when a reachable migrated database is available.
+- Keep extending platform-proof scenarios as new user-facing workflows are added.
+
 ### 2026-05-27 - Capture Pipeline Platform Proof Scenario
 
 Status: implemented and verified.
