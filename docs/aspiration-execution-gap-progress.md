@@ -16,6 +16,24 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Opportunity Assignment Predicate Scan
+
+Status: audited and verified; no code change required.
+
+Purpose: confirm the remediated workflow surfaces no longer leave assignment-only opportunity predicates in frontend server actions.
+
+Findings:
+- Scanned `frontend/lib/actions` for every raw `opportunities.assigned_to` predicate.
+- No remaining occurrence lacked a nearby `opportunities.organization_id` tenant predicate in the same visibility clause or subquery.
+- Previously remediated surfaces now cover work items, calendar, reviews, document render audits, final artifacts, review packages, pricing approvals, claim remediation, resource reuse, workflow domain, submissions, pipeline, task management, pricing, and proposal documents.
+
+Verification:
+- `python3` assignment-predicate scan over `frontend/lib/actions` reported no missing nearby organization predicates.
+- Full frontend proof is green after the test-health recovery: `npm test -- --run` passed with 1,249 tests and 4 DB integration tests intentionally skipped unless `RUN_DB_INTEGRATION_TESTS=1`.
+
+Remaining after this slice:
+- Move from tenant-scope remediation back to end-to-end functional gaps: live discovery/search/scrape validation, opportunity download/import paths, response-package generation, and deployment-readiness proof.
+
 ### 2026-05-27 - Full Vitest Suite Test-Health Recovery
 
 Status: implemented and verified.
