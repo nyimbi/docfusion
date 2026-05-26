@@ -498,6 +498,10 @@ function boeTemplateByIdCondition(id: string, userContext: PricingUserContext): 
 function assignedOpportunityByIdCondition(opportunityId: string, userContext: PricingUserContext): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
+		or(
+			eq(opportunities.organizationId, userContext.organizationId),
+			isNull(opportunities.organizationId)
+		),
 		eq(opportunities.assignedTo, userContext.userId)
 	)!;
 }
@@ -507,6 +511,7 @@ function assignedOpportunityExistsSql(opportunityId: unknown, userContext: Prici
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
+			and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
 			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }

@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Pricing Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep cost elements, pricing summaries, cost-technical tracking, and pricing creation preflights scoped to the caller's organization through the owning opportunity.
+
+Changes in this slice:
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to direct assigned-opportunity pricing preflights.
+- Add the same opportunity tenant boundary to shared pricing `exists` predicates used by cost elements, pricing summaries, cost-technical tracking, and WBS-derived reads.
+- Preserve pricing row organization predicates while adding the missing opportunity tenant boundary.
+- Extend pricing tests to assert opportunity organization predicates on cost element creation, pricing summary reads/updates, and cost-technical tracking reads.
+
+Verification:
+- `npm test -- pricing.test.ts` from `frontend/` passed, running 92 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production test files and 42 tests.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as proposal documents and win themes.
+- Resolve the existing full-suite blockers recorded in the pipeline slice so the full Vitest suite can become a clean proof again.
+
 ### 2026-05-27 - Task Management Opportunity Tenant Predicates
 
 Status: implemented and verified.

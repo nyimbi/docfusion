@@ -103,7 +103,11 @@ vi.mock("@/lib/db", () => {
 	return {
 		db: dbMock,
 		documents: {},
-		opportunities: { id: "opp.id", assignedTo: "opp.assignedTo" },
+		opportunities: {
+			id: "opportunities.id",
+			organizationId: "opportunities.organization_id",
+			assignedTo: "opportunities.assigned_to",
+		},
 	};
 });
 
@@ -178,8 +182,18 @@ beforeEach(() => {
 	dbMock.delete.mockImplementation(() => createChainableQuery([]));
 });
 
-function mockAssignedOpportunity(opportunityId = "00000000-0000-4000-8000-000000000001") {
-	dbMock.select.mockImplementationOnce(() => createChainableQuery([{ id: opportunityId }]));
+function mockAssignedOpportunity(
+	opportunityId = "00000000-0000-4000-8000-000000000001",
+	onWhere?: (value: unknown) => void
+) {
+	const chain = createChainableQuery([{ id: opportunityId }]);
+	if (onWhere) {
+		(chain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			onWhere(value);
+			return chain;
+		});
+	}
+	dbMock.select.mockImplementationOnce(() => chain);
 }
 
 function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
@@ -201,6 +215,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	);
 }
 
+function expectOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-001");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("user-001");
+}
+
 // ---------------------------------------------------------------------------
 // Pure Calculation Logic — these functions are module-private, so we test them
 // indirectly via the public API that invokes them.
@@ -217,6 +239,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 	};
 
 	test("labor cost = hours * rate", async () => {
+		let opportunityWhere: unknown;
 		let inserted: Record<string, unknown> | undefined;
 		const created = {
 			id: "el-1",
@@ -226,7 +249,9 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 			totalCost: 20000,
 			status: "draft",
 		};
-		mockAssignedOpportunity(baseLaborInput.opportunityId);
+		mockAssignedOpportunity(baseLaborInput.opportunityId, (value) => {
+			opportunityWhere = value;
+		});
 		dbMock.insert.mockImplementation(() => {
 			const chain = createChainableQuery([created]);
 			(chain.values as ReturnType<typeof vi.fn>).mockImplementation((value: Record<string, unknown>) => {
@@ -239,6 +264,7 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 		const result = await createCostElement(baseLaborInput);
 		expect(result.success).toBe(true);
 		expect(inserted).toMatchObject({ organizationId: "org-001" });
+		expectOpportunityTenantScope(opportunityWhere);
 		if (result.success) {
 			expect(result.data.totalCost).toBe(20000);
 		}
@@ -727,12 +753,8 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		const result = await calculateTotalPrice(opportunityId);
 
 		expect(result.success).toBe(true);
-		const summaryReadSql = collectSqlFragments(summaryReadWhere).join(" ");
-		expect(summaryReadSql).toContain("opportunities.assigned_to");
-		expect(summaryReadSql).toContain("org-001");
-		const summaryUpdateSql = collectSqlFragments(summaryUpdateWhere).join(" ");
-		expect(summaryUpdateSql).toContain("opportunities.assigned_to");
-		expect(summaryUpdateSql).toContain("org-001");
+		expectOpportunityTenantScope(summaryReadWhere);
+		expectOpportunityTenantScope(summaryUpdateWhere);
 	});
 
 	test("rejects total calculation for unassigned opportunities", async () => {
@@ -825,9 +847,7 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		const result = await validateCostTechnicalAlignment(opportunityId);
 
 		expect(result.success).toBe(true);
-		const trackingSql = collectSqlFragments(trackingWhere).join(" ");
-		expect(trackingSql).toContain("opportunities.assigned_to");
-		expect(trackingSql).toContain("org-001");
+		expectOpportunityTenantScope(trackingWhere);
 	});
 
 	test("requires organization context before generating WBS from technical data", async () => {
@@ -858,9 +878,7 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		const result = await generateWBSFromTechnical(opportunityId);
 
 		expect(result.success).toBe(true);
-		const trackingSql = collectSqlFragments(trackingWhere).join(" ");
-		expect(trackingSql).toContain("opportunities.assigned_to");
-		expect(trackingSql).toContain("org-001");
+		expectOpportunityTenantScope(trackingWhere);
 	});
 
 	test("requires organization context before updating WBS codes", async () => {
