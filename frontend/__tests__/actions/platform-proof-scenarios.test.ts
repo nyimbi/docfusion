@@ -118,6 +118,7 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["F-001", "F-021", "UX-025"]),
 				expectedArtifacts: expect.arrayContaining([
 					"vitest:opportunity-discovery-route",
+					"vitest:opportunity-document-download-route",
 					"vitest:documents-final-artifact-route",
 					"vitest:final-submission-checklist-workflow",
 					"vitest:submission-workflow",

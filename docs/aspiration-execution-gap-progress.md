@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Opportunity Document Download Route Integrity Coverage
+
+Status: implemented and verified.
+
+Purpose: prove the RFP document download API surfaces scoped storage integrity failures cleanly and remains part of the aggregate proof lane.
+
+Changes in this slice:
+- Add focused API coverage for successful opportunity document downloads, authorization denials, and hash-mismatch conflict responses.
+- Update the route comment to reflect server-side storage rather than local-only storage.
+- Add `opportunity-document-download-route.test.ts` to `wave9-discovery-to-submission-core`.
+- Add the route proof artifact to the wave9 expected artifact list.
+
+Verification:
+- `npm run test -- __tests__/api/opportunity-document-download-route.test.ts __tests__/actions/platform-proof-scenarios.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate proof scenario remain intentionally skipped while on battery. This slice verifies route behavior and proof manifest wiring only.
+
+Remaining after this slice:
+- Continue adding focused proof for discovery-to-submission integrity until power allows running `wave9-discovery-to-submission-core`.
+
 ### 2026-05-26 - RFP Document Read Integrity Guard
 
 Status: implemented and verified.

@@ -1,7 +1,7 @@
 /**
  * Document Download API Route
- * 
- * Serves downloaded RFP documents from local storage.
+ *
+ * Serves downloaded RFP documents from server-side storage.
  * Authenticates the user and serves the file with proper headers.
  */
 
