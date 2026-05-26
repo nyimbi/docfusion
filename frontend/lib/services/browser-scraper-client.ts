@@ -3,6 +3,7 @@ export interface BrowserScrapeOptions {
 	humanScroll?: boolean;
 	blockMedia?: boolean;
 	formats?: Array<"markdown" | "html" | "links">;
+	signal?: AbortSignal;
 }
 
 export interface BrowserScrapeResult {
@@ -14,6 +15,7 @@ export interface BrowserScrapeResult {
 		metadata?: {
 			title?: string;
 			description?: string;
+			statusCode?: number;
 		};
 	};
 	error?: string;
@@ -30,6 +32,8 @@ export async function scrapeWithBrowserService(
 	options: BrowserScrapeOptions = {}
 ): Promise<BrowserScrapeResult> {
 	const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
+	const timeoutSignal = AbortSignal.timeout((options.timeout ?? 15000) + 5000);
+	const signal = options.signal ? combineAbortSignals([options.signal, timeoutSignal]) : timeoutSignal;
 	const endpoints: BrowserScrapeEndpoint[] = [
 		{
 			path: "/v1/scrape",
@@ -59,7 +63,7 @@ export async function scrapeWithBrowserService(
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(endpoint.body),
-				signal: AbortSignal.timeout((options.timeout ?? 15000) + 5000),
+				signal,
 			});
 
 			if (!response.ok) {
@@ -77,6 +81,25 @@ export async function scrapeWithBrowserService(
 		success: false,
 		error: errors.join("; ") || "Browser scraper failed",
 	};
+}
+
+function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
+	const controller = new AbortController();
+	const abort = () => {
+		if (!controller.signal.aborted) {
+			controller.abort();
+		}
+	};
+
+	for (const signal of signals) {
+		if (signal.aborted) {
+			abort();
+			break;
+		}
+		signal.addEventListener("abort", abort, { once: true });
+	}
+
+	return controller.signal;
 }
 
 function normalizeBrowserScrapeResponse(value: unknown): BrowserScrapeResult {
@@ -106,6 +129,7 @@ function normalizeBrowserScrapeResponse(value: unknown): BrowserScrapeResult {
 			links: extractHrefLinks(content),
 			metadata: {
 				title: extractTitle(content),
+				statusCode: pageStatusCode,
 			},
 		},
 	};

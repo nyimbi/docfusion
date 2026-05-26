@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Browser Fallback Compatibility Consolidation
+
+Status: implemented and verified.
+
+Purpose: prevent scraper runtime and LLM fallback paths from breaking against the deployed browser service while preserving cancellation and status metadata for long-running scrape jobs.
+
+Changes in this slice:
+- Extend the shared browser scraper client with caller abort-signal support and normalized status-code metadata.
+- Move the scraper fetcher stealth fallback through the shared browser scraper client instead of a direct `/v1/scrape` call.
+- Move the LLM extractor stealth fallback through the shared browser scraper client.
+- Add focused browser scraper client coverage for legacy `/v1/scrape` and deployed `/scrape` response contracts.
+- Add scraper fetcher coverage proving stealth fallback uses the shared browser scraper client.
+
+Verification:
+- `npm run test -- browser-scraper-client.test.ts fetcher-public-url.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run test -- discovery-opportunity-import.test.ts document-discovery-agent.test.ts browser-scraper-client.test.ts fetcher-public-url.test.ts` from `frontend/` passed.
+- `npm run platform:proof -- --run live-discovery-services --include-live-safe` from `frontend/` passed with SearXNG returning one basic `tender` result, Firecrawl returning 180 markdown characters for `https://example.com`, and browser fallback returning 528 content characters for `https://example.com`.
+
+Remaining after this slice:
+- The browser fallback endpoint compatibility issue is now centralized, but SearXNG engine health and opportunity-query quality are still unresolved.
+
 ### 2026-05-26 - Live Discovery Services Proof
 
 Status: implemented and verified.

@@ -17,6 +17,7 @@ import { getParser, genericParser, type ParseInput } from "./parsers";
 import { extractFromBasicHtml, findNextPageUrl } from "./extractor";
 import { logger } from "@/lib/utils/logger";
 import { assertPublicHttpUrl, fetchPublicHttpUrl } from "@/lib/security/public-url";
+import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 
 const DEFAULT_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const MAX_CONFIGURED_RESPONSE_BYTES = 25 * 1024 * 1024;
@@ -31,19 +32,6 @@ export interface ScrapedPage {
 	statusCode: number;
 	opportunities: OpportunityData[];
 	nextPageUrl?: string;
-	error?: string;
-}
-
-/**
- * Stealth scraper response shape from the Crawlee-based service.
- */
-interface StealthScrapeResponse {
-	success: boolean;
-	data?: {
-		markdown?: string;
-		links?: string[];
-		metadata?: { statusCode?: number };
-	};
 	error?: string;
 }
 
@@ -91,26 +79,6 @@ function configNumber(
 		return fallback;
 	}
 	return Math.min(value, max);
-}
-
-function combineAbortSignals(signals: AbortSignal[]): AbortSignal {
-	const controller = new AbortController();
-
-	const abort = () => {
-		if (!controller.signal.aborted) {
-			controller.abort();
-		}
-	};
-
-	for (const signal of signals) {
-		if (signal.aborted) {
-			abort();
-			break;
-		}
-		signal.addEventListener("abort", abort, { once: true });
-	}
-
-	return controller.signal;
 }
 
 async function readTextWithLimit(response: Response, maxBytes: number): Promise<string> {
@@ -325,34 +293,14 @@ async function scrapeWithStealth(
 	signal: AbortSignal
 ): Promise<ScrapedPage> {
 	const stealthUrl = process.env.STEALTH_SCRAPER_URL || DEFAULT_STEALTH_SCRAPER_URL;
-	const timeoutSignal = AbortSignal.timeout((source.timeout || 60) * 1000 + 10000);
 
 	try {
-		const response = await fetch(`${stealthUrl}/v1/scrape`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				url,
-				options: {
-					timeout: (source.timeout || 60) * 1000,
-					humanScroll: true,
-					blockMedia: true,
-				},
-			}),
-			signal: combineAbortSignals([signal, timeoutSignal]),
+		const result = await scrapeWithBrowserService(stealthUrl, url, {
+			timeout: (source.timeout || 60) * 1000,
+			humanScroll: true,
+			blockMedia: true,
+			signal,
 		});
-
-		if (!response.ok) {
-			const error = await response.text();
-			return {
-				url,
-				statusCode: response.status,
-				opportunities: [],
-				error: `Stealth scraper error: ${error}`,
-			};
-		}
-
-		const result = await response.json() as StealthScrapeResponse;
 
 		if (!result.success || !result.data) {
 			return {

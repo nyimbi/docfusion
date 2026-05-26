@@ -13,6 +13,7 @@
 
 import { FirecrawlClient, type ScrapeOptions } from "../firecrawl";
 import type { OpportunityData } from "../deduplicator";
+import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 import { logger } from "@/lib/utils/logger";
 
 const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
@@ -293,33 +294,11 @@ async function extractWithStealthFallback(
 	stealthScraperUrl: string = DEFAULT_STEALTH_SCRAPER_URL
 ): Promise<LLMExtractionResult> {
 	try {
-		const response = await fetch(`${stealthScraperUrl}/v1/scrape`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				url,
-				options: {
-					timeout: 60000,
-					humanScroll: true,
-					blockMedia: true,
-				},
-			}),
-			signal: AbortSignal.timeout(70000),
+		const result = await scrapeWithBrowserService(stealthScraperUrl, url, {
+			timeout: 60000,
+			humanScroll: true,
+			blockMedia: true,
 		});
-
-		if (!response.ok) {
-			const error = await response.text();
-			return {
-				opportunities: [],
-				error: `Stealth scraper error: ${error}`,
-			};
-		}
-
-		const result = await response.json() as {
-			success: boolean;
-			data?: { markdown?: string };
-			error?: string;
-		};
 
 		if (!result.success || !result.data?.markdown) {
 			return {

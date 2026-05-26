@@ -5,7 +5,10 @@ const dnsLookupMock = vi.hoisted(() =>
 );
 const fetchPublicHttpUrlMock = vi.hoisted(() => vi.fn());
 const firecrawlIsConfiguredMock = vi.hoisted(() => vi.fn());
+const firecrawlScrapeMock = vi.hoisted(() => vi.fn());
 const extractFromBasicHtmlMock = vi.hoisted(() => vi.fn());
+const genericParserParseMock = vi.hoisted(() => vi.fn());
+const scrapeWithBrowserServiceMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:dns/promises", () => ({
 	lookup: dnsLookupMock,
@@ -20,7 +23,7 @@ vi.mock("@/lib/security/public-url", async (importOriginal) => {
 vi.mock("@/lib/scrapers/firecrawl", () => ({
 	firecrawl: {
 		isConfigured: firecrawlIsConfiguredMock,
-		scrape: vi.fn(),
+		scrape: firecrawlScrapeMock,
 	},
 }));
 vi.mock("@/lib/scrapers/extractor", () => ({
@@ -29,7 +32,10 @@ vi.mock("@/lib/scrapers/extractor", () => ({
 }));
 vi.mock("@/lib/scrapers/parsers", () => ({
 	getParser: vi.fn(() => null),
-	genericParser: { parse: vi.fn() },
+	genericParser: { parse: genericParserParseMock },
+}));
+vi.mock("@/lib/services/browser-scraper-client", () => ({
+	scrapeWithBrowserService: scrapeWithBrowserServiceMock,
 }));
 vi.mock("@/lib/utils/logger", () => ({
 	logger: {
@@ -54,6 +60,23 @@ describe("scraper public URL guard", () => {
 		vi.clearAllMocks();
 		dnsLookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
 		firecrawlIsConfiguredMock.mockReturnValue(false);
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "",
+				links: [],
+				metadata: { statusCode: 200 },
+			},
+		});
+		genericParserParseMock.mockResolvedValue({ opportunities: [], nextPageUrl: undefined });
+		scrapeWithBrowserServiceMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "",
+				links: [],
+				metadata: { statusCode: 200 },
+			},
+		});
 		fetchPublicHttpUrlMock.mockResolvedValue(new Response("<html><body>Tenders</body></html>", {
 			status: 200,
 			headers: { "content-type": "text/html" },
@@ -94,5 +117,59 @@ describe("scraper public URL guard", () => {
 		});
 		expect(result.error).toContain("non-public");
 		expect(fetchPublicHttpUrlMock).not.toHaveBeenCalled();
+	});
+
+	it("uses the shared browser scraper client for stealth fallback", async () => {
+		const controller = new AbortController();
+		firecrawlIsConfiguredMock.mockReturnValue(true);
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "No opportunity rows",
+				links: [],
+				metadata: { statusCode: 200 },
+			},
+		});
+		scrapeWithBrowserServiceMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "[Tender Alpha](https://example.com/tender-alpha)",
+				links: ["https://example.com/tender-alpha"],
+				metadata: { statusCode: 200 },
+			},
+		});
+		genericParserParseMock.mockResolvedValue({
+			opportunities: [{
+				title: "Tender Alpha",
+				portalUrl: "https://example.com/tender-alpha",
+			}],
+			nextPageUrl: undefined,
+		});
+
+		const result = await scrapePage("https://example.com/tenders", {
+			...source,
+			requiresJavascript: true,
+		}, controller.signal);
+
+		expect(result).toMatchObject({
+			url: "https://example.com/tenders",
+			statusCode: 200,
+			opportunities: [{
+				title: "Tender Alpha",
+				source: "kenya-tenders",
+				organization: "Kenya Tenders",
+				portalUrl: "https://example.com/tender-alpha",
+			}],
+		});
+		expect(scrapeWithBrowserServiceMock).toHaveBeenCalledWith(
+			"http://84.247.181.100:3003",
+			"https://example.com/tenders",
+			expect.objectContaining({
+				timeout: 7000,
+				humanScroll: true,
+				blockMedia: true,
+				signal: controller.signal,
+			}),
+		);
 	});
 });
