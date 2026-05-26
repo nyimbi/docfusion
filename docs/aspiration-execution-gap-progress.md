@@ -420,3 +420,29 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Add an operator settings/status surface for discovery scheduler health if UI visibility is needed beyond the runbook and API responses.
+
+### 2026-05-26 - Direct Opportunity Source RFP Intake
+
+Status: implemented and verified.
+
+Purpose: close the discovery-to-RFP intake gap when a discovered opportunity already has a direct RFP/document source link.
+
+Changes in this slice:
+- Add an authenticated `ingestOpportunitySourceDocument` action that scopes access to the assigned opportunity.
+- Create an `opportunity_documents` record from `documentUrl` or `rfpLink` when the source document has not already been discovered.
+- Reuse the existing server-side download, storage receipt, duplicate detection, workflow audit, and parser queue path from `downloadDocument`.
+- Return an idempotent success when the matching source document is already downloaded.
+- Add an `Ingest Source Link` control to the empty RFP documents panel so operators can bridge a discovered opportunity into RFP intake without manual upload.
+- Add focused action coverage for the direct source-ingest path.
+
+Verification:
+- `npm run test -- __tests__/actions/opportunity-documents-scope.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, and browser visual pass remain intentionally skipped while on battery. This slice used focused opportunity-document action tests plus TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Improve post-ingest UI visibility for parser progress after source-link ingestion, if operators need live status without refreshing.

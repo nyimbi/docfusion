@@ -35,6 +35,7 @@ import {
   discoverOpportunityDocuments,
   downloadOpportunityDocument,
   downloadSelectedOpportunityDocuments,
+  ingestOpportunitySourceDocument,
   toggleDocumentSelection,
   toggleAllDocumentSelections,
 } from "@/lib/actions/opportunity-documents";
@@ -94,6 +95,7 @@ export function OpportunityDocumentsPanel({
 }: OpportunityDocumentsPanelProps) {
   const [documents, setDocuments] = useState<OpportunityDocument[]>(initialDocuments);
   const [isDiscovering, setIsDiscovering] = useState(false);
+  const [isSourceIngesting, setIsSourceIngesting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
   const [discoveryAnalysis, setDiscoveryAnalysis] = useState<string>("");
@@ -140,6 +142,40 @@ export function OpportunityDocumentsPanel({
       toast.error("Discovery failed unexpectedly", { id: "discover" });
     } finally {
       setIsDiscovering(false);
+    }
+  }, [opportunityId]);
+
+  const handleIngestSource = useCallback(async () => {
+    setIsSourceIngesting(true);
+    toast.loading("Ingesting source document and queuing parser...", {
+      id: "source-ingest",
+      duration: 120000,
+    });
+
+    try {
+      const result = await ingestOpportunitySourceDocument(opportunityId);
+      if (result.success) {
+        toast.success(
+          result.parsingJobId
+            ? "Source document ingested and parser queued"
+            : "Source document ingested",
+          { id: "source-ingest" }
+        );
+        setLastIntakeResults([{
+          success: true,
+          documentId: result.documentId,
+          rfpDocumentId: result.rfpDocumentId,
+          parsingJobId: result.parsingJobId,
+          storagePath: result.storagePath,
+        }]);
+        window.location.reload();
+      } else {
+        toast.error(result.error || "Source document ingest failed", { id: "source-ingest" });
+      }
+    } catch {
+      toast.error("Source document ingest failed unexpectedly", { id: "source-ingest" });
+    } finally {
+      setIsSourceIngesting(false);
     }
   }, [opportunityId]);
 
@@ -278,7 +314,7 @@ export function OpportunityDocumentsPanel({
             </div>
             <Button
               onClick={handleDiscover}
-              disabled={isDiscovering}
+              disabled={isDiscovering || isSourceIngesting}
               className="gap-2"
               variant="primary"
             >
@@ -289,6 +325,21 @@ export function OpportunityDocumentsPanel({
               )}
               {isDiscovering ? "AI Searching..." : "Discover Documents"}
             </Button>
+            {sourceUrl && (
+              <Button
+                onClick={handleIngestSource}
+                disabled={isDiscovering || isSourceIngesting}
+                className="gap-2"
+                variant="outline"
+              >
+                {isSourceIngesting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                {isSourceIngesting ? "Ingesting..." : "Ingest Source Link"}
+              </Button>
+            )}
             {isDiscovering && (
               <p className="text-xs text-muted-foreground">
                 Searching primary portal, web (SearXNG), alternative sources, archives...

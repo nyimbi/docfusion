@@ -53,6 +53,35 @@ async function assertAssignedOpportunityAccess(
   }
 }
 
+async function getAssignedOpportunitySource(
+  opportunityId: string,
+  userId: string
+): Promise<{
+  id: string;
+  title: string;
+  rfpLink: string | null;
+  portalUrl: string | null;
+  documentUrl: string | null;
+}> {
+  const [row] = await db
+    .select({
+      id: opportunities.id,
+      title: opportunities.title,
+      rfpLink: opportunities.rfpLink,
+      portalUrl: opportunities.portalUrl,
+      documentUrl: opportunities.documentUrl,
+    })
+    .from(opportunities)
+    .where(and(eq(opportunities.id, opportunityId), eq(opportunities.assignedTo, userId)))
+    .limit(1);
+
+  if (!row) {
+    throw new Error("Opportunity not found or not permitted");
+  }
+
+  return row;
+}
+
 async function assertAssignedDocumentAccess(
   documentId: string,
   userId: string
@@ -211,6 +240,69 @@ export async function getOpportunityDocumentsAction(opportunityId: string) {
 // ============================================================================
 
 /**
+ * Create and ingest an opportunity document directly from the opportunity's
+ * source document link. This bridges a discovered opportunity into the RFP
+ * intake/parse pipeline without requiring separate document discovery when the
+ * source URL already points at the tender/RFP file.
+ */
+export async function ingestOpportunitySourceDocument(
+  opportunityId: string
+): Promise<DownloadResult & { status?: "already_downloaded" | "queued_from_source" }> {
+  try {
+    const userId = await requireOpportunityDocumentUserId();
+    const opportunity = await getAssignedOpportunitySource(opportunityId, userId);
+    const sourceUrl = opportunity.documentUrl || opportunity.rfpLink;
+    if (!sourceUrl) {
+      return {
+        success: false,
+        error: "This opportunity does not have a direct source document link.",
+      };
+    }
+
+    const existing = await db.query.opportunityDocuments.findFirst({
+      where: and(
+        eq(opportunityDocuments.opportunityId, opportunityId),
+        eq(opportunityDocuments.sourceUrl, sourceUrl)
+      ),
+    });
+
+    if (existing?.status === "downloaded") {
+      return {
+        success: true,
+        status: "already_downloaded",
+        documentId: existing.id,
+        localPath: existing.localPath ?? undefined,
+        storagePath: existing.localPath ?? undefined,
+        fileSize: existing.fileSizeBytes ?? undefined,
+        mimeType: existing.mimeType ?? undefined,
+      };
+    }
+
+    const documentId = existing?.id ?? (await createSourceOpportunityDocument(
+      opportunityId,
+      sourceUrl,
+      opportunity.title
+    ));
+
+    const result = await downloadDocument(documentId, userId, opportunityId);
+    if (result.success) {
+      revalidatePath(`/opportunities/${opportunityId}`);
+    }
+
+    return {
+      ...result,
+      status: result.success ? "queued_from_source" : undefined,
+    };
+  } catch (error) {
+    logger.error("Failed to ingest opportunity source document:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Source document ingest failed",
+    };
+  }
+}
+
+/**
  * Download a single document
  */
 export async function downloadOpportunityDocument(
@@ -236,6 +328,56 @@ export async function downloadOpportunityDocument(
       error: error instanceof Error ? error.message : "Download failed",
     };
   }
+}
+
+function inferSourceDocumentType(url: string): "rfp" | "attachment" {
+  const path = safeUrlPathname(url);
+  return /\.(pdf|docx?|html?)$/i.test(path) || /(rfp|tender|bid)/i.test(url)
+    ? "rfp"
+    : "attachment";
+}
+
+function sourceDocumentName(url: string, opportunityTitle: string): string {
+  const path = safeUrlPathname(url);
+  const filename = path.split("/").filter(Boolean).pop();
+  if (filename && /\.[a-z0-9]{2,5}$/i.test(filename)) {
+    return decodeURIComponent(filename).slice(0, 500);
+  }
+  return `${opportunityTitle.slice(0, 450)}.html`;
+}
+
+function safeUrlPathname(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return "";
+  }
+}
+
+async function createSourceOpportunityDocument(
+  opportunityId: string,
+  sourceUrl: string,
+  opportunityTitle: string
+): Promise<string> {
+  const [row] = await db.insert(opportunityDocuments).values({
+    opportunityId,
+    documentName: sourceDocumentName(sourceUrl, opportunityTitle),
+    documentType: inferSourceDocumentType(sourceUrl),
+    description: "Source document link from discovered opportunity.",
+    sourceUrl,
+    status: "discovered",
+    isSelected: true,
+  }).returning({ id: opportunityDocuments.id });
+
+  await db.update(opportunities)
+    .set({
+      documentsDiscovered: true,
+      documentsDiscoveredAt: new Date(),
+      lastDocumentScanAt: new Date(),
+    })
+    .where(eq(opportunities.id, opportunityId));
+
+  return row.id;
 }
 
 /**

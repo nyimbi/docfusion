@@ -57,6 +57,13 @@ function expectAssignedOpportunityScope(where: unknown) {
 
 var dbMock: {
 	select: ReturnType<typeof vi.fn>;
+	query: {
+		opportunityDocuments: {
+			findFirst: ReturnType<typeof vi.fn>;
+		};
+	};
+	insert: ReturnType<typeof vi.fn>;
+	update: ReturnType<typeof vi.fn>;
 };
 
 vi.mock("next/cache", () => ({
@@ -70,6 +77,13 @@ vi.mock("@/lib/auth-utils", () => ({
 vi.mock("@/lib/db", () => ({
 	db: dbMock = {
 		select: vi.fn(),
+		query: {
+			opportunityDocuments: {
+				findFirst: vi.fn(),
+			},
+		},
+		insert: vi.fn(),
+		update: vi.fn(),
 	},
 }));
 
@@ -77,10 +91,23 @@ vi.mock("@/lib/db/schema", () => ({
 	opportunities: {
 		id: "opportunities.id",
 		assignedTo: "opportunities.assignedTo",
+		title: "opportunities.title",
+		rfpLink: "opportunities.rfpLink",
+		portalUrl: "opportunities.portalUrl",
+		documentUrl: "opportunities.documentUrl",
+		documentsDiscovered: "opportunities.documentsDiscovered",
+		documentsDiscoveredAt: "opportunities.documentsDiscoveredAt",
+		lastDocumentScanAt: "opportunities.lastDocumentScanAt",
 	},
 	opportunityDocuments: {
 		id: "opportunityDocuments.id",
 		opportunityId: "opportunityDocuments.opportunityId",
+		sourceUrl: "opportunityDocuments.sourceUrl",
+		documentName: "opportunityDocuments.documentName",
+		documentType: "opportunityDocuments.documentType",
+		description: "opportunityDocuments.description",
+		status: "opportunityDocuments.status",
+		isSelected: "opportunityDocuments.isSelected",
 	},
 }));
 
@@ -110,6 +137,7 @@ import {
 	deleteOpportunityDocument,
 	downloadSelectedOpportunityDocuments,
 	getOpportunityDocumentsAction,
+	ingestOpportunitySourceDocument,
 	toggleDocumentSelection,
 } from "@/lib/actions/opportunity-documents";
 
@@ -120,6 +148,9 @@ const documentId = "33333333-3333-4333-8333-333333333333";
 beforeEach(() => {
 	vi.clearAllMocks();
 	requireServerSessionMock.mockResolvedValue({ user: { id: "document-user-1" } });
+	dbMock.query.opportunityDocuments.findFirst.mockReset();
+	dbMock.insert.mockReset();
+	dbMock.update.mockReset();
 });
 
 describe("opportunity document action scoping", () => {
@@ -199,5 +230,46 @@ describe("opportunity document action scoping", () => {
 			error: "Document does not belong to this opportunity",
 		});
 		expect(deleteDocumentMock).not.toHaveBeenCalled();
+	});
+
+	it("creates a source document and queues RFP intake for direct opportunity links", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				id: opportunityId,
+				title: "Case Management Platform RFP",
+				rfpLink: "https://example.test/rfp.pdf",
+				portalUrl: "https://example.test/tender",
+				documentUrl: null,
+			}],
+		}));
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(null);
+		dbMock.insert.mockReturnValueOnce({
+			values: vi.fn(() => ({
+				returning: vi.fn(async () => [{ id: documentId }]),
+			})),
+		});
+		dbMock.update.mockReturnValueOnce({
+			set: vi.fn(() => ({
+				where: vi.fn(async () => undefined),
+			})),
+		});
+		downloadDocumentMock.mockResolvedValue({
+			success: true,
+			documentId,
+			rfpDocumentId: "rfp-1",
+			parsingJobId: "parse-1",
+			storagePath: "s3://rfp/rfp.pdf",
+		});
+
+		const result = await ingestOpportunitySourceDocument(opportunityId);
+
+		expect(result).toMatchObject({
+			success: true,
+			status: "queued_from_source",
+			documentId,
+			rfpDocumentId: "rfp-1",
+			parsingJobId: "parse-1",
+		});
+		expect(downloadDocumentMock).toHaveBeenCalledWith(documentId, "document-user-1", opportunityId);
 	});
 });
