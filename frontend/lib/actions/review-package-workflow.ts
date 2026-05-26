@@ -15,11 +15,12 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 
 type ProposalReviewRow = typeof proposalReviews.$inferSelect;
 type ReviewerRow = typeof reviewers.$inferSelect;
 type ReviewCommentRow = typeof reviewComments.$inferSelect;
+type ReviewPackageUserContext = UserContext & { organizationId: string };
 
 export type ReviewPackageAction =
 	| "freeze_package"
@@ -62,41 +63,58 @@ export interface ReviewPackageWorkflowResult {
 const WORKFLOW_KEY = "review_package_gate";
 const SUBJECT_TYPE = "proposal_review";
 
-function assignedReviewExistsSql(reviewId: unknown, userId: string): SQL {
+function assignedReviewExistsSql(reviewId: unknown, userContext: ReviewPackageUserContext): SQL {
 	return sql`exists (
 		select 1
 		from proposal_reviews
 		join opportunities on opportunities.id = proposal_reviews.opportunity_id
 		where proposal_reviews.id = ${reviewId}
-			and opportunities.assigned_to = ${userId}
+			and (proposal_reviews.organization_id = ${userContext.organizationId} or proposal_reviews.organization_id is null)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleReviewCondition(reviewId: string, userId: string): SQL {
+function reviewOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(proposalReviews.organizationId, organizationId),
+		isNull(proposalReviews.organizationId)
+	)!;
+}
+
+function commentOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(reviewComments.organizationId, organizationId),
+		isNull(reviewComments.organizationId)
+	)!;
+}
+
+function visibleReviewCondition(reviewId: string, userContext: ReviewPackageUserContext): SQL {
 	return and(
 		eq(proposalReviews.id, reviewId),
-		assignedReviewExistsSql(reviewId, userId)
+		reviewOrganizationCondition(userContext.organizationId),
+		assignedReviewExistsSql(reviewId, userContext)
 	)!;
 }
 
-function visibleReviewersForReviewCondition(reviewId: string, userId: string): SQL {
+function visibleReviewersForReviewCondition(reviewId: string, userContext: ReviewPackageUserContext): SQL {
 	return and(
 		eq(reviewers.reviewId, reviewId),
-		assignedReviewExistsSql(reviewId, userId)
+		assignedReviewExistsSql(reviewId, userContext)
 	)!;
 }
 
-function visibleCommentsForReviewCondition(reviewId: string, userId: string): SQL {
+function visibleCommentsForReviewCondition(reviewId: string, userContext: ReviewPackageUserContext): SQL {
 	return and(
 		eq(reviewComments.reviewId, reviewId),
-		assignedReviewExistsSql(reviewId, userId)
+		commentOrganizationCondition(userContext.organizationId),
+		assignedReviewExistsSql(reviewId, userContext)
 	)!;
 }
 
-function visibleReviewerCondition(reviewerId: string, reviewId: string, userId: string): SQL {
+function visibleReviewerCondition(reviewerId: string, reviewId: string, userContext: ReviewPackageUserContext): SQL {
 	return and(
 		eq(reviewers.id, reviewerId),
-		assignedReviewExistsSql(reviewId, userId)
+		assignedReviewExistsSql(reviewId, userContext)
 	)!;
 }
 
@@ -104,19 +122,20 @@ export async function transitionReviewPackageWorkflow(
 	input: ReviewPackageWorkflowInput
 ): Promise<ReviewPackageWorkflowResult> {
 	const userContext = await requireUserContext();
+	requireReviewPackageTenantContext(userContext);
 	const reason = requireReason(input.reason, "Review package transitions require a reason");
 	const [review] = await db
 		.select()
 		.from(proposalReviews)
-		.where(visibleReviewCondition(input.reviewId, userContext.userId))
+		.where(visibleReviewCondition(input.reviewId, userContext))
 		.limit(1);
 	if (!review) {
 		throw new Error("Review package not found");
 	}
 
 	const [assignedReviewers, comments] = await Promise.all([
-		db.select().from(reviewers).where(visibleReviewersForReviewCondition(input.reviewId, userContext.userId)),
-		db.select().from(reviewComments).where(visibleCommentsForReviewCondition(input.reviewId, userContext.userId)),
+		db.select().from(reviewers).where(visibleReviewersForReviewCondition(input.reviewId, userContext)),
+		db.select().from(reviewComments).where(visibleCommentsForReviewCondition(input.reviewId, userContext)),
 	]);
 	const reviewer = input.reviewerId
 		? assignedReviewers.find((candidate) => candidate.id === input.reviewerId) ?? null
@@ -139,7 +158,7 @@ export async function transitionReviewPackageWorkflow(
 		? await db
 			.update(proposalReviews)
 			.set(transition.reviewPatch)
-			.where(visibleReviewCondition(input.reviewId, userContext.userId))
+			.where(visibleReviewCondition(input.reviewId, userContext))
 			.returning()
 		: [review];
 	if (!updatedReview) {
@@ -150,11 +169,12 @@ export async function transitionReviewPackageWorkflow(
 		await db
 			.update(reviewers)
 			.set(transition.reviewerPatch)
-			.where(visibleReviewerCondition(reviewer.id, input.reviewId, userContext.userId));
+			.where(visibleReviewerCondition(reviewer.id, input.reviewId, userContext));
 	}
 
 	const instance = await recordWorkflowRuntimeTransition({
 		workflowKey: WORKFLOW_KEY,
+		organizationId: userContext.organizationId,
 		subjectType: SUBJECT_TYPE,
 		subjectId: input.reviewId,
 		opportunityId: updatedReview.opportunityId,
@@ -208,6 +228,12 @@ export async function transitionReviewPackageWorkflow(
 		workflowInstanceId: instance.id,
 		taskProjected: true,
 	};
+}
+
+function requireReviewPackageTenantContext(userContext: UserContext): asserts userContext is ReviewPackageUserContext {
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
 }
 
 function buildReviewPackageTransition(input: {

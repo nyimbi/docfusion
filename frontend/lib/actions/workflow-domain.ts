@@ -119,27 +119,36 @@ function workflowProposalTaskCondition(taskId: string, organizationId: string, a
 	)!;
 }
 
-function workflowProposalReviewCondition(reviewId: string, actorId: string): SQL {
+function workflowProposalReviewCondition(reviewId: string, organizationId: string, actorId: string): SQL {
 	return and(
 		eq(proposalReviews.id, reviewId),
+		or(
+			eq(proposalReviews.organizationId, organizationId),
+			isNull(proposalReviews.organizationId)
+		),
 		assignedOpportunityExistsSql(proposalReviews.opportunityId, actorId)
 	)!;
 }
 
-function assignedProposalReviewExistsSql(reviewId: unknown, actorId: string): SQL {
+function assignedProposalReviewExistsSql(reviewId: unknown, organizationId: string, actorId: string): SQL {
 	return sql`exists (
 		select 1
 		from proposal_reviews
 		join opportunities on opportunities.id = proposal_reviews.opportunity_id
 		where proposal_reviews.id = ${reviewId}
+			and (proposal_reviews.organization_id = ${organizationId} or proposal_reviews.organization_id is null)
 			and opportunities.assigned_to = ${actorId}
 	)`;
 }
 
-function workflowReviewCommentCondition(commentId: string, actorId: string): SQL {
+function workflowReviewCommentCondition(commentId: string, organizationId: string, actorId: string): SQL {
 	return and(
 		eq(reviewComments.id, commentId),
-		assignedProposalReviewExistsSql(reviewComments.reviewId, actorId)
+		or(
+			eq(reviewComments.organizationId, organizationId),
+			isNull(reviewComments.organizationId)
+		),
+		assignedProposalReviewExistsSql(reviewComments.reviewId, organizationId, actorId)
 	)!;
 }
 
@@ -750,7 +759,7 @@ async function applyDomainCompensation(input: {
 						recommendation: "ready_to_submit",
 						updatedAt: now,
 					};
-			await db.update(proposalReviews).set(patch).where(workflowProposalReviewCondition(input.instance.subjectId, input.actorId));
+			await db.update(proposalReviews).set(patch).where(workflowProposalReviewCondition(input.instance.subjectId, input.organizationId, input.actorId));
 			break;
 		}
 		case "review_comment": {
@@ -787,7 +796,7 @@ async function applyDomainCompensation(input: {
 						verificationNotes: `Verified by workflow: ${input.reason}`,
 						updatedAt: now,
 					};
-			await db.update(reviewComments).set(patch).where(workflowReviewCommentCondition(input.instance.subjectId, input.actorId));
+			await db.update(reviewComments).set(patch).where(workflowReviewCommentCondition(input.instance.subjectId, input.organizationId, input.actorId));
 			break;
 		}
 		case "document_approval": {

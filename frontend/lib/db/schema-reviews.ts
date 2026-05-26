@@ -111,6 +111,7 @@ export type ReviewRecommendation =
  */
 export const proposalReviews = pgTable("proposal_reviews", {
 	id: uuid("id").primaryKey().defaultRandom(),
+	organizationId: varchar("organization_id", { length: 100 }),
 	opportunityId: uuid("opportunity_id").notNull(),
 
 	// Review identification
@@ -268,6 +269,7 @@ export const reviewers = pgTable("reviewers", {
  */
 export const reviewComments = pgTable("review_comments", {
 	id: uuid("id").primaryKey().defaultRandom(),
+	organizationId: varchar("organization_id", { length: 100 }),
 	reviewId: uuid("review_id")
 		.references(() => proposalReviews.id, { onDelete: "cascade" })
 		.notNull(),

@@ -2769,6 +2769,32 @@ Remaining after this slice:
 - Continue auditing proposal reviews, review comments, gate reviews, and cost/pricing records for first-class organization anchors.
 - Live persisted DB import-to-parse proof remains externally blocked by the refused database connection.
 
+### 2026-05-26 - Review Workflow Tenant Anchors
+
+Status: implemented and verified.
+
+Purpose: keep proposal review gates and review comment resolution workflows tenant-bound while preserving assigned-opportunity access checks.
+
+Changes in this slice:
+- Add nullable `organization_id` support to `proposal_reviews` and `review_comments`, with migration backfill from the single organization or the parent review.
+- Scope review package transitions, reviewer/comment reads, review updates, and workflow-domain proposal review/comment compensation by organization plus assigned opportunity.
+- Scope review comment workflow reads/updates by review/comment organization and carry organization context into review package/comment workflow runtime instances.
+- Extend review package and review comment workflow tests to assert tenant predicates and workflow runtime organization propagation.
+
+Verification:
+- `npm test -- review-package-workflow.test.ts review-comment-workflow.test.ts workflow-domain.test.ts` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- `npm run platform:proof -- --run wave4-planning-collaboration-tasks` passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed.
+
+Testing scope note:
+- Battery constraints are lifted. This slice ran focused review workflow coverage, TypeScript checking, diff whitespace checks, and the relevant Wave 4/Wave 6 proof scenarios.
+
+Remaining after this slice:
+- Continue auditing general review management (`frontend/lib/actions/reviews.ts`), gate reviews, and cost/pricing records for first-class organization anchors.
+- Live persisted DB import-to-parse proof remains externally blocked by the refused database connection.
+
 ### 2026-05-26 - Persistent Discovery Warning History
 
 Status: implemented and verified.

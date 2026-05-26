@@ -198,7 +198,10 @@ describe("review comment workflow", () => {
 		expect(commentUpdate).toMatchObject({
 			resolutionStatus: "open",
 		});
-		expect(collectSqlFragments(commentWhere).join(" ")).toContain("opportunities.assigned_to");
+		const commentSql = collectSqlFragments(commentWhere).join(" ");
+		expect(commentSql).toContain("organization_id");
+		expect(commentSql).toContain("org-1");
+		expect(commentSql).toContain("opportunities.assigned_to");
 		expect(taskInsert).toMatchObject({
 			organizationId: "org-1",
 			opportunityId: "opp-1",
@@ -210,6 +213,7 @@ describe("review comment workflow", () => {
 		});
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "review_comment_resolution",
+			organizationId: "org-1",
 			subjectType: "review_comment",
 			toState: "open",
 			priority: "high",

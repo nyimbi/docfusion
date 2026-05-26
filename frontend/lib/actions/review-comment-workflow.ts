@@ -8,7 +8,7 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 
 type ReviewCommentRow = typeof reviewComments.$inferSelect;
 type ProposalTaskRow = typeof proposalTasks.$inferSelect;
@@ -46,26 +46,43 @@ function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): S
 	)`;
 }
 
-function assignedReviewExistsSql(reviewId: unknown, userId: string): SQL {
+function assignedReviewExistsSql(reviewId: unknown, organizationId: string, userId: string): SQL {
 	return sql`exists (
 		select 1
 		from proposal_reviews
 		join opportunities on opportunities.id = proposal_reviews.opportunity_id
 		where proposal_reviews.id = ${reviewId}
+			and (proposal_reviews.organization_id = ${organizationId} or proposal_reviews.organization_id is null)
 			and opportunities.assigned_to = ${userId}
 	)`;
 }
 
-function visibleReviewCommentCondition(commentId: string, userId: string): SQL {
-	return and(
-		eq(reviewComments.id, commentId),
-		assignedReviewExistsSql(reviewComments.reviewId, userId)
+function reviewCommentOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(reviewComments.organizationId, organizationId),
+		isNull(reviewComments.organizationId)
 	)!;
 }
 
-function visibleProposalReviewCondition(reviewId: string, userId: string): SQL {
+function proposalReviewOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(proposalReviews.organizationId, organizationId),
+		isNull(proposalReviews.organizationId)
+	)!;
+}
+
+function visibleReviewCommentCondition(commentId: string, organizationId: string, userId: string): SQL {
+	return and(
+		eq(reviewComments.id, commentId),
+		reviewCommentOrganizationCondition(organizationId),
+		assignedReviewExistsSql(reviewComments.reviewId, organizationId, userId)
+	)!;
+}
+
+function visibleProposalReviewCondition(reviewId: string, organizationId: string, userId: string): SQL {
 	return and(
 		eq(proposalReviews.id, reviewId),
+		proposalReviewOrganizationCondition(organizationId),
 		assignedOpportunityExistsSql(proposalReviews.opportunityId, userId)
 	)!;
 }
@@ -102,7 +119,7 @@ export async function transitionReviewCommentWorkflow(
 	const [comment] = await db
 		.select()
 		.from(reviewComments)
-		.where(visibleReviewCommentCondition(input.commentId, userContext.userId))
+		.where(visibleReviewCommentCondition(input.commentId, userContext.organizationId, userContext.userId))
 		.limit(1);
 	if (!comment) {
 		throw new Error("Review comment not found");
@@ -110,7 +127,7 @@ export async function transitionReviewCommentWorkflow(
 	const [review] = await db
 		.select({ opportunityId: proposalReviews.opportunityId })
 		.from(proposalReviews)
-		.where(visibleProposalReviewCondition(comment.reviewId, userContext.userId))
+		.where(visibleProposalReviewCondition(comment.reviewId, userContext.organizationId, userContext.userId))
 		.limit(1);
 	if (!review?.opportunityId) {
 		throw new Error("Review comment is not linked to an opportunity");
@@ -127,7 +144,7 @@ export async function transitionReviewCommentWorkflow(
 	const [updatedComment] = await db
 		.update(reviewComments)
 		.set(transition.commentPatch)
-		.where(visibleReviewCommentCondition(input.commentId, userContext.userId))
+		.where(visibleReviewCommentCondition(input.commentId, userContext.organizationId, userContext.userId))
 		.returning();
 	if (!updatedComment) {
 		throw new Error("Failed to update review comment workflow state");
@@ -163,6 +180,7 @@ export async function transitionReviewCommentWorkflow(
 
 	const instance = await recordWorkflowRuntimeTransition({
 		workflowKey: WORKFLOW_KEY,
+		organizationId: userContext.organizationId,
 		subjectType: SUBJECT_TYPE,
 		subjectId: input.commentId,
 		opportunityId: review.opportunityId,
