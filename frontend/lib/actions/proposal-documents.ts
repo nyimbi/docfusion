@@ -12,6 +12,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { documents, documentVersions, proposalDocuments, documentSections, opportunities } from "@/lib/db/schema";
 import { complianceEntries, complianceMatrices, rfpRequirements } from "@/lib/db/schema-rfp";
+import { winThemes } from "@/lib/db/schema-win-themes";
 import { eq, and, asc, sql, inArray, type SQL } from "drizzle-orm";
 import type {
 	ProposalDocument,
@@ -429,6 +430,14 @@ function visibleRequirementsForOpportunityCondition(opportunityId: string, userI
 	)!;
 }
 
+function visibleActiveWinThemesForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(winThemes.opportunityId, opportunityId),
+		eq(winThemes.isActive, true),
+		assignedOpportunityExistsSql(winThemes.opportunityId, userId)
+	)!;
+}
+
 function visibleRequirementCondition(id: string, userId: string): SQL {
 	return and(
 		eq(rfpRequirements.id, id),
@@ -542,7 +551,8 @@ function appendResponsePlanContent(
 	content: DocumentContent,
 	opportunity: OpportunityResponseContext,
 	documentType: ProposalDocumentType,
-	requirements: Array<typeof rfpRequirements.$inferSelect>
+	requirements: Array<typeof rfpRequirements.$inferSelect>,
+	activeWinThemes: Array<typeof winThemes.$inferSelect> = []
 ): DocumentContent {
 	const opportunityBullets = opportunityContextBullets(opportunity);
 	const contextNotes = [
@@ -573,6 +583,13 @@ function appendResponsePlanContent(
 		planNodes.push(headingNode(3, "Evaluator Signals To Address"), bulletListNode(contextNotes));
 	}
 
+	if (activeWinThemes.length > 0) {
+		planNodes.push(
+			headingNode(3, "Approved Win Themes To Weave In"),
+			bulletListNode(activeWinThemes.slice(0, 6).map(winThemeResponseLine))
+		);
+	}
+
 	planNodes.push(headingNode(3, "Requirement Response Plan"));
 	if (requirements.length > 0) {
 		planNodes.push(bulletListNode(requirements.slice(0, 12).map(requirementResponseLine)));
@@ -600,6 +617,20 @@ function appendResponsePlanContent(
 		...content,
 		content: [...(content.content ?? []), ...planNodes],
 	};
+}
+
+function winThemeResponseLine(theme: typeof winThemes.$inferSelect): string {
+	const statement = compactText(theme.themeStatement, 220) ?? "Approved win theme";
+	const shortVersion = compactText(theme.shortVersion, 120);
+	const priority = theme.priority != null ? ` Priority: ${theme.priority}.` : "";
+	const themeType = compactText(theme.themeType, 80);
+	const evidence = Array.isArray(theme.supportingEvidence)
+		? theme.supportingEvidence.map((item) => compactText(String(item), 160)).filter(Boolean)
+		: [];
+	const evidenceText = evidence.length > 0 ? ` Evidence: ${evidence.slice(0, 2).join("; ")}.` : "";
+	const label = shortVersion ? `${shortVersion}: ` : "";
+
+	return `${label}${statement}${themeType ? ` Theme type: ${themeType}.` : ""}${priority}${evidenceText}`;
 }
 
 function sectionRequirementDraftLine(requirement: typeof rfpRequirements.$inferSelect): string {
@@ -880,6 +911,11 @@ export async function createProposalDocument(
 			documentTypeForRequirement(requirement) === documentType &&
 			(!options.seedAcceptedRequirementsOnly || isAcceptedRequirement(requirement))
 	);
+	const activeWinThemes = await db
+		.select()
+		.from(winThemes)
+		.where(visibleActiveWinThemesForOpportunityCondition(opportunityId, userId))
+		.orderBy(asc(winThemes.priority), asc(winThemes.createdAt));
 
 	// Generate a title if not provided
 	const documentTitle = title || `${getDocumentTypeLabel(documentType)} - Draft`;
@@ -897,7 +933,8 @@ export async function createProposalDocument(
 		getDatacraftProposalDocumentContent(documentType),
 		opportunity,
 		documentType,
-		documentRequirements
+		documentRequirements,
+		activeWinThemes
 	);
 	const plainText = extractPlainText(defaultContent);
 	const wordCount = countWords(plainText);
@@ -922,6 +959,7 @@ export async function createProposalDocument(
 					? "accepted_only"
 					: "applicable_by_document_type",
 				seededRequirementIds: documentRequirements.map((requirement) => requirement.id),
+				seededWinThemeIds: activeWinThemes.map((theme) => theme.id),
 			},
 		})
 		.returning();

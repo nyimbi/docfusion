@@ -230,12 +230,22 @@ describe("proposal document row scoping", () => {
 			category: "financial",
 			requirementText: "The supplier shall provide a fixed price schedule.",
 		};
+		const activeWinTheme = {
+			id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+			opportunityId: proposalDocument.opportunityId,
+			themeStatement: "Datacraft lowers delivery risk through source-cited evidence controls.",
+			shortVersion: "Evidence-led delivery",
+			themeType: "risk_reduction",
+			priority: 1,
+			supportingEvidence: ["Lindela source citation and workflow audit trails"],
+		};
 		let insertedDocument: Record<string, any> | undefined;
 		let insertedSections: unknown;
 
 		dbMock.select
 			.mockReturnValueOnce(createChain({ result: [opportunity] }))
 			.mockReturnValueOnce(createChain({ result: [technicalRequirement, financialRequirement] }))
+			.mockReturnValueOnce(createChain({ result: [activeWinTheme] }))
 			.mockReturnValueOnce(createChain({ result: [{ maxOrder: 0 }] }));
 		dbMock.insert
 			.mockReturnValueOnce(createChain({
@@ -264,6 +274,9 @@ describe("proposal document row scoping", () => {
 		expect(seededText).toContain("Opportunity-Specific Response Plan");
 		expect(seededText).toContain("Offline Field Reporting Platform");
 		expect(seededText).toContain("Requirement Response Plan");
+		expect(seededText).toContain("Approved Win Themes");
+		expect(seededText).toContain("Evidence-led delivery");
+		expect(seededText).toContain("Datacraft lowers delivery risk");
 		expect(seededText).toContain("REQ-007");
 		expect(seededText).toContain("offline data capture");
 		expect(seededText).toContain("Response strategy: Use MeGuard field operations");
@@ -276,6 +289,7 @@ describe("proposal document row scoping", () => {
 			documentType: "technical_approach",
 			opportunityId: proposalDocument.opportunityId,
 			seededRequirementIds: [technicalRequirement.id],
+			seededWinThemeIds: [activeWinTheme.id],
 		});
 		expect(insertedSections).toEqual(expect.any(Array));
 	});
@@ -670,6 +684,7 @@ describe("proposal document row scoping", () => {
 			.mockReturnValueOnce(createChain({ result: [] }))
 			.mockReturnValueOnce(createChain({ result: [opportunity] }))
 			.mockReturnValueOnce(createChain({ result: [acceptedRequirement, unacceptedRequirement] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
 			.mockReturnValueOnce(createChain({ result: [{ maxOrder: 0 }] }))
 			.mockReturnValueOnce(createChain({ result: [acceptedRequirement, unacceptedRequirement] }))
 			.mockReturnValueOnce(createChain({ result: [section] }));

@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Win Theme Response Draft Seeding
+
+Status: implemented and verified.
+
+Purpose: make generated proposal drafts carry active win themes so response package content starts from approved capture strategy rather than generic proof points alone.
+
+Changes in this slice:
+- Load active win themes for the assigned opportunity when seeding a new proposal document draft.
+- Add an "Approved Win Themes To Weave In" response-plan section with theme statement, short version, type, priority, and supporting evidence.
+- Store seeded win theme IDs in document metadata alongside seeded requirement IDs for traceability.
+- Extend focused proposal document coverage to prove active win themes appear in generated draft text and metadata.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate wave9 proof scenario remain intentionally skipped while on battery. This slice verifies proposal draft seed content with the focused proposal documents action test.
+
+Remaining after this slice:
+- Continue hardening win-theme injection into regenerated section drafts and final review gates.
+
 ### 2026-05-26 - Response Package Draft Runtime Evidence
 
 Status: implemented and verified.
