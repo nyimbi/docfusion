@@ -468,5 +468,23 @@ describe("submission workflow gates", () => {
 			decisionStatus: "submitted",
 		});
 		expect(evaluateFinalSubmissionChecklistWorkflow).toHaveBeenCalledWith("opp-1");
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
+			evidenceLinks: expect.arrayContaining([
+				"PORTAL-123",
+				"submission:receipt:PORTAL-123",
+				`artifact:sha256:${"f".repeat(64)}`,
+				"artifact:storage:s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/technical-approach.docx",
+				`source:sha256:${documentSourceHash}`,
+			]),
+			metadata: expect.objectContaining({
+				attachments: expect.arrayContaining([
+					expect.objectContaining({
+						artifactHash: "f".repeat(64),
+						storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/technical-approach.docx",
+						sourceContentHash: documentSourceHash,
+					}),
+				]),
+			}),
+		}));
 	});
 });

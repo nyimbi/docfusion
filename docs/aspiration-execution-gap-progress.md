@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Submission Runtime Artifact Evidence Links
+
+Status: implemented and verified.
+
+Purpose: make production submission workflow events reconstructable from the recorded portal receipt back to submitted final artifact storage and source receipts.
+
+Changes in this slice:
+- Expand submission workflow runtime evidence links to include the raw receipt, namespaced submission receipt, artifact SHA-256, artifact storage path, and source document SHA-256.
+- Preserve the full locked attachment receipt metadata on the workflow event.
+- Extend focused submission workflow coverage to assert evidence links and metadata include the final artifact receipt chain.
+
+Verification:
+- `npm run test -- __tests__/actions/submission-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate wave9 proof scenario remain intentionally skipped while on battery. This slice verifies the submission workflow runtime evidence payload only.
+
+Remaining after this slice:
+- Continue focused proof-path hardening until power allows running `wave9-discovery-to-submission-core`.
+
 ### 2026-05-26 - Submission History Artifact Receipt Visibility
 
 Status: implemented and verified.

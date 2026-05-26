@@ -282,7 +282,7 @@ export async function createSubmission(
 			actorId: submittedBy,
 			actorName: submittedBy,
 			reason: `Submission receipt ${input.confirmationNumber.trim()} recorded`,
-			evidenceLinks: [input.confirmationNumber.trim()],
+			evidenceLinks: submissionEvidenceLinks(input.confirmationNumber.trim(), attachments),
 			priority: "critical",
 			visibility: "internal",
 			authorityPolicy: {
@@ -305,6 +305,25 @@ export async function createSubmission(
 
 	revalidateSubmissionWorkflowPaths(input.opportunityId);
 	return transformSubmission(row);
+}
+
+function submissionEvidenceLinks(
+	confirmationNumber: string,
+	attachments: SubmissionAttachment[]
+): string[] {
+	const links = new Set<string>([confirmationNumber, `submission:receipt:${confirmationNumber}`]);
+	for (const attachment of attachments) {
+		if (attachment.artifactHash) {
+			links.add(`artifact:sha256:${attachment.artifactHash}`);
+		}
+		if (attachment.storagePath) {
+			links.add(`artifact:storage:${attachment.storagePath}`);
+		}
+		if (attachment.sourceContentHash) {
+			links.add(`source:sha256:${attachment.sourceContentHash}`);
+		}
+	}
+	return [...links];
 }
 
 type StoredFinalArtifactManifest = {
