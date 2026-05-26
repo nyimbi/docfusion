@@ -110,6 +110,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	viewerScopeMock.mockResolvedValue({
 		userId: "proposal-manager-1",
+		organizationId: "org-1",
 		isGlobalWorkflowViewer: false,
 	});
 	getOpportunityMock.mockResolvedValue({
@@ -163,8 +164,11 @@ describe("opportunity command center projection", () => {
 			owner: "proposal_writer",
 			actionUrl: "/documents/doc-1",
 		}));
-		expect(collectSqlFragments(claimWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(claimWhere).join(" ")).toContain("proposal-manager-1");
+		const claimSql = collectSqlFragments(claimWhere).join(" ");
+		expect(claimSql).toContain("opportunities.organization_id");
+		expect(claimSql).toContain("org-1");
+		expect(claimSql).toContain("opportunities.assigned_to");
+		expect(claimSql).toContain("proposal-manager-1");
 	});
 
 	it("does not project resolved high-risk claims as blockers", async () => {

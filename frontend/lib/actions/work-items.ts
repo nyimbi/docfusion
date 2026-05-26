@@ -126,7 +126,7 @@ export async function getOpportunityCommandCenterProjection(
 	}
 	const [documents, blockingClaims] = await Promise.all([
 		getOpportunityDocuments(opportunityId),
-		listBlockingOpportunityClaims(opportunityId, scope.userId),
+		listBlockingOpportunityClaims(opportunityId, scope.userId, scope.organizationId),
 	]);
 	const canReadOpportunityAudit =
 		scope.isGlobalWorkflowViewer ||
@@ -207,24 +207,29 @@ export async function getOpportunityCommandCenterProjection(
 	};
 }
 
-async function listBlockingOpportunityClaims(opportunityId: string, userId: string): Promise<ClaimAnalysisRecord[]> {
+async function listBlockingOpportunityClaims(
+	opportunityId: string,
+	userId: string,
+	organizationId?: string
+): Promise<ClaimAnalysisRecord[]> {
 	const rows = await db
 		.select()
 		.from(claimAnalysis)
 		.where(and(
 			eq(claimAnalysis.opportunityId, opportunityId),
 			eq(claimAnalysis.riskLevel, "high"),
-			assignedOpportunityExistsSql(claimAnalysis.opportunityId, userId),
+			assignedOpportunityExistsSql(claimAnalysis.opportunityId, userId, organizationId),
 		));
 
 	return rows.filter((claim) => claim.status !== "resolved" && claim.status !== "wont_fix");
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string) {
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string, organizationId?: string) {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
+			${organizationId ? sql`and (opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)` : sql``}
 			and opportunities.assigned_to = ${userId}
 	)`;
 }

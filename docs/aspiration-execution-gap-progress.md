@@ -16,6 +16,25 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Work Items Claim Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep command-center high-risk claim blockers scoped to the caller's organization through the owning opportunity before projecting readiness blockers.
+
+Changes in this slice:
+- Thread workflow viewer organization context into command-center claim blocker queries.
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to work-item claim visibility checks.
+- Extend command-center tests to assert opportunity organization predicates for claim blocker reads.
+
+Verification:
+- `npm test -- work-items-command-center.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as task management, workflow domain, submissions, pipeline, pricing, proposal documents, and win themes.
+
 ### 2026-05-27 - Calendar Opportunity Tenant Predicates
 
 Status: implemented and verified.
