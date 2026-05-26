@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Generic Parser Source Title Normalization
+
+Status: implemented and verified.
+
+Purpose: improve the quality of source-scraped opportunity records from table-heavy procurement pages so they are usable for downstream qualification and response workflows.
+
+Changes in this slice:
+- Normalize escaped field-packed tender link text before generic parser extraction.
+- Extract `Title`, `Ref No`, `UNDP Office/Country`, `Process`, and `Deadline` fields from inline procurement table rows.
+- Store cleaner opportunity titles, notice IDs, organization, country/region, and process summaries for field-packed links.
+- Add parser regression coverage for UNDP-style procurement notice links.
+
+Verification:
+- `npm run test -- generic-parser.test.ts discovery-opportunity-import.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- Live Firecrawl/parser smoke for `https://procurement-notices.undp.org` returned 375 parsed opportunities, with the first opportunity normalized to title `SAFE ROOM REINFORCEMENT & FIRE ALARM SYSTEM INSTALLATION FOR PLATEAU OFFICE`, notice ID `UNDP-NGA-01432`, organization `UNDP-NGA`, and country `NIGERIA`.
+
+Remaining after this slice:
+- Add dedicated parsers for other high-value portals whose rendered output does not fit the generic parser, especially Kenya PPIP and UNGM.
+
 ### 2026-05-26 - Configured Source Discovery
 
 Status: implemented and verified.

@@ -155,6 +155,53 @@ function extractContextMetadata(context: string): {
 	return result;
 }
 
+function normaliseScrapedInlineText(text: string): string {
+	return cleanText(text.replace(/\\+/g, " "));
+}
+
+function extractLabelledFields(text: string): Record<string, string> {
+	const normalized = normaliseScrapedInlineText(text);
+	const labelPattern = /\b(Title|Ref No|UNDP Office\/Country|Office\/Country|Process|Deadline|Posted)\b/gi;
+	const matches = [...normalized.matchAll(labelPattern)];
+	const fields: Record<string, string> = {};
+
+	for (let index = 0; index < matches.length; index++) {
+		const match = matches[index];
+		const label = match[1].toLowerCase();
+		const start = (match.index ?? 0) + match[0].length;
+		const end = matches[index + 1]?.index ?? normalized.length;
+		const value = cleanText(normalized.slice(start, end));
+		if (value) fields[label] = value;
+	}
+
+	return fields;
+}
+
+function parseFieldPackedTenderText(text: string): {
+	title?: string;
+	organization?: string;
+	country?: string;
+	deadline?: Date;
+	noticeId?: string;
+	description?: string;
+} {
+	const fields = extractLabelledFields(text);
+	if (!fields.title) return {};
+
+	const officeCountry = fields["undp office/country"] ?? fields["office/country"];
+	const [organization, country] = officeCountry?.split("/").map((value) => cleanText(value)) ?? [];
+	const process = fields.process ? `Process: ${fields.process}` : undefined;
+
+	return {
+		title: fields.title,
+		organization,
+		country,
+		deadline: parseDate(fields.deadline),
+		noticeId: fields["ref no"],
+		description: process,
+	};
+}
+
 function generateId(title: string): string {
 	const slug = title
 		.toLowerCase()
@@ -203,10 +250,11 @@ function extractFromLinks(markdown: string, sourceUrl: string): OpportunityData[
 
 	let match;
 	while ((match = linkPattern.exec(markdown)) !== null) {
-		const linkText = cleanText(match[1]);
+		const linkText = normaliseScrapedInlineText(match[1]);
 		const url = match[2];
+		const inlineMetadata = parseFieldPackedTenderText(linkText);
 
-		if (linkText.length < 10 || linkText.length > 300) continue;
+		if (linkText.length < 10 || (linkText.length > 300 && !inlineMetadata.title)) continue;
 		if (shouldExclude(linkText)) continue;
 		if (!isTenderLike(linkText, "")) continue;
 
@@ -215,15 +263,17 @@ function extractFromLinks(markdown: string, sourceUrl: string): OpportunityData[
 		const context = markdown.slice(contextStart, contextEnd);
 
 		const metadata = extractContextMetadata(context);
+		const title = inlineMetadata.title ?? linkText;
 
 		opportunities.push({
-			title: linkText,
+			title,
 			source: "generic",
-			organization: metadata.organization,
-			deadline: metadata.deadline,
-			countryRegion: metadata.country,
+			organization: inlineMetadata.organization ?? metadata.organization,
+			deadline: inlineMetadata.deadline ?? metadata.deadline,
+			countryRegion: inlineMetadata.country ?? metadata.country,
+			projectSummary: inlineMetadata.description,
 			portalUrl: url,
-			noticeId: generateId(linkText),
+			noticeId: inlineMetadata.noticeId ?? generateId(title),
 		});
 	}
 
