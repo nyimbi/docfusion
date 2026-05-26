@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
 		}
 
 		const serviceUserId = process.env.DISCOVERY_IMPORT_USER_ID?.trim();
+		const serviceOrganizationId = process.env.DISCOVERY_IMPORT_ORGANIZATION_ID?.trim();
 		if (apiKeyRequest && !serviceUserId) {
 			return NextResponse.json(
 				{
@@ -114,9 +115,18 @@ export async function POST(request: NextRequest) {
 				{ status: 503 }
 			);
 		}
+		if (apiKeyRequest && !serviceOrganizationId) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "DISCOVERY_IMPORT_ORGANIZATION_ID is required for API-key discovery runs",
+				},
+				{ status: 503 }
+			);
+		}
 
 		const result = apiKeyRequest
-			? await executeOpportunityDiscoveryImport(input, serviceUserId!)
+			? await executeOpportunityDiscoveryImport(input, serviceUserId!, serviceOrganizationId!)
 			: await discoverAndImportOpportunities(input);
 		return NextResponse.json({
 			success: true,

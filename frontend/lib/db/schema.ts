@@ -300,6 +300,8 @@ export const opportunities = pgTable(
 	"opportunities",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		/** Organization ID for tenant isolation */
+		organizationId: varchar("organization_id", { length: 100 }),
 		/** Original ID from spreadsheet (e.g., "RFP-085", "AFR-066") */
 		sourceId: varchar("source_id", { length: 50 }),
 		title: varchar("title", { length: 1000 }).notNull(),
@@ -410,6 +412,7 @@ export const opportunities = pgTable(
 		searchVector: text("search_vector"),
 	},
 	(table) => [
+		index("opportunities_organization_idx").on(table.organizationId),
 		index("opportunities_deadline_idx").on(table.deadline),
 		index("opportunities_category_idx").on(table.category),
 		index("opportunities_country_idx").on(table.countryRegion),
@@ -418,9 +421,9 @@ export const opportunities = pgTable(
 		index("opportunities_fit_score_idx").on(table.fitScore),
 		index("opportunities_source_idx").on(table.sourceFile),
 		index("opportunities_expired_idx").on(table.isExpired),
-		uniqueIndex("opportunities_source_id_file_idx").on(table.sourceId, table.sourceFile),
+		uniqueIndex("opportunities_source_id_file_idx").on(table.organizationId, table.sourceId, table.sourceFile),
 		// Scraper deduplication indexes
-		uniqueIndex("opportunities_fingerprint_idx").on(table.fingerprint),
+		uniqueIndex("opportunities_fingerprint_idx").on(table.organizationId, table.fingerprint),
 		index("opportunities_source_source_id_idx").on(table.source, table.sourceId),
 		index("opportunities_scraped_at_idx").on(table.scrapedAt),
 		// Full-text search indexes
@@ -462,6 +465,7 @@ export const opportunityImports = pgTable(
 	"opportunity_imports",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }),
 		/** Original filename */
 		filename: varchar("filename", { length: 500 }).notNull(),
 		/** File path if stored */
@@ -488,6 +492,7 @@ export const opportunityImports = pgTable(
 		completedAt: timestamp("completed_at", { withTimezone: true }),
 	},
 	(table) => [
+		index("imports_organization_idx").on(table.organizationId),
 		index("imports_status_idx").on(table.status),
 		index("imports_started_idx").on(table.startedAt),
 	]
@@ -501,6 +506,7 @@ export const opportunityVotes = pgTable(
 	"opportunity_votes",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }),
 		opportunityId: uuid("opportunity_id").notNull().references(() => opportunities.id, { onDelete: "cascade" }),
 		/** User who cast the vote */
 		userId: varchar("user_id", { length: 100 }).notNull(),
@@ -516,6 +522,7 @@ export const opportunityVotes = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => [
+		index("votes_organization_idx").on(table.organizationId),
 		index("votes_opportunity_idx").on(table.opportunityId),
 		uniqueIndex("votes_opportunity_user_idx").on(table.opportunityId, table.userId),
 	]
@@ -544,6 +551,7 @@ export const opportunityAIScores = pgTable(
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => [
+		index("ai_scores_organization_idx").on(table.organizationId),
 		index("ai_scores_opportunity_idx").on(table.opportunityId),
 		index("ai_scores_type_idx").on(table.scoreType),
 		index("ai_scores_created_idx").on(table.createdAt),
@@ -885,6 +893,7 @@ export const opportunityDocuments = pgTable(
 	"opportunity_documents",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }),
 		opportunityId: uuid("opportunity_id").notNull().references(() => opportunities.id, { onDelete: "cascade" }),
 		/** Document name/title */
 		documentName: varchar("document_name", { length: 500 }).notNull(),
@@ -932,6 +941,7 @@ export const opportunityDocuments = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => [
+		index("opp_docs_organization_idx").on(table.organizationId),
 		index("opp_docs_opportunity_idx").on(table.opportunityId),
 		index("opp_docs_status_idx").on(table.status),
 		index("opp_docs_type_idx").on(table.documentType),

@@ -454,6 +454,12 @@ async function storeDiscoveredDocuments(
   documents: DiscoveredDocument[]
 ): Promise<DiscoveredDocument[]> {
   const stored: DiscoveredDocument[] = [];
+  const [opportunity] = await db
+    .select({ organizationId: opportunities.organizationId })
+    .from(opportunities)
+    .where(eq(opportunities.id, opportunityId))
+    .limit(1);
+  const organizationId = opportunity?.organizationId ?? null;
 
   for (const doc of documents) {
     try {
@@ -461,6 +467,7 @@ async function storeDiscoveredDocuments(
       const existing = await db.query.opportunityDocuments.findFirst({
         where: and(
           eq(opportunityDocuments.opportunityId, opportunityId),
+          organizationId ? eq(opportunityDocuments.organizationId, organizationId) : undefined,
           eq(opportunityDocuments.sourceUrl, doc.url)
         ),
       });
@@ -472,6 +479,7 @@ async function storeDiscoveredDocuments(
 
       // Insert new document
       await db.insert(opportunityDocuments).values({
+        organizationId,
         opportunityId,
         documentName: doc.name,
         documentType: doc.type,
@@ -828,17 +836,27 @@ export async function downloadSelectedDocuments(
  * Update opportunity download count
  */
 async function updateOpportunityDownloadCount(opportunityId: string) {
+  const [opportunity] = await db
+    .select({ organizationId: opportunities.organizationId })
+    .from(opportunities)
+    .where(eq(opportunities.id, opportunityId))
+    .limit(1);
+  const organizationId = opportunity?.organizationId ?? null;
   const downloadedCount = await db.$count(
     opportunityDocuments,
     and(
       eq(opportunityDocuments.opportunityId, opportunityId),
+      organizationId ? eq(opportunityDocuments.organizationId, organizationId) : undefined,
       eq(opportunityDocuments.status, "downloaded")
     )
   );
 
   await db.update(opportunities)
     .set({ documentsDownloadedCount: downloadedCount })
-    .where(eq(opportunities.id, opportunityId));
+    .where(and(
+      eq(opportunities.id, opportunityId),
+      organizationId ? eq(opportunities.organizationId, organizationId) : undefined
+    ));
 }
 
 // ============================================================================

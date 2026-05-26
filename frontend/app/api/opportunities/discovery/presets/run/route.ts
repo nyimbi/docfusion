@@ -114,11 +114,21 @@ export async function POST(request: NextRequest) {
 		if (unauthorized) return unauthorized;
 
 		const serviceUserId = process.env.DISCOVERY_IMPORT_USER_ID?.trim();
+		const serviceOrganizationId = process.env.DISCOVERY_IMPORT_ORGANIZATION_ID?.trim();
 		if (!serviceUserId) {
 			return NextResponse.json(
 				{
 					success: false,
 					message: "DISCOVERY_IMPORT_USER_ID is required for scheduled discovery preset runs",
+				},
+				{ status: 503 }
+			);
+		}
+		if (!serviceOrganizationId) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "DISCOVERY_IMPORT_ORGANIZATION_ID is required for scheduled discovery preset runs",
 				},
 				{ status: 503 }
 			);
@@ -159,7 +169,11 @@ export async function POST(request: NextRequest) {
 		const presetResults: DiscoveryPresetRunResult[] = [];
 		for (const row of rows) {
 			try {
-				const result = await executeOpportunityDiscoveryImport(presetInputFromRow(row), serviceUserId);
+				const result = await executeOpportunityDiscoveryImport(
+					presetInputFromRow(row),
+					serviceUserId,
+					serviceOrganizationId
+				);
 				presetResults.push({
 					presetId: row.id,
 					name: row.name,

@@ -97,6 +97,7 @@ beforeEach(() => {
 		errors: [],
 	});
 	delete process.env.DISCOVERY_IMPORT_USER_ID;
+	delete process.env.DISCOVERY_IMPORT_ORGANIZATION_ID;
 });
 
 describe("scheduled discovery preset run route", () => {
@@ -127,6 +128,7 @@ describe("scheduled discovery preset run route", () => {
 
 	it("returns dry-run preset inputs without running discovery", async () => {
 		process.env.DISCOVERY_IMPORT_USER_ID = "service-user-1";
+		process.env.DISCOVERY_IMPORT_ORGANIZATION_ID = "org-service-1";
 		selectRowsQueue.push([presetRow]);
 
 		const response = await POST(runRequest({ dryRun: true, limit: 1 }));
@@ -153,6 +155,7 @@ describe("scheduled discovery preset run route", () => {
 
 	it("runs saved presets sequentially under the configured assignee", async () => {
 		process.env.DISCOVERY_IMPORT_USER_ID = "service-user-1";
+		process.env.DISCOVERY_IMPORT_ORGANIZATION_ID = "org-service-1";
 		selectRowsQueue.push([presetRow]);
 
 		const response = await POST(runRequest({ presetIds: ["preset-1"] }));
@@ -165,7 +168,8 @@ describe("scheduled discovery preset run route", () => {
 				queries: ["ICT tender Kenya", "digital transformation RFP Uganda"],
 				countryRegion: "East Africa",
 			}),
-			"service-user-1"
+			"service-user-1",
+			"org-service-1"
 		);
 		expect(body).toMatchObject({
 			success: true,
@@ -184,6 +188,7 @@ describe("scheduled discovery preset run route", () => {
 
 	it("validates request shape before loading presets", async () => {
 		process.env.DISCOVERY_IMPORT_USER_ID = "service-user-1";
+		process.env.DISCOVERY_IMPORT_ORGANIZATION_ID = "org-service-1";
 
 		const response = await POST(runRequest({ presetIds: "preset-1" }));
 		const body = await response.json();

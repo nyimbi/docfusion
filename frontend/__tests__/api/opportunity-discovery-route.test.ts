@@ -57,6 +57,7 @@ beforeEach(() => {
 	});
 	delete process.env.SCRAPER_API_KEY;
 	delete process.env.DISCOVERY_IMPORT_USER_ID;
+	delete process.env.DISCOVERY_IMPORT_ORGANIZATION_ID;
 });
 
 describe("opportunity discovery run route", () => {
@@ -138,6 +139,7 @@ describe("opportunity discovery run route", () => {
 	it("runs API-key discovery under the configured import assignee", async () => {
 		process.env.SCRAPER_API_KEY = "scraper-secret";
 		process.env.DISCOVERY_IMPORT_USER_ID = "service-user-1";
+		process.env.DISCOVERY_IMPORT_ORGANIZATION_ID = "org-service-1";
 
 		const response = await POST(discoveryRequest(
 			{ query: "scheduled rfp search" },
@@ -149,7 +151,8 @@ describe("opportunity discovery run route", () => {
 		expect(discoverAndImportOpportunitiesMock).not.toHaveBeenCalled();
 		expect(executeOpportunityDiscoveryImportMock).toHaveBeenCalledWith(
 			expect.objectContaining({ query: "scheduled rfp search" }),
-			"service-user-1"
+			"service-user-1",
+			"org-service-1"
 		);
 		expect(body).toMatchObject({
 			success: true,
@@ -171,6 +174,25 @@ describe("opportunity discovery run route", () => {
 		expect(body).toMatchObject({
 			success: false,
 			message: "DISCOVERY_IMPORT_USER_ID is required for API-key discovery runs",
+		});
+		expect(discoverAndImportOpportunitiesMock).not.toHaveBeenCalled();
+		expect(executeOpportunityDiscoveryImportMock).not.toHaveBeenCalled();
+	});
+
+	it("requires an import organization for API-key discovery runs", async () => {
+		process.env.SCRAPER_API_KEY = "scraper-secret";
+		process.env.DISCOVERY_IMPORT_USER_ID = "service-user-1";
+
+		const response = await POST(discoveryRequest(
+			{ query: "scheduled rfp search" },
+			{ authorization: "Bearer scraper-secret" }
+		));
+		const body = await response.json();
+
+		expect(response.status).toBe(503);
+		expect(body).toMatchObject({
+			success: false,
+			message: "DISCOVERY_IMPORT_ORGANIZATION_ID is required for API-key discovery runs",
 		});
 		expect(discoverAndImportOpportunitiesMock).not.toHaveBeenCalled();
 		expect(executeOpportunityDiscoveryImportMock).not.toHaveBeenCalled();

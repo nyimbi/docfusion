@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 
 function createChainableQuery(returnValue: unknown = []) {
 	const chain: Record<string, unknown> = {};
@@ -43,6 +44,7 @@ var dbMock: {
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -57,10 +59,12 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/db/schema", () => ({
 	opportunities: {
 		id: "opportunities.id",
+		organizationId: "opportunities.organization_id",
 		assignedTo: "opportunities.assignedTo",
 		metadata: "opportunities.metadata",
 	},
 	opportunityVotes: {
+		organizationId: "opportunityVotes.organization_id",
 		opportunityId: "opportunityVotes.opportunityId",
 	},
 }));
@@ -87,6 +91,11 @@ describe("opportunities CRUD assigned-opportunity scoping", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		getCurrentUserIdMock.mockResolvedValue("capture-user-1");
+		requireUserContextMock.mockResolvedValue({
+			userId: "capture-user-1",
+			organizationId: "org-1",
+			roles: [],
+		});
 		dbMock.select.mockImplementation(() => createChainableQuery([]));
 		dbMock.insert.mockImplementation(() => createChainableQuery([]));
 		dbMock.update.mockImplementation(() => createChainableQuery([]));
@@ -106,6 +115,7 @@ describe("opportunities CRUD assigned-opportunity scoping", () => {
 
 		expect(result?.id).toBe(opportunityId);
 		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assignedTo");
+		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.organization_id");
 	});
 
 	it("scopes metadata reads and updates by assignment", async () => {
@@ -129,6 +139,8 @@ describe("opportunities CRUD assigned-opportunity scoping", () => {
 		expect(result.id).toBe(opportunityId);
 		expect(collectSqlFragments(metadataWhere).join(" ")).toContain("opportunities.assignedTo");
 		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assignedTo");
+		expect(collectSqlFragments(metadataWhere).join(" ")).toContain("opportunities.organization_id");
+		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.organization_id");
 	});
 
 	it("scopes opportunity and vote deletes by assignment", async () => {
@@ -152,6 +164,8 @@ describe("opportunities CRUD assigned-opportunity scoping", () => {
 
 		expect(collectSqlFragments(votesWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assignedTo");
+		expect(collectSqlFragments(votesWhere).join(" ")).toContain("opportunityVotes.organization_id");
+		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.organization_id");
 	});
 
 	it("scopes duplicate source and source vote reads by assignment", async () => {
@@ -177,5 +191,7 @@ describe("opportunities CRUD assigned-opportunity scoping", () => {
 		expect(result.id).toBe("copy-1");
 		expect(collectSqlFragments(sourceWhere).join(" ")).toContain("opportunities.assignedTo");
 		expect(collectSqlFragments(votesWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(sourceWhere).join(" ")).toContain("opportunities.organization_id");
+		expect(collectSqlFragments(votesWhere).join(" ")).toContain("opportunityVotes.organization_id");
 	});
 });

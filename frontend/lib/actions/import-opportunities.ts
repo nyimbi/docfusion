@@ -13,7 +13,7 @@ import { eq, and } from "drizzle-orm";
 import Papa from "papaparse";
 import path from "path";
 import fs from "fs/promises";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, requireUserContext } from "@/lib/auth-utils";
 import { executeOpportunityDiscoveryImport } from "@/lib/services/opportunity-discovery-import";
 import type {
 	DiscoveryImportInput,
@@ -457,8 +457,11 @@ export async function previewImport(
 export async function discoverAndImportOpportunities(
 	input: DiscoveryImportInput = {}
 ): Promise<DiscoveryImportResult> {
-	const userId = await requireCurrentUserId();
-	return executeOpportunityDiscoveryImport(input, userId);
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+	return executeOpportunityDiscoveryImport(input, userContext.userId, userContext.organizationId);
 }
 
 // ============================================================================

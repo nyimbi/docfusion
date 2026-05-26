@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const getUserContextMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 const searchSearxngMock = vi.hoisted(() => vi.fn());
 const createImportRecordMock = vi.hoisted(() => vi.fn());
 const updateImportRecordMock = vi.hoisted(() => vi.fn());
@@ -17,6 +19,8 @@ const selectResultsQueue = vi.hoisted(() => [] as unknown[][]);
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	getUserContext: getUserContextMock,
+	requireUserContext: requireUserContextMock,
 }));
 
 vi.mock("@/lib/services/searxng-client", () => ({
@@ -54,12 +58,14 @@ vi.mock("@/lib/actions/opportunities", () => ({
 vi.mock("@/lib/db/schema", () => ({
 	opportunities: {
 		id: "opportunities.id",
+		organizationId: "opportunities.organization_id",
 		fingerprint: "opportunities.fingerprint",
 		source: "opportunities.source",
 		sourceId: "opportunities.sourceId",
 	},
 	opportunityDocuments: {
 		id: "opportunityDocuments.id",
+		organizationId: "opportunityDocuments.organization_id",
 		opportunityId: "opportunityDocuments.opportunityId",
 		sourceUrl: "opportunityDocuments.sourceUrl",
 	},
@@ -101,6 +107,16 @@ beforeEach(() => {
 	vi.stubGlobal("fetch", fetchMock);
 	selectResultsQueue.length = 0;
 	getCurrentUserIdMock.mockResolvedValue("user-1");
+	getUserContextMock.mockResolvedValue({
+		userId: "user-1",
+		organizationId: "org-1",
+		roles: [],
+	});
+	requireUserContextMock.mockResolvedValue({
+		userId: "user-1",
+		organizationId: "org-1",
+		roles: [],
+	});
 	createImportRecordMock.mockResolvedValue("import-1");
 	createOpportunityMock.mockResolvedValue({ id: "opp-1" });
 	updateOpportunityMock.mockResolvedValue({ id: "opp-existing" });

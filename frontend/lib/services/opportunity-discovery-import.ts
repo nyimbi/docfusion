@@ -23,6 +23,7 @@ import {
 	updateOpportunity,
 } from "@/lib/actions/opportunities";
 import { and, eq } from "drizzle-orm";
+import { getUserContext } from "@/lib/auth-utils";
 
 export interface DiscoveryImportInput {
 	query?: string;
@@ -63,6 +64,11 @@ interface DiscoveryCandidate {
 		fallbackReason?: string;
 	};
 }
+
+type OpportunityActionOverride = {
+	actorId: string;
+	organizationId: string;
+};
 
 export type ImportResultsSummary = {
 	total: number;
@@ -375,7 +381,8 @@ function discoveredSourceDocumentType(url: string): "rfp" | "attachment" {
 
 async function ensureDiscoveredSourceDocument(
 	opportunityId: string,
-	opportunity: OpportunityInput
+	opportunity: OpportunityInput,
+	organizationId: string
 ): Promise<SourceDocumentSeedResult> {
 	if (!opportunity.documentUrl) return { state: "none" };
 
@@ -384,12 +391,14 @@ async function ensureDiscoveredSourceDocument(
 		.from(opportunityDocuments)
 		.where(and(
 			eq(opportunityDocuments.opportunityId, opportunityId),
+			eq(opportunityDocuments.organizationId, organizationId),
 			eq(opportunityDocuments.sourceUrl, opportunity.documentUrl)
 		)!)
 		.limit(1);
 	if (existing?.id) return { state: "existing", documentId: existing.id };
 
 	const [created] = await db.insert(opportunityDocuments).values({
+		organizationId,
 		opportunityId,
 		documentName: discoveredSourceDocumentName(opportunity.documentUrl, opportunity.title),
 		documentType: discoveredSourceDocumentType(opportunity.documentUrl),
@@ -407,11 +416,12 @@ async function ensureDiscoveredSourceDocument(
 async function ensureDiscoveredSourceDocumentSafely(
 	opportunityId: string,
 	opportunity: OpportunityInput,
+	organizationId: string,
 	candidate: DiscoveryCandidate,
 	warnings: DiscoveryRunWarning[]
 ): Promise<SourceDocumentSeedResult> {
 	try {
-		return await ensureDiscoveredSourceDocument(opportunityId, opportunity);
+		return await ensureDiscoveredSourceDocument(opportunityId, opportunity, organizationId);
 	} catch (error) {
 		warnings.push({
 			type: "source_document_seed_failed",
@@ -534,12 +544,15 @@ function buildOpportunityFromDiscovery(
 	};
 }
 
-async function findExistingDiscoveredOpportunity(opp: OpportunityInput): Promise<string | null> {
+async function findExistingDiscoveredOpportunity(opp: OpportunityInput, organizationId: string): Promise<string | null> {
 	if (opp.fingerprint) {
 		const [existing] = await db
 			.select({ id: opportunities.id })
 			.from(opportunities)
-			.where(eq(opportunities.fingerprint, opp.fingerprint))
+			.where(and(
+				eq(opportunities.organizationId, organizationId),
+				eq(opportunities.fingerprint, opp.fingerprint)
+			)!)
 			.limit(1);
 
 		if (existing?.id) return existing.id;
@@ -551,6 +564,7 @@ async function findExistingDiscoveredOpportunity(opp: OpportunityInput): Promise
 			.from(opportunities)
 			.where(
 				and(
+					eq(opportunities.organizationId, organizationId),
 					eq(opportunities.source, opp.source),
 					eq(opportunities.sourceId, opp.sourceId)
 				)!
@@ -561,6 +575,17 @@ async function findExistingDiscoveredOpportunity(opp: OpportunityInput): Promise
 	}
 
 	return null;
+}
+
+async function actionOverrideForDiscoveryActor(
+	userId: string,
+	organizationId: string
+): Promise<OpportunityActionOverride | undefined> {
+	const userContext = await getUserContext();
+	if (userContext?.userId === userId && userContext.organizationId === organizationId) {
+		return undefined;
+	}
+	return { actorId: userId, organizationId };
 }
 
 async function scrapeDiscoveryCandidates(
@@ -928,7 +953,8 @@ async function scrapeWithBrowserFallback(
 
 export async function executeOpportunityDiscoveryImport(
 	input: DiscoveryImportInput,
-	userId: string
+	userId: string,
+	organizationId: string
 ): Promise<DiscoveryImportResult> {
 	const queries = normalizeDiscoveryQueries(input);
 	const sourceUrls = normalizeSourceUrls(input);
@@ -942,6 +968,7 @@ export async function executeOpportunityDiscoveryImport(
 	const seenUrls = new Set<string>();
 	const searchFailures: ImportRecordResult[] = [];
 	const searchWarnings: DiscoveryRunWarning[] = [];
+	const actionOverride = await actionOverrideForDiscoveryActor(userId, organizationId);
 
 	for (const query of queries) {
 		try {
@@ -998,12 +1025,10 @@ export async function executeOpportunityDiscoveryImport(
 	};
 
 	const totalRecords = candidates.length + searchFailures.length;
-	const importId = await createImportRecord(
-		"searxng-discovery",
-		totalRecords,
-		importConfigWithWarnings(baseImportConfig, warnings),
-		userId
-	);
+	const importConfig = importConfigWithWarnings(baseImportConfig, warnings);
+	const importId = actionOverride
+		? await createImportRecord("searxng-discovery", totalRecords, importConfig, userId, actionOverride.organizationId)
+		: await createImportRecord("searxng-discovery", totalRecords, importConfig, userId);
 
 	const importResults: ImportResultsSummary = {
 		total: totalRecords,
@@ -1024,7 +1049,7 @@ export async function executeOpportunityDiscoveryImport(
 
 		try {
 			const oppData = buildOpportunityFromDiscovery(candidate, userId, input);
-			const existingId = await findExistingDiscoveredOpportunity(oppData);
+			const existingId = await findExistingDiscoveredOpportunity(oppData, organizationId);
 
 			if (existingId && !updateExisting) {
 				importResults.skipped++;
@@ -1037,10 +1062,15 @@ export async function executeOpportunityDiscoveryImport(
 			}
 
 			if (existingId) {
-				await updateOpportunity(existingId, oppData);
+				if (actionOverride) {
+					await updateOpportunity(existingId, oppData, actionOverride);
+				} else {
+					await updateOpportunity(existingId, oppData);
+				}
 				const sourceDocumentState = await ensureDiscoveredSourceDocumentSafely(
 					existingId,
 					oppData,
+					organizationId,
 					candidate,
 					warnings
 				);
@@ -1069,10 +1099,13 @@ export async function executeOpportunityDiscoveryImport(
 					opportunityId: existingId,
 				});
 			} else {
-				const created = await createOpportunity(oppData);
+				const created = actionOverride
+					? await createOpportunity(oppData, actionOverride)
+					: await createOpportunity(oppData);
 				const sourceDocumentState = await ensureDiscoveredSourceDocumentSafely(
 					created.id,
 					oppData,
+					organizationId,
 					candidate,
 					warnings
 				);
@@ -1115,7 +1148,7 @@ export async function executeOpportunityDiscoveryImport(
 		}
 	}
 
-	await updateImportRecord(importId, {
+	const completedImportResults = {
 		importedRecords: importResults.imported,
 		updatedRecords: importResults.updated,
 		skippedRecords: importResults.skipped,
@@ -1123,7 +1156,12 @@ export async function executeOpportunityDiscoveryImport(
 		status: "completed",
 		errors: allErrors.filter((e) => e.status === "failed"),
 		config: importConfigWithWarnings(baseImportConfig, warnings),
-	}, userId);
+	} as const;
+	if (actionOverride) {
+		await updateImportRecord(importId, completedImportResults, userId, actionOverride.organizationId);
+	} else {
+		await updateImportRecord(importId, completedImportResults, userId);
+	}
 
 	return {
 		importId,

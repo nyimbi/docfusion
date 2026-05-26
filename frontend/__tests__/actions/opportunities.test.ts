@@ -71,6 +71,8 @@ const mockDb = {
 	execute: vi.fn(),
 };
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const getUserContextMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/db", () => ({
 	db: mockDb,
@@ -78,6 +80,8 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	getUserContext: getUserContextMock,
+	requireUserContext: requireUserContextMock,
 }));
 
 // ---------------------------------------------------------------------------
@@ -113,6 +117,20 @@ function mockParallelSelects(...values: unknown[]) {
 
 import { buildOpportunityConditions } from "@/lib/actions/opportunity-filters";
 import type { OpportunityFilters } from "@/lib/types/opportunity";
+
+beforeEach(() => {
+	getCurrentUserIdMock.mockResolvedValue("user-1");
+	getUserContextMock.mockResolvedValue({
+		userId: "user-1",
+		organizationId: "org-1",
+		roles: [],
+	});
+	requireUserContextMock.mockResolvedValue({
+		userId: "user-1",
+		organizationId: "org-1",
+		roles: [],
+	});
+});
 
 // ============================================================================
 // 1. buildOpportunityConditions
@@ -1314,6 +1332,16 @@ describe("Import Operations", () => {
 	beforeEach(async () => {
 		vi.clearAllMocks();
 		getCurrentUserIdMock.mockResolvedValue("admin");
+		getUserContextMock.mockResolvedValue({
+			userId: "admin",
+			organizationId: "org-1",
+			roles: [],
+		});
+		requireUserContextMock.mockResolvedValue({
+			userId: "admin",
+			organizationId: "org-1",
+			roles: [],
+		});
 		const mod = await import("@/lib/actions/opportunities");
 		getImportHistory = mod.getImportHistory;
 		createImportRecord = mod.createImportRecord;

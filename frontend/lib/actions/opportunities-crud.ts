@@ -21,9 +21,10 @@ import {
 	asc,
 	sql,
 	count,
+	isNull,
 	type SQL,
 } from "drizzle-orm";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 import type {
 	DecisionStatus,
 	PriorityRank,
@@ -191,6 +192,8 @@ export type OpportunityListResponse = PaginatedResponse<OpportunityListItem> & {
 // Helper Functions
 // ============================================================================
 
+type OpportunityUserContext = UserContext & { organizationId: string };
+
 /**
  * Calculate days left until deadline.
  */
@@ -216,26 +219,51 @@ function parseDateInput(input: Date | string | undefined): Date | null {
 	return input instanceof Date ? input : new Date(input);
 }
 
-function assignedOpportunityByIdCondition(id: string, userId: string): SQL {
+async function requireOpportunityContext(): Promise<OpportunityUserContext> {
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+	return userContext as OpportunityUserContext;
+}
+
+function opportunityOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(opportunities.organizationId, organizationId),
+		isNull(opportunities.organizationId)
+	)!;
+}
+
+function opportunityVoteOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(opportunityVotes.organizationId, organizationId),
+		isNull(opportunityVotes.organizationId)
+	)!;
+}
+
+function assignedOpportunityByIdCondition(id: string, userId: string, organizationId: string): SQL {
 	return and(
 		eq(opportunities.id, id),
+		opportunityOrganizationCondition(organizationId),
 		eq(opportunities.assignedTo, userId)
 	)!;
 }
 
-function assignedOpportunityExistsSql(id: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(id: unknown, userId: string, organizationId: string): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${id}
+			and (opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)
 			and opportunities.assigned_to = ${userId}
 	)`;
 }
 
-function opportunityVotesByAssignedOpportunityCondition(id: string, userId: string): SQL {
+function opportunityVotesByAssignedOpportunityCondition(id: string, userId: string, organizationId: string): SQL {
 	return and(
 		eq(opportunityVotes.opportunityId, id),
-		assignedOpportunityExistsSql(id, userId)
+		opportunityVoteOrganizationCondition(organizationId),
+		assignedOpportunityExistsSql(id, userId, organizationId)
 	)!;
 }
 
@@ -267,14 +295,6 @@ function mapToOpportunityListItem(row: typeof opportunities.$inferSelect): Oppor
 // CRUD Operations
 // ============================================================================
 
-async function requireCurrentUserId(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
-		throw new Error("Unauthorized");
-	}
-	return userId;
-}
-
 /**
  * Create a new opportunity.
  *
@@ -284,7 +304,7 @@ async function requireCurrentUserId(): Promise<string> {
 export async function createOpportunity(
 	input: CreateOpportunityInput
 ): Promise<OpportunityListItem> {
-	await requireCurrentUserId();
+	const userContext = await requireOpportunityContext();
 
 	const now = new Date();
 
@@ -328,6 +348,7 @@ export async function createOpportunity(
 	const [row] = await db
 		.insert(opportunities)
 		.values({
+			organizationId: userContext.organizationId,
 			sourceId: input.sourceId,
 			title: input.title,
 			category: input.category,
@@ -381,12 +402,13 @@ export async function createOpportunity(
 export async function getOpportunityById(
 	id: string
 ): Promise<OpportunityListItem | null> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireOpportunityContext();
+	const userId = userContext.userId;
 
 	const [row] = await db
 		.select()
 		.from(opportunities)
-		.where(assignedOpportunityByIdCondition(id, userId))
+		.where(assignedOpportunityByIdCondition(id, userId, userContext.organizationId))
 		.limit(1);
 
 	return row ? mapToOpportunityListItem(row) : null;
@@ -404,7 +426,8 @@ export async function updateOpportunity(
 	id: string,
 	input: UpdateOpportunityInput
 ): Promise<OpportunityListItem> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireOpportunityContext();
+	const userId = userContext.userId;
 
 	const now = new Date();
 
@@ -498,7 +521,7 @@ export async function updateOpportunity(
 		const [existing] = await db
 			.select({ metadata: opportunities.metadata })
 			.from(opportunities)
-			.where(assignedOpportunityByIdCondition(id, userId))
+			.where(assignedOpportunityByIdCondition(id, userId, userContext.organizationId))
 			.limit(1);
 
 		const existingMetadata = (existing?.metadata as Record<string, unknown>) ?? {};
@@ -541,7 +564,7 @@ export async function updateOpportunity(
 	const [row] = await db
 		.update(opportunities)
 		.set(updateData)
-		.where(assignedOpportunityByIdCondition(id, userId))
+		.where(assignedOpportunityByIdCondition(id, userId, userContext.organizationId))
 		.returning();
 
 	if (!row) {
@@ -558,13 +581,14 @@ export async function updateOpportunity(
  * @throws Error if deletion fails
  */
 export async function deleteOpportunity(id: string): Promise<void> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireOpportunityContext();
+	const userId = userContext.userId;
 
 	// Delete associated votes first (cascade should handle this, but being explicit)
-	await db.delete(opportunityVotes).where(opportunityVotesByAssignedOpportunityCondition(id, userId));
+	await db.delete(opportunityVotes).where(opportunityVotesByAssignedOpportunityCondition(id, userId, userContext.organizationId));
 
 	// Delete opportunity
-	const result = await db.delete(opportunities).where(assignedOpportunityByIdCondition(id, userId));
+	const result = await db.delete(opportunities).where(assignedOpportunityByIdCondition(id, userId, userContext.organizationId));
 
 	if (!result) {
 		throw new Error(`Failed to delete opportunity: ${id}`);
@@ -586,12 +610,14 @@ export async function listOpportunities(
 	page: number = 1,
 	pageSize: number = 25
 ): Promise<OpportunityListResponse> {
-	await requireCurrentUserId();
+	const userContext = await requireOpportunityContext();
 
 	const offset = (page - 1) * pageSize;
 
 	// Build WHERE conditions
-	const conditions: (ReturnType<typeof eq> | ReturnType<typeof and> | ReturnType<typeof or> | ReturnType<typeof gte> | ReturnType<typeof lte> | ReturnType<typeof like> | ReturnType<typeof inArray>)[] = [];
+	const conditions: (ReturnType<typeof eq> | ReturnType<typeof and> | ReturnType<typeof or> | ReturnType<typeof gte> | ReturnType<typeof lte> | ReturnType<typeof like> | ReturnType<typeof inArray>)[] = [
+		opportunityOrganizationCondition(userContext.organizationId),
+	];
 
 	if (filters?.search) {
 		const searchTerm = `%${filters.search}%`;
@@ -788,13 +814,14 @@ export async function listOpportunities(
 export async function duplicateOpportunity(
 	id: string
 ): Promise<OpportunityListItem> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireOpportunityContext();
+	const userId = userContext.userId;
 
 	// Get the original opportunity
 	const [original] = await db
 		.select()
 		.from(opportunities)
-		.where(assignedOpportunityByIdCondition(id, userId))
+		.where(assignedOpportunityByIdCondition(id, userId, userContext.organizationId))
 		.limit(1);
 
 	if (!original) {
@@ -807,6 +834,7 @@ export async function duplicateOpportunity(
 	const [row] = await db
 		.insert(opportunities)
 		.values({
+			organizationId: userContext.organizationId,
 			sourceId: original.sourceId ? `${original.sourceId}_copy_${Date.now()}` : null,
 			title: `${original.title} (Copy)`,
 			category: original.category,
@@ -853,7 +881,7 @@ export async function duplicateOpportunity(
 	const originalVotes = await db
 		.select()
 		.from(opportunityVotes)
-		.where(opportunityVotesByAssignedOpportunityCondition(id, userId));
+		.where(opportunityVotesByAssignedOpportunityCondition(id, userId, userContext.organizationId));
 
 	// We don't copy votes - this is a new opportunity
 
@@ -877,7 +905,7 @@ export async function bulkUpdateStatus(
 	status: DecisionStatus,
 	reason?: string
 ): Promise<number> {
-	await requireCurrentUserId();
+	const userContext = await requireOpportunityContext();
 
 	const result = await db
 		.update(opportunities)
@@ -886,7 +914,10 @@ export async function bulkUpdateStatus(
 			decisionReason: reason,
 			updatedAt: new Date(),
 		})
-		.where(inArray(opportunities.id, ids));
+		.where(and(
+			inArray(opportunities.id, ids),
+			opportunityOrganizationCondition(userContext.organizationId)
+		));
 
 	return result.rowCount ?? 0;
 }
@@ -898,13 +929,19 @@ export async function bulkUpdateStatus(
  * @returns Number of opportunities deleted
  */
 export async function bulkDeleteOpportunities(ids: string[]): Promise<number> {
-	await requireCurrentUserId();
+	const userContext = await requireOpportunityContext();
 
 	// Delete votes first
-	await db.delete(opportunityVotes).where(inArray(opportunityVotes.opportunityId, ids));
+	await db.delete(opportunityVotes).where(and(
+		inArray(opportunityVotes.opportunityId, ids),
+		opportunityVoteOrganizationCondition(userContext.organizationId)
+	));
 
 	// Delete opportunities
-	const result = await db.delete(opportunities).where(inArray(opportunities.id, ids));
+	const result = await db.delete(opportunities).where(and(
+		inArray(opportunities.id, ids),
+		opportunityOrganizationCondition(userContext.organizationId)
+	));
 
 	return result.rowCount ?? 0;
 }
@@ -916,7 +953,7 @@ export async function bulkDeleteOpportunities(ids: string[]): Promise<number> {
  * @returns Number of opportunities updated
  */
 export async function refreshExpirationStatus(): Promise<number> {
-	await requireCurrentUserId();
+	const userContext = await requireOpportunityContext();
 
 	const now = new Date();
 
@@ -934,6 +971,7 @@ export async function refreshExpirationStatus(): Promise<number> {
 			END,
 			updated_at = NOW()
 		WHERE deadline IS NOT NULL
+			AND (organization_id = ${userContext.organizationId} OR organization_id IS NULL)
 	`);
 
 	return (result as { rowCount?: number }).rowCount ?? 0;
@@ -965,7 +1003,7 @@ export interface CalendarDeadline {
  * @returns Array of calendar deadlines
  */
 export async function getUpcomingDeadlines(daysAhead: number = 30): Promise<CalendarDeadline[]> {
-	await requireCurrentUserId();
+	const userContext = await requireOpportunityContext();
 
 	const now = new Date();
 	const futureDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
@@ -985,7 +1023,8 @@ export async function getUpcomingDeadlines(daysAhead: number = 30): Promise<Cale
 			and(
 				gte(opportunities.deadline, now),
 				lte(opportunities.deadline, futureDate),
-				eq(opportunities.isExpired, false)
+				eq(opportunities.isExpired, false),
+				opportunityOrganizationCondition(userContext.organizationId)
 			)
 		)
 		.orderBy(asc(opportunities.deadline));

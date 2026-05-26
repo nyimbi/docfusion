@@ -670,7 +670,11 @@ export async function discoverDocumentsWithAgent(
   uniqueSources.sort((a, b) => b.confidence - a.confidence);
 
   // Store discovered sources in database
-  const storedCount = await storeDiscoveredSources(opportunityId, uniqueSources);
+  const storedCount = await storeDiscoveredSources(
+    opportunityId,
+    uniqueSources,
+    opportunity.organizationId ?? null
+  );
   
   logger.debug(`[Discovery Agent] Discovery complete. Stored ${storedCount} unique sources`);
 
@@ -850,7 +854,8 @@ function deduplicateSources(sources: DiscoveredSource[]): DiscoveredSource[] {
 
 async function storeDiscoveredSources(
   opportunityId: string, 
-  sources: DiscoveredSource[]
+  sources: DiscoveredSource[],
+  organizationId: string | null
 ): Promise<number> {
   let stored = 0;
   
@@ -860,6 +865,7 @@ async function storeDiscoveredSources(
       const existing = await db.query.opportunityDocuments.findFirst({
         where: and(
           eq(opportunityDocuments.opportunityId, opportunityId),
+          organizationId ? eq(opportunityDocuments.organizationId, organizationId) : undefined,
           eq(opportunityDocuments.sourceUrl, source.url)
         ),
       });
@@ -867,6 +873,7 @@ async function storeDiscoveredSources(
       if (existing) continue;
       
       await db.insert(opportunityDocuments).values({
+        organizationId,
         opportunityId,
         documentName: source.name,
         documentType: source.type,
@@ -890,7 +897,10 @@ async function storeDiscoveredSources(
         documentsDiscoveredAt: new Date(),
         lastDocumentScanAt: new Date(),
       })
-      .where(eq(opportunities.id, opportunityId));
+      .where(and(
+        eq(opportunities.id, opportunityId),
+        organizationId ? eq(opportunities.organizationId, organizationId) : undefined
+      ));
   }
   
   return stored;

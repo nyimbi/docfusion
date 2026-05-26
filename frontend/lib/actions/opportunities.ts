@@ -8,7 +8,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, getUserContext, requireUserContext, type UserContext } from "@/lib/auth-utils";
 import { opportunities, opportunityImports, savedSearches } from "@/lib/db/schema";
 import { eq, and, or, gte, lte, inArray, isNull, desc, asc, sql, count, type SQL } from "drizzle-orm";
 
@@ -31,6 +31,12 @@ import type {
 // CRUD Operations
 // ============================================================================
 
+type OpportunityUserContext = UserContext & { organizationId: string };
+type OpportunityActorOverride = {
+	actorId?: string;
+	organizationId?: string;
+};
+
 async function requireOpportunityUserId(): Promise<string> {
 	const userId = await getCurrentUserId();
 	if (!userId) {
@@ -39,16 +45,63 @@ async function requireOpportunityUserId(): Promise<string> {
 	return userId;
 }
 
-function assignedOpportunityByIdCondition(id: string, userId: string): SQL {
+async function requireOpportunityContext(): Promise<OpportunityUserContext> {
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+	return userContext as OpportunityUserContext;
+}
+
+async function resolveOpportunityContext(
+	override?: OpportunityActorOverride
+): Promise<OpportunityUserContext> {
+	const userContext = await getUserContext();
+	if (userContext) {
+		if (!userContext.organizationId) {
+			throw new Error("No organization context");
+		}
+		if (override?.organizationId && override.organizationId !== userContext.organizationId) {
+			throw new Error("Organization context mismatch");
+		}
+		return userContext as OpportunityUserContext;
+	}
+	if (override?.actorId && override.organizationId) {
+		return {
+			userId: override.actorId,
+			organizationId: override.organizationId,
+			roles: [],
+		};
+	}
+	throw new Error("Unauthorized");
+}
+
+function opportunityOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(opportunities.organizationId, organizationId),
+		isNull(opportunities.organizationId)
+	)!;
+}
+
+function importOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(opportunityImports.organizationId, organizationId),
+		isNull(opportunityImports.organizationId)
+	)!;
+}
+
+function assignedOpportunityByIdCondition(id: string, userId: string, organizationId: string): SQL {
 	return and(
 		eq(opportunities.id, id),
+		opportunityOrganizationCondition(organizationId),
 		eq(opportunities.assignedTo, userId)
 	)!;
 }
 
-function assignedOpportunitiesByIdsCondition(ids: string[], userId: string): SQL {
+function assignedOpportunitiesByIdsCondition(ids: string[], userId: string, organizationId: string): SQL {
 	return and(
 		inArray(opportunities.id, ids),
+		opportunityOrganizationCondition(organizationId),
 		eq(opportunities.assignedTo, userId)
 	)!;
 }
@@ -61,12 +114,16 @@ export async function getOpportunities(
 	sort?: OpportunitySort,
 	pagination?: PaginationOptions
 ): Promise<PaginatedResponse<OpportunityListItem>> {
+	const userContext = await requireOpportunityContext();
 	const page = pagination?.page ?? 1;
 	const pageSize = pagination?.pageSize ?? 25;
 	const offset = (page - 1) * pageSize;
 
 	// Build WHERE conditions using shared filter builder
-	const conditions = buildOpportunityConditions(filters);
+	const conditions = [
+		opportunityOrganizationCondition(userContext.organizationId),
+		...buildOpportunityConditions(filters),
+	];
 
 	// Build ORDER BY
 	const sortField = sort?.field ?? "deadline";
@@ -153,11 +210,12 @@ export async function getOpportunities(
  * Get a single opportunity by ID.
  */
 export async function getOpportunity(id: string): Promise<Opportunity | null> {
-	const userId = await requireOpportunityUserId();
+	const userContext = await requireOpportunityContext();
+	const userId = userContext.userId;
 	const [row] = await db
 		.select()
 		.from(opportunities)
-		.where(assignedOpportunityByIdCondition(id, userId))
+		.where(assignedOpportunityByIdCondition(id, userId, userContext.organizationId))
 		.limit(1);
 
 	if (!row) return null;
@@ -176,7 +234,11 @@ export async function getOpportunity(id: string): Promise<Opportunity | null> {
 /**
  * Create a new opportunity.
  */
-export async function createOpportunity(input: OpportunityInput): Promise<Opportunity> {
+export async function createOpportunity(
+	input: OpportunityInput,
+	override?: OpportunityActorOverride
+): Promise<Opportunity> {
+	const userContext = await resolveOpportunityContext(override);
 	const now = new Date();
 	const deadline = input.deadline ? new Date(input.deadline) : null;
 	const daysLeft = deadline ? Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
@@ -185,6 +247,7 @@ export async function createOpportunity(input: OpportunityInput): Promise<Opport
 	const [row] = await db
 		.insert(opportunities)
 		.values({
+			organizationId: userContext.organizationId,
 			sourceId: input.sourceId,
 			title: input.title,
 			category: input.category,
@@ -245,8 +308,13 @@ export async function createOpportunity(input: OpportunityInput): Promise<Opport
 /**
  * Update an existing opportunity.
  */
-export async function updateOpportunity(id: string, input: Partial<OpportunityInput>): Promise<Opportunity> {
-	const userId = await requireOpportunityUserId();
+export async function updateOpportunity(
+	id: string,
+	input: Partial<OpportunityInput>,
+	override?: OpportunityActorOverride
+): Promise<Opportunity> {
+	const userContext = await resolveOpportunityContext(override);
+	const userId = userContext.userId;
 	const now = new Date();
 	let updateData: Record<string, unknown> = { ...input, updatedAt: now };
 
@@ -263,7 +331,7 @@ export async function updateOpportunity(id: string, input: Partial<OpportunityIn
 	const [row] = await db
 		.update(opportunities)
 		.set(updateData)
-		.where(assignedOpportunityByIdCondition(id, userId))
+		.where(assignedOpportunityByIdCondition(id, userId, userContext.organizationId))
 		.returning();
 
 	if (!row) {
@@ -285,8 +353,8 @@ export async function updateOpportunity(id: string, input: Partial<OpportunityIn
  * Delete an opportunity.
  */
 export async function deleteOpportunity(id: string): Promise<void> {
-	const userId = await requireOpportunityUserId();
-	await db.delete(opportunities).where(assignedOpportunityByIdCondition(id, userId));
+	const userContext = await requireOpportunityContext();
+	await db.delete(opportunities).where(assignedOpportunityByIdCondition(id, userContext.userId, userContext.organizationId));
 }
 
 /**
@@ -300,7 +368,7 @@ export async function bulkUpdateStatus(
 	if (ids.length === 0) {
 		return 0;
 	}
-	const userId = await requireOpportunityUserId();
+	const userContext = await requireOpportunityContext();
 	const result = await db
 		.update(opportunities)
 		.set({
@@ -308,7 +376,7 @@ export async function bulkUpdateStatus(
 			decisionReason: reason,
 			updatedAt: new Date(),
 		})
-		.where(assignedOpportunitiesByIdsCondition(ids, userId));
+		.where(assignedOpportunitiesByIdsCondition(ids, userContext.userId, userContext.organizationId));
 
 	return result.rowCount ?? 0;
 }
@@ -320,14 +388,14 @@ export async function bulkUpdatePriority(ids: string[], priority: PriorityRank):
 	if (ids.length === 0) {
 		return 0;
 	}
-	const userId = await requireOpportunityUserId();
+	const userContext = await requireOpportunityContext();
 	const result = await db
 		.update(opportunities)
 		.set({
 			priorityRank: priority,
 			updatedAt: new Date(),
 		})
-		.where(assignedOpportunitiesByIdsCondition(ids, userId));
+		.where(assignedOpportunitiesByIdsCondition(ids, userContext.userId, userContext.organizationId));
 
 	return result.rowCount ?? 0;
 }
@@ -339,14 +407,14 @@ export async function markAsReviewed(ids: string[], reviewed: boolean = true): P
 	if (ids.length === 0) {
 		return 0;
 	}
-	const userId = await requireOpportunityUserId();
+	const userContext = await requireOpportunityContext();
 	const result = await db
 		.update(opportunities)
 		.set({
 			isReviewed: reviewed,
 			updatedAt: new Date(),
 		})
-		.where(assignedOpportunitiesByIdsCondition(ids, userId));
+		.where(assignedOpportunitiesByIdsCondition(ids, userContext.userId, userContext.organizationId));
 
 	return result.rowCount ?? 0;
 }
@@ -358,14 +426,14 @@ export async function assignOpportunities(ids: string[], assignedTo: string | nu
 	if (ids.length === 0) {
 		return 0;
 	}
-	const userId = await requireOpportunityUserId();
+	const userContext = await requireOpportunityContext();
 	const result = await db
 		.update(opportunities)
 		.set({
 			assignedTo,
 			updatedAt: new Date(),
 		})
-		.where(assignedOpportunitiesByIdsCondition(ids, userId));
+		.where(assignedOpportunitiesByIdsCondition(ids, userContext.userId, userContext.organizationId));
 
 	return result.rowCount ?? 0;
 }
@@ -382,7 +450,11 @@ export async function assignOpportunities(ids: string[], assignedTo: string | nu
  * - Batch 2: Parallel groupBy queries for status, priority, category, country, deadlines
  */
 export async function getOpportunityStats(filters?: OpportunityFilters): Promise<OpportunityStats> {
-	const conditions = buildOpportunityConditions(filters);
+	const userContext = await requireOpportunityContext();
+	const conditions = [
+		opportunityOrganizationCondition(userContext.organizationId),
+		...buildOpportunityConditions(filters),
+	];
 	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
 	const today = new Date();
@@ -532,31 +604,33 @@ export async function getFilterOptions(): Promise<{
 	organizations: string[];
 	sourceFiles: string[];
 }> {
+	const userContext = await requireOpportunityContext();
+	const orgCondition = opportunityOrganizationCondition(userContext.organizationId);
 	const [categories, sectors, countries, organizations, sourceFiles] = await Promise.all([
 		db
 			.selectDistinct({ value: opportunities.category })
 			.from(opportunities)
-			.where(sql`${opportunities.category} IS NOT NULL`)
+			.where(and(orgCondition, sql`${opportunities.category} IS NOT NULL`))
 			.orderBy(asc(opportunities.category)),
 		db
 			.selectDistinct({ value: opportunities.sector })
 			.from(opportunities)
-			.where(sql`${opportunities.sector} IS NOT NULL`)
+			.where(and(orgCondition, sql`${opportunities.sector} IS NOT NULL`))
 			.orderBy(asc(opportunities.sector)),
 		db
 			.selectDistinct({ value: opportunities.countryRegion })
 			.from(opportunities)
-			.where(sql`${opportunities.countryRegion} IS NOT NULL`)
+			.where(and(orgCondition, sql`${opportunities.countryRegion} IS NOT NULL`))
 			.orderBy(asc(opportunities.countryRegion)),
 		db
 			.selectDistinct({ value: opportunities.organization })
 			.from(opportunities)
-			.where(sql`${opportunities.organization} IS NOT NULL`)
+			.where(and(orgCondition, sql`${opportunities.organization} IS NOT NULL`))
 			.orderBy(asc(opportunities.organization)),
 		db
 			.selectDistinct({ value: opportunities.sourceFile })
 			.from(opportunities)
-			.where(sql`${opportunities.sourceFile} IS NOT NULL`)
+			.where(and(orgCondition, sql`${opportunities.sourceFile} IS NOT NULL`))
 			.orderBy(asc(opportunities.sourceFile)),
 	]);
 
@@ -577,11 +651,14 @@ export async function getFilterOptions(): Promise<{
  * Get import history.
  */
 export async function getImportHistory(limit: number = 20): Promise<OpportunityImport[]> {
-	const userId = await requireOpportunityUserId();
+	const userContext = await requireOpportunityContext();
 	const rows = await db
 		.select()
 		.from(opportunityImports)
-		.where(eq(opportunityImports.importedBy, userId))
+		.where(and(
+			eq(opportunityImports.importedBy, userContext.userId),
+			importOrganizationCondition(userContext.organizationId)
+		))
 		.orderBy(desc(opportunityImports.startedAt))
 		.limit(limit);
 
@@ -600,12 +677,15 @@ export async function createImportRecord(
 	filename: string,
 	totalRecords: number,
 	config?: OpportunityImport["config"],
-	importedBy?: string
+	importedBy?: string,
+	organizationId?: string
 ): Promise<string> {
-	const actorId = importedBy ?? await requireOpportunityUserId();
+	const userContext = await resolveOpportunityContext({ actorId: importedBy, organizationId });
+	const actorId = importedBy ?? userContext.userId;
 	const [row] = await db
 		.insert(opportunityImports)
 		.values({
+			organizationId: userContext.organizationId,
 			filename,
 			totalRecords,
 			status: "processing",
@@ -631,9 +711,11 @@ export async function updateImportRecord(
 		errors?: OpportunityImport["errors"];
 		config?: OpportunityImport["config"];
 	},
-	importedBy?: string
+	importedBy?: string,
+	organizationId?: string
 ): Promise<void> {
-	const actorId = importedBy ?? await requireOpportunityUserId();
+	const userContext = await resolveOpportunityContext({ actorId: importedBy, organizationId });
+	const actorId = importedBy ?? userContext.userId;
 	await db
 		.update(opportunityImports)
 		.set({
@@ -642,6 +724,7 @@ export async function updateImportRecord(
 		})
 		.where(and(
 			eq(opportunityImports.id, id),
+			importOrganizationCondition(userContext.organizationId),
 			eq(opportunityImports.importedBy, actorId)
 		));
 }
@@ -651,6 +734,7 @@ export async function updateImportRecord(
  * Should be run periodically (e.g., daily cron job).
  */
 export async function refreshDeadlineStatus(): Promise<number> {
+	const userContext = await requireOpportunityContext();
 	const now = new Date();
 
 	// Update all opportunities with deadlines
@@ -668,6 +752,7 @@ export async function refreshDeadlineStatus(): Promise<number> {
 			END,
 			updated_at = NOW()
 		WHERE deadline IS NOT NULL
+			AND (organization_id = ${userContext.organizationId} OR organization_id IS NULL)
 	`);
 
 	return (result as { rowCount?: number }).rowCount ?? 0;
@@ -687,6 +772,7 @@ export async function searchOpportunities(
 	sort?: OpportunitySort,
 	pagination?: PaginationOptions
 ): Promise<PaginatedResponse<OpportunityListItem & { searchRank?: number }>> {
+	const userContext = await requireOpportunityContext();
 	const page = pagination?.page ?? 1;
 	const pageSize = pagination?.pageSize ?? 25;
 	const offset = (page - 1) * pageSize;
@@ -697,6 +783,7 @@ export async function searchOpportunities(
 	// Build WHERE conditions: full-text search + shared filters
 	const filterConditions = buildOpportunityConditions(filters);
 	const conditions: ReturnType<typeof eq>[] = [
+		opportunityOrganizationCondition(userContext.organizationId),
 		sql`${opportunities.searchVector} @@ ${tsquery}`,
 		...filterConditions,
 	];
@@ -857,11 +944,15 @@ export async function getFilterOptionsWithCounts(
 	statuses: FilterOptionWithCount[];
 	priorityRanks: FilterOptionWithCount[];
 }> {
+	const userContext = await requireOpportunityContext();
 	// Build base conditions using shared filter builder with excludeFilter support
 	const buildConditions = (excludeFilter?: string): ReturnType<typeof eq>[] => {
-		return buildOpportunityConditions(filters, {
-			excludeFilter: excludeFilter as import("./opportunity-filters").ExcludableFilter | undefined,
-		});
+		return [
+			opportunityOrganizationCondition(userContext.organizationId),
+			...buildOpportunityConditions(filters, {
+				excludeFilter: excludeFilter as import("./opportunity-filters").ExcludableFilter | undefined,
+			}),
+		];
 	};
 
 	// Get counts for each category

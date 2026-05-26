@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Opportunity Root Tenant Anchors
+
+Status: implemented and verified.
+
+Purpose: give discovery, opportunity CRUD, import audit records, votes, and source-document intake a tenant root so downstream RFP intake and response workflows no longer inherit tenant identity only from assignment checks.
+
+Changes in this slice:
+- Add nullable `organization_id` anchors and indexes for `opportunities`, `opportunity_imports`, `opportunity_votes`, and `opportunity_documents`, plus an organization index for existing AI score rows.
+- Replace global opportunity source/fingerprint uniqueness with tenant-aware unique indexes so separate organizations can discover the same public notice independently.
+- Backfill opportunity roots from assigned user workspaces, import records from importing user workspaces, and votes/documents from their opportunity tenant.
+- Persist and enforce organization context in modern opportunity actions, legacy CRUD actions, import audit records, live discovery import, scheduled/API-key discovery, and source-document seeding.
+- Require `DISCOVERY_IMPORT_ORGANIZATION_ID` for service-user/API-key discovery runs so scheduled imports are explicit about tenant ownership.
+
+Verification:
+- `npm test -- opportunities.test.ts opportunities-crud-scope.test.ts opportunities-crud-auth.test.ts discovery-opportunity-import.test.ts opportunity-documents-scope.test.ts rfp-document-service.test.ts document-discovery-agent.test.ts` from `frontend/` passed.
+- `npm test -- opportunity-discovery-route.test.ts opportunity-discovery-presets-route.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue replacing assignment-only joins in specialized modules with tenant-aware opportunity predicates now that `opportunities.organization_id` exists.
+- Remove legacy null-row fallback after deployed opportunity/import/document rows are fully backfilled.
+
 ### 2026-05-26 - Proposal Package Artifact Tenant Anchors
 
 Status: implemented and verified.
