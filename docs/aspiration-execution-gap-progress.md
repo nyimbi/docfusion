@@ -758,6 +758,32 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Review simplified client-side state refreshes on proposal documents and submission pages so workflow projections refresh without full-page reloads.
 
+### 2026-05-26 - Python Discovery Service SearXNG Fallback
+
+Status: implemented and verified.
+
+Purpose: make the Python discovery service contract perform real search-backed discovery instead of returning empty or `not_implemented` placeholders while the frontend discovery path is live.
+
+Changes in this slice:
+- Add a SearXNG JSON-search fallback to `DefaultDiscoveryService`, defaulting to `https://search.lindela.io`.
+- Normalize opportunity-like search results into cached discovery records for later details lookup.
+- Route discovery analysis and qualification through cached opportunity data when analyzers are available.
+- Return honest `unavailable` details when analysis is requested for an uncached opportunity instead of returning `status: not_implemented`.
+- Expose SearXNG through `list_sources`.
+- Add focused service-contract coverage without importing heavier agent modules.
+
+Verification:
+- `uv run pytest tests/ci/test_discovery_service_contract.py -q` passed.
+- `uv run python -m py_compile src/docfusion/services/discovery_service.py tests/ci/test_discovery_service_contract.py` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full Python suite and live network checks remain intentionally skipped while on battery. The new test uses a mocked `httpx.AsyncClient` to verify request shape, result normalization, cache use, and honest unavailable states.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Consider whether the Python intelligence service should consume this cache or database-backed opportunity details before replacing its remaining `not_implemented` placeholders.
+
 ### 2026-05-26 - Bulk Compliance Entry Approval
 
 Status: implemented and verified.
