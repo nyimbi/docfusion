@@ -37,11 +37,12 @@ export interface ReviewCommentWorkflowResult {
 const WORKFLOW_KEY = "review_comment_resolution";
 const SUBJECT_TYPE = "review_comment";
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, organizationId: string, userId: string): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
+			and (opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)
 			and opportunities.assigned_to = ${userId}
 	)`;
 }
@@ -53,6 +54,7 @@ function assignedReviewExistsSql(reviewId: unknown, organizationId: string, user
 		join opportunities on opportunities.id = proposal_reviews.opportunity_id
 		where proposal_reviews.id = ${reviewId}
 			and (proposal_reviews.organization_id = ${organizationId} or proposal_reviews.organization_id is null)
+			and (opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)
 			and opportunities.assigned_to = ${userId}
 	)`;
 }
@@ -83,7 +85,7 @@ function visibleProposalReviewCondition(reviewId: string, organizationId: string
 	return and(
 		eq(proposalReviews.id, reviewId),
 		proposalReviewOrganizationCondition(organizationId),
-		assignedOpportunityExistsSql(proposalReviews.opportunityId, userId)
+		assignedOpportunityExistsSql(proposalReviews.opportunityId, organizationId, userId)
 	)!;
 }
 
@@ -92,7 +94,7 @@ function visibleReviewCommentTaskCondition(commentId: string, organizationId: st
 		eq(proposalTasks.organizationId, organizationId),
 		eq(proposalTasks.sourceType, "review_comment"),
 		eq(proposalTasks.sourceId, commentId),
-		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, organizationId, userId)
 	)!;
 }
 
@@ -100,7 +102,7 @@ function visibleProposalTaskCondition(taskId: string, organizationId: string, us
 	return and(
 		eq(proposalTasks.organizationId, organizationId),
 		eq(proposalTasks.id, taskId),
-		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, organizationId, userId)
 	)!;
 }
 

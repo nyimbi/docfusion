@@ -56,6 +56,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
+function expectOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("review-lead-1");
+}
+
 var dbMock: any;
 
 vi.mock("@/lib/db", () => {
@@ -155,6 +163,8 @@ describe("review comment workflow", () => {
 		let commentUpdate: Record<string, unknown> | undefined;
 		let taskInsert: Record<string, unknown> | undefined;
 		let commentWhere: unknown;
+		let reviewWhere: unknown;
+		let taskWhere: unknown;
 		dbMock.select
 			.mockReturnValueOnce(createChain({
 				result: [baseComment],
@@ -162,8 +172,18 @@ describe("review comment workflow", () => {
 					commentWhere = value;
 				},
 			}))
-			.mockReturnValueOnce(createChain({ result: [{ opportunityId: "opp-1" }] }))
-			.mockReturnValueOnce(createChain({ result: [] }));
+			.mockReturnValueOnce(createChain({
+				result: [{ opportunityId: "opp-1" }],
+				onWhere: (value) => {
+					reviewWhere = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => {
+					taskWhere = value;
+				},
+			}));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [baseComment],
 			onSet: (value) => {
@@ -201,7 +221,9 @@ describe("review comment workflow", () => {
 		const commentSql = collectSqlFragments(commentWhere).join(" ");
 		expect(commentSql).toContain("organization_id");
 		expect(commentSql).toContain("org-1");
-		expect(commentSql).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(commentWhere);
+		expectOpportunityTenantScope(reviewWhere);
+		expectOpportunityTenantScope(taskWhere);
 		expect(taskInsert).toMatchObject({
 			organizationId: "org-1",
 			opportunityId: "opp-1",
