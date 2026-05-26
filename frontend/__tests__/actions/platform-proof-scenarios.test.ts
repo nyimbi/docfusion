@@ -116,6 +116,18 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["S-001", "UX-018"]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["wave9-discovery-rfp-response-bridge"] })).toEqual([
+			expect.objectContaining({
+				id: "wave9-discovery-rfp-response-bridge",
+				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-020"]),
+				expectedArtifacts: expect.arrayContaining([
+					"vitest:discovery-opportunity-import",
+					"vitest:opportunity-documents-scope",
+					"vitest:rfp-document-service",
+					"vitest:proposal-documents-scope",
+				]),
+			}),
+		]);
 		expect(listProofScenarios({ ids: ["wave9-discovery-to-submission-core"] })).toEqual([
 			expect.objectContaining({
 				id: "wave9-discovery-to-submission-core",

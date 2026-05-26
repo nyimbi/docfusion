@@ -258,6 +258,32 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: ["vitest:competitive-win-theme-workflow", "vitest:resource-reuse-workflow", "vitest:search-rag-health"],
 	},
 	{
+		id: "wave9-discovery-rfp-response-bridge",
+		wave: 9,
+		title: "Wave 9 discovery-to-response package bridge proof",
+		kind: "integration",
+		proofTargets: ["F-001", "F-005", "F-008", "F-020"],
+		requiresLiveServices: false,
+		description: "Runs the focused non-live bridge from discovered opportunity import through source RFP document intake and accepted-requirement response package drafting.",
+		command: {
+			command: "npm",
+			args: [
+				"test",
+				"--",
+				"discovery-opportunity-import.test.ts",
+				"opportunity-documents-scope.test.ts",
+				"rfp-document-service.test.ts",
+				"proposal-documents-scope.test.ts",
+			],
+		},
+		expectedArtifacts: [
+			"vitest:discovery-opportunity-import",
+			"vitest:opportunity-documents-scope",
+			"vitest:rfp-document-service",
+			"vitest:proposal-documents-scope",
+		],
+	},
+	{
 		id: "wave9-discovery-to-submission-core",
 		wave: 9,
 		title: "Wave 9 discovery-to-submission core proof",

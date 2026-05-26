@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Discovery-to-Response Bridge Proof Scenario
+
+Status: implemented and verified.
+
+Purpose: make the discovered-opportunity to RFP intake and response-package bridge a focused platform proof instead of relying only on the larger discovery-to-submission manifest.
+
+Changes in this slice:
+- Add `wave9-discovery-rfp-response-bridge` to the platform-proof scenario manifest.
+- Cover the bridge from discovery import and source document seeding through direct RFP intake, RFP storage/extraction service behavior, and accepted-requirement response package drafting.
+- Add manifest coverage so the focused scenario remains uniquely addressable and advertises its expected Vitest artifacts.
+
+Verification:
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 test files and 45 tests.
+- `npm test -- platform-proof-scenarios.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Add an environment-backed live persistence proof only when a reachable migrated database is available.
+- Keep source-specific live proofs as the stronger evidence for real external opportunity feeds.
+
 ### 2026-05-27 - Opportunity-Relevant Live Search Proof
 
 Status: implemented and verified.
