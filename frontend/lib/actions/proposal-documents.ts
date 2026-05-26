@@ -264,6 +264,12 @@ export interface ResponsePackageDraftResult {
 	versionNumber: number | null;
 }
 
+interface ProposalDocumentCreationOptions {
+	seedAcceptedRequirementsOnly?: boolean;
+}
+
+interface StandardProposalSetOptions extends ProposalDocumentCreationOptions {}
+
 function textNode(text: string): ContentNode {
 	return { type: "text", text };
 }
@@ -828,7 +834,8 @@ async function assertProposalDocumentRequirementsReadyForFinalStatus(
  * Create a new proposal document with a new underlying document.
  */
 export async function createProposalDocument(
-	input: CreateProposalDocumentInput
+	input: CreateProposalDocumentInput,
+	options: ProposalDocumentCreationOptions = {}
 ): Promise<ProposalDocument> {
 	const userId = await requireCurrentUserId();
 	const { opportunityId, documentType, title, templateId, assignedTo, dueDate, notes } = input;
@@ -867,7 +874,8 @@ export async function createProposalDocument(
 	const documentRequirements = requirements.filter(
 		(requirement) =>
 			requirement.complianceStatus !== "not_applicable" &&
-			documentTypeForRequirement(requirement) === documentType
+			documentTypeForRequirement(requirement) === documentType &&
+			(!options.seedAcceptedRequirementsOnly || isAcceptedRequirement(requirement))
 	);
 
 	// Generate a title if not provided
@@ -907,6 +915,9 @@ export async function createProposalDocument(
 				documentType,
 				opportunityId,
 				requirementResponsePlanVersion: "2026-05-26",
+				requirementSeedPolicy: options.seedAcceptedRequirementsOnly
+					? "accepted_only"
+					: "applicable_by_document_type",
 				seededRequirementIds: documentRequirements.map((requirement) => requirement.id),
 			},
 		})
@@ -1818,7 +1829,8 @@ async function linkRequirementsToStandardProposalSections(
  */
 export async function createStandardProposalSet(
 	opportunityId: string,
-	documentTypes?: ProposalDocumentType[]
+	documentTypes?: ProposalDocumentType[],
+	options: StandardProposalSetOptions = {}
 ): Promise<ProposalDocument[]> {
 	const userId = await requireCurrentUserId();
 	const types = documentTypes || [
@@ -1857,6 +1869,8 @@ export async function createStandardProposalSet(
 		const doc = await createProposalDocument({
 			opportunityId,
 			documentType,
+		}, {
+			seedAcceptedRequirementsOnly: options.seedAcceptedRequirementsOnly,
 		});
 		created.push(doc);
 		existingTypes.add(documentType);
@@ -1905,7 +1919,9 @@ export async function createAndDraftStandardProposalSet(
 		throw new Error("Accept at least one applicable requirement before drafting a response package.");
 	}
 
-	const created = await createStandardProposalSet(opportunityId, types);
+	const created = await createStandardProposalSet(opportunityId, types, {
+		seedAcceptedRequirementsOnly: true,
+	});
 	const linkedAcceptedRequirements = (await db
 		.select()
 		.from(rfpRequirements)

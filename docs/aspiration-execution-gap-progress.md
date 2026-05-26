@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Accepted-Only Response Package Seeding
+
+Status: implemented and verified.
+
+Purpose: prevent unaccepted or draft-only requirements from leaking into automatically generated response-package draft content.
+
+Changes in this slice:
+- Add an accepted-only requirement seeding option for proposal document creation.
+- Use accepted-only seeding when `createAndDraftStandardProposalSet` creates standard response-package documents.
+- Preserve standalone proposal document creation behavior, which can still seed applicable document-type requirements for planning.
+- Mark generated document metadata with the requirement seed policy and seeded requirement IDs.
+- Add focused coverage with one accepted and one unaccepted same-type requirement to prove only the accepted requirement appears in package draft seed content.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets response-package draft relevance with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue hardening response-generation workflow visibility, final artifact readiness, and end-to-end discovery-to-submission proof.
+
 ### 2026-05-26 - Response Package Compliance Link Refresh
 
 Status: implemented and verified.

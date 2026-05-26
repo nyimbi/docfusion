@@ -603,6 +603,107 @@ describe("proposal document row scoping", () => {
 		}
 	});
 
+	it("seeds response package documents from accepted requirements only when requested", async () => {
+		const opportunity = {
+			id: proposalDocument.opportunityId,
+			title: "Offline Field Reporting Platform",
+			organization: "Regional Authority",
+			sector: "Government/SOE",
+			countryRegion: "East Africa",
+			category: "Digital Transformation",
+			deadline: null,
+			budgetValue: null,
+			projectSummary: "Deploy an offline-first reporting platform.",
+			projectScope: null,
+			keyRequirements: null,
+			technicalRequirements: null,
+			submissionRequirements: null,
+			fitScore: null,
+			winProbability: null,
+			strategicNotes: null,
+		};
+		const acceptedRequirement = {
+			id: "77777777-7777-4777-8777-777777777777",
+			opportunityId: proposalDocument.opportunityId,
+			requirementNumber: "REQ-ACCEPTED",
+			title: "Offline reporting",
+			requirementText: "The supplier shall support offline reporting.",
+			sourcePage: 12,
+			sourceSection: "Section C.4",
+			category: "technical",
+			priority: "mandatory",
+			riskLevel: "high",
+			complianceStatus: "partial",
+			responseStrategy: "Show offline capture, synchronization, and audit controls.",
+			suggestedApproach: null,
+			metadata: {
+				workflow: {
+					state: "accepted",
+				},
+			},
+		};
+		const unacceptedRequirement = {
+			...acceptedRequirement,
+			id: "99999999-9999-4999-8999-999999999999",
+			requirementNumber: "REQ-DRAFT",
+			requirementText: "The supplier shall provide a draft-only integration plan.",
+			responseStrategy: "This unaccepted plan must not be seeded into package drafts.",
+			complianceStatus: "not_addressed",
+			metadata: {
+				workflow: {
+					state: "draft",
+				},
+			},
+		};
+		let insertedDocument: Record<string, any> | undefined;
+		let insertedSections: unknown;
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: proposalDocument.opportunityId }] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({ result: [opportunity] }))
+			.mockReturnValueOnce(createChain({ result: [acceptedRequirement, unacceptedRequirement] }))
+			.mockReturnValueOnce(createChain({ result: [{ maxOrder: 0 }] }))
+			.mockReturnValueOnce(createChain({ result: [acceptedRequirement, unacceptedRequirement] }))
+			.mockReturnValueOnce(createChain({ result: [section] }));
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ ...documentRow, title: "Technical Approach - Draft", content: {}, plainText: "" }],
+				onValues: (value) => {
+					insertedDocument = value as Record<string, any>;
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [proposalDocument],
+			}))
+			.mockReturnValueOnce(createChain({
+				onValues: (value) => {
+					insertedSections = value;
+				},
+			}));
+		dbMock.update.mockReturnValue(createChain());
+
+		const created = await createStandardProposalSet(
+			proposalDocument.opportunityId,
+			["technical_approach"],
+			{ seedAcceptedRequirementsOnly: true }
+		);
+
+		expect(created).toHaveLength(1);
+		const seededText = flattenText(insertedDocument?.content);
+		expect(seededText).toContain("REQ-ACCEPTED");
+		expect(seededText).toContain("offline reporting");
+		expect(seededText).not.toContain("REQ-DRAFT");
+		expect(seededText).not.toContain("draft-only integration plan");
+		expect(insertedDocument?.metadata).toMatchObject({
+			documentType: "technical_approach",
+			opportunityId: proposalDocument.opportunityId,
+			requirementSeedPolicy: "accepted_only",
+			seededRequirementIds: [acceptedRequirement.id],
+		});
+		expect(insertedSections).toEqual(expect.any(Array));
+	});
+
 	it("creates and drafts a standard package from accepted requirements", async () => {
 		const requirement = {
 			id: "77777777-7777-4777-8777-777777777777",
