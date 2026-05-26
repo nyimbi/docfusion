@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Scraper Source Delete Authority Check
+
+Status: implemented and verified.
+
+Purpose: prevent broad scraper-operator access from deleting discovery sources directly through the scraper batch API.
+
+Changes in this slice:
+- Require `operations` or `admin` scraper access before batch `delete` fetches or deletes scraper sources.
+- Preserve broader scraper-operator access for non-destructive batch run/enable/disable requests that flow through workflow guards.
+- Add focused route coverage for denied scraper-operator deletes and allowed operations deletes.
+
+Verification:
+- `npm run test -- __tests__/api/scraper-batch-route.test.ts __tests__/api/scraper-run-routes.test.ts __tests__/actions/scraper-workflows.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets destructive scraper source deletion authority with focused route/action tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct API routes that mutate discovery, intake, or response workflow state without corresponding authority checks.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Live Import Execution Authority Check
 
 Status: implemented and verified.

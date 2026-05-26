@@ -99,6 +99,13 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
+		if (operation === "delete") {
+			const unauthorizedDelete = await requireScraperAccess(request, {
+				allowedRoles: ["operations", "admin"],
+			});
+			if (unauthorizedDelete) return unauthorizedDelete;
+		}
+
 		// Fetch all sources
 		const sources = await db
 			.select()

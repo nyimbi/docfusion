@@ -11,6 +11,13 @@ function createSelectChain(result: unknown[]) {
 	return chain;
 }
 
+function createDeleteChain() {
+	const chain: Record<string, any> = {};
+	chain.where = vi.fn(() => chain);
+	chain.then = (resolve: (value: unknown[]) => void) => Promise.resolve([]).then(resolve);
+	return chain;
+}
+
 const authMock = vi.hoisted(() => vi.fn());
 const dbMock = vi.hoisted(() => ({
 	select: vi.fn(),
@@ -45,6 +52,7 @@ function batchRequest(body: unknown) {
 beforeEach(() => {
 	vi.clearAllMocks();
 	dbMock.select.mockReturnValue(createSelectChain([{ id: "source-1" }]));
+	dbMock.delete.mockReturnValue(createDeleteChain());
 	transitionScraperSourceEnabledWorkflowMock.mockResolvedValue({ success: true });
 	startScraperSourceRunWorkflowMock.mockResolvedValue({
 		success: true,
@@ -95,6 +103,41 @@ describe("scraper batch route", () => {
 			],
 			summary: { succeeded: 0, failed: 1 },
 		});
+		expect(revalidatePathMock).toHaveBeenCalledWith("/opportunities/sources");
+	});
+
+	it("requires operations authority before deleting scraper sources", async () => {
+		const response = await POST(batchRequest({
+			operation: "delete",
+			sourceIds: ["source-1"],
+		}));
+		const body = await response.json();
+
+		expect(response.status).toBe(403);
+		expect(body).toEqual({ success: false, message: "Forbidden" });
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.delete).not.toHaveBeenCalled();
+		expect(revalidatePathMock).not.toHaveBeenCalled();
+	});
+
+	it("allows operations users to delete scraper sources", async () => {
+		authMock.mockResolvedValue({
+			user: { id: "ops-1", role: "operations" },
+		});
+
+		const response = await POST(batchRequest({
+			operation: "delete",
+			sourceIds: ["source-1"],
+		}));
+		const body = await response.json();
+
+		expect(response.status).toBe(200);
+		expect(body).toMatchObject({
+			success: true,
+			results: [{ sourceId: "source-1", success: true }],
+			summary: { succeeded: 1, failed: 0 },
+		});
+		expect(dbMock.delete).toHaveBeenCalledTimes(1);
 		expect(revalidatePathMock).toHaveBeenCalledWith("/opportunities/sources");
 	});
 });
