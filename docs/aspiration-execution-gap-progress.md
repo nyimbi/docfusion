@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Submission Attachments Bind Stored Artifacts
+
+Status: implemented and verified.
+
+Purpose: ensure recorded submissions point to the exact approved final artifact receipt instead of hashing mutable document content at dispatch time.
+
+Changes in this slice:
+- Replace submission attachment content hashing with final artifact manifest binding.
+- Persist artifact filename, MIME type, size, download URL, Linode E3 storage path, bucket, key, ETag, endpoint, and SHA-256 hash into each submission attachment.
+- Fail submission recording if a selected final package document lacks an approved stored final artifact manifest.
+- Extend submission attachment types and focused submission workflow tests for stored artifact receipts.
+
+Verification:
+- `npm run test -- __tests__/actions/submission-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets submission attachment evidence binding and used the focused submission workflow test plus whitespace validation.
+
+Remaining after this slice:
+- Surface stored artifact receipt details in the submission history UI.
+- Add audit explorer reconstruction proof from submitted package receipt back to final stored artifacts when the power budget allows.
+
 ### 2026-05-26 - Final Artifact Object Storage Receipt
 
 Status: implemented and verified.

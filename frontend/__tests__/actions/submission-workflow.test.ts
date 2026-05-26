@@ -95,6 +95,27 @@ const submissionRow = {
 	updatedAt: new Date("2026-04-01T00:00:00.000Z"),
 };
 
+const storedFinalArtifact = {
+	documentId: "doc-1",
+	proposalDocumentId: "proposal-doc-1",
+	opportunityId: "opp-1",
+	format: "docx",
+	filename: "technical-approach.docx",
+	mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	size: 2048,
+	artifactHash: "f".repeat(64),
+	downloadUrl: `/api/v1/documents/doc-1/final-artifact?artifactHash=${"f".repeat(64)}`,
+	storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/technical-approach.docx",
+	storageBucket: "mansa",
+	storageKey: "proposal/final-artifacts/opp-1/proposal-doc-1/technical-approach.docx",
+	storageEtag: "\"artifact-etag\"",
+	storageEndpoint: "https://objects.example.com",
+	renderedAt: "2026-05-05T00:00:00.000Z",
+	renderedBy: "production-lead-1",
+	renderTimeMs: 40,
+	pageCount: 12,
+};
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	requireUserContextMock.mockResolvedValue({ userId: "session-user-1" });
@@ -226,7 +247,41 @@ describe("submission workflow gates", () => {
 		expect(dbMock.insert).not.toHaveBeenCalled();
 	});
 
-	it("locks submitted attachments with artifact hashes", async () => {
+	it("requires selected attachments to carry the approved stored final artifact", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "opp-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "proposal-doc-1",
+					documentId: "doc-1",
+					documentType: "technical_approach",
+					status: "final",
+					title: "Technical Approach",
+					metadata: {
+						finalArtifact: {
+							artifactHash: "f".repeat(64),
+							filename: "technical-approach.docx",
+						},
+					},
+				}],
+			}));
+
+		await expect(
+			createSubmission({
+				opportunityId: "opp-1",
+				submittedBy: "Proposal Lead",
+				submissionMethod: "portal",
+				confirmationNumber: "PORTAL-123",
+				attachmentIds: ["doc-1"],
+			})
+		).rejects.toThrow("approved stored final artifact");
+
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
+	it("locks submitted attachments to final artifact storage receipts", async () => {
 		let insertedSubmission: Record<string, unknown> | undefined;
 		let opportunityUpdate: Record<string, unknown> | undefined;
 
@@ -241,8 +296,9 @@ describe("submission workflow gates", () => {
 					documentType: "technical_approach",
 					status: "final",
 					title: "Technical Approach",
-					content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Final text" }] }] },
-					updatedAt: new Date("2026-04-01T00:00:00.000Z"),
+					metadata: {
+						finalArtifact: storedFinalArtifact,
+					},
 				}],
 			}));
 		dbMock.insert.mockReturnValueOnce(createChain({
@@ -280,8 +336,17 @@ describe("submission workflow gates", () => {
 			documentId: "doc-1",
 			documentTitle: "Technical Approach",
 			documentType: "technical_approach",
+			filename: "technical-approach.docx",
+			mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			size: 2048,
+			artifactHash: "f".repeat(64),
+			downloadUrl: `/api/v1/documents/doc-1/final-artifact?artifactHash=${"f".repeat(64)}`,
+			storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/technical-approach.docx",
+			storageBucket: "mansa",
+			storageKey: "proposal/final-artifacts/opp-1/proposal-doc-1/technical-approach.docx",
+			storageEtag: "\"artifact-etag\"",
+			storageEndpoint: "https://objects.example.com",
 		});
-		expect(attachments[0].artifactHash).toMatch(/^[a-f0-9]{64}$/);
 		expect(attachments[0].lockedAt).toEqual(expect.any(String));
 		expect(opportunityUpdate).toMatchObject({
 			decisionStatus: "submitted",

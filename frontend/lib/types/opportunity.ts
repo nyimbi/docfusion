@@ -1444,8 +1444,17 @@ export interface SubmissionAttachment {
 	documentId: string;
 	documentTitle: string;
 	documentType: ProposalDocumentType;
+	filename?: string;
+	mimeType?: string;
+	size?: number;
 	fileSize?: number;
 	artifactHash?: string;
+	downloadUrl?: string;
+	storagePath?: string;
+	storageBucket?: string;
+	storageKey?: string;
+	storageEtag?: string | null;
+	storageEndpoint?: string;
 	lockedAt?: string;
 }
 

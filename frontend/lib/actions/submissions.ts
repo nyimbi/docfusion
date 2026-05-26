@@ -6,7 +6,6 @@
 
 "use server";
 
-import { createHash } from "crypto";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import {
@@ -115,26 +114,6 @@ function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, 
 	)!;
 }
 
-function buildAttachmentHash(input: {
-	documentId: string;
-	documentTitle: string;
-	documentType: ProposalDocumentType;
-	status: string | null;
-	content: unknown;
-	updatedAt: Date | null;
-}): string {
-	return createHash("sha256")
-		.update(JSON.stringify({
-			documentId: input.documentId,
-			documentTitle: input.documentTitle,
-			documentType: input.documentType,
-			status: input.status,
-			content: input.content,
-			updatedAt: input.updatedAt?.toISOString() ?? null,
-		}))
-		.digest("hex");
-}
-
 function missingRequiredFinalPackageAttachments(
 	items: FinalSubmissionChecklistItem[],
 	attachmentIds: string[]
@@ -210,8 +189,7 @@ export async function createSubmission(
 				documentType: proposalDocuments.documentType,
 				status: proposalDocuments.status,
 				title: documents.title,
-				content: documents.content,
-				updatedAt: documents.updatedAt,
+				metadata: documents.metadata,
 			})
 			.from(proposalDocuments)
 			.innerJoin(documents, eq(documents.id, proposalDocuments.documentId))
@@ -223,18 +201,24 @@ export async function createSubmission(
 			);
 
 		for (const doc of proposalDocs) {
+			const artifact = finalArtifactManifest(doc.metadata);
+			if (!artifact) {
+				throw new Error(`Selected attachment ${doc.title} does not have an approved stored final artifact`);
+			}
 			attachments.push({
 				documentId: doc.documentId,
 				documentTitle: doc.title,
 				documentType: doc.documentType as ProposalDocumentType,
-				artifactHash: buildAttachmentHash({
-					documentId: doc.documentId,
-					documentTitle: doc.title,
-					documentType: doc.documentType as ProposalDocumentType,
-					status: doc.status,
-					content: doc.content,
-					updatedAt: doc.updatedAt,
-				}),
+				filename: artifact.filename,
+				mimeType: artifact.mimeType,
+				size: artifact.size,
+				artifactHash: artifact.artifactHash,
+				downloadUrl: artifact.downloadUrl,
+				storagePath: artifact.storagePath,
+				storageBucket: artifact.storageBucket,
+				storageKey: artifact.storageKey,
+				storageEtag: artifact.storageEtag,
+				storageEndpoint: artifact.storageEndpoint,
 				lockedAt,
 			});
 		}
@@ -302,6 +286,53 @@ export async function createSubmission(
 
 	revalidateSubmissionWorkflowPaths(input.opportunityId);
 	return transformSubmission(row);
+}
+
+type StoredFinalArtifactManifest = {
+	artifactHash: string;
+	filename: string;
+	mimeType: string;
+	size: number;
+	downloadUrl?: string;
+	storagePath: string;
+	storageBucket: string;
+	storageKey: string;
+	storageEtag: string | null;
+	storageEndpoint: string;
+};
+
+function finalArtifactManifest(metadata: unknown): StoredFinalArtifactManifest | null {
+	const artifact = asRecord(asRecord(metadata).finalArtifact);
+	if (
+		typeof artifact.artifactHash !== "string" ||
+		typeof artifact.filename !== "string" ||
+		typeof artifact.mimeType !== "string" ||
+		typeof artifact.size !== "number" ||
+		typeof artifact.storagePath !== "string" ||
+		typeof artifact.storageBucket !== "string" ||
+		typeof artifact.storageKey !== "string" ||
+		typeof artifact.storageEndpoint !== "string"
+	) {
+		return null;
+	}
+	return {
+		artifactHash: artifact.artifactHash,
+		filename: artifact.filename,
+		mimeType: artifact.mimeType,
+		size: artifact.size,
+		downloadUrl: typeof artifact.downloadUrl === "string" ? artifact.downloadUrl : undefined,
+		storagePath: artifact.storagePath,
+		storageBucket: artifact.storageBucket,
+		storageKey: artifact.storageKey,
+		storageEtag: typeof artifact.storageEtag === "string" ? artifact.storageEtag : null,
+		storageEndpoint: artifact.storageEndpoint,
+	};
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? value as Record<string, unknown>
+		: {};
 }
 
 /**
