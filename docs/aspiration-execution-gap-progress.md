@@ -760,6 +760,30 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Check Firecrawl scrape health and discovery run telemetry for similarly misleading readiness signals.
 
+### 2026-05-26 - Firecrawl Environment Alias Hardening
+
+Status: implemented and verified.
+
+Purpose: prevent discovery enrichment from silently losing Firecrawl when operators follow older runbook wording.
+
+Changes in this slice:
+- Keep `FIRECRAWL_URL` as the canonical frontend Firecrawl environment variable.
+- Accept legacy `FIRECRAWL_API_URL` when `FIRECRAWL_URL` is absent.
+- Update the opportunity discovery runbook to document `FIRECRAWL_URL`.
+- Add Firecrawl client configuration coverage for default host, canonical override, and legacy alias fallback.
+
+Verification:
+- Live probe: `http://84.247.181.100:3002/v1/scrape` successfully scraped `https://example.com` and returned `200`.
+- `npm run test -- __tests__/services/firecrawl-client-config.test.ts` passed.
+- `npx tsc --noEmit` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This was a narrow Firecrawl configuration fix covered by service config tests, TypeScript checking, and a live scrape probe.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Check discovery run telemetry and UI surfacing for partial SearXNG/Firecrawl failures.
+
 ### 2026-05-26 - Actionable DLP Checklist Details
 
 Status: implemented and verified.

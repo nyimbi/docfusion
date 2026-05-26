@@ -18,7 +18,7 @@ Set these on the app server before enabling unattended discovery:
 SCRAPER_API_KEY="long-random-secret"
 DISCOVERY_IMPORT_USER_ID="app-user-id-that-owns-discovery-presets"
 SEARXNG_URL="https://search.lindela.io"
-FIRECRAWL_API_URL="http://84.247.181.100:3002"
+FIRECRAWL_URL="http://84.247.181.100:3002"
 STEALTH_SCRAPER_URL="http://84.247.181.100:3003"
 ```
 

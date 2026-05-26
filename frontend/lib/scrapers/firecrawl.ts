@@ -124,7 +124,11 @@ export class FirecrawlClient {
 	private timeout: number;
 
 	constructor(config?: Partial<FirecrawlConfig>) {
-		this.baseUrl = config?.baseUrl || process.env.FIRECRAWL_URL || "http://84.247.181.100:3002";
+		this.baseUrl =
+			config?.baseUrl ||
+			process.env.FIRECRAWL_URL ||
+			process.env.FIRECRAWL_API_URL ||
+			"http://84.247.181.100:3002";
 		this.apiKey = config?.apiKey || process.env.FIRECRAWL_KEY || "";
 		this.timeout = config?.timeout || 60000;
 
