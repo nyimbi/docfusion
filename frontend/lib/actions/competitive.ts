@@ -91,10 +91,37 @@ function assignedOpportunityExistsSql(opportunityId: unknown, userContext: Compe
 	)`;
 }
 
+function organizationOpportunityExistsSql(opportunityId: unknown, userContext: CompetitiveUserContext): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+	)`;
+}
+
 function competitorOpportunityByOpportunityCondition(opportunityId: string, userContext: CompetitiveUserContext): SQL {
 	return and(
 		eq(competitorOpportunities.opportunityId, opportunityId),
 		assignedOpportunityExistsSql(opportunityId, userContext)
+	)!;
+}
+
+function competitorOpportunityByIdCondition(linkId: string, userContext: CompetitiveUserContext): SQL {
+	return and(
+		eq(competitorOpportunities.id, linkId),
+		assignedOpportunityExistsSql(competitorOpportunities.opportunityId, userContext)
+	)!;
+}
+
+function competitorOpportunityByCompetitorAndOpportunityCondition(
+	competitorId: string,
+	opportunityId: string,
+	userContext: CompetitiveUserContext
+): SQL {
+	return and(
+		eq(competitorOpportunities.competitorId, competitorId),
+		competitorOpportunityByOpportunityCondition(opportunityId, userContext)
 	)!;
 }
 
@@ -1144,18 +1171,40 @@ export async function addCompetitorToOpportunity(
 ): Promise<ActionResult<CompetitorOpportunity>> {
 	try {
 		const validated = addCompetitorToOpportunitySchema.parse(input);
-		await requireCompetitiveContext();
+		const userContext = await requireCompetitiveContext();
+
+		const [opportunity] = await db
+			.select({ id: opportunities.id })
+			.from(opportunities)
+			.where(assignedOpportunityByIdCondition(validated.opportunityId, userContext))
+			.limit(1);
+
+		if (!opportunity) {
+			return { success: false, error: "Opportunity not found" };
+		}
+
+		const [competitor] = await db
+			.select({ id: competitors.id })
+			.from(competitors)
+			.where(and(
+				eq(competitors.id, validated.competitorId),
+				visibleOrganizationCondition(competitors.organizationId, userContext)
+			))
+			.limit(1);
+
+		if (!competitor) {
+			return { success: false, error: "Competitor not found" };
+		}
 
 		// Check if link already exists
 		const [existing] = await db
 			.select()
 			.from(competitorOpportunities)
-			.where(
-				and(
-					eq(competitorOpportunities.competitorId, validated.competitorId),
-					eq(competitorOpportunities.opportunityId, validated.opportunityId)
-				)
-			)
+			.where(competitorOpportunityByCompetitorAndOpportunityCondition(
+				validated.competitorId,
+				validated.opportunityId,
+				userContext
+			))
 			.limit(1);
 
 		if (existing) {
@@ -1190,14 +1239,42 @@ export async function updateCompetitorOpportunity(
 	data: Partial<AddCompetitorToOpportunityInput>
 ): Promise<ActionResult<CompetitorOpportunity>> {
 	try {
-		await requireCompetitiveContext();
+		const userContext = await requireCompetitiveContext();
+
+		if (data.opportunityId) {
+			const [opportunity] = await db
+				.select({ id: opportunities.id })
+				.from(opportunities)
+				.where(assignedOpportunityByIdCondition(data.opportunityId, userContext))
+				.limit(1);
+
+			if (!opportunity) {
+				return { success: false, error: "Opportunity not found" };
+			}
+		}
+
+		if (data.competitorId) {
+			const [competitor] = await db
+				.select({ id: competitors.id })
+				.from(competitors)
+				.where(and(
+					eq(competitors.id, data.competitorId),
+					visibleOrganizationCondition(competitors.organizationId, userContext)
+				))
+				.limit(1);
+
+			if (!competitor) {
+				return { success: false, error: "Competitor not found" };
+			}
+		}
+
 		const [updated] = await db
 			.update(competitorOpportunities)
 			.set({
 				...data,
 				updatedAt: new Date(),
 			})
-			.where(eq(competitorOpportunities.id, id))
+			.where(competitorOpportunityByIdCondition(id, userContext))
 			.returning();
 
 		if (!updated) {
@@ -1976,12 +2053,13 @@ export async function suggestTeamingPartners(
 		const potentialCompetitorPartners = await db
 			.select()
 			.from(competitors)
-			.where(
+			.where(and(
+				visibleOrganizationCondition(competitors.organizationId, userContext),
 				or(
 					eq(competitors.competitorType, "sub"),
 					eq(competitors.competitorType, "both")
 				)
-			);
+			));
 
 		const suggestions: TeamingSuggestion[] = [];
 
@@ -2134,11 +2212,22 @@ export async function trackCompetitorWinLoss(
 	notes?: string
 ): Promise<ActionResult<Competitor>> {
 	try {
+		const userContext = await requireCompetitiveContext();
+		const [opportunity] = await db
+			.select({ id: opportunities.id })
+			.from(opportunities)
+			.where(assignedOpportunityByIdCondition(opportunityId, userContext))
+			.limit(1);
+
+		if (!opportunity) {
+			return { success: false, error: "Opportunity not found" };
+		}
+
 		// Verify competitor exists
 		const [competitor] = await db
 			.select()
 			.from(competitors)
-			.where(eq(competitors.id, competitorId))
+			.where(and(eq(competitors.id, competitorId), mutableOrganizationCondition(competitors.organizationId, userContext)))
 			.limit(1);
 
 		if (!competitor) {
@@ -2162,19 +2251,14 @@ export async function trackCompetitorWinLoss(
 		const [updated] = await db
 			.update(competitors)
 			.set(updateData)
-			.where(eq(competitors.id, competitorId))
+			.where(and(eq(competitors.id, competitorId), mutableOrganizationCondition(competitors.organizationId, userContext)))
 			.returning();
 
 		// Update the competitor-opportunity link
 		const [link] = await db
 			.select()
 			.from(competitorOpportunities)
-			.where(
-				and(
-					eq(competitorOpportunities.competitorId, competitorId),
-					eq(competitorOpportunities.opportunityId, opportunityId)
-				)
-			)
+			.where(competitorOpportunityByCompetitorAndOpportunityCondition(competitorId, opportunityId, userContext))
 			.limit(1);
 
 		if (link) {
@@ -2185,7 +2269,7 @@ export async function trackCompetitorWinLoss(
 					outcomeNotes: notes,
 					updatedAt: new Date(),
 				})
-				.where(eq(competitorOpportunities.id, link.id));
+				.where(competitorOpportunityByIdCondition(link.id, userContext));
 		}
 
 		revalidatePath("/competitive");
@@ -2205,11 +2289,12 @@ export async function getWinLossAnalysis(
 	competitorId: string
 ): Promise<ActionResult<WinLossAnalysis>> {
 	try {
+		const userContext = await requireCompetitiveContext();
 		// Fetch competitor
 		const [competitor] = await db
 			.select()
 			.from(competitors)
-			.where(eq(competitors.id, competitorId))
+			.where(and(eq(competitors.id, competitorId), visibleOrganizationCondition(competitors.organizationId, userContext)))
 			.limit(1);
 
 		if (!competitor) {
@@ -2227,7 +2312,8 @@ export async function getWinLossAnalysis(
 			.where(
 				and(
 					eq(competitorOpportunities.competitorId, competitorId),
-					isNotNull(competitorOpportunities.outcome)
+					isNotNull(competitorOpportunities.outcome),
+					assignedOpportunityExistsSql(competitorOpportunities.opportunityId, userContext)
 				)
 			);
 
@@ -2410,13 +2496,14 @@ export async function recordGhostThemeUsage(
 	ghostThemeId: string
 ): Promise<ActionResult<GhostTheme>> {
 	try {
+		const userContext = await requireCompetitiveContext();
 		const [updated] = await db
 			.update(ghostThemes)
 			.set({
 				useCount: sql`${ghostThemes.useCount} + 1`,
 				lastUsedAt: new Date(),
 			})
-			.where(eq(ghostThemes.id, ghostThemeId))
+			.where(and(eq(ghostThemes.id, ghostThemeId), mutableOrganizationCondition(ghostThemes.organizationId, userContext)))
 			.returning();
 
 		if (!updated) {
@@ -2441,18 +2528,24 @@ export async function getCompetitorIntelligenceSummary(): Promise<ActionResult<{
 	recentAnalyses: number;
 }>> {
 	try {
+		const userContext = await requireCompetitiveContext();
 		const [competitorCount] = await db
 			.select({ count: sql<number>`count(*)` })
-			.from(competitors);
+			.from(competitors)
+			.where(visibleOrganizationCondition(competitors.organizationId, userContext));
 
 		const [discriminatorCount] = await db
 			.select({ count: sql<number>`count(*)` })
 			.from(discriminators)
-			.where(eq(discriminators.isActive, true));
+			.where(and(
+				eq(discriminators.isActive, true),
+				visibleOrganizationCondition(discriminators.organizationId, userContext)
+			));
 
 		const [ghostThemeCount] = await db
 			.select({ count: sql<number>`count(*)` })
-			.from(ghostThemes);
+			.from(ghostThemes)
+			.where(visibleOrganizationCondition(ghostThemes.organizationId, userContext));
 
 		// Calculate average win rate from competitors with data
 		const competitorsWithData = await db
@@ -2461,12 +2554,13 @@ export async function getCompetitorIntelligenceSummary(): Promise<ActionResult<{
 				lossesToUs: competitors.lossesToUs,
 			})
 			.from(competitors)
-			.where(
+			.where(and(
+				visibleOrganizationCondition(competitors.organizationId, userContext),
 				or(
 					sql`${competitors.winsAgainstUs} > 0`,
 					sql`${competitors.lossesToUs} > 0`
 				)
-			);
+			));
 
 		let averageWinRate = 0;
 		if (competitorsWithData.length > 0) {
@@ -2485,7 +2579,10 @@ export async function getCompetitorIntelligenceSummary(): Promise<ActionResult<{
 		const [recentAnalysesCount] = await db
 			.select({ count: sql<number>`count(*)` })
 			.from(competitiveAnalyses)
-			.where(sql`${competitiveAnalyses.analyzedAt} >= ${thirtyDaysAgo}`);
+			.where(and(
+				sql`${competitiveAnalyses.analyzedAt} >= ${thirtyDaysAgo}`,
+				organizationOpportunityExistsSql(competitiveAnalyses.opportunityId, userContext)
+			));
 
 		return {
 			success: true,
@@ -2589,20 +2686,22 @@ function parseDateString(value: string | null | undefined): string | null {
 /**
  * Import a single competitor from competitive intelligence data.
  */
-export async function importCompetitorFromCI(
-	row: CompetitiveIntelligenceRow
+async function importCompetitorFromCIForContext(
+	row: CompetitiveIntelligenceRow,
+	userContext: CompetitiveUserContext
 ): Promise<ActionResult<Competitor>> {
 	try {
-		// Check if competitor already exists by external ID or name
+		// Check if competitor already exists by external ID or name inside this organization
 		const existing = await db
 			.select()
 			.from(competitors)
-			.where(
+			.where(and(
+				mutableOrganizationCondition(competitors.organizationId, userContext),
 				or(
 					eq(competitors.externalId, String(row.id)),
 					eq(competitors.name, row.companyName)
 				)
-			)
+			))
 			.limit(1);
 
 		const competitorData = {
@@ -2653,6 +2752,7 @@ export async function importCompetitorFromCI(
 			strategicNotes: row.strategicNotes,
 			lastUpdated: parseDateString(row.lastUpdated),
 			externalId: String(row.id),
+			organizationId: userContext.organizationId,
 			dataSource: "East Africa CI Database 2026",
 			intelligenceQuality: "verified" as const,
 			updatedAt: new Date(),
@@ -2663,7 +2763,7 @@ export async function importCompetitorFromCI(
 			const [updated] = await db
 				.update(competitors)
 				.set(competitorData)
-				.where(eq(competitors.id, existing[0].id))
+				.where(and(eq(competitors.id, existing[0].id), mutableOrganizationCondition(competitors.organizationId, userContext)))
 				.returning();
 
 			return { success: true, data: updated };
@@ -2685,6 +2785,18 @@ export async function importCompetitorFromCI(
 	}
 }
 
+export async function importCompetitorFromCI(
+	row: CompetitiveIntelligenceRow
+): Promise<ActionResult<Competitor>> {
+	try {
+		const userContext = await requireCompetitiveContext();
+		return await importCompetitorFromCIForContext(row, userContext);
+	} catch (error) {
+		logger.error("[importCompetitorFromCI]", error);
+		return { success: false, error: `Failed to import competitor: ${row.companyName}` };
+	}
+}
+
 /**
  * Bulk import competitive intelligence data from Excel row data.
  */
@@ -2697,6 +2809,7 @@ export async function bulkImportCompetitiveIntelligence(
 	failed: number;
 	errors: string[];
 }>> {
+	const userContext = await requireCompetitiveContext();
 	const result = {
 		total: rows.length,
 		imported: 0,
@@ -2711,15 +2824,16 @@ export async function bulkImportCompetitiveIntelligence(
 			const existing = await db
 				.select({ id: competitors.id })
 				.from(competitors)
-				.where(
+				.where(and(
+					mutableOrganizationCondition(competitors.organizationId, userContext),
 					or(
 						eq(competitors.externalId, String(row.id)),
 						eq(competitors.name, row.companyName)
 					)
-				)
+				))
 				.limit(1);
 
-			const importResult = await importCompetitorFromCI(row);
+			const importResult = await importCompetitorFromCIForContext(row, userContext);
 
 			if (importResult.success) {
 				if (existing.length > 0) {

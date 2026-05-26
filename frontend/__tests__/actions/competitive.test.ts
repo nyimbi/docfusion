@@ -93,6 +93,7 @@ vi.mock("@/lib/db/schema-competitors", () => ({
 		id: "c.id", name: "c.name", organizationId: "c.orgId", description: "c.desc",
 		competitorType: "c.type", sizeStandard: "c.size", capabilities: "c.caps",
 		certifications: "c.certs", contractVehicles: "c.vehicles", naicsCodes: "c.naics",
+		externalId: "c.externalId", winsAgainstUs: "c.winsAgainstUs", lossesToUs: "c.lossesToUs",
 	},
 	discriminators: {
 		id: "d.id", statement: "d.stmt", discriminatorType: "d.type", isActive: "d.active",
@@ -101,9 +102,11 @@ vi.mock("@/lib/db/schema-competitors", () => ({
 	},
 	ghostThemes: {
 		id: "g.id", competitorId: "g.compId", useCount: "g.useCount",
+		organizationId: "g.orgId",
 	},
 	competitorOpportunities: {
 		id: "co.id", competitorId: "co.compId", opportunityId: "co.oppId",
+		outcome: "co.outcome",
 	},
 	competitiveAnalyses: {
 		id: "ca.id", opportunityId: "ca.oppId", analyzedAt: "ca.analyzedAt",
@@ -136,12 +139,20 @@ import {
 	createGhostTheme,
 	listGhostThemes,
 	addCompetitorToOpportunity,
+	updateCompetitorOpportunity,
 	identifyLikelyCompetitors,
 	listCompetitorsForOpportunity,
 	generateSWOT,
 	suggestDiscriminators,
+	suggestTeamingPartners,
 	generateCompetitiveMatrix,
 	getLatestCompetitiveAnalysis,
+	trackCompetitorWinLoss,
+	getWinLossAnalysis,
+	recordGhostThemeUsage,
+	getCompetitorIntelligenceSummary,
+	importCompetitorFromCI,
+	bulkImportCompetitiveIntelligence,
 } from "@/lib/actions/competitive";
 
 // ============================================================================
@@ -214,6 +225,59 @@ function makeOpportunity(overrides: Record<string, unknown> = {}) {
 		technicalRequirements: "Cloud GIS",
 		metadata: { contractVehicle: "GSA" },
 		assignedTo: "competitive-user-1",
+		...overrides,
+	};
+}
+
+function makeCompetitiveIntelligenceRow(overrides: Record<string, unknown> = {}) {
+	return {
+		id: 101,
+		companyName: "Acme Corp",
+		country: "Kenya",
+		city: "Nairobi",
+		foundedYear: 2015,
+		companyAge: 11,
+		companyType: "Software Development Agency",
+		primaryBusiness: "Digital services",
+		specialization: "Cloud GIS",
+		website: "https://acme.example",
+		linkedIn: null,
+		email: null,
+		phone: null,
+		physicalAddress: null,
+		ceoFounder: null,
+		ctoTechLead: null,
+		keyManagement: null,
+		managementLinkedin: null,
+		teamSize: "50-100",
+		engineerCount: "20-50",
+		keyEngineers: null,
+		notableAlumni: null,
+		annualRevenue: null,
+		revenueRange: null,
+		fundingRaised: null,
+		investors: null,
+		productsServices: "Software delivery",
+		technologyStack: "React; Node.js",
+		industriesServed: "Government",
+		notableClients: null,
+		recentContracts: null,
+		contractValues: null,
+		pursuingOpportunities: null,
+		partnerships: null,
+		certifications: "ISO 27001",
+		awards: null,
+		newsMentions: null,
+		recentNews: null,
+		socialMediaPresence: null,
+		competitivePositioning: "Challenger",
+		strengths: "Delivery",
+		weaknesses: "Pricing",
+		marketShare: null,
+		growthTrajectory: null,
+		threatLevel: "MEDIUM",
+		strategicNotes: null,
+		lastUpdated: "2026-02-02",
 		...overrides,
 	};
 }
@@ -958,8 +1022,22 @@ describe("Ghost Themes", () => {
 describe("Competitor-Opportunity Linking", () => {
 	describe("addCompetitorToOpportunity", () => {
 		test("creates link when it does not exist", async () => {
-			// First query (check existing) returns empty
-			dbMock.select.mockReturnValueOnce(createChainableQuery([]) as never);
+			let opportunityWhere: unknown;
+			let existingWhere: unknown;
+			const opportunityChain = createChainableQuery([makeOpportunity()]);
+			(opportunityChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+				opportunityWhere = value;
+				return opportunityChain;
+			});
+			const existingChain = createChainableQuery([]);
+			(existingChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+				existingWhere = value;
+				return existingChain;
+			});
+			dbMock.select
+				.mockImplementationOnce(() => opportunityChain)
+				.mockImplementationOnce(() => createChainableQuery([makeCompetitor({ organizationId: testOrganizationId })]))
+				.mockImplementationOnce(() => existingChain);
 			const link = {
 				id: "link-001",
 				competitorId: "00000000-0000-4000-8000-000000000001",
@@ -972,6 +1050,10 @@ describe("Competitor-Opportunity Linking", () => {
 				opportunityId: "00000000-0000-4000-8000-000000000002",
 			});
 			expect(result.success).toBe(true);
+			const opportunitySql = collectSqlFragments(opportunityWhere).join(" ");
+			expect(opportunitySql).toContain("o.assignedTo");
+			expect(opportunitySql).toContain("o.orgId");
+			expectAssignedOpportunityTenantScope(existingWhere);
 		});
 
 		test("rejects duplicate link", async () => {
@@ -980,7 +1062,10 @@ describe("Competitor-Opportunity Linking", () => {
 				competitorId: "00000000-0000-4000-8000-000000000001",
 				opportunityId: "00000000-0000-4000-8000-000000000002",
 			};
-			dbMock.select.mockReturnValueOnce(createChainableQuery([existing]) as never);
+			dbMock.select
+				.mockImplementationOnce(() => createChainableQuery([makeOpportunity()]))
+				.mockImplementationOnce(() => createChainableQuery([makeCompetitor({ organizationId: testOrganizationId })]))
+				.mockImplementationOnce(() => createChainableQuery([existing]));
 
 			const result = await addCompetitorToOpportunity({
 				competitorId: "00000000-0000-4000-8000-000000000001",
@@ -1009,7 +1094,10 @@ describe("Competitor-Opportunity Linking", () => {
 		});
 
 		test("accepts optional fields", async () => {
-			dbMock.select.mockReturnValueOnce(createChainableQuery([]) as never);
+			dbMock.select
+				.mockImplementationOnce(() => createChainableQuery([makeOpportunity()]))
+				.mockImplementationOnce(() => createChainableQuery([makeCompetitor({ organizationId: testOrganizationId })]))
+				.mockImplementationOnce(() => createChainableQuery([]));
 			const link = {
 				id: "link-002",
 				competitorId: "00000000-0000-4000-8000-000000000001",
@@ -1031,7 +1119,10 @@ describe("Competitor-Opportunity Linking", () => {
 
 		test("accepts all valid likelihood values", async () => {
 			for (const likelihood of ["certain", "likely", "possible", "unlikely"] as const) {
-				dbMock.select.mockReturnValueOnce(createChainableQuery([]) as never);
+				dbMock.select
+					.mockImplementationOnce(() => createChainableQuery([makeOpportunity()]))
+					.mockImplementationOnce(() => createChainableQuery([makeCompetitor({ organizationId: testOrganizationId })]))
+					.mockImplementationOnce(() => createChainableQuery([]));
 				dbMock.insert.mockImplementation(() => createChainableQuery([{ id: `link-${likelihood}` }]));
 
 				const result = await addCompetitorToOpportunity({
@@ -1042,6 +1133,203 @@ describe("Competitor-Opportunity Linking", () => {
 				expect(result.success).toBe(true);
 			}
 		});
+	});
+});
+
+describe("Competitive tenant-scoped utilities", () => {
+	test("scopes competitor-opportunity updates through assigned opportunity tenant", async () => {
+		let updateWhere: unknown;
+		const updateChain = createChainableQuery([{
+			id: "link-001",
+			opportunityId: "00000000-0000-4000-8000-000000000002",
+		}]);
+		(updateChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			updateWhere = value;
+			return updateChain;
+		});
+		dbMock.update.mockImplementationOnce(() => updateChain);
+
+		const result = await updateCompetitorOpportunity("link-001", { notes: "Updated intelligence" });
+
+		expect(result.success).toBe(true);
+		expectAssignedOpportunityTenantScope(updateWhere);
+	});
+
+	test("scopes win/loss updates to owned competitor and assigned opportunity", async () => {
+		let competitorUpdateWhere: unknown;
+		let linkSelectWhere: unknown;
+		let linkUpdateWhere: unknown;
+		const competitorUpdateChain = createChainableQuery([makeCompetitor({ organizationId: testOrganizationId })]);
+		(competitorUpdateChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			competitorUpdateWhere = value;
+			return competitorUpdateChain;
+		});
+		const linkSelectChain = createChainableQuery([{
+			id: "link-001",
+			competitorId: "00000000-0000-4000-8000-000000000001",
+			opportunityId: "00000000-0000-4000-8000-000000000002",
+		}]);
+		(linkSelectChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			linkSelectWhere = value;
+			return linkSelectChain;
+		});
+		const linkUpdateChain = createChainableQuery([{ id: "link-001" }]);
+		(linkUpdateChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			linkUpdateWhere = value;
+			return linkUpdateChain;
+		});
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([makeOpportunity()]))
+			.mockImplementationOnce(() => createChainableQuery([makeCompetitor({ organizationId: testOrganizationId })]))
+			.mockImplementationOnce(() => linkSelectChain);
+		dbMock.update
+			.mockImplementationOnce(() => competitorUpdateChain)
+			.mockImplementationOnce(() => linkUpdateChain);
+
+		const result = await trackCompetitorWinLoss(
+			"00000000-0000-4000-8000-000000000001",
+			"win",
+			"00000000-0000-4000-8000-000000000002",
+			"Incumbent underperformed"
+		);
+
+		expect(result.success).toBe(true);
+		const competitorSql = collectSqlFragments(competitorUpdateWhere).join(" ");
+		expect(competitorSql).toContain("c.orgId");
+		expect(competitorSql).toContain(testOrganizationId);
+		expectAssignedOpportunityTenantScope(linkSelectWhere);
+		expectAssignedOpportunityTenantScope(linkUpdateWhere);
+	});
+
+	test("scopes win/loss analysis encounters to assigned opportunity tenant", async () => {
+		let encountersWhere: unknown;
+		const encountersChain = createChainableQuery([]);
+		(encountersChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			encountersWhere = value;
+			return encountersChain;
+		});
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([makeCompetitor({ organizationId: testOrganizationId })]))
+			.mockImplementationOnce(() => encountersChain);
+
+		const result = await getWinLossAnalysis("00000000-0000-4000-8000-000000000001");
+
+		expect(result.success).toBe(true);
+		expectAssignedOpportunityTenantScope(encountersWhere);
+	});
+
+	test("scopes ghost theme usage updates to owned organization", async () => {
+		let updateWhere: unknown;
+		const updateChain = createChainableQuery([{ id: "gt-001", useCount: 4 }]);
+		(updateChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			updateWhere = value;
+			return updateChain;
+		});
+		dbMock.update.mockImplementationOnce(() => updateChain);
+
+		const result = await recordGhostThemeUsage("gt-001");
+
+		expect(result.success).toBe(true);
+		const sqlText = collectSqlFragments(updateWhere).join(" ");
+		expect(sqlText).toContain("g.orgId");
+		expect(sqlText).toContain(testOrganizationId);
+	});
+
+	test("scopes competitor intelligence summary counts and analyses to tenant", async () => {
+		let competitorCountWhere: unknown;
+		let recentAnalysesWhere: unknown;
+		const competitorCountChain = createChainableQuery([{ count: 2 }]);
+		(competitorCountChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			competitorCountWhere = value;
+			return competitorCountChain;
+		});
+		const recentAnalysesChain = createChainableQuery([{ count: 1 }]);
+		(recentAnalysesChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			recentAnalysesWhere = value;
+			return recentAnalysesChain;
+		});
+		dbMock.select
+			.mockImplementationOnce(() => competitorCountChain)
+			.mockImplementationOnce(() => createChainableQuery([{ count: 1 }]))
+			.mockImplementationOnce(() => createChainableQuery([{ count: 1 }]))
+			.mockImplementationOnce(() => createChainableQuery([{ winsAgainstUs: 1, lossesToUs: 3 }]))
+			.mockImplementationOnce(() => recentAnalysesChain);
+
+		const result = await getCompetitorIntelligenceSummary();
+
+		expect(result.success).toBe(true);
+		const competitorSql = collectSqlFragments(competitorCountWhere).join(" ");
+		expect(competitorSql).toContain("c.orgId");
+		expect(competitorSql).toContain(testOrganizationId);
+		const analysesSql = collectSqlFragments(recentAnalysesWhere).join(" ");
+		expect(analysesSql).toContain("opportunities.organization_id");
+		expect(analysesSql).toContain(testOrganizationId);
+	});
+
+	test("writes imported competitive intelligence into the current organization", async () => {
+		let existingWhere: unknown;
+		let insertedValues: Record<string, unknown> | undefined;
+		const existingChain = createChainableQuery([]);
+		(existingChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			existingWhere = value;
+			return existingChain;
+		});
+		const insertChain = createChainableQuery([makeCompetitor({ organizationId: testOrganizationId })]);
+		(insertChain.values as ReturnType<typeof vi.fn>).mockImplementation((value: Record<string, unknown>) => {
+			insertedValues = value;
+			return insertChain;
+		});
+		dbMock.select.mockImplementationOnce(() => existingChain);
+		dbMock.insert.mockImplementationOnce(() => insertChain);
+
+		const result = await importCompetitorFromCI(makeCompetitiveIntelligenceRow());
+
+		expect(result.success).toBe(true);
+		const existingSql = collectSqlFragments(existingWhere).join(" ");
+		expect(existingSql).toContain("c.orgId");
+		expect(existingSql).toContain(testOrganizationId);
+		expect(insertedValues?.organizationId).toBe(testOrganizationId);
+	});
+
+	test("bulk competitive intelligence import checks existing rows inside tenant", async () => {
+		let existingWhere: unknown;
+		const existingChain = createChainableQuery([]);
+		(existingChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			existingWhere = value;
+			return existingChain;
+		});
+		dbMock.select
+			.mockImplementationOnce(() => existingChain)
+			.mockImplementationOnce(() => createChainableQuery([]));
+		dbMock.insert.mockImplementationOnce(() => createChainableQuery([makeCompetitor({ organizationId: testOrganizationId })]));
+
+		const result = await bulkImportCompetitiveIntelligence([makeCompetitiveIntelligenceRow()]);
+
+		expect(result.success).toBe(true);
+		const existingSql = collectSqlFragments(existingWhere).join(" ");
+		expect(existingSql).toContain("c.orgId");
+		expect(existingSql).toContain(testOrganizationId);
+	});
+
+	test("scopes competitor teaming candidates to tenant", async () => {
+		let competitorPartnerWhere: unknown;
+		const competitorPartnerChain = createChainableQuery([]);
+		(competitorPartnerChain.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			competitorPartnerWhere = value;
+			return competitorPartnerChain;
+		});
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([makeOpportunity()]))
+			.mockImplementationOnce(() => createChainableQuery([{ coreCapabilities: [], certifications: [] }]))
+			.mockImplementationOnce(() => createChainableQuery([]))
+			.mockImplementationOnce(() => competitorPartnerChain);
+
+		const result = await suggestTeamingPartners("00000000-0000-4000-8000-000000000002");
+
+		expect(result.success).toBe(true);
+		const sqlText = collectSqlFragments(competitorPartnerWhere).join(" ");
+		expect(sqlText).toContain("c.orgId");
+		expect(sqlText).toContain(testOrganizationId);
 	});
 });
 

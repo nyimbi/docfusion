@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Competitive Utility Tenant Boundaries
+
+Status: implemented and verified.
+
+Purpose: close the remaining competitive-intelligence mutation and dashboard paths that could act on raw competitor, link, analysis, or import identifiers without tenant predicates.
+
+Changes in this slice:
+- Scope competitor-opportunity creation and updates through assigned opportunity tenant predicates and visible competitor ownership.
+- Scope win/loss tracking, win/loss analysis, ghost-theme usage, teaming competitor candidates, and intelligence summary counts to the current organization.
+- Import competitive intelligence rows into the current organization and check duplicates only inside that tenant before updating.
+- Add regression coverage for scoped link mutations, win/loss reads and writes, summary counts, ghost-theme usage, CI imports, and teaming competitor candidates.
+
+Verification:
+- `npm test -- competitive.test.ts competitive-win-theme-workflow.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to past performance, PWin, graphics, presentations, partners, and remaining workflow support modules that still use unscoped or assignment-only checks.
+
 ### 2026-05-26 - Competitive Analysis Opportunity Tenant Predicates
 
 Status: implemented and verified.
