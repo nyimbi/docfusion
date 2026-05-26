@@ -371,3 +371,29 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Add scheduled execution for saved discovery presets so recurring searches can run unattended under a configured assignee.
+
+### 2026-05-26 - Scheduled Discovery Preset Runs
+
+Status: implemented and verified.
+
+Purpose: let recurring opportunity discovery run unattended from saved presets under the configured import assignee.
+
+Changes in this slice:
+- Add `POST /api/opportunities/discovery/presets/run` for cron/API-key scheduled discovery.
+- Load discovery presets owned by `DISCOVERY_IMPORT_USER_ID`, with optional `presetIds`, `limit`, and `dryRun` request controls.
+- Run presets sequentially through `executeOpportunityDiscoveryImport` so scheduled search does not fan out aggressively while on constrained compute.
+- Return per-preset import results and continue running later presets if one preset fails.
+- Add dry-run output that reports the exact saved preset inputs without contacting SearXNG/Firecrawl.
+- Add focused route tests for unauthorized access, missing assignee configuration, dry-run behavior, scheduled execution, and request validation.
+
+Verification:
+- `npm run test -- __tests__/api/opportunity-discovery-presets-route.test.ts __tests__/api/opportunity-discovery-route.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, and browser visual pass remain intentionally skipped while on battery. This slice used focused route tests plus TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Add operator-facing documentation or a settings surface for wiring cron to discovery preset runs.
