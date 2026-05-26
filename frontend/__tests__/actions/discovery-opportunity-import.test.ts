@@ -198,6 +198,53 @@ describe("discoverAndImportOpportunities", () => {
 		expect(createOpportunityMock).not.toHaveBeenCalled();
 	});
 
+	it("extracts likely RFP document links from scraped portal pages", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Records platform tender notice",
+					url: "https://procurement.example.com/tenders/records-platform",
+					content: "Tender notice with document downloads.",
+					engine: "google",
+					score: 11,
+					category: "general",
+				},
+			],
+		});
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Records Platform Tender",
+					"[Annual report](/docs/annual-report.pdf)",
+					"[Download RFP document](/documents/records-platform-rfp.pdf?token=abc#section)",
+				].join("\n\n"),
+				metadata: {
+					title: "Records Platform Tender",
+					description: "Implementation scope and document download links.",
+				},
+			},
+		});
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "records platform tender",
+			scrapeTopResults: true,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			portalUrl: "https://procurement.example.com/tenders/records-platform",
+			rfpLink: "https://procurement.example.com/tenders/records-platform",
+			documentUrl: "https://procurement.example.com/documents/records-platform-rfp.pdf?token=abc",
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					documentUrl: "https://procurement.example.com/documents/records-platform-rfp.pdf?token=abc",
+				}),
+			}),
+		}));
+	});
+
 	it("falls back to the browser service when Firecrawl cannot scrape a top result cleanly", async () => {
 		searchSearxngMock.mockResolvedValue({
 			results: [

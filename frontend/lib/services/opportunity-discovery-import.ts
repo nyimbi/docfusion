@@ -87,6 +87,19 @@ const OPPORTUNITY_KEYWORDS = [
 
 const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
 const MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH = 120;
+const DOCUMENT_URL_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)/i;
+const DOCUMENT_LINK_KEYWORDS = [
+	"rfp",
+	"request for proposal",
+	"tender",
+	"bid",
+	"solicitation",
+	"document",
+	"download",
+	"attachment",
+	"terms of reference",
+	"tor",
+];
 
 function sha256Hex(value: string): string {
 	return createHash("sha256").update(value).digest("hex");
@@ -155,6 +168,63 @@ function resultHost(url: string): string | undefined {
 	}
 }
 
+function isDocumentUrl(url: string): boolean {
+	return DOCUMENT_URL_PATTERN.test(url);
+}
+
+function normalizeCandidateDocumentUrl(rawUrl: string, baseUrl: string): string | null {
+	const trimmed = rawUrl.trim().replace(/[),.;]+$/, "");
+	if (!trimmed) return null;
+
+	try {
+		const parsed = new URL(trimmed, baseUrl);
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+			return null;
+		}
+		parsed.hash = "";
+		return parsed.toString();
+	} catch {
+		return null;
+	}
+}
+
+function scoreDocumentLink(label: string, url: string): number {
+	const haystack = `${label} ${url}`.toLowerCase();
+	let score = 0;
+	if (/\.pdf(?:[?#]|$)/i.test(url)) score += 5;
+	if (/\.docx?(?:[?#]|$)/i.test(url)) score += 4;
+	if (/\.xlsx?(?:[?#]|$)/i.test(url)) score += 2;
+	if (/\.zip(?:[?#]|$)/i.test(url)) score += 1;
+	for (const keyword of DOCUMENT_LINK_KEYWORDS) {
+		if (haystack.includes(keyword)) score += 3;
+	}
+	return score;
+}
+
+function extractDocumentUrlFromMarkdown(markdown: string | undefined, baseUrl: string): string | undefined {
+	if (!markdown?.trim()) return undefined;
+
+	const candidates: Array<{ url: string; label: string; score: number; index: number }> = [];
+	let index = 0;
+	const markdownLinkPattern = /!?\[([^\]]{0,240})\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+	for (const match of markdown.matchAll(markdownLinkPattern)) {
+		const label = match[1] ?? "";
+		const url = normalizeCandidateDocumentUrl(match[2] ?? "", baseUrl);
+		if (!url || !isDocumentUrl(url)) continue;
+		candidates.push({ url, label, score: scoreDocumentLink(label, url), index: index++ });
+	}
+
+	const bareUrlPattern = /https?:\/\/[^\s<>"')]+/g;
+	for (const match of markdown.matchAll(bareUrlPattern)) {
+		const url = normalizeCandidateDocumentUrl(match[0] ?? "", baseUrl);
+		if (!url || !isDocumentUrl(url)) continue;
+		candidates.push({ url, label: "", score: scoreDocumentLink("", url), index: index++ });
+	}
+
+	candidates.sort((a, b) => b.score - a.score || a.index - b.index);
+	return candidates[0]?.url;
+}
+
 function buildOpportunityFromDiscovery(
 	candidate: DiscoveryCandidate,
 	userId: string,
@@ -168,6 +238,9 @@ function buildOpportunityFromDiscovery(
 		2200
 	);
 	const host = resultHost(candidate.result.url);
+	const documentUrl = isDocumentUrl(candidate.result.url)
+		? candidate.result.url
+		: extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
 
 	return {
 		sourceId: `searxng-${urlHash.slice(0, 42)}`,
@@ -183,9 +256,7 @@ function buildOpportunityFromDiscovery(
 		source: "searxng",
 		fingerprint: urlHash,
 		portalUrl: candidate.result.url,
-		documentUrl: /\.(pdf|docx?|xlsx?)(\?|#|$)/i.test(candidate.result.url)
-			? candidate.result.url
-			: undefined,
+		documentUrl,
 		scrapedAt: new Date(),
 		priorityRank: 3,
 		decisionStatus: "pending",
@@ -204,6 +275,7 @@ function buildOpportunityFromDiscovery(
 				scrapeMethod: candidate.scrape?.method,
 				browserFallbackReason: candidate.scrape?.fallbackReason,
 				scrapeError: candidate.scrape?.error,
+				documentUrl,
 			},
 		},
 	};

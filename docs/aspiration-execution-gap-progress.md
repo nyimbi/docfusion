@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Discovery Scrape Document URL Extraction
+
+Status: implemented and verified.
+
+Purpose: make live opportunity discovery carry usable RFP/tender document links from scraped portal pages instead of only saving the portal URL.
+
+Changes in this slice:
+- Extract likely PDF/DOC/DOCX/XLS/XLSX/ZIP document links from Firecrawl or browser-fallback markdown.
+- Resolve relative document links against the discovered portal URL and strip fragments before persistence.
+- Prefer links whose labels or URLs indicate RFP, tender, bid, solicitation, download, attachment, or terms-of-reference content.
+- Store the selected document URL on `OpportunityInput.documentUrl` and in discovery metadata for auditability.
+- Add focused discovery import coverage for a portal page containing multiple document links.
+
+Verification:
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, live SearXNG/Firecrawl calls, and the aggregate wave9 proof scenario remain intentionally skipped while on battery. This slice verifies the document-link extraction behavior with mocked discovery services.
+
+Remaining after this slice:
+- Continue strengthening the discovery-to-RFP-intake bridge, especially automatic document download/parse handoff from discovered `documentUrl` values.
+
 ### 2026-05-26 - Submission Runtime Artifact Evidence Links
 
 Status: implemented and verified.
