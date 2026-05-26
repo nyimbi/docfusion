@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Parsed Requirement Batch Acceptance
+
+Status: implemented and verified.
+
+Purpose: reduce the manual gap between parser-completed requirements and response-package drafting by giving operators a bounded batch path to accept parsed requirements into the response plan.
+
+Changes in this slice:
+- Add `acceptParsedRequirementsForResponsePlan`, which promotes review-state parsed requirements through the existing requirement acceptance workflow in a bounded batch.
+- Preserve the existing acceptance gate, writing-task projection, workflow history, and evidence links for every accepted requirement.
+- Default batch owner and due date from the visible opportunity, falling back to the reviewer and a 7-day due date when needed.
+- Add an "Accept Parsed Requirements" control to the opportunity requirements page before response-package drafting.
+- Extend requirements workflow coverage to prove batch acceptance uses the normal gated transition and parser evidence links.
+
+Verification:
+- `npm run test -- __tests__/actions/requirements-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+- `npx tsc --noEmit --pretty false` was attempted from `frontend/` and failed on pre-existing unrelated diagnostics in content/document authoring workflow tests, final artifact test config, pricing user-context typing, RFP parser tenant-context typing, RFP document service Buffer typing, and an attachment receipt fixture. No diagnostics pointed at the requirements batch acceptance files changed in this slice.
+
+Testing scope note:
+- Battery constraints are no longer active. Full TypeScript checking is currently blocked by unrelated repository diagnostics listed above; focused requirements workflow tests cover the changed server-action behavior.
+
+Remaining after this slice:
+- Continue reducing the final handoff from accepted requirements into response-package drafting, governance checks, and submission-ready package evidence.
+
 ### 2026-05-26 - Bounded Discovery Source Document Download
 
 Status: implemented and verified.

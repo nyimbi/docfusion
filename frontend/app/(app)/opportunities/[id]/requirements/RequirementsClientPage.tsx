@@ -9,10 +9,14 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { FileText } from "lucide-react";
+import { CheckCircle2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import type { Requirement, RequirementStats } from "@/lib/types/opportunity";
-import { getRequirements, getRequirementStats } from "@/lib/actions/requirements";
+import {
+	acceptParsedRequirementsForResponsePlan,
+	getRequirements,
+	getRequirementStats,
+} from "@/lib/actions/requirements";
 import { listComplianceMatrices, reviewRfpParseConfidence } from "@/lib/actions/rfp-parser";
 import { createAndDraftStandardProposalSet } from "@/lib/actions/proposal-documents";
 import { RequirementsTable } from "@/components/requirements/RequirementsTable";
@@ -88,9 +92,13 @@ export function RequirementsClientPage({
 	const [complianceMatrices, setComplianceMatrices] = useState(initialComplianceMatrices);
 	const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
 	const [showExtractor, setShowExtractor] = useState(false);
+	const [isAcceptingParsedRequirements, setIsAcceptingParsedRequirements] = useState(false);
 	const [isBuildingResponsePackage, setIsBuildingResponsePackage] = useState(false);
 	const acceptedRequirementCount = requirements.filter((requirement) =>
 		requirement.workflowState === "accepted"
+	).length;
+	const reviewRequirementCount = requirements.filter((requirement) =>
+		requirement.workflowState === "review" && requirement.complianceStatus !== "not_applicable"
 	).length;
 
 	useEffect(() => {
@@ -133,6 +141,31 @@ export function RequirementsClientPage({
 		setShowExtractor(false);
 		void refreshRequirementsState();
 	}, [refreshRequirementsState]);
+
+	const handleAcceptParsedRequirements = useCallback(async () => {
+		setIsAcceptingParsedRequirements(true);
+		try {
+			const result = await acceptParsedRequirementsForResponsePlan({
+				opportunityId,
+				reason: "Accepted parsed requirements for response package drafting.",
+				limit: 25,
+			});
+			if (result.accepted > 0) {
+				toast.success(
+					`${result.accepted} requirement${result.accepted === 1 ? "" : "s"} accepted for response drafting`
+				);
+			} else if (result.failed > 0) {
+				toast.error(result.errors[0]?.message ?? "Parsed requirements could not be accepted");
+			} else {
+				toast.info("No review-state parsed requirements were accepted");
+			}
+			await refreshRequirementsState();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to accept parsed requirements");
+		} finally {
+			setIsAcceptingParsedRequirements(false);
+		}
+	}, [opportunityId, refreshRequirementsState]);
 
 	const handleBuildResponsePackage = useCallback(async () => {
 		setIsBuildingResponsePackage(true);
@@ -178,6 +211,17 @@ export function RequirementsClientPage({
 					</h2>
 				</div>
 				<div className="flex items-center gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={handleAcceptParsedRequirements}
+						disabled={reviewRequirementCount === 0 || isAcceptingParsedRequirements}
+						isLoading={isAcceptingParsedRequirements}
+						loadingText="Accepting"
+					>
+						<CheckCircle2 className="h-4 w-4 mr-2" />
+						{reviewRequirementCount > 0 ? "Accept Parsed Requirements" : "Parsed Requirements Accepted"}
+					</Button>
 					<Button
 						variant="primary"
 						size="sm"

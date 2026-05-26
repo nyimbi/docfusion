@@ -92,6 +92,29 @@ async function requireRequirementWorkflowUserContext(): Promise<RequirementWorkf
 	};
 }
 
+interface AcceptParsedRequirementsForResponsePlanInput {
+	opportunityId: string;
+	rfpDocumentId?: string;
+	reason: string;
+	assignedTo?: string;
+	assignedToEmail?: string;
+	dueDate?: Date | string;
+	limit?: number;
+}
+
+interface AcceptParsedRequirementsForResponsePlanResult {
+	accepted: number;
+	skipped: number;
+	failed: number;
+	limit: number;
+	requirementIds: string[];
+	errors: Array<{
+		requirementId: string;
+		requirementNumber: string | null;
+		message: string;
+	}>;
+}
+
 function requireRequirementAcceptanceAuthority(context: Pick<UserContext, "role" | "roles">): void {
 	const requiredRoles = ["proposal_manager", "capture_manager"];
 	if (requiredRoles.some((role) => userHasAuthorityRole(context, role))) {
@@ -756,6 +779,106 @@ export async function transitionRequirementWorkflow(
 }
 
 /**
+ * Promote parser-created requirements into the response plan in a bounded batch.
+ *
+ * This intentionally reuses the normal requirement acceptance transition for
+ * each requirement so task projection, workflow history, and audit telemetry
+ * remain identical to one-by-one acceptance.
+ */
+export async function acceptParsedRequirementsForResponsePlan(
+	input: AcceptParsedRequirementsForResponsePlanInput
+): Promise<AcceptParsedRequirementsForResponsePlanResult> {
+	const reason = input.reason.trim();
+	if (!reason) {
+		throw new Error("Requirement batch acceptance requires a reason.");
+	}
+
+	const userContext = await requireRequirementWorkflowUserContext();
+	requireRequirementAcceptanceAuthority(userContext);
+	const { organizationId, userId } = userContext;
+	const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
+
+	const [opportunity] = await db
+		.select({
+			id: opportunities.id,
+			assignedTo: opportunities.assignedTo,
+			deadline: opportunities.deadline,
+		})
+		.from(opportunities)
+		.where(visibleOpportunityCondition(input.opportunityId, userId))
+		.limit(1);
+
+	if (!opportunity) {
+		throw new Error("Opportunity not found");
+	}
+
+	const conditions = [
+		visibleRequirementsForOpportunityCondition(input.opportunityId, organizationId, userId),
+	];
+	if (input.rfpDocumentId) {
+		conditions.push(eq(rfpRequirements.rfpDocumentId, input.rfpDocumentId));
+	} else {
+		conditions.push(isNotNull(rfpRequirements.rfpDocumentId));
+	}
+
+	const rows = await db
+		.select()
+		.from(rfpRequirements)
+		.where(and(...conditions))
+		.orderBy(asc(rfpRequirements.createdAt))
+		.limit(limit);
+
+	const assignedTo = input.assignedTo ?? opportunity.assignedTo ?? userId;
+	const dueDate = normalizeBatchAcceptanceDueDate(input.dueDate, opportunity.deadline);
+	const result: AcceptParsedRequirementsForResponsePlanResult = {
+		accepted: 0,
+		skipped: 0,
+		failed: 0,
+		limit,
+		requirementIds: [],
+		errors: [],
+	};
+
+	for (const row of rows) {
+		const workflow = normalizeRequirementMetadata(row.metadata).workflow;
+		const workflowState = workflow?.state ?? "review";
+		if (workflowState !== "review" || row.complianceStatus === "not_applicable") {
+			result.skipped++;
+			continue;
+		}
+
+		try {
+			const accepted = await transitionRequirementWorkflow({
+				requirementId: row.id,
+				action: "accept",
+				actorId: userId,
+				reason,
+				assignedTo,
+				assignedToEmail: input.assignedToEmail,
+				dueDate,
+				evidenceLinks: buildParsedRequirementEvidenceLinks(row),
+			});
+			if (accepted) {
+				result.accepted++;
+				result.requirementIds.push(row.id);
+			} else {
+				result.skipped++;
+			}
+		} catch (error) {
+			result.failed++;
+			result.errors.push({
+				requirementId: row.id,
+				requirementNumber: row.requirementNumber,
+				message: error instanceof Error ? error.message : "Requirement could not be accepted",
+			});
+		}
+	}
+
+	revalidateRequirementWorkflowPaths(input.opportunityId);
+	return result;
+}
+
+/**
  * Delete a requirement.
  */
 export async function deleteRequirement(id: string): Promise<boolean> {
@@ -1365,6 +1488,23 @@ function getAcceptanceGateFailures(
 	if (!dueDate || Number.isNaN(dueDate.getTime())) missing.push("due date");
 
 	return missing;
+}
+
+function normalizeBatchAcceptanceDueDate(inputDueDate: Date | string | undefined, opportunityDeadline: Date | null): Date {
+	const candidate = inputDueDate ? new Date(inputDueDate) : opportunityDeadline;
+	const now = new Date();
+	if (candidate && !Number.isNaN(candidate.getTime()) && candidate > now) {
+		return candidate;
+	}
+	return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+}
+
+function buildParsedRequirementEvidenceLinks(row: typeof rfpRequirements.$inferSelect): string[] {
+	return [
+		row.rfpDocumentId ? `rfp-document:${row.rfpDocumentId}` : null,
+		row.sourceSection ? `rfp-section:${row.sourceSection}` : null,
+		row.sourcePage != null ? `rfp-page:${row.sourcePage}` : null,
+	].filter((value): value is string => Boolean(value));
 }
 
 function buildRequirementWorkflowMetadata({

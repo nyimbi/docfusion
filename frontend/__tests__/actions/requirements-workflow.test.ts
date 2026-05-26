@@ -105,7 +105,10 @@ vi.mock("@/lib/db", () => ({
 	},
 }));
 
-import { transitionRequirementWorkflow } from "@/lib/actions/requirements";
+import {
+	acceptParsedRequirementsForResponsePlan,
+	transitionRequirementWorkflow,
+} from "@/lib/actions/requirements";
 
 const baseRequirement = {
 	id: "00000000-0000-4000-8000-000000000001",
@@ -268,6 +271,82 @@ describe("transitionRequirementWorkflow", () => {
 			newValue: "accepted",
 			userId: "capture-lead",
 		});
+	});
+
+	it("accepts parsed requirements in a bounded batch using the normal workflow gate", async () => {
+		let taskInsert: Record<string, unknown> | undefined;
+		let requirementUpdate: Record<string, unknown> | undefined;
+		const createdTask = { id: "00000000-0000-4000-8000-000000000031" };
+		const parsedRequirement = {
+			...baseRequirement,
+			assignedTo: null,
+			dueDate: null,
+			metadata: {
+				workflow: {
+					state: "review",
+					history: [],
+				},
+			},
+		};
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: baseRequirement.opportunityId,
+					assignedTo: "writer-1",
+					deadline: new Date("2026-06-20T00:00:00.000Z"),
+				}],
+			}))
+			.mockReturnValueOnce(createChain({ result: [parsedRequirement] }))
+			.mockReturnValueOnce(createChain({ result: [parsedRequirement] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				onValues: (value) => {
+					taskInsert = value;
+				},
+				result: [createdTask],
+			}))
+			.mockReturnValueOnce(createChain());
+		dbMock.update.mockReturnValueOnce(createChain({
+			onSet: (value) => {
+				requirementUpdate = value;
+			},
+			onReturning: () => [{
+				...parsedRequirement,
+				...requirementUpdate,
+				assignedTo: "writer-1",
+				dueDate: new Date("2026-06-20T00:00:00.000Z"),
+			}],
+		}));
+
+		const result = await acceptParsedRequirementsForResponsePlan({
+			opportunityId: baseRequirement.opportunityId,
+			reason: "Accept parsed requirements for drafting",
+			limit: 1,
+		});
+
+		expect(result).toMatchObject({
+			accepted: 1,
+			skipped: 0,
+			failed: 0,
+			limit: 1,
+			requirementIds: [baseRequirement.id],
+		});
+		expect(taskInsert).toMatchObject({
+			requirementId: baseRequirement.id,
+			assignedTo: "writer-1",
+			dueDate: new Date("2026-06-20T00:00:00.000Z"),
+		});
+		expect((requirementUpdate?.metadata as any).workflow).toMatchObject({
+			state: "accepted",
+			projectedTaskId: createdTask.id,
+		});
+		expect((requirementUpdate?.metadata as any).workflow.history[0].evidenceLinks).toEqual([
+			`rfp-document:${baseRequirement.rfpDocumentId}`,
+			"rfp-section:3.1",
+			"rfp-page:12",
+		]);
 	});
 
 	it("reuses an existing projected task on repeated acceptance", async () => {
