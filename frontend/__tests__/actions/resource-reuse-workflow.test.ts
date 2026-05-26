@@ -62,6 +62,8 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 
 function expectAssignedOpportunityScope(where: unknown) {
 	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
 	expect(sqlText).toContain("opportunities.assigned_to");
 	expect(sqlText).toContain("capture-manager-1");
 }
@@ -225,6 +227,7 @@ describe("resource reuse workflow", () => {
 		expectOrganizationScope(personnelWheres[1]);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "personnel_resource_reuse",
+			organizationId: "org-1",
 			subjectType: "position_requirement",
 			subjectId: "position-1",
 			opportunityId: "opp-1",
@@ -348,6 +351,7 @@ describe("resource reuse workflow", () => {
 		expectAssignedOpportunityScope(relevanceWheres[1]);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "past_performance_reuse",
+			organizationId: "org-1",
 			subjectType: "past_performance_project",
 			subjectId: "project-1",
 			toState: "selected",

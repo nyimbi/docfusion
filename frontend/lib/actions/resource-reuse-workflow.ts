@@ -18,6 +18,7 @@ type PersonnelRow = typeof personnel.$inferSelect;
 type PositionRow = typeof positionRequirements.$inferSelect;
 type ProjectRow = typeof projects.$inferSelect;
 type RelevanceRow = typeof projectRelevanceScores.$inferSelect;
+type ResourceReuseUserContext = { userId: string; organizationId: string };
 
 export type PersonnelReuseAction = "assign" | "confirm" | "reject" | "release" | "reopen";
 export type PastPerformanceReuseAction = "select" | "approve" | "reject" | "deselect" | "reopen";
@@ -55,54 +56,68 @@ const PERSONNEL_SUBJECT_TYPE = "position_requirement";
 const PAST_PERFORMANCE_WORKFLOW_KEY = "past_performance_reuse";
 const PAST_PERFORMANCE_SUBJECT_TYPE = "past_performance_project";
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function requireResourceReuseContext(userContext: { userId: string; organizationId?: string }): ResourceReuseUserContext {
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
+	return {
+		userId: userContext.userId,
+		organizationId: userContext.organizationId,
+	};
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: ResourceReuseUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visiblePositionCondition(positionId: string, userId: string): SQL {
+function visiblePositionCondition(positionId: string, userContext: ResourceReuseUserContext): SQL {
 	return and(
 		eq(positionRequirements.id, positionId),
-		assignedOpportunityExistsSql(positionRequirements.opportunityId, userId)
+		assignedOpportunityExistsSql(positionRequirements.opportunityId, userContext)
 	)!;
 }
 
 function visiblePersonnelCondition(
 	personnelId: string,
-	userContext: { organizationId?: string }
+	userContext: ResourceReuseUserContext
 ): SQL {
 	return and(
 		eq(personnel.id, personnelId),
-		userContext.organizationId ? eq(personnel.organizationId, userContext.organizationId) : sql`false`
+		eq(personnel.organizationId, userContext.organizationId)
 	)!;
 }
 
 function visibleProjectCondition(
 	projectId: string,
-	userContext: { organizationId?: string }
+	userContext: ResourceReuseUserContext
 ): SQL {
 	return and(
 		eq(projects.id, projectId),
-		userContext.organizationId ? eq(projects.organizationId, userContext.organizationId) : sql`false`
+		eq(projects.organizationId, userContext.organizationId)
 	)!;
 }
 
-function visibleRelevanceScorePairCondition(projectId: string, opportunityId: string, userId: string): SQL {
+function visibleRelevanceScorePairCondition(projectId: string, opportunityId: string, userContext: ResourceReuseUserContext): SQL {
 	return and(
 		eq(projectRelevanceScores.projectId, projectId),
 		eq(projectRelevanceScores.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
 export async function transitionPersonnelReuseWorkflow(
 	input: PersonnelReuseInput
 ): Promise<ResourceReuseWorkflowResult> {
-	const userContext = await requireUserContext();
+	const userContext = requireResourceReuseContext(await requireUserContext());
 	const reason = input.reason.trim();
 	if (!reason) {
 		throw new Error("Personnel reuse transitions require a reason");
@@ -111,7 +126,7 @@ export async function transitionPersonnelReuseWorkflow(
 	const [position] = await db
 		.select()
 		.from(positionRequirements)
-		.where(visiblePositionCondition(input.positionId, userContext.userId))
+		.where(visiblePositionCondition(input.positionId, userContext))
 		.limit(1);
 	if (!position) {
 		throw new Error("Position requirement not found");
@@ -125,7 +140,7 @@ export async function transitionPersonnelReuseWorkflow(
 	const [updatedPosition] = await db
 		.update(positionRequirements)
 		.set(transition.positionPatch)
-		.where(visiblePositionCondition(input.positionId, userContext.userId))
+		.where(visiblePositionCondition(input.positionId, userContext))
 		.returning();
 	if (!updatedPosition) {
 		throw new Error("Failed to update personnel reuse state");
@@ -142,6 +157,7 @@ export async function transitionPersonnelReuseWorkflow(
 
 	const instance = await recordWorkflowRuntimeTransition({
 		workflowKey: PERSONNEL_WORKFLOW_KEY,
+		organizationId: userContext.organizationId,
 		subjectType: PERSONNEL_SUBJECT_TYPE,
 		subjectId: input.positionId,
 		opportunityId: position.opportunityId ?? null,
@@ -199,7 +215,7 @@ export async function transitionPersonnelReuseWorkflow(
 export async function transitionPastPerformanceReuseWorkflow(
 	input: PastPerformanceReuseInput
 ): Promise<ResourceReuseWorkflowResult> {
-	const userContext = await requireUserContext();
+	const userContext = requireResourceReuseContext(await requireUserContext());
 	const reason = input.reason.trim();
 	if (!reason) {
 		throw new Error("Past performance reuse transitions require a reason");
@@ -217,7 +233,7 @@ export async function transitionPastPerformanceReuseWorkflow(
 	const [relevance] = await db
 		.select()
 		.from(projectRelevanceScores)
-		.where(visibleRelevanceScorePairCondition(input.projectId, input.opportunityId, userContext.userId))
+		.where(visibleRelevanceScorePairCondition(input.projectId, input.opportunityId, userContext))
 		.limit(1);
 	if (!relevance) {
 		throw new Error("Project relevance score not found for opportunity");
@@ -229,7 +245,7 @@ export async function transitionPastPerformanceReuseWorkflow(
 	const [updatedRelevance] = await db
 		.update(projectRelevanceScores)
 		.set(transition.relevancePatch)
-		.where(visibleRelevanceScorePairCondition(input.projectId, input.opportunityId, userContext.userId))
+		.where(visibleRelevanceScorePairCondition(input.projectId, input.opportunityId, userContext))
 		.returning();
 	if (!updatedRelevance) {
 		throw new Error("Failed to update past performance reuse state");
@@ -237,6 +253,7 @@ export async function transitionPastPerformanceReuseWorkflow(
 
 	const instance = await recordWorkflowRuntimeTransition({
 		workflowKey: PAST_PERFORMANCE_WORKFLOW_KEY,
+		organizationId: userContext.organizationId,
 		subjectType: PAST_PERFORMANCE_SUBJECT_TYPE,
 		subjectId: input.projectId,
 		opportunityId: input.opportunityId,
@@ -293,7 +310,7 @@ export async function transitionPastPerformanceReuseWorkflow(
 
 async function getPersonnel(
 	personnelId: string,
-	userContext: { organizationId?: string }
+	userContext: ResourceReuseUserContext
 ): Promise<PersonnelRow> {
 	const [person] = await db
 		.select()
@@ -507,7 +524,7 @@ function buildPastPerformanceTransition(
 
 async function updatePersonnelProposalMembership(input: {
 	person: PersonnelRow;
-	userContext: { organizationId?: string };
+	userContext: ResourceReuseUserContext;
 	opportunityId: string;
 	include: boolean;
 }) {
