@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { documents, proposalDocuments } from "@/lib/db/schema";
-import { requireUserContext } from "@/lib/auth-utils";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
@@ -23,19 +23,25 @@ export interface DlpPolicyEvaluationResult {
 	workflowInstanceIds: string[];
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+type DlpPolicyUserContext = UserContext & { organizationId: string };
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: DlpPolicyUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userContext: DlpPolicyUserContext): SQL {
 	return and(
 		eq(proposalDocuments.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
@@ -43,6 +49,10 @@ export async function evaluateDlpExportPolicyWorkflow(
 	opportunityId: string
 ): Promise<DlpPolicyEvaluationResult> {
 	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
+	const dlpContext = userContext as DlpPolicyUserContext;
 	const docs = await db
 		.select({
 			documentId: proposalDocuments.documentId,
@@ -51,7 +61,7 @@ export async function evaluateDlpExportPolicyWorkflow(
 		})
 		.from(proposalDocuments)
 		.innerJoin(documents, eq(proposalDocuments.documentId, documents.id))
-		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userContext.userId));
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, dlpContext));
 
 	const findings = scanDocumentsForDlpFindings(docs.map((doc) => ({
 		documentId: doc.documentId,
@@ -63,6 +73,7 @@ export async function evaluateDlpExportPolicyWorkflow(
 	if (!findings.length) {
 		const instance = await recordWorkflowRuntimeTransition({
 			workflowKey: "privacy_dlp_export_gate",
+			organizationId: dlpContext.organizationId,
 			subjectType: "opportunity_dlp_scan",
 			subjectId: opportunityId,
 			opportunityId,
@@ -88,6 +99,7 @@ export async function evaluateDlpExportPolicyWorkflow(
 		const blocking = isBlockingSeverity(finding.severity);
 		const instance = await recordWorkflowRuntimeTransition({
 			workflowKey: "privacy_dlp_export_gate",
+			organizationId: dlpContext.organizationId,
 			subjectType: "dlp_finding",
 			subjectId: finding.id,
 			opportunityId,

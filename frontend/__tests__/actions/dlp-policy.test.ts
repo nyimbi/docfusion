@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: vi.fn(async () => ({ userId: "security-reviewer-1" })),
+	requireUserContext: vi.fn(async () => ({
+		userId: "security-reviewer-1",
+		organizationId: "org-1",
+	})),
 }));
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
@@ -37,6 +40,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 		return value.flatMap((item) => collectSqlFragments(item, seen));
 	}
 	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
+}
+
+function expectOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("security-reviewer-1");
 }
 
 var dbMock: any;
@@ -81,13 +92,14 @@ describe("DLP export policy workflow", () => {
 		});
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "privacy_dlp_export_gate",
+			organizationId: "org-1",
 			subjectType: "opportunity_dlp_scan",
 			subjectId: "opp-1",
 			toState: "cleared",
 			terminal: true,
 		}));
 		expect(upsertWorkflowRuntimeTask).not.toHaveBeenCalled();
-		expect(collectSqlFragments(docsWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(docsWhere);
 	});
 
 	it("blocks export and projects a security review task for classified findings", async () => {
@@ -111,6 +123,7 @@ describe("DLP export policy workflow", () => {
 		});
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "privacy_dlp_export_gate",
+			organizationId: "org-1",
 			subjectType: "dlp_finding",
 			opportunityId: "opp-2",
 			toState: "review_required",
@@ -127,6 +140,6 @@ describe("DLP export policy workflow", () => {
 			priority: "high",
 			assignedRole: "security_reviewer",
 		}));
-		expect(collectSqlFragments(docsWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(docsWhere);
 	});
 });

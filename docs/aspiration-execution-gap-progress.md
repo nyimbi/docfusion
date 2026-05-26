@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - DLP Export Policy Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep DLP export clearance, blocking finding workflows, and security review task projection scoped to the caller's organization through the target opportunity.
+
+Changes in this slice:
+- Require organization context for DLP export policy evaluation.
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to DLP proposal-document source queries.
+- Include organization context in DLP workflow runtime transition records.
+- Extend DLP policy action tests to assert opportunity organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- dlp-policy.test.ts` from `frontend/` passed, covering the action workflow and scanner.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue scanning and closing remaining workflow support modules that still use unscoped or assignment-only opportunity checks.
+
 ### 2026-05-26 - Clarification Workflow Opportunity Tenant Predicates
 
 Status: implemented and verified.
