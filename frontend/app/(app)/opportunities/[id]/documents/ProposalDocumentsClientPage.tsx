@@ -9,8 +9,8 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { ProposalDocument, ProposalProgress } from "@/lib/types/opportunity";
-import { getProposalDocuments, getProposalProgress } from "@/lib/actions/proposal-documents";
+import type { ProposalDocument, ProposalProgress, ResponsePackageReadinessSummary } from "@/lib/types/opportunity";
+import { getProposalDocuments, getProposalProgress, getResponsePackageReadiness } from "@/lib/actions/proposal-documents";
 import { ProposalDocumentList } from "@/components/proposals/ProposalDocumentList";
 import { CreateProposalDialog } from "@/components/proposals/CreateProposalDialog";
 
@@ -18,30 +18,36 @@ interface ProposalDocumentsClientPageProps {
 	opportunityId: string;
 	initialDocuments: ProposalDocument[];
 	initialProgress: ProposalProgress;
+	initialResponsePackageReadiness: ResponsePackageReadinessSummary;
 }
 
 export function ProposalDocumentsClientPage({
 	opportunityId,
 	initialDocuments,
 	initialProgress,
+	initialResponsePackageReadiness,
 }: ProposalDocumentsClientPageProps) {
 	const router = useRouter();
 	const [documents, setDocuments] = useState(initialDocuments);
 	const [progress, setProgress] = useState(initialProgress);
+	const [responsePackageReadiness, setResponsePackageReadiness] = useState(initialResponsePackageReadiness);
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 
 	useEffect(() => {
 		setDocuments(initialDocuments);
 		setProgress(initialProgress);
-	}, [initialDocuments, initialProgress]);
+		setResponsePackageReadiness(initialResponsePackageReadiness);
+	}, [initialDocuments, initialProgress, initialResponsePackageReadiness]);
 
 	const refreshProposalState = useCallback(async () => {
-		const [nextDocuments, nextProgress] = await Promise.all([
+		const [nextDocuments, nextProgress, nextResponseReadiness] = await Promise.all([
 			getProposalDocuments(opportunityId),
 			getProposalProgress(opportunityId),
+			getResponsePackageReadiness(opportunityId),
 		]);
 		setDocuments(nextDocuments);
 		setProgress(nextProgress);
+		setResponsePackageReadiness(nextResponseReadiness);
 		router.refresh();
 	}, [opportunityId, router]);
 
@@ -68,6 +74,7 @@ export function ProposalDocumentsClientPage({
 			<ProposalDocumentList
 				documents={documents}
 				progress={progress}
+				responsePackageReadiness={responsePackageReadiness}
 				onDocumentUpdate={handleDocumentUpdate}
 				onDocumentRemove={handleDocumentRemove}
 				onCreateNew={() => setShowCreateDialog(true)}

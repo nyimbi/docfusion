@@ -9,7 +9,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import { getOpportunity } from "@/lib/actions/opportunities";
-import { getProposalDocuments, getProposalProgress } from "@/lib/actions/proposal-documents";
+import { getProposalDocuments, getProposalProgress, getResponsePackageReadiness } from "@/lib/actions/proposal-documents";
 import { ProposalDocumentsClientPage } from "./ProposalDocumentsClientPage";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -21,10 +21,11 @@ export default async function ProposalDocumentsPage({ params }: PageProps) {
 	const { id } = await params;
 
 	// Fetch data in parallel
-	const [opportunity, documents, progress] = await Promise.all([
+	const [opportunity, documents, progress, responsePackageReadiness] = await Promise.all([
 		getOpportunity(id),
 		getProposalDocuments(id),
 		getProposalProgress(id),
+		getResponsePackageReadiness(id),
 	]);
 
 	if (!opportunity) {
@@ -92,6 +93,7 @@ export default async function ProposalDocumentsPage({ params }: PageProps) {
 						opportunityId={id}
 						initialDocuments={documents}
 						initialProgress={progress}
+						initialResponsePackageReadiness={responsePackageReadiness}
 					/>
 				</Suspense>
 			</main>

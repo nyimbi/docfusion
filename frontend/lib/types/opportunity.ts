@@ -819,6 +819,23 @@ export interface ProposalFinalSubmissionSignoff {
 	signoffRole?: string | null;
 }
 
+export interface ResponsePackageReadinessSummary {
+	status: "ready_for_review" | "blocked" | "missing" | "unknown";
+	workflowInstanceId: string | null;
+	state: string | null;
+	blockers: string[];
+	warnings: string[];
+	missingRequirementIds: string[];
+	metrics: {
+		acceptedRequirementCount: number;
+		draftedRequirementCount: number;
+		requirementCoverage: number;
+		documentsDrafted: number;
+		sectionsDrafted: number;
+		complianceEntriesCreated: number;
+	};
+}
+
 /**
  * A proposal document linked to an opportunity.
  */

@@ -13,6 +13,7 @@ import { db } from "@/lib/db";
 import { documents, documentVersions, proposalDocuments, documentSections, opportunities } from "@/lib/db/schema";
 import { complianceEntries, complianceMatrices, rfpRequirements } from "@/lib/db/schema-rfp";
 import { winThemes } from "@/lib/db/schema-win-themes";
+import { workflowInstances } from "@/lib/db/schema-workflow-runtime";
 import { eq, and, asc, sql, inArray, isNull, or, type SQL } from "drizzle-orm";
 import type {
 	ProposalDocument,
@@ -28,6 +29,7 @@ import type {
 	SectionProgress,
 	DocumentSectionStatus,
 	ExportFormat,
+	ResponsePackageReadinessSummary,
 } from "@/lib/types/opportunity";
 import type { DocumentContent } from "@/lib/types/document";
 import { getDocumentTypeLabel } from "@/lib/utils/proposal-labels";
@@ -344,6 +346,10 @@ function uniqueStrings(values: string[]): string[] {
 }
 
 type ProposalDocumentUserContext = UserContext & { organizationId: string };
+type ResponsePackageWorkflowRow = Pick<
+	typeof workflowInstances.$inferSelect,
+	"id" | "state" | "metadata"
+>;
 
 function isAcceptedRequirement(requirement: typeof rfpRequirements.$inferSelect): boolean {
 	const metadata = isRecord(requirement.metadata) ? requirement.metadata : {};
@@ -873,6 +879,100 @@ export async function getProposalDocuments(
 		.orderBy(asc(proposalDocuments.sectionOrder), asc(proposalDocuments.createdAt));
 
 	return results.map((row) => mapProposalDocument(row));
+}
+
+export async function getResponsePackageReadiness(
+	opportunityId: string
+): Promise<ResponsePackageReadinessSummary> {
+	const userContext = await requireProposalDocumentContext();
+	const [instance] = await db
+		.select({
+			id: workflowInstances.id,
+			state: workflowInstances.state,
+			metadata: workflowInstances.metadata,
+		})
+		.from(workflowInstances)
+		.where(and(
+			eq(workflowInstances.workflowKey, "proposal_response_package"),
+			eq(workflowInstances.organizationId, userContext.organizationId),
+			eq(workflowInstances.subjectType, "opportunity"),
+			eq(workflowInstances.subjectId, opportunityId),
+			assignedOpportunityExistsSql(opportunityId, userContext.userId, userContext.organizationId)
+		));
+
+	return responsePackageReadinessSummary(instance);
+}
+
+function responsePackageReadinessSummary(
+	instance: ResponsePackageWorkflowRow | undefined
+): ResponsePackageReadinessSummary {
+	if (!instance) {
+		return missingResponsePackageReadiness();
+	}
+	const readiness = asRecord(asRecord(instance.metadata).readiness);
+	if (Object.keys(readiness).length === 0) {
+		return {
+			...missingResponsePackageReadiness(),
+			workflowInstanceId: instance.id,
+			state: instance.state,
+			status: "unknown",
+		};
+	}
+	const metrics = asRecord(readiness.metrics);
+	return {
+		workflowInstanceId: instance.id,
+		state: instance.state,
+		status: responsePackageReadinessStatus(readiness.status),
+		blockers: stringArray(readiness.blockers),
+		warnings: stringArray(readiness.warnings),
+		missingRequirementIds: stringArray(readiness.missingRequirementIds),
+		metrics: {
+			acceptedRequirementCount: numberMetric(metrics.acceptedRequirementCount),
+			draftedRequirementCount: numberMetric(metrics.draftedRequirementCount),
+			requirementCoverage: clampRatio(numberMetric(metrics.requirementCoverage)),
+			documentsDrafted: numberMetric(metrics.documentsDrafted),
+			sectionsDrafted: numberMetric(metrics.sectionsDrafted),
+			complianceEntriesCreated: numberMetric(metrics.complianceEntriesCreated),
+		},
+	};
+}
+
+function missingResponsePackageReadiness(): ResponsePackageReadinessSummary {
+	return {
+		workflowInstanceId: null,
+		state: null,
+		status: "missing",
+		blockers: ["Response package readiness assessment has not been recorded"],
+		warnings: [],
+		missingRequirementIds: [],
+		metrics: {
+			acceptedRequirementCount: 0,
+			draftedRequirementCount: 0,
+			requirementCoverage: 0,
+			documentsDrafted: 0,
+			sectionsDrafted: 0,
+			complianceEntriesCreated: 0,
+		},
+	};
+}
+
+function responsePackageReadinessStatus(value: unknown): ResponsePackageReadinessSummary["status"] {
+	if (value === "ready_for_review" || value === "blocked") {
+		return value;
+	}
+	return "unknown";
+}
+
+function stringArray(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function numberMetric(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function clampRatio(value: number): number {
+	return Math.min(1, Math.max(0, value));
 }
 
 async function assertProposalDocumentRequirementsReadyForFinalStatus(

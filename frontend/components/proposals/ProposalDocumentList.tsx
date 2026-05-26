@@ -15,6 +15,7 @@ import type {
 	ProposalDocumentStatus,
 	ProposalDocumentType,
 	ProposalProgress,
+	ResponsePackageReadinessSummary,
 } from "@/lib/types/opportunity";
 import {
 	generateRequirementAwareProposalDraft,
@@ -37,6 +38,7 @@ import { cn } from "@/lib/utils";
 interface ProposalDocumentListProps {
 	documents: ProposalDocument[];
 	progress: ProposalProgress;
+	responsePackageReadiness?: ResponsePackageReadinessSummary;
 	onDocumentUpdate?: (doc: ProposalDocument) => void;
 	onDocumentRemove?: (id: string) => void;
 	onCreateNew?: () => void;
@@ -92,6 +94,7 @@ const DOCUMENT_TYPE_ICONS: Record<ProposalDocumentType, React.ReactNode> = {
 export function ProposalDocumentList({
 	documents,
 	progress,
+	responsePackageReadiness,
 	onDocumentUpdate,
 	onDocumentRemove,
 	onCreateNew,
@@ -228,6 +231,7 @@ export function ProposalDocumentList({
 							isPending={isPending}
 							isDrafting={draftingDocumentId === doc.id}
 							isFinalizing={finalizingDocumentId === doc.id}
+							responsePackageReadiness={responsePackageReadiness}
 						/>
 					))}
 
@@ -268,6 +272,7 @@ function ProposalDocumentCard({
 	isPending,
 	isDrafting,
 	isFinalizing,
+	responsePackageReadiness,
 }: {
 	document: ProposalDocument;
 	onStatusChange: (status: ProposalDocumentStatus) => void;
@@ -277,6 +282,7 @@ function ProposalDocumentCard({
 	isPending: boolean;
 	isDrafting: boolean;
 	isFinalizing: boolean;
+	responsePackageReadiness?: ResponsePackageReadinessSummary;
 }) {
 	const statusStyle = STATUS_COLORS[document.status];
 	const icon = DOCUMENT_TYPE_ICONS[document.documentType];
@@ -426,6 +432,7 @@ function ProposalDocumentCard({
 					document={document}
 					isPending={isPending}
 					isFinalizing={isFinalizing}
+					responsePackageReadiness={responsePackageReadiness}
 					onFinalization={onFinalization}
 				/>
 
@@ -465,14 +472,18 @@ function FinalPackagePanel({
 	document,
 	isPending,
 	isFinalizing,
+	responsePackageReadiness,
 	onFinalization,
 }: {
 	document: ProposalDocument;
 	isPending: boolean;
 	isFinalizing: boolean;
+	responsePackageReadiness?: ResponsePackageReadinessSummary;
 	onFinalization: (action: "render" | "approve" | "signoff" | "reopen") => void;
 }) {
 	const approvedForRender = document.status === "approved" || document.status === "final";
+	const responseReadyForRender = responsePackageReadiness?.status === "ready_for_review";
+	const renderBlockedByReadiness = Boolean(responsePackageReadiness && !responseReadyForRender);
 	const hash = document.finalArtifact?.artifactHash ?? document.renderedArtifact?.artifactHash ?? null;
 	const hashLabel = hash ? `${hash.slice(0, 10)}...${hash.slice(-6)}` : "No artifact hash";
 	const signoffLabel = document.finalSubmissionSignoff
@@ -505,13 +516,25 @@ function FinalPackagePanel({
 					Approve the proposal document before rendering the final package.
 				</p>
 			)}
+			{responsePackageReadiness && !document.finalArtifact && (
+				<p
+					className={cn(
+						"text-xs",
+						responseReadyForRender
+							? "text-emerald-700 dark:text-emerald-300"
+							: "text-red-600 dark:text-red-400"
+					)}
+				>
+					{responseReadinessLabel(responsePackageReadiness)}
+				</p>
+			)}
 			<div className="grid grid-cols-2 gap-2">
 				{!document.finalArtifact && (
 					<Button
 						variant="outline"
 						size="sm"
 						onClick={() => onFinalization("render")}
-						disabled={isPending || !approvedForRender}
+						disabled={isPending || !approvedForRender || renderBlockedByReadiness}
 						isLoading={isFinalizing}
 						loadingText="Rendering final package"
 					>
@@ -561,6 +584,23 @@ function FinalPackagePanel({
 			</div>
 		</div>
 	);
+}
+
+function responseReadinessLabel(readiness: ResponsePackageReadinessSummary): string {
+	if (readiness.status === "ready_for_review") {
+		return `Response readiness passed: ${formatPercent(readiness.metrics.requirementCoverage)} accepted requirement coverage.`;
+	}
+	if (readiness.status === "missing") {
+		return "Response readiness missing; draft and review the response package before final rendering.";
+	}
+	if (readiness.status === "unknown") {
+		return "Response readiness status is unrecognized; rerun response package drafting before final rendering.";
+	}
+	return `Response readiness blocked: ${readiness.blockers[0] ?? "Response package is not ready."}`;
+}
+
+function formatPercent(value: number): string {
+	return `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`;
 }
 
 function finalizationReason(action: "render" | "approve" | "signoff" | "reopen") {

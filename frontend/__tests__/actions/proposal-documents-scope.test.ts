@@ -130,6 +130,7 @@ import {
 	generateRequirementAwareSectionDraft,
 	getDocumentSections,
 	getProposalDocument,
+	getResponsePackageReadiness,
 	updateProposalDocument,
 	updateSection,
 } from "@/lib/actions/proposal-documents";
@@ -193,6 +194,51 @@ beforeEach(() => {
 });
 
 describe("proposal document row scoping", () => {
+	it("returns tenant-scoped response package readiness for the opportunity documents page", async () => {
+		let readinessWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				id: "response-package-workflow-1",
+				state: "response_package_drafted",
+				metadata: {
+					readiness: {
+						status: "blocked",
+						blockers: ["1 accepted requirement(s) were not represented in drafted response documents"],
+						warnings: ["2/3 accepted requirement(s) received compliance matrix entries"],
+						missingRequirementIds: ["req-missing-1"],
+						metrics: {
+							acceptedRequirementCount: 3,
+							draftedRequirementCount: 2,
+							requirementCoverage: 2 / 3,
+							documentsDrafted: 2,
+							sectionsDrafted: 6,
+							complianceEntriesCreated: 2,
+						},
+					},
+				},
+			}],
+			onWhere: (value) => {
+				readinessWhere = value;
+			},
+		}));
+
+		const readiness = await getResponsePackageReadiness(proposalDocument.opportunityId);
+
+		expect(readiness).toMatchObject({
+			workflowInstanceId: "response-package-workflow-1",
+			state: "response_package_drafted",
+			status: "blocked",
+			blockers: ["1 accepted requirement(s) were not represented in drafted response documents"],
+			missingRequirementIds: ["req-missing-1"],
+			metrics: expect.objectContaining({
+				acceptedRequirementCount: 3,
+				draftedRequirementCount: 2,
+				requirementCoverage: 2 / 3,
+			}),
+		});
+		expectOpportunityTenantScope(readinessWhere);
+	});
+
 	it("checks opportunity assignment before creating proposal documents", async () => {
 		let opportunityWhere: unknown;
 		dbMock.select.mockReturnValueOnce(createChain({

@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Documents UI Response Readiness Visibility
+
+Status: implemented and verified.
+
+Purpose: show response package readiness in the operator-facing documents/final-package UI so render blockers are visible before a user attempts final artifact production.
+
+Changes in this slice:
+- Add a tenant-scoped `getResponsePackageReadiness` server action for the opportunity documents page.
+- Thread response readiness through the server page, client refresh flow, and proposal document list.
+- Display response readiness coverage or blocker text in each final package panel.
+- Disable final render/re-render controls when response readiness is missing, blocked, or unrecognized.
+- Add action coverage proving the documents page readiness summary is scoped to the assigned opportunity and organization.
+
+Verification:
+- `npm test -- proposal-documents-scope.test.ts` from `frontend/` passed, running 15 tests.
+- `npm test -- final-artifact-workflow.test.ts final-submission-checklist-workflow.test.ts` from `frontend/` passed, running 22 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 test files and 46 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 workflow test files and 43 tests.
+- `npm run platform:proof -- --run wave6-final-submission-gate` from `frontend/` passed, running 2 workflow test files and 19 tests.
+- `git diff --check -- docs/aspiration-execution-gap-progress.md frontend/lib/actions/proposal-documents.ts frontend/lib/types/opportunity.ts frontend/app/(app)/opportunities/[id]/documents/page.tsx frontend/app/(app)/opportunities/[id]/documents/ProposalDocumentsClientPage.tsx frontend/components/proposals/ProposalDocumentList.tsx frontend/__tests__/actions/proposal-documents-scope.test.ts` passed.
+
+Remaining after this slice:
+- Add persisted live end-to-end proof from discovered opportunity into tenant workflow records when PostgreSQL is reachable.
+- Continue closing operator review surfaces for response quality and final package approvals.
+
 ### 2026-05-27 - Final Artifact Response Readiness Gate
 
 Status: implemented and verified.
