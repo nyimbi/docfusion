@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live-Safe Proof Failure Accounting
+
+Status: implemented and verified.
+
+Purpose: prevent broad platform proof sweeps from hiding failed live-safe scenarios when `--continue-on-failure` is used.
+
+Changes in this slice:
+- Move platform-proof scenario execution into a testable runner.
+- Preserve `--continue-on-failure` by running later scenarios after a failure, but return a non-zero final exit code when any scenario fails.
+- Print a compact final failure summary so the failed scenario is visible after long mixed sweeps.
+- Add regression coverage for both continue-on-failure and fail-fast scenario execution.
+
+Verification:
+- `npm run platform:proof -- --include-live-safe --all --continue-on-failure` from `frontend/` ran the full non-live and live-safe sweep. Non-live waves passed; live SearXNG, Firecrawl, browser fallback, Docling-backed response readiness, UNDP source discovery, Kenya PPIP, and UNGM checks passed. The DB-backed `phase1-live-safe-control-plane` scenario failed during disposable user insert, matching the known PostgreSQL connectivity blocker.
+- `npm test -- platform-proof-scenarios.test.ts platform-proof-core.test.ts` from `frontend/` passed, running 8 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run phase1-live-safe-control-plane --run live-discovery-services --continue-on-failure` from `frontend/` ran the second scenario after the phase1 failure, then exited 1 with `phase1-live-safe-control-plane exited 1`.
+
+Remaining after this slice:
+- Live search/scrape/source/response readiness services are reachable and producing current evidence.
+- DB-backed live control-plane and persisted end-to-end proofs remain blocked until PostgreSQL at `88.80.188.224:5432` is reachable.
+
 ### 2026-05-27 - Full Non-Live Platform Proof Refresh
 
 Status: verified.

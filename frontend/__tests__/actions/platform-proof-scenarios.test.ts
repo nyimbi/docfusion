@@ -2,8 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
 	PLATFORM_PROOF_SCENARIOS,
 	listProofScenarios,
+	type ProofScenarioDefinition,
 	validateProofScenarioManifest,
 } from "@/scripts/platform-proof/scenarios";
+import { runProofScenarios } from "@/scripts/platform-proof/runner";
+
+function proofScenario(id: string): ProofScenarioDefinition {
+	return {
+		id,
+		wave: 0,
+		title: id,
+		kind: "unit",
+		proofTargets: ["F-000"],
+		requiresLiveServices: false,
+		description: id,
+		command: {
+			command: "npm",
+			args: ["test", "--", `${id}.test.ts`],
+		},
+		expectedArtifacts: [`vitest:${id}`],
+	};
+}
 
 describe("platform proof scenarios", () => {
 	it("keeps the proof scenario manifest valid and uniquely addressable", () => {
@@ -202,5 +221,44 @@ describe("platform proof scenarios", () => {
 				]),
 			}),
 		]);
+	});
+
+	it("keeps continue-on-failure sweeps failed when any scenario fails", async () => {
+		const executed: string[] = [];
+		const logs: string[] = [];
+		const summary = await runProofScenarios(
+			[proofScenario("first"), proofScenario("second"), proofScenario("third")],
+			{
+				continueOnFailure: true,
+				log: (message) => logs.push(message),
+				runScenario: async (scenario) => {
+					executed.push(scenario.id);
+					return scenario.id === "second" ? 7 : 0;
+				},
+			},
+		);
+
+		expect(executed).toEqual(["first", "second", "third"]);
+		expect(summary.exitCode).toBe(7);
+		expect(summary.failed).toEqual([{ scenarioId: "second", exitCode: 7 }]);
+		expect(logs).toContain("[platform-proof] - second exited 7");
+	});
+
+	it("stops on the first failed scenario unless continue-on-failure is enabled", async () => {
+		const executed: string[] = [];
+		const summary = await runProofScenarios(
+			[proofScenario("first"), proofScenario("second"), proofScenario("third")],
+			{
+				log: () => undefined,
+				runScenario: async (scenario) => {
+					executed.push(scenario.id);
+					return scenario.id === "second" ? 3 : 0;
+				},
+			},
+		);
+
+		expect(executed).toEqual(["first", "second"]);
+		expect(summary.exitCode).toBe(3);
+		expect(summary.failed).toEqual([{ scenarioId: "second", exitCode: 3 }]);
 	});
 });

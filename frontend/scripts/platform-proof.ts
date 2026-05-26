@@ -1,10 +1,9 @@
-import { spawn } from "node:child_process";
-import path from "node:path";
 import {
 	listProofScenarios,
 	validateProofScenarioManifest,
 	type ProofScenarioDefinition,
 } from "./platform-proof/scenarios";
+import { formatProofCommand, runProofScenarios } from "./platform-proof/runner";
 
 interface CliOptions {
 	json: boolean;
@@ -50,16 +49,7 @@ async function main() {
 		throw new Error("No proof scenarios matched the requested filters.");
 	}
 
-	for (const scenario of scenarios) {
-		if (options.dryRun) {
-			console.log(formatCommand(scenario));
-			continue;
-		}
-		const exitCode = await runScenario(scenario);
-		if (exitCode !== 0 && !options.continueOnFailure) {
-			process.exit(exitCode);
-		}
-	}
+	await executeScenarios(scenarios, options);
 }
 
 function parseArgs(args: string[]): CliOptions {
@@ -110,27 +100,16 @@ function printScenarioList(scenarios: ProofScenarioDefinition[]) {
 		console.log(`${scenario.id} [wave ${scenario.wave}, ${scenario.kind}${live}]`);
 		console.log(`  ${scenario.title}`);
 		console.log(`  targets: ${scenario.proofTargets.join(", ")}`);
-		console.log(`  command: ${formatCommand(scenario)}`);
+		console.log(`  command: ${formatProofCommand(scenario)}`);
 	}
 }
 
-function formatCommand(scenario: ProofScenarioDefinition): string {
-	return [scenario.command.command, ...scenario.command.args].join(" ");
-}
-
-async function runScenario(scenario: ProofScenarioDefinition): Promise<number> {
-	console.log(`\n[platform-proof] ${scenario.id}`);
-	console.log(`[platform-proof] ${scenario.title}`);
-	console.log(`[platform-proof] ${formatCommand(scenario)}`);
-	const child = spawn(scenario.command.command, scenario.command.args, {
-		cwd: scenario.command.cwd ? path.resolve(process.cwd(), scenario.command.cwd) : process.cwd(),
-		stdio: "inherit",
-		env: process.env,
+async function executeScenarios(scenarios: ProofScenarioDefinition[], options: CliOptions) {
+	const summary = await runProofScenarios(scenarios, {
+		continueOnFailure: options.continueOnFailure,
+		dryRun: options.dryRun,
 	});
-	return new Promise((resolve) => {
-		child.on("close", (code) => resolve(code ?? 1));
-		child.on("error", () => resolve(1));
-	});
+	if (summary.exitCode !== 0) process.exit(summary.exitCode);
 }
 
 main().catch((error) => {
