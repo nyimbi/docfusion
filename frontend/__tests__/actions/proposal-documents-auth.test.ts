@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 const dbAccessMock = vi.hoisted(() => vi.fn());
 const blockedDb = vi.hoisted(
 	() =>
@@ -17,6 +18,8 @@ const blockedDb = vi.hoisted(
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
+	userHasAuthorityRole: vi.fn(() => false),
 }));
 vi.mock("@/lib/db", () => ({
 	db: blockedDb,
@@ -46,6 +49,7 @@ import {
 beforeEach(() => {
 	vi.clearAllMocks();
 	getCurrentUserIdMock.mockResolvedValue(null);
+	requireUserContextMock.mockRejectedValue(new Error("Unauthorized"));
 });
 
 describe("proposal document action auth", () => {

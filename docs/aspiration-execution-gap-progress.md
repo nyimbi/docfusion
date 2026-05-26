@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Proposal Document Direct Approval Authority Checks
+
+Status: implemented and verified.
+
+Purpose: prevent direct proposal document status updates from bypassing finalization approval workflows and marking documents approved/final through assignment scope alone.
+
+Changes in this slice:
+- Require proposal approval authority before direct single-document transitions to approved or final status.
+- Require proposal approval authority before bulk status transitions to approved or final status.
+- Keep drafting and review status updates on the existing assigned-opportunity path.
+- Preserve linked-requirement readiness checks for final statuses and add bulk readiness checks before bulk final updates.
+- Add focused denial coverage for unauthorized direct and bulk proposal document approval attempts.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts __tests__/actions/proposal-documents-auth.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets direct proposal document approval authority with focused action tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct approval/status mutation surfaces outside the final-mile workflow.
+- Add explicit 403 response mapping for API routes that surface authority-denied workflow errors.
+
 ### 2026-05-26 - Compliance Workflow Server Authority Checks
 
 Status: implemented and verified.

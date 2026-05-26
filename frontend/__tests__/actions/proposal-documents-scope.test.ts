@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
+
+vi.mock("next/cache", () => ({
+	revalidatePath: vi.fn(),
+}));
 
 interface ChainConfig {
 	result?: unknown[];
@@ -66,9 +71,24 @@ var dbMock: {
 	delete: ReturnType<typeof vi.fn>;
 };
 
-vi.mock("@/lib/auth-utils", () => ({
-	getCurrentUserId: getCurrentUserIdMock,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const normalizeRoles = (role?: string | null, roles?: Array<string | null | undefined> | null) =>
+		[role, ...(roles ?? [])]
+			.filter((value): value is string => Boolean(value?.trim()))
+			.map((value) => value.trim().toLowerCase());
+	const userHasAuthorityRole = (
+		context: { role?: string | null; roles?: string[] | null },
+		requiredRole: string
+	) => {
+		const roles = new Set(normalizeRoles(context.role, context.roles));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	};
+	return {
+		getCurrentUserId: getCurrentUserIdMock,
+		requireUserContext: requireUserContextMock,
+		userHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/db", () => ({
 	db: dbMock = {
@@ -136,6 +156,11 @@ const section = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	getCurrentUserIdMock.mockResolvedValue("proposal-user-1");
+	requireUserContextMock.mockResolvedValue({
+		userId: "proposal-user-1",
+		organizationId: "org-1",
+		roles: ["proposal_manager"],
+	});
 });
 
 describe("proposal document row scoping", () => {
@@ -285,6 +310,20 @@ describe("proposal document row scoping", () => {
 		for (const where of wheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 		}
+	});
+
+	it("rejects direct proposal document approval when the session lacks proposal authority", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "proposal-user-1",
+			organizationId: "org-1",
+			roles: ["writer"],
+		});
+
+		await expect(updateProposalDocument(proposalDocument.id, { status: "approved" }))
+			.rejects.toThrow("requires proposal_manager or capture_manager");
+
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
 	it("blocks final proposal status while linked requirements are not compliant", async () => {
@@ -488,6 +527,20 @@ describe("proposal document row scoping", () => {
 		await bulkUpdateStatus([proposalDocument.id], "in_review");
 
 		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("rejects bulk final proposal status updates when the session lacks proposal authority", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "proposal-user-1",
+			organizationId: "org-1",
+			roles: ["writer"],
+		});
+
+		await expect(bulkUpdateStatus([proposalDocument.id], "approved"))
+			.rejects.toThrow("requires proposal_manager or capture_manager");
+
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
 	it("links existing standard proposal documents to matching requirements without duplicating documents", async () => {

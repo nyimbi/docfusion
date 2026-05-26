@@ -38,7 +38,12 @@ import {
 	getDatacraftProposalDocumentContent,
 	getDatacraftProposalSectionSeeds,
 } from "@/lib/data/datacraft-response-content";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import {
+	getCurrentUserId,
+	requireUserContext,
+	userHasAuthorityRole,
+	type UserContext,
+} from "@/lib/auth-utils";
 
 export interface ProposalDocumentFinalizationInput {
 	action: FinalArtifactAction;
@@ -329,6 +334,27 @@ async function requireCurrentUserId(): Promise<string> {
 		throw new Error("Unauthorized");
 	}
 	return userId;
+}
+
+async function requireProposalDocumentMutationActor(
+	finalStatus: boolean
+): Promise<string> {
+	if (!finalStatus) {
+		return requireCurrentUserId();
+	}
+	const userContext = await requireUserContext();
+	requireProposalDocumentApprovalAuthority(userContext);
+	return userContext.userId;
+}
+
+function requireProposalDocumentApprovalAuthority(userContext: UserContext) {
+	const requiredRoles = ["proposal_manager", "capture_manager"];
+	if (requiredRoles.some((role) => userHasAuthorityRole(userContext, role))) {
+		return;
+	}
+	throw new Error(
+		`Approving or finalizing a proposal document requires proposal approval authority: requires ${requiredRoles.join(" or ")}`
+	);
 }
 
 function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
@@ -1005,8 +1031,9 @@ export async function updateProposalDocument(
 	id: string,
 	input: UpdateProposalDocumentInput
 ): Promise<ProposalDocument> {
-	const userId = await requireCurrentUserId();
-	if (isFinalProposalStatus(input.status)) {
+	const finalStatus = isFinalProposalStatus(input.status);
+	const userId = await requireProposalDocumentMutationActor(finalStatus);
+	if (finalStatus) {
 		await assertProposalDocumentRequirementsReadyForFinalStatus(id, userId);
 	}
 
@@ -2036,10 +2063,24 @@ export async function bulkUpdateStatus(
 	ids: string[],
 	status: ProposalDocumentStatus
 ): Promise<void> {
-	const userId = await requireCurrentUserId();
+	const finalStatus = isFinalProposalStatus(status);
+	const userId = await requireProposalDocumentMutationActor(finalStatus);
+	if (finalStatus) {
+		await Promise.all(
+			ids.map((id) => assertProposalDocumentRequirementsReadyForFinalStatus(id, userId))
+		);
+	}
+	const updateData: Partial<typeof proposalDocuments.$inferInsert> = {
+		status,
+		updatedAt: new Date(),
+	};
+	if (status === "approved") {
+		updateData.approvedBy = userId;
+		updateData.approvedAt = new Date();
+	}
 	await db
 		.update(proposalDocuments)
-		.set({ status, updatedAt: new Date() })
+		.set(updateData)
 		.where(and(
 			inArray(proposalDocuments.id, ids),
 			assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId)
