@@ -97,3 +97,28 @@ Remaining after this slice:
 - Add scheduled discovery execution with a service actor or configured assignee, rather than requiring an interactive operator session.
 - Add browser-only fallback behavior for pages Firecrawl cannot scrape cleanly, using the existing Playwright service first and CloakHQ/cloakbrowser only if needed.
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+
+### 2026-05-26 - Scheduled Discovery Assignee Path
+
+Status: implemented and verified.
+
+Purpose: let cron/API-key discovery runs persist opportunities under an explicit configured assignee while keeping the interactive server action bound to the authenticated user.
+
+Changes in this slice:
+- Move live discovery import execution into a reusable server-side service that accepts an explicit assignee user ID.
+- Keep `discoverAndImportOpportunities` authenticated: it still derives the assignee from the current user before calling the service.
+- Allow `POST /api/opportunities/discovery/run` to accept `SCRAPER_API_KEY` authorization for scheduled runs when `DISCOVERY_IMPORT_USER_ID` is configured.
+- Return a clear `503` configuration error when an API-key discovery run is attempted without `DISCOVERY_IMPORT_USER_ID`.
+- Extend route tests to cover session-triggered runs, API-key scheduled runs, missing service assignee configuration, invalid request bodies, and unauthorized access.
+
+Verification:
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts __tests__/actions/import-opportunities-auth.test.ts __tests__/api/opportunity-discovery-route.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This slice used focused action/route coverage plus TypeScript checking.
+
+Remaining after this slice:
+- Add browser-only fallback behavior for pages Firecrawl cannot scrape cleanly, using the existing Playwright service first and CloakHQ/cloakbrowser only if needed.
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.

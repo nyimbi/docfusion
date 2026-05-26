@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireScraperAccessMock = vi.hoisted(() => vi.fn());
 const discoverAndImportOpportunitiesMock = vi.hoisted(() => vi.fn());
+const executeOpportunityDiscoveryImportMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/scrapers/api-auth", () => ({
 	requireScraperAccess: requireScraperAccessMock,
@@ -12,13 +13,20 @@ vi.mock("@/lib/actions/import-opportunities", () => ({
 	discoverAndImportOpportunities: discoverAndImportOpportunitiesMock,
 }));
 
+vi.mock("@/lib/services/opportunity-discovery-import", () => ({
+	executeOpportunityDiscoveryImport: executeOpportunityDiscoveryImportMock,
+}));
+
 import { POST } from "@/app/api/opportunities/discovery/run/route";
 
-function discoveryRequest(body?: unknown): NextRequest {
+function discoveryRequest(body?: unknown, headers?: HeadersInit): NextRequest {
 	return new NextRequest("https://app.test/api/opportunities/discovery/run", {
 		method: "POST",
 		body: body === undefined ? undefined : JSON.stringify(body),
-		headers: body === undefined ? undefined : { "content-type": "application/json" },
+		headers: {
+			...(body === undefined ? {} : { "content-type": "application/json" }),
+			...headers,
+		},
 	});
 }
 
@@ -36,6 +44,19 @@ beforeEach(() => {
 		},
 		errors: [],
 	});
+	executeOpportunityDiscoveryImportMock.mockResolvedValue({
+		importId: "import-service",
+		results: {
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		},
+		errors: [],
+	});
+	delete process.env.SCRAPER_API_KEY;
+	delete process.env.DISCOVERY_IMPORT_USER_ID;
 });
 
 describe("opportunity discovery run route", () => {
@@ -75,6 +96,7 @@ describe("opportunity discovery run route", () => {
 		const body = await response.json();
 
 		expect(response.status).toBe(200);
+		expect(requireScraperAccessMock).toHaveBeenCalledWith(expect.anything(), { allowApiKey: true });
 		expect(discoverAndImportOpportunitiesMock).toHaveBeenCalledWith({
 			query: "digital transformation tender Kenya",
 			queries: undefined,
@@ -99,5 +121,46 @@ describe("opportunity discovery run route", () => {
 				failed: 0,
 			},
 		});
+	});
+
+	it("runs API-key discovery under the configured import assignee", async () => {
+		process.env.SCRAPER_API_KEY = "scraper-secret";
+		process.env.DISCOVERY_IMPORT_USER_ID = "service-user-1";
+
+		const response = await POST(discoveryRequest(
+			{ query: "scheduled rfp search" },
+			{ authorization: "Bearer scraper-secret" }
+		));
+		const body = await response.json();
+
+		expect(response.status).toBe(200);
+		expect(discoverAndImportOpportunitiesMock).not.toHaveBeenCalled();
+		expect(executeOpportunityDiscoveryImportMock).toHaveBeenCalledWith(
+			expect.objectContaining({ query: "scheduled rfp search" }),
+			"service-user-1"
+		);
+		expect(body).toMatchObject({
+			success: true,
+			importId: "import-service",
+			results: { imported: 1 },
+		});
+	});
+
+	it("requires an import assignee for API-key discovery runs", async () => {
+		process.env.SCRAPER_API_KEY = "scraper-secret";
+
+		const response = await POST(discoveryRequest(
+			{ query: "scheduled rfp search" },
+			{ authorization: "Bearer scraper-secret" }
+		));
+		const body = await response.json();
+
+		expect(response.status).toBe(503);
+		expect(body).toMatchObject({
+			success: false,
+			message: "DISCOVERY_IMPORT_USER_ID is required for API-key discovery runs",
+		});
+		expect(discoverAndImportOpportunitiesMock).not.toHaveBeenCalled();
+		expect(executeOpportunityDiscoveryImportMock).not.toHaveBeenCalled();
 	});
 });

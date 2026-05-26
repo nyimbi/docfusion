@@ -10,6 +10,7 @@ import {
 	discoverAndImportOpportunities,
 	type DiscoveryImportInput,
 } from "@/lib/actions/import-opportunities";
+import { executeOpportunityDiscoveryImport } from "@/lib/services/opportunity-discovery-import";
 import { requireScraperAccess } from "@/lib/scrapers/api-auth";
 
 type DiscoveryRequestBody = Record<string, unknown>;
@@ -72,9 +73,15 @@ function parseDiscoveryInput(body: DiscoveryRequestBody): DiscoveryImportInput {
 	};
 }
 
+function isScraperApiKeyRequest(request: NextRequest): boolean {
+	const apiKey = process.env.SCRAPER_API_KEY?.trim();
+	return Boolean(apiKey && request.headers.get("authorization") === `Bearer ${apiKey}`);
+}
+
 export async function POST(request: NextRequest) {
 	try {
-		const unauthorized = await requireScraperAccess(request);
+		const apiKeyRequest = isScraperApiKeyRequest(request);
+		const unauthorized = await requireScraperAccess(request, { allowApiKey: true });
 		if (unauthorized) return unauthorized;
 
 		let input: DiscoveryImportInput;
@@ -90,7 +97,20 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		const result = await discoverAndImportOpportunities(input);
+		const serviceUserId = process.env.DISCOVERY_IMPORT_USER_ID?.trim();
+		if (apiKeyRequest && !serviceUserId) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "DISCOVERY_IMPORT_USER_ID is required for API-key discovery runs",
+				},
+				{ status: 503 }
+			);
+		}
+
+		const result = apiKeyRequest
+			? await executeOpportunityDiscoveryImport(input, serviceUserId!)
+			: await discoverAndImportOpportunities(input);
 		return NextResponse.json({
 			success: true,
 			message: "Opportunity discovery import completed",
