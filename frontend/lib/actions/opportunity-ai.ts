@@ -12,10 +12,10 @@
 
 import { db } from "@/lib/db";
 import { opportunityAIScores, opportunities } from "@/lib/db/schema";
-import { eq, desc, and, sql, count, type SQL } from "drizzle-orm";
+import { eq, desc, and, or, isNull, sql, count, type SQL } from "drizzle-orm";
 import { prompt, getProviderManager } from "@/lib/ai/providers";
 import { getCompanyCapabilities } from "./company-settings";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireTenantContext } from "@/lib/auth/tenant-context";
 import type {
 	OpportunityAIScore,
 	OpportunityAIScoreSummary,
@@ -29,12 +29,13 @@ import { logger } from "@/lib/utils/logger";
 // AI Score Operations
 // ============================================================================
 
-async function requireCurrentUserId(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
-		throw new Error("Unauthorized");
-	}
-	return userId;
+type OpportunityAIContext = {
+	userId: string;
+	organizationId: string;
+};
+
+async function requireOpportunityAIContext(): Promise<OpportunityAIContext> {
+	return requireTenantContext();
 }
 
 function normalizeAIScoreHistoryLimit(limit: number | undefined, fallback = 10, maximum = 1000): number {
@@ -44,41 +45,59 @@ function normalizeAIScoreHistoryLimit(limit: number | undefined, fallback = 10, 
 	return Math.max(1, Math.min(maximum, Math.floor(limit)));
 }
 
-function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
-	return and(
-		eq(opportunities.id, opportunityId),
-		eq(opportunities.assignedTo, userId)
+function opportunityOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(opportunities.organizationId, organizationId),
+		isNull(opportunities.organizationId)
 	)!;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function scoreOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(opportunityAIScores.organizationId, organizationId),
+		isNull(opportunityAIScores.organizationId)
+	)!;
+}
+
+function visibleOpportunityCondition(opportunityId: string, context: OpportunityAIContext): SQL {
+	return and(
+		eq(opportunities.id, opportunityId),
+		opportunityOrganizationCondition(context.organizationId),
+		eq(opportunities.assignedTo, context.userId)
+	)!;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, context: OpportunityAIContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (opportunities.organization_id = ${context.organizationId} or opportunities.organization_id is null)
+			and opportunities.assigned_to = ${context.userId}
 	)`;
 }
 
-function visibleOpportunityScoresCondition(opportunityId: string, userId: string): SQL {
+function visibleOpportunityScoresCondition(opportunityId: string, context: OpportunityAIContext): SQL {
 	return and(
 		eq(opportunityAIScores.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		scoreOrganizationCondition(context.organizationId),
+		assignedOpportunityExistsSql(opportunityId, context)
 	)!;
 }
 
-function visibleAIScoreCondition(scoreId: string, userId: string): SQL {
+function visibleAIScoreCondition(scoreId: string, context: OpportunityAIContext): SQL {
 	return and(
 		eq(opportunityAIScores.id, scoreId),
-		assignedOpportunityExistsSql(opportunityAIScores.opportunityId, userId)
+		scoreOrganizationCondition(context.organizationId),
+		assignedOpportunityExistsSql(opportunityAIScores.opportunityId, context)
 	)!;
 }
 
-async function loadVisibleOpportunity(opportunityId: string, userId: string) {
+async function loadVisibleOpportunity(opportunityId: string, context: OpportunityAIContext) {
 	const [opp] = await db
 		.select()
 		.from(opportunities)
-		.where(visibleOpportunityCondition(opportunityId, userId))
+		.where(visibleOpportunityCondition(opportunityId, context))
 		.limit(1);
 
 	if (!opp) {
@@ -93,10 +112,10 @@ async function loadVisibleOpportunity(opportunityId: string, userId: string) {
  * Analyzes how well the opportunity matches our capabilities and strategy.
  */
 export async function calculateFitScore(opportunityId: string): Promise<OpportunityAIScore> {
-	const userId = await requireCurrentUserId();
+	const context = await requireOpportunityAIContext();
 
 	// Get the opportunity data
-	const opp = await loadVisibleOpportunity(opportunityId, userId);
+	const opp = await loadVisibleOpportunity(opportunityId, context);
 
 	// Calculate fit score based on available data
 	// Uses AI when available, falls back to heuristics
@@ -109,6 +128,7 @@ export async function calculateFitScore(opportunityId: string): Promise<Opportun
 	const [score] = await db
 		.insert(opportunityAIScores)
 		.values({
+			organizationId: context.organizationId,
 			opportunityId,
 			scoreType: "fit",
 			score: Math.round(finalScore * 10) / 10,
@@ -126,7 +146,7 @@ export async function calculateFitScore(opportunityId: string): Promise<Opportun
 			fitScore: Math.round(finalScore * 10) / 10,
 			updatedAt: new Date(),
 		})
-		.where(visibleOpportunityCondition(opportunityId, userId));
+		.where(visibleOpportunityCondition(opportunityId, context));
 
 	return mapToAIScore(score);
 }
@@ -136,11 +156,11 @@ export async function calculateFitScore(opportunityId: string): Promise<Opportun
  * Estimates likelihood of winning based on various factors.
  */
 export async function calculateWinProbability(opportunityId: string): Promise<OpportunityAIScore> {
-	const userId = await requireCurrentUserId();
+	const context = await requireOpportunityAIContext();
 
-	const opp = await loadVisibleOpportunity(opportunityId, userId);
+	const opp = await loadVisibleOpportunity(opportunityId, context);
 
-	const factors = await calculateWinFactors(opp, userId);
+	const factors = await calculateWinFactors(opp, context);
 	const weightedScore = factors.reduce((sum, f) => sum + f.score * f.weight, 0);
 	const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
 	const finalScore = totalWeight > 0 ? weightedScore / totalWeight : 50;
@@ -148,6 +168,7 @@ export async function calculateWinProbability(opportunityId: string): Promise<Op
 	const [score] = await db
 		.insert(opportunityAIScores)
 		.values({
+			organizationId: context.organizationId,
 			opportunityId,
 			scoreType: "win_probability",
 			score: Math.round(finalScore * 10) / 10,
@@ -165,7 +186,7 @@ export async function calculateWinProbability(opportunityId: string): Promise<Op
 			winProbability: Math.round(finalScore * 10) / 10,
 			updatedAt: new Date(),
 		})
-		.where(visibleOpportunityCondition(opportunityId, userId));
+		.where(visibleOpportunityCondition(opportunityId, context));
 
 	return mapToAIScore(score);
 }
@@ -175,9 +196,9 @@ export async function calculateWinProbability(opportunityId: string): Promise<Op
  * Higher score = higher risk.
  */
 export async function calculateRiskScore(opportunityId: string): Promise<OpportunityAIScore> {
-	const userId = await requireCurrentUserId();
+	const context = await requireOpportunityAIContext();
 
-	const opp = await loadVisibleOpportunity(opportunityId, userId);
+	const opp = await loadVisibleOpportunity(opportunityId, context);
 
 	const factors = await calculateRiskFactors(opp);
 	const weightedScore = factors.reduce((sum, f) => sum + f.score * f.weight, 0);
@@ -187,6 +208,7 @@ export async function calculateRiskScore(opportunityId: string): Promise<Opportu
 	const [score] = await db
 		.insert(opportunityAIScores)
 		.values({
+			organizationId: context.organizationId,
 			opportunityId,
 			scoreType: "risk",
 			score: Math.round(finalScore * 10) / 10,
@@ -208,7 +230,7 @@ export async function calculateAllScores(opportunityId: string): Promise<{
 	winProbability: OpportunityAIScore;
 	risk: OpportunityAIScore;
 }> {
-	await requireCurrentUserId();
+	await requireOpportunityAIContext();
 
 	const [fit, winProbability, risk] = await Promise.all([
 		calculateFitScore(opportunityId),
@@ -227,7 +249,7 @@ export async function calculateAllScores(opportunityId: string): Promise<{
  * Get the latest AI scores for an opportunity.
  */
 export async function getLatestScores(opportunityId: string): Promise<OpportunityAIScoreSummary> {
-	const userId = await requireCurrentUserId();
+	const context = await requireOpportunityAIContext();
 
 	// Get latest score for each type
 	const scoreTypes: AIScoreType[] = ["fit", "win_probability", "risk", "effort"];
@@ -239,7 +261,7 @@ export async function getLatestScores(opportunityId: string): Promise<Opportunit
 				.from(opportunityAIScores)
 				.where(
 					and(
-						visibleOpportunityScoresCondition(opportunityId, userId),
+						visibleOpportunityScoresCondition(opportunityId, context),
 						eq(opportunityAIScores.scoreType, type)
 					)
 				)
@@ -287,13 +309,13 @@ export async function getAIScoreHistory(
 	scoreType?: AIScoreType,
 	limit: number = 10
 ): Promise<OpportunityAIScore[]> {
-	const userId = await requireCurrentUserId();
+	const context = await requireOpportunityAIContext();
 	const normalizedLimit = normalizeAIScoreHistoryLimit(limit);
 
 	let query = db
 		.select()
 		.from(opportunityAIScores)
-		.where(visibleOpportunityScoresCondition(opportunityId, userId))
+		.where(visibleOpportunityScoresCondition(opportunityId, context))
 		.orderBy(desc(opportunityAIScores.createdAt))
 		.limit(normalizedLimit);
 
@@ -303,7 +325,7 @@ export async function getAIScoreHistory(
 			.from(opportunityAIScores)
 			.where(
 				and(
-					visibleOpportunityScoresCondition(opportunityId, userId),
+					visibleOpportunityScoresCondition(opportunityId, context),
 					eq(opportunityAIScores.scoreType, scoreType)
 				)
 			)
@@ -319,12 +341,12 @@ export async function getAIScoreHistory(
  * Get a specific AI score by ID.
  */
 export async function getAIScore(scoreId: string): Promise<OpportunityAIScore | null> {
-	const userId = await requireCurrentUserId();
+	const context = await requireOpportunityAIContext();
 
 	const [row] = await db
 		.select()
 		.from(opportunityAIScores)
-		.where(visibleAIScoreCondition(scoreId, userId))
+		.where(visibleAIScoreCondition(scoreId, context))
 		.limit(1);
 
 	return row ? mapToAIScore(row) : null;
@@ -507,7 +529,7 @@ function calculateFitFactorsHeuristic(opp: typeof opportunities.$inferSelect): A
 /**
  * Calculate win probability factors with AI-enhanced analysis.
  */
-async function calculateWinFactors(opp: typeof opportunities.$inferSelect, userId: string): Promise<AIScoreFactor[]> {
+async function calculateWinFactors(opp: typeof opportunities.$inferSelect, context: OpportunityAIContext): Promise<AIScoreFactor[]> {
 	const manager = getProviderManager();
 	await manager.initialize();
 	
@@ -515,10 +537,10 @@ async function calculateWinFactors(opp: typeof opportunities.$inferSelect, userI
 	if (await manager.isAvailable()) {
 		try {
 			// Get relationship score from CRM/historical data
-			const relationshipScore = await estimateRelationshipScoreFromCRM(opp.organization, userId);
+			const relationshipScore = await estimateRelationshipScoreFromCRM(opp.organization, context);
 			
 			// Use AI for other factors
-			const aiFactors = await calculateWinFactorsWithAI(opp, relationshipScore, userId);
+			const aiFactors = await calculateWinFactorsWithAI(opp, relationshipScore, context);
 			return aiFactors;
 		} catch (error) {
 			logger.warn("[AI Win Factors Error] Falling back to heuristic:", error);
@@ -526,7 +548,7 @@ async function calculateWinFactors(opp: typeof opportunities.$inferSelect, userI
 	}
 	
 	// Fallback to heuristic calculations
-	return await calculateWinFactorsHeuristic(opp, userId);
+	return await calculateWinFactorsHeuristic(opp, context);
 }
 
 /**
@@ -535,7 +557,7 @@ async function calculateWinFactors(opp: typeof opportunities.$inferSelect, userI
 async function calculateWinFactorsWithAI(
 	opp: typeof opportunities.$inferSelect,
 	relationshipScore: number,
-	userId: string
+	context: OpportunityAIContext
 ): Promise<AIScoreFactor[]> {
 	const manager = getProviderManager();
 	const companyInfo = await getCompanyCapabilities();
@@ -608,7 +630,7 @@ Provide your win factor analysis as JSON.`;
 	const hasRelationshipFactor = factors.some(f => f.factor.toLowerCase().includes("relationship"));
 	
 	if (!hasRelationshipFactor) {
-		const relationshipInfo = await getClientRelationshipInfo(opp.organization, userId);
+		const relationshipInfo = await getClientRelationshipInfo(opp.organization, context);
 		factors.push({
 			factor: "Client Relationship",
 			weight: 0.2,
@@ -617,13 +639,16 @@ Provide your win factor analysis as JSON.`;
 		});
 	}
 
-	return factors.length > 0 ? factors : await calculateWinFactorsHeuristic(opp, userId);
+	return factors.length > 0 ? factors : await calculateWinFactorsHeuristic(opp, context);
 }
 
 /**
  * Estimate relationship score from CRM/historical data.
  */
-async function estimateRelationshipScoreFromCRM(organization: string | null, userId: string): Promise<number> {
+async function estimateRelationshipScoreFromCRM(
+	organization: string | null,
+	context: OpportunityAIContext
+): Promise<number> {
 	if (!organization) return 40;
 	
 	try {
@@ -637,7 +662,8 @@ async function estimateRelationshipScoreFromCRM(organization: string | null, use
 			.where(
 				and(
 					eq(opportunities.organization, organization),
-					eq(opportunities.assignedTo, userId)
+					opportunityOrganizationCondition(context.organizationId),
+					eq(opportunities.assignedTo, context.userId)
 				)
 			)
 			.groupBy(opportunities.decisionStatus);
@@ -654,7 +680,8 @@ async function estimateRelationshipScoreFromCRM(organization: string | null, use
 				.where(
 					and(
 						eq(opportunities.organization, organization),
-						eq(opportunities.assignedTo, userId),
+						opportunityOrganizationCondition(context.organizationId),
+						eq(opportunities.assignedTo, context.userId),
 						sql`${opportunities.decisionStatus} != 'pending'`
 					)
 				);
@@ -678,7 +705,10 @@ async function estimateRelationshipScoreFromCRM(organization: string | null, use
 /**
  * Get client relationship information.
  */
-async function getClientRelationshipInfo(organization: string | null, userId: string): Promise<{ reasoning: string }> {
+async function getClientRelationshipInfo(
+	organization: string | null,
+	context: OpportunityAIContext
+): Promise<{ reasoning: string }> {
 	if (!organization) {
 		return { reasoning: "Organization not specified - no relationship history available." };
 	}
@@ -693,7 +723,8 @@ async function getClientRelationshipInfo(organization: string | null, userId: st
 			.where(
 				and(
 					eq(opportunities.organization, organization),
-					eq(opportunities.assignedTo, userId)
+					opportunityOrganizationCondition(context.organizationId),
+					eq(opportunities.assignedTo, context.userId)
 				)
 			)
 			.groupBy(opportunities.decisionStatus);
@@ -718,7 +749,10 @@ async function getClientRelationshipInfo(organization: string | null, userId: st
 /**
  * Calculate win factors using heuristic-based analysis (fallback).
  */
-async function calculateWinFactorsHeuristic(opp: typeof opportunities.$inferSelect, userId: string): Promise<AIScoreFactor[]> {
+async function calculateWinFactorsHeuristic(
+	opp: typeof opportunities.$inferSelect,
+	context: OpportunityAIContext
+): Promise<AIScoreFactor[]> {
 	const factors: AIScoreFactor[] = [];
 
 	// Competition level (estimated based on budget and visibility)
@@ -731,7 +765,7 @@ async function calculateWinFactorsHeuristic(opp: typeof opportunities.$inferSele
 	});
 
 	// Past relationship
-	const relationshipScore = await estimateRelationshipScore(opp.organization, userId);
+	const relationshipScore = await estimateRelationshipScore(opp.organization, context);
 	factors.push({
 		factor: "Client Relationship",
 		weight: 0.2,
@@ -1018,10 +1052,13 @@ function estimateCompetitionScore(opp: typeof opportunities.$inferSelect): numbe
 	return Math.max(20, Math.min(80, score));
 }
 
-async function estimateRelationshipScore(organization: string | null, userId: string): Promise<number> {
+async function estimateRelationshipScore(
+	organization: string | null,
+	context: OpportunityAIContext
+): Promise<number> {
 	// This function is now replaced by estimateRelationshipScoreFromCRM
 	// Kept for backward compatibility
-	return await estimateRelationshipScoreFromCRM(organization, userId);
+	return await estimateRelationshipScoreFromCRM(organization, context);
 }
 
 function calculateTechnicalFitScore(techRequirements: string | null): number {
@@ -1140,7 +1177,7 @@ function mapToAIScore(row: typeof opportunityAIScores.$inferSelect): Opportunity
  * Falls back to heuristic scoring if no AI provider is available.
  */
 export async function calculateFitScoreWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
-	const userId = await requireCurrentUserId();
+	const context = await requireOpportunityAIContext();
 
 	// Check if AI is available
 	const manager = getProviderManager();
@@ -1150,7 +1187,7 @@ export async function calculateFitScoreWithLLM(opportunityId: string): Promise<O
 		return calculateFitScore(opportunityId);
 	}
 
-	const opp = await loadVisibleOpportunity(opportunityId, userId);
+	const opp = await loadVisibleOpportunity(opportunityId, context);
 
 	// Get company capabilities for context
 	const companyInfo = await getCompanyCapabilities();
@@ -1225,6 +1262,7 @@ Provide your fit analysis as JSON.`;
 		const [score] = await db
 			.insert(opportunityAIScores)
 			.values({
+				organizationId: context.organizationId,
 				opportunityId,
 				scoreType: "fit",
 				score: Math.round(finalScore * 10) / 10,
@@ -1242,7 +1280,7 @@ Provide your fit analysis as JSON.`;
 				fitScore: Math.round(finalScore * 10) / 10,
 				updatedAt: new Date(),
 			})
-			.where(visibleOpportunityCondition(opportunityId, userId));
+			.where(visibleOpportunityCondition(opportunityId, context));
 
 		return mapToAIScore(score);
 	} catch (error) {
@@ -1256,7 +1294,7 @@ Provide your fit analysis as JSON.`;
  * Calculate win probability using LLM analysis.
  */
 export async function calculateWinProbabilityWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
-	const userId = await requireCurrentUserId();
+	const context = await requireOpportunityAIContext();
 
 	const manager = getProviderManager();
 	await manager.initialize();
@@ -1264,7 +1302,7 @@ export async function calculateWinProbabilityWithLLM(opportunityId: string): Pro
 		return calculateWinProbability(opportunityId);
 	}
 
-	const opp = await loadVisibleOpportunity(opportunityId, userId);
+	const opp = await loadVisibleOpportunity(opportunityId, context);
 
 	const companyInfo = await getCompanyCapabilities();
 
@@ -1331,6 +1369,7 @@ Provide your win probability analysis as JSON.`;
 		const [score] = await db
 			.insert(opportunityAIScores)
 			.values({
+				organizationId: context.organizationId,
 				opportunityId,
 				scoreType: "win_probability",
 				score: Math.round(finalScore * 10) / 10,
@@ -1347,7 +1386,7 @@ Provide your win probability analysis as JSON.`;
 				winProbability: Math.round(finalScore * 10) / 10,
 				updatedAt: new Date(),
 			})
-			.where(visibleOpportunityCondition(opportunityId, userId));
+			.where(visibleOpportunityCondition(opportunityId, context));
 
 		return mapToAIScore(score);
 	} catch (error) {
@@ -1360,7 +1399,7 @@ Provide your win probability analysis as JSON.`;
  * Calculate risk score using LLM analysis.
  */
 export async function calculateRiskScoreWithLLM(opportunityId: string): Promise<OpportunityAIScore> {
-	const userId = await requireCurrentUserId();
+	const context = await requireOpportunityAIContext();
 
 	const manager = getProviderManager();
 	await manager.initialize();
@@ -1368,7 +1407,7 @@ export async function calculateRiskScoreWithLLM(opportunityId: string): Promise<
 		return calculateRiskScore(opportunityId);
 	}
 
-	const opp = await loadVisibleOpportunity(opportunityId, userId);
+	const opp = await loadVisibleOpportunity(opportunityId, context);
 
 	const systemPrompt = `You are an expert risk analyst for government/enterprise proposals.
 
@@ -1429,6 +1468,7 @@ Provide your risk analysis as JSON.`;
 		const [score] = await db
 			.insert(opportunityAIScores)
 			.values({
+				organizationId: context.organizationId,
 				opportunityId,
 				scoreType: "risk",
 				score: Math.round(finalScore * 10) / 10,
@@ -1454,7 +1494,7 @@ export async function calculateAllScoresWithLLM(opportunityId: string): Promise<
 	winProbability: OpportunityAIScore;
 	risk: OpportunityAIScore;
 }> {
-	await requireCurrentUserId();
+	await requireOpportunityAIContext();
 
 	const [fit, winProbability, risk] = await Promise.all([
 		calculateFitScoreWithLLM(opportunityId),
@@ -1469,7 +1509,7 @@ export async function calculateAllScoresWithLLM(opportunityId: string): Promise<
  * Generate AI-powered executive summary for an opportunity.
  */
 export async function generateOpportunitySummary(opportunityId: string): Promise<string> {
-	const userId = await requireCurrentUserId();
+	const context = await requireOpportunityAIContext();
 
 	const manager = getProviderManager();
 	await manager.initialize();
@@ -1477,7 +1517,7 @@ export async function generateOpportunitySummary(opportunityId: string): Promise
 		return "AI summary not available. Configure an AI provider to enable this feature.";
 	}
 
-	const opp = await loadVisibleOpportunity(opportunityId, userId);
+	const opp = await loadVisibleOpportunity(opportunityId, context);
 
 	const systemPrompt = `You are a business development analyst. Write a brief executive summary (3-4 sentences) highlighting the key aspects of this opportunity and why it might be worth pursuing. Be direct and actionable.`;
 

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireTenantContextMock = vi.hoisted(() => vi.fn());
 const promptMock = vi.hoisted(() => vi.fn());
 const getProviderManagerMock = vi.hoisted(() => vi.fn());
 const getCompanyCapabilitiesMock = vi.hoisted(() => vi.fn());
@@ -8,6 +8,7 @@ const getCompanyCapabilitiesMock = vi.hoisted(() => vi.fn());
 interface ChainConfig {
 	result?: unknown[];
 	onWhere?: (value: unknown) => void;
+	onValues?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
@@ -19,7 +20,10 @@ function createChain(config: ChainConfig = {}) {
 		config.onWhere?.(value);
 		return chain;
 	});
-	chain.values = vi.fn(() => chain);
+	chain.values = vi.fn((value: unknown) => {
+		config.onValues?.(value);
+		return chain;
+	});
 	chain.set = vi.fn(() => chain);
 	chain.returning = vi.fn(async () => config.result ?? []);
 	chain.then = (resolve: (value: unknown[]) => void) =>
@@ -50,8 +54,8 @@ var dbMock: {
 	update: ReturnType<typeof vi.fn>;
 };
 
-vi.mock("@/lib/auth-utils", () => ({
-	getCurrentUserId: getCurrentUserIdMock,
+vi.mock("@/lib/auth/tenant-context", () => ({
+	requireTenantContext: requireTenantContextMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -114,7 +118,10 @@ const score = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	getCurrentUserIdMock.mockResolvedValue("ai-user-1");
+	requireTenantContextMock.mockResolvedValue({
+		userId: "ai-user-1",
+		organizationId: "org-ai-1",
+	});
 	getProviderManagerMock.mockReturnValue({
 		initialize: vi.fn(async () => undefined),
 		isAvailable: vi.fn(async () => false),
@@ -122,8 +129,9 @@ beforeEach(() => {
 });
 
 describe("opportunity AI row scoping", () => {
-	it("scopes fit-score opportunity reads and updates to the assigned actor", async () => {
+	it("scopes fit-score opportunity reads, inserts, and updates to the assigned tenant actor", async () => {
 		let loadWhere: unknown;
+		let insertValues: unknown;
 		let updateWhere: unknown;
 
 		dbMock.select.mockReturnValueOnce(createChain({
@@ -132,7 +140,12 @@ describe("opportunity AI row scoping", () => {
 				loadWhere = value;
 			},
 		}));
-		dbMock.insert.mockReturnValueOnce(createChain({ result: [score] }));
+		dbMock.insert.mockReturnValueOnce(createChain({
+			result: [score],
+			onValues: (value) => {
+				insertValues = value;
+			},
+		}));
 		dbMock.update.mockReturnValueOnce(createChain({
 			onWhere: (value) => {
 				updateWhere = value;
@@ -147,7 +160,10 @@ describe("opportunity AI row scoping", () => {
 			scoreType: "fit",
 		});
 		expect(collectSqlFragments(loadWhere).join(" ")).toContain("assigned_to");
+		expect(collectSqlFragments(loadWhere).join(" ")).toContain("organization_id");
+		expect(insertValues).toMatchObject({ organizationId: "org-ai-1" });
 		expect(collectSqlFragments(updateWhere).join(" ")).toContain("assigned_to");
+		expect(collectSqlFragments(updateWhere).join(" ")).toContain("organization_id");
 	});
 
 	it("awaits provider availability before falling back from LLM scoring", async () => {
@@ -187,5 +203,6 @@ describe("opportunity AI row scoping", () => {
 		expect(historyChain.limit).toHaveBeenCalledWith(1);
 		expect(typedHistoryChain.limit).toHaveBeenCalledWith(1000);
 		expect(collectSqlFragments(historyWhere).join(" ")).toContain("assigned_to");
+		expect(collectSqlFragments(historyWhere).join(" ")).toContain("organization_id");
 	});
 });

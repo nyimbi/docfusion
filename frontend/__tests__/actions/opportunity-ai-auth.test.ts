@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireTenantContextMock = vi.hoisted(() => vi.fn());
 const dbAccessMock = vi.hoisted(() => vi.fn());
 const promptMock = vi.hoisted(() => vi.fn());
 const getProviderManagerMock = vi.hoisted(() => vi.fn());
@@ -12,8 +12,8 @@ const blockedDb = vi.hoisted(() => new Proxy({}, {
 	},
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
-	getCurrentUserId: getCurrentUserIdMock,
+vi.mock("@/lib/auth/tenant-context", () => ({
+	requireTenantContext: requireTenantContextMock,
 }));
 vi.mock("@/lib/db", () => ({
 	db: blockedDb,
@@ -54,7 +54,7 @@ import {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	getCurrentUserIdMock.mockResolvedValue(null);
+	requireTenantContextMock.mockRejectedValue(new Error("Unauthorized"));
 });
 
 describe("opportunity AI action auth", () => {

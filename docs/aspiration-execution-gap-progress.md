@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Opportunity AI Score Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep AI fit, win-probability, risk, summary, and score-history flows scoped to the caller's organization instead of relying only on assigned opportunity checks.
+
+Changes in this slice:
+- Require full tenant context for opportunity AI actions.
+- Add tenant predicates, with legacy null-row fallback, to opportunity reads, score-history/detail reads, score writes, and opportunity score updates.
+- Persist `organization_id` on newly generated heuristic and LLM-backed AI score rows.
+- Scope client relationship/history lookups by opportunity organization so win-probability factors cannot mix same-named customers across tenants.
+- Extend opportunity AI scope and auth tests to assert organization predicates and inserted score ownership.
+
+Verification:
+- `npm test -- opportunity-ai-scope.test.ts opportunity-ai-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to requirements, evidence, win themes, competitive analysis, and remaining workflow support modules that still use assignment-only checks.
+
 ### 2026-05-26 - RFP Upload Opportunity Tenant Gate
 
 Status: implemented and verified.
