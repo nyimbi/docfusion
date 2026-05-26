@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Discovery Source Proofs
+
+Status: verified against live services.
+
+Purpose: prove the platform can use the configured search/scrape infrastructure and live procurement sources to find opportunity candidates and fetch source material.
+
+Live proofs:
+- `live-discovery-services`: SearXNG at `https://search.lindela.io` returned 28 results for `tender`; Firecrawl scraped `https://example.com` into 180 markdown characters; browser fallback at `http://84.247.181.100:3003` scraped 528 markdown characters.
+- `live-source-discovery`: Firecrawl scraped `https://procurement-notices.undp.org`, returning 201,672 markdown characters, 592 links, and 376 normalized opportunity candidates.
+- `live-kenya-ppip-source`: Kenya PPIP returned 940 total active tenders, mapped 10 sampled opportunities, and fetched a source PDF byte range with HTTP 206 and `application/pdf`.
+- `live-ungm-source`: UNGM returned 1,652 total notices, mapped 10 sampled opportunities, enriched 5 sampled details with public links, and fetched a portal page with HTTP 200.
+
+Verification:
+- `npm run platform:proof -- --include-live-safe --run live-discovery-services` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-source-discovery` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-kenya-ppip-source` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-ungm-source` from `frontend/` passed.
+
+Remaining after this slice:
+- Prove the discovered candidates can be persisted through the authenticated import path into tenant-scoped opportunity records.
+- Prove a selected live opportunity can drive RFP/document intake and response-package generation end to end.
+
 ### 2026-05-27 - Opportunity Assignment Predicate Scan
 
 Status: audited and verified; no code change required.
