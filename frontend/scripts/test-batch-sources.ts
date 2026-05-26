@@ -12,7 +12,7 @@ import { extractTendersWithLLM } from "../lib/scrapers/parsers/llm-extractor";
 import { bulkDeduplicateOpportunities } from "../lib/scrapers/deduplicator";
 
 const firecrawl = new FirecrawlClient({
-	baseUrl: "http://20.84.71.33:3002",
+	baseUrl: "http://84.247.181.100:3002",
 	apiKey: "api-key",
 });
 

@@ -472,7 +472,7 @@ class SecretsManager:
 	@staticmethod
 	def get_docling_url() -> str:
 		"""Get Docling server URL."""
-		return os.environ.get("DOCLING_URL", "http://20.84.71.33:3600")
+		return os.environ.get("DOCLING_URL", "http://84.247.181.100:3600")
 
 	@staticmethod
 	def get_firecrawl_url() -> str:
@@ -482,7 +482,7 @@ class SecretsManager:
 	@staticmethod
 	def get_searxng_url() -> str:
 		"""Get SearXNG server URL."""
-		return os.environ.get("SEARXNG_URL", "http://84.247.181.100:8888")
+		return os.environ.get("SEARXNG_URL", "https://search.lindela.io")
 
 	@staticmethod
 	def get_firecrawl_key() -> str:

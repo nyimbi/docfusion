@@ -5,7 +5,7 @@
  * Provides document extraction, OCR, and conversion capabilities.
  */
 
-const DOCLING_URL = process.env.DOCLING_URL || "http://20.84.71.33:3600";
+const DOCLING_URL = process.env.DOCLING_URL || "http://84.247.181.100:3600";
 
 export interface DoclingConvertOptions {
   outputFormat?: "markdown" | "html" | "json" | "text";

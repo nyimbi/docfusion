@@ -1,19 +1,15 @@
 # DocuFusion Infrastructure Services
 
-This document details all backend services running on the DocuFusion infrastructure server, including access information, API endpoints, and hardware requirements for migration.
+This document details the web search and scraping services available to DocFusion. These services are isolated from the data/auth infrastructure and are used for opportunity discovery, source research, page scraping, and document parsing.
 
 ## Server Overview
 
 | Property | Value |
 |----------|-------|
-| **Provider** | Azure VM |
-| **IP Address** | 20.84.71.33 |
-| **SSH Access** | `ssh azureuser@20.84.71.33` |
-| **CPU** | 4 vCPUs (Intel Xeon Platinum 8272CL @ 2.60GHz) |
-| **RAM** | 16GB |
-| **Disk** | 123GB SSD |
-| **OS** | Ubuntu (Linux) |
-| **Process Manager** | pm2 |
+| **Host** | 84.247.181.100 |
+| **Purpose** | Web search and scraping services |
+| **Isolation** | Separate from data/auth infrastructure |
+| **Public search endpoint** | `https://search.lindela.io` |
 
 ---
 
@@ -26,14 +22,14 @@ This document details all backend services running on the DocuFusion infrastruct
 | Property | Value |
 |----------|-------|
 | **Port** | 3002 |
-| **Base URL** | `http://20.84.71.33:3002` |
-| **API Docs** | `http://20.84.71.33:3002/docs` |
+| **Base URL** | `http://84.247.181.100:3002` |
+| **API Docs** | `http://84.247.181.100:3002/docs` |
 | **pm2 name** | `firecrawl` |
 
 **Key Endpoints**:
 ```bash
 # Scrape a URL
-POST http://20.84.71.33:3002/v1/scrape
+POST http://84.247.181.100:3002/v1/scrape
 Content-Type: application/json
 
 {
@@ -42,29 +38,28 @@ Content-Type: application/json
 }
 
 # Health check
-GET http://20.84.71.33:3002/health
+GET http://84.247.181.100:3002/health
 ```
 
 **When to Use**: First choice for all web scraping. Falls back to stealth-scraper when blocked.
 
 ---
 
-### 2. Stealth Scraper (Anti-Bot Bypass)
+### 2. Playwright / Stealth Browser Service
 
-**Purpose**: Bypass anti-bot protection (Cloudflare, DataDome, PerimeterX) using Camoufox browser with LLM extraction via Ollama.
+**Purpose**: Headless Chromium browser service for Firecrawl with stealth anti-detection behavior. Use this path for sites that cannot be crawled through the normal Firecrawl flow.
 
 | Property | Value |
 |----------|-------|
 | **Port** | 3003 |
-| **Base URL** | `http://20.84.71.33:3003` |
-| **pm2 name** | `stealth-scraper` |
-| **Browser** | Camoufox (Firefox fork) |
-| **LLM** | Ollama (granite4:350m) |
+| **Base URL** | `http://84.247.181.100:3003` |
+| **Browser** | Headless Chromium |
+| **Role** | Firecrawl browser backend with stealth anti-detection |
 
 **Key Endpoints**:
 ```bash
 # Scrape with stealth (Firecrawl-compatible API)
-POST http://20.84.71.33:3003/v1/scrape
+POST http://84.247.181.100:3003/v1/scrape
 Content-Type: application/json
 
 {
@@ -83,10 +78,10 @@ Content-Type: application/json
 }
 
 # Health check
-GET http://20.84.71.33:3003/health
+GET http://84.247.181.100:3003/health
 ```
 
-**When to Use**: Only when Firecrawl fails with `SCRAPE_ALL_ENGINES_FAILED`. Uses more resources (browser + LLM).
+**When to Use**: Only when ordinary Firecrawl scraping fails or the site requires browser rendering/stealth behavior.
 
 **Resource Usage**:
 - Browser: 200-500MB RAM per instance
@@ -101,19 +96,18 @@ GET http://20.84.71.33:3003/health
 
 | Property | Value |
 |----------|-------|
-| **Port** | 3500 |
-| **Base URL** | `http://20.84.71.33:3500` |
-| **Web UI** | `http://20.84.71.33:3500` |
-| **pm2 name** | `searxng` |
-| **Config** | `/home/azureuser/searxng/data/settings.yml` |
+| **Port** | 8888 |
+| **Base URL** | `https://search.lindela.io` |
+| **Web UI** | `https://search.lindela.io` |
+| **Public ingress** | Caddy on 80/443 fronts `search.lindela.io` to SearXNG `:8888` |
 
 **Key Endpoints**:
 ```bash
 # JSON search (for programmatic use)
-GET http://20.84.71.33:3500/search?q=your+query&format=json
+GET https://search.lindela.io/search?q=your+query&format=json
 
 # Example with categories
-GET http://20.84.71.33:3500/search?q=python+async&format=json&categories=it
+GET https://search.lindela.io/search?q=python+async&format=json&categories=it
 
 # Available categories: general, images, videos, news, it, science, files, social media
 ```
@@ -126,7 +120,7 @@ GET http://20.84.71.33:3500/search?q=python+async&format=json&categories=it
       "type": "local",
       "command": ["npx", "-y", "mcp-searxng"],
       "env": {
-        "SEARXNG_URL": "http://20.84.71.33:3500"
+        "SEARXNG_URL": "https://search.lindela.io"
       }
     }
   }
@@ -144,24 +138,24 @@ GET http://20.84.71.33:3500/search?q=python+async&format=json&categories=it
 | Property | Value |
 |----------|-------|
 | **Port** | 3600 |
-| **Base URL** | `http://20.84.71.33:3600` |
-| **Web UI** | `http://20.84.71.33:3600/ui` |
-| **API Docs** | `http://20.84.71.33:3600/docs` |
+| **Base URL** | `http://84.247.181.100:3600` |
+| **Web UI** | `http://84.247.181.100:3600/ui` |
+| **API Docs** | `http://84.247.181.100:3600/docs` |
 | **pm2 name** | `docling` |
 
 **Key Endpoints**:
 ```bash
 # Convert document to markdown
-POST http://20.84.71.33:3600/v1/convert
+POST http://84.247.181.100:3600/v1/convert
 Content-Type: multipart/form-data
 
 # With file upload
-curl -X POST http://20.84.71.33:3600/v1/convert \
+curl -X POST http://84.247.181.100:3600/v1/convert \
   -F "file=@document.pdf" \
   -F "output_format=markdown"
 
 # Health check
-GET http://20.84.71.33:3600/health
+GET http://84.247.181.100:3600/health
 ```
 
 **Supported Formats**:
@@ -176,15 +170,14 @@ GET http://20.84.71.33:3600/health
 
 ---
 
-### 5. Ollama (Local LLM Hosting)
+### 5. Ollama (Loopback LLM Runtime)
 
-**Purpose**: Host and serve local LLMs for inference without cloud API costs.
+**Purpose**: Local LLM runtime used by LiteLLM alias `ollama-local`.
 
 | Property | Value |
 |----------|-------|
 | **Port** | 11434 |
-| **Base URL** | `http://20.84.71.33:11434` (remote) |
-| **Local URL** | `http://localhost:11434` (from server) |
+| **Base URL** | `http://127.0.0.1:11434` from the connectivity host only |
 | **API Docs** | `https://github.com/ollama/ollama/blob/main/docs/api.md` |
 
 **Available Models** (on server):
@@ -202,7 +195,7 @@ GET http://20.84.71.33:3600/health
 **Key Endpoints**:
 ```bash
 # Generate completion
-POST http://20.84.71.33:11434/api/generate
+POST http://127.0.0.1:11434/api/generate
 Content-Type: application/json
 
 {
@@ -212,7 +205,7 @@ Content-Type: application/json
 }
 
 # Chat completion (OpenAI-compatible)
-POST http://20.84.71.33:11434/v1/chat/completions
+POST http://127.0.0.1:11434/v1/chat/completions
 Content-Type: application/json
 
 {
@@ -221,10 +214,10 @@ Content-Type: application/json
 }
 
 # List models
-GET http://20.84.71.33:11434/api/tags
+GET http://127.0.0.1:11434/api/tags
 
 # Pull a model
-POST http://20.84.71.33:11434/api/pull
+POST http://127.0.0.1:11434/api/pull
 {"name": "llama3.2:3b"}
 ```
 
@@ -359,7 +352,7 @@ Without GPU, CPU inference works but is slower:
   "mcp": {
     "searxng": {
       "env": {
-        "SEARXNG_URL": "http://20.84.71.33:3500"
+        "SEARXNG_URL": "https://search.lindela.io"
       }
     }
   }
@@ -370,19 +363,20 @@ Without GPU, CPU inference works but is slower:
 
 ```bash
 # Scraping services
-FIRECRAWL_URL=http://20.84.71.33:3002
-STEALTH_SCRAPER_URL=http://20.84.71.33:3003
+FIRECRAWL_URL=http://84.247.181.100:3002
+STEALTH_SCRAPER_URL=http://84.247.181.100:3003
 
 # Search
-SEARXNG_URL=http://20.84.71.33:3500
+SEARXNG_URL=https://search.lindela.io
 
 # Document processing
-DOCLING_URL=http://20.84.71.33:3600
+DOCLING_URL=http://84.247.181.100:3600
 
-# LLM (remote)
-OLLAMA_URL=http://20.84.71.33:11434
-OLLAMA_MODEL=granite4:350m
+# LLM gateway
+LITELLM_URL=http://84.247.181.100:4000
 ```
+
+The Redis instance on `84.247.181.100:6379` is loopback-only and belongs to Firecrawl/SearXNG rate limiting and job queues. App servers should use the shared data-host Redis for sessions, LiteLLM cache, Soketi, and app-level caching.
 
 ---
 
@@ -392,38 +386,35 @@ OLLAMA_MODEL=granite4:350m
 
 ```bash
 # Firecrawl
-curl http://20.84.71.33:3002/health
+curl http://84.247.181.100:3002/health
 
-# Stealth Scraper
-curl http://20.84.71.33:3003/health
+# Playwright / stealth browser service
+curl http://84.247.181.100:3003/health
 
 # SearXNG
-curl "http://20.84.71.33:3500/search?q=test&format=json" | head -100
+curl "https://search.lindela.io/search?q=test&format=json" | head -100
 
 # Docling
-curl http://20.84.71.33:3600/health
-
-# Ollama
-curl http://20.84.71.33:11434/api/tags
+curl http://84.247.181.100:3600/health
 ```
 
 ### Common Operations
 
 ```bash
 # Search the web
-curl "http://20.84.71.33:3500/search?q=python+fastapi&format=json"
+curl "https://search.lindela.io/search?q=python+fastapi&format=json"
 
 # Scrape a website
-curl -X POST http://20.84.71.33:3002/v1/scrape \
+curl -X POST http://84.247.181.100:3002/v1/scrape \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com", "formats": ["markdown"]}'
 
 # Convert a PDF
-curl -X POST http://20.84.71.33:3600/v1/convert \
+curl -X POST http://84.247.181.100:3600/v1/convert \
   -F "file=@document.pdf"
 
-# Run LLM inference
-curl -X POST http://20.84.71.33:11434/api/generate \
+# Run LLM inference from the connectivity host
+curl -X POST http://127.0.0.1:11434/api/generate \
   -H "Content-Type: application/json" \
   -d '{"model": "granite4:350m", "prompt": "Hello", "stream": false}'
 ```

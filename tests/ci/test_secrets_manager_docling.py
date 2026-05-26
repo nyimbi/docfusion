@@ -6,7 +6,7 @@ from docfusion.config.secrets import SecretsManager
 def test_get_docling_url_returns_string():
 	url = SecretsManager.get_docling_url()
 	assert isinstance(url, str)
-	assert url.startswith("http")
+	assert url == "http://84.247.181.100:3600"
 
 
 def test_get_docling_timeout_returns_int():

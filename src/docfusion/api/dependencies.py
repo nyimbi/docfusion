@@ -111,7 +111,7 @@ class ServiceSettings:
 	database_url: str = ""
 
 	# Infrastructure Services
-	searxng_url: str = "http://84.247.181.100:8888"
+	searxng_url: str = "https://search.lindela.io"
 	firecrawl_url: str = "http://84.247.181.100:3002"
 	litellm_url: str = "http://84.247.181.100:4000"
 	litellm_key: str = ""

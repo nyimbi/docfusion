@@ -17,9 +17,9 @@ import { db } from "../lib/db";
 import { opportunities } from "../lib/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
 
-// Firecrawl client pointing to Azure server with Ollama
+// Firecrawl client pointing to the connectivity host.
 const firecrawl = new FirecrawlClient({
-	baseUrl: "http://20.84.71.33:3002",
+	baseUrl: "http://84.247.181.100:3002",
 	apiKey: "api-key",
 });
 

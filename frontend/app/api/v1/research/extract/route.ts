@@ -25,7 +25,7 @@ import { assertPublicHttpUrl, UnsafePublicUrlError } from "@/lib/security/public
 // Configuration
 // ============================================================================
 
-const FIRECRAWL_URL = process.env.FIRECRAWL_URL || "http://20.84.71.33:3002";
+const FIRECRAWL_URL = process.env.FIRECRAWL_URL || "http://84.247.181.100:3002";
 const MAX_SCRAPE_URLS = 8;
 const MAX_CONTENT_LENGTH = 12000;
 

@@ -12,7 +12,7 @@ import { extractTendersWithLLM, TENDER_EXTRACTION_SCHEMA } from "../lib/scrapers
 
 // Create Firecrawl client
 const firecrawl = new FirecrawlClient({
-	baseUrl: "http://20.84.71.33:3002",
+	baseUrl: "http://84.247.181.100:3002",
 	apiKey: "api-key",
 });
 

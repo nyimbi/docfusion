@@ -7,7 +7,7 @@
 
 import { logger } from "@/lib/utils/logger";
 
-const SEARXNG_URL = process.env.SEARXNG_URL || "http://84.247.181.100:8888";
+const SEARXNG_URL = process.env.SEARXNG_URL || "https://search.lindela.io";
 
 export interface SearxngResult {
   title: string;

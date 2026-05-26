@@ -4,7 +4,7 @@ SearXNG Client
 Client for SearXNG metasearch engine running on PJS infrastructure.
 Aggregates results from Google, Bing, DuckDuckGo, and 70+ other sources.
 
-Server: http://84.247.181.100:8888 (search.lindela.io)
+Server: https://search.lindela.io
 
 Usage:
     client = SearXNGClient()
