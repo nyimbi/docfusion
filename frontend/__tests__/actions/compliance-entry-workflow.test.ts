@@ -355,6 +355,99 @@ describe("compliance entry workflow", () => {
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
+	it("bulk-approves ready compliant entries before final matrix lock", async () => {
+		const updateSets: Record<string, unknown>[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ ...baseMatrix, status: "draft" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [
+					{
+						entry: {
+							...baseEntry,
+							id: "entry-ready",
+							status: "draft",
+							complianceStatus: "compliant",
+							responseReference: "Volume 1, Section 2.1",
+						},
+						requirement: baseRequirement,
+					},
+					{
+						entry: {
+							...baseEntry,
+							id: "entry-partial",
+							status: "draft",
+							complianceStatus: "partial",
+							responseReference: "Volume 1, Section 2.2",
+						},
+						requirement: {
+							...baseRequirement,
+							id: "req-2",
+							requirementNumber: "REQ-002",
+							priority: "preferred",
+						},
+					},
+				],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [
+					{ entry: { complianceStatus: "compliant" }, requirement: { priority: "mandatory" } },
+					{ entry: { complianceStatus: "partial" }, requirement: { priority: "preferred" } },
+				],
+			}));
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updateSets.push(value);
+			},
+		}));
+
+		const result = await transitionComplianceMatrixWorkflow({
+			matrixId: "matrix-1",
+			action: "approve_ready_entries",
+			reason: "Approve generated compliant entries with response evidence",
+		});
+
+		expect(result).toMatchObject({
+			matrixId: "matrix-1",
+			state: "draft",
+			status: "draft",
+			approvedEntryCount: 1,
+			matrixStats: {
+				totalRequirements: 2,
+				mandatoryCount: 1,
+				compliantCount: 1,
+				partialCount: 1,
+			},
+		});
+		expect(updateSets).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				status: "approved",
+				complianceStatus: "compliant",
+				approvedBy: "compliance-lead",
+				completionPercent: 100,
+			}),
+			expect.objectContaining({
+				complianceStatus: "compliant",
+				responseStrategy: "Addresses most evidence needs",
+			}),
+			expect.objectContaining({
+				reviewedBy: "compliance-lead",
+				reviewNotes: "Approve generated compliant entries with response evidence",
+			}),
+		]));
+		const { recordWorkflowRuntimeTransition } = await import("@/lib/actions/workflow-runtime");
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				workflowKey: "compliance_matrix_bulk_entry_approval",
+				eventType: "compliance_matrix_approve_ready_entries",
+				actionUrl: "/opportunities/opp-1/requirements",
+				metadata: expect.objectContaining({
+					approvedEntryCount: 1,
+				}),
+			}),
+			dbMock
+		);
+	});
+
 	it("locks a compliant matrix and records final lock workflow", async () => {
 		let matrixUpdate: Record<string, unknown> | undefined;
 		let matrixWhere: unknown;

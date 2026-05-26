@@ -247,6 +247,7 @@ type ComplianceWorkflowAction =
 
 type ComplianceMatrixWorkflowAction =
 	| "submit_for_review"
+	| "approve_ready_entries"
 	| "lock_final"
 	| "reopen";
 
@@ -289,6 +290,11 @@ const MATRIX_WORKFLOW_ACTION_CONFIG: Record<
 		label: "Submit Matrix for Review",
 		description: "Move the compliance matrix into review once entries are ready for final checks.",
 		icon: <Send className="h-4 w-4 mr-2" />,
+	},
+	approve_ready_entries: {
+		label: "Approve Ready Entries",
+		description: "Bulk-approve compliant entries that already include response evidence.",
+		icon: <ShieldCheck className="h-4 w-4 mr-2" />,
 	},
 	lock_final: {
 		label: "Lock Final Matrix",
@@ -526,9 +532,9 @@ export function ComplianceMatrix({
 		if (!matrix) return [];
 		switch (matrix.status) {
 			case "draft":
-				return ["submit_for_review"];
+				return ["approve_ready_entries", "submit_for_review"];
 			case "review":
-				return ["lock_final", "reopen"];
+				return ["approve_ready_entries", "lock_final", "reopen"];
 			case "final":
 			case "submitted":
 				return ["reopen"];

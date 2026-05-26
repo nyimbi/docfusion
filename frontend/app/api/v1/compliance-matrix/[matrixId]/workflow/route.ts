@@ -16,7 +16,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const BodySchema = z
 	.object({
-		action: z.enum(["submit_for_review", "lock_final", "reopen"]),
+		action: z.enum(["submit_for_review", "approve_ready_entries", "lock_final", "reopen"]),
 		reason: z.string().optional(),
 	})
 	.strict();

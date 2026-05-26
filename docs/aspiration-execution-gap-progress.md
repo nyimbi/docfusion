@@ -711,6 +711,30 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.
 
+### 2026-05-26 - Bulk Compliance Entry Approval
+
+Status: implemented and verified.
+
+Purpose: make final compliance matrix lock operational at large RFP scale by avoiding one-by-one approval for generated compliant entries that already have response evidence.
+
+Changes in this slice:
+- Add a `approve_ready_entries` compliance matrix workflow action.
+- Bulk-approve compliant/addressed entries that have response evidence, update linked requirement compliance, recalculate matrix statistics, and record runtime evidence.
+- Expose the action through the existing compliance matrix workflow API and Matrix Review menu.
+- Block the bulk action after a matrix is locked and report when no ready entries exist.
+- Add focused workflow coverage for bulk approval behavior and runtime evidence.
+
+Verification:
+- `npm run test -- __tests__/actions/compliance-entry-workflow.test.ts` passed.
+- `npx tsc --noEmit` passed.
+
+Testing scope note:
+- Full frontend suite, component tests, and production build remain intentionally skipped while on battery. This slice used the focused compliance workflow test plus TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Check opportunity discovery/intake for current SearXNG and Firecrawl configuration drift.
+
 ### 2026-05-26 - Actionable DLP Checklist Details
 
 Status: implemented and verified.

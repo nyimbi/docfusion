@@ -150,6 +150,7 @@ export type ComplianceEntryWorkflowState =
 
 export type ComplianceMatrixWorkflowAction =
 	| "submit_for_review"
+	| "approve_ready_entries"
 	| "lock_final"
 	| "reopen";
 
@@ -178,6 +179,7 @@ export interface ComplianceMatrixWorkflowResult {
 	status: string;
 	matrixStats: MatrixStats;
 	blockers: string[];
+	approvedEntryCount?: number;
 }
 
 export interface ComplianceEntryWorkflowResult {
@@ -239,7 +241,7 @@ type ComplianceEntryPatch = {
 	completionPercent?: number;
 };
 
-type ComplianceWorkflowDb = Pick<typeof db, "select" | "update" | "execute">;
+type ComplianceWorkflowDb = Pick<typeof db, "select" | "update" | "insert" | "execute">;
 type RequirementCompliancePatch = Partial<typeof rfpRequirements.$inferInsert>;
 
 function requireComplianceOrganization(userContext: UserContext): string {
@@ -461,7 +463,9 @@ export async function transitionComplianceMatrixWorkflow(
 		}
 
 		const currentState = getComplianceMatrixWorkflowState(matrix);
-		const nextState = getNextComplianceMatrixWorkflowState(currentState, input.action);
+		const nextState = input.action === "approve_ready_entries"
+			? currentState
+			: getNextComplianceMatrixWorkflowState(currentState, input.action);
 		const entries = await tx
 			.select({
 				entry: complianceEntries,
@@ -473,6 +477,17 @@ export async function transitionComplianceMatrixWorkflow(
 				visibleComplianceEntriesForMatrixCondition(input.matrixId, organizationId),
 				eq(rfpRequirements.organizationId, organizationId)
 			));
+		if (input.action === "approve_ready_entries") {
+			return approveReadyComplianceEntries({
+				tx,
+				matrix,
+				entries,
+				currentState,
+				organizationId,
+				actorId: userContext.userId,
+				reason,
+			});
+		}
 		const blockers = input.action === "lock_final" ? getMatrixFinalLockBlockers(entries) : [];
 		if (blockers.length > 0) {
 			throw new Error(`Compliance matrix final lock blocked: ${blockers.join("; ")}`);
@@ -579,6 +594,7 @@ function getNextComplianceMatrixWorkflowState(
 			draft: "review",
 			reopened: "review",
 		},
+		approve_ready_entries: {},
 		lock_final: {
 			review: "locked",
 		},
@@ -610,6 +626,131 @@ function getMatrixFinalLockBlockers(rows: Array<{ entry: ComplianceEntryRow; req
 		}
 	}
 	return blockers;
+}
+
+async function approveReadyComplianceEntries(input: {
+	tx: ComplianceWorkflowDb;
+	matrix: ComplianceMatrixRow;
+	entries: Array<{ entry: ComplianceEntryRow; requirement: typeof rfpRequirements.$inferSelect }>;
+	currentState: ComplianceMatrixWorkflowState;
+	organizationId: string;
+	actorId: string;
+	reason: string;
+}): Promise<ComplianceMatrixWorkflowResult> {
+	if (input.currentState === "locked") {
+		throw new Error("Cannot approve ready compliance entries after the matrix is locked");
+	}
+
+	const readyRows = input.entries.filter(isReadyForBulkApproval);
+	if (readyRows.length === 0) {
+		throw new Error("No ready compliance entries found for bulk approval");
+	}
+
+	const now = new Date();
+	for (const row of readyRows) {
+		const state = getComplianceWorkflowState(row.entry);
+		const metadata = buildComplianceWorkflowMetadata({
+			entry: row.entry,
+			action: "approve",
+			from: state,
+			to: "approved",
+			actorId: input.actorId,
+			reason: input.reason,
+			now,
+		});
+		const entryPatch = buildComplianceWorkflowEntryPatch({
+			entry: row.entry,
+			action: "approve",
+			state: "approved",
+			actorId: input.actorId,
+			reason: input.reason,
+			now,
+			metadata,
+		});
+		await input.tx.update(complianceEntries).set(entryPatch).where(and(
+			visibleComplianceEntriesForMatrixCondition(input.matrix.id, input.organizationId),
+			eq(complianceEntries.id, row.entry.id)
+		));
+
+		const requirementPatch = buildRequirementCompliancePatch({
+			requirement: row.requirement,
+			entry: row.entry,
+			entryPatch,
+			action: "approve",
+			reason: input.reason,
+			now,
+		});
+		if (requirementPatch) {
+			await input.tx.update(rfpRequirements).set(requirementPatch).where(and(
+				eq(rfpRequirements.id, row.requirement.id),
+				eq(rfpRequirements.organizationId, input.organizationId)
+			));
+		}
+	}
+
+	await input.tx.update(complianceMatrices).set({
+		reviewedBy: input.actorId,
+		reviewedAt: now,
+		reviewNotes: input.reason,
+		metadata: buildComplianceMatrixWorkflowMetadata({
+			matrix: input.matrix,
+			action: "approve_ready_entries",
+			from: input.currentState,
+			to: input.currentState,
+			actorId: input.actorId,
+			reason: input.reason,
+			now,
+			blockers: [],
+		}),
+		updatedAt: now,
+	}).where(visibleComplianceMatrixCondition(input.matrix.id, input.organizationId));
+
+	const matrixStats = await recalculateComplianceMatrixStats(input.tx, input.matrix.id, input.organizationId);
+	await recordWorkflowRuntimeTransition({
+		workflowKey: "compliance_matrix_bulk_entry_approval",
+		subjectType: "compliance_matrix",
+		subjectId: input.matrix.id,
+		opportunityId: input.matrix.opportunityId,
+		fromState: input.currentState,
+		toState: input.currentState,
+		eventType: "compliance_matrix_approve_ready_entries",
+		actorId: input.actorId,
+		actorName: input.actorId,
+		reason: input.reason,
+		priority: "medium",
+		assignedRole: "compliance_officer",
+		visibility: "internal",
+		authorityPolicy: {
+			requiredRoles: ["compliance_officer"],
+			escalationRole: "proposal_manager",
+		},
+		metadata: {
+			matrixId: input.matrix.id,
+			approvedEntryCount: readyRows.length,
+			matrixStats,
+		},
+		terminal: false,
+		actionUrl: input.matrix.opportunityId
+			? `/opportunities/${input.matrix.opportunityId}/requirements`
+			: `/compliance-matrix/${input.matrix.id}`,
+	}, input.tx);
+
+	return {
+		matrixId: input.matrix.id,
+		state: input.currentState,
+		status: input.matrix.status,
+		matrixStats,
+		blockers: [],
+		approvedEntryCount: readyRows.length,
+	};
+}
+
+function isReadyForBulkApproval(row: { entry: ComplianceEntryRow }): boolean {
+	if (row.entry.status === "approved") {
+		return false;
+	}
+	return hasComplianceEvidence(row.entry) &&
+		["compliant", "addressed"].includes(row.entry.complianceStatus);
 }
 
 function getNextComplianceWorkflowState(
