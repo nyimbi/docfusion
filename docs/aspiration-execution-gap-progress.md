@@ -2795,6 +2795,31 @@ Remaining after this slice:
 - Continue auditing general review management (`frontend/lib/actions/reviews.ts`), gate reviews, and cost/pricing records for first-class organization anchors.
 - Live persisted DB import-to-parse proof remains externally blocked by the refused database connection.
 
+### 2026-05-26 - General Review Management Tenant Scoping
+
+Status: implemented and verified.
+
+Purpose: close the row-level tenant gap in the broader review-management actions after anchoring the workflow-specific review paths.
+
+Changes in this slice:
+- Require organization context for direct review/comment creation and mutation paths in `frontend/lib/actions/reviews.ts`.
+- Persist `organizationId` on newly created proposal reviews and review comments.
+- Scope review creation numbering, review list/delete operations, all-review listing, comment add/update/delete/resolve/verify/list operations, and parent reply count changes by organization plus assigned opportunity.
+- Extend the review action test harness with tenant context mocks and assertions for review/comment organization persistence and scoped review listing.
+
+Verification:
+- `npm test -- reviews.test.ts` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed.
+
+Testing scope note:
+- The full general review action suite passed (110 tests). The proof wave covers adjacent review package, approval, pricing, final artifact, and submission correction workflows.
+
+Remaining after this slice:
+- Continue auditing gate reviews/capture pipeline and cost/pricing records for first-class organization anchors.
+- Live persisted DB import-to-parse proof remains externally blocked by the refused database connection.
+
 ### 2026-05-26 - Persistent Discovery Warning History
 
 Status: implemented and verified.

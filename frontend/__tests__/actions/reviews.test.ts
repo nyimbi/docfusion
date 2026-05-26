@@ -28,9 +28,11 @@ vi.mock("@/lib/utils/logger", () => ({
 }));
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 
 // ---------------------------------------------------------------------------
@@ -103,7 +105,7 @@ vi.mock("@/lib/db", () => {
 
 vi.mock("@/lib/db/schema-reviews", () => ({
 	proposalReviews: {
-		id: "pr.id", opportunityId: "pr.oppId", reviewType: "pr.type",
+		id: "pr.id", organizationId: "pr.organizationId", opportunityId: "pr.oppId", reviewType: "pr.type",
 		reviewName: "pr.name", status: "pr.status", reviewNumber: "pr.num",
 		createdAt: "pr.createdAt", scheduledDate: "pr.schedDate",
 		totalComments: "pr.totalComments", criticalIssues: "pr.critIssues",
@@ -129,7 +131,7 @@ vi.mock("@/lib/db/schema-reviews", () => ({
 		updatedAt: "rv.updatedAt", lastReminderSentAt: "rv.lastReminder",
 	},
 	reviewComments: {
-		id: "rc.id", reviewId: "rc.reviewId", reviewerId: "rc.reviewerId",
+		id: "rc.id", organizationId: "rc.organizationId", reviewId: "rc.reviewId", reviewerId: "rc.reviewerId",
 		commentType: "rc.type", severity: "rc.severity", category: "rc.cat",
 		comment: "rc.comment", resolutionStatus: "rc.resStatus",
 		parentCommentId: "rc.parentId", replyCount: "rc.replyCount",
@@ -394,6 +396,7 @@ function mockCreateReviewSelects(
 beforeEach(() => {
 	vi.clearAllMocks();
 	getCurrentUserIdMock.mockResolvedValue("user-100");
+	requireUserContextMock.mockResolvedValue({ userId: "user-100", organizationId: "org-1", roles: ["proposal_manager"] });
 	// Recreate fresh db mock chains
 	dbMock.select.mockImplementation(() => createChainableQuery([]));
 	dbMock.insert.mockImplementation(() => createChainableQuery([]));
@@ -433,6 +436,7 @@ describe("Review CRUD", () => {
 			expect(dbMock.insert).toHaveBeenCalled();
 			expect(insertChain.values).toHaveBeenCalledWith(
 				expect.objectContaining({
+					organizationId: "org-1",
 					createdBy: "user-100",
 				})
 			);
@@ -455,7 +459,7 @@ describe("Review CRUD", () => {
 		});
 
 		test("rejects unauthenticated review creation before database access", async () => {
-			getCurrentUserIdMock.mockResolvedValue(null);
+			requireUserContextMock.mockRejectedValue(new Error("Unauthorized"));
 
 			const result = await createReview({
 				opportunityId: UUID2,
@@ -743,7 +747,10 @@ describe("Review CRUD", () => {
 			expect(result.reviews).toHaveLength(2);
 			expect(result.reviews![0].reviewerCount).toBe(1);
 			expect(result.reviews![1].reviewerCount).toBe(0);
-			expectAssignedReviewScope(dbMock.query.proposalReviews.findMany.mock.calls[0][0].where);
+			const sqlText = collectSqlFragments(dbMock.query.proposalReviews.findMany.mock.calls[0][0].where).join(" ");
+			expect(sqlText).toContain("organizationId");
+			expect(sqlText).toContain("org-1");
+			expect(sqlText).toContain("opportunities.assigned_to");
 		});
 
 		test("returns empty array when no reviews exist", async () => {
@@ -1014,6 +1021,9 @@ describe("Comment Management", () => {
 
 			expect(result.success).toBe(true);
 			expect(result.commentId).toBe("comment-new");
+			expect(dbMock.insert.mock.results[0].value.values).toHaveBeenCalledWith(
+				expect.objectContaining({ organizationId: "org-1" })
+			);
 			// update called: reviewer count + review stats
 			expect(dbMock.update).toHaveBeenCalled();
 		});

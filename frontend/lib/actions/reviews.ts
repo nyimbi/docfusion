@@ -27,9 +27,19 @@ import {
 	reviewChecklists,
 } from "@/lib/db/schema-reviews";
 import { opportunities } from "@/lib/db/schema";
-import { eq, and, desc, sql, inArray, gte, lte, isNull, count, avg, type SQL } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, gte, lte, isNull, or, count, avg, type SQL } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, requireUserContext, type UserContext } from "@/lib/auth-utils";
+
+type ReviewActorContext = UserContext & { organizationId: string };
+
+async function requireReviewActorContext(): Promise<ReviewActorContext> {
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+	return userContext as ReviewActorContext;
+}
 
 async function requireReviewActorId(): Promise<string> {
 	const userId = await getCurrentUserId();
@@ -37,6 +47,20 @@ async function requireReviewActorId(): Promise<string> {
 		throw new Error("Unauthorized");
 	}
 	return userId;
+}
+
+function reviewOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(proposalReviews.organizationId, organizationId),
+		isNull(proposalReviews.organizationId)
+	)!;
+}
+
+function commentOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(reviewComments.organizationId, organizationId),
+		isNull(reviewComments.organizationId)
+	)!;
 }
 
 function assertReviewerActor(reviewerUserId: string | null | undefined, actorId: string): void {
@@ -54,28 +78,37 @@ function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): 
 	)`;
 }
 
-function assignedReviewExistsSql(reviewId: unknown, actorId: string): SQL {
+function assignedReviewExistsSql(reviewId: unknown, actorId: string, organizationId?: string): SQL {
 	return sql`exists (
 		select 1
 		from proposal_reviews
 		join opportunities on opportunities.id = proposal_reviews.opportunity_id
 		where proposal_reviews.id = ${reviewId}
+			${organizationId ? sql`and (proposal_reviews.organization_id = ${organizationId} or proposal_reviews.organization_id is null)` : sql``}
 			and opportunities.assigned_to = ${actorId}
 	)`;
 }
 
-function assignedReviewByIdCondition(reviewId: string, actorId: string): SQL {
-	return and(
+function assignedReviewByIdCondition(reviewId: string, actorId: string, organizationId?: string): SQL {
+	const conditions = [
 		eq(proposalReviews.id, reviewId),
-		assignedReviewExistsSql(reviewId, actorId)
-	)!;
+		assignedReviewExistsSql(reviewId, actorId, organizationId),
+	];
+	if (organizationId) {
+		conditions.push(reviewOrganizationCondition(organizationId));
+	}
+	return and(...conditions)!;
 }
 
-function assignedReviewsForOpportunityCondition(opportunityId: string, actorId: string): SQL {
-	return and(
+function assignedReviewsForOpportunityCondition(opportunityId: string, actorId: string, organizationId?: string): SQL {
+	const conditions = [
 		eq(proposalReviews.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, actorId)
-	)!;
+		assignedOpportunityExistsSql(opportunityId, actorId),
+	];
+	if (organizationId) {
+		conditions.push(reviewOrganizationCondition(organizationId));
+	}
+	return and(...conditions)!;
 }
 
 function assignedOpportunityByIdCondition(opportunityId: string, actorId: string): SQL {
@@ -85,31 +118,43 @@ function assignedOpportunityByIdCondition(opportunityId: string, actorId: string
 	)!;
 }
 
-function assignedScoresForReviewCondition(reviewId: string, actorId: string): SQL {
+function assignedScoresForReviewCondition(reviewId: string, actorId: string, organizationId?: string): SQL {
 	return and(
 		eq(reviewScores.reviewId, reviewId),
-		assignedReviewExistsSql(reviewId, actorId)
+		assignedReviewExistsSql(reviewId, actorId, organizationId)
 	)!;
 }
 
-function assignedCommentsForReviewCondition(reviewId: string, actorId: string): SQL {
-	return and(
+function assignedCommentsForReviewCondition(reviewId: string, actorId: string, organizationId?: string): SQL {
+	const conditions = [
 		eq(reviewComments.reviewId, reviewId),
-		assignedReviewExistsSql(reviewId, actorId)
+		assignedReviewExistsSql(reviewId, actorId, organizationId),
+	];
+	if (organizationId) {
+		conditions.push(commentOrganizationCondition(organizationId));
+	}
+	return and(...conditions)!;
+}
+
+function assignedCommentByIdCondition(commentId: string, actorId: string, organizationId: string): SQL {
+	return and(
+		eq(reviewComments.id, commentId),
+		commentOrganizationCondition(organizationId),
+		assignedReviewExistsSql(reviewComments.reviewId, actorId, organizationId)
 	)!;
 }
 
-function assignedReviewerByIdCondition(reviewerId: string, actorId: string): SQL {
+function assignedReviewerByIdCondition(reviewerId: string, actorId: string, organizationId?: string): SQL {
 	return and(
 		eq(reviewers.id, reviewerId),
-		assignedReviewExistsSql(reviewers.reviewId, actorId)
+		assignedReviewExistsSql(reviewers.reviewId, actorId, organizationId)
 	)!;
 }
 
-function assignedReviewersForReviewCondition(reviewId: string, actorId: string): SQL {
+function assignedReviewersForReviewCondition(reviewId: string, actorId: string, organizationId?: string): SQL {
 	return and(
 		eq(reviewers.reviewId, reviewId),
-		assignedReviewExistsSql(reviewId, actorId)
+		assignedReviewExistsSql(reviewId, actorId, organizationId)
 	)!;
 }
 
@@ -460,7 +505,8 @@ export async function createReview(
 	input: CreateReviewInput
 ): Promise<{ success: boolean; reviewId?: string; error?: string }> {
 	try {
-		const actorId = await requireReviewActorId();
+		const actorContext = await requireReviewActorContext();
+		const actorId = actorContext.userId;
 		const validated = CreateReviewInputSchema.parse(input);
 
 		// Generate review name if not provided
@@ -485,6 +531,7 @@ export async function createReview(
 				and(
 					eq(proposalReviews.opportunityId, validated.opportunityId),
 					eq(proposalReviews.reviewType, validated.reviewType),
+					reviewOrganizationCondition(actorContext.organizationId),
 					assignedOpportunityExistsSql(validated.opportunityId, actorId)
 				)
 			)
@@ -496,6 +543,7 @@ export async function createReview(
 			: 1;
 
 		const [review] = await db.insert(proposalReviews).values({
+			organizationId: actorContext.organizationId,
 			opportunityId: validated.opportunityId,
 			reviewType: validated.reviewType,
 			reviewName,
@@ -624,9 +672,10 @@ export async function deleteReview(
 	id: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		const actorId = await requireReviewActorId();
+		const actorContext = await requireReviewActorContext();
+		const actorId = actorContext.userId;
 		const review = await db.query.proposalReviews.findFirst({
-			where: assignedReviewByIdCondition(id, actorId),
+			where: assignedReviewByIdCondition(id, actorId, actorContext.organizationId),
 		});
 
 		if (!review) {
@@ -640,9 +689,12 @@ export async function deleteReview(
 		// Delete associated records first (cascade should handle this, but being explicit)
 		await db.delete(reviewChecklists).where(eq(reviewChecklists.reviewId, id));
 		await db.delete(reviewScores).where(eq(reviewScores.reviewId, id));
-		await db.delete(reviewComments).where(eq(reviewComments.reviewId, id));
+		await db.delete(reviewComments).where(and(
+			eq(reviewComments.reviewId, id),
+			commentOrganizationCondition(actorContext.organizationId)
+		));
 		await db.delete(reviewers).where(eq(reviewers.reviewId, id));
-		await db.delete(proposalReviews).where(assignedReviewByIdCondition(id, actorId));
+		await db.delete(proposalReviews).where(assignedReviewByIdCondition(id, actorId, actorContext.organizationId));
 
 		revalidatePath(`/opportunities/${review.opportunityId}/reviews`);
 
@@ -680,9 +732,10 @@ export async function listReviews(
 	error?: string;
 }> {
 	try {
-		const actorId = await requireReviewActorId();
+		const actorContext = await requireReviewActorContext();
+		const actorId = actorContext.userId;
 		const reviewsData = await db.query.proposalReviews.findMany({
-			where: assignedReviewsForOpportunityCondition(opportunityId, actorId),
+			where: assignedReviewsForOpportunityCondition(opportunityId, actorId, actorContext.organizationId),
 			with: {
 				reviewers: true,
 			},
@@ -744,8 +797,10 @@ export async function listAllReviews(
 	error?: string;
 }> {
 	try {
-		const actorId = await requireReviewActorId();
+		const actorContext = await requireReviewActorContext();
+		const actorId = actorContext.userId;
 		const conditions: SQL[] = [
+			reviewOrganizationCondition(actorContext.organizationId),
 			assignedOpportunityExistsSql(proposalReviews.opportunityId, actorId),
 		];
 
@@ -1216,14 +1271,16 @@ export async function addReviewComment(
 	comment: CommentInput
 ): Promise<{ success: boolean; commentId?: string; error?: string }> {
 	try {
-		const actorId = await requireReviewActorId();
+		const actorContext = await requireReviewActorContext();
+		const actorId = actorContext.userId;
 		const validated = CommentInputSchema.parse(comment);
 
 		// Verify reviewer exists and belongs to this review
 		const reviewer = await db.query.reviewers.findFirst({
 			where: and(
 				eq(reviewers.id, reviewerId),
-				eq(reviewers.reviewId, reviewId)
+				eq(reviewers.reviewId, reviewId),
+				assignedReviewExistsSql(reviewId, actorId, actorContext.organizationId)
 			),
 		});
 
@@ -1233,6 +1290,7 @@ export async function addReviewComment(
 		assertReviewerActor(reviewer.userId, actorId);
 
 		const [newComment] = await db.insert(reviewComments).values({
+			organizationId: actorContext.organizationId,
 			reviewId,
 			reviewerId,
 			sectionId: validated.sectionId,
@@ -1277,7 +1335,7 @@ export async function addReviewComment(
 					replyCount: sql`COALESCE(${reviewComments.replyCount}, 0) + 1`,
 					updatedAt: new Date(),
 				})
-				.where(eq(reviewComments.id, validated.parentCommentId));
+				.where(assignedCommentByIdCondition(validated.parentCommentId, actorId, actorContext.organizationId));
 		}
 
 		// Update review statistics
@@ -1306,9 +1364,9 @@ export async function updateComment(
 	data: Partial<CommentInput>
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		await requireReviewActorId();
+		const actorContext = await requireReviewActorContext();
 		const existingComment = await db.query.reviewComments.findFirst({
-			where: eq(reviewComments.id, commentId),
+			where: assignedCommentByIdCondition(commentId, actorContext.userId, actorContext.organizationId),
 		});
 
 		if (!existingComment) {
@@ -1333,7 +1391,7 @@ export async function updateComment(
 
 		await db.update(reviewComments)
 			.set(updates)
-			.where(eq(reviewComments.id, commentId));
+			.where(assignedCommentByIdCondition(commentId, actorContext.userId, actorContext.organizationId));
 
 		// Update review statistics
 		await updateReviewStatistics(existingComment.reviewId);
@@ -1357,9 +1415,9 @@ export async function deleteComment(
 	commentId: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		await requireReviewActorId();
+		const actorContext = await requireReviewActorContext();
 		const comment = await db.query.reviewComments.findFirst({
-			where: eq(reviewComments.id, commentId),
+			where: assignedCommentByIdCondition(commentId, actorContext.userId, actorContext.organizationId),
 		});
 
 		if (!comment) {
@@ -1367,10 +1425,13 @@ export async function deleteComment(
 		}
 
 		// Delete child comments (replies) first
-		await db.delete(reviewComments).where(eq(reviewComments.parentCommentId, commentId));
+		await db.delete(reviewComments).where(and(
+			eq(reviewComments.parentCommentId, commentId),
+			commentOrganizationCondition(actorContext.organizationId)
+		));
 
 		// Delete the comment
-		await db.delete(reviewComments).where(eq(reviewComments.id, commentId));
+		await db.delete(reviewComments).where(assignedCommentByIdCondition(commentId, actorContext.userId, actorContext.organizationId));
 
 		// Update reviewer's comment count
 		if (comment.reviewerId) {
@@ -1389,7 +1450,7 @@ export async function deleteComment(
 					replyCount: sql`GREATEST(COALESCE(${reviewComments.replyCount}, 0) - 1, 0)`,
 					updatedAt: new Date(),
 				})
-				.where(eq(reviewComments.id, comment.parentCommentId));
+				.where(assignedCommentByIdCondition(comment.parentCommentId, actorContext.userId, actorContext.organizationId));
 		}
 
 		// Update review statistics
@@ -1416,11 +1477,12 @@ export async function resolveComment(
 	_resolvedBy: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		const actorId = await requireReviewActorId();
+		const actorContext = await requireReviewActorContext();
+		const actorId = actorContext.userId;
 		const validated = ResolutionInputSchema.parse(resolution);
 
 		const comment = await db.query.reviewComments.findFirst({
-			where: eq(reviewComments.id, commentId),
+			where: assignedCommentByIdCondition(commentId, actorContext.userId, actorContext.organizationId),
 		});
 
 		if (!comment) {
@@ -1438,7 +1500,7 @@ export async function resolveComment(
 				duplicateOfId: validated.duplicateOfId,
 				updatedAt: new Date(),
 			})
-			.where(eq(reviewComments.id, commentId));
+			.where(assignedCommentByIdCondition(commentId, actorContext.userId, actorContext.organizationId));
 
 		// Update review statistics
 		await updateReviewStatistics(comment.reviewId);
@@ -1464,9 +1526,10 @@ export async function verifyResolution(
 	verificationNotes?: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		const actorId = await requireReviewActorId();
+		const actorContext = await requireReviewActorContext();
+		const actorId = actorContext.userId;
 		const comment = await db.query.reviewComments.findFirst({
-			where: eq(reviewComments.id, commentId),
+			where: assignedCommentByIdCondition(commentId, actorContext.userId, actorContext.organizationId),
 		});
 
 		if (!comment) {
@@ -1484,7 +1547,7 @@ export async function verifyResolution(
 				verificationNotes,
 				updatedAt: new Date(),
 			})
-			.where(eq(reviewComments.id, commentId));
+			.where(assignedCommentByIdCondition(commentId, actorContext.userId, actorContext.organizationId));
 
 		revalidatePath(`/reviews/${comment.reviewId}`);
 
@@ -1538,9 +1601,13 @@ export async function getReviewComments(
 	error?: string;
 }> {
 	try {
-		await requireReviewActorId();
+		const actorContext = await requireReviewActorContext();
 		// Build where conditions
-		const conditions = [eq(reviewComments.reviewId, reviewId)];
+		const conditions = [
+			eq(reviewComments.reviewId, reviewId),
+			commentOrganizationCondition(actorContext.organizationId),
+			assignedReviewExistsSql(reviewId, actorContext.userId, actorContext.organizationId),
+		];
 
 		if (filters?.commentType) {
 			conditions.push(eq(reviewComments.commentType, filters.commentType as never));
