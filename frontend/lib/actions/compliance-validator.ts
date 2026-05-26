@@ -27,6 +27,7 @@ import {
 } from "@/lib/auth-utils";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { logger } from "@/lib/utils/logger";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 
 // ============================================================================
 // Types
@@ -294,7 +295,10 @@ function requireAnyAuthorityRole(
 	if (requiredRoles.some((role) => userHasAuthorityRole(userContext, role))) {
 		return;
 	}
-	throw new Error(`${message}: requires ${requiredRoles.join(" or ")}`);
+	throw new WorkflowAuthorityDeniedError({
+		action: message,
+		requiredRoles,
+	});
 }
 
 function visibleComplianceMatrixCondition(matrixId: string, organizationId: string) {

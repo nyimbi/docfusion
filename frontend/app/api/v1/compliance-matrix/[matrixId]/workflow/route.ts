@@ -11,6 +11,7 @@ import {
 	transitionComplianceMatrixWorkflow,
 	type ComplianceMatrixWorkflowAction,
 } from "@/lib/actions/compliance-validator";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -65,6 +66,9 @@ export async function POST(
 		});
 		return NextResponse.json(result);
 	} catch (error) {
+		if (error instanceof WorkflowAuthorityDeniedError) {
+			return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+		}
 		const message = error instanceof Error ? error.message : "Workflow transition failed";
 		console.error("Compliance matrix workflow transition failed", error);
 		return NextResponse.json(

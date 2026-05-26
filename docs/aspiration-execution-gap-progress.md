@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Compliance API Authority Denial Responses
+
+Status: implemented and verified.
+
+Purpose: make compliance workflow API routes return explicit 403 responses for server-enforced authority failures instead of generic 500 workflow failures.
+
+Changes in this slice:
+- Raise the shared `WorkflowAuthorityDeniedError` from compliance workflow role gates.
+- Map compliance matrix workflow authority denials to a generic 403 without leaking required role names.
+- Map compliance entry workflow authority denials to a generic 403 without leaking required role names.
+- Add focused API coverage for matrix and entry authority denial responses while preserving non-authority failures as workflow errors.
+
+Verification:
+- `npm run test -- __tests__/actions/compliance-entry-workflow.test.ts __tests__/api/compliance-workflow-routes.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets compliance API authority response behavior with focused route/action tests and whitespace validation.
+
+Remaining after this slice:
+- Continue adding explicit 403 mapping to any API route that directly exposes hardened workflow server actions.
+- Continue closing direct approval/status mutation surfaces outside the final-mile workflow.
+
 ### 2026-05-26 - Document Authoring Ready Approval Authority Checks
 
 Status: implemented and verified.
