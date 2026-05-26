@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { proposalTasks, taskActivity } from "@/lib/db/schema-tasks";
-import { requireUserContext } from "@/lib/auth-utils";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
@@ -11,6 +11,7 @@ import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type ProposalTaskRow = typeof proposalTasks.$inferSelect;
 type ProposalTaskStatus = "pending" | "assigned" | "in_progress" | "review" | "blocked" | "completed" | "cancelled";
+type ProposalTaskUserContext = UserContext & { organizationId: string };
 
 export type ProposalTaskWorkflowAction =
 	| "assign"
@@ -45,20 +46,24 @@ export interface ProposalTaskWorkflowResult {
 const WORKFLOW_KEY = "proposal_task_lifecycle";
 const SUBJECT_TYPE = "proposal_task";
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: ProposalTaskUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleProposalTaskCondition(taskId: string, organizationId: string, userId: string): SQL {
+function visibleProposalTaskCondition(taskId: string, userContext: ProposalTaskUserContext): SQL {
 	return and(
-		eq(proposalTasks.organizationId, organizationId),
+		eq(proposalTasks.organizationId, userContext.organizationId),
 		eq(proposalTasks.id, taskId),
-		assignedOpportunityExistsSql(proposalTasks.opportunityId, userId)
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, userContext)
 	)!;
 }
 
@@ -69,6 +74,7 @@ export async function transitionProposalTaskWorkflow(
 	if (!userContext.organizationId) {
 		throw new Error("Organization context required");
 	}
+	const taskContext = userContext as ProposalTaskUserContext;
 	const reason = input.reason.trim();
 	if (!reason) {
 		throw new Error("Task workflow transitions require a reason");
@@ -77,7 +83,7 @@ export async function transitionProposalTaskWorkflow(
 	const [task] = await db
 		.select()
 		.from(proposalTasks)
-		.where(visibleProposalTaskCondition(input.taskId, userContext.organizationId, userContext.userId))
+		.where(visibleProposalTaskCondition(input.taskId, taskContext))
 		.limit(1);
 	if (!task) {
 		throw new Error("Task not found");
@@ -88,7 +94,7 @@ export async function transitionProposalTaskWorkflow(
 	const [updated] = await db
 		.update(proposalTasks)
 		.set(transition.patch)
-		.where(visibleProposalTaskCondition(input.taskId, userContext.organizationId, userContext.userId))
+		.where(visibleProposalTaskCondition(input.taskId, taskContext))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update task workflow state");
