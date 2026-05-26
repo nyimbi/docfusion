@@ -8,7 +8,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, requireUserContext, type UserContext } from "@/lib/auth-utils";
 import { documents, proposalDocuments, opportunities } from "@/lib/db/schema";
 import { eq, and, or, sql, type SQL } from "drizzle-orm";
 import type { JSONContent } from "@tiptap/react";
@@ -62,6 +62,8 @@ const REQUIRED_DOCUMENT_TYPES: ProposalDocumentType[] = [
 	"cost_proposal",
 ];
 
+type DocumentRenderUserContext = UserContext & { organizationId: string };
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -72,6 +74,14 @@ async function requireCurrentUserId(): Promise<string> {
 		throw new Error("Unauthorized");
 	}
 	return userId;
+}
+
+async function requireCurrentUserContext(): Promise<DocumentRenderUserContext> {
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+	return userContext as DocumentRenderUserContext;
 }
 
 function readableDocumentCondition(documentId: string, userId: string): SQL {
@@ -85,30 +95,40 @@ function readableDocumentCondition(documentId: string, userId: string): SQL {
 	)!;
 }
 
-function assignedOpportunityCondition(userId: string): SQL {
-	return sql`opportunities.assigned_to = ${userId}`;
+function assignedOpportunityCondition(userContext: DocumentRenderUserContext): SQL {
+	return sql`(
+		opportunities.organization_id = ${userContext.organizationId}
+		or opportunities.organization_id is null
+	) and opportunities.assigned_to = ${userContext.userId}`;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: DocumentRenderUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleOpportunityCondition(opportunityId: string, userContext: DocumentRenderUserContext): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		assignedOpportunityCondition(userId)
+		assignedOpportunityCondition(userContext)
 	)!;
 }
 
-function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleProposalDocumentsForOpportunityCondition(
+	opportunityId: string,
+	userContext: DocumentRenderUserContext
+): SQL {
 	return and(
 		eq(proposalDocuments.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
@@ -674,7 +694,7 @@ export async function renderDocument(
 export async function preSubmissionAudit(
 	opportunityId: string
 ): Promise<PreSubmissionAudit> {
-	const currentUserId = await requireCurrentUserId();
+	const currentUserContext = await requireCurrentUserContext();
 
 	const checks: AuditCheck[] = [];
 	const issues: string[] = [];
@@ -689,7 +709,7 @@ export async function preSubmissionAudit(
 			decisionStatus: opportunities.decisionStatus,
 		})
 		.from(opportunities)
-		.where(visibleOpportunityCondition(opportunityId, currentUserId))
+		.where(visibleOpportunityCondition(opportunityId, currentUserContext))
 		.limit(1);
 
 	if (!opportunity) {
@@ -721,7 +741,7 @@ export async function preSubmissionAudit(
 		})
 		.from(proposalDocuments)
 		.innerJoin(documents, eq(proposalDocuments.documentId, documents.id))
-		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, currentUserId));
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, currentUserContext));
 
 	// Check for missing required documents
 	const existingTypes = new Set(propDocs.map((d) => d.documentType));

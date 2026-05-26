@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 
 interface ChainConfig {
 	result?: unknown[];
@@ -44,6 +45,7 @@ var dbMock: {
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -71,6 +73,11 @@ const opportunityId = "11111111-1111-4111-8111-111111111111";
 beforeEach(() => {
 	vi.clearAllMocks();
 	getCurrentUserIdMock.mockResolvedValue("render-user-1");
+	requireUserContextMock.mockResolvedValue({
+		userId: "render-user-1",
+		organizationId: "org-1",
+		roles: ["proposal_manager"],
+	});
 });
 
 describe("document render opportunity scoping", () => {
@@ -97,7 +104,11 @@ describe("document render opportunity scoping", () => {
 		expect(result.isReady).toBe(false);
 		expect(wheres).toHaveLength(2);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			const sqlText = collectSqlFragments(where).join(" ");
+			expect(sqlText).toContain("opportunities.organization_id");
+			expect(sqlText).toContain("org-1");
+			expect(sqlText).toContain("opportunities.assigned_to");
+			expect(sqlText).toContain("render-user-1");
 		}
 	});
 });

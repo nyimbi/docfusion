@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Document Render Audit Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep pre-submission audit reads scoped to the caller's organization through the target opportunity before reporting readiness across proposal documents.
+
+Changes in this slice:
+- Use full user context for pre-submission audit instead of user id only.
+- Require organization context for opportunity-based audit reads.
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to audit opportunity and proposal document visibility checks.
+- Extend document render auth/scope tests to assert organization-aware opportunity predicates.
+
+Verification:
+- `npm test -- document-render-scope.test.ts document-render-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as work items, task management, workflow domain, submissions, pipeline, pricing, reviews, proposal documents, and win themes.
+
 ### 2026-05-27 - Final Artifact Opportunity Tenant Predicates
 
 Status: implemented and verified.
