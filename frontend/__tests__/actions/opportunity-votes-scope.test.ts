@@ -78,6 +78,7 @@ beforeEach(() => {
 			id: "vote-user-1",
 			name: "Vote User",
 			email: "vote@example.com",
+			organizationId: "org-1",
 		},
 	});
 });
@@ -100,6 +101,7 @@ describe("opportunity vote scoping", () => {
 
 		expect(dbMock.insert).not.toHaveBeenCalled();
 		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.organization_id");
 	});
 
 	it("scopes vote list reads through the assigned opportunity", async () => {
@@ -115,6 +117,8 @@ describe("opportunity vote scoping", () => {
 
 		expect(result).toEqual([]);
 		expect(collectSqlFragments(votesWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(collectSqlFragments(votesWhere).join(" ")).toContain("opportunity_votes");
+		expect(collectSqlFragments(votesWhere).join(" ")).toContain("organization_id");
 	});
 
 	it("scopes vote summary count and confidence reads", async () => {
@@ -135,6 +139,7 @@ describe("opportunity vote scoping", () => {
 		expect(wheres).toHaveLength(2);
 		for (const where of wheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expect(collectSqlFragments(where).join(" ")).toContain("organization_id");
 		}
 	});
 
@@ -158,6 +163,7 @@ describe("opportunity vote scoping", () => {
 		expect(wheres).toHaveLength(2);
 		for (const where of wheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.organization_id");
 		}
 	});
 
@@ -183,6 +189,7 @@ describe("opportunity vote scoping", () => {
 		expect(wheres).toHaveLength(3);
 		for (const where of wheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expect(collectSqlFragments(where).join(" ")).toContain("organization_id");
 		}
 	});
 });

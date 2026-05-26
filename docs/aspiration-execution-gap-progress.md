@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Opportunity Vote Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: use the new opportunity tenant root to keep go/no-go vote reads, writes, summaries, and auto-decision updates scoped to the current organization.
+
+Changes in this slice:
+- Require organization context for opportunity vote actors.
+- Persist `organization_id` on newly cast opportunity votes.
+- Add tenant predicates, with legacy null-row fallback, to vote lookup, summary, delete, bulk-summary, and automatic opportunity status update paths.
+- Extend vote scope tests to assert both assigned-opportunity and organization predicates.
+
+Verification:
+- `npm test -- opportunity-votes-scope.test.ts opportunity-votes-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to other specialized response modules that still use assignment-only checks.
+
 ### 2026-05-26 - Opportunity Root Tenant Anchors
 
 Status: implemented and verified.
