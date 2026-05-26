@@ -9,6 +9,8 @@ const updateOpportunityMock = vi.hoisted(() => vi.fn());
 const firecrawlScrapeMock = vi.hoisted(() => vi.fn());
 const downloadDocumentMock = vi.hoisted(() => vi.fn());
 const fetchMock = vi.hoisted(() => vi.fn());
+const fetchKenyaPpipOpportunitiesMock = vi.hoisted(() => vi.fn());
+const isKenyaPpipUrlMock = vi.hoisted(() => vi.fn((url: string) => url.includes("tenders.go.ke")));
 const selectResultsQueue = vi.hoisted(() => [] as unknown[][]);
 
 vi.mock("@/lib/auth-utils", () => ({
@@ -28,6 +30,11 @@ vi.mock("@/lib/scrapers/firecrawl", () => ({
 
 vi.mock("@/lib/services/rfp-document-service", () => ({
 	downloadDocument: downloadDocumentMock,
+}));
+
+vi.mock("@/lib/services/kenya-ppip-client", () => ({
+	fetchKenyaPpipOpportunities: fetchKenyaPpipOpportunitiesMock,
+	isKenyaPpipUrl: isKenyaPpipUrlMock,
 }));
 
 vi.mock("@/lib/actions/opportunities", () => ({
@@ -91,6 +98,12 @@ beforeEach(() => {
 	createOpportunityMock.mockResolvedValue({ id: "opp-1" });
 	updateOpportunityMock.mockResolvedValue({ id: "opp-existing" });
 	firecrawlScrapeMock.mockResolvedValue({ success: false, error: "not scraped" });
+	fetchKenyaPpipOpportunitiesMock.mockResolvedValue({
+		apiUrl: "https://tenders.go.ke/api/active-tenders?perpage=5&page=1",
+		opportunities: [],
+		total: 0,
+	});
+	isKenyaPpipUrlMock.mockImplementation((url: string) => url.includes("tenders.go.ke"));
 	downloadDocumentMock.mockResolvedValue({ success: true, documentId: "source-doc-1" });
 	fetchMock.mockResolvedValue({
 		ok: false,
@@ -647,5 +660,79 @@ describe("discoverAndImportOpportunities", () => {
 				}),
 			}),
 		}));
+	});
+
+	it("imports Kenya PPIP configured sources through the public JSON API before Firecrawl", async () => {
+		const deadline = new Date(2026, 5, 10, 14, 0, 0);
+		const publishedDate = new Date(2026, 4, 26);
+		fetchKenyaPpipOpportunitiesMock.mockResolvedValue({
+			apiUrl: "https://tenders.go.ke/api/active-tenders?perpage=5&page=1",
+			total: 928,
+			opportunities: [{
+				title: "REGISTRATION OF SUPPLIERS & SERVICE PROVIDERS",
+				source: "kenya_ppip",
+				sourceId: "GDC/SC/REG/007/2026-2028",
+				noticeId: "GDC/SC/REG/007/2026-2028",
+				organization: "Geothermal Development Company",
+				countryRegion: "Kenya",
+				category: "Goods",
+				projectSummary: "REGISTRATION OF SUPPLIERS & SERVICE PROVIDERS",
+				submissionMethod: "Electronic submission",
+				opportunityType: "tender",
+				deadline,
+				publishedDate,
+				portalUrl: "https://tenders.go.ke/tenders/291563",
+				documentUrl: "https://tenders.go.ke/storage/Documents/registration.pdf",
+				rfpLink: "https://tenders.go.ke/storage/Documents/registration.pdf",
+				metadata: { ppip: { id: 291563, documentCount: 1 } },
+			}],
+		});
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://tenders.go.ke/tenders"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(searchSearxngMock).not.toHaveBeenCalled();
+		expect(fetchKenyaPpipOpportunitiesMock).toHaveBeenCalledWith("https://tenders.go.ke/tenders", {
+			limit: 5,
+			timeoutMs: 20000,
+		});
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			sourceId: "GDC/SC/REG/007/2026-2028",
+			title: "REGISTRATION OF SUPPLIERS & SERVICE PROVIDERS",
+			category: "Goods",
+			countryRegion: "Kenya",
+			organization: "Geothermal Development Company",
+			deadline,
+			publishedDate,
+			rfpLink: "https://tenders.go.ke/storage/Documents/registration.pdf",
+			source: "kenya_ppip",
+			sourcePlatform: "Kenya PPIP",
+			sourceFile: "source:https://tenders.go.ke/tenders",
+			noticeId: "GDC/SC/REG/007/2026-2028",
+			portalUrl: "https://tenders.go.ke/tenders/291563",
+			documentUrl: "https://tenders.go.ke/storage/Documents/registration.pdf",
+			tags: ["external-discovery", "source-scrape", "kenya-ppip"],
+			metadata: expect.objectContaining({
+				ppip: { id: 291563, documentCount: 1 },
+				discovery: expect.objectContaining({
+					resultEngine: "kenya-ppip-api",
+					scrapeMethod: "source_api",
+					scrapedWithFirecrawl: false,
+					sourceTotal: 928,
+					sourceUrl: "https://tenders.go.ke/tenders",
+				}),
+			}),
+		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
 	});
 });

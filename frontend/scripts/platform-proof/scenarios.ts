@@ -338,6 +338,23 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-source-discovery.json",
 		],
 	},
+	{
+		id: "live-kenya-ppip-source",
+		wave: 9,
+		title: "Live Kenya PPIP source API proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005"],
+		requiresLiveServices: true,
+		description: "Calls Kenya PPIP's public JSON API and verifies mapped opportunity candidates include source document URLs.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-kenya-ppip-source.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-kenya-ppip-evidence.md",
+			".omx/logs/platform-completion/live-kenya-ppip-<run_id>/live-kenya-ppip-source.json",
+		],
+	},
 ];
 
 export function listProofScenarios(filters: {

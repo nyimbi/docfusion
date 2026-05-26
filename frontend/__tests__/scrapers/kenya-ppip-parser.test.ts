@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { kenyaPpipParser } from "@/lib/scrapers/parsers/kenya-ppip";
+import { kenyaPpipParser, mapKenyaPpipApiTenderToOpportunity } from "@/lib/scrapers/parsers/kenya-ppip";
 
 describe("Kenya PPIP parser", () => {
 	it("parses PPIP HTML tender table rows into opportunity data", async () => {
@@ -60,5 +60,46 @@ describe("Kenya PPIP parser", () => {
 				portalUrl: "https://tenders.go.ke/tenders/PPIP-2026-002",
 			}),
 		]);
+	});
+
+	it("maps PPIP public API tender records into canonical opportunity data", () => {
+		const opportunity = mapKenyaPpipApiTenderToOpportunity({
+			id: 291563,
+			ocid: "ocds-5whusi-291563-GDC/SC/REG/007/2026-2028",
+			title: "REGISTRATION OF SUPPLIERS & SERVICE PROVIDERS",
+			tender_ref: "GDC/SC/REG/007/2026-2028",
+			published_at: "2026-05-26 00:00:00",
+			close_at: "2026-06-10 14:00:00",
+			addendum_added: 0,
+			is_reservation: 1,
+			pe: { name: "Geothermal Development Company" },
+			procurement_method: { title: "Prequalification", code: "selective" },
+			procurement_category: { title: "Goods", code: "goods" },
+			submission_methods: [{ title: "Electronic submission", code: "electronicSubmission" }],
+			agpo_groups: [{ name: "Women", code: "women" }],
+			documents: [{
+				url: "/storage/Documents/registration.pdf",
+				document_type_id: 1,
+				type: { code: "tenderDocument", description: "Tender Document" },
+			}],
+		});
+
+		expect(opportunity).toEqual(expect.objectContaining({
+			title: "REGISTRATION OF SUPPLIERS & SERVICE PROVIDERS",
+			source: "kenya_ppip",
+			sourceId: "GDC/SC/REG/007/2026-2028",
+			noticeId: "GDC/SC/REG/007/2026-2028",
+			organization: "Geothermal Development Company",
+			countryRegion: "Kenya",
+			category: "Goods",
+			opportunityType: "tender",
+			portalUrl: "https://tenders.go.ke/tenders/291563",
+			documentUrl: "https://tenders.go.ke/storage/Documents/registration.pdf",
+			rfpLink: "https://tenders.go.ke/storage/Documents/registration.pdf",
+			submissionMethod: "Electronic submission",
+			tags: ["reservation", "Women"],
+		}));
+		expect(opportunity?.deadline).toEqual(new Date(2026, 5, 10, 14, 0, 0));
+		expect(opportunity?.publishedDate).toEqual(new Date(2026, 4, 26, 0, 0, 0));
 	});
 });

@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Kenya PPIP API Source Discovery
+
+Status: implemented and verified.
+
+Purpose: make Kenya PPIP a live configured source even though its public SPA shell and scraper/browser paths are sparse or unreliable.
+
+Changes in this slice:
+- Add a Kenya PPIP public JSON API client for `tenders.go.ke` configured-source discovery.
+- Map PPIP API tenders into canonical opportunity data with tender reference, procuring entity, category, deadline, published date, portal URL, and source document URL.
+- Prefer the PPIP API path before Firecrawl for `tenders.go.ke` source URLs, while retaining Firecrawl fallback if the API fails.
+- Preserve PPIP source metadata through import so downstream deduplication and source-document seeding use `kenya_ppip` identifiers.
+- Add a live-safe `live-kenya-ppip-source` platform proof scenario and evidence artifact.
+
+Verification:
+- `npm run test -- kenya-ppip-parser.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run live-kenya-ppip-source --include-live-safe` from `frontend/` passed, returning 928 active tenders from `https://tenders.go.ke/api/active-tenders?perpage=10&page=1` and 10 mapped sample opportunities with source document URLs.
+
+Remaining after this slice:
+- Continue toward realistic opportunity-to-winning-response proof after live Kenya acquisition is durable.
+
 ### 2026-05-26 - Kenya PPIP Parser Readiness
 
 Status: implemented and verified.

@@ -3,7 +3,9 @@ import { db } from "@/lib/db";
 import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { genericParser, getParser, type TenderParser } from "@/lib/scrapers/parsers";
+import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
+import { fetchKenyaPpipOpportunities, isKenyaPpipUrl } from "@/lib/services/kenya-ppip-client";
 import { downloadDocument } from "@/lib/services/rfp-document-service";
 import {
 	getSearxngBaseUrl,
@@ -48,13 +50,15 @@ interface DiscoveryCandidate {
 	result: SearxngResult;
 	discoveryMethod?: "searxng" | "source_scrape";
 	sourceUrl?: string;
+	opportunity?: OpportunityData;
+	sourceTotal?: number;
 	scrape?: {
 		title?: string;
 		description?: string;
 		markdown?: string;
 		success: boolean;
 		error?: string;
-		method: "firecrawl" | "browser_fallback";
+		method: "firecrawl" | "browser_fallback" | "source_api";
 		fallbackReason?: string;
 	};
 }
@@ -320,6 +324,26 @@ function extractDocumentUrlFromMarkdown(markdown: string | undefined, baseUrl: s
 	return candidates[0]?.url;
 }
 
+function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryMethod: DiscoveryCandidate["discoveryMethod"]): string {
+	if (opportunity?.source === "kenya_ppip") return "Kenya PPIP";
+	return discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG";
+}
+
+function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: DiscoveryCandidate["discoveryMethod"]): string[] {
+	if (discoveryMethod !== "source_scrape") return ["external-discovery"];
+	return [
+		"external-discovery",
+		"source-scrape",
+		...(opportunity?.source === "kenya_ppip" ? ["kenya-ppip"] : []),
+	];
+}
+
+function sourceOpportunityType(opportunity: OpportunityData | undefined): OpportunityInput["opportunityType"] | undefined {
+	if (!opportunity?.opportunityType) return undefined;
+	if (opportunity.opportunityType === "contract") return "tender";
+	return opportunity.opportunityType;
+}
+
 function safeUrlPathname(url: string): string {
 	try {
 		return new URL(url).pathname;
@@ -445,46 +469,54 @@ function buildOpportunityFromDiscovery(
 	const normalizedUrl = normalizeUrlForIdentity(candidate.result.url);
 	const urlHash = sha256Hex(normalizedUrl);
 	const discoveryMethod = candidate.discoveryMethod ?? "searxng";
+	const sourceOpportunity = candidate.opportunity;
 	const markdownSummary = compactText(candidate.scrape?.markdown, 2200);
 	const summary = compactText(
-		candidate.scrape?.description || candidate.result.content || markdownSummary,
+		sourceOpportunity?.projectSummary || candidate.scrape?.description || candidate.result.content || markdownSummary,
 		2200
 	);
 	const host = resultHost(candidate.result.url);
 	const documentUrl = isDocumentUrl(candidate.result.url)
 		? candidate.result.url
-		: extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
+		: sourceOpportunity?.documentUrl || extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
+	const source = sourceOpportunity?.source === "kenya_ppip"
+		? sourceOpportunity.source
+		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 
 	return {
-		sourceId: `searxng-${urlHash.slice(0, 42)}`,
-		title: compactText(candidate.scrape?.title || candidate.result.title || candidate.result.url, 1000)!,
-		category: input.category || candidate.result.category || "External discovery",
-		countryRegion: input.countryRegion,
-		organization: host,
+		sourceId: sourceOpportunity?.sourceId || `searxng-${urlHash.slice(0, 42)}`,
+		title: compactText(sourceOpportunity?.title || candidate.scrape?.title || candidate.result.title || candidate.result.url, 1000)!,
+		category: input.category || sourceOpportunity?.category || candidate.result.category || "External discovery",
+		countryRegion: input.countryRegion || sourceOpportunity?.countryRegion,
+		organization: sourceOpportunity?.organization || host,
+		deadline: sourceOpportunity?.deadline ?? undefined,
+		publishedDate: sourceOpportunity?.publishedDate ?? undefined,
 		projectSummary: summary,
-		rfpLink: candidate.result.url,
-		sourcePlatform: discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG",
+		submissionMethod: sourceOpportunity?.submissionMethod,
+		rfpLink: sourceOpportunity?.rfpLink || sourceOpportunity?.portalUrl || candidate.result.url,
+		sourcePlatform: sourcePlatformName(sourceOpportunity, discoveryMethod),
 		sourceFile: discoveryMethod === "source_scrape" ? `source:${candidate.sourceUrl ?? candidate.query}` : slugForSourceFile(candidate.query),
-		opportunityType: inferOpportunityType(candidate),
-		source: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng",
+		opportunityType: sourceOpportunityType(sourceOpportunity) || inferOpportunityType(candidate),
+		source,
 		fingerprint: urlHash,
-		portalUrl: candidate.result.url,
+		noticeId: sourceOpportunity?.noticeId,
+		portalUrl: sourceOpportunity?.portalUrl || candidate.result.url,
 		documentUrl,
 		scrapedAt: new Date(),
 		priorityRank: 3,
 		decisionStatus: "pending",
 		assignedTo: userId,
 		isReviewed: false,
-		tags: discoveryMethod === "source_scrape"
-			? ["external-discovery", "source-scrape"]
-			: ["external-discovery"],
+		tags: sourceTags(sourceOpportunity, discoveryMethod),
 		metadata: {
+			...(sourceOpportunity?.metadata ?? {}),
 			discovery: {
 				engine: discoveryMethod,
 				query: candidate.query,
 				resultEngine: candidate.result.engine,
 				score: candidate.result.score,
 				url: normalizedUrl,
+				sourceTotal: candidate.sourceTotal,
 				scrapedWithFirecrawl: candidate.scrape?.success && candidate.scrape.method === "firecrawl",
 				scrapedWithBrowserFallback: candidate.scrape?.success && candidate.scrape.method === "browser_fallback",
 				scrapeMethod: candidate.scrape?.method,
@@ -578,6 +610,12 @@ async function discoverConfiguredSourceCandidates(
 	const candidates: DiscoveryCandidate[] = [];
 
 	for (const sourceUrl of sourceUrls) {
+		if (isKenyaPpipUrl(sourceUrl)) {
+			const ppipResult = await discoverKenyaPpipCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
+			candidates.push(...ppipResult.candidates);
+			if (ppipResult.handled) continue;
+		}
+
 		const scrapeResult = await firecrawl.scrape(sourceUrl, {
 			formats: ["markdown", "html", "links"],
 			timeout: 20000,
@@ -621,6 +659,7 @@ async function discoverConfiguredSourceCandidates(
 				query: `source:${sourceUrl}`,
 				discoveryMethod: "source_scrape",
 				sourceUrl,
+				opportunity,
 				result: {
 					title: opportunity.title,
 					url,
@@ -641,6 +680,78 @@ async function discoverConfiguredSourceCandidates(
 	}
 
 	return candidates;
+}
+
+async function discoverKenyaPpipCandidates(
+	sourceUrl: string,
+	limitPerSource: number,
+	seenUrls: Set<string>,
+	warnings: DiscoveryRunWarning[]
+): Promise<{ handled: boolean; candidates: DiscoveryCandidate[] }> {
+	try {
+		const result = await fetchKenyaPpipOpportunities(sourceUrl, {
+			limit: limitPerSource,
+			timeoutMs: 20000,
+		});
+		if (!result.opportunities.length) {
+			warnings.push({
+				type: "source_scrape_empty",
+				query: `source:${sourceUrl}`,
+				title: "Kenya PPIP API returned no opportunities",
+				url: result.apiUrl,
+				message: "The PPIP public JSON API responded successfully, but returned no tender records.",
+			});
+			return { handled: true, candidates: [] };
+		}
+
+		const candidates: DiscoveryCandidate[] = [];
+		for (const opportunity of result.opportunities.slice(0, limitPerSource)) {
+			const url = opportunity.portalUrl ?? opportunity.documentUrl ?? sourceUrl;
+			const normalizedUrl = normalizeUrlForIdentity(url);
+			if (seenUrls.has(normalizedUrl)) continue;
+			seenUrls.add(normalizedUrl);
+
+			candidates.push({
+				query: `source:${sourceUrl}`,
+				discoveryMethod: "source_scrape",
+				sourceUrl,
+				opportunity,
+				sourceTotal: result.total,
+				result: {
+					title: opportunity.title,
+					url,
+					content: opportunity.projectSummary ?? "",
+					engine: "kenya-ppip-api",
+					score: 1,
+					category: opportunity.category ?? opportunity.countryRegion ?? "Kenya PPIP",
+				},
+				scrape: {
+					success: true,
+					title: opportunity.title,
+					description: opportunity.projectSummary,
+					markdown: [
+						`# ${opportunity.title}`,
+						opportunity.organization ? `Organization: ${opportunity.organization}` : undefined,
+						opportunity.noticeId ? `Notice: ${opportunity.noticeId}` : undefined,
+						opportunity.deadline ? `Deadline: ${opportunity.deadline}` : undefined,
+						opportunity.documentUrl ? `Document: ${opportunity.documentUrl}` : undefined,
+					].filter(Boolean).join("\n"),
+					method: "source_api",
+				},
+			});
+		}
+
+		return { handled: true, candidates };
+	} catch (error) {
+		warnings.push({
+			type: "source_scrape_failed",
+			query: `source:${sourceUrl}`,
+			title: "Kenya PPIP API failed",
+			url: sourceUrl,
+			message: error instanceof Error ? error.message : String(error),
+		});
+		return { handled: false, candidates: [] };
+	}
 }
 
 function browserFallbackReason(scrape: DiscoveryCandidate["scrape"]): string | null {
