@@ -29,13 +29,18 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit", "orderBy"]) {
+	for (const method of ["from", "limit", "orderBy"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -44,6 +49,23 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
 var dbMock: any;
@@ -167,20 +189,33 @@ describe("gate review workflow enforcement", () => {
 
 	it("records a no-bid decision and updates the pipeline terminal path", async () => {
 		let gateUpdate: Record<string, unknown> | undefined;
+		let gateWhere: unknown;
 		let pipelineUpdate: Record<string, unknown> | undefined;
+		let pipelineWhere: unknown;
 		const completedGate = { ...baseGate, status: "completed", decision: "fail" };
 
-		dbMock.select.mockReturnValueOnce(createChain({ result: [baseGate] }));
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [baseGate],
+			onWhere: (value) => {
+				gateWhere = value;
+			},
+		}));
 		dbMock.update
 			.mockReturnValueOnce(createChain({
 				onSet: (value) => {
 					gateUpdate = value;
+				},
+				onWhere: (value) => {
+					gateWhere = value;
 				},
 				result: [completedGate],
 			}))
 			.mockReturnValueOnce(createChain({
 				onSet: (value) => {
 					pipelineUpdate = value;
+				},
+				onWhere: (value) => {
+					pipelineWhere = value;
 				},
 			}));
 
@@ -207,8 +242,17 @@ describe("gate review workflow enforcement", () => {
 			bidDecision: "no_bid",
 			bidDecisionRationale: "Insufficient win probability",
 		});
+		const gateWhereSql = collectSqlFragments(gateWhere).join(" ");
+		expect(gateWhereSql).toContain("capture_pipeline.organization_id");
+		expect(gateWhereSql).toContain("org-1");
+		expect(gateWhereSql).toContain("opportunities.assigned_to");
+		const pipelineWhereSql = collectSqlFragments(pipelineWhere).join(" ");
+		expect(pipelineWhereSql).toContain("organization_id");
+		expect(pipelineWhereSql).toContain("org-1");
+		expect(pipelineWhereSql).toContain("opportunities.assigned_to");
 		expect(recordWorkflowRuntimeTransitionMock).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "capture_gate_review",
+			organizationId: "org-1",
 			subjectId: "gate-1",
 			actorId: "capture-lead-1",
 			actorName: "capture-lead-1",

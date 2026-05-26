@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Capture Pipeline Gate Tenant Anchors
+
+Status: implemented and verified.
+
+Purpose: close a tenant-isolation gap in the capture execution path so pipeline rows, gate reviews, and gate workflow compensation stay bound to the current organization as responses move through bid/no-bid governance.
+
+Changes in this slice:
+- Add `organization_id` columns and indexes for `capture_pipeline` and `gate_reviews`, with a migration backfill for single-tenant installs and gate rows inheriting their pipeline tenant.
+- Persist organization IDs when initializing capture pipelines and scheduling gate reviews.
+- Thread current organization scope through pipeline, activity, milestone, gate-review, analytics, forecast, at-risk, and summary reads/writes that depend on `capture_pipeline`.
+- Scope capture gate workflow runtime transitions and domain compensation by tenant while preserving assigned-opportunity checks.
+- Add regression assertions for no-bid gate decisions and gate workflow compensation predicates.
+
+Verification:
+- `npm test -- gate-review-workflow.test.ts pipeline-scope.test.ts workflow-domain.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 test files and 42 approval/production/correction tests.
+
+Remaining after this slice:
+- Pricing/cost row anchors remain the next high-risk tenant boundary to close.
+
 ### 2026-05-26 - UNGM Notice Detail Enrichment
 
 Status: implemented and verified.

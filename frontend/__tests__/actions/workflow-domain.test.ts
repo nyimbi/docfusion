@@ -320,6 +320,7 @@ describe("workflow domain integrations", () => {
 			}));
 		dbMock.insert
 			.mockReturnValueOnce(createChain())
+			.mockReturnValueOnce(createChain())
 			.mockReturnValueOnce(createChain());
 
 		await expect(transitionDomainWorkflow({
@@ -331,6 +332,60 @@ describe("workflow domain integrations", () => {
 		})).resolves.toEqual(updated);
 
 		expect(collectSqlFragments(domainWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("scopes gate review workflow compensation by tenant and assigned pipeline", async () => {
+		const existing = {
+			id: "workflow-1",
+			workflowKey: "capture_gate_review",
+			organizationId: "org-1",
+			subjectType: "gate_review",
+			subjectId: "gate-1",
+			state: "scheduled",
+			status: "active",
+			metadata: {},
+		};
+		const updated = { ...existing, state: "pass", status: "completed" };
+		const template = {
+			templateKey: existing.workflowKey,
+			version: 1,
+			status: "active",
+			transitions: [
+				{ action: "approve", from: ["scheduled"], to: "pass", requiredRoles: ["capture_manager"] },
+			],
+		};
+		let gateWhere: unknown;
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [existing] }))
+			.mockReturnValueOnce(createChain({ result: [template] }))
+			.mockReturnValueOnce(createChain({ result: [existing] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+		dbMock.update
+			.mockReturnValueOnce(createChain({ result: [updated] }))
+			.mockReturnValueOnce(createChain({
+				onWhere: (value) => {
+					gateWhere = value;
+				},
+			}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain())
+			.mockReturnValueOnce(createChain())
+			.mockReturnValueOnce(createChain());
+
+		await expect(transitionDomainWorkflow({
+			workflowInstanceId: "workflow-1",
+			action: "approve",
+			actorId: "capture-1",
+			actorRoles: ["capture_manager"],
+			reason: "Gate passed",
+		})).resolves.toEqual(updated);
+
+		const gateSql = collectSqlFragments(gateWhere).join(" ");
+		expect(gateSql).toContain("organization_id");
+		expect(gateSql).toContain("org-1");
+		expect(gateSql).toContain("capture_pipeline.organization_id");
+		expect(gateSql).toContain("opportunities.assigned_to");
 	});
 
 	it("scopes domain workflow transitions by tenant and scraper source metadata", async () => {

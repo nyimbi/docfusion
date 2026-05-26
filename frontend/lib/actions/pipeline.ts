@@ -26,7 +26,7 @@ import {
 	type NewPipelineMilestone,
 } from "@/lib/db/schema-pipeline";
 import { opportunities, opportunityPartners, partners } from "@/lib/db/schema";
-import { eq, and, desc, asc, sql, gte, lte, inArray, isNull, count, avg, sum, type SQL } from "drizzle-orm";
+import { eq, and, desc, asc, sql, gte, lte, inArray, isNull, or, count, avg, sum, type SQL } from "drizzle-orm";
 import { getProviderManager } from "@/lib/ai/providers";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/utils/logger";
@@ -38,6 +38,7 @@ import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 // ============================================================================
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
+type PipelineUserContext = UserContext & { organizationId: string };
 
 export type PwinCalculation = {
 	suggestedPwin: number;
@@ -337,16 +338,15 @@ function revalidatePipelinePaths(opportunityId?: string): void {
 	}
 }
 
-async function requirePipelineContext(organizationId?: string | null): Promise<UserContext> {
+async function requirePipelineContext(organizationId?: string | null): Promise<PipelineUserContext> {
 	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
 	if (organizationId && organizationId !== userContext.organizationId) {
 		throw new Error("Unauthorized");
 	}
-	return userContext;
-}
-
-async function requirePipelineActor(): Promise<string> {
-	return (await requirePipelineContext()).userId;
+	return userContext as PipelineUserContext;
 }
 
 function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): SQL {
@@ -362,6 +362,20 @@ function assignedOpportunityCondition(actorId: string): SQL {
 	return sql`opportunities.assigned_to = ${actorId}`;
 }
 
+function pipelineOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(capturePipeline.organizationId, organizationId),
+		isNull(capturePipeline.organizationId)
+	)!;
+}
+
+function gateReviewOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(gateReviews.organizationId, organizationId),
+		isNull(gateReviews.organizationId)
+	)!;
+}
+
 function visibleOpportunityCondition(opportunityId: string, actorId: string): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
@@ -369,18 +383,26 @@ function visibleOpportunityCondition(opportunityId: string, actorId: string): SQ
 	)!;
 }
 
-function visiblePipelineCondition(pipelineId: string, actorId: string): SQL {
-	return and(
+function visiblePipelineCondition(pipelineId: string, actorId: string, organizationId?: string): SQL {
+	const conditions = [
 		eq(capturePipeline.id, pipelineId),
-		assignedOpportunityExistsSql(capturePipeline.opportunityId, actorId)
-	)!;
+		assignedOpportunityExistsSql(capturePipeline.opportunityId, actorId),
+	];
+	if (organizationId) {
+		conditions.push(pipelineOrganizationCondition(organizationId));
+	}
+	return and(...conditions)!;
 }
 
-function visiblePipelineForOpportunityCondition(opportunityId: string, actorId: string): SQL {
-	return and(
+function visiblePipelineForOpportunityCondition(opportunityId: string, actorId: string, organizationId?: string): SQL {
+	const conditions = [
 		eq(capturePipeline.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, actorId)
-	)!;
+		assignedOpportunityExistsSql(opportunityId, actorId),
+	];
+	if (organizationId) {
+		conditions.push(pipelineOrganizationCondition(organizationId));
+	}
+	return and(...conditions)!;
 }
 
 function visibleOpportunityPartnersForOpportunityCondition(opportunityId: string, actorId: string): SQL {
@@ -390,67 +412,76 @@ function visibleOpportunityPartnersForOpportunityCondition(opportunityId: string
 	)!;
 }
 
-function assignedPipelineExistsSql(pipelineId: unknown, actorId: string): SQL {
+function assignedPipelineExistsSql(pipelineId: unknown, actorId: string, organizationId?: string): SQL {
 	return sql`exists (
 		select 1
 		from capture_pipeline
 		join opportunities on opportunities.id = capture_pipeline.opportunity_id
 		where capture_pipeline.id = ${pipelineId}
+			${organizationId ? sql`and (capture_pipeline.organization_id = ${organizationId} or capture_pipeline.organization_id is null)` : sql``}
 			and opportunities.assigned_to = ${actorId}
 	)`;
 }
 
-function visibleActivitiesForPipelineCondition(pipelineId: string, actorId: string): SQL {
+function visibleActivitiesForPipelineCondition(pipelineId: string, actorId: string, organizationId?: string): SQL {
 	return and(
 		eq(captureActivities.pipelineId, pipelineId),
-		assignedPipelineExistsSql(pipelineId, actorId)
+		assignedPipelineExistsSql(pipelineId, actorId, organizationId)
 	)!;
 }
 
-function visibleActivityCondition(activityId: string, actorId: string): SQL {
+function visibleActivityCondition(activityId: string, actorId: string, organizationId?: string): SQL {
 	return and(
 		eq(captureActivities.id, activityId),
-		assignedPipelineExistsSql(captureActivities.pipelineId, actorId)
+		assignedPipelineExistsSql(captureActivities.pipelineId, actorId, organizationId)
 	)!;
 }
 
-function visibleAssignedActivityCondition(actorId: string): SQL {
-	return assignedPipelineExistsSql(captureActivities.pipelineId, actorId);
+function visibleAssignedActivityCondition(actorId: string, organizationId?: string): SQL {
+	return assignedPipelineExistsSql(captureActivities.pipelineId, actorId, organizationId);
 }
 
-function visibleGateReviewsForPipelineCondition(pipelineId: string, actorId: string): SQL {
-	return and(
+function visibleGateReviewsForPipelineCondition(pipelineId: string, actorId: string, organizationId?: string): SQL {
+	const conditions = [
 		eq(gateReviews.pipelineId, pipelineId),
-		assignedPipelineExistsSql(pipelineId, actorId)
-	)!;
+		assignedPipelineExistsSql(pipelineId, actorId, organizationId),
+	];
+	if (organizationId) {
+		conditions.push(gateReviewOrganizationCondition(organizationId));
+	}
+	return and(...conditions)!;
 }
 
-function visibleGateReviewCondition(gateReviewId: string, actorId: string): SQL {
-	return and(
+function visibleGateReviewCondition(gateReviewId: string, actorId: string, organizationId?: string): SQL {
+	const conditions = [
 		eq(gateReviews.id, gateReviewId),
-		assignedPipelineExistsSql(gateReviews.pipelineId, actorId)
-	)!;
+		assignedPipelineExistsSql(gateReviews.pipelineId, actorId, organizationId),
+	];
+	if (organizationId) {
+		conditions.push(gateReviewOrganizationCondition(organizationId));
+	}
+	return and(...conditions)!;
 }
 
-function visibleMilestonesForPipelineCondition(pipelineId: string, actorId: string): SQL {
+function visibleMilestonesForPipelineCondition(pipelineId: string, actorId: string, organizationId?: string): SQL {
 	return and(
 		eq(pipelineMilestones.pipelineId, pipelineId),
-		assignedPipelineExistsSql(pipelineId, actorId)
+		assignedPipelineExistsSql(pipelineId, actorId, organizationId)
 	)!;
 }
 
-function visibleMilestoneCondition(milestoneId: string, actorId: string): SQL {
+function visibleMilestoneCondition(milestoneId: string, actorId: string, organizationId?: string): SQL {
 	return and(
 		eq(pipelineMilestones.id, milestoneId),
-		assignedPipelineExistsSql(pipelineMilestones.pipelineId, actorId)
+		assignedPipelineExistsSql(pipelineMilestones.pipelineId, actorId, organizationId)
 	)!;
 }
 
-async function loadVisiblePipeline(pipelineId: string, actorId: string): Promise<CapturePipeline | null> {
+async function loadVisiblePipeline(pipelineId: string, actorId: string, organizationId?: string): Promise<CapturePipeline | null> {
 	const [pipeline] = await db
 		.select()
 		.from(capturePipeline)
-		.where(visiblePipelineCondition(pipelineId, actorId))
+		.where(visiblePipelineCondition(pipelineId, actorId, organizationId))
 		.limit(1);
 
 	return pipeline ?? null;
@@ -465,7 +496,8 @@ async function loadVisiblePipeline(pipelineId: string, actorId: string): Promise
  * Creates the pipeline record with initial stage and default milestones.
  */
 export async function initializePipeline(opportunityId: string): Promise<ActionResult<CapturePipeline>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		// Validate opportunity exists
 		const [opportunity] = await db
@@ -482,7 +514,7 @@ export async function initializePipeline(opportunityId: string): Promise<ActionR
 		const [existingPipeline] = await db
 			.select()
 			.from(capturePipeline)
-			.where(visiblePipelineForOpportunityCondition(opportunityId, actorId))
+			.where(visiblePipelineForOpportunityCondition(opportunityId, actorId, userContext.organizationId))
 			.limit(1);
 
 		if (existingPipeline) {
@@ -500,6 +532,7 @@ export async function initializePipeline(opportunityId: string): Promise<ActionR
 			.insert(capturePipeline)
 			.values({
 				opportunityId,
+				organizationId: userContext.organizationId,
 				currentStage: "discovery",
 				stageEnteredAt: now,
 				stageHistory: initialStageHistory,
@@ -594,12 +627,13 @@ export async function initializePipeline(opportunityId: string): Promise<ActionR
  * Get pipeline by opportunity ID.
  */
 export async function getPipeline(opportunityId: string): Promise<ActionResult<CapturePipeline | null>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		const [pipeline] = await db
 			.select()
 			.from(capturePipeline)
-			.where(visiblePipelineForOpportunityCondition(opportunityId, actorId))
+			.where(visiblePipelineForOpportunityCondition(opportunityId, actorId, userContext.organizationId))
 			.limit(1);
 
 		return { success: true, data: pipeline ?? null };
@@ -616,7 +650,8 @@ export async function listPipelines(): Promise<ActionResult<{
 	pipelines: CapturePipeline[];
 	opportunities: Map<string, { title: string; organization: string; budgetNumeric: number | null; deadline: Date | null }>;
 }>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		const pipelinesWithOpps = await db
 			.select({
@@ -625,7 +660,10 @@ export async function listPipelines(): Promise<ActionResult<{
 			})
 			.from(capturePipeline)
 			.innerJoin(opportunities, eq(capturePipeline.opportunityId, opportunities.id))
-			.where(assignedOpportunityCondition(actorId))
+			.where(and(
+				assignedOpportunityCondition(actorId),
+				pipelineOrganizationCondition(userContext.organizationId)
+			))
 			.orderBy(desc(capturePipeline.updatedAt));
 
 		const pipelines = pipelinesWithOpps.map(p => p.pipeline);
@@ -655,7 +693,8 @@ export async function updatePipelineStage(
 	newStage: string,
 	notes?: string
 ): Promise<ActionResult<CapturePipeline>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		// Validate stage is valid
 		if (!PIPELINE_STAGES.includes(newStage as typeof PIPELINE_STAGES[number])) {
@@ -663,7 +702,7 @@ export async function updatePipelineStage(
 		}
 
 		// Get current pipeline
-		const currentPipeline = await loadVisiblePipeline(pipelineId, actorId);
+		const currentPipeline = await loadVisiblePipeline(pipelineId, actorId, userContext.organizationId);
 
 		if (!currentPipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -703,7 +742,7 @@ export async function updatePipelineStage(
 				notes: notes ? `${currentPipeline.notes ?? ""}\n\n[${now.toISOString()}] Stage changed to ${newStage}: ${notes}` : currentPipeline.notes,
 				updatedAt: now,
 			})
-			.where(visiblePipelineCondition(pipelineId, actorId))
+			.where(visiblePipelineCondition(pipelineId, actorId, userContext.organizationId))
 			.returning();
 
 		revalidatePipelinePaths(currentPipeline.opportunityId ?? undefined);
@@ -722,7 +761,8 @@ export async function updatePipeline(
 	pipelineId: string,
 	data: Partial<UpdatePipelineInput>
 ): Promise<ActionResult<CapturePipeline>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		// Validate input
 		const parsed = updatePipelineSchema.partial().safeParse(data);
@@ -731,7 +771,7 @@ export async function updatePipeline(
 		}
 
 		// Get current pipeline for opportunityId
-		const currentPipeline = await loadVisiblePipeline(pipelineId, actorId);
+		const currentPipeline = await loadVisiblePipeline(pipelineId, actorId, userContext.organizationId);
 
 		if (!currentPipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -754,7 +794,7 @@ export async function updatePipeline(
 		const [updated] = await db
 			.update(capturePipeline)
 			.set(updateData)
-			.where(visiblePipelineCondition(pipelineId, actorId))
+			.where(visiblePipelineCondition(pipelineId, actorId, userContext.organizationId))
 			.returning();
 
 		revalidatePipelinePaths(currentPipeline.opportunityId ?? undefined);
@@ -779,7 +819,8 @@ export async function updatePwin(
 	reason: string,
 	_updatedBy?: string
 ): Promise<ActionResult<CapturePipeline>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		// Validate pwin
 		if (newPwin < 0 || newPwin > 100) {
@@ -787,7 +828,7 @@ export async function updatePwin(
 		}
 
 		// Get current pipeline
-		const currentPipeline = await loadVisiblePipeline(pipelineId, actorId);
+		const currentPipeline = await loadVisiblePipeline(pipelineId, actorId, userContext.organizationId);
 
 		if (!currentPipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -812,7 +853,7 @@ export async function updatePwin(
 				pwinHistory,
 				updatedAt: now,
 			})
-			.where(visiblePipelineCondition(pipelineId, actorId))
+			.where(visiblePipelineCondition(pipelineId, actorId, userContext.organizationId))
 			.returning();
 
 		revalidatePipelinePaths(currentPipeline.opportunityId ?? undefined);
@@ -828,13 +869,14 @@ export async function updatePwin(
  * Calculate suggested PWin using AI and multiple factors.
  */
 export async function calculateSuggestedPwin(opportunityId: string): Promise<ActionResult<PwinCalculation>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		// Fetch all relevant data
 		const [pipeline] = await db
 			.select()
 			.from(capturePipeline)
-			.where(visiblePipelineForOpportunityCondition(opportunityId, actorId))
+			.where(visiblePipelineForOpportunityCondition(opportunityId, actorId, userContext.organizationId))
 			.limit(1);
 
 		const [opportunity] = await db
@@ -855,7 +897,7 @@ export async function calculateSuggestedPwin(opportunityId: string): Promise<Act
 				.from(captureActivities)
 				.where(
 					and(
-						visibleActivitiesForPipelineCondition(pipeline.id, actorId),
+						visibleActivitiesForPipelineCondition(pipeline.id, actorId, userContext.organizationId),
 						eq(captureActivities.status, "completed")
 					)
 				);
@@ -1036,7 +1078,8 @@ export async function recordActivity(
 	pipelineId: string,
 	activity: CreateActivityInput
 ): Promise<ActionResult<CaptureActivity>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		// Validate input
 		const parsed = createActivitySchema.safeParse(activity);
@@ -1046,7 +1089,7 @@ export async function recordActivity(
 		const { createdBy: _createdBy, ...activityData } = parsed.data;
 
 		// Verify pipeline exists
-		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId, userContext.organizationId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -1073,7 +1116,7 @@ export async function recordActivity(
 					lastCustomerContact: new Date(),
 					updatedAt: new Date(),
 				})
-				.where(visiblePipelineCondition(pipelineId, actorId));
+				.where(visiblePipelineCondition(pipelineId, actorId, userContext.organizationId));
 		}
 
 		revalidatePipelinePaths(pipeline.opportunityId ?? undefined);
@@ -1092,7 +1135,8 @@ export async function updateActivity(
 	activityId: string,
 	data: Partial<CreateActivityInput>
 ): Promise<ActionResult<CaptureActivity>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		const parsed = createActivitySchema.partial().safeParse(data);
 		if (!parsed.success) {
@@ -1106,7 +1150,7 @@ export async function updateActivity(
 				...activityData,
 				updatedAt: new Date(),
 			})
-			.where(visibleActivityCondition(activityId, actorId))
+			.where(visibleActivityCondition(activityId, actorId, userContext.organizationId))
 			.returning();
 
 		if (!updated) {
@@ -1129,7 +1173,8 @@ export async function completeActivity(
 	successRating?: number,
 	nextSteps?: string[]
 ): Promise<ActionResult<CaptureActivity>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		if (successRating !== undefined && (successRating < 1 || successRating > 5)) {
 			return { success: false, error: "Success rating must be between 1 and 5" };
@@ -1145,7 +1190,7 @@ export async function completeActivity(
 				nextSteps,
 				updatedAt: new Date(),
 			})
-			.where(visibleActivityCondition(activityId, actorId))
+			.where(visibleActivityCondition(activityId, actorId, userContext.organizationId))
 			.returning();
 
 		if (!updated) {
@@ -1166,9 +1211,10 @@ export async function listActivities(
 	pipelineId: string,
 	filters?: ActivityFilters
 ): Promise<ActionResult<CaptureActivity[]>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
-		const conditions: SQL[] = [visibleActivitiesForPipelineCondition(pipelineId, actorId)];
+		const conditions: SQL[] = [visibleActivitiesForPipelineCondition(pipelineId, actorId, userContext.organizationId)];
 
 		if (filters?.status) {
 			conditions.push(eq(captureActivities.status, filters.status));
@@ -1206,21 +1252,22 @@ export async function getUpcomingActivities(
 	pipelineId?: string,
 	days: number = 30
 ): Promise<ActionResult<CaptureActivity[]>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		const now = new Date();
 		const futureDate = new Date();
 		futureDate.setDate(futureDate.getDate() + days);
 
 		const conditions: SQL[] = [
-			visibleAssignedActivityCondition(actorId),
+			visibleAssignedActivityCondition(actorId, userContext.organizationId),
 			eq(captureActivities.status, "scheduled"),
 			gte(captureActivities.scheduledDate, now),
 			lte(captureActivities.scheduledDate, futureDate),
 		];
 
 		if (pipelineId) {
-			conditions.push(visibleActivitiesForPipelineCondition(pipelineId, actorId));
+			conditions.push(visibleActivitiesForPipelineCondition(pipelineId, actorId, userContext.organizationId));
 		}
 
 		const activities = await db
@@ -1249,10 +1296,11 @@ export async function scheduleGateReview(
 	scheduledDate: Date,
 	reviewers?: string[]
 ): Promise<ActionResult<GateReview>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		// Verify pipeline exists
-		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId, userContext.organizationId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -1262,7 +1310,7 @@ export async function scheduleGateReview(
 		const existingGates = await db
 			.select()
 			.from(gateReviews)
-			.where(visibleGateReviewsForPipelineCondition(pipelineId, actorId))
+			.where(visibleGateReviewsForPipelineCondition(pipelineId, actorId, userContext.organizationId))
 			.orderBy(desc(gateReviews.gateNumber));
 
 		const nextGateNumber = (existingGates[0]?.gateNumber ?? 0) + 1;
@@ -1287,6 +1335,7 @@ export async function scheduleGateReview(
 			.insert(gateReviews)
 			.values({
 				pipelineId,
+				organizationId: userContext.organizationId,
 				gateType,
 				gateName: `${gateType.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())} Review`,
 				gateNumber: nextGateNumber,
@@ -1314,7 +1363,8 @@ export async function updateGateReview(
 	gateReviewId: string,
 	data: Partial<UpdateGateReviewInput>
 ): Promise<ActionResult<GateReview>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		const parsed = updateGateReviewSchema.partial().safeParse(data);
 		if (!parsed.success) {
@@ -1327,7 +1377,7 @@ export async function updateGateReview(
 				...parsed.data,
 				updatedAt: new Date(),
 			})
-			.where(visibleGateReviewCondition(gateReviewId, actorId))
+			.where(visibleGateReviewCondition(gateReviewId, actorId, userContext.organizationId))
 			.returning();
 
 		if (!updated) {
@@ -1348,13 +1398,14 @@ export async function conductGateReview(
 	gateReviewId: string,
 	decision: GateDecision
 ): Promise<ActionResult<GateReview>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		// Get the gate review
 		const [review] = await db
 			.select()
 			.from(gateReviews)
-			.where(visibleGateReviewCondition(gateReviewId, actorId))
+			.where(visibleGateReviewCondition(gateReviewId, actorId, userContext.organizationId))
 			.limit(1);
 
 		if (!review) {
@@ -1398,7 +1449,7 @@ export async function conductGateReview(
 				reviewers: reviewerVotes,
 				updatedAt: now,
 			})
-			.where(visibleGateReviewCondition(gateReviewId, actorId))
+			.where(visibleGateReviewCondition(gateReviewId, actorId, userContext.organizationId))
 			.returning();
 
 		// If this is a bid/no-bid gate and decision is fail, update pipeline stage
@@ -1412,7 +1463,7 @@ export async function conductGateReview(
 					bidDecisionRationale: decision.rationale,
 					updatedAt: now,
 				})
-				.where(visiblePipelineCondition(review.pipelineId!, actorId));
+				.where(visiblePipelineCondition(review.pipelineId!, actorId, userContext.organizationId));
 		}
 
 		// Create action items from conditions if conditional pass
@@ -1427,12 +1478,13 @@ export async function conductGateReview(
 			await db
 				.update(gateReviews)
 				.set({ actionItems })
-				.where(visibleGateReviewCondition(gateReviewId, actorId));
+				.where(visibleGateReviewCondition(gateReviewId, actorId, userContext.organizationId));
 		}
 
 		try {
 			const runtimeInstance = await recordWorkflowRuntimeTransition({
 				workflowKey: "capture_gate_review",
+				organizationId: userContext.organizationId,
 				subjectType: "gate_review",
 				subjectId: gateReviewId,
 				fromState: review.status ?? "scheduled",
@@ -1583,12 +1635,13 @@ export async function getGateReviewChecklist(gateType: string): Promise<ActionRe
  * List gate reviews for a pipeline.
  */
 export async function listGateReviews(pipelineId: string): Promise<ActionResult<GateReview[]>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		const reviews = await db
 			.select()
 			.from(gateReviews)
-			.where(visibleGateReviewsForPipelineCondition(pipelineId, actorId))
+			.where(visibleGateReviewsForPipelineCondition(pipelineId, actorId, userContext.organizationId))
 			.orderBy(asc(gateReviews.gateNumber));
 
 		return { success: true, data: reviews };
@@ -1606,10 +1659,11 @@ export async function listGateReviews(pipelineId: string): Promise<ActionResult<
  * Generate a comprehensive bid decision package using AI.
  */
 export async function generateBidDecisionPackage(pipelineId: string): Promise<ActionResult<BidDecisionPackage>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		// Fetch pipeline
-		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId, userContext.organizationId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -1630,7 +1684,7 @@ export async function generateBidDecisionPackage(pipelineId: string): Promise<Ac
 		const activities = await db
 			.select()
 			.from(captureActivities)
-			.where(visibleActivitiesForPipelineCondition(pipelineId, actorId));
+			.where(visibleActivitiesForPipelineCondition(pipelineId, actorId, userContext.organizationId));
 
 		// Calculate pwin factors
 		const pwinResult = await calculateSuggestedPwin(pipeline.opportunityId!);
@@ -1756,9 +1810,10 @@ export async function recordBidDecision(
 	rationale: string,
 	_madeBy: string
 ): Promise<ActionResult<CapturePipeline>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
-		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId, userContext.organizationId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -1794,7 +1849,7 @@ export async function recordBidDecision(
 		const [updated] = await db
 			.update(capturePipeline)
 			.set(updateData)
-			.where(visiblePipelineCondition(pipelineId, actorId))
+			.where(visiblePipelineCondition(pipelineId, actorId, userContext.organizationId))
 			.returning();
 
 		revalidatePipelinePaths(pipeline.opportunityId ?? undefined);
@@ -1817,7 +1872,8 @@ export async function createMilestone(
 	pipelineId: string,
 	milestone: CreateMilestoneInput
 ): Promise<ActionResult<PipelineMilestone>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		const parsed = createMilestoneSchema.safeParse(milestone);
 		if (!parsed.success) {
@@ -1825,7 +1881,7 @@ export async function createMilestone(
 		}
 
 		// Verify pipeline exists
-		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId, userContext.organizationId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -1856,7 +1912,8 @@ export async function updateMilestone(
 	milestoneId: string,
 	data: Partial<CreateMilestoneInput>
 ): Promise<ActionResult<PipelineMilestone>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		const parsed = createMilestoneSchema.partial().safeParse(data);
 		if (!parsed.success) {
@@ -1866,7 +1923,7 @@ export async function updateMilestone(
 		const [updated] = await db
 			.update(pipelineMilestones)
 			.set(parsed.data)
-			.where(visibleMilestoneCondition(milestoneId, actorId))
+			.where(visibleMilestoneCondition(milestoneId, actorId, userContext.organizationId))
 			.returning();
 
 		if (!updated) {
@@ -1887,7 +1944,8 @@ export async function completeMilestone(
 	milestoneId: string,
 	actualDate?: Date
 ): Promise<ActionResult<PipelineMilestone>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		const [updated] = await db
 			.update(pipelineMilestones)
@@ -1895,7 +1953,7 @@ export async function completeMilestone(
 				status: "completed",
 				actualDate: actualDate ?? new Date(),
 			})
-			.where(visibleMilestoneCondition(milestoneId, actorId))
+			.where(visibleMilestoneCondition(milestoneId, actorId, userContext.organizationId))
 			.returning();
 
 		if (!updated) {
@@ -1913,12 +1971,13 @@ export async function completeMilestone(
  * List milestones for a pipeline.
  */
 export async function listMilestones(pipelineId: string): Promise<ActionResult<PipelineMilestone[]>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		const milestones = await db
 			.select()
 			.from(pipelineMilestones)
-			.where(visibleMilestonesForPipelineCondition(pipelineId, actorId))
+			.where(visibleMilestonesForPipelineCondition(pipelineId, actorId, userContext.organizationId))
 			.orderBy(asc(pipelineMilestones.targetDate));
 
 		return { success: true, data: milestones };
@@ -1936,7 +1995,8 @@ export async function listMilestones(pipelineId: string): Promise<ActionResult<P
  * Get comprehensive pipeline analytics.
  */
 export async function getPipelineAnalytics(organizationId?: string): Promise<ActionResult<PipelineAnalytics>> {
-	const { userId: actorId } = await requirePipelineContext(organizationId);
+	const userContext = await requirePipelineContext(organizationId);
+	const actorId = userContext.userId;
 	try {
 		// Get all pipelines with their opportunities
 		const pipelinesWithOpps = await db
@@ -1946,7 +2006,10 @@ export async function getPipelineAnalytics(organizationId?: string): Promise<Act
 			})
 			.from(capturePipeline)
 			.innerJoin(opportunities, eq(capturePipeline.opportunityId, opportunities.id))
-			.where(assignedOpportunityCondition(actorId));
+			.where(and(
+				assignedOpportunityCondition(actorId),
+				pipelineOrganizationCondition(userContext.organizationId)
+			));
 
 		// Aggregate by stage
 		const byStage: PipelineAnalytics["byStage"] = [];
@@ -2053,7 +2116,8 @@ export async function getPipelineAnalytics(organizationId?: string): Promise<Act
  * Forecast pipeline outcomes.
  */
 export async function forecastPipeline(organizationId?: string): Promise<ActionResult<PipelineForecast>> {
-	const { userId: actorId } = await requirePipelineContext(organizationId);
+	const userContext = await requirePipelineContext(organizationId);
+	const actorId = userContext.userId;
 	try {
 		// Get pipelines with opportunities that have award dates
 		const pipelinesWithOpps = await db
@@ -2066,6 +2130,7 @@ export async function forecastPipeline(organizationId?: string): Promise<ActionR
 			.where(
 				and(
 					inArray(capturePipeline.currentStage, ["capture", "proposal", "submitted", "evaluation"]),
+					pipelineOrganizationCondition(userContext.organizationId),
 					assignedOpportunityCondition(actorId)
 				)
 			);
@@ -2144,7 +2209,8 @@ export async function forecastPipeline(organizationId?: string): Promise<ActionR
  * Identify opportunities at risk.
  */
 export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRiskOpportunity[]>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		const now = new Date();
 		const twoWeeksAgo = new Date(now);
@@ -2161,6 +2227,7 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
 			.where(
 				and(
 					inArray(capturePipeline.currentStage, ["discovery", "qualification", "capture", "proposal", "submitted", "evaluation"]),
+					pipelineOrganizationCondition(userContext.organizationId),
 					assignedOpportunityCondition(actorId)
 				)
 			);
@@ -2188,7 +2255,7 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
 				.from(pipelineMilestones)
 				.where(
 					and(
-						visibleMilestonesForPipelineCondition(pipeline.id, actorId),
+						visibleMilestonesForPipelineCondition(pipeline.id, actorId, userContext.organizationId),
 						eq(pipelineMilestones.status, "pending"),
 						lte(pipelineMilestones.targetDate, now)
 					)
@@ -2203,7 +2270,7 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
 			const [lastActivity] = await db
 				.select()
 				.from(captureActivities)
-				.where(visibleActivitiesForPipelineCondition(pipeline.id, actorId))
+				.where(visibleActivitiesForPipelineCondition(pipeline.id, actorId, userContext.organizationId))
 				.orderBy(desc(captureActivities.completedDate))
 				.limit(1);
 
@@ -2229,7 +2296,7 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
 						.from(gateReviews)
 						.where(
 							and(
-								visibleGateReviewsForPipelineCondition(pipeline.id, actorId),
+								visibleGateReviewsForPipelineCondition(pipeline.id, actorId, userContext.organizationId),
 								eq(gateReviews.gateType, "proposal_ready"),
 								eq(gateReviews.status, "completed")
 							)
@@ -2287,10 +2354,11 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
  * Get comprehensive pipeline summary.
  */
 export async function getPipelineSummary(pipelineId: string): Promise<ActionResult<PipelineSummary>> {
-	const actorId = await requirePipelineActor();
+	const userContext = await requirePipelineContext();
+	const actorId = userContext.userId;
 	try {
 		// Fetch pipeline
-		const pipeline = await loadVisiblePipeline(pipelineId, actorId);
+		const pipeline = await loadVisiblePipeline(pipelineId, actorId, userContext.organizationId);
 
 		if (!pipeline) {
 			return { success: false, error: "Pipeline not found" };
@@ -2300,7 +2368,7 @@ export async function getPipelineSummary(pipelineId: string): Promise<ActionResu
 		const recentActivities = await db
 			.select()
 			.from(captureActivities)
-			.where(visibleActivitiesForPipelineCondition(pipelineId, actorId))
+			.where(visibleActivitiesForPipelineCondition(pipelineId, actorId, userContext.organizationId))
 			.orderBy(desc(captureActivities.createdAt))
 			.limit(5);
 
@@ -2310,7 +2378,7 @@ export async function getPipelineSummary(pipelineId: string): Promise<ActionResu
 			.from(gateReviews)
 			.where(
 				and(
-					visibleGateReviewsForPipelineCondition(pipelineId, actorId),
+					visibleGateReviewsForPipelineCondition(pipelineId, actorId, userContext.organizationId),
 					eq(gateReviews.status, "scheduled")
 				)
 			)
@@ -2321,7 +2389,7 @@ export async function getPipelineSummary(pipelineId: string): Promise<ActionResu
 		const allMilestones = await db
 			.select()
 			.from(pipelineMilestones)
-			.where(visibleMilestonesForPipelineCondition(pipelineId, actorId));
+			.where(visibleMilestonesForPipelineCondition(pipelineId, actorId, userContext.organizationId));
 
 		const now = new Date();
 		const milestoneStatus = {

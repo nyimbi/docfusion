@@ -94,20 +94,25 @@ async function assertWorkflowOpportunityAccess(opportunityId: string, actorId: s
 	}
 }
 
-function assignedPipelineExistsSql(pipelineId: unknown, actorId: string): SQL {
+function assignedPipelineExistsSql(pipelineId: unknown, actorId: string, organizationId?: string): SQL {
 	return sql`exists (
 		select 1
 		from capture_pipeline
 		join opportunities on opportunities.id = capture_pipeline.opportunity_id
 		where capture_pipeline.id = ${pipelineId}
+			${organizationId ? sql`and (capture_pipeline.organization_id = ${organizationId} or capture_pipeline.organization_id is null)` : sql``}
 			and opportunities.assigned_to = ${actorId}
 	)`;
 }
 
-function workflowGateReviewCondition(gateReviewId: string, actorId: string): SQL {
+function workflowGateReviewCondition(gateReviewId: string, organizationId: string, actorId: string): SQL {
 	return and(
 		eq(gateReviews.id, gateReviewId),
-		assignedPipelineExistsSql(gateReviews.pipelineId, actorId)
+		or(
+			eq(gateReviews.organizationId, organizationId),
+			isNull(gateReviews.organizationId)
+		),
+		assignedPipelineExistsSql(gateReviews.pipelineId, actorId, organizationId)
 	)!;
 }
 
@@ -707,7 +712,7 @@ async function applyDomainCompensation(input: {
 						rationale: `Resolved by workflow: ${input.reason}`,
 						updatedAt: now,
 					};
-			await db.update(gateReviews).set(patch).where(workflowGateReviewCondition(input.instance.subjectId, input.actorId));
+			await db.update(gateReviews).set(patch).where(workflowGateReviewCondition(input.instance.subjectId, input.organizationId, input.actorId));
 			break;
 		}
 		case "proposal_task": {

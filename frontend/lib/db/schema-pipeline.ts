@@ -20,6 +20,7 @@ export const PIPELINE_STAGES = [
 // Capture Pipeline - main pipeline tracking for opportunities
 export const capturePipeline = pgTable("capture_pipeline", {
   id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: varchar("organization_id", { length: 100 }),
   opportunityId: uuid("opportunity_id").references(() => opportunities.id, { onDelete: "cascade" }).unique(),
 
   // Stage tracking
@@ -136,6 +137,7 @@ export const captureActivities = pgTable("capture_activities", {
 // Gate Reviews - formal decision points
 export const gateReviews = pgTable("gate_reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: varchar("organization_id", { length: 100 }),
   pipelineId: uuid("pipeline_id").references(() => capturePipeline.id, { onDelete: "cascade" }),
 
   // Gate info
