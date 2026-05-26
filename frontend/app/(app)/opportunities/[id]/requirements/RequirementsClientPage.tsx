@@ -16,6 +16,7 @@ import { reviewRfpParseConfidence } from "@/lib/actions/rfp-parser";
 import { createAndDraftStandardProposalSet } from "@/lib/actions/proposal-documents";
 import { RequirementsTable } from "@/components/requirements/RequirementsTable";
 import { RequirementDetail } from "@/components/requirements/RequirementDetail";
+import { ComplianceMatrix } from "@/components/rfp/ComplianceMatrix";
 import { RequirementExtractor } from "./RequirementExtractor";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ interface RequirementsClientPageProps {
 	initialRequirements: Requirement[];
 	initialStats: RequirementStats;
 	initialRfpDocuments: RfpParseDocumentSummary[];
+	initialComplianceMatrices: ComplianceMatrixSummary[];
 }
 
 interface RfpParseDocumentSummary {
@@ -36,6 +38,17 @@ interface RfpParseDocumentSummary {
 	createdAt: string;
 }
 
+interface ComplianceMatrixSummary {
+	id: string;
+	name: string;
+	status: string;
+	totalRequirements: number;
+	compliantCount: number;
+	partialCount: number;
+	notAddressedCount: number;
+	updatedAt: string;
+}
+
 type ParseReviewState = "auto_accepted" | "needs_review" | "accepted" | "correction_requested";
 
 export function RequirementsClientPage({
@@ -43,11 +56,13 @@ export function RequirementsClientPage({
 	initialRequirements,
 	initialStats,
 	initialRfpDocuments,
+	initialComplianceMatrices,
 }: RequirementsClientPageProps) {
 	const router = useRouter();
 	const [requirements, setRequirements] = useState(initialRequirements);
 	const [stats, setStats] = useState(initialStats);
 	const [rfpDocuments, setRfpDocuments] = useState(initialRfpDocuments);
+	const [complianceMatrices, setComplianceMatrices] = useState(initialComplianceMatrices);
 	const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
 	const [showExtractor, setShowExtractor] = useState(false);
 	const [isBuildingResponsePackage, setIsBuildingResponsePackage] = useState(false);
@@ -91,6 +106,33 @@ export function RequirementsClientPage({
 		setIsBuildingResponsePackage(true);
 		try {
 			const result = await createAndDraftStandardProposalSet(opportunityId);
+			if (result.complianceMatrixId) {
+				const now = new Date().toISOString();
+				setComplianceMatrices((prev) => {
+					const existing = prev.find((matrix) => matrix.id === result.complianceMatrixId);
+					if (existing) {
+						return prev.map((matrix) =>
+							matrix.id === result.complianceMatrixId
+								? {
+									...matrix,
+									totalRequirements: Math.max(matrix.totalRequirements, result.requirementIds.length),
+									updatedAt: now,
+								}
+								: matrix
+						);
+					}
+					return [{
+						id: result.complianceMatrixId,
+						name: "Accepted Requirements Compliance Matrix",
+						status: "draft",
+						totalRequirements: result.requirementIds.length,
+						compliantCount: 0,
+						partialCount: result.requirementIds.length,
+						notAddressedCount: 0,
+						updatedAt: now,
+					}, ...prev];
+				});
+			}
 			toast.success(
 				result.sectionsDrafted > 0
 					? `Response package drafted across ${result.sectionsDrafted} section${result.sectionsDrafted === 1 ? "" : "s"}; ${result.complianceEntriesCreated} compliance row${result.complianceEntriesCreated === 1 ? "" : "s"} added`
@@ -120,6 +162,8 @@ export function RequirementsClientPage({
 					));
 				}}
 			/>
+
+			<ComplianceReadinessPanel matrices={complianceMatrices} />
 
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-3">
@@ -183,6 +227,28 @@ export function RequirementsClientPage({
 // ============================================================================
 // Sub-Components
 // ============================================================================
+
+function ComplianceReadinessPanel({ matrices }: { matrices: ComplianceMatrixSummary[] }) {
+	const latest = matrices[0];
+	if (!latest) return null;
+
+	return (
+		<section className="space-y-3">
+			<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+				<div>
+					<h2 className="text-lg font-medium text-[var(--foreground)]">Compliance Matrix</h2>
+					<p className="text-sm text-[var(--foreground-muted)]">
+						{latest.totalRequirements} requirements • {latest.partialCount} partial • {latest.compliantCount} compliant
+					</p>
+				</div>
+				<span className="rounded bg-[var(--background-muted)] px-2 py-1 text-xs text-[var(--foreground-muted)]">
+					{latest.status}
+				</span>
+			</div>
+			<ComplianceMatrix matrixId={latest.id} />
+		</section>
+	);
+}
 
 function ParseReviewPanel({
 	documents,

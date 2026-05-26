@@ -10,7 +10,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getOpportunity } from "@/lib/actions/opportunities";
 import { getRequirements, getRequirementStats, analyzeRequirementGaps } from "@/lib/actions/requirements";
-import { listRfpDocuments } from "@/lib/actions/rfp-parser";
+import { listComplianceMatrices, listRfpDocuments } from "@/lib/actions/rfp-parser";
 import { RequirementsClientPage } from "./RequirementsClientPage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -22,12 +22,13 @@ export default async function RequirementsPage({ params }: PageProps) {
 	const { id } = await params;
 
 	// Fetch data in parallel
-	const [opportunity, requirementsResponse, stats, gapAnalysis, rfpDocumentsResponse] = await Promise.all([
+	const [opportunity, requirementsResponse, stats, gapAnalysis, rfpDocumentsResponse, complianceMatricesResponse] = await Promise.all([
 		getOpportunity(id),
 		getRequirements(id),
 		getRequirementStats(id),
 		analyzeRequirementGaps(id),
 		listRfpDocuments({ opportunityId: id, limit: null }),
+		listComplianceMatrices({ opportunityId: id, limit: 5 }),
 	]);
 
 	if (!opportunity) {
@@ -151,6 +152,16 @@ export default async function RequirementsPage({ params }: PageProps) {
 								parsingConfidence: doc.parsingConfidence,
 								metadata: doc.metadata,
 								createdAt: doc.createdAt.toISOString(),
+							}))}
+							initialComplianceMatrices={complianceMatricesResponse.matrices.map((matrix) => ({
+								id: matrix.id,
+								name: matrix.name,
+								status: matrix.status,
+								totalRequirements: matrix.totalRequirements,
+								compliantCount: matrix.compliantCount,
+								partialCount: matrix.partialCount,
+								notAddressedCount: matrix.notAddressedCount,
+								updatedAt: matrix.updatedAt.toISOString(),
 							}))}
 						/>
 					</Suspense>

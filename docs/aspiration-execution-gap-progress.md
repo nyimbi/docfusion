@@ -591,3 +591,26 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Expose the generated compliance matrix from the opportunity requirements/documents workflow if operators need a first-class navigation target before final lock/review.
+
+### 2026-05-26 - Opportunity Compliance Matrix Visibility
+
+Status: implemented and verified.
+
+Purpose: make generated compliance proof reviewable in the opportunity requirements workflow instead of leaving it hidden behind APIs.
+
+Changes in this slice:
+- Load latest compliance matrices for the opportunity requirements page.
+- Pass compliance matrix summaries into the requirements client surface.
+- Render the existing `ComplianceMatrix` review component inline when a matrix exists.
+- Update the requirements-page create/link/draft action to reveal newly created matrix IDs immediately after orchestration succeeds.
+
+Verification:
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, browser visual pass, and component tests remain intentionally skipped while on battery. This slice is a UI visibility/read-model change verified with TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Strengthen the final document approval/render/submission path so compliance matrix lock and document finalization are required before submission.
