@@ -26,13 +26,15 @@ Changes in this slice:
 - Fix the Docling client to call the live Docling Serve `/v1/convert/file` multipart endpoint with the `files` field and Docling Serve response normalization.
 - Add `live-opportunity-response-readiness` to the platform-proof live-safe manifest.
 - Add a reusable live response package builder that turns extracted source text into six draft markdown response documents with requirement coverage and Datacraft evidence cues.
+- Add a deterministic readiness assessment that blocks incomplete packages based on document type coverage, source requirement coverage, mandatory requirement coverage, evidence cue coverage, review gates, unresolved placeholders, and minimum draft depth.
 - Add a live-safe proof script that finds a software/security UNGM opportunity, fetches its source PDF, extracts procurement text with Docling, writes response-package draft artifacts, and verifies the resulting package.
 
 Verification:
-- `npm test -- live-response-package.test.ts searxng-client-config.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 12 tests.
+- `npm test -- live-response-package.test.ts searxng-client-config.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 13 tests.
 - `npx tsc --noEmit --pretty false` from `frontend/` passed.
 - `npm run platform:proof -- --include-live-safe --run live-opportunity-response-readiness` from `frontend/` passed.
 - The live proof selected the UN Secretariat goAML software penetration-testing EOI, fetched a 171,406-byte PDF, extracted 3,070 text characters through Docling with status `success`, found procurement indicators, extracted 8 source requirement signals, and wrote 6 response draft artifacts totaling 3,203 words with 22 section seeds and 85 relevant Datacraft snippets.
+- The readiness assessment returned `ready_for_review` with zero blockers, 100% document type coverage, 100% source requirement coverage, 100% mandatory requirement coverage, 100% evidence cue coverage, 100% review gate coverage, and zero unresolved placeholders. It recorded warnings that `management_plan` and `past_performance` had no directly assigned source requirement signals in the short EOI source text.
 
 Remaining after this slice:
 - The environment-backed live database persistence proof is still blocked until the configured PostgreSQL endpoint is reachable.

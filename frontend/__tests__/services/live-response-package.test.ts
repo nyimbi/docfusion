@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	LIVE_RESPONSE_DOCUMENT_TYPES,
+	assessLiveResponsePackageReadiness,
 	buildLiveResponsePackage,
 	extractLiveResponseRequirementSignals,
 	selectLiveResponseSnippets,
@@ -67,6 +68,16 @@ describe("live response package builder", () => {
 		expect(responsePackage.requirements.length).toBeGreaterThanOrEqual(5);
 		expect(responsePackage.totalWordCount).toBeGreaterThan(2000);
 		expect(responsePackage.relevantSnippetCount).toBeGreaterThanOrEqual(12);
+		expect(responsePackage.readiness.status).toBe("ready_for_review");
+		expect(responsePackage.readiness.blockers).toEqual([]);
+		expect(responsePackage.readiness.metrics).toMatchObject({
+			documentTypeCoverage: 1,
+			sourceRequirementCoverage: 1,
+			mandatoryRequirementCoverage: 1,
+			evidenceCueCoverage: 1,
+			reviewGateCoverage: 1,
+			unresolvedPlaceholderCount: 0,
+		});
 
 		for (const document of responsePackage.documents) {
 			expect(document.wordCount).toBeGreaterThan(250);
@@ -79,5 +90,26 @@ describe("live response package builder", () => {
 		const technicalApproach = responsePackage.documents.find((document) => document.documentType === "technical_approach");
 		expect(technicalApproach?.markdown).toContain("penetration testing");
 		expect(technicalApproach?.requirementIds.length).toBeGreaterThan(0);
+	});
+
+	it("blocks readiness when source requirements are not represented in drafts", () => {
+		const responsePackage = buildLiveResponsePackage({
+			opportunity,
+			sourceText,
+			generatedAt: new Date("2026-05-27T00:00:00.000Z"),
+		});
+		const brokenPackage = {
+			...responsePackage,
+			documents: responsePackage.documents.map((document) => ({
+				...document,
+				requirementIds: [],
+			})),
+		};
+
+		const readiness = assessLiveResponsePackageReadiness(brokenPackage);
+
+		expect(readiness.status).toBe("blocked");
+		expect(readiness.blockers.join("\n")).toContain("source requirement signals");
+		expect(readiness.metrics.sourceRequirementCoverage).toBe(0);
 	});
 });

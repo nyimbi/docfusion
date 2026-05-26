@@ -66,6 +66,24 @@ export interface LiveResponsePackage {
 	totalWordCount: number;
 	relevantSnippetCount: number;
 	relevantSnippetShortcuts: string[];
+	readiness: LiveResponseReadinessAssessment;
+}
+
+export interface LiveResponseReadinessAssessment {
+	status: "ready_for_review" | "blocked";
+	blockers: string[];
+	warnings: string[];
+	metrics: {
+		documentTypeCoverage: number;
+		sourceRequirementCoverage: number;
+		mandatoryRequirementCoverage: number;
+		evidenceCueCoverage: number;
+		reviewGateCoverage: number;
+		unresolvedPlaceholderCount: number;
+		minDocumentWordCount: number;
+		totalDraftWordCount: number;
+		relevantSnippetCount: number;
+	};
 }
 
 export function buildLiveResponsePackage(input: {
@@ -123,7 +141,7 @@ export function buildLiveResponsePackage(input: {
 		}
 	}
 
-	return {
+	const responsePackage = {
 		opportunityTitle: input.opportunity.title,
 		clientName,
 		solicitationNumber: input.opportunity.sourceId ?? input.opportunity.noticeId,
@@ -133,6 +151,91 @@ export function buildLiveResponsePackage(input: {
 		totalWordCount: documents.reduce((total, document) => total + document.wordCount, 0),
 		relevantSnippetCount: relevantSnippets.length,
 		relevantSnippetShortcuts: relevantSnippets.map((snippet) => snippet.shortcut),
+		readiness: emptyReadinessAssessment(),
+	};
+	return {
+		...responsePackage,
+		readiness: assessLiveResponsePackageReadiness(responsePackage),
+	};
+}
+
+export function assessLiveResponsePackageReadiness(
+	responsePackage: Omit<LiveResponsePackage, "readiness"> | LiveResponsePackage
+): LiveResponseReadinessAssessment {
+	const blockers: string[] = [];
+	const warnings: string[] = [];
+	const documentTypes = new Set(responsePackage.documents.map((document) => document.documentType));
+	const missingDocumentTypes = LIVE_RESPONSE_DOCUMENT_TYPES.filter((type) => !documentTypes.has(type));
+	const assignedRequirementIds = new Set(responsePackage.documents.flatMap((document) => document.requirementIds));
+	const requirementIds = responsePackage.requirements.map((requirement) => requirement.id);
+	const mandatoryRequirementIds = responsePackage.requirements
+		.filter((requirement) => requirement.priority === "mandatory")
+		.map((requirement) => requirement.id);
+	const coveredRequirementCount = requirementIds.filter((id) => assignedRequirementIds.has(id)).length;
+	const coveredMandatoryRequirementCount = mandatoryRequirementIds.filter((id) => assignedRequirementIds.has(id)).length;
+	const documentsWithEvidence = responsePackage.documents.filter((document) => document.relevantSnippetShortcuts.length > 0).length;
+	const documentsWithReviewGates = responsePackage.documents.filter((document) => document.markdown.includes("## Review Gates")).length;
+	const unresolvedPlaceholderCount = responsePackage.documents.reduce(
+		(total, document) => total + (document.markdown.match(/\{\{[^}]+\}\}/g)?.length ?? 0),
+		0
+	);
+	const minDocumentWordCount = responsePackage.documents.length > 0
+		? Math.min(...responsePackage.documents.map((document) => document.wordCount))
+		: 0;
+	const metrics = {
+		documentTypeCoverage: ratio(LIVE_RESPONSE_DOCUMENT_TYPES.length - missingDocumentTypes.length, LIVE_RESPONSE_DOCUMENT_TYPES.length),
+		sourceRequirementCoverage: ratio(coveredRequirementCount, requirementIds.length),
+		mandatoryRequirementCoverage: ratio(coveredMandatoryRequirementCount, mandatoryRequirementIds.length),
+		evidenceCueCoverage: ratio(documentsWithEvidence, responsePackage.documents.length),
+		reviewGateCoverage: ratio(documentsWithReviewGates, responsePackage.documents.length),
+		unresolvedPlaceholderCount,
+		minDocumentWordCount,
+		totalDraftWordCount: responsePackage.totalWordCount,
+		relevantSnippetCount: responsePackage.relevantSnippetCount,
+	};
+
+	if (missingDocumentTypes.length > 0) {
+		blockers.push(`Missing required response document types: ${missingDocumentTypes.join(", ")}`);
+	}
+	if (responsePackage.requirements.length === 0) {
+		blockers.push("No source requirement signals were extracted from the solicitation text");
+	}
+	if (metrics.sourceRequirementCoverage < 1) {
+		blockers.push(`Only ${coveredRequirementCount}/${requirementIds.length} source requirement signals are represented in draft documents`);
+	}
+	if (metrics.mandatoryRequirementCoverage < 1) {
+		blockers.push(`Only ${coveredMandatoryRequirementCount}/${mandatoryRequirementIds.length} mandatory source requirement signals are represented in draft documents`);
+	}
+	if (unresolvedPlaceholderCount > 0) {
+		blockers.push(`${unresolvedPlaceholderCount} unresolved template placeholder(s) remain in draft documents`);
+	}
+	if (minDocumentWordCount < 250) {
+		blockers.push(`At least one response draft is below the 250-word minimum (${minDocumentWordCount} words)`);
+	}
+	if (responsePackage.relevantSnippetCount < 10) {
+		blockers.push(`Only ${responsePackage.relevantSnippetCount} relevant Datacraft evidence snippets matched the opportunity`);
+	}
+	if (metrics.evidenceCueCoverage < 1) {
+		blockers.push("At least one response draft has no Datacraft evidence cues");
+	}
+	if (metrics.reviewGateCoverage < 1) {
+		blockers.push("At least one response draft is missing review gates");
+	}
+
+	for (const document of responsePackage.documents) {
+		if (document.requirementIds.length === 0) {
+			warnings.push(`${document.documentType} has no directly assigned source requirement signal`);
+		}
+		if (document.relevantSnippetShortcuts.length < 3) {
+			warnings.push(`${document.documentType} has fewer than three Datacraft evidence cues`);
+		}
+	}
+
+	return {
+		status: blockers.length === 0 ? "ready_for_review" : "blocked",
+		blockers,
+		warnings,
+		metrics,
 	};
 }
 
@@ -345,6 +448,29 @@ function renderPlaceholders(text: string, values: Record<string, string>): strin
 		(rendered, [key, value]) => rendered.replaceAll(`{{${key}}}`, value),
 		text
 	);
+}
+
+function emptyReadinessAssessment(): LiveResponseReadinessAssessment {
+	return {
+		status: "blocked",
+		blockers: [],
+		warnings: [],
+		metrics: {
+			documentTypeCoverage: 0,
+			sourceRequirementCoverage: 0,
+			mandatoryRequirementCoverage: 0,
+			evidenceCueCoverage: 0,
+			reviewGateCoverage: 0,
+			unresolvedPlaceholderCount: 0,
+			minDocumentWordCount: 0,
+			totalDraftWordCount: 0,
+			relevantSnippetCount: 0,
+		},
+	};
+}
+
+function ratio(numerator: number, denominator: number): number {
+	return denominator > 0 ? numerator / denominator : 1;
 }
 
 function flattenUnknown(value: unknown): string {

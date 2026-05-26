@@ -14,6 +14,7 @@ import { checkDoclingHealth, convertDocument } from "@/lib/services/docling-clie
 import {
 	buildLiveResponsePackage,
 	type LiveResponsePackage,
+	type LiveResponseReadinessAssessment,
 } from "@/lib/services/live-response-package";
 import { fetchUngmOpportunities } from "@/lib/services/ungm-client";
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
@@ -81,6 +82,7 @@ interface LiveOpportunityResponseReadinessProof {
 		seededDocumentWordCounts: Record<string, number>;
 		totalDraftWordCount: number;
 		draftArtifactPaths: string[];
+		readiness: LiveResponseReadinessAssessment;
 	};
 	error?: string;
 }
@@ -242,6 +244,9 @@ function proveResponseSeedReadiness(
 	if (responsePackage.totalWordCount < 2000) {
 		throw new Error(`Live response package draft is too thin: ${responsePackage.totalWordCount} words`);
 	}
+	if (responsePackage.readiness.status !== "ready_for_review") {
+		throw new Error(`Live response package readiness blocked: ${responsePackage.readiness.blockers.join("; ")}`);
+	}
 
 	return {
 		documentTypes: PROPOSAL_DOCUMENT_TYPES,
@@ -252,6 +257,7 @@ function proveResponseSeedReadiness(
 		seededDocumentWordCounts,
 		totalDraftWordCount: responsePackage.totalWordCount,
 		draftArtifactPaths,
+		readiness: responsePackage.readiness,
 	};
 }
 
@@ -312,6 +318,8 @@ async function writeArtifacts(
 			`source-requirements:${proof.responseReadiness?.sourceRequirementCount ?? 0}`,
 			`response-draft-words:${proof.responseReadiness?.totalDraftWordCount ?? 0}`,
 			`response-snippets:${proof.responseReadiness?.relevantSnippetCount ?? 0}`,
+			`readiness:${proof.responseReadiness?.readiness.status ?? "not-run"}`,
+			`readiness-source-coverage:${proof.responseReadiness?.readiness.metrics.sourceRequirementCoverage ?? 0}`,
 		],
 		topology_tier: "live-connectivity",
 		verification_bucket: "live-safe opportunity response readiness",
