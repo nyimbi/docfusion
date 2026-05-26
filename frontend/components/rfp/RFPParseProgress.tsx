@@ -52,6 +52,10 @@ interface ParsingJobStatus {
 interface RFPParseProgressProps {
 	/** RFP Document ID to track */
 	rfpDocumentId: string;
+	/** Optional destination once parsing has completed */
+	completionHref?: string;
+	/** Label for the completion destination */
+	completionLabel?: string;
 	/** Callback when parsing completes */
 	onComplete?: (requirementsCount: number) => void;
 	/** Callback on parsing error */
@@ -127,6 +131,8 @@ function resolveCurrentStepIndex(status: ParsingJobStatus["status"], currentStep
 
 export function RFPParseProgress({
 	rfpDocumentId,
+	completionHref,
+	completionLabel = "Review Requirements",
 	onComplete,
 	onError,
 	pollInterval = 2000,
@@ -329,6 +335,14 @@ export function RFPParseProgress({
 								<p className="text-xs text-muted-foreground">Processing Time</p>
 							</div>
 						)}
+					</div>
+				)}
+
+				{jobStatus?.status === "completed" && completionHref && (
+					<div className="flex justify-end border-t pt-4">
+						<Button asChild size="sm">
+							<a href={completionHref}>{completionLabel}</a>
+						</Button>
 					</div>
 				)}
 

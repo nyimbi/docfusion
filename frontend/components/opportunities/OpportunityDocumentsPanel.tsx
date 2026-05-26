@@ -135,6 +135,7 @@ export function OpportunityDocumentsPanel({
           <RFPParseProgress
             key={rfpDocumentId}
             rfpDocumentId={rfpDocumentId}
+            completionHref={`/opportunities/${opportunityId}/requirements`}
             pollInterval={5000}
             onComplete={isFreshIntake
               ? (requirementsCount) => {

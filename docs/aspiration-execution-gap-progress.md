@@ -493,3 +493,25 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Add a broader joined parse/status test for `getOpportunityDocuments` when running on power, or when a service-level test harness for this DB read model is already active.
+
+### 2026-05-26 - Parser to Requirements Handoff
+
+Status: implemented and verified.
+
+Purpose: let operators continue directly from completed RFP parsing into requirements review from the opportunity detail page.
+
+Changes in this slice:
+- Add optional completion destination props to `RFPParseProgress`.
+- Render a `Review Requirements` action when parser status is completed and a completion URL is supplied.
+- Point opportunity detail parser progress cards to `/opportunities/{id}/requirements`.
+
+Verification:
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, browser visual pass, and component tests remain intentionally skipped while on battery. This slice is a small UI handoff addition verified by TypeScript and whitespace checks.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Strengthen the requirements review page next if accepted requirements do not yet reliably trigger response-package work.
