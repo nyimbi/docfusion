@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
 const requireUserContextMock = vi.hoisted(() => vi.fn());
 const recordWorkflowRuntimeTransitionMock = vi.hoisted(() => vi.fn());
+const upsertWorkflowRuntimeTaskMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
@@ -10,6 +11,7 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: recordWorkflowRuntimeTransitionMock,
+	upsertWorkflowRuntimeTask: upsertWorkflowRuntimeTaskMock,
 }));
 
 interface ChainConfig {
@@ -115,7 +117,10 @@ import {
 	updateProposalDocument,
 	updateSection,
 } from "@/lib/actions/proposal-documents";
-import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
+import {
+	recordWorkflowRuntimeTransition,
+	upsertWorkflowRuntimeTask,
+} from "@/lib/actions/workflow-runtime";
 
 const proposalDocument = {
 	id: "55555555-5555-4555-8555-555555555555",
@@ -168,6 +173,7 @@ beforeEach(() => {
 		roles: ["proposal_manager"],
 	});
 	recordWorkflowRuntimeTransitionMock.mockResolvedValue({ id: "response-package-workflow-1" });
+	upsertWorkflowRuntimeTaskMock.mockResolvedValue(undefined);
 });
 
 describe("proposal document row scoping", () => {
@@ -894,6 +900,30 @@ describe("proposal document row scoping", () => {
 				documentVersionNumber: 2,
 			}),
 			actionUrl: `/opportunities/${proposalDocument.opportunityId}/documents`,
+		}));
+		expect(upsertWorkflowRuntimeTask).toHaveBeenCalledWith(expect.objectContaining({
+			workflowInstanceId: "response-package-workflow-1",
+			taskKey: `response-package-review:${proposalDocument.opportunityId}`,
+			title: "Review drafted response package",
+			state: "open",
+			priority: "high",
+			assignedRole: "proposal_manager",
+			metadata: expect.objectContaining({
+				requirementCount: 1,
+				proposalDocumentCount: 1,
+			}),
+		}));
+		expect(upsertWorkflowRuntimeTask).toHaveBeenCalledWith(expect.objectContaining({
+			workflowInstanceId: "response-package-workflow-1",
+			taskKey: `final-package-render:${proposalDocument.opportunityId}`,
+			title: "Render approved final package",
+			state: "open",
+			priority: "medium",
+			assignedRole: "proposal_manager",
+			metadata: expect.objectContaining({
+				complianceMatrixId: "matrix-1",
+				versionNumber: 2,
+			}),
 		}));
 	});
 });

@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Response Package Follow-Up Tasks
+
+Status: implemented and verified.
+
+Purpose: make response-package drafting produce explicit operational follow-ups for package review and final rendering instead of leaving the next governance steps implicit.
+
+Changes in this slice:
+- Create a response-package review workflow task after standard response package drafting records its runtime transition.
+- Create a final-package rendering workflow task tied to the drafted proposal document IDs, document IDs, compliance matrix, and latest version number.
+- Keep response-package drafting non-blocking when workflow task persistence is unavailable, matching the existing telemetry-failure behavior.
+- Extend response-package drafting coverage to prove both follow-up tasks are emitted with package evidence.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+- `npx tsc --noEmit --pretty false` remains blocked by pre-existing unrelated diagnostics in workflow/pricing/RFP/parser test fixtures and typing. No diagnostics pointed at the response-package task files changed in this slice.
+
+Testing scope note:
+- Full TypeScript checking is currently blocked by unrelated repository diagnostics listed above; focused proposal document workflow coverage verifies the added task emission.
+
+Remaining after this slice:
+- Continue hardening final package rendering/signoff evidence and submission package readiness checks.
+
 ### 2026-05-26 - Parsed Requirement Batch Acceptance
 
 Status: implemented and verified.

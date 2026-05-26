@@ -45,7 +45,10 @@ import {
 	userHasAuthorityRole,
 	type UserContext,
 } from "@/lib/auth-utils";
-import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
+import {
+	recordWorkflowRuntimeTransition,
+	upsertWorkflowRuntimeTask,
+} from "@/lib/actions/workflow-runtime";
 
 export interface ProposalDocumentFinalizationInput {
 	action: FinalArtifactAction;
@@ -2039,7 +2042,7 @@ async function recordResponsePackageDraftTransition(input: {
 	result: ResponsePackageDraftResult;
 }): Promise<void> {
 	try {
-		await recordWorkflowRuntimeTransition({
+		const instance = await recordWorkflowRuntimeTransition({
 			workflowKey: "proposal_response_package",
 			subjectType: "opportunity",
 			subjectId: input.opportunityId,
@@ -2061,6 +2064,39 @@ async function recordResponsePackageDraftTransition(input: {
 			},
 			terminal: false,
 			actionUrl: `/opportunities/${input.opportunityId}/documents`,
+		});
+		await upsertWorkflowRuntimeTask({
+			workflowInstanceId: instance.id,
+			taskKey: `response-package-review:${input.opportunityId}`,
+			title: "Review drafted response package",
+			description: "Review drafted response documents, compliance links, and requirement coverage before final package rendering.",
+			state: "open",
+			priority: "high",
+			assignedTo: input.userId,
+			assignedRole: "proposal_manager",
+			dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+			metadata: {
+				...input.result,
+				requirementCount: input.result.requirementIds.length,
+				proposalDocumentCount: input.result.proposalDocumentIds.length,
+			},
+		});
+		await upsertWorkflowRuntimeTask({
+			workflowInstanceId: instance.id,
+			taskKey: `final-package-render:${input.opportunityId}`,
+			title: "Render approved final package",
+			description: "Render the approved response documents into final submission artifacts after response package review is complete.",
+			state: "open",
+			priority: "medium",
+			assignedTo: input.userId,
+			assignedRole: "proposal_manager",
+			dueAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+			metadata: {
+				proposalDocumentIds: input.result.proposalDocumentIds,
+				documentIds: input.result.documentIds,
+				versionNumber: input.result.versionNumber,
+				complianceMatrixId: input.result.complianceMatrixId,
+			},
 		});
 	} catch {
 		// Response package drafting should not fail because workflow telemetry is unavailable.
