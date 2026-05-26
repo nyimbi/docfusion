@@ -540,3 +540,28 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Consider an explicit one-click "draft all linked sections" orchestration after response package creation, so accepted requirements can proceed from package creation into initial narrative without per-document manual drafting.
+
+### 2026-05-26 - One Click Response Package Drafting
+
+Status: implemented and verified.
+
+Purpose: move accepted requirements from review directly into drafted response content, not just empty proposal package records.
+
+Changes in this slice:
+- Add `createAndDraftStandardProposalSet`, a server action that requires accepted applicable requirements before orchestration starts.
+- Reuse standard package creation/linking, then draft every standard proposal document with linked sections.
+- Return created document count, drafted document count, drafted section count, linked requirement IDs, document IDs, and the latest version number.
+- Change the requirements page handoff to build and draft the response package in one operator action.
+- Add focused coverage for the create/link/draft orchestration path.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, browser visual pass, and broad proposal workflow tests remain intentionally skipped while on battery. This slice used focused proposal action coverage plus TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Strengthen final evaluator/compliance review so generated drafts are promoted only after evidence, compliance, and readiness gates pass.

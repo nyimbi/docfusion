@@ -13,7 +13,7 @@ import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import type { Requirement, RequirementStats } from "@/lib/types/opportunity";
 import { reviewRfpParseConfidence } from "@/lib/actions/rfp-parser";
-import { createStandardProposalSet } from "@/lib/actions/proposal-documents";
+import { createAndDraftStandardProposalSet } from "@/lib/actions/proposal-documents";
 import { RequirementsTable } from "@/components/requirements/RequirementsTable";
 import { RequirementDetail } from "@/components/requirements/RequirementDetail";
 import { RequirementExtractor } from "./RequirementExtractor";
@@ -90,8 +90,12 @@ export function RequirementsClientPage({
 	const handleBuildResponsePackage = useCallback(async () => {
 		setIsBuildingResponsePackage(true);
 		try {
-			await createStandardProposalSet(opportunityId);
-			toast.success("Response package is ready");
+			const result = await createAndDraftStandardProposalSet(opportunityId);
+			toast.success(
+				result.sectionsDrafted > 0
+					? `Response package drafted across ${result.sectionsDrafted} section${result.sectionsDrafted === 1 ? "" : "s"}`
+					: "Response package is ready"
+			);
 			router.push(`/opportunities/${opportunityId}/documents`);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to build response package");
@@ -133,7 +137,7 @@ export function RequirementsClientPage({
 						loadingText="Building package"
 					>
 						<FileText className="h-4 w-4 mr-2" />
-						{acceptedRequirementCount > 0 ? "Build Response Package" : "Accept Requirements First"}
+						{acceptedRequirementCount > 0 ? "Build And Draft Response Package" : "Accept Requirements First"}
 					</Button>
 					<Button variant="outline" size="sm" onClick={() => setShowExtractor(true)}>
 						<UploadIcon className="h-4 w-4 mr-2" />

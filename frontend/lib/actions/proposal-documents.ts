@@ -159,6 +159,16 @@ export interface RequirementAwareProposalDraftResult {
 	versionNumber: number | null;
 }
 
+export interface ResponsePackageDraftResult {
+	documentsCreated: number;
+	documentsDrafted: number;
+	sectionsDrafted: number;
+	requirementIds: string[];
+	proposalDocumentIds: string[];
+	documentIds: string[];
+	versionNumber: number | null;
+}
+
 function textNode(text: string): ContentNode {
 	return { type: "text", text };
 }
@@ -1694,6 +1704,68 @@ export async function createStandardProposalSet(
 	await linkRequirementsToStandardProposalSections(opportunityId, packageDocs, userId);
 
 	return created;
+}
+
+/**
+ * Create the standard response package, link accepted requirements, and draft
+ * every linked standard document in one operator action.
+ */
+export async function createAndDraftStandardProposalSet(
+	opportunityId: string,
+	documentTypes?: ProposalDocumentType[]
+): Promise<ResponsePackageDraftResult> {
+	const userId = await requireCurrentUserId();
+	const types = documentTypes || [
+		"cover_letter",
+		"executive_summary",
+		"technical_approach",
+		"management_plan",
+		"staffing_plan",
+		"past_performance",
+		"cost_proposal",
+	];
+
+	const requirements = await db
+		.select()
+		.from(rfpRequirements)
+		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId));
+	const acceptedRequirements = requirements.filter((requirement) =>
+		requirement.complianceStatus !== "not_applicable" &&
+		isAcceptedRequirement(requirement)
+	);
+	if (acceptedRequirements.length === 0) {
+		throw new Error("Accept at least one applicable requirement before drafting a response package.");
+	}
+
+	const created = await createStandardProposalSet(opportunityId, types);
+	const packageRows = await db
+		.select()
+		.from(proposalDocuments)
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId))
+		.orderBy(asc(proposalDocuments.sectionOrder), asc(proposalDocuments.createdAt));
+	const packageDocs = packageRows
+		.filter((doc) => types.includes(doc.documentType as ProposalDocumentType))
+		.map((doc) => mapProposalDocument(doc));
+
+	const draftResults: RequirementAwareProposalDraftResult[] = [];
+	for (const doc of packageDocs) {
+		const result = await generateRequirementAwareProposalDraft(doc.id);
+		if (result.sectionsDrafted > 0) {
+			draftResults.push(result);
+		}
+	}
+
+	return {
+		documentsCreated: created.length,
+		documentsDrafted: draftResults.length,
+		sectionsDrafted: draftResults.reduce((total, result) => total + result.sectionsDrafted, 0),
+		requirementIds: uniqueStrings(draftResults.flatMap((result) => result.requirementIds)),
+		proposalDocumentIds: draftResults.map((result) => result.proposalDocumentId),
+		documentIds: draftResults.map((result) => result.documentId),
+		versionNumber: draftResults.length > 0
+			? Math.max(...draftResults.map((result) => result.versionNumber ?? 0))
+			: null,
+	};
 }
 
 /**

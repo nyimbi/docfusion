@@ -81,6 +81,7 @@ vi.mock("@/lib/db", () => ({
 
 import {
 	bulkUpdateStatus,
+	createAndDraftStandardProposalSet,
 	createProposalDocument,
 	createStandardProposalSet,
 	generateRequirementAwareSectionDraft,
@@ -547,5 +548,97 @@ describe("proposal document row scoping", () => {
 		for (const where of updateWheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 		}
+	});
+
+	it("creates and drafts a standard package from accepted requirements", async () => {
+		const requirement = {
+			id: "77777777-7777-4777-8777-777777777777",
+			opportunityId: proposalDocument.opportunityId,
+			requirementNumber: "REQ-007",
+			title: "Offline reporting",
+			requirementText: "The supplier shall support offline data capture and synchronized reporting.",
+			sourcePage: 12,
+			sourceSection: "Section C.4",
+			category: "technical",
+			priority: "mandatory",
+			riskLevel: "high",
+			complianceStatus: "partial",
+			responseStrategy: null,
+			suggestedApproach: "Show offline capture, synchronization, and audit controls.",
+			metadata: {
+				workflow: {
+					state: "accepted",
+				},
+			},
+		};
+		const linkedSection = {
+			...section,
+			sectionName: "Workflow-First Delivery",
+			requirementIds: [requirement.id],
+		};
+		const sourceDocument = {
+			...documentRow,
+			content: {
+				type: "doc",
+				content: [{ type: "paragraph", content: [{ type: "text", text: "Existing draft." }] }],
+			},
+			plainText: "Existing draft.",
+			metadata: { source: "datacraft_response_sections" },
+			currentVersion: 1,
+			characterCount: 15,
+			ownerId: "proposal-user-1",
+		};
+		const opportunity = {
+			id: proposalDocument.opportunityId,
+			title: "Offline Field Reporting Platform",
+			organization: "Regional Authority",
+			sector: "Government/SOE",
+			countryRegion: "East Africa",
+			category: "Digital Transformation",
+			deadline: null,
+			budgetValue: null,
+			projectSummary: null,
+			projectScope: null,
+			keyRequirements: null,
+			technicalRequirements: null,
+			submissionRequirements: null,
+			fitScore: null,
+			winProbability: null,
+			strategicNotes: null,
+		};
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [requirement] }))
+			.mockReturnValueOnce(createChain({ result: [{ id: proposalDocument.opportunityId }] }))
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
+			.mockReturnValueOnce(createChain({ result: [requirement] }))
+			.mockReturnValueOnce(createChain({ result: [section] }))
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
+			.mockReturnValueOnce(createChain({ result: [linkedSection] }))
+			.mockReturnValueOnce(createChain({ result: [linkedSection] }))
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
+			.mockReturnValueOnce(createChain({ result: [sourceDocument] }))
+			.mockReturnValueOnce(createChain({ result: [opportunity] }))
+			.mockReturnValueOnce(createChain({ result: [requirement] }));
+		dbMock.update.mockImplementation(() => createChain({
+			result: [{ ...sourceDocument, currentVersion: 2 }],
+		}));
+		dbMock.insert.mockReturnValueOnce(createChain());
+
+		const result = await createAndDraftStandardProposalSet(
+			proposalDocument.opportunityId,
+			["technical_approach"]
+		);
+
+		expect(result).toMatchObject({
+			documentsCreated: 0,
+			documentsDrafted: 1,
+			sectionsDrafted: 1,
+			requirementIds: [requirement.id],
+			proposalDocumentIds: [proposalDocument.id],
+			documentIds: [sourceDocument.id],
+			versionNumber: 2,
+		});
 	});
 });
