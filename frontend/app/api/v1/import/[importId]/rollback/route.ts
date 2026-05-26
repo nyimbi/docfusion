@@ -16,17 +16,34 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import {
-	isTenantResponse,
-	requireRouteTenantContext,
-	type RouteTenantResult,
-} from "@/lib/auth/route-tenant";
+	assertUserHasAuthorityRole,
+	requireUserContext,
+	type UserContext,
+} from "@/lib/auth-utils";
 import { rollbackImport } from "@/lib/actions/import";
 
 /**
  * Get authenticated user context.
  */
-async function getUserContext(): Promise<RouteTenantResult> {
-	return requireRouteTenantContext();
+type ImportRollbackUserContext = UserContext & { organizationId: string };
+
+async function getUserContext(): Promise<ImportRollbackUserContext | NextResponse> {
+	try {
+		const context = await requireUserContext();
+		if (!context.organizationId) {
+			return NextResponse.json({ error: "No organization context" }, { status: 403 });
+		}
+		return {
+			...context,
+			organizationId: context.organizationId,
+		};
+	} catch {
+		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+	}
+}
+
+function isTenantResponse(value: ImportRollbackUserContext | NextResponse): value is NextResponse {
+	return value instanceof NextResponse;
 }
 
 interface RouteParams {
@@ -68,6 +85,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			return NextResponse.json(
 				{ success: false, error: "Invalid import ID format" },
 				{ status: 400 }
+			);
+		}
+
+		try {
+			assertUserHasAuthorityRole(
+				userContext,
+				"import_approver",
+				"Rolling back an import requires import authority"
+			);
+		} catch {
+			return NextResponse.json(
+				{ success: false, error: "Forbidden" },
+				{ status: 403 }
 			);
 		}
 
