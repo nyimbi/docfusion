@@ -16,6 +16,7 @@ vi.mock("@/lib/auth-utils", () => ({
 }));
 
 vi.mock("@/lib/services/searxng-client", () => ({
+	getSearxngBaseUrl: () => "https://search.lindela.io",
 	searchSearxng: searchSearxngMock,
 }));
 
@@ -555,6 +556,49 @@ describe("discoverAndImportOpportunities", () => {
 				status: "failed",
 				error: expect.stringContaining("SearXNG unavailable"),
 			})],
+		}), "user-1");
+	});
+
+	it("surfaces SearXNG engine degradation warnings even when no results are returned", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [],
+			unresponsive_engines: [
+				["google", "access denied"],
+				["duckduckgo", "CAPTCHA"],
+				"brave: too many requests",
+			],
+		});
+
+		const result = await discoverAndImportOpportunities({
+			query: "Kenya ICT tender RFP",
+		});
+
+		expect(result.results).toEqual({
+			total: 0,
+			imported: 0,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(result.warnings).toEqual([
+			expect.objectContaining({
+				type: "searxng_engine_degraded",
+				query: "Kenya ICT tender RFP",
+				message: "google: access denied; duckduckgo: CAPTCHA; brave: too many requests",
+			}),
+		]);
+		expect(createOpportunityMock).not.toHaveBeenCalled();
+		expect(updateImportRecordMock).toHaveBeenCalledWith("import-1", expect.objectContaining({
+			config: expect.objectContaining({
+				audit: {
+					warnings: [
+						expect.objectContaining({
+							type: "searxng_engine_degraded",
+							message: expect.stringContaining("duckduckgo: CAPTCHA"),
+						}),
+					],
+				},
+			}),
 		}), "user-1");
 	});
 });

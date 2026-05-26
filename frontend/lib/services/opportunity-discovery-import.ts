@@ -4,7 +4,13 @@ import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 import { downloadDocument } from "@/lib/services/rfp-document-service";
-import { searchSearxng, type SearchOptions, type SearxngResult } from "@/lib/services/searxng-client";
+import {
+	getSearxngBaseUrl,
+	searchSearxng,
+	type SearchOptions,
+	type SearxngResult,
+	type SearxngUnresponsiveEngine,
+} from "@/lib/services/searxng-client";
 import type { ImportConfig, ImportRecordResult, OpportunityInput } from "@/lib/types/opportunity";
 import {
 	createImportRecord,
@@ -58,6 +64,7 @@ export type ImportResultsSummary = {
 export interface DiscoveryRunWarning {
 	type:
 		| "firecrawl_failed"
+		| "searxng_engine_degraded"
 		| "browser_fallback_failed"
 		| "browser_fallback_used"
 		| "source_document_seed_failed"
@@ -161,6 +168,33 @@ function normalizeDiscoveryQueries(input: DiscoveryImportInput): string[] {
 function isLikelyOpportunity(result: SearxngResult): boolean {
 	const haystack = `${result.title} ${result.content} ${result.url}`.toLowerCase();
 	return OPPORTUNITY_KEYWORDS.some((keyword) => haystack.includes(keyword));
+}
+
+function describeUnresponsiveEngine(engine: SearxngUnresponsiveEngine): string {
+	if (Array.isArray(engine)) {
+		return engine.filter(Boolean).join(": ");
+	}
+	if (typeof engine === "string") {
+		return engine;
+	}
+	const name = engine.engine ?? "unknown";
+	const reason = engine.error ?? engine.message;
+	return reason ? `${name}: ${reason}` : name;
+}
+
+function collectSearxngEngineWarnings(
+	query: string,
+	unresponsiveEngines: SearxngUnresponsiveEngine[] | undefined
+): DiscoveryRunWarning[] {
+	if (!unresponsiveEngines?.length) return [];
+
+	return [{
+		type: "searxng_engine_degraded",
+		query,
+		title: "SearXNG engine degradation",
+		url: `${getSearxngBaseUrl()}/search`,
+		message: unresponsiveEngines.map(describeUnresponsiveEngine).join("; "),
+	}];
 }
 
 function inferOpportunityType(candidate: DiscoveryCandidate): OpportunityInput["opportunityType"] {
@@ -588,6 +622,7 @@ export async function executeOpportunityDiscoveryImport(
 	const candidates: DiscoveryCandidate[] = [];
 	const seenUrls = new Set<string>();
 	const searchFailures: ImportRecordResult[] = [];
+	const searchWarnings: DiscoveryRunWarning[] = [];
 
 	for (const query of queries) {
 		try {
@@ -597,6 +632,7 @@ export async function executeOpportunityDiscoveryImport(
 				time_range: input.timeRange,
 				safesearch: 1,
 			});
+			searchWarnings.push(...collectSearxngEngineWarnings(query, response.unresponsive_engines));
 
 			for (const result of response.results.slice(0, limitPerQuery)) {
 				if (!result.url || !result.title) continue;
@@ -624,7 +660,10 @@ export async function executeOpportunityDiscoveryImport(
 			input
 		);
 	}
-	const warnings = collectDiscoveryWarnings(candidates);
+	const warnings = [
+		...searchWarnings,
+		...collectDiscoveryWarnings(candidates),
+	];
 	const baseImportConfig: ImportConfig = {
 		columnMappings: [],
 		sheetName: "searxng_discovery",

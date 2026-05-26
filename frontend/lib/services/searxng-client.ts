@@ -10,6 +10,10 @@ import { logger } from "@/lib/utils/logger";
 const SEARXNG_URL = process.env.SEARXNG_URL || "https://search.lindela.io";
 const SEARXNG_BASE_URL = SEARXNG_URL.replace(/\/$/, "");
 
+export function getSearxngBaseUrl(): string {
+  return SEARXNG_BASE_URL;
+}
+
 export interface SearxngResult {
   title: string;
   url: string;
@@ -19,6 +23,11 @@ export interface SearxngResult {
   category?: string;
 }
 
+export type SearxngUnresponsiveEngine =
+  | string
+  | [string, string]
+  | { engine?: string; error?: string; message?: string };
+
 export interface SearxngSearchResponse {
   query: string;
   number_of_results: number;
@@ -27,7 +36,7 @@ export interface SearxngSearchResponse {
   corrections?: string[];
   infoboxes?: unknown[];
   suggestions?: string[];
-  unresponsive_engines?: string[];
+  unresponsive_engines?: SearxngUnresponsiveEngine[];
 }
 
 export interface SearchOptions {

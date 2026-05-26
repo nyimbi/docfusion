@@ -16,6 +16,25 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - SearXNG Engine Degradation Telemetry
+
+Status: implemented and verified.
+
+Purpose: make live discovery runs report SearXNG engine degradation such as CAPTCHA, access-denied, and rate-limit responses, even when the search request itself succeeds or returns zero opportunity results.
+
+Changes in this slice:
+- Model SearXNG `unresponsive_engines` responses in the frontend search client.
+- Convert unresponsive engine details into `searxng_engine_degraded` discovery warnings.
+- Persist those warnings into discovery import audit config and return them in the discovery result.
+- Add regression coverage proving degraded engines are surfaced without creating opportunity rows.
+
+Verification:
+- `npm run test -- discovery-opportunity-import.test.ts searxng-client-config.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+
+Remaining after this slice:
+- This makes degradation visible but does not fix the underlying SearXNG engine blocks. Engine health and opportunity-query quality still need remediation before live discovery can be considered production-reliable.
+
 ### 2026-05-26 - Browser Fallback Compatibility Consolidation
 
 Status: implemented and verified.
