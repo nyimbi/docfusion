@@ -565,3 +565,29 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Strengthen final evaluator/compliance review so generated drafts are promoted only after evidence, compliance, and readiness gates pass.
+
+### 2026-05-26 - Response Package Compliance Matrix Seeding
+
+Status: implemented and verified.
+
+Purpose: produce compliance proof rows at the same time accepted requirements are drafted into the response package.
+
+Changes in this slice:
+- Extend `createAndDraftStandardProposalSet` to create or reuse an opportunity compliance matrix for accepted applicable requirements.
+- Add missing compliance entries for accepted requirements, carrying response document, response section, owner, due date, risk, and response summary into the matrix rows.
+- Refresh matrix counts and store response-package synchronization metadata.
+- Return `complianceMatrixId` and `complianceEntriesCreated` from the create/link/draft orchestration.
+- Surface the number of compliance rows added in the requirements-page success toast.
+- Extend focused proposal-document action coverage for the matrix seeding path.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, browser visual pass, and broad compliance workflow tests remain intentionally skipped while on battery. This slice used focused proposal action coverage plus TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Expose the generated compliance matrix from the opportunity requirements/documents workflow if operators need a first-class navigation target before final lock/review.

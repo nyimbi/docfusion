@@ -565,6 +565,11 @@ describe("proposal document row scoping", () => {
 			complianceStatus: "partial",
 			responseStrategy: null,
 			suggestedApproach: "Show offline capture, synchronization, and audit controls.",
+			organizationId: "org-1",
+			responseDocumentId: proposalDocument.documentId,
+			responseSection: "Workflow-First Delivery",
+			assignedTo: "proposal-user-1",
+			dueDate: null,
 			metadata: {
 				workflow: {
 					state: "accepted",
@@ -613,6 +618,8 @@ describe("proposal document row scoping", () => {
 			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
 			.mockReturnValueOnce(createChain({ result: [requirement] }))
 			.mockReturnValueOnce(createChain({ result: [section] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
 			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
 			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
 			.mockReturnValueOnce(createChain({ result: [linkedSection] }))
@@ -624,7 +631,17 @@ describe("proposal document row scoping", () => {
 		dbMock.update.mockImplementation(() => createChain({
 			result: [{ ...sourceDocument, currentVersion: 2 }],
 		}));
-		dbMock.insert.mockReturnValueOnce(createChain());
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "matrix-1",
+					opportunityId: proposalDocument.opportunityId,
+					organizationId: "org-1",
+					metadata: null,
+				}],
+			}))
+			.mockReturnValueOnce(createChain())
+			.mockReturnValueOnce(createChain());
 
 		const result = await createAndDraftStandardProposalSet(
 			proposalDocument.opportunityId,
@@ -635,6 +652,8 @@ describe("proposal document row scoping", () => {
 			documentsCreated: 0,
 			documentsDrafted: 1,
 			sectionsDrafted: 1,
+			complianceMatrixId: "matrix-1",
+			complianceEntriesCreated: 1,
 			requirementIds: [requirement.id],
 			proposalDocumentIds: [proposalDocument.id],
 			documentIds: [sourceDocument.id],

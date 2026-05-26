@@ -10,7 +10,7 @@
 
 import { db } from "@/lib/db";
 import { documents, documentVersions, proposalDocuments, documentSections, opportunities } from "@/lib/db/schema";
-import { rfpRequirements } from "@/lib/db/schema-rfp";
+import { complianceEntries, complianceMatrices, rfpRequirements } from "@/lib/db/schema-rfp";
 import { eq, and, asc, sql, inArray, type SQL } from "drizzle-orm";
 import type {
 	ProposalDocument,
@@ -163,6 +163,8 @@ export interface ResponsePackageDraftResult {
 	documentsCreated: number;
 	documentsDrafted: number;
 	sectionsDrafted: number;
+	complianceMatrixId: string;
+	complianceEntriesCreated: number;
 	requirementIds: string[];
 	proposalDocumentIds: string[];
 	documentIds: string[];
@@ -1738,6 +1740,11 @@ export async function createAndDraftStandardProposalSet(
 	}
 
 	const created = await createStandardProposalSet(opportunityId, types);
+	const complianceMatrix = await ensureAcceptedRequirementsComplianceMatrix(
+		opportunityId,
+		acceptedRequirements,
+		userId
+	);
 	const packageRows = await db
 		.select()
 		.from(proposalDocuments)
@@ -1759,6 +1766,8 @@ export async function createAndDraftStandardProposalSet(
 		documentsCreated: created.length,
 		documentsDrafted: draftResults.length,
 		sectionsDrafted: draftResults.reduce((total, result) => total + result.sectionsDrafted, 0),
+		complianceMatrixId: complianceMatrix.matrixId,
+		complianceEntriesCreated: complianceMatrix.entriesCreated,
 		requirementIds: uniqueStrings(draftResults.flatMap((result) => result.requirementIds)),
 		proposalDocumentIds: draftResults.map((result) => result.proposalDocumentId),
 		documentIds: draftResults.map((result) => result.documentId),
@@ -1766,6 +1775,119 @@ export async function createAndDraftStandardProposalSet(
 			? Math.max(...draftResults.map((result) => result.versionNumber ?? 0))
 			: null,
 	};
+}
+
+async function ensureAcceptedRequirementsComplianceMatrix(
+	opportunityId: string,
+	acceptedRequirements: Array<typeof rfpRequirements.$inferSelect>,
+	userId: string
+): Promise<{ matrixId: string; entriesCreated: number }> {
+	const organizationId = acceptedRequirements[0]?.organizationId;
+	if (!organizationId) {
+		throw new Error("Accepted requirements are missing organization scope.");
+	}
+
+	const [existingMatrix] = await db
+		.select()
+		.from(complianceMatrices)
+		.where(and(
+			eq(complianceMatrices.opportunityId, opportunityId),
+			eq(complianceMatrices.organizationId, organizationId)
+		))
+		.orderBy(asc(complianceMatrices.version))
+		.limit(1);
+
+	const matrix = existingMatrix ?? (await createAcceptedRequirementsComplianceMatrix(
+		opportunityId,
+		organizationId,
+		userId,
+		acceptedRequirements
+	));
+
+	const requirementIds = acceptedRequirements.map((requirement) => requirement.id);
+	const existingEntries = await db
+		.select()
+		.from(complianceEntries)
+		.where(and(
+			eq(complianceEntries.matrixId, matrix.id),
+			eq(complianceEntries.organizationId, organizationId),
+			inArray(complianceEntries.requirementId, requirementIds)
+		));
+	const existingRequirementIds = new Set(existingEntries.map((entry) => entry.requirementId));
+	const missingRequirements = acceptedRequirements.filter((requirement) =>
+		!existingRequirementIds.has(requirement.id)
+	);
+
+	if (missingRequirements.length > 0) {
+		await db.insert(complianceEntries).values(missingRequirements.map((requirement, index) => ({
+			organizationId,
+			matrixId: matrix.id,
+			requirementId: requirement.id,
+			complianceStatus: requirement.complianceStatus === "compliant" ? "full" : "partial",
+			responseDocumentId: requirement.responseDocumentId,
+			responseReference: requirement.responseSection,
+			responseSummary: compactText(requirement.responseStrategy ?? requirement.suggestedApproach, 500),
+			strengthAssessment: requirement.complianceStatus === "compliant" ? "strong" : "adequate",
+			riskLevel: requirement.riskLevel,
+			status: "draft",
+			assignedTo: requirement.assignedTo,
+			dueDate: requirement.dueDate,
+			completionPercent: requirement.complianceStatus === "compliant" ? 100 : 60,
+			sortOrder: existingEntries.length + index,
+			metadata: {
+				source: "accepted_requirement_response_package",
+				linkedBy: userId,
+				linkedAt: new Date().toISOString(),
+			},
+		})));
+	}
+
+	await db.update(complianceMatrices)
+		.set({
+			totalRequirements: acceptedRequirements.length,
+			mandatoryCount: acceptedRequirements.filter((requirement) => requirement.priority === "mandatory").length,
+			compliantCount: acceptedRequirements.filter((requirement) => requirement.complianceStatus === "compliant").length,
+			partialCount: acceptedRequirements.filter((requirement) => requirement.complianceStatus === "partial").length,
+			nonCompliantCount: acceptedRequirements.filter((requirement) => requirement.complianceStatus === "non_compliant").length,
+			notAddressedCount: acceptedRequirements.filter((requirement) => requirement.complianceStatus === "not_addressed").length,
+			metadata: {
+				...(isRecord(matrix.metadata) ? matrix.metadata : {}),
+				responsePackageDraft: {
+					lastSyncedAt: new Date().toISOString(),
+					requirementIds,
+				},
+			},
+			updatedAt: new Date(),
+		})
+		.where(and(
+			eq(complianceMatrices.id, matrix.id),
+			eq(complianceMatrices.organizationId, organizationId)
+		));
+
+	return { matrixId: matrix.id, entriesCreated: missingRequirements.length };
+}
+
+async function createAcceptedRequirementsComplianceMatrix(
+	opportunityId: string,
+	organizationId: string,
+	userId: string,
+	acceptedRequirements: Array<typeof rfpRequirements.$inferSelect>
+): Promise<typeof complianceMatrices.$inferSelect> {
+	const [matrix] = await db.insert(complianceMatrices).values({
+		organizationId,
+		opportunityId,
+		name: "Accepted Requirements Compliance Matrix",
+		description: "Generated from accepted requirements during response package drafting.",
+		totalRequirements: acceptedRequirements.length,
+		mandatoryCount: acceptedRequirements.filter((requirement) => requirement.priority === "mandatory").length,
+		notAddressedCount: acceptedRequirements.length,
+		createdBy: userId,
+		metadata: {
+			source: "accepted_requirement_response_package",
+			createdFromRequirementIds: acceptedRequirements.map((requirement) => requirement.id),
+		},
+	}).returning();
+	return matrix;
 }
 
 /**

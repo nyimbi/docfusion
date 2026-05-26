@@ -93,7 +93,7 @@ export function RequirementsClientPage({
 			const result = await createAndDraftStandardProposalSet(opportunityId);
 			toast.success(
 				result.sectionsDrafted > 0
-					? `Response package drafted across ${result.sectionsDrafted} section${result.sectionsDrafted === 1 ? "" : "s"}`
+					? `Response package drafted across ${result.sectionsDrafted} section${result.sectionsDrafted === 1 ? "" : "s"}; ${result.complianceEntriesCreated} compliance row${result.complianceEntriesCreated === 1 ? "" : "s"} added`
 					: "Response package is ready"
 			);
 			router.push(`/opportunities/${opportunityId}/documents`);
