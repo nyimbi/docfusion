@@ -72,3 +72,28 @@ Remaining after this slice:
 - Wire the discovery import action into scheduled/source workflows or an operator UI so target query sets can run without a developer console.
 - Add browser-only fallback behavior for pages Firecrawl cannot scrape cleanly, using the existing Playwright service first and CloakHQ/cloakbrowser only if needed.
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+
+### 2026-05-26 - Operator Discovery Run Endpoint
+
+Status: implemented and verified.
+
+Purpose: make live opportunity discovery triggerable through an operational API surface, not only as an internal server action.
+
+Changes in this slice:
+- Add `POST /api/opportunities/discovery/run` for scraper-operator/admin controlled discovery runs.
+- Validate discovery request fields before any live search work starts.
+- Route authorized requests into `discoverAndImportOpportunities` so the same audited import, dedupe, SearXNG, and optional Firecrawl enrichment path is used.
+- Add route tests for unauthorized access, malformed request bodies, and successful operator-triggered discovery imports.
+
+Verification:
+- `npm run test -- __tests__/api/opportunity-discovery-route.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This slice used focused route/action tests and TypeScript checking.
+
+Remaining after this slice:
+- Add scheduled discovery execution with a service actor or configured assignee, rather than requiring an interactive operator session.
+- Add browser-only fallback behavior for pages Firecrawl cannot scrape cleanly, using the existing Playwright service first and CloakHQ/cloakbrowser only if needed.
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
