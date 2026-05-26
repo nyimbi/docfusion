@@ -53,6 +53,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
+function expectOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("proposal-manager-1");
+}
+
 var dbMock: any;
 
 vi.mock("@/lib/db", () => {
@@ -309,7 +317,7 @@ describe("final submission checklist workflow", () => {
 		);
 		expect(wheres).toHaveLength(4);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expectOpportunityTenantScope(where);
 		}
 	});
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { createHash } from "node:crypto";
-import { requireUserContext } from "@/lib/auth-utils";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
@@ -37,6 +37,7 @@ type ProposalDocumentWithDocument = {
 type ComplianceMatrixRow = typeof complianceMatrices.$inferSelect;
 type ClaimAnalysisRow = typeof claimAnalysis.$inferSelect;
 type ThemeAnalysisRow = typeof themeAnalysisResults.$inferSelect;
+type FinalChecklistUserContext = UserContext & { organizationId: string };
 type FinalArtifactMetadata = {
 	artifactHash?: unknown;
 	storagePath?: unknown;
@@ -86,40 +87,44 @@ const REQUIRED_DOCUMENT_TYPES = [
 	"cost_proposal",
 ];
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: FinalChecklistUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userContext: FinalChecklistUserContext): SQL {
 	return and(
 		eq(proposalDocuments.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
-function visibleComplianceMatricesForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleComplianceMatricesForOpportunityCondition(opportunityId: string, userContext: FinalChecklistUserContext): SQL {
 	return and(
 		eq(complianceMatrices.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
-function visibleClaimsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleClaimsForOpportunityCondition(opportunityId: string, userContext: FinalChecklistUserContext): SQL {
 	return and(
 		eq(claimAnalysis.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userId)
+		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userContext)
 	)!;
 }
 
-function visibleThemeAnalysesForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleThemeAnalysesForOpportunityCondition(opportunityId: string, userContext: FinalChecklistUserContext): SQL {
 	return and(
 		eq(themeAnalysisResults.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(themeAnalysisResults.opportunityId, userId)
+		assignedOpportunityExistsSql(themeAnalysisResults.opportunityId, userContext)
 	)!;
 }
 
@@ -130,20 +135,21 @@ export async function evaluateFinalSubmissionChecklistWorkflow(
 	if (!userContext.organizationId) {
 		throw new Error("No organization context");
 	}
+	const checklistContext = userContext as FinalChecklistUserContext;
 	const [docs, matrices, claims, themeAnalyses] = await Promise.all([
-		loadProposalDocuments(opportunityId, userContext.userId),
+		loadProposalDocuments(opportunityId, checklistContext),
 		db
 			.select()
 			.from(complianceMatrices)
-			.where(visibleComplianceMatricesForOpportunityCondition(opportunityId, userContext.userId)),
+			.where(visibleComplianceMatricesForOpportunityCondition(opportunityId, checklistContext)),
 		db
 			.select()
 			.from(claimAnalysis)
-			.where(visibleClaimsForOpportunityCondition(opportunityId, userContext.userId)),
+			.where(visibleClaimsForOpportunityCondition(opportunityId, checklistContext)),
 		db
 			.select()
 			.from(themeAnalysisResults)
-			.where(visibleThemeAnalysesForOpportunityCondition(opportunityId, userContext.userId)),
+			.where(visibleThemeAnalysesForOpportunityCondition(opportunityId, checklistContext)),
 	]);
 	const dlpFindings = scanDocumentsForDlpFindings(docs.map((doc) => ({
 		documentId: doc.documentId,
@@ -218,7 +224,7 @@ export async function evaluateFinalSubmissionChecklistWorkflow(
 	};
 }
 
-async function loadProposalDocuments(opportunityId: string, userId: string): Promise<ProposalDocumentWithDocument[]> {
+async function loadProposalDocuments(opportunityId: string, userContext: FinalChecklistUserContext): Promise<ProposalDocumentWithDocument[]> {
 	return db
 		.select({
 			proposalDocumentId: proposalDocuments.id,
@@ -236,7 +242,7 @@ async function loadProposalDocuments(opportunityId: string, userId: string): Pro
 		})
 		.from(proposalDocuments)
 		.innerJoin(documents, eq(documents.id, proposalDocuments.documentId))
-		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId));
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userContext));
 }
 
 function buildChecklistItems(
