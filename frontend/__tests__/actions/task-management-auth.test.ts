@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireServerSessionMock = vi.hoisted(() => vi.fn());
+const revalidatePathMock = vi.hoisted(() => vi.fn());
 const mockDb = vi.hoisted(() => ({
 	select: vi.fn(),
 	insert: vi.fn(),
@@ -17,7 +18,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("next/cache", () => ({
-	revalidatePath: vi.fn(),
+	revalidatePath: revalidatePathMock,
 }));
 
 vi.mock("@/lib/utils/logger", () => ({
@@ -185,6 +186,10 @@ describe("task-management action auth", () => {
 		expect(collectSqlFragments(numberWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(collectSqlFragments(summaryTasksWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(collectSqlFragments(summaryReadWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(revalidatePathMock).toHaveBeenCalledWith("/tasks");
+		expect(revalidatePathMock).toHaveBeenCalledWith("/opportunities/00000000-0000-4000-8000-000000000001");
+		expect(revalidatePathMock).toHaveBeenCalledWith("/opportunities/00000000-0000-4000-8000-000000000001/requirements");
+		expect(revalidatePathMock).not.toHaveBeenCalledWith("/opportunities/[id]/tasks", "page");
 	});
 
 	it("scopes task listing and single-task reads by assigned opportunity", async () => {
@@ -295,6 +300,9 @@ describe("task-management action auth", () => {
 		expect(collectSqlFragments(updateWriteWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(collectSqlFragments(deleteReadWhere).join(" ")).toContain("opportunities.assigned_to");
 		expect(collectSqlFragments(deleteWriteWhere).join(" ")).toContain("opportunities.assigned_to");
+		expect(revalidatePathMock).toHaveBeenCalledWith("/tasks");
+		expect(revalidatePathMock).toHaveBeenCalledWith("/opportunities/00000000-0000-4000-8000-000000000001");
+		expect(revalidatePathMock).not.toHaveBeenCalledWith("/opportunities/[id]/tasks", "page");
 	});
 
 	it("scopes workload, task activity, and time logging by assigned opportunity", async () => {

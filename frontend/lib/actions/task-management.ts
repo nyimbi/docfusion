@@ -355,6 +355,12 @@ function calculateWorkloadHealth(utilizationRate: number): "healthy" | "availabl
 	return "critical";
 }
 
+function revalidateTaskWorkflowPaths(opportunityId: string): void {
+	revalidatePath("/tasks");
+	revalidatePath(`/opportunities/${opportunityId}`);
+	revalidatePath(`/opportunities/${opportunityId}/requirements`);
+}
+
 /**
  * Calculate the number of days between two dates.
  */
@@ -438,7 +444,7 @@ export async function createTask(
 		// Update opportunity task summary
 		await updateOpportunityTaskSummary(validated.opportunityId, actor);
 
-		revalidatePath("/opportunities/[id]/tasks", "page");
+		revalidateTaskWorkflowPaths(validated.opportunityId);
 
 		return { success: true, data: task };
 	} catch (error) {
@@ -556,7 +562,7 @@ export async function updateTask(
 		// Update opportunity task summary
 		await updateOpportunityTaskSummary(currentTask.opportunityId, actor);
 
-		revalidatePath("/opportunities/[id]/tasks", "page");
+		revalidateTaskWorkflowPaths(currentTask.opportunityId);
 
 		return { success: true, data: updatedTask };
 	} catch (error) {
@@ -592,7 +598,7 @@ export async function deleteTask(id: string): Promise<{ success: boolean; error?
 		// Update opportunity task summary
 		await updateOpportunityTaskSummary(task.opportunityId, actor);
 
-		revalidatePath("/opportunities/[id]/tasks", "page");
+		revalidateTaskWorkflowPaths(task.opportunityId);
 
 		return { success: true };
 	} catch (error) {
@@ -859,7 +865,7 @@ export async function generateTasksFromCompliance(
 		// Update opportunity task summary
 		await updateOpportunityTaskSummary(opportunityId, actor);
 
-		revalidatePath("/opportunities/[id]/tasks", "page");
+		revalidateTaskWorkflowPaths(opportunityId);
 
 		return {
 			success: true,
@@ -1095,7 +1101,7 @@ export async function bulkAssignTasks(
 			}
 		}
 
-		revalidatePath("/opportunities/[id]/tasks", "page");
+		revalidatePath("/tasks");
 
 		return { success: true, data: { assigned, failed } };
 	} catch (error) {
@@ -1826,7 +1832,7 @@ export async function escalateOverdueTasks(
 			escalatedTaskIds.push(task.id);
 		}
 
-		revalidatePath("/opportunities/[id]/tasks", "page");
+		revalidateTaskWorkflowPaths(opportunityId);
 
 		return {
 			success: true,

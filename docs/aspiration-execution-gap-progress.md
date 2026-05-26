@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Proposal Task Workflow Revalidation
+
+Status: implemented and verified.
+
+Purpose: keep proposal task and opportunity workflow views fresh after task creation, updates, deletion, compliance-task generation, assignment, and escalation.
+
+Changes in this slice:
+- Replace task-management revalidation of the literal `/opportunities/[id]/tasks` route token with real route invalidation.
+- Revalidate `/tasks`, the affected opportunity overview, and the affected opportunity requirements page after task mutations that know the opportunity ID.
+- Keep bulk assignment revalidation on the global task list while each successful `updateTask` call refreshes its own opportunity workflow paths.
+- Add focused assertions that task creation/update/delete refresh real paths and do not call the stale dynamic-route token.
+
+Verification:
+- `npm run test -- __tests__/actions/task-management-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit` from `frontend/` passed.
+- `git diff --check` passed.
+- Targeted search found no stale `revalidatePath("/opportunities/[id]/tasks", "page")` calls in task management.
+
+Testing scope note:
+- Full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This was a proposal task workflow invalidation slice covered by focused action tests and TypeScript.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Review whether opportunity overview pages should expose richer task summary freshness now that server invalidation reaches them.
+
 ### 2026-05-26 - Structure Document Creation Without Fake Content
 
 Status: implemented and verified.
