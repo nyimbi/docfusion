@@ -18,6 +18,7 @@ type CompetitiveAnalysisRow = typeof competitiveAnalyses.$inferSelect;
 type ThemeAnalysisRow = typeof themeAnalysisResults.$inferSelect;
 type ThemeInjectionRow = typeof themeInjectionPoints.$inferSelect;
 type WinThemeRow = typeof winThemes.$inferSelect;
+type StrategyUserContext = UserContext & { organizationId: string };
 
 export type CompetitiveIntelAction =
 	| "start_review"
@@ -93,30 +94,39 @@ const INJECTION_SUBJECT_TYPE = "theme_injection_point";
 const CONSISTENCY_WORKFLOW_KEY = "win_theme_consistency";
 const CONSISTENCY_SUBJECT_TYPE = "theme_analysis_result";
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+async function requireStrategyContext(): Promise<StrategyUserContext> {
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
+	return userContext as StrategyUserContext;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: StrategyUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleCompetitiveAnalysisCondition(analysisId: string, userId: string): SQL {
+function visibleCompetitiveAnalysisCondition(analysisId: string, userContext: StrategyUserContext): SQL {
 	return and(
 		eq(competitiveAnalyses.id, analysisId),
-		assignedOpportunityExistsSql(competitiveAnalyses.opportunityId, userId)
+		assignedOpportunityExistsSql(competitiveAnalyses.opportunityId, userContext)
 	)!;
 }
 
-function visibleWinThemeCondition(themeId: string, userId: string): SQL {
+function visibleWinThemeCondition(themeId: string, userContext: StrategyUserContext): SQL {
 	return and(
 		eq(winThemes.id, themeId),
-		assignedOpportunityExistsSql(winThemes.opportunityId, userId)
+		assignedOpportunityExistsSql(winThemes.opportunityId, userContext)
 	)!;
 }
 
-function visibleThemeInjectionCondition(injectionId: string, userId: string): SQL {
+function visibleThemeInjectionCondition(injectionId: string, userContext: StrategyUserContext): SQL {
 	return and(
 		eq(themeInjectionPoints.id, injectionId),
 		sql`exists (
@@ -124,28 +134,29 @@ function visibleThemeInjectionCondition(injectionId: string, userId: string): SQ
 			from win_themes
 			join opportunities on opportunities.id = win_themes.opportunity_id
 			where win_themes.id = ${themeInjectionPoints.themeId}
-				and opportunities.assigned_to = ${userId}
+				and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+				and opportunities.assigned_to = ${userContext.userId}
 		)`
 	)!;
 }
 
-function visibleThemeAnalysisCondition(analysisId: string, userId: string): SQL {
+function visibleThemeAnalysisCondition(analysisId: string, userContext: StrategyUserContext): SQL {
 	return and(
 		eq(themeAnalysisResults.id, analysisId),
-		assignedOpportunityExistsSql(themeAnalysisResults.opportunityId, userId)
+		assignedOpportunityExistsSql(themeAnalysisResults.opportunityId, userContext)
 	)!;
 }
 
 export async function transitionCompetitiveIntelWorkflow(
 	input: CompetitiveIntelWorkflowInput
 ): Promise<StrategyWorkflowResult> {
-	const userContext = await requireUserContext();
+	const userContext = await requireStrategyContext();
 	const reason = requireReason(input.reason, "Competitive intelligence transitions require a reason");
 	requireStrategyAuthority(userContext, input.action === "approve_current");
 	const [analysis] = await db
 		.select()
 		.from(competitiveAnalyses)
-		.where(visibleCompetitiveAnalysisCondition(input.analysisId, userContext.userId))
+		.where(visibleCompetitiveAnalysisCondition(input.analysisId, userContext))
 		.limit(1);
 	if (!analysis) {
 		throw new Error("Competitive analysis not found");
@@ -156,7 +167,7 @@ export async function transitionCompetitiveIntelWorkflow(
 	const [updated] = await db
 		.update(competitiveAnalyses)
 		.set(transition.patch)
-		.where(visibleCompetitiveAnalysisCondition(input.analysisId, userContext.userId))
+		.where(visibleCompetitiveAnalysisCondition(input.analysisId, userContext))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update competitive intelligence state");
@@ -196,13 +207,13 @@ export async function transitionCompetitiveIntelWorkflow(
 export async function transitionWinThemeLifecycleWorkflow(
 	input: WinThemeLifecycleWorkflowInput
 ): Promise<StrategyWorkflowResult> {
-	const userContext = await requireUserContext();
+	const userContext = await requireStrategyContext();
 	const reason = requireReason(input.reason, "Win theme lifecycle transitions require a reason");
 	requireStrategyAuthority(userContext, input.action === "approve" || input.action === "archive");
 	const [theme] = await db
 		.select()
 		.from(winThemes)
-		.where(visibleWinThemeCondition(input.themeId, userContext.userId))
+		.where(visibleWinThemeCondition(input.themeId, userContext))
 		.limit(1);
 	if (!theme) {
 		throw new Error("Win theme not found");
@@ -213,7 +224,7 @@ export async function transitionWinThemeLifecycleWorkflow(
 	const [updated] = await db
 		.update(winThemes)
 		.set(transition.patch)
-		.where(visibleWinThemeCondition(input.themeId, userContext.userId))
+		.where(visibleWinThemeCondition(input.themeId, userContext))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update win theme state");
@@ -254,13 +265,13 @@ export async function transitionWinThemeLifecycleWorkflow(
 export async function transitionThemeInjectionWorkflow(
 	input: ThemeInjectionWorkflowInput
 ): Promise<StrategyWorkflowResult> {
-	const userContext = await requireUserContext();
+	const userContext = await requireStrategyContext();
 	const reason = requireReason(input.reason, "Win theme injection transitions require a reason");
 	requireStrategyAuthority(userContext, input.action === "accept" || input.action === "modify" || input.action === "reject");
 	const [injection] = await db
 		.select()
 		.from(themeInjectionPoints)
-		.where(visibleThemeInjectionCondition(input.injectionId, userContext.userId))
+		.where(visibleThemeInjectionCondition(input.injectionId, userContext))
 		.limit(1);
 	if (!injection) {
 		throw new Error("Theme injection point not found");
@@ -269,7 +280,7 @@ export async function transitionThemeInjectionWorkflow(
 	const [theme] = await db
 		.select()
 		.from(winThemes)
-		.where(visibleWinThemeCondition(injection.themeId, userContext.userId))
+		.where(visibleWinThemeCondition(injection.themeId, userContext))
 		.limit(1);
 	if (!theme) {
 		throw new Error("Win theme not found for injection");
@@ -280,7 +291,7 @@ export async function transitionThemeInjectionWorkflow(
 	const [updated] = await db
 		.update(themeInjectionPoints)
 		.set(transition.patch)
-		.where(visibleThemeInjectionCondition(input.injectionId, userContext.userId))
+		.where(visibleThemeInjectionCondition(input.injectionId, userContext))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update theme injection state");
@@ -322,13 +333,13 @@ export async function transitionThemeInjectionWorkflow(
 export async function transitionThemeConsistencyWorkflow(
 	input: ThemeConsistencyWorkflowInput
 ): Promise<StrategyWorkflowResult> {
-	const userContext = await requireUserContext();
+	const userContext = await requireStrategyContext();
 	const reason = requireReason(input.reason, "Win theme consistency transitions require a reason");
 	requireStrategyAuthority(userContext, input.action === "approve_consistency");
 	const [analysis] = await db
 		.select()
 		.from(themeAnalysisResults)
-		.where(visibleThemeAnalysisCondition(input.analysisId, userContext.userId))
+		.where(visibleThemeAnalysisCondition(input.analysisId, userContext))
 		.limit(1);
 	if (!analysis) {
 		throw new Error("Theme analysis result not found");

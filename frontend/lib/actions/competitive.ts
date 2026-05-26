@@ -48,55 +48,57 @@ import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 type OrganizationColumn = AnyColumn<{ data: string; notNull: false }>;
+type CompetitiveUserContext = UserContext & { organizationId: string };
 
-async function requireCompetitiveContext(organizationId?: string | null): Promise<UserContext> {
+async function requireCompetitiveContext(organizationId?: string | null): Promise<CompetitiveUserContext> {
 	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
 	if (organizationId && organizationId !== userContext.organizationId) {
 		throw new Error("Unauthorized");
 	}
-	return userContext;
+	return userContext as CompetitiveUserContext;
 }
 
-function visibleOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
-	return userContext.organizationId
-		? or(isNull(column), eq(column, userContext.organizationId))
-		: isNull(column);
+function visibleOrganizationCondition(column: OrganizationColumn, userContext: CompetitiveUserContext) {
+	return or(isNull(column), eq(column, userContext.organizationId));
 }
 
-function mutableOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
-	return userContext.organizationId
-		? eq(column, userContext.organizationId)
-		: isNull(column);
+function mutableOrganizationCondition(column: OrganizationColumn, userContext: CompetitiveUserContext) {
+	return eq(column, userContext.organizationId);
 }
 
-function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
+function organizationForInsert(inputOrganizationId: string | undefined, userContext: CompetitiveUserContext): string {
 	return inputOrganizationId ?? userContext.organizationId;
 }
 
-function assignedOpportunityByIdCondition(opportunityId: string, userContext: UserContext): SQL {
+function assignedOpportunityByIdCondition(opportunityId: string, userContext: CompetitiveUserContext): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
+		or(eq(opportunities.organizationId, userContext.organizationId), isNull(opportunities.organizationId))!,
 		eq(opportunities.assignedTo, userContext.userId)
 	)!;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userContext: UserContext): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: CompetitiveUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
+			and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
 			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function competitorOpportunityByOpportunityCondition(opportunityId: string, userContext: UserContext): SQL {
+function competitorOpportunityByOpportunityCondition(opportunityId: string, userContext: CompetitiveUserContext): SQL {
 	return and(
 		eq(competitorOpportunities.opportunityId, opportunityId),
 		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
-function competitiveAnalysisByOpportunityCondition(opportunityId: string, userContext: UserContext): SQL {
+function competitiveAnalysisByOpportunityCondition(opportunityId: string, userContext: CompetitiveUserContext): SQL {
 	return and(
 		eq(competitiveAnalyses.opportunityId, opportunityId),
 		assignedOpportunityExistsSql(opportunityId, userContext)

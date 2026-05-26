@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Competitive Analysis Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep competitor opportunity links, SWOT generation, discriminator suggestions, competitive matrices, latest analysis reads, and competitive strategy workflow transitions scoped to the caller's organization through the owning opportunity.
+
+Changes in this slice:
+- Require organization context for competitive intelligence actions and strategy workflow transitions.
+- Add tenant predicates, with legacy null-opportunity fallback, to assigned opportunity and competitor-opportunity subqueries.
+- Thread full user tenant context through competitive analysis, competitor-opportunity, win-theme workflow, theme injection, and theme consistency visibility helpers.
+- Extend competitive analysis and strategy workflow tests to assert opportunity organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- competitive.test.ts competitive-win-theme-workflow.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to win/loss tracking, partner/team suggestions, past performance, PWin, graphics, presentations, and remaining workflow support modules that still use unscoped or assignment-only checks.
+
 ### 2026-05-26 - Win Theme Opportunity Tenant Predicates
 
 Status: implemented and verified.

@@ -76,7 +76,9 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 function expectAssignedOpportunityScope(where: unknown) {
 	const sqlText = collectSqlFragments(where).join(" ");
 	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("opportunities.organization_id");
 	expect(sqlText).toContain("strategist-1");
+	expect(sqlText).toContain("org-1");
 }
 
 var dbMock: any;

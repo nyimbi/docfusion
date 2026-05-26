@@ -114,7 +114,7 @@ vi.mock("@/lib/db/schema", () => ({
 	opportunities: {
 		id: "o.id", title: "o.title", category: "o.cat", organization: "o.org",
 		countryRegion: "o.region", metadata: "o.meta", budgetValue: "o.budget",
-		keyRequirements: "o.reqs", assignedTo: "o.assignedTo",
+		keyRequirements: "o.reqs", assignedTo: "o.assignedTo", organizationId: "o.orgId",
 	},
 	partners: { id: "p.id", status: "p.status" },
 	companySettings: { id: "cs.id", organizationId: "cs.orgId" },
@@ -235,6 +235,13 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	return Object.values(value as Record<string, unknown>).flatMap((item) =>
 		collectSqlFragments(item, seen)
 	);
+}
+
+function expectAssignedOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain(testOrganizationId);
 }
 
 // ============================================================================
@@ -544,8 +551,11 @@ describe("Competitive analysis auth", () => {
 		const result = await identifyLikelyCompetitors("00000000-0000-4000-8000-000000000002");
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("o.assignedTo");
-		expect(collectSqlFragments(linkWhere).join(" ")).toContain("opportunities.assigned_to");
+		const opportunitySql = collectSqlFragments(opportunityWhere).join(" ");
+		expect(opportunitySql).toContain("o.assignedTo");
+		expect(opportunitySql).toContain("o.orgId");
+		expect(opportunitySql).toContain(testOrganizationId);
+		expectAssignedOpportunityTenantScope(linkWhere);
 	});
 
 	test("scopes competitor opportunity lists to assigned opportunities", async () => {
@@ -560,7 +570,7 @@ describe("Competitive analysis auth", () => {
 		const result = await listCompetitorsForOpportunity("00000000-0000-4000-8000-000000000002");
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(where);
 	});
 
 	test("scopes SWOT competitor links to assigned opportunities", async () => {
@@ -580,7 +590,7 @@ describe("Competitive analysis auth", () => {
 		const result = await generateSWOT("00000000-0000-4000-8000-000000000002");
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(linkWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(linkWhere);
 	});
 
 	test("scopes discriminator suggestions to assigned opportunity links", async () => {
@@ -599,7 +609,7 @@ describe("Competitive analysis auth", () => {
 		const result = await suggestDiscriminators("00000000-0000-4000-8000-000000000002");
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(linkWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(linkWhere);
 	});
 
 	test("scopes competitive matrix links to assigned opportunities", async () => {
@@ -617,7 +627,7 @@ describe("Competitive analysis auth", () => {
 		const result = await generateCompetitiveMatrix("00000000-0000-4000-8000-000000000002");
 
 		expect(result.success).toBe(false);
-		expect(collectSqlFragments(linkWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(linkWhere);
 	});
 
 	test("scopes latest competitive analysis reads to assigned opportunities", async () => {
@@ -632,7 +642,7 @@ describe("Competitive analysis auth", () => {
 		const result = await getLatestCompetitiveAnalysis("00000000-0000-4000-8000-000000000002");
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(where);
 	});
 });
 
