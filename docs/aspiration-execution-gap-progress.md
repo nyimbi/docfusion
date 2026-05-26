@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - RFP Amendment Impact Authority Check
+
+Status: implemented and verified.
+
+Purpose: prevent amendment impact processing from changing RFP document metadata, requirement workflow state, or impact-review tasks unless the authenticated actor has proposal or capture authority.
+
+Changes in this slice:
+- Resolve role-bearing user context before applying RFP amendment supersession or supplement impact.
+- Require `proposal_manager`, `capture_manager`, or admin authority before opening the amendment-impact transaction.
+- Return a non-mutating authority failure for writer or other non-authority roles.
+- Preserve existing amendment metadata updates, requirement impact review projection, and runtime task creation for authorized reviewers.
+- Add focused coverage for unauthorized amendment impact attempts.
+
+Verification:
+- `npm run test -- __tests__/actions/rfp-parse-workflow.test.ts __tests__/api/rfp-parse-route.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets amendment-impact authority with focused workflow/API tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that only store authority metadata after mutations rather than enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Parser Confidence Review Authority Check
 
 Status: implemented and verified.

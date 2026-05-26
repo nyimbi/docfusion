@@ -1022,7 +1022,7 @@ export async function applyRfpAmendmentSupersession(
 		};
 	}
 
-	const ctx = await requireTenantContext().catch(() => null);
+	const ctx = await requireRfpAuthorityUserContext().catch(() => null);
 	if (!ctx) {
 		return {
 			success: false,
@@ -1031,6 +1031,16 @@ export async function applyRfpAmendmentSupersession(
 			impactMode,
 			impactedRequirementIds: [],
 			error: "Not authenticated",
+		};
+	}
+	if (!hasProposalOrCaptureAuthority(ctx)) {
+		return {
+			success: false,
+			amendmentDocumentId: input.amendmentDocumentId,
+			targetDocumentId: input.targetDocumentId,
+			impactMode,
+			impactedRequirementIds: [],
+			error: proposalOrCaptureAuthorityError("Applying RFP amendment impact"),
 		};
 	}
 	const { userId, organizationId } = ctx;

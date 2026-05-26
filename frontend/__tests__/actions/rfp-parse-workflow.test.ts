@@ -425,6 +425,34 @@ describe("RFP parse workflow", () => {
 		]));
 	});
 
+	it("requires proposal or capture authority before applying amendment impact", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["writer"],
+		});
+
+		const result = await applyRfpAmendmentSupersession({
+			amendmentDocumentId: "00000000-0000-4000-8000-000000000701",
+			targetDocumentId: "00000000-0000-4000-8000-000000000702",
+			impactMode: "supersede",
+			reason: "Amendment changes staffing submission instructions",
+		});
+
+		expect(result).toMatchObject({
+			success: false,
+			amendmentDocumentId: "00000000-0000-4000-8000-000000000701",
+			targetDocumentId: "00000000-0000-4000-8000-000000000702",
+			impactMode: "supersede",
+			impactedRequirementIds: [],
+			error: "Applying RFP amendment impact requires proposal or capture authority: requires proposal_manager or capture_manager",
+		});
+		expect(dbMock.transaction).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).not.toHaveBeenCalled();
+		expect(workflowRuntimeMock.upsertWorkflowRuntimeTask).not.toHaveBeenCalled();
+	});
+
 	it("applies amendment supersession and projects impact review work", async () => {
 		const amendmentDocument = {
 			...documentRow,
