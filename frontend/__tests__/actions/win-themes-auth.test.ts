@@ -102,7 +102,9 @@ describe("win theme authorization", () => {
 		);
 
 		expect(result).toEqual({ success: false, error: "Theme not found" });
-		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+		const sql = collectSqlFragments(updateWhere).join(" ");
+		expect(sql).toContain("opportunities.assigned_to");
+		expect(sql).toContain("opportunities.organization_id");
 		expect(dbMock.insert).not.toHaveBeenCalled();
 		expect(dbMock.delete).not.toHaveBeenCalled();
 	});
@@ -122,6 +124,8 @@ describe("win theme authorization", () => {
 		const result = await scanForOccurrences("22222222-2222-4222-8222-222222222222");
 
 		expect(result).toEqual({ success: true, count: 0 });
-		expect(collectSqlFragments(docsWhere).join(" ")).toContain("opportunities.assigned_to");
+		const sql = collectSqlFragments(docsWhere).join(" ");
+		expect(sql).toContain("opportunities.assigned_to");
+		expect(sql).toContain("opportunities.organization_id");
 	});
 });

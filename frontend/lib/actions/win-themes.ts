@@ -18,7 +18,7 @@
 
 import { db } from "@/lib/db";
 import { eq, and, desc, asc, inArray, sql, type SQL } from "drizzle-orm";
-import { requireUserContext } from "@/lib/auth-utils";
+import { requireUserContext, type UserContext } from "@/lib/auth-utils";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { AIClient } from "@/lib/ai/client";
@@ -142,6 +142,16 @@ const competitorInputSchema = z.object({
 // Helper Functions
 // ============================================================================
 
+type WinThemeUserContext = UserContext & { organizationId: string };
+
+async function requireWinThemeContext(): Promise<WinThemeUserContext> {
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
+	return userContext as WinThemeUserContext;
+}
+
 /**
  * Get AI client instance for theme operations.
  */
@@ -149,23 +159,25 @@ function getAIClient(): AIClient {
 	return new AIClient();
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: WinThemeUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-async function requireAssignedOpportunity(opportunityId: string, userId: string): Promise<void> {
+async function requireAssignedOpportunity(opportunityId: string, userContext: WinThemeUserContext): Promise<void> {
 	const [opportunity] = await db
 		.select({ id: opportunities.id })
 		.from(opportunities)
 		.where(
 			and(
 				eq(opportunities.id, opportunityId),
-				eq(opportunities.assignedTo, userId)
+				sql`(${opportunities.organizationId} = ${userContext.organizationId} or ${opportunities.organizationId} is null)`,
+				eq(opportunities.assignedTo, userContext.userId)
 			)
 		)
 		.limit(1);
@@ -175,45 +187,50 @@ async function requireAssignedOpportunity(opportunityId: string, userId: string)
 	}
 }
 
-function visibleOpportunityThemesCondition(opportunityId: string, userId: string): SQL {
+function visibleOpportunityThemesCondition(opportunityId: string, userContext: WinThemeUserContext): SQL {
 	return and(
 		eq(winThemes.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
-function visibleThemeByIdCondition(themeId: string, userId: string): SQL {
+function visibleThemeByIdCondition(themeId: string, userContext: WinThemeUserContext): SQL {
 	return and(
 		eq(winThemes.id, themeId),
-		assignedOpportunityExistsSql(winThemes.opportunityId, userId)
+		assignedOpportunityExistsSql(winThemes.opportunityId, userContext)
 	)!;
 }
 
-function visibleThemeForOpportunityCondition(themeId: string, opportunityId: string, userId: string): SQL {
+function visibleThemeForOpportunityCondition(
+	themeId: string,
+	opportunityId: string,
+	userContext: WinThemeUserContext
+): SQL {
 	return and(
 		eq(winThemes.id, themeId),
-		visibleOpportunityThemesCondition(opportunityId, userId)
+		visibleOpportunityThemesCondition(opportunityId, userContext)
 	)!;
 }
 
-function assignedThemeExistsSql(themeId: unknown, userId: string): SQL {
+function assignedThemeExistsSql(themeId: unknown, userContext: WinThemeUserContext): SQL {
 	return sql`exists (
 		select 1
 		from win_themes
 		join opportunities on opportunities.id = win_themes.opportunity_id
 		where win_themes.id = ${themeId}
-			and opportunities.assigned_to = ${userId}
+			and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleThemeOccurrencesCondition(themeId: string, userId: string): SQL {
+function visibleThemeOccurrencesCondition(themeId: string, userContext: WinThemeUserContext): SQL {
 	return and(
 		eq(themeOccurrences.themeId, themeId),
-		assignedThemeExistsSql(themeId, userId)
+		assignedThemeExistsSql(themeId, userContext)
 	)!;
 }
 
-function visibleOccurrenceByIdCondition(occurrenceId: string, userId: string): SQL {
+function visibleOccurrenceByIdCondition(occurrenceId: string, userContext: WinThemeUserContext): SQL {
 	return and(
 		eq(themeOccurrences.id, occurrenceId),
 		sql`exists (
@@ -221,12 +238,13 @@ function visibleOccurrenceByIdCondition(occurrenceId: string, userId: string): S
 			from win_themes
 			join opportunities on opportunities.id = win_themes.opportunity_id
 			where win_themes.id = ${themeOccurrences.themeId}
-				and opportunities.assigned_to = ${userId}
+				and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+				and opportunities.assigned_to = ${userContext.userId}
 		)`
 	)!;
 }
 
-function visibleInjectionByIdCondition(injectionId: string, userId: string): SQL {
+function visibleInjectionByIdCondition(injectionId: string, userContext: WinThemeUserContext): SQL {
 	return and(
 		eq(themeInjectionPoints.id, injectionId),
 		sql`exists (
@@ -234,29 +252,33 @@ function visibleInjectionByIdCondition(injectionId: string, userId: string): SQL
 			from win_themes
 			join opportunities on opportunities.id = win_themes.opportunity_id
 			where win_themes.id = ${themeInjectionPoints.themeId}
-				and opportunities.assigned_to = ${userId}
+				and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+				and opportunities.assigned_to = ${userContext.userId}
 		)`
 	)!;
 }
 
-function visibleCompetitorsCondition(opportunityId: string, userId: string): SQL {
+function visibleCompetitorsCondition(opportunityId: string, userContext: WinThemeUserContext): SQL {
 	return and(
 		eq(competitorProfiles.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
-function visibleCompetitorByIdCondition(competitorId: string, userId: string): SQL {
+function visibleCompetitorByIdCondition(competitorId: string, userContext: WinThemeUserContext): SQL {
 	return and(
 		eq(competitorProfiles.id, competitorId),
-		assignedOpportunityExistsSql(competitorProfiles.opportunityId, userId)
+		assignedOpportunityExistsSql(competitorProfiles.opportunityId, userContext)
 	)!;
 }
 
-function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleProposalDocumentsForOpportunityCondition(
+	opportunityId: string,
+	userContext: WinThemeUserContext
+): SQL {
 	return and(
 		eq(proposalDocuments.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
@@ -372,11 +394,11 @@ function mapDBCompetitorToCompetitor(row: DBCompetitorProfile): Competitor {
 /**
  * Get next display order for a new theme.
  */
-async function getNextDisplayOrder(opportunityId: string, userId: string): Promise<number> {
+async function getNextDisplayOrder(opportunityId: string, userContext: WinThemeUserContext): Promise<number> {
 	const result = await db
 		.select({ maxOrder: sql<number>`COALESCE(MAX(${winThemes.priority}), 0)` })
 		.from(winThemes)
-		.where(visibleOpportunityThemesCondition(opportunityId, userId));
+		.where(visibleOpportunityThemesCondition(opportunityId, userContext));
 
 	return (result[0]?.maxOrder || 0) + 1;
 }
@@ -393,12 +415,12 @@ async function getNextDisplayOrder(opportunityId: string, userId: string): Promi
  */
 export async function getThemes(opportunityId: string): Promise<GetThemesResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		const themes = await db
 			.select()
 			.from(winThemes)
-			.where(visibleOpportunityThemesCondition(opportunityId, userContext.userId))
+			.where(visibleOpportunityThemesCondition(opportunityId, userContext))
 			.orderBy(asc(winThemes.priority), asc(winThemes.createdAt));
 
 		return { success: true, data: themes.map(mapDBThemeToWinTheme) };
@@ -416,12 +438,12 @@ export async function getThemes(opportunityId: string): Promise<GetThemesResult>
  */
 export async function getTheme(themeId: WinThemeId): Promise<GetThemeResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		const [theme] = await db
 			.select()
 			.from(winThemes)
-			.where(visibleThemeByIdCondition(themeId, userContext.userId));
+			.where(visibleThemeByIdCondition(themeId, userContext));
 
 		if (!theme) {
 			return { success: false, error: "Theme not found" };
@@ -442,11 +464,11 @@ export async function getTheme(themeId: WinThemeId): Promise<GetThemeResult> {
  */
 export async function createTheme(input: CreateWinThemeInput): Promise<CreateThemeResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 		const validated = createWinThemeSchema.parse(input);
 
-		await requireAssignedOpportunity(validated.opportunityId, userContext.userId);
-		const displayOrder = await getNextDisplayOrder(validated.opportunityId, userContext.userId);
+		await requireAssignedOpportunity(validated.opportunityId, userContext);
+		const displayOrder = await getNextDisplayOrder(validated.opportunityId, userContext);
 
 		const [theme] = await db
 			.insert(winThemes)
@@ -493,7 +515,7 @@ export async function updateTheme(
 	input: UpdateWinThemeInput
 ): Promise<UpdateThemeResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 		const validated = updateWinThemeSchema.parse(input);
 
 		// Build update object dynamically
@@ -515,7 +537,7 @@ export async function updateTheme(
 		const [theme] = await db
 			.update(winThemes)
 			.set(updates)
-			.where(visibleThemeByIdCondition(themeId, userContext.userId))
+			.where(visibleThemeByIdCondition(themeId, userContext))
 			.returning();
 
 		if (!theme) {
@@ -542,19 +564,19 @@ export async function updateTheme(
  */
 export async function deleteTheme(themeId: WinThemeId): Promise<DeleteThemeResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		// Get theme first for revalidation path
 		const [theme] = await db
 			.select({ opportunityId: winThemes.opportunityId })
 			.from(winThemes)
-			.where(visibleThemeByIdCondition(themeId, userContext.userId));
+			.where(visibleThemeByIdCondition(themeId, userContext));
 
 		if (!theme) {
 			return { success: false, error: "Theme not found" };
 		}
 
-		await db.delete(winThemes).where(visibleThemeByIdCondition(themeId, userContext.userId));
+		await db.delete(winThemes).where(visibleThemeByIdCondition(themeId, userContext));
 
 		revalidatePath(`/opportunities/${theme.opportunityId}`);
 
@@ -577,8 +599,8 @@ export async function reorderThemes(
 	themeIds: WinThemeId[]
 ): Promise<ReorderThemesResult> {
 	try {
-		const userContext = await requireUserContext();
-		await requireAssignedOpportunity(opportunityId, userContext.userId);
+		const userContext = await requireWinThemeContext();
+		await requireAssignedOpportunity(opportunityId, userContext);
 
 		await db.transaction(async (tx) => {
 			for (let i = 0; i < themeIds.length; i++) {
@@ -586,7 +608,7 @@ export async function reorderThemes(
 					.update(winThemes)
 					.set({ priority: i + 1, updatedAt: new Date() })
 					.where(
-						visibleThemeForOpportunityCondition(themeIds[i], opportunityId, userContext.userId)
+						visibleThemeForOpportunityCondition(themeIds[i], opportunityId, userContext)
 					);
 			}
 		});
@@ -618,8 +640,8 @@ export async function getThemeSuggestions(
 	opportunityId: string
 ): Promise<GetSuggestionsResult> {
 	try {
-		const userContext = await requireUserContext();
-		await requireAssignedOpportunity(opportunityId, userContext.userId);
+		const userContext = await requireWinThemeContext();
+		await requireAssignedOpportunity(opportunityId, userContext);
 
 		// In a full implementation, we would query a suggestions table
 		// For now, return empty array (suggestions are generated on-demand)
@@ -643,20 +665,20 @@ export async function generateThemeSuggestions(
 	input: GenerateThemeSuggestionsInput
 ): Promise<GenerateSuggestionsResult> {
 	try {
-		const userContext = await requireUserContext();
-		await requireAssignedOpportunity(input.opportunityId, userContext.userId);
+		const userContext = await requireWinThemeContext();
+		await requireAssignedOpportunity(input.opportunityId, userContext);
 		const aiClient = getAIClient();
 
 		// Gather context
 		const existingThemes = await db
 			.select()
 			.from(winThemes)
-			.where(visibleOpportunityThemesCondition(input.opportunityId, userContext.userId));
+			.where(visibleOpportunityThemesCondition(input.opportunityId, userContext));
 
 		const competitors = await db
 			.select()
 			.from(competitorProfiles)
-			.where(visibleCompetitorsCondition(input.opportunityId, userContext.userId));
+			.where(visibleCompetitorsCondition(input.opportunityId, userContext));
 
 		const prompt = `You are an expert government proposal strategist. Analyze the following context and suggest ${input.count || 5} compelling win themes.
 
@@ -780,7 +802,7 @@ export async function dismissThemeSuggestion(
 	suggestionId: ThemeSuggestionId
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		await requireUserContext();
+		await requireWinThemeContext();
 		// In a full implementation, update suggestion status in database
 		return { success: true };
 	} catch (error) {
@@ -804,7 +826,7 @@ export async function dismissThemeSuggestion(
  */
 export async function getThemeHeatMap(opportunityId: string): Promise<GetHeatMapResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		// Get all active themes
 		const themes = await db
@@ -812,7 +834,7 @@ export async function getThemeHeatMap(opportunityId: string): Promise<GetHeatMap
 			.from(winThemes)
 			.where(
 				and(
-					visibleOpportunityThemesCondition(opportunityId, userContext.userId),
+					visibleOpportunityThemesCondition(opportunityId, userContext),
 					eq(winThemes.isActive, true)
 				)
 			);
@@ -951,14 +973,14 @@ export async function getHeatMapCellDetails(
 	sectionId: string
 ): Promise<{ success: boolean; data?: HeatMapCell; error?: string }> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		const occurrences = await db
 			.select()
 			.from(themeOccurrences)
 			.where(
 				and(
-					visibleThemeOccurrencesCondition(themeId, userContext.userId),
+					visibleThemeOccurrencesCondition(themeId, userContext),
 					eq(themeOccurrences.sectionId, sectionId)
 				)
 			);
@@ -1014,7 +1036,7 @@ export async function analyzeConsistency(
 	opportunityId: string
 ): Promise<GetConsistencyResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 		const aiClient = getAIClient();
 
 		// Get all active themes and occurrences
@@ -1023,7 +1045,7 @@ export async function analyzeConsistency(
 			.from(winThemes)
 			.where(
 				and(
-					visibleOpportunityThemesCondition(opportunityId, userContext.userId),
+					visibleOpportunityThemesCondition(opportunityId, userContext),
 					eq(winThemes.isActive, true)
 				)
 			);
@@ -1244,12 +1266,12 @@ export async function getThemeOccurrences(
 	themeId: WinThemeId
 ): Promise<GetOccurrencesResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		const occurrences = await db
 			.select()
 			.from(themeOccurrences)
-			.where(visibleThemeOccurrencesCondition(themeId, userContext.userId))
+			.where(visibleThemeOccurrencesCondition(themeId, userContext))
 			.orderBy(asc(themeOccurrences.sectionName), asc(themeOccurrences.pageNumber));
 
 		return { success: true, data: occurrences.map(mapDBOccurrenceToThemeOccurrence) };
@@ -1269,7 +1291,7 @@ export async function verifyOccurrence(
 	input: VerifyOccurrenceInput
 ): Promise<VerifyOccurrenceResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		const [occurrence] = await db
 			.update(themeOccurrences)
@@ -1278,7 +1300,7 @@ export async function verifyOccurrence(
 				verifiedBy: input.isVerified ? userContext.userId : null,
 				verifiedAt: input.isVerified ? new Date() : null,
 			})
-			.where(visibleOccurrenceByIdCondition(input.occurrenceId, userContext.userId))
+			.where(visibleOccurrenceByIdCondition(input.occurrenceId, userContext))
 			.returning();
 
 		if (!occurrence) {
@@ -1306,15 +1328,15 @@ export async function scanForOccurrences(
 	themeId?: WinThemeId
 ): Promise<{ success: boolean; count?: number; error?: string }> {
 	try {
-		const userContext = await requireUserContext();
-		await requireAssignedOpportunity(opportunityId, userContext.userId);
+		const userContext = await requireWinThemeContext();
+		await requireAssignedOpportunity(opportunityId, userContext);
 		const aiClient = getAIClient();
 
 		// Get themes to scan for
 		const themes = themeId
-			? await db.select().from(winThemes).where(visibleThemeForOpportunityCondition(themeId, opportunityId, userContext.userId))
+			? await db.select().from(winThemes).where(visibleThemeForOpportunityCondition(themeId, opportunityId, userContext))
 			: await db.select().from(winThemes).where(
-					and(visibleOpportunityThemesCondition(opportunityId, userContext.userId), eq(winThemes.isActive, true))
+					and(visibleOpportunityThemesCondition(opportunityId, userContext), eq(winThemes.isActive, true))
 				);
 
 		if (themes.length === 0) {
@@ -1331,7 +1353,7 @@ export async function scanForOccurrences(
 			})
 			.from(proposalDocuments)
 			.innerJoin(documents, eq(proposalDocuments.documentId, documents.id))
-			.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userContext.userId));
+			.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userContext));
 
 		if (opportunityDocs.length === 0) {
 			return { success: true, count: 0 };
@@ -1416,12 +1438,12 @@ export async function getInjectionSuggestions(
 	filters?: InjectionFilters
 ): Promise<GetInjectionsResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		// Build query conditions
 		const conditions: SQL[] = [
 			eq(themeInjectionPoints.documentId, opportunityId),
-			visibleOpportunityThemesCondition(opportunityId, userContext.userId),
+			visibleOpportunityThemesCondition(opportunityId, userContext),
 		];
 
 		if (filters?.themeId) {
@@ -1476,15 +1498,15 @@ export async function generateInjectionSuggestions(
 	input: GenerateInjectionsInput
 ): Promise<GenerateInjectionsResult> {
 	try {
-		const userContext = await requireUserContext();
-		await requireAssignedOpportunity(input.opportunityId, userContext.userId);
+		const userContext = await requireWinThemeContext();
+		await requireAssignedOpportunity(input.opportunityId, userContext);
 		const aiClient = getAIClient();
 
 		// Get theme(s) to inject
 		const themes = input.themeId
-			? await db.select().from(winThemes).where(visibleThemeForOpportunityCondition(input.themeId, input.opportunityId, userContext.userId))
+			? await db.select().from(winThemes).where(visibleThemeForOpportunityCondition(input.themeId, input.opportunityId, userContext))
 			: await db.select().from(winThemes).where(
-					and(visibleOpportunityThemesCondition(input.opportunityId, userContext.userId), eq(winThemes.isActive, true))
+					and(visibleOpportunityThemesCondition(input.opportunityId, userContext), eq(winThemes.isActive, true))
 				);
 
 		if (themes.length === 0) {
@@ -1611,7 +1633,7 @@ export async function acceptInjection(
 	modifiedText?: string
 ): Promise<AcceptInjectionResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		const [injection] = await db
 			.update(themeInjectionPoints)
@@ -1621,7 +1643,7 @@ export async function acceptInjection(
 				acceptedBy: userContext.userId,
 				acceptedAt: new Date(),
 			})
-			.where(visibleInjectionByIdCondition(injectionId, userContext.userId))
+			.where(visibleInjectionByIdCondition(injectionId, userContext))
 			.returning({ id: themeInjectionPoints.id });
 
 		if (!injection) {
@@ -1645,7 +1667,7 @@ export async function rejectInjection(
 	injectionId: InjectionPointId
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		const [injection] = await db
 			.update(themeInjectionPoints)
@@ -1654,7 +1676,7 @@ export async function rejectInjection(
 				acceptedBy: userContext.userId,
 				acceptedAt: new Date(),
 			})
-			.where(visibleInjectionByIdCondition(injectionId, userContext.userId))
+			.where(visibleInjectionByIdCondition(injectionId, userContext))
 			.returning({ id: themeInjectionPoints.id });
 
 		if (!injection) {
@@ -1682,12 +1704,12 @@ export async function getCompetitors(
 	opportunityId: string
 ): Promise<GetCompetitorsResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		const competitors = await db
 			.select()
 			.from(competitorProfiles)
-			.where(visibleCompetitorsCondition(opportunityId, userContext.userId))
+			.where(visibleCompetitorsCondition(opportunityId, userContext))
 			.orderBy(asc(competitorProfiles.competitorName));
 
 		return { success: true, data: competitors.map(mapDBCompetitorToCompetitor) };
@@ -1707,10 +1729,10 @@ export async function createCompetitor(
 	input: CreateCompetitorInput
 ): Promise<CreateCompetitorResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 		const validated = competitorInputSchema.parse(input);
 
-		await requireAssignedOpportunity(validated.opportunityId, userContext.userId);
+		await requireAssignedOpportunity(validated.opportunityId, userContext);
 
 		const [competitor] = await db
 			.insert(competitorProfiles)
@@ -1753,7 +1775,7 @@ export async function updateCompetitor(
 	input: Partial<CreateCompetitorInput>
 ): Promise<CreateCompetitorResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		const updates: Partial<DBCompetitorProfile> = {};
 		if (input.name !== undefined) updates.competitorName = input.name;
@@ -1770,7 +1792,7 @@ export async function updateCompetitor(
 		const [competitor] = await db
 			.update(competitorProfiles)
 			.set(updates)
-			.where(visibleCompetitorByIdCondition(competitorId, userContext.userId))
+			.where(visibleCompetitorByIdCondition(competitorId, userContext))
 			.returning();
 
 		if (!competitor) {
@@ -1796,18 +1818,18 @@ export async function deleteCompetitor(
 	competitorId: CompetitorId
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		const [competitor] = await db
 			.select({ opportunityId: competitorProfiles.opportunityId })
 			.from(competitorProfiles)
-			.where(visibleCompetitorByIdCondition(competitorId, userContext.userId));
+			.where(visibleCompetitorByIdCondition(competitorId, userContext));
 
 		if (!competitor) {
 			return { success: false, error: "Competitor not found" };
 		}
 
-		await db.delete(competitorProfiles).where(visibleCompetitorByIdCondition(competitorId, userContext.userId));
+		await db.delete(competitorProfiles).where(visibleCompetitorByIdCondition(competitorId, userContext));
 
 		revalidatePath(`/opportunities/${competitor.opportunityId}`);
 
@@ -1833,15 +1855,15 @@ export async function generateGhostThemeSuggestions(
 	competitorId?: CompetitorId
 ): Promise<GetGhostSuggestionsResult> {
 	try {
-		const userContext = await requireUserContext();
-		await requireAssignedOpportunity(opportunityId, userContext.userId);
+		const userContext = await requireWinThemeContext();
+		await requireAssignedOpportunity(opportunityId, userContext);
 		const aiClient = getAIClient();
 
 		// Get competitors
 		const competitors = competitorId
-			? await db.select().from(competitorProfiles).where(visibleCompetitorByIdCondition(competitorId, userContext.userId))
+			? await db.select().from(competitorProfiles).where(visibleCompetitorByIdCondition(competitorId, userContext))
 			: await db.select().from(competitorProfiles).where(
-					and(visibleCompetitorsCondition(opportunityId, userContext.userId), eq(competitorProfiles.isActive, true))
+					and(visibleCompetitorsCondition(opportunityId, userContext), eq(competitorProfiles.isActive, true))
 				);
 
 		if (competitors.length === 0) {
@@ -1935,14 +1957,14 @@ export async function getCriteriaMappings(
 	opportunityId: string
 ): Promise<GetCriteriaMappingsResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		// Get themes with their evaluation criteria
 		const themes = await db
 			.select()
 			.from(winThemes)
 			.where(
-				and(visibleOpportunityThemesCondition(opportunityId, userContext.userId), eq(winThemes.isActive, true))
+				and(visibleOpportunityThemesCondition(opportunityId, userContext), eq(winThemes.isActive, true))
 			);
 
 		// Build criteria map
@@ -1997,14 +2019,14 @@ export async function mapThemesToCriteria(
 	input: MapThemesToCriteriaInput
 ): Promise<MapCriteriaResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		// Update each theme's evaluationCriteriaIds
 		for (const mapping of input.themeMappings) {
 			const [theme] = await db
 				.select()
 				.from(winThemes)
-				.where(visibleThemeByIdCondition(mapping.themeId, userContext.userId));
+				.where(visibleThemeByIdCondition(mapping.themeId, userContext));
 
 			if (theme) {
 				const existingCriteria = (theme.evaluationCriteriaIds as string[]) || [];
@@ -2015,7 +2037,7 @@ export async function mapThemesToCriteria(
 							evaluationCriteriaIds: [...existingCriteria, input.criteriaId],
 							updatedAt: new Date(),
 						})
-						.where(visibleThemeByIdCondition(mapping.themeId, userContext.userId));
+						.where(visibleThemeByIdCondition(mapping.themeId, userContext));
 				}
 			}
 		}
@@ -2048,7 +2070,7 @@ export async function suggestCriteriaMappings(
 	opportunityId: string
 ): Promise<GetCriteriaMappingsResult> {
 	try {
-		await requireUserContext();
+		await requireWinThemeContext();
 
 		// In a full implementation, use AI to suggest mappings
 		// For now, return current mappings
@@ -2071,12 +2093,12 @@ export async function suggestCriteriaMappings(
  */
 export async function getThemeSummary(opportunityId: string): Promise<GetSummaryResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 
 		const themes = await db
 			.select()
 			.from(winThemes)
-			.where(visibleOpportunityThemesCondition(opportunityId, userContext.userId));
+			.where(visibleOpportunityThemesCondition(opportunityId, userContext));
 
 		const activeThemes = themes.filter(t => t.isActive);
 
@@ -2135,7 +2157,7 @@ export async function getThemeSummary(opportunityId: string): Promise<GetSummary
 			.where(
 				and(
 					eq(themeAnalysisResults.opportunityId, opportunityId),
-					assignedOpportunityExistsSql(opportunityId, userContext.userId)
+					assignedOpportunityExistsSql(opportunityId, userContext)
 				)
 			)
 			.orderBy(desc(themeAnalysisResults.analyzedAt))
@@ -2179,13 +2201,13 @@ export async function generateReinforcementText(
 	input: GenerateReinforcementInput
 ): Promise<GetReinforcementResult> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireWinThemeContext();
 		const aiClient = getAIClient();
 
 		const [theme] = await db
 			.select()
 			.from(winThemes)
-			.where(visibleThemeByIdCondition(input.themeId, userContext.userId));
+			.where(visibleThemeByIdCondition(input.themeId, userContext));
 
 		if (!theme) {
 			return { success: false, error: "Theme not found" };

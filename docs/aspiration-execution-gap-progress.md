@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Win Theme Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep win themes, theme occurrences, injection points, competitor profiles, theme analysis, and proposal-document scans scoped to the current organization through the owning opportunity.
+
+Changes in this slice:
+- Require organization context for win-theme actions.
+- Add tenant predicates, with legacy null-opportunity fallback, to assigned opportunity and assigned theme subqueries.
+- Thread full user tenant context through theme, occurrence, injection, competitor, proposal document, and analysis visibility helpers.
+- Extend win-theme authorization tests to assert opportunity organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts` from `frontend/` passed.
+- `npm test -- competitive-win-theme-workflow.test.ts win-themes-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to competitive analysis and remaining workflow support modules that still use assignment-only checks.
+
 ### 2026-05-26 - Evidence Claim Opportunity Tenant Predicates
 
 Status: implemented and verified.
