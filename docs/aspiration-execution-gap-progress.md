@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Discovery Defaults Include Live UNGM
+
+Status: implemented and verified.
+
+Purpose: put the newly live-proven UNGM source into the default operator discovery surface so it is used without manual URL entry.
+
+Changes in this slice:
+- Add `https://www.ungm.org/Public/Notice` to the live discovery dialog's default configured source URLs.
+
+Verification:
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+
+Remaining after this slice:
+- Continue toward a live import-to-parse proof once the target database is reachable from this environment.
+
 ### 2026-05-26 - UNGM Public Notice Source Discovery
 
 Status: implemented and verified.

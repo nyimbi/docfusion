@@ -63,6 +63,7 @@ function clampNumber(value: number, min: number, max: number): number {
 
 const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://tenders.go.ke/tenders",
+	"https://www.ungm.org/Public/Notice",
 	"https://procurement-notices.undp.org",
 ];
 
