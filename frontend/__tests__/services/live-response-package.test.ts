@@ -72,8 +72,8 @@ describe("live response package builder", () => {
 			expect(document.wordCount).toBeGreaterThan(250);
 			expect(document.markdown).toContain("## Source-Driven Response Plan");
 			expect(document.markdown).toContain("## Datacraft Evidence To Weave In");
-			expect(document.markdown).not.toContain("{{client_name}}");
-			expect(document.markdown).not.toContain("{{opportunity_name}}");
+			expect(document.markdown).not.toMatch(/\{\{[^}]+\}\}/);
+			expect(document.requirementIds).toHaveLength(new Set(document.requirementIds).size);
 		}
 
 		const technicalApproach = responsePackage.documents.find((document) => document.documentType === "technical_approach");

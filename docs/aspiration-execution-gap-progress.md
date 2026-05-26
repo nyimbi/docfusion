@@ -32,7 +32,7 @@ Verification:
 - `npm test -- live-response-package.test.ts searxng-client-config.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 12 tests.
 - `npx tsc --noEmit --pretty false` from `frontend/` passed.
 - `npm run platform:proof -- --include-live-safe --run live-opportunity-response-readiness` from `frontend/` passed.
-- The live proof selected the UN Secretariat goAML software penetration-testing EOI, fetched a 171,406-byte PDF, extracted 3,070 text characters through Docling with status `success`, found procurement indicators, extracted 8 source requirement signals, and wrote 6 response draft artifacts totaling 3,284 words with 22 section seeds and 85 relevant Datacraft snippets.
+- The live proof selected the UN Secretariat goAML software penetration-testing EOI, fetched a 171,406-byte PDF, extracted 3,070 text characters through Docling with status `success`, found procurement indicators, extracted 8 source requirement signals, and wrote 6 response draft artifacts totaling 3,203 words with 22 section seeds and 85 relevant Datacraft snippets.
 
 Remaining after this slice:
 - The environment-backed live database persistence proof is still blocked until the configured PostgreSQL endpoint is reachable.

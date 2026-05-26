@@ -118,8 +118,8 @@ export function buildLiveResponsePackage(input: {
 		if (document.wordCount < 250) {
 			throw new Error(`${document.documentType} live response draft is too thin: ${document.wordCount} words`);
 		}
-		if (/\{\{(?:client_name|opportunity_name)\}\}/.test(document.markdown)) {
-			throw new Error(`${document.documentType} live response draft still contains required placeholders`);
+		if (/\{\{[^}]+\}\}/.test(document.markdown)) {
+			throw new Error(`${document.documentType} live response draft still contains unresolved placeholders`);
 		}
 	}
 
@@ -270,10 +270,21 @@ function requirementsForDocumentType(
 ): LiveResponseRequirementSignal[] {
 	const direct = requirements.filter((requirement) => requirement.documentType === documentType);
 	if (documentType === "cover_letter" || documentType === "executive_summary") {
-		return [...direct, ...requirements.filter((requirement) => requirement.priority === "mandatory")]
-			.slice(0, 8);
+		return uniqueRequirementSignals([
+			...direct,
+			...requirements.filter((requirement) => requirement.priority === "mandatory"),
+		]).slice(0, 8);
 	}
 	return direct.slice(0, 8);
+}
+
+function uniqueRequirementSignals(requirements: LiveResponseRequirementSignal[]): LiveResponseRequirementSignal[] {
+	const seen = new Set<string>();
+	return requirements.filter((requirement) => {
+		if (seen.has(requirement.id)) return false;
+		seen.add(requirement.id);
+		return true;
+	});
 }
 
 function snippetsForDocumentType(
