@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Primary Portal Browser Fallback for Document Discovery
+
+Status: implemented and verified.
+
+Purpose: keep RFP document discovery productive when Firecrawl cannot scrape a primary portal or returns no downloadable document links.
+
+Changes in this slice:
+- Add Playwright/headless browser fallback for primary portal document discovery using the configured stealth scraper service defaulting to `http://84.247.181.100:3003`.
+- Reuse existing primary-portal link extraction and persistence behavior for browser-discovered document links.
+- Avoid browser fallback calls when Firecrawl link extraction already finds documents.
+- Tighten URL document-type classification so words like `platform` no longer get misclassified as `form`.
+- Add focused service coverage for blocked Firecrawl recovery and no-extra-browser-call Firecrawl link extraction.
+
+Verification:
+- `npm run test -- __tests__/services/document-discovery-agent.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets primary portal document discovery recovery with one focused service test file and whitespace validation.
+
+Remaining after this slice:
+- Continue hardening the discovery-to-response path, especially document download/intake resilience and response generation readiness after discovered source persistence.
+
 ### 2026-05-26 - Compliance Governance Authority Preflight
 
 Status: implemented and verified.

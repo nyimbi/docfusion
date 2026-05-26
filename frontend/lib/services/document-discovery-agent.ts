@@ -23,6 +23,8 @@ import { eq, and } from "drizzle-orm";
 import { quickComplete, prompt } from "@/lib/ai/providers/factory";
 import { logger } from "@/lib/utils/logger";
 
+const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -204,6 +206,8 @@ async function searchPrimaryPortal(context: DiscoveryContext): Promise<Discovere
   
   logger.debug(`[Discovery Agent] Searching primary portal: ${context.sourceUrl}`);
   
+  let fallbackReason = "Firecrawl returned no downloadable document links";
+
   try {
     const firecrawl = new FirecrawlClient();
     
@@ -235,7 +239,13 @@ async function searchPrimaryPortal(context: DiscoveryContext): Promise<Discovere
 
     if (!result.success || !result.data?.extract?.documents) {
       // Try link-based extraction as fallback
-      return extractFromLinks(result.data?.links || [], result.data?.markdown || "", context.sourceUrl);
+      fallbackReason = result.error || fallbackReason;
+      const linkSources = extractFromLinks(result.data?.links || [], result.data?.markdown || "", context.sourceUrl);
+      if (linkSources.length > 0) return linkSources;
+
+      const browserSources = await searchPrimaryPortalWithBrowserFallback(context.sourceUrl, fallbackReason);
+      if (browserSources.length > 0) return browserSources;
+      return [];
     }
 
     const docs = result.data.extract.documents as Array<{
@@ -245,7 +255,7 @@ async function searchPrimaryPortal(context: DiscoveryContext): Promise<Discovere
       description?: string;
     }>;
 
-    return docs
+    const extractedSources = docs
       .map(doc => ({
         ...doc,
         url: resolveUrl(doc.url, context.sourceUrl!),
@@ -260,8 +270,75 @@ async function searchPrimaryPortal(context: DiscoveryContext): Promise<Discovere
         discoveryMethod: "firecrawl_llm_extraction",
         description: doc.description,
       }));
+
+    if (extractedSources.length > 0) return extractedSources;
+
+    const linkSources = extractFromLinks(result.data?.links || [], result.data?.markdown || "", context.sourceUrl);
+    if (linkSources.length > 0) return linkSources;
+
+    const browserSources = await searchPrimaryPortalWithBrowserFallback(context.sourceUrl, fallbackReason);
+    if (browserSources.length > 0) return browserSources;
+    return [];
   } catch (error) {
     logger.error("[Discovery Agent] Primary portal search failed:", error);
+    fallbackReason = error instanceof Error ? error.message : String(error);
+    return searchPrimaryPortalWithBrowserFallback(context.sourceUrl, fallbackReason);
+  }
+}
+
+async function searchPrimaryPortalWithBrowserFallback(
+  sourceUrl: string,
+  fallbackReason: string
+): Promise<DiscoveredSource[]> {
+  const stealthUrl = (process.env.STEALTH_SCRAPER_URL || DEFAULT_STEALTH_SCRAPER_URL).replace(/\/$/, "");
+
+  try {
+    logger.debug(`[Discovery Agent] Trying browser fallback for primary portal: ${sourceUrl}`);
+    const response = await fetch(`${stealthUrl}/v1/scrape`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: sourceUrl,
+        options: {
+          timeout: 15000,
+          humanScroll: true,
+          blockMedia: true,
+        },
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+
+    if (!response.ok) {
+      logger.error(
+        `[Discovery Agent] Browser fallback failed for primary portal ${sourceUrl}: ${response.status} ${await response.text()}`
+      );
+      return [];
+    }
+
+    const result = await response.json() as {
+      success: boolean;
+      data?: {
+        markdown?: string;
+        links?: string[];
+      };
+      error?: string;
+    };
+
+    if (!result.success || !result.data) {
+      logger.error(
+        `[Discovery Agent] Browser fallback returned no primary portal content for ${sourceUrl}: ${result.error || "unknown error"}`
+      );
+      return [];
+    }
+
+    return extractFromLinks(result.data.links || [], result.data.markdown || "", sourceUrl)
+      .map(source => ({
+        ...source,
+        confidence: Math.max(source.confidence, 80),
+        discoveryMethod: `browser_fallback_link_extraction: ${fallbackReason}`,
+      }));
+  } catch (error) {
+    logger.error("[Discovery Agent] Browser fallback failed for primary portal:", error);
     return [];
   }
 }
@@ -708,14 +785,19 @@ function isDocumentUrl(url: string): boolean {
 
 function classifyDocumentFromUrl(url: string): DiscoveredSource["type"] {
   const urlLower = url.toLowerCase();
+  const tokens = new Set(urlLower.split(/[^a-z0-9]+/).filter(Boolean));
   
-  if (urlLower.includes("amendment") || urlLower.includes("corrigendum")) return "amendment";
-  if (urlLower.includes("specification") || urlLower.includes("technical")) return "specification";
-  if (urlLower.includes("evaluation") || urlLower.includes("criteria")) return "evaluation";
-  if (urlLower.includes("form") || urlLower.includes("template")) return "form";
-  if (urlLower.includes("rfp") || urlLower.includes("tender") || urlLower.includes("bid")) return "rfp";
+  if (hasAnyToken(tokens, ["amendment", "amendments", "corrigendum", "corrigenda"])) return "amendment";
+  if (hasAnyToken(tokens, ["specification", "specifications", "technical"])) return "specification";
+  if (hasAnyToken(tokens, ["evaluation", "criteria"])) return "evaluation";
+  if (hasAnyToken(tokens, ["form", "forms", "template", "templates"])) return "form";
+  if (hasAnyToken(tokens, ["rfp", "tender", "bid", "bids", "bidding"])) return "rfp";
   
   return "attachment";
+}
+
+function hasAnyToken(tokens: Set<string>, candidates: string[]): boolean {
+  return candidates.some(candidate => tokens.has(candidate));
 }
 
 function extractFilenameFromUrl(url: string): string {
