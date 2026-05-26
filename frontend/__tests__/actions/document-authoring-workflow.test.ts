@@ -490,6 +490,36 @@ describe("document authoring workflow", () => {
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
+	it("blocks ready approval when linked requirements are not compliant", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["proposal_manager"],
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [documentRow] }))
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
+			.mockReturnValueOnce(createChain({ result: [section] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "req-1",
+					requirementNumber: "REQ-001",
+					complianceStatus: "partial",
+				}],
+			}));
+
+		await expect(
+			transitionDocumentAuthoringWorkflow({
+				documentId: "doc-1",
+				proposalDocumentId: "proposal-doc-1",
+				action: "mark_ready",
+				reason: "Ready for final approval",
+			})
+		).rejects.toThrow("linked requirements are compliant");
+
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
 	it("marks a proposal document ready only for a proposal authority session", async () => {
 		let documentPatch: Record<string, unknown> | undefined;
 		let proposalPatch: Record<string, unknown> | undefined;
@@ -500,7 +530,8 @@ describe("document authoring workflow", () => {
 		});
 		dbMock.select
 			.mockReturnValueOnce(createChain({ result: [documentRow] }))
-			.mockReturnValueOnce(createChain({ result: [proposalDocument] }));
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
 		dbMock.update
 			.mockReturnValueOnce(createChain({
 				result: [{ ...documentRow, status: "approved" }],

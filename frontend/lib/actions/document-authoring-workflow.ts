@@ -9,6 +9,7 @@ import {
 	proposalDocuments,
 	templates,
 } from "@/lib/db/schema";
+import { rfpRequirements } from "@/lib/db/schema-rfp";
 import {
 	requireUserContext,
 	userHasAuthorityRole,
@@ -18,7 +19,7 @@ import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
-import { and, eq, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 
 type DocumentRow = typeof documents.$inferSelect;
 type DocumentContent = Record<string, unknown>;
@@ -140,6 +141,26 @@ function visibleSectionCondition(sectionId: string, actorId: string): SQL {
 			where proposal_documents.id = ${documentSections.proposalDocumentId}
 				and opportunities.assigned_to = ${actorId}
 		)`
+	)!;
+}
+
+function visibleDocumentSectionsForProposalCondition(proposalDocumentId: string, actorId: string): SQL {
+	return and(
+		eq(documentSections.proposalDocumentId, proposalDocumentId),
+		sql`exists (
+			select 1
+			from proposal_documents
+			join opportunities on opportunities.id = proposal_documents.opportunity_id
+			where proposal_documents.id = ${proposalDocumentId}
+				and opportunities.assigned_to = ${actorId}
+		)`
+	)!;
+}
+
+function visibleRequirementsForOpportunityCondition(opportunityId: string, actorId: string): SQL {
+	return and(
+		eq(rfpRequirements.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, actorId)
 	)!;
 }
 
@@ -313,6 +334,9 @@ export async function transitionDocumentAuthoringWorkflow(
 		: null;
 	const section = input.sectionId ? await loadSection(input.sectionId, userContext.userId) : null;
 	requireAuthoringApprovalAuthority(userContext, input.action);
+	if (input.action === "mark_ready" && proposalDocument) {
+		await assertAuthoringRequirementsReadyForApproval(proposalDocument, userContext.userId);
+	}
 	const fromState = authoringState(document, proposalDocument, section);
 	const transition = buildAuthoringTransition(input, document, proposalDocument, section, userContext.userId);
 	const updatedDocument = await applyDocumentPatch(input, document, transition.documentPatch, userContext.userId, reason);
@@ -440,6 +464,49 @@ function requireAuthoringApprovalAuthority(
 	throw new Error(
 		`Marking proposal authoring ready or reopening approval requires proposal approval authority: requires ${requiredRoles.join(" or ")}`
 	);
+}
+
+async function assertAuthoringRequirementsReadyForApproval(
+	proposalDocument: ProposalDocumentRow,
+	actorId: string
+) {
+	const sections = await db
+		.select()
+		.from(documentSections)
+		.where(visibleDocumentSectionsForProposalCondition(proposalDocument.id, actorId));
+	const requirementIds = uniqueStrings(
+		sections.flatMap((section) => (section.requirementIds as string[]) ?? [])
+	);
+	if (requirementIds.length === 0) {
+		return;
+	}
+
+	const requirements = await db
+		.select()
+		.from(rfpRequirements)
+		.where(and(
+			inArray(rfpRequirements.id, requirementIds),
+			visibleRequirementsForOpportunityCondition(proposalDocument.opportunityId, actorId)
+		));
+	const blockers = requirements.filter((requirement) =>
+		!isRequirementReadyForApproval(requirement.complianceStatus)
+	);
+	if (blockers.length > 0) {
+		throw new Error(
+			`Cannot mark proposal authoring ready until linked requirements are compliant: ${blockers
+				.slice(0, 5)
+				.map((requirement) => requirement.requirementNumber ?? requirement.id)
+				.join(", ")}`
+		);
+	}
+}
+
+function isRequirementReadyForApproval(status: string | null): boolean {
+	return ["addressed", "compliant", "not_applicable"].includes(status ?? "");
+}
+
+function uniqueStrings(values: string[]): string[] {
+	return [...new Set(values.filter(Boolean))];
 }
 
 async function createProposalLink(input: {

@@ -25,8 +25,9 @@ Purpose: prevent the authoring workflow from marking proposal documents approved
 Changes in this slice:
 - Require proposal or capture authority before authoring `mark_ready` can set document/proposal status to approved.
 - Require the same authority before authoring `reopen` clears approval fields.
+- Require linked requirements to be addressed, compliant, or not applicable before authoring `mark_ready` can approve a proposal document.
 - Preserve drafting, persistence, review submission, and AI accept/reject transitions for writer sessions.
-- Add focused denial and authorized-ready coverage for the authoring workflow.
+- Add focused denial, readiness-blocker, and authorized-ready coverage for the authoring workflow.
 
 Verification:
 - `npm run test -- __tests__/actions/document-authoring-workflow.test.ts` from `frontend/` passed.
@@ -37,7 +38,7 @@ Testing scope note:
 
 Remaining after this slice:
 - Continue scanning direct approval/status mutation surfaces outside the hardened final-mile workflows.
-- Add linked-requirement readiness checks to authoring `mark_ready` if product intent is that ready equals proposal approval.
+- Add explicit 403 response mapping for API routes that surface authority-denied workflow errors.
 
 ### 2026-05-26 - Proposal Document Direct Approval Authority Checks
 
