@@ -1,5 +1,7 @@
 "use server";
 
+import { createHash } from "node:crypto";
+
 /**
  * Server Actions for RFP Intelligence Platform
  *
@@ -62,6 +64,8 @@ import type {
 	UpdateComplianceEntryInput,
 } from "@/lib/types/rfp";
 import { logger } from "@/lib/utils/logger";
+
+const RFP_DOCUMENT_HASH_MISMATCH_ERROR = "RFP document hash mismatch";
 
 type RfpParseWorkflowAction = "retry" | "reject" | "manual_extraction" | "cancel";
 type RfpParseWorkflowState =
@@ -1919,7 +1923,7 @@ export async function processRfpParsingJob(
 		let extractedText = rfpDoc.extractedText?.trim() ?? "";
 
 		if (!extractedText) {
-			extractedText = (await extractTextFromDocument(rfpDoc.storagePath, rfpDoc.fileType)).trim();
+			extractedText = (await extractTextFromDocument(rfpDoc.storagePath, rfpDoc.fileType, rfpDoc.fileHash ?? undefined)).trim();
 		}
 		if (!extractedText.trim()) {
 			throw new Error(`RFP text extraction produced no readable text for ${rfpDoc.filename}`);
@@ -2213,7 +2217,8 @@ async function updateJobProgress(
  */
 async function extractTextFromDocument(
 	storagePath: string,
-	fileType: string
+	fileType: string,
+	expectedSha256?: string
 ): Promise<string> {
 	try {
 		const fs = await import("fs/promises");
@@ -2257,6 +2262,13 @@ async function extractTextFromDocument(
 			} else {
 				logger.warn(`[RFP Parser] No storage URL configured, cannot fetch: ${storagePath}`);
 				return "";
+			}
+		}
+
+		if (expectedSha256) {
+			const actualSha256 = createHash("sha256").update(fileBuffer).digest("hex");
+			if (actualSha256 !== expectedSha256) {
+				throw new Error(RFP_DOCUMENT_HASH_MISMATCH_ERROR);
 			}
 		}
 
@@ -2319,6 +2331,9 @@ async function extractTextFromDocument(
 				return fileBuffer.toString("utf-8");
 		}
 	} catch (error) {
+		if (error instanceof Error && error.message === RFP_DOCUMENT_HASH_MISMATCH_ERROR) {
+			throw error;
+		}
 		logger.error("[RFP Parser] Error extracting text:", error);
 		return "";
 	}

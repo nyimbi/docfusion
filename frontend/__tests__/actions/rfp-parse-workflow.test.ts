@@ -54,6 +54,13 @@ const workflowRuntimeMock = vi.hoisted(() => ({
 
 vi.mock("@/lib/actions/workflow-runtime", () => workflowRuntimeMock);
 
+const storageMock = vi.hoisted(() => ({
+	downloadFromLinodeE3: vi.fn(),
+	getLinodeE3ConfigFromEnv: vi.fn(),
+}));
+
+vi.mock("@/lib/storage/linode-e3", () => storageMock);
+
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
@@ -164,6 +171,19 @@ beforeEach(() => {
 	dbMock.query.rfpParsingJobs.findFirst.mockResolvedValue(latestJob);
 	dbMock.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(dbMock));
 	dbMock.execute.mockResolvedValue([]);
+	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue({
+		endpoint: "https://objects.example.com",
+		region: "gb-lon-1",
+		bucket: "mansa",
+		accessKeyId: "access-key",
+		secretAccessKey: "secret-key",
+	});
+	storageMock.downloadFromLinodeE3.mockResolvedValue({
+		body: Buffer.from("stored-rfp-bytes"),
+		contentType: "application/pdf",
+		contentLength: 16,
+		etag: "\"etag\"",
+	});
 });
 
 describe("RFP parse workflow", () => {
@@ -443,6 +463,51 @@ describe("RFP parse workflow", () => {
 			expect.objectContaining({
 				parsingStatus: "failed",
 				parsingError: expect.stringContaining("RFP text extraction produced no readable text for rfp.pdf"),
+			}),
+		]));
+	});
+
+	it("fails parsing jobs before AI extraction when stored RFP bytes do not match the recorded hash", async () => {
+		const updates: Record<string, unknown>[] = [];
+		dbMock.query.rfpDocuments.findFirst
+			.mockResolvedValueOnce({
+				...documentRow,
+				extractedText: "",
+				storagePath: "s3://mansa/rfp/opportunity/document/rfp.pdf",
+				fileHash: "0".repeat(64),
+				parsingStatus: "pending",
+				metadata: null,
+			})
+			.mockResolvedValueOnce({
+				...documentRow,
+				parsingStatus: "processing",
+				metadata: null,
+			});
+		dbMock.update.mockReturnValue(createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+
+		await processRfpParsingJob({
+			jobId: latestJob.id,
+			rfpDocumentId: documentRow.id,
+			tenantContext: { userId: "capture-lead", organizationId: "org-1" },
+		});
+
+		expect(storageMock.downloadFromLinodeE3).toHaveBeenCalledWith(
+			expect.any(Object),
+			"s3://mansa/rfp/opportunity/document/rfp.pdf"
+		);
+		expect(parseRFPWithAI).not.toHaveBeenCalled();
+		expect(updates).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				status: "failed",
+				errorMessage: "RFP document hash mismatch",
+			}),
+			expect.objectContaining({
+				parsingStatus: "failed",
+				parsingError: "RFP document hash mismatch",
 			}),
 		]));
 	});

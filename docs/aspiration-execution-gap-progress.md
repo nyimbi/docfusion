@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - RFP Parser Stored Hash Guard
+
+Status: implemented and verified.
+
+Purpose: prevent parse jobs from extracting requirements from corrupted or mismatched stored RFP bytes.
+
+Changes in this slice:
+- Pass the recorded RFP document `fileHash` into parser text extraction when stored text is not already available.
+- Verify the fetched local, HTTP, storage-key, or Linode E3 bytes against the recorded SHA-256 before PDF/DOCX/HTML parsing or AI extraction.
+- Preserve existing unreadable-document fallback behavior while allowing hash mismatch failures to stop the parse job explicitly.
+- Add focused workflow coverage proving mismatched stored bytes fail before AI extraction.
+- Add the parser workflow test to `wave9-discovery-to-submission-core` so the aggregate non-live path covers RFP parse integrity.
+
+Verification:
+- `npm run test -- __tests__/actions/rfp-parse-workflow.test.ts __tests__/actions/platform-proof-scenarios.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate wave9 proof scenario remain intentionally skipped while on battery. This slice verifies parser integrity behavior and proof manifest wiring only.
+
+Remaining after this slice:
+- Continue closing discovery-to-submission integrity gaps with focused checks until power allows running `wave9-discovery-to-submission-core`.
+
 ### 2026-05-26 - Opportunity Document Download Route Integrity Coverage
 
 Status: implemented and verified.
