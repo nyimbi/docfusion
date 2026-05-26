@@ -13,6 +13,7 @@ import {
 } from "@/lib/actions/workflow-runtime";
 import { db } from "@/lib/db";
 import { documents, proposalDocuments } from "@/lib/db/schema";
+import { workflowInstances } from "@/lib/db/schema-workflow-runtime";
 import {
 	getLinodeE3ConfigFromEnv,
 	type LinodeE3Config,
@@ -23,6 +24,10 @@ import { and, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 
 type DocumentRow = typeof documents.$inferSelect;
 type ProposalDocumentRow = typeof proposalDocuments.$inferSelect;
+type ResponsePackageWorkflowRow = Pick<
+	typeof workflowInstances.$inferSelect,
+	"id" | "state" | "metadata"
+>;
 type FinalArtifactUserContext = UserContext & { organizationId: string };
 
 export type FinalArtifactAction = "request_render" | "render" | "approve" | "signoff" | "reopen";
@@ -182,6 +187,7 @@ export async function transitionFinalArtifactWorkflow(
 	const proposalDocument = await loadProposalDocument(input, finalArtifactContext);
 	const document = await loadDocument(input.documentId, finalArtifactContext, proposalDocument, input.opportunityId);
 	const fromState = finalArtifactState(document, proposalDocument);
+	await assertResponsePackageReadyForFinalRender(input, proposalDocument, finalArtifactContext);
 	const transition = await buildTransition({
 		input,
 		document,
@@ -519,6 +525,82 @@ async function loadProposalDocument(input: FinalArtifactWorkflowInput, userConte
 	return proposalDocument ?? null;
 }
 
+async function assertResponsePackageReadyForFinalRender(
+	input: FinalArtifactWorkflowInput,
+	proposalDocument: ProposalDocumentRow | null,
+	userContext: FinalArtifactUserContext
+): Promise<void> {
+	if (!["request_render", "render"].includes(input.action)) {
+		return;
+	}
+	if (input.action === "render" && input.allowDraftRender) {
+		return;
+	}
+	const opportunityId = proposalDocument?.opportunityId ?? input.opportunityId ?? null;
+	if (!opportunityId) {
+		return;
+	}
+
+	const [instance] = await db
+		.select({
+			id: workflowInstances.id,
+			state: workflowInstances.state,
+			metadata: workflowInstances.metadata,
+		})
+		.from(workflowInstances)
+		.where(and(
+			eq(workflowInstances.workflowKey, "proposal_response_package"),
+			eq(workflowInstances.organizationId, userContext.organizationId),
+			eq(workflowInstances.subjectType, "opportunity"),
+			eq(workflowInstances.subjectId, opportunityId),
+			assignedOpportunityExistsSql(opportunityId, userContext)
+		));
+
+	const readiness = responsePackageReadinessFromWorkflow(instance);
+	if (!readiness) {
+		throw new Error("Response package readiness assessment is required before rendering final submission artifacts");
+	}
+	if (readiness.status !== "ready_for_review") {
+		throw new Error(`Response package readiness is blocked before final rendering: ${responsePackageReadinessFailureMessage(readiness)}`);
+	}
+}
+
+function responsePackageReadinessFromWorkflow(
+	instance: ResponsePackageWorkflowRow | undefined
+): {
+	status: "ready_for_review" | "blocked" | "unknown";
+	blockers: string[];
+	missingRequirementIds: string[];
+	requirementCoverage: number;
+} | null {
+	if (!instance) {
+		return null;
+	}
+	const readiness = asRecord(asRecord(instance.metadata).readiness);
+	if (Object.keys(readiness).length === 0) {
+		return null;
+	}
+	const metrics = asRecord(readiness.metrics);
+	return {
+		status: readiness.status === "ready_for_review" || readiness.status === "blocked"
+			? readiness.status
+			: "unknown",
+		blockers: stringArray(readiness.blockers),
+		missingRequirementIds: stringArray(readiness.missingRequirementIds),
+		requirementCoverage: clampRatio(numberMetric(metrics.requirementCoverage)),
+	};
+}
+
+function responsePackageReadinessFailureMessage(readiness: NonNullable<ReturnType<typeof responsePackageReadinessFromWorkflow>>): string {
+	if (readiness.status === "unknown") {
+		return "readiness status is unrecognized";
+	}
+	const blockerSummary = readiness.blockers.length > 0
+		? readiness.blockers.slice(0, 3).join("; ")
+		: `${readiness.missingRequirementIds.length} accepted requirement${readiness.missingRequirementIds.length === 1 ? "" : "s"} missing from the response package`;
+	return `${Math.round(readiness.requirementCoverage * 100)}% accepted requirement coverage; ${blockerSummary}`;
+}
+
 function enforceRenderable(
 	document: DocumentRow,
 	proposalDocument: ProposalDocumentRow | null,
@@ -750,6 +832,18 @@ function normalizeDueAt(value: Date | string | null | undefined, fallbackDays: n
 	const dueAt = new Date();
 	dueAt.setDate(dueAt.getDate() + fallbackDays);
 	return dueAt;
+}
+
+function stringArray(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function numberMetric(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function clampRatio(value: number): number {
+	return Math.min(1, Math.max(0, value));
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

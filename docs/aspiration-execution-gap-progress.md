@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Final Artifact Response Readiness Gate
+
+Status: implemented and verified.
+
+Purpose: stop weak response packages before final artifact rendering instead of waiting until the submission checklist catches them.
+
+Changes in this slice:
+- Require `proposal_response_package` workflow readiness before final artifact request-render or render actions tied to an opportunity.
+- Block missing, blocked, or unrecognized response readiness before object storage or document rendering is invoked.
+- Preserve the existing `allowDraftRender` path for intentional draft/pre-final renders.
+- Add regression coverage proving blocked response readiness prevents storage, renderer, upload, and database mutation side effects.
+
+Verification:
+- `npm test -- final-artifact-workflow.test.ts` from `frontend/` passed, running 12 tests.
+- `npm test -- final-artifact-workflow.test.ts final-submission-checklist-workflow.test.ts submission-workflow.test.ts` from `frontend/` passed, running 31 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 workflow test files and 43 tests.
+- `git diff --check -- frontend/lib/actions/final-artifact-workflow.ts frontend/__tests__/actions/final-artifact-workflow.test.ts` passed.
+
+Remaining after this slice:
+- Continue surfacing response readiness blockers in operator-facing review/final-render UI before users attempt the render action.
+- Tenant-persisted live proof still needs a reachable PostgreSQL endpoint.
+
 ### 2026-05-27 - Final Submission Response Readiness Gate
 
 Status: implemented and verified.

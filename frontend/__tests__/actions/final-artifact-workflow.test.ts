@@ -221,6 +221,27 @@ function storedArtifact(overrides: Record<string, unknown> = {}) {
 	};
 }
 
+const readyResponsePackageWorkflow = {
+	id: "response-package-workflow-1",
+	state: "response_package_drafted",
+	metadata: {
+		readiness: {
+			status: "ready_for_review",
+			blockers: [],
+			warnings: [],
+			missingRequirementIds: [],
+			metrics: {
+				acceptedRequirementCount: 3,
+				draftedRequirementCount: 3,
+				requirementCoverage: 1,
+				documentsDrafted: 3,
+				sectionsDrafted: 9,
+				complianceEntriesCreated: 3,
+			},
+		},
+	},
+};
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	requireUserContextMock.mockResolvedValue({
@@ -244,6 +265,7 @@ beforeEach(() => {
 		endpoint: "https://objects.example.com",
 	});
 	dbMock.select.mockReset();
+	dbMock.select.mockImplementation(() => createChain({ result: [readyResponsePackageWorkflow] }));
 	dbMock.update.mockReset();
 });
 
@@ -351,6 +373,46 @@ describe("final artifact workflow", () => {
 			reason: "Render final artifact",
 			format: "docx",
 		})).rejects.toThrow("Linode E3 object storage is required");
+		expect(renderDocument).not.toHaveBeenCalled();
+		expect(storageMock.uploadToLinodeE3).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("blocks final rendering before storage or renderer calls when response package readiness is blocked", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
+			.mockReturnValueOnce(createChain({ result: [baseDocument] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					...readyResponsePackageWorkflow,
+					metadata: {
+						readiness: {
+							status: "blocked",
+							blockers: ["1 accepted requirement(s) were not represented in drafted response documents"],
+							warnings: ["2/3 accepted requirement(s) received compliance matrix entries"],
+							missingRequirementIds: ["req-missing-1"],
+							metrics: {
+								acceptedRequirementCount: 3,
+								draftedRequirementCount: 2,
+								requirementCoverage: 2 / 3,
+								documentsDrafted: 2,
+								sectionsDrafted: 6,
+								complianceEntriesCreated: 2,
+							},
+						},
+					},
+				}],
+			}));
+
+		await expect(transitionFinalArtifactWorkflow({
+			documentId: "doc-1",
+			proposalDocumentId: "proposal-doc-1",
+			action: "render",
+			reason: "Render final artifact",
+			format: "docx",
+		})).rejects.toThrow("Response package readiness is blocked before final rendering");
+
+		expect(storageMock.getLinodeE3ConfigFromEnv).not.toHaveBeenCalled();
 		expect(renderDocument).not.toHaveBeenCalled();
 		expect(storageMock.uploadToLinodeE3).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
