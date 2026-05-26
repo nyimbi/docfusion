@@ -82,23 +82,30 @@ function revalidateSubmissionWorkflowPaths(opportunityId: string): void {
 	revalidatePath(`/opportunities/${opportunityId}/submission`);
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: SubmissionUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${actorId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function assignedOpportunityCondition(actorId: string): SQL {
-	return sql`opportunities.assigned_to = ${actorId}`;
+function assignedOpportunityCondition(userContext: SubmissionUserContext): SQL {
+	return sql`(
+		opportunities.organization_id = ${userContext.organizationId}
+		or opportunities.organization_id is null
+	) and opportunities.assigned_to = ${userContext.userId}`;
 }
 
-function visibleOpportunityCondition(opportunityId: string, actorId: string): SQL {
+function visibleOpportunityCondition(opportunityId: string, userContext: SubmissionUserContext): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		assignedOpportunityCondition(actorId)
+		assignedOpportunityCondition(userContext)
 	)!;
 }
 
@@ -116,7 +123,7 @@ function visibleSubmissionsForOpportunityCondition(
 	return and(
 		eq(submissions.opportunityId, opportunityId),
 		submissionOrganizationCondition(userContext.organizationId),
-		assignedOpportunityExistsSql(opportunityId, userContext.userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
@@ -124,14 +131,21 @@ function visibleSubmissionCondition(submissionId: string, userContext: Submissio
 	return and(
 		eq(submissions.id, submissionId),
 		submissionOrganizationCondition(userContext.organizationId),
-		assignedOpportunityExistsSql(submissions.opportunityId, userContext.userId)
+		assignedOpportunityExistsSql(submissions.opportunityId, userContext)
 	)!;
 }
 
-function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, actorId: string): SQL {
+function visibleProposalDocumentsForOpportunityCondition(
+	opportunityId: string,
+	userContext: SubmissionUserContext
+): SQL {
 	return and(
 		eq(proposalDocuments.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, actorId)
+		or(
+			eq(proposalDocuments.organizationId, userContext.organizationId),
+			isNull(proposalDocuments.organizationId)
+		)!,
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
@@ -180,7 +194,7 @@ export async function createSubmission(
 	const [opportunity] = await db
 		.select({ id: opportunities.id })
 		.from(opportunities)
-		.where(visibleOpportunityCondition(input.opportunityId, submittedBy))
+		.where(visibleOpportunityCondition(input.opportunityId, userContext))
 		.limit(1);
 
 	if (!opportunity) {
@@ -231,7 +245,7 @@ export async function createSubmission(
 			.innerJoin(documents, eq(documents.id, proposalDocuments.documentId))
 			.where(
 				and(
-					visibleProposalDocumentsForOpportunityCondition(input.opportunityId, submittedBy),
+					visibleProposalDocumentsForOpportunityCondition(input.opportunityId, userContext),
 					inArray(proposalDocuments.documentId, input.attachmentIds)
 				)
 		);
@@ -290,7 +304,7 @@ export async function createSubmission(
 			decisionStatus: "submitted",
 			updatedAt: new Date(),
 		})
-		.where(visibleOpportunityCondition(input.opportunityId, submittedBy));
+		.where(visibleOpportunityCondition(input.opportunityId, userContext));
 
 	try {
 		await recordWorkflowRuntimeTransition({
@@ -551,7 +565,7 @@ export async function recordOutcome(
 			decisionStatus,
 			updatedAt: new Date(),
 		})
-		.where(visibleOpportunityCondition(row.opportunityId, userContext.userId));
+		.where(visibleOpportunityCondition(row.opportunityId, userContext));
 
 	revalidateSubmissionWorkflowPaths(row.opportunityId);
 	return transformSubmission(row);
@@ -619,7 +633,7 @@ export async function getWinLossAnalytics(filters?: {
 
 	// Build conditions
 	const conditions: SQL[] = [
-		assignedOpportunityCondition(userContext.userId),
+		assignedOpportunityCondition(userContext),
 		submissionOrganizationCondition(userContext.organizationId),
 	];
 	if (filters?.startDate) {
@@ -771,7 +785,7 @@ export async function getRecentSubmissions(limit: number = 10): Promise<
 		.from(submissions)
 		.innerJoin(opportunities, eq(opportunities.id, submissions.opportunityId))
 		.where(and(
-			assignedOpportunityCondition(userContext.userId),
+			assignedOpportunityCondition(userContext),
 			submissionOrganizationCondition(userContext.organizationId)
 		))
 		.orderBy(desc(submissions.submittedAt))

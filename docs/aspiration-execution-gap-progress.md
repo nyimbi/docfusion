@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Submissions Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep final submission creation, attachment selection, status updates, outcome updates, analytics, and recent submission reads scoped to the caller's organization through the owning opportunity.
+
+Changes in this slice:
+- Require submission opportunity predicates to use the typed organization-aware submission context.
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to submission, opportunity, analytics, recent-submission, and attachment proposal-document visibility checks.
+- Preserve submission row organization predicates while adding the missing opportunity tenant boundary.
+- Extend submissions scope tests to assert opportunity organization predicates across read, write, analytics, recent, and outcome paths.
+
+Verification:
+- `npm test -- submissions-scope.test.ts submissions-auth.test.ts` from `frontend/` passed, running 11 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave6-final-submission-gate` from `frontend/` passed, running 2 final-submission test files and 18 tests.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as task management, pipeline, pricing, proposal documents, and win themes.
+
 ### 2026-05-27 - Workflow Domain Opportunity Tenant Predicates
 
 Status: implemented and verified.

@@ -43,6 +43,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
+function expectOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("submission-user-1");
+}
+
 var dbMock: {
 	select: ReturnType<typeof vi.fn>;
 	insert: ReturnType<typeof vi.fn>;
@@ -156,7 +164,7 @@ describe("submission row scoping", () => {
 
 		expect(preSubmissionAuditMock).not.toHaveBeenCalled();
 		expect(finalChecklistMock).not.toHaveBeenCalled();
-		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(opportunityWhere);
 	});
 
 	it("scopes submission reads through the owning opportunity", async () => {
@@ -174,7 +182,7 @@ describe("submission row scoping", () => {
 		const sqlText = collectSqlFragments(readWhere).join(" ");
 		expect(sqlText).toContain("organization_id");
 		expect(sqlText).toContain("org-1");
-		expect(sqlText).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(readWhere);
 	});
 
 	it("loads the operator checklist from the enforced final submission gate", async () => {
@@ -229,7 +237,7 @@ describe("submission row scoping", () => {
 		const sqlText = collectSqlFragments(listWhere).join(" ");
 		expect(sqlText).toContain("organization_id");
 		expect(sqlText).toContain("org-1");
-		expect(sqlText).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(listWhere);
 	});
 
 	it("scopes submission status updates through the owning opportunity", async () => {
@@ -250,7 +258,7 @@ describe("submission row scoping", () => {
 		const sqlText = collectSqlFragments(updateWhere).join(" ");
 		expect(sqlText).toContain("organization_id");
 		expect(sqlText).toContain("org-1");
-		expect(sqlText).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(updateWhere);
 	});
 
 	it("requires submission authority before status updates inspect submission rows", async () => {
@@ -295,7 +303,7 @@ describe("submission row scoping", () => {
 		expect(submissionSql).toContain("organization_id");
 		expect(submissionSql).toContain("org-1");
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expectOpportunityTenantScope(where);
 		}
 	});
 
@@ -329,7 +337,7 @@ describe("submission row scoping", () => {
 		const sqlText = collectSqlFragments(analyticsWhere).join(" ");
 		expect(sqlText).toContain("organization_id");
 		expect(sqlText).toContain("org-1");
-		expect(sqlText).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(analyticsWhere);
 	});
 
 	it("scopes recent submissions to assigned opportunities", async () => {
@@ -349,6 +357,6 @@ describe("submission row scoping", () => {
 		const sqlText = collectSqlFragments(recentWhere).join(" ");
 		expect(sqlText).toContain("organization_id");
 		expect(sqlText).toContain("org-1");
-		expect(sqlText).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(recentWhere);
 	});
 });
