@@ -240,6 +240,7 @@ type ComplianceEntryPatch = {
 };
 
 type ComplianceWorkflowDb = Pick<typeof db, "select" | "update" | "execute">;
+type RequirementCompliancePatch = Partial<typeof rfpRequirements.$inferInsert>;
 
 function requireComplianceOrganization(userContext: UserContext): string {
 	if (!userContext.organizationId) {
@@ -352,6 +353,21 @@ export async function transitionComplianceEntryWorkflow(
 			.update(complianceEntries)
 			.set(entryPatch)
 			.where(visibleComplianceEntryCondition(input.entryId, organizationId));
+
+		const requirementPatch = buildRequirementCompliancePatch({
+			requirement: row.requirement,
+			entry: row.entry,
+			entryPatch,
+			action: input.action,
+			reason,
+			now,
+		});
+		if (requirementPatch) {
+			await tx
+				.update(rfpRequirements)
+				.set(requirementPatch)
+				.where(visibleRfpRequirementCondition(row.requirement.id, organizationId));
+		}
 
 		const matrixStats = await recalculateComplianceMatrixStats(tx, input.matrixId, organizationId);
 		try {
@@ -780,6 +796,8 @@ function buildComplianceWorkflowEntryPatch(input: {
 			return {
 				...basePatch,
 				status: "approved",
+				complianceStatus: "compliant",
+				complianceJustification: input.entry.complianceJustification ?? input.reason,
 				approvedBy: input.actorId,
 				approvedAt: input.now,
 				reviewedBy: input.entry.reviewedBy ?? input.actorId,
@@ -820,6 +838,47 @@ function buildComplianceWorkflowEntryPatch(input: {
 				...basePatch,
 				status: input.state,
 			};
+	}
+}
+
+function buildRequirementCompliancePatch(input: {
+	requirement: typeof rfpRequirements.$inferSelect;
+	entry: ComplianceEntryRow;
+	entryPatch: ComplianceEntryPatch;
+	action: ComplianceEntryWorkflowAction;
+	reason: string;
+	now: Date;
+}): RequirementCompliancePatch | null {
+	switch (input.action) {
+		case "approve":
+			return {
+				complianceStatus: "compliant",
+				responseStrategy:
+					input.requirement.responseStrategy ??
+					input.entry.responseSummary ??
+					input.entry.complianceJustification ??
+					input.reason,
+				updatedAt: input.now,
+			};
+		case "waive":
+			return {
+				complianceStatus: "not_applicable",
+				responseStrategy:
+					input.requirement.responseStrategy ??
+					input.entryPatch.complianceJustification ??
+					input.reason,
+				updatedAt: input.now,
+			};
+		case "reopen":
+			return {
+				complianceStatus:
+					input.requirement.complianceStatus === "compliant"
+						? "partial"
+						: input.requirement.complianceStatus,
+				updatedAt: input.now,
+			};
+		default:
+			return null;
 	}
 }
 

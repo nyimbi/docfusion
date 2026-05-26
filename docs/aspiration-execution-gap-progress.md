@@ -272,3 +272,28 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Add evidence-aware promotion workflows so compliant status can be earned from verified response evidence instead of manual status changes alone.
+
+### 2026-05-26 - Evidence-Backed Requirement Promotion
+
+Status: implemented and verified.
+
+Purpose: let requirements legitimately move from drafted/partial coverage to compliant after compliance review verifies response evidence.
+
+Changes in this slice:
+- Strengthen compliance entry approval so approval promotes the entry to `compliant` instead of leaving reviewed evidence at `partial`.
+- Sync approved compliance entries back to the underlying RFP requirement, setting its compliance status to `compliant`.
+- Sync waived compliance entries back to the underlying requirement as `not_applicable`.
+- Reopen previously compliant requirements back to partial coverage when compliance review is reopened.
+- Preserve existing compliance justifications when approval occurs, while using the review reason as a fallback.
+- Update focused compliance workflow tests to verify matrix statistics, entry updates, and underlying requirement promotion.
+
+Verification:
+- `npm run test -- __tests__/actions/compliance-entry-workflow.test.ts __tests__/actions/proposal-documents-scope.test.ts` passed.
+- `npx tsc --noEmit` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This slice used targeted compliance/proposal workflow tests and TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Add operator-visible review controls that make the evidence promotion path easy to use from proposal/compliance screens.

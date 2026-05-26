@@ -144,9 +144,9 @@ function mockEntryLookup(entry = baseEntry, requirement = baseRequirement) {
 			result: [{ entry, requirement }],
 		}))
 		.mockReturnValueOnce(createChain({
-			result: [
+				result: [
+					{ entry: { complianceStatus: "compliant" }, requirement: { priority: "mandatory" } },
 				{ entry: { complianceStatus: "compliant" }, requirement: { priority: "mandatory" } },
-				{ entry: { complianceStatus: "partial" }, requirement: { priority: "mandatory" } },
 				{ entry: { complianceStatus: "non_compliant" }, requirement: { priority: "optional" } },
 			],
 		}));
@@ -191,6 +191,7 @@ describe("compliance validation access scope", () => {
 describe("compliance entry workflow", () => {
 	it("approves a reviewed entry and recalculates matrix statistics", async () => {
 		let entryUpdate: Record<string, unknown> | undefined;
+		let requirementUpdate: Record<string, unknown> | undefined;
 		let matrixUpdate: Record<string, unknown> | undefined;
 
 		mockEntryLookup();
@@ -198,6 +199,11 @@ describe("compliance entry workflow", () => {
 			.mockReturnValueOnce(createChain({
 				onSet: (value) => {
 					entryUpdate = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				onSet: (value) => {
+					requirementUpdate = value;
 				},
 			}))
 			.mockReturnValueOnce(createChain({
@@ -218,22 +224,28 @@ describe("compliance entry workflow", () => {
 			entryId: "entry-1",
 			state: "approved",
 			status: "approved",
-			complianceStatus: "partial",
+			complianceStatus: "compliant",
 			matrixStats: {
 				totalRequirements: 3,
 				mandatoryCount: 2,
-				compliantCount: 1,
-				partialCount: 1,
+				compliantCount: 2,
+				partialCount: 0,
 				nonCompliantCount: 1,
 				notAddressedCount: 0,
-				complianceScore: 50,
-				mandatoryComplianceScore: 75,
+				complianceScore: 67,
+				mandatoryComplianceScore: 100,
 			},
 		});
 		expect(entryUpdate).toMatchObject({
 			status: "approved",
+			complianceStatus: "compliant",
+			complianceJustification: "Addresses most evidence needs",
 			approvedBy: "compliance-lead",
 			completionPercent: 100,
+		});
+		expect(requirementUpdate).toMatchObject({
+			complianceStatus: "compliant",
+			responseStrategy: "Addresses most evidence needs",
 		});
 		expect((entryUpdate?.metadata as any).complianceWorkflow.history[0]).toMatchObject({
 			action: "approve",
@@ -245,8 +257,8 @@ describe("compliance entry workflow", () => {
 		expect(matrixUpdate).toMatchObject({
 			totalRequirements: 3,
 			mandatoryCount: 2,
-			complianceScore: 50,
-			mandatoryComplianceScore: 75,
+			complianceScore: 67,
+			mandatoryComplianceScore: 100,
 		});
 	});
 
@@ -290,6 +302,7 @@ describe("compliance entry workflow", () => {
 					entryUpdate = value;
 				},
 			}))
+			.mockReturnValueOnce(createChain())
 			.mockReturnValueOnce(createChain());
 
 		const result = await transitionComplianceEntryWorkflow({
