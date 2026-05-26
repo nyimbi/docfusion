@@ -82,6 +82,7 @@ const dnsLookupMock = vi.hoisted(() =>
 	vi.fn<() => Promise<Array<{ address: string; family: 4 | 6 }>>>()
 );
 const fetchPublicHttpUrlMock = vi.hoisted(() => vi.fn());
+const firecrawlScrapeMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:dns/promises", () => ({
 	lookup: dnsLookupMock,
@@ -96,6 +97,11 @@ vi.mock("@/lib/security/public-url", async (importOriginal) => {
 });
 
 vi.mock("@/lib/db", () => ({ db: dbMock }));
+vi.mock("@/lib/scrapers/firecrawl", () => ({
+	FirecrawlClient: vi.fn(() => ({
+		scrape: firecrawlScrapeMock,
+	})),
+}));
 vi.mock("@/lib/services/docling-client", () => doclingMock);
 vi.mock("@/lib/storage/linode-e3", () => storageMock);
 vi.mock("@/lib/actions/rfp-parser", () => ({
@@ -116,6 +122,7 @@ vi.mock("@/lib/utils/logger", () => ({
 }));
 
 import {
+	discoverDocuments,
 	downloadDocument,
 	extractDocumentText,
 	getOpportunityDocumentFileForActor,
@@ -136,6 +143,7 @@ beforeEach(() => {
 	dbMock.insert.mockImplementation(() => createChain());
 	dbMock.update.mockImplementation(() => createChain());
 	dbMock.delete.mockImplementation(() => createChain());
+	firecrawlScrapeMock.mockResolvedValue({ success: false, error: "not mocked" });
 	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue(storageConfig);
 	storageMock.uploadToLinodeE3.mockResolvedValue({
 		bucket: "mansa",
@@ -162,6 +170,45 @@ beforeEach(() => {
 			"content-type": "application/pdf",
 		},
 	}));
+});
+
+describe("RFP document discovery", () => {
+	it("classifies platform RFP URLs as RFP documents instead of forms", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(null);
+		dbMock.insert.mockImplementation(() => createChain({
+			onValues: (value) => insertedValues.push(value),
+		}));
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "# Records Platform Tender\n\nDownload the main package.",
+				links: ["/downloads/Records-Platform-RFP.pdf"],
+			},
+		});
+
+		const result = await discoverDocuments("opp-1", "https://buyer.example/tenders/records");
+
+		expect(result).toMatchObject({
+			success: true,
+			sourceUrl: "https://buyer.example/tenders/records",
+			documents: [
+				{
+					name: "Records-Platform-RFP.pdf",
+					url: "https://buyer.example/downloads/Records-Platform-RFP.pdf",
+					type: "rfp",
+				},
+			],
+		});
+		expect(insertedValues).toEqual([
+			expect.objectContaining({
+				opportunityId: "opp-1",
+				documentName: "Records-Platform-RFP.pdf",
+				documentType: "rfp",
+				sourceUrl: "https://buyer.example/downloads/Records-Platform-RFP.pdf",
+			}),
+		]);
+	});
 });
 
 describe("RFP document fetch storage", () => {

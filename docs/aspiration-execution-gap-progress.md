@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Legacy Document Classifier Token Matching
+
+Status: implemented and verified.
+
+Purpose: prevent the legacy RFP document discovery service from misclassifying `platform` URLs as form documents.
+
+Changes in this slice:
+- Replace raw substring URL checks with token-based document type matching in `discoverDocuments`.
+- Preserve amendment, specification, evaluation, form, and RFP classification behavior for delimited URL keywords.
+- Add focused coverage for `Records-Platform-RFP.pdf` being stored as an RFP document.
+
+Verification:
+- `npm run test -- __tests__/services/rfp-document-service.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets legacy document discovery classification with one focused service test file and whitespace validation.
+
+Remaining after this slice:
+- Continue hardening parse retry coverage and response-generation readiness after RFP intake.
+
 ### 2026-05-26 - Parse Queue Remediation for Missing Workspace
 
 Status: implemented and verified.

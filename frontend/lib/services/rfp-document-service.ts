@@ -343,21 +343,22 @@ function resolveUrl(url: string, baseUrl: string): string {
 function classifyDocumentType(url: string, context: string): DiscoveredDocument["type"] {
   const urlLower = url.toLowerCase();
   const contextLower = context.toLowerCase();
+  const urlTokens = new Set(urlLower.split(/[^a-z0-9]+/).filter(Boolean));
 
   // Check URL patterns
-  if (urlLower.includes("amendment") || urlLower.includes("corrigendum")) {
+  if (hasAnyToken(urlTokens, ["amendment", "amendments", "corrigendum", "corrigenda"])) {
     return "amendment";
   }
-  if (urlLower.includes("specification") || urlLower.includes("technical")) {
+  if (hasAnyToken(urlTokens, ["specification", "specifications", "technical"])) {
     return "specification";
   }
-  if (urlLower.includes("evaluation") || urlLower.includes("criteria")) {
+  if (hasAnyToken(urlTokens, ["evaluation", "criteria"])) {
     return "evaluation";
   }
-  if (urlLower.includes("form") || urlLower.includes("template")) {
+  if (hasAnyToken(urlTokens, ["form", "forms", "template", "templates"])) {
     return "form";
   }
-  if (urlLower.includes("rfp") || urlLower.includes("tender") || urlLower.includes("bid")) {
+  if (hasAnyToken(urlTokens, ["rfp", "tender", "bid", "bids", "bidding"])) {
     return "rfp";
   }
 
@@ -377,6 +378,10 @@ function classifyDocumentType(url: string, context: string): DiscoveredDocument[
   }
 
   return "attachment";
+}
+
+function hasAnyToken(tokens: Set<string>, candidates: string[]): boolean {
+  return candidates.some((candidate) => tokens.has(candidate));
 }
 
 /**
