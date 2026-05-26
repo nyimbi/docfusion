@@ -76,6 +76,7 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 function expectAssignedReviewScope(where: unknown) {
 	const sqlText = collectSqlFragments(where).join(" ");
 	expect(sqlText).toContain("organization_id");
+	expect(sqlText).toContain("opportunities.organization_id");
 	expect(sqlText).toContain("org-1");
 	expect(sqlText).toContain("opportunities.assigned_to");
 	expect(sqlText).toContain("review-lead-1");
@@ -282,11 +283,17 @@ describe("review package workflow", () => {
 			subjectType: "proposal_review",
 			toState: "scheduled",
 			assignedRole: "review_lead",
+			metadata: expect.objectContaining({
+				organizationId: "org-1",
+			}),
 		}));
 		expect(upsertWorkflowRuntimeTask).toHaveBeenCalledWith(expect.objectContaining({
 			taskKey: "review-package:review-1",
 			state: "open",
 			assignedRole: "review_lead",
+			metadata: expect.objectContaining({
+				organizationId: "org-1",
+			}),
 		}));
 	});
 

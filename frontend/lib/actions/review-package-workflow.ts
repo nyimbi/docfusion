@@ -70,6 +70,10 @@ function assignedReviewExistsSql(reviewId: unknown, userContext: ReviewPackageUs
 		join opportunities on opportunities.id = proposal_reviews.opportunity_id
 		where proposal_reviews.id = ${reviewId}
 			and (proposal_reviews.organization_id = ${userContext.organizationId} or proposal_reviews.organization_id is null)
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
 			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
@@ -189,6 +193,7 @@ export async function transitionReviewPackageWorkflow(
 		dueAt: transition.terminal ? null : normalizeDueAt(input.dueAt ?? updatedReview.scheduledEndDate, 2),
 		metadata: {
 			reviewId: input.reviewId,
+			organizationId: userContext.organizationId,
 			reviewType: updatedReview.reviewType,
 			reviewName: updatedReview.reviewName ?? null,
 			reviewerId: reviewer?.id ?? null,
@@ -214,6 +219,7 @@ export async function transitionReviewPackageWorkflow(
 		dueAt: transition.terminal ? null : normalizeDueAt(input.dueAt ?? updatedReview.scheduledEndDate, 2),
 		metadata: {
 			reviewId: input.reviewId,
+			organizationId: userContext.organizationId,
 			fromState,
 			toState: transition.toState,
 			reviewerId: reviewer?.id ?? null,

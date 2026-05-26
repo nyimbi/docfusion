@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Review Package Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep review package gate transitions scoped to the caller's organization through both the proposal review rows and the owning opportunity before review state, reviewer state, or runtime task updates.
+
+Changes in this slice:
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to review package opportunity joins.
+- Preserve existing proposal review and review comment organization predicates.
+- Include organization context in review package runtime transition and task metadata.
+- Extend review package tests to assert opportunity organization predicates and runtime organization payloads.
+
+Verification:
+- `npm test -- review-package-workflow.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as work items, final artifacts, task management, workflow domain, submissions, pipeline, pricing, reviews, proposal documents, win themes, and rendering.
+
 ### 2026-05-27 - Pricing Approval Opportunity Tenant Predicates
 
 Status: implemented and verified.
