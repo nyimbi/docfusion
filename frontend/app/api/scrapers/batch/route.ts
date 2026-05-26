@@ -37,6 +37,7 @@ import {
 	startScraperSourceRunWorkflow,
 	transitionScraperSourceEnabledWorkflow,
 } from "@/lib/actions/scraper-workflows";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 
 type BatchOperation = "run" | "enable" | "disable" | "delete";
 
@@ -176,6 +177,9 @@ export async function POST(request: NextRequest) {
 						});
 				}
 			} catch (error) {
+				if (error instanceof WorkflowAuthorityDeniedError) {
+					throw error;
+				}
 				results.push({
 					sourceId,
 					success: false,
@@ -198,6 +202,12 @@ export async function POST(request: NextRequest) {
 		});
 
 	} catch (error) {
+		if (error instanceof WorkflowAuthorityDeniedError) {
+			return NextResponse.json(
+				{ success: false, message: "Forbidden" },
+				{ status: 403 }
+			);
+		}
 		console.error("Error performing batch operation:", error);
 		return NextResponse.json(
 			{

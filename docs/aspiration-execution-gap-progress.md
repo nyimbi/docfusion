@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Scraper Batch Authority Denial Response
+
+Status: implemented and verified.
+
+Purpose: make scraper batch operations return an explicit 403 when the workflow authority layer denies a bulk run/enable/disable operation instead of hiding the denial inside a 200 batch result.
+
+Changes in this slice:
+- Propagate `WorkflowAuthorityDeniedError` out of per-source scraper batch processing.
+- Map scraper batch workflow authority denials to a generic 403 `Forbidden` response.
+- Preserve ordinary per-source workflow failures as batch result entries for recoverable operational errors.
+- Add route coverage for authority-denied and non-authority scraper batch failures.
+
+Verification:
+- `npm run test -- __tests__/api/scraper-batch-route.test.ts __tests__/actions/scraper-workflows.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets scraper batch API authority response behavior with focused route/action tests and whitespace validation.
+
+Remaining after this slice:
+- Continue checking API routes that wrap authority-enforced workflows and currently collapse authorization denials into generic success/error envelopes.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Actor-Scoped Opportunity Import Telemetry
 
 Status: implemented and verified.
