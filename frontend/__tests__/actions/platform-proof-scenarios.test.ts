@@ -143,6 +143,15 @@ describe("platform proof scenarios", () => {
 				]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["wave9-response-readiness-package"] })).toEqual([
+			expect.objectContaining({
+				id: "wave9-response-readiness-package",
+				proofTargets: expect.arrayContaining(["F-005", "F-008", "F-020"]),
+				expectedArtifacts: expect.arrayContaining([
+					"vitest:live-response-package",
+				]),
+			}),
+		]);
 		expect(listProofScenarios({ ids: ["live-discovery-services"], includeLiveSafe: true })).toEqual([
 			expect.objectContaining({
 				id: "live-discovery-services",

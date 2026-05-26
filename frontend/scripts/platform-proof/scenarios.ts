@@ -284,6 +284,20 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "wave9-response-readiness-package",
+		wave: 9,
+		title: "Wave 9 response package readiness proof",
+		kind: "integration",
+		proofTargets: ["F-005", "F-008", "F-020"],
+		requiresLiveServices: false,
+		description: "Validates deterministic source-driven response package drafting and readiness gates for complete, evidence-backed Datacraft proposal drafts.",
+		command: {
+			command: "npm",
+			args: ["test", "--", "live-response-package.test.ts"],
+		},
+		expectedArtifacts: ["vitest:live-response-package"],
+	},
+	{
 		id: "wave9-discovery-to-submission-core",
 		wave: 9,
 		title: "Wave 9 discovery-to-submission core proof",
