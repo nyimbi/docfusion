@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Regenerated Section Win Theme Seeding
+
+Status: implemented and verified.
+
+Purpose: keep regenerated requirement-aware section drafts aligned with approved capture strategy after the initial proposal document draft is refreshed.
+
+Changes in this slice:
+- Load active win themes for the assigned opportunity when regenerating a requirement-aware proposal section draft.
+- Add approved win-theme guidance to regenerated section draft content before the evaluator win angle and evidence checklist.
+- Store regenerated section draft win theme IDs in document metadata and return them from the section draft action result.
+- Extend focused proposal document coverage to prove regenerated section drafts include active win themes and preserve traceability metadata.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts` from `frontend/` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate wave9 proof scenario remain intentionally skipped while on battery. This slice reuses the focused proposal documents action test because it exercises both initial proposal seeding and regenerated section drafting.
+
+Remaining after this slice:
+- Continue hardening final package readiness, win-theme consistency checks, and submission review gates.
+
 ### 2026-05-26 - Win Theme Response Draft Seeding
 
 Status: implemented and verified.

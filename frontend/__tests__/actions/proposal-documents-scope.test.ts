@@ -469,6 +469,15 @@ describe("proposal document row scoping", () => {
 			winProbability: null,
 			strategicNotes: null,
 		};
+		const activeWinTheme = {
+			id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+			opportunityId: proposalDocument.opportunityId,
+			themeStatement: "Datacraft lowers section-level delivery risk through source-cited evidence controls.",
+			shortVersion: "Evidence-led delivery",
+			themeType: "risk_reduction",
+			priority: 1,
+			supportingEvidence: ["Requirement traceability and workflow audit trails"],
+		};
 		const updateSets: Record<string, unknown>[] = [];
 		const updateWheres: unknown[] = [];
 		let versionInsert: Record<string, unknown> | undefined;
@@ -478,7 +487,8 @@ describe("proposal document row scoping", () => {
 			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
 			.mockReturnValueOnce(createChain({ result: [sourceDocument] }))
 			.mockReturnValueOnce(createChain({ result: [opportunity] }))
-			.mockReturnValueOnce(createChain({ result: [requirement] }));
+			.mockReturnValueOnce(createChain({ result: [requirement] }))
+			.mockReturnValueOnce(createChain({ result: [activeWinTheme] }));
 		dbMock.update.mockImplementation(() => createChain({
 			result: [{ ...sourceDocument, currentVersion: 2 }],
 			onSet: (value) => {
@@ -501,11 +511,15 @@ describe("proposal document row scoping", () => {
 			proposalDocumentId: proposalDocument.id,
 			documentId: sourceDocument.id,
 			requirementIds: [requirement.id],
+			winThemeIds: [activeWinTheme.id],
 			versionNumber: 2,
 		});
 		expect(result.plainText).toContain("Direct Requirement Responses");
 		expect(result.plainText).toContain("REQ-007");
 		expect(result.plainText).toContain("offline data capture");
+		expect(result.plainText).toContain("Approved Win Themes");
+		expect(result.plainText).toContain("Evidence-led delivery");
+		expect(result.plainText).toContain("section-level delivery risk");
 		expect(flattenText(updateSets[0]?.content)).toContain("Existing draft.");
 		expect(flattenText(updateSets[0]?.content)).toContain("Workflow-First Delivery");
 		expect(updateSets[0]?.metadata).toMatchObject({
@@ -513,6 +527,7 @@ describe("proposal document row scoping", () => {
 				expect.objectContaining({
 					sectionId: linkedSection.id,
 					requirementIds: [requirement.id],
+					winThemeIds: [activeWinTheme.id],
 				}),
 			],
 		});
@@ -810,7 +825,8 @@ describe("proposal document row scoping", () => {
 			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
 			.mockReturnValueOnce(createChain({ result: [sourceDocument] }))
 			.mockReturnValueOnce(createChain({ result: [opportunity] }))
-			.mockReturnValueOnce(createChain({ result: [linkedRequirement] }));
+			.mockReturnValueOnce(createChain({ result: [linkedRequirement] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
 		dbMock.update.mockImplementation(() => createChain({
 			result: [{ ...sourceDocument, currentVersion: 2 }],
 		}));

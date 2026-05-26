@@ -241,6 +241,7 @@ export interface RequirementAwareSectionDraftResult {
 	proposalDocumentId: string;
 	documentId: string;
 	requirementIds: string[];
+	winThemeIds: string[];
 	content: DocumentContent;
 	plainText: string;
 	wordCount: number;
@@ -662,7 +663,8 @@ function buildRequirementAwareSectionDraftContent(
 	section: typeof documentSections.$inferSelect,
 	proposalDocument: typeof proposalDocuments.$inferSelect,
 	opportunity: OpportunityResponseContext,
-	requirements: Array<typeof rfpRequirements.$inferSelect>
+	requirements: Array<typeof rfpRequirements.$inferSelect>,
+	activeWinThemes: Array<typeof winThemes.$inferSelect> = []
 ): DocumentContent {
 	const documentType = proposalDocument.documentType as ProposalDocumentType;
 	const content: ContentNode[] = [
@@ -680,6 +682,13 @@ function buildRequirementAwareSectionDraftContent(
 			paragraphNode(
 				"No linked requirements were found for this section. Link extracted requirements before final review so the response can be traced."
 			)
+		);
+	}
+
+	if (activeWinThemes.length > 0) {
+		content.push(
+			headingNode(3, "Approved Win Themes To Weave In"),
+			bulletListNode(activeWinThemes.slice(0, 6).map(winThemeResponseLine))
 		);
 	}
 
@@ -741,6 +750,7 @@ function draftMetadata(
 	metadata: unknown,
 	section: typeof documentSections.$inferSelect,
 	requirements: Array<typeof rfpRequirements.$inferSelect>,
+	activeWinThemes: Array<typeof winThemes.$inferSelect>,
 	generatedAt: string
 ): Record<string, unknown> {
 	const base = isRecord(metadata) ? metadata : {};
@@ -758,6 +768,7 @@ function draftMetadata(
 				sectionId: section.id,
 				sectionName: section.sectionName,
 				requirementIds: requirements.map((requirement) => requirement.id),
+				winThemeIds: activeWinThemes.map((theme) => theme.id),
 				generatedAt,
 			},
 		],
@@ -1602,11 +1613,17 @@ export async function generateRequirementAwareSectionDraft(
 				visibleRequirementsForOpportunityCondition(proposalDocument.opportunityId, userId)
 			))
 		: [];
+	const activeWinThemes = await db
+		.select()
+		.from(winThemes)
+		.where(visibleActiveWinThemesForOpportunityCondition(proposalDocument.opportunityId, userId))
+		.orderBy(asc(winThemes.priority), asc(winThemes.createdAt));
 	const draftContent = buildRequirementAwareSectionDraftContent(
 		section,
 		proposalDocument,
 		opportunity,
-		requirements
+		requirements,
+		activeWinThemes
 	);
 	const mergedContent = replaceSectionDraftContent(document.content, section.id, draftContent);
 	const plainText = extractPlainText(mergedContent);
@@ -1622,7 +1639,7 @@ export async function generateRequirementAwareSectionDraft(
 			wordCount: countWords(plainText),
 			characterCount: plainText.length,
 			currentVersion: versionNumber,
-			metadata: draftMetadata(document.metadata, section, requirements, generatedAt),
+			metadata: draftMetadata(document.metadata, section, requirements, activeWinThemes, generatedAt),
 			updatedAt: new Date(generatedAt),
 		})
 		.where(eq(documents.id, document.id))
@@ -1673,6 +1690,7 @@ export async function generateRequirementAwareSectionDraft(
 		proposalDocumentId: proposalDocument.id,
 		documentId: document.id,
 		requirementIds,
+		winThemeIds: activeWinThemes.map((theme) => theme.id),
 		content: draftContent,
 		plainText: sectionPlainText,
 		wordCount: countWords(sectionPlainText),
