@@ -16,6 +16,23 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Workflow Templates Build Readiness
+
+Status: implemented and verified.
+
+Purpose: keep production builds independent of live workflow-template database connectivity while preserving live workflow-template data at request time.
+
+Changes in this slice:
+- Mark `/workflows/templates` as a dynamic route because it reads workflow-template rows from the database.
+- Prevent Next.js static prerender from querying `workflow_templates` during `next build`.
+
+Verification:
+- `npm run build` from `frontend/` passed.
+- Build output marks `/workflows/templates` as dynamic.
+
+Remaining after this slice:
+- Continue expanding proof coverage for the full opportunity discovery, RFP intake, response drafting, final package, and submission path.
+
 ### 2026-05-26 - Frontend TypeScript Gate Restored
 
 Status: implemented and verified.

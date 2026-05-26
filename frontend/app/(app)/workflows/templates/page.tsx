@@ -12,6 +12,8 @@ export const metadata: Metadata = {
 	title: "Workflow Templates | DocFusion",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkflowTemplatesPage() {
 	const templates = await listWorkflowTemplates({ limit: 100 });
 
