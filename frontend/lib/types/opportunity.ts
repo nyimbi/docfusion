@@ -1453,6 +1453,7 @@ export interface PreSubmissionChecklistItem {
 	category: "documents" | "compliance" | "formatting" | "administrative";
 	isRequired: boolean;
 	isCompleted: boolean;
+	isSystemVerified?: boolean;
 	completedAt?: Date;
 	completedBy?: string;
 	notes?: string;

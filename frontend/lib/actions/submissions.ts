@@ -406,6 +406,7 @@ export async function getPreSubmissionChecklist(
 		category: mapFinalChecklistCategory(item.category),
 		isRequired: item.required,
 		isCompleted: item.passed,
+		isSystemVerified: true,
 		notes: item.assignedRole ? `Owner: ${item.assignedRole}` : undefined,
 	}));
 }

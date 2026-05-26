@@ -188,6 +188,7 @@ describe("submission row scoping", () => {
 				category: "compliance",
 				isRequired: true,
 				isCompleted: false,
+				isSystemVerified: true,
 				notes: "Owner: compliance_officer",
 			}),
 		]);

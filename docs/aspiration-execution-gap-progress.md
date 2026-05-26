@@ -638,3 +638,28 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Improve the submission form interaction so final-gate items are clearly system-verified rather than manually toggleable checklist items.
+
+### 2026-05-26 - System Verified Submission Checklist Items
+
+Status: implemented and verified.
+
+Purpose: prevent operators from thinking final submission gates can be satisfied by manually checking boxes in the UI.
+
+Changes in this slice:
+- Add an `isSystemVerified` flag to pre-submission checklist items.
+- Mark final-gate checklist rows returned by `getPreSubmissionChecklist` as system verified.
+- Disable manual toggling for system-verified rows in the submission form.
+- Add a visible `System checked` badge for those rows.
+- Extend focused submission action coverage for the new flag.
+
+Verification:
+- `npm run test -- __tests__/actions/submissions-scope.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, browser visual pass, and component tests remain intentionally skipped while on battery. This slice used focused submission action coverage plus TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Strengthen final artifact/signoff creation paths if operators cannot yet produce the metadata required by the final submission gate.

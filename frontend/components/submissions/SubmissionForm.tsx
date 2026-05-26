@@ -71,7 +71,7 @@ export function SubmissionForm({
 	const toggleChecklistItem = (itemId: string) => {
 		setChecklist((prev) =>
 			prev.map((item) =>
-				item.id === itemId
+				item.id === itemId && !item.isSystemVerified
 					? {
 							...item,
 							isCompleted: !item.isCompleted,
@@ -154,12 +154,13 @@ export function SubmissionForm({
 								item.isCompleted && "bg-green-50 dark:bg-green-950/20"
 							)}
 						>
-							<input
-								type="checkbox"
-								checked={item.isCompleted}
-								onChange={() => toggleChecklistItem(item.id)}
-								className="mt-1 h-4 w-4 rounded border-[var(--border)] text-blue-600 focus:ring-blue-500"
-							/>
+						<input
+							type="checkbox"
+							checked={item.isCompleted}
+							disabled={item.isSystemVerified}
+							onChange={() => toggleChecklistItem(item.id)}
+							className="mt-1 h-4 w-4 rounded border-[var(--border)] text-blue-600 focus:ring-blue-500"
+						/>
 							<div className="flex-1">
 								<div className="flex items-center gap-2">
 									<span
@@ -175,6 +176,11 @@ export function SubmissionForm({
 									{item.isRequired && (
 										<span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
 											Required
+										</span>
+									)}
+									{item.isSystemVerified && (
+										<span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+											System checked
 										</span>
 									)}
 								</div>
