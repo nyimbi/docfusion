@@ -667,6 +667,7 @@ export class OpportunityRepository extends BaseRepository<
 			failedRecords: number;
 			status: OpportunityImport["status"];
 			errors?: OpportunityImport["errors"];
+			config?: OpportunityImport["config"];
 		},
 	): Promise<void> {
 		await this.db

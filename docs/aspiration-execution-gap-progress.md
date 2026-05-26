@@ -711,6 +711,30 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.
 
+### 2026-05-26 - Persistent Discovery Warning History
+
+Status: implemented and verified.
+
+Purpose: preserve discovery enrichment warning telemetry after the run dialog closes so operators can audit degraded Firecrawl/browser fallback runs from import history.
+
+Changes in this slice:
+- Add non-blocking import audit warnings to opportunity import config metadata.
+- Persist SearXNG discovery warnings when finalizing the import record.
+- Show warning counts and the first warning message in Recent Imports without counting them as failed rows.
+- Add focused assertions that browser fallback usage and Firecrawl/browser fallback degradation are stored in the import record.
+
+Verification:
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, component tests, browser checks, and production build remain intentionally skipped while on battery. This slice used focused discovery import coverage, TypeScript checking, and whitespace validation.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Review whether import history needs a detail drawer for full warning/error inspection beyond the first warning line.
+
 ### 2026-05-26 - Bulk Compliance Entry Approval
 
 Status: implemented and verified.

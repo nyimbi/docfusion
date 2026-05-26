@@ -624,6 +624,7 @@ export async function updateImportRecord(
 		failedRecords: number;
 		status: OpportunityImport["status"];
 		errors?: OpportunityImport["errors"];
+		config?: OpportunityImport["config"];
 	}
 ): Promise<void> {
 	await db

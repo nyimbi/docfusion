@@ -271,6 +271,18 @@ describe("discoverAndImportOpportunities", () => {
 				message: "SCRAPE_ALL_ENGINES_FAILED",
 			}),
 		]);
+		expect(updateImportRecordMock).toHaveBeenCalledWith("import-1", expect.objectContaining({
+			config: expect.objectContaining({
+				audit: {
+					warnings: [
+						expect.objectContaining({
+							type: "browser_fallback_used",
+							message: "SCRAPE_ALL_ENGINES_FAILED",
+						}),
+					],
+				},
+			}),
+		}));
 	});
 
 	it("surfaces enrichment warnings when Firecrawl and browser fallback fail but the opportunity is still imported", async () => {
@@ -324,6 +336,18 @@ describe("discoverAndImportOpportunities", () => {
 				message: expect.stringContaining("SCRAPE_ALL_ENGINES_FAILED"),
 			}),
 		]);
+		expect(updateImportRecordMock).toHaveBeenCalledWith("import-1", expect.objectContaining({
+			config: expect.objectContaining({
+				audit: {
+					warnings: [
+						expect.objectContaining({
+							type: "firecrawl_failed",
+							message: expect.stringContaining("SCRAPE_ALL_ENGINES_FAILED"),
+						}),
+					],
+				},
+			}),
+		}));
 	});
 
 	it("records search failures without touching opportunity rows", async () => {

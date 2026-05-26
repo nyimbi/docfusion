@@ -220,6 +220,18 @@ export interface ColumnMapping {
 }
 
 /**
+ * Import warning persisted for audit without marking a row as failed.
+ */
+export interface ImportRecordWarning {
+	type: string;
+	message: string;
+	rowIndex?: number;
+	query?: string;
+	title?: string;
+	url?: string;
+}
+
+/**
  * Import configuration.
  */
 export interface ImportConfig {
@@ -233,6 +245,10 @@ export interface ImportConfig {
 	updateExisting?: boolean;
 	/** How to identify existing records */
 	matchBy?: "sourceId" | "title" | "sourceIdAndFile";
+	/** Non-blocking audit details from automated import sources */
+	audit?: {
+		warnings?: ImportRecordWarning[];
+	};
 }
 
 /**

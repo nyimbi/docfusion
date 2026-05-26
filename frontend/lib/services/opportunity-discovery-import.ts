@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { opportunities } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { searchSearxng, type SearchOptions, type SearxngResult } from "@/lib/services/searxng-client";
-import type { ImportRecordResult, OpportunityInput } from "@/lib/types/opportunity";
+import type { ImportConfig, ImportRecordResult, OpportunityInput } from "@/lib/types/opportunity";
 import {
 	createImportRecord,
 	createOpportunity,
@@ -444,14 +444,16 @@ export async function executeOpportunityDiscoveryImport(
 		);
 	}
 	const warnings = collectDiscoveryWarnings(candidates);
-
-	const totalRecords = candidates.length + searchFailures.length;
-	const importId = await createImportRecord("searxng-discovery", totalRecords, {
+	const importConfig: ImportConfig = {
 		columnMappings: [],
 		sheetName: "searxng_discovery",
 		updateExisting,
 		matchBy: "sourceId",
-	});
+		...(warnings.length > 0 ? { audit: { warnings } } : {}),
+	};
+
+	const totalRecords = candidates.length + searchFailures.length;
+	const importId = await createImportRecord("searxng-discovery", totalRecords, importConfig);
 
 	const importResults: ImportResultsSummary = {
 		total: totalRecords,
@@ -517,6 +519,7 @@ export async function executeOpportunityDiscoveryImport(
 		failedRecords: importResults.failed,
 		status: "completed",
 		errors: allErrors.filter((e) => e.status === "failed"),
+		config: importConfig,
 	});
 
 	return {

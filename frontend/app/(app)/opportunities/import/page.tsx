@@ -12,7 +12,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { importFromBuffer, previewImportFromBuffer } from "@/lib/actions/import-opportunities";
 import { getImportHistory } from "@/lib/actions/opportunities";
@@ -23,13 +22,11 @@ import {
 	Upload,
 	FileSpreadsheet,
 	Check,
-	X,
 	AlertCircle,
 	Loader2,
-	ChevronRight,
-	Clock,
 	FileText,
 	RefreshCw,
+	TriangleAlert,
 } from "lucide-react";
 
 // ============================================================================
@@ -58,7 +55,6 @@ interface ImportState {
 // ============================================================================
 
 export default function ImportOpportunitiesPage() {
-	const router = useRouter();
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 
 	const [state, setState] = React.useState<ImportState>({
@@ -463,39 +459,58 @@ export default function ImportOpportunitiesPage() {
 					</h3>
 					<div className="space-y-3">
 						{importHistory.map((imp) => (
-							<div
-								key={imp.id}
-								className="flex items-center justify-between py-2 border-b border-border last:border-0"
-							>
-								<div className="flex items-center gap-3">
-									<FileText className="h-4 w-4 text-muted-foreground" />
-									<div>
-										<p className="text-sm font-medium text-foreground">
-											{imp.filename}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{new Date(imp.startedAt).toLocaleDateString()} ·{" "}
-											{imp.importedRecords} imported, {imp.updatedRecords} updated
-										</p>
-									</div>
-								</div>
-								<span
-									className={cn(
-										"px-2 py-0.5 text-xs font-medium rounded-full",
-										imp.status === "completed"
-											? "bg-green-500/20 text-green-600"
-											: imp.status === "failed"
-												? "bg-destructive/20 text-destructive"
-												: "bg-muted text-muted-foreground"
-									)}
-								>
-									{imp.status}
-								</span>
-							</div>
+							<ImportHistoryRow key={imp.id} imp={imp} />
 						))}
 					</div>
 				</div>
 			)}
+		</div>
+	);
+}
+
+function ImportHistoryRow({ imp }: { imp: OpportunityImport }) {
+	const warnings = imp.config?.audit?.warnings ?? [];
+	const firstWarning = warnings[0]?.message;
+
+	return (
+		<div
+			className="flex items-start justify-between gap-3 py-2 border-b border-border last:border-0"
+		>
+			<div className="flex min-w-0 items-start gap-3">
+				<FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+				<div className="min-w-0">
+					<p className="truncate text-sm font-medium text-foreground">
+						{imp.filename}
+					</p>
+					<p className="text-xs text-muted-foreground">
+						{new Date(imp.startedAt).toLocaleDateString()} ·{" "}
+						{imp.importedRecords} imported, {imp.updatedRecords} updated
+					</p>
+					{warnings.length > 0 && (
+						<p className="mt-1 flex items-start gap-1.5 text-xs text-amber-600">
+							<TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
+							<span className="line-clamp-2">
+								{warnings.length} warning{warnings.length === 1 ? "" : "s"}
+								{firstWarning ? ` · ${firstWarning}` : ""}
+							</span>
+						</p>
+					)}
+				</div>
+			</div>
+			<span
+				className={cn(
+					"shrink-0 px-2 py-0.5 text-xs font-medium rounded-full",
+					imp.status === "completed"
+						? warnings.length > 0
+							? "bg-amber-500/20 text-amber-600"
+							: "bg-green-500/20 text-green-600"
+						: imp.status === "failed"
+							? "bg-destructive/20 text-destructive"
+							: "bg-muted text-muted-foreground"
+				)}
+			>
+				{imp.status}
+			</span>
 		</div>
 	);
 }
