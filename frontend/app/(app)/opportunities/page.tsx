@@ -69,6 +69,7 @@ import { ShortlistPanel } from "@/components/opportunities/ShortlistPanel";
 import { OpportunityCompare } from "@/components/opportunities/OpportunityCompare";
 import { OpportunityTable } from "@/components/opportunities/OpportunityTable";
 import { OpportunityGrid } from "@/components/opportunities/OpportunityGrid";
+import { DiscoveryRunDialog } from "@/components/opportunities/DiscoveryRunDialog";
 import {
 	Pagination,
 	EmptyState,
@@ -139,6 +140,7 @@ function OpportunitiesContent() {
 	const [showShortlistPanel, setShowShortlistPanel] = React.useState(false);
 	const [compareIds, setCompareIds] = React.useState<string[]>([]);
 	const [showCompare, setShowCompare] = React.useState(false);
+	const [showDiscoveryRun, setShowDiscoveryRun] = React.useState(false);
 
 	// Debounce search input (300ms)
 	React.useEffect(() => {
@@ -462,6 +464,10 @@ function OpportunitiesContent() {
 		queryClient.invalidateQueries({ queryKey: opportunitiesKeys.all });
 	};
 
+	const handleDiscoveryCompleted = () => {
+		queryClient.invalidateQueries({ queryKey: opportunitiesKeys.all });
+	};
+
 	// ========================================================================
 	// Render
 	// ========================================================================
@@ -490,6 +496,13 @@ function OpportunitiesContent() {
 								isOpportunitiesFetching && "animate-spin"
 							)}
 						/>
+					</Button>
+					<Button
+						variant="outline"
+						onClick={() => setShowDiscoveryRun(true)}
+					>
+						<Search className="h-4 w-4" />
+						<span className="hidden sm:inline">Discover</span>
 					</Button>
 					<Link href="/opportunities/sources">
 						<Button variant="outline">
@@ -728,6 +741,12 @@ function OpportunitiesContent() {
 				opportunityIds={compareIds}
 				isOpen={showCompare}
 				onClose={() => setShowCompare(false)}
+			/>
+
+			<DiscoveryRunDialog
+				open={showDiscoveryRun}
+				onClose={() => setShowDiscoveryRun(false)}
+				onCompleted={handleDiscoveryCompleted}
 			/>
 		</div>
 	);

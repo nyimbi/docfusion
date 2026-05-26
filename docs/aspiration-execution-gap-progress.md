@@ -321,3 +321,27 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Add route-level tests for the new matrix workflow API when broader API testing is worth the battery cost.
+
+### 2026-05-26 - Operator Live Discovery Control
+
+Status: implemented and verified.
+
+Purpose: make live SearXNG/Firecrawl opportunity discovery runnable from the product UI, not only through server actions or API calls.
+
+Changes in this slice:
+- Add a `Discover` control to the Opportunities command center header.
+- Add a live discovery dialog that accepts multiple SearXNG queries, optional region/category hints, result limits, enrichment limits, Firecrawl enrichment, browser fallback, and broad-match inclusion.
+- Wire the dialog to the authenticated `discoverAndImportOpportunities` server action.
+- Show created/updated/skipped/failed import counts after a run.
+- Refresh opportunity list/stat query caches after discovery completes.
+
+Verification:
+- `npx tsc --noEmit` passed.
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts __tests__/api/opportunity-discovery-route.test.ts` passed.
+
+Testing scope note:
+- Full frontend suite, production build, and browser visual pass remain intentionally skipped while on battery. This slice used TypeScript checking plus focused discovery action/API tests.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Add persisted discovery run presets/schedules in the UI so repeated searches can be operated without re-entering query sets.
