@@ -76,6 +76,27 @@ import {
 	upsertWorkflowRuntimeTask,
 } from "@/lib/actions/workflow-runtime";
 
+const responseReadinessSnapshot = {
+	workflowInstanceId: "response-package-workflow-1",
+	workflowState: "response_package_drafted",
+	status: "ready_for_review",
+	blockers: [],
+	warnings: [],
+	missingRequirementIds: [],
+	metrics: {
+		requirementCoverage: 1,
+		documentsDrafted: 3,
+		sectionsDrafted: 9,
+		complianceEntriesCreated: 3,
+		totalDraftWordCount: 1400,
+		minDocumentDraftWordCount: 220,
+		evidenceChecklistCoverage: 1,
+		reviewGateCoverage: 1,
+		winThemeCoverage: 1,
+		unresolvedPlaceholderCount: 0,
+	},
+};
+
 const finalArtifact = {
 	documentId: "doc-technical",
 	proposalDocumentId: "pd-technical",
@@ -99,6 +120,7 @@ const finalArtifact = {
 	sourceContentHash: "source-hash-technical",
 	renderTimeMs: 40,
 	pageCount: 12,
+	responsePackageReadiness: responseReadinessSnapshot,
 };
 
 const defaultContent = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Clean proposal content." }] }] };
@@ -546,6 +568,55 @@ describe("final submission checklist workflow", () => {
 		expect(result.allowed).toBe(false);
 		expect(result.blockers.join("\n")).toContain("stored final artifact");
 		expect(result.blockers.join("\n")).toContain("freshness receipt is missing");
+	});
+
+	it("blocks approved final artifacts that lack response readiness proof", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					docFixture({
+						metadata: {
+							finalArtifact: {
+								...finalArtifact,
+								responsePackageReadiness: undefined,
+							},
+							finalSubmissionSignoff: {
+								signedBy: "executive-1",
+								signedAt: "2026-05-05T00:00:00.000Z",
+							},
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-management",
+						documentId: "doc-management",
+						documentType: "management_plan",
+						title: "Management Plan",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-management", proposalDocumentId: "pd-management" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-cost",
+						documentId: "doc-cost",
+						documentType: "cost_proposal",
+						title: "Cost Proposal",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-cost", proposalDocumentId: "pd-cost" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+				],
+			}))
+			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
+
+		expect(result.allowed).toBe(false);
+		expect(result.blockers.join("\n")).toContain("stored final artifact");
+		expect(result.blockers.join("\n")).toContain("response readiness receipt is missing");
 	});
 
 	it("blocks approved final artifacts that no longer match the current document source", async () => {

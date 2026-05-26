@@ -50,6 +50,7 @@ type FinalArtifactMetadata = {
 	approvedAt?: unknown;
 	sourceDocumentVersion?: unknown;
 	sourceContentHash?: unknown;
+	responsePackageReadiness?: unknown;
 };
 type ResponsePackageReadinessStatus = "ready_for_review" | "blocked";
 type ResponsePackageReadinessSnapshot = {
@@ -482,6 +483,7 @@ function hasCompleteFinalArtifactReceipt(
 		"sourceDocumentVersion" in artifact &&
 		(typeof artifact.sourceDocumentVersion === "number" || artifact.sourceDocumentVersion === null) &&
 		typeof artifact.sourceContentHash === "string" &&
+		hasResponseReadinessReceipt(artifact) &&
 		artifactMatchesCurrentDocument(artifact, doc)
 	);
 }
@@ -506,7 +508,22 @@ function finalArtifactFailureMessage(
 	if (!artifactMatchesCurrentDocument(artifact, doc)) {
 		return "Approved final artifact is stale; re-render the current document version";
 	}
+	if (!hasResponseReadinessReceipt(artifact)) {
+		return "Approved final artifact response readiness receipt is missing; re-render after response package readiness passes";
+	}
 	return "Approved final artifact freshness receipt is missing";
+}
+
+function hasResponseReadinessReceipt(artifact: FinalArtifactMetadata): boolean {
+	const readiness = asRecord(artifact.responsePackageReadiness);
+	const metrics = asRecord(readiness.metrics);
+	return (
+		readiness.status === "ready_for_review" &&
+		typeof readiness.workflowInstanceId === "string" &&
+		readiness.workflowInstanceId.length > 0 &&
+		typeof metrics.requirementCoverage === "number" &&
+		Number.isFinite(metrics.requirementCoverage)
+	);
 }
 
 function artifactMatchesCurrentDocument(
