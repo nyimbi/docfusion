@@ -468,3 +468,28 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Add persisted parser progress polling on the opportunity detail page if source-link ingestion needs live background status updates.
+
+### 2026-05-26 - Opportunity Parser Progress Visibility
+
+Status: implemented and verified.
+
+Purpose: keep RFP parser status visible on the opportunity detail page after source-link or document ingestion, including after navigation or refresh.
+
+Changes in this slice:
+- Enrich opportunity document reads with linked `rfpDocumentId`, latest `parsingJobId`, parser status, and parser progress by matching downloaded document hashes to RFP documents and latest parse jobs.
+- Render the existing RFP parse progress card below the opportunity document panel whenever linked parser records exist.
+- Keep completion/error toasts limited to fresh intake results so reloading an opportunity with an already-completed parse does not fire stale notifications.
+- Return linked parser references when direct source ingestion is retried against an already-downloaded source document.
+- Make `RFPParseProgress` understand the human-readable parser step strings currently stored by the backend, falling back to progress percentages when no exact step text is available.
+
+Verification:
+- `npm run test -- __tests__/actions/opportunity-documents-scope.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, and browser visual pass remain intentionally skipped while on battery. This slice used focused action coverage plus TypeScript checking because it touches one read model and two client surfaces.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Add a broader joined parse/status test for `getOpportunityDocuments` when running on power, or when a service-level test harness for this DB read model is already active.

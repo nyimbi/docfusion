@@ -102,6 +102,25 @@ const PARSING_STEPS: Omit<ParsingStep, "status">[] = [
 	},
 ];
 
+function resolveCurrentStepIndex(status: ParsingJobStatus["status"], currentStep: string | null, progress: number): number {
+	const normalized = (currentStep ?? "").toLowerCase();
+
+	if (status === "queued") return 0;
+	if (normalized.includes("text")) return 1;
+	if (normalized.includes("structure") || normalized.includes("section")) return 2;
+	if (normalized.includes("requirement")) return 3;
+	if (normalized.includes("classif") || normalized.includes("stor")) return 4;
+	if (normalized.includes("embedding") || normalized.includes("analysis") || normalized.includes("final")) return 5;
+	if (normalized.includes("complete")) return PARSING_STEPS.length - 1;
+
+	if (progress >= 90) return 5;
+	if (progress >= 70) return 4;
+	if (progress >= 50) return 3;
+	if (progress >= 30) return 2;
+	if (progress >= 10) return 1;
+	return 0;
+}
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -131,19 +150,18 @@ export function RFPParseProgress({
 			setJobStatus(data);
 
 			// Update step statuses based on current step
-			if (data.currentStep) {
-				const currentStepIndex = PARSING_STEPS.findIndex((s) => s.id === data.currentStep);
-				setSteps((prev) =>
-					prev.map((step, index) => {
-						if (index < currentStepIndex) {
-							return { ...step, status: "completed" };
-						} else if (index === currentStepIndex) {
-							return { ...step, status: data.status === "failed" ? "error" : "processing" };
-						}
-						return { ...step, status: "pending" };
-					})
-				);
-			}
+			const currentStepIndex = resolveCurrentStepIndex(data.status, data.currentStep, data.progress);
+			setSteps((prev) =>
+				prev.map((step, index) => {
+					if (index < currentStepIndex) {
+						return { ...step, status: "completed" };
+					}
+					if (index === currentStepIndex) {
+						return { ...step, status: data.status === "failed" ? "error" : "processing" };
+					}
+					return { ...step, status: "pending" };
+				})
+			);
 
 			// Handle completion
 			if (data.status === "completed") {

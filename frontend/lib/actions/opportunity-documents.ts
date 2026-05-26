@@ -11,10 +11,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { requireServerSession } from "@/lib/auth-utils";
 import { db } from "@/lib/db";
 import { opportunities, opportunityDocuments } from "@/lib/db/schema";
+import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import { 
   discoverDocuments, 
   downloadDocument, 
@@ -267,10 +268,13 @@ export async function ingestOpportunitySourceDocument(
     });
 
     if (existing?.status === "downloaded") {
+      const linkedRfp = await getLinkedRfpParseReference(opportunityId, existing.fileHash);
       return {
         success: true,
         status: "already_downloaded",
         documentId: existing.id,
+        rfpDocumentId: linkedRfp.rfpDocumentId,
+        parsingJobId: linkedRfp.parsingJobId,
         localPath: existing.localPath ?? undefined,
         storagePath: existing.localPath ?? undefined,
         fileSize: existing.fileSizeBytes ?? undefined,
@@ -352,6 +356,37 @@ function safeUrlPathname(url: string): string {
   } catch {
     return "";
   }
+}
+
+async function getLinkedRfpParseReference(
+  opportunityId: string,
+  fileHash: string | null
+): Promise<{ rfpDocumentId?: string; parsingJobId?: string }> {
+  if (!fileHash) {
+    return {};
+  }
+
+  const rfpDocument = await db.query.rfpDocuments.findFirst({
+    where: and(
+      eq(rfpDocuments.opportunityId, opportunityId),
+      eq(rfpDocuments.fileHash, fileHash)
+    ),
+    orderBy: desc(rfpDocuments.createdAt),
+  });
+
+  if (!rfpDocument) {
+    return {};
+  }
+
+  const parsingJob = await db.query.rfpParsingJobs.findFirst({
+    where: eq(rfpParsingJobs.rfpDocumentId, rfpDocument.id),
+    orderBy: desc(rfpParsingJobs.createdAt),
+  });
+
+  return {
+    rfpDocumentId: rfpDocument.id,
+    parsingJobId: parsingJob?.id,
+  };
 }
 
 async function createSourceOpportunityDocument(

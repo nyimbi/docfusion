@@ -12,7 +12,7 @@ import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { db } from "@/lib/db";
 import { opportunityDocuments, opportunities, userWorkspaces, type NewOpportunityDocument } from "@/lib/db/schema";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { mkdir, writeFile, readFile, access, unlink } from "fs/promises";
 import { join, basename, extname } from "path";
 import { createHash } from "crypto";
@@ -99,6 +99,15 @@ interface QueuedRfpParsing {
   parsingJobId?: string;
   duplicateOfRfpDocumentId?: string;
 }
+
+type OpportunityDocumentRow = typeof opportunityDocuments.$inferSelect;
+
+export type OpportunityDocumentWithParseReference = OpportunityDocumentRow & {
+  rfpDocumentId: string | null;
+  parsingJobId: string | null;
+  parsingStatus: string | null;
+  parsingProgress: number | null;
+};
 
 export interface OpportunityDocumentAccessActor {
 	userId: string;
@@ -471,10 +480,69 @@ async function storeDiscoveredDocuments(
 /**
  * Get all documents for an opportunity
  */
-export async function getOpportunityDocuments(opportunityId: string) {
-  return db.query.opportunityDocuments.findMany({
+export async function getOpportunityDocuments(opportunityId: string): Promise<OpportunityDocumentWithParseReference[]> {
+  const docs = await db.query.opportunityDocuments.findMany({
     where: eq(opportunityDocuments.opportunityId, opportunityId),
     orderBy: (docs, { desc }) => [desc(docs.discoveredAt)],
+  });
+
+  const fileHashes = Array.from(new Set(
+    docs
+      .map((doc) => doc.fileHash)
+      .filter((fileHash): fileHash is string => Boolean(fileHash))
+  ));
+
+  if (fileHashes.length === 0) {
+    return docs.map((doc) => ({
+      ...doc,
+      rfpDocumentId: null,
+      parsingJobId: null,
+      parsingStatus: null,
+      parsingProgress: null,
+    }));
+  }
+
+  const linkedRfpDocuments = await db.query.rfpDocuments.findMany({
+    where: and(
+      eq(rfpDocuments.opportunityId, opportunityId),
+      inArray(rfpDocuments.fileHash, fileHashes)
+    ),
+    orderBy: (rfpDocs, { desc }) => [desc(rfpDocs.createdAt)],
+  });
+
+  const rfpDocumentIds = linkedRfpDocuments.map((doc) => doc.id);
+  const latestJobs = rfpDocumentIds.length > 0
+    ? await db.query.rfpParsingJobs.findMany({
+      where: inArray(rfpParsingJobs.rfpDocumentId, rfpDocumentIds),
+      orderBy: (jobs, { desc }) => [desc(jobs.createdAt)],
+    })
+    : [];
+
+  const rfpByHash = new Map<string, (typeof linkedRfpDocuments)[number]>();
+  for (const rfpDocument of linkedRfpDocuments) {
+    if (rfpDocument.fileHash && !rfpByHash.has(rfpDocument.fileHash)) {
+      rfpByHash.set(rfpDocument.fileHash, rfpDocument);
+    }
+  }
+
+  const latestJobByRfpId = new Map<string, (typeof latestJobs)[number]>();
+  for (const job of latestJobs) {
+    if (!latestJobByRfpId.has(job.rfpDocumentId)) {
+      latestJobByRfpId.set(job.rfpDocumentId, job);
+    }
+  }
+
+  return docs.map((doc) => {
+    const rfpDocument = doc.fileHash ? rfpByHash.get(doc.fileHash) : undefined;
+    const latestJob = rfpDocument ? latestJobByRfpId.get(rfpDocument.id) : undefined;
+
+    return {
+      ...doc,
+      rfpDocumentId: rfpDocument?.id ?? null,
+      parsingJobId: latestJob?.id ?? null,
+      parsingStatus: latestJob?.status ?? rfpDocument?.parsingStatus ?? null,
+      parsingProgress: latestJob?.progress ?? rfpDocument?.parsingProgress ?? null,
+    };
   });
 }
 

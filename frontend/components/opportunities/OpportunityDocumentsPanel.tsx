@@ -12,6 +12,7 @@ import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RFPParseProgress } from "@/components/rfp/RFPParseProgress";
 import { 
   FileText, 
   FileSpreadsheet, 
@@ -63,6 +64,10 @@ interface OpportunityDocument {
   downloadedAt: Date | null;
   extractedText: string | null;
   pageCount: number | null;
+  rfpDocumentId?: string | null;
+  parsingJobId?: string | null;
+  parsingStatus?: string | null;
+  parsingProgress?: number | null;
 }
 
 interface IntakeResult {
@@ -109,6 +114,43 @@ export function OpportunityDocumentsPanel({
   const extractedCount = documents.filter((d) => d.extractedText).length;
   const selectedCount = documents.filter((d) => d.isSelected).length;
   const allSelected = documents.length > 0 && documents.every((d) => d.isSelected);
+  const visibleRfpDocumentIds = Array.from(new Set([
+    ...documents
+      .map((document) => document.rfpDocumentId)
+      .filter((id): id is string => Boolean(id)),
+    ...lastIntakeResults
+      .map((result) => result.rfpDocumentId)
+      .filter((id): id is string => Boolean(id)),
+  ]));
+  const freshIntakeRfpDocumentIds = new Set(
+    lastIntakeResults
+      .map((result) => result.rfpDocumentId)
+      .filter((id): id is string => Boolean(id))
+  );
+  const parseProgressPanel = visibleRfpDocumentIds.length > 0 ? (
+    <div className="mt-3 space-y-3">
+      {visibleRfpDocumentIds.map((rfpDocumentId) => {
+        const isFreshIntake = freshIntakeRfpDocumentIds.has(rfpDocumentId);
+        return (
+          <RFPParseProgress
+            key={rfpDocumentId}
+            rfpDocumentId={rfpDocumentId}
+            pollInterval={5000}
+            onComplete={isFreshIntake
+              ? (requirementsCount) => {
+                toast.success(
+                  requirementsCount > 0
+                    ? `RFP parsing completed with ${requirementsCount} requirements`
+                    : "RFP parsing completed"
+                );
+              }
+              : undefined}
+            onError={isFreshIntake ? (message) => toast.error(`RFP parsing failed: ${message}`) : undefined}
+          />
+        );
+      })}
+    </div>
+  ) : null;
 
   // ============================================================================
   // Discovery
@@ -293,70 +335,73 @@ export function OpportunityDocumentsPanel({
 
   if (!documentsDiscovered || documents.length === 0) {
     return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <FolderOpen className="h-4 w-4" />
-            RFP Documents
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center space-y-4 py-4">
-            <div className="flex justify-center gap-2">
-              <Brain className="h-10 w-10 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-medium">AI Document Discovery</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                The AI agent will search multiple sources to find your RFP documents
-              </p>
-            </div>
-            <Button
-              onClick={handleDiscover}
-              disabled={isDiscovering || isSourceIngesting}
-              className="gap-2"
-              variant="primary"
-            >
-              {isDiscovering ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Brain className="h-4 w-4" />
-              )}
-              {isDiscovering ? "AI Searching..." : "Discover Documents"}
-            </Button>
-            {sourceUrl && (
+      <>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderOpen className="h-4 w-4" />
+              RFP Documents
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center space-y-4 py-4">
+              <div className="flex justify-center gap-2">
+                <Brain className="h-10 w-10 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-medium">AI Document Discovery</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  The AI agent will search multiple sources to find your RFP documents
+                </p>
+              </div>
               <Button
-                onClick={handleIngestSource}
+                onClick={handleDiscover}
                 disabled={isDiscovering || isSourceIngesting}
                 className="gap-2"
-                variant="outline"
+                variant="primary"
               >
-                {isSourceIngesting ? (
+                {isDiscovering ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Download className="h-4 w-4" />
+                  <Brain className="h-4 w-4" />
                 )}
-                {isSourceIngesting ? "Ingesting..." : "Ingest Source Link"}
+                {isDiscovering ? "AI Searching..." : "Discover Documents"}
               </Button>
-            )}
-            {lastIntakeResults.length > 0 && (
-              <div className="w-full pt-2">
-                <RfpIntakeSteps
-                  discoveredCount={lastIntakeResults.length}
-                  selectedCount={lastIntakeResults.length}
-                  downloadedCount={lastIntakeResults.filter((result) => result.success).length}
-                  lastResults={lastIntakeResults}
-                />
-              </div>
-            )}
-            {isDiscovering && (
-              <p className="text-xs text-muted-foreground">
-                Searching primary portal, web (SearXNG), alternative sources, archives...
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              {sourceUrl && (
+                <Button
+                  onClick={handleIngestSource}
+                  disabled={isDiscovering || isSourceIngesting}
+                  className="gap-2"
+                  variant="outline"
+                >
+                  {isSourceIngesting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  {isSourceIngesting ? "Ingesting..." : "Ingest Source Link"}
+                </Button>
+              )}
+              {lastIntakeResults.length > 0 && (
+                <div className="w-full pt-2">
+                  <RfpIntakeSteps
+                    discoveredCount={lastIntakeResults.length}
+                    selectedCount={lastIntakeResults.length}
+                    downloadedCount={lastIntakeResults.filter((result) => result.success).length}
+                    lastResults={lastIntakeResults}
+                  />
+                </div>
+              )}
+              {isDiscovering && (
+                <p className="text-xs text-muted-foreground">
+                  Searching primary portal, web (SearXNG), alternative sources, archives...
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        {parseProgressPanel}
+      </>
     );
   }
 
@@ -365,104 +410,107 @@ export function OpportunityDocumentsPanel({
   // ============================================================================
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <FolderOpen className="h-4 w-4" />
-            RFP Documents
-            {downloadedCount > 0 && (
-              <span className="text-xs font-normal text-muted-foreground">
-                ({downloadedCount}/{discoveredCount} downloaded{extractedCount > 0 && `, ${extractedCount} extracted`})
-              </span>
-            )}
-          </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleDiscover}
-            disabled={isDiscovering}
-            className="h-8 gap-1"
-          >
-            <RefreshCw className={cn("h-4 w-4", isDiscovering && "animate-spin")} />
-            <span className="hidden sm:inline">Re-scan</span>
-          </Button>
-        </div>
-        
-        {/* AI Discovery Info */}
-        {discoveryAnalysis && (
-          <div className="mt-2">
-            <button
-              onClick={() => setShowAnalysis(!showAnalysis)}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderOpen className="h-4 w-4" />
+              RFP Documents
+              {downloadedCount > 0 && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  ({downloadedCount}/{discoveredCount} downloaded{extractedCount > 0 && `, ${extractedCount} extracted`})
+                </span>
+              )}
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDiscover}
+              disabled={isDiscovering}
+              className="h-8 gap-1"
             >
-              <Brain className="h-3 w-3" />
-              AI Discovery Analysis
-              {showAnalysis ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </button>
-            {showAnalysis && (
-              <pre className="mt-2 text-xs text-muted-foreground bg-muted p-2 rounded overflow-auto max-h-32">
-                {discoveryAnalysis}
-              </pre>
-            )}
+              <RefreshCw className={cn("h-4 w-4", isDiscovering && "animate-spin")} />
+              <span className="hidden sm:inline">Re-scan</span>
+            </Button>
           </div>
-        )}
-      </CardHeader>
 
-      <CardContent className="space-y-4">
-        <RfpIntakeSteps
-          discoveredCount={discoveredCount}
-          selectedCount={selectedCount}
-          downloadedCount={downloadedCount}
-          lastResults={lastIntakeResults}
-        />
+          {/* AI Discovery Info */}
+          {discoveryAnalysis && (
+            <div className="mt-2">
+              <button
+                onClick={() => setShowAnalysis(!showAnalysis)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Brain className="h-3 w-3" />
+                AI Discovery Analysis
+                {showAnalysis ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              </button>
+              {showAnalysis && (
+                <pre className="mt-2 text-xs text-muted-foreground bg-muted p-2 rounded overflow-auto max-h-32">
+                  {discoveryAnalysis}
+                </pre>
+              )}
+            </div>
+          )}
+        </CardHeader>
 
-        {/* Bulk Actions */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="select-all"
-              checked={allSelected}
-              onCheckedChange={handleToggleAll}
-            />
-            <label htmlFor="select-all" className="text-sm">
-              Select All
-            </label>
+        <CardContent className="space-y-4">
+          <RfpIntakeSteps
+            discoveredCount={discoveredCount}
+            selectedCount={selectedCount}
+            downloadedCount={downloadedCount}
+            lastResults={lastIntakeResults}
+          />
+
+          {/* Bulk Actions */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="select-all"
+                checked={allSelected}
+                onCheckedChange={handleToggleAll}
+              />
+              <label htmlFor="select-all" className="text-sm">
+                Select All
+              </label>
+            </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleDownloadSelected}
+              disabled={isDownloading || selectedCount === 0}
+              className="gap-1.5"
+            >
+              {isDownloading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Ingest Selected ({selectedCount})
+            </Button>
           </div>
-          
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleDownloadSelected}
-            disabled={isDownloading || selectedCount === 0}
-            className="gap-1.5"
-          >
-            {isDownloading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            Ingest Selected ({selectedCount})
-          </Button>
-        </div>
 
-        {/* Document List */}
-        <div className="space-y-2 max-h-96 overflow-y-auto">
-          {documents.map((doc) => (
-            <DocumentItem
-              key={doc.id}
-              document={doc}
-              opportunityId={opportunityId}
-              isDownloading={downloadingIds.has(doc.id)}
-              isExpanded={expandedDoc === doc.id}
-              onToggleExpand={() => setExpandedDoc(expandedDoc === doc.id ? null : doc.id)}
-              onToggleSelection={(checked) => handleToggleSelection(doc.id, checked)}
-              onDownload={() => handleDownloadOne(doc.id)}
-            />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+          {/* Document List */}
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {documents.map((doc) => (
+              <DocumentItem
+                key={doc.id}
+                document={doc}
+                opportunityId={opportunityId}
+                isDownloading={downloadingIds.has(doc.id)}
+                isExpanded={expandedDoc === doc.id}
+                onToggleExpand={() => setExpandedDoc(expandedDoc === doc.id ? null : doc.id)}
+                onToggleSelection={(checked) => handleToggleSelection(doc.id, checked)}
+                onDownload={() => handleDownloadOne(doc.id)}
+              />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      {parseProgressPanel}
+    </>
   );
 }
 

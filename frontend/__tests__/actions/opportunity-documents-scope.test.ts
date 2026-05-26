@@ -61,6 +61,12 @@ var dbMock: {
 		opportunityDocuments: {
 			findFirst: ReturnType<typeof vi.fn>;
 		};
+		rfpDocuments: {
+			findFirst: ReturnType<typeof vi.fn>;
+		};
+		rfpParsingJobs: {
+			findFirst: ReturnType<typeof vi.fn>;
+		};
 	};
 	insert: ReturnType<typeof vi.fn>;
 	update: ReturnType<typeof vi.fn>;
@@ -79,6 +85,12 @@ vi.mock("@/lib/db", () => ({
 		select: vi.fn(),
 		query: {
 			opportunityDocuments: {
+				findFirst: vi.fn(),
+			},
+			rfpDocuments: {
+				findFirst: vi.fn(),
+			},
+			rfpParsingJobs: {
 				findFirst: vi.fn(),
 			},
 		},
@@ -108,6 +120,20 @@ vi.mock("@/lib/db/schema", () => ({
 		description: "opportunityDocuments.description",
 		status: "opportunityDocuments.status",
 		isSelected: "opportunityDocuments.isSelected",
+	},
+}));
+
+vi.mock("@/lib/db/schema-rfp", () => ({
+	rfpDocuments: {
+		id: "rfpDocuments.id",
+		opportunityId: "rfpDocuments.opportunityId",
+		fileHash: "rfpDocuments.fileHash",
+		createdAt: "rfpDocuments.createdAt",
+	},
+	rfpParsingJobs: {
+		id: "rfpParsingJobs.id",
+		rfpDocumentId: "rfpParsingJobs.rfpDocumentId",
+		createdAt: "rfpParsingJobs.createdAt",
 	},
 }));
 
@@ -149,6 +175,8 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	requireServerSessionMock.mockResolvedValue({ user: { id: "document-user-1" } });
 	dbMock.query.opportunityDocuments.findFirst.mockReset();
+	dbMock.query.rfpDocuments.findFirst.mockReset();
+	dbMock.query.rfpParsingJobs.findFirst.mockReset();
 	dbMock.insert.mockReset();
 	dbMock.update.mockReset();
 });
@@ -271,5 +299,43 @@ describe("opportunity document action scoping", () => {
 			parsingJobId: "parse-1",
 		});
 		expect(downloadDocumentMock).toHaveBeenCalledWith(documentId, "document-user-1", opportunityId);
+	});
+
+	it("returns linked parser references when a source document was already ingested", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				id: opportunityId,
+				title: "Case Management Platform RFP",
+				rfpLink: "https://example.test/rfp.pdf",
+				portalUrl: "https://example.test/tender",
+				documentUrl: null,
+			}],
+		}));
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			id: documentId,
+			status: "downloaded",
+			localPath: "s3://rfp/rfp.pdf",
+			fileSizeBytes: 1024,
+			mimeType: "application/pdf",
+			fileHash: "hash-1",
+		});
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			id: "rfp-existing-1",
+		});
+		dbMock.query.rfpParsingJobs.findFirst.mockResolvedValue({
+			id: "parse-existing-1",
+		});
+
+		const result = await ingestOpportunitySourceDocument(opportunityId);
+
+		expect(result).toMatchObject({
+			success: true,
+			status: "already_downloaded",
+			documentId,
+			rfpDocumentId: "rfp-existing-1",
+			parsingJobId: "parse-existing-1",
+			storagePath: "s3://rfp/rfp.pdf",
+		});
+		expect(downloadDocumentMock).not.toHaveBeenCalled();
 	});
 });
