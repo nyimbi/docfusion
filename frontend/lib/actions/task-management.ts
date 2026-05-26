@@ -253,6 +253,7 @@ function assignedOpportunityExistsSql(opportunityId: unknown, actor: TaskActor):
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
+			and (opportunities.organization_id = ${actor.organizationId} or opportunities.organization_id is null)
 			and opportunities.assigned_to = ${actor.userId}
 	)`;
 }
@@ -282,6 +283,7 @@ function visibleTaskActivityCondition(taskId: string, actor: TaskActor): SQL {
 			join opportunities on opportunities.id = proposal_tasks.opportunity_id
 			where proposal_tasks.id = ${taskActivity.taskId}
 				and proposal_tasks.organization_id = ${actor.organizationId}
+				and (opportunities.organization_id = ${actor.organizationId} or opportunities.organization_id is null)
 				and opportunities.assigned_to = ${actor.userId}
 		)`
 	)!;

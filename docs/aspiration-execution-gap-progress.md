@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Task Management Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep proposal task generation, reads, updates, deletes, activity reads, time logging, workload metrics, and summary maintenance scoped to the caller's organization through the owning opportunity.
+
+Changes in this slice:
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to task-management assigned-opportunity visibility checks.
+- Add the same opportunity tenant boundary to task-activity visibility subqueries.
+- Preserve proposal task row organization predicates while adding the missing opportunity tenant boundary.
+- Extend task-management auth/scope tests to assert opportunity organization predicates across requirements, task reads/writes, summaries, activity, time logging, workload, and author metrics paths.
+
+Verification:
+- `npm test -- task-management-auth.test.ts` from `frontend/` passed, running 11 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave4-planning-collaboration-tasks` from `frontend/` passed, running 3 planning/collaboration test files and 12 tests.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as pricing, proposal documents, and win themes.
+- Resolve the existing full-suite blockers recorded in the pipeline slice so the full Vitest suite can become a clean proof again.
+
 ### 2026-05-27 - Pipeline Opportunity Tenant Predicates
 
 Status: implemented and focused verified; broad Vitest suite still has unrelated blockers.

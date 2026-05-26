@@ -61,6 +61,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	);
 }
 
+function expectOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("author-1");
+}
+
 describe("task-management action auth", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -120,7 +128,7 @@ describe("task-management action auth", () => {
 		);
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(requirementsWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(requirementsWhere);
 	});
 
 	it("scopes progress report task reads by assigned opportunity", async () => {
@@ -136,7 +144,7 @@ describe("task-management action auth", () => {
 		const result = await generateProgressReport("00000000-0000-4000-8000-000000000001");
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(tasksWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(tasksWhere);
 	});
 
 	it("scopes task numbering and summary maintenance by assigned opportunity", async () => {
@@ -183,9 +191,9 @@ describe("task-management action auth", () => {
 
 		expect(result.success).toBe(true);
 		expect(insertedTask).toMatchObject({ organizationId: "org-1" });
-		expect(collectSqlFragments(numberWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(summaryTasksWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(summaryReadWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(numberWhere);
+		expectOpportunityTenantScope(summaryTasksWhere);
+		expectOpportunityTenantScope(summaryReadWhere);
 		expect(revalidatePathMock).toHaveBeenCalledWith("/tasks");
 		expect(revalidatePathMock).toHaveBeenCalledWith("/opportunities/00000000-0000-4000-8000-000000000001");
 		expect(revalidatePathMock).toHaveBeenCalledWith("/opportunities/00000000-0000-4000-8000-000000000001/requirements");
@@ -224,9 +232,9 @@ describe("task-management action auth", () => {
 		await expect(listTasks("00000000-0000-4000-8000-000000000001")).resolves.toMatchObject({ success: true });
 		await expect(getTask("task-1")).resolves.toMatchObject({ success: true });
 
-		expect(collectSqlFragments(listAllWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(listWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(getWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(listAllWhere);
+		expectOpportunityTenantScope(listWhere);
+		expectOpportunityTenantScope(getWhere);
 	});
 
 	it("normalizes task and team member list limits", async () => {
@@ -296,10 +304,10 @@ describe("task-management action auth", () => {
 		await expect(updateTask("task-1", { title: "Updated" })).resolves.toMatchObject({ success: true });
 		await expect(deleteTask("task-1")).resolves.toMatchObject({ success: true });
 
-		expect(collectSqlFragments(updateReadWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(updateWriteWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(deleteReadWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(deleteWriteWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(updateReadWhere);
+		expectOpportunityTenantScope(updateWriteWhere);
+		expectOpportunityTenantScope(deleteReadWhere);
+		expectOpportunityTenantScope(deleteWriteWhere);
 		expect(revalidatePathMock).toHaveBeenCalledWith("/tasks");
 		expect(revalidatePathMock).toHaveBeenCalledWith("/opportunities/00000000-0000-4000-8000-000000000001");
 		expect(revalidatePathMock).not.toHaveBeenCalledWith("/opportunities/[id]/tasks", "page");
@@ -348,10 +356,10 @@ describe("task-management action auth", () => {
 		await expect(getTaskActivity("task-1")).resolves.toMatchObject({ success: true });
 		await expect(logTime("task-1", 2, "Drafting")).resolves.toMatchObject({ success: true });
 
-		expect(collectSqlFragments(workloadWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(activityWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(timeReadWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(timeWriteWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(workloadWhere);
+		expectOpportunityTenantScope(activityWhere);
+		expectOpportunityTenantScope(timeReadWhere);
+		expectOpportunityTenantScope(timeWriteWhere);
 	});
 
 	it("prevents spoofed author expertise reads before querying", async () => {
@@ -379,6 +387,6 @@ describe("task-management action auth", () => {
 
 		await expect(updateAuthorExpertise("author-1")).resolves.toMatchObject({ success: true });
 
-		expect(collectSqlFragments(completedTasksWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(completedTasksWhere);
 	});
 });
