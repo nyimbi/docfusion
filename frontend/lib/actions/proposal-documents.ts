@@ -1906,9 +1906,17 @@ export async function createAndDraftStandardProposalSet(
 	}
 
 	const created = await createStandardProposalSet(opportunityId, types);
+	const linkedAcceptedRequirements = (await db
+		.select()
+		.from(rfpRequirements)
+		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId)))
+		.filter((requirement) =>
+			requirement.complianceStatus !== "not_applicable" &&
+			isAcceptedRequirement(requirement)
+		);
 	const complianceMatrix = await ensureAcceptedRequirementsComplianceMatrix(
 		opportunityId,
-		acceptedRequirements,
+		linkedAcceptedRequirements,
 		userId
 	);
 	const packageRows = await db

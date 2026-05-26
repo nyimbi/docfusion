@@ -619,8 +619,8 @@ describe("proposal document row scoping", () => {
 			responseStrategy: null,
 			suggestedApproach: "Show offline capture, synchronization, and audit controls.",
 			organizationId: "org-1",
-			responseDocumentId: proposalDocument.documentId,
-			responseSection: "Workflow-First Delivery",
+			responseDocumentId: null,
+			responseSection: null,
 			assignedTo: "proposal-user-1",
 			dueDate: null,
 			metadata: {
@@ -629,10 +629,15 @@ describe("proposal document row scoping", () => {
 				},
 			},
 		};
+		const linkedRequirement = {
+			...requirement,
+			responseDocumentId: proposalDocument.documentId,
+			responseSection: "Workflow-First Delivery",
+		};
 		let complianceEntryInsert: unknown;
 		const linkedSection = {
 			...section,
-			sectionName: "Workflow-First Delivery",
+			sectionName: linkedRequirement.responseSection,
 			requirementIds: [requirement.id],
 		};
 		const sourceDocument = {
@@ -672,6 +677,7 @@ describe("proposal document row scoping", () => {
 			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
 			.mockReturnValueOnce(createChain({ result: [requirement] }))
 			.mockReturnValueOnce(createChain({ result: [section] }))
+			.mockReturnValueOnce(createChain({ result: [linkedRequirement] }))
 			.mockReturnValueOnce(createChain({ result: [] }))
 			.mockReturnValueOnce(createChain({ result: [] }))
 			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
@@ -681,7 +687,7 @@ describe("proposal document row scoping", () => {
 			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
 			.mockReturnValueOnce(createChain({ result: [sourceDocument] }))
 			.mockReturnValueOnce(createChain({ result: [opportunity] }))
-			.mockReturnValueOnce(createChain({ result: [requirement] }));
+			.mockReturnValueOnce(createChain({ result: [linkedRequirement] }));
 		dbMock.update.mockImplementation(() => createChain({
 			result: [{ ...sourceDocument, currentVersion: 2 }],
 		}));
@@ -722,7 +728,7 @@ describe("proposal document row scoping", () => {
 				requirementId: requirement.id,
 				complianceStatus: "compliant",
 				responseDocumentId: proposalDocument.documentId,
-				responseReference: "Workflow-First Delivery",
+				responseReference: linkedRequirement.responseSection,
 				responseSummary: "Show offline capture, synchronization, and audit controls.",
 				strengthAssessment: "strong",
 				status: "draft",

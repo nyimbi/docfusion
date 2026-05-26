@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Response Package Compliance Link Refresh
+
+Status: implemented and verified.
+
+Purpose: ensure generated response-package compliance entries trace to the proposal document and section after requirements are linked.
+
+Changes in this slice:
+- Refetch accepted requirements after standard proposal sections are linked.
+- Build or update compliance matrix entries from fresh requirement rows instead of stale pre-link rows.
+- Preserve response-package drafting behavior while ensuring `responseDocumentId` and `responseReference` are available for compliance traceability.
+- Update focused coverage so an initially unlinked accepted requirement creates a compliance row with the generated response document and section reference.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets response-package traceability with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue hardening response-generation workflow visibility, final artifact readiness, and end-to-end discovery-to-submission proof.
+
 ### 2026-05-26 - Legacy Document Classifier Token Matching
 
 Status: implemented and verified.
