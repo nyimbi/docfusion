@@ -112,6 +112,7 @@ class DefaultIntelligenceService:
 		self._strategy_recommender = None
 		self._content_recommender = None
 		self._competitive_analyzer = None
+		self._opportunity_cache: dict[str, dict[str, Any]] = {}
 
 		try:
 			from docfusion.intelligence.integrations.discovery_integration import (
@@ -185,8 +186,18 @@ class DefaultIntelligenceService:
 		opportunity_id: str,
 	) -> dict[str, Any]:
 		if not self._competitive_analyzer:
-			return {"error": "Competitive analyzer unavailable", "opportunity_id": opportunity_id}
-		return {"opportunity_id": opportunity_id, "status": "not_implemented"}
+			return {"status": "unavailable", "error": "Competitive analyzer unavailable", "opportunity_id": opportunity_id}
+		opportunity = await self._get_opportunity_details(opportunity_id)
+		if not opportunity:
+			return self._missing_opportunity_result(opportunity_id)
+
+		from docfusion.discovery.models.opportunity_models import OpportunityData
+
+		result = await self._competitive_analyzer.analyze_competition(
+			OpportunityData(**self._to_opportunity_data(opportunity)),
+			organizational_profile={},
+		)
+		return self._dump_result(result)
 
 	async def get_strategic_recommendation(
 		self,
@@ -194,8 +205,14 @@ class DefaultIntelligenceService:
 		organizational_profile: dict[str, Any] | None = None,
 	) -> dict[str, Any]:
 		if not self._strategy_recommender:
-			return {"error": "Strategy recommender unavailable", "opportunity_id": opportunity_id}
-		return {"opportunity_id": opportunity_id, "status": "not_implemented"}
+			return {"status": "unavailable", "error": "Strategy recommender unavailable", "opportunity_id": opportunity_id}
+		opportunity = await self._get_opportunity_details(opportunity_id)
+		if not opportunity:
+			return self._missing_opportunity_result(opportunity_id)
+
+		context = self._build_strategy_context(opportunity, organizational_profile or {})
+		result = await self._strategy_recommender.recommend_strategy(context)
+		return self._dump_result(result)
 
 	async def get_content_recommendations(
 		self,
@@ -203,5 +220,108 @@ class DefaultIntelligenceService:
 		section_type: str = "general",
 	) -> dict[str, Any]:
 		if not self._content_recommender:
-			return {"error": "Content recommender unavailable"}
-		return {"section_type": section_type, "status": "not_implemented"}
+			return {"section_type": section_type, "status": "unavailable", "error": "Content recommender unavailable"}
+		if not section_text.strip():
+			return {"section_type": section_type, "status": "unavailable", "error": "Section text is required"}
+
+		try:
+			from docfusion.intelligence.predictors.scoring_predictor import ProposalSection
+		except ImportError as exc:
+			return {
+				"section_type": section_type,
+				"status": "unavailable",
+				"error": f"Proposal section model unavailable: {exc}",
+			}
+
+		result = await self._content_recommender.analyze_content(
+			section_text,
+			self._to_proposal_section(section_type, ProposalSection),
+		)
+		return self._dump_result(result)
+
+	async def _get_opportunity_details(self, opportunity_id: str) -> dict[str, Any] | None:
+		if opportunity_id in self._opportunity_cache:
+			return self._opportunity_cache[opportunity_id]
+		get_details = getattr(self._discovery_service, "get_opportunity_details", None)
+		if not callable(get_details):
+			return None
+		details = await get_details(opportunity_id)
+		if isinstance(details, dict):
+			self._opportunity_cache[opportunity_id] = details
+			return details
+		return None
+
+	def _missing_opportunity_result(self, opportunity_id: str) -> dict[str, Any]:
+		return {
+			"opportunity_id": opportunity_id,
+			"status": "unavailable",
+			"error": "Opportunity details not found in intelligence cache or discovery service",
+		}
+
+	def _to_opportunity_data(self, opportunity: dict[str, Any]) -> dict[str, Any]:
+		return {
+			"id": opportunity["id"],
+			"title": opportunity.get("title") or "Untitled opportunity",
+			"description": opportunity.get("description") or opportunity.get("project_summary") or "",
+			"requirements": opportunity.get("requirements") or opportunity.get("key_requirements") or "",
+			"scope_of_work": opportunity.get("scope_of_work") or opportunity.get("project_scope") or "",
+			"estimated_value": opportunity.get("estimated_value") or opportunity.get("budget_numeric"),
+			"source": opportunity.get("source"),
+			"source_url": opportunity.get("source_url") or opportunity.get("rfp_link"),
+			"tags": opportunity.get("tags") or [],
+		}
+
+	def _build_strategy_context(
+		self,
+		opportunity: dict[str, Any],
+		organizational_profile: dict[str, Any],
+	) -> Any:
+		from datetime import datetime, timedelta
+		from types import SimpleNamespace
+
+		try:
+			from docfusion.intelligence.recommenders.strategy_recommender import OpportunityContext
+		except ImportError:
+			OpportunityContext = SimpleNamespace
+
+		deadline = opportunity.get("submission_deadline") or opportunity.get("deadline")
+		if not isinstance(deadline, datetime):
+			deadline = datetime.now() + timedelta(days=30)
+		return OpportunityContext(
+			opportunity_id=opportunity["id"],
+			opportunity_value=float(opportunity.get("estimated_value") or opportunity.get("budget_numeric") or 0),
+			submission_deadline=deadline,
+			strategic_importance=float(organizational_profile.get("strategic_importance", 0.5)),
+			market_expansion_potential=float(organizational_profile.get("market_expansion_potential", 0.5)),
+			relationship_building_value=float(organizational_profile.get("relationship_building_value", 0.5)),
+			competitive_intensity=float(opportunity.get("competitive_intensity", 0.5)),
+			incumbent_advantage=bool(opportunity.get("incumbent_advantage", False)),
+			estimated_proposal_effort_hours=float(opportunity.get("estimated_proposal_effort_hours", 120)),
+			required_team_size=int(opportunity.get("required_team_size", 4)),
+			specialized_skills_required=list(opportunity.get("specialized_skills_required") or []),
+		)
+
+	def _to_proposal_section(self, section_type: str, proposal_section: Any) -> Any:
+		aliases = {
+			"general": proposal_section.UNDERSTANDING_OF_REQUIREMENTS,
+			"executive_summary": proposal_section.UNDERSTANDING_OF_REQUIREMENTS,
+			"technical": proposal_section.TECHNICAL_APPROACH,
+			"technical_approach": proposal_section.TECHNICAL_APPROACH,
+			"management_plan": proposal_section.MANAGEMENT_APPROACH,
+			"staffing_plan": proposal_section.PERSONNEL_QUALIFICATIONS,
+			"past_performance": proposal_section.PAST_PERFORMANCE,
+			"cost_proposal": proposal_section.PRICE_COST,
+		}
+		if section_type in aliases:
+			return aliases[section_type]
+		try:
+			return proposal_section(section_type)
+		except ValueError:
+			return proposal_section.UNDERSTANDING_OF_REQUIREMENTS
+
+	def _dump_result(self, result: Any) -> dict[str, Any]:
+		if hasattr(result, "model_dump"):
+			return result.model_dump()
+		if isinstance(result, dict):
+			return result
+		return dict(result)

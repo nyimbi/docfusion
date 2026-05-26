@@ -784,6 +784,32 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Consider whether the Python intelligence service should consume this cache or database-backed opportunity details before replacing its remaining `not_implemented` placeholders.
 
+### 2026-05-26 - Python Intelligence Service Contract Wiring
+
+Status: implemented and verified.
+
+Purpose: remove intelligence service `not_implemented` placeholders from competitive, strategic, and content recommendation methods while preserving honest unavailable states when required data or optional ML modules are absent.
+
+Changes in this slice:
+- Add an opportunity-details cache path and discovery-service lookup for intelligence wrapper methods.
+- Route competitive assessment through cached opportunity data when a competitive analyzer is available.
+- Route strategic recommendations through a real opportunity context when a strategy recommender is available.
+- Route content recommendations through the content recommender when section text and optional section models are available.
+- Return `status: unavailable` instead of placeholder success for missing details, missing recommenders, empty section text, or unavailable optional model imports.
+- Add focused service-contract coverage using fakes to avoid importing heavier ML dependencies.
+
+Verification:
+- `uv run pytest tests/ci/test_intelligence_service_contract.py -q` passed.
+- `uv run python -m py_compile src/docfusion/services/intelligence_service.py tests/ci/test_intelligence_service_contract.py` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full Python suite and live intelligence integrations remain intentionally skipped while on battery. This slice verifies the wrapper contract without loading optional heavy ML modules such as `joblib`.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Review whether API endpoints or agents should share persisted frontend opportunity records with these Python service caches.
+
 ### 2026-05-26 - Bulk Compliance Entry Approval
 
 Status: implemented and verified.
