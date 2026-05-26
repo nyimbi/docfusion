@@ -1,10 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Search, X } from "lucide-react";
+import { Save, Search, Trash2, X } from "lucide-react";
 import { discoverAndImportOpportunities } from "@/lib/actions/import-opportunities";
+import {
+	createDiscoveryPreset,
+	deleteDiscoveryPreset,
+	listDiscoveryPresets,
+	type DiscoveryPreset,
+} from "@/lib/actions/saved-searches";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import type { DiscoveryImportInput } from "@/lib/services/opportunity-discovery-import";
 
 interface DiscoveryRunDialogProps {
 	open: boolean;
@@ -28,6 +35,11 @@ function parseQueries(value: string): string[] {
 		.filter(Boolean);
 }
 
+function clampNumber(value: number, min: number, max: number): number {
+	if (!Number.isFinite(value)) return min;
+	return Math.min(max, Math.max(min, Math.trunc(value)));
+}
+
 export function DiscoveryRunDialog({
 	open,
 	onClose,
@@ -49,12 +61,119 @@ export function DiscoveryRunDialog({
 	const [browserFallback, setBrowserFallback] = React.useState(true);
 	const [includeUnmatchedResults, setIncludeUnmatchedResults] = React.useState(false);
 	const [isRunning, startTransition] = React.useTransition();
+	const [presets, setPresets] = React.useState<DiscoveryPreset[]>([]);
+	const [selectedPresetId, setSelectedPresetId] = React.useState("");
+	const [presetName, setPresetName] = React.useState("");
+	const [isLoadingPresets, setIsLoadingPresets] = React.useState(false);
+	const [isSavingPreset, setIsSavingPreset] = React.useState(false);
 	const [error, setError] = React.useState<string | null>(null);
 	const [summary, setSummary] = React.useState<DiscoveryRunSummary | null>(null);
 
+	const buildDiscoveryInput = React.useCallback((): DiscoveryImportInput => ({
+		queries: parseQueries(queries),
+		limitPerQuery: clampNumber(limitPerQuery, 1, 50),
+		countryRegion: countryRegion.trim() || undefined,
+		category: category.trim() || undefined,
+		updateExisting: true,
+		includeUnmatchedResults,
+		scrapeTopResults,
+		scrapeLimit: clampNumber(scrapeLimit, 0, 10),
+		browserFallback,
+		browserFallbackLimit: clampNumber(scrapeLimit, 0, 10),
+	}), [
+		browserFallback,
+		category,
+		countryRegion,
+		includeUnmatchedResults,
+		limitPerQuery,
+		queries,
+		scrapeLimit,
+		scrapeTopResults,
+	]);
+
+	const loadPresets = React.useCallback(async () => {
+		setIsLoadingPresets(true);
+		try {
+			setPresets(await listDiscoveryPresets());
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to load discovery presets.");
+		} finally {
+			setIsLoadingPresets(false);
+		}
+	}, []);
+
+	React.useEffect(() => {
+		if (open) {
+			loadPresets();
+		}
+	}, [loadPresets, open]);
+
+	const applyPreset = (preset: DiscoveryPreset) => {
+		const input = preset.input;
+		setSelectedPresetId(preset.id);
+		setPresetName(preset.name);
+		setQueries((input.queries ?? (input.query ? [input.query] : [])).join("\n"));
+		setCountryRegion(input.countryRegion ?? "");
+		setCategory(input.category ?? "External discovery");
+		setLimitPerQuery(input.limitPerQuery ?? 10);
+		setScrapeTopResults(input.scrapeTopResults ?? true);
+		setScrapeLimit(input.scrapeLimit ?? 3);
+		setBrowserFallback(input.browserFallback ?? true);
+		setIncludeUnmatchedResults(input.includeUnmatchedResults ?? false);
+		setSummary(null);
+		setError(null);
+	};
+
+	const handlePresetSelect = (presetId: string) => {
+		setSelectedPresetId(presetId);
+		const preset = presets.find((item) => item.id === presetId);
+		if (preset) applyPreset(preset);
+	};
+
+	const handleSavePreset = async () => {
+		if (!presetName.trim()) {
+			setError("Preset name is required.");
+			return;
+		}
+
+		const input = buildDiscoveryInput();
+		if ((input.queries ?? []).length === 0) {
+			setError("At least one search query is required.");
+			return;
+		}
+
+		setIsSavingPreset(true);
+		setError(null);
+		try {
+			const preset = await createDiscoveryPreset({
+				name: presetName.trim(),
+				input,
+			});
+			setSelectedPresetId(preset.id);
+			await loadPresets();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to save discovery preset.");
+		} finally {
+			setIsSavingPreset(false);
+		}
+	};
+
+	const handleDeletePreset = async () => {
+		if (!selectedPresetId) return;
+
+		setError(null);
+		try {
+			await deleteDiscoveryPreset(selectedPresetId);
+			setPresets((items) => items.filter((item) => item.id !== selectedPresetId));
+			setSelectedPresetId("");
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to delete discovery preset.");
+		}
+	};
+
 	const handleRun = () => {
-		const queryList = parseQueries(queries);
-		if (queryList.length === 0) {
+		const input = buildDiscoveryInput();
+		if ((input.queries ?? []).length === 0) {
 			setError("At least one search query is required.");
 			return;
 		}
@@ -63,18 +182,7 @@ export function DiscoveryRunDialog({
 		setSummary(null);
 		startTransition(async () => {
 			try {
-				const result = await discoverAndImportOpportunities({
-					queries: queryList,
-					limitPerQuery,
-					countryRegion: countryRegion.trim() || undefined,
-					category: category.trim() || undefined,
-					updateExisting: true,
-					includeUnmatchedResults,
-					scrapeTopResults,
-					scrapeLimit,
-					browserFallback,
-					browserFallbackLimit: scrapeLimit,
-				});
+				const result = await discoverAndImportOpportunities(input);
 				setSummary({
 					importId: result.importId,
 					total: result.results.total,
@@ -123,6 +231,65 @@ export function DiscoveryRunDialog({
 				</div>
 
 				<div className="space-y-4 px-5 py-4">
+					<div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
+						<div className="space-y-2">
+							<label className="text-sm font-medium text-foreground" htmlFor="discovery-preset">
+								Preset
+							</label>
+							<select
+								id="discovery-preset"
+								value={selectedPresetId}
+								onChange={(event) => handlePresetSelect(event.target.value)}
+								disabled={isLoadingPresets}
+								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+							>
+								<option value="">{isLoadingPresets ? "Loading..." : "Select preset"}</option>
+								{presets.map((preset) => (
+									<option key={preset.id} value={preset.id}>
+										{preset.name}
+									</option>
+								))}
+							</select>
+						</div>
+						<div className="space-y-2">
+							<label className="text-sm font-medium text-foreground" htmlFor="discovery-preset-name">
+								Name
+							</label>
+							<input
+								id="discovery-preset-name"
+								value={presetName}
+								onChange={(event) => setPresetName(event.target.value)}
+								placeholder="East Africa ICT"
+								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+							/>
+						</div>
+						<div className="flex items-end">
+							<Button
+								variant="outline"
+								onClick={handleSavePreset}
+								disabled={isSavingPreset || isRunning}
+								isLoading={isSavingPreset}
+								loadingText="Saving"
+								className="h-10 w-full sm:w-auto"
+							>
+								<Save className="h-4 w-4" />
+								Save
+							</Button>
+						</div>
+						<div className="flex items-end">
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={handleDeletePreset}
+								disabled={!selectedPresetId || isSavingPreset || isRunning}
+								aria-label="Delete selected preset"
+								className="h-10 w-10"
+							>
+								<Trash2 className="h-4 w-4" />
+							</Button>
+						</div>
+					</div>
+
 					<div className="space-y-2">
 						<label className="text-sm font-medium text-foreground" htmlFor="discovery-queries">
 							Queries

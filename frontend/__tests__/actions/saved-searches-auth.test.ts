@@ -21,8 +21,11 @@ vi.mock("@/lib/db/schema", () => ({
 
 import {
 	createSavedSearch,
+	createDiscoveryPreset,
+	deleteDiscoveryPreset,
 	deleteSavedSearch,
 	getDefaultSavedSearch,
+	listDiscoveryPresets,
 	listSavedSearches,
 	setDefaultSavedSearch,
 	updateSavedSearch,
@@ -44,6 +47,12 @@ describe("saved search action auth", () => {
 		await expect(updateSavedSearch("search-1", "spoofed-user", { name: "Updated" })).rejects.toThrow("Unauthorized");
 		await expect(deleteSavedSearch("search-1", "spoofed-user")).rejects.toThrow("Unauthorized");
 		await expect(setDefaultSavedSearch("search-1", "spoofed-user")).rejects.toThrow("Unauthorized");
+		await expect(createDiscoveryPreset({
+			name: "Spoofed discovery",
+			input: { queries: ["rfp Kenya"] },
+		})).rejects.toThrow("Unauthorized");
+		await expect(listDiscoveryPresets()).rejects.toThrow("Unauthorized");
+		await expect(deleteDiscoveryPreset("preset-1")).rejects.toThrow("Unauthorized");
 
 		expect(dbAccessMock).not.toHaveBeenCalled();
 	});

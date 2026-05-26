@@ -345,3 +345,29 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Add persisted discovery run presets/schedules in the UI so repeated searches can be operated without re-entering query sets.
+
+### 2026-05-26 - Persisted Discovery Run Presets
+
+Status: implemented and verified.
+
+Purpose: make repeated live opportunity searches operable without re-entering the same SearXNG query sets and enrichment settings.
+
+Changes in this slice:
+- Reuse the existing `saved_searches` table for discovery run presets through a tagged JSON payload, avoiding a new migration.
+- Add authenticated server actions to create, list, and delete discovery presets.
+- Keep normal saved searches separate from discovery presets so saved opportunity filters do not show live-discovery run configurations.
+- Add preset save/load/delete controls to the live discovery dialog.
+- Persist multi-query input, region/category hints, result limits, enrichment limits, Firecrawl enrichment, browser fallback, broad-match inclusion, and update behavior.
+- Add focused tests for discovery preset persistence and unauthenticated access.
+
+Verification:
+- `npm run test -- __tests__/actions/saved-searches-auth.test.ts __tests__/actions/discovery-presets.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, and browser visual pass remain intentionally skipped while on battery. This slice used focused saved-search/discovery action tests plus TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Add scheduled execution for saved discovery presets so recurring searches can run unattended under a configured assignee.
