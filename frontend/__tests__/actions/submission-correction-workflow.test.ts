@@ -76,6 +76,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	);
 }
 
+function expectOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("proposal-manager-1");
+}
+
 var dbMock: any;
 
 vi.mock("@/lib/db", () => {
@@ -149,7 +157,7 @@ describe("submission correction workflow", () => {
 		})).rejects.toThrow("Submission not found");
 
 		expect(dbMock.update).not.toHaveBeenCalled();
-		expect(collectSqlFragments(submissionWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(submissionWhere);
 	});
 
 	it("requests post-dispatch correction and projects blocked correction work", async () => {
@@ -198,7 +206,7 @@ describe("submission correction workflow", () => {
 		});
 		expect(wheres).toHaveLength(3);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expectOpportunityTenantScope(where);
 		}
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({

@@ -79,7 +79,7 @@ export async function transitionSubmissionCorrectionWorkflow(
 				decisionReason: transition.opportunityDecisionReason,
 				updatedAt: new Date(),
 			})
-			.where(visibleOpportunityCondition(updatedSubmission.opportunityId, userContext.userId));
+			.where(visibleOpportunityCondition(updatedSubmission.opportunityId, userContext));
 	}
 
 	const instance = await recordWorkflowRuntimeTransition({
@@ -140,23 +140,31 @@ export async function transitionSubmissionCorrectionWorkflow(
 	};
 }
 
-function assignedOpportunityCondition(userId: string): SQL {
-	return sql`opportunities.assigned_to = ${userId}`;
+function assignedOpportunityCondition(userContext: SubmissionCorrectionUserContext): SQL {
+	return sql`(
+		opportunities.organization_id = ${userContext.organizationId}
+		or opportunities.organization_id is null
+	)
+	and opportunities.assigned_to = ${userContext.userId}`;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: SubmissionCorrectionUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleOpportunityCondition(opportunityId: string, userContext: SubmissionCorrectionUserContext): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		assignedOpportunityCondition(userId)
+		assignedOpportunityCondition(userContext)
 	)!;
 }
 
@@ -177,7 +185,7 @@ function visibleSubmissionCondition(submissionId: string, userContext: Submissio
 	return and(
 		eq(submissions.id, submissionId),
 		submissionOrganizationCondition(userContext.organizationId),
-		assignedOpportunityExistsSql(submissions.opportunityId, userContext.userId)
+		assignedOpportunityExistsSql(submissions.opportunityId, userContext)
 	)!;
 }
 

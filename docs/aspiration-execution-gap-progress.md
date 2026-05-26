@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Submission Correction Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep post-dispatch correction requests, corrected submission receipts, withdrawal compensation, and opportunity decision updates scoped to the caller's organization through the submitted opportunity.
+
+Changes in this slice:
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to submission correction visibility helpers.
+- Scope compensating opportunity decision updates through the same tenant-aware opportunity predicate.
+- Extend submission correction workflow tests to assert opportunity organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- submission-correction-workflow.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+
+Remaining after this slice:
+- Continue scanning and closing remaining workflow support modules that still use unscoped or assignment-only opportunity checks.
+
 ### 2026-05-26 - Document Authoring Opportunity Tenant Predicates
 
 Status: implemented and verified.
