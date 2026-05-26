@@ -209,6 +209,12 @@ function uniqueStrings(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))];
 }
 
+function isAcceptedRequirement(requirement: typeof rfpRequirements.$inferSelect): boolean {
+	const metadata = isRecord(requirement.metadata) ? requirement.metadata : {};
+	const workflow = isRecord(metadata.workflow) ? metadata.workflow : {};
+	return workflow.state === "accepted";
+}
+
 function isFinalProposalStatus(status: ProposalDocumentStatus | undefined): boolean {
 	return status === "approved" || status === "final";
 }
@@ -1564,7 +1570,8 @@ async function linkRequirementsToStandardProposalSections(
 		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId));
 
 	const actionableRequirements = requirements.filter((requirement) =>
-		requirement.complianceStatus !== "not_applicable"
+		requirement.complianceStatus !== "not_applicable" &&
+		isAcceptedRequirement(requirement)
 	);
 	if (actionableRequirements.length === 0) return;
 

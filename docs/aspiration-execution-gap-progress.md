@@ -515,3 +515,28 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Strengthen the requirements review page next if accepted requirements do not yet reliably trigger response-package work.
+
+### 2026-05-26 - Accepted Requirements Response Package Handoff
+
+Status: implemented and verified.
+
+Purpose: turn reviewed requirements into the next response-package workflow step without letting unreviewed parser output drive proposal sections.
+
+Changes in this slice:
+- Add a `Build Response Package` control to the opportunity requirements page.
+- Route the control through the existing `createStandardProposalSet` action, then send operators to the proposal documents workspace.
+- Gate the requirements-page response-package action on at least one accepted requirement.
+- Restrict standard proposal section linking to accepted, applicable requirements instead of every extracted actionable requirement.
+- Update focused proposal-document coverage so linked package creation uses accepted requirement workflow metadata.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, browser visual pass, and component tests remain intentionally skipped while on battery. This slice used the existing proposal-document server-action test plus TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Consider an explicit one-click "draft all linked sections" orchestration after response package creation, so accepted requirements can proceed from package creation into initial narrative without per-document manual drafting.

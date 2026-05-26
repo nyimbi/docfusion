@@ -494,8 +494,13 @@ describe("proposal document row scoping", () => {
 			id: "77777777-7777-4777-8777-777777777777",
 			opportunityId: proposalDocument.opportunityId,
 			category: "technical",
-			complianceStatus: "not_addressed",
+			complianceStatus: "partial",
 			responseSection: null,
+			metadata: {
+				workflow: {
+					state: "accepted",
+				},
+			},
 		};
 		const updateSets: Record<string, unknown>[] = [];
 		const updateWheres: unknown[] = [];
