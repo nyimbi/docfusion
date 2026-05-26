@@ -9,6 +9,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
 import type {
 	ProposalDocument,
 	ProposalDocumentStatus,
@@ -16,6 +17,7 @@ import type {
 	ProposalProgress,
 } from "@/lib/types/opportunity";
 import {
+	generateRequirementAwareProposalDraft,
 	updateProposalDocumentStatus,
 	unlinkProposalDocument,
 } from "@/lib/actions/proposal-documents";
@@ -94,6 +96,7 @@ export function ProposalDocumentList({
 	onCreateNew,
 }: ProposalDocumentListProps) {
 	const [isPending, startTransition] = useTransition();
+	const [draftingDocumentId, setDraftingDocumentId] = useState<string | null>(null);
 
 	const handleStatusChange = (doc: ProposalDocument, newStatus: ProposalDocumentStatus) => {
 		startTransition(async () => {
@@ -102,6 +105,22 @@ export function ProposalDocumentList({
 				onDocumentUpdate?.(updated);
 			} catch (error) {
 				console.error("Failed to update status:", error);
+			}
+		});
+	};
+
+	const handleGenerateDraft = (doc: ProposalDocument) => {
+		setDraftingDocumentId(doc.id);
+		startTransition(async () => {
+			try {
+				const result = await generateRequirementAwareProposalDraft(doc.id);
+				if (result.sectionsDrafted > 0) {
+					onDocumentUpdate?.({ ...doc, status: "drafting" });
+				}
+			} catch (error) {
+				console.error("Failed to generate requirement-aware draft:", error);
+			} finally {
+				setDraftingDocumentId(null);
 			}
 		});
 	};
@@ -179,8 +198,10 @@ export function ProposalDocumentList({
 							key={doc.id}
 							document={doc}
 							onStatusChange={(status) => handleStatusChange(doc, status)}
+							onGenerateDraft={() => handleGenerateDraft(doc)}
 							onRemove={() => handleRemove(doc.id)}
 							isPending={isPending}
+							isDrafting={draftingDocumentId === doc.id}
 						/>
 					))}
 
@@ -215,13 +236,17 @@ export function ProposalDocumentList({
 function ProposalDocumentCard({
 	document,
 	onStatusChange,
+	onGenerateDraft,
 	onRemove,
 	isPending,
+	isDrafting,
 }: {
 	document: ProposalDocument;
 	onStatusChange: (status: ProposalDocumentStatus) => void;
+	onGenerateDraft: () => void;
 	onRemove: () => void;
 	isPending: boolean;
+	isDrafting: boolean;
 }) {
 	const statusStyle = STATUS_COLORS[document.status];
 	const icon = DOCUMENT_TYPE_ICONS[document.documentType];
@@ -278,6 +303,9 @@ function ProposalDocumentCard({
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem asChild>
 								<Link href={`/documents/${document.documentId}`}>Open Document</Link>
+							</DropdownMenuItem>
+							<DropdownMenuItem onClick={onGenerateDraft} disabled={isPending}>
+								Draft linked sections
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem onClick={() => onStatusChange("drafting")}>
@@ -364,20 +392,33 @@ function ProposalDocumentCard({
 				)}
 
 				{/* Quick Action */}
-				<Link
-					href={`/documents/${document.documentId}`}
-					className={cn(
-						"flex items-center justify-center gap-2 w-full py-2",
-						"text-sm font-medium rounded-lg",
-						"bg-[var(--background-muted)] text-[var(--foreground)]",
-						"hover:bg-[var(--accent-100)] hover:text-[var(--accent-700)]",
-						"dark:hover:bg-[var(--accent-900)] dark:hover:text-[var(--accent-300)]",
-						"transition-colors"
-					)}
-				>
-					<EditIcon className="h-4 w-4" />
-					Edit
-				</Link>
+				<div className="grid grid-cols-2 gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={onGenerateDraft}
+						disabled={isPending}
+						isLoading={isDrafting}
+						loadingText="Drafting sections"
+					>
+						<Sparkles className="h-4 w-4" />
+						Draft
+					</Button>
+					<Link
+						href={`/documents/${document.documentId}`}
+						className={cn(
+							"flex items-center justify-center gap-2 w-full h-8 px-3",
+							"text-sm font-medium rounded-md",
+							"bg-[var(--background-muted)] text-[var(--foreground)]",
+							"hover:bg-[var(--accent-100)] hover:text-[var(--accent-700)]",
+							"dark:hover:bg-[var(--accent-900)] dark:hover:text-[var(--accent-300)]",
+							"transition-colors"
+						)}
+					>
+						<EditIcon className="h-4 w-4" />
+						Edit
+					</Link>
+				</div>
 			</CardContent>
 		</Card>
 	);

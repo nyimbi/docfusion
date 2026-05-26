@@ -151,6 +151,14 @@ export interface RequirementAwareSectionDraftResult {
 	versionNumber: number;
 }
 
+export interface RequirementAwareProposalDraftResult {
+	proposalDocumentId: string;
+	documentId: string;
+	sectionsDrafted: number;
+	requirementIds: string[];
+	versionNumber: number | null;
+}
+
 function textNode(text: string): ContentNode {
 	return { type: "text", text };
 }
@@ -1380,6 +1388,54 @@ export async function generateRequirementAwareSectionDraft(
 		wordCount: countWords(sectionPlainText),
 		characterCount: sectionPlainText.length,
 		versionNumber,
+	};
+}
+
+/**
+ * Generate requirement-aware drafts for every section in a proposal document.
+ */
+export async function generateRequirementAwareProposalDraft(
+	proposalDocumentId: string
+): Promise<RequirementAwareProposalDraftResult> {
+	const userId = await requireCurrentUserId();
+	const [proposalDocument] = await db
+		.select()
+		.from(proposalDocuments)
+		.where(visibleProposalDocumentCondition(proposalDocumentId, userId))
+		.limit(1);
+	if (!proposalDocument) {
+		throw new Error("Proposal document not found");
+	}
+
+	const sections = await db
+		.select()
+		.from(documentSections)
+		.where(visibleDocumentSectionsForProposalCondition(proposalDocumentId, userId))
+		.orderBy(asc(documentSections.sectionOrder));
+
+	const results: RequirementAwareSectionDraftResult[] = [];
+	for (const section of sections) {
+		results.push(await generateRequirementAwareSectionDraft(section.id));
+	}
+
+	if (results.length > 0) {
+		await db
+			.update(proposalDocuments)
+			.set({
+				status: "drafting",
+				updatedAt: new Date(),
+			})
+			.where(visibleProposalDocumentCondition(proposalDocumentId, userId));
+	}
+
+	return {
+		proposalDocumentId,
+		documentId: proposalDocument.documentId,
+		sectionsDrafted: results.length,
+		requirementIds: uniqueStrings(results.flatMap((result) => result.requirementIds)),
+		versionNumber: results.length > 0
+			? Math.max(...results.map((result) => result.versionNumber))
+			: null,
 	};
 }
 

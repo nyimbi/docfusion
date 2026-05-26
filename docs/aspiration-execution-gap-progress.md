@@ -225,3 +225,26 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Connect the requirement-aware section draft action to an operator-visible UI/control path or response package workflow.
 - Strengthen final review so compliance status is promoted from partial to compliant only after evidence and evaluator-readiness checks pass.
+
+### 2026-05-26 - Operator Control for Requirement-Aware Drafting
+
+Status: implemented and verified.
+
+Purpose: make requirement-aware drafting accessible from the proposal document workflow instead of leaving it as a server-only capability.
+
+Changes in this slice:
+- Add a document-level requirement-aware draft action that drafts every section in a proposal document and returns drafted section/requirement coverage.
+- Mark the proposal document as drafting after linked section drafts are generated.
+- Add a visible `Draft` control to proposal document cards and a matching dropdown action for operator workflows.
+- Wire the UI control to the server action and update the local document status after generation.
+
+Verification:
+- `npx tsc --noEmit` passed.
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts __tests__/actions/proposal-documents-auth.test.ts` passed.
+
+Testing scope note:
+- Full frontend suite, production build, and browser visual pass remain intentionally skipped while on battery. This slice used targeted proposal-document action tests and TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Add final evaluator-readiness/compliance promotion checks so drafts become submission-ready only after evidence, cross-reference, and review gates pass.
