@@ -7,7 +7,7 @@
 
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, useEffect } from "react";
 import type {
 	Requirement,
 	RequirementFilters,
@@ -48,6 +48,13 @@ export function RequirementsTable({
 	const [filters, setFilters] = useState<RequirementFilters>({});
 	const [sort, setSort] = useState<RequirementSort>({ field: "requirementId", direction: "asc" });
 	const [isPending, startTransition] = useTransition();
+
+	useEffect(() => {
+		setRequirements(initialRequirements);
+		setSelectedIds((prev) => new Set([...prev].filter((id) =>
+			initialRequirements.some((requirement) => requirement.id === id)
+		)));
+	}, [initialRequirements]);
 
 	// Filter and sort requirements
 	const filteredRequirements = useMemo(() => {

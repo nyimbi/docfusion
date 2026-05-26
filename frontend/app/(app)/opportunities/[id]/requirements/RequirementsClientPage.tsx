@@ -7,12 +7,13 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import type { Requirement, RequirementStats } from "@/lib/types/opportunity";
-import { reviewRfpParseConfidence } from "@/lib/actions/rfp-parser";
+import { getRequirements, getRequirementStats } from "@/lib/actions/requirements";
+import { listComplianceMatrices, reviewRfpParseConfidence } from "@/lib/actions/rfp-parser";
 import { createAndDraftStandardProposalSet } from "@/lib/actions/proposal-documents";
 import { RequirementsTable } from "@/components/requirements/RequirementsTable";
 import { RequirementDetail } from "@/components/requirements/RequirementDetail";
@@ -51,6 +52,28 @@ interface ComplianceMatrixSummary {
 
 type ParseReviewState = "auto_accepted" | "needs_review" | "accepted" | "correction_requested";
 
+function toComplianceMatrixSummary(matrix: {
+	id: string;
+	name: string;
+	status: string;
+	totalRequirements: number;
+	compliantCount: number;
+	partialCount: number;
+	notAddressedCount: number;
+	updatedAt: Date;
+}): ComplianceMatrixSummary {
+	return {
+		id: matrix.id,
+		name: matrix.name,
+		status: matrix.status,
+		totalRequirements: matrix.totalRequirements,
+		compliantCount: matrix.compliantCount,
+		partialCount: matrix.partialCount,
+		notAddressedCount: matrix.notAddressedCount,
+		updatedAt: matrix.updatedAt.toISOString(),
+	};
+}
+
 export function RequirementsClientPage({
 	opportunityId,
 	initialRequirements,
@@ -70,6 +93,25 @@ export function RequirementsClientPage({
 		requirement.workflowState === "accepted"
 	).length;
 
+	useEffect(() => {
+		setRequirements(initialRequirements);
+		setStats(initialStats);
+		setRfpDocuments(initialRfpDocuments);
+		setComplianceMatrices(initialComplianceMatrices);
+	}, [initialRequirements, initialStats, initialRfpDocuments, initialComplianceMatrices]);
+
+	const refreshRequirementsState = useCallback(async () => {
+		const [requirementsResponse, nextStats, matricesResponse] = await Promise.all([
+			getRequirements(opportunityId),
+			getRequirementStats(opportunityId),
+			listComplianceMatrices({ opportunityId, limit: 5 }),
+		]);
+		setRequirements(requirementsResponse.data);
+		setStats(nextStats);
+		setComplianceMatrices(matricesResponse.matrices.map(toComplianceMatrixSummary));
+		router.refresh();
+	}, [opportunityId, router]);
+
 	const handleRequirementClick = useCallback((req: Requirement) => {
 		setSelectedRequirement(req);
 	}, []);
@@ -79,72 +121,36 @@ export function RequirementsClientPage({
 			prev.map((r) => (r.id === updated.id ? updated : r))
 		);
 		setSelectedRequirement(updated);
-
-		// Update stats based on status change
-		// This is a simplified update - in production you'd refetch stats
-	}, []);
+		void refreshRequirementsState();
+	}, [refreshRequirementsState]);
 
 	const handleRequirementsChange = useCallback(() => {
-		// Refetch stats when requirements change
-		// For now, we'll handle this optimistically
-	}, []);
+		void refreshRequirementsState();
+	}, [refreshRequirementsState]);
 
 	const handleExtracted = useCallback((newRequirements: Requirement[]) => {
 		setRequirements((prev) => [...prev, ...newRequirements]);
-		setStats((prev) => ({
-			...prev,
-			total: prev.total + newRequirements.length,
-			byStatus: {
-				...prev.byStatus,
-				not_addressed: prev.byStatus.not_addressed + newRequirements.length,
-			},
-		}));
 		setShowExtractor(false);
-	}, []);
+		void refreshRequirementsState();
+	}, [refreshRequirementsState]);
 
 	const handleBuildResponsePackage = useCallback(async () => {
 		setIsBuildingResponsePackage(true);
 		try {
 			const result = await createAndDraftStandardProposalSet(opportunityId);
-			if (result.complianceMatrixId) {
-				const now = new Date().toISOString();
-				setComplianceMatrices((prev) => {
-					const existing = prev.find((matrix) => matrix.id === result.complianceMatrixId);
-					if (existing) {
-						return prev.map((matrix) =>
-							matrix.id === result.complianceMatrixId
-								? {
-									...matrix,
-									totalRequirements: Math.max(matrix.totalRequirements, result.requirementIds.length),
-									updatedAt: now,
-								}
-								: matrix
-						);
-					}
-					return [{
-						id: result.complianceMatrixId,
-						name: "Accepted Requirements Compliance Matrix",
-						status: "draft",
-						totalRequirements: result.requirementIds.length,
-						compliantCount: 0,
-						partialCount: result.requirementIds.length,
-						notAddressedCount: 0,
-						updatedAt: now,
-					}, ...prev];
-				});
-			}
 			toast.success(
 				result.sectionsDrafted > 0
 					? `Response package drafted across ${result.sectionsDrafted} section${result.sectionsDrafted === 1 ? "" : "s"}; ${result.complianceEntriesCreated} compliance row${result.complianceEntriesCreated === 1 ? "" : "s"} added`
 					: "Response package is ready"
 			);
+			await refreshRequirementsState();
 			router.push(`/opportunities/${opportunityId}/documents`);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to build response package");
 		} finally {
 			setIsBuildingResponsePackage(false);
 		}
-	}, [opportunityId, router]);
+	}, [opportunityId, refreshRequirementsState, router]);
 
 	return (
 		<>

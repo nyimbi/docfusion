@@ -49,6 +49,7 @@ export interface ProposalDocumentFinalizationInput {
 
 function revalidateProposalWorkflowPaths(opportunityId: string): void {
 	revalidatePath(`/opportunities/${opportunityId}`);
+	revalidatePath(`/opportunities/${opportunityId}/requirements`);
 	revalidatePath(`/opportunities/${opportunityId}/documents`);
 	revalidatePath(`/opportunities/${opportunityId}/submission`);
 }

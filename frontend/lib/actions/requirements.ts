@@ -7,6 +7,7 @@
 
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { proposalTasks, taskActivity } from "@/lib/db/schema-tasks";
@@ -35,6 +36,13 @@ import type {
 	PaginationOptions,
 } from "@/lib/types/opportunity";
 import { logger } from "@/lib/utils/logger";
+
+function revalidateRequirementWorkflowPaths(opportunityId: string): void {
+	revalidatePath(`/opportunities/${opportunityId}`);
+	revalidatePath(`/opportunities/${opportunityId}/requirements`);
+	revalidatePath(`/opportunities/${opportunityId}/documents`);
+	revalidatePath(`/opportunities/${opportunityId}/submission`);
+}
 
 function normalizeRequirementPage(page: number | undefined, fallback = 1): number {
 	if (page === undefined || !Number.isFinite(page)) return fallback;
@@ -352,6 +360,7 @@ export async function createRequirement(input: RequirementInput): Promise<Requir
 		})
 		.returning();
 
+	revalidateRequirementWorkflowPaths(input.opportunityId);
 	return mapDbToRequirement(result);
 }
 
@@ -386,6 +395,9 @@ export async function createRequirements(inputs: RequirementInput[]): Promise<Re
 		)
 		.returning();
 
+	for (const opportunityId of new Set(inputs.map((input) => input.opportunityId))) {
+		revalidateRequirementWorkflowPaths(opportunityId);
+	}
 	return results.map(mapDbToRequirement);
 }
 
@@ -424,6 +436,9 @@ export async function updateRequirement(
 		.returning();
 
 	if (!result) return null;
+	if (result.opportunityId) {
+		revalidateRequirementWorkflowPaths(result.opportunityId);
+	}
 	return mapDbToRequirement(result);
 }
 
@@ -454,8 +469,16 @@ export async function bulkUpdateRequirements(
 		.update(rfpRequirements)
 		.set(updateData)
 		.where(visibleRequirementIdsCondition(ids, organizationId, userId))
-		.returning({ id: rfpRequirements.id });
+		.returning({
+			id: rfpRequirements.id,
+			opportunityId: rfpRequirements.opportunityId,
+		});
 
+	for (const opportunityId of new Set(results
+		.map((row) => row.opportunityId)
+		.filter((opportunityId): opportunityId is string => Boolean(opportunityId)))) {
+		revalidateRequirementWorkflowPaths(opportunityId);
+	}
 	return { updated: results.length };
 }
 
@@ -479,6 +502,9 @@ export async function assignRequirement(
 		.returning();
 
 	if (!result) return null;
+	if (result.opportunityId) {
+		revalidateRequirementWorkflowPaths(result.opportunityId);
+	}
 	return mapDbToRequirement(result);
 }
 
@@ -499,7 +525,7 @@ export async function transitionRequirementWorkflow(
 
 	const { organizationId, userId } = await requireTenantContext();
 
-	return db.transaction(async (tx) => {
+	const result = await db.transaction(async (tx) => {
 		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.requirementId}))`);
 
 		const [row] = await tx
@@ -691,6 +717,10 @@ export async function transitionRequirementWorkflow(
 			projectedTaskId,
 		};
 	});
+	if (result?.requirement.opportunityId) {
+		revalidateRequirementWorkflowPaths(result.requirement.opportunityId);
+	}
+	return result;
 }
 
 /**
@@ -701,8 +731,16 @@ export async function deleteRequirement(id: string): Promise<boolean> {
 	const result = await db
 		.delete(rfpRequirements)
 		.where(visibleRequirementCondition(id, organizationId, userId))
-		.returning({ id: rfpRequirements.id });
+		.returning({
+			id: rfpRequirements.id,
+			opportunityId: rfpRequirements.opportunityId,
+		});
 
+	for (const opportunityId of new Set(result
+		.map((row) => row.opportunityId)
+		.filter((opportunityId): opportunityId is string => Boolean(opportunityId)))) {
+		revalidateRequirementWorkflowPaths(opportunityId);
+	}
 	return result.length > 0;
 }
 
@@ -716,8 +754,16 @@ export async function deleteRequirements(ids: string[]): Promise<{ deleted: numb
 	const result = await db
 		.delete(rfpRequirements)
 		.where(visibleRequirementIdsCondition(ids, organizationId, userId))
-		.returning({ id: rfpRequirements.id });
+		.returning({
+			id: rfpRequirements.id,
+			opportunityId: rfpRequirements.opportunityId,
+		});
 
+	for (const opportunityId of new Set(result
+		.map((row) => row.opportunityId)
+		.filter((opportunityId): opportunityId is string => Boolean(opportunityId)))) {
+		revalidateRequirementWorkflowPaths(opportunityId);
+	}
 	return { deleted: result.length };
 }
 

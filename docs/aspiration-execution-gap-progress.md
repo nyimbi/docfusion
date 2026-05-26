@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Requirement Workflow Refresh Integrity
+
+Status: implemented and verified.
+
+Purpose: keep requirement edits, extraction, acceptance workflow changes, and response-package creation synchronized with authoritative requirement statistics and compliance matrix state.
+
+Changes in this slice:
+- Add route revalidation to requirement create, bulk create, update, bulk update, assignment, workflow transition, and delete actions.
+- Extend proposal-package revalidation to include the opportunity requirements page.
+- Replace simplified requirements-page stats updates with server-backed requirements, statistics, and compliance-matrix refreshes.
+- Sync the requirements table's internal row state when refreshed parent data arrives.
+- Remove the local compliance matrix projection used after response-package creation and refresh the real matrix list instead.
+
+Verification:
+- `npx tsc --noEmit` from `frontend/` passed.
+- `git diff --check` passed.
+- Targeted search found no simplified requirements refresh placeholder or full-page reload in the touched requirements surfaces.
+
+Testing scope note:
+- Full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This was a requirements workflow refresh integrity slice verified with TypeScript, whitespace validation, and targeted source search.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Review remaining non-opportunity placeholder/simplified paths separately unless they directly block response production.
+
 ### 2026-05-26 - Opportunity Workflow Refresh Integrity
 
 Status: implemented and verified.
