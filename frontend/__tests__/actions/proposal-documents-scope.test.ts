@@ -61,6 +61,22 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
+function sqlText(value: unknown): string {
+	return collectSqlFragments(value).join(" ");
+}
+
+function hasOpportunityTenantScope(where: unknown): boolean {
+	const text = sqlText(where);
+	return text.includes("opportunities.organization_id") &&
+		text.includes("org-1") &&
+		text.includes("opportunities.assigned_to") &&
+		text.includes("proposal-user-1");
+}
+
+function expectOpportunityTenantScope(where: unknown) {
+	expect(hasOpportunityTenantScope(where)).toBe(true);
+}
+
 function flattenText(value: unknown): string {
 	if (typeof value === "string") return value;
 	if (Array.isArray(value)) return value.map(flattenText).join(" ");
@@ -192,7 +208,7 @@ describe("proposal document row scoping", () => {
 		})).rejects.toThrow("Opportunity not found");
 
 		expect(dbMock.insert).not.toHaveBeenCalled();
-		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(opportunityWhere);
 	});
 
 	it("seeds new proposal drafts with opportunity context and matching requirement response plans", async () => {
@@ -312,7 +328,7 @@ describe("proposal document row scoping", () => {
 		const result = await getProposalDocument(proposalDocument.id);
 
 		expect(result).toMatchObject({ id: proposalDocument.id });
-		expect(collectSqlFragments(readWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(readWhere);
 	});
 
 	it("scopes proposal document updates and reloads through the owning opportunity", async () => {
@@ -335,7 +351,7 @@ describe("proposal document row scoping", () => {
 		expect(result).toMatchObject({ id: proposalDocument.id, status: "in_review" });
 		expect(wheres).toHaveLength(2);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expectOpportunityTenantScope(where);
 		}
 	});
 
@@ -390,9 +406,7 @@ describe("proposal document row scoping", () => {
 			.rejects.toThrow("linked requirements are compliant");
 
 		expect(dbMock.update).not.toHaveBeenCalled();
-		expect(wheres.some((where) =>
-			collectSqlFragments(where).join(" ").includes("opportunities.assigned_to")
-		)).toBe(true);
+		expect(wheres.some(hasOpportunityTenantScope)).toBe(true);
 	});
 
 	it("scopes section reads through the owning proposal document opportunity", async () => {
@@ -407,7 +421,7 @@ describe("proposal document row scoping", () => {
 		const result = await getDocumentSections(proposalDocument.id);
 
 		expect(result).toHaveLength(1);
-		expect(collectSqlFragments(readWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(readWhere);
 	});
 
 	it("scopes section updates through the owning proposal document opportunity", async () => {
@@ -422,7 +436,7 @@ describe("proposal document row scoping", () => {
 		const result = await updateSection(section.id, { status: "in_review" });
 
 		expect(result).toMatchObject({ id: section.id, status: "in_review" });
-		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(updateWhere);
 	});
 
 	it("persists requirement-aware section drafts and advances linked requirement coverage", async () => {
@@ -553,9 +567,7 @@ describe("proposal document row scoping", () => {
 				complianceStatus: "partial",
 			}),
 		]));
-		expect(updateWheres.some((where) =>
-			collectSqlFragments(where).join(" ").includes("opportunities.assigned_to")
-		)).toBe(true);
+		expect(updateWheres.some(hasOpportunityTenantScope)).toBe(true);
 	});
 
 	it("scopes bulk proposal document status updates through assigned opportunities", async () => {
@@ -568,7 +580,7 @@ describe("proposal document row scoping", () => {
 
 		await bulkUpdateStatus([proposalDocument.id], "in_review");
 
-		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(updateWhere);
 	});
 
 	it("rejects bulk final proposal status updates when the session lacks proposal authority", async () => {
@@ -641,7 +653,7 @@ describe("proposal document row scoping", () => {
 		]));
 		expect(updateWheres).toHaveLength(2);
 		for (const where of updateWheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expectOpportunityTenantScope(where);
 		}
 	});
 

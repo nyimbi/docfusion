@@ -372,19 +372,20 @@ function requireProposalDocumentApprovalAuthority(userContext: UserContext) {
 	);
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userId: string, organizationId: string): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
+			and (opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)
 			and opportunities.assigned_to = ${userId}
 	)`;
 }
 
-function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleOpportunityCondition(opportunityId: string, userId: string, organizationId: string): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userId, organizationId)
 	)!;
 }
 
@@ -406,7 +407,7 @@ function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, 
 	return and(
 		eq(proposalDocuments.opportunityId, opportunityId),
 		organizationId ? proposalDocumentOrganizationCondition(organizationId) : undefined,
-		assignedOpportunityExistsSql(opportunityId, userId)
+		organizationId ? assignedOpportunityExistsSql(opportunityId, userId, organizationId) : undefined
 	)!;
 }
 
@@ -414,7 +415,7 @@ function visibleProposalDocumentCondition(id: string, userId: string, organizati
 	return and(
 		eq(proposalDocuments.id, id),
 		organizationId ? proposalDocumentOrganizationCondition(organizationId) : undefined,
-		assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId)
+		organizationId ? assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId, organizationId) : undefined
 	)!;
 }
 
@@ -428,6 +429,7 @@ function visibleDocumentSectionsForProposalCondition(proposalDocumentId: string,
 			join opportunities on opportunities.id = proposal_documents.opportunity_id
 			where proposal_documents.id = ${proposalDocumentId}
 				${organizationId ? sql`and (proposal_documents.organization_id = ${organizationId} or proposal_documents.organization_id is null)` : sql``}
+				${organizationId ? sql`and (opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)` : sql``}
 				and opportunities.assigned_to = ${userId}
 		)`
 	)!;
@@ -443,30 +445,31 @@ function visibleDocumentSectionCondition(id: string, userId: string, organizatio
 			join opportunities on opportunities.id = proposal_documents.opportunity_id
 			where proposal_documents.id = ${documentSections.proposalDocumentId}
 				${organizationId ? sql`and (proposal_documents.organization_id = ${organizationId} or proposal_documents.organization_id is null)` : sql``}
+				${organizationId ? sql`and (opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)` : sql``}
 				and opportunities.assigned_to = ${userId}
 		)`
 	)!;
 }
 
-function visibleRequirementsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleRequirementsForOpportunityCondition(opportunityId: string, userId: string, organizationId: string): SQL {
 	return and(
 		eq(rfpRequirements.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId)
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId, organizationId)
 	)!;
 }
 
-function visibleActiveWinThemesForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleActiveWinThemesForOpportunityCondition(opportunityId: string, userId: string, organizationId: string): SQL {
 	return and(
 		eq(winThemes.opportunityId, opportunityId),
 		eq(winThemes.isActive, true),
-		assignedOpportunityExistsSql(winThemes.opportunityId, userId)
+		assignedOpportunityExistsSql(winThemes.opportunityId, userId, organizationId)
 	)!;
 }
 
-function visibleRequirementCondition(id: string, userId: string): SQL {
+function visibleRequirementCondition(id: string, userId: string, organizationId: string): SQL {
 	return and(
 		eq(rfpRequirements.id, id),
-		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId)
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId, organizationId)
 	)!;
 }
 
@@ -886,7 +889,7 @@ async function assertProposalDocumentRequirementsReadyForFinalStatus(
 		.from(rfpRequirements)
 		.where(and(
 			inArray(rfpRequirements.id, requirementIds),
-			visibleRequirementsForOpportunityCondition(proposalDocument.opportunityId, userId)
+			visibleRequirementsForOpportunityCondition(proposalDocument.opportunityId, userId, userContext.organizationId)
 		));
 	const blockers = requirements.filter((requirement) =>
 		!isRequirementReadyForFinal(requirement.complianceStatus)
@@ -933,7 +936,7 @@ export async function createProposalDocument(
 			strategicNotes: opportunities.strategicNotes,
 		})
 		.from(opportunities)
-		.where(visibleOpportunityCondition(opportunityId, userId))
+		.where(visibleOpportunityCondition(opportunityId, userId, userContext.organizationId))
 		.limit(1);
 
 	if (!opportunity) {
@@ -943,7 +946,7 @@ export async function createProposalDocument(
 	const requirements = await db
 		.select()
 		.from(rfpRequirements)
-		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId));
+		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId, userContext.organizationId));
 	const documentRequirements = requirements.filter(
 		(requirement) =>
 			requirement.complianceStatus !== "not_applicable" &&
@@ -953,7 +956,7 @@ export async function createProposalDocument(
 	const activeWinThemes = await db
 		.select()
 		.from(winThemes)
-		.where(visibleActiveWinThemesForOpportunityCondition(opportunityId, userId))
+		.where(visibleActiveWinThemesForOpportunityCondition(opportunityId, userId, userContext.organizationId))
 		.orderBy(asc(winThemes.priority), asc(winThemes.createdAt));
 
 	// Generate a title if not provided
@@ -1054,7 +1057,7 @@ export async function linkExistingDocument(input: LinkDocumentInput): Promise<Pr
 	const [opportunity] = await db
 		.select({ id: opportunities.id })
 		.from(opportunities)
-		.where(visibleOpportunityCondition(opportunityId, userId))
+		.where(visibleOpportunityCondition(opportunityId, userId, userContext.organizationId))
 		.limit(1);
 
 	if (!opportunity) {
@@ -1641,7 +1644,7 @@ export async function generateRequirementAwareSectionDraft(
 			strategicNotes: opportunities.strategicNotes,
 		})
 		.from(opportunities)
-		.where(visibleOpportunityCondition(proposalDocument.opportunityId, userId))
+		.where(visibleOpportunityCondition(proposalDocument.opportunityId, userId, userContext.organizationId))
 		.limit(1);
 	if (!opportunity) {
 		throw new Error("Opportunity not found");
@@ -1654,13 +1657,13 @@ export async function generateRequirementAwareSectionDraft(
 			.from(rfpRequirements)
 			.where(and(
 				inArray(rfpRequirements.id, requirementIds),
-				visibleRequirementsForOpportunityCondition(proposalDocument.opportunityId, userId)
+				visibleRequirementsForOpportunityCondition(proposalDocument.opportunityId, userId, userContext.organizationId)
 			))
 		: [];
 	const activeWinThemes = await db
 		.select()
 		.from(winThemes)
-		.where(visibleActiveWinThemesForOpportunityCondition(proposalDocument.opportunityId, userId))
+		.where(visibleActiveWinThemesForOpportunityCondition(proposalDocument.opportunityId, userId, userContext.organizationId))
 		.orderBy(asc(winThemes.priority), asc(winThemes.createdAt));
 	const draftContent = buildRequirementAwareSectionDraftContent(
 		section,
@@ -1726,7 +1729,7 @@ export async function generateRequirementAwareSectionDraft(
 				complianceStatus: nextStatus,
 				updatedAt: new Date(generatedAt),
 			})
-			.where(visibleRequirementCondition(requirement.id, userId));
+			.where(visibleRequirementCondition(requirement.id, userId, userContext.organizationId));
 	}
 
 	return {
@@ -1860,7 +1863,7 @@ async function linkRequirementsToStandardProposalSections(
 	const requirements = await db
 		.select()
 		.from(rfpRequirements)
-		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId));
+		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId, userContext.organizationId));
 
 	const actionableRequirements = requirements.filter((requirement) =>
 		requirement.complianceStatus !== "not_applicable" &&
@@ -1905,7 +1908,7 @@ async function linkRequirementsToStandardProposalSections(
 					responseSection: section.sectionName,
 					updatedAt: new Date(),
 				})
-				.where(visibleRequirementCondition(requirement.id, userId));
+				.where(visibleRequirementCondition(requirement.id, userId, userContext.organizationId));
 		}
 
 		for (const [sectionId, requirementIds] of requirementIdsBySection) {
@@ -1952,7 +1955,7 @@ export async function createStandardProposalSet(
 	const [opportunity] = await db
 		.select({ id: opportunities.id })
 		.from(opportunities)
-		.where(visibleOpportunityCondition(opportunityId, userId))
+		.where(visibleOpportunityCondition(opportunityId, userId, userContext.organizationId))
 		.limit(1);
 
 	if (!opportunity) {
@@ -2017,7 +2020,7 @@ export async function createAndDraftStandardProposalSet(
 	const requirements = await db
 		.select()
 		.from(rfpRequirements)
-		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId));
+		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId, userContext.organizationId));
 	const acceptedRequirements = requirements.filter((requirement) =>
 		requirement.complianceStatus !== "not_applicable" &&
 		isAcceptedRequirement(requirement)
@@ -2032,7 +2035,7 @@ export async function createAndDraftStandardProposalSet(
 	const linkedAcceptedRequirements = (await db
 		.select()
 		.from(rfpRequirements)
-		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId)))
+		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId, userContext.organizationId)))
 		.filter((requirement) =>
 			requirement.complianceStatus !== "not_applicable" &&
 			isAcceptedRequirement(requirement)
@@ -2303,7 +2306,7 @@ export async function bulkUpdateStatus(
 		.where(and(
 			inArray(proposalDocuments.id, ids),
 			proposalDocumentOrganizationCondition(userContext.organizationId),
-			assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId)
+			assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId, userContext.organizationId)
 		));
 }
 
@@ -2319,6 +2322,6 @@ export async function bulkAssign(ids: string[], assignedTo: string): Promise<voi
 		.where(and(
 			inArray(proposalDocuments.id, ids),
 			proposalDocumentOrganizationCondition(userContext.organizationId),
-			assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId)
+			assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId, userContext.organizationId)
 		));
 }

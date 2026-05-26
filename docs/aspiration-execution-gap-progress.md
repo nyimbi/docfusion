@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Proposal Documents Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep proposal document creation, section drafting, requirement linking, win-theme reads, bulk document updates, and response-package generation scoped to the caller's organization through the owning opportunity.
+
+Changes in this slice:
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to proposal-document assigned-opportunity helpers.
+- Thread organization-aware opportunity predicates through opportunity, requirement, win-theme, proposal-document, section, and bulk-update visibility paths.
+- Add the opportunity tenant boundary to proposal-document section subqueries that join through the owning proposal document and opportunity.
+- Extend proposal document scope tests to assert opportunity organization predicates across create, read, update, section, draft, link, and bulk status paths.
+
+Verification:
+- `npm test -- proposal-documents-scope.test.ts proposal-documents-auth.test.ts` from `frontend/` passed, running 16 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as win themes.
+- Resolve the existing full-suite blockers recorded in the pipeline slice so the full Vitest suite can become a clean proof again.
+
 ### 2026-05-27 - Pricing Opportunity Tenant Predicates
 
 Status: implemented and verified.
