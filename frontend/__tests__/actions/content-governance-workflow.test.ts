@@ -4,6 +4,7 @@ const { requireUserContextMock } = vi.hoisted(() => ({
 	requireUserContextMock: vi.fn(async () => ({
 		userId: "content-governor-1",
 		organizationId: "org-1",
+		roles: ["content_governor"],
 	})),
 }));
 

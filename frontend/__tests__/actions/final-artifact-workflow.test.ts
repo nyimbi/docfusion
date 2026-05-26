@@ -46,8 +46,17 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 	upsertWorkflowRuntimeTask: vi.fn(async () => ({ id: "artifact-task-1" })),
 }));
 
+interface TestLinodeE3Config {
+	endpoint: string;
+	region: string;
+	bucket: string;
+	accessKeyId: string;
+	secretAccessKey: string;
+	prefix: string;
+}
+
 const storageMock = vi.hoisted(() => ({
-	getLinodeE3ConfigFromEnv: vi.fn(() => ({
+	getLinodeE3ConfigFromEnv: vi.fn<() => TestLinodeE3Config | null>(() => ({
 		endpoint: "https://objects.example.com",
 		region: "gb-lon-1",
 		bucket: "mansa",

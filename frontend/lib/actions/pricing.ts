@@ -442,7 +442,7 @@ async function requirePricingContext(): Promise<PricingUserContext> {
 		throw new Error("No organization context");
 	}
 	return {
-		userId: userContext.userId,
+		...userContext,
 		organizationId: userContext.organizationId,
 	};
 }

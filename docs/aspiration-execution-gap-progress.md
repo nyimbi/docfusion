@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Frontend TypeScript Gate Restored
+
+Status: implemented and verified.
+
+Purpose: restore the frontend TypeScript gate so platform reliability work is not hidden behind stale test-fixture and context-type drift.
+
+Changes in this slice:
+- Preserve role information in pricing user context instead of narrowing it away after authentication.
+- Narrow the RFP parse reject workflow through the authority-aware context path before checking reject authority.
+- Update workflow test fixtures to match the current role-aware user-context contract.
+- Align final artifact, RFP document service, and submission attachment fixtures with current storage, Buffer, and proposal document type contracts.
+
+Verification:
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run test -- __tests__/actions/content-governance-workflow.test.ts __tests__/actions/document-authoring-workflow.test.ts __tests__/actions/final-artifact-workflow.test.ts __tests__/actions/pricing-approval-workflow.test.ts __tests__/actions/rfp-parse-workflow.test.ts __tests__/services/rfp-document-service.test.ts __tests__/submissions/attachment-receipts.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Keep the TypeScript gate clean while continuing to harden opportunity discovery, intake, response generation, final packaging, and submission readiness.
+
 ### 2026-05-26 - Response Package Follow-Up Tasks
 
 Status: implemented and verified.

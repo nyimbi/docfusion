@@ -196,6 +196,7 @@ describe("pricing approval workflow", () => {
 		requireUserContextMock.mockResolvedValueOnce({
 			userId: "pricing-lead-1",
 			organizationId: "",
+			roles: ["pricing_approver"],
 		});
 
 		await expect(transitionCostElementPricingWorkflow({
@@ -211,6 +212,7 @@ describe("pricing approval workflow", () => {
 		requireUserContextMock.mockResolvedValueOnce({
 			userId: "pricing-lead-1",
 			organizationId: "",
+			roles: ["pricing_approver"],
 		});
 
 		await expect(transitionPricingPackageWorkflow({

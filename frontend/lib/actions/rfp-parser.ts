@@ -1259,14 +1259,18 @@ export async function transitionRfpParseWorkflow(
 		throw new Error("RFP parse workflow transition requires a reason.");
 	}
 
-	const ctx = input.action === "reject"
-		? await requireRfpAuthorityUserContext().catch(() => null)
-		: await requireTenantContext().catch(() => null);
+	let ctx: { userId: string; organizationId: string } | null;
+	if (input.action === "reject") {
+		const authorityContext = await requireRfpAuthorityUserContext().catch(() => null);
+		if (authorityContext) {
+			requireRfpParseRejectAuthority(authorityContext);
+		}
+		ctx = authorityContext;
+	} else {
+		ctx = await requireTenantContext().catch(() => null);
+	}
 	if (!ctx) {
 		throw new Error("Not authenticated");
-	}
-	if (input.action === "reject") {
-		requireRfpParseRejectAuthority(ctx);
 	}
 	const { userId, organizationId } = ctx;
 

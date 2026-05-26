@@ -53,7 +53,7 @@ describe("submission attachment receipt formatting", () => {
 		const attachment: SubmissionAttachment = {
 			documentId: "doc-2",
 			documentTitle: "Pricing Volume",
-			documentType: "pricing",
+			documentType: "cost_proposal",
 			storagePath: "s3://mansa/submissions/legacy-pricing.docx",
 		};
 

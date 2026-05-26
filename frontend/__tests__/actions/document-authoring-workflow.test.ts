@@ -4,6 +4,7 @@ const { requireUserContextMock } = vi.hoisted(() => ({
 	requireUserContextMock: vi.fn(async () => ({
 		userId: "writer-1",
 		organizationId: "org-1",
+		roles: ["writer"],
 	})),
 }));
 
@@ -184,6 +185,7 @@ beforeEach(() => {
 	requireUserContextMock.mockResolvedValue({
 		userId: "writer-1",
 		organizationId: "org-1",
+		roles: ["writer"],
 	});
 	dbMock.select.mockReset();
 	dbMock.insert.mockReset();

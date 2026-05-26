@@ -391,7 +391,7 @@ describe("RFP document fetch storage", () => {
 		});
 		const bufferFromSpy = vi
 			.spyOn(Buffer, "from")
-			.mockReturnValueOnce({ length: 101 * 1024 * 1024 } as unknown as Buffer);
+			.mockReturnValueOnce({ length: 101 * 1024 * 1024 } as unknown as Buffer<ArrayBuffer>);
 
 		let result;
 		try {
