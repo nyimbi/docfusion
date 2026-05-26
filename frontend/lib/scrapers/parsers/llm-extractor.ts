@@ -15,6 +15,8 @@ import { FirecrawlClient, type ScrapeOptions } from "../firecrawl";
 import type { OpportunityData } from "../deduplicator";
 import { logger } from "@/lib/utils/logger";
 
+const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
+
 // ============================================================================
 // Tender Extraction Schema
 // ============================================================================
@@ -125,7 +127,7 @@ export interface LLMExtractorOptions {
 	scrapeOptions?: Partial<ScrapeOptions>;
 	/** Use stealth scraper as fallback for anti-bot protected sites */
 	useStealthFallback?: boolean;
-	/** Stealth scraper URL (default: http://localhost:3003) */
+	/** Stealth scraper URL (default: http://84.247.181.100:3003) */
 	stealthScraperUrl?: string;
 }
 
@@ -149,7 +151,7 @@ export async function extractTendersWithLLM(
 		sourceId,
 		sourceName,
 		useStealthFallback = true,
-		stealthScraperUrl = process.env.STEALTH_SCRAPER_URL || "http://localhost:3003",
+		stealthScraperUrl = process.env.STEALTH_SCRAPER_URL || DEFAULT_STEALTH_SCRAPER_URL,
 	} = options;
 
 	try {
@@ -288,7 +290,7 @@ async function extractWithStealthFallback(
 	url: string,
 	sourceId: string,
 	sourceName?: string,
-	stealthScraperUrl: string = "http://localhost:3003"
+	stealthScraperUrl: string = DEFAULT_STEALTH_SCRAPER_URL
 ): Promise<LLMExtractionResult> {
 	try {
 		const response = await fetch(`${stealthScraperUrl}/v1/scrape`, {

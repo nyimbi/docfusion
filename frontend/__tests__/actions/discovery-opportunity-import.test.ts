@@ -7,6 +7,7 @@ const updateImportRecordMock = vi.hoisted(() => vi.fn());
 const createOpportunityMock = vi.hoisted(() => vi.fn());
 const updateOpportunityMock = vi.hoisted(() => vi.fn());
 const firecrawlScrapeMock = vi.hoisted(() => vi.fn());
+const fetchMock = vi.hoisted(() => vi.fn());
 const selectResultsQueue = vi.hoisted(() => [] as unknown[][]);
 
 vi.mock("@/lib/auth-utils", () => ({
@@ -64,12 +65,19 @@ import { discoverAndImportOpportunities } from "@/lib/actions/import-opportuniti
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	vi.stubGlobal("fetch", fetchMock);
 	selectResultsQueue.length = 0;
 	getCurrentUserIdMock.mockResolvedValue("user-1");
 	createImportRecordMock.mockResolvedValue("import-1");
 	createOpportunityMock.mockResolvedValue({ id: "opp-1" });
 	updateOpportunityMock.mockResolvedValue({ id: "opp-existing" });
 	firecrawlScrapeMock.mockResolvedValue({ success: false, error: "not scraped" });
+	fetchMock.mockResolvedValue({
+		ok: false,
+		status: 503,
+		text: async () => "browser unavailable",
+		json: async () => ({ success: false, error: "browser unavailable" }),
+	});
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -188,6 +196,73 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 		}));
 		expect(createOpportunityMock).not.toHaveBeenCalled();
+	});
+
+	it("falls back to the browser service when Firecrawl cannot scrape a top result cleanly", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Procurement notice for records platform",
+					url: "https://blocked.example.com/tender/records-platform",
+					content: "Tender notice behind bot protection.",
+					engine: "brave",
+					score: 10,
+					category: "general",
+				},
+			],
+		});
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "SCRAPE_ALL_ENGINES_FAILED",
+		});
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				success: true,
+				data: {
+					markdown: "# Records Platform Tender\n\nImplementation scope and submission details.",
+					metadata: {
+						title: "Records Platform Tender",
+						description: "Implementation scope and submission details.",
+					},
+				},
+			}),
+		});
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "records platform tender",
+			scrapeTopResults: true,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://84.247.181.100:3003/v1/scrape",
+			expect.objectContaining({
+				method: "POST",
+				body: JSON.stringify({
+					url: "https://blocked.example.com/tender/records-platform",
+					options: {
+						timeout: 15000,
+						humanScroll: true,
+						blockMedia: true,
+					},
+				}),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Records Platform Tender",
+			projectSummary: "Implementation scope and submission details.",
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					scrapedWithFirecrawl: false,
+					scrapedWithBrowserFallback: true,
+					scrapeMethod: "browser_fallback",
+					browserFallbackReason: "SCRAPE_ALL_ENGINES_FAILED",
+				}),
+			}),
+		}));
 	});
 
 	it("records search failures without touching opportunity rows", async () => {

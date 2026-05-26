@@ -20,6 +20,7 @@ import { assertPublicHttpUrl, fetchPublicHttpUrl } from "@/lib/security/public-u
 
 const DEFAULT_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const MAX_CONFIGURED_RESPONSE_BYTES = 25 * 1024 * 1024;
+const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
 
 // ============================================================================
 // Types
@@ -323,7 +324,7 @@ async function scrapeWithStealth(
 	source: ScraperSource,
 	signal: AbortSignal
 ): Promise<ScrapedPage> {
-	const stealthUrl = process.env.STEALTH_SCRAPER_URL || "http://localhost:3003";
+	const stealthUrl = process.env.STEALTH_SCRAPER_URL || DEFAULT_STEALTH_SCRAPER_URL;
 	const timeoutSignal = AbortSignal.timeout((source.timeout || 60) * 1000 + 10000);
 
 	try {

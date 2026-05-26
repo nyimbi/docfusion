@@ -25,6 +25,8 @@ export interface DiscoveryImportInput {
 	includeUnmatchedResults?: boolean;
 	scrapeTopResults?: boolean;
 	scrapeLimit?: number;
+	browserFallback?: boolean;
+	browserFallbackLimit?: number;
 }
 
 interface DiscoveryCandidate {
@@ -36,6 +38,8 @@ interface DiscoveryCandidate {
 		markdown?: string;
 		success: boolean;
 		error?: string;
+		method: "firecrawl" | "browser_fallback";
+		fallbackReason?: string;
 	};
 }
 
@@ -71,6 +75,9 @@ const OPPORTUNITY_KEYWORDS = [
 	"grant",
 	"solicitation",
 ];
+
+const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
+const MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH = 120;
 
 function sha256Hex(value: string): string {
 	return createHash("sha256").update(value).digest("hex");
@@ -183,7 +190,10 @@ function buildOpportunityFromDiscovery(
 				resultEngine: candidate.result.engine,
 				score: candidate.result.score,
 				url: normalizedUrl,
-				scrapedWithFirecrawl: candidate.scrape?.success ?? false,
+				scrapedWithFirecrawl: candidate.scrape?.success && candidate.scrape.method === "firecrawl",
+				scrapedWithBrowserFallback: candidate.scrape?.success && candidate.scrape.method === "browser_fallback",
+				scrapeMethod: candidate.scrape?.method,
+				browserFallbackReason: candidate.scrape?.fallbackReason,
 				scrapeError: candidate.scrape?.error,
 			},
 		},
@@ -221,11 +231,15 @@ async function findExistingDiscoveredOpportunity(opp: OpportunityInput): Promise
 
 async function scrapeDiscoveryCandidates(
 	candidates: DiscoveryCandidate[],
-	scrapeLimit: number
+	scrapeLimit: number,
+	input: DiscoveryImportInput
 ): Promise<void> {
 	if (scrapeLimit <= 0) return;
 
 	const firecrawl = new FirecrawlClient({ timeout: 15000 });
+	const browserFallbackLimit = Math.min(input.browserFallbackLimit ?? scrapeLimit, scrapeLimit);
+	let browserFallbackAttempts = 0;
+
 	for (const candidate of candidates.slice(0, scrapeLimit)) {
 		const scrapeResult = await firecrawl.scrape(candidate.result.url, {
 			formats: ["markdown"],
@@ -238,6 +252,102 @@ async function scrapeDiscoveryCandidates(
 			description: scrapeResult.data?.metadata?.description,
 			markdown: scrapeResult.data?.markdown,
 			error: scrapeResult.error,
+			method: "firecrawl",
+		};
+
+		const fallbackReason = browserFallbackReason(candidate.scrape);
+		if ((input.browserFallback ?? true) && fallbackReason && browserFallbackAttempts < browserFallbackLimit) {
+			browserFallbackAttempts++;
+			const browserResult = await scrapeWithBrowserFallback(candidate.result.url, fallbackReason);
+			if (isUsefulBrowserFallback(browserResult)) {
+				candidate.scrape = browserResult;
+			} else if (browserResult.error) {
+				candidate.scrape.error = `${candidate.scrape.error || fallbackReason}; browser fallback: ${browserResult.error}`;
+				candidate.scrape.fallbackReason = fallbackReason;
+			}
+		}
+	}
+}
+
+function browserFallbackReason(scrape: DiscoveryCandidate["scrape"]): string | null {
+	if (!scrape?.success) {
+		return scrape?.error || "Firecrawl scrape failed";
+	}
+
+	const markdownLength = scrape.markdown?.trim().length ?? 0;
+	if (markdownLength < MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH && !scrape.description?.trim()) {
+		return `Firecrawl returned sparse content (${markdownLength} markdown characters)`;
+	}
+
+	return null;
+}
+
+function isUsefulBrowserFallback(scrape: DiscoveryCandidate["scrape"]): boolean {
+	if (!scrape?.success) return false;
+	return Boolean(
+		scrape.description?.trim() ||
+		(scrape.markdown?.trim().length ?? 0) >= MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH ||
+		scrape.title?.trim()
+	);
+}
+
+async function scrapeWithBrowserFallback(
+	url: string,
+	fallbackReason: string
+): Promise<NonNullable<DiscoveryCandidate["scrape"]>> {
+	const stealthUrl = (process.env.STEALTH_SCRAPER_URL || DEFAULT_STEALTH_SCRAPER_URL).replace(/\/$/, "");
+
+	try {
+		const response = await fetch(`${stealthUrl}/v1/scrape`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				url,
+				options: {
+					timeout: 15000,
+					humanScroll: true,
+					blockMedia: true,
+				},
+			}),
+			signal: AbortSignal.timeout(20000),
+		});
+
+		if (!response.ok) {
+			return {
+				success: false,
+				error: `Browser fallback error ${response.status}: ${await response.text()}`,
+				method: "browser_fallback",
+				fallbackReason,
+			};
+		}
+
+		const result = await response.json() as {
+			success: boolean;
+			data?: {
+				markdown?: string;
+				metadata?: {
+					title?: string;
+					description?: string;
+				};
+			};
+			error?: string;
+		};
+
+		return {
+			success: result.success,
+			title: result.data?.metadata?.title,
+			description: result.data?.metadata?.description,
+			markdown: result.data?.markdown,
+			error: result.error,
+			method: "browser_fallback",
+			fallbackReason,
+		};
+	} catch (error) {
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : String(error),
+			method: "browser_fallback",
+			fallbackReason,
 		};
 	}
 }
@@ -282,7 +392,11 @@ export async function executeOpportunityDiscoveryImport(
 	}
 
 	if (input.scrapeTopResults) {
-		await scrapeDiscoveryCandidates(candidates, Math.min(input.scrapeLimit ?? 3, candidates.length));
+		await scrapeDiscoveryCandidates(
+			candidates,
+			Math.min(input.scrapeLimit ?? 3, candidates.length),
+			input
+		);
 	}
 
 	const totalRecords = candidates.length + searchFailures.length;

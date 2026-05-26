@@ -110,6 +110,8 @@ describe("opportunity discovery run route", () => {
 			includeUnmatchedResults: undefined,
 			scrapeTopResults: true,
 			scrapeLimit: 1,
+			browserFallback: undefined,
+			browserFallbackLimit: undefined,
 		});
 		expect(body).toMatchObject({
 			success: true,

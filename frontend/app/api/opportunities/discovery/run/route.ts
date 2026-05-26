@@ -70,6 +70,8 @@ function parseDiscoveryInput(body: DiscoveryRequestBody): DiscoveryImportInput {
 		includeUnmatchedResults: optionalBoolean(body.includeUnmatchedResults, "includeUnmatchedResults"),
 		scrapeTopResults: optionalBoolean(body.scrapeTopResults, "scrapeTopResults"),
 		scrapeLimit: optionalNumber(body.scrapeLimit, "scrapeLimit"),
+		browserFallback: optionalBoolean(body.browserFallback, "browserFallback"),
+		browserFallbackLimit: optionalNumber(body.browserFallbackLimit, "browserFallbackLimit"),
 	};
 }
 

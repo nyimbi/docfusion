@@ -122,3 +122,29 @@ Testing scope note:
 Remaining after this slice:
 - Add browser-only fallback behavior for pages Firecrawl cannot scrape cleanly, using the existing Playwright service first and CloakHQ/cloakbrowser only if needed.
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+
+### 2026-05-26 - Browser Fallback for Discovery Enrichment
+
+Status: implemented and verified.
+
+Purpose: keep live opportunity ingestion useful when Firecrawl cannot scrape a high-value result cleanly by falling back to the available Playwright/stealth browser service before considering any new browser dependency.
+
+Changes in this slice:
+- Add browser fallback enrichment to `executeOpportunityDiscoveryImport` when `scrapeTopResults` is enabled and Firecrawl fails or returns sparse content.
+- Default the stealth browser service to `http://84.247.181.100:3003`, while still honoring `STEALTH_SCRAPER_URL`.
+- Record whether enrichment came from Firecrawl or browser fallback in discovery metadata, including the fallback reason.
+- Expose `browserFallback` and `browserFallbackLimit` through the operator discovery API request parser.
+- Align frontend scraper fallback defaults and `.env.example` with the connectivity host Playwright service.
+- Add a focused regression test proving a Firecrawl failure is recovered through the browser service and persisted with browser fallback provenance.
+
+Verification:
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts __tests__/api/opportunity-discovery-route.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This slice used targeted action/route tests and TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Consider CloakHQ/cloakbrowser only after a real target source fails both Firecrawl and the existing Playwright/stealth service.
