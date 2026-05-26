@@ -397,3 +397,26 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Add operator-facing documentation or a settings surface for wiring cron to discovery preset runs.
+
+### 2026-05-26 - Discovery Operations Runbook
+
+Status: implemented and verified.
+
+Purpose: make the live and scheduled discovery controls operable by deployment operators without reverse-engineering endpoint details.
+
+Changes in this slice:
+- Add an opportunity discovery operations runbook under technical runbooks.
+- Document required app environment for SearXNG, Firecrawl, browser fallback, API-key auth, and scheduled import ownership.
+- Document manual API-key discovery runs and scheduled preset dry-run/execution calls.
+- Add an example cron entry and operating guidance for bounded search/enrichment settings.
+- Link the runbook from the technical runbooks index.
+
+Verification:
+- `git diff --check` passed.
+
+Testing scope note:
+- This was a documentation-only slice, so no code tests or TypeScript checks were run.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Add an operator settings/status surface for discovery scheduler health if UI visibility is needed beyond the runbook and API responses.
