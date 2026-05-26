@@ -4,9 +4,24 @@ vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
-	getCurrentUserId: vi.fn(async () => "capture-lead"),
-}));
+const requireUserContextMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/auth-utils", () => {
+	const userHasAuthorityRole = (
+		context: { role?: string; roles?: string[] },
+		requiredRole: string
+	) => {
+		const roles = new Set([context.role, ...(context.roles ?? [])]
+			.filter(Boolean)
+			.map((value) => String(value).trim().toLowerCase()));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	};
+	return {
+		getCurrentUserId: vi.fn(async () => "capture-lead"),
+		requireUserContext: requireUserContextMock,
+		userHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/auth/tenant-context", () => ({
 	requireTenantContext: vi.fn(async () => ({
@@ -139,6 +154,11 @@ import { parseRFPWithAI } from "@/lib/ai/rfp-parser";
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	requireUserContextMock.mockResolvedValue({
+		userId: "capture-lead",
+		organizationId: "org-1",
+		roles: ["proposal_manager"],
+	});
 	dbMock.query.rfpDocuments.findFirst.mockResolvedValue(documentRow);
 	dbMock.query.rfpParsingJobs.findFirst.mockResolvedValue(latestJob);
 	dbMock.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(dbMock));
@@ -314,6 +334,28 @@ describe("RFP parse workflow", () => {
 				}),
 			})
 		);
+	});
+
+	it("requires proposal or capture authority before reviewing parser confidence", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["writer"],
+		});
+
+		const result = await reviewRfpParseConfidence({
+			rfpDocumentId: documentRow.id,
+			action: "accept",
+			reason: "Reviewed source text and accepted parser output",
+		});
+
+		expect(result).toMatchObject({
+			success: false,
+			error: "Reviewing parser output requires proposal or capture authority: requires proposal_manager or capture_manager",
+		});
+		expect(dbMock.query.rfpDocuments.findFirst).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).not.toHaveBeenCalled();
 	});
 
 	it("blocks parser confidence review until parsing is completed", async () => {

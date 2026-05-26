@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Parser Confidence Review Authority Check
+
+Status: implemented and verified.
+
+Purpose: prevent parser confidence review acceptance or correction requests from mutating RFP document review metadata unless the authenticated actor has proposal or capture authority.
+
+Changes in this slice:
+- Resolve role-bearing user context in `reviewRfpParseConfidence`.
+- Require `proposal_manager`, `capture_manager`, or admin authority before loading or updating parser review metadata.
+- Return a non-mutating authority failure when a writer or other non-authority role attempts parser confidence review.
+- Preserve completed-parse gating and existing review workflow/task recording for authorized reviewers.
+- Add focused coverage for unauthorized parser confidence review.
+
+Verification:
+- `npm run test -- __tests__/actions/rfp-parse-workflow.test.ts __tests__/api/rfp-parse-route.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets parser confidence-review authority with focused workflow/API tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that only store authority metadata after mutations rather than enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Requirement Acceptance Authority Check
 
 Status: implemented and verified.

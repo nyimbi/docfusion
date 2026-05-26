@@ -29,7 +29,12 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, desc, asc, sql, ilike, or, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import {
+	getCurrentUserId,
+	requireUserContext,
+	userHasAuthorityRole,
+	type UserContext,
+} from "@/lib/auth-utils";
 import { requireTenantContext } from "@/lib/auth/tenant-context";
 import {
 	parseRFPWithAI,
@@ -81,6 +86,27 @@ interface RfpParseWorkflowResult {
 	progress: number;
 	currentStep?: string;
 	error?: string;
+}
+
+type RfpAuthorityUserContext = UserContext & { organizationId: string };
+
+async function requireRfpAuthorityUserContext(): Promise<RfpAuthorityUserContext> {
+	const context = await requireUserContext();
+	if (!context.organizationId) {
+		throw new Error("No organization context");
+	}
+	return {
+		...context,
+		organizationId: context.organizationId,
+	};
+}
+
+function hasProposalOrCaptureAuthority(context: Pick<UserContext, "role" | "roles">): boolean {
+	return ["proposal_manager", "capture_manager"].some((role) => userHasAuthorityRole(context, role));
+}
+
+function proposalOrCaptureAuthorityError(action: string): string {
+	return `${action} requires proposal or capture authority: requires proposal_manager or capture_manager`;
 }
 
 interface RfpParseWorkflowMetadata {
@@ -847,9 +873,12 @@ export async function reviewRfpParseConfidence(input: {
 		return { success: false, error: "Review reason is required" };
 	}
 
-	const ctx = await requireTenantContext().catch(() => null);
+	const ctx = await requireRfpAuthorityUserContext().catch(() => null);
 	if (!ctx) {
 		return { success: false, error: "Not authenticated" };
+	}
+	if (!hasProposalOrCaptureAuthority(ctx)) {
+		return { success: false, error: proposalOrCaptureAuthorityError("Reviewing parser output") };
 	}
 	const { userId, organizationId } = ctx;
 
