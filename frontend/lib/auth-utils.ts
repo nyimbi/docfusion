@@ -50,6 +50,8 @@ export async function getCurrentUserEmail(): Promise<string | null> {
 export interface UserContext {
 	userId: string;
 	organizationId?: string;
+	role?: string;
+	roles: string[];
 }
 
 /**
@@ -59,9 +61,16 @@ export interface UserContext {
 export async function getUserContext(): Promise<UserContext | null> {
 	const session = await getServerSession();
 	if (!session?.user?.id) return null;
+	const user = session.user as {
+		organizationId?: string;
+		role?: string | null;
+		roles?: string[] | null;
+	};
 	return {
 		userId: session.user.id,
-		organizationId: (session.user as { organizationId?: string }).organizationId ?? undefined,
+		organizationId: user.organizationId ?? undefined,
+		role: user.role ?? undefined,
+		roles: normalizeUserRoles(user.role, user.roles),
 	};
 }
 
@@ -72,4 +81,48 @@ export async function requireUserContext(): Promise<UserContext> {
 	const ctx = await getUserContext();
 	if (!ctx) throw new Error("Unauthorized");
 	return ctx;
+}
+
+export function normalizeUserRoles(
+	role?: string | null,
+	roles?: Array<string | null | undefined> | null
+): string[] {
+	return [...new Set([role, ...(roles ?? [])]
+		.filter((value): value is string => Boolean(value?.trim()))
+		.map((value) => value.trim().toLowerCase()))];
+}
+
+export function userHasAuthorityRole(
+	context: Pick<UserContext, "role" | "roles">,
+	requiredRole: string
+): boolean {
+	const normalized = new Set(normalizeUserRoles(context.role, context.roles));
+	if (normalized.has("admin")) {
+		return true;
+	}
+	return authorityRoleAliases(requiredRole).some((role) => normalized.has(role));
+}
+
+export function assertUserHasAuthorityRole(
+	context: Pick<UserContext, "role" | "roles">,
+	requiredRole: string | null | undefined,
+	message: string
+): string {
+	const normalizedRequiredRole = requiredRole?.trim().toLowerCase();
+	if (!normalizedRequiredRole) {
+		throw new Error(message);
+	}
+	if (!userHasAuthorityRole(context, normalizedRequiredRole)) {
+		throw new Error(`${message}: requires ${normalizedRequiredRole}`);
+	}
+	return normalizedRequiredRole;
+}
+
+function authorityRoleAliases(requiredRole: string): string[] {
+	switch (requiredRole.trim().toLowerCase()) {
+		case "executive_or_legal":
+			return ["executive_or_legal", "executive", "legal"];
+		default:
+			return [requiredRole.trim().toLowerCase()];
+	}
 }

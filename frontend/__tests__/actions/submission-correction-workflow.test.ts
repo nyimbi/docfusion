@@ -4,12 +4,28 @@ const { requireUserContextMock } = vi.hoisted(() => ({
 	requireUserContextMock: vi.fn(async () => ({
 		userId: "proposal-manager-1",
 		organizationId: "org-1",
+		roles: ["proposal_manager"],
 	})),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: requireUserContextMock,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const assertUserHasAuthorityRole = (context: { role?: string; roles?: string[] }, requiredRole: string | null | undefined, message: string) => {
+		const role = requiredRole?.trim().toLowerCase();
+		if (!role) throw new Error(message);
+		const roles = new Set([context.role, ...(context.roles ?? [])].filter(Boolean).map((value) => String(value).trim().toLowerCase()));
+		const allowed = role === "executive_or_legal"
+			? ["executive_or_legal", "executive", "legal"]
+			: [role];
+		if (!roles.has("admin") && !allowed.some((candidate) => roles.has(candidate))) {
+			throw new Error(`${message}: requires ${role}`);
+		}
+		return role;
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		assertUserHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "submission-correction-workflow-1" })),
@@ -110,6 +126,7 @@ beforeEach(() => {
 	requireUserContextMock.mockResolvedValue({
 		userId: "proposal-manager-1",
 		organizationId: "org-1",
+		roles: ["proposal_manager"],
 	});
 	dbMock.select.mockReset();
 	dbMock.update.mockReset();
@@ -244,6 +261,24 @@ describe("submission correction workflow", () => {
 				authorityPolicy: { requiredRoles: ["proposal_manager"] },
 			})
 		);
+	});
+
+	it("rejects claimed correction authority when the session lacks the role", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["proposal_writer"],
+		});
+		dbMock.select.mockReturnValueOnce(createChain({ result: [{ ...submission, status: "under_review" }] }));
+
+		await expect(transitionSubmissionCorrectionWorkflow({
+			submissionId: "submission-1",
+			action: "apply_correction",
+			reason: "Corrected filename accepted by portal",
+			confirmationNumber: "PORTAL-456",
+			authorityRole: "proposal_manager",
+		})).rejects.toThrow("requires proposal_manager");
+		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
 	it("requires authority before withdrawing a submitted package", async () => {

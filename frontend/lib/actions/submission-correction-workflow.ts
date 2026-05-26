@@ -1,6 +1,10 @@
 "use server";
 
-import { requireUserContext } from "@/lib/auth-utils";
+import {
+	assertUserHasAuthorityRole,
+	requireUserContext,
+	type UserContext,
+} from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
@@ -51,7 +55,7 @@ export async function transitionSubmissionCorrectionWorkflow(
 	const transition = buildTransition({
 		input,
 		submission,
-		actorId: userContext.userId,
+		actor: userContext,
 		reason,
 	});
 
@@ -174,7 +178,7 @@ async function loadSubmission(submissionId: string, userId: string) {
 function buildTransition(input: {
 	input: SubmissionCorrectionWorkflowInput;
 	submission: SubmissionRow;
-	actorId: string;
+	actor: UserContext;
 	reason: string;
 }): {
 	toState: string;
@@ -207,7 +211,7 @@ function buildTransition(input: {
 				opportunityDecisionReason: `Submission correction requested: ${input.reason}`,
 			};
 		case "apply_correction":
-			requireAuthority(input.input.authorityRole, "Applying submission correction requires submission authority");
+			requireAuthority(input.actor, input.input.authorityRole, "Applying submission correction requires submission authority");
 			if (!input.input.confirmationNumber?.trim() && !input.submission.confirmationNumber?.trim()) {
 				throw new Error("Applying submission correction requires a confirmation or receipt reference");
 			}
@@ -249,7 +253,7 @@ function buildTransition(input: {
 				opportunityDecisionReason: `Submission receipt confirmed: ${input.reason}`,
 			};
 		case "withdraw":
-			requireAuthority(input.input.authorityRole, "Withdrawing a submitted package requires submission authority");
+			requireAuthority(input.actor, input.input.authorityRole, "Withdrawing a submitted package requires submission authority");
 			return {
 				toState: "withdrawn",
 				terminal: true,
@@ -279,10 +283,12 @@ function requireReason(value: string | null | undefined, message: string) {
 	return reason;
 }
 
-function requireAuthority(value: string | null | undefined, message: string) {
-	if (!value?.trim()) {
-		throw new Error(message);
-	}
+function requireAuthority(
+	actor: UserContext,
+	value: string | null | undefined,
+	message: string
+): string {
+	return assertUserHasAuthorityRole(actor, value, message);
 }
 
 function appendNote(existing: string | null | undefined, note: string) {

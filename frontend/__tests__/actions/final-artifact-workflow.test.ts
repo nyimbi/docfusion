@@ -5,12 +5,28 @@ const { requireUserContextMock } = vi.hoisted(() => ({
 	requireUserContextMock: vi.fn(async () => ({
 		userId: "production-lead-1",
 		organizationId: "org-1",
+		roles: ["proposal_manager", "executive_or_legal"],
 	})),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: requireUserContextMock,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const assertUserHasAuthorityRole = (context: { role?: string; roles?: string[] }, requiredRole: string | null | undefined, message: string) => {
+		const role = requiredRole?.trim().toLowerCase();
+		if (!role) throw new Error(message);
+		const roles = new Set([context.role, ...(context.roles ?? [])].filter(Boolean).map((value) => String(value).trim().toLowerCase()));
+		const allowed = role === "executive_or_legal"
+			? ["executive_or_legal", "executive", "legal"]
+			: [role];
+		if (!roles.has("admin") && !allowed.some((candidate) => roles.has(candidate))) {
+			throw new Error(`${message}: requires ${role}`);
+		}
+		return role;
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		assertUserHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/actions/document-render", () => ({
 	renderDocument: vi.fn(async () => ({
@@ -181,6 +197,7 @@ beforeEach(() => {
 	requireUserContextMock.mockResolvedValue({
 		userId: "production-lead-1",
 		organizationId: "org-1",
+		roles: ["proposal_manager", "executive_or_legal"],
 	});
 	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue({
 		endpoint: "https://objects.example.com",
@@ -406,6 +423,38 @@ describe("final artifact workflow", () => {
 			reason: "Approve final artifact",
 			format: "docx",
 		})).rejects.toThrow("production approval authority");
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("rejects claimed final artifact authority when the session lacks the role", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["proposal_writer"],
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [proposalDocument],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					...baseDocument,
+					metadata: {
+						renderedArtifacts: {
+							docx: storedArtifact(),
+						},
+					},
+				}],
+			}));
+
+		await expect(transitionFinalArtifactWorkflow({
+			documentId: "doc-1",
+			proposalDocumentId: "proposal-doc-1",
+			action: "approve",
+			reason: "Approve final artifact",
+			format: "docx",
+			approvalRole: "proposal_manager",
+		})).rejects.toThrow("requires proposal_manager");
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 

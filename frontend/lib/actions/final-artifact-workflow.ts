@@ -1,7 +1,11 @@
 "use server";
 
 import { createHash } from "node:crypto";
-import { requireUserContext } from "@/lib/auth-utils";
+import {
+	assertUserHasAuthorityRole,
+	requireUserContext,
+	type UserContext,
+} from "@/lib/auth-utils";
 import { renderDocument } from "@/lib/actions/document-render";
 import {
 	recordWorkflowRuntimeTransition,
@@ -149,7 +153,7 @@ export async function transitionFinalArtifactWorkflow(
 		input,
 		document,
 		proposalDocument,
-		actorId: userContext.userId,
+		actor: userContext,
 	});
 
 	const [updatedDocument] = await db
@@ -239,7 +243,7 @@ async function buildTransition(input: {
 	input: FinalArtifactWorkflowInput;
 	document: DocumentRow;
 	proposalDocument: ProposalDocumentRow | null;
-	actorId: string;
+	actor: UserContext;
 }): Promise<{
 	toState: string;
 	terminal: boolean;
@@ -266,7 +270,7 @@ async function buildTransition(input: {
 						finalArtifactWorkflow: {
 							state: "render_requested",
 							requestedAt: now.toISOString(),
-							requestedBy: input.actorId,
+							requestedBy: input.actor.userId,
 							format: input.input.format ?? "pdf",
 						},
 					}),
@@ -297,7 +301,7 @@ async function buildTransition(input: {
 				proposalDocumentId: input.proposalDocument?.id ?? null,
 				opportunityId: input.proposalDocument?.opportunityId ?? input.input.opportunityId ?? null,
 				format,
-				renderedBy: input.actorId,
+				renderedBy: input.actor.userId,
 				renderedAt: now,
 				renderResult: {
 					data: renderResult.data,
@@ -323,7 +327,7 @@ async function buildTransition(input: {
 			};
 		}
 		case "approve": {
-			requireAuthority(input.input.approvalRole, "Approving a final artifact requires production approval authority");
+			const approvalRole = requireAuthority(input.actor, input.input.approvalRole, "Approving a final artifact requires production approval authority");
 			const artifact = latestArtifact(input.document.metadata, input.input.format);
 			if (!artifact) {
 				throw new Error("Approving a final artifact requires a rendered artifact manifest");
@@ -342,8 +346,8 @@ async function buildTransition(input: {
 						finalArtifact: {
 							...artifact,
 							approvedAt: now.toISOString(),
-							approvedBy: input.actorId,
-							approvalRole: input.input.approvalRole,
+							approvedBy: input.actor.userId,
+							approvalRole,
 						},
 					}),
 					updatedAt: now,
@@ -351,7 +355,7 @@ async function buildTransition(input: {
 				proposalPatch: input.proposalDocument
 					? {
 						status: "final",
-						approvedBy: input.actorId,
+						approvedBy: input.actor.userId,
 						approvedAt: now,
 						updatedAt: now,
 					}
@@ -359,7 +363,7 @@ async function buildTransition(input: {
 			};
 		}
 		case "signoff": {
-			requireAuthority(input.input.approvalRole, "Recording final submission signoff requires executive or legal authority");
+			const approvalRole = requireAuthority(input.actor, input.input.approvalRole, "Recording final submission signoff requires executive or legal authority");
 			const artifact = finalArtifact(input.document.metadata);
 			if (!artifact) {
 				throw new Error("Final submission signoff requires an approved final artifact");
@@ -376,14 +380,14 @@ async function buildTransition(input: {
 					metadata: mergeMetadata(input.document.metadata, {
 						finalSubmissionSignoff: {
 							signedAt: now.toISOString(),
-							signedBy: input.actorId,
-							signoffRole: input.input.approvalRole,
+							signedBy: input.actor.userId,
+							signoffRole: approvalRole,
 						},
 						finalArtifactWorkflow: {
 							state: "submission_signed_off",
 							signedAt: now.toISOString(),
-							signedBy: input.actorId,
-							signoffRole: input.input.approvalRole,
+							signedBy: input.actor.userId,
+							signoffRole: approvalRole,
 						},
 					}),
 					updatedAt: now,
@@ -396,7 +400,7 @@ async function buildTransition(input: {
 			};
 		}
 		case "reopen":
-			requireAuthority(input.input.approvalRole, "Reopening an approved final artifact requires production authority");
+			requireAuthority(input.actor, input.input.approvalRole, "Reopening an approved final artifact requires production authority");
 			return {
 				toState: "artifact_reopened",
 				terminal: false,
@@ -412,7 +416,7 @@ async function buildTransition(input: {
 						finalArtifactWorkflow: {
 							state: "artifact_reopened",
 							reopenedAt: now.toISOString(),
-							reopenedBy: input.actorId,
+							reopenedBy: input.actor.userId,
 						},
 					}),
 					updatedAt: now,
@@ -663,10 +667,12 @@ function requireReason(value: string | null | undefined, message: string) {
 	return reason;
 }
 
-function requireAuthority(value: string | null | undefined, message: string) {
-	if (!value?.trim()) {
-		throw new Error(message);
-	}
+function requireAuthority(
+	actor: UserContext,
+	value: string | null | undefined,
+	message: string
+): string {
+	return assertUserHasAuthorityRole(actor, value, message);
 }
 
 function normalizeDueAt(value: Date | string | null | undefined, fallbackDays: number) {

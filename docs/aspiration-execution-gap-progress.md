@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Final-Mile Server Authority Checks
+
+Status: implemented and verified.
+
+Purpose: prevent final artifact approval, executive signoff, artifact reopen, submission correction, and submission withdrawal from trusting a client-supplied authority role.
+
+Changes in this slice:
+- Add normalized session role capture to `requireUserContext`.
+- Add reusable authority-role checks with admin bypass and executive/legal alias handling.
+- Enforce server-side authority in final artifact approve, signoff, and reopen transitions.
+- Enforce server-side authority in submission correction apply and withdrawal transitions.
+- Add focused forged-authority tests for final artifact approval and submission correction.
+
+Verification:
+- `npm run test -- __tests__/actions/final-artifact-workflow.test.ts __tests__/actions/submission-correction-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets authority enforcement in final-mile workflows with focused workflow tests and whitespace validation.
+
+Remaining after this slice:
+- Continue applying the same role-authority helper to pricing, import governance, review waiver, and other authorityRole workflows.
+- Surface authority denial states in inline approval cards and command-center work items.
+
 ### 2026-05-26 - Submission Attachments Bind Stored Artifacts
 
 Status: implemented and verified.
