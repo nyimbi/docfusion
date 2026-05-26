@@ -38,6 +38,11 @@ vi.mock("@/lib/db/schema", () => ({
 		source: "opportunities.source",
 		sourceId: "opportunities.sourceId",
 	},
+	opportunityDocuments: {
+		id: "opportunityDocuments.id",
+		opportunityId: "opportunityDocuments.opportunityId",
+		sourceUrl: "opportunityDocuments.sourceUrl",
+	},
 	opportunityImports: {},
 }));
 
@@ -58,10 +63,14 @@ vi.mock("@/lib/db", () => ({
 			};
 			return builder;
 		}),
+		insert: vi.fn(() => ({
+			values: vi.fn(async () => undefined),
+		})),
 	},
 }));
 
 import { discoverAndImportOpportunities } from "@/lib/actions/import-opportunities";
+import { db } from "@/lib/db";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -225,7 +234,7 @@ describe("discoverAndImportOpportunities", () => {
 				},
 			},
 		});
-		selectResultsQueue.push([], []);
+		selectResultsQueue.push([], [], []);
 
 		const result = await discoverAndImportOpportunities({
 			query: "records platform tender",
@@ -242,6 +251,20 @@ describe("discoverAndImportOpportunities", () => {
 					documentUrl: "https://procurement.example.com/documents/records-platform-rfp.pdf?token=abc",
 				}),
 			}),
+		}));
+		expect(db.insert).toHaveBeenCalledWith(expect.objectContaining({
+			id: "opportunityDocuments.id",
+		}));
+		const insertBuilder = vi.mocked(db.insert).mock.results[0].value as {
+			values: ReturnType<typeof vi.fn>;
+		};
+		expect(insertBuilder.values).toHaveBeenCalledWith(expect.objectContaining({
+			opportunityId: "opp-1",
+			documentName: "records-platform-rfp.pdf",
+			documentType: "rfp",
+			sourceUrl: "https://procurement.example.com/documents/records-platform-rfp.pdf?token=abc",
+			status: "discovered",
+			isSelected: true,
 		}));
 	});
 

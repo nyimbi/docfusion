@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { opportunities } from "@/lib/db/schema";
+import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { searchSearxng, type SearchOptions, type SearxngResult } from "@/lib/services/searxng-client";
 import type { ImportConfig, ImportRecordResult, OpportunityInput } from "@/lib/types/opportunity";
@@ -223,6 +223,54 @@ function extractDocumentUrlFromMarkdown(markdown: string | undefined, baseUrl: s
 
 	candidates.sort((a, b) => b.score - a.score || a.index - b.index);
 	return candidates[0]?.url;
+}
+
+function safeUrlPathname(url: string): string {
+	try {
+		return new URL(url).pathname;
+	} catch {
+		return "";
+	}
+}
+
+function discoveredSourceDocumentName(url: string, opportunityTitle: string): string {
+	const path = safeUrlPathname(url);
+	const filename = path.split("/").filter(Boolean).pop();
+	if (filename && /\.[a-z0-9]{2,5}$/i.test(filename)) {
+		return decodeURIComponent(filename).slice(0, 500);
+	}
+	return `${opportunityTitle.slice(0, 450)}.html`;
+}
+
+function discoveredSourceDocumentType(url: string): "rfp" | "attachment" {
+	const path = safeUrlPathname(url);
+	return /\.(pdf|docx?|html?)$/i.test(path) || /(rfp|tender|bid|solicitation)/i.test(url)
+		? "rfp"
+		: "attachment";
+}
+
+async function ensureDiscoveredSourceDocument(opportunityId: string, opportunity: OpportunityInput): Promise<void> {
+	if (!opportunity.documentUrl) return;
+
+	const [existing] = await db
+		.select({ id: opportunityDocuments.id })
+		.from(opportunityDocuments)
+		.where(and(
+			eq(opportunityDocuments.opportunityId, opportunityId),
+			eq(opportunityDocuments.sourceUrl, opportunity.documentUrl)
+		)!)
+		.limit(1);
+	if (existing?.id) return;
+
+	await db.insert(opportunityDocuments).values({
+		opportunityId,
+		documentName: discoveredSourceDocumentName(opportunity.documentUrl, opportunity.title),
+		documentType: discoveredSourceDocumentType(opportunity.documentUrl),
+		description: "Source document link from live opportunity discovery.",
+		sourceUrl: opportunity.documentUrl,
+		status: "discovered",
+		isSelected: true,
+	});
 }
 
 function buildOpportunityFromDiscovery(
@@ -555,6 +603,7 @@ export async function executeOpportunityDiscoveryImport(
 
 			if (existingId) {
 				await updateOpportunity(existingId, oppData);
+				await ensureDiscoveredSourceDocument(existingId, oppData);
 				importResults.updated++;
 				allErrors.push({
 					rowIndex: searchFailures.length + i + 1,
@@ -563,6 +612,7 @@ export async function executeOpportunityDiscoveryImport(
 				});
 			} else {
 				const created = await createOpportunity(oppData);
+				await ensureDiscoveredSourceDocument(created.id, oppData);
 				importResults.imported++;
 				allErrors.push({
 					rowIndex: searchFailures.length + i + 1,

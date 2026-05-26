@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Discovery Document Row Auto-Seeding
+
+Status: implemented and verified.
+
+Purpose: move live opportunity discovery closer to RFP intake by creating the selected source-document row as soon as discovery identifies a direct RFP/tender document URL.
+
+Changes in this slice:
+- Create an `opportunity_documents` record for discovered `documentUrl` values during SearXNG/Firecrawl opportunity import.
+- Avoid duplicate source-document rows by checking the opportunity/source URL pair before insert.
+- Infer document name and RFP/attachment type from the discovered URL, mark it selected, and preserve the opportunity `documentUrl` handoff.
+- Extend focused discovery import coverage to prove extracted RFP document links now create selected source-document records.
+
+Verification:
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts` from `frontend/` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, live SearXNG/Firecrawl calls, and the aggregate wave9 proof scenario remain intentionally skipped while on battery. This slice verifies the discovery import bridge with the focused action test.
+
+Remaining after this slice:
+- Continue reducing manual steps from discovered source-document records into download, parse acceptance, requirements approval, and response package drafting.
+
 ### 2026-05-26 - Final Checklist Win Theme Consistency Gate
 
 Status: implemented and verified.
