@@ -296,12 +296,18 @@ function requireSubmissionCorrectionActionAuthority(
 	actor: UserContext,
 	input: SubmissionCorrectionWorkflowInput
 ): void {
-	if (input.action !== "apply_correction" && input.action !== "withdraw") {
+	if (
+		input.action !== "apply_correction" &&
+		input.action !== "confirm_receipt" &&
+		input.action !== "withdraw"
+	) {
 		return;
 	}
 	const message = input.action === "apply_correction"
 		? "Applying submission correction requires submission authority"
-		: "Withdrawing a submitted package requires submission authority";
+		: input.action === "confirm_receipt"
+			? "Confirming submission receipt requires submission authority"
+			: "Withdrawing a submitted package requires submission authority";
 	requireAuthority(actor, input.authorityRole, message);
 }
 

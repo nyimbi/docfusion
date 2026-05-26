@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Submission Mutation Authority Preflight
+
+Status: implemented and verified.
+
+Purpose: prevent assigned-but-unauthorized users from changing submitted package status, outcome, or receipt confirmation state.
+
+Changes in this slice:
+- Require proposal manager or executive submission authority before direct submission status updates.
+- Require the same submission authority before recording win/loss/withdrawn/no-award outcomes.
+- Require explicit correction workflow authority before confirming a post-dispatch submission receipt.
+- Add focused coverage that unauthorized mutation attempts stop before submission row reads or writes.
+
+Verification:
+- `npm run test -- __tests__/actions/submissions-scope.test.ts __tests__/actions/submission-correction-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets submission mutation authority with two focused action test files and whitespace validation.
+
+Remaining after this slice:
+- Continue hardening submission artifact retrieval and end-to-end discovery-to-submission proof.
+
 ### 2026-05-26 - Final Submission Artifact Freshness Gate
 
 Status: implemented and verified.

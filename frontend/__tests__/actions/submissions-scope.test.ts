@@ -244,6 +244,21 @@ describe("submission row scoping", () => {
 		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
 	});
 
+	it("requires submission authority before status updates inspect submission rows", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "submission-user-1",
+			organizationId: "org-1",
+			roles: ["proposal_writer"],
+		});
+
+		await expect(updateSubmissionStatus({
+			submissionId: submission.id,
+			status: "under_review",
+		})).rejects.toThrow("Recording final submission requires submission authority");
+
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
 	it("scopes outcome updates and opportunity status updates through assignment", async () => {
 		const wheres: unknown[] = [];
 		dbMock.update
@@ -270,6 +285,21 @@ describe("submission row scoping", () => {
 		for (const where of wheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 		}
+	});
+
+	it("requires submission authority before outcome updates inspect submission rows", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "submission-user-1",
+			organizationId: "org-1",
+			roles: ["proposal_writer"],
+		});
+
+		await expect(recordOutcome({
+			submissionId: submission.id,
+			outcome: "won",
+		})).rejects.toThrow("Recording final submission requires submission authority");
+
+		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
 	it("scopes win/loss analytics to assigned opportunities", async () => {

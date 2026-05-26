@@ -412,6 +412,7 @@ export async function updateSubmissionStatus(
 	input: UpdateSubmissionStatusInput
 ): Promise<Submission> {
 	const userContext = await requireUserContext();
+	requireSubmissionAuthority(userContext);
 
 	const [row] = await db
 		.update(submissions)
@@ -440,6 +441,7 @@ export async function recordOutcome(
 	input: RecordOutcomeInput
 ): Promise<Submission> {
 	const userContext = await requireUserContext();
+	requireSubmissionAuthority(userContext);
 
 	const [row] = await db
 		.update(submissions)

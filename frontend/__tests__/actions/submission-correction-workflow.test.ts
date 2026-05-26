@@ -282,6 +282,51 @@ describe("submission correction workflow", () => {
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
+	it("requires authority before confirming a submission receipt", async () => {
+		await expect(transitionSubmissionCorrectionWorkflow({
+			submissionId: "submission-1",
+			action: "confirm_receipt",
+			reason: "Portal receipt arrived after dispatch",
+			confirmationNumber: "PORTAL-456",
+		})).rejects.toThrow("Confirming submission receipt requires submission authority");
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("confirms a submission receipt with authority", async () => {
+		let submissionPatch: Record<string, unknown> | undefined;
+		dbMock.select.mockReturnValueOnce(createChain({ result: [submission] }));
+		dbMock.update
+			.mockReturnValueOnce(createChain({
+				result: [{ ...submission, confirmationNumber: "PORTAL-456" }],
+				onSet: (value) => {
+					submissionPatch = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain());
+
+		const result = await transitionSubmissionCorrectionWorkflow({
+			submissionId: "submission-1",
+			action: "confirm_receipt",
+			reason: "Portal receipt arrived after dispatch",
+			confirmationNumber: " PORTAL-456 ",
+			authorityRole: "proposal_manager",
+		});
+
+		expect(result.toState).toBe("receipt_confirmed");
+		expect(submissionPatch).toMatchObject({
+			status: "submitted",
+			confirmationNumber: "PORTAL-456",
+		});
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "receipt_confirmed",
+				terminal: true,
+				authorityPolicy: { requiredRoles: ["proposal_manager"] },
+			})
+		);
+	});
+
 	it("requires authority before withdrawing a submitted package", async () => {
 		dbMock.select.mockReturnValueOnce(createChain({ result: [submission] }));
 
