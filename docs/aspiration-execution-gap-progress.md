@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Submission Attachment Live Source Lock
+
+Status: implemented and verified.
+
+Purpose: prevent a selected submission attachment from being locked after the final checklist if its artifact receipt no longer matches the live document.
+
+Changes in this slice:
+- Refetch selected proposal documents with title, content, plain text, and current version before submission persistence.
+- Recompute the live source hash during submission attachment locking.
+- Require selected final artifact receipts to match the live document source version and hash before inserting the submission record.
+- Preserve stored approval/source receipt metadata on locked submission attachments.
+- Add focused coverage for a stale selected attachment after checklist success.
+
+Verification:
+- `npm run test -- __tests__/actions/submission-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate proof scenario remain intentionally skipped while on battery. This slice targets submission attachment locking with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue closing discovery-to-submission integrity gaps with focused checks until power allows running `wave9-discovery-to-submission-core`.
+
 ### 2026-05-26 - Final Checklist Live Source Freshness
 
 Status: implemented and verified.

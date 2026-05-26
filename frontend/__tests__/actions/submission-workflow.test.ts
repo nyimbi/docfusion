@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireUserContextMock = vi.hoisted(() => vi.fn());
@@ -108,6 +109,17 @@ const submissionRow = {
 	updatedAt: new Date("2026-04-01T00:00:00.000Z"),
 };
 
+const documentContent = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Final content" }] }] };
+const documentPlainText = "Final content";
+const documentCurrentVersion = 4;
+const documentSourceHash = createHash("sha256")
+	.update(JSON.stringify({
+		title: "Technical Approach",
+		content: documentContent,
+		plainText: documentPlainText,
+	}))
+	.digest("hex");
+
 const storedFinalArtifact = {
 	documentId: "doc-1",
 	proposalDocumentId: "proposal-doc-1",
@@ -127,11 +139,28 @@ const storedFinalArtifact = {
 	renderedBy: "production-lead-1",
 	approvedAt: "2026-05-05T01:00:00.000Z",
 	approvedBy: "proposal-manager-1",
-	sourceDocumentVersion: 4,
-	sourceContentHash: "source-hash-technical",
+	sourceDocumentVersion: documentCurrentVersion,
+	sourceContentHash: documentSourceHash,
 	renderTimeMs: 40,
 	pageCount: 12,
 };
+
+function selectedDocument(overrides: Record<string, unknown> = {}) {
+	return {
+		id: "proposal-doc-1",
+		documentId: "doc-1",
+		documentType: "technical_approach",
+		status: "final",
+		title: "Technical Approach",
+		content: documentContent,
+		plainText: documentPlainText,
+		currentVersion: documentCurrentVersion,
+		metadata: {
+			finalArtifact: storedFinalArtifact,
+		},
+		...overrides,
+	};
+}
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -293,19 +322,14 @@ describe("submission workflow gates", () => {
 				result: [{ id: "opp-1" }],
 			}))
 			.mockReturnValueOnce(createChain({
-				result: [{
-					id: "proposal-doc-1",
-					documentId: "doc-1",
-					documentType: "technical_approach",
-					status: "final",
-					title: "Technical Approach",
+				result: [selectedDocument({
 					metadata: {
 						finalArtifact: {
 							artifactHash: "f".repeat(64),
 							filename: "technical-approach.docx",
 						},
 					},
-				}],
+				})],
 			}));
 
 		await expect(
@@ -327,12 +351,7 @@ describe("submission workflow gates", () => {
 				result: [{ id: "opp-1" }],
 			}))
 			.mockReturnValueOnce(createChain({
-				result: [{
-					id: "proposal-doc-1",
-					documentId: "doc-1",
-					documentType: "technical_approach",
-					status: "final",
-					title: "Technical Approach",
+				result: [selectedDocument({
 					metadata: {
 						finalArtifact: {
 							...storedFinalArtifact,
@@ -340,7 +359,34 @@ describe("submission workflow gates", () => {
 							sourceContentHash: undefined,
 						},
 					},
-				}],
+				})],
+			}));
+
+		await expect(
+			createSubmission({
+				opportunityId: "opp-1",
+				submittedBy: "Proposal Lead",
+				submissionMethod: "portal",
+				confirmationNumber: "PORTAL-123",
+				attachmentIds: ["doc-1"],
+			})
+		).rejects.toThrow("approved stored final artifact");
+
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
+	it("requires selected attachment artifacts to match the current document source", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "opp-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [selectedDocument({
+					currentVersion: documentCurrentVersion + 1,
+					metadata: {
+						finalArtifact: storedFinalArtifact,
+					},
+				})],
 			}));
 
 		await expect(
@@ -365,16 +411,7 @@ describe("submission workflow gates", () => {
 				result: [{ id: "opp-1" }],
 			}))
 			.mockReturnValueOnce(createChain({
-				result: [{
-					id: "proposal-doc-1",
-					documentId: "doc-1",
-					documentType: "technical_approach",
-					status: "final",
-					title: "Technical Approach",
-					metadata: {
-						finalArtifact: storedFinalArtifact,
-					},
-				}],
+				result: [selectedDocument()],
 			}));
 		dbMock.insert.mockReturnValueOnce(createChain({
 			onValues: (value) => {
@@ -423,8 +460,8 @@ describe("submission workflow gates", () => {
 			storageEndpoint: "https://objects.example.com",
 			approvedBy: "proposal-manager-1",
 			approvedAt: "2026-05-05T01:00:00.000Z",
-			sourceDocumentVersion: 4,
-			sourceContentHash: "source-hash-technical",
+			sourceDocumentVersion: documentCurrentVersion,
+			sourceContentHash: documentSourceHash,
 		});
 		expect(attachments[0].lockedAt).toEqual(expect.any(String));
 		expect(opportunityUpdate).toMatchObject({

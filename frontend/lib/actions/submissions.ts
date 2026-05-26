@@ -6,6 +6,7 @@
 
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import {
@@ -200,6 +201,9 @@ export async function createSubmission(
 				documentType: proposalDocuments.documentType,
 				status: proposalDocuments.status,
 				title: documents.title,
+				content: documents.content,
+				plainText: documents.plainText,
+				currentVersion: documents.currentVersion,
 				metadata: documents.metadata,
 			})
 			.from(proposalDocuments)
@@ -209,10 +213,10 @@ export async function createSubmission(
 					visibleProposalDocumentsForOpportunityCondition(input.opportunityId, submittedBy),
 					inArray(proposalDocuments.documentId, input.attachmentIds)
 				)
-			);
+		);
 
 		for (const doc of proposalDocs) {
-			const artifact = finalArtifactManifest(doc.metadata);
+			const artifact = finalArtifactManifest(doc.metadata, doc);
 			if (!artifact) {
 				throw new Error(`Selected attachment ${doc.title} does not have an approved stored final artifact`);
 			}
@@ -320,7 +324,17 @@ type StoredFinalArtifactManifest = {
 	sourceContentHash: string;
 };
 
-function finalArtifactManifest(metadata: unknown): StoredFinalArtifactManifest | null {
+type FinalArtifactDocumentSource = {
+	title: string;
+	content: unknown;
+	plainText: string | null;
+	currentVersion: number | null;
+};
+
+function finalArtifactManifest(
+	metadata: unknown,
+	document: FinalArtifactDocumentSource
+): StoredFinalArtifactManifest | null {
 	const artifact = asRecord(asRecord(metadata).finalArtifact);
 	if (
 		typeof artifact.artifactHash !== "string" ||
@@ -335,7 +349,9 @@ function finalArtifactManifest(metadata: unknown): StoredFinalArtifactManifest |
 		!(typeof artifact.approvedAt === "string" || artifact.approvedAt instanceof Date) ||
 		!("sourceDocumentVersion" in artifact) ||
 		!(typeof artifact.sourceDocumentVersion === "number" || artifact.sourceDocumentVersion === null) ||
-		typeof artifact.sourceContentHash !== "string"
+		typeof artifact.sourceContentHash !== "string" ||
+		artifact.sourceDocumentVersion !== document.currentVersion ||
+		artifact.sourceContentHash !== hashDocumentSource(document)
 	) {
 		return null;
 	}
@@ -355,6 +371,16 @@ function finalArtifactManifest(metadata: unknown): StoredFinalArtifactManifest |
 		sourceDocumentVersion: artifact.sourceDocumentVersion,
 		sourceContentHash: artifact.sourceContentHash,
 	};
+}
+
+function hashDocumentSource(document: Pick<FinalArtifactDocumentSource, "title" | "content" | "plainText">): string {
+	return createHash("sha256")
+		.update(JSON.stringify({
+			title: document.title,
+			content: document.content,
+			plainText: document.plainText,
+		}))
+		.digest("hex");
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
