@@ -111,14 +111,14 @@ vi.mock("@/lib/db", () => {
 vi.mock("@/lib/db/schema-pricing", () => ({
 	laborCategories: { id: "lc.id", organizationId: "lc.orgId", name: "lc.name", isActive: "lc.isActive" },
 	costElements: {
-		id: "ce.id", opportunityId: "ce.oppId", elementType: "ce.type", laborCategoryId: "ce.labCatId",
+		id: "ce.id", organizationId: "ce.orgId", opportunityId: "ce.oppId", elementType: "ce.type", laborCategoryId: "ce.labCatId",
 		wbsCode: "ce.wbs", periodNumber: "ce.period", technicalSectionId: "ce.techSecId", status: "ce.status",
 		boeNarrative: "ce.boe",
 	},
 	indirectRates: { id: "ir.id", organizationId: "ir.orgId", isActive: "ir.isActive", rateType: "ir.type" },
-	costTechnicalTracking: { id: "ctt.id", opportunityId: "ctt.oppId", technicalSectionId: "ctt.techSecId" },
+	costTechnicalTracking: { id: "ctt.id", organizationId: "ctt.orgId", opportunityId: "ctt.oppId", technicalSectionId: "ctt.techSecId" },
 	boeTemplates: { id: "bt.id", organizationId: "bt.orgId" },
-	pricingSummaries: { opportunityId: "ps.oppId" },
+	pricingSummaries: { organizationId: "ps.orgId", opportunityId: "ps.oppId" },
 }));
 
 // Import subjects under test
@@ -217,18 +217,28 @@ describe("Cost element total cost calculation (via createCostElement)", () => {
 	};
 
 	test("labor cost = hours * rate", async () => {
+		let inserted: Record<string, unknown> | undefined;
 		const created = {
 			id: "el-1",
 			...baseLaborInput,
+			organizationId: "org-001",
 			laborCost: 20000,
 			totalCost: 20000,
 			status: "draft",
 		};
 		mockAssignedOpportunity(baseLaborInput.opportunityId);
-		dbMock.insert.mockImplementation(() => createChainableQuery([created]));
+		dbMock.insert.mockImplementation(() => {
+			const chain = createChainableQuery([created]);
+			(chain.values as ReturnType<typeof vi.fn>).mockImplementation((value: Record<string, unknown>) => {
+				inserted = value;
+				return chain;
+			});
+			return chain;
+		});
 
 		const result = await createCostElement(baseLaborInput);
 		expect(result.success).toBe(true);
+		expect(inserted).toMatchObject({ organizationId: "org-001" });
 		if (result.success) {
 			expect(result.data.totalCost).toBe(20000);
 		}
@@ -717,8 +727,12 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		const result = await calculateTotalPrice(opportunityId);
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(summaryReadWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(summaryUpdateWhere).join(" ")).toContain("opportunities.assigned_to");
+		const summaryReadSql = collectSqlFragments(summaryReadWhere).join(" ");
+		expect(summaryReadSql).toContain("opportunities.assigned_to");
+		expect(summaryReadSql).toContain("org-001");
+		const summaryUpdateSql = collectSqlFragments(summaryUpdateWhere).join(" ");
+		expect(summaryUpdateSql).toContain("opportunities.assigned_to");
+		expect(summaryUpdateSql).toContain("org-001");
 	});
 
 	test("rejects total calculation for unassigned opportunities", async () => {
@@ -811,7 +825,9 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		const result = await validateCostTechnicalAlignment(opportunityId);
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(trackingWhere).join(" ")).toContain("opportunities.assigned_to");
+		const trackingSql = collectSqlFragments(trackingWhere).join(" ");
+		expect(trackingSql).toContain("opportunities.assigned_to");
+		expect(trackingSql).toContain("org-001");
 	});
 
 	test("requires organization context before generating WBS from technical data", async () => {
@@ -842,7 +858,9 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		const result = await generateWBSFromTechnical(opportunityId);
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(trackingWhere).join(" ")).toContain("opportunities.assigned_to");
+		const trackingSql = collectSqlFragments(trackingWhere).join(" ");
+		expect(trackingSql).toContain("opportunities.assigned_to");
+		expect(trackingSql).toContain("org-001");
 	});
 
 	test("requires organization context before updating WBS codes", async () => {

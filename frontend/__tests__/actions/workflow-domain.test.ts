@@ -252,6 +252,7 @@ describe("workflow domain integrations", () => {
 		};
 		const updated = { ...instance, state: "locked", status: "completed" };
 		let pricingPatch: Record<string, unknown> | undefined;
+		let pricingWhere: unknown;
 
 		dbMock.select
 			.mockReturnValueOnce(createChain({ result: [instance] }))
@@ -263,6 +264,9 @@ describe("workflow domain integrations", () => {
 			.mockReturnValueOnce(createChain({
 				onSet: (value) => {
 					pricingPatch = value;
+				},
+				onWhere: (value) => {
+					pricingWhere = value;
 				},
 			}));
 		dbMock.insert
@@ -284,6 +288,10 @@ describe("workflow domain integrations", () => {
 			approvedBy: "finance-1",
 		});
 		expect(pricingPatch?.approvedAt).toBeInstanceOf(Date);
+		const pricingSql = collectSqlFragments(pricingWhere).join(" ");
+		expect(pricingSql).toContain("organization_id");
+		expect(pricingSql).toContain("org-1");
+		expect(pricingSql).toContain("opportunities.assigned_to");
 	});
 
 	it("scopes opportunity-linked compensation writes to the assigned opportunity", async () => {

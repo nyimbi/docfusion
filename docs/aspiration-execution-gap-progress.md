@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Pricing Row Tenant Anchors
+
+Status: implemented and verified.
+
+Purpose: close the pricing/cost tenant boundary so cost elements, pricing rollups, and cost-technical alignment records cannot move through proposal pricing workflows on assignment-only checks.
+
+Changes in this slice:
+- Add nullable `organization_id` anchors and indexes for `cost_elements`, `pricing_summaries`, and `cost_technical_tracking`, with migration backfill from existing cost elements and single-tenant installs.
+- Persist organization IDs on new cost elements, duplicated cost elements, and pricing summary creation.
+- Require tenant predicates, with legacy null-row fallback, in cost element, pricing summary, WBS, and cost-technical tracking visibility helpers.
+- Scope labor-category usage checks and pricing workflow-domain compensation through the same pricing tenant boundary.
+- Extend pricing and workflow-domain regression tests to assert tenant predicates are present.
+
+Verification:
+- `npm test -- pricing.test.ts workflow-domain.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue closing any remaining assignment-only row boundaries outside pricing, especially generated artifact/package records that participate in submission readiness.
+
 ### 2026-05-26 - Capture Pipeline Gate Tenant Anchors
 
 Status: implemented and verified.
@@ -36,7 +58,7 @@ Verification:
 - `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 test files and 42 approval/production/correction tests.
 
 Remaining after this slice:
-- Pricing/cost row anchors remain the next high-risk tenant boundary to close.
+- Continue closing generated artifact/package row boundaries that participate in submission readiness.
 
 ### 2026-05-26 - UNGM Notice Detail Enrichment
 

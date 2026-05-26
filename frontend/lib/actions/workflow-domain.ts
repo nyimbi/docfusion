@@ -62,16 +62,25 @@ function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): 
 	)`;
 }
 
-function workflowPricingPackageCondition(opportunityId: string, actorId: string): SQL {
+function workflowCostElementOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(costElements.organizationId, organizationId),
+		isNull(costElements.organizationId)
+	)!;
+}
+
+function workflowPricingPackageCondition(opportunityId: string, organizationId: string, actorId: string): SQL {
 	return and(
 		eq(costElements.opportunityId, opportunityId),
+		workflowCostElementOrganizationCondition(organizationId),
 		assignedOpportunityExistsSql(opportunityId, actorId)
 	)!;
 }
 
-function workflowCostElementCondition(costElementId: string, actorId: string): SQL {
+function workflowCostElementCondition(costElementId: string, organizationId: string, actorId: string): SQL {
 	return and(
 		eq(costElements.id, costElementId),
+		workflowCostElementOrganizationCondition(organizationId),
 		assignedOpportunityExistsSql(costElements.opportunityId, actorId)
 	)!;
 }
@@ -919,7 +928,7 @@ async function applyDomainCompensation(input: {
 			await db
 				.update(costElements)
 				.set(patch)
-				.where(workflowPricingPackageCondition(input.instance.subjectId, input.actorId));
+				.where(workflowPricingPackageCondition(input.instance.subjectId, input.organizationId, input.actorId));
 			break;
 		}
 		case "cost_element": {
@@ -928,7 +937,7 @@ async function applyDomainCompensation(input: {
 			await db
 				.update(costElements)
 				.set(patch)
-				.where(workflowCostElementCondition(input.instance.subjectId, input.actorId));
+				.where(workflowCostElementCondition(input.instance.subjectId, input.organizationId, input.actorId));
 			break;
 		}
 		case "import_sync_job": {

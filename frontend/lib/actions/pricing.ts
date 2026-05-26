@@ -511,9 +511,31 @@ function assignedOpportunityExistsSql(opportunityId: unknown, userContext: Prici
 	)`;
 }
 
+function costElementOrganizationCondition(userContext: PricingUserContext): SQL {
+	return or(
+		eq(costElements.organizationId, userContext.organizationId),
+		isNull(costElements.organizationId)
+	)!;
+}
+
+function pricingSummaryOrganizationCondition(userContext: PricingUserContext): SQL {
+	return or(
+		eq(pricingSummaries.organizationId, userContext.organizationId),
+		isNull(pricingSummaries.organizationId)
+	)!;
+}
+
+function costTechnicalTrackingOrganizationCondition(userContext: PricingUserContext): SQL {
+	return or(
+		eq(costTechnicalTracking.organizationId, userContext.organizationId),
+		isNull(costTechnicalTracking.organizationId)
+	)!;
+}
+
 function costElementByIdCondition(id: string, userContext: PricingUserContext): SQL {
 	return and(
 		eq(costElements.id, id),
+		costElementOrganizationCondition(userContext),
 		assignedOpportunityExistsSql(costElements.opportunityId, userContext)
 	)!;
 }
@@ -521,6 +543,7 @@ function costElementByIdCondition(id: string, userContext: PricingUserContext): 
 function costElementsByOpportunityCondition(opportunityId: string, userContext: PricingUserContext): SQL {
 	return and(
 		eq(costElements.opportunityId, opportunityId),
+		costElementOrganizationCondition(userContext),
 		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
@@ -528,13 +551,31 @@ function costElementsByOpportunityCondition(opportunityId: string, userContext: 
 function costTechnicalTrackingByOpportunityCondition(opportunityId: string, userContext: PricingUserContext): SQL {
 	return and(
 		eq(costTechnicalTracking.opportunityId, opportunityId),
+		costTechnicalTrackingOrganizationCondition(userContext),
 		assignedOpportunityExistsSql(opportunityId, userContext)
+	)!;
+}
+
+function costTechnicalTrackingBySectionCondition(technicalSectionId: string, userContext: PricingUserContext): SQL {
+	return and(
+		eq(costTechnicalTracking.technicalSectionId, technicalSectionId),
+		costTechnicalTrackingOrganizationCondition(userContext),
+		assignedOpportunityExistsSql(costTechnicalTracking.opportunityId, userContext)
+	)!;
+}
+
+function costTechnicalTrackingByIdCondition(id: string, userContext: PricingUserContext): SQL {
+	return and(
+		eq(costTechnicalTracking.id, id),
+		costTechnicalTrackingOrganizationCondition(userContext),
+		assignedOpportunityExistsSql(costTechnicalTracking.opportunityId, userContext)
 	)!;
 }
 
 function pricingSummaryByOpportunityCondition(opportunityId: string, userContext: PricingUserContext): SQL {
 	return and(
 		eq(pricingSummaries.opportunityId, opportunityId),
+		pricingSummaryOrganizationCondition(userContext),
 		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
@@ -547,6 +588,7 @@ function costElementsByWbsCondition(
 	return and(
 		options.cascade ? like(costElements.wbsCode, `${wbsCode}%`) : eq(costElements.wbsCode, wbsCode),
 		options.opportunityId ? eq(costElements.opportunityId, options.opportunityId) : undefined,
+		costElementOrganizationCondition(userContext),
 		assignedOpportunityExistsSql(costElements.opportunityId, userContext)
 	)!;
 }
@@ -739,7 +781,10 @@ export async function deleteLaborCategory(id: string): Promise<ActionResult<void
 		const usageCount = await db
 			.select({ count: sql<number>`COUNT(*)` })
 			.from(costElements)
-			.where(eq(costElements.laborCategoryId, id));
+			.where(and(
+				eq(costElements.laborCategoryId, id),
+				costElementOrganizationCondition(userContext)
+			));
 
 		if ((usageCount[0]?.count || 0) > 0) {
 			return {
@@ -902,6 +947,7 @@ export async function createCostElement(
 		}
 
 		const newElement: NewCostElement = {
+			organizationId: userContext.organizationId,
 			opportunityId: validated.opportunityId,
 			wbsCode: validated.wbsCode,
 			wbsTitle: validated.wbsTitle,
@@ -1152,6 +1198,7 @@ export async function duplicateCostElement(
 
 		const newElement: NewCostElement = {
 			...rest,
+			organizationId: userContext.organizationId,
 			periodNumber: newPeriod ?? (original.periodNumber || 1),
 			status: "draft",
 		};
@@ -1426,7 +1473,7 @@ export async function suggestCostForSection(
 		const [tracking] = await db
 			.select()
 			.from(costTechnicalTracking)
-			.where(eq(costTechnicalTracking.technicalSectionId, technicalSectionId));
+			.where(costTechnicalTrackingBySectionCondition(technicalSectionId, userContext));
 
 		if (!tracking) {
 			return { success: false, error: "Technical section not found" };
@@ -1527,7 +1574,7 @@ export async function estimateHoursFromTechnical(
 		const [tracking] = await db
 			.select()
 			.from(costTechnicalTracking)
-			.where(eq(costTechnicalTracking.technicalSectionId, technicalSectionId));
+			.where(costTechnicalTrackingBySectionCondition(technicalSectionId, userContext));
 
 		if (!tracking) {
 			return { success: false, error: "Technical section not found" };
@@ -1599,7 +1646,7 @@ Respond in JSON format:
 					analyzedAt: new Date(),
 					updatedAt: new Date(),
 				})
-				.where(eq(costTechnicalTracking.id, tracking.id));
+				.where(costTechnicalTrackingByIdCondition(tracking.id, userContext));
 
 			return { success: true, data: estimate };
 		} catch {
@@ -2258,6 +2305,7 @@ export async function calculateTotalPrice(
 				.where(pricingSummaryByOpportunityCondition(opportunityId, userContext));
 		} else {
 			await db.insert(pricingSummaries).values({
+				organizationId: userContext.organizationId,
 				opportunityId,
 				periodSummaries,
 				totalLaborCost: grandTotals.laborCost,

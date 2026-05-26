@@ -328,6 +328,9 @@ export const laborCategories = pgTable("labor_categories", {
 export const costElements = pgTable("cost_elements", {
 	id: uuid("id").primaryKey().defaultRandom(),
 
+	/** Organization that owns this cost element */
+	organizationId: varchar("organization_id", { length: 100 }),
+
 	/** Opportunity this cost element belongs to */
 	opportunityId: uuid("opportunity_id").notNull(),
 
@@ -447,6 +450,9 @@ export const costElements = pgTable("cost_elements", {
  */
 export const pricingSummaries = pgTable("pricing_summaries", {
 	id: uuid("id").primaryKey().defaultRandom(),
+
+	/** Organization that owns this pricing summary */
+	organizationId: varchar("organization_id", { length: 100 }),
 
 	/** Opportunity this pricing summary belongs to */
 	opportunityId: uuid("opportunity_id").notNull(),
@@ -578,6 +584,9 @@ export const indirectRates = pgTable("indirect_rates", {
  */
 export const costTechnicalTracking = pgTable("cost_technical_tracking", {
 	id: uuid("id").primaryKey().defaultRandom(),
+
+	/** Organization that owns this alignment tracking record */
+	organizationId: varchar("organization_id", { length: 100 }),
 
 	/** Opportunity being analyzed */
 	opportunityId: uuid("opportunity_id").notNull(),
