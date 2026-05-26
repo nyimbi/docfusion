@@ -7,9 +7,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
-import { opportunities, proposalDocuments, documents, submissions } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { getOpportunity } from "@/lib/actions/opportunities";
+import { getProposalDocuments } from "@/lib/actions/proposal-documents";
+import { getSubmissionsByOpportunity } from "@/lib/actions/submissions";
 import { SubmissionClientPage } from "./SubmissionClientPage";
 
 // ============================================================================
@@ -23,36 +23,15 @@ interface PageProps {
 export default async function SubmissionPage({ params }: PageProps) {
 	const { id } = await params;
 
-	// Fetch opportunity
-	const [opportunity] = await db
-		.select()
-		.from(opportunities)
-		.where(eq(opportunities.id, id));
-
+	const opportunity = await getOpportunity(id);
 	if (!opportunity) {
 		notFound();
 	}
 
-	// Fetch proposal documents
-	const proposalDocs = await db
-		.select({
-			id: proposalDocuments.id,
-			documentId: proposalDocuments.documentId,
-			documentType: proposalDocuments.documentType,
-			status: proposalDocuments.status,
-			title: documents.title,
-		})
-		.from(proposalDocuments)
-		.innerJoin(documents, eq(documents.id, proposalDocuments.documentId))
-		.where(eq(proposalDocuments.opportunityId, id))
-		.orderBy(proposalDocuments.sectionOrder);
-
-	// Fetch existing submissions
-	const existingSubmissions = await db
-		.select()
-		.from(submissions)
-		.where(eq(submissions.opportunityId, id))
-		.orderBy(desc(submissions.submittedAt));
+	const [proposalDocs, existingSubmissions] = await Promise.all([
+		getProposalDocuments(id),
+		getSubmissionsByOpportunity(id),
+	]);
 
 	return (
 		<div className="min-h-screen bg-[var(--background-muted)]">
@@ -102,8 +81,8 @@ export default async function SubmissionPage({ params }: PageProps) {
 						proposalDocuments={proposalDocs.map((doc) => ({
 							id: doc.id,
 							documentId: doc.documentId,
-							title: doc.title,
-							documentType: doc.documentType as any,
+							title: doc.document?.title ?? "Untitled document",
+							documentType: doc.documentType,
 							status: doc.status,
 						}))}
 						existingSubmissions={existingSubmissions.map((sub) => ({

@@ -73,6 +73,10 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: vi.fn(),
 }));
 
+vi.mock("next/cache", () => ({
+	revalidatePath: vi.fn(),
+}));
+
 vi.mock("@/lib/utils/logger", () => ({
 	logger: {
 		warn: vi.fn(),

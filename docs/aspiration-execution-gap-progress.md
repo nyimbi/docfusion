@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Submission Page Scoped Data Loading
+
+Status: implemented and verified.
+
+Purpose: prevent the submission tracking page from bypassing assigned-opportunity scoping when loading proposal documents and submission history.
+
+Changes in this slice:
+- Replace direct submission-page database reads by raw opportunity ID with scoped `getOpportunity`, `getProposalDocuments`, and `getSubmissionsByOpportunity` action calls.
+- Preserve the submission client contract while taking proposal document titles and submission records from action-level transformers.
+- Mock Next route revalidation in the focused submission scope test so mutation scoping can be verified outside the Next runtime.
+
+Verification:
+- Targeted source check found no direct DB/Drizzle reads left in `frontend/app/(app)/opportunities/[id]/submission/page.tsx`.
+- `npm run test -- __tests__/actions/submissions-scope.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This was a focused page data-boundary slice covered by source verification, existing action scoping tests, and whitespace validation.
+
+Remaining after this slice:
+- Continue connecting final submission UI to render artifact, signature, approval, and receipt blockers.
+- Add broader authenticated submission-page browser proof when the power budget allows.
+
 ### 2026-05-26 - Command Center Claim Blocker Projection
 
 Status: implemented and verified.
