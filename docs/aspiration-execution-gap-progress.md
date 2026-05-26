@@ -16,6 +16,23 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live DB Persistence Probe Blocked
+
+Status: blocked by database connectivity.
+
+Purpose: check whether the environment-backed RFP tenant persistence proof can now run against the configured migrated database.
+
+Verification attempted:
+- `RUN_DB_INTEGRATION_TESTS=1 npm test -- rfp-tenant-isolation.test.ts` from `frontend/` attempted to run the gated DB-backed tenant-isolation suite.
+- The suite could not connect to the configured PostgreSQL host `88.80.188.224:5432`; both fixture insert and cleanup attempts failed with `ECONNREFUSED`.
+
+Outcome:
+- No live persistence proof was collected in this environment.
+- The remaining live database gap is external connectivity/configuration, not skipped local test coverage.
+
+Next condition to unblock:
+- Provide a reachable migrated PostgreSQL endpoint through `DATABASE_URL`, then rerun `RUN_DB_INTEGRATION_TESTS=1 npm test -- rfp-tenant-isolation.test.ts`.
+
 ### 2026-05-27 - Discovery-to-Response Bridge Proof Scenario
 
 Status: implemented and verified.
