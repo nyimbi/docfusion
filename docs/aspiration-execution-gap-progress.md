@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Clarification Workflow Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep requirement clarification drafting, approval, submission, answer capture, incorporation, and runtime task projection scoped to the caller's organization through the requirement's owning opportunity.
+
+Changes in this slice:
+- Require organization context for clarification workflow transitions.
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to requirement visibility checks.
+- Include organization context in recorded clarification workflow runtime transitions.
+- Extend clarification workflow tests to assert opportunity organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- clarification-workflow.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue scanning and closing remaining workflow support modules that still use unscoped or assignment-only opportunity checks.
+
 ### 2026-05-26 - Proposal Task Workflow Opportunity Tenant Predicates
 
 Status: implemented and verified.

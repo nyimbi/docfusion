@@ -10,6 +10,7 @@ import {
 import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type RequirementRow = typeof rfpRequirements.$inferSelect;
+type ClarificationUserContext = UserContext & { organizationId: string };
 
 export type ClarificationWorkflowAction =
 	| "draft"
@@ -77,19 +78,23 @@ interface ClarificationMetadata {
 const WORKFLOW_KEY = "requirement_clarification";
 const SUBJECT_TYPE = "requirement_clarification";
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: ClarificationUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleRequirementCondition(requirementId: string, userId: string): SQL {
+function visibleRequirementCondition(requirementId: string, userContext: ClarificationUserContext): SQL {
 	return and(
 		eq(rfpRequirements.id, requirementId),
-		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId)
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userContext)
 	)!;
 }
 
@@ -97,6 +102,10 @@ export async function transitionClarificationWorkflow(
 	input: ClarificationWorkflowInput
 ): Promise<ClarificationWorkflowResult> {
 	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
+	const clarificationContext = userContext as ClarificationUserContext;
 	const reason = input.reason.trim();
 	if (!reason) {
 		throw new Error("Clarification workflow transitions require a reason");
@@ -106,7 +115,7 @@ export async function transitionClarificationWorkflow(
 	const [requirement] = await db
 		.select()
 		.from(rfpRequirements)
-		.where(visibleRequirementCondition(input.requirementId, userContext.userId))
+		.where(visibleRequirementCondition(input.requirementId, clarificationContext))
 		.limit(1);
 	if (!requirement) {
 		throw new Error("Requirement not found");
@@ -141,7 +150,7 @@ export async function transitionClarificationWorkflow(
 			metadata: updatedMetadata,
 			updatedAt: now,
 		})
-		.where(visibleRequirementCondition(input.requirementId, userContext.userId))
+		.where(visibleRequirementCondition(input.requirementId, clarificationContext))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update clarification workflow state");
@@ -149,6 +158,7 @@ export async function transitionClarificationWorkflow(
 
 	const instance = await recordWorkflowRuntimeTransition({
 		workflowKey: WORKFLOW_KEY,
+		organizationId: clarificationContext.organizationId,
 		subjectType: SUBJECT_TYPE,
 		subjectId: input.requirementId,
 		opportunityId: requirement.opportunityId,

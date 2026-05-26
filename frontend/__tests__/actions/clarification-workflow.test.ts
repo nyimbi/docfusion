@@ -69,6 +69,8 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 
 function expectAssignedRequirementScope(where: unknown) {
 	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
 	expect(sqlText).toContain("opportunities.assigned_to");
 	expect(sqlText).toContain("proposal-manager-1");
 }
@@ -131,6 +133,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	requireUserContextMock.mockResolvedValue({
 		userId: "proposal-manager-1",
+		organizationId: "org-1",
 		roles: ["proposal_manager"],
 	});
 	dbMock.select.mockReset();
@@ -255,6 +258,7 @@ describe("clarification workflow", () => {
 	it("requires proposal or capture authority before customer-facing approval actions", async () => {
 		requireUserContextMock.mockResolvedValueOnce({
 			userId: "proposal-writer-1",
+			organizationId: "org-1",
 			roles: ["proposal_writer"],
 		});
 
