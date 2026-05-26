@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Discovery-to-Submission Proof Scenario
+
+Status: implemented and verified.
+
+Purpose: make the non-live proof harness explicitly represent the core journey from opportunity discovery through final submission gates.
+
+Changes in this slice:
+- Add `wave9-discovery-to-submission-core` as an aggregate platform proof scenario.
+- Route the scenario through focused tests for opportunity discovery/import, document discovery, RFP intake, requirements, response package drafting, final artifact readiness, final checklist, submission dispatch, and submission scoping.
+- Record expected proof artifacts for each covered test lane.
+- Extend manifest coverage so the aggregate scenario remains uniquely addressable.
+
+Verification:
+- `npm run test -- __tests__/actions/platform-proof-scenarios.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- The aggregate proof scenario itself was not executed while on battery. Only the manifest test and whitespace validation were run in this slice.
+
+Remaining after this slice:
+- Execute `wave9-discovery-to-submission-core` when power allows, then use failures to drive the next remediation chunks.
+
 ### 2026-05-26 - Submission Mutation Authority Preflight
 
 Status: implemented and verified.

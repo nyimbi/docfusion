@@ -112,5 +112,16 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["S-001", "UX-018"]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["wave9-discovery-to-submission-core"] })).toEqual([
+			expect.objectContaining({
+				id: "wave9-discovery-to-submission-core",
+				proofTargets: expect.arrayContaining(["F-001", "F-021", "UX-025"]),
+				expectedArtifacts: expect.arrayContaining([
+					"vitest:opportunity-discovery-route",
+					"vitest:final-submission-checklist-workflow",
+					"vitest:submission-workflow",
+				]),
+			}),
+		]);
 	});
 });
