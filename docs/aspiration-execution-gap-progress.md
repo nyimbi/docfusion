@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Discovery Source Document Seeding Warning Telemetry
+
+Status: implemented and verified.
+
+Purpose: keep live discovery imports honest when an opportunity is created or updated but its source-document handoff row cannot be seeded.
+
+Changes in this slice:
+- Make source-document row seeding non-blocking after a successful opportunity create/update.
+- Add `source_document_seed_failed` discovery warnings with query, title, document URL, and failure reason.
+- Persist source-document seeding warnings into the import record audit config alongside Firecrawl/browser fallback warnings.
+- Extend focused discovery import coverage to prove an opportunity remains imported while the source-document seeding failure is reported.
+
+Verification:
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts` from `frontend/` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, live SearXNG/Firecrawl calls, and the aggregate wave9 proof scenario remain intentionally skipped while on battery. This slice verifies warning telemetry with the focused discovery import action test.
+
+Remaining after this slice:
+- Continue reducing manual steps from source-document records into bounded download/parse orchestration and generated response package proof.
+
 ### 2026-05-26 - Discovery Source Document Count Visibility
 
 Status: implemented and verified.

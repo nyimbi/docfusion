@@ -270,6 +270,64 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("keeps opportunity imports successful when source document row seeding fails", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Records platform tender notice",
+					url: "https://procurement.example.com/tenders/records-platform",
+					content: "Tender notice with document downloads.",
+					engine: "google",
+					score: 11,
+					category: "general",
+				},
+			],
+		});
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "[Download RFP document](/documents/records-platform-rfp.pdf)",
+				metadata: {
+					title: "Records Platform Tender",
+					description: "Implementation scope and document download links.",
+				},
+			},
+		});
+		selectResultsQueue.push([], [], []);
+		const values = vi.fn(async () => {
+			throw new Error("source document insert failed");
+		});
+		vi.mocked(db.insert).mockReturnValueOnce({ values } as unknown as ReturnType<typeof db.insert>);
+
+		const result = await discoverAndImportOpportunities({
+			query: "records platform tender",
+			scrapeTopResults: true,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(0);
+		expect(result.warnings).toEqual([
+			expect.objectContaining({
+				type: "source_document_seed_failed",
+				title: "Records platform tender notice",
+				url: "https://procurement.example.com/documents/records-platform-rfp.pdf",
+				message: "source document insert failed",
+			}),
+		]);
+		expect(updateImportRecordMock).toHaveBeenCalledWith("import-1", expect.objectContaining({
+			config: expect.objectContaining({
+				audit: {
+					warnings: [
+						expect.objectContaining({
+							type: "source_document_seed_failed",
+							message: "source document insert failed",
+						}),
+					],
+				},
+			}),
+		}), "user-1");
+	});
+
 	it("falls back to the browser service when Firecrawl cannot scrape a top result cleanly", async () => {
 		searchSearxngMock.mockResolvedValue({
 			results: [

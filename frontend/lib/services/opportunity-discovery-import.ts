@@ -52,7 +52,7 @@ export type ImportResultsSummary = {
 };
 
 export interface DiscoveryRunWarning {
-	type: "firecrawl_failed" | "browser_fallback_failed" | "browser_fallback_used";
+	type: "firecrawl_failed" | "browser_fallback_failed" | "browser_fallback_used" | "source_document_seed_failed";
 	query: string;
 	title: string;
 	url: string;
@@ -277,6 +277,36 @@ async function ensureDiscoveredSourceDocument(
 		isSelected: true,
 	});
 	return "created";
+}
+
+async function ensureDiscoveredSourceDocumentSafely(
+	opportunityId: string,
+	opportunity: OpportunityInput,
+	candidate: DiscoveryCandidate,
+	warnings: DiscoveryRunWarning[]
+): Promise<"created" | "existing" | "none" | "failed"> {
+	try {
+		return await ensureDiscoveredSourceDocument(opportunityId, opportunity);
+	} catch (error) {
+		warnings.push({
+			type: "source_document_seed_failed",
+			query: candidate.query,
+			title: candidate.result.title,
+			url: opportunity.documentUrl ?? candidate.result.url,
+			message: error instanceof Error ? error.message : "Source document row could not be seeded",
+		});
+		return "failed";
+	}
+}
+
+function importConfigWithWarnings(
+	baseConfig: ImportConfig,
+	warnings: DiscoveryRunWarning[]
+): ImportConfig {
+	return {
+		...baseConfig,
+		...(warnings.length > 0 ? { audit: { warnings } } : {}),
+	};
 }
 
 function buildOpportunityFromDiscovery(
@@ -570,16 +600,20 @@ export async function executeOpportunityDiscoveryImport(
 		);
 	}
 	const warnings = collectDiscoveryWarnings(candidates);
-	const importConfig: ImportConfig = {
+	const baseImportConfig: ImportConfig = {
 		columnMappings: [],
 		sheetName: "searxng_discovery",
 		updateExisting,
 		matchBy: "sourceId",
-		...(warnings.length > 0 ? { audit: { warnings } } : {}),
 	};
 
 	const totalRecords = candidates.length + searchFailures.length;
-	const importId = await createImportRecord("searxng-discovery", totalRecords, importConfig, userId);
+	const importId = await createImportRecord(
+		"searxng-discovery",
+		totalRecords,
+		importConfigWithWarnings(baseImportConfig, warnings),
+		userId
+	);
 
 	const importResults: ImportResultsSummary = {
 		total: totalRecords,
@@ -611,7 +645,12 @@ export async function executeOpportunityDiscoveryImport(
 
 			if (existingId) {
 				await updateOpportunity(existingId, oppData);
-				const sourceDocumentState = await ensureDiscoveredSourceDocument(existingId, oppData);
+				const sourceDocumentState = await ensureDiscoveredSourceDocumentSafely(
+					existingId,
+					oppData,
+					candidate,
+					warnings
+				);
 				if (sourceDocumentState === "created") sourceDocumentsCreated++;
 				if (sourceDocumentState === "existing") sourceDocumentsExisting++;
 				importResults.updated++;
@@ -622,7 +661,12 @@ export async function executeOpportunityDiscoveryImport(
 				});
 			} else {
 				const created = await createOpportunity(oppData);
-				const sourceDocumentState = await ensureDiscoveredSourceDocument(created.id, oppData);
+				const sourceDocumentState = await ensureDiscoveredSourceDocumentSafely(
+					created.id,
+					oppData,
+					candidate,
+					warnings
+				);
 				if (sourceDocumentState === "created") sourceDocumentsCreated++;
 				if (sourceDocumentState === "existing") sourceDocumentsExisting++;
 				importResults.imported++;
@@ -653,7 +697,7 @@ export async function executeOpportunityDiscoveryImport(
 		failedRecords: importResults.failed,
 		status: "completed",
 		errors: allErrors.filter((e) => e.status === "failed"),
-		config: importConfig,
+		config: importConfigWithWarnings(baseImportConfig, warnings),
 	}, userId);
 
 	return {
