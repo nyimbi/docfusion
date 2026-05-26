@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Opportunity-Relevant Live Search Proof
+
+Status: implemented and verified.
+
+Purpose: harden the live discovery-services proof so SearXNG must return opportunity-relevant results, not just any generic search result.
+
+Changes in this slice:
+- Replace the generic `tender` live proof query with procurement-source query candidates and an explicit Bing engine default, matching the currently responsive SearXNG upstream.
+- Filter SearXNG samples to procurement source hosts or tender/RFP/bid-style opportunity language with procurement context.
+- Record both total SearXNG results and opportunity-relevant SearXNG results in live evidence artifacts.
+- Use the shared Firecrawl/browser scrape timeout default instead of the previous 20-second proof-specific timeout.
+
+Verification:
+- `npm run platform:proof -- --include-live-safe --run live-discovery-services` from `frontend/` passed.
+- The live proof returned 4 opportunity-relevant SearXNG results out of 10 total results for `tenders.go.ke` through Bing, Firecrawl scraped `https://example.com` into 180 markdown characters, and the browser fallback scraped 528 content characters.
+
+Remaining after this slice:
+- SearXNG upstream quality is still uneven: Google, DuckDuckGo, Brave, and Startpage reported access/CAPTCHA limits during probing, so this proof intentionally targets the responsive Bing path.
+- Keep the direct PPIP, UNGM, and UNDP source proofs as the stronger evidence for source-specific opportunity discovery.
+
 ### 2026-05-27 - Full Non-Live Platform Proof
 
 Status: verified.
