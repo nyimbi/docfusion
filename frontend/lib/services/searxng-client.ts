@@ -8,6 +8,7 @@
 import { logger } from "@/lib/utils/logger";
 
 const SEARXNG_URL = process.env.SEARXNG_URL || "https://search.lindela.io";
+const SEARXNG_BASE_URL = SEARXNG_URL.replace(/\/$/, "");
 
 export interface SearxngResult {
   title: string;
@@ -44,7 +45,7 @@ export async function searchSearxng(
   query: string,
   options: SearchOptions = {}
 ): Promise<SearxngSearchResponse> {
-  const url = new URL(`${SEARXNG_URL}/search`);
+  const url = new URL(`${SEARXNG_BASE_URL}/search`);
   
   // Required parameter
   url.searchParams.append("q", query);
@@ -131,8 +132,25 @@ export async function searchMultiple(
  */
 export async function checkSearxngHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${SEARXNG_URL}/health`, {
+    const response = await fetch(`${SEARXNG_BASE_URL}/health`, {
       signal: AbortSignal.timeout(5000),
+    });
+    if (response.ok) {
+      return true;
+    }
+  } catch {
+    // Some SearXNG deployments do not expose /health; fall through to search probe.
+  }
+
+  try {
+    const url = new URL(`${SEARXNG_BASE_URL}/search`);
+    url.searchParams.set("q", "rfp");
+    url.searchParams.set("format", "json");
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(5000),
+      headers: {
+        "Accept": "application/json",
+      },
     });
     return response.ok;
   } catch {

@@ -45,6 +45,27 @@ describe("SearXNG client configuration", () => {
 		await expect(checkSearxngHealth()).resolves.toBe(true);
 		expect(fetchMock).toHaveBeenCalledWith("http://localhost:8888/health", expect.any(Object));
 	});
+
+	it("falls back to a JSON search probe when /health is unavailable", async () => {
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: false, status: 404 })
+			.mockResolvedValueOnce({ ok: true, status: 200 });
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { checkSearxngHealth } = await import("@/lib/services/searxng-client");
+
+		await expect(checkSearxngHealth()).resolves.toBe(true);
+		expect(fetchMock).toHaveBeenNthCalledWith(1, "https://search.lindela.io/health", expect.any(Object));
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			"https://search.lindela.io/search?q=rfp&format=json",
+			expect.objectContaining({
+				headers: {
+					"Accept": "application/json",
+				},
+			})
+		);
+	});
 });
 
 describe("Docling client configuration", () => {

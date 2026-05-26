@@ -735,6 +735,31 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Check opportunity discovery/intake for current SearXNG and Firecrawl configuration drift.
 
+### 2026-05-26 - SearXNG Health Probe Fallback
+
+Status: implemented and verified.
+
+Purpose: keep discovery health checks aligned with the live Lindela SearXNG deployment, where `/health` is unavailable but JSON search is operational.
+
+Changes in this slice:
+- Normalize the configured SearXNG base URL before building request paths.
+- Keep `/health` as the first health probe when deployments expose it.
+- Fall back to a lightweight `search?q=rfp&format=json` probe when `/health` is unavailable.
+- Add config coverage for the fallback behavior.
+
+Verification:
+- Live probe: `https://search.lindela.io/health` returned `404`.
+- Live probe: `https://search.lindela.io/search?q=rfp&format=json` returned `200`.
+- `npm run test -- __tests__/services/searxng-client-config.test.ts` passed.
+- `npx tsc --noEmit` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This was a narrow discovery health-check fix covered by service config tests, TypeScript checking, and live service probes.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Check Firecrawl scrape health and discovery run telemetry for similarly misleading readiness signals.
+
 ### 2026-05-26 - Actionable DLP Checklist Details
 
 Status: implemented and verified.
