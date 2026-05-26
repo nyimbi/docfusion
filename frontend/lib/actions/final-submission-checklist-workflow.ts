@@ -283,7 +283,14 @@ function signatureItem(doc: ProposalDocumentWithDocument): FinalSubmissionCheckl
 
 function complianceLockItem(matrices: ComplianceMatrixRow[]): FinalSubmissionChecklistItem {
 	const lockedMatrix = matrices.find((matrix) => ["final", "submitted"].includes(matrix.status));
-	const passed = Boolean(lockedMatrix?.approvedBy && lockedMatrix.approvedAt);
+	const unresolvedCount = lockedMatrix ? unresolvedComplianceCount(lockedMatrix) : 0;
+	const mandatoryScore = Number(lockedMatrix?.mandatoryComplianceScore ?? 0);
+	const passed = Boolean(
+		lockedMatrix?.approvedBy &&
+		lockedMatrix.approvedAt &&
+		unresolvedCount === 0 &&
+		mandatoryScore >= 100
+	);
 	return {
 		id: "compliance:matrix-lock",
 		category: "compliance",
@@ -292,10 +299,34 @@ function complianceLockItem(matrices: ComplianceMatrixRow[]): FinalSubmissionChe
 		passed,
 		message: passed
 			? `Matrix ${lockedMatrix?.name} locked by ${lockedMatrix?.approvedBy}`
-			: "A final or submitted compliance matrix with approval is required",
+			: complianceLockFailureMessage(lockedMatrix, unresolvedCount, mandatoryScore),
 		subjectId: lockedMatrix?.id ?? null,
 		assignedRole: "compliance_officer",
 	};
+}
+
+function unresolvedComplianceCount(matrix: ComplianceMatrixRow): number {
+	return Number(matrix.notAddressedCount ?? 0) + Number(matrix.nonCompliantCount ?? 0);
+}
+
+function complianceLockFailureMessage(
+	matrix: ComplianceMatrixRow | undefined,
+	unresolvedCount: number,
+	mandatoryScore: number
+): string {
+	if (!matrix) {
+		return "A final or submitted compliance matrix with approval is required";
+	}
+	if (!matrix.approvedBy || !matrix.approvedAt) {
+		return "A final or submitted compliance matrix with approval is required";
+	}
+	if (unresolvedCount > 0) {
+		return `Compliance matrix ${matrix.name} is locked but still has ${unresolvedCount} unresolved compliance gap${unresolvedCount === 1 ? "" : "s"}`;
+	}
+	if (mandatoryScore < 100) {
+		return `Compliance matrix ${matrix.name} is locked but mandatory compliance is ${mandatoryScore}%`;
+	}
+	return "A final or submitted compliance matrix with approval is required";
 }
 
 function dlpItem(findings: DlpFinding[]): FinalSubmissionChecklistItem {

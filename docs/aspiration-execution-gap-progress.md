@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Final Submission Compliance Gap Gate
+
+Status: implemented and verified.
+
+Purpose: prevent final submission readiness from passing on a locked/approved compliance matrix that still reports unresolved or mandatory compliance gaps.
+
+Changes in this slice:
+- Tighten the final submission checklist compliance item to require approval, zero unresolved compliance counts, and 100% mandatory compliance.
+- Return explicit blocker messages when a locked matrix still has unresolved gaps or incomplete mandatory compliance.
+- Add focused workflow coverage proving a stale final matrix cannot make the opportunity submission-ready.
+
+Verification:
+- `npm run test -- __tests__/actions/final-submission-checklist-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This was a narrow submission readiness gate covered by the affected workflow test file and whitespace validation.
+
+Remaining after this slice:
+- Continue auditing final submission and compliance lock workflows for stale matrix counters or waiver-authority gaps.
+- Add broader browser proof for discovery-to-receipt once power budget allows.
+
 ### 2026-05-26 - RFP Upload Starts Real Parse Jobs
 
 Status: implemented and verified.

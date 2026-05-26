@@ -251,6 +251,56 @@ describe("final submission checklist workflow", () => {
 		);
 	});
 
+	it("blocks a locked compliance matrix that still reports unresolved gaps", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					docFixture(),
+					docFixture({
+						proposalDocumentId: "pd-management",
+						documentId: "doc-management",
+						documentType: "management_plan",
+						title: "Management Plan",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-management", proposalDocumentId: "pd-management" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-cost",
+						documentId: "doc-cost",
+						documentType: "cost_proposal",
+						title: "Cost Proposal",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-cost", proposalDocumentId: "pd-cost" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+				],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					...lockedMatrix,
+					notAddressedCount: 1,
+					nonCompliantCount: 1,
+					mandatoryComplianceScore: 85,
+				}],
+			}));
+
+		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
+
+		expect(result.allowed).toBe(false);
+		expect(result.blockers.join("\n")).toContain("Compliance matrix final lock");
+		expect(result.blockers.join("\n")).toContain("still has 2 unresolved compliance gaps");
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "blocked",
+				eventType: "final_submission_checklist_blocked",
+				terminal: false,
+			})
+		);
+	});
+
 	it("keeps advisory DLP findings non-blocking while preserving warnings", async () => {
 		dbMock.select
 			.mockReturnValueOnce(createChain({
