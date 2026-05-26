@@ -9,6 +9,11 @@ import {
 } from "@/lib/actions/workflow-runtime";
 import { db } from "@/lib/db";
 import { documents, proposalDocuments } from "@/lib/db/schema";
+import {
+	getLinodeE3ConfigFromEnv,
+	type LinodeE3Config,
+	uploadToLinodeE3,
+} from "@/lib/storage/linode-e3";
 import type { ExportFormat, RenderOptions } from "@/lib/types/opportunity";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 
@@ -27,6 +32,11 @@ export interface FinalArtifactManifest {
 	size: number;
 	artifactHash: string;
 	downloadUrl: string;
+	storagePath: string;
+	storageBucket: string;
+	storageKey: string;
+	storageEtag: string | null;
+	storageEndpoint: string;
 	renderedAt: string;
 	renderedBy: string;
 	renderTimeMs: number | null;
@@ -266,6 +276,10 @@ async function buildTransition(input: {
 		case "render": {
 			enforceRenderable(input.document, input.proposalDocument, input.input.allowDraftRender);
 			const format = input.input.format ?? "pdf";
+			const objectStoreConfig = getLinodeE3ConfigFromEnv();
+			if (!objectStoreConfig) {
+				throw new Error("Linode E3 object storage is required before rendering final submission artifacts");
+			}
 			const renderResult = await renderDocument(input.input.documentId, {
 				...input.input.renderOptions,
 				format,
@@ -277,7 +291,8 @@ async function buildTransition(input: {
 			if (!renderResult.success || !renderResult.data || !renderResult.filename || !renderResult.mimeType || renderResult.size == null) {
 				throw new Error(renderResult.error ?? "Final artifact render failed");
 			}
-			const artifact = buildManifest({
+			const artifact = await buildStoredManifest({
+				objectStoreConfig,
 				documentId: input.document.id,
 				proposalDocumentId: input.proposalDocument?.id ?? null,
 				opportunityId: input.proposalDocument?.opportunityId ?? input.input.opportunityId ?? null,
@@ -479,7 +494,8 @@ function enforceRenderable(
 	}
 }
 
-function buildManifest(input: {
+async function buildStoredManifest(input: {
+	objectStoreConfig: LinodeE3Config;
 	documentId: string;
 	proposalDocumentId: string | null;
 	opportunityId: string | null;
@@ -494,10 +510,32 @@ function buildManifest(input: {
 		renderTimeMs?: number;
 		pageCount?: number;
 	};
-}): FinalArtifactManifest {
+}): Promise<FinalArtifactManifest> {
 	const bytes = Buffer.from(input.renderResult.data, "base64");
 	const artifactHash = createHash("sha256").update(bytes).digest("hex");
-	const downloadUrl = `/api/documents/${input.documentId}/download?format=${input.format}&artifactHash=${artifactHash}&filename=${encodeURIComponent(input.renderResult.filename)}`;
+	const key = buildFinalArtifactObjectKey({
+		prefix: input.objectStoreConfig.prefix,
+		opportunityId: input.opportunityId,
+		proposalDocumentId: input.proposalDocumentId,
+		documentId: input.documentId,
+		artifactHash,
+		filename: input.renderResult.filename,
+	});
+	const upload = await uploadToLinodeE3(input.objectStoreConfig, {
+		key,
+		body: bytes,
+		contentType: input.renderResult.mimeType,
+		contentLength: bytes.length,
+		metadata: {
+			"document-id": input.documentId,
+			"proposal-document-id": input.proposalDocumentId ?? "",
+			"opportunity-id": input.opportunityId ?? "",
+			format: input.format,
+			sha256: artifactHash,
+			"rendered-by": input.renderedBy,
+		},
+	});
+	const downloadUrl = `/api/v1/documents/${input.documentId}/final-artifact?artifactHash=${artifactHash}&filename=${encodeURIComponent(input.renderResult.filename)}`;
 	return {
 		documentId: input.documentId,
 		proposalDocumentId: input.proposalDocumentId,
@@ -508,11 +546,41 @@ function buildManifest(input: {
 		size: input.renderResult.size,
 		artifactHash,
 		downloadUrl,
+		storagePath: upload.storagePath,
+		storageBucket: upload.bucket,
+		storageKey: upload.key,
+		storageEtag: upload.etag,
+		storageEndpoint: upload.endpoint,
 		renderedAt: input.renderedAt.toISOString(),
 		renderedBy: input.renderedBy,
 		renderTimeMs: input.renderResult.renderTimeMs ?? null,
 		pageCount: input.renderResult.pageCount ?? null,
 	};
+}
+
+function buildFinalArtifactObjectKey(params: {
+	prefix?: string;
+	opportunityId: string | null;
+	proposalDocumentId: string | null;
+	documentId: string;
+	artifactHash: string;
+	filename: string;
+}): string {
+	const prefix = sanitizeObjectKeySegment(params.prefix ?? "rfp");
+	const filename = sanitizeObjectKeySegment(params.filename);
+	const artifactName = `${params.artifactHash.slice(0, 16)}-${filename}`;
+	return [
+		prefix,
+		"final-artifacts",
+		sanitizeObjectKeySegment(params.opportunityId ?? "unassigned"),
+		sanitizeObjectKeySegment(params.proposalDocumentId ?? params.documentId),
+		artifactName,
+	].join("/");
+}
+
+function sanitizeObjectKeySegment(value: string): string {
+	const normalized = value.trim().replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+	return normalized || "unnamed";
 }
 
 function mergeRenderedArtifact(metadata: unknown, artifact: FinalArtifactManifest) {
@@ -564,7 +632,8 @@ function isArtifact(value: unknown): value is FinalArtifactManifest {
 		value &&
 		typeof value === "object" &&
 		typeof (value as FinalArtifactManifest).artifactHash === "string" &&
-		typeof (value as FinalArtifactManifest).filename === "string"
+		typeof (value as FinalArtifactManifest).filename === "string" &&
+		typeof (value as FinalArtifactManifest).storagePath === "string"
 	);
 }
 

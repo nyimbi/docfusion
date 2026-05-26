@@ -265,16 +265,19 @@ function approvalItem(doc: ProposalDocumentWithDocument): FinalSubmissionCheckli
 
 function artifactItem(doc: ProposalDocumentWithDocument): FinalSubmissionChecklistItem {
 	const artifact = finalArtifact(doc.metadata);
-	const passed = Boolean(artifact?.artifactHash);
+	const passed = Boolean(
+		typeof artifact?.artifactHash === "string" &&
+		typeof artifact.storagePath === "string"
+	);
 	return {
 		id: `artifact:${doc.documentId}`,
 		category: "artifact",
-		label: `${doc.title} artifact hash`,
+		label: `${doc.title} stored final artifact`,
 		required: true,
 		passed,
 		message: passed
-			? `Final artifact hash ${artifact?.artifactHash}`
-			: "Approved final artifact hash is missing",
+			? `Final artifact ${artifact?.artifactHash} stored at ${artifact?.storagePath}`
+			: "Approved final artifact storage receipt is missing",
 		subjectId: doc.documentId,
 		assignedRole: "production_specialist",
 	};
@@ -394,12 +397,12 @@ function dlpItem(findings: DlpFinding[]): FinalSubmissionChecklistItem {
 	};
 }
 
-function finalArtifact(metadata: unknown): { artifactHash?: unknown } | null {
+function finalArtifact(metadata: unknown): { artifactHash?: unknown; storagePath?: unknown } | null {
 	const value = asRecord(metadata).finalArtifact;
 	if (!value || typeof value !== "object") {
 		return null;
 	}
-	return value as { artifactHash?: unknown };
+	return value as { artifactHash?: unknown; storagePath?: unknown };
 }
 
 function finalSubmissionSignoff(metadata: unknown): { signedBy?: unknown; signedAt?: unknown } | null {

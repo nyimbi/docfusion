@@ -76,7 +76,12 @@ const finalArtifact = {
 	mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	size: 2048,
 	artifactHash: "a".repeat(64),
-	downloadUrl: "/api/documents/doc-technical/download",
+	downloadUrl: `/api/v1/documents/doc-technical/final-artifact?artifactHash=${"a".repeat(64)}`,
+	storagePath: "s3://mansa/proposal/final-artifacts/opp-1/pd-technical/technical-approach.docx",
+	storageBucket: "mansa",
+	storageKey: "proposal/final-artifacts/opp-1/pd-technical/technical-approach.docx",
+	storageEtag: "\"artifact-etag\"",
+	storageEndpoint: "https://objects.example.com",
 	renderedAt: "2026-05-05T00:00:00.000Z",
 	renderedBy: "production-lead-1",
 	renderTimeMs: 40,
@@ -197,7 +202,7 @@ describe("final submission checklist workflow", () => {
 		expect(result.allowed).toBe(false);
 		expect(result.blockers.join("\n")).toContain("Management Plan present");
 		expect(result.blockers.join("\n")).toContain("Cost Proposal present");
-		expect(result.blockers.join("\n")).toContain("artifact hash");
+		expect(result.blockers.join("\n")).toContain("stored final artifact");
 		expect(result.blockers.join("\n")).toContain("executive signoff");
 		expect(result.blockers.join("\n")).toContain("Compliance matrix final lock");
 		expect(result.blockers.join("\n")).toContain("DLP clearance");
@@ -329,6 +334,56 @@ describe("final submission checklist workflow", () => {
 				terminal: false,
 			})
 		);
+	});
+
+	it("blocks approved final artifacts that only have a hash without object storage receipt", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					docFixture({
+						metadata: {
+							finalArtifact: {
+								...finalArtifact,
+								storagePath: null,
+								storageBucket: null,
+								storageKey: null,
+							},
+							finalSubmissionSignoff: {
+								signedBy: "executive-1",
+								signedAt: "2026-05-05T00:00:00.000Z",
+							},
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-management",
+						documentId: "doc-management",
+						documentType: "management_plan",
+						title: "Management Plan",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-management", proposalDocumentId: "pd-management" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-cost",
+						documentId: "doc-cost",
+						documentType: "cost_proposal",
+						title: "Cost Proposal",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-cost", proposalDocumentId: "pd-cost" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+				],
+			}))
+			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
+
+		expect(result.allowed).toBe(false);
+		expect(result.blockers.join("\n")).toContain("stored final artifact");
+		expect(result.blockers.join("\n")).toContain("storage receipt is missing");
 	});
 
 	it("blocks unresolved high-risk unsupported claims before final submission", async () => {

@@ -30,6 +30,26 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 	upsertWorkflowRuntimeTask: vi.fn(async () => ({ id: "artifact-task-1" })),
 }));
 
+const storageMock = vi.hoisted(() => ({
+	getLinodeE3ConfigFromEnv: vi.fn(() => ({
+		endpoint: "https://objects.example.com",
+		region: "gb-lon-1",
+		bucket: "mansa",
+		accessKeyId: "access-key",
+		secretAccessKey: "secret-key",
+		prefix: "proposal",
+	})),
+	uploadToLinodeE3: vi.fn(async () => ({
+		bucket: "mansa",
+		key: "proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
+		storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
+		etag: "\"artifact-etag\"",
+		endpoint: "https://objects.example.com",
+	})),
+}));
+
+vi.mock("@/lib/storage/linode-e3", () => storageMock);
+
 interface ChainConfig {
 	result?: unknown[];
 	onWhere?: (value: unknown) => void;
@@ -132,11 +152,50 @@ const renderedHash = createHash("sha256")
 	.update(Buffer.from("rendered final proposal"))
 	.digest("hex");
 
+function storedArtifact(overrides: Record<string, unknown> = {}) {
+	return {
+		documentId: "doc-1",
+		proposalDocumentId: "proposal-doc-1",
+		opportunityId: "opp-1",
+		format: "docx",
+		filename: "technical-approach.docx",
+		mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		size: Buffer.byteLength("rendered final proposal"),
+		artifactHash: renderedHash,
+		downloadUrl: `/api/v1/documents/doc-1/final-artifact?artifactHash=${renderedHash}`,
+		storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
+		storageBucket: "mansa",
+		storageKey: "proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
+		storageEtag: "\"artifact-etag\"",
+		storageEndpoint: "https://objects.example.com",
+		renderedAt: "2026-05-05T00:00:00.000Z",
+		renderedBy: "production-lead-1",
+		renderTimeMs: 42,
+		pageCount: 12,
+		...overrides,
+	};
+}
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	requireUserContextMock.mockResolvedValue({
 		userId: "production-lead-1",
 		organizationId: "org-1",
+	});
+	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue({
+		endpoint: "https://objects.example.com",
+		region: "gb-lon-1",
+		bucket: "mansa",
+		accessKeyId: "access-key",
+		secretAccessKey: "secret-key",
+		prefix: "proposal",
+	});
+	storageMock.uploadToLinodeE3.mockResolvedValue({
+		bucket: "mansa",
+		key: "proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
+		storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
+		etag: "\"artifact-etag\"",
+		endpoint: "https://objects.example.com",
 	});
 	dbMock.select.mockReset();
 	dbMock.update.mockReset();
@@ -222,6 +281,24 @@ describe("final artifact workflow", () => {
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
+	it("blocks final rendering before calling the renderer when object storage is absent", async () => {
+		storageMock.getLinodeE3ConfigFromEnv.mockReturnValue(null);
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
+			.mockReturnValueOnce(createChain({ result: [baseDocument] }));
+
+		await expect(transitionFinalArtifactWorkflow({
+			documentId: "doc-1",
+			proposalDocumentId: "proposal-doc-1",
+			action: "render",
+			reason: "Render final artifact",
+			format: "docx",
+		})).rejects.toThrow("Linode E3 object storage is required");
+		expect(renderDocument).not.toHaveBeenCalled();
+		expect(storageMock.uploadToLinodeE3).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
 	it("renders an approved proposal document, stores artifact metadata, and records runtime evidence", async () => {
 		let documentPatch: Record<string, unknown> | undefined;
 		dbMock.select
@@ -261,12 +338,29 @@ describe("final artifact workflow", () => {
 			renderedBy: "production-lead-1",
 			renderTimeMs: 42,
 			pageCount: 12,
+			storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
+			storageBucket: "mansa",
+			storageEtag: "\"artifact-etag\"",
 		});
-		expect(result.artifact?.downloadUrl).toContain(`/api/documents/doc-1/download?format=docx&artifactHash=${renderedHash}`);
+		expect(result.artifact?.downloadUrl).toContain(`/api/v1/documents/doc-1/final-artifact?artifactHash=${renderedHash}`);
+		expect(storageMock.uploadToLinodeE3).toHaveBeenCalledWith(
+			expect.objectContaining({ bucket: "mansa" }),
+			expect.objectContaining({
+				contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+				contentLength: Buffer.byteLength("rendered final proposal"),
+				metadata: expect.objectContaining({
+					"document-id": "doc-1",
+					"proposal-document-id": "proposal-doc-1",
+					"opportunity-id": "opp-1",
+					sha256: renderedHash,
+				}),
+			})
+		);
 		expect(documentPatch?.metadata).toMatchObject({
 			renderedArtifacts: {
 				docx: expect.objectContaining({
 					artifactHash: renderedHash,
+					storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
 				}),
 			},
 			finalArtifactWorkflow: {
@@ -299,7 +393,7 @@ describe("final artifact workflow", () => {
 					...baseDocument,
 					metadata: {
 						renderedArtifacts: {
-							docx: { artifactHash: renderedHash, filename: "technical-approach.docx" },
+							docx: storedArtifact(),
 						},
 					},
 				}],
@@ -316,21 +410,7 @@ describe("final artifact workflow", () => {
 	});
 
 	it("approves a rendered artifact and marks the proposal document final", async () => {
-		const artifact = {
-			documentId: "doc-1",
-			proposalDocumentId: "proposal-doc-1",
-			opportunityId: "opp-1",
-			format: "docx",
-			filename: "technical-approach.docx",
-			mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-			size: Buffer.byteLength("rendered final proposal"),
-			artifactHash: renderedHash,
-			downloadUrl: `/api/documents/doc-1/download?format=docx&artifactHash=${renderedHash}`,
-			renderedAt: "2026-05-05T00:00:00.000Z",
-			renderedBy: "production-lead-1",
-			renderTimeMs: 42,
-			pageCount: 12,
-		};
+		const artifact = storedArtifact();
 		let documentPatch: Record<string, unknown> | undefined;
 		let proposalPatch: Record<string, unknown> | undefined;
 		let proposalUpdateWhere: unknown;
@@ -395,21 +475,7 @@ describe("final artifact workflow", () => {
 	});
 
 	it("records executive signoff only after the final artifact is approved", async () => {
-		const artifact = {
-			documentId: "doc-1",
-			proposalDocumentId: "proposal-doc-1",
-			opportunityId: "opp-1",
-			format: "docx",
-			filename: "technical-approach.docx",
-			mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-			size: Buffer.byteLength("rendered final proposal"),
-			artifactHash: renderedHash,
-			downloadUrl: `/api/documents/doc-1/download?format=docx&artifactHash=${renderedHash}`,
-			renderedAt: "2026-05-05T00:00:00.000Z",
-			renderedBy: "production-lead-1",
-			renderTimeMs: 42,
-			pageCount: 12,
-		};
+		const artifact = storedArtifact();
 		let documentPatch: Record<string, unknown> | undefined;
 		let proposalPatch: Record<string, unknown> | undefined;
 		dbMock.select
@@ -481,7 +547,7 @@ describe("final artifact workflow", () => {
 					...baseDocument,
 					metadata: {
 						renderedArtifacts: {
-							docx: { artifactHash: renderedHash, filename: "technical-approach.docx" },
+							docx: storedArtifact(),
 						},
 					},
 				}],
@@ -507,7 +573,7 @@ describe("final artifact workflow", () => {
 					...baseDocument,
 					status: "final",
 					metadata: {
-						finalArtifact: { artifactHash: renderedHash, filename: "technical-approach.docx" },
+						finalArtifact: storedArtifact(),
 						finalSubmissionSignoff: {
 							signedBy: "executive-1",
 							signedAt: "2026-05-05T00:00:00.000Z",

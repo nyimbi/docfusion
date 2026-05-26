@@ -801,6 +801,11 @@ export interface ProposalFinalArtifactSummary {
 	filename: string;
 	artifactHash: string;
 	downloadUrl?: string | null;
+	storagePath?: string | null;
+	storageBucket?: string | null;
+	storageKey?: string | null;
+	storageEtag?: string | null;
+	storageEndpoint?: string | null;
 	approvedBy?: string | null;
 	approvedAt?: Date | string | null;
 	renderedAt?: Date | string | null;

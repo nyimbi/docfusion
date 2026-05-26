@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Final Artifact Object Storage Receipt
+
+Status: implemented and verified.
+
+Purpose: make production render artifacts durable and auditable before they can satisfy final submission readiness.
+
+Changes in this slice:
+- Require Linode E3 object storage before running final artifact renders, avoiding expensive render work when final artifact storage is not configured.
+- Upload rendered final artifact bytes to Linode E3 and persist storage path, bucket, key, ETag, endpoint, SHA-256 hash, and download route in artifact metadata.
+- Add an authenticated final-artifact download route that reads the stored object, verifies the SHA-256 hash, and enforces owner or assigned-opportunity document access.
+- Require final submission checklist artifacts to include an object-storage receipt, not just a hash.
+- Preserve storage receipt fields in proposal document summaries.
+
+Verification:
+- `npm run test -- __tests__/actions/final-artifact-workflow.test.ts __tests__/actions/final-submission-checklist-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets final-artifact storage and final-checklist readiness gates with focused tests.
+
+Remaining after this slice:
+- Continue wiring the submission concierge to surface the stored final artifact receipt and signed artifact evidence inline.
+- Add route-level final artifact download tests and authenticated browser proof when the power budget allows.
+
 ### 2026-05-26 - Submission Page Scoped Data Loading
 
 Status: implemented and verified.
