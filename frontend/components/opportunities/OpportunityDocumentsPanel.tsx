@@ -168,7 +168,6 @@ export function OpportunityDocumentsPanel({
           parsingJobId: result.parsingJobId,
           storagePath: result.storagePath,
         }]);
-        window.location.reload();
       } else {
         toast.error(result.error || "Source document ingest failed", { id: "source-ingest" });
       }
@@ -339,6 +338,16 @@ export function OpportunityDocumentsPanel({
                 )}
                 {isSourceIngesting ? "Ingesting..." : "Ingest Source Link"}
               </Button>
+            )}
+            {lastIntakeResults.length > 0 && (
+              <div className="w-full pt-2">
+                <RfpIntakeSteps
+                  discoveredCount={lastIntakeResults.length}
+                  selectedCount={lastIntakeResults.length}
+                  downloadedCount={lastIntakeResults.filter((result) => result.success).length}
+                  lastResults={lastIntakeResults}
+                />
+              </div>
             )}
             {isDiscovering && (
               <p className="text-xs text-muted-foreground">

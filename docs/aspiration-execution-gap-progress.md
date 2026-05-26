@@ -446,3 +446,25 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Improve post-ingest UI visibility for parser progress after source-link ingestion, if operators need live status without refreshing.
+
+### 2026-05-26 - Source Intake Queue Feedback
+
+Status: implemented and verified.
+
+Purpose: keep parser-queue evidence visible immediately after direct source-link ingestion.
+
+Changes in this slice:
+- Stop refreshing the opportunity page immediately after source-link ingest succeeds.
+- Show the existing RFP intake step tracker in the empty documents state when source-link ingestion returns a result.
+- Surface stored/queued counts from the returned storage path and parsing job instead of hiding them behind a reload.
+
+Verification:
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, browser visual pass, and component tests remain intentionally skipped while on battery. This slice used TypeScript checking for the small UI state change.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Add persisted parser progress polling on the opportunity detail page if source-link ingestion needs live background status updates.
