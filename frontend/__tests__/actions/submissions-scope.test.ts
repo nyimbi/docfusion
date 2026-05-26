@@ -82,6 +82,7 @@ vi.mock("@/lib/utils/logger", () => ({
 import {
 	createSubmission,
 	getRecentSubmissions,
+	getPreSubmissionChecklist,
 	getSubmission,
 	getSubmissionsByOpportunity,
 	getWinLossAnalytics,
@@ -154,6 +155,42 @@ describe("submission row scoping", () => {
 
 		expect(result).toMatchObject({ id: submission.id });
 		expect(collectSqlFragments(readWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("loads the operator checklist from the enforced final submission gate", async () => {
+		finalChecklistMock.mockResolvedValueOnce({
+			opportunityId: submission.opportunityId,
+			allowed: false,
+			blockers: ["Compliance matrix final lock: A final or submitted compliance matrix with approval is required"],
+			warnings: [],
+			items: [
+				{
+					id: "compliance:matrix-lock",
+					category: "compliance",
+					label: "Compliance matrix final lock",
+					required: true,
+					passed: false,
+					message: "A final or submitted compliance matrix with approval is required",
+					assignedRole: "compliance_officer",
+				},
+			],
+			dlpFindings: [],
+			workflowInstanceId: "final-checklist-1",
+			taskProjected: true,
+		});
+
+		const checklist = await getPreSubmissionChecklist(submission.opportunityId);
+
+		expect(finalChecklistMock).toHaveBeenCalledWith(submission.opportunityId);
+		expect(checklist).toEqual([
+			expect.objectContaining({
+				id: "compliance:matrix-lock",
+				category: "compliance",
+				isRequired: true,
+				isCompleted: false,
+				notes: "Owner: compliance_officer",
+			}),
+		]);
 	});
 
 	it("scopes opportunity submission lists through assignment", async () => {

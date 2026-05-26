@@ -614,3 +614,27 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Strengthen the final document approval/render/submission path so compliance matrix lock and document finalization are required before submission.
+
+### 2026-05-26 - Final Submission Checklist Alignment
+
+Status: implemented and verified.
+
+Purpose: ensure the submission UI shows the same readiness blockers that the server enforces before recording a submission.
+
+Changes in this slice:
+- Replace the legacy pre-submission checklist source with `evaluateFinalSubmissionChecklistWorkflow`.
+- Map final checklist categories into the existing submission checklist UI model.
+- Preserve hard-gate status, required flags, messages, and assigned roles from the enforced final checklist.
+- Add focused coverage proving the operator checklist is loaded from the final submission gate.
+
+Verification:
+- `npm run test -- __tests__/actions/submissions-scope.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, browser visual pass, and broad submission workflow tests remain intentionally skipped while on battery. This slice used focused submission action coverage plus TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Improve the submission form interaction so final-gate items are clearly system-verified rather than manually toggleable checklist items.

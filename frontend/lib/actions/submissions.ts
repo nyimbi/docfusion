@@ -397,101 +397,37 @@ export async function recordOutcome(
 export async function getPreSubmissionChecklist(
 	opportunityId: string
 ): Promise<PreSubmissionChecklistItem[]> {
-	const userContext = await requireUserContext();
+	await requireUserContext();
+	const result = await evaluateFinalSubmissionChecklistWorkflow(opportunityId);
+	return result.items.map((item) => ({
+		id: item.id,
+		label: item.label,
+		description: item.message,
+		category: mapFinalChecklistCategory(item.category),
+		isRequired: item.required,
+		isCompleted: item.passed,
+		notes: item.assignedRole ? `Owner: ${item.assignedRole}` : undefined,
+	}));
+}
 
-	// Get proposal documents for this opportunity
-	const docs = await db
-		.select({
-			id: proposalDocuments.id,
-			documentType: proposalDocuments.documentType,
-			status: proposalDocuments.status,
-			title: documents.title,
-		})
-		.from(proposalDocuments)
-		.innerJoin(documents, eq(documents.id, proposalDocuments.documentId))
-		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userContext.userId));
-
-	// Get opportunity details
-	const [opp] = await db
-		.select()
-		.from(opportunities)
-		.where(visibleOpportunityCondition(opportunityId, userContext.userId));
-
-	const checklist: PreSubmissionChecklistItem[] = [];
-
-	// Document checks
-	const requiredDocTypes = [
-		"technical_approach",
-		"management_plan",
-		"cost_proposal",
-	];
-
-	for (const docType of requiredDocTypes) {
-		const doc = docs.find((d) => d.documentType === docType);
-		const isCompleted = doc?.status === "final" || doc?.status === "approved";
-
-		checklist.push({
-			id: `doc-${docType}`,
-			label: formatDocumentType(docType),
-			description: `${formatDocumentType(docType)} document is complete and approved`,
-			category: "documents",
-			isRequired: true,
-			isCompleted,
-			notes: doc ? `Status: ${doc.status}` : "Document not found",
-		});
+function mapFinalChecklistCategory(
+	category: "documents" | "artifact" | "approval" | "signature" | "compliance" | "privacy" | "administrative"
+): PreSubmissionChecklistItem["category"] {
+	switch (category) {
+		case "documents":
+			return "documents";
+		case "compliance":
+		case "privacy":
+			return "compliance";
+		case "artifact":
+			return "formatting";
+		case "approval":
+		case "signature":
+		case "administrative":
+			return "administrative";
+		default:
+			return "administrative";
 	}
-
-	// Compliance checks
-	checklist.push({
-		id: "compliance-page-limit",
-		label: "Page Limit Compliance",
-		description: "All documents are within specified page limits",
-		category: "compliance",
-		isRequired: true,
-		isCompleted: false, // Would need actual page count check
-	});
-
-	checklist.push({
-		id: "compliance-format",
-		label: "Format Requirements",
-		description: "Documents meet format requirements (font, margins, etc.)",
-		category: "compliance",
-		isRequired: true,
-		isCompleted: false,
-	});
-
-	// Formatting checks
-	checklist.push({
-		id: "format-consistent",
-		label: "Consistent Formatting",
-		description: "All documents use consistent headers and styles",
-		category: "formatting",
-		isRequired: false,
-		isCompleted: false,
-	});
-
-	// Administrative checks
-	checklist.push({
-		id: "admin-signatures",
-		label: "Required Signatures",
-		description: "All required signatures and certifications obtained",
-		category: "administrative",
-		isRequired: true,
-		isCompleted: false,
-	});
-
-	checklist.push({
-		id: "admin-deadline",
-		label: "Submission Deadline",
-		description: opp?.deadline
-			? `Due by ${opp.deadline.toLocaleDateString()}`
-			: "Verify submission deadline",
-		category: "administrative",
-		isRequired: true,
-		isCompleted: opp?.deadline ? new Date() < opp.deadline : false,
-	});
-
-	return checklist;
 }
 
 // ============================================================================
