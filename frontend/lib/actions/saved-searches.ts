@@ -249,8 +249,8 @@ export async function createDiscoveryPreset(
 	}
 
 	const normalizedInput = normalizeDiscoveryPresetInput(input.input);
-	if (getDiscoveryQueries(normalizedInput).length === 0) {
-		throw new Error("At least one discovery query is required.");
+	if (getDiscoveryQueries(normalizedInput).length === 0 && (normalizedInput.sourceUrls?.length ?? 0) === 0) {
+		throw new Error("At least one discovery query or source URL is required.");
 	}
 
 	const [row] = await db
@@ -329,6 +329,12 @@ function normalizeDiscoveryPresetInput(input: DiscoveryImportInput): DiscoveryIm
 	if (input.limitPerQuery !== undefined) {
 		normalized.limitPerQuery = normalizeBoundedNumber(input.limitPerQuery, 1, 50);
 	}
+	if (input.sourceUrls?.length) {
+		normalized.sourceUrls = [...new Set(input.sourceUrls.map((url) => url.trim()).filter(Boolean))];
+	}
+	if (input.sourceScrapeLimit !== undefined) {
+		normalized.sourceScrapeLimit = normalizeBoundedNumber(input.sourceScrapeLimit, 0, 50);
+	}
 	if (input.scrapeLimit !== undefined) {
 		normalized.scrapeLimit = normalizeBoundedNumber(input.scrapeLimit, 0, 10);
 	}
@@ -354,8 +360,13 @@ function normalizeDiscoveryPresetInput(input: DiscoveryImportInput): DiscoveryIm
 
 function describeDiscoveryPreset(input: DiscoveryImportInput): string {
 	const queryCount = getDiscoveryQueries(input).length;
+	const sourceCount = input.sourceUrls?.length ?? 0;
 	const region = input.countryRegion ? `, ${input.countryRegion}` : "";
-	return `${queryCount} ${queryCount === 1 ? "query" : "queries"}${region}`;
+	const queryLabel = `${queryCount} ${queryCount === 1 ? "query" : "queries"}`;
+	const sourceLabel = sourceCount > 0
+		? `, ${sourceCount} ${sourceCount === 1 ? "source" : "sources"}`
+		: "";
+	return `${queryLabel}${sourceLabel}${region}`;
 }
 
 function _toSavedSearch(row: typeof savedSearches.$inferSelect): SavedSearch {

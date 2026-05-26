@@ -61,6 +61,8 @@ function parseDiscoveryInput(body: DiscoveryRequestBody): DiscoveryImportInput {
 		query: optionalString(body.query, "query"),
 		queries: optionalStringArray(body.queries, "queries"),
 		limitPerQuery: optionalNumber(body.limitPerQuery, "limitPerQuery"),
+		sourceUrls: optionalStringArray(body.sourceUrls, "sourceUrls"),
+		sourceScrapeLimit: optionalNumber(body.sourceScrapeLimit, "sourceScrapeLimit"),
 		language: optionalString(body.language, "language"),
 		timeRange: optionalString(body.timeRange, "timeRange") as DiscoveryImportInput["timeRange"],
 		categories: optionalStringArray(body.categories, "categories"),

@@ -103,6 +103,8 @@ describe("discovery presets", () => {
 			input: {
 				queries: [" ICT tender Kenya ", "ICT tender Kenya", " RFP Uganda "],
 				limitPerQuery: 99,
+				sourceUrls: [" https://buyer.example/tenders ", "https://buyer.example/tenders"],
+				sourceScrapeLimit: 99,
 				countryRegion: " East Africa ",
 				category: " ICT ",
 				engines: [" bing ", "bing", " wikipedia "],
@@ -122,6 +124,8 @@ describe("discovery presets", () => {
 				input: expect.objectContaining({
 					queries: ["ICT tender Kenya", "RFP Uganda"],
 					limitPerQuery: 50,
+					sourceUrls: ["https://buyer.example/tenders"],
+					sourceScrapeLimit: 50,
 					countryRegion: "East Africa",
 					category: "ICT",
 					engines: ["bing", "wikipedia"],

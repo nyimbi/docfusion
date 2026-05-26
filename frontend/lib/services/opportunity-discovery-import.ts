@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
+import { genericParser } from "@/lib/scrapers/parsers/generic";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 import { downloadDocument } from "@/lib/services/rfp-document-service";
 import {
@@ -24,6 +25,8 @@ export interface DiscoveryImportInput {
 	query?: string;
 	queries?: string[];
 	limitPerQuery?: number;
+	sourceUrls?: string[];
+	sourceScrapeLimit?: number;
 	language?: string;
 	timeRange?: SearchOptions["time_range"];
 	categories?: SearchOptions["categories"];
@@ -43,6 +46,8 @@ export interface DiscoveryImportInput {
 interface DiscoveryCandidate {
 	query: string;
 	result: SearxngResult;
+	discoveryMethod?: "searxng" | "source_scrape";
+	sourceUrl?: string;
 	scrape?: {
 		title?: string;
 		description?: string;
@@ -66,6 +71,8 @@ export interface DiscoveryRunWarning {
 	type:
 		| "firecrawl_failed"
 		| "searxng_engine_degraded"
+		| "source_scrape_failed"
+		| "source_scrape_empty"
 		| "browser_fallback_failed"
 		| "browser_fallback_used"
 		| "source_document_seed_failed"
@@ -162,8 +169,27 @@ function normalizeDiscoveryQueries(input: DiscoveryImportInput): string[] {
 		input.query,
 		...(input.queries ?? []),
 	].filter((query): query is string => Boolean(query?.trim()));
+	if (rawQueries.length === 0 && (input.sourceUrls?.length ?? 0) > 0) {
+		return [];
+	}
 	const queries = rawQueries.length > 0 ? rawQueries : DEFAULT_DISCOVERY_QUERIES;
 	return [...new Set(queries.map((query) => query.trim()))];
+}
+
+function normalizeSourceUrls(input: DiscoveryImportInput): string[] {
+	return [...new Set((input.sourceUrls ?? [])
+		.map((url) => url.trim())
+		.filter(Boolean)
+		.map((url) => {
+			try {
+				const parsed = new URL(url);
+				parsed.hash = "";
+				return parsed.toString();
+			} catch {
+				return "";
+			}
+		})
+		.filter(Boolean))];
 }
 
 function isLikelyOpportunity(result: SearxngResult): boolean {
@@ -402,6 +428,7 @@ function buildOpportunityFromDiscovery(
 ): OpportunityInput {
 	const normalizedUrl = normalizeUrlForIdentity(candidate.result.url);
 	const urlHash = sha256Hex(normalizedUrl);
+	const discoveryMethod = candidate.discoveryMethod ?? "searxng";
 	const markdownSummary = compactText(candidate.scrape?.markdown, 2200);
 	const summary = compactText(
 		candidate.scrape?.description || candidate.result.content || markdownSummary,
@@ -420,10 +447,10 @@ function buildOpportunityFromDiscovery(
 		organization: host,
 		projectSummary: summary,
 		rfpLink: candidate.result.url,
-		sourcePlatform: "SearXNG",
-		sourceFile: slugForSourceFile(candidate.query),
+		sourcePlatform: discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG",
+		sourceFile: discoveryMethod === "source_scrape" ? `source:${candidate.sourceUrl ?? candidate.query}` : slugForSourceFile(candidate.query),
 		opportunityType: inferOpportunityType(candidate),
-		source: "searxng",
+		source: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng",
 		fingerprint: urlHash,
 		portalUrl: candidate.result.url,
 		documentUrl,
@@ -432,10 +459,12 @@ function buildOpportunityFromDiscovery(
 		decisionStatus: "pending",
 		assignedTo: userId,
 		isReviewed: false,
-		tags: ["external-discovery"],
+		tags: discoveryMethod === "source_scrape"
+			? ["external-discovery", "source-scrape"]
+			: ["external-discovery"],
 		metadata: {
 			discovery: {
-				engine: "searxng",
+				engine: discoveryMethod,
 				query: candidate.query,
 				resultEngine: candidate.result.engine,
 				score: candidate.result.score,
@@ -446,6 +475,7 @@ function buildOpportunityFromDiscovery(
 				browserFallbackReason: candidate.scrape?.fallbackReason,
 				scrapeError: candidate.scrape?.error,
 				documentUrl,
+				sourceUrl: candidate.sourceUrl,
 			},
 		},
 	};
@@ -518,6 +548,81 @@ async function scrapeDiscoveryCandidates(
 			}
 		}
 	}
+}
+
+async function discoverConfiguredSourceCandidates(
+	sourceUrls: string[],
+	limitPerSource: number,
+	seenUrls: Set<string>,
+	warnings: DiscoveryRunWarning[]
+): Promise<DiscoveryCandidate[]> {
+	if (!sourceUrls.length || limitPerSource <= 0) return [];
+
+	const firecrawl = new FirecrawlClient({ timeout: 20000 });
+	const candidates: DiscoveryCandidate[] = [];
+
+	for (const sourceUrl of sourceUrls) {
+		const scrapeResult = await firecrawl.scrape(sourceUrl, {
+			formats: ["markdown", "links"],
+			timeout: 20000,
+		});
+		if (!scrapeResult.success || !scrapeResult.data) {
+			warnings.push({
+				type: "source_scrape_failed",
+				query: `source:${sourceUrl}`,
+				title: "Configured source scrape failed",
+				url: sourceUrl,
+				message: scrapeResult.error ?? "Firecrawl returned no source content",
+			});
+			continue;
+		}
+
+		const parseResult = await genericParser.parse({
+			markdown: scrapeResult.data.markdown ?? "",
+			links: scrapeResult.data.links ?? [],
+			url: sourceUrl,
+		});
+		if (!parseResult.opportunities.length) {
+			warnings.push({
+				type: "source_scrape_empty",
+				query: `source:${sourceUrl}`,
+				title: "Configured source scrape found no opportunities",
+				url: sourceUrl,
+				message: "Firecrawl returned content, but the generic tender parser found no tender-like records.",
+			});
+			continue;
+		}
+
+		for (const opportunity of parseResult.opportunities.slice(0, limitPerSource)) {
+			const url = opportunity.portalUrl ?? sourceUrl;
+			const normalizedUrl = normalizeUrlForIdentity(url);
+			if (seenUrls.has(normalizedUrl)) continue;
+			seenUrls.add(normalizedUrl);
+
+			candidates.push({
+				query: `source:${sourceUrl}`,
+				discoveryMethod: "source_scrape",
+				sourceUrl,
+				result: {
+					title: opportunity.title,
+					url,
+					content: opportunity.projectSummary ?? "",
+					engine: "firecrawl-source",
+					score: 1,
+					category: opportunity.countryRegion ?? "Configured source",
+				},
+				scrape: {
+					success: true,
+					title: opportunity.title,
+					description: opportunity.projectSummary,
+					markdown: scrapeResult.data.markdown,
+					method: "firecrawl",
+				},
+			});
+		}
+	}
+
+	return candidates;
 }
 
 function browserFallbackReason(scrape: DiscoveryCandidate["scrape"]): string | null {
@@ -615,7 +720,9 @@ export async function executeOpportunityDiscoveryImport(
 	userId: string
 ): Promise<DiscoveryImportResult> {
 	const queries = normalizeDiscoveryQueries(input);
+	const sourceUrls = normalizeSourceUrls(input);
 	const limitPerQuery = Math.min(Math.max(input.limitPerQuery ?? 10, 1), 50);
+	const sourceScrapeLimit = Math.min(Math.max(input.sourceScrapeLimit ?? limitPerQuery, 0), 50);
 	const updateExisting = input.updateExisting ?? true;
 	const downloadLimit = input.downloadDiscoveredDocuments
 		? Math.min(Math.max(input.downloadLimit ?? 3, 0), 10)
@@ -666,6 +773,12 @@ export async function executeOpportunityDiscoveryImport(
 		...searchWarnings,
 		...collectDiscoveryWarnings(candidates),
 	];
+	candidates.push(...await discoverConfiguredSourceCandidates(
+		sourceUrls,
+		sourceScrapeLimit,
+		seenUrls,
+		warnings
+	));
 	const baseImportConfig: ImportConfig = {
 		columnMappings: [],
 		sheetName: "searxng_discovery",

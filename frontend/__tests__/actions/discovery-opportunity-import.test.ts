@@ -605,4 +605,47 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 		}), "user-1");
 	});
+
+	it("imports tender-like records from configured source URLs without requiring SearXNG results", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "[Tender for Digital Records Platform](https://buyer.example/tenders/records)\n\nDeadline: 31 December 2026",
+				links: ["https://buyer.example/tenders/records"],
+				metadata: { title: "Buyer Tenders" },
+			},
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: [" https://buyer.example/tenders "],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(searchSearxngMock).not.toHaveBeenCalled();
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createImportRecordMock).toHaveBeenCalledWith("searxng-discovery", 1, expect.any(Object), "user-1");
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Tender for Digital Records Platform",
+			rfpLink: "https://buyer.example/tenders/records",
+			portalUrl: "https://buyer.example/tenders/records",
+			source: "source-scrape",
+			sourcePlatform: "Configured Source Scrape",
+			sourceFile: "source:https://buyer.example/tenders",
+			tags: ["external-discovery", "source-scrape"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://buyer.example/tenders",
+					resultEngine: "firecrawl-source",
+				}),
+			}),
+		}));
+	});
 });

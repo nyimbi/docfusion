@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Configured Source Discovery
+
+Status: implemented and verified.
+
+Purpose: make live discovery less dependent on generic metasearch by allowing configured procurement source URLs to be scraped with Firecrawl and parsed directly into opportunity candidates.
+
+Changes in this slice:
+- Add `sourceUrls` and `sourceScrapeLimit` to live discovery input.
+- Skip default metasearch queries when a run is source-only, so operators can run direct source discovery without spending SearXNG calls.
+- Scrape configured sources with Firecrawl and parse tender-like records with the existing generic tender parser.
+- Persist source-scraped opportunities with source-specific metadata, source tags, and normal dedupe/import handling.
+- Accept source URLs through the discovery API route, saved discovery presets, and the live discovery dialog.
+
+Verification:
+- `npm run test -- discovery-opportunity-import.test.ts discovery-presets.test.ts opportunity-discovery-route.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- Live Firecrawl/parser smoke for `https://procurement-notices.undp.org` returned 202,007 markdown characters, 593 links, and 370 tender-like parsed opportunities.
+
+Remaining after this slice:
+- `https://tenders.go.ke` currently returns sparse Firecrawl content and `https://www.ungm.org/Public/Notice` did not produce generic-parser candidates, so source-specific parsers or browser/site adapters are still needed for those portals.
+- Source-scraped titles from table-heavy pages can be noisy; improve source-specific normalization before treating every generic-parser result as evaluator-ready opportunity data.
+
 ### 2026-05-26 - Discovery Engine Targeting
 
 Status: implemented and verified.

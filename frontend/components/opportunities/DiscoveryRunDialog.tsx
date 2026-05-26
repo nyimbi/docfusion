@@ -77,6 +77,8 @@ export function DiscoveryRunDialog({
 	const [countryRegion, setCountryRegion] = React.useState("");
 	const [category, setCategory] = React.useState("External discovery");
 	const [engines, setEngines] = React.useState("");
+	const [sourceUrls, setSourceUrls] = React.useState("");
+	const [sourceScrapeLimit, setSourceScrapeLimit] = React.useState(10);
 	const [limitPerQuery, setLimitPerQuery] = React.useState(10);
 	const [scrapeTopResults, setScrapeTopResults] = React.useState(true);
 	const [scrapeLimit, setScrapeLimit] = React.useState(3);
@@ -96,6 +98,8 @@ export function DiscoveryRunDialog({
 	const buildDiscoveryInput = React.useCallback((): DiscoveryImportInput => ({
 		queries: parseQueries(queries),
 		limitPerQuery: clampNumber(limitPerQuery, 1, 50),
+		sourceUrls: parseQueries(sourceUrls),
+		sourceScrapeLimit: clampNumber(sourceScrapeLimit, 0, 50),
 		countryRegion: countryRegion.trim() || undefined,
 		category: category.trim() || undefined,
 		engines: parseDelimitedList(engines),
@@ -119,6 +123,8 @@ export function DiscoveryRunDialog({
 		queries,
 		scrapeLimit,
 		scrapeTopResults,
+		sourceScrapeLimit,
+		sourceUrls,
 	]);
 
 	const loadPresets = React.useCallback(async () => {
@@ -146,6 +152,8 @@ export function DiscoveryRunDialog({
 		setCountryRegion(input.countryRegion ?? "");
 		setCategory(input.category ?? "External discovery");
 		setEngines((input.engines ?? []).join(", "));
+		setSourceUrls((input.sourceUrls ?? []).join("\n"));
+		setSourceScrapeLimit(input.sourceScrapeLimit ?? 10);
 		setLimitPerQuery(input.limitPerQuery ?? 10);
 		setScrapeTopResults(input.scrapeTopResults ?? true);
 		setScrapeLimit(input.scrapeLimit ?? 3);
@@ -170,8 +178,8 @@ export function DiscoveryRunDialog({
 		}
 
 		const input = buildDiscoveryInput();
-		if ((input.queries ?? []).length === 0) {
-			setError("At least one search query is required.");
+		if ((input.queries ?? []).length === 0 && (input.sourceUrls ?? []).length === 0) {
+			setError("At least one search query or source URL is required.");
 			return;
 		}
 
@@ -206,8 +214,8 @@ export function DiscoveryRunDialog({
 
 	const handleRun = () => {
 		const input = buildDiscoveryInput();
-		if ((input.queries ?? []).length === 0) {
-			setError("At least one search query is required.");
+		if ((input.queries ?? []).length === 0 && (input.sourceUrls ?? []).length === 0) {
+			setError("At least one search query or source URL is required.");
 			return;
 		}
 
@@ -355,6 +363,23 @@ export function DiscoveryRunDialog({
 						/>
 					</div>
 
+					<div className="space-y-2">
+						<label className="text-sm font-medium text-foreground" htmlFor="discovery-source-urls">
+							Source URLs
+						</label>
+						<textarea
+							id="discovery-source-urls"
+							value={sourceUrls}
+							onChange={(event) => setSourceUrls(event.target.value)}
+							rows={3}
+							placeholder="https://tenders.go.ke"
+							className={cn(
+								"w-full rounded-md border border-input bg-background px-3 py-2 text-sm",
+								"focus:outline-none focus:ring-2 focus:ring-ring"
+							)}
+						/>
+					</div>
+
 					<div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
 						<div className="space-y-2">
 							<label className="text-sm font-medium text-foreground" htmlFor="discovery-country">
@@ -402,6 +427,20 @@ export function DiscoveryRunDialog({
 								value={engines}
 								onChange={(event) => setEngines(event.target.value)}
 								placeholder="bing"
+								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+							/>
+						</div>
+						<div className="space-y-2">
+							<label className="text-sm font-medium text-foreground" htmlFor="discovery-source-limit">
+								Source Limit
+							</label>
+							<input
+								id="discovery-source-limit"
+								type="number"
+								min={0}
+								max={50}
+								value={sourceScrapeLimit}
+								onChange={(event) => setSourceScrapeLimit(Number(event.target.value))}
 								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
 							/>
 						</div>
