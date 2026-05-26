@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const requireTenantContextMock = vi.hoisted(() => vi.fn(async () => ({
+	userId: "workflow-operator-1",
+	organizationId: "org-1",
+	roles: ["admin"],
+})));
+
 vi.mock("@/lib/auth/tenant-context", () => ({
-	requireTenantContext: vi.fn(async () => ({
-		userId: "workflow-operator-1",
-		organizationId: "org-1",
-		roles: ["admin"],
-	})),
+	requireTenantContext: requireTenantContextMock,
 }));
 
 interface ChainConfig {
@@ -78,6 +80,15 @@ import {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	dbMock.select.mockReset();
+	dbMock.insert.mockReset();
+	dbMock.update.mockReset();
+	dbMock.execute.mockReset();
+	requireTenantContextMock.mockResolvedValue({
+		userId: "workflow-operator-1",
+		organizationId: "org-1",
+		roles: ["admin"],
+	});
 });
 
 describe("workflow domain integrations", () => {
@@ -145,6 +156,7 @@ describe("workflow domain integrations", () => {
 		expect(result).toEqual(instance);
 		expect(instanceInsert).toMatchObject({
 			workflowKey: "partner_portal_contribution",
+			organizationId: "org-1",
 			subjectType: "partner_assignment",
 			subjectId: "assignment-1",
 			state: "invited",
@@ -319,6 +331,66 @@ describe("workflow domain integrations", () => {
 		})).resolves.toEqual(updated);
 
 		expect(collectSqlFragments(domainWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("scopes domain workflow transitions by tenant and scraper source metadata", async () => {
+		const existing = {
+			id: "workflow-1",
+			workflowKey: "scraper_run_workflow",
+			organizationId: "org-1",
+			subjectType: "scraper_run",
+			subjectId: "run-1",
+			state: "review",
+			status: "active",
+			metadata: { sourceId: "source-1" },
+		};
+		const updated = { ...existing, state: "resolved", status: "completed" };
+		const template = {
+			templateKey: existing.workflowKey,
+			version: 1,
+			status: "active",
+			transitions: [
+				{ action: "resolve", from: ["review"], to: "resolved", requiredRoles: ["operations"] },
+			],
+		};
+		let instanceWhere: unknown;
+		let scraperRunWhere: unknown;
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [existing],
+				onWhere: (value) => {
+					instanceWhere = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain({ result: [template] }))
+			.mockReturnValueOnce(createChain({ result: [existing] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+		dbMock.update
+			.mockReturnValueOnce(createChain({ result: [updated] }))
+			.mockReturnValueOnce(createChain({
+				onWhere: (value) => {
+					scraperRunWhere = value;
+				},
+			}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain())
+			.mockReturnValueOnce(createChain());
+
+		await expect(transitionDomainWorkflow({
+			workflowInstanceId: "workflow-1",
+			action: "resolve",
+			actorId: "owner-1",
+			actorRoles: ["operations"],
+			reason: "Run reviewed",
+		})).resolves.toEqual(updated);
+
+		const instanceSql = collectSqlFragments(instanceWhere).join(" ");
+		expect(instanceSql).toContain("organization_id");
+		expect(instanceSql).toContain("org-1");
+		const scraperSql = collectSqlFragments(scraperRunWhere).join(" ");
+		expect(scraperSql).toContain("source_id");
+		expect(scraperSql).toContain("source-1");
 	});
 
 	it("applies domain compensation when cancelling evidence claim workflows", async () => {

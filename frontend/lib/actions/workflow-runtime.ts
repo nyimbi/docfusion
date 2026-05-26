@@ -16,7 +16,7 @@ import { opportunities } from "@/lib/db/schema";
 import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 import { simulateWorkflowTemplate } from "@/lib/workflows/simulation";
 import type { WorkflowViewerScope } from "@/lib/workflows/viewer-scope";
-import { and, asc, desc, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 
 type WorkflowClient = Pick<typeof db, "select" | "insert" | "update" | "execute">;
 
@@ -45,6 +45,7 @@ export interface WorkflowPortalVisibility {
 
 export interface WorkflowRuntimeTransitionInput {
 	workflowKey: string;
+	organizationId?: string | null;
 	subjectType: string;
 	subjectId: string;
 	opportunityId?: string | null;
@@ -177,6 +178,7 @@ export async function recordWorkflowRuntimeTransition(
 	};
 
 	const patch = {
+		organizationId: input.organizationId ?? existing?.organizationId ?? null,
 		opportunityId: input.opportunityId ?? existing?.opportunityId ?? null,
 		status,
 		state: input.toState,
@@ -451,6 +453,7 @@ export async function assertWorkflowAuthority(input: {
 
 export async function reverseWorkflowRuntimeState(input: {
 	workflowInstanceId: string;
+	organizationId?: string | null;
 	action: "reopen" | "cancel" | "resolve";
 	actorId: string;
 	actorName?: string;
@@ -473,7 +476,7 @@ export async function reverseWorkflowRuntimeState(input: {
 	const [instance] = await db
 		.select()
 		.from(workflowInstances)
-		.where(eq(workflowInstances.id, input.workflowInstanceId))
+		.where(workflowInstanceIdCondition(input.workflowInstanceId, input.organizationId))
 		.limit(1);
 	if (!instance) {
 		throw new Error("Workflow instance not found");
@@ -503,6 +506,7 @@ export async function reverseWorkflowRuntimeState(input: {
 	const [updated] = await db
 		.update(workflowInstances)
 		.set({
+			organizationId: input.organizationId ?? instance.organizationId ?? null,
 			state: toState,
 			status,
 			visibility: input.visibility ?? instance.visibility,
@@ -511,7 +515,7 @@ export async function reverseWorkflowRuntimeState(input: {
 			completedAt: status === "completed" || status === "cancelled" ? now : null,
 			updatedAt: now,
 		})
-		.where(eq(workflowInstances.id, input.workflowInstanceId))
+		.where(workflowInstanceIdCondition(input.workflowInstanceId, input.organizationId))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to reverse workflow state");
@@ -547,8 +551,28 @@ function assertWorkflowViewerScope(scope: WorkflowViewerScope | null | undefined
 	}
 }
 
+function workflowInstanceIdCondition(workflowInstanceId: string, organizationId?: string | null) {
+	const conditions = [eq(workflowInstances.id, workflowInstanceId)];
+	if (organizationId) {
+		conditions.push(or(
+			eq(workflowInstances.organizationId, organizationId),
+			isNull(workflowInstances.organizationId)
+		)!);
+	}
+	return and(...conditions)!;
+}
+
+function workflowViewerOrganizationCondition(scope: WorkflowViewerScope) {
+	if (!scope.organizationId) return null;
+	return or(
+		eq(workflowInstances.organizationId, scope.organizationId),
+		isNull(workflowInstances.organizationId)
+	)!;
+}
+
 async function getWorkflowScopeCondition(scope: WorkflowViewerScope, opportunityId?: string) {
-	if (scope.isGlobalWorkflowViewer) return null;
+	const organizationCondition = workflowViewerOrganizationCondition(scope);
+	if (scope.isGlobalWorkflowViewer) return organizationCondition;
 	const assignedOpportunityIds = await getAssignedOpportunityIdsForScope(scope.userId, opportunityId);
 	const actorCondition = sql`coalesce(${workflowInstances.authorityPolicy}, '{}'::jsonb) @> ${JSON.stringify({ allowedActorIds: [scope.userId] })}::jsonb`;
 	const conditions = [
@@ -565,7 +589,10 @@ async function getWorkflowScopeCondition(scope: WorkflowViewerScope, opportunity
 			conditions.push(subjectOpportunityCondition);
 		}
 	}
-	return or(...conditions);
+	const visibilityCondition = or(...conditions)!;
+	return organizationCondition
+		? and(organizationCondition, visibilityCondition)
+		: visibilityCondition;
 }
 
 async function getAssignedOpportunityIdsForScope(userId: string, opportunityId?: string): Promise<string[]> {
@@ -855,17 +882,24 @@ async function markNotificationDeferredForQuietHours(
 }
 
 async function findWorkflowInstance(
-	input: Pick<WorkflowRuntimeTransitionInput, "workflowKey" | "subjectType" | "subjectId">,
+	input: Pick<WorkflowRuntimeTransitionInput, "workflowKey" | "organizationId" | "subjectType" | "subjectId">,
 	client: WorkflowClient
 ): Promise<WorkflowInstanceRow | undefined> {
+	const conditions = [
+		eq(workflowInstances.workflowKey, input.workflowKey),
+		eq(workflowInstances.subjectType, input.subjectType),
+		eq(workflowInstances.subjectId, input.subjectId),
+	];
+	if (input.organizationId) {
+		conditions.push(or(
+			eq(workflowInstances.organizationId, input.organizationId),
+			isNull(workflowInstances.organizationId)
+		)!);
+	}
 	const rows = await client
 		.select()
 		.from(workflowInstances)
-		.where(and(
-			eq(workflowInstances.workflowKey, input.workflowKey),
-			eq(workflowInstances.subjectType, input.subjectType),
-			eq(workflowInstances.subjectId, input.subjectId)
-		))
+		.where(and(...conditions))
 		.limit(1);
 	return rows[0] as WorkflowInstanceRow | undefined;
 }

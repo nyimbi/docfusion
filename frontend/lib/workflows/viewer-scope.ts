@@ -6,6 +6,7 @@ const PORTAL_ROLE_NAMES = new Set(["partner", "contributor", "reviewer", "extern
 
 export interface WorkflowViewerScope {
 	userId: string;
+	organizationId?: string;
 	roles: string[];
 	portalRoles: string[];
 	isGlobalWorkflowViewer: boolean;
@@ -15,6 +16,7 @@ export function buildWorkflowViewerScope(actor: WorkflowApiActor): WorkflowViewe
 	const roles = normalizeRoles(actor.role, actor.roles);
 	return {
 		userId: actor.userId,
+		organizationId: actor.organizationId,
 		roles,
 		portalRoles: roles.filter((role) => PORTAL_ROLE_NAMES.has(role)),
 		isGlobalWorkflowViewer: isGlobalWorkflowViewer(roles),
@@ -26,12 +28,14 @@ export async function getWorkflowViewerScopeFromSession(): Promise<WorkflowViewe
 	if (!session?.user?.id) return null;
 	const user = session.user as {
 		id: string;
+		organizationId?: string;
 		role?: string;
 		roles?: string[];
 	};
 	const roles = normalizeRoles(user.role, user.roles);
 	return {
 		userId: user.id,
+		organizationId: user.organizationId,
 		roles,
 		portalRoles: roles.filter((role) => PORTAL_ROLE_NAMES.has(role)),
 		isGlobalWorkflowViewer: isGlobalWorkflowViewer(roles),

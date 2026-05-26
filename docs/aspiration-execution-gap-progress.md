@@ -2714,6 +2714,34 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.
 
+### 2026-05-26 - Workflow Runtime Tenant Anchor
+
+Status: implemented and verified.
+
+Purpose: prevent cross-tenant workflow transition and read-model bleed by giving durable workflow instances an organization anchor and threading that anchor through domain workflow transitions.
+
+Changes in this slice:
+- Add nullable `organization_id` support to `workflow_instances`, with migration backfill for single-tenant deployments and an organization index.
+- Persist `organizationId` on workflow runtime transitions when tenant-aware domain workflows start or advance.
+- Scope domain workflow instance lookup and reversal by organization context while preserving nullable global/control-plane workflow records.
+- Carry organization context into workflow viewer scopes so dashboard and portal reads are bounded to the caller organization plus global workflow records.
+- Constrain scraper-run domain compensation with workflow metadata `sourceId` when available, avoiding run-ID-only projection.
+- Harden workflow-domain tests by resetting one-shot DB mocks between tests so SQL scoping assertions cannot leak across cases.
+
+Verification:
+- `npm test -- workflow-domain.test.ts workflow-runtime.test.ts` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- `npm run platform:proof -- --run wave0-workflow-runtime-core` passed.
+- `npm run platform:proof -- --run wave7-import-operations-governance` passed.
+
+Testing scope note:
+- Battery constraints are lifted. This slice ran focused boundary tests, TypeScript checking, diff whitespace checks, and the relevant workflow-runtime plus import/operations platform proof waves.
+
+Remaining after this slice:
+- Continue auditing opportunity-linked workflow domain tables that still scope through opportunity assignment because their tables do not yet carry organization IDs.
+- Live persisted DB import-to-parse proof remains externally blocked by the refused database connection.
+
 ### 2026-05-26 - Persistent Discovery Warning History
 
 Status: implemented and verified.

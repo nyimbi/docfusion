@@ -25,7 +25,7 @@ import {
 	upsertWorkflowRuntimeTask,
 	type WorkflowRuntimeStatus,
 } from "@/lib/actions/workflow-runtime";
-import { and, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { requireTenantContext } from "@/lib/auth/tenant-context";
 
@@ -208,6 +208,15 @@ function workflowDataImportCondition(importId: string, organizationId: string): 
 	)!;
 }
 
+function workflowScraperRunCondition(runId: string, instance: WorkflowInstanceRow): SQL {
+	const sourceId = isRecord(instance.metadata) && typeof instance.metadata.sourceId === "string"
+		? instance.metadata.sourceId
+		: undefined;
+	return sourceId
+		? and(eq(scraperRuns.id, runId), eq(scraperRuns.sourceId, sourceId))!
+		: eq(scraperRuns.id, runId);
+}
+
 function workflowOpportunityPartnerCondition(assignmentId: string, actorId: string): SQL {
 	return and(
 		eq(opportunityPartners.id, assignmentId),
@@ -302,6 +311,7 @@ export async function startDomainWorkflowFromTemplate(
 	const dueAt = computeDueAt(template.slaPolicy);
 	const instance = await recordWorkflowRuntimeTransition({
 		workflowKey: template.templateKey,
+		organizationId,
 		subjectType: input.subjectType ?? template.subjectType,
 		subjectId: input.subjectId,
 		opportunityId: input.opportunityId,
@@ -373,7 +383,7 @@ export async function transitionDomainWorkflow(
 ): Promise<WorkflowInstanceRow> {
 	const { organizationId } = await requireTenantContext();
 	if (isReversalAction(input.action)) {
-		const instance = await getWorkflowInstance(input.workflowInstanceId);
+		const instance = await getWorkflowInstance(input.workflowInstanceId, organizationId);
 		const template = await getTemplateForInstance(instance);
 		const targetState = input.targetState ?? getDefaultReversalTargetState(input.action);
 		await assertWorkflowAuthority({
@@ -384,6 +394,7 @@ export async function transitionDomainWorkflow(
 		});
 		const updated = await reverseWorkflowRuntimeState({
 			workflowInstanceId: input.workflowInstanceId,
+			organizationId,
 			action: input.action,
 			actorId: input.actorId,
 			reason: input.reason ?? "",
@@ -407,7 +418,7 @@ export async function transitionDomainWorkflow(
 		return updated;
 	}
 
-	const instance = await getWorkflowInstance(input.workflowInstanceId);
+	const instance = await getWorkflowInstance(input.workflowInstanceId, organizationId);
 	const template = await getTemplateForInstance(instance);
 	const transition = template.transitions.find((candidate) =>
 		candidate.action === input.action && candidate.from.includes(instance.state)
@@ -428,6 +439,7 @@ export async function transitionDomainWorkflow(
 	const isTerminal = !template.transitions.some((candidate) => candidate.from.includes(transition.to));
 	const updated = await recordWorkflowRuntimeTransition({
 		workflowKey: instance.workflowKey,
+		organizationId,
 		subjectType: instance.subjectType,
 		subjectId: instance.subjectId,
 		opportunityId: instance.opportunityId,
@@ -852,7 +864,7 @@ async function applyDomainCompensation(input: {
 						errorType: null,
 						completedAt: now,
 					};
-			await db.update(scraperRuns).set(patch).where(eq(scraperRuns.id, input.instance.subjectId));
+			await db.update(scraperRuns).set(patch).where(workflowScraperRunCondition(input.instance.subjectId, input.instance));
 			break;
 		}
 		case "evidence_claim": {
@@ -1226,11 +1238,17 @@ async function getTemplateForInstance(instance: WorkflowInstanceRow): Promise<Wo
 	return template;
 }
 
-async function getWorkflowInstance(workflowInstanceId: string): Promise<WorkflowInstanceRow> {
+async function getWorkflowInstance(workflowInstanceId: string, organizationId: string): Promise<WorkflowInstanceRow> {
 	const [instance] = await db
 		.select()
 		.from(workflowInstances)
-		.where(eq(workflowInstances.id, workflowInstanceId))
+		.where(and(
+			eq(workflowInstances.id, workflowInstanceId),
+			or(
+				eq(workflowInstances.organizationId, organizationId),
+				isNull(workflowInstances.organizationId)
+			)
+		))
 		.limit(1);
 	if (!instance) {
 		throw new Error("Workflow instance not found");

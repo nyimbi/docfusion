@@ -72,6 +72,7 @@ export const workflowInstances = pgTable(
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
 		workflowKey: varchar("workflow_key", { length: 100 }).notNull(),
+		organizationId: varchar("organization_id", { length: 100 }),
 		subjectType: varchar("subject_type", { length: 100 }).notNull(),
 		subjectId: varchar("subject_id", { length: 200 }).notNull(),
 		opportunityId: uuid("opportunity_id"),
@@ -109,6 +110,7 @@ export const workflowInstances = pgTable(
 	},
 	(table) => [
 		uniqueIndex("workflow_instances_subject_idx").on(table.workflowKey, table.subjectType, table.subjectId),
+		index("workflow_instances_organization_idx").on(table.organizationId),
 		index("workflow_instances_opportunity_idx").on(table.opportunityId),
 		index("workflow_instances_status_idx").on(table.status),
 		index("workflow_instances_state_idx").on(table.state),

@@ -4,13 +4,18 @@ interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
 	onValues?: (value: unknown) => void;
+	onWhere?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "where", "limit", "orderBy", "innerJoin"]) {
+	for (const method of ["from", "limit", "orderBy", "innerJoin"]) {
 		chain[method] = vi.fn(() => chain);
 	}
+	chain.where = vi.fn((value: unknown) => {
+		config.onWhere?.(value);
+		return chain;
+	});
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
 		return chain;
@@ -23,6 +28,23 @@ function createChain(config: ChainConfig = {}) {
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
 	return chain;
+}
+
+function collectSqlFragments(value: unknown, seen = new Set<object>()): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (!value || typeof value !== "object") {
+		return [];
+	}
+	if (seen.has(value)) {
+		return [];
+	}
+	seen.add(value);
+	if (Array.isArray(value)) {
+		return value.flatMap((item) => collectSqlFragments(item, seen));
+	}
+	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
 var dbMock: {
@@ -62,6 +84,7 @@ import type { WorkflowViewerScope } from "@/lib/workflows/viewer-scope";
 
 const adminWorkflowScope: WorkflowViewerScope = {
 	userId: "admin-1",
+	organizationId: "org-1",
 	roles: ["admin"],
 	portalRoles: [],
 	isGlobalWorkflowViewer: true,
@@ -110,6 +133,7 @@ describe("workflow runtime", () => {
 
 		const result = await recordWorkflowRuntimeTransition({
 			workflowKey: "requirement_acceptance",
+			organizationId: "org-1",
 			subjectType: "requirement",
 			subjectId: "req-1",
 			opportunityId: "00000000-0000-4000-8000-000000000001",
@@ -128,6 +152,7 @@ describe("workflow runtime", () => {
 		expect(result.id).toBe("workflow-1");
 		expect(instanceInsert).toMatchObject({
 			workflowKey: "requirement_acceptance",
+			organizationId: "org-1",
 			subjectType: "requirement",
 			subjectId: "req-1",
 			status: "active",
@@ -272,6 +297,22 @@ describe("workflow runtime", () => {
 		const portalItems = await listPortalWorkflowItems(adminWorkflowScope, { portalRole: "partner" });
 		expect(portalItems).toHaveLength(1);
 		expect(portalItems[0].id).toBe("portal-1");
+	});
+
+	it("limits global workflow dashboard readers to their organization and global records", async () => {
+		let dashboardWhere: unknown;
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [],
+			onWhere: (value) => {
+				dashboardWhere = value;
+			},
+		}));
+
+		await getWorkflowDashboard(adminWorkflowScope);
+
+		const sqlText = collectSqlFragments(dashboardWhere).join(" ");
+		expect(sqlText).toContain("organization_id");
+		expect(sqlText).toContain("org-1");
 	});
 
 	it("fails closed without scope and prevents portal role escalation", async () => {
