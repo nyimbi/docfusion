@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Submission Correction Authority Preflight
+
+Status: implemented and verified.
+
+Purpose: prevent non-authorized actors from inspecting or mutating submitted proposal packages before post-dispatch correction and withdrawal authority is enforced.
+
+Changes in this slice:
+- Require submission authority before loading submitted package state for `apply_correction`.
+- Require submission authority before loading submitted package state for `withdraw`.
+- Preserve existing receipt, attachment, opportunity compensation, and runtime task behavior for authorized correction and withdrawal actions.
+- Add focused coverage that unauthorized correction and withdrawal attempts stop before database reads or mutations.
+
+Verification:
+- `npm run test -- __tests__/actions/submission-correction-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets submission correction authority preflight behavior with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that mutate response, governance, or submission state without enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Pricing Approval Authority Preflight
 
 Status: implemented and verified.

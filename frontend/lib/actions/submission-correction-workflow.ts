@@ -50,6 +50,7 @@ export async function transitionSubmissionCorrectionWorkflow(
 ): Promise<SubmissionCorrectionWorkflowResult> {
 	const userContext = await requireUserContext();
 	const reason = requireReason(input.reason, "Submission correction transitions require a reason");
+	requireSubmissionCorrectionActionAuthority(userContext, input);
 	const submission = await loadSubmission(input.submissionId, userContext.userId);
 	const fromState = submission.status;
 	const transition = buildTransition({
@@ -289,6 +290,19 @@ function requireAuthority(
 	message: string
 ): string {
 	return assertUserHasAuthorityRole(actor, value, message);
+}
+
+function requireSubmissionCorrectionActionAuthority(
+	actor: UserContext,
+	input: SubmissionCorrectionWorkflowInput
+): void {
+	if (input.action !== "apply_correction" && input.action !== "withdraw") {
+		return;
+	}
+	const message = input.action === "apply_correction"
+		? "Applying submission correction requires submission authority"
+		: "Withdrawing a submitted package requires submission authority";
+	requireAuthority(actor, input.authorityRole, message);
 }
 
 function appendNote(existing: string | null | undefined, note: string) {

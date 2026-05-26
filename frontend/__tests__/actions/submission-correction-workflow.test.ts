@@ -278,6 +278,7 @@ describe("submission correction workflow", () => {
 			confirmationNumber: "PORTAL-456",
 			authorityRole: "proposal_manager",
 		})).rejects.toThrow("requires proposal_manager");
+		expect(dbMock.select).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
@@ -289,6 +290,7 @@ describe("submission correction workflow", () => {
 			action: "withdraw",
 			reason: "Client cancelled the procurement",
 		})).rejects.toThrow("requires submission authority");
+		expect(dbMock.select).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
