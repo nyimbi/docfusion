@@ -117,6 +117,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
+function expectFinalArtifactOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("production-lead-1");
+}
+
 var dbMock: any;
 
 vi.mock("@/lib/db", () => {
@@ -292,13 +300,24 @@ describe("final artifact workflow", () => {
 		});
 		expect(wheres).toHaveLength(3);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expectFinalArtifactOpportunityTenantScope(where);
 		}
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				organizationId: "org-1",
+				metadata: expect.objectContaining({
+					organizationId: "org-1",
+				}),
+			})
+		);
 		expect(upsertWorkflowRuntimeTask).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskKey: "final-artifact:doc-1",
 				state: "open",
 				assignedRole: "production_specialist",
+				metadata: expect.objectContaining({
+					organizationId: "org-1",
+				}),
 			})
 		);
 	});
@@ -536,12 +555,15 @@ describe("final artifact workflow", () => {
 			status: "final",
 			approvedBy: "production-lead-1",
 		});
-		expect(collectSqlFragments(proposalUpdateWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectFinalArtifactOpportunityTenantScope(proposalUpdateWhere);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({
 				toState: "artifact_approved",
 				terminal: true,
 				authorityPolicy: { requiredRoles: ["proposal_manager"] },
+				metadata: expect.objectContaining({
+					organizationId: "org-1",
+				}),
 			})
 		);
 	});

@@ -78,12 +78,16 @@ export interface FinalArtifactWorkflowResult {
 const WORKFLOW_KEY = "final_artifact_render_export";
 const SUBJECT_TYPE = "document";
 
-function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: FinalArtifactUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${actorId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
@@ -94,33 +98,34 @@ function proposalDocumentOrganizationCondition(organizationId: string): SQL {
 	)!;
 }
 
-function visibleProposalDocumentCondition(proposalDocumentId: string, actorId: string, organizationId?: string): SQL {
+function visibleProposalDocumentCondition(
+	proposalDocumentId: string,
+	userContext: FinalArtifactUserContext
+): SQL {
 	return and(
 		eq(proposalDocuments.id, proposalDocumentId),
-		organizationId ? proposalDocumentOrganizationCondition(organizationId) : undefined,
-		assignedOpportunityExistsSql(proposalDocuments.opportunityId, actorId)
+		proposalDocumentOrganizationCondition(userContext.organizationId),
+		assignedOpportunityExistsSql(proposalDocuments.opportunityId, userContext)
 	)!;
 }
 
 function visibleProposalDocumentForOpportunityAndDocumentCondition(
 	opportunityId: string,
 	documentId: string,
-	actorId: string,
-	organizationId?: string
+	userContext: FinalArtifactUserContext
 ): SQL {
 	return and(
 		eq(proposalDocuments.opportunityId, opportunityId),
 		eq(proposalDocuments.documentId, documentId),
-		organizationId ? proposalDocumentOrganizationCondition(organizationId) : undefined,
-		assignedOpportunityExistsSql(opportunityId, actorId)
+		proposalDocumentOrganizationCondition(userContext.organizationId),
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
 function visibleDocumentCondition(
 	documentId: string,
-	actorId: string,
+	userContext: FinalArtifactUserContext,
 	proposalDocument: ProposalDocumentRow | null,
-	organizationId?: string,
 	opportunityId?: string | null
 ): SQL {
 	if (proposalDocument) {
@@ -132,8 +137,12 @@ function visibleDocumentCondition(
 				join opportunities on opportunities.id = proposal_documents.opportunity_id
 				where proposal_documents.id = ${proposalDocument.id}
 					and proposal_documents.document_id = ${documentId}
-					${organizationId ? sql`and (proposal_documents.organization_id = ${organizationId} or proposal_documents.organization_id is null)` : sql``}
-					and opportunities.assigned_to = ${actorId}
+					and (proposal_documents.organization_id = ${userContext.organizationId} or proposal_documents.organization_id is null)
+					and (
+						opportunities.organization_id = ${userContext.organizationId}
+						or opportunities.organization_id is null
+					)
+					and opportunities.assigned_to = ${userContext.userId}
 			)`
 		)!;
 	}
@@ -146,14 +155,18 @@ function visibleDocumentCondition(
 				join opportunities on opportunities.id = proposal_documents.opportunity_id
 				where proposal_documents.opportunity_id = ${opportunityId}
 					and proposal_documents.document_id = ${documentId}
-					${organizationId ? sql`and (proposal_documents.organization_id = ${organizationId} or proposal_documents.organization_id is null)` : sql``}
-					and opportunities.assigned_to = ${actorId}
+					and (proposal_documents.organization_id = ${userContext.organizationId} or proposal_documents.organization_id is null)
+					and (
+						opportunities.organization_id = ${userContext.organizationId}
+						or opportunities.organization_id is null
+					)
+					and opportunities.assigned_to = ${userContext.userId}
 			)`
 		)!;
 	}
 	return and(
 		eq(documents.id, documentId),
-		sql`documents.owner_id = ${actorId}`
+		sql`documents.owner_id = ${userContext.userId}`
 	)!;
 }
 
@@ -179,7 +192,7 @@ export async function transitionFinalArtifactWorkflow(
 	const [updatedDocument] = await db
 		.update(documents)
 		.set(transition.documentPatch)
-		.where(visibleDocumentCondition(input.documentId, userContext.userId, proposalDocument, finalArtifactContext.organizationId, input.opportunityId))
+		.where(visibleDocumentCondition(input.documentId, finalArtifactContext, proposalDocument, input.opportunityId))
 		.returning();
 	if (!updatedDocument) {
 		throw new Error("Failed to update final artifact metadata");
@@ -189,7 +202,7 @@ export async function transitionFinalArtifactWorkflow(
 		await db
 			.update(proposalDocuments)
 			.set(transition.proposalPatch)
-			.where(visibleProposalDocumentCondition(proposalDocument.id, userContext.userId, finalArtifactContext.organizationId));
+			.where(visibleProposalDocumentCondition(proposalDocument.id, finalArtifactContext));
 	}
 
 	const opportunityId = proposalDocument?.opportunityId ?? input.opportunityId ?? null;
@@ -213,6 +226,7 @@ export async function transitionFinalArtifactWorkflow(
 			: undefined,
 		metadata: {
 			documentId: input.documentId,
+			organizationId: finalArtifactContext.organizationId,
 			proposalDocumentId: proposalDocument?.id ?? null,
 			opportunityId,
 			documentTitle: updatedDocument.title,
@@ -241,6 +255,7 @@ export async function transitionFinalArtifactWorkflow(
 		dueAt: transition.terminal ? null : normalizeDueAt(input.dueAt, 1),
 		metadata: {
 			documentId: input.documentId,
+			organizationId: finalArtifactContext.organizationId,
 			proposalDocumentId: proposalDocument?.id ?? null,
 			fromState,
 			toState: transition.toState,
@@ -466,7 +481,7 @@ async function loadDocument(
 	const [document] = await db
 		.select()
 		.from(documents)
-		.where(visibleDocumentCondition(documentId, userContext.userId, proposalDocument, userContext.organizationId, opportunityId))
+		.where(visibleDocumentCondition(documentId, userContext, proposalDocument, opportunityId))
 		.limit(1);
 	if (!document) {
 		throw new Error("Document not found");
@@ -479,7 +494,7 @@ async function loadProposalDocument(input: FinalArtifactWorkflowInput, userConte
 		const [proposalDocument] = await db
 			.select()
 			.from(proposalDocuments)
-			.where(visibleProposalDocumentCondition(input.proposalDocumentId, userContext.userId, userContext.organizationId))
+			.where(visibleProposalDocumentCondition(input.proposalDocumentId, userContext))
 			.limit(1);
 		if (!proposalDocument) {
 			throw new Error("Proposal document link not found");
@@ -498,8 +513,7 @@ async function loadProposalDocument(input: FinalArtifactWorkflowInput, userConte
 		.where(visibleProposalDocumentForOpportunityAndDocumentCondition(
 			input.opportunityId,
 			input.documentId,
-			userContext.userId,
-			userContext.organizationId
+			userContext
 		))
 		.limit(1);
 	return proposalDocument ?? null;
