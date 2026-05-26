@@ -69,6 +69,8 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 
 function expectAssignedClaimScope(where: unknown) {
 	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
 	expect(sqlText).toContain("opportunities.assigned_to");
 	expect(sqlText).toContain("proposal-writer-1");
 }
@@ -117,6 +119,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	requireUserContextMock.mockResolvedValue({
 		userId: "proposal-writer-1",
+		organizationId: "org-1",
 		roles: ["proposal_writer"],
 	});
 	dbMock.select.mockReset();
@@ -172,6 +175,7 @@ describe("claim remediation workflow", () => {
 			workflowKey: "evidence_claim_remediation",
 			subjectType: "evidence_claim",
 			subjectId: "claim-1",
+			organizationId: "org-1",
 			toState: "in_progress",
 			priority: "critical",
 			assignedTo: "proposal-writer-2",
@@ -183,6 +187,9 @@ describe("claim remediation workflow", () => {
 			taskKey: "claim-remediation:claim-1",
 			state: "in_progress",
 			priority: "critical",
+			metadata: expect.objectContaining({
+				organizationId: "org-1",
+			}),
 			assignedTo: "proposal-writer-2",
 		}));
 	});
@@ -292,6 +299,7 @@ describe("claim remediation workflow", () => {
 		let claimUpdate: Record<string, unknown> | undefined;
 		requireUserContextMock.mockResolvedValueOnce({
 			userId: "proposal-manager-1",
+			organizationId: "org-1",
 			roles: ["proposal_manager"],
 		});
 		dbMock.select.mockReturnValueOnce(createChain({ result: [baseClaim] }));

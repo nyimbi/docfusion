@@ -15,6 +15,7 @@ import {
 import { and, eq, sql, type SQL } from "drizzle-orm";
 
 type ClaimAnalysisRow = typeof claimAnalysis.$inferSelect;
+type ClaimRemediationUserContext = UserContext & { organizationId: string };
 
 export type ClaimRemediationAction =
 	| "start"
@@ -48,26 +49,37 @@ export interface ClaimRemediationResult {
 const WORKFLOW_KEY = "evidence_claim_remediation";
 const SUBJECT_TYPE = "evidence_claim";
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function requireClaimRemediationContext(userContext: UserContext): ClaimRemediationUserContext {
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
+	return userContext as ClaimRemediationUserContext;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: ClaimRemediationUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleClaimCondition(claimId: string, userId: string): SQL {
+function visibleClaimCondition(claimId: string, userContext: ClaimRemediationUserContext): SQL {
 	return and(
 		eq(claimAnalysis.id, claimId),
-		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userId)
+		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userContext)
 	)!;
 }
 
 export async function transitionClaimRemediationWorkflow(
 	input: ClaimRemediationInput
 ): Promise<ClaimRemediationResult> {
-	const userContext = await requireUserContext();
+	const userContext = requireClaimRemediationContext(await requireUserContext());
 	const reason = input.reason.trim();
 	if (!reason) {
 		throw new Error("Claim remediation transitions require a reason");
@@ -77,7 +89,7 @@ export async function transitionClaimRemediationWorkflow(
 	const [claim] = await db
 		.select()
 		.from(claimAnalysis)
-		.where(visibleClaimCondition(input.claimId, userContext.userId))
+		.where(visibleClaimCondition(input.claimId, userContext))
 		.limit(1);
 	if (!claim) {
 		throw new Error("Claim not found");
@@ -88,7 +100,7 @@ export async function transitionClaimRemediationWorkflow(
 	const [updated] = await db
 		.update(claimAnalysis)
 		.set(transition.patch)
-		.where(visibleClaimCondition(input.claimId, userContext.userId))
+		.where(visibleClaimCondition(input.claimId, userContext))
 		.returning();
 	if (!updated) {
 		throw new Error("Failed to update claim remediation state");
@@ -99,6 +111,7 @@ export async function transitionClaimRemediationWorkflow(
 		subjectType: SUBJECT_TYPE,
 		subjectId: input.claimId,
 		opportunityId: claim.opportunityId ?? null,
+		organizationId: userContext.organizationId,
 		fromState,
 		toState: transition.toState,
 		eventType: `claim_${input.action}`,
@@ -137,6 +150,7 @@ export async function transitionClaimRemediationWorkflow(
 			metadata: {
 				claimId: input.claimId,
 				opportunityId: updated.opportunityId ?? null,
+				organizationId: userContext.organizationId,
 				documentId: updated.documentId ?? null,
 				sectionId: updated.sectionId ?? null,
 				resolution: updated.resolution ?? null,
