@@ -1,8 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: vi.fn(async () => ({ userId: "compliance-lead", organizationId: "org-1" })),
+const { requireUserContextMock } = vi.hoisted(() => ({
+	requireUserContextMock: vi.fn(async () => ({
+		userId: "compliance-lead",
+		organizationId: "org-1",
+		roles: ["compliance_officer"],
+	})),
 }));
+
+vi.mock("@/lib/auth-utils", () => {
+	const normalizeRoles = (role?: string | null, roles?: Array<string | null | undefined> | null) =>
+		[role, ...(roles ?? [])]
+			.filter((value): value is string => Boolean(value?.trim()))
+			.map((value) => value.trim().toLowerCase());
+	const userHasAuthorityRole = (
+		context: { role?: string | null; roles?: string[] | null },
+		requiredRole: string
+	) => {
+		const roles = new Set(normalizeRoles(context.role, context.roles));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		userHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "workflow-instance-1" })),
@@ -154,6 +176,11 @@ function mockEntryLookup(entry = baseEntry, requirement = baseRequirement) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	requireUserContextMock.mockResolvedValue({
+		userId: "compliance-lead",
+		organizationId: "org-1",
+		roles: ["compliance_officer"],
+	});
 	dbMock.select.mockReset();
 	dbMock.update.mockReset();
 	dbMock.execute.mockReset();
@@ -285,6 +312,26 @@ describe("compliance entry workflow", () => {
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
+	it("rejects entry approval when the session lacks compliance authority", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["writer"],
+		});
+		mockEntryLookup();
+
+		await expect(
+			transitionComplianceEntryWorkflow({
+				matrixId: "matrix-1",
+				entryId: "entry-1",
+				action: "approve",
+				reason: "Reviewer verified the response evidence",
+			})
+		).rejects.toThrow("requires compliance_officer or proposal_manager");
+
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
 	it("waives a draft gap as a not-applicable approved exception", async () => {
 		let entryUpdate: Record<string, unknown> | undefined;
 
@@ -351,6 +398,25 @@ describe("compliance entry workflow", () => {
 				reason: "Ready for submission lock",
 			})
 		).rejects.toThrow("Compliance matrix final lock blocked");
+
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("rejects final matrix lock when the session lacks compliance authority", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["writer"],
+		});
+		dbMock.select.mockReturnValueOnce(createChain({ result: [baseMatrix] }));
+
+		await expect(
+			transitionComplianceMatrixWorkflow({
+				matrixId: "matrix-1",
+				action: "lock_final",
+				reason: "Ready for submission lock",
+			})
+		).rejects.toThrow("requires proposal_manager or compliance_officer");
 
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});

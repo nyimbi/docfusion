@@ -20,7 +20,11 @@ import {
 import type { ComplianceEntryRow, ComplianceMatrixRow } from "@/lib/db/schema-rfp";
 import { documents } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { requireUserContext, type UserContext } from "@/lib/auth-utils";
+import {
+	requireUserContext,
+	userHasAuthorityRole,
+	type UserContext,
+} from "@/lib/auth-utils";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { logger } from "@/lib/utils/logger";
 
@@ -251,6 +255,48 @@ function requireComplianceOrganization(userContext: UserContext): string {
 	return userContext.organizationId;
 }
 
+function requireComplianceEntryAuthority(
+	userContext: UserContext,
+	action: ComplianceEntryWorkflowAction
+) {
+	if (action === "submit_for_review") {
+		return;
+	}
+	requireAnyAuthorityRole(
+		userContext,
+		["compliance_officer", "proposal_manager"],
+		`${action.replaceAll("_", " ")} compliance entry requires compliance authority`
+	);
+}
+
+function requireComplianceMatrixAuthority(
+	userContext: UserContext,
+	action: ComplianceMatrixWorkflowAction
+) {
+	if (action === "submit_for_review") {
+		return;
+	}
+	const roles = action === "approve_ready_entries"
+		? ["compliance_officer"]
+		: ["proposal_manager", "compliance_officer"];
+	requireAnyAuthorityRole(
+		userContext,
+		roles,
+		`${action.replaceAll("_", " ")} compliance matrix requires compliance authority`
+	);
+}
+
+function requireAnyAuthorityRole(
+	userContext: UserContext,
+	requiredRoles: string[],
+	message: string
+) {
+	if (requiredRoles.some((role) => userHasAuthorityRole(userContext, role))) {
+		return;
+	}
+	throw new Error(`${message}: requires ${requiredRoles.join(" or ")}`);
+}
+
 function visibleComplianceMatrixCondition(matrixId: string, organizationId: string) {
 	return and(
 		eq(complianceMatrices.id, matrixId),
@@ -330,6 +376,7 @@ export async function transitionComplianceEntryWorkflow(
 		const currentState = getComplianceWorkflowState(row.entry);
 		const nextState = getNextComplianceWorkflowState(currentState, input.action);
 
+		requireComplianceEntryAuthority(userContext, input.action);
 		validateComplianceWorkflowGate(row.entry, input.action);
 
 		const metadata = buildComplianceWorkflowMetadata({
@@ -466,6 +513,7 @@ export async function transitionComplianceMatrixWorkflow(
 		const nextState = input.action === "approve_ready_entries"
 			? currentState
 			: getNextComplianceMatrixWorkflowState(currentState, input.action);
+		requireComplianceMatrixAuthority(userContext, input.action);
 		const entries = await tx
 			.select({
 				entry: complianceEntries,

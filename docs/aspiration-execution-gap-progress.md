@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Compliance Workflow Server Authority Checks
+
+Status: implemented and verified.
+
+Purpose: prevent compliance entry approvals, waivers, bulk approvals, final matrix locks, and privileged reopens from relying on tenant membership alone.
+
+Changes in this slice:
+- Enforce compliance/proposal authority roles before entry approval, rejection, waiver, and reopen transitions mutate compliance state.
+- Enforce compliance authority before bulk ready-entry approval, and compliance/proposal authority before final matrix lock and privileged matrix reopen transitions.
+- Preserve submit-for-review as a tenant-scoped non-approval flow so writers can still advance evidence for review.
+- Add focused denial coverage for unauthorized entry approval and final matrix lock attempts.
+
+Verification:
+- `npm run test -- __tests__/actions/compliance-entry-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets compliance workflow authority enforcement with focused workflow tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning non-workflow approval surfaces such as direct proposal document status updates.
+- Surface authorization failures as explicit 403 responses in compliance API routes instead of generic workflow failures.
+
 ### 2026-05-26 - Review Waiver Server Authority Checks
 
 Status: implemented and verified.
