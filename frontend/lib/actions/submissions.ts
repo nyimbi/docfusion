@@ -17,7 +17,10 @@ import {
 } from "@/lib/db/schema";
 import { requireUserContext } from "@/lib/auth-utils";
 import { eq, desc, and, gte, lte, sql, inArray, type SQL } from "drizzle-orm";
-import { evaluateFinalSubmissionChecklistWorkflow } from "@/lib/actions/final-submission-checklist-workflow";
+import {
+	evaluateFinalSubmissionChecklistWorkflow,
+	type FinalSubmissionChecklistItem,
+} from "@/lib/actions/final-submission-checklist-workflow";
 import { preSubmissionAudit } from "@/lib/actions/document-render";
 import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
 import { logger } from "@/lib/utils/logger";
@@ -126,6 +129,20 @@ function buildAttachmentHash(input: {
 		.digest("hex");
 }
 
+function missingRequiredFinalPackageAttachments(
+	items: FinalSubmissionChecklistItem[],
+	attachmentIds: string[]
+): FinalSubmissionChecklistItem[] {
+	const selected = new Set(attachmentIds);
+	return items.filter((item) =>
+		item.category === "documents" &&
+		item.required &&
+		item.passed &&
+		item.subjectId &&
+		!selected.has(item.subjectId)
+	);
+}
+
 /**
  * Create a new submission record.
  */
@@ -162,6 +179,17 @@ export async function createSubmission(
 	const finalChecklist = await evaluateFinalSubmissionChecklistWorkflow(input.opportunityId);
 	if (!finalChecklist.allowed) {
 		throw new Error(`Final submission checklist is not ready: ${finalChecklist.blockers.join("; ")}`);
+	}
+	const missingRequiredAttachments = missingRequiredFinalPackageAttachments(
+		finalChecklist.items,
+		input.attachmentIds
+	);
+	if (missingRequiredAttachments.length > 0) {
+		throw new Error(
+			`Submission attachments must include all required final proposal documents: ${
+				missingRequiredAttachments.map((item) => item.label).join("; ")
+			}`
+		);
 	}
 
 	// Get attached document details

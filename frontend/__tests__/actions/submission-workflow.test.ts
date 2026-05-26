@@ -175,6 +175,53 @@ describe("submission workflow gates", () => {
 		expect(dbMock.insert).not.toHaveBeenCalled();
 	});
 
+	it("requires selected attachments to include every required final package document", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{ id: "opp-1" }],
+		}));
+		vi.mocked(evaluateFinalSubmissionChecklistWorkflow).mockResolvedValueOnce({
+			opportunityId: "opp-1",
+			allowed: true,
+			blockers: [],
+			warnings: [],
+			items: [
+				{
+					id: "document:technical_approach",
+					category: "documents",
+					label: "Technical Approach present",
+					required: true,
+					passed: true,
+					message: "Document linked as Technical Approach",
+					subjectId: "doc-1",
+				},
+				{
+					id: "document:cost_proposal",
+					category: "documents",
+					label: "Cost Proposal present",
+					required: true,
+					passed: true,
+					message: "Document linked as Cost Proposal",
+					subjectId: "doc-2",
+				},
+			],
+			dlpFindings: [],
+			workflowInstanceId: "checklist-workflow-1",
+			taskProjected: true,
+		});
+
+		await expect(
+			createSubmission({
+				opportunityId: "opp-1",
+				submittedBy: "Proposal Lead",
+				submissionMethod: "portal",
+				confirmationNumber: "PORTAL-123",
+				attachmentIds: ["doc-1"],
+			})
+		).rejects.toThrow("Cost Proposal present");
+
+		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
 	it("locks submitted attachments with artifact hashes", async () => {
 		let insertedSubmission: Record<string, unknown> | undefined;
 		let opportunityUpdate: Record<string, unknown> | undefined;

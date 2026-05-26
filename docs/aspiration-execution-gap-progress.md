@@ -735,6 +735,29 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Review whether import history needs a detail drawer for full warning/error inspection beyond the first warning line.
 
+### 2026-05-26 - Final Package Attachment Guard
+
+Status: implemented and verified.
+
+Purpose: prevent a recorded submission from passing final readiness gates while omitting required final-package documents from the selected attachments.
+
+Changes in this slice:
+- Add a server-side submission guard that compares selected attachment IDs against required final-package document IDs from the final checklist.
+- Reject submission recording when an operator deselects a required final document after the checklist has passed.
+- Add focused regression coverage for the missing-required-attachment path.
+
+Verification:
+- `npm run test -- __tests__/actions/submission-workflow.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This was a narrow server-side gate change covered by focused submission workflow coverage and TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Review simplified client-side state refreshes on proposal documents and submission pages so workflow projections refresh without full-page reloads.
+
 ### 2026-05-26 - Bulk Compliance Entry Approval
 
 Status: implemented and verified.
