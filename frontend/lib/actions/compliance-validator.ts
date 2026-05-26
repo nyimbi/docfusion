@@ -353,6 +353,7 @@ export async function transitionComplianceEntryWorkflow(
 	if (!reason) {
 		throw new Error("A workflow reason is required");
 	}
+	requireComplianceEntryAuthority(userContext, input.action);
 
 	return db.transaction(async (tx) => {
 		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.entryId}))`);
@@ -380,7 +381,6 @@ export async function transitionComplianceEntryWorkflow(
 		const currentState = getComplianceWorkflowState(row.entry);
 		const nextState = getNextComplianceWorkflowState(currentState, input.action);
 
-		requireComplianceEntryAuthority(userContext, input.action);
 		validateComplianceWorkflowGate(row.entry, input.action);
 
 		const metadata = buildComplianceWorkflowMetadata({
@@ -500,6 +500,7 @@ export async function transitionComplianceMatrixWorkflow(
 	if (!reason) {
 		throw new Error("A workflow reason is required");
 	}
+	requireComplianceMatrixAuthority(userContext, input.action);
 
 	return db.transaction(async (tx) => {
 		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.matrixId}))`);
@@ -517,7 +518,6 @@ export async function transitionComplianceMatrixWorkflow(
 		const nextState = input.action === "approve_ready_entries"
 			? currentState
 			: getNextComplianceMatrixWorkflowState(currentState, input.action);
-		requireComplianceMatrixAuthority(userContext, input.action);
 		const entries = await tx
 			.select({
 				entry: complianceEntries,

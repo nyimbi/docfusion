@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Compliance Governance Authority Preflight
+
+Status: implemented and verified.
+
+Purpose: prevent non-authorized actors from inspecting compliance entry or matrix state before approval, waiver, bulk approval, final lock, rejection, or reopen authority is enforced.
+
+Changes in this slice:
+- Require compliance entry authority before entering the entry workflow transaction for all non-submit actions.
+- Require compliance matrix authority before entering the matrix workflow transaction for all non-submit matrix actions.
+- Preserve submit-for-review behavior for assigned writers and preserve existing workflow gates for authorized compliance/proposal reviewers.
+- Add focused coverage that unauthorized entry approval and matrix final-lock attempts stop before transactions, DB reads, or mutations.
+
+Verification:
+- `npm run test -- __tests__/actions/compliance-entry-workflow.test.ts __tests__/api/compliance-workflow-routes.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets compliance governance authority preflight behavior with focused action/API tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that mutate discovery, response, governance, or submission state without enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Unsupported Claim Waiver Authority Check
 
 Status: implemented and verified.

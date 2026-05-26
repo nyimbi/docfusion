@@ -318,7 +318,6 @@ describe("compliance entry workflow", () => {
 			organizationId: "org-1",
 			roles: ["writer"],
 		});
-		mockEntryLookup();
 
 		await expect(
 			transitionComplianceEntryWorkflow({
@@ -329,6 +328,8 @@ describe("compliance entry workflow", () => {
 			})
 		).rejects.toThrow("requires compliance_officer or proposal_manager");
 
+		expect(dbMock.transaction).not.toHaveBeenCalled();
+		expect(dbMock.select).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
@@ -408,7 +409,6 @@ describe("compliance entry workflow", () => {
 			organizationId: "org-1",
 			roles: ["writer"],
 		});
-		dbMock.select.mockReturnValueOnce(createChain({ result: [baseMatrix] }));
 
 		await expect(
 			transitionComplianceMatrixWorkflow({
@@ -418,6 +418,8 @@ describe("compliance entry workflow", () => {
 			})
 		).rejects.toThrow("requires proposal_manager or compliance_officer");
 
+		expect(dbMock.transaction).not.toHaveBeenCalled();
+		expect(dbMock.select).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
