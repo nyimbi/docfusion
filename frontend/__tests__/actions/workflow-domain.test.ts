@@ -291,6 +291,7 @@ describe("workflow domain integrations", () => {
 		const pricingSql = collectSqlFragments(pricingWhere).join(" ");
 		expect(pricingSql).toContain("organization_id");
 		expect(pricingSql).toContain("org-1");
+		expect(pricingSql).toContain("opportunities.organization_id");
 		expect(pricingSql).toContain("opportunities.assigned_to");
 	});
 
@@ -339,7 +340,10 @@ describe("workflow domain integrations", () => {
 			reason: "Task accepted",
 		})).resolves.toEqual(updated);
 
-		expect(collectSqlFragments(domainWhere).join(" ")).toContain("opportunities.assigned_to");
+		const domainSql = collectSqlFragments(domainWhere).join(" ");
+		expect(domainSql).toContain("opportunities.organization_id");
+		expect(domainSql).toContain("org-1");
+		expect(domainSql).toContain("opportunities.assigned_to");
 	});
 
 	it("scopes gate review workflow compensation by tenant and assigned pipeline", async () => {
@@ -393,6 +397,7 @@ describe("workflow domain integrations", () => {
 		expect(gateSql).toContain("organization_id");
 		expect(gateSql).toContain("org-1");
 		expect(gateSql).toContain("capture_pipeline.organization_id");
+		expect(gateSql).toContain("opportunities.organization_id");
 		expect(gateSql).toContain("opportunities.assigned_to");
 	});
 
@@ -480,6 +485,7 @@ describe("workflow domain integrations", () => {
 		};
 		let workflowPatch: Record<string, unknown> | undefined;
 		let claimPatch: Record<string, unknown> | undefined;
+		let claimWhere: unknown;
 
 		dbMock.select
 			.mockReturnValueOnce(createChain({ result: [existing] }))
@@ -496,6 +502,9 @@ describe("workflow domain integrations", () => {
 			.mockReturnValueOnce(createChain({
 				onSet: (value) => {
 					claimPatch = value;
+				},
+				onWhere: (value) => {
+					claimWhere = value;
 				},
 			}));
 		dbMock.insert
@@ -523,6 +532,10 @@ describe("workflow domain integrations", () => {
 			resolutionNotes: "Cancelled by workflow compensation: Claim removed from proposal",
 		});
 		expect(claimPatch?.resolvedAt).toBeInstanceOf(Date);
+		const claimSql = collectSqlFragments(claimWhere).join(" ");
+		expect(claimSql).toContain("opportunities.organization_id");
+		expect(claimSql).toContain("org-1");
+		expect(claimSql).toContain("opportunities.assigned_to");
 	});
 
 	it("reopens final document artifacts through domain compensation", async () => {
@@ -553,22 +566,36 @@ describe("workflow domain integrations", () => {
 		};
 		let documentPatch: Record<string, unknown> | undefined;
 		let proposalPatch: Record<string, unknown> | undefined;
+		let documentReadWhere: unknown;
+		let documentUpdateWhere: unknown;
+		let proposalUpdateWhere: unknown;
 
 		dbMock.select
 			.mockReturnValueOnce(createChain({ result: [existing] }))
 			.mockReturnValueOnce(createChain({ result: [template] }))
 			.mockReturnValueOnce(createChain({ result: [existing] }))
-			.mockReturnValueOnce(createChain({ result: [document] }));
+			.mockReturnValueOnce(createChain({
+				result: [document],
+				onWhere: (value) => {
+					documentReadWhere = value;
+				},
+			}));
 		dbMock.update
 			.mockReturnValueOnce(createChain({ result: [reopened] }))
 			.mockReturnValueOnce(createChain({
 				onSet: (value) => {
 					documentPatch = value;
 				},
+				onWhere: (value) => {
+					documentUpdateWhere = value;
+				},
 			}))
 			.mockReturnValueOnce(createChain({
 				onSet: (value) => {
 					proposalPatch = value;
+				},
+				onWhere: (value) => {
+					proposalUpdateWhere = value;
 				},
 			}));
 		dbMock.insert
@@ -606,6 +633,12 @@ describe("workflow domain integrations", () => {
 			approvedAt: null,
 			notes: "Reopened by workflow compensation: Customer correction changed the final artifact",
 		});
+		for (const where of [documentReadWhere, documentUpdateWhere, proposalUpdateWhere]) {
+			const sqlText = collectSqlFragments(where).join(" ");
+			expect(sqlText).toContain("opportunities.organization_id");
+			expect(sqlText).toContain("org-1");
+			expect(sqlText).toContain("opportunities.assigned_to");
+		}
 	});
 
 	it.each([

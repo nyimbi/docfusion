@@ -53,11 +53,15 @@ const rfpRequirementWorkflowPatchSchema = z.object({
 	updatedAt: z.date().optional(),
 });
 
-function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string, organizationId: string): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
+			and (
+				opportunities.organization_id = ${organizationId}
+				or opportunities.organization_id is null
+			)
 			and opportunities.assigned_to = ${actorId}
 	)`;
 }
@@ -73,7 +77,7 @@ function workflowPricingPackageCondition(opportunityId: string, organizationId: 
 	return and(
 		eq(costElements.opportunityId, opportunityId),
 		workflowCostElementOrganizationCondition(organizationId),
-		assignedOpportunityExistsSql(opportunityId, actorId)
+		assignedOpportunityExistsSql(opportunityId, actorId, organizationId)
 	)!;
 }
 
@@ -81,22 +85,26 @@ function workflowCostElementCondition(costElementId: string, organizationId: str
 	return and(
 		eq(costElements.id, costElementId),
 		workflowCostElementOrganizationCondition(organizationId),
-		assignedOpportunityExistsSql(costElements.opportunityId, actorId)
+		assignedOpportunityExistsSql(costElements.opportunityId, actorId, organizationId)
 	)!;
 }
 
-function workflowOpportunityCondition(opportunityId: string, actorId: string): SQL {
+function workflowOpportunityCondition(opportunityId: string, actorId: string, organizationId: string): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
+		or(
+			eq(opportunities.organizationId, organizationId),
+			isNull(opportunities.organizationId)
+		)!,
 		eq(opportunities.assignedTo, actorId)
 	)!;
 }
 
-async function assertWorkflowOpportunityAccess(opportunityId: string, actorId: string): Promise<void> {
+async function assertWorkflowOpportunityAccess(opportunityId: string, actorId: string, organizationId: string): Promise<void> {
 	const [opportunity] = await db
 		.select({ id: opportunities.id })
 		.from(opportunities)
-		.where(workflowOpportunityCondition(opportunityId, actorId))
+		.where(workflowOpportunityCondition(opportunityId, actorId, organizationId))
 		.limit(1);
 	if (!opportunity) {
 		throw new Error("Opportunity not found for workflow");
@@ -110,6 +118,7 @@ function assignedPipelineExistsSql(pipelineId: unknown, actorId: string, organiz
 		join opportunities on opportunities.id = capture_pipeline.opportunity_id
 		where capture_pipeline.id = ${pipelineId}
 			${organizationId ? sql`and (capture_pipeline.organization_id = ${organizationId} or capture_pipeline.organization_id is null)` : sql``}
+			${organizationId ? sql`and (opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)` : sql``}
 			and opportunities.assigned_to = ${actorId}
 	)`;
 }
@@ -129,7 +138,7 @@ function workflowProposalTaskCondition(taskId: string, organizationId: string, a
 	return and(
 		eq(proposalTasks.organizationId, organizationId),
 		eq(proposalTasks.id, taskId),
-		assignedOpportunityExistsSql(proposalTasks.opportunityId, actorId)
+		assignedOpportunityExistsSql(proposalTasks.opportunityId, actorId, organizationId)
 	)!;
 }
 
@@ -140,7 +149,7 @@ function workflowProposalReviewCondition(reviewId: string, organizationId: strin
 			eq(proposalReviews.organizationId, organizationId),
 			isNull(proposalReviews.organizationId)
 		),
-		assignedOpportunityExistsSql(proposalReviews.opportunityId, actorId)
+		assignedOpportunityExistsSql(proposalReviews.opportunityId, actorId, organizationId)
 	)!;
 }
 
@@ -151,6 +160,10 @@ function assignedProposalReviewExistsSql(reviewId: unknown, organizationId: stri
 		join opportunities on opportunities.id = proposal_reviews.opportunity_id
 		where proposal_reviews.id = ${reviewId}
 			and (proposal_reviews.organization_id = ${organizationId} or proposal_reviews.organization_id is null)
+			and (
+				opportunities.organization_id = ${organizationId}
+				or opportunities.organization_id is null
+			)
 			and opportunities.assigned_to = ${actorId}
 	)`;
 }
@@ -166,31 +179,43 @@ function workflowReviewCommentCondition(commentId: string, organizationId: strin
 	)!;
 }
 
-function assignedProposalDocumentForDocumentExistsSql(documentId: unknown, actorId: string): SQL {
+function assignedProposalDocumentForDocumentExistsSql(documentId: unknown, actorId: string, organizationId: string): SQL {
 	return sql`exists (
 		select 1
 		from proposal_documents
 		join opportunities on opportunities.id = proposal_documents.opportunity_id
 		where proposal_documents.document_id = ${documentId}
+			and (
+				proposal_documents.organization_id = ${organizationId}
+				or proposal_documents.organization_id is null
+			)
+			and (
+				opportunities.organization_id = ${organizationId}
+				or opportunities.organization_id is null
+			)
 			and opportunities.assigned_to = ${actorId}
 	)`;
 }
 
-function workflowDocumentCondition(documentId: string, actorId: string): SQL {
+function workflowDocumentCondition(documentId: string, actorId: string, organizationId: string): SQL {
 	return and(
 		eq(documents.id, documentId),
-		assignedProposalDocumentForDocumentExistsSql(documents.id, actorId)
+		assignedProposalDocumentForDocumentExistsSql(documents.id, actorId, organizationId)
 	)!;
 }
 
-function workflowProposalDocumentsForDocumentCondition(documentId: string, actorId: string): SQL {
+function workflowProposalDocumentsForDocumentCondition(documentId: string, actorId: string, organizationId: string): SQL {
 	return and(
 		eq(proposalDocuments.documentId, documentId),
-		assignedOpportunityExistsSql(proposalDocuments.opportunityId, actorId)
+		or(
+			eq(proposalDocuments.organizationId, organizationId),
+			isNull(proposalDocuments.organizationId)
+		)!,
+		assignedOpportunityExistsSql(proposalDocuments.opportunityId, actorId, organizationId)
 	)!;
 }
 
-function assignedDocumentApprovalExistsSql(actorId: string): SQL {
+function assignedDocumentApprovalExistsSql(actorId: string, organizationId: string): SQL {
 	return sql`exists (
 		select 1
 		from proposal_documents
@@ -199,14 +224,22 @@ function assignedDocumentApprovalExistsSql(actorId: string): SQL {
 			proposal_documents.id = document_approvals.proposal_document_id
 			or proposal_documents.document_id = document_approvals.document_id
 		)
+			and (
+				proposal_documents.organization_id = ${organizationId}
+				or proposal_documents.organization_id is null
+			)
+			and (
+				opportunities.organization_id = ${organizationId}
+				or opportunities.organization_id is null
+			)
 			and opportunities.assigned_to = ${actorId}
 	)`;
 }
 
-function workflowDocumentApprovalCondition(approvalId: string, actorId: string): SQL {
+function workflowDocumentApprovalCondition(approvalId: string, actorId: string, organizationId: string): SQL {
 	return and(
 		eq(documentApprovals.id, approvalId),
-		assignedDocumentApprovalExistsSql(actorId)
+		assignedDocumentApprovalExistsSql(actorId, organizationId)
 	)!;
 }
 
@@ -217,14 +250,14 @@ function workflowSubmissionCondition(submissionId: string, organizationId: strin
 			eq(submissions.organizationId, organizationId),
 			isNull(submissions.organizationId)
 		),
-		assignedOpportunityExistsSql(submissions.opportunityId, actorId)
+		assignedOpportunityExistsSql(submissions.opportunityId, actorId, organizationId)
 	)!;
 }
 
-function workflowClaimAnalysisCondition(claimId: string, actorId: string): SQL {
+function workflowClaimAnalysisCondition(claimId: string, actorId: string, organizationId: string): SQL {
 	return and(
 		eq(claimAnalysis.id, claimId),
-		assignedOpportunityExistsSql(claimAnalysis.opportunityId, actorId)
+		assignedOpportunityExistsSql(claimAnalysis.opportunityId, actorId, organizationId)
 	)!;
 }
 
@@ -244,10 +277,10 @@ function workflowScraperRunCondition(runId: string, instance: WorkflowInstanceRo
 		: eq(scraperRuns.id, runId);
 }
 
-function workflowOpportunityPartnerCondition(assignmentId: string, actorId: string): SQL {
+function workflowOpportunityPartnerCondition(assignmentId: string, actorId: string, organizationId: string): SQL {
 	return and(
 		eq(opportunityPartners.id, assignmentId),
-		assignedOpportunityExistsSql(opportunityPartners.opportunityId, actorId)
+		assignedOpportunityExistsSql(opportunityPartners.opportunityId, actorId, organizationId)
 	)!;
 }
 
@@ -332,7 +365,7 @@ export async function startDomainWorkflowFromTemplate(
 	});
 	const scopedOpportunityId = getWorkflowStartOpportunityId(input, template);
 	if (scopedOpportunityId) {
-		await assertWorkflowOpportunityAccess(scopedOpportunityId, input.actorId);
+		await assertWorkflowOpportunityAccess(scopedOpportunityId, input.actorId, organizationId);
 	}
 
 	const dueAt = computeDueAt(template.slaPolicy);
@@ -570,7 +603,7 @@ async function applyDomainCompensation(input: {
 						isReviewed: true,
 						updatedAt: now,
 					};
-			await db.update(opportunities).set(patch).where(workflowOpportunityCondition(input.instance.subjectId, input.actorId));
+			await db.update(opportunities).set(patch).where(workflowOpportunityCondition(input.instance.subjectId, input.actorId, input.organizationId));
 			break;
 		}
 		case "document": {
@@ -578,7 +611,7 @@ async function applyDomainCompensation(input: {
 			const [document] = await db
 				.select()
 				.from(documents)
-				.where(workflowDocumentCondition(input.instance.subjectId, input.actorId))
+				.where(workflowDocumentCondition(input.instance.subjectId, input.actorId, input.organizationId))
 				.limit(1);
 			if (!document) {
 				throw new Error("Document not found for workflow compensation");
@@ -590,11 +623,11 @@ async function applyDomainCompensation(input: {
 				now,
 				metadata: document.metadata,
 			});
-			await db.update(documents).set(patch).where(workflowDocumentCondition(input.instance.subjectId, input.actorId));
+			await db.update(documents).set(patch).where(workflowDocumentCondition(input.instance.subjectId, input.actorId, input.organizationId));
 			await db
 				.update(proposalDocuments)
 				.set(proposalDocumentFinalizationPatch(input.action, input.actorId, input.reason, now))
-				.where(workflowProposalDocumentsForDocumentCondition(input.instance.subjectId, input.actorId));
+				.where(workflowProposalDocumentsForDocumentCondition(input.instance.subjectId, input.actorId, input.organizationId));
 			break;
 		}
 		case "rfp_parse":
@@ -838,7 +871,7 @@ async function applyDomainCompensation(input: {
 						rejectionReason: null,
 						updatedAt: now,
 					};
-			await db.update(documentApprovals).set(patch).where(workflowDocumentApprovalCondition(input.instance.subjectId, input.actorId));
+			await db.update(documentApprovals).set(patch).where(workflowDocumentApprovalCondition(input.instance.subjectId, input.actorId, input.organizationId));
 			break;
 		}
 		case "submission": {
@@ -919,7 +952,7 @@ async function applyDomainCompensation(input: {
 						resolvedAt: now,
 						resolutionNotes: `Resolved by workflow: ${input.reason}`,
 					};
-			await db.update(claimAnalysis).set(patch).where(workflowClaimAnalysisCondition(input.instance.subjectId, input.actorId));
+			await db.update(claimAnalysis).set(patch).where(workflowClaimAnalysisCondition(input.instance.subjectId, input.actorId, input.organizationId));
 			break;
 		}
 		case "pricing_package": {
@@ -957,7 +990,7 @@ async function applyDomainCompensation(input: {
 				: input.action === "cancel"
 					? { status: "rejected", updatedAt: now }
 					: { status: "accepted", updatedAt: now };
-			await db.update(opportunityPartners).set(patch).where(workflowOpportunityPartnerCondition(input.instance.subjectId, input.actorId));
+			await db.update(opportunityPartners).set(patch).where(workflowOpportunityPartnerCondition(input.instance.subjectId, input.actorId, input.organizationId));
 			break;
 		}
 		default: {

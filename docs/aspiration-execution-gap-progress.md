@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Workflow Domain Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep domain workflow starts and compensation writes scoped to the caller's organization through the owning opportunity before mutating opportunity, proposal task, review, document, approval, submission, claim, pricing, and partner assignment state.
+
+Changes in this slice:
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to workflow-domain shared opportunity helpers.
+- Bind workflow start opportunity access checks and domain compensation predicates to the tenant context already required by the workflow domain action.
+- Add opportunity tenant predicates for proposal document/document approval joins and pipeline/review existence joins used by compensation.
+- Extend workflow-domain tests to assert opportunity organization predicates across pricing, task, gate, claim, and final-document compensation paths.
+
+Verification:
+- `npm test -- workflow-domain.test.ts` from `frontend/` passed, running 24 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave0-workflow-runtime-core` from `frontend/` passed, running 4 workflow/runtime/auth test files and 27 tests.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as task management, submissions, pipeline, pricing, proposal documents, and win themes.
+
 ### 2026-05-27 - Work Items Claim Opportunity Tenant Predicates
 
 Status: implemented and verified.
