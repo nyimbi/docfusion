@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Proof Lane Artifact Download Coverage
+
+Status: implemented and verified.
+
+Purpose: keep the aggregate discovery-to-submission proof lane aligned with the final artifact retrieval guard.
+
+Changes in this slice:
+- Add `documents-final-artifact-route.test.ts` to `wave9-discovery-to-submission-core`.
+- Add the final artifact route proof artifact to the wave9 expected artifact list.
+- Extend manifest coverage so the aggregate scenario asserts this route guard remains included.
+
+Verification:
+- `npm run test -- __tests__/actions/platform-proof-scenarios.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- The aggregate proof scenario itself remains intentionally unrun while on battery. This slice only verifies manifest wiring.
+
+Remaining after this slice:
+- Run `wave9-discovery-to-submission-core` when power allows and use failures to drive the next remediation chunks.
+
 ### 2026-05-26 - Submission Attachment Live Source Lock
 
 Status: implemented and verified.
