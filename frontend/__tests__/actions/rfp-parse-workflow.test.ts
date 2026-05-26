@@ -131,9 +131,11 @@ vi.mock("@/lib/db", () => {
 import {
 	applyRfpAmendmentSupersession,
 	getRfpParseLifecycle,
+	processRfpParsingJob,
 	reviewRfpParseConfidence,
 	transitionRfpParseWorkflow,
 } from "@/lib/actions/rfp-parser";
+import { parseRFPWithAI } from "@/lib/ai/rfp-parser";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -339,6 +341,46 @@ describe("RFP parse workflow", () => {
 			error: "Parser output can only be reviewed after parsing completes",
 		});
 		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("fails parsing jobs when text extraction returns no readable text", async () => {
+		const updates: Record<string, unknown>[] = [];
+		dbMock.query.rfpDocuments.findFirst
+			.mockResolvedValueOnce({
+				...documentRow,
+				extractedText: "",
+				storagePath: "/path/does-not-exist.pdf",
+				parsingStatus: "pending",
+				metadata: null,
+			})
+			.mockResolvedValueOnce({
+				...documentRow,
+				parsingStatus: "processing",
+				metadata: null,
+			});
+		dbMock.update.mockReturnValue(createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+
+		await processRfpParsingJob({
+			jobId: latestJob.id,
+			rfpDocumentId: documentRow.id,
+			tenantContext: { userId: "capture-lead", organizationId: "org-1" },
+		});
+
+		expect(parseRFPWithAI).not.toHaveBeenCalled();
+		expect(updates).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				status: "failed",
+				errorMessage: expect.stringContaining("RFP text extraction produced no readable text for rfp.pdf"),
+			}),
+			expect.objectContaining({
+				parsingStatus: "failed",
+				parsingError: expect.stringContaining("RFP text extraction produced no readable text for rfp.pdf"),
+			}),
+		]));
 	});
 
 	it("applies amendment supersession and projects impact review work", async () => {

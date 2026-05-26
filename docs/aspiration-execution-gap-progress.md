@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Empty RFP Text Extraction Failure Gate
+
+Status: implemented and verified.
+
+Purpose: prevent failed or empty RFP text extraction from flowing into AI parsing and creating unreliable parse, requirements, or compliance state.
+
+Changes in this slice:
+- Remove stale simulated-extraction comments from the active RFP parsing job.
+- Normalize cached and newly extracted RFP text before parsing.
+- Fail the parsing job and document with audit metadata when extraction produces no readable text.
+- Add focused workflow coverage that proves blank extraction does not call `parseRFPWithAI`.
+
+Verification:
+- `npm run test -- __tests__/actions/rfp-parse-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This was a narrow parser failure-gate slice covered by the affected workflow test file and whitespace validation.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Review whether extraction errors should expose source-specific remediation hints in operator UI.
+
 ### 2026-05-26 - Proposal Task Workflow Revalidation
 
 Status: implemented and verified.

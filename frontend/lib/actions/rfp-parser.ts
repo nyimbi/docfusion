@@ -1851,17 +1851,16 @@ export async function processRfpParsingJob(
 			eq(rfpDocuments.organizationId, organizationId),
 		));
 
-		// Step 1: Read and extract text from the document (10-30%)
+		// Step 1: read and extract text from the document (10-30%).
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 10, "Extracting text from document");
 
-		// For now, we'll simulate text extraction.
-		// In production, you would read from storage and extract text based on file type
-		let extractedText = rfpDoc.extractedText || "";
+		let extractedText = rfpDoc.extractedText?.trim() ?? "";
 
 		if (!extractedText) {
-			// Simulate text extraction - in production, use pdf-parse, mammoth, etc.
-			// This would be replaced with actual file reading logic
-			extractedText = await extractTextFromDocument(rfpDoc.storagePath, rfpDoc.fileType);
+			extractedText = (await extractTextFromDocument(rfpDoc.storagePath, rfpDoc.fileType)).trim();
+		}
+		if (!extractedText.trim()) {
+			throw new Error(`RFP text extraction produced no readable text for ${rfpDoc.filename}`);
 		}
 
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 30, "Parsing RFP structure");
