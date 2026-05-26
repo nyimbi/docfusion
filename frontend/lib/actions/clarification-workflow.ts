@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { rfpRequirements } from "@/lib/db/schema-rfp";
-import { requireUserContext } from "@/lib/auth-utils";
+import { requireUserContext, userHasAuthorityRole, type UserContext } from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
@@ -101,6 +101,7 @@ export async function transitionClarificationWorkflow(
 	if (!reason) {
 		throw new Error("Clarification workflow transitions require a reason");
 	}
+	requireClarificationAuthority(userContext, input.action);
 
 	const [requirement] = await db
 		.select()
@@ -342,6 +343,22 @@ function buildClarificationTransition(
 function normalizeMetadata(metadata: unknown): Record<string, unknown> {
 	if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return {};
 	return { ...(metadata as Record<string, unknown>) };
+}
+
+function requireClarificationAuthority(
+	userContext: Pick<UserContext, "role" | "roles">,
+	action: ClarificationWorkflowAction
+): void {
+	if (action !== "approve" && action !== "submit") {
+		return;
+	}
+	const requiredRoles = ["proposal_manager", "capture_manager"];
+	if (requiredRoles.some((role) => userHasAuthorityRole(userContext, role))) {
+		return;
+	}
+	throw new Error(
+		`Approving or submitting customer clarifications requires proposal or capture authority: requires ${requiredRoles.join(" or ")}`
+	);
 }
 
 function normalizeClarificationMetadata(value: unknown): ClarificationMetadata {

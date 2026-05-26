@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Customer Clarification Authority Check
+
+Status: implemented and verified.
+
+Purpose: prevent customer-facing clarification approval and submission from changing requirement clarification metadata unless the authenticated actor has proposal or capture authority.
+
+Changes in this slice:
+- Require `proposal_manager`, `capture_manager`, or admin authority for clarification `approve` and `submit` actions before requirement lookup or mutation.
+- Preserve draft, approval-request, answer-recording, incorporation, and reopen behavior for assigned opportunity users.
+- Stop unauthorized customer-facing clarification submission before DB reads, metadata updates, workflow runtime recording, or task projection.
+- Add focused coverage for non-authority clarification submission attempts.
+
+Verification:
+- `npm run test -- __tests__/actions/clarification-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets customer-facing clarification authority with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that mutate response, governance, or submission state without enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Opportunity Digest Authority Check
 
 Status: implemented and verified.

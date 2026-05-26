@@ -1,8 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: vi.fn(async () => ({ userId: "proposal-manager-1" })),
-}));
+const requireUserContextMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/auth-utils", () => {
+	const userHasAuthorityRole = (
+		context: { role?: string; roles?: string[] },
+		requiredRole: string
+	) => {
+		const roles = new Set([context.role, ...(context.roles ?? [])]
+			.filter(Boolean)
+			.map((value) => String(value).trim().toLowerCase()));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		userHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "clarification-workflow-1" })),
@@ -115,6 +129,10 @@ const baseRequirement: Record<string, any> = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	requireUserContextMock.mockResolvedValue({
+		userId: "proposal-manager-1",
+		roles: ["proposal_manager"],
+	});
 	dbMock.select.mockReset();
 	dbMock.update.mockReset();
 });
@@ -232,6 +250,27 @@ describe("clarification workflow", () => {
 			title: "Await customer clarification answer",
 			state: "blocked",
 		}));
+	});
+
+	it("requires proposal or capture authority before customer-facing approval actions", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "proposal-writer-1",
+			roles: ["proposal_writer"],
+		});
+
+		await expect(
+			transitionClarificationWorkflow({
+				requirementId: "req-1",
+				action: "submit",
+				reason: "Approved for customer Q&A",
+				submissionReference: "QA-2026-05-05-01",
+			})
+		).rejects.toThrow("Approving or submitting customer clarifications requires proposal or capture authority");
+
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(recordWorkflowRuntimeTransition).not.toHaveBeenCalled();
+		expect(upsertWorkflowRuntimeTask).not.toHaveBeenCalled();
 	});
 
 	it("incorporates a recorded answer as a terminal workflow", async () => {
