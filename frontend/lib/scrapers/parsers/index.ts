@@ -11,10 +11,12 @@ export * from "./types";
 // Import parsers to trigger self-registration
 import "./dgmarket";
 import "./generic";
+import "./kenya-ppip";
 
 // Re-export for direct access
 export { dgmarketParser } from "./dgmarket";
 export { genericParser } from "./generic";
+export { kenyaPpipParser } from "./kenya-ppip";
 
 // LLM-based extraction (for sites without custom parsers)
 export * from "./llm-extractor";

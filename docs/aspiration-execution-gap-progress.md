@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Kenya PPIP Parser Readiness
+
+Status: implemented and verified.
+
+Purpose: prepare configured-source discovery for Kenya PPIP table content so that high-value Kenya public procurement listings can use source-specific extraction instead of the generic parser when the portal content is available.
+
+Changes in this slice:
+- Add a frontend Kenya PPIP parser for `tenders.go.ke` tender table rows.
+- Parse tender number, description, procuring entity, procurement method/category, close date, publish date, and action links from HTML tables.
+- Parse equivalent markdown table rows when scraper output is table-like markdown.
+- Select source-specific parsers for configured source URLs, currently routing `tenders.go.ke` to `kenya_ppip` and `dgmarket.com` to `dgmarket`.
+- Include HTML in configured-source Firecrawl scrape requests so source-specific parsers can inspect table markup.
+
+Verification:
+- `npm run test -- kenya-ppip-parser.test.ts discovery-opportunity-import.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+
+Remaining after this slice:
+- Live `https://tenders.go.ke` access still returns sparse or failed content through the current Firecrawl/browser services, so the parser is ready but not yet live-proven. The next step is a portal-specific browser adapter, alternate endpoint, or Cloak-style browser path for Kenya PPIP content acquisition.
+
 ### 2026-05-26 - Live Source Discovery Proof Scenario
 
 Status: implemented and verified.

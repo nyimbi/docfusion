@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
-import { genericParser } from "@/lib/scrapers/parsers/generic";
+import { genericParser, getParser, type TenderParser } from "@/lib/scrapers/parsers";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 import { downloadDocument } from "@/lib/services/rfp-document-service";
 import {
@@ -190,6 +190,22 @@ function normalizeSourceUrls(input: DiscoveryImportInput): string[] {
 			}
 		})
 		.filter(Boolean))];
+}
+
+function parserForSourceUrl(sourceUrl: string): TenderParser {
+	let host = "";
+	try {
+		host = new URL(sourceUrl).hostname.replace(/^www\./, "").toLowerCase();
+	} catch {
+		return genericParser;
+	}
+
+	const sourceId = host.includes("tenders.go.ke")
+		? "kenya_ppip"
+		: host.includes("dgmarket.com")
+			? "dgmarket"
+			: undefined;
+	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
 }
 
 function isLikelyOpportunity(result: SearxngResult): boolean {
@@ -563,7 +579,7 @@ async function discoverConfiguredSourceCandidates(
 
 	for (const sourceUrl of sourceUrls) {
 		const scrapeResult = await firecrawl.scrape(sourceUrl, {
-			formats: ["markdown", "links"],
+			formats: ["markdown", "html", "links"],
 			timeout: 20000,
 		});
 		if (!scrapeResult.success || !scrapeResult.data) {
@@ -577,7 +593,9 @@ async function discoverConfiguredSourceCandidates(
 			continue;
 		}
 
-		const parseResult = await genericParser.parse({
+		const parser = parserForSourceUrl(sourceUrl);
+		const parseResult = await parser.parse({
+			html: scrapeResult.data.html,
 			markdown: scrapeResult.data.markdown ?? "",
 			links: scrapeResult.data.links ?? [],
 			url: sourceUrl,
