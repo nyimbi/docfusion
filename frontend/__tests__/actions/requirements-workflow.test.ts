@@ -4,13 +4,34 @@ vi.mock("@/lib/utils/logger", () => ({
 	logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
+vi.mock("next/cache", () => ({
+	revalidatePath: vi.fn(),
+}));
+
 vi.mock("@/lib/auth/tenant-context", () => ({
 	requireTenantContext: vi.fn(async () => ({
 		userId: "capture-lead",
 		organizationId: "org-1",
-		roles: ["admin"],
 	})),
 }));
+
+const requireUserContextMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/auth-utils", () => {
+	const userHasAuthorityRole = (
+		context: { role?: string; roles?: string[] },
+		requiredRole: string
+	) => {
+		const roles = new Set([context.role, ...(context.roles ?? [])]
+			.filter(Boolean)
+			.map((value) => String(value).trim().toLowerCase()));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		userHasAuthorityRole,
+	};
+});
 
 interface ChainConfig {
 	result?: unknown[];
@@ -126,6 +147,11 @@ const baseRequirement = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	requireUserContextMock.mockResolvedValue({
+		userId: "capture-lead",
+		organizationId: "org-1",
+		roles: ["proposal_manager"],
+	});
 	dbMock.execute.mockResolvedValue([]);
 	dbMock.transaction.mockImplementation(async (fn: (tx: typeof dbMock) => Promise<unknown>) => fn(dbMock));
 });
@@ -143,6 +169,29 @@ describe("transitionRequirementWorkflow", () => {
 			})
 		).rejects.toThrow("missing owner, due date");
 
+		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("requires proposal or capture authority before accepting a gated requirement", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["writer"],
+		});
+
+		await expect(
+			transitionRequirementWorkflow({
+				requirementId: baseRequirement.id,
+				action: "accept",
+				actorId: "writer-1",
+				reason: "Ready for drafting",
+				assignedTo: "writer-1",
+				dueDate: "2026-05-10",
+			})
+		).rejects.toThrow("requires proposal_manager or capture_manager");
+
+		expect(dbMock.transaction).not.toHaveBeenCalled();
 		expect(dbMock.insert).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});

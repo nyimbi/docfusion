@@ -16,6 +16,11 @@ import { eq, and, or, ilike, inArray, isNull, isNotNull, lt, sql, desc, asc, typ
 import { getProviderManager } from "@/lib/ai/providers";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { requireTenantContext } from "@/lib/auth/tenant-context";
+import {
+	requireUserContext,
+	userHasAuthorityRole,
+	type UserContext,
+} from "@/lib/auth-utils";
 import type {
 	Requirement,
 	RequirementInput,
@@ -72,6 +77,29 @@ interface RequirementWorkflowTransitionResult {
 	requirement: Requirement;
 	workflowState: RequirementWorkflowState;
 	projectedTaskId?: string;
+}
+
+type RequirementWorkflowUserContext = UserContext & { organizationId: string };
+
+async function requireRequirementWorkflowUserContext(): Promise<RequirementWorkflowUserContext> {
+	const context = await requireUserContext();
+	if (!context.organizationId) {
+		throw new Error("No organization context");
+	}
+	return {
+		...context,
+		organizationId: context.organizationId,
+	};
+}
+
+function requireRequirementAcceptanceAuthority(context: Pick<UserContext, "role" | "roles">): void {
+	const requiredRoles = ["proposal_manager", "capture_manager"];
+	if (requiredRoles.some((role) => userHasAuthorityRole(context, role))) {
+		return;
+	}
+	throw new Error(
+		`Accepting requirements requires proposal or capture authority: requires ${requiredRoles.join(" or ")}`
+	);
 }
 
 interface RequirementWorkflowMetadata {
@@ -523,7 +551,11 @@ export async function transitionRequirementWorkflow(
 		throw new Error("Requirement workflow transition requires a reason.");
 	}
 
-	const { organizationId, userId } = await requireTenantContext();
+	const userContext = await requireRequirementWorkflowUserContext();
+	if (input.action === "accept") {
+		requireRequirementAcceptanceAuthority(userContext);
+	}
+	const { organizationId, userId } = userContext;
 
 	const result = await db.transaction(async (tx) => {
 		await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.requirementId}))`);

@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Requirement Acceptance Authority Check
+
+Status: implemented and verified.
+
+Purpose: prevent accepted requirements from projecting proposal writing tasks unless the authenticated actor has proposal or capture authority.
+
+Changes in this slice:
+- Resolve role-bearing user context in `transitionRequirementWorkflow`.
+- Require `proposal_manager`, `capture_manager`, or admin authority before accepting a requirement.
+- Stop unauthorized acceptance before opening the transaction, creating proposal tasks, updating requirement workflow metadata, or writing task activity.
+- Keep reject and reopen behavior on the existing assigned-opportunity path.
+- Add focused coverage for unauthorized acceptance and mock `revalidatePath` in the workflow test harness.
+
+Verification:
+- `npm run test -- __tests__/actions/requirements-workflow.test.ts __tests__/actions/proposal-task-workflow.test.ts __tests__/api/rfp-requirements-route.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets requirement acceptance authority with focused workflow/API tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that only store authority metadata after mutations rather than enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - RFP Parse Authority Denial Response
 
 Status: implemented and verified.
