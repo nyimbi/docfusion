@@ -7,7 +7,7 @@ import {
 	type ClaimEvidenceStrength,
 	type ClaimResolution,
 } from "@/lib/db/schema-evidence";
-import { requireUserContext } from "@/lib/auth-utils";
+import { requireUserContext, userHasAuthorityRole, type UserContext } from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
@@ -72,6 +72,7 @@ export async function transitionClaimRemediationWorkflow(
 	if (!reason) {
 		throw new Error("Claim remediation transitions require a reason");
 	}
+	requireClaimRiskAuthority(userContext, input.action);
 
 	const [claim] = await db
 		.select()
@@ -289,6 +290,22 @@ function claimState(claim: ClaimAnalysisRow): string {
 
 function normalizedEvidenceIds(ids: string[] | undefined): string[] {
 	return (ids ?? []).map((id) => id.trim()).filter(Boolean);
+}
+
+function requireClaimRiskAuthority(
+	userContext: Pick<UserContext, "role" | "roles">,
+	action: ClaimRemediationAction
+): void {
+	if (action !== "waive") {
+		return;
+	}
+	const requiredRoles = ["proposal_manager", "capture_manager", "compliance_officer"];
+	if (requiredRoles.some((role) => userHasAuthorityRole(userContext, role))) {
+		return;
+	}
+	throw new Error(
+		`Waiving unsupported proposal claims requires claim risk authority: requires ${requiredRoles.join(" or ")}`
+	);
 }
 
 function mergeIds(existing: string[], incoming: string[]): string[] {

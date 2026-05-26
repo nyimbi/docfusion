@@ -1,8 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: vi.fn(async () => ({ userId: "proposal-writer-1" })),
-}));
+const requireUserContextMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/auth-utils", () => {
+	const userHasAuthorityRole = (
+		context: { role?: string; roles?: string[] },
+		requiredRole: string
+	) => {
+		const roles = new Set([context.role, ...(context.roles ?? [])]
+			.filter(Boolean)
+			.map((value) => String(value).trim().toLowerCase()));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		userHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "claim-workflow-1" })),
@@ -101,6 +115,10 @@ const baseClaim: Record<string, any> = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	requireUserContextMock.mockResolvedValue({
+		userId: "proposal-writer-1",
+		roles: ["proposal_writer"],
+	});
 	dbMock.select.mockReset();
 	dbMock.update.mockReset();
 });
@@ -252,6 +270,64 @@ describe("claim remediation workflow", () => {
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			toState: "rewritten",
 			terminal: true,
+		}));
+	});
+
+	it("requires claim risk authority before waiving unsupported claims", async () => {
+		await expect(
+			transitionClaimRemediationWorkflow({
+				claimId: "claim-1",
+				action: "waive",
+				reason: "Leadership accepts the unsupported claim risk",
+			})
+		).rejects.toThrow("Waiving unsupported proposal claims requires claim risk authority");
+
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(recordWorkflowRuntimeTransition).not.toHaveBeenCalled();
+		expect(upsertWorkflowRuntimeTask).not.toHaveBeenCalled();
+	});
+
+	it("records a claim risk waiver for an authorized proposal manager", async () => {
+		let claimUpdate: Record<string, unknown> | undefined;
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "proposal-manager-1",
+			roles: ["proposal_manager"],
+		});
+		dbMock.select.mockReturnValueOnce(createChain({ result: [baseClaim] }));
+		dbMock.update.mockReturnValueOnce(createChain({
+			result: [{
+				...baseClaim,
+				status: "wont_fix",
+				resolution: "accepted_as_is",
+				resolvedBy: "proposal-manager-1",
+			}],
+			onSet: (value) => {
+				claimUpdate = value;
+			},
+		}));
+
+		const result = await transitionClaimRemediationWorkflow({
+			claimId: "claim-1",
+			action: "waive",
+			reason: "Leadership accepts the unsupported claim risk",
+		});
+
+		expect(result).toMatchObject({
+			fromState: "open",
+			toState: "waived",
+			status: "wont_fix",
+			resolution: "accepted_as_is",
+		});
+		expect(claimUpdate).toMatchObject({
+			status: "wont_fix",
+			resolution: "accepted_as_is",
+			resolvedBy: "proposal-manager-1",
+		});
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
+			toState: "waived",
+			terminal: true,
+			assignedRole: null,
 		}));
 	});
 

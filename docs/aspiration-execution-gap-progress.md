@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Unsupported Claim Waiver Authority Check
+
+Status: implemented and verified.
+
+Purpose: prevent unsupported proposal claims from being accepted as-is unless the authenticated actor has proposal, capture, or compliance risk authority.
+
+Changes in this slice:
+- Require `proposal_manager`, `capture_manager`, `compliance_officer`, or admin authority before loading claim state for waiver actions.
+- Preserve evidence-addition, rewrite, removal, start, and reopen remediation paths for assigned opportunity response workers.
+- Stop unauthorized claim waiver attempts before DB reads, claim updates, workflow runtime recording, or task projection.
+- Add focused coverage for denied claim waivers and authorized proposal-manager waivers.
+
+Verification:
+- `npm run test -- __tests__/actions/claim-remediation.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets unsupported-claim risk acceptance with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that mutate response, governance, or submission state without enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Win Strategy Authority Preflight
 
 Status: implemented and verified.
