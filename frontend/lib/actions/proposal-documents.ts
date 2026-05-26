@@ -2216,6 +2216,8 @@ async function recordResponsePackageDraftTransition(input: {
 	result: ResponsePackageDraftResult;
 }): Promise<void> {
 	try {
+		const readinessBlocked = input.result.readiness.status !== "ready_for_review";
+		const readinessBlockerText = responsePackageReadinessBlockerText(input.result.readiness);
 		const instance = await recordWorkflowRuntimeTransition({
 			workflowKey: "proposal_response_package",
 			organizationId: input.organizationId,
@@ -2229,7 +2231,7 @@ async function recordResponsePackageDraftTransition(input: {
 			actorName: input.userId,
 			reason: "Standard response package drafted from accepted requirements",
 			evidenceLinks: responsePackageEvidenceLinks(input.result),
-			priority: "high",
+			priority: readinessBlocked ? "critical" : "high",
 			visibility: "internal",
 			metadata: {
 				...input.result,
@@ -2243,10 +2245,12 @@ async function recordResponsePackageDraftTransition(input: {
 		await upsertWorkflowRuntimeTask({
 			workflowInstanceId: instance.id,
 			taskKey: `response-package-review:${input.opportunityId}`,
-			title: "Review drafted response package",
-			description: "Review drafted response documents, compliance links, and requirement coverage before final package rendering.",
-			state: "open",
-			priority: "high",
+			title: readinessBlocked ? "Resolve response package readiness blockers" : "Review drafted response package",
+			description: readinessBlocked
+				? `Resolve response package readiness blockers before final package rendering.\n${readinessBlockerText}`
+				: "Review drafted response documents, compliance links, and requirement coverage before final package rendering.",
+			state: readinessBlocked ? "blocked" : "open",
+			priority: readinessBlocked ? "critical" : "high",
 			assignedTo: input.userId,
 			assignedRole: "proposal_manager",
 			dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
@@ -2259,10 +2263,12 @@ async function recordResponsePackageDraftTransition(input: {
 		await upsertWorkflowRuntimeTask({
 			workflowInstanceId: instance.id,
 			taskKey: `final-package-render:${input.opportunityId}`,
-			title: "Render approved final package",
-			description: "Render the approved response documents into final submission artifacts after response package review is complete.",
-			state: "open",
-			priority: "medium",
+			title: readinessBlocked ? "Final package render blocked by response readiness" : "Render approved final package",
+			description: readinessBlocked
+				? `Final package rendering is blocked until response package readiness passes.\n${readinessBlockerText}`
+				: "Render the approved response documents into final submission artifacts after response package review is complete.",
+			state: readinessBlocked ? "blocked" : "open",
+			priority: readinessBlocked ? "high" : "medium",
 			assignedTo: input.userId,
 			assignedRole: "proposal_manager",
 			dueAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
@@ -2271,11 +2277,20 @@ async function recordResponsePackageDraftTransition(input: {
 				documentIds: input.result.documentIds,
 				versionNumber: input.result.versionNumber,
 				complianceMatrixId: input.result.complianceMatrixId,
+				readiness: input.result.readiness,
 			},
 		});
 	} catch {
 		// Response package drafting should not fail because workflow telemetry is unavailable.
 	}
+}
+
+function responsePackageReadinessBlockerText(readiness: ResponsePackageDraftReadiness): string {
+	const blockers = readiness.blockers.length > 0
+		? readiness.blockers
+		: [`${readiness.missingRequirementIds.length} accepted requirement(s) are missing from drafted response documents`];
+	const coverage = `${Math.round(readiness.metrics.requirementCoverage * 100)}% accepted requirement coverage`;
+	return [`Readiness: ${readiness.status}`, `Coverage: ${coverage}`, ...blockers].join("\n");
 }
 
 function responsePackageEvidenceLinks(result: ResponsePackageDraftResult): string[] {

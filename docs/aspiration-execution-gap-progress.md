@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Response Readiness Task Projection
+
+Status: implemented and verified.
+
+Purpose: prevent workflow tasks from inviting final package rendering when response package readiness is already blocked.
+
+Changes in this slice:
+- Promote blocked response package readiness to critical workflow priority.
+- Mark response-package review tasks as blocked with readiness blocker details when draft coverage is incomplete.
+- Mark final-package render tasks as blocked until response readiness passes.
+- Persist readiness metadata on the final-package render task so operators see the same blocker evidence as the final render and submission gates.
+
+Verification:
+- `npm test -- proposal-documents-scope.test.ts` from `frontend/` passed, running 15 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 test files and 46 tests.
+- `git diff --check -- frontend/lib/actions/proposal-documents.ts` passed.
+
+Live DB re-check:
+- `RUN_DB_INTEGRATION_TESTS=1 npm test -- rfp-tenant-isolation.test.ts` from `frontend/` is still blocked by `ECONNREFUSED 88.80.188.224:5432` during fixture insert and cleanup.
+
+Remaining after this slice:
+- Persisted live end-to-end proof remains blocked until PostgreSQL is reachable.
+- Continue closing response quality review surfaces and final approval evidence.
+
 ### 2026-05-27 - Documents UI Response Readiness Visibility
 
 Status: implemented and verified.
