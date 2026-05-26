@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Partner Assignment Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep partner assignment, opportunity partner lists, active-opportunity counts, partner opportunity history, and partner performance metrics scoped to the caller's organization through the owning opportunity.
+
+Changes in this slice:
+- Require organization context for partner actions that read or mutate opportunity assignments.
+- Add tenant predicates, with legacy null-opportunity fallback, to shared partner-assignment opportunity visibility helpers.
+- Keep the global partner directory behavior unchanged because partner rows do not currently carry an organization column.
+- Extend partner scope tests to assert opportunity organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- partners-scope.test.ts partners-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to review comments, document authoring, and remaining workflow support modules that still use unscoped or assignment-only checks.
+
 ### 2026-05-26 - Presentation Opportunity Tenant Predicates
 
 Status: implemented and verified.

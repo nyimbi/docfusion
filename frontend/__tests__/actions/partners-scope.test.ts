@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 
 interface ChainConfig {
 	result?: unknown[];
@@ -43,6 +44,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	);
 }
 
+function expectAssignedOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("partners-user-1");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("11111111-1111-4111-8111-111111111111");
+}
+
 var dbMock: {
 	select: ReturnType<typeof vi.fn>;
 	insert: ReturnType<typeof vi.fn>;
@@ -52,6 +61,7 @@ var dbMock: {
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -97,6 +107,10 @@ const partnerRow = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	getCurrentUserIdMock.mockResolvedValue("partners-user-1");
+	requireUserContextMock.mockResolvedValue({
+		userId: "partners-user-1",
+		organizationId: "11111111-1111-4111-8111-111111111111",
+	});
 });
 
 describe("partner opportunity scoping", () => {
@@ -116,7 +130,7 @@ describe("partner opportunity scoping", () => {
 		})).rejects.toThrow("Opportunity not found");
 
 		expect(dbMock.insert).not.toHaveBeenCalled();
-		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(opportunityWhere);
 	});
 
 	it("scopes partner list active-opportunity counts to assigned opportunities", async () => {
@@ -133,7 +147,7 @@ describe("partner opportunity scoping", () => {
 		const result = await getPartners();
 
 		expect(result).toEqual([]);
-		expect(collectSqlFragments(countWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(countWhere);
 	});
 
 	it("scopes partner assignment updates through the owning opportunity", async () => {
@@ -150,7 +164,7 @@ describe("partner opportunity scoping", () => {
 			status: "active" as never,
 		})).rejects.toThrow(`Partner assignment ${assignmentId} not found`);
 
-		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(updateWhere);
 	});
 
 	it("scopes partner assignment deletes through the owning opportunity", async () => {
@@ -163,7 +177,7 @@ describe("partner opportunity scoping", () => {
 
 		await removePartnerFromOpportunity(assignmentId);
 
-		expect(collectSqlFragments(deleteWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(deleteWhere);
 	});
 
 	it("scopes opportunity partner reads to assigned opportunities", async () => {
@@ -178,7 +192,7 @@ describe("partner opportunity scoping", () => {
 		const result = await getOpportunityPartners(opportunityId);
 
 		expect(result).toEqual([]);
-		expect(collectSqlFragments(readWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(readWhere);
 	});
 
 	it("scopes partner opportunity history to assigned opportunities", async () => {
@@ -193,7 +207,7 @@ describe("partner opportunity scoping", () => {
 		const result = await getPartnerOpportunities(partnerId);
 
 		expect(result).toEqual([]);
-		expect(collectSqlFragments(historyWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(historyWhere);
 	});
 
 	it("scopes partner performance metrics to assigned opportunities", async () => {
@@ -210,7 +224,7 @@ describe("partner opportunity scoping", () => {
 		const result = await getPartnerPerformance(partnerId);
 
 		expect(result.totalOpportunities).toBe(0);
-		expect(collectSqlFragments(performanceWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(performanceWhere);
 	});
 
 	it("normalizes top-partner listing limits before querying", async () => {

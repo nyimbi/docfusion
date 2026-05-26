@@ -7,7 +7,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, requireUserContext } from "@/lib/auth-utils";
 import {
 	partners,
 	opportunityPartners,
@@ -78,6 +78,8 @@ function transformOpportunityPartner(
 // Partner CRUD
 // ============================================================================
 
+type PartnerActionContext = { userId: string; organizationId: string };
+
 async function requireCurrentUserId(): Promise<string> {
 	const userId = await getCurrentUserId();
 	if (!userId) {
@@ -86,41 +88,60 @@ async function requireCurrentUserId(): Promise<string> {
 	return userId;
 }
 
-function assignedOpportunityCondition(userId: string): SQL {
-	return sql`opportunities.assigned_to = ${userId}`;
+async function requirePartnerContext(): Promise<PartnerActionContext> {
+	const context = await requireUserContext();
+	if (!context.organizationId) {
+		throw new Error("Organization context required");
+	}
+	return {
+		userId: context.userId,
+		organizationId: context.organizationId,
+	};
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityCondition(context: PartnerActionContext): SQL {
+	return sql`(
+		opportunities.organization_id = ${context.organizationId}
+		or opportunities.organization_id is null
+	)
+	and opportunities.assigned_to = ${context.userId}`;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, context: PartnerActionContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${context.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${context.userId}
 	)`;
 }
 
-function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleOpportunityCondition(opportunityId: string, context: PartnerActionContext): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		assignedOpportunityCondition(userId)
+		assignedOpportunityCondition(context)
 	)!;
 }
 
-function visiblePartnerAssignmentsCondition(userId: string): SQL {
-	return assignedOpportunityExistsSql(opportunityPartners.opportunityId, userId);
+function visiblePartnerAssignmentsCondition(context: PartnerActionContext): SQL {
+	return assignedOpportunityExistsSql(opportunityPartners.opportunityId, context);
 }
 
-function visiblePartnerAssignmentCondition(assignmentId: string, userId: string): SQL {
+function visiblePartnerAssignmentCondition(assignmentId: string, context: PartnerActionContext): SQL {
 	return and(
 		eq(opportunityPartners.id, assignmentId),
-		visiblePartnerAssignmentsCondition(userId)
+		visiblePartnerAssignmentsCondition(context)
 	)!;
 }
 
-function visibleOpportunityPartnersCondition(opportunityId: string, userId: string): SQL {
+function visibleOpportunityPartnersCondition(opportunityId: string, context: PartnerActionContext): SQL {
 	return and(
 		eq(opportunityPartners.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, context)
 	)!;
 }
 
@@ -131,11 +152,11 @@ function normalizePartnerLimit(limit: number | undefined, fallback = 10, maximum
 	return Math.max(1, Math.min(maximum, Math.floor(limit)));
 }
 
-async function assertVisibleOpportunity(opportunityId: string, userId: string): Promise<void> {
+async function assertVisibleOpportunity(opportunityId: string, context: PartnerActionContext): Promise<void> {
 	const [opportunity] = await db
 		.select({ id: opportunities.id })
 		.from(opportunities)
-		.where(visibleOpportunityCondition(opportunityId, userId))
+		.where(visibleOpportunityCondition(opportunityId, context))
 		.limit(1);
 
 	if (!opportunity) {
@@ -214,7 +235,7 @@ export async function deletePartner(id: string): Promise<void> {
  * Get partners with optional filtering.
  */
 export async function getPartners(filters?: PartnerFilters): Promise<PartnerListItem[]> {
-	const userId = await requireCurrentUserId();
+	const context = await requirePartnerContext();
 
 	// Build conditions
 	const conditions = [];
@@ -258,7 +279,7 @@ export async function getPartners(filters?: PartnerFilters): Promise<PartnerList
 		.where(
 			and(
 				inArray(opportunityPartners.status, ["invited", "accepted", "active"]),
-				visiblePartnerAssignmentsCondition(userId)
+				visiblePartnerAssignmentsCondition(context)
 			)
 		)
 		.groupBy(opportunityPartners.partnerId);
@@ -324,8 +345,8 @@ export async function searchPartnersByCapability(
 export async function assignPartnerToOpportunity(
 	input: AssignPartnerInput
 ): Promise<OpportunityPartner> {
-	const userId = await requireCurrentUserId();
-	await assertVisibleOpportunity(input.opportunityId, userId);
+	const context = await requirePartnerContext();
+	await assertVisibleOpportunity(input.opportunityId, context);
 
 	const [row] = await db
 		.insert(opportunityPartners)
@@ -354,7 +375,7 @@ export async function assignPartnerToOpportunity(
 export async function updatePartnerAssignment(
 	input: UpdatePartnerAssignmentInput
 ): Promise<OpportunityPartner> {
-	const userId = await requireCurrentUserId();
+	const context = await requirePartnerContext();
 
 	const updateData: Partial<OpportunityPartnerRow> = {
 		updatedAt: new Date(),
@@ -372,7 +393,7 @@ export async function updatePartnerAssignment(
 	const [row] = await db
 		.update(opportunityPartners)
 		.set(updateData)
-		.where(visiblePartnerAssignmentCondition(input.assignmentId, userId))
+		.where(visiblePartnerAssignmentCondition(input.assignmentId, context))
 		.returning();
 
 	if (!row) {
@@ -405,11 +426,11 @@ export async function updatePartnerAssignment(
 export async function removePartnerFromOpportunity(
 	assignmentId: string
 ): Promise<void> {
-	const userId = await requireCurrentUserId();
+	const context = await requirePartnerContext();
 
 	await db
 		.delete(opportunityPartners)
-		.where(visiblePartnerAssignmentCondition(assignmentId, userId));
+		.where(visiblePartnerAssignmentCondition(assignmentId, context));
 }
 
 /**
@@ -418,7 +439,7 @@ export async function removePartnerFromOpportunity(
 export async function getOpportunityPartners(
 	opportunityId: string
 ): Promise<OpportunityPartner[]> {
-	const userId = await requireCurrentUserId();
+	const context = await requirePartnerContext();
 
 	const rows = await db
 		.select({
@@ -427,7 +448,7 @@ export async function getOpportunityPartners(
 		})
 		.from(opportunityPartners)
 		.innerJoin(partners, eq(partners.id, opportunityPartners.partnerId))
-		.where(visibleOpportunityPartnersCondition(opportunityId, userId))
+		.where(visibleOpportunityPartnersCondition(opportunityId, context))
 		.orderBy(opportunityPartners.createdAt);
 
 	return rows.map((row) =>
@@ -447,7 +468,7 @@ export async function getPartnerOpportunities(
 		deadline: Date | null;
 	}>
 > {
-	const userId = await requireCurrentUserId();
+	const context = await requirePartnerContext();
 
 	const rows = await db
 		.select({
@@ -462,7 +483,7 @@ export async function getPartnerOpportunities(
 		)
 		.where(and(
 			eq(opportunityPartners.partnerId, partnerId),
-			assignedOpportunityCondition(userId)
+			assignedOpportunityCondition(context)
 		))
 		.orderBy(desc(opportunities.deadline));
 
@@ -483,7 +504,7 @@ export async function getPartnerOpportunities(
 export async function getPartnerPerformance(
 	partnerId: string
 ): Promise<PartnerPerformance> {
-	const userId = await requireCurrentUserId();
+	const context = await requirePartnerContext();
 
 	// Get partner details
 	const [partner] = await db
@@ -508,7 +529,7 @@ export async function getPartnerPerformance(
 		)
 		.where(and(
 			eq(opportunityPartners.partnerId, partnerId),
-			visiblePartnerAssignmentsCondition(userId)
+			visiblePartnerAssignmentsCondition(context)
 		));
 
 	// Calculate metrics
