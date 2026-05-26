@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - RFP Document Read Integrity Guard
+
+Status: implemented and verified.
+
+Purpose: prevent stored RFP documents from being served or parsed if the bytes no longer match the recorded download hash.
+
+Changes in this slice:
+- Verify downloaded RFP bytes against `fileHash` when reading from Linode E3 or legacy local storage.
+- Preserve a 409 `OpportunityDocumentIntegrityError` for scoped route callers when stored bytes do not match the recorded hash.
+- Apply hash verification to document download serving and later Docling extraction reads.
+- Add focused coverage for rejecting mismatched stored bytes before serving a scoped opportunity document.
+
+Verification:
+- `npm run test -- __tests__/services/rfp-document-service.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate proof scenario remain intentionally skipped while on battery. This slice targets RFP document read integrity with one focused service test file and whitespace validation.
+
+Remaining after this slice:
+- Add route-level coverage for the opportunity document download endpoint and include it in the aggregate proof lane.
+
 ### 2026-05-26 - Proof Lane Artifact Download Coverage
 
 Status: implemented and verified.

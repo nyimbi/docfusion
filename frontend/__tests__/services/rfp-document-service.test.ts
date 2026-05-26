@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 
 interface ChainConfig {
 	onSet?: (value: Record<string, unknown>) => void;
@@ -127,8 +128,11 @@ import {
 	extractDocumentText,
 	getOpportunityDocumentFileForActor,
 	OpportunityDocumentAccessError,
+	OpportunityDocumentIntegrityError,
 } from "@/lib/services/rfp-document-service";
 import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
+
+const downloadedPdfHash = createHash("sha256").update(Buffer.from("downloaded-pdf")).digest("hex");
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -490,6 +494,7 @@ describe("opportunity document scoped access", () => {
 					...baseDocument,
 					localPath: "s3://mansa/rfp/opportunity/document/Main-RFP.pdf",
 					mimeType: "application/pdf",
+					fileHash: downloadedPdfHash,
 					downloadedBy: "capture-user",
 				},
 				opportunity: {
@@ -517,6 +522,7 @@ describe("opportunity document scoped access", () => {
 					...baseDocument,
 					localPath: "s3://mansa/rfp/opportunity/document/Main-RFP.pdf",
 					mimeType: "application/pdf",
+					fileHash: downloadedPdfHash,
 					downloadedBy: "capture-user",
 				},
 				opportunity: {
@@ -533,5 +539,29 @@ describe("opportunity document scoped access", () => {
 		);
 
 		expect(adminResult?.buffer).toEqual(Buffer.from("downloaded-pdf"));
+	});
+
+	it("rejects scoped document reads when stored bytes do not match the recorded hash", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				document: {
+					...baseDocument,
+					localPath: "s3://mansa/rfp/opportunity/document/Main-RFP.pdf",
+					mimeType: "application/pdf",
+					fileHash: "0".repeat(64),
+					downloadedBy: "capture-user",
+				},
+				opportunity: {
+					id: baseDocument.opportunityId,
+					assignedTo: "assigned-user",
+				},
+			}],
+		}));
+
+		await expect(getOpportunityDocumentFileForActor(
+			{ userId: "assigned-user", roles: ["writer"] },
+			baseDocument.opportunityId,
+			baseDocument.id
+		)).rejects.toBeInstanceOf(OpportunityDocumentIntegrityError);
 	});
 });

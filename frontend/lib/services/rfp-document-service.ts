@@ -125,6 +125,13 @@ export class OpportunityDocumentAccessError extends Error {
 	}
 }
 
+export class OpportunityDocumentIntegrityError extends OpportunityDocumentAccessError {
+	constructor(message = "Document hash mismatch") {
+		super(message, 409);
+		this.name = "OpportunityDocumentIntegrityError";
+	}
+}
+
 // ============================================================================
 // Document Discovery
 // ============================================================================
@@ -848,7 +855,7 @@ export async function getDocumentFile(documentId: string): Promise<{
   }
 
   try {
-    const buffer = await readDocumentBuffer(doc.localPath);
+    const buffer = await readDocumentBuffer(doc.localPath, doc.fileHash ?? undefined);
     
     return {
       buffer,
@@ -889,13 +896,16 @@ export async function getOpportunityDocumentFileForActor(
 	if (!row.document.localPath) return null;
 
 	try {
-		const buffer = await readDocumentBuffer(row.document.localPath);
+		const buffer = await readDocumentBuffer(row.document.localPath, row.document.fileHash ?? undefined);
 		return {
 			buffer,
 			mimeType: row.document.mimeType || "application/octet-stream",
 			filename: row.document.documentName,
 		};
-	} catch {
+	} catch (error) {
+		if (error instanceof OpportunityDocumentAccessError) {
+			throw error;
+		}
 		return null;
 	}
 }
@@ -965,7 +975,7 @@ export async function extractDocumentText(documentId: string): Promise<string | 
 
   try {
     // Read file from Linode E3 or legacy local storage and process with DocLing.
-    const buffer = await readDocumentBuffer(doc.localPath);
+    const buffer = await readDocumentBuffer(doc.localPath, doc.fileHash ?? undefined);
     
     if (!isSupportedFileType(doc.documentName)) {
       logger.debug(`[DocLing] File type not supported for extraction: ${doc.documentName}`);
@@ -1071,18 +1081,27 @@ function buildLinodeStorageReceipt(
   };
 }
 
-async function readDocumentBuffer(storagePath: string): Promise<Buffer> {
+async function readDocumentBuffer(storagePath: string, expectedSha256?: string): Promise<Buffer> {
+  let buffer: Buffer;
   if (storagePath.startsWith("s3://")) {
     const objectStoreConfig = getLinodeE3ConfigFromEnv();
     if (!objectStoreConfig) {
       throw new Error("Linode E3 storage is not configured");
     }
     const object = await downloadFromLinodeE3(objectStoreConfig, storagePath);
-    return object.body;
+    buffer = object.body;
+  } else {
+    await access(storagePath);
+    buffer = await readFile(storagePath);
   }
 
-  await access(storagePath);
-  return readFile(storagePath);
+  if (expectedSha256) {
+    const actualSha256 = createHash("sha256").update(buffer).digest("hex");
+    if (actualSha256 !== expectedSha256) {
+      throw new OpportunityDocumentIntegrityError();
+    }
+  }
+  return buffer;
 }
 
 async function queueRfpParsingFromDownloadedDocument(params: {
