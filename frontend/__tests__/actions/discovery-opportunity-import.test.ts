@@ -242,6 +242,8 @@ describe("discoverAndImportOpportunities", () => {
 		});
 
 		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(result.sourceDocumentsExisting).toBe(0);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			portalUrl: "https://procurement.example.com/tenders/records-platform",
 			rfpLink: "https://procurement.example.com/tenders/records-platform",

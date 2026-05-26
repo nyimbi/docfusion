@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Discovery Source Document Count Visibility
+
+Status: implemented and verified.
+
+Purpose: make the discovery-to-intake bridge visible to operators by reporting how many source-document rows were seeded from discovered RFP/tender document URLs.
+
+Changes in this slice:
+- Return `sourceDocumentsCreated` and `sourceDocumentsExisting` from the live discovery import result.
+- Count newly seeded and already-linked source-document rows separately when opportunities are created or updated.
+- Surface source-document seeding counts in the live discovery dialog summary.
+- Extend focused discovery import coverage to prove direct document-link imports report seeded source-document rows.
+
+Verification:
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts` from `frontend/` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, live SearXNG/Firecrawl calls, and the aggregate wave9 proof scenario remain intentionally skipped while on battery. This slice verifies the result contract with the focused discovery import action test; the UI change is a small typed consumer of that result.
+
+Remaining after this slice:
+- Continue reducing manual steps from seeded source-document rows into bounded download/parse orchestration and response-package generation.
+
 ### 2026-05-26 - Discovery Document Row Auto-Seeding
 
 Status: implemented and verified.

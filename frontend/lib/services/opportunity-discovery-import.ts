@@ -64,6 +64,8 @@ export interface DiscoveryImportResult {
 	results: ImportResultsSummary;
 	errors: ImportRecordResult[];
 	warnings: DiscoveryRunWarning[];
+	sourceDocumentsCreated: number;
+	sourceDocumentsExisting: number;
 }
 
 const DEFAULT_DISCOVERY_QUERIES = [
@@ -249,8 +251,11 @@ function discoveredSourceDocumentType(url: string): "rfp" | "attachment" {
 		: "attachment";
 }
 
-async function ensureDiscoveredSourceDocument(opportunityId: string, opportunity: OpportunityInput): Promise<void> {
-	if (!opportunity.documentUrl) return;
+async function ensureDiscoveredSourceDocument(
+	opportunityId: string,
+	opportunity: OpportunityInput
+): Promise<"created" | "existing" | "none"> {
+	if (!opportunity.documentUrl) return "none";
 
 	const [existing] = await db
 		.select({ id: opportunityDocuments.id })
@@ -260,7 +265,7 @@ async function ensureDiscoveredSourceDocument(opportunityId: string, opportunity
 			eq(opportunityDocuments.sourceUrl, opportunity.documentUrl)
 		)!)
 		.limit(1);
-	if (existing?.id) return;
+	if (existing?.id) return "existing";
 
 	await db.insert(opportunityDocuments).values({
 		opportunityId,
@@ -271,6 +276,7 @@ async function ensureDiscoveredSourceDocument(opportunityId: string, opportunity
 		status: "discovered",
 		isSelected: true,
 	});
+	return "created";
 }
 
 function buildOpportunityFromDiscovery(
@@ -582,6 +588,8 @@ export async function executeOpportunityDiscoveryImport(
 		skipped: 0,
 		failed: searchFailures.length,
 	};
+	let sourceDocumentsCreated = 0;
+	let sourceDocumentsExisting = 0;
 	const allErrors: ImportRecordResult[] = [...searchFailures];
 
 	for (let i = 0; i < candidates.length; i++) {
@@ -603,7 +611,9 @@ export async function executeOpportunityDiscoveryImport(
 
 			if (existingId) {
 				await updateOpportunity(existingId, oppData);
-				await ensureDiscoveredSourceDocument(existingId, oppData);
+				const sourceDocumentState = await ensureDiscoveredSourceDocument(existingId, oppData);
+				if (sourceDocumentState === "created") sourceDocumentsCreated++;
+				if (sourceDocumentState === "existing") sourceDocumentsExisting++;
 				importResults.updated++;
 				allErrors.push({
 					rowIndex: searchFailures.length + i + 1,
@@ -612,7 +622,9 @@ export async function executeOpportunityDiscoveryImport(
 				});
 			} else {
 				const created = await createOpportunity(oppData);
-				await ensureDiscoveredSourceDocument(created.id, oppData);
+				const sourceDocumentState = await ensureDiscoveredSourceDocument(created.id, oppData);
+				if (sourceDocumentState === "created") sourceDocumentsCreated++;
+				if (sourceDocumentState === "existing") sourceDocumentsExisting++;
 				importResults.imported++;
 				allErrors.push({
 					rowIndex: searchFailures.length + i + 1,
@@ -649,5 +661,7 @@ export async function executeOpportunityDiscoveryImport(
 		results: importResults,
 		errors: allErrors,
 		warnings,
+		sourceDocumentsCreated,
+		sourceDocumentsExisting,
 	};
 }

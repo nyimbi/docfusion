@@ -29,6 +29,8 @@ interface DiscoveryRunSummary {
 	updated: number;
 	skipped: number;
 	failed: number;
+	sourceDocumentsCreated: number;
+	sourceDocumentsExisting: number;
 	warnings: DiscoveryRunWarning[];
 	errors: Array<{
 		rowIndex: number;
@@ -199,6 +201,8 @@ export function DiscoveryRunDialog({
 					updated: result.results.updated,
 					skipped: result.results.skipped,
 					failed: result.results.failed,
+					sourceDocumentsCreated: result.sourceDocumentsCreated ?? 0,
+					sourceDocumentsExisting: result.sourceDocumentsExisting ?? 0,
 					warnings: result.warnings ?? [],
 					errors: result.errors
 						.filter((item) => item.status === "failed")
@@ -417,6 +421,14 @@ export function DiscoveryRunDialog({
 							<p>
 								{summary.imported} created, {summary.updated} updated, {summary.skipped} skipped, {summary.failed} failed from {summary.total} results.
 							</p>
+							{(summary.sourceDocumentsCreated > 0 || summary.sourceDocumentsExisting > 0) && (
+								<p>
+									{summary.sourceDocumentsCreated} source document{summary.sourceDocumentsCreated === 1 ? "" : "s"} seeded
+									{summary.sourceDocumentsExisting > 0
+										? `, ${summary.sourceDocumentsExisting} already linked`
+										: ""}.
+								</p>
+							)}
 							{summary.warnings.length > 0 && (
 								<div>
 									<p className="font-medium">Discovery warnings ({summary.warnings.length})</p>
