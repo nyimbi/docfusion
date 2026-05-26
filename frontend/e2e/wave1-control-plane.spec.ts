@@ -72,6 +72,8 @@ test.describe("Wave 1 control-plane interactions", () => {
 		expect(runtimeErrors).toEqual([]);
 		await expect(page.getByText("Workflow Surfaces")).toBeVisible();
 		await expect(page.getByText("Response Readiness")).toBeVisible();
+		await expect(page.getByText("Response quality")).toBeVisible();
+		await expect(page.getByText("Response package readiness blocked: Missing review gate coverage")).toBeVisible();
 		await expect(page.getByText("Evidence and claims")).toBeVisible();
 		await expect(page.getByText("Compliance matrix")).toBeVisible();
 		await expect(page.getByRole("link", { name: "Requirements" })).toHaveAttribute(
@@ -79,6 +81,10 @@ test.describe("Wave 1 control-plane interactions", () => {
 			"/opportunities/opp-1/requirements",
 		);
 		await expect(page.getByRole("link", { name: "Documents" })).toHaveAttribute(
+			"href",
+			"/opportunities/opp-1/documents",
+		);
+		await expect(page.getByRole("link", { name: "Open item" }).first()).toHaveAttribute(
 			"href",
 			"/opportunities/opp-1/documents",
 		);
@@ -208,6 +214,16 @@ function commandCenterHarness() {
 					actionUrl: "/workflows",
 				},
 				{
+					key: "response_quality",
+					label: "Response quality",
+					status: "block",
+					scoreImpact: 18,
+					blockerCount: 1,
+					warningCount: 0,
+					owner: "Proposal manager",
+					actionUrl: "/opportunities/opp-1/documents",
+				},
+				{
 					key: "dispatch",
 					label: "Dispatch and receipt",
 					status: "pass",
@@ -229,12 +245,12 @@ function commandCenterHarness() {
 			],
 			blockers: [
 				{
-					id: "task:evidence",
-					label: "Blocked work item",
-					severity: "high",
+					id: "workflow:response-workflow-1",
+					label: "Response package readiness blocked: Missing review gate coverage",
+					severity: "critical",
 					owner: "Proposal manager",
 					dueAt: "2026-05-07T00:00:00.000Z",
-					actionUrl: "/tasks?opportunityId=opp-1",
+					actionUrl: "/opportunities/opp-1/documents",
 				},
 			],
 			workSummary: {

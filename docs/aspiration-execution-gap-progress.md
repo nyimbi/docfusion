@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Command Center Response Quality Resolver Links
+
+Status: implemented and verified.
+
+Purpose: make response package readiness blockers in the opportunity command center directly actionable from the operator surface.
+
+Changes in this slice:
+- Route `proposal_response_package` workflow blockers to the opportunity documents/final-package surface instead of the generic opportunity overview.
+- Update command-center projection coverage so response-quality blockers resolve to `/opportunities/{id}/documents`.
+- Extend browser control-plane coverage so the command center visibly shows the response-quality blocker and its documents resolver link.
+
+Verification:
+- `npm test -- work-items-command-center.test.ts projections.test.ts` from `frontend/` passed, running 6 tests.
+- `npm run test:e2e -- wave1-control-plane.spec.ts` from `frontend/` passed, running 3 Playwright tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave1-control-plane-browser --run wave4-planning-collaboration-tasks` from `frontend/` passed.
+
+Remaining after this slice:
+- Continue closing non-DB operator gaps while live persisted proof waits on reachable PostgreSQL.
+
 ### 2026-05-27 - Final Submission Artifact Readiness Receipt Gate
 
 Status: implemented and verified.

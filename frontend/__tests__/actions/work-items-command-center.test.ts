@@ -235,7 +235,7 @@ describe("opportunity command center projection", () => {
 			label: "Response package readiness blocked: At least one drafted response section is missing a review gate",
 			severity: "critical",
 			owner: "proposal_manager",
-			actionUrl: "/opportunities/opp-1",
+			actionUrl: "/opportunities/opp-1/documents",
 		}));
 		expect(projection.nextActions).toContainEqual(expect.objectContaining({
 			id: "workflow:response-workflow-1",
@@ -246,7 +246,7 @@ describe("opportunity command center projection", () => {
 			status: "block",
 			blockerCount: 1,
 			owner: "proposal_manager",
-			actionUrl: "/opportunities/opp-1",
+			actionUrl: "/opportunities/opp-1/documents",
 		}));
 	});
 });

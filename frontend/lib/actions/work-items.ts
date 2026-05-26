@@ -494,6 +494,9 @@ function emptyInboxProjection(): OperationalInboxProjection {
 }
 
 function workflowSubjectUrl(row: WorkflowInstanceRow): string {
+	if (row.workflowKey === "proposal_response_package" && row.opportunityId) {
+		return `/opportunities/${row.opportunityId}/documents`;
+	}
 	if (row.opportunityId) return `/opportunities/${row.opportunityId}`;
 	if (row.subjectType === "opportunity") return `/opportunities/${row.subjectId}`;
 	return "/workflows";
