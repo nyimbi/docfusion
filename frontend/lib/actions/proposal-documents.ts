@@ -1927,7 +1927,7 @@ async function ensureAcceptedRequirementsComplianceMatrix(
 			organizationId,
 			matrixId: matrix.id,
 			requirementId: requirement.id,
-			complianceStatus: requirement.complianceStatus === "compliant" ? "full" : "partial",
+			complianceStatus: requirement.complianceStatus === "compliant" ? "compliant" : "partial",
 			responseDocumentId: requirement.responseDocumentId,
 			responseReference: requirement.responseSection,
 			responseSummary: compactText(requirement.responseStrategy ?? requirement.suggestedApproach, 500),

@@ -689,3 +689,24 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Check whether compliance matrix final lock/approval is similarly reachable from the operator workflow before final submission.
+
+### 2026-05-26 - Valid Compliance Entry Seeding
+
+Status: implemented and verified.
+
+Purpose: keep generated compliance matrices on the review/lock path by avoiding invalid seeded entry statuses.
+
+Changes in this slice:
+- Seed accepted requirement compliance entries with `compliant` instead of the unsupported `full` status.
+- Extend response-package coverage to assert compliant accepted requirements create reviewable compliance entries with response evidence and strong assessment metadata.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts` passed.
+- `npx tsc --noEmit` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This was a narrow data-shape fix covered by the touched proposal action test and TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.

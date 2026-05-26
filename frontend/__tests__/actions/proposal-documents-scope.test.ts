@@ -562,7 +562,7 @@ describe("proposal document row scoping", () => {
 			category: "technical",
 			priority: "mandatory",
 			riskLevel: "high",
-			complianceStatus: "partial",
+			complianceStatus: "compliant",
 			responseStrategy: null,
 			suggestedApproach: "Show offline capture, synchronization, and audit controls.",
 			organizationId: "org-1",
@@ -576,6 +576,7 @@ describe("proposal document row scoping", () => {
 				},
 			},
 		};
+		let complianceEntryInsert: unknown;
 		const linkedSection = {
 			...section,
 			sectionName: "Workflow-First Delivery",
@@ -640,7 +641,11 @@ describe("proposal document row scoping", () => {
 					metadata: null,
 				}],
 			}))
-			.mockReturnValueOnce(createChain())
+			.mockReturnValueOnce(createChain({
+				onValues: (value) => {
+					complianceEntryInsert = value;
+				},
+			}))
 			.mockReturnValueOnce(createChain());
 
 		const result = await createAndDraftStandardProposalSet(
@@ -659,5 +664,16 @@ describe("proposal document row scoping", () => {
 			documentIds: [sourceDocument.id],
 			versionNumber: 2,
 		});
+		expect(complianceEntryInsert).toEqual([
+			expect.objectContaining({
+				requirementId: requirement.id,
+				complianceStatus: "compliant",
+				responseDocumentId: proposalDocument.documentId,
+				responseReference: "Workflow-First Delivery",
+				responseSummary: "Show offline capture, synchronization, and audit controls.",
+				strengthAssessment: "strong",
+				status: "draft",
+			}),
+		]);
 	});
 });
