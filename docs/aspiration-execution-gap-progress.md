@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Final Submission Authority Check
+
+Status: implemented and verified.
+
+Purpose: prevent final submission recording from inserting submission receipts and marking opportunities submitted unless the authenticated actor has proposal or executive authority.
+
+Changes in this slice:
+- Require `proposal_manager`, `executive`, or admin authority before running final submission readiness workflows or database mutations.
+- Stop unauthorized submission attempts before opportunity lookup, pre-submission audit, final checklist evaluation, submission insert, opportunity status update, or runtime transition.
+- Preserve existing audit, checklist, required-attachment, and final-artifact gates for authorized submitters.
+- Add focused coverage for unauthorized submission recording and update submission auth/scope mocks for role-aware authorization.
+
+Verification:
+- `npm run test -- __tests__/actions/submission-workflow.test.ts __tests__/actions/submissions-scope.test.ts __tests__/actions/submissions-auth.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets final-submission authority with focused submission action tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that only store authority metadata after mutations rather than enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - RFP Parse Reject Authority Check
 
 Status: implemented and verified.

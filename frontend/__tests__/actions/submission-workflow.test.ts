@@ -2,9 +2,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireUserContextMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: requireUserContextMock,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const userHasAuthorityRole = (
+		context: { role?: string; roles?: string[] },
+		requiredRole: string
+	) => {
+		const roles = new Set([context.role, ...(context.roles ?? [])]
+			.filter(Boolean)
+			.map((value) => String(value).trim().toLowerCase()));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		userHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/actions/document-render", () => ({
 	preSubmissionAudit: vi.fn(),
@@ -61,6 +73,7 @@ vi.mock("@/lib/db", () => {
 import { preSubmissionAudit } from "@/lib/actions/document-render";
 import { evaluateFinalSubmissionChecklistWorkflow } from "@/lib/actions/final-submission-checklist-workflow";
 import { createSubmission } from "@/lib/actions/submissions";
+import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
 
 const readyAudit = {
 	opportunityId: "opp-1",
@@ -118,7 +131,7 @@ const storedFinalArtifact = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	requireUserContextMock.mockResolvedValue({ userId: "session-user-1" });
+	requireUserContextMock.mockResolvedValue({ userId: "session-user-1", roles: ["proposal_manager"] });
 	vi.mocked(preSubmissionAudit).mockResolvedValue(readyAudit);
 	vi.mocked(evaluateFinalSubmissionChecklistWorkflow).mockResolvedValue({
 		opportunityId: "opp-1",
@@ -145,6 +158,29 @@ describe("submission workflow gates", () => {
 
 		expect(preSubmissionAudit).not.toHaveBeenCalled();
 		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
+	it("requires proposal or executive authority before recording submission", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			roles: ["writer"],
+		});
+
+		await expect(
+			createSubmission({
+				opportunityId: "opp-1",
+				submittedBy: "Proposal Lead",
+				submissionMethod: "portal",
+				confirmationNumber: "PORTAL-123",
+				attachmentIds: ["doc-1"],
+			})
+		).rejects.toThrow("Recording final submission requires submission authority");
+
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(preSubmissionAudit).not.toHaveBeenCalled();
+		expect(evaluateFinalSubmissionChecklistWorkflow).not.toHaveBeenCalled();
+		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(recordWorkflowRuntimeTransition).not.toHaveBeenCalled();
 	});
 
 	it("blocks submission when pre-submission audit is not ready", async () => {

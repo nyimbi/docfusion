@@ -11,6 +11,7 @@ const blockedDb = vi.hoisted(() => new Proxy({}, {
 
 vi.mock("@/lib/auth-utils", () => ({
 	requireUserContext: requireUserContextMock,
+	userHasAuthorityRole: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
 	db: blockedDb,

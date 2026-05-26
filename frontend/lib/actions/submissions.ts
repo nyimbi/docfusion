@@ -15,7 +15,7 @@ import {
 	opportunities,
 	type SubmissionRow,
 } from "@/lib/db/schema";
-import { requireUserContext } from "@/lib/auth-utils";
+import { requireUserContext, userHasAuthorityRole, type UserContext } from "@/lib/auth-utils";
 import { eq, desc, and, gte, lte, sql, inArray, type SQL } from "drizzle-orm";
 import {
 	evaluateFinalSubmissionChecklistWorkflow,
@@ -128,6 +128,16 @@ function missingRequiredFinalPackageAttachments(
 	);
 }
 
+function requireSubmissionAuthority(userContext: Pick<UserContext, "role" | "roles">): void {
+	const requiredRoles = ["proposal_manager", "executive"];
+	if (requiredRoles.some((role) => userHasAuthorityRole(userContext, role))) {
+		return;
+	}
+	throw new Error(
+		`Recording final submission requires submission authority: requires ${requiredRoles.join(" or ")}`
+	);
+}
+
 /**
  * Create a new submission record.
  */
@@ -143,6 +153,7 @@ export async function createSubmission(
 	if (!input.confirmationNumber?.trim()) {
 		throw new Error("Submission confirmation number or receipt reference is required");
 	}
+	requireSubmissionAuthority(userContext);
 
 	const [opportunity] = await db
 		.select({ id: opportunities.id })

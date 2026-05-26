@@ -49,9 +49,21 @@ var dbMock: {
 	update: ReturnType<typeof vi.fn>;
 };
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: requireUserContextMock,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const userHasAuthorityRole = (
+		context: { role?: string; roles?: string[] },
+		requiredRole: string
+	) => {
+		const roles = new Set([context.role, ...(context.roles ?? [])]
+			.filter(Boolean)
+			.map((value) => String(value).trim().toLowerCase()));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		userHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/db", () => ({
 	db: dbMock = {
@@ -120,6 +132,7 @@ beforeEach(() => {
 	requireUserContextMock.mockResolvedValue({
 		userId: "submission-user-1",
 		organizationId: "org-1",
+		roles: ["proposal_manager"],
 	});
 });
 
