@@ -9,7 +9,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { documents, proposalDocuments, documentSections, opportunities } from "@/lib/db/schema";
+import { documents, documentVersions, proposalDocuments, documentSections, opportunities } from "@/lib/db/schema";
 import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { eq, and, asc, sql, inArray, type SQL } from "drizzle-orm";
 import type {
@@ -139,6 +139,18 @@ type OpportunityResponseContext = Pick<
 	| "strategicNotes"
 >;
 
+export interface RequirementAwareSectionDraftResult {
+	sectionId: string;
+	proposalDocumentId: string;
+	documentId: string;
+	requirementIds: string[];
+	content: DocumentContent;
+	plainText: string;
+	wordCount: number;
+	characterCount: number;
+	versionNumber: number;
+}
+
 function textNode(text: string): ContentNode {
 	return { type: "text", text };
 }
@@ -179,6 +191,10 @@ function formatDate(value: Date | string | null | undefined): string | null {
 	const date = value instanceof Date ? value : new Date(value);
 	if (Number.isNaN(date.getTime())) return null;
 	return date.toISOString().slice(0, 10);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function uniqueStrings(values: string[]): string[] {
@@ -426,6 +442,137 @@ function appendResponsePlanContent(
 	return {
 		...content,
 		content: [...(content.content ?? []), ...planNodes],
+	};
+}
+
+function sectionRequirementDraftLine(requirement: typeof rfpRequirements.$inferSelect): string {
+	const label = requirementLabel(requirement);
+	const source =
+		compactText(requirement.sourceSection, 80) ??
+		(requirement.sourcePage != null ? `page ${requirement.sourcePage}` : "the solicitation");
+	const strategy =
+		compactText(requirement.responseStrategy, 220) ??
+		compactText(requirement.suggestedApproach, 220) ??
+		"Datacraft will address this through the proposed data spine, workflow controls, implementation governance, and auditable evidence chain.";
+
+	return `${label}: The requirement from ${source} states "${compactText(requirement.requirementText, 220) ?? "response required"}". Response: ${strategy}`;
+}
+
+function sectionEvidenceLine(
+	requirement: typeof rfpRequirements.$inferSelect,
+	documentType: ProposalDocumentType
+): string {
+	const label = requirementLabel(requirement);
+	const proof = proofPointsForDocumentType(documentType)[0];
+	const risk = requirement.riskLevel ? ` Risk level: ${requirement.riskLevel}.` : "";
+	const priority = requirement.priority ? ` Priority: ${requirement.priority}.` : "";
+
+	return `${label}:${priority}${risk} Evidence to cite: ${proof}`;
+}
+
+function buildRequirementAwareSectionDraftContent(
+	section: typeof documentSections.$inferSelect,
+	proposalDocument: typeof proposalDocuments.$inferSelect,
+	opportunity: OpportunityResponseContext,
+	requirements: Array<typeof rfpRequirements.$inferSelect>
+): DocumentContent {
+	const documentType = proposalDocument.documentType as ProposalDocumentType;
+	const content: ContentNode[] = [
+		headingNode(2, section.sectionName),
+		paragraphNode(
+			`This section responds to ${opportunity.title} for ${opportunity.organization ?? "the client"}. It should make a direct evaluator-facing claim, cite the requirement source, and connect Datacraft proof to the requested outcome.`
+		),
+		headingNode(3, "Direct Requirement Responses"),
+	];
+
+	if (requirements.length > 0) {
+		content.push(bulletListNode(requirements.map(sectionRequirementDraftLine)));
+	} else {
+		content.push(
+			paragraphNode(
+				"No linked requirements were found for this section. Link extracted requirements before final review so the response can be traced."
+			)
+		);
+	}
+
+	content.push(
+		headingNode(3, "Evaluator Win Angle"),
+		paragraphNode(
+			`Position Datacraft as the lower-risk implementation partner by tying ${getDocumentTypeLabel(documentType).toLowerCase()} claims to operational proof, African-market fit, sovereignty, auditability, and delivery discipline.`
+		),
+		headingNode(3, "Evidence Checklist"),
+		bulletListNode(
+			requirements.length > 0
+				? requirements.map((requirement) => sectionEvidenceLine(requirement, documentType))
+				: proofPointsForDocumentType(documentType)
+		),
+		headingNode(3, "Review Gate"),
+		bulletListNode([
+			"Confirm every mandatory requirement has a direct answer and no unsupported promise.",
+			"Confirm source references, proof points, assumptions, risks, and owner follow-ups are visible before marking this section ready.",
+			"Confirm the compliance matrix points back to this section after final edits.",
+		])
+	);
+
+	return { type: "doc", content };
+}
+
+function markGeneratedSectionDraftNodes(nodes: ContentNode[], sectionId: string): ContentNode[] {
+	return nodes.map((node) => ({
+		...node,
+		attrs: {
+			...(isRecord(node.attrs) ? node.attrs : {}),
+			generatedSectionDraft: true,
+			sectionId,
+		},
+	}));
+}
+
+function replaceSectionDraftContent(
+	documentContent: unknown,
+	sectionId: string,
+	draftContent: DocumentContent
+): DocumentContent {
+	const baseContent = isRecord(documentContent) ? documentContent as DocumentContent : { type: "doc", content: [] };
+	const existingNodes = (baseContent.content ?? []).filter((node) => {
+		const attrs = isRecord(node.attrs) ? node.attrs : {};
+		return !(attrs.generatedSectionDraft === true && attrs.sectionId === sectionId);
+	});
+
+	return {
+		...baseContent,
+		type: "doc",
+		content: [
+			...existingNodes,
+			...markGeneratedSectionDraftNodes(draftContent.content ?? [], sectionId),
+		],
+	};
+}
+
+function draftMetadata(
+	metadata: unknown,
+	section: typeof documentSections.$inferSelect,
+	requirements: Array<typeof rfpRequirements.$inferSelect>,
+	generatedAt: string
+): Record<string, unknown> {
+	const base = isRecord(metadata) ? metadata : {};
+	const existingDrafts = Array.isArray(base.requirementAwareSectionDrafts)
+		? base.requirementAwareSectionDrafts.filter((draft) =>
+			isRecord(draft) && draft.sectionId !== section.id
+		)
+		: [];
+
+	return {
+		...base,
+		requirementAwareSectionDrafts: [
+			...existingDrafts,
+			{
+				sectionId: section.id,
+				sectionName: section.sectionName,
+				requirementIds: requirements.map((requirement) => requirement.id),
+				generatedAt,
+			},
+		],
 	};
 }
 
@@ -1084,6 +1231,156 @@ export async function getSectionProgress(proposalDocumentId: string): Promise<Se
 			totalRequirements: section.requirementIds.length, // Would need requirements lookup for actual total
 		};
 	});
+}
+
+/**
+ * Generate and persist a requirement-aware draft for one proposal section.
+ */
+export async function generateRequirementAwareSectionDraft(
+	sectionId: string
+): Promise<RequirementAwareSectionDraftResult> {
+	const userId = await requireCurrentUserId();
+	const [section] = await db
+		.select()
+		.from(documentSections)
+		.where(visibleDocumentSectionCondition(sectionId, userId))
+		.limit(1);
+
+	if (!section) {
+		throw new Error("Document section not found");
+	}
+
+	const [proposalDocument] = await db
+		.select()
+		.from(proposalDocuments)
+		.where(visibleProposalDocumentCondition(section.proposalDocumentId, userId))
+		.limit(1);
+	if (!proposalDocument) {
+		throw new Error("Proposal document not found");
+	}
+
+	const [document] = await db
+		.select()
+		.from(documents)
+		.where(eq(documents.id, proposalDocument.documentId))
+		.limit(1);
+	if (!document) {
+		throw new Error("Document not found");
+	}
+
+	const [opportunity] = await db
+		.select({
+			id: opportunities.id,
+			title: opportunities.title,
+			organization: opportunities.organization,
+			sector: opportunities.sector,
+			countryRegion: opportunities.countryRegion,
+			category: opportunities.category,
+			deadline: opportunities.deadline,
+			budgetValue: opportunities.budgetValue,
+			projectSummary: opportunities.projectSummary,
+			projectScope: opportunities.projectScope,
+			keyRequirements: opportunities.keyRequirements,
+			technicalRequirements: opportunities.technicalRequirements,
+			submissionRequirements: opportunities.submissionRequirements,
+			fitScore: opportunities.fitScore,
+			winProbability: opportunities.winProbability,
+			strategicNotes: opportunities.strategicNotes,
+		})
+		.from(opportunities)
+		.where(visibleOpportunityCondition(proposalDocument.opportunityId, userId))
+		.limit(1);
+	if (!opportunity) {
+		throw new Error("Opportunity not found");
+	}
+
+	const requirementIds = uniqueStrings((section.requirementIds as string[]) ?? []);
+	const requirements = requirementIds.length > 0
+		? await db
+			.select()
+			.from(rfpRequirements)
+			.where(and(
+				inArray(rfpRequirements.id, requirementIds),
+				visibleRequirementsForOpportunityCondition(proposalDocument.opportunityId, userId)
+			))
+		: [];
+	const draftContent = buildRequirementAwareSectionDraftContent(
+		section,
+		proposalDocument,
+		opportunity,
+		requirements
+	);
+	const mergedContent = replaceSectionDraftContent(document.content, section.id, draftContent);
+	const plainText = extractPlainText(mergedContent);
+	const sectionPlainText = extractPlainText(draftContent);
+	const versionNumber = (document.currentVersion ?? 1) + 1;
+	const generatedAt = new Date().toISOString();
+
+	const [updatedDocument] = await db
+		.update(documents)
+		.set({
+			content: mergedContent,
+			plainText,
+			wordCount: countWords(plainText),
+			characterCount: plainText.length,
+			currentVersion: versionNumber,
+			metadata: draftMetadata(document.metadata, section, requirements, generatedAt),
+			updatedAt: new Date(generatedAt),
+		})
+		.where(eq(documents.id, document.id))
+		.returning();
+	if (!updatedDocument) {
+		throw new Error("Failed to update document draft");
+	}
+
+	await db.insert(documentVersions).values({
+		documentId: document.id,
+		versionNumber,
+		content: mergedContent,
+		changeDescription: `Generated requirement-aware draft for ${section.sectionName}`,
+		createdBy: userId,
+		createdAt: new Date(generatedAt),
+	});
+
+	await db
+		.update(documentSections)
+		.set({
+			status: "drafting",
+			wordCount: countWords(sectionPlainText),
+			requirementIds,
+			updatedAt: new Date(generatedAt),
+		})
+		.where(visibleDocumentSectionCondition(section.id, userId));
+
+	for (const requirement of requirements) {
+		const nextStatus = requirement.complianceStatus === "not_addressed"
+			? "partial"
+			: requirement.complianceStatus;
+		await db
+			.update(rfpRequirements)
+			.set({
+				responseDocumentId: document.id,
+				responseSection: section.sectionName,
+				responseStrategy:
+					requirement.responseStrategy ??
+					`Drafted in ${section.sectionName}; verify evidence and final compliance before submission.`,
+				complianceStatus: nextStatus,
+				updatedAt: new Date(generatedAt),
+			})
+			.where(visibleRequirementCondition(requirement.id, userId));
+	}
+
+	return {
+		sectionId: section.id,
+		proposalDocumentId: proposalDocument.id,
+		documentId: document.id,
+		requirementIds,
+		content: draftContent,
+		plainText: sectionPlainText,
+		wordCount: countWords(sectionPlainText),
+		characterCount: sectionPlainText.length,
+		versionNumber,
+	};
 }
 
 function documentTypeForRequirement(

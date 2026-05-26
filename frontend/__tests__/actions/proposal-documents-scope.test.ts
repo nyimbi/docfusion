@@ -83,6 +83,7 @@ import {
 	bulkUpdateStatus,
 	createProposalDocument,
 	createStandardProposalSet,
+	generateRequirementAwareSectionDraft,
 	getDocumentSections,
 	getProposalDocument,
 	updateProposalDocument,
@@ -313,6 +314,124 @@ describe("proposal document row scoping", () => {
 
 		expect(result).toMatchObject({ id: section.id, status: "in_review" });
 		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("persists requirement-aware section drafts and advances linked requirement coverage", async () => {
+		const requirement = {
+			id: "77777777-7777-4777-8777-777777777777",
+			requirementNumber: "REQ-007",
+			title: "Offline reporting",
+			requirementText: "The supplier shall support offline data capture and synchronized reporting.",
+			sourcePage: 12,
+			sourceSection: "Section C.4",
+			category: "technical",
+			priority: "mandatory",
+			riskLevel: "high",
+			complianceStatus: "not_addressed",
+			responseStrategy: null,
+			suggestedApproach: "Show offline capture, synchronization, and audit controls.",
+		};
+		const linkedSection = {
+			...section,
+			sectionName: "Workflow-First Delivery",
+			requirementIds: [requirement.id],
+		};
+		const sourceDocument = {
+			...documentRow,
+			content: {
+				type: "doc",
+				content: [{ type: "paragraph", content: [{ type: "text", text: "Existing draft." }] }],
+			},
+			plainText: "Existing draft.",
+			metadata: { source: "datacraft_response_sections" },
+			currentVersion: 1,
+			characterCount: 15,
+			ownerId: "proposal-user-1",
+		};
+		const opportunity = {
+			id: proposalDocument.opportunityId,
+			title: "Offline Field Reporting Platform",
+			organization: "Regional Authority",
+			sector: "Government/SOE",
+			countryRegion: "East Africa",
+			category: "Digital Transformation",
+			deadline: null,
+			budgetValue: null,
+			projectSummary: null,
+			projectScope: null,
+			keyRequirements: null,
+			technicalRequirements: null,
+			submissionRequirements: null,
+			fitScore: null,
+			winProbability: null,
+			strategicNotes: null,
+		};
+		const updateSets: Record<string, unknown>[] = [];
+		const updateWheres: unknown[] = [];
+		let versionInsert: Record<string, unknown> | undefined;
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [linkedSection] }))
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
+			.mockReturnValueOnce(createChain({ result: [sourceDocument] }))
+			.mockReturnValueOnce(createChain({ result: [opportunity] }))
+			.mockReturnValueOnce(createChain({ result: [requirement] }));
+		dbMock.update.mockImplementation(() => createChain({
+			result: [{ ...sourceDocument, currentVersion: 2 }],
+			onSet: (value) => {
+				updateSets.push(value);
+			},
+			onWhere: (value) => {
+				updateWheres.push(value);
+			},
+		}));
+		dbMock.insert.mockReturnValueOnce(createChain({
+			onValues: (value) => {
+				versionInsert = value as Record<string, unknown>;
+			},
+		}));
+
+		const result = await generateRequirementAwareSectionDraft(linkedSection.id);
+
+		expect(result).toMatchObject({
+			sectionId: linkedSection.id,
+			proposalDocumentId: proposalDocument.id,
+			documentId: sourceDocument.id,
+			requirementIds: [requirement.id],
+			versionNumber: 2,
+		});
+		expect(result.plainText).toContain("Direct Requirement Responses");
+		expect(result.plainText).toContain("REQ-007");
+		expect(result.plainText).toContain("offline data capture");
+		expect(flattenText(updateSets[0]?.content)).toContain("Existing draft.");
+		expect(flattenText(updateSets[0]?.content)).toContain("Workflow-First Delivery");
+		expect(updateSets[0]?.metadata).toMatchObject({
+			requirementAwareSectionDrafts: [
+				expect.objectContaining({
+					sectionId: linkedSection.id,
+					requirementIds: [requirement.id],
+				}),
+			],
+		});
+		expect(versionInsert).toMatchObject({
+			documentId: sourceDocument.id,
+			versionNumber: 2,
+			changeDescription: "Generated requirement-aware draft for Workflow-First Delivery",
+		});
+		expect(updateSets).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				status: "drafting",
+				requirementIds: [requirement.id],
+			}),
+			expect.objectContaining({
+				responseDocumentId: sourceDocument.id,
+				responseSection: linkedSection.sectionName,
+				complianceStatus: "partial",
+			}),
+		]));
+		expect(updateWheres.some((where) =>
+			collectSqlFragments(where).join(" ").includes("opportunities.assigned_to")
+		)).toBe(true);
 	});
 
 	it("scopes bulk proposal document status updates through assigned opportunities", async () => {

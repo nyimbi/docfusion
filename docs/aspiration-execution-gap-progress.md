@@ -198,3 +198,30 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Strengthen downstream section generation/review so accepted requirement links can drive per-section drafting, evaluator scoring checks, and final compliance verification.
+
+### 2026-05-26 - Requirement-Aware Section Draft Persistence
+
+Status: implemented and verified.
+
+Purpose: turn linked proposal-section requirements into persisted draft content and compliance progress, rather than leaving the links as passive metadata.
+
+Changes in this slice:
+- Add a requirement-aware section draft action that loads the scoped proposal section, proposal document, underlying document, opportunity context, and linked requirements.
+- Generate section-level draft content with direct requirement responses, evaluator win angle, evidence checklist, and review gate prompts.
+- Persist the generated section draft into the underlying document while replacing any previous generated draft for the same section to avoid repeated duplicate blocks.
+- Create a new document version for the persisted draft.
+- Update section word count/status and mark linked not-addressed requirements as partially covered with response document/section traceability.
+- Store generated section draft metadata on the document for later audit and refresh logic.
+- Add focused tests covering document persistence, version creation, section progress, requirement status advancement, and assigned-opportunity scoping.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts __tests__/actions/proposal-documents-auth.test.ts` passed.
+- `npx tsc --noEmit` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This slice used targeted proposal-document action tests and TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Connect the requirement-aware section draft action to an operator-visible UI/control path or response package workflow.
+- Strengthen final review so compliance status is promoted from partial to compliant only after evidence and evaluator-readiness checks pass.
