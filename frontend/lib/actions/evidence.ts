@@ -157,47 +157,48 @@ function visibleEvidenceIdsCondition(ids: string[], userContext: EvidenceUserCon
 	)!;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: EvidenceUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
 function visibleEvidenceUsagesForOpportunityCondition(opportunityId: string, userContext: EvidenceUserContext): SQL {
 	return and(
 		eq(evidenceUsages.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userContext.userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
 function visibleClaimsForOpportunityCondition(opportunityId: string, userContext: EvidenceUserContext): SQL {
 	return and(
 		eq(claimAnalysis.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userContext.userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
-function visibleClaimsForDocumentCondition(documentId: string, userId: string): SQL {
+function visibleClaimsForDocumentCondition(documentId: string, userContext: EvidenceUserContext): SQL {
 	return and(
 		eq(claimAnalysis.documentId, documentId),
-		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userId)
+		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userContext)
 	)!;
 }
 
-function visibleClaimsForSectionCondition(sectionId: string, userId: string): SQL {
+function visibleClaimsForSectionCondition(sectionId: string, userContext: EvidenceUserContext): SQL {
 	return and(
 		eq(claimAnalysis.sectionId, sectionId),
-		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userId)
+		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userContext)
 	)!;
 }
 
-function visibleClaimCondition(claimId: string, userId: string): SQL {
+function visibleClaimCondition(claimId: string, userContext: EvidenceUserContext): SQL {
 	return and(
 		eq(claimAnalysis.id, claimId),
-		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userId)
+		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userContext)
 	)!;
 }
 
@@ -209,7 +210,7 @@ function visibleEvidenceMatrixForOpportunityCondition(
 	return and(
 		eq(evidenceMatrices.opportunityId, opportunityId),
 		eq(evidenceMatrices.matrixType, matrixType),
-		assignedOpportunityExistsSql(opportunityId, userContext.userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
@@ -1206,7 +1207,7 @@ export async function analyzeClaimsInDocument(documentId: string): Promise<Actio
 		const existingClaims = await db
 			.select()
 			.from(claimAnalysis)
-			.where(visibleClaimsForDocumentCondition(documentId, userContext.userId))
+			.where(visibleClaimsForDocumentCondition(documentId, userContext))
 			.orderBy(desc(claimAnalysis.analyzedAt));
 
 		// Map to API format with linked evidence details
@@ -1255,7 +1256,7 @@ export async function analyzeClaimsInSection(sectionId: string): Promise<ActionR
 	try {
 		const userContext = await requireEvidenceContext();
 
-		const claims = await db.select().from(claimAnalysis).where(visibleClaimsForSectionCondition(sectionId, userContext.userId));
+		const claims = await db.select().from(claimAnalysis).where(visibleClaimsForSectionCondition(sectionId, userContext));
 
 		const results: ClaimAnalysisResult[] = [];
 
@@ -1300,7 +1301,7 @@ export async function getClaimAnalysis(claimId: string): Promise<ActionResult<Cl
 	try {
 		const userContext = await requireEvidenceContext();
 
-		const [claim] = await db.select().from(claimAnalysis).where(visibleClaimCondition(claimId, userContext.userId));
+		const [claim] = await db.select().from(claimAnalysis).where(visibleClaimCondition(claimId, userContext));
 
 		if (!claim) {
 			return { success: false, error: "Claim not found" };
@@ -1341,7 +1342,7 @@ export async function getClaimAnalysis(claimId: string): Promise<ActionResult<Cl
  */
 export async function resolveClaim(claimId: string, resolution: ClaimResolutionInput): Promise<ActionResult<{ resolved: boolean }>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireEvidenceContext();
 		const validated = claimResolutionSchema.parse(resolution);
 
 		const updates: Partial<NewClaimAnalysis> = {
@@ -1359,7 +1360,7 @@ export async function resolveClaim(claimId: string, resolution: ClaimResolutionI
 			updates.evidenceStrength = "moderate";
 		}
 
-		const result = await db.update(claimAnalysis).set(updates).where(visibleClaimCondition(claimId, userContext.userId));
+		const result = await db.update(claimAnalysis).set(updates).where(visibleClaimCondition(claimId, userContext));
 
 		if (result.rowCount === 0) {
 			return { success: false, error: "Claim not found" };
@@ -1392,7 +1393,7 @@ export async function linkEvidenceToClaim(claimId: string, evidenceId: string): 
 		const userContext = await requireEvidenceContext();
 
 		// Get current claim
-		const [claim] = await db.select().from(claimAnalysis).where(visibleClaimCondition(claimId, userContext.userId));
+		const [claim] = await db.select().from(claimAnalysis).where(visibleClaimCondition(claimId, userContext));
 
 		if (!claim) {
 			return { success: false, error: "Claim not found" };
@@ -1421,7 +1422,7 @@ export async function linkEvidenceToClaim(claimId: string, evidenceId: string): 
 					hasEvidence: true,
 					evidenceStrength,
 				})
-				.where(visibleClaimCondition(claimId, userContext.userId));
+				.where(visibleClaimCondition(claimId, userContext));
 		}
 
 		revalidatePath("/claims");
@@ -1459,7 +1460,7 @@ export async function suggestEvidenceForClaim(claimId: string): Promise<ActionRe
 		const userContext = await requireEvidenceContext();
 
 		// Get the claim
-		const [claim] = await db.select().from(claimAnalysis).where(visibleClaimCondition(claimId, userContext.userId));
+		const [claim] = await db.select().from(claimAnalysis).where(visibleClaimCondition(claimId, userContext));
 
 		if (!claim) {
 			return { success: true, data: [] };
@@ -1536,7 +1537,7 @@ export async function suggestEvidenceForSection(sectionId: string): Promise<Acti
 		const userContext = await requireEvidenceContext();
 
 		// Get claims in this section
-		const claims = await db.select().from(claimAnalysis).where(visibleClaimsForSectionCondition(sectionId, userContext.userId));
+		const claims = await db.select().from(claimAnalysis).where(visibleClaimsForSectionCondition(sectionId, userContext));
 
 		// Aggregate suggestions from all claims
 		const allSuggestions: EvidenceSuggestion[] = [];
@@ -2769,13 +2770,13 @@ export interface ClaimsSummary {
  */
 export async function getClaimsSummary(documentId: string): Promise<ActionResult<ClaimsSummary>> {
 	try {
-		const userContext = await requireUserContext();
+		const userContext = await requireEvidenceContext();
 
 		// Get all claims for the document
 		const claims = await db
 			.select()
 			.from(claimAnalysis)
-			.where(visibleClaimsForDocumentCondition(documentId, userContext.userId));
+			.where(visibleClaimsForDocumentCondition(documentId, userContext));
 
 		const totalClaims = claims.length;
 		const highRiskClaims = claims.filter(c => c.riskLevel === "high").length;

@@ -239,7 +239,9 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 }
 
 function expectAssignedOpportunityScope(where: unknown) {
-	expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+	const sql = collectSqlFragments(where).join(" ");
+	expect(sql).toContain("opportunities.assigned_to");
+	expect(sql).toContain("opportunities.organization_id");
 }
 
 // ============================================================================
@@ -791,7 +793,7 @@ describe("Evidence opportunity scoping", () => {
 		expect(result.success).toBe(true);
 		expect(wheres).toHaveLength(2);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expectAssignedOpportunityScope(where);
 		}
 	});
 
@@ -821,7 +823,7 @@ describe("Evidence opportunity scoping", () => {
 		expect(result.success).toBe(true);
 		expect(wheres).toHaveLength(2);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expectAssignedOpportunityScope(where);
 		}
 	});
 
@@ -837,7 +839,7 @@ describe("Evidence opportunity scoping", () => {
 		const result = await generateEvidenceReport("33333333-3333-4333-8333-333333333333");
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(usageWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityScope(usageWhere);
 	});
 
 	test("scopes document and section claim reads through assigned opportunities", async () => {

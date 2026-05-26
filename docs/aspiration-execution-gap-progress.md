@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Evidence Claim Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep evidence usage, claim analysis, claim remediation support, matrices, reports, and claims summaries scoped to the caller's organization through their opportunity boundary.
+
+Changes in this slice:
+- Add tenant predicates, with legacy null-opportunity fallback, to the shared evidence opportunity subquery.
+- Thread full evidence context through document claims, section claims, direct claim lookup/update, evidence suggestions, coverage analysis, matrix lookup, reports, and claims summaries.
+- Keep organization-owned evidence library predicates in place while aligning claim/matrix/usage opportunity gates to the same tenant boundary.
+- Extend evidence scope tests to assert opportunity organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- evidence.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` from `frontend/` passed, running 6 compliance/evidence/readiness test files and 77 tests.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to win themes, competitive analysis, and remaining workflow support modules that still use assignment-only checks.
+
 ### 2026-05-26 - Requirements Opportunity Tenant Predicates
 
 Status: implemented and verified.
