@@ -11,7 +11,7 @@ import { fetchUngmOpportunities, isUngmUrl } from "@/lib/services/ungm-client";
 describe("UNGM client", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		fetchPublicHttpUrlMock.mockResolvedValue(new Response(`
+		fetchPublicHttpUrlMock.mockResolvedValueOnce(new Response(`
 			<div role="row" data-noticeid="300726" class="tableRow dataRow notice-table">
 				<div role="cell"></div>
 				<div role="cell"><span class="ungm-title">Consulting services</span><a href="/Public/Notice/300726">Open</a></div>
@@ -23,6 +23,19 @@ describe("UNGM client", () => {
 				<div role="cell"><span>Kenya</span></div>
 			</div>
 			<script>var noticeTotal = "42";</script>
+		`, { status: 200 }));
+		fetchPublicHttpUrlMock.mockResolvedValueOnce(new Response(`
+			<div class="ungm-list-item ungm-background">
+				<div class="title">Description</div>
+				<div><p>Prepare a governance platform implementation proposal.</p></div>
+			</div>
+			<a href="mailto:procurement@example.org">procurement@example.org</a>
+			<table id="tblLinks">
+				<tr data-id="1">
+					<td>https://undp.sharepoint.com/sites/Docs-Public/Procurement</td>
+					<td>Negotiation Document(s)</td>
+				</tr>
+			</table>
 		`, { status: 200 }));
 	});
 
@@ -39,7 +52,7 @@ describe("UNGM client", () => {
 			timeoutMs: 1000,
 		});
 
-		expect(fetchPublicHttpUrlMock).toHaveBeenCalledWith("https://www.ungm.org/Public/Notice/Search", expect.objectContaining({
+		expect(fetchPublicHttpUrlMock).toHaveBeenNthCalledWith(1, "https://www.ungm.org/Public/Notice/Search", expect.objectContaining({
 			method: "POST",
 			timeoutMs: 1000,
 			body: expect.stringContaining("\"PageSize\":5"),
@@ -52,6 +65,10 @@ describe("UNGM client", () => {
 			DeadlineFrom: "26-May-26",
 			IsActive: true,
 		}));
+		expect(fetchPublicHttpUrlMock).toHaveBeenNthCalledWith(2, "https://www.ungm.org/Public/Notice/Popup/300726", expect.objectContaining({
+			method: "GET",
+			timeoutMs: 1000,
+		}), "UNGM notice detail URL");
 		expect(result.total).toBe(42);
 		expect(result.opportunities).toEqual([
 			expect.objectContaining({
@@ -63,6 +80,18 @@ describe("UNGM client", () => {
 				countryRegion: "Kenya",
 				category: "Request for proposal",
 				opportunityType: "rfp",
+				projectSummary: "Prepare a governance platform implementation proposal.",
+				submissionMethod: "Negotiation Document(s)",
+				rfpLink: "https://undp.sharepoint.com/sites/Docs-Public/Procurement",
+				metadata: expect.objectContaining({
+					ungm: expect.objectContaining({
+						contactEmail: "procurement@example.org",
+						primaryLink: {
+							url: "https://undp.sharepoint.com/sites/Docs-Public/Procurement",
+							description: "Negotiation Document(s)",
+						},
+					}),
+				}),
 			}),
 		]);
 	});

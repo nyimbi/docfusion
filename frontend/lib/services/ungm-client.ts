@@ -1,5 +1,9 @@
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
-import { parseUngmSearchHtml } from "@/lib/scrapers/parsers/ungm";
+import {
+	parseUngmNoticeDetailHtml,
+	parseUngmSearchHtml,
+	type UngmNoticeDetail,
+} from "@/lib/scrapers/parsers/ungm";
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 
 interface UngmNoticeSearchPayload {
@@ -36,10 +40,13 @@ export interface UngmFetchOptions {
 	limit?: number;
 	timeoutMs?: number;
 	now?: Date;
+	enrichDetails?: boolean;
+	detailLimit?: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 20000;
 const DEFAULT_LIMIT = 25;
+const DEFAULT_DETAIL_LIMIT = 5;
 const MAX_LIMIT = 50;
 const MONTH_ABBREVIATIONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -112,6 +119,82 @@ function extractSearchTotal(html: string): number | undefined {
 	return match ? Number(match[1]) : undefined;
 }
 
+function buildDetailUrl(sourceOrigin: string, sourceId: string | undefined): string | undefined {
+	if (!sourceId || !/^\d+$/.test(sourceId)) return undefined;
+	return new URL(`/Public/Notice/Popup/${sourceId}`, sourceOrigin).toString();
+}
+
+function metadataRecord(value: OpportunityData["metadata"]): Record<string, unknown> {
+	return value ?? {};
+}
+
+function enrichOpportunityWithDetail(
+	opportunity: OpportunityData,
+	detail: UngmNoticeDetail
+): OpportunityData {
+	const ungmMetadata = metadataRecord(metadataRecord(opportunity.metadata).ungm as Record<string, unknown> | undefined);
+	const detailMetadata = {
+		...ungmMetadata,
+		...(detail.contactEmail ? { contactEmail: detail.contactEmail } : {}),
+		...(detail.links.length > 0 ? { links: detail.links } : {}),
+		...(detail.primaryLink ? { primaryLink: detail.primaryLink } : {}),
+	};
+
+	return {
+		...opportunity,
+		projectSummary: detail.description ?? opportunity.projectSummary,
+		submissionMethod: detail.primaryLink?.description ?? opportunity.submissionMethod,
+		rfpLink: detail.primaryLink?.url ?? opportunity.rfpLink,
+		metadata: {
+			...metadataRecord(opportunity.metadata),
+			ungm: detailMetadata,
+		},
+	};
+}
+
+async function fetchUngmNoticeDetail(
+	detailUrl: string,
+	timeoutMs: number
+): Promise<UngmNoticeDetail> {
+	const response = await fetchPublicHttpUrl(detailUrl, {
+		method: "GET",
+		headers: {
+			Accept: "text/html, */*; q=0.01",
+			Referer: new URL("/Public/Notice", detailUrl).toString(),
+			"User-Agent": "DocFusion/1.0 opportunity-discovery",
+			"X-Requested-With": "XMLHttpRequest",
+		},
+		timeoutMs,
+	}, "UNGM notice detail URL");
+
+	if (!response.ok) {
+		throw new Error(`UNGM notice detail returned HTTP ${response.status}`);
+	}
+	return parseUngmNoticeDetailHtml(await response.text(), new URL(detailUrl).origin);
+}
+
+async function enrichUngmOpportunities(
+	opportunities: OpportunityData[],
+	sourceOrigin: string,
+	timeoutMs: number,
+	detailLimit: number
+): Promise<OpportunityData[]> {
+	if (detailLimit <= 0) return opportunities;
+
+	const enriched = [...opportunities];
+	for (let index = 0; index < Math.min(detailLimit, enriched.length); index++) {
+		const detailUrl = buildDetailUrl(sourceOrigin, enriched[index].sourceId);
+		if (!detailUrl) continue;
+		try {
+			const detail = await fetchUngmNoticeDetail(detailUrl, timeoutMs);
+			enriched[index] = enrichOpportunityWithDetail(enriched[index], detail);
+		} catch {
+			// Detail enrichment is opportunistic; the listing row remains usable.
+		}
+	}
+	return enriched;
+}
+
 export async function fetchUngmOpportunities(
 	sourceUrl: string,
 	options: UngmFetchOptions = {}
@@ -138,9 +221,19 @@ export async function fetchUngmOpportunities(
 	}
 
 	const html = await response.text();
+	const opportunities = parseUngmSearchHtml(html, parsed.origin);
+	const detailLimit = options.enrichDetails === false
+		? 0
+		: Math.min(Math.max(options.detailLimit ?? DEFAULT_DETAIL_LIMIT, 0), opportunities.length);
+
 	return {
 		searchUrl,
-		opportunities: parseUngmSearchHtml(html, parsed.origin),
+		opportunities: await enrichUngmOpportunities(
+			opportunities,
+			parsed.origin,
+			options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+			detailLimit
+		),
 		total: extractSearchTotal(html),
 	};
 }

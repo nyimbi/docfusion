@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseUngmSearchHtml } from "@/lib/scrapers/parsers/ungm";
+import { parseUngmNoticeDetailHtml, parseUngmSearchHtml } from "@/lib/scrapers/parsers/ungm";
 
 describe("UNGM parser", () => {
 	it("parses public notice search rows into canonical opportunity data", () => {
@@ -43,5 +43,42 @@ describe("UNGM parser", () => {
 		]);
 		expect(opportunities[0].deadline).toEqual(new Date(2026, 4, 26, 15, 30, 0));
 		expect(opportunities[0].publishedDate).toEqual(new Date(2026, 4, 13));
+	});
+
+	it("extracts public notice detail descriptions, contacts, and procurement links", () => {
+		const detail = parseUngmNoticeDetailHtml(`
+			<div class="ungm-list-item ungm-background">
+				<div class="title">Description</div>
+				<div>
+					<p>Submit offers through Quantum.</p>
+					<p>Questions go to procurement@example.org.</p>
+				</div>
+			</div>
+			<a href="mailto:procurement@example.org">procurement@example.org</a>
+			<table id="tblLinks">
+				<tbody>
+					<tr data-id="1">
+						<td>https://example.org/register</td>
+						<td>Supplier Registration</td>
+					</tr>
+					<tr data-id="2">
+						<td>https://undp.sharepoint.com/sites/Docs-Public/Procurement</td>
+						<td>Negotiation Document(s)</td>
+					</tr>
+					<tr data-id="3">
+						<td>https://procurement-notices.undp.org/view_negotiation_dlink.cfm?nego_id=45454</td>
+						<td>Direct link to Quantum Negotiation</td>
+					</tr>
+				</tbody>
+			</table>
+		`);
+
+		expect(detail.description).toBe("Submit offers through Quantum. Questions go to procurement@example.org.");
+		expect(detail.contactEmail).toBe("procurement@example.org");
+		expect(detail.links).toHaveLength(3);
+		expect(detail.primaryLink).toEqual({
+			url: "https://undp.sharepoint.com/sites/Docs-Public/Procurement",
+			description: "Negotiation Document(s)",
+		});
 	});
 });

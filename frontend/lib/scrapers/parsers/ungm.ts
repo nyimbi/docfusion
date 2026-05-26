@@ -22,6 +22,18 @@ interface UngmNoticeRow {
 	portalUrl?: string;
 }
 
+export interface UngmNoticeDetailLink {
+	url: string;
+	description?: string;
+}
+
+export interface UngmNoticeDetail {
+	description?: string;
+	contactEmail?: string;
+	links: UngmNoticeDetailLink[];
+	primaryLink?: UngmNoticeDetailLink;
+}
+
 const HTML_ENTITIES: Record<string, string> = {
 	amp: "&",
 	lt: "<",
@@ -89,6 +101,44 @@ function resolveUrl(rawUrl: string | undefined, baseUrl: string): string | undef
 	} catch {
 		return undefined;
 	}
+}
+
+function extractHtmlBlockAfterTitle(html: string, title: string): string | undefined {
+	const titlePattern = new RegExp(`<div\\b[^>]*class=["'][^"']*\\btitle\\b[^"']*["'][^>]*>\\s*${title}\\s*<\\/div>`, "i");
+	const titleMatch = titlePattern.exec(html);
+	if (titleMatch?.index === undefined) return undefined;
+	const afterTitle = html.slice(titleMatch.index + titleMatch[0].length);
+	return extractFirstDivContent(afterTitle);
+}
+
+function extractFirstDivContent(html: string): string | undefined {
+	const tagPattern = /<\/?div\b[^>]*>/gi;
+	let firstOpen: RegExpExecArray | null = null;
+	let tagMatch: RegExpExecArray | null;
+	while ((tagMatch = tagPattern.exec(html)) !== null) {
+		if (!tagMatch[0].startsWith("</")) {
+			firstOpen = tagMatch;
+			break;
+		}
+	}
+	if (!firstOpen) return undefined;
+
+	const contentStart = tagPattern.lastIndex;
+	let depth = 1;
+	while ((tagMatch = tagPattern.exec(html)) !== null) {
+		if (tagMatch[0].startsWith("</")) {
+			depth--;
+			if (depth === 0) return html.slice(contentStart, tagMatch.index);
+		} else {
+			depth++;
+		}
+	}
+	return undefined;
+}
+
+function extractTableCells(rowHtml: string): string[] {
+	return [...rowHtml.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi)]
+		.map((match) => cleanText(stripTags(match[1])));
 }
 
 function parseUngmDate(value: string | undefined): Date | undefined {
@@ -186,6 +236,52 @@ function opportunityTypeFromNoticeType(noticeType: string | undefined): Opportun
 	if (lower.includes("bid")) return "tender";
 	if (lower.includes("grant")) return "grant";
 	return "tender";
+}
+
+function scoreDetailLink(link: UngmNoticeDetailLink): number {
+	const haystack = `${link.description ?? ""} ${link.url}`.toLowerCase();
+	let score = 0;
+	if (haystack.includes("negotiation document")) score += 10;
+	if (haystack.includes("document")) score += 6;
+	if (haystack.includes("direct link")) score += 5;
+	if (haystack.includes("procurement notices")) score += 4;
+	if (haystack.includes("quantum")) score += 3;
+	if (link.url.includes("sharepoint.com")) score += 7;
+	if (link.url.includes("view_negotiation_dlink")) score += 6;
+	if (/\/login\.cfm(?:[?#]|$)/i.test(link.url)) score -= 20;
+	if (/\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)/i.test(link.url)) score += 8;
+	if (link.url.startsWith("https://")) score += 1;
+	return score;
+}
+
+function selectPrimaryDetailLink(links: UngmNoticeDetailLink[]): UngmNoticeDetailLink | undefined {
+	return [...links].sort((a, b) => scoreDetailLink(b) - scoreDetailLink(a))[0];
+}
+
+export function parseUngmNoticeDetailHtml(html: string | undefined, baseUrl = "https://www.ungm.org"): UngmNoticeDetail {
+	if (!html?.trim()) return { links: [] };
+
+	const description = cleanText(stripTags(extractHtmlBlockAfterTitle(html, "Description") ?? "")) || undefined;
+	const contactEmail = html.match(/mailto:([^"'>\s]+)/i)?.[1];
+	const links: UngmNoticeDetailLink[] = [];
+	const linksTable = html.match(/<table\b[^>]*id=["']tblLinks["'][^>]*>([\s\S]*?)<\/table>/i)?.[1] ?? "";
+	for (const rowMatch of linksTable.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+		const cells = extractTableCells(rowMatch[1]);
+		if (cells.length < 2) continue;
+		const url = resolveUrl(cells[0], baseUrl);
+		if (!url || !/^https?:\/\//i.test(url)) continue;
+		links.push({
+			url,
+			description: cells[1] || undefined,
+		});
+	}
+
+	return {
+		description,
+		contactEmail,
+		links,
+		primaryLink: selectPrimaryDetailLink(links),
+	};
 }
 
 export function mapUngmNoticeRowToOpportunity(row: UngmNoticeRow): OpportunityData {

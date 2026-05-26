@@ -26,6 +26,7 @@ interface LiveUngmProof {
 		searchUrl?: string;
 		total?: number;
 		opportunityCount: number;
+		detailEnrichedCount?: number;
 		portalFetch?: {
 			url: string;
 			status: number;
@@ -40,6 +41,10 @@ interface LiveUngmProof {
 			countryRegion?: string;
 			deadline?: string;
 			portalUrl?: string;
+			rfpLink?: string;
+			projectSummaryLength?: number;
+			detailLinkCount?: number;
+			primaryLinkUrl?: string;
 		}>;
 	};
 	error?: string;
@@ -76,6 +81,13 @@ async function proveUngmSource(): Promise<LiveUngmProof["source"]> {
 	if (result.opportunities.length === 0) {
 		throw new Error("UNGM notice search returned no mapped opportunities");
 	}
+	const detailEnrichedCount = result.opportunities
+		.slice(0, 5)
+		.filter((opportunity) => getUngmDetailLinkCount(opportunity) > 0)
+		.length;
+	if (detailEnrichedCount === 0) {
+		throw new Error("UNGM notice detail enrichment returned no public detail links for the sampled opportunities");
+	}
 
 	const firstPortalUrl = result.opportunities[0]?.portalUrl;
 	if (!firstPortalUrl) {
@@ -98,6 +110,7 @@ async function proveUngmSource(): Promise<LiveUngmProof["source"]> {
 		searchUrl: result.searchUrl,
 		total: result.total,
 		opportunityCount: result.opportunities.length,
+		detailEnrichedCount,
 		portalFetch: {
 			url: firstPortalUrl,
 			status: portalResponse.status,
@@ -114,8 +127,31 @@ async function proveUngmSource(): Promise<LiveUngmProof["source"]> {
 				? opportunity.deadline.toISOString()
 				: opportunity.deadline ?? undefined,
 			portalUrl: opportunity.portalUrl,
+			rfpLink: opportunity.rfpLink,
+			projectSummaryLength: opportunity.projectSummary?.length,
+			detailLinkCount: getUngmDetailLinkCount(opportunity),
+			primaryLinkUrl: getUngmPrimaryLinkUrl(opportunity),
 		})),
 	};
+}
+
+function getUngmMetadata(opportunity: { metadata?: Record<string, unknown> }): Record<string, unknown> {
+	const metadata = opportunity.metadata?.ungm;
+	return metadata && typeof metadata === "object" && !Array.isArray(metadata)
+		? metadata as Record<string, unknown>
+		: {};
+}
+
+function getUngmDetailLinkCount(opportunity: { metadata?: Record<string, unknown> }): number {
+	const links = getUngmMetadata(opportunity).links;
+	return Array.isArray(links) ? links.length : 0;
+}
+
+function getUngmPrimaryLinkUrl(opportunity: { metadata?: Record<string, unknown> }): string | undefined {
+	const primaryLink = getUngmMetadata(opportunity).primaryLink;
+	if (!primaryLink || typeof primaryLink !== "object" || Array.isArray(primaryLink)) return undefined;
+	const url = (primaryLink as Record<string, unknown>).url;
+	return typeof url === "string" ? url : undefined;
 }
 
 async function writeArtifacts(proof: LiveUngmProof, disposition: EvidenceRecord["disposition"]) {
@@ -130,6 +166,7 @@ async function writeArtifacts(proof: LiveUngmProof, disposition: EvidenceRecord[
 			`source:${proof.source.url}`,
 			`search:${proof.source.searchUrl ?? "unknown"}`,
 			`opportunities:${proof.source.opportunityCount}`,
+			`detail-enriched:${proof.source.detailEnrichedCount ?? 0}`,
 			`portal-fetch:${proof.source.portalFetch?.status ?? "not-run"}`,
 		],
 		topology_tier: "live-connectivity",

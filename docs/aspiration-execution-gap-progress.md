@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - UNGM Notice Detail Enrichment
+
+Status: implemented and verified.
+
+Purpose: improve UNGM opportunity quality by enriching listing rows with public notice detail descriptions, contact email, and procurement/document links.
+
+Changes in this slice:
+- Parse UNGM popup detail panels for description text, contact email, and `tblLinks` procurement URLs.
+- Fetch notice details for a bounded number of UNGM search results and merge detail summaries, submission method labels, and best public procurement link into the canonical opportunity data.
+- Rank UNGM links so actual SharePoint negotiation-document URLs beat helper login links.
+- Tighten the live UNGM proof so it fails if sampled notice details do not contribute public links.
+
+Verification:
+- `npm test -- ungm-parser.test.ts ungm-client.test.ts discovery-opportunity-import.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run live-ungm-source --include-live-safe` from `frontend/` passed, returning 10 mapped opportunities, 5 detail-enriched sampled notices, and SharePoint negotiation-document links for the sampled UNGM notices.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 test files and 110 tests across discovery/import through submission gates.
+
+Remaining after this slice:
+- Live persisted import-to-parse proof still depends on target database connectivity; current DB connection attempts return connection refused.
+
 ### 2026-05-26 - Discovery Defaults Include Live UNGM
 
 Status: implemented and verified.
