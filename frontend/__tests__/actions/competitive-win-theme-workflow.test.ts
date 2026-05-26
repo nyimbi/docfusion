@@ -4,12 +4,25 @@ const { requireUserContextMock } = vi.hoisted(() => ({
 	requireUserContextMock: vi.fn(async () => ({
 		userId: "strategist-1",
 		organizationId: "org-1",
+		roles: ["proposal_strategist"],
 	})),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: requireUserContextMock,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const userHasAuthorityRole = (
+		context: { role?: string; roles?: string[] },
+		requiredRole: string
+	) => {
+		const roles = new Set([context.role, ...(context.roles ?? [])]
+			.filter(Boolean)
+			.map((value) => String(value).trim().toLowerCase()));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		userHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "strategy-workflow-1" })),
@@ -182,6 +195,7 @@ beforeEach(() => {
 	requireUserContextMock.mockResolvedValue({
 		userId: "strategist-1",
 		organizationId: "org-1",
+		roles: ["proposal_strategist"],
 	});
 	dbMock.select.mockReset();
 	dbMock.update.mockReset();
@@ -280,6 +294,27 @@ describe("competitive and win-theme workflows", () => {
 			terminal: true,
 			assignedRole: null,
 		}));
+	});
+
+	it("requires proposal strategy authority before terminal win-theme decisions", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["proposal_writer"],
+		});
+
+		await expect(
+			transitionWinThemeLifecycleWorkflow({
+				themeId: "theme-1",
+				action: "archive",
+				reason: "Theme conflicts with revised capture strategy",
+			})
+		).rejects.toThrow("Approving win strategy decisions requires proposal strategy authority");
+
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(recordWorkflowRuntimeTransition).not.toHaveBeenCalled();
+		expect(upsertWorkflowRuntimeTask).not.toHaveBeenCalled();
 	});
 
 	it("accepts a theme injection with modifications and preserves reviewer text", async () => {

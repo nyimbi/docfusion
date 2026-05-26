@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Win Strategy Authority Preflight
+
+Status: implemented and verified.
+
+Purpose: prevent non-authorized actors from approving competitive intelligence, win themes, theme injection text, or consistency signoff before proposal strategy authority is enforced.
+
+Changes in this slice:
+- Require `proposal_strategist`, `capture_manager`, `proposal_manager`, or admin authority before terminal competitive-intelligence approval.
+- Require the same strategy authority before terminal win-theme approval/archive, theme injection accept/modify/reject, and theme consistency approval.
+- Preserve non-terminal strategy review, stale-flagging, activation, gap-flagging, and reopen behavior for assigned opportunity users.
+- Add focused coverage that unauthorized terminal win-theme decisions stop before DB reads, mutations, workflow runtime recording, or task projection.
+
+Verification:
+- `npm run test -- __tests__/actions/competitive-win-theme-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets win strategy authority preflight behavior with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that mutate response, governance, or submission state without enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Submission Correction Authority Preflight
 
 Status: implemented and verified.

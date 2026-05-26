@@ -7,7 +7,7 @@ import {
 	themeInjectionPoints,
 	winThemes,
 } from "@/lib/db/schema-win-themes";
-import { requireUserContext } from "@/lib/auth-utils";
+import { requireUserContext, userHasAuthorityRole, type UserContext } from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
@@ -141,6 +141,7 @@ export async function transitionCompetitiveIntelWorkflow(
 ): Promise<StrategyWorkflowResult> {
 	const userContext = await requireUserContext();
 	const reason = requireReason(input.reason, "Competitive intelligence transitions require a reason");
+	requireStrategyAuthority(userContext, input.action === "approve_current");
 	const [analysis] = await db
 		.select()
 		.from(competitiveAnalyses)
@@ -197,6 +198,7 @@ export async function transitionWinThemeLifecycleWorkflow(
 ): Promise<StrategyWorkflowResult> {
 	const userContext = await requireUserContext();
 	const reason = requireReason(input.reason, "Win theme lifecycle transitions require a reason");
+	requireStrategyAuthority(userContext, input.action === "approve" || input.action === "archive");
 	const [theme] = await db
 		.select()
 		.from(winThemes)
@@ -254,6 +256,7 @@ export async function transitionThemeInjectionWorkflow(
 ): Promise<StrategyWorkflowResult> {
 	const userContext = await requireUserContext();
 	const reason = requireReason(input.reason, "Win theme injection transitions require a reason");
+	requireStrategyAuthority(userContext, input.action === "accept" || input.action === "modify" || input.action === "reject");
 	const [injection] = await db
 		.select()
 		.from(themeInjectionPoints)
@@ -321,6 +324,7 @@ export async function transitionThemeConsistencyWorkflow(
 ): Promise<StrategyWorkflowResult> {
 	const userContext = await requireUserContext();
 	const reason = requireReason(input.reason, "Win theme consistency transitions require a reason");
+	requireStrategyAuthority(userContext, input.action === "approve_consistency");
 	const [analysis] = await db
 		.select()
 		.from(themeAnalysisResults)
@@ -710,6 +714,22 @@ function requireReason(value: string, message: string): string {
 		throw new Error(message);
 	}
 	return reason;
+}
+
+function requireStrategyAuthority(
+	userContext: Pick<UserContext, "role" | "roles">,
+	required: boolean
+): void {
+	if (!required) {
+		return;
+	}
+	const requiredRoles = ["proposal_strategist", "capture_manager", "proposal_manager"];
+	if (requiredRoles.some((role) => userHasAuthorityRole(userContext, role))) {
+		return;
+	}
+	throw new Error(
+		`Approving win strategy decisions requires proposal strategy authority: requires ${requiredRoles.join(" or ")}`
+	);
 }
 
 function normalizeDueAt(value: Date | string | null | undefined, defaultDays: number): Date {
