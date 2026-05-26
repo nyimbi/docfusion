@@ -16,6 +16,19 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Current Discovery-To-Submission Proof Refresh
+
+Status: verified.
+
+Purpose: re-run the broad non-live platform proof after the live-source and document-intake changes so current evidence covers the discovery-to-response path, not just individual slices.
+
+Verification:
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed.
+- The proof ran 13 test files and 109 tests covering discovery route/import, document discovery, source document download, RFP parse workflow, requirements, proposal documents, final artifact routes/workflow, final submission checklist, submission workflow, and submission scope.
+
+Remaining after this slice:
+- Add a live-safe proof that runs configured-source discovery with bounded source-document download against current live services and persists auditable import/download evidence.
+
 ### 2026-05-26 - Discovery Presets Preserve Document Intake
 
 Status: implemented and verified.
