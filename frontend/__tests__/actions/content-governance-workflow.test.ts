@@ -7,9 +7,21 @@ const { requireUserContextMock } = vi.hoisted(() => ({
 	})),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: requireUserContextMock,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const userHasAuthorityRole = (
+		context: { role?: string; roles?: string[] },
+		requiredRole: string
+	) => {
+		const roles = new Set([context.role, ...(context.roles ?? [])]
+			.filter(Boolean)
+			.map((value) => String(value).trim().toLowerCase()));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		userHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "content-workflow-1" })),
@@ -142,6 +154,7 @@ beforeEach(() => {
 	requireUserContextMock.mockResolvedValue({
 		userId: "content-governor-1",
 		organizationId: "org-1",
+		roles: ["content_governor"],
 	});
 	dbMock.select.mockReset();
 	dbMock.update.mockReset();
@@ -262,6 +275,29 @@ describe("content governance workflow", () => {
 			assignedRole: null,
 			dueAt: null,
 		}));
+	});
+
+	it("requires content governance authority before approving reusable content", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "content-author-1",
+			organizationId: "org-1",
+			roles: ["proposal_writer"],
+		});
+
+		await expect(
+			transitionContentGovernanceWorkflow({
+				snippetId: "snippet-1",
+				action: "approve_current",
+				reason: "Looks current",
+				qualityScore: 90,
+			})
+		).rejects.toThrow("Approving or archiving reusable content requires content governance authority");
+
+		expect(dbMock.select).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(recordWorkflowRuntimeTransition).not.toHaveBeenCalled();
+		expect(upsertWorkflowRuntimeTask).not.toHaveBeenCalled();
 	});
 
 	it("creates analytics state for a snippet with no existing governance row", async () => {

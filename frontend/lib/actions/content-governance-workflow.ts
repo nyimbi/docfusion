@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { templateSnippets, snippetAnalytics } from "@/lib/db/schema";
-import { requireUserContext } from "@/lib/auth-utils";
+import { requireUserContext, userHasAuthorityRole, type UserContext } from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
@@ -65,6 +65,7 @@ export async function transitionContentGovernanceWorkflow(
 	if (!reason) {
 		throw new Error("Content governance transitions require a reason");
 	}
+	requireContentGovernanceAuthority(userContext, input.action);
 
 	const [snippet] = await db
 		.select()
@@ -242,6 +243,22 @@ function buildGovernanceTransition(
 				},
 			};
 	}
+}
+
+function requireContentGovernanceAuthority(
+	userContext: Pick<UserContext, "role" | "roles">,
+	action: ContentGovernanceAction
+): void {
+	if (action !== "approve_current" && action !== "archive") {
+		return;
+	}
+	const requiredRoles = ["content_governor", "proposal_manager"];
+	if (requiredRoles.some((role) => userHasAuthorityRole(userContext, role))) {
+		return;
+	}
+	throw new Error(
+		`Approving or archiving reusable content requires content governance authority: requires ${requiredRoles.join(" or ")}`
+	);
 }
 
 async function updateAnalytics(

@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Reusable Content Governance Authority Check
+
+Status: implemented and verified.
+
+Purpose: prevent reusable response-library content from being approved as current or archived unless the authenticated actor has content-governance or proposal-management authority.
+
+Changes in this slice:
+- Require `content_governor`, `proposal_manager`, or admin authority for terminal reusable-content `approve_current` and `archive` actions before snippet lookup or analytics mutation.
+- Preserve mark-review-needed, mark-stale, and reopen-review behavior for visible organization snippets.
+- Stop unauthorized reusable-content approval before DB reads, analytics updates/inserts, workflow runtime recording, or task projection.
+- Add focused coverage for non-authority reusable-content approval attempts.
+
+Verification:
+- `npm run test -- __tests__/actions/content-governance-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets reusable content governance authority with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that mutate response, governance, or submission state without enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Customer Clarification Authority Check
 
 Status: implemented and verified.
