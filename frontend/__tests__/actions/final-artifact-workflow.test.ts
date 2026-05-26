@@ -168,6 +168,16 @@ const renderedHash = createHash("sha256")
 	.update(Buffer.from("rendered final proposal"))
 	.digest("hex");
 
+function sourceContentHash(document: typeof baseDocument): string {
+	return createHash("sha256")
+		.update(JSON.stringify({
+			title: document.title,
+			content: document.content,
+			plainText: document.plainText,
+		}))
+		.digest("hex");
+}
+
 function storedArtifact(overrides: Record<string, unknown> = {}) {
 	return {
 		documentId: "doc-1",
@@ -186,6 +196,8 @@ function storedArtifact(overrides: Record<string, unknown> = {}) {
 		storageEndpoint: "https://objects.example.com",
 		renderedAt: "2026-05-05T00:00:00.000Z",
 		renderedBy: "production-lead-1",
+		sourceDocumentVersion: baseDocument.currentVersion,
+		sourceContentHash: sourceContentHash(baseDocument),
 		renderTimeMs: 42,
 		pageCount: 12,
 		...overrides,
@@ -358,6 +370,8 @@ describe("final artifact workflow", () => {
 			storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
 			storageBucket: "mansa",
 			storageEtag: "\"artifact-etag\"",
+			sourceDocumentVersion: baseDocument.currentVersion,
+			sourceContentHash: sourceContentHash(baseDocument),
 		});
 		expect(result.artifact?.downloadUrl).toContain(`/api/v1/documents/doc-1/final-artifact?artifactHash=${renderedHash}`);
 		expect(storageMock.uploadToLinodeE3).toHaveBeenCalledWith(
@@ -521,6 +535,38 @@ describe("final artifact workflow", () => {
 				authorityPolicy: { requiredRoles: ["proposal_manager"] },
 			})
 		);
+	});
+
+	it("blocks approving a rendered artifact when the document changed after rendering", async () => {
+		const changedDocument = {
+			...baseDocument,
+			currentVersion: baseDocument.currentVersion + 1,
+			plainText: "Final content with a late correction",
+		};
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [proposalDocument],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					...changedDocument,
+					metadata: {
+						renderedArtifacts: {
+							docx: storedArtifact(),
+						},
+					},
+				}],
+			}));
+
+		await expect(transitionFinalArtifactWorkflow({
+			documentId: "doc-1",
+			proposalDocumentId: "proposal-doc-1",
+			action: "approve",
+			reason: "Approve stale artifact",
+			format: "docx",
+			approvalRole: "proposal_manager",
+		})).rejects.toThrow("requires re-rendering the current document version");
+		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
 	it("records executive signoff only after the final artifact is approved", async () => {

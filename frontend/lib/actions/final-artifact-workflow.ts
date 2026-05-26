@@ -43,6 +43,8 @@ export interface FinalArtifactManifest {
 	storageEndpoint: string;
 	renderedAt: string;
 	renderedBy: string;
+	sourceDocumentVersion: number | null;
+	sourceContentHash: string;
 	renderTimeMs: number | null;
 	pageCount: number | null;
 }
@@ -303,6 +305,8 @@ async function buildTransition(input: {
 				format,
 				renderedBy: input.actor.userId,
 				renderedAt: now,
+				sourceDocumentVersion: input.document.currentVersion ?? null,
+				sourceContentHash: hashDocumentSource(input.document),
 				renderResult: {
 					data: renderResult.data,
 					filename: renderResult.filename,
@@ -332,6 +336,7 @@ async function buildTransition(input: {
 			if (!artifact) {
 				throw new Error("Approving a final artifact requires a rendered artifact manifest");
 			}
+			assertArtifactMatchesCurrentDocument(artifact, input.document);
 			return {
 				toState: "artifact_approved",
 				terminal: true,
@@ -506,6 +511,8 @@ async function buildStoredManifest(input: {
 	format: ExportFormat;
 	renderedBy: string;
 	renderedAt: Date;
+	sourceDocumentVersion: number | null;
+	sourceContentHash: string;
 	renderResult: {
 		data: string;
 		filename: string;
@@ -557,9 +564,33 @@ async function buildStoredManifest(input: {
 		storageEndpoint: upload.endpoint,
 		renderedAt: input.renderedAt.toISOString(),
 		renderedBy: input.renderedBy,
+		sourceDocumentVersion: input.sourceDocumentVersion,
+		sourceContentHash: input.sourceContentHash,
 		renderTimeMs: input.renderResult.renderTimeMs ?? null,
 		pageCount: input.renderResult.pageCount ?? null,
 	};
+}
+
+function hashDocumentSource(document: DocumentRow): string {
+	return createHash("sha256")
+		.update(JSON.stringify({
+			title: document.title,
+			content: document.content,
+			plainText: document.plainText,
+		}))
+		.digest("hex");
+}
+
+function assertArtifactMatchesCurrentDocument(
+	artifact: FinalArtifactManifest,
+	document: DocumentRow
+): void {
+	if (
+		artifact.sourceDocumentVersion !== (document.currentVersion ?? null) ||
+		artifact.sourceContentHash !== hashDocumentSource(document)
+	) {
+		throw new Error("Approving a final artifact requires re-rendering the current document version");
+	}
 }
 
 function buildFinalArtifactObjectKey(params: {

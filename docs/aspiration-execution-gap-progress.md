@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Final Artifact Stale Render Guard
+
+Status: implemented and verified.
+
+Purpose: prevent an obsolete rendered proposal artifact from being approved after the source document changes.
+
+Changes in this slice:
+- Store the source document version and source content hash on rendered final artifact manifests.
+- Require final artifact approval to match the current document version and content hash.
+- Block approval with a re-render error when a late document edit makes the rendered artifact stale.
+- Add focused final-artifact coverage for stale render rejection while preserving normal render, approval, signoff, and reopen behavior.
+
+Verification:
+- `npm run test -- __tests__/actions/final-artifact-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets final artifact readiness with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue hardening final submission checklist coverage, submission artifact retrieval, and end-to-end discovery-to-submission proof.
+
 ### 2026-05-26 - Accepted-Only Response Package Seeding
 
 Status: implemented and verified.
