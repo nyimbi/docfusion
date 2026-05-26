@@ -74,39 +74,36 @@ export type ActionResult<T> =
 	| { success: false; error: string };
 
 type OrganizationColumn = AnyColumn<{ data: string; notNull: false }>;
+type GraphicUserContext = UserContext & { organizationId: string };
 
-async function requireGraphicContext(organizationId?: string | null): Promise<UserContext> {
+async function requireGraphicContext(organizationId?: string | null): Promise<GraphicUserContext> {
 	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
 	if (organizationId && organizationId !== userContext.organizationId) {
 		throw new Error("Unauthorized");
 	}
-	return userContext;
+	return userContext as GraphicUserContext;
 }
 
-async function requireGraphicActor(): Promise<string> {
-	return (await requireGraphicContext()).userId;
+async function requireGraphicActor(): Promise<GraphicUserContext> {
+	return await requireGraphicContext();
 }
 
-function mutableOrganizationCondition(column: OrganizationColumn, userContext: UserContext) {
-	return userContext.organizationId
-		? eq(column, userContext.organizationId)
-		: isNull(column);
+function mutableOrganizationCondition(column: OrganizationColumn, userContext: GraphicUserContext) {
+	return eq(column, userContext.organizationId);
 }
 
-function visibleTemplateCondition(userContext: UserContext) {
-	return userContext.organizationId
-		? or(
-			isNull(graphicTemplates.organizationId),
-			eq(graphicTemplates.organizationId, userContext.organizationId),
-			eq(graphicTemplates.isPublic, true)
-		)
-		: or(
-			isNull(graphicTemplates.organizationId),
-			eq(graphicTemplates.isPublic, true)
-		);
+function visibleTemplateCondition(userContext: GraphicUserContext) {
+	return or(
+		isNull(graphicTemplates.organizationId),
+		eq(graphicTemplates.organizationId, userContext.organizationId),
+		eq(graphicTemplates.isPublic, true)
+	);
 }
 
-function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
+function organizationForInsert(inputOrganizationId: string | undefined, userContext: GraphicUserContext): string {
 	return inputOrganizationId ?? userContext.organizationId;
 }
 
@@ -117,73 +114,80 @@ function normalizeGraphicSearchLimit(limit: number | undefined, fallback = 20, m
 	return Math.max(1, Math.min(maximum, Math.floor(limit)));
 }
 
-function assignedOpportunityCondition(userId: string): SQL {
-	return sql`opportunities.assigned_to = ${userId}`;
+function assignedOpportunityCondition(userContext: GraphicUserContext): SQL {
+	return sql`(opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+		and opportunities.assigned_to = ${userContext.userId}`;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: GraphicUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleOpportunityCondition(opportunityId: string, userContext: GraphicUserContext): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		assignedOpportunityCondition(userId)
+		assignedOpportunityCondition(userContext)
 	)!;
 }
 
-function visibleGraphicRowsCondition(userId: string): SQL {
+function visibleGraphicRowsCondition(userContext: GraphicUserContext): SQL {
 	return or(
 		isNull(proposalGraphics.opportunityId),
-		assignedOpportunityExistsSql(proposalGraphics.opportunityId, userId)
+		assignedOpportunityExistsSql(proposalGraphics.opportunityId, userContext)
 	)!;
 }
 
-function visibleGraphicCondition(graphicId: string, userId: string): SQL {
+function visibleGraphicCondition(graphicId: string, userContext: GraphicUserContext): SQL {
 	return and(
 		eq(proposalGraphics.id, graphicId),
-		visibleGraphicRowsCondition(userId)
+		visibleGraphicRowsCondition(userContext)
 	)!;
 }
 
-function visibleGraphicsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleGraphicsForOpportunityCondition(opportunityId: string, userContext: GraphicUserContext): SQL {
 	return and(
 		eq(proposalGraphics.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
-function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userContext: GraphicUserContext): SQL {
 	return and(
 		eq(proposalDocuments.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
-function visibleProposalDocumentCondition(proposalDocumentId: string, userId: string): SQL {
+function visibleProposalDocumentCondition(proposalDocumentId: string, userContext: GraphicUserContext): SQL {
 	return and(
 		eq(proposalDocuments.id, proposalDocumentId),
-		assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId)
+		assignedOpportunityExistsSql(proposalDocuments.opportunityId, userContext)
 	)!;
 }
 
-function visibleSectionCondition(sectionId: string, userId: string): SQL {
+function visibleSectionCondition(sectionId: string, userContext: GraphicUserContext): SQL {
 	return sql`document_sections.id = ${sectionId}
 		and exists (
 			select 1
 			from proposal_documents
 			join opportunities on opportunities.id = proposal_documents.opportunity_id
 			where proposal_documents.id = document_sections.proposal_document_id
-				and opportunities.assigned_to = ${userId}
+				and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+				and opportunities.assigned_to = ${userContext.userId}
 		)`;
 }
 
-function visibleDocumentForProposalCondition(documentId: string, proposalDocumentId: string, userId: string): SQL {
+function visibleDocumentForProposalCondition(
+	documentId: string,
+	proposalDocumentId: string,
+	userContext: GraphicUserContext
+): SQL {
 	return sql`documents.id = ${documentId}
 		and exists (
 			select 1
@@ -191,15 +195,16 @@ function visibleDocumentForProposalCondition(documentId: string, proposalDocumen
 			join opportunities on opportunities.id = proposal_documents.opportunity_id
 			where proposal_documents.id = ${proposalDocumentId}
 				and proposal_documents.document_id = documents.id
-				and opportunities.assigned_to = ${userId}
+				and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+				and opportunities.assigned_to = ${userContext.userId}
 		)`;
 }
 
-async function assertVisibleOpportunity(opportunityId: string, userId: string): Promise<void> {
+async function assertVisibleOpportunity(opportunityId: string, userContext: GraphicUserContext): Promise<void> {
 	const [opportunity] = await db
 		.select({ id: opportunities.id })
 		.from(opportunities)
-		.where(visibleOpportunityCondition(opportunityId, userId))
+		.where(visibleOpportunityCondition(opportunityId, userContext))
 		.limit(1);
 
 	if (!opportunity) {
@@ -207,11 +212,11 @@ async function assertVisibleOpportunity(opportunityId: string, userId: string): 
 	}
 }
 
-async function assertVisibleGraphic(graphicId: string, userId: string): Promise<void> {
+async function assertVisibleGraphic(graphicId: string, userContext: GraphicUserContext): Promise<void> {
 	const [graphic] = await db
 		.select({ id: proposalGraphics.id })
 		.from(proposalGraphics)
-		.where(visibleGraphicCondition(graphicId, userId))
+		.where(visibleGraphicCondition(graphicId, userContext))
 		.limit(1);
 
 	if (!graphic) {
@@ -1418,7 +1423,7 @@ export async function exportGraphics(
 				}),
 				aiGenerated: false,
 				status: "pending",
-				createdBy: actorId,
+				createdBy: actorId.userId,
 			});
 
 		return {
@@ -1826,7 +1831,7 @@ export async function recordGraphicFeedback(
 			content,
 			aiGenerated: false,
 			status: "pending",
-			createdBy: actorId,
+			createdBy: actorId.userId,
 		});
 
 		return { success: true, data: { recorded: true } };
@@ -1853,7 +1858,7 @@ export async function approveGraphic(
 			.update(proposalGraphics)
 			.set({
 				status: "approved",
-				approvedBy: actorId,
+				approvedBy: actorId.userId,
 				approvedAt: new Date(),
 				updatedAt: new Date(),
 			})
@@ -2113,8 +2118,9 @@ export async function createGraphicFromLibraryTemplate(
 		placeholderValues?: Record<string, string>;
 	}
 ): Promise<ActionResult<ProposalGraphic>> {
-	await requireGraphicActor();
+	const actorId = await requireGraphicActor();
 	try {
+		await assertVisibleOpportunity(opportunityId, actorId);
 		const template = getDiagramLibTemplateById(templateId);
 
 		if (!template) {

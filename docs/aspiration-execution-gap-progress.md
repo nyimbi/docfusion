@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Graphics Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep proposal graphics, figure numbering, captions, feedback, exports, template-derived graphics, and graphics consistency checks scoped to the caller's organization through assigned opportunities and proposal documents.
+
+Changes in this slice:
+- Require organization context for graphics actions.
+- Add tenant predicates, with legacy null-opportunity fallback, to shared opportunity, graphic, proposal document, section, and document visibility helpers.
+- Scope library-template graphic creation through the target opportunity before inserting generated graphics.
+- Extend graphics scope tests to assert opportunity organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- graphics-scope.test.ts graphics-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to presentations, partners, review comments, and remaining workflow support modules that still use unscoped or assignment-only checks.
+
 ### 2026-05-26 - PWin Opportunity Tenant Predicates
 
 Status: implemented and verified.

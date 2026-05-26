@@ -96,6 +96,14 @@ beforeEach(() => {
 });
 
 describe("graphics opportunity scoping", () => {
+	function expectAssignedOpportunityTenantScope(where: unknown) {
+		const sqlText = collectSqlFragments(where).join(" ");
+		expect(sqlText).toContain("opportunities.assigned_to");
+		expect(sqlText).toContain("graphics-user-1");
+		expect(sqlText).toContain("opportunities.organization_id");
+		expect(sqlText).toContain("11111111-1111-4111-8111-111111111111");
+	}
+
 	it("checks opportunity assignment before creating opportunity-linked graphics", async () => {
 		let opportunityWhere: unknown;
 		dbMock.select.mockReturnValueOnce(createChain({
@@ -114,7 +122,7 @@ describe("graphics opportunity scoping", () => {
 
 		expect(result).toMatchObject({ success: false });
 		expect(dbMock.insert).not.toHaveBeenCalled();
-		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(opportunityWhere);
 	});
 
 	it("scopes opportunity graphic lists through assignment", async () => {
@@ -129,7 +137,7 @@ describe("graphics opportunity scoping", () => {
 		const result = await listGraphics(opportunityId);
 
 		expect(result).toMatchObject({ success: true, data: [] });
-		expect(collectSqlFragments(listWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(listWhere);
 	});
 
 	it("scopes single-graphic updates through the owning opportunity", async () => {
@@ -144,7 +152,7 @@ describe("graphics opportunity scoping", () => {
 		const result = await updateGraphic(graphicId, { title: "Updated graphic" });
 
 		expect(result).toMatchObject({ success: false, error: "Graphic not found" });
-		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(updateWhere);
 	});
 
 	it("scopes consistency validation to assigned opportunities", async () => {
@@ -169,7 +177,7 @@ describe("graphics opportunity scoping", () => {
 		});
 		expect(wheres).toHaveLength(2);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expectAssignedOpportunityTenantScope(where);
 		}
 	});
 
@@ -193,7 +201,7 @@ describe("graphics opportunity scoping", () => {
 		expect(highLimitResult).toMatchObject({ success: true, data: [] });
 		expect(lowLimitChain.limit).toHaveBeenCalledWith(1);
 		expect(highLimitChain.limit).toHaveBeenCalledWith(1000);
-		expect(collectSqlFragments(searchWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(searchWhere);
 	});
 
 	it("checks source graphic visibility before recording feedback", async () => {
@@ -209,7 +217,7 @@ describe("graphics opportunity scoping", () => {
 
 		expect(result).toMatchObject({ success: false });
 		expect(dbMock.insert).not.toHaveBeenCalled();
-		expect(collectSqlFragments(graphicWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectAssignedOpportunityTenantScope(graphicWhere);
 	});
 
 	it("scopes graphic suggestions through assigned opportunity proposal documents", async () => {
@@ -229,9 +237,7 @@ describe("graphics opportunity scoping", () => {
 		expect(result).toEqual({ success: false, error: "Proposal document not found" });
 		expect(wheres).toHaveLength(2);
 		for (const where of wheres) {
-			const sqlText = collectSqlFragments(where).join(" ");
-			expect(sqlText).toContain("opportunities.assigned_to");
-			expect(sqlText).toContain("graphics-user-1");
+			expectAssignedOpportunityTenantScope(where);
 		}
 	});
 });
