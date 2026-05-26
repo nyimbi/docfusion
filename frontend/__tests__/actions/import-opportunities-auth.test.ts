@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 const dbAccessMock = vi.hoisted(() => vi.fn());
 const readFileMock = vi.hoisted(() => vi.fn());
 const readdirMock = vi.hoisted(() => vi.fn());
@@ -13,6 +14,7 @@ const blockedDb = vi.hoisted(() => new Proxy({}, {
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 vi.mock("@/lib/db", () => ({
 	db: blockedDb,
@@ -58,6 +60,7 @@ beforeEach(() => {
 	delete process.env.OPPORTUNITY_IMPORT_ROOT;
 	delete process.env.SCRAPER_EXPORT_ROOT;
 	getCurrentUserIdMock.mockResolvedValue(null);
+	requireUserContextMock.mockRejectedValue(new Error("Unauthorized"));
 });
 
 describe("opportunity import action auth", () => {
@@ -78,6 +81,7 @@ describe("opportunity import action auth", () => {
 
 	it("rejects authenticated path-based imports when no import root is configured", async () => {
 		getCurrentUserIdMock.mockResolvedValue("importer-1");
+		requireUserContextMock.mockResolvedValue({ userId: "importer-1", organizationId: "org-1" });
 
 		await expect(importFromFile("/tmp/opportunities.csv")).rejects.toThrow(
 			"OPPORTUNITY_IMPORT_ROOT is not configured"
@@ -102,6 +106,7 @@ describe("opportunity import action auth", () => {
 
 	it("rejects authenticated path-based imports outside configured roots", async () => {
 		getCurrentUserIdMock.mockResolvedValue("importer-1");
+		requireUserContextMock.mockResolvedValue({ userId: "importer-1", organizationId: "org-1" });
 		process.env.OPPORTUNITY_IMPORT_ROOT = "/srv/docfusion/imports";
 		process.env.SCRAPER_EXPORT_ROOT = "/srv/docfusion/scraper-exports";
 
@@ -128,6 +133,7 @@ describe("opportunity import action auth", () => {
 
 	it("previews uploaded buffers without requiring a server filesystem root", async () => {
 		getCurrentUserIdMock.mockResolvedValue("importer-1");
+		requireUserContextMock.mockResolvedValue({ userId: "importer-1", organizationId: "org-1" });
 
 		const result = await previewImportFromBuffer(
 			Buffer.from("title,organization,country,deadline,budget\nDemo RFP,Acme,Kenya,2026-08-01,1000"),

@@ -6,8 +6,9 @@
  * core security guarantee W1 introduces. The test fails until every
  * route is tenant-scoped (Tasks 3-10 in the W1 plan).
  *
- * Requires migration 0021_rfp_tenant_isolation.sql to be applied to the
- * DB referenced by `DATABASE_URL`.
+ * Set RUN_DB_INTEGRATION_TESTS=1 to execute. Requires migration
+ * 0021_rfp_tenant_isolation.sql to be applied to the DB referenced by
+ * `DATABASE_URL`.
  */
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -46,6 +47,10 @@ import { db } from "@/lib/db";
 import { rfpDocuments } from "@/lib/db/schema-rfp";
 import { withSession } from "@/__tests__/helpers/session";
 
+const RUN_DB_INTEGRATION_TESTS = ["1", "true", "yes"].includes(
+	(process.env.RUN_DB_INTEGRATION_TESTS ?? "").toLowerCase(),
+);
+
 // Test fixture identifiers
 const ORG_A = "test-org-a-w1";
 const ORG_B = "test-org-b-w1";
@@ -79,7 +84,7 @@ async function callParse(rfpId: string): Promise<Response> {
 	return POST(req, { params: Promise.resolve({ rfpId }) });
 }
 
-describe("RFP routes enforce tenant isolation", () => {
+describe.skipIf(!RUN_DB_INTEGRATION_TESTS)("RFP routes enforce tenant isolation", () => {
 	beforeAll(async () => {
 		await db.insert(rfpDocuments).values([
 			{

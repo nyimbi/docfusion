@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Full Vitest Suite Test-Health Recovery
+
+Status: implemented and verified.
+
+Purpose: restore the broad frontend Vitest proof after the tenant-scope remediation exposed unrelated test-health blockers.
+
+Changes in this slice:
+- Update the opportunity import auth test mock to include `requireUserContext`, matching the current discovery import auth path.
+- Gate the DB-backed RFP tenant isolation integration suite behind `RUN_DB_INTEGRATION_TESTS=1` so ordinary full-suite runs do not depend on an external Postgres host.
+- Document the opt-in requirement directly in the RFP tenant isolation test header.
+
+Verification:
+- `npm test -- import-opportunities-auth.test.ts rfp-tenant-isolation.test.ts` from `frontend/` passed, running 4 import auth tests and intentionally skipping 4 DB integration tests without the opt-in flag.
+- `npm test -- --run` from `frontend/` passed, running 1,249 tests with 4 DB integration tests skipped.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Run `RUN_DB_INTEGRATION_TESTS=1 npm test -- rfp-tenant-isolation.test.ts` only in an environment with reachable `DATABASE_URL` and migration `0021_rfp_tenant_isolation.sql` applied.
+- Continue scanning for other assignment-only opportunity predicates outside the already remediated workflow surfaces.
+
 ### 2026-05-27 - Win Theme Tenant Predicate Audit
 
 Status: audited and verified; no code change required.
