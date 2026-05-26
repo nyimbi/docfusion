@@ -269,6 +269,22 @@ export interface ResponsePackageDraftResult {
 	proposalDocumentIds: string[];
 	documentIds: string[];
 	versionNumber: number | null;
+	readiness: ResponsePackageDraftReadiness;
+}
+
+export interface ResponsePackageDraftReadiness {
+	status: "ready_for_review" | "blocked";
+	blockers: string[];
+	warnings: string[];
+	missingRequirementIds: string[];
+	metrics: {
+		acceptedRequirementCount: number;
+		draftedRequirementCount: number;
+		requirementCoverage: number;
+		documentsDrafted: number;
+		sectionsDrafted: number;
+		complianceEntriesCreated: number;
+	};
 }
 
 interface ProposalDocumentCreationOptions {
@@ -2061,18 +2077,26 @@ export async function createAndDraftStandardProposalSet(
 			draftResults.push(result);
 		}
 	}
-	const responsePackageResult = {
+	const draftedRequirementIds = uniqueStrings(draftResults.flatMap((result) => result.requirementIds));
+	const responsePackageResult: ResponsePackageDraftResult = {
 		documentsCreated: created.length,
 		documentsDrafted: draftResults.length,
 		sectionsDrafted: draftResults.reduce((total, result) => total + result.sectionsDrafted, 0),
 		complianceMatrixId: complianceMatrix.matrixId,
 		complianceEntriesCreated: complianceMatrix.entriesCreated,
-		requirementIds: uniqueStrings(draftResults.flatMap((result) => result.requirementIds)),
+		requirementIds: draftedRequirementIds,
 		proposalDocumentIds: draftResults.map((result) => result.proposalDocumentId),
 		documentIds: draftResults.map((result) => result.documentId),
 		versionNumber: draftResults.length > 0
 			? Math.max(...draftResults.map((result) => result.versionNumber ?? 0))
 			: null,
+		readiness: assessResponsePackageDraftReadiness({
+			acceptedRequirementIds: linkedAcceptedRequirements.map((requirement) => requirement.id),
+			draftedRequirementIds,
+			documentsDrafted: draftResults.length,
+			sectionsDrafted: draftResults.reduce((total, result) => total + result.sectionsDrafted, 0),
+			complianceEntriesCreated: complianceMatrix.entriesCreated,
+		}),
 	};
 
 	await recordResponsePackageDraftTransition({
@@ -2162,6 +2186,55 @@ function responsePackageEvidenceLinks(result: ResponsePackageDraftResult): strin
 		...result.documentIds.map((id) => `document:${id}`),
 		...(result.versionNumber ? [`document-version:${result.versionNumber}`] : []),
 	];
+}
+
+function assessResponsePackageDraftReadiness(input: {
+	acceptedRequirementIds: string[];
+	draftedRequirementIds: string[];
+	documentsDrafted: number;
+	sectionsDrafted: number;
+	complianceEntriesCreated: number;
+}): ResponsePackageDraftReadiness {
+	const blockers: string[] = [];
+	const warnings: string[] = [];
+	const acceptedRequirementIds = uniqueStrings(input.acceptedRequirementIds);
+	const draftedRequirementIds = new Set(input.draftedRequirementIds);
+	const missingRequirementIds = acceptedRequirementIds.filter((id) => !draftedRequirementIds.has(id));
+	const draftedRequirementCount = acceptedRequirementIds.length - missingRequirementIds.length;
+	const requirementCoverage = acceptedRequirementIds.length > 0
+		? draftedRequirementCount / acceptedRequirementIds.length
+		: 1;
+
+	if (acceptedRequirementIds.length === 0) {
+		blockers.push("No accepted requirements were available for response package drafting");
+	}
+	if (missingRequirementIds.length > 0) {
+		blockers.push(`${missingRequirementIds.length} accepted requirement(s) were not represented in drafted response documents`);
+	}
+	if (input.documentsDrafted === 0) {
+		blockers.push("No proposal documents were drafted");
+	}
+	if (input.sectionsDrafted === 0) {
+		blockers.push("No proposal sections were drafted");
+	}
+	if (input.complianceEntriesCreated < acceptedRequirementIds.length) {
+		warnings.push(`${input.complianceEntriesCreated}/${acceptedRequirementIds.length} accepted requirement(s) received compliance matrix entries`);
+	}
+
+	return {
+		status: blockers.length === 0 ? "ready_for_review" : "blocked",
+		blockers,
+		warnings,
+		missingRequirementIds,
+		metrics: {
+			acceptedRequirementCount: acceptedRequirementIds.length,
+			draftedRequirementCount,
+			requirementCoverage,
+			documentsDrafted: input.documentsDrafted,
+			sectionsDrafted: input.sectionsDrafted,
+			complianceEntriesCreated: input.complianceEntriesCreated,
+		},
+	};
 }
 
 async function ensureAcceptedRequirementsComplianceMatrix(

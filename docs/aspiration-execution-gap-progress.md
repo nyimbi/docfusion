@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Response Package Workflow Readiness Metrics
+
+Status: implemented and verified.
+
+Purpose: carry response readiness evidence into the tenant-backed response package action result and workflow metadata so operators can see whether accepted requirements actually reached drafted response documents.
+
+Changes in this slice:
+- Add deterministic readiness metrics to `createAndDraftStandardProposalSet`.
+- Measure accepted requirement count, drafted requirement count, requirement coverage, documents drafted, sections drafted, and compliance entries created.
+- Return blockers and missing requirement IDs when accepted requirements are not represented in drafted response documents, while preserving warnings for compliance-matrix entry gaps.
+- Persist the readiness object into the response-package workflow transition metadata.
+
+Verification:
+- `npm test -- proposal-documents-scope.test.ts` from `frontend/` passed, running 14 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 test files and 45 tests.
+
+Live DB re-check:
+- `RUN_DB_INTEGRATION_TESTS=1 npm test -- rfp-tenant-isolation.test.ts` from `frontend/` is still blocked by `ECONNREFUSED 88.80.188.224:5432` during fixture insert and cleanup.
+
+Remaining after this slice:
+- Tenant-persisted live proof still needs a reachable PostgreSQL endpoint.
+- Continue wiring readiness metrics through the review/final-render/submission surfaces so weak response packages cannot silently advance.
+
 ### 2026-05-27 - Response Readiness Platform Proof Scenario
 
 Status: implemented and verified.

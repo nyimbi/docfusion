@@ -879,6 +879,19 @@ describe("proposal document row scoping", () => {
 			proposalDocumentIds: [proposalDocument.id],
 			documentIds: [sourceDocument.id],
 			versionNumber: 2,
+			readiness: {
+				status: "ready_for_review",
+				blockers: [],
+				missingRequirementIds: [],
+				metrics: {
+					acceptedRequirementCount: 1,
+					draftedRequirementCount: 1,
+					requirementCoverage: 1,
+					documentsDrafted: 1,
+					sectionsDrafted: 1,
+					complianceEntriesCreated: 1,
+				},
+			},
 		});
 		expect(complianceEntryInsert).toEqual([
 			expect.objectContaining({
@@ -910,6 +923,12 @@ describe("proposal document row scoping", () => {
 				requirementCount: 1,
 				proposalDocumentCount: 1,
 				documentVersionNumber: 2,
+				readiness: expect.objectContaining({
+					status: "ready_for_review",
+					metrics: expect.objectContaining({
+						requirementCoverage: 1,
+					}),
+				}),
 			}),
 			actionUrl: `/opportunities/${proposalDocument.opportunityId}/documents`,
 		}));
