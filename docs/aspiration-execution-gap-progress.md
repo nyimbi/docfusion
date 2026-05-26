@@ -16,6 +16,25 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Live Source Discovery Proof Scenario
+
+Status: implemented and verified.
+
+Purpose: make configured-source opportunity discovery part of the durable platform proof manifest instead of relying on ad hoc live smoke commands.
+
+Changes in this slice:
+- Add `prove-live-source-discovery.ts`, which scrapes a configured procurement source with Firecrawl and verifies the generic parser returns normalized opportunity candidates.
+- Add the `live-source-discovery` live-safe platform proof scenario.
+- Record live configured-source evidence in `.omx/state/platform-live-source-discovery-evidence.md`.
+
+Verification:
+- `npm run test -- platform-proof-scenarios.test.ts generic-parser.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run live-source-discovery --include-live-safe` from `frontend/` passed, returning 202,015 markdown characters, 593 links, and 375 normalized opportunities from `https://procurement-notices.undp.org`.
+
+Remaining after this slice:
+- Extend live source proof coverage to additional high-value sources after Kenya PPIP and UNGM have dedicated parser/browser handling.
+
 ### 2026-05-26 - Generic Parser Source Title Normalization
 
 Status: implemented and verified.

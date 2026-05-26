@@ -21,6 +21,7 @@ describe("platform proof scenarios", () => {
 		const withLive = listProofScenarios({ includeLiveSafe: true });
 		expect(withLive.map((scenario) => scenario.id)).toContain("phase1-live-safe-control-plane");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-discovery-services");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-source-discovery");
 	});
 
 	it("filters by wave and requested ids", () => {
@@ -134,6 +135,16 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["F-001", "F-005"]),
 				expectedArtifacts: expect.arrayContaining([
 					".omx/state/platform-live-discovery-evidence.md",
+				]),
+			}),
+		]);
+		expect(listProofScenarios({ ids: ["live-source-discovery"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-source-discovery",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001"]),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-source-discovery-evidence.md",
 				]),
 			}),
 		]);

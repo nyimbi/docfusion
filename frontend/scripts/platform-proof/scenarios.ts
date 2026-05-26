@@ -321,6 +321,23 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 			".omx/logs/platform-completion/live-discovery-<run_id>/live-discovery-services.json",
 		],
 	},
+	{
+		id: "live-source-discovery",
+		wave: 9,
+		title: "Live configured source discovery proof",
+		kind: "live-safe",
+		proofTargets: ["F-001"],
+		requiresLiveServices: true,
+		description: "Scrapes a configured procurement source with Firecrawl and verifies generic parser extraction returns normalized opportunity candidates.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-source-discovery.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-source-discovery-evidence.md",
+			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-source-discovery.json",
+		],
+	},
 ];
 
 export function listProofScenarios(filters: {
