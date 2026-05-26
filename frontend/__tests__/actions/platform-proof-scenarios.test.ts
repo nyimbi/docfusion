@@ -20,6 +20,7 @@ describe("platform proof scenarios", () => {
 
 		const withLive = listProofScenarios({ includeLiveSafe: true });
 		expect(withLive.map((scenario) => scenario.id)).toContain("phase1-live-safe-control-plane");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-discovery-services");
 	});
 
 	it("filters by wave and requested ids", () => {
@@ -123,6 +124,16 @@ describe("platform proof scenarios", () => {
 					"vitest:documents-final-artifact-route",
 					"vitest:final-submission-checklist-workflow",
 					"vitest:submission-workflow",
+				]),
+			}),
+		]);
+		expect(listProofScenarios({ ids: ["live-discovery-services"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-discovery-services",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005"]),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-discovery-evidence.md",
 				]),
 			}),
 		]);

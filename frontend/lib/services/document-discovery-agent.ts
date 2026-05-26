@@ -15,6 +15,7 @@
  */
 
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
+import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 import { searchSearxng, searchDocuments, searchMultiple } from "@/lib/services/searxng-client";
 import { convertDocumentFromUrl, processRfpDocument, isSupportedFileType } from "@/lib/services/docling-client";
 import { db } from "@/lib/db";
@@ -294,35 +295,11 @@ async function searchPrimaryPortalWithBrowserFallback(
 
   try {
     logger.debug(`[Discovery Agent] Trying browser fallback for primary portal: ${sourceUrl}`);
-    const response = await fetch(`${stealthUrl}/v1/scrape`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url: sourceUrl,
-        options: {
-          timeout: 15000,
-          humanScroll: true,
-          blockMedia: true,
-        },
-      }),
-      signal: AbortSignal.timeout(20000),
+    const result = await scrapeWithBrowserService(stealthUrl, sourceUrl, {
+      timeout: 15000,
+      humanScroll: true,
+      blockMedia: true,
     });
-
-    if (!response.ok) {
-      logger.error(
-        `[Discovery Agent] Browser fallback failed for primary portal ${sourceUrl}: ${response.status} ${await response.text()}`
-      );
-      return [];
-    }
-
-    const result = await response.json() as {
-      success: boolean;
-      data?: {
-        markdown?: string;
-        links?: string[];
-      };
-      error?: string;
-    };
 
     if (!result.success || !result.data) {
       logger.error(

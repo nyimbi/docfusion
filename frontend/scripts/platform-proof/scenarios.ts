@@ -304,6 +304,23 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 			".omx/logs/platform-completion/<run_id>/raw-proof.json",
 		],
 	},
+	{
+		id: "live-discovery-services",
+		wave: 9,
+		title: "Live discovery search and scrape services proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005"],
+		requiresLiveServices: true,
+		description: "Checks the configured live SearXNG, Firecrawl, and browser fallback services return usable search and scrape content.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-discovery-services.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-discovery-evidence.md",
+			".omx/logs/platform-completion/live-discovery-<run_id>/live-discovery-services.json",
+		],
+	},
 ];
 
 export function listProofScenarios(filters: {

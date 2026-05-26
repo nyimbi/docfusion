@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Live Discovery Services Proof
+
+Status: implemented and verified.
+
+Purpose: prove that the deployed discovery connectivity tier can perform live search, standard scraping, and browser-backed scraping, while keeping application discovery paths compatible with the live browser service.
+
+Changes in this slice:
+- Add a shared browser scraper client that supports both the app's existing `/v1/scrape` contract and the deployed browser service's `/scrape` contract.
+- Route opportunity discovery imports and primary-portal document discovery through the shared browser scraper client instead of direct `/v1/scrape` calls.
+- Add a `live-discovery-services` live-safe platform proof scenario for SearXNG, Firecrawl, and browser fallback connectivity.
+- Record live discovery evidence in `.omx/state/platform-live-discovery-evidence.md`.
+
+Verification:
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run test -- discovery-opportunity-import.test.ts document-discovery-agent.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed.
+- `npm run platform:proof -- --run live-discovery-services --include-live-safe` from `frontend/` passed with SearXNG returning one basic `tender` result, Firecrawl returning 180 markdown characters for `https://example.com`, and browser fallback returning 528 content characters for `https://example.com`.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- This proof confirms discovery-service availability and scrape connectivity, not high-quality opportunity retrieval. Useful SearXNG opportunity queries remain degraded because major engines are currently returning CAPTCHA, access-denied, rate-limit, or empty-result responses.
+- Continue remediating SearXNG engine health and opportunity-query quality before treating live discovery as reliable enough for production opportunity finding.
+
 ### 2026-05-26 - Wave 9 Discovery-To-Submission Proof
 
 Status: verified.

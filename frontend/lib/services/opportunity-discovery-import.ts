@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
+import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 import { downloadDocument } from "@/lib/services/rfp-document-service";
 import { searchSearxng, type SearchOptions, type SearxngResult } from "@/lib/services/searxng-client";
 import type { ImportConfig, ImportRecordResult, OpportunityInput } from "@/lib/types/opportunity";
@@ -549,40 +550,11 @@ async function scrapeWithBrowserFallback(
 	const stealthUrl = (process.env.STEALTH_SCRAPER_URL || DEFAULT_STEALTH_SCRAPER_URL).replace(/\/$/, "");
 
 	try {
-		const response = await fetch(`${stealthUrl}/v1/scrape`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				url,
-				options: {
-					timeout: 15000,
-					humanScroll: true,
-					blockMedia: true,
-				},
-			}),
-			signal: AbortSignal.timeout(20000),
+		const result = await scrapeWithBrowserService(stealthUrl, url, {
+			timeout: 15000,
+			humanScroll: true,
+			blockMedia: true,
 		});
-
-		if (!response.ok) {
-			return {
-				success: false,
-				error: `Browser fallback error ${response.status}: ${await response.text()}`,
-				method: "browser_fallback",
-				fallbackReason,
-			};
-		}
-
-		const result = await response.json() as {
-			success: boolean;
-			data?: {
-				markdown?: string;
-				metadata?: {
-					title?: string;
-					description?: string;
-				};
-			};
-			error?: string;
-		};
 
 		return {
 			success: result.success,
