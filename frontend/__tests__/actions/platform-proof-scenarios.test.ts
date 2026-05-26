@@ -23,6 +23,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-discovery-services");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-source-discovery");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-source");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-ungm-source");
 	});
 
 	it("filters by wave and requested ids", () => {
@@ -156,6 +157,16 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["F-001", "F-005"]),
 				expectedArtifacts: expect.arrayContaining([
 					".omx/state/platform-live-kenya-ppip-evidence.md",
+				]),
+			}),
+		]);
+		expect(listProofScenarios({ ids: ["live-ungm-source"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-ungm-source",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005"]),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-ungm-evidence.md",
 				]),
 			}),
 		]);

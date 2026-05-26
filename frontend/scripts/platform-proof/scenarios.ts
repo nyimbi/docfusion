@@ -355,6 +355,23 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 			".omx/logs/platform-completion/live-kenya-ppip-<run_id>/live-kenya-ppip-source.json",
 		],
 	},
+	{
+		id: "live-ungm-source",
+		wave: 9,
+		title: "Live UNGM source API proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005"],
+		requiresLiveServices: true,
+		description: "Calls UNGM's public notice endpoint and verifies mapped opportunity candidates include usable portal URLs.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-ungm-source.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-ungm-evidence.md",
+			".omx/logs/platform-completion/live-ungm-<run_id>/live-ungm-source.json",
+		],
+	},
 ];
 
 export function listProofScenarios(filters: {

@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - UNGM Public Notice Source Discovery
+
+Status: implemented and verified.
+
+Purpose: make UNGM a first-class live configured source using its public notice search endpoint instead of depending on rendered-page scraping.
+
+Changes in this slice:
+- Add a UNGM public notice client for `https://www.ungm.org/Public/Notice/Search`.
+- Parse UNGM row fragments into canonical opportunity data with notice ID, reference, organization, country, notice type, deadline, published date, and portal URL.
+- Prefer the UNGM public endpoint before Firecrawl for `ungm.org` configured source URLs, while retaining Firecrawl fallback if the endpoint fails.
+- Preserve UNGM source metadata through import so downstream deduplication and audit records use `ungm` identifiers.
+- Add a live-safe `live-ungm-source` platform proof scenario and evidence artifact.
+
+Verification:
+- `npm test -- ungm-parser.test.ts ungm-client.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npx tsx scripts/prove-live-ungm-source.ts` from `frontend/` passed, returning 10 mapped opportunities from 1,658 active UNGM notices and fetching the first live notice portal page with HTTP 200.
+- `npm run platform:proof -- --run live-ungm-source --include-live-safe` from `frontend/` passed with the same live UNGM acquisition and portal-fetch proof.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed after the UNGM import-path change, running 13 test files and 110 tests across discovery/import through submission gates.
+
+Remaining after this slice:
+- Wire this live UNGM acquisition into the next import-to-parse proof once database connectivity to the target environment is available.
+
 ### 2026-05-26 - Current Discovery-To-Submission Proof Refresh
 
 Status: verified.

@@ -1,0 +1,6 @@
+# Platform Live UNGM Evidence
+
+| facility | journey | run_id | artifact_ids | topology_tier | verification_bucket | timestamp | operator | cleanup_status | disposition | notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| F-001 | J1/O1 | `live_ungm_20260526T174923Z` | `log:.omx/logs/platform-completion/live-ungm-live_ungm_20260526T174923Z/live-ungm-source.json`, `source:https://www.ungm.org/Public/Notice`, `search:https://www.ungm.org/Public/Notice/Search`, `opportunities:10`, `portal-fetch:200` | live-connectivity | live-safe UNGM source discovery | 2026-05-26T17:49:24.397Z | Codex | not-applicable | pass | Live UNGM public notice search returned mapped opportunity candidates and a portal fetch succeeded. |
+| F-001 | J1/O1 | `live_ungm_20260526T175039Z` | `log:.omx/logs/platform-completion/live-ungm-live_ungm_20260526T175039Z/live-ungm-source.json`, `source:https://www.ungm.org/Public/Notice`, `search:https://www.ungm.org/Public/Notice/Search`, `opportunities:10`, `portal-fetch:200` | live-connectivity | live-safe UNGM source discovery | 2026-05-26T17:50:41.125Z | Codex | not-applicable | pass | Live UNGM public notice search returned mapped opportunity candidates and a portal fetch succeeded. |

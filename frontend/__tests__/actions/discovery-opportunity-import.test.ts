@@ -11,6 +11,8 @@ const downloadDocumentMock = vi.hoisted(() => vi.fn());
 const fetchMock = vi.hoisted(() => vi.fn());
 const fetchKenyaPpipOpportunitiesMock = vi.hoisted(() => vi.fn());
 const isKenyaPpipUrlMock = vi.hoisted(() => vi.fn((url: string) => url.includes("tenders.go.ke")));
+const fetchUngmOpportunitiesMock = vi.hoisted(() => vi.fn());
+const isUngmUrlMock = vi.hoisted(() => vi.fn((url: string) => url.includes("ungm.org")));
 const selectResultsQueue = vi.hoisted(() => [] as unknown[][]);
 
 vi.mock("@/lib/auth-utils", () => ({
@@ -35,6 +37,11 @@ vi.mock("@/lib/services/rfp-document-service", () => ({
 vi.mock("@/lib/services/kenya-ppip-client", () => ({
 	fetchKenyaPpipOpportunities: fetchKenyaPpipOpportunitiesMock,
 	isKenyaPpipUrl: isKenyaPpipUrlMock,
+}));
+
+vi.mock("@/lib/services/ungm-client", () => ({
+	fetchUngmOpportunities: fetchUngmOpportunitiesMock,
+	isUngmUrl: isUngmUrlMock,
 }));
 
 vi.mock("@/lib/actions/opportunities", () => ({
@@ -104,6 +111,12 @@ beforeEach(() => {
 		total: 0,
 	});
 	isKenyaPpipUrlMock.mockImplementation((url: string) => url.includes("tenders.go.ke"));
+	fetchUngmOpportunitiesMock.mockResolvedValue({
+		searchUrl: "https://www.ungm.org/Public/Notice/Search",
+		opportunities: [],
+		total: 0,
+	});
+	isUngmUrlMock.mockImplementation((url: string) => url.includes("ungm.org"));
 	downloadDocumentMock.mockResolvedValue({ success: true, documentId: "source-doc-1" });
 	fetchMock.mockResolvedValue({
 		ok: false,
@@ -734,5 +747,77 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 		}));
 		expect(result.sourceDocumentsCreated).toBe(1);
+	});
+
+	it("imports UNGM configured sources through the public notice endpoint before Firecrawl", async () => {
+		const deadline = new Date(2026, 4, 26, 15, 30, 0);
+		const publishedDate = new Date(2026, 4, 13);
+		fetchUngmOpportunitiesMock.mockResolvedValue({
+			searchUrl: "https://www.ungm.org/Public/Notice/Search",
+			total: 1657,
+			opportunities: [{
+				title: "Adquisicion de ropa de cama y toallas de bano",
+				source: "ungm",
+				sourceId: "300726",
+				noticeId: "UNDP-PER-00907,1",
+				organization: "UNDP",
+				countryRegion: "Peru",
+				category: "Invitation to bid",
+				projectSummary: "Invitation to bid published by UNDP for Peru",
+				opportunityType: "tender",
+				deadline,
+				publishedDate,
+				portalUrl: "https://www.ungm.org/Public/Notice/300726",
+				rfpLink: "https://www.ungm.org/Public/Notice/300726",
+				tags: ["ungm", "un-procurement"],
+				metadata: { ungm: { noticeId: "300726", reference: "UNDP-PER-00907,1" } },
+			}],
+		});
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.ungm.org/Public/Notice"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(searchSearxngMock).not.toHaveBeenCalled();
+		expect(fetchUngmOpportunitiesMock).toHaveBeenCalledWith("https://www.ungm.org/Public/Notice", {
+			limit: 5,
+			timeoutMs: 20000,
+		});
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			sourceId: "300726",
+			title: "Adquisicion de ropa de cama y toallas de bano",
+			category: "Invitation to bid",
+			countryRegion: "Peru",
+			organization: "UNDP",
+			deadline,
+			publishedDate,
+			rfpLink: "https://www.ungm.org/Public/Notice/300726",
+			source: "ungm",
+			sourcePlatform: "UNGM",
+			sourceFile: "source:https://www.ungm.org/Public/Notice",
+			noticeId: "UNDP-PER-00907,1",
+			portalUrl: "https://www.ungm.org/Public/Notice/300726",
+			tags: ["external-discovery", "source-scrape", "ungm", "un-procurement"],
+			metadata: expect.objectContaining({
+				ungm: { noticeId: "300726", reference: "UNDP-PER-00907,1" },
+				discovery: expect.objectContaining({
+					resultEngine: "ungm-public-notice-search",
+					scrapeMethod: "source_api",
+					scrapedWithFirecrawl: false,
+					sourceTotal: 1657,
+					sourceUrl: "https://www.ungm.org/Public/Notice",
+				}),
+			}),
+		}));
+		expect(result.sourceDocumentsCreated).toBe(0);
 	});
 });

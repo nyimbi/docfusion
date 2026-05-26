@@ -6,6 +6,7 @@ import { genericParser, getParser, type TenderParser } from "@/lib/scrapers/pars
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 import { fetchKenyaPpipOpportunities, isKenyaPpipUrl } from "@/lib/services/kenya-ppip-client";
+import { fetchUngmOpportunities, isUngmUrl } from "@/lib/services/ungm-client";
 import { downloadDocument } from "@/lib/services/rfp-document-service";
 import {
 	getSearxngBaseUrl,
@@ -206,7 +207,9 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 
 	const sourceId = host.includes("tenders.go.ke")
 		? "kenya_ppip"
-		: host.includes("dgmarket.com")
+		: host === "ungm.org"
+			? "ungm"
+			: host.includes("dgmarket.com")
 			? "dgmarket"
 			: undefined;
 	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
@@ -326,6 +329,7 @@ function extractDocumentUrlFromMarkdown(markdown: string | undefined, baseUrl: s
 
 function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryMethod: DiscoveryCandidate["discoveryMethod"]): string {
 	if (opportunity?.source === "kenya_ppip") return "Kenya PPIP";
+	if (opportunity?.source === "ungm") return "UNGM";
 	return discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG";
 }
 
@@ -335,6 +339,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		"external-discovery",
 		"source-scrape",
 		...(opportunity?.source === "kenya_ppip" ? ["kenya-ppip"] : []),
+		...(opportunity?.source === "ungm" ? ["ungm", "un-procurement"] : []),
 	];
 }
 
@@ -479,7 +484,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = isDocumentUrl(candidate.result.url)
 		? candidate.result.url
 		: sourceOpportunity?.documentUrl || extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "kenya_ppip"
+	const source = sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "ungm"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 
@@ -615,6 +620,11 @@ async function discoverConfiguredSourceCandidates(
 			candidates.push(...ppipResult.candidates);
 			if (ppipResult.handled) continue;
 		}
+		if (isUngmUrl(sourceUrl)) {
+			const ungmResult = await discoverUngmCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
+			candidates.push(...ungmResult.candidates);
+			if (ungmResult.handled) continue;
+		}
 
 		const scrapeResult = await firecrawl.scrape(sourceUrl, {
 			formats: ["markdown", "html", "links"],
@@ -747,6 +757,78 @@ async function discoverKenyaPpipCandidates(
 			type: "source_scrape_failed",
 			query: `source:${sourceUrl}`,
 			title: "Kenya PPIP API failed",
+			url: sourceUrl,
+			message: error instanceof Error ? error.message : String(error),
+		});
+		return { handled: false, candidates: [] };
+	}
+}
+
+async function discoverUngmCandidates(
+	sourceUrl: string,
+	limitPerSource: number,
+	seenUrls: Set<string>,
+	warnings: DiscoveryRunWarning[]
+): Promise<{ handled: boolean; candidates: DiscoveryCandidate[] }> {
+	try {
+		const result = await fetchUngmOpportunities(sourceUrl, {
+			limit: limitPerSource,
+			timeoutMs: 20000,
+		});
+		if (!result.opportunities.length) {
+			warnings.push({
+				type: "source_scrape_empty",
+				query: `source:${sourceUrl}`,
+				title: "UNGM notice search returned no opportunities",
+				url: result.searchUrl,
+				message: "The UNGM public notice endpoint responded successfully, but returned no active notice records.",
+			});
+			return { handled: true, candidates: [] };
+		}
+
+		const candidates: DiscoveryCandidate[] = [];
+		for (const opportunity of result.opportunities.slice(0, limitPerSource)) {
+			const url = opportunity.portalUrl ?? sourceUrl;
+			const normalizedUrl = normalizeUrlForIdentity(url);
+			if (seenUrls.has(normalizedUrl)) continue;
+			seenUrls.add(normalizedUrl);
+
+			candidates.push({
+				query: `source:${sourceUrl}`,
+				discoveryMethod: "source_scrape",
+				sourceUrl,
+				opportunity,
+				sourceTotal: result.total,
+				result: {
+					title: opportunity.title,
+					url,
+					content: opportunity.projectSummary ?? "",
+					engine: "ungm-public-notice-search",
+					score: 1,
+					category: opportunity.category ?? opportunity.countryRegion ?? "UNGM",
+				},
+				scrape: {
+					success: true,
+					title: opportunity.title,
+					description: opportunity.projectSummary,
+					markdown: [
+						`# ${opportunity.title}`,
+						opportunity.organization ? `Organization: ${opportunity.organization}` : undefined,
+						opportunity.noticeId ? `Notice: ${opportunity.noticeId}` : undefined,
+						opportunity.deadline ? `Deadline: ${opportunity.deadline}` : undefined,
+						opportunity.portalUrl ? `Portal: ${opportunity.portalUrl}` : undefined,
+					].filter(Boolean).join("\n"),
+					method: "source_api",
+				},
+			});
+		}
+
+		return { handled: true, candidates };
+	} catch (error) {
+		warnings.push({
+			type: "source_scrape_failed",
+			query: `source:${sourceUrl}`,
+			title: "UNGM notice search failed",
 			url: sourceUrl,
 			message: error instanceof Error ? error.message : String(error),
 		});

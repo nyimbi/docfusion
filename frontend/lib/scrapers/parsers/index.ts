@@ -12,11 +12,13 @@ export * from "./types";
 import "./dgmarket";
 import "./generic";
 import "./kenya-ppip";
+import "./ungm";
 
 // Re-export for direct access
 export { dgmarketParser } from "./dgmarket";
 export { genericParser } from "./generic";
 export { kenyaPpipParser } from "./kenya-ppip";
+export { ungmParser } from "./ungm";
 
 // LLM-based extraction (for sites without custom parsers)
 export * from "./llm-extractor";
