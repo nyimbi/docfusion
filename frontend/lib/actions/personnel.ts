@@ -30,7 +30,7 @@ import {
 } from "@/lib/db/schema-personnel";
 import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, ne, isNull, isNotNull, type SQL } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, requireUserContext } from "@/lib/auth-utils";
 import { logger } from "@/lib/utils/logger";
 
 // ============================================================================
@@ -561,19 +561,36 @@ async function requireCurrentUserId(): Promise<string> {
 	return userId;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+type PersonnelOpportunityContext = { userId: string; organizationId: string };
+
+async function requirePersonnelOpportunityContext(): Promise<PersonnelOpportunityContext> {
+	const context = await requireUserContext();
+	if (!context.organizationId) {
+		throw new Error("Organization context required");
+	}
+	return {
+		userId: context.userId,
+		organizationId: context.organizationId,
+	};
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, context: PersonnelOpportunityContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${context.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${context.userId}
 	)`;
 }
 
-function positionRequirementsByOpportunityCondition(opportunityId: string, userId: string): SQL {
+function positionRequirementsByOpportunityCondition(opportunityId: string, context: PersonnelOpportunityContext): SQL {
 	return and(
 		eq(positionRequirements.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, context)
 	)!;
 }
 
@@ -1343,14 +1360,14 @@ export async function matchPersonnelToPosition(
 export async function analyzeStaffingGaps(
 	opportunityId: string
 ): Promise<ActionResult<GapAnalysis>> {
-	const userId = await requireCurrentUserId();
+	const context = await requirePersonnelOpportunityContext();
 
 	try {
 		// Fetch all positions for the opportunity
 		const positions = await db
 			.select()
 			.from(positionRequirements)
-			.where(positionRequirementsByOpportunityCondition(opportunityId, userId));
+			.where(positionRequirementsByOpportunityCondition(opportunityId, context));
 
 		if (positions.length === 0) {
 			return {
@@ -1928,14 +1945,14 @@ export async function sendCertificationReminders(
 export async function generateOrgChart(
 	opportunityId: string
 ): Promise<ActionResult<OrgChartData>> {
-	const userId = await requireCurrentUserId();
+	const context = await requirePersonnelOpportunityContext();
 
 	try {
 		// Fetch all positions for the opportunity with assigned personnel
 		const positions = await db
 			.select()
 			.from(positionRequirements)
-			.where(positionRequirementsByOpportunityCondition(opportunityId, userId))
+			.where(positionRequirementsByOpportunityCondition(opportunityId, context))
 			.orderBy(asc(positionRequirements.positionCategory));
 
 		const nodes: OrgChartData["nodes"] = [];
@@ -2020,13 +2037,13 @@ export async function generateOrgChart(
 export async function generateStaffingMatrix(
 	opportunityId: string
 ): Promise<ActionResult<StaffingMatrix>> {
-	const userId = await requireCurrentUserId();
+	const context = await requirePersonnelOpportunityContext();
 
 	try {
 		const positions = await db
 			.select()
 			.from(positionRequirements)
-			.where(positionRequirementsByOpportunityCondition(opportunityId, userId));
+			.where(positionRequirementsByOpportunityCondition(opportunityId, context));
 
 		const matrixPositions: StaffingMatrix["positions"] = [];
 		let totalHeadcount = 0;
@@ -2256,13 +2273,13 @@ export async function getPositionsForOpportunity(
 	assignedPersonnel: { id: string; name: string } | null;
 	matchScore: number | null;
 }>>> {
-	const userId = await requireCurrentUserId();
+	const context = await requirePersonnelOpportunityContext();
 
 	try {
 		const positions = await db
 			.select()
 			.from(positionRequirements)
-			.where(positionRequirementsByOpportunityCondition(opportunityId, userId))
+			.where(positionRequirementsByOpportunityCondition(opportunityId, context))
 			.orderBy(asc(positionRequirements.positionTitle));
 
 		const results = [];

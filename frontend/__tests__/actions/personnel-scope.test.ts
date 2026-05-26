@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 
 function createChainableQuery(returnValue: unknown = []) {
 	const chain: Record<string, unknown> = {};
@@ -43,6 +44,7 @@ var dbMock: {
 
 vi.mock("@/lib/auth-utils", () => ({
 	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -109,6 +111,10 @@ describe("personnel opportunity scoping", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		getCurrentUserIdMock.mockResolvedValue("staffing-user-1");
+		requireUserContextMock.mockResolvedValue({
+			userId: "staffing-user-1",
+			organizationId: "11111111-1111-4111-8111-111111111111",
+		});
 		dbMock.select.mockImplementation(() => createChainableQuery([]));
 		dbMock.insert.mockImplementation(() => createChainableQuery([]));
 		dbMock.update.mockImplementation(() => createChainableQuery([]));
@@ -127,7 +133,10 @@ describe("personnel opportunity scoping", () => {
 		const result = await analyzeStaffingGaps(opportunityId);
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		const sqlText = collectSqlFragments(where).join(" ");
+		expect(sqlText).toContain("opportunities.organization_id");
+		expect(sqlText).toContain("11111111-1111-4111-8111-111111111111");
+		expect(sqlText).toContain("opportunities.assigned_to");
 	});
 
 	it("scopes org chart positions by assigned opportunity", async () => {
@@ -142,7 +151,10 @@ describe("personnel opportunity scoping", () => {
 		const result = await generateOrgChart(opportunityId);
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		const sqlText = collectSqlFragments(where).join(" ");
+		expect(sqlText).toContain("opportunities.organization_id");
+		expect(sqlText).toContain("11111111-1111-4111-8111-111111111111");
+		expect(sqlText).toContain("opportunities.assigned_to");
 	});
 
 	it("scopes staffing matrix positions by assigned opportunity", async () => {
@@ -157,7 +169,10 @@ describe("personnel opportunity scoping", () => {
 		const result = await generateStaffingMatrix(opportunityId);
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		const sqlText = collectSqlFragments(where).join(" ");
+		expect(sqlText).toContain("opportunities.organization_id");
+		expect(sqlText).toContain("11111111-1111-4111-8111-111111111111");
+		expect(sqlText).toContain("opportunities.assigned_to");
 	});
 
 	it("scopes position listing by assigned opportunity", async () => {
@@ -172,7 +187,10 @@ describe("personnel opportunity scoping", () => {
 		const result = await getPositionsForOpportunity(opportunityId);
 
 		expect(result.success).toBe(true);
-		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		const sqlText = collectSqlFragments(where).join(" ");
+		expect(sqlText).toContain("opportunities.organization_id");
+		expect(sqlText).toContain("11111111-1111-4111-8111-111111111111");
+		expect(sqlText).toContain("opportunities.assigned_to");
 	});
 
 	it("normalizes personnel search pagination before querying", async () => {

@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Personnel Staffing Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep staffing gap analysis, opportunity org charts, staffing matrices, and position listings scoped to the caller's organization through the target opportunity.
+
+Changes in this slice:
+- Require organization context for personnel actions that read opportunity position requirements.
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to position-requirement opportunity visibility checks.
+- Preserve non-opportunity personnel CRUD/auth behavior while tightening staffing views.
+- Extend personnel scope tests to assert opportunity organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- personnel-scope.test.ts personnel-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue closing larger remaining surfaces such as task management, workflow domain, submissions, pipeline, pricing, reviews, proposal documents, win themes, rendering, and final artifact workflows.
+
 ### 2026-05-26 - Content Library Outcome Tenant Predicates
 
 Status: implemented and verified.
