@@ -265,25 +265,67 @@ describe("proposal document row scoping", () => {
 	it("scopes proposal document updates and reloads through the owning opportunity", async () => {
 		const wheres: unknown[] = [];
 		dbMock.update.mockReturnValueOnce(createChain({
-			result: [{ ...proposalDocument, status: "approved" }],
+			result: [{ ...proposalDocument, status: "in_review" }],
 			onWhere: (value) => {
 				wheres.push(value);
 			},
 		}));
 		dbMock.select.mockReturnValueOnce(createChain({
-			result: [{ proposal_documents: { ...proposalDocument, status: "approved" }, documents: documentRow }],
+			result: [{ proposal_documents: { ...proposalDocument, status: "in_review" }, documents: documentRow }],
 			onWhere: (value) => {
 				wheres.push(value);
 			},
 		}));
 
-		const result = await updateProposalDocument(proposalDocument.id, { status: "approved" });
+		const result = await updateProposalDocument(proposalDocument.id, { status: "in_review" });
 
-		expect(result).toMatchObject({ id: proposalDocument.id, status: "approved" });
+		expect(result).toMatchObject({ id: proposalDocument.id, status: "in_review" });
 		expect(wheres).toHaveLength(2);
 		for (const where of wheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 		}
+	});
+
+	it("blocks final proposal status while linked requirements are not compliant", async () => {
+		const linkedSection = {
+			...section,
+			requirementIds: ["77777777-7777-4777-8777-777777777777"],
+		};
+		const requirement = {
+			id: "77777777-7777-4777-8777-777777777777",
+			requirementNumber: "REQ-007",
+			title: "Offline reporting",
+			complianceStatus: "partial",
+		};
+		const wheres: unknown[] = [];
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [proposalDocument],
+				onWhere: (value) => {
+					wheres.push(value);
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [linkedSection],
+				onWhere: (value) => {
+					wheres.push(value);
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [requirement],
+				onWhere: (value) => {
+					wheres.push(value);
+				},
+			}));
+
+		await expect(updateProposalDocument(proposalDocument.id, { status: "approved" }))
+			.rejects.toThrow("linked requirements are compliant");
+
+		expect(dbMock.update).not.toHaveBeenCalled();
+		expect(wheres.some((where) =>
+			collectSqlFragments(where).join(" ").includes("opportunities.assigned_to")
+		)).toBe(true);
 	});
 
 	it("scopes section reads through the owning proposal document opportunity", async () => {

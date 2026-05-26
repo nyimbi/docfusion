@@ -209,6 +209,14 @@ function uniqueStrings(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))];
 }
 
+function isFinalProposalStatus(status: ProposalDocumentStatus | undefined): boolean {
+	return status === "approved" || status === "final";
+}
+
+function isRequirementReadyForFinal(status: string | null): boolean {
+	return ["addressed", "compliant", "not_applicable"].includes(status ?? "");
+}
+
 async function requireCurrentUserId(): Promise<string> {
 	const userId = await getCurrentUserId();
 	if (!userId) {
@@ -639,6 +647,51 @@ export async function getProposalDocuments(
 	return results.map((row) => mapProposalDocument(row));
 }
 
+async function assertProposalDocumentRequirementsReadyForFinalStatus(
+	proposalDocumentId: string,
+	userId: string
+): Promise<void> {
+	const [proposalDocument] = await db
+		.select()
+		.from(proposalDocuments)
+		.where(visibleProposalDocumentCondition(proposalDocumentId, userId))
+		.limit(1);
+	if (!proposalDocument) {
+		throw new Error("Proposal document not found");
+	}
+
+	const sections = await db
+		.select()
+		.from(documentSections)
+		.where(visibleDocumentSectionsForProposalCondition(proposalDocumentId, userId));
+	const requirementIds = uniqueStrings(
+		sections.flatMap((section) => (section.requirementIds as string[]) ?? [])
+	);
+	if (requirementIds.length === 0) {
+		return;
+	}
+
+	const requirements = await db
+		.select()
+		.from(rfpRequirements)
+		.where(and(
+			inArray(rfpRequirements.id, requirementIds),
+			visibleRequirementsForOpportunityCondition(proposalDocument.opportunityId, userId)
+		));
+	const blockers = requirements.filter((requirement) =>
+		!isRequirementReadyForFinal(requirement.complianceStatus)
+	);
+	if (blockers.length > 0) {
+		const labels = blockers
+			.slice(0, 5)
+			.map((requirement) => requirementLabel(requirement))
+			.join(", ");
+		throw new Error(
+			`Cannot mark proposal document approved or final until linked requirements are compliant: ${labels}`
+		);
+	}
+}
+
 /**
  * Create a new proposal document with a new underlying document.
  */
@@ -845,6 +898,10 @@ export async function updateProposalDocument(
 	input: UpdateProposalDocumentInput
 ): Promise<ProposalDocument> {
 	const userId = await requireCurrentUserId();
+	if (isFinalProposalStatus(input.status)) {
+		await assertProposalDocumentRequirementsReadyForFinalStatus(id, userId);
+	}
+
 	const updateData: Partial<typeof proposalDocuments.$inferInsert> = {
 		updatedAt: new Date(),
 	};

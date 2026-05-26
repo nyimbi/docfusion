@@ -248,3 +248,27 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Add final evaluator-readiness/compliance promotion checks so drafts become submission-ready only after evidence, cross-reference, and review gates pass.
+
+### 2026-05-26 - Requirement-Gated Proposal Approval
+
+Status: implemented and verified.
+
+Purpose: prevent draft-generation progress from being mistaken for final response readiness.
+
+Changes in this slice:
+- Add an approval/final-status gate for proposal documents with linked requirements.
+- Before a proposal document can be marked approved or final, load its linked section requirements through the assigned-opportunity scope.
+- Block approval when linked requirements remain partial, not addressed, non-compliant, or otherwise unresolved.
+- Allow final status only when linked requirements are addressed, compliant, or not applicable.
+- Add focused coverage proving unresolved linked requirements prevent proposal document approval and no update is written.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts __tests__/actions/proposal-documents-auth.test.ts` passed.
+- `npx tsc --noEmit` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This slice used targeted proposal-document action tests and TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Add evidence-aware promotion workflows so compliant status can be earned from verified response evidence instead of manual status changes alone.
