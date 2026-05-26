@@ -16,6 +16,25 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Kenya PPIP Document Download TLS Handling
+
+Status: implemented and verified.
+
+Purpose: let source-document intake fetch Kenya PPIP PDFs after PPIP opportunities are discovered, without weakening TLS validation for generic external downloads.
+
+Changes in this slice:
+- Add an explicit invalid-TLS host allowlist option to the SSRF-safe public URL fetch helper.
+- Pass that exception only for `tenders.go.ke` source document downloads.
+- Extend the live Kenya PPIP proof to fetch a byte range from a real PPIP PDF document URL.
+
+Verification:
+- `npm run test -- public-url.test.ts rfp-document-service.test.ts prove-live-kenya-ppip-source.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run live-kenya-ppip-source --include-live-safe` from `frontend/` passed, returning 928 active tenders and fetching 1,024 bytes from a live PPIP PDF with HTTP 206 and `application/pdf`.
+
+Remaining after this slice:
+- Prove the full configured-source import path with bounded document download, parse queueing, and response readiness against a realistic live opportunity.
+
 ### 2026-05-26 - Kenya PPIP API Source Discovery
 
 Status: implemented and verified.

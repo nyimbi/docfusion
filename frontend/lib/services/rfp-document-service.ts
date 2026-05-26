@@ -36,6 +36,7 @@ import { logger } from "@/lib/utils/logger";
 const DOCUMENT_STORAGE_PATH = process.env.DOCUMENT_STORAGE_PATH || "./storage/rfp-documents";
 const MAX_FILE_SIZE_MB = 100; // Maximum file size to download
 const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".zip", ".rar"];
+const DOCUMENT_INVALID_TLS_HOSTS = new Set(["tenders.go.ke"]);
 
 // ============================================================================
 // Types
@@ -635,6 +636,7 @@ export async function downloadDocument(
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
+      allowInvalidTlsForHosts: invalidTlsHostsForDocumentSource(safeSourceUrl),
     }, "Document source URL");
 
     if (!response.ok) {
@@ -778,6 +780,11 @@ export async function downloadDocument(
       error: error instanceof Error ? error.message : "Download failed",
     };
   }
+}
+
+function invalidTlsHostsForDocumentSource(sourceUrl: URL): string[] | undefined {
+  const host = sourceUrl.hostname.replace(/^www\./, "").toLowerCase();
+  return DOCUMENT_INVALID_TLS_HOSTS.has(host) ? [host] : undefined;
 }
 
 /**

@@ -319,6 +319,31 @@ describe("RFP document fetch storage", () => {
 		);
 	});
 
+	it("allows invalid TLS only for Kenya PPIP source document downloads", async () => {
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			sourceUrl: "https://tenders.go.ke/storage/Documents/registration.pdf",
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+			}));
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result.success).toBe(true);
+		expect(fetchPublicHttpUrlMock).toHaveBeenCalledWith(
+			expect.objectContaining({ hostname: "tenders.go.ke" }),
+			expect.objectContaining({
+				allowInvalidTlsForHosts: ["tenders.go.ke"],
+			}),
+			"Document source URL"
+		);
+	});
+
 	it("fetches downloaded RFP bytes from Linode E3 during later text extraction", async () => {
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
 			...baseDocument,

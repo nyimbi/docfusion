@@ -154,6 +154,32 @@ describe("public URL validation", () => {
 		expect(request.setTimeout).toHaveBeenCalledWith(15_000, expect.any(Function));
 	});
 
+	it("allows invalid TLS only for explicitly listed HTTPS hosts", async () => {
+		lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+		httpsRequestMock.mockImplementation((_url, _options, callback) =>
+			createMockRequest(callback, {
+				body: "pdf",
+				headers: { "content-type": "application/pdf" },
+				statusCode: 200,
+				statusMessage: "OK",
+			})
+		);
+
+		const response = await fetchPublicHttpUrl("https://tenders.go.ke/storage/Documents/rfp.pdf", {
+			allowInvalidTlsForHosts: ["tenders.go.ke"],
+		});
+
+		expect(response.status).toBe(200);
+		expect(httpsRequestMock).toHaveBeenCalledWith(
+			expect.objectContaining({ hostname: "tenders.go.ke" }),
+			expect.objectContaining({
+				rejectUnauthorized: false,
+				lookup: expect.any(Function),
+			}),
+			expect.any(Function),
+		);
+	});
+
 	it("follows redirects only after revalidating and repinning the next URL", async () => {
 		lookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
 		httpRequestMock.mockImplementation((_url, _options, callback) =>

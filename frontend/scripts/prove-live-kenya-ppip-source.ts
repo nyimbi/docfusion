@@ -8,6 +8,7 @@ import {
 	writeProofJson,
 	type EvidenceRecord,
 } from "./platform-proof/core";
+import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { fetchKenyaPpipOpportunities } from "@/lib/services/kenya-ppip-client";
 
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
@@ -25,6 +26,12 @@ interface LiveKenyaPpipProof {
 		apiUrl?: string;
 		total?: number;
 		opportunityCount: number;
+		documentFetch?: {
+			url: string;
+			status: number;
+			contentType?: string;
+			byteLength: number;
+		};
 		sampleOpportunities: Array<{
 			title: string;
 			sourceId?: string;
@@ -73,12 +80,34 @@ async function proveKenyaPpipSource(): Promise<LiveKenyaPpipProof["source"]> {
 	if (missingDocument) {
 		throw new Error(`Kenya PPIP opportunity is missing document URL: ${missingDocument.title}`);
 	}
+	const firstDocumentUrl = result.opportunities[0]?.documentUrl;
+	if (!firstDocumentUrl) {
+		throw new Error("Kenya PPIP proof could not find a document URL to fetch");
+	}
+	const documentResponse = await fetchPublicHttpUrl(firstDocumentUrl, {
+		headers: {
+			Range: "bytes=0-1023",
+			"User-Agent": "DocFusion/1.0 live-kenya-ppip-proof",
+		},
+		timeoutMs: 20000,
+		allowInvalidTlsForHosts: ["tenders.go.ke"],
+	}, "Kenya PPIP document proof URL");
+	if (!documentResponse.ok) {
+		throw new Error(`Kenya PPIP document fetch returned HTTP ${documentResponse.status}`);
+	}
+	const documentBytes = Buffer.from(await documentResponse.arrayBuffer());
 
 	return {
 		url: SOURCE_URL,
 		apiUrl: result.apiUrl,
 		total: result.total,
 		opportunityCount: result.opportunities.length,
+		documentFetch: {
+			url: firstDocumentUrl,
+			status: documentResponse.status,
+			contentType: documentResponse.headers.get("content-type") ?? undefined,
+			byteLength: documentBytes.length,
+		},
 		sampleOpportunities: result.opportunities.slice(0, 5).map((opportunity) => ({
 			title: opportunity.title,
 			sourceId: opportunity.sourceId,
@@ -105,6 +134,7 @@ async function writeArtifacts(proof: LiveKenyaPpipProof, disposition: EvidenceRe
 			`source:${proof.source.url}`,
 			`api:${proof.source.apiUrl ?? "unknown"}`,
 			`opportunities:${proof.source.opportunityCount}`,
+			`document-fetch:${proof.source.documentFetch?.status ?? "not-run"}`,
 		],
 		topology_tier: "live-connectivity",
 		verification_bucket: "live-safe Kenya PPIP source discovery",
@@ -113,7 +143,7 @@ async function writeArtifacts(proof: LiveKenyaPpipProof, disposition: EvidenceRe
 		cleanup_status: "not-applicable",
 		disposition,
 		notes: disposition === "pass"
-			? "Live Kenya PPIP API returned mapped opportunity candidates with source document URLs."
+			? "Live Kenya PPIP API returned mapped opportunity candidates and a source document fetch succeeded."
 			: proof.error ?? "Live Kenya PPIP source discovery proof failed.",
 	}], {
 		title: "Platform Live Kenya PPIP Evidence",

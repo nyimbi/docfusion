@@ -17,6 +17,7 @@ interface PublicHttpRequestInit {
 	maxRedirects?: number;
 	signal?: AbortSignal;
 	timeoutMs?: number;
+	allowInvalidTlsForHosts?: string[];
 }
 
 export async function assertPublicHttpUrl(rawUrl: string, label = "URL"): Promise<URL> {
@@ -81,6 +82,14 @@ async function requestPublicHttpUrl(
 		headers.set("content-length", String(getBodyByteLength(init.body)));
 	}
 	const requestHeaders = Object.fromEntries(headers.entries());
+	const requestOptions: RequestOptions & { rejectUnauthorized?: boolean } = {
+		method: init.method ?? "GET",
+		headers: requestHeaders,
+		lookup,
+	};
+	if (url.protocol === "https:" && allowsInvalidTlsForHost(url, init.allowInvalidTlsForHosts)) {
+		requestOptions.rejectUnauthorized = false;
+	}
 
 	return new Promise<Response>((resolve, reject) => {
 		let settled = false;
@@ -97,11 +106,7 @@ async function requestPublicHttpUrl(
 		};
 		const request = requester(
 			url,
-			{
-				method: init.method ?? "GET",
-				headers: requestHeaders,
-				lookup,
-			},
+			requestOptions,
 			(response) => {
 				const chunks: Buffer[] = [];
 				response.on("data", (chunk) => {
@@ -136,6 +141,12 @@ async function requestPublicHttpUrl(
 		}
 		request.end();
 	});
+}
+
+function allowsInvalidTlsForHost(url: URL, allowedHosts: string[] | undefined): boolean {
+	if (!allowedHosts?.length) return false;
+	const hostname = normalizeHostname(url.hostname);
+	return allowedHosts.some((host) => normalizeHostname(host) === hostname);
 }
 
 export async function createPinnedPublicLookup(
