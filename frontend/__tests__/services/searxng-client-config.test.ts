@@ -95,4 +95,58 @@ describe("Docling client configuration", () => {
 		await expect(checkDoclingHealth()).resolves.toBe(true);
 		expect(fetchMock).toHaveBeenCalledWith("http://84.247.181.100:3600/health", expect.any(Object));
 	});
+
+	it("posts files to the Docling Serve convert-file endpoint", async () => {
+		const fetchMock = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({
+				status: "success",
+				document: {
+					filename: "rfp.pdf",
+					md_content: "# Tender\n\nSubmission instructions",
+					text_content: "Tender Submission instructions",
+				},
+				errors: [],
+				processing_time: 0.25,
+			}),
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { convertDocument } = await import("@/lib/services/docling-client");
+
+		const result = await convertDocument(Buffer.from("pdf-bytes"), "rfp.pdf", {
+			outputFormat: "text",
+			ocr: false,
+			extractTables: false,
+			extractImages: false,
+			pageRange: [1, 2],
+			documentTimeoutSeconds: 30,
+		});
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://84.247.181.100:3600/v1/convert/file",
+			expect.objectContaining({
+				method: "POST",
+				body: expect.any(FormData),
+			})
+		);
+		const [, requestInit] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+		const body = requestInit.body as FormData;
+		expect(body.get("target_type")).toBe("inbody");
+		expect(body.get("to_formats")).toBe("text");
+		expect(body.get("do_ocr")).toBe("false");
+		expect(body.get("do_table_structure")).toBe("false");
+		expect(body.get("include_images")).toBe("false");
+		expect(body.getAll("page_range")).toEqual(["1", "2"]);
+		expect(body.get("document_timeout")).toBe("30");
+		expect(body.get("files")).toBeInstanceOf(Blob);
+		expect(result).toMatchObject({
+			status: "success",
+			text: "Tender Submission instructions",
+			markdown: "# Tender\n\nSubmission instructions",
+			metadata: {
+				title: "rfp.pdf",
+			},
+		});
+	});
 });

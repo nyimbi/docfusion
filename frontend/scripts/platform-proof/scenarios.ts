@@ -362,6 +362,23 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "live-opportunity-response-readiness",
+		wave: 9,
+		title: "Live opportunity response readiness proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005", "F-008", "F-020"],
+		requiresLiveServices: true,
+		description: "Finds a live software-relevant procurement opportunity, extracts its source PDF with Docling, and verifies Datacraft response package seed readiness.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-opportunity-response-readiness.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-opportunity-response-readiness-evidence.md",
+			".omx/logs/platform-completion/live-response-readiness-<run_id>/live-opportunity-response-readiness.json",
+		],
+	},
+	{
 		id: "live-source-discovery",
 		wave: 9,
 		title: "Live configured source discovery proof",

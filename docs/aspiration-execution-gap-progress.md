@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Opportunity Response Readiness Proof
+
+Status: implemented and verified.
+
+Purpose: prove a live procurement opportunity can move beyond discovery into source-document extraction and response-package readiness using the configured UNGM and Docling services.
+
+Changes in this slice:
+- Fix the Docling client to call the live Docling Serve `/v1/convert/file` multipart endpoint with the `files` field and Docling Serve response normalization.
+- Add `live-opportunity-response-readiness` to the platform-proof live-safe manifest.
+- Add a live-safe proof script that finds a software/security UNGM opportunity, fetches its source PDF, extracts procurement text with Docling, and verifies Datacraft response document seeds and snippet coverage.
+
+Verification:
+- `npm test -- searxng-client-config.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 9 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-opportunity-response-readiness` from `frontend/` passed.
+- The live proof selected the UN Secretariat goAML software penetration-testing EOI, fetched a 171,406-byte PDF, extracted 3,033 text characters through Docling with status `success`, found procurement indicators, and verified 6 response document types, 22 section seeds, and 85 relevant Datacraft snippets.
+
+Remaining after this slice:
+- The environment-backed live database persistence proof is still blocked until the configured PostgreSQL endpoint is reachable.
+- Continue closing the live path from extracted RFP text into tenant-persisted opportunity, document, workflow, and final response artifacts once database connectivity is available.
+
 ### 2026-05-27 - Live DB Persistence Probe Blocked
 
 Status: blocked by database connectivity.

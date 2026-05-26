@@ -21,6 +21,7 @@ describe("platform proof scenarios", () => {
 		const withLive = listProofScenarios({ includeLiveSafe: true });
 		expect(withLive.map((scenario) => scenario.id)).toContain("phase1-live-safe-control-plane");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-discovery-services");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-opportunity-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-source-discovery");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-ungm-source");
@@ -149,6 +150,16 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["F-001", "F-005"]),
 				expectedArtifacts: expect.arrayContaining([
 					".omx/state/platform-live-discovery-evidence.md",
+				]),
+			}),
+		]);
+		expect(listProofScenarios({ ids: ["live-opportunity-response-readiness"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-opportunity-response-readiness",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-020"]),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-opportunity-response-readiness-evidence.md",
 				]),
 			}),
 		]);

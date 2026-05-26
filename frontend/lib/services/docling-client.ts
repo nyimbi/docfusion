@@ -12,6 +12,8 @@ export interface DoclingConvertOptions {
   ocr?: boolean;
   extractTables?: boolean;
   extractImages?: boolean;
+  pageRange?: [number, number];
+  documentTimeoutSeconds?: number;
 }
 
 export interface DoclingConvertResponse {
@@ -19,6 +21,8 @@ export interface DoclingConvertResponse {
   html?: string;
   text?: string;
   json?: unknown;
+  status?: string;
+  errors?: Array<{ component_type?: string; module_name?: string; error_message?: string }>;
   metadata?: {
     title?: string;
     author?: string;
@@ -38,6 +42,52 @@ export interface DoclingConvertResponse {
   }>;
 }
 
+interface DoclingServeConvertResponse {
+  document?: {
+    filename?: string;
+    md_content?: string | null;
+    json_content?: unknown;
+    html_content?: string | null;
+    text_content?: string | null;
+    doctags_content?: string | null;
+  };
+  status?: string;
+  errors?: DoclingConvertResponse["errors"];
+  processing_time?: number;
+}
+
+function toDoclingOutputFormat(format: DoclingConvertOptions["outputFormat"]): string {
+  switch (format) {
+    case "markdown":
+    case undefined:
+      return "md";
+    case "json":
+      return "json";
+    case "html":
+      return "html";
+    case "text":
+      return "text";
+  }
+}
+
+function normalizeConvertResponse(response: DoclingServeConvertResponse | DoclingConvertResponse): DoclingConvertResponse {
+  if ("document" in response) {
+    return {
+      markdown: response.document?.md_content ?? undefined,
+      html: response.document?.html_content ?? undefined,
+      text: response.document?.text_content ?? response.document?.md_content ?? undefined,
+      json: response.document?.json_content,
+      status: response.status,
+      errors: response.errors,
+      metadata: {
+        title: response.document?.filename,
+      },
+    };
+  }
+
+  return response;
+}
+
 export interface DoclingHealthResponse {
   status: string;
   version?: string;
@@ -53,23 +103,28 @@ export async function convertDocument(
 ): Promise<DoclingConvertResponse> {
   const formData = new FormData();
   
-  // Add file - create Blob from buffer
   const blob = new Blob([fileBuffer as unknown as BlobPart]);
-  formData.append("file", blob, filename);
-  
-  // Add options
-  formData.append("output_format", options.outputFormat || "markdown");
+  formData.append("files", blob, filename);
+  formData.append("target_type", "inbody");
+  formData.append("to_formats", toDoclingOutputFormat(options.outputFormat));
   if (options.ocr !== undefined) {
-    formData.append("ocr", options.ocr.toString());
+    formData.append("do_ocr", options.ocr.toString());
   }
   if (options.extractTables !== undefined) {
-    formData.append("extract_tables", options.extractTables.toString());
+    formData.append("do_table_structure", options.extractTables.toString());
   }
   if (options.extractImages !== undefined) {
-    formData.append("extract_images", options.extractImages.toString());
+    formData.append("include_images", options.extractImages.toString());
+  }
+  if (options.pageRange) {
+    formData.append("page_range", String(options.pageRange[0]));
+    formData.append("page_range", String(options.pageRange[1]));
+  }
+  if (options.documentTimeoutSeconds !== undefined) {
+    formData.append("document_timeout", options.documentTimeoutSeconds.toString());
   }
 
-  const response = await fetch(`${DOCLING_URL}/v1/convert`, {
+  const response = await fetch(`${DOCLING_URL}/v1/convert/file`, {
     method: "POST",
     body: formData,
     signal: AbortSignal.timeout(120000), // 2 minutes for large documents
@@ -80,7 +135,7 @@ export async function convertDocument(
     throw new Error(`DocLing conversion failed: ${response.status} ${error}`);
   }
 
-  return response.json();
+  return normalizeConvertResponse(await response.json());
 }
 
 /**
