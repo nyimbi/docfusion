@@ -148,3 +148,28 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Consider CloakHQ/cloakbrowser only after a real target source fails both Firecrawl and the existing Playwright/stealth service.
+
+### 2026-05-26 - Requirement-Traceable Proposal Package Creation
+
+Status: implemented and verified.
+
+Purpose: move the response-generation path beyond generic document creation by making the standard proposal set idempotent and immediately traceable to extracted RFP requirements.
+
+Changes in this slice:
+- Make `createStandardProposalSet` skip already-created standard document types instead of duplicating proposal documents on repeated package creation.
+- Link actionable RFP requirements to matching proposal document sections by category, preserving existing section requirement IDs.
+- Update each linked requirement with the response document and section that will address it.
+- Keep all requirement and section updates scoped through the assigned opportunity.
+- Add focused tests covering unauthenticated access, assigned-opportunity scoping, duplicate avoidance, requirement-to-section linking, and traceability updates.
+
+Verification:
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts __tests__/actions/proposal-documents-auth.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This slice used targeted proposal-document action tests and TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Strengthen generation quality by using opportunity context, accepted requirements, win themes, past performance, and compliance gaps to seed section-specific draft content.

@@ -5,6 +5,7 @@ const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
 interface ChainConfig {
 	result?: unknown[];
 	onWhere?: (value: unknown) => void;
+	onSet?: (value: Record<string, unknown>) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
@@ -16,7 +17,10 @@ function createChain(config: ChainConfig = {}) {
 		config.onWhere?.(value);
 		return chain;
 	});
-	chain.set = vi.fn(() => chain);
+	chain.set = vi.fn((value: Record<string, unknown>) => {
+		config.onSet?.(value);
+		return chain;
+	});
 	chain.values = vi.fn(() => chain);
 	chain.returning = vi.fn(async () => config.result ?? []);
 	chain.then = (resolve: (value: unknown[]) => void) =>
@@ -64,6 +68,7 @@ vi.mock("@/lib/db", () => ({
 import {
 	bulkUpdateStatus,
 	createProposalDocument,
+	createStandardProposalSet,
 	getDocumentSections,
 	getProposalDocument,
 	updateProposalDocument,
@@ -216,5 +221,60 @@ describe("proposal document row scoping", () => {
 		await bulkUpdateStatus([proposalDocument.id], "in_review");
 
 		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+	});
+
+	it("links existing standard proposal documents to matching requirements without duplicating documents", async () => {
+		const requirement = {
+			id: "77777777-7777-4777-8777-777777777777",
+			opportunityId: proposalDocument.opportunityId,
+			category: "technical",
+			complianceStatus: "not_addressed",
+			responseSection: null,
+		};
+		const updateSets: Record<string, unknown>[] = [];
+		const updateWheres: unknown[] = [];
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{ id: proposalDocument.opportunityId }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [proposalDocument],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [requirement],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [section],
+			}));
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updateSets.push(value);
+			},
+			onWhere: (value) => {
+				updateWheres.push(value);
+			},
+		}));
+
+		const created = await createStandardProposalSet(
+			proposalDocument.opportunityId,
+			["technical_approach"]
+		);
+
+		expect(created).toEqual([]);
+		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(updateSets).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				responseDocumentId: proposalDocument.documentId,
+				responseSection: section.sectionName,
+			}),
+			expect.objectContaining({
+				requirementIds: [requirement.id],
+			}),
+		]));
+		expect(updateWheres).toHaveLength(2);
+		for (const where of updateWheres) {
+			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		}
 	});
 });

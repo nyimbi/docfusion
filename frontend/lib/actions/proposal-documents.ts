@@ -10,6 +10,7 @@
 
 import { db } from "@/lib/db";
 import { documents, proposalDocuments, documentSections, opportunities } from "@/lib/db/schema";
+import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { eq, and, asc, sql, inArray, type SQL } from "drizzle-orm";
 import type {
 	ProposalDocument,
@@ -115,6 +116,10 @@ function countWords(text: string): number {
 	return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function uniqueStrings(values: string[]): string[] {
+	return [...new Set(values.filter(Boolean))];
+}
+
 async function requireCurrentUserId(): Promise<string> {
 	const userId = await getCurrentUserId();
 	if (!userId) {
@@ -176,6 +181,20 @@ function visibleDocumentSectionCondition(id: string, userId: string): SQL {
 			where proposal_documents.id = ${documentSections.proposalDocumentId}
 				and opportunities.assigned_to = ${userId}
 		)`
+	)!;
+}
+
+function visibleRequirementsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(rfpRequirements.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId)
+	)!;
+}
+
+function visibleRequirementCondition(id: string, userId: string): SQL {
+	return and(
+		eq(rfpRequirements.id, id),
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userId)
 	)!;
 }
 
@@ -801,6 +820,135 @@ export async function getSectionProgress(proposalDocumentId: string): Promise<Se
 	});
 }
 
+function documentTypeForRequirement(
+	requirement: typeof rfpRequirements.$inferSelect
+): ProposalDocumentType {
+	switch (requirement.category) {
+		case "financial":
+			return "cost_proposal";
+		case "experience":
+			return "past_performance";
+		case "personnel":
+			return "staffing_plan";
+		case "administrative":
+		case "legal":
+		case "compliance":
+			return "management_plan";
+		case "security":
+		case "technical":
+			return "technical_approach";
+		default:
+			return "technical_approach";
+	}
+}
+
+function chooseSectionForRequirement(
+	requirement: typeof rfpRequirements.$inferSelect,
+	sections: Array<typeof documentSections.$inferSelect>
+): typeof documentSections.$inferSelect | undefined {
+	if (sections.length === 0) return undefined;
+
+	const requestedSection = requirement.responseSection?.trim().toLowerCase();
+	if (requestedSection) {
+		const existing = sections.find((section) =>
+			section.sectionName.toLowerCase().includes(requestedSection)
+		);
+		if (existing) return existing;
+	}
+
+	const categoryKeywords: Record<string, string[]> = {
+		technical: ["technical", "solution", "approach", "methodology"],
+		security: ["security", "risk", "technical", "solution"],
+		financial: ["cost", "pricing", "budget", "financial"],
+		experience: ["past", "experience", "performance", "references"],
+		personnel: ["staff", "team", "personnel", "key personnel"],
+		administrative: ["management", "compliance", "submission", "administrative"],
+		legal: ["management", "compliance", "terms", "legal"],
+		compliance: ["compliance", "management", "quality"],
+	};
+	const keywords = categoryKeywords[requirement.category ?? ""] ?? [];
+	const matched = sections.find((section) => {
+		const name = section.sectionName.toLowerCase();
+		return keywords.some((keyword) => name.includes(keyword));
+	});
+
+	return matched ?? sections[0];
+}
+
+async function linkRequirementsToStandardProposalSections(
+	opportunityId: string,
+	proposalDocs: ProposalDocument[],
+	userId: string
+): Promise<void> {
+	if (proposalDocs.length === 0) return;
+
+	const requirements = await db
+		.select()
+		.from(rfpRequirements)
+		.where(visibleRequirementsForOpportunityCondition(opportunityId, userId));
+
+	const actionableRequirements = requirements.filter((requirement) =>
+		requirement.complianceStatus !== "not_applicable"
+	);
+	if (actionableRequirements.length === 0) return;
+
+	const docsByType = new Map<ProposalDocumentType, ProposalDocument>();
+	for (const doc of proposalDocs) {
+		if (!docsByType.has(doc.documentType)) {
+			docsByType.set(doc.documentType, doc);
+		}
+	}
+
+	for (const [documentType, proposalDoc] of docsByType) {
+		const matchingRequirements = actionableRequirements.filter((requirement) =>
+			documentTypeForRequirement(requirement) === documentType
+		);
+		if (matchingRequirements.length === 0) continue;
+
+		const sections = await db
+			.select()
+			.from(documentSections)
+			.where(visibleDocumentSectionsForProposalCondition(proposalDoc.id, userId))
+			.orderBy(asc(documentSections.sectionOrder));
+		if (sections.length === 0) continue;
+
+		const requirementIdsBySection = new Map<string, string[]>();
+		const sectionById = new Map(sections.map((section) => [section.id, section]));
+
+		for (const requirement of matchingRequirements) {
+			const section = chooseSectionForRequirement(requirement, sections);
+			if (!section) continue;
+			const ids = requirementIdsBySection.get(section.id) ?? [];
+			ids.push(requirement.id);
+			requirementIdsBySection.set(section.id, ids);
+
+			await db
+				.update(rfpRequirements)
+				.set({
+					responseDocumentId: proposalDoc.documentId,
+					responseSection: section.sectionName,
+					updatedAt: new Date(),
+				})
+				.where(visibleRequirementCondition(requirement.id, userId));
+		}
+
+		for (const [sectionId, requirementIds] of requirementIdsBySection) {
+			const section = sectionById.get(sectionId);
+			if (!section) continue;
+			await db
+				.update(documentSections)
+				.set({
+					requirementIds: uniqueStrings([
+						...((section.requirementIds as string[]) ?? []),
+						...requirementIds,
+					]),
+					updatedAt: new Date(),
+				})
+				.where(visibleDocumentSectionCondition(sectionId, userId));
+		}
+	}
+}
+
 // ============================================================================
 // Bulk Operations
 // ============================================================================
@@ -812,7 +960,7 @@ export async function createStandardProposalSet(
 	opportunityId: string,
 	documentTypes?: ProposalDocumentType[]
 ): Promise<ProposalDocument[]> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 	const types = documentTypes || [
 		"cover_letter",
 		"executive_summary",
@@ -823,15 +971,44 @@ export async function createStandardProposalSet(
 		"cost_proposal",
 	];
 
+	const [opportunity] = await db
+		.select({ id: opportunities.id })
+		.from(opportunities)
+		.where(visibleOpportunityCondition(opportunityId, userId))
+		.limit(1);
+
+	if (!opportunity) {
+		throw new Error("Opportunity not found");
+	}
+
+	const existingDocs = await db
+		.select()
+		.from(proposalDocuments)
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId))
+		.orderBy(asc(proposalDocuments.sectionOrder), asc(proposalDocuments.createdAt));
+
+	const existingTypes = new Set(existingDocs.map((doc) => doc.documentType as ProposalDocumentType));
 	const created: ProposalDocument[] = [];
 
 	for (const documentType of types) {
+		if (existingTypes.has(documentType)) {
+			continue;
+		}
 		const doc = await createProposalDocument({
 			opportunityId,
 			documentType,
 		});
 		created.push(doc);
+		existingTypes.add(documentType);
 	}
+
+	const packageDocs = [
+		...existingDocs
+			.filter((doc) => types.includes(doc.documentType as ProposalDocumentType))
+			.map((doc) => mapProposalDocument(doc)),
+		...created,
+	];
+	await linkRequirementsToStandardProposalSections(opportunityId, packageDocs, userId);
 
 	return created;
 }
