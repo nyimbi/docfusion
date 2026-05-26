@@ -368,7 +368,7 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		kind: "live-safe",
 		proofTargets: ["F-001", "F-005", "F-008", "F-020"],
 		requiresLiveServices: true,
-		description: "Finds a live software-relevant procurement opportunity, extracts its source PDF with Docling, and verifies Datacraft response package seed readiness.",
+		description: "Finds a live software-relevant procurement opportunity, extracts its source PDF with Docling, and verifies concrete Datacraft response package draft artifacts.",
 		command: {
 			command: "npx",
 			args: ["tsx", "scripts/prove-live-opportunity-response-readiness.ts"],

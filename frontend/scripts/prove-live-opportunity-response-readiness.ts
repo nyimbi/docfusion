@@ -1,6 +1,7 @@
 import "./load-env";
 
 import path from "node:path";
+import fs from "node:fs/promises";
 import {
 	appendEvidenceRecords,
 	createProofLogDir,
@@ -8,17 +9,14 @@ import {
 	writeProofJson,
 	type EvidenceRecord,
 } from "./platform-proof/core";
-import {
-	DATACRAFT_RESPONSE_SNIPPETS,
-	getDatacraftProposalDocumentContent,
-	getDatacraftProposalSectionSeeds,
-	type DatacraftResponseSnippetInput,
-} from "@/lib/data/datacraft-response-content";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { checkDoclingHealth, convertDocument } from "@/lib/services/docling-client";
+import {
+	buildLiveResponsePackage,
+	type LiveResponsePackage,
+} from "@/lib/services/live-response-package";
 import { fetchUngmOpportunities } from "@/lib/services/ungm-client";
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
-import type { DocumentContent } from "@/lib/types/document";
 import type { ProposalDocumentType } from "@/lib/types/opportunity";
 
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
@@ -36,20 +34,6 @@ const PROPOSAL_DOCUMENT_TYPES: ProposalDocumentType[] = [
 	"management_plan",
 	"past_performance",
 	"cost_proposal",
-];
-const RESPONSE_RELEVANCE_TERMS = [
-	"api",
-	"architecture",
-	"compliance",
-	"data",
-	"delivery",
-	"governance",
-	"integration",
-	"quality",
-	"risk",
-	"security",
-	"software",
-	"testing",
 ];
 const PROCUREMENT_INDICATORS = [
 	"request for expression of interest",
@@ -91,11 +75,19 @@ interface LiveOpportunityResponseReadinessProof {
 	responseReadiness?: {
 		documentTypes: ProposalDocumentType[];
 		totalSectionSeeds: number;
+		sourceRequirementCount: number;
 		relevantSnippetCount: number;
 		relevantSnippetShortcuts: string[];
 		seededDocumentWordCounts: Record<string, number>;
+		totalDraftWordCount: number;
+		draftArtifactPaths: string[];
 	};
 	error?: string;
+}
+
+interface ExtractedSourceDocument {
+	document: NonNullable<LiveOpportunityResponseReadinessProof["document"]>;
+	sourceText: string;
 }
 
 async function main() {
@@ -132,8 +124,13 @@ async function proveLiveOpportunityResponseReadiness(): Promise<Partial<LiveOppo
 		throw new Error("UNGM software source returned no response-ready opportunity with a direct source document");
 	}
 
-	const document = await fetchAndExtractSourceDocument(opportunity.rfpLink);
-	const responseReadiness = proveResponseSeedReadiness(opportunity, document.extractedPreview);
+	const extracted = await fetchAndExtractSourceDocument(opportunity.rfpLink);
+	const responsePackage = buildLiveResponsePackage({
+		opportunity,
+		sourceText: extracted.sourceText,
+	});
+	const draftArtifactPaths = await writeResponsePackageArtifacts(responsePackage);
+	const responseReadiness = proveResponseSeedReadiness(responsePackage, draftArtifactPaths);
 
 	return {
 		source: {
@@ -149,7 +146,7 @@ async function proveLiveOpportunityResponseReadiness(): Promise<Partial<LiveOppo
 			portalUrl: opportunity.portalUrl,
 			documentUrl: opportunity.rfpLink,
 		},
-		document,
+		document: extracted.document,
 		responseReadiness,
 	};
 }
@@ -163,7 +160,7 @@ function selectResponseReadyOpportunity(opportunities: OpportunityData[]): Oppor
 	});
 }
 
-async function fetchAndExtractSourceDocument(documentUrl: string): Promise<NonNullable<LiveOpportunityResponseReadinessProof["document"]>> {
+async function fetchAndExtractSourceDocument(documentUrl: string): Promise<ExtractedSourceDocument> {
 	const doclingHealthy = await checkDoclingHealth();
 	if (!doclingHealthy) {
 		throw new Error("Docling health check failed before live response source extraction");
@@ -207,70 +204,55 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<NonNu
 	}
 
 	return {
-		url: documentUrl,
-		status: response.status,
-		contentType,
-		byteLength: documentBytes.length,
-		extractedTextLength: extractedText.length,
-		doclingStatus: converted.status,
-		procurementIndicators,
-		extractedPreview: compactText(extractedText, 500),
+		document: {
+			url: documentUrl,
+			status: response.status,
+			contentType,
+			byteLength: documentBytes.length,
+			extractedTextLength: extractedText.length,
+			doclingStatus: converted.status,
+			procurementIndicators,
+			extractedPreview: compactText(extractedText.replace(/\s+/g, " "), 500),
+		},
+		sourceText: extractedText,
 	};
 }
 
 function proveResponseSeedReadiness(
-	opportunity: OpportunityData,
-	extractedPreview: string
+	responsePackage: LiveResponsePackage,
+	draftArtifactPaths: string[]
 ): NonNullable<LiveOpportunityResponseReadinessProof["responseReadiness"]> {
-	const values = {
-		client_name: opportunity.organization ?? "Procuring Entity",
-		opportunity_name: opportunity.title,
-		solicitation_number: opportunity.sourceId ?? opportunity.noticeId ?? "",
-		submission_date: new Date().toISOString().slice(0, 10),
-	};
 	const seededDocumentWordCounts: Record<string, number> = {};
 	let totalSectionSeeds = 0;
 
-	for (const documentType of PROPOSAL_DOCUMENT_TYPES) {
-		totalSectionSeeds += getDatacraftProposalSectionSeeds(documentType).length;
-		const renderedText = renderPlaceholders(flattenContent(getDatacraftProposalDocumentContent(documentType)), values);
-		if (/\{\{(?:client_name|opportunity_name)\}\}/.test(renderedText)) {
-			throw new Error(`Response seed for ${documentType} still contains required placeholders`);
+	for (const document of responsePackage.documents) {
+		totalSectionSeeds += document.sectionSeedCount;
+		if (/\{\{(?:client_name|opportunity_name)\}\}/.test(document.markdown)) {
+			throw new Error(`Response draft for ${document.documentType} still contains required placeholders`);
 		}
-		const wordCount = countWords(renderedText);
-		if (wordCount < 100) {
-			throw new Error(`Response seed for ${documentType} is too thin: ${wordCount} words`);
-		}
-		seededDocumentWordCounts[documentType] = wordCount;
+		seededDocumentWordCounts[document.documentType] = document.wordCount;
 	}
 
-	const relevantSnippets = selectRelevantSnippets(opportunity, extractedPreview);
-	if (relevantSnippets.length < 10) {
-		throw new Error(`Too few relevant Datacraft snippets for live opportunity: ${relevantSnippets.length}`);
+	if (responsePackage.requirements.length < 3) {
+		throw new Error(`Too few source requirement signals for live response package: ${responsePackage.requirements.length}`);
+	}
+	if (responsePackage.relevantSnippetCount < 10) {
+		throw new Error(`Too few relevant Datacraft snippets for live opportunity: ${responsePackage.relevantSnippetCount}`);
+	}
+	if (responsePackage.totalWordCount < 2000) {
+		throw new Error(`Live response package draft is too thin: ${responsePackage.totalWordCount} words`);
 	}
 
 	return {
 		documentTypes: PROPOSAL_DOCUMENT_TYPES,
 		totalSectionSeeds,
-		relevantSnippetCount: relevantSnippets.length,
-		relevantSnippetShortcuts: relevantSnippets.slice(0, 12).map((snippet) => snippet.shortcut),
+		sourceRequirementCount: responsePackage.requirements.length,
+		relevantSnippetCount: responsePackage.relevantSnippetCount,
+		relevantSnippetShortcuts: responsePackage.relevantSnippetShortcuts.slice(0, 12),
 		seededDocumentWordCounts,
+		totalDraftWordCount: responsePackage.totalWordCount,
+		draftArtifactPaths,
 	};
-}
-
-function selectRelevantSnippets(opportunity: OpportunityData, extractedPreview: string): DatacraftResponseSnippetInput[] {
-	const opportunityText = `${opportunity.title} ${opportunity.projectSummary ?? ""} ${extractedPreview}`.toLowerCase();
-	return DATACRAFT_RESPONSE_SNIPPETS.filter((snippet) => {
-		const snippetText = [
-			snippet.name,
-			snippet.description,
-			snippet.topicCategory,
-			...snippet.tags,
-			...snippet.technologies,
-			...snippet.keyTerms,
-		].join(" ").toLowerCase();
-		return RESPONSE_RELEVANCE_TERMS.some((term) => opportunityText.includes(term) || snippetText.includes(term));
-	});
 }
 
 function filenameFromUrl(url: string): string {
@@ -283,31 +265,11 @@ function filenameFromUrl(url: string): string {
 	}
 }
 
-function flattenContent(content: DocumentContent): string {
-	return flattenUnknown(content);
-}
-
-function flattenUnknown(value: unknown): string {
-	if (typeof value === "string") return value;
-	if (Array.isArray(value)) return value.map(flattenUnknown).join(" ");
-	if (value && typeof value === "object") {
-		const record = value as Record<string, unknown>;
-		return [record.text, record.content].map(flattenUnknown).join(" ");
-	}
-	return "";
-}
-
-function renderPlaceholders(text: string, values: Record<string, string>): string {
-	return Object.entries(values).reduce(
-		(rendered, [key, value]) => rendered.replaceAll(`{{${key}}}`, value),
-		text
-	);
-}
-
 function cleanExtractedText(text: string): string {
 	return text
 		.replace(/!\[Image]\(data:image\/[^)]+\)/g, " ")
-		.replace(/\s+/g, " ")
+		.replace(/[ \t]+/g, " ")
+		.replace(/\n{3,}/g, "\n\n")
 		.trim();
 }
 
@@ -315,8 +277,19 @@ function compactText(text: string, maxLength: number): string {
 	return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
 }
 
-function countWords(text: string): number {
-	return text.split(/\s+/).filter(Boolean).length;
+async function writeResponsePackageArtifacts(responsePackage: LiveResponsePackage): Promise<string[]> {
+	const packageDir = path.resolve(LOG_DIR, "response-package");
+	await fs.mkdir(packageDir, { recursive: true });
+	const relativePaths: string[] = [];
+	for (const document of responsePackage.documents) {
+		const filename = `${document.documentType}.md`;
+		const filePath = path.resolve(packageDir, filename);
+		await fs.writeFile(filePath, document.markdown, "utf8");
+		relativePaths.push(path.relative(WORKSPACE_ROOT, filePath));
+	}
+	await writeProofJson(packageDir, "response-package-summary.json", responsePackage);
+	relativePaths.push(path.relative(WORKSPACE_ROOT, path.resolve(packageDir, "response-package-summary.json")));
+	return relativePaths;
 }
 
 async function writeArtifacts(
@@ -336,6 +309,8 @@ async function writeArtifacts(
 			`document-bytes:${proof.document?.byteLength ?? 0}`,
 			`docling-text:${proof.document?.extractedTextLength ?? 0}`,
 			`response-doc-types:${proof.responseReadiness?.documentTypes.length ?? 0}`,
+			`source-requirements:${proof.responseReadiness?.sourceRequirementCount ?? 0}`,
+			`response-draft-words:${proof.responseReadiness?.totalDraftWordCount ?? 0}`,
 			`response-snippets:${proof.responseReadiness?.relevantSnippetCount ?? 0}`,
 		],
 		topology_tier: "live-connectivity",
@@ -345,7 +320,7 @@ async function writeArtifacts(
 		cleanup_status: "not-applicable",
 		disposition,
 		notes: disposition === "pass"
-			? "Live UNGM software opportunity, source PDF extraction, and Datacraft response-package seed readiness were verified."
+			? "Live UNGM software opportunity, source PDF extraction, and concrete Datacraft response-package drafts were verified."
 			: proof.error ?? "Live opportunity response readiness proof failed.",
 	}], {
 		title: "Platform Live Opportunity Response Readiness Evidence",
