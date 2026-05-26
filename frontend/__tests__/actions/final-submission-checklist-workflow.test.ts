@@ -245,6 +245,27 @@ const cleanThemeAnalysis = {
 	createdAt: new Date("2026-05-05T00:00:00.000Z"),
 };
 
+const readyResponsePackageWorkflow = {
+	id: "response-package-workflow-1",
+	state: "response_package_drafted",
+	metadata: {
+		readiness: {
+			status: "ready_for_review",
+			blockers: [],
+			warnings: [],
+			missingRequirementIds: [],
+			metrics: {
+				acceptedRequirementCount: 3,
+				draftedRequirementCount: 3,
+				requirementCoverage: 1,
+				documentsDrafted: 3,
+				sectionsDrafted: 9,
+				complianceEntriesCreated: 3,
+			},
+		},
+	},
+};
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	requireUserContextMock.mockResolvedValue({
@@ -252,6 +273,7 @@ beforeEach(() => {
 		organizationId: "org-1",
 	});
 	dbMock.select.mockReset();
+	dbMock.select.mockImplementation(() => createChain({ result: [readyResponsePackageWorkflow] }));
 });
 
 describe("final submission checklist workflow", () => {
@@ -629,6 +651,89 @@ describe("final submission checklist workflow", () => {
 				toState: "blocked",
 				eventType: "final_submission_checklist_blocked",
 				terminal: false,
+			})
+		);
+	});
+
+	it("blocks final submission when the response package readiness workflow has blockers", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					docFixture(),
+					docFixture({
+						proposalDocumentId: "pd-management",
+						documentId: "doc-management",
+						documentType: "management_plan",
+						title: "Management Plan",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-management", proposalDocumentId: "pd-management" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-cost",
+						documentId: "doc-cost",
+						documentType: "cost_proposal",
+						title: "Cost Proposal",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-cost", proposalDocumentId: "pd-cost" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+				],
+			}))
+			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({ result: [cleanThemeAnalysis] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					...readyResponsePackageWorkflow,
+					id: "response-package-workflow-blocked",
+					metadata: {
+						readiness: {
+							status: "blocked",
+							blockers: ["1 accepted requirement(s) were not represented in drafted response documents"],
+							warnings: ["2/3 accepted requirement(s) received compliance matrix entries"],
+							missingRequirementIds: ["req-missing-1"],
+							metrics: {
+								acceptedRequirementCount: 3,
+								draftedRequirementCount: 2,
+								requirementCoverage: 2 / 3,
+								documentsDrafted: 2,
+								sectionsDrafted: 6,
+								complianceEntriesCreated: 2,
+							},
+						},
+					},
+				}],
+			}));
+
+		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
+
+		expect(result.allowed).toBe(false);
+		expect(result.blockers.join("\n")).toContain("Response package readiness");
+		expect(result.blockers.join("\n")).toContain("67% accepted requirement coverage");
+		expect(result.blockers.join("\n")).toContain("1 accepted requirement(s) were not represented");
+		expect(result.items.find((item) => item.id === "evidence:response-package-readiness")).toMatchObject({
+			category: "evidence",
+			required: true,
+			passed: false,
+			subjectId: "response-package-workflow-blocked",
+			assignedRole: "proposal_manager",
+		});
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "blocked",
+				eventType: "final_submission_checklist_blocked",
+				terminal: false,
+				metadata: expect.objectContaining({
+					items: expect.arrayContaining([
+						expect.objectContaining({
+							id: "evidence:response-package-readiness",
+							passed: false,
+						}),
+					]),
+				}),
 			})
 		);
 	});

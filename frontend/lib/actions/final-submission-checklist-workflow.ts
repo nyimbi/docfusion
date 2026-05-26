@@ -11,6 +11,7 @@ import { documents, proposalDocuments } from "@/lib/db/schema";
 import { complianceMatrices } from "@/lib/db/schema-rfp";
 import { claimAnalysis } from "@/lib/db/schema-evidence";
 import { themeAnalysisResults } from "@/lib/db/schema-win-themes";
+import { workflowInstances } from "@/lib/db/schema-workflow-runtime";
 import {
 	hasBlockingDlpFindings,
 	scanDocumentsForDlpFindings,
@@ -37,6 +38,10 @@ type ProposalDocumentWithDocument = {
 type ComplianceMatrixRow = typeof complianceMatrices.$inferSelect;
 type ClaimAnalysisRow = typeof claimAnalysis.$inferSelect;
 type ThemeAnalysisRow = typeof themeAnalysisResults.$inferSelect;
+type ResponsePackageWorkflowRow = Pick<
+	typeof workflowInstances.$inferSelect,
+	"id" | "state" | "metadata"
+>;
 type FinalChecklistUserContext = UserContext & { organizationId: string };
 type FinalArtifactMetadata = {
 	artifactHash?: unknown;
@@ -45,6 +50,23 @@ type FinalArtifactMetadata = {
 	approvedAt?: unknown;
 	sourceDocumentVersion?: unknown;
 	sourceContentHash?: unknown;
+};
+type ResponsePackageReadinessStatus = "ready_for_review" | "blocked";
+type ResponsePackageReadinessSnapshot = {
+	workflowInstanceId: string;
+	state: string;
+	status: ResponsePackageReadinessStatus | "unknown";
+	blockers: string[];
+	warnings: string[];
+	missingRequirementIds: string[];
+	metrics: {
+		acceptedRequirementCount: number;
+		draftedRequirementCount: number;
+		requirementCoverage: number;
+		documentsDrafted: number;
+		sectionsDrafted: number;
+		complianceEntriesCreated: number;
+	};
 };
 
 export type FinalChecklistCategory =
@@ -136,7 +158,7 @@ export async function evaluateFinalSubmissionChecklistWorkflow(
 		throw new Error("No organization context");
 	}
 	const checklistContext = userContext as FinalChecklistUserContext;
-	const [docs, matrices, claims, themeAnalyses] = await Promise.all([
+	const [docs, matrices, claims, themeAnalyses, responsePackageReadiness] = await Promise.all([
 		loadProposalDocuments(opportunityId, checklistContext),
 		db
 			.select()
@@ -150,13 +172,14 @@ export async function evaluateFinalSubmissionChecklistWorkflow(
 			.select()
 			.from(themeAnalysisResults)
 			.where(visibleThemeAnalysesForOpportunityCondition(opportunityId, checklistContext)),
+		loadResponsePackageReadiness(opportunityId, checklistContext),
 	]);
 	const dlpFindings = scanDocumentsForDlpFindings(docs.map((doc) => ({
 		documentId: doc.documentId,
 		title: doc.title,
 		content: doc.content,
 	})));
-	const items = buildChecklistItems(docs, matrices, claims, themeAnalyses, dlpFindings);
+	const items = buildChecklistItems(docs, matrices, claims, themeAnalyses, dlpFindings, responsePackageReadiness);
 	const blockers = items
 		.filter((item) => item.required && !item.passed)
 		.map((item) => `${item.label}: ${item.message}`);
@@ -245,12 +268,35 @@ async function loadProposalDocuments(opportunityId: string, userContext: FinalCh
 		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userContext));
 }
 
+async function loadResponsePackageReadiness(
+	opportunityId: string,
+	userContext: FinalChecklistUserContext
+): Promise<ResponsePackageReadinessSnapshot | null> {
+	const [instance] = await db
+		.select({
+			id: workflowInstances.id,
+			state: workflowInstances.state,
+			metadata: workflowInstances.metadata,
+		})
+		.from(workflowInstances)
+		.where(and(
+			eq(workflowInstances.workflowKey, "proposal_response_package"),
+			eq(workflowInstances.organizationId, userContext.organizationId),
+			eq(workflowInstances.subjectType, "opportunity"),
+			eq(workflowInstances.subjectId, opportunityId),
+			assignedOpportunityExistsSql(opportunityId, userContext)
+		));
+
+	return responsePackageReadinessFromWorkflow(instance);
+}
+
 function buildChecklistItems(
 	docs: ProposalDocumentWithDocument[],
 	matrices: ComplianceMatrixRow[],
 	claims: ClaimAnalysisRow[],
 	themeAnalyses: ThemeAnalysisRow[],
-	dlpFindings: DlpFinding[]
+	dlpFindings: DlpFinding[],
+	responsePackageReadiness: ResponsePackageReadinessSnapshot | null
 ): FinalSubmissionChecklistItem[] {
 	const items: FinalSubmissionChecklistItem[] = [];
 	for (const documentType of REQUIRED_DOCUMENT_TYPES) {
@@ -262,6 +308,7 @@ function buildChecklistItems(
 			items.push(signatureItem(doc));
 		}
 	}
+	items.push(responsePackageReadinessItem(responsePackageReadiness));
 	items.push(complianceLockItem(matrices));
 	items.push(claimEvidenceItem(claims));
 	items.push(themeConsistencyItem(themeAnalyses));
@@ -283,6 +330,108 @@ function requiredDocumentItem(
 		subjectId: doc?.documentId ?? null,
 		assignedRole: "proposal_manager",
 	};
+}
+
+function responsePackageReadinessItem(
+	readiness: ResponsePackageReadinessSnapshot | null
+): FinalSubmissionChecklistItem {
+	if (!readiness) {
+		return {
+			id: "evidence:response-package-readiness",
+			category: "evidence",
+			label: "Response package readiness",
+			required: true,
+			passed: false,
+			message: "Response package readiness assessment is missing; draft the response package before final submission",
+			subjectId: null,
+			assignedRole: "proposal_manager",
+		};
+	}
+
+	const passed = readiness.status === "ready_for_review";
+	return {
+		id: "evidence:response-package-readiness",
+		category: "evidence",
+		label: "Response package readiness",
+		required: true,
+		passed,
+		message: passed
+			? responsePackageReadinessSuccessMessage(readiness)
+			: responsePackageReadinessFailureMessage(readiness),
+		subjectId: readiness.workflowInstanceId,
+		assignedRole: "proposal_manager",
+	};
+}
+
+function responsePackageReadinessSuccessMessage(readiness: ResponsePackageReadinessSnapshot): string {
+	return `Response package covers ${formatPercent(readiness.metrics.requirementCoverage)} of accepted requirements across ${readiness.metrics.documentsDrafted} drafted document${readiness.metrics.documentsDrafted === 1 ? "" : "s"}`;
+}
+
+function responsePackageReadinessFailureMessage(readiness: ResponsePackageReadinessSnapshot): string {
+	if (readiness.status === "unknown") {
+		return "Response package readiness status is unrecognized; rerun response package drafting";
+	}
+	const blockerSummary = readiness.blockers.length > 0
+		? readiness.blockers.slice(0, 3).join("; ")
+		: `${readiness.missingRequirementIds.length} accepted requirement${readiness.missingRequirementIds.length === 1 ? "" : "s"} missing from the response package`;
+	return `Response package is blocked at ${formatPercent(readiness.metrics.requirementCoverage)} accepted requirement coverage: ${blockerSummary}`;
+}
+
+function responsePackageReadinessFromWorkflow(
+	instance: ResponsePackageWorkflowRow | undefined
+): ResponsePackageReadinessSnapshot | null {
+	if (!instance) {
+		return null;
+	}
+	const readiness = asRecord(asRecord(instance.metadata).readiness);
+	if (Object.keys(readiness).length === 0) {
+		return null;
+	}
+	const status = responsePackageReadinessStatus(readiness.status);
+	return {
+		workflowInstanceId: instance.id,
+		state: instance.state,
+		status,
+		blockers: stringArray(readiness.blockers),
+		warnings: stringArray(readiness.warnings),
+		missingRequirementIds: stringArray(readiness.missingRequirementIds),
+		metrics: responsePackageReadinessMetrics(readiness.metrics),
+	};
+}
+
+function responsePackageReadinessStatus(value: unknown): ResponsePackageReadinessSnapshot["status"] {
+	if (value === "ready_for_review" || value === "blocked") {
+		return value;
+	}
+	return "unknown";
+}
+
+function responsePackageReadinessMetrics(value: unknown): ResponsePackageReadinessSnapshot["metrics"] {
+	const metrics = asRecord(value);
+	return {
+		acceptedRequirementCount: numberMetric(metrics.acceptedRequirementCount),
+		draftedRequirementCount: numberMetric(metrics.draftedRequirementCount),
+		requirementCoverage: clampRatio(numberMetric(metrics.requirementCoverage)),
+		documentsDrafted: numberMetric(metrics.documentsDrafted),
+		sectionsDrafted: numberMetric(metrics.sectionsDrafted),
+		complianceEntriesCreated: numberMetric(metrics.complianceEntriesCreated),
+	};
+}
+
+function stringArray(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function numberMetric(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function clampRatio(value: number): number {
+	return Math.min(1, Math.max(0, value));
+}
+
+function formatPercent(value: number): string {
+	return `${Math.round(clampRatio(value) * 100)}%`;
 }
 
 function approvalItem(doc: ProposalDocumentWithDocument): FinalSubmissionChecklistItem {

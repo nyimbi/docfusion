@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Final Submission Response Readiness Gate
+
+Status: implemented and verified.
+
+Purpose: prevent a final submission checklist from passing when the response package workflow has missing or blocked readiness evidence.
+
+Changes in this slice:
+- Load the tenant-scoped `proposal_response_package` workflow instance during final submission checklist evaluation.
+- Add a required response package readiness checklist item that passes only when workflow metadata reports `ready_for_review`.
+- Block final submission when response package readiness is missing, blocked, or has an unrecognized status.
+- Surface response package coverage metrics and blocker summaries in final checklist messages and workflow metadata.
+
+Verification:
+- `npm test -- final-submission-checklist-workflow.test.ts` from `frontend/` passed, running 10 tests.
+- `npm test -- final-submission-checklist-workflow.test.ts submission-workflow.test.ts` from `frontend/` passed, running 19 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave6-final-submission-gate` from `frontend/` passed, running 2 final-submission test files and 19 tests.
+- `git diff --check -- frontend/lib/actions/final-submission-checklist-workflow.ts frontend/__tests__/actions/final-submission-checklist-workflow.test.ts` passed.
+
+Remaining after this slice:
+- Continue connecting response readiness evidence into operator review/final-render UX so blockers are visible before the final checklist.
+- Tenant-persisted live proof still needs a reachable PostgreSQL endpoint.
+
 ### 2026-05-27 - Response Package Workflow Readiness Metrics
 
 Status: implemented and verified.
