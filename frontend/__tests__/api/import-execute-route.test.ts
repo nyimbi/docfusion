@@ -1,16 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
-const tenantMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 const importActionsMock = vi.hoisted(() => ({
 	executeImport: vi.fn(),
 	generatePreview: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/route-tenant", () => ({
-	requireRouteTenantContext: tenantMock,
-	isTenantResponse: (value: unknown) => value instanceof Response,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const normalizeRoles = (context: { role?: string; roles?: string[] }) =>
+		new Set([context.role, ...(context.roles ?? [])]
+			.filter(Boolean)
+			.map((value) => String(value).trim().toLowerCase()));
+	return {
+		requireUserContext: requireUserContextMock,
+		assertUserHasAuthorityRole: (
+			context: { role?: string; roles?: string[] },
+			requiredRole: string | null | undefined,
+			message: string
+		) => {
+			const required = requiredRole?.trim().toLowerCase();
+			if (!required) throw new Error(message);
+			const roles = normalizeRoles(context);
+			if (!roles.has("admin") && !roles.has(required)) {
+				throw new Error(`${message}: requires ${required}`);
+			}
+			return required;
+		},
+	};
+});
 vi.mock("@/lib/actions/import", () => importActionsMock);
 
 import { POST } from "@/app/api/v1/import/execute/route";
@@ -41,9 +59,10 @@ const validBody = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	tenantMock.mockResolvedValue({
+	requireUserContextMock.mockResolvedValue({
 		userId: "import-user-1",
 		organizationId: "org-1",
+		roles: ["import_approver"],
 	});
 	importActionsMock.generatePreview.mockResolvedValue({
 		rows: [],
@@ -66,9 +85,7 @@ beforeEach(() => {
 
 describe("import execute route sandbox behavior", () => {
 	it("requires authentication before executing or previewing imports", async () => {
-		tenantMock.mockResolvedValueOnce(
-			NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-		);
+		requireUserContextMock.mockRejectedValueOnce(new Error("Unauthorized"));
 
 		const response = await POST(importRequest(validBody));
 
@@ -78,9 +95,10 @@ describe("import execute route sandbox behavior", () => {
 	});
 
 	it("requires organization context before executing or previewing imports", async () => {
-		tenantMock.mockResolvedValueOnce(
-			NextResponse.json({ error: "No organization context" }, { status: 403 })
-		);
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "import-user-1",
+			roles: ["import_approver"],
+		});
 
 		const response = await POST(importRequest(validBody));
 
@@ -90,6 +108,12 @@ describe("import execute route sandbox behavior", () => {
 	});
 
 	it("suppresses mutations and returns preview evidence in preview sandbox mode", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "import-user-1",
+			organizationId: "org-1",
+			roles: ["data_import_operator"],
+		});
+
 		const response = await POST(importRequest({
 			...validBody,
 			sandboxMode: "preview",
@@ -124,6 +148,22 @@ describe("import execute route sandbox behavior", () => {
 		expect(importActionsMock.executeImport).not.toHaveBeenCalled();
 	});
 
+	it("requires import approval authority before live execution", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "import-user-1",
+			organizationId: "org-1",
+			roles: ["data_import_operator"],
+		});
+
+		const response = await POST(importRequest(validBody));
+		const body = await response.json();
+
+		expect(response.status).toBe(403);
+		expect(body).toEqual({ success: false, error: "Forbidden" });
+		expect(importActionsMock.executeImport).not.toHaveBeenCalled();
+		expect(importActionsMock.generatePreview).not.toHaveBeenCalled();
+	});
+
 	it("executes imports normally when no sandbox preview override is requested", async () => {
 		const response = await POST(importRequest(validBody));
 		const body = await response.json();
@@ -146,10 +186,11 @@ describe("import execute route sandbox behavior", () => {
 			"accounts",
 			validBody.mappings,
 			validBody.options,
-			{
+			expect.objectContaining({
 				userId: "import-user-1",
 				organizationId: "org-1",
-			}
+				roles: ["import_approver"],
+			})
 		);
 		expect(importActionsMock.generatePreview).not.toHaveBeenCalled();
 	});

@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Live Import Execution Authority Check
+
+Status: implemented and verified.
+
+Purpose: prevent the direct live import execution API from bypassing the import governance workflow's approval-authority requirement while preserving non-mutating preview sandbox behavior.
+
+Changes in this slice:
+- Resolve full user context, including roles, in the import execute route.
+- Require `import_approver` authority, or admin authority through the shared helper, before live import mutation.
+- Keep sandbox/preview mode available to authenticated tenant users without import approval authority because it does not mutate records.
+- Return a generic 403 `Forbidden` response for unauthorized live import execution.
+- Extend route coverage for unauthenticated, no-organization, preview-only, unauthorized-live, and authorized-live import execution paths.
+
+Verification:
+- `npm run test -- __tests__/api/import-execute-route.test.ts __tests__/api/import-rollback-route.test.ts __tests__/actions/import-governance-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets live import execution authority with focused route/action tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct API routes that mutate governed workflow state without going through the corresponding authority checks.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Direct Import Rollback Authority Check
 
 Status: implemented and verified.
