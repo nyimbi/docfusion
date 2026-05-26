@@ -6,7 +6,11 @@ import {
 	reviewComments,
 	reviewers,
 } from "@/lib/db/schema-reviews";
-import { requireUserContext } from "@/lib/auth-utils";
+import {
+	assertUserHasAuthorityRole,
+	requireUserContext,
+	type UserContext,
+} from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
@@ -128,7 +132,7 @@ export async function transitionReviewPackageWorkflow(
 		reviewer,
 		assignedReviewers,
 		comments,
-		actorId: userContext.userId,
+		actor: userContext,
 	});
 
 	const [updatedReview] = transition.reviewPatch
@@ -212,7 +216,7 @@ function buildReviewPackageTransition(input: {
 	reviewer: ReviewerRow | null;
 	assignedReviewers: ReviewerRow[];
 	comments: ReviewCommentRow[];
-	actorId: string;
+	actor: UserContext;
 }): {
 	toState: string;
 	terminal: boolean;
@@ -316,9 +320,7 @@ function buildReviewPackageTransition(input: {
 				},
 			};
 		case "waive_findings":
-			if (!input.input.authorityRole) {
-				throw new Error("Waiving review findings requires an authority role");
-			}
+			requireAuthority(input.actor, input.input.authorityRole, "Waiving review findings requires an authority role");
 			return {
 				toState: "waived",
 				terminal: true,
@@ -399,6 +401,14 @@ function requireReason(value: string, message: string): string {
 		throw new Error(message);
 	}
 	return reason;
+}
+
+function requireAuthority(
+	actor: UserContext,
+	value: string | null | undefined,
+	message: string
+): string {
+	return assertUserHasAuthorityRole(actor, value, message);
 }
 
 function normalizeDueAt(value: Date | string | null | undefined, defaultDays: number): Date {

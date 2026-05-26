@@ -4,12 +4,25 @@ const { requireUserContextMock } = vi.hoisted(() => ({
 	requireUserContextMock: vi.fn(async () => ({
 		userId: "review-lead-1",
 		organizationId: "org-1",
+		roles: ["review_authority"],
 	})),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: requireUserContextMock,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const assertUserHasAuthorityRole = (context: { role?: string; roles?: string[] }, requiredRole: string | null | undefined, message: string) => {
+		const role = requiredRole?.trim().toLowerCase();
+		if (!role) throw new Error(message);
+		const roles = new Set([context.role, ...(context.roles ?? [])].filter(Boolean).map((value) => String(value).trim().toLowerCase()));
+		if (!roles.has("admin") && !roles.has(role)) {
+			throw new Error(`${message}: requires ${role}`);
+		}
+		return role;
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		assertUserHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "review-workflow-1" })),
@@ -215,6 +228,7 @@ beforeEach(() => {
 	requireUserContextMock.mockResolvedValue({
 		userId: "review-lead-1",
 		organizationId: "org-1",
+		roles: ["review_authority"],
 	});
 	dbMock.select.mockReset();
 	dbMock.update.mockReset();
@@ -382,5 +396,67 @@ describe("review package workflow", () => {
 				reason: "Executive risk acceptance",
 			})
 		).rejects.toThrow("Waiving review findings requires an authority role");
+	});
+
+	it("rejects claimed review waiver authority when the session lacks the role", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "review-lead-1",
+			organizationId: "org-1",
+			roles: ["review_lead"],
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ ...review, status: "in_progress" }] }))
+			.mockReturnValueOnce(createChain({ result: [reviewerA, reviewerB] }))
+			.mockReturnValueOnce(createChain({ result: [openCriticalComment] }));
+
+		await expect(
+			transitionReviewPackageWorkflow({
+				reviewId: "review-1",
+				action: "waive_findings",
+				reason: "Executive risk acceptance",
+				authorityRole: "review_authority",
+			})
+		).rejects.toThrow("requires review_authority");
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("waives review findings only for a session with authority", async () => {
+		let reviewPatch: Record<string, unknown> | undefined;
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ ...review, status: "in_progress" }] }))
+			.mockReturnValueOnce(createChain({ result: [reviewerA, reviewerB] }))
+			.mockReturnValueOnce(createChain({ result: [openCriticalComment] }));
+		dbMock.update.mockReturnValueOnce(createChain({
+			result: [{
+				...review,
+				status: "completed",
+				recommendation: "needs_minor_revisions",
+				completedAt: new Date("2026-05-12T00:00:00.000Z"),
+			}],
+			onSet: (value) => {
+				reviewPatch = value;
+			},
+		}));
+
+		const result = await transitionReviewPackageWorkflow({
+			reviewId: "review-1",
+			action: "waive_findings",
+			reason: "Executive risk acceptance",
+			authorityRole: "review_authority",
+		});
+
+		expect(result.toState).toBe("waived");
+		expect(reviewPatch).toMatchObject({
+			status: "completed",
+			recommendation: "needs_minor_revisions",
+			executiveSummary: "Waived by review_authority: Executive risk acceptance",
+		});
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
+			toState: "waived",
+			terminal: true,
+			metadata: expect.objectContaining({
+				authorityRole: "review_authority",
+			}),
+		}));
 	});
 });

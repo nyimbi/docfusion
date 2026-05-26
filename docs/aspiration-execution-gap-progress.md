@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Review Waiver Server Authority Checks
+
+Status: implemented and verified.
+
+Purpose: prevent review finding waivers from trusting a client-supplied authority role.
+
+Changes in this slice:
+- Enforce the shared server-side authority-role helper before review findings can be waived.
+- Preserve waiver runtime metadata while ensuring the claimed authority role belongs to the authenticated session.
+- Add focused forged-authority and authorized-waiver coverage for review package transitions.
+
+Verification:
+- `npm run test -- __tests__/actions/review-package-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets review waiver authority enforcement with focused workflow tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning for privileged exception workflows that still accept client-supplied authority metadata.
+- Surface authority denial states in review and command-center work items where the UI does not already distinguish authorization failure.
+
 ### 2026-05-26 - Import Governance Server Authority Checks
 
 Status: implemented and verified.
