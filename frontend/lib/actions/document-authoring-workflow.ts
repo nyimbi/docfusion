@@ -26,6 +26,7 @@ type DocumentContent = Record<string, unknown>;
 type ProposalDocumentRow = typeof proposalDocuments.$inferSelect;
 type SectionRow = typeof documentSections.$inferSelect;
 type TemplateRow = typeof templates.$inferSelect;
+type AuthoringActionContext = UserContext & { organizationId: string };
 
 export type DocumentCreationSource = "template" | "blank" | "imported_structure";
 export type DocumentAuthoringAction =
@@ -94,19 +95,31 @@ const CREATION_WORKFLOW_KEY = "document_creation_from_template";
 const AUTHORING_WORKFLOW_KEY = "document_authoring";
 const DOCUMENT_SUBJECT_TYPE = "document";
 
-function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): SQL {
+async function requireAuthoringContext(): Promise<AuthoringActionContext> {
+	const context = await requireUserContext();
+	if (!context.organizationId) {
+		throw new Error("Organization context required");
+	}
+	return context as AuthoringActionContext;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, context: AuthoringActionContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${actorId}
+			and (
+				opportunities.organization_id = ${context.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${context.userId}
 	)`;
 }
 
-function visibleOpportunityCondition(opportunityId: string, actorId: string): SQL {
+function visibleOpportunityCondition(opportunityId: string, context: AuthoringActionContext): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, actorId)
+		assignedOpportunityExistsSql(opportunityId, context)
 	)!;
 }
 
@@ -117,21 +130,21 @@ function visibleDocumentCondition(documentId: string, actorId: string): SQL {
 	)!;
 }
 
-function visibleProposalDocumentCondition(proposalDocumentId: string, actorId: string): SQL {
+function visibleProposalDocumentCondition(proposalDocumentId: string, context: AuthoringActionContext): SQL {
 	return and(
 		eq(proposalDocuments.id, proposalDocumentId),
-		assignedOpportunityExistsSql(proposalDocuments.opportunityId, actorId)
+		assignedOpportunityExistsSql(proposalDocuments.opportunityId, context)
 	)!;
 }
 
-function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, actorId: string): SQL {
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, context: AuthoringActionContext): SQL {
 	return and(
 		eq(proposalDocuments.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, actorId)
+		assignedOpportunityExistsSql(opportunityId, context)
 	)!;
 }
 
-function visibleSectionCondition(sectionId: string, actorId: string): SQL {
+function visibleSectionCondition(sectionId: string, context: AuthoringActionContext): SQL {
 	return and(
 		eq(documentSections.id, sectionId),
 		sql`exists (
@@ -139,12 +152,16 @@ function visibleSectionCondition(sectionId: string, actorId: string): SQL {
 			from proposal_documents
 			join opportunities on opportunities.id = proposal_documents.opportunity_id
 			where proposal_documents.id = ${documentSections.proposalDocumentId}
-				and opportunities.assigned_to = ${actorId}
+				and (
+					opportunities.organization_id = ${context.organizationId}
+					or opportunities.organization_id is null
+				)
+				and opportunities.assigned_to = ${context.userId}
 		)`
 	)!;
 }
 
-function visibleDocumentSectionsForProposalCondition(proposalDocumentId: string, actorId: string): SQL {
+function visibleDocumentSectionsForProposalCondition(proposalDocumentId: string, context: AuthoringActionContext): SQL {
 	return and(
 		eq(documentSections.proposalDocumentId, proposalDocumentId),
 		sql`exists (
@@ -152,15 +169,19 @@ function visibleDocumentSectionsForProposalCondition(proposalDocumentId: string,
 			from proposal_documents
 			join opportunities on opportunities.id = proposal_documents.opportunity_id
 			where proposal_documents.id = ${proposalDocumentId}
-				and opportunities.assigned_to = ${actorId}
+				and (
+					opportunities.organization_id = ${context.organizationId}
+					or opportunities.organization_id is null
+				)
+				and opportunities.assigned_to = ${context.userId}
 		)`
 	)!;
 }
 
-function visibleRequirementsForOpportunityCondition(opportunityId: string, actorId: string): SQL {
+function visibleRequirementsForOpportunityCondition(opportunityId: string, context: AuthoringActionContext): SQL {
 	return and(
 		eq(rfpRequirements.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(rfpRequirements.opportunityId, actorId)
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, context)
 	)!;
 }
 
@@ -183,7 +204,7 @@ function visibleTemplateCondition(templateId: string, actorId: string): SQL {
 export async function createWorkflowDocumentFromTemplate(
 	input: CreateWorkflowDocumentInput
 ): Promise<DocumentCreationWorkflowResult> {
-	const userContext = await requireUserContext();
+	const userContext = await requireAuthoringContext();
 	const reason = requireReason(input.reason, "Document creation transitions require a reason");
 	const template = input.templateId ? await loadTemplate(input.templateId, userContext.userId) : null;
 	const source = input.source ?? (template ? "template" : "blank");
@@ -197,7 +218,7 @@ export async function createWorkflowDocumentFromTemplate(
 		const [opportunity] = await db
 			.select({ id: opportunities.id })
 			.from(opportunities)
-			.where(visibleOpportunityCondition(input.opportunityId, userContext.userId))
+			.where(visibleOpportunityCondition(input.opportunityId, userContext))
 			.limit(1);
 		if (!opportunity) {
 			throw new Error("Opportunity not found");
@@ -254,7 +275,7 @@ export async function createWorkflowDocumentFromTemplate(
 			assignedTo: input.assignedTo ?? userContext.userId,
 			dueAt: input.dueAt,
 			reason,
-			actorId: userContext.userId,
+			actor: userContext,
 			sectionSeeds: input.sectionSeeds ?? inferSections(processedContent),
 		})
 		: null;
@@ -318,7 +339,7 @@ export async function createWorkflowDocumentFromTemplate(
 export async function transitionDocumentAuthoringWorkflow(
 	input: DocumentAuthoringWorkflowInput
 ): Promise<DocumentAuthoringWorkflowResult> {
-	const userContext = await requireUserContext();
+	const userContext = await requireAuthoringContext();
 	const reason = requireReason(input.reason, "Document authoring transitions require a reason");
 	const [document] = await db
 		.select()
@@ -330,12 +351,12 @@ export async function transitionDocumentAuthoringWorkflow(
 	}
 
 	const proposalDocument = input.proposalDocumentId
-		? await loadProposalDocument(input.proposalDocumentId, userContext.userId)
+		? await loadProposalDocument(input.proposalDocumentId, userContext)
 		: null;
-	const section = input.sectionId ? await loadSection(input.sectionId, userContext.userId) : null;
+	const section = input.sectionId ? await loadSection(input.sectionId, userContext) : null;
 	requireAuthoringApprovalAuthority(userContext, input.action);
 	if (input.action === "mark_ready" && proposalDocument) {
-		await assertAuthoringRequirementsReadyForApproval(proposalDocument, userContext.userId);
+		await assertAuthoringRequirementsReadyForApproval(proposalDocument, userContext);
 	}
 	const fromState = authoringState(document, proposalDocument, section);
 	const transition = buildAuthoringTransition(input, document, proposalDocument, section, userContext.userId);
@@ -345,13 +366,13 @@ export async function transitionDocumentAuthoringWorkflow(
 		await db
 			.update(proposalDocuments)
 			.set(transition.proposalPatch)
-			.where(visibleProposalDocumentCondition(proposalDocument.id, userContext.userId));
+			.where(visibleProposalDocumentCondition(proposalDocument.id, userContext));
 	}
 	if (section && transition.sectionPatch) {
 		await db
 			.update(documentSections)
 			.set(transition.sectionPatch)
-			.where(visibleSectionCondition(section.id, userContext.userId));
+			.where(visibleSectionCondition(section.id, userContext));
 	}
 
 	const instance = await recordWorkflowRuntimeTransition({
@@ -426,11 +447,11 @@ async function loadTemplate(templateId: string, actorId: string): Promise<Templa
 	return template;
 }
 
-async function loadProposalDocument(id: string, actorId: string): Promise<ProposalDocumentRow> {
+async function loadProposalDocument(id: string, context: AuthoringActionContext): Promise<ProposalDocumentRow> {
 	const [proposalDocument] = await db
 		.select()
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentCondition(id, actorId))
+		.where(visibleProposalDocumentCondition(id, context))
 		.limit(1);
 	if (!proposalDocument) {
 		throw new Error("Proposal document not found");
@@ -438,11 +459,11 @@ async function loadProposalDocument(id: string, actorId: string): Promise<Propos
 	return proposalDocument;
 }
 
-async function loadSection(id: string, actorId: string): Promise<SectionRow> {
+async function loadSection(id: string, context: AuthoringActionContext): Promise<SectionRow> {
 	const [section] = await db
 		.select()
 		.from(documentSections)
-		.where(visibleSectionCondition(id, actorId))
+		.where(visibleSectionCondition(id, context))
 		.limit(1);
 	if (!section) {
 		throw new Error("Document section not found");
@@ -468,12 +489,12 @@ function requireAuthoringApprovalAuthority(
 
 async function assertAuthoringRequirementsReadyForApproval(
 	proposalDocument: ProposalDocumentRow,
-	actorId: string
+	context: AuthoringActionContext
 ) {
 	const sections = await db
 		.select()
 		.from(documentSections)
-		.where(visibleDocumentSectionsForProposalCondition(proposalDocument.id, actorId));
+		.where(visibleDocumentSectionsForProposalCondition(proposalDocument.id, context));
 	const requirementIds = uniqueStrings(
 		sections.flatMap((section) => (section.requirementIds as string[]) ?? [])
 	);
@@ -486,7 +507,7 @@ async function assertAuthoringRequirementsReadyForApproval(
 		.from(rfpRequirements)
 		.where(and(
 			inArray(rfpRequirements.id, requirementIds),
-			visibleRequirementsForOpportunityCondition(proposalDocument.opportunityId, actorId)
+			visibleRequirementsForOpportunityCondition(proposalDocument.opportunityId, context)
 		));
 	const blockers = requirements.filter((requirement) =>
 		!isRequirementReadyForApproval(requirement.complianceStatus)
@@ -516,13 +537,13 @@ async function createProposalLink(input: {
 	assignedTo: string;
 	dueAt?: Date | string | null;
 	reason: string;
-	actorId: string;
+	actor: AuthoringActionContext;
 	sectionSeeds: Array<{ sectionName: string; targetWordCount?: number | null; requirementIds?: string[] }>;
 }): Promise<ProposalDocumentRow> {
 	const existingDocs = await db
 		.select({ maxOrder: sql<number>`MAX(${proposalDocuments.sectionOrder})` })
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentsForOpportunityCondition(input.opportunityId, input.actorId));
+		.where(visibleProposalDocumentsForOpportunityCondition(input.opportunityId, input.actor));
 	const nextOrder = (existingDocs[0]?.maxOrder ?? -1) + 1;
 	const [proposalDocument] = await db
 		.insert(proposalDocuments)

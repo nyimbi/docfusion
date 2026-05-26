@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Document Authoring Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep template-driven document creation, proposal document links, section edits, linked requirement readiness checks, and document authoring workflow transitions scoped to the caller's organization through the owning opportunity.
+
+Changes in this slice:
+- Require organization context for document authoring workflows.
+- Add tenant predicates, with legacy null-opportunity fallback, to proposal-document, section, requirement, and opportunity visibility helpers.
+- Preserve document owner checks while threading full action context through opportunity-mediated source checks.
+- Extend document authoring workflow tests to assert opportunity organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- document-authoring-workflow.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue scanning and closing any remaining workflow support modules that still use unscoped or assignment-only opportunity checks.
+
 ### 2026-05-26 - Review Comment Workflow Opportunity Tenant Predicates
 
 Status: implemented and verified.
