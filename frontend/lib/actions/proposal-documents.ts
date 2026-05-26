@@ -13,7 +13,7 @@ import { db } from "@/lib/db";
 import { documents, documentVersions, proposalDocuments, documentSections, opportunities } from "@/lib/db/schema";
 import { complianceEntries, complianceMatrices, rfpRequirements } from "@/lib/db/schema-rfp";
 import { winThemes } from "@/lib/db/schema-win-themes";
-import { eq, and, asc, sql, inArray, type SQL } from "drizzle-orm";
+import { eq, and, asc, sql, inArray, isNull, or, type SQL } from "drizzle-orm";
 import type {
 	ProposalDocument,
 	ProposalDocumentType,
@@ -40,7 +40,6 @@ import {
 	getDatacraftProposalSectionSeeds,
 } from "@/lib/data/datacraft-response-content";
 import {
-	getCurrentUserId,
 	requireUserContext,
 	userHasAuthorityRole,
 	type UserContext,
@@ -328,6 +327,8 @@ function uniqueStrings(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))];
 }
 
+type ProposalDocumentUserContext = UserContext & { organizationId: string };
+
 function isAcceptedRequirement(requirement: typeof rfpRequirements.$inferSelect): boolean {
 	const metadata = isRecord(requirement.metadata) ? requirement.metadata : {};
 	const workflow = isRecord(metadata.workflow) ? metadata.workflow : {};
@@ -342,23 +343,23 @@ function isRequirementReadyForFinal(status: string | null): boolean {
 	return ["addressed", "compliant", "not_applicable"].includes(status ?? "");
 }
 
-async function requireCurrentUserId(): Promise<string> {
-	const userId = await getCurrentUserId();
-	if (!userId) {
-		throw new Error("Unauthorized");
+async function requireProposalDocumentContext(): Promise<ProposalDocumentUserContext> {
+	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
 	}
-	return userId;
+	return userContext as ProposalDocumentUserContext;
 }
 
 async function requireProposalDocumentMutationActor(
 	finalStatus: boolean
-): Promise<string> {
+): Promise<ProposalDocumentUserContext> {
+	const userContext = await requireProposalDocumentContext();
 	if (!finalStatus) {
-		return requireCurrentUserId();
+		return userContext;
 	}
-	const userContext = await requireUserContext();
 	requireProposalDocumentApprovalAuthority(userContext);
-	return userContext.userId;
+	return userContext;
 }
 
 function requireProposalDocumentApprovalAuthority(userContext: UserContext) {
@@ -387,41 +388,61 @@ function visibleOpportunityCondition(opportunityId: string, userId: string): SQL
 	)!;
 }
 
-function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+function proposalDocumentOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(proposalDocuments.organizationId, organizationId),
+		isNull(proposalDocuments.organizationId)
+	)!;
+}
+
+function documentSectionOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(documentSections.organizationId, organizationId),
+		isNull(documentSections.organizationId)
+	)!;
+}
+
+function visibleProposalDocumentsForOpportunityCondition(opportunityId: string, userId: string, organizationId?: string): SQL {
 	return and(
 		eq(proposalDocuments.opportunityId, opportunityId),
+		organizationId ? proposalDocumentOrganizationCondition(organizationId) : undefined,
 		assignedOpportunityExistsSql(opportunityId, userId)
 	)!;
 }
 
-function visibleProposalDocumentCondition(id: string, userId: string): SQL {
+function visibleProposalDocumentCondition(id: string, userId: string, organizationId?: string): SQL {
 	return and(
 		eq(proposalDocuments.id, id),
+		organizationId ? proposalDocumentOrganizationCondition(organizationId) : undefined,
 		assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId)
 	)!;
 }
 
-function visibleDocumentSectionsForProposalCondition(proposalDocumentId: string, userId: string): SQL {
+function visibleDocumentSectionsForProposalCondition(proposalDocumentId: string, userId: string, organizationId?: string): SQL {
 	return and(
 		eq(documentSections.proposalDocumentId, proposalDocumentId),
+		organizationId ? documentSectionOrganizationCondition(organizationId) : undefined,
 		sql`exists (
 			select 1
 			from proposal_documents
 			join opportunities on opportunities.id = proposal_documents.opportunity_id
 			where proposal_documents.id = ${proposalDocumentId}
+				${organizationId ? sql`and (proposal_documents.organization_id = ${organizationId} or proposal_documents.organization_id is null)` : sql``}
 				and opportunities.assigned_to = ${userId}
 		)`
 	)!;
 }
 
-function visibleDocumentSectionCondition(id: string, userId: string): SQL {
+function visibleDocumentSectionCondition(id: string, userId: string, organizationId?: string): SQL {
 	return and(
 		eq(documentSections.id, id),
+		organizationId ? documentSectionOrganizationCondition(organizationId) : undefined,
 		sql`exists (
 			select 1
 			from proposal_documents
 			join opportunities on opportunities.id = proposal_documents.opportunity_id
 			where proposal_documents.id = ${documentSections.proposalDocumentId}
+				${organizationId ? sql`and (proposal_documents.organization_id = ${organizationId} or proposal_documents.organization_id is null)` : sql``}
 				and opportunities.assigned_to = ${userId}
 		)`
 	)!;
@@ -789,12 +810,13 @@ function draftMetadata(
  * Get a single proposal document by ID.
  */
 export async function getProposalDocument(id: string): Promise<ProposalDocument | null> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const results = await db
 		.select()
 		.from(proposalDocuments)
 		.leftJoin(documents, eq(proposalDocuments.documentId, documents.id))
-		.where(visibleProposalDocumentCondition(id, userId))
+		.where(visibleProposalDocumentCondition(id, userId, userContext.organizationId))
 		.limit(1);
 
 	if (results.length === 0) return null;
@@ -810,13 +832,14 @@ export async function getProposalDocuments(
 	opportunityId: string,
 	includeDocument = true
 ): Promise<ProposalDocument[]> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	if (includeDocument) {
 		const results = await db
 			.select()
 			.from(proposalDocuments)
 			.leftJoin(documents, eq(proposalDocuments.documentId, documents.id))
-			.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId))
+			.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId, userContext.organizationId))
 			.orderBy(asc(proposalDocuments.sectionOrder), asc(proposalDocuments.createdAt));
 
 		return results.map(({ proposal_documents, documents: doc }) =>
@@ -827,7 +850,7 @@ export async function getProposalDocuments(
 	const results = await db
 		.select()
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId))
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId, userContext.organizationId))
 		.orderBy(asc(proposalDocuments.sectionOrder), asc(proposalDocuments.createdAt));
 
 	return results.map((row) => mapProposalDocument(row));
@@ -835,12 +858,13 @@ export async function getProposalDocuments(
 
 async function assertProposalDocumentRequirementsReadyForFinalStatus(
 	proposalDocumentId: string,
-	userId: string
+	userContext: ProposalDocumentUserContext
 ): Promise<void> {
+	const userId = userContext.userId;
 	const [proposalDocument] = await db
 		.select()
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentCondition(proposalDocumentId, userId))
+		.where(visibleProposalDocumentCondition(proposalDocumentId, userId, userContext.organizationId))
 		.limit(1);
 	if (!proposalDocument) {
 		throw new Error("Proposal document not found");
@@ -849,7 +873,7 @@ async function assertProposalDocumentRequirementsReadyForFinalStatus(
 	const sections = await db
 		.select()
 		.from(documentSections)
-		.where(visibleDocumentSectionsForProposalCondition(proposalDocumentId, userId));
+		.where(visibleDocumentSectionsForProposalCondition(proposalDocumentId, userId, userContext.organizationId));
 	const requirementIds = uniqueStrings(
 		sections.flatMap((section) => (section.requirementIds as string[]) ?? [])
 	);
@@ -885,7 +909,8 @@ export async function createProposalDocument(
 	input: CreateProposalDocumentInput,
 	options: ProposalDocumentCreationOptions = {}
 ): Promise<ProposalDocument> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const { opportunityId, documentType, title, templateId, assignedTo, dueDate, notes } = input;
 
 	const [opportunity] = await db
@@ -938,7 +963,7 @@ export async function createProposalDocument(
 	const existingDocs = await db
 		.select({ maxOrder: sql<number>`MAX(${proposalDocuments.sectionOrder})` })
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId));
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId, userContext.organizationId));
 
 	const nextOrder = (existingDocs[0]?.maxOrder ?? -1) + 1;
 
@@ -982,6 +1007,7 @@ export async function createProposalDocument(
 	const [proposalDoc] = await db
 		.insert(proposalDocuments)
 		.values({
+			organizationId: userContext.organizationId,
 			opportunityId,
 			documentId: newDoc.id,
 			documentType,
@@ -998,6 +1024,7 @@ export async function createProposalDocument(
 		const estimatedSectionWords = Math.round(wordCount / sectionSeeds.length);
 		await db.insert(documentSections).values(
 			sectionSeeds.map((section, index) => ({
+				organizationId: userContext.organizationId,
 				proposalDocumentId: proposalDoc.id,
 				sectionName: section.sectionName,
 				sectionOrder: index,
@@ -1019,7 +1046,8 @@ export async function createProposalDocument(
  * Link an existing document to a proposal.
  */
 export async function linkExistingDocument(input: LinkDocumentInput): Promise<ProposalDocument> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const { opportunityId, documentId, documentType, sectionOrder, assignedTo, dueDate, notes } =
 		input;
 
@@ -1050,7 +1078,7 @@ export async function linkExistingDocument(input: LinkDocumentInput): Promise<Pr
 		.from(proposalDocuments)
 		.where(
 			and(
-				visibleProposalDocumentsForOpportunityCondition(opportunityId, userId),
+				visibleProposalDocumentsForOpportunityCondition(opportunityId, userId, userContext.organizationId),
 				eq(proposalDocuments.documentId, documentId)
 			)
 		)
@@ -1066,7 +1094,7 @@ export async function linkExistingDocument(input: LinkDocumentInput): Promise<Pr
 		const existingDocs = await db
 			.select({ maxOrder: sql<number>`MAX(${proposalDocuments.sectionOrder})` })
 			.from(proposalDocuments)
-			.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId));
+			.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId, userContext.organizationId));
 
 		order = (existingDocs[0]?.maxOrder ?? -1) + 1;
 	}
@@ -1075,6 +1103,7 @@ export async function linkExistingDocument(input: LinkDocumentInput): Promise<Pr
 	const [proposalDoc] = await db
 		.insert(proposalDocuments)
 		.values({
+			organizationId: userContext.organizationId,
 			opportunityId,
 			documentId,
 			documentType,
@@ -1098,9 +1127,10 @@ export async function updateProposalDocument(
 	input: UpdateProposalDocumentInput
 ): Promise<ProposalDocument> {
 	const finalStatus = isFinalProposalStatus(input.status);
-	const userId = await requireProposalDocumentMutationActor(finalStatus);
+	const userContext = await requireProposalDocumentMutationActor(finalStatus);
+	const userId = userContext.userId;
 	if (finalStatus) {
-		await assertProposalDocumentRequirementsReadyForFinalStatus(id, userId);
+		await assertProposalDocumentRequirementsReadyForFinalStatus(id, userContext);
 	}
 
 	const updateData: Partial<typeof proposalDocuments.$inferInsert> = {
@@ -1126,7 +1156,7 @@ export async function updateProposalDocument(
 	const [updated] = await db
 		.update(proposalDocuments)
 		.set(updateData)
-		.where(visibleProposalDocumentCondition(id, userId))
+		.where(visibleProposalDocumentCondition(id, userId, userContext.organizationId))
 		.returning();
 
 	if (!updated) {
@@ -1184,14 +1214,15 @@ export async function transitionProposalDocumentFinalization(
  * Delete a proposal document link (does not delete the underlying document).
  */
 export async function unlinkProposalDocument(id: string): Promise<void> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const [proposalDoc] = await db
 		.select({ opportunityId: proposalDocuments.opportunityId })
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentCondition(id, userId))
+		.where(visibleProposalDocumentCondition(id, userId, userContext.organizationId))
 		.limit(1);
 
-	await db.delete(proposalDocuments).where(visibleProposalDocumentCondition(id, userId));
+	await db.delete(proposalDocuments).where(visibleProposalDocumentCondition(id, userId, userContext.organizationId));
 	if (proposalDoc) {
 		revalidateProposalWorkflowPaths(proposalDoc.opportunityId);
 	}
@@ -1201,7 +1232,8 @@ export async function unlinkProposalDocument(id: string): Promise<void> {
  * Delete a proposal document and its underlying document.
  */
 export async function deleteProposalDocument(id: string): Promise<void> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	// Get the document ID first
 	const [proposalDoc] = await db
 		.select({
@@ -1209,7 +1241,7 @@ export async function deleteProposalDocument(id: string): Promise<void> {
 			opportunityId: proposalDocuments.opportunityId,
 		})
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentCondition(id, userId))
+		.where(visibleProposalDocumentCondition(id, userId, userContext.organizationId))
 		.limit(1);
 
 	if (!proposalDoc) {
@@ -1217,7 +1249,7 @@ export async function deleteProposalDocument(id: string): Promise<void> {
 	}
 
 	// Delete proposal document link (cascades to sections)
-	await db.delete(proposalDocuments).where(visibleProposalDocumentCondition(id, userId));
+	await db.delete(proposalDocuments).where(visibleProposalDocumentCondition(id, userId, userContext.organizationId));
 
 	// Delete underlying document
 	await db.delete(documents).where(
@@ -1236,7 +1268,8 @@ export async function reorderProposalDocuments(
 	opportunityId: string,
 	orderedIds: string[]
 ): Promise<void> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	// Update each document with its new order
 	await Promise.all(
 		orderedIds.map((id, index) =>
@@ -1244,7 +1277,7 @@ export async function reorderProposalDocuments(
 				.update(proposalDocuments)
 				.set({ sectionOrder: index, updatedAt: new Date() })
 				.where(and(
-					visibleProposalDocumentCondition(id, userId),
+					visibleProposalDocumentCondition(id, userId, userContext.organizationId),
 					eq(proposalDocuments.opportunityId, opportunityId)
 				))
 		)
@@ -1260,11 +1293,12 @@ export async function reorderProposalDocuments(
  * Calculate proposal progress for an opportunity.
  */
 export async function getProposalProgress(opportunityId: string): Promise<ProposalProgress> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const docs = await db
 		.select()
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId));
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId, userContext.organizationId));
 
 	const now = new Date();
 
@@ -1366,11 +1400,12 @@ export async function getProposalProgress(opportunityId: string): Promise<Propos
  * Get all sections for a proposal document.
  */
 export async function getDocumentSections(proposalDocumentId: string): Promise<DocumentSection[]> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const results = await db
 		.select()
 		.from(documentSections)
-		.where(visibleDocumentSectionsForProposalCondition(proposalDocumentId, userId))
+		.where(visibleDocumentSectionsForProposalCondition(proposalDocumentId, userId, userContext.organizationId))
 		.orderBy(asc(documentSections.sectionOrder));
 
 	return results.map(mapDocumentSection);
@@ -1380,7 +1415,8 @@ export async function getDocumentSections(proposalDocumentId: string): Promise<D
  * Create a new document section.
  */
 export async function createSection(input: CreateSectionInput): Promise<DocumentSection> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const {
 		proposalDocumentId,
 		sectionName,
@@ -1394,7 +1430,7 @@ export async function createSection(input: CreateSectionInput): Promise<Document
 	const [proposalDocument] = await db
 		.select({ id: proposalDocuments.id })
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentCondition(proposalDocumentId, userId))
+		.where(visibleProposalDocumentCondition(proposalDocumentId, userId, userContext.organizationId))
 		.limit(1);
 
 	if (!proposalDocument) {
@@ -1407,7 +1443,7 @@ export async function createSection(input: CreateSectionInput): Promise<Document
 		const existingSections = await db
 			.select({ maxOrder: sql<number>`MAX(${documentSections.sectionOrder})` })
 			.from(documentSections)
-			.where(visibleDocumentSectionsForProposalCondition(proposalDocumentId, userId));
+			.where(visibleDocumentSectionsForProposalCondition(proposalDocumentId, userId, userContext.organizationId));
 
 		order = (existingSections[0]?.maxOrder ?? -1) + 1;
 	}
@@ -1415,6 +1451,7 @@ export async function createSection(input: CreateSectionInput): Promise<Document
 	const [section] = await db
 		.insert(documentSections)
 		.values({
+			organizationId: userContext.organizationId,
 			proposalDocumentId,
 			sectionName,
 			sectionOrder: order,
@@ -1437,7 +1474,8 @@ export async function updateSection(
 	id: string,
 	input: UpdateSectionInput
 ): Promise<DocumentSection> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const updateData: Partial<typeof documentSections.$inferInsert> = {
 		updatedAt: new Date(),
 	};
@@ -1456,7 +1494,7 @@ export async function updateSection(
 	const [updated] = await db
 		.update(documentSections)
 		.set(updateData)
-		.where(visibleDocumentSectionCondition(id, userId))
+		.where(visibleDocumentSectionCondition(id, userId, userContext.organizationId))
 		.returning();
 
 	if (!updated) {
@@ -1491,8 +1529,9 @@ export async function linkRequirementsToSection(
  * Delete a document section.
  */
 export async function deleteSection(id: string): Promise<void> {
-	const userId = await requireCurrentUserId();
-	await db.delete(documentSections).where(visibleDocumentSectionCondition(id, userId));
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
+	await db.delete(documentSections).where(visibleDocumentSectionCondition(id, userId, userContext.organizationId));
 }
 
 /**
@@ -1502,7 +1541,8 @@ export async function reorderSections(
 	proposalDocumentId: string,
 	orderedIds: string[]
 ): Promise<void> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	await Promise.all(
 		orderedIds.map((id, index) =>
 			db
@@ -1510,7 +1550,7 @@ export async function reorderSections(
 				.set({ sectionOrder: index, updatedAt: new Date() })
 				.where(
 					and(
-						visibleDocumentSectionCondition(id, userId),
+						visibleDocumentSectionCondition(id, userId, userContext.organizationId),
 						eq(documentSections.proposalDocumentId, proposalDocumentId)
 					)
 				)
@@ -1551,11 +1591,12 @@ export async function getSectionProgress(proposalDocumentId: string): Promise<Se
 export async function generateRequirementAwareSectionDraft(
 	sectionId: string
 ): Promise<RequirementAwareSectionDraftResult> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const [section] = await db
 		.select()
 		.from(documentSections)
-		.where(visibleDocumentSectionCondition(sectionId, userId))
+		.where(visibleDocumentSectionCondition(sectionId, userId, userContext.organizationId))
 		.limit(1);
 
 	if (!section) {
@@ -1565,7 +1606,7 @@ export async function generateRequirementAwareSectionDraft(
 	const [proposalDocument] = await db
 		.select()
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentCondition(section.proposalDocumentId, userId))
+		.where(visibleProposalDocumentCondition(section.proposalDocumentId, userId, userContext.organizationId))
 		.limit(1);
 	if (!proposalDocument) {
 		throw new Error("Proposal document not found");
@@ -1668,7 +1709,7 @@ export async function generateRequirementAwareSectionDraft(
 			requirementIds,
 			updatedAt: new Date(generatedAt),
 		})
-		.where(visibleDocumentSectionCondition(section.id, userId));
+		.where(visibleDocumentSectionCondition(section.id, userId, userContext.organizationId));
 
 	for (const requirement of requirements) {
 		const nextStatus = requirement.complianceStatus === "not_addressed"
@@ -1708,11 +1749,12 @@ export async function generateRequirementAwareSectionDraft(
 export async function generateRequirementAwareProposalDraft(
 	proposalDocumentId: string
 ): Promise<RequirementAwareProposalDraftResult> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const [proposalDocument] = await db
 		.select()
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentCondition(proposalDocumentId, userId))
+		.where(visibleProposalDocumentCondition(proposalDocumentId, userId, userContext.organizationId))
 		.limit(1);
 	if (!proposalDocument) {
 		throw new Error("Proposal document not found");
@@ -1721,7 +1763,7 @@ export async function generateRequirementAwareProposalDraft(
 	const sections = await db
 		.select()
 		.from(documentSections)
-		.where(visibleDocumentSectionsForProposalCondition(proposalDocumentId, userId))
+		.where(visibleDocumentSectionsForProposalCondition(proposalDocumentId, userId, userContext.organizationId))
 		.orderBy(asc(documentSections.sectionOrder));
 
 	const results: RequirementAwareSectionDraftResult[] = [];
@@ -1736,7 +1778,7 @@ export async function generateRequirementAwareProposalDraft(
 				status: "drafting",
 				updatedAt: new Date(),
 			})
-			.where(visibleProposalDocumentCondition(proposalDocumentId, userId));
+			.where(visibleProposalDocumentCondition(proposalDocumentId, userId, userContext.organizationId));
 	}
 
 	revalidateProposalWorkflowPaths(proposalDocument.opportunityId);
@@ -1810,9 +1852,10 @@ function chooseSectionForRequirement(
 async function linkRequirementsToStandardProposalSections(
 	opportunityId: string,
 	proposalDocs: ProposalDocument[],
-	userId: string
+	userContext: ProposalDocumentUserContext
 ): Promise<void> {
 	if (proposalDocs.length === 0) return;
+	const userId = userContext.userId;
 
 	const requirements = await db
 		.select()
@@ -1841,7 +1884,7 @@ async function linkRequirementsToStandardProposalSections(
 		const sections = await db
 			.select()
 			.from(documentSections)
-			.where(visibleDocumentSectionsForProposalCondition(proposalDoc.id, userId))
+			.where(visibleDocumentSectionsForProposalCondition(proposalDoc.id, userId, userContext.organizationId))
 			.orderBy(asc(documentSections.sectionOrder));
 		if (sections.length === 0) continue;
 
@@ -1877,7 +1920,7 @@ async function linkRequirementsToStandardProposalSections(
 					]),
 					updatedAt: new Date(),
 				})
-				.where(visibleDocumentSectionCondition(sectionId, userId));
+				.where(visibleDocumentSectionCondition(sectionId, userId, userContext.organizationId));
 		}
 	}
 }
@@ -1894,7 +1937,8 @@ export async function createStandardProposalSet(
 	documentTypes?: ProposalDocumentType[],
 	options: StandardProposalSetOptions = {}
 ): Promise<ProposalDocument[]> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const types = documentTypes || [
 		"cover_letter",
 		"executive_summary",
@@ -1918,7 +1962,7 @@ export async function createStandardProposalSet(
 	const existingDocs = await db
 		.select()
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId))
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId, userContext.organizationId))
 		.orderBy(asc(proposalDocuments.sectionOrder), asc(proposalDocuments.createdAt));
 
 	const existingTypes = new Set(existingDocs.map((doc) => doc.documentType as ProposalDocumentType));
@@ -1944,7 +1988,7 @@ export async function createStandardProposalSet(
 			.map((doc) => mapProposalDocument(doc)),
 		...created,
 	];
-	await linkRequirementsToStandardProposalSections(opportunityId, packageDocs, userId);
+	await linkRequirementsToStandardProposalSections(opportunityId, packageDocs, userContext);
 	revalidateProposalWorkflowPaths(opportunityId);
 
 	return created;
@@ -1958,7 +2002,8 @@ export async function createAndDraftStandardProposalSet(
 	opportunityId: string,
 	documentTypes?: ProposalDocumentType[]
 ): Promise<ResponsePackageDraftResult> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	const types = documentTypes || [
 		"cover_letter",
 		"executive_summary",
@@ -2000,7 +2045,7 @@ export async function createAndDraftStandardProposalSet(
 	const packageRows = await db
 		.select()
 		.from(proposalDocuments)
-		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId))
+		.where(visibleProposalDocumentsForOpportunityCondition(opportunityId, userId, userContext.organizationId))
 		.orderBy(asc(proposalDocuments.sectionOrder), asc(proposalDocuments.createdAt));
 	const packageDocs = packageRows
 		.filter((doc) => types.includes(doc.documentType as ProposalDocumentType))
@@ -2029,6 +2074,7 @@ export async function createAndDraftStandardProposalSet(
 
 	await recordResponsePackageDraftTransition({
 		opportunityId,
+		organizationId: userContext.organizationId,
 		userId,
 		result: responsePackageResult,
 	});
@@ -2038,12 +2084,14 @@ export async function createAndDraftStandardProposalSet(
 
 async function recordResponsePackageDraftTransition(input: {
 	opportunityId: string;
+	organizationId: string;
 	userId: string;
 	result: ResponsePackageDraftResult;
 }): Promise<void> {
 	try {
 		const instance = await recordWorkflowRuntimeTransition({
 			workflowKey: "proposal_response_package",
+			organizationId: input.organizationId,
 			subjectType: "opportunity",
 			subjectId: input.opportunityId,
 			opportunityId: input.opportunityId,
@@ -2234,10 +2282,11 @@ export async function bulkUpdateStatus(
 	status: ProposalDocumentStatus
 ): Promise<void> {
 	const finalStatus = isFinalProposalStatus(status);
-	const userId = await requireProposalDocumentMutationActor(finalStatus);
+	const userContext = await requireProposalDocumentMutationActor(finalStatus);
+	const userId = userContext.userId;
 	if (finalStatus) {
 		await Promise.all(
-			ids.map((id) => assertProposalDocumentRequirementsReadyForFinalStatus(id, userId))
+			ids.map((id) => assertProposalDocumentRequirementsReadyForFinalStatus(id, userContext))
 		);
 	}
 	const updateData: Partial<typeof proposalDocuments.$inferInsert> = {
@@ -2253,6 +2302,7 @@ export async function bulkUpdateStatus(
 		.set(updateData)
 		.where(and(
 			inArray(proposalDocuments.id, ids),
+			proposalDocumentOrganizationCondition(userContext.organizationId),
 			assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId)
 		));
 }
@@ -2261,12 +2311,14 @@ export async function bulkUpdateStatus(
  * Bulk assign proposal documents.
  */
 export async function bulkAssign(ids: string[], assignedTo: string): Promise<void> {
-	const userId = await requireCurrentUserId();
+	const userContext = await requireProposalDocumentContext();
+	const userId = userContext.userId;
 	await db
 		.update(proposalDocuments)
 		.set({ assignedTo, updatedAt: new Date() })
 		.where(and(
 			inArray(proposalDocuments.id, ids),
+			proposalDocumentOrganizationCondition(userContext.organizationId),
 			assignedOpportunityExistsSql(proposalDocuments.opportunityId, userId)
 		));
 }

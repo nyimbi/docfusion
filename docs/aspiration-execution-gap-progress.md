@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Proposal Package Artifact Tenant Anchors
+
+Status: implemented and verified.
+
+Purpose: close the proposal-package and final-artifact tenant boundary so generated response package rows, document sections, and final artifact workflow transitions stay bound to the current organization rather than relying only on assigned-opportunity checks.
+
+Changes in this slice:
+- Add nullable `organization_id` anchors and indexes for `proposal_documents` and `document_sections`, with migration backfill from existing proposal rows and single-tenant installs.
+- Persist organization IDs on new proposal documents, linked existing documents, seeded package sections, and manually created document sections.
+- Require current organization context for proposal package and final artifact mutations, with legacy null-row fallback during migration.
+- Scope proposal document, document section, bulk package, and final artifact visibility helpers by tenant while retaining assigned-opportunity predicates.
+- Thread organization IDs through response package draft and final artifact workflow runtime transitions.
+
+Verification:
+- `npm test -- proposal-documents-scope.test.ts proposal-documents-auth.test.ts final-artifact-workflow.test.ts final-submission-checklist-workflow.test.ts submissions-scope.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 110 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue closing any remaining workflow/runtime row boundaries that can still rely on assignment-only checks or tenant-null migration fallbacks.
+
 ### 2026-05-26 - Pricing Row Tenant Anchors
 
 Status: implemented and verified.

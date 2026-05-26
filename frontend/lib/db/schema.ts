@@ -563,6 +563,7 @@ export const proposalDocuments = pgTable(
 	"proposal_documents",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }),
 		opportunityId: uuid("opportunity_id").notNull().references(() => opportunities.id, { onDelete: "cascade" }),
 		documentId: uuid("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
 		/** Document type in proposal context */
@@ -591,6 +592,7 @@ export const proposalDocuments = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => [
+		index("proposal_docs_organization_idx").on(table.organizationId),
 		index("proposal_docs_opportunity_idx").on(table.opportunityId),
 		index("proposal_docs_document_idx").on(table.documentId),
 		index("proposal_docs_status_idx").on(table.status),
@@ -606,6 +608,7 @@ export const documentSections = pgTable(
 	"document_sections",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }),
 		proposalDocumentId: uuid("proposal_document_id").notNull().references(() => proposalDocuments.id, { onDelete: "cascade" }),
 		/** Section name/title */
 		sectionName: varchar("section_name", { length: 200 }).notNull(),
@@ -627,6 +630,7 @@ export const documentSections = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => [
+		index("doc_sections_organization_idx").on(table.organizationId),
 		index("doc_sections_proposal_idx").on(table.proposalDocumentId),
 		index("doc_sections_status_idx").on(table.status),
 	]
