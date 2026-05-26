@@ -1114,6 +1114,14 @@ async function queueRfpParsingFromDownloadedDocument(params: {
     });
     if (!userWorkspace) {
       logger.warn("[RFP Document Service] Aborting parse queue — user has no default workspace", { userId: params.userId });
+      await recordOpportunityDocumentIngestWorkflow({
+        document: params.document,
+        userId: params.userId,
+        toState: "parse_queue_failed",
+        reason: "Downloaded document could not be queued because the user has no default workspace.",
+        priority: "high",
+        storageReceipt: params.storageReceipt,
+      });
       return {};
     }
     const organizationId = userWorkspace.organizationId;

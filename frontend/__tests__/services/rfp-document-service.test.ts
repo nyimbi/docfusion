@@ -289,6 +289,40 @@ describe("RFP document fetch storage", () => {
 		);
 	});
 
+	it("records remediation workflow when a downloaded RFP cannot be queued without a default workspace", async () => {
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
+		dbMock.query.userWorkspaces.findFirst.mockResolvedValue(null);
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result).toMatchObject({
+			success: true,
+			documentId: baseDocument.id,
+			rfpDocumentId: undefined,
+			parsingJobId: undefined,
+		});
+		expect(processRfpParsingJob).not.toHaveBeenCalled();
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				workflowKey: "discovery_rfp_ingest",
+				subjectType: "opportunity_document",
+				subjectId: baseDocument.id,
+				toState: "parse_queue_failed",
+				reason: "Downloaded document could not be queued because the user has no default workspace.",
+				priority: "high",
+				assignedTo: "capture-user",
+			})
+		);
+		expect(workflowRuntimeMock.upsertWorkflowRuntimeTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskKey: `rfp-ingest-remediation:${baseDocument.id}`,
+				state: "open",
+				priority: "high",
+				assignedTo: "capture-user",
+			})
+		);
+	});
+
 	it("rejects oversized downloads even when content-length is absent", async () => {
 		const updates: Record<string, unknown>[] = [];
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);

@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Parse Queue Remediation for Missing Workspace
+
+Status: implemented and verified.
+
+Purpose: prevent downloaded RFPs from silently stopping after storage when parser queueing cannot resolve a default workspace.
+
+Changes in this slice:
+- Record `parse_queue_failed` ingest workflow state when a downloaded document cannot be queued because the user has no default workspace.
+- Create the existing remediation task for proposal/capture follow-up instead of only logging the condition.
+- Preserve downloaded-document success semantics while making the parse-queue gap operationally visible.
+- Add focused coverage for the missing-workspace queue path.
+
+Verification:
+- `npm run test -- __tests__/services/rfp-document-service.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets parser queue remediation visibility with one focused service test file and whitespace validation.
+
+Remaining after this slice:
+- Continue hardening document classification, parse retry coverage, and response-generation readiness after RFP intake.
+
 ### 2026-05-26 - Post-Download RFP Size Guard
 
 Status: implemented and verified.
