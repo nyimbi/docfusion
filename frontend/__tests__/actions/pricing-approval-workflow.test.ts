@@ -278,6 +278,7 @@ describe("pricing approval workflow", () => {
 			action: "approve",
 			reason: "Approve price basis",
 		})).rejects.toThrow("pricing authority");
+		expect(dbMock.select).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
@@ -297,6 +298,7 @@ describe("pricing approval workflow", () => {
 			reason: "Approve price basis",
 			authorityRole: "pricing_approver",
 		})).rejects.toThrow("requires pricing_approver");
+		expect(dbMock.select).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
@@ -383,6 +385,7 @@ describe("pricing approval workflow", () => {
 			authorityRole: "pricing_approver",
 			waiveCriticalAlignment: true,
 		})).rejects.toThrow("requires pricing_approver");
+		expect(dbMock.select).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 

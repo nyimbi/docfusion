@@ -115,6 +115,7 @@ export async function transitionCostElementPricingWorkflow(
 	const userContext = await requireUserContext();
 	requirePricingApprovalContext(userContext);
 	const reason = requireReason(input.reason, "Pricing cost element transitions require a reason");
+	requireCostElementPricingActionAuthority(userContext, input);
 	const [costElement] = await db
 		.select()
 		.from(costElements)
@@ -205,6 +206,7 @@ export async function transitionPricingPackageWorkflow(
 	const userContext = await requireUserContext();
 	requirePricingApprovalContext(userContext);
 	const reason = requireReason(input.reason, "Pricing package transitions require a reason");
+	requirePricingPackageActionAuthority(userContext, input);
 	const [summary] = await db
 		.select()
 		.from(pricingSummaries)
@@ -524,6 +526,29 @@ function requireAuthority(
 	message: string
 ): string {
 	return assertUserHasAuthorityRole(actor, value, message);
+}
+
+function requireCostElementPricingActionAuthority(
+	actor: UserContext,
+	input: CostElementPricingWorkflowInput
+): void {
+	if (input.action !== "approve") {
+		return;
+	}
+	requireAuthority(actor, input.authorityRole, "Approving cost elements requires pricing authority");
+}
+
+function requirePricingPackageActionAuthority(
+	actor: UserContext,
+	input: PricingPackageWorkflowInput
+): void {
+	if (input.action !== "approve_lock" && input.action !== "reopen") {
+		return;
+	}
+	const message = input.action === "approve_lock"
+		? "Locking pricing requires pricing approval authority"
+		: "Reopening locked pricing requires pricing authority";
+	requireAuthority(actor, input.authorityRole, message);
 }
 
 function hasText(value: string | null | undefined) {

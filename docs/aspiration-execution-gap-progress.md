@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Pricing Approval Authority Preflight
+
+Status: implemented and verified.
+
+Purpose: prevent non-authorized actors from inspecting or mutating cost element and pricing package approval state before the pricing authority gate is enforced.
+
+Changes in this slice:
+- Require pricing approval authority before loading cost elements for approval.
+- Require pricing approval authority before loading pricing package state for lock or reopen actions.
+- Preserve existing status, BOE, approved-cost, and critical alignment gates for authorized pricing approvers.
+- Add focused coverage that unauthorized pricing approval and lock attempts stop before database reads or mutations.
+
+Verification:
+- `npm run test -- __tests__/actions/pricing-approval-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets pricing authority preflight behavior with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that mutate response, governance, or submission state without enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Reusable Content Governance Authority Check
 
 Status: implemented and verified.
