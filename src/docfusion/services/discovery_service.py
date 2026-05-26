@@ -134,7 +134,7 @@ class DefaultDiscoveryService:
 				self._global_db = self._engine.get("global_db")
 			logger.info("Discovery service initialized (scrapers_available=%s)", _SCRAPERS_AVAILABLE)
 		except ImportError:
-			logger.warning("Discovery module not available; service will return stubs")
+			logger.warning("Discovery module not available; service will use SearXNG fallback and honest unavailable states")
 
 		try:
 			from docfusion.discovery.analyzers.opportunity_analyzer import OpportunityAnalyzer

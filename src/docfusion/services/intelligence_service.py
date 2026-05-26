@@ -123,7 +123,7 @@ class DefaultIntelligenceService:
 			self._strategy_recommender = self._discovery_service.strategy_recommender
 			logger.info("Intelligence service initialized with full module")
 		except ImportError:
-			logger.warning("Intelligence module not available; service will return stubs")
+			logger.warning("Intelligence module not available; service will return honest unavailable states")
 
 		try:
 			from docfusion.intelligence.recommenders.content_recommender import (
@@ -155,7 +155,7 @@ class DefaultIntelligenceService:
 
 		level = IntelligenceLevel(intelligence_level)
 		# The caller supplies an ID; the real service expects OpportunityData.
-		# Build a minimal stub -- the service will enrich from storage.
+		# Build the minimal typed reference the service uses to enrich from storage.
 		opp_data = OpportunityData(id=opportunity_id)
 		result = await self._discovery_service.analyze_opportunity_intelligence(
 			opp_data, level, organizational_profile

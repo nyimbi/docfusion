@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Service Fallback Honesty Wording
+
+Status: implemented and verified.
+
+Purpose: keep service diagnostics aligned with the current behavior after discovery and intelligence wrappers were changed from placeholder responses to live fallback or honest unavailable states.
+
+Changes in this slice:
+- Replace stale discovery-service logging that said missing discovery modules would return stubs.
+- Replace stale intelligence-service logging that said missing intelligence modules would return stubs.
+- Reword the intelligence wrapper comment for `OpportunityData` from "minimal stub" to "minimal typed reference".
+
+Verification:
+- `uv run python -m py_compile src/docfusion/services/discovery_service.py src/docfusion/services/intelligence_service.py` passed.
+- `git diff --check` passed.
+- Targeted search found no stale `service will return stubs`, `minimal stub`, `not_implemented`, or `placeholder` wording in the two service wrappers.
+
+Testing scope note:
+- Broader Python tests remain intentionally skipped while on battery. This was a diagnostics/comment honesty slice with no behavior change.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Prefer service responses that expose real fallback data or explicit unavailable states over any new placeholder wording or success claims.
+
 ### 2026-05-26 - Requirement Workflow Refresh Integrity
 
 Status: implemented and verified.
