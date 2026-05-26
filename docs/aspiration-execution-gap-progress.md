@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Reviews Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep formal review create, list, reviewer-management, reporting, analytics, and status-transition paths scoped to the caller's organization through the owning opportunity.
+
+Changes in this slice:
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to review opportunity and review existence helpers.
+- Require organization-aware actor context across review/reviewer/scores/report/export/status paths that use shared review visibility predicates.
+- Preserve existing review and comment organization predicates while adding the missing opportunity tenant boundary.
+- Extend reviews tests to assert opportunity organization predicates in review scope checks.
+
+Verification:
+- `npm test -- reviews.test.ts` from `frontend/` passed, running 110 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as work items, task management, workflow domain, submissions, pipeline, pricing, proposal documents, and win themes.
+
 ### 2026-05-27 - Document Render Audit Opportunity Tenant Predicates
 
 Status: implemented and verified.
