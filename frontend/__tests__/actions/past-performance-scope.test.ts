@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 const completeMock = vi.hoisted(() => vi.fn());
 const revalidatePathMock = vi.hoisted(() => vi.fn());
 
@@ -52,7 +52,7 @@ var dbMock: {
 };
 
 vi.mock("@/lib/auth-utils", () => ({
-	getCurrentUserId: getCurrentUserIdMock,
+	requireUserContext: requireUserContextMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -115,18 +115,26 @@ const requirement = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	getCurrentUserIdMock.mockResolvedValue("past-performance-user-1");
+	requireUserContextMock.mockResolvedValue({
+		userId: "past-performance-user-1",
+		organizationId: "org-1",
+	});
 });
 
 describe("past performance opportunity scoping", () => {
 	function expectAssignedOpportunityScope(where: unknown) {
-		expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+		const sqlText = collectSqlFragments(where).join(" ");
+		expect(sqlText).toContain("opportunities.assigned_to");
+		expect(sqlText).toContain("opportunities.organization_id");
+		expect(sqlText).toContain("org-1");
 	}
 
 	function expectProjectOwnerScope(where: unknown) {
 		const sqlText = collectSqlFragments(where).join(" ");
 		expect(sqlText).toContain("created_by");
 		expect(sqlText).toContain("past-performance-user-1");
+		expect(sqlText).toContain("organization_id");
+		expect(sqlText).toContain("org-1");
 	}
 
 	it("scopes relevance score calculation to the assigned opportunity and requirements", async () => {

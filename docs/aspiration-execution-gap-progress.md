@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Past Performance Tenant Boundaries
+
+Status: implemented and verified.
+
+Purpose: keep past-performance projects, relevance scoring, narratives, exports, analytics, and portfolio gap analysis scoped to the caller's organization as well as the assigned opportunity.
+
+Changes in this slice:
+- Require full user organization context for past-performance actions.
+- Store `organization_id` on newly created, duplicated, and CPARS-imported past-performance projects.
+- Add organization predicates, with legacy null-row fallback, to project owner checks and assigned opportunity subqueries.
+- Extend past-performance scope tests to assert opportunity organization predicates and project organization predicates in addition to assignment and creator predicates.
+
+Verification:
+- `npm test -- past-performance-scope.test.ts past-performance-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` from `frontend/` passed, running 6 compliance/evidence/readiness test files and 77 tests.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to PWin, graphics, presentations, partners, and remaining workflow support modules that still use unscoped or assignment-only checks.
+
 ### 2026-05-26 - Competitive Utility Tenant Boundaries
 
 Status: implemented and verified.
