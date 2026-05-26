@@ -11,6 +11,7 @@ import { complianceMatrices } from "@/lib/db/schema-rfp";
 import {
 	hasBlockingDlpFindings,
 	scanDocumentsForDlpFindings,
+	summarizeDlpFindings,
 	type DlpFinding,
 } from "@/lib/security/dlp-policy";
 import { and, eq, sql, type SQL } from "drizzle-orm";
@@ -299,6 +300,10 @@ function complianceLockItem(matrices: ComplianceMatrixRow[]): FinalSubmissionChe
 
 function dlpItem(findings: DlpFinding[]): FinalSubmissionChecklistItem {
 	const blocking = hasBlockingDlpFindings(findings);
+	const summary = summarizeDlpFindings(findings);
+	const findingDetails = findings.slice(0, 3).map((finding) =>
+		`${finding.title}: ${finding.label} (${finding.severity})`
+	).join("; ");
 	return {
 		id: "privacy:dlp-clearance",
 		category: "privacy",
@@ -306,9 +311,9 @@ function dlpItem(findings: DlpFinding[]): FinalSubmissionChecklistItem {
 		required: true,
 		passed: !blocking,
 		message: blocking
-			? "Blocking DLP findings must be remediated or waived before submission"
+			? `Blocking DLP findings must be remediated or waived before submission (${summary}): ${findingDetails}`
 			: findings.length
-				? "Only advisory DLP findings remain"
+				? `Only advisory DLP findings remain (${summary}): ${findingDetails}`
 				: "No DLP findings detected",
 		assignedRole: "security_reviewer",
 	};

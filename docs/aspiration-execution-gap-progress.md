@@ -711,6 +711,28 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.
 
+### 2026-05-26 - Actionable DLP Checklist Details
+
+Status: implemented and verified.
+
+Purpose: make final submission privacy blockers actionable by showing which documents and DLP rules caused the gate to fail.
+
+Changes in this slice:
+- Include DLP severity summary in the final submission checklist privacy row.
+- Include the first matching document/rule details for blocking and advisory DLP findings.
+- Add focused checklist coverage for the document/rule detail in the DLP row.
+
+Verification:
+- `npm run test -- __tests__/actions/final-submission-checklist-workflow.test.ts` passed.
+- `npx tsc --noEmit` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This was a narrow checklist-message change covered by the touched workflow test and TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.
+
 ### 2026-05-26 - Final Gate Task Navigation
 
 Status: implemented and verified.

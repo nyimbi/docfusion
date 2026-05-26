@@ -173,6 +173,8 @@ describe("final submission checklist workflow", () => {
 		expect(result.blockers.join("\n")).toContain("executive signoff");
 		expect(result.blockers.join("\n")).toContain("Compliance matrix final lock");
 		expect(result.blockers.join("\n")).toContain("DLP clearance");
+		expect(result.items.find((item) => item.id === "privacy:dlp-clearance")?.message)
+			.toContain("Technical Approach: Restricted classification marking (high)");
 		expect(result.dlpFindings).toHaveLength(1);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({
