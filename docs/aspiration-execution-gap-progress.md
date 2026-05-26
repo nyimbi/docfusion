@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Import Governance Server Authority Checks
+
+Status: implemented and verified.
+
+Purpose: prevent import execution approval, rollback, and cancellation from trusting a client-supplied import authority role.
+
+Changes in this slice:
+- Enforce the shared server-side authority-role helper in import approval, rollback, and cancel transitions.
+- Preserve role-aware user context through rollback execution so destructive import compensation remains scoped and auditable.
+- Add focused forged-authority coverage for import execution approval.
+
+Verification:
+- `npm run test -- __tests__/actions/import-governance-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets import governance authority enforcement with focused workflow tests and whitespace validation.
+
+Remaining after this slice:
+- Apply the shared authority helper to review waivers and any remaining privileged exception workflows.
+- Surface import governance blockers in the operational inbox where they are not already projected.
+
 ### 2026-05-26 - Pricing Approval Server Authority Checks
 
 Status: implemented and verified.

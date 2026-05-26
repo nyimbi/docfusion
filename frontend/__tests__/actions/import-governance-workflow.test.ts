@@ -4,12 +4,25 @@ const { requireUserContextMock } = vi.hoisted(() => ({
 	requireUserContextMock: vi.fn(async () => ({
 		userId: "import-owner-1",
 		organizationId: "org-1",
+		roles: ["import_approver"],
 	})),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: requireUserContextMock,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const assertUserHasAuthorityRole = (context: { role?: string; roles?: string[] }, requiredRole: string | null | undefined, message: string) => {
+		const role = requiredRole?.trim().toLowerCase();
+		if (!role) throw new Error(message);
+		const roles = new Set([context.role, ...(context.roles ?? [])].filter(Boolean).map((value) => String(value).trim().toLowerCase()));
+		if (!roles.has("admin") && !roles.has(role)) {
+			throw new Error(`${message}: requires ${role}`);
+		}
+		return role;
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		assertUserHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/actions/import", () => ({
 	rollbackImport: vi.fn(async () => ({ success: true, deletedCount: 3 })),
@@ -88,6 +101,7 @@ beforeEach(() => {
 	requireUserContextMock.mockResolvedValue({
 		userId: "import-owner-1",
 		organizationId: "org-1",
+		roles: ["import_approver"],
 	});
 	vi.mocked(rollbackImport).mockResolvedValue({ success: true, deletedCount: 3 });
 	dbMock.select.mockReset();
@@ -171,6 +185,23 @@ describe("import governance workflow", () => {
 		);
 	});
 
+	it("rejects claimed import authority when the initiating actor lacks the role", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "import-owner-1",
+			organizationId: "org-1",
+			roles: ["data_steward"],
+		});
+		dbMock.select.mockReturnValueOnce(createChain({ result: [importRecord] }));
+
+		await expect(transitionImportGovernanceWorkflow({
+			importId: "import-1",
+			action: "approve_execute",
+			reason: "Mapping reviewed",
+			authorityRole: "import_approver",
+		})).rejects.toThrow("requires import_approver");
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
 	it("rolls back through the existing import rollback path and records deleted count", async () => {
 		dbMock.select.mockReturnValueOnce(createChain({ result: [{ ...importRecord, status: "completed" }] }));
 
@@ -181,10 +212,11 @@ describe("import governance workflow", () => {
 			authorityRole: "import_approver",
 		});
 
-		expect(rollbackImport).toHaveBeenCalledWith("import-1", {
+		expect(rollbackImport).toHaveBeenCalledWith("import-1", expect.objectContaining({
 			userId: "import-owner-1",
 			organizationId: "org-1",
-		});
+			roles: ["import_approver"],
+		}));
 		expect(result).toMatchObject({
 			toState: "rolled_back",
 			deletedCount: 3,

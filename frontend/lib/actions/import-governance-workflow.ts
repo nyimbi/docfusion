@@ -1,6 +1,10 @@
 "use server";
 
-import { requireUserContext } from "@/lib/auth-utils";
+import {
+	assertUserHasAuthorityRole,
+	requireUserContext,
+	type UserContext,
+} from "@/lib/auth-utils";
 import { rollbackImport } from "@/lib/actions/import";
 import {
 	recordWorkflowRuntimeTransition,
@@ -63,7 +67,7 @@ export async function transitionImportGovernanceWorkflow(
 		input,
 		record,
 		userContext: {
-			userId: userContext.userId,
+			...userContext,
 			organizationId: userContext.organizationId,
 		},
 		reason,
@@ -163,7 +167,7 @@ async function loadImport(
 async function buildTransition(input: {
 	input: ImportGovernanceWorkflowInput;
 	record: DataImportRow;
-	userContext: { userId: string; organizationId: string };
+	userContext: UserContext & { organizationId: string };
 	reason: string;
 }): Promise<{
 	toState: string;
@@ -191,7 +195,7 @@ async function buildTransition(input: {
 				},
 			};
 		case "approve_execute":
-			requireAuthority(input.input.authorityRole, "Approving import execution requires import authority");
+			requireAuthority(input.userContext, input.input.authorityRole, "Approving import execution requires import authority");
 			if ((input.record.failedRows ?? 0) > 0) {
 				throw new Error("Import execution cannot be approved while failed preview rows remain");
 			}
@@ -221,7 +225,7 @@ async function buildTransition(input: {
 				},
 			};
 		case "rollback": {
-			requireAuthority(input.input.authorityRole, "Rolling back an import requires import authority");
+			requireAuthority(input.userContext, input.input.authorityRole, "Rolling back an import requires import authority");
 			const rollback = await rollbackImport(input.input.importId, input.userContext);
 			if (!rollback.success) {
 				throw new Error(rollback.error ?? "Import rollback failed");
@@ -237,7 +241,7 @@ async function buildTransition(input: {
 			};
 		}
 		case "cancel":
-			requireAuthority(input.input.authorityRole, "Cancelling an import requires import authority");
+			requireAuthority(input.userContext, input.input.authorityRole, "Cancelling an import requires import authority");
 			return {
 				toState: "cancelled",
 				terminal: true,
@@ -261,10 +265,12 @@ function requireReason(value: string | null | undefined, message: string) {
 	return reason;
 }
 
-function requireAuthority(value: string | null | undefined, message: string) {
-	if (!value?.trim()) {
-		throw new Error(message);
-	}
+function requireAuthority(
+	actor: UserContext,
+	value: string | null | undefined,
+	message: string
+): string {
+	return assertUserHasAuthorityRole(actor, value, message);
 }
 
 function normalizeDueAt(value: Date | string | null | undefined, fallbackDays: number) {
