@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Submission History Artifact Receipt Visibility
+
+Status: implemented and verified.
+
+Purpose: make submitted package history show the stored final artifact receipts that are already locked into submission attachments.
+
+Changes in this slice:
+- Add a pure submission attachment receipt formatter for file size, artifact hash, storage location, source freshness, approval, and lock receipts.
+- Show receipt details and final artifact download links in the submission history attachment list.
+- Preserve legacy attachment display by falling back to document title and storage path when newer receipt fields are absent.
+- Add focused coverage for rich final artifact receipts and legacy attachment fallback formatting.
+
+Verification:
+- `npm run test -- __tests__/submissions/attachment-receipts.test.ts __tests__/actions/submission-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate wave9 proof scenario remain intentionally skipped while on battery. This slice verifies receipt formatting plus the existing submission workflow receipt-locking path.
+
+Remaining after this slice:
+- Add audit explorer reconstruction proof from submitted package receipt back to final stored artifacts when the power budget allows.
+
 ### 2026-05-26 - RFP Parser Stored Hash Guard
 
 Status: implemented and verified.

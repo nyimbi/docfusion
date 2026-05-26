@@ -10,9 +10,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type {
 	Submission,
+	SubmissionAttachment,
 	ProposalDocumentType,
 } from "@/lib/types/opportunity";
 import { SubmissionForm, OutcomeRecorder, WinLossChart } from "@/components/submissions";
+import { submissionAttachmentReceiptLines } from "@/lib/submissions/attachment-receipts";
 import { cn } from "@/lib/utils";
 
 // ============================================================================
@@ -363,14 +365,9 @@ function SubmissionHistory({
 								<p className="text-xs text-[var(--foreground-muted)] mb-2">
 									Attached Documents ({submission.attachments.length})
 								</p>
-								<div className="flex flex-wrap gap-1.5">
+								<div className="space-y-2">
 									{submission.attachments.map((att) => (
-										<span
-											key={att.documentId}
-											className="text-xs px-2 py-0.5 rounded bg-[var(--background-muted)] text-[var(--foreground-muted)]"
-										>
-											{att.documentTitle}
-										</span>
+										<SubmissionAttachmentReceipt key={att.documentId} attachment={att} />
 									))}
 								</div>
 							</div>
@@ -378,6 +375,46 @@ function SubmissionHistory({
 					</div>
 				))}
 			</div>
+		</div>
+	);
+}
+
+function SubmissionAttachmentReceipt({ attachment }: { attachment: SubmissionAttachment }) {
+	const receiptLines = submissionAttachmentReceiptLines(attachment);
+
+	return (
+		<div className="rounded border border-[var(--border)] bg-[var(--background-muted)] px-3 py-2">
+			<div className="flex flex-wrap items-center gap-2">
+				<span className="text-xs font-medium text-[var(--foreground)]">
+					{attachment.documentTitle}
+				</span>
+				{attachment.downloadUrl && (
+					<a
+						href={attachment.downloadUrl}
+						className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+					>
+						Download
+					</a>
+				)}
+			</div>
+			{receiptLines.length > 0 && (
+				<dl className="mt-1 grid gap-x-3 gap-y-1 text-xs text-[var(--foreground-muted)] sm:grid-cols-2">
+					{receiptLines.map((line) => (
+						<div key={`${attachment.documentId}-${line.label}`} className="min-w-0">
+							<dt className="inline font-medium">{line.label}: </dt>
+							<dd
+								className={cn(
+									"inline break-words",
+									line.mono && "font-mono"
+								)}
+								title={line.title}
+							>
+								{line.value}
+							</dd>
+						</div>
+					))}
+				</dl>
+			)}
 		</div>
 	);
 }
