@@ -127,6 +127,9 @@ export async function evaluateFinalSubmissionChecklistWorkflow(
 	opportunityId: string
 ): Promise<FinalSubmissionChecklistResult> {
 	const userContext = await requireUserContext();
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
 	const [docs, matrices, claims, themeAnalyses] = await Promise.all([
 		loadProposalDocuments(opportunityId, userContext.userId),
 		db
@@ -158,6 +161,7 @@ export async function evaluateFinalSubmissionChecklistWorkflow(
 	const assignedRole = allowed ? null : roleForFirstBlocker(items);
 	const instance = await recordWorkflowRuntimeTransition({
 		workflowKey: WORKFLOW_KEY,
+		organizationId: userContext.organizationId,
 		subjectType: SUBJECT_TYPE,
 		subjectId: opportunityId,
 		opportunityId,

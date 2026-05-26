@@ -12,9 +12,10 @@ import {
 import { db } from "@/lib/db";
 import { opportunities, submissions } from "@/lib/db/schema";
 import type { SubmissionAttachment } from "@/lib/types/opportunity";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 
 type SubmissionRow = typeof submissions.$inferSelect;
+type SubmissionCorrectionUserContext = UserContext & { organizationId: string };
 
 export type SubmissionCorrectionAction =
 	| "request_correction"
@@ -49,9 +50,10 @@ export async function transitionSubmissionCorrectionWorkflow(
 	input: SubmissionCorrectionWorkflowInput
 ): Promise<SubmissionCorrectionWorkflowResult> {
 	const userContext = await requireUserContext();
+	requireSubmissionCorrectionTenantContext(userContext);
 	const reason = requireReason(input.reason, "Submission correction transitions require a reason");
 	requireSubmissionCorrectionActionAuthority(userContext, input);
-	const submission = await loadSubmission(input.submissionId, userContext.userId);
+	const submission = await loadSubmission(input.submissionId, userContext);
 	const fromState = submission.status;
 	const transition = buildTransition({
 		input,
@@ -63,7 +65,7 @@ export async function transitionSubmissionCorrectionWorkflow(
 	const [updatedSubmission] = await db
 		.update(submissions)
 		.set(transition.submissionPatch)
-		.where(visibleSubmissionCondition(input.submissionId, userContext.userId))
+		.where(visibleSubmissionCondition(input.submissionId, userContext))
 		.returning();
 	if (!updatedSubmission) {
 		throw new Error("Failed to update submission correction state");
@@ -82,6 +84,7 @@ export async function transitionSubmissionCorrectionWorkflow(
 
 	const instance = await recordWorkflowRuntimeTransition({
 		workflowKey: WORKFLOW_KEY,
+		organizationId: userContext.organizationId,
 		subjectType: SUBJECT_TYPE,
 		subjectId: input.submissionId,
 		opportunityId: updatedSubmission.opportunityId,
@@ -157,18 +160,32 @@ function visibleOpportunityCondition(opportunityId: string, userId: string): SQL
 	)!;
 }
 
-function visibleSubmissionCondition(submissionId: string, userId: string): SQL {
-	return and(
-		eq(submissions.id, submissionId),
-		assignedOpportunityExistsSql(submissions.opportunityId, userId)
+function requireSubmissionCorrectionTenantContext(userContext: UserContext): asserts userContext is SubmissionCorrectionUserContext {
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+}
+
+function submissionOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(submissions.organizationId, organizationId),
+		isNull(submissions.organizationId)
 	)!;
 }
 
-async function loadSubmission(submissionId: string, userId: string) {
+function visibleSubmissionCondition(submissionId: string, userContext: SubmissionCorrectionUserContext): SQL {
+	return and(
+		eq(submissions.id, submissionId),
+		submissionOrganizationCondition(userContext.organizationId),
+		assignedOpportunityExistsSql(submissions.opportunityId, userContext.userId)
+	)!;
+}
+
+async function loadSubmission(submissionId: string, userContext: SubmissionCorrectionUserContext) {
 	const [submission] = await db
 		.select()
 		.from(submissions)
-		.where(visibleSubmissionCondition(submissionId, userId))
+		.where(visibleSubmissionCondition(submissionId, userContext))
 		.limit(1);
 	if (!submission) {
 		throw new Error("Submission not found");

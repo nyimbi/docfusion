@@ -171,7 +171,10 @@ describe("submission row scoping", () => {
 		const result = await getSubmission(submission.id);
 
 		expect(result).toMatchObject({ id: submission.id });
-		expect(collectSqlFragments(readWhere).join(" ")).toContain("opportunities.assigned_to");
+		const sqlText = collectSqlFragments(readWhere).join(" ");
+		expect(sqlText).toContain("organization_id");
+		expect(sqlText).toContain("org-1");
+		expect(sqlText).toContain("opportunities.assigned_to");
 	});
 
 	it("loads the operator checklist from the enforced final submission gate", async () => {
@@ -223,7 +226,10 @@ describe("submission row scoping", () => {
 		const result = await getSubmissionsByOpportunity(submission.opportunityId);
 
 		expect(result).toHaveLength(1);
-		expect(collectSqlFragments(listWhere).join(" ")).toContain("opportunities.assigned_to");
+		const sqlText = collectSqlFragments(listWhere).join(" ");
+		expect(sqlText).toContain("organization_id");
+		expect(sqlText).toContain("org-1");
+		expect(sqlText).toContain("opportunities.assigned_to");
 	});
 
 	it("scopes submission status updates through the owning opportunity", async () => {
@@ -241,7 +247,10 @@ describe("submission row scoping", () => {
 		});
 
 		expect(result).toMatchObject({ id: submission.id, status: "under_review" });
-		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+		const sqlText = collectSqlFragments(updateWhere).join(" ");
+		expect(sqlText).toContain("organization_id");
+		expect(sqlText).toContain("org-1");
+		expect(sqlText).toContain("opportunities.assigned_to");
 	});
 
 	it("requires submission authority before status updates inspect submission rows", async () => {
@@ -282,6 +291,9 @@ describe("submission row scoping", () => {
 
 		expect(result).toMatchObject({ id: submission.id, outcome: "won" });
 		expect(wheres).toHaveLength(2);
+		const submissionSql = collectSqlFragments(wheres[0]).join(" ");
+		expect(submissionSql).toContain("organization_id");
+		expect(submissionSql).toContain("org-1");
 		for (const where of wheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 		}
@@ -314,7 +326,10 @@ describe("submission row scoping", () => {
 		const result = await getWinLossAnalytics();
 
 		expect(result).toMatchObject({ totalSubmissions: 0 });
-		expect(collectSqlFragments(analyticsWhere).join(" ")).toContain("opportunities.assigned_to");
+		const sqlText = collectSqlFragments(analyticsWhere).join(" ");
+		expect(sqlText).toContain("organization_id");
+		expect(sqlText).toContain("org-1");
+		expect(sqlText).toContain("opportunities.assigned_to");
 	});
 
 	it("scopes recent submissions to assigned opportunities", async () => {
@@ -331,6 +346,9 @@ describe("submission row scoping", () => {
 
 		expect(result).toEqual([]);
 		expect(recentChain.limit).toHaveBeenCalledWith(1);
-		expect(collectSqlFragments(recentWhere).join(" ")).toContain("opportunities.assigned_to");
+		const sqlText = collectSqlFragments(recentWhere).join(" ");
+		expect(sqlText).toContain("organization_id");
+		expect(sqlText).toContain("org-1");
+		expect(sqlText).toContain("opportunities.assigned_to");
 	});
 });

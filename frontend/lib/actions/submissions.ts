@@ -17,7 +17,7 @@ import {
 	type SubmissionRow,
 } from "@/lib/db/schema";
 import { requireUserContext, userHasAuthorityRole, type UserContext } from "@/lib/auth-utils";
-import { eq, desc, and, gte, lte, sql, inArray, type SQL } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql, inArray, isNull, or, type SQL } from "drizzle-orm";
 import {
 	evaluateFinalSubmissionChecklistWorkflow,
 	type FinalSubmissionChecklistItem,
@@ -69,6 +69,14 @@ function transformSubmission(row: SubmissionRow): Submission {
 // CRUD Operations
 // ============================================================================
 
+type SubmissionUserContext = UserContext & { organizationId: string };
+
+function requireSubmissionTenantContext(userContext: UserContext): asserts userContext is SubmissionUserContext {
+	if (!userContext.organizationId) {
+		throw new Error("No organization context");
+	}
+}
+
 function revalidateSubmissionWorkflowPaths(opportunityId: string): void {
 	revalidatePath(`/opportunities/${opportunityId}`);
 	revalidatePath(`/opportunities/${opportunityId}/submission`);
@@ -94,17 +102,29 @@ function visibleOpportunityCondition(opportunityId: string, actorId: string): SQ
 	)!;
 }
 
-function visibleSubmissionsForOpportunityCondition(opportunityId: string, actorId: string): SQL {
-	return and(
-		eq(submissions.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, actorId)
+function submissionOrganizationCondition(organizationId: string): SQL {
+	return or(
+		eq(submissions.organizationId, organizationId),
+		isNull(submissions.organizationId)
 	)!;
 }
 
-function visibleSubmissionCondition(submissionId: string, actorId: string): SQL {
+function visibleSubmissionsForOpportunityCondition(
+	opportunityId: string,
+	userContext: SubmissionUserContext
+): SQL {
+	return and(
+		eq(submissions.opportunityId, opportunityId),
+		submissionOrganizationCondition(userContext.organizationId),
+		assignedOpportunityExistsSql(opportunityId, userContext.userId)
+	)!;
+}
+
+function visibleSubmissionCondition(submissionId: string, userContext: SubmissionUserContext): SQL {
 	return and(
 		eq(submissions.id, submissionId),
-		assignedOpportunityExistsSql(submissions.opportunityId, actorId)
+		submissionOrganizationCondition(userContext.organizationId),
+		assignedOpportunityExistsSql(submissions.opportunityId, userContext.userId)
 	)!;
 }
 
@@ -146,6 +166,7 @@ export async function createSubmission(
 	input: CreateSubmissionInput
 ): Promise<Submission> {
 	const userContext = await requireUserContext();
+	requireSubmissionTenantContext(userContext);
 	const submittedBy = userContext.userId;
 
 	if (input.attachmentIds.length === 0) {
@@ -250,6 +271,7 @@ export async function createSubmission(
 	const [row] = await db
 		.insert(submissions)
 		.values({
+			organizationId: userContext.organizationId,
 			opportunityId: input.opportunityId,
 			submittedAt: new Date(),
 			submittedBy,
@@ -273,6 +295,7 @@ export async function createSubmission(
 	try {
 		await recordWorkflowRuntimeTransition({
 			workflowKey: "production_submission",
+			organizationId: userContext.organizationId,
 			subjectType: "submission",
 			subjectId: row.id,
 			opportunityId: input.opportunityId,
@@ -413,11 +436,12 @@ function asRecord(value: unknown): Record<string, unknown> {
  */
 export async function getSubmission(id: string): Promise<Submission | null> {
 	const userContext = await requireUserContext();
+	requireSubmissionTenantContext(userContext);
 
 	const [row] = await db
 		.select()
 		.from(submissions)
-		.where(visibleSubmissionCondition(id, userContext.userId));
+		.where(visibleSubmissionCondition(id, userContext));
 
 	return row ? transformSubmission(row) : null;
 }
@@ -429,11 +453,12 @@ export async function getSubmissionsByOpportunity(
 	opportunityId: string
 ): Promise<Submission[]> {
 	const userContext = await requireUserContext();
+	requireSubmissionTenantContext(userContext);
 
 	const rows = await db
 		.select()
 		.from(submissions)
-		.where(visibleSubmissionsForOpportunityCondition(opportunityId, userContext.userId))
+		.where(visibleSubmissionsForOpportunityCondition(opportunityId, userContext))
 		.orderBy(desc(submissions.submittedAt));
 
 	return rows.map(transformSubmission);
@@ -457,6 +482,7 @@ export async function updateSubmissionStatus(
 	input: UpdateSubmissionStatusInput
 ): Promise<Submission> {
 	const userContext = await requireUserContext();
+	requireSubmissionTenantContext(userContext);
 	requireSubmissionAuthority(userContext);
 
 	const [row] = await db
@@ -468,7 +494,7 @@ export async function updateSubmissionStatus(
 				: undefined,
 			updatedAt: new Date(),
 		})
-		.where(visibleSubmissionCondition(input.submissionId, userContext.userId))
+		.where(visibleSubmissionCondition(input.submissionId, userContext))
 		.returning();
 
 	if (!row) {
@@ -486,6 +512,7 @@ export async function recordOutcome(
 	input: RecordOutcomeInput
 ): Promise<Submission> {
 	const userContext = await requireUserContext();
+	requireSubmissionTenantContext(userContext);
 	requireSubmissionAuthority(userContext);
 
 	const [row] = await db
@@ -501,7 +528,7 @@ export async function recordOutcome(
 			status: input.outcome as SubmissionStatus,
 			updatedAt: new Date(),
 		})
-		.where(visibleSubmissionCondition(input.submissionId, userContext.userId))
+		.where(visibleSubmissionCondition(input.submissionId, userContext))
 		.returning();
 
 	if (!row) {
@@ -588,9 +615,13 @@ export async function getWinLossAnalytics(filters?: {
 	category?: string;
 }): Promise<WinLossAnalytics> {
 	const userContext = await requireUserContext();
+	requireSubmissionTenantContext(userContext);
 
 	// Build conditions
-	const conditions: SQL[] = [assignedOpportunityCondition(userContext.userId)];
+	const conditions: SQL[] = [
+		assignedOpportunityCondition(userContext.userId),
+		submissionOrganizationCondition(userContext.organizationId),
+	];
 	if (filters?.startDate) {
 		conditions.push(gte(submissions.submittedAt, filters.startDate));
 	}
@@ -730,6 +761,7 @@ export async function getRecentSubmissions(limit: number = 10): Promise<
 	}>
 > {
 	const userContext = await requireUserContext();
+	requireSubmissionTenantContext(userContext);
 
 	const rows = await db
 		.select({
@@ -738,7 +770,10 @@ export async function getRecentSubmissions(limit: number = 10): Promise<
 		})
 		.from(submissions)
 		.innerJoin(opportunities, eq(opportunities.id, submissions.opportunityId))
-		.where(assignedOpportunityCondition(userContext.userId))
+		.where(and(
+			assignedOpportunityCondition(userContext.userId),
+			submissionOrganizationCondition(userContext.organizationId)
+		))
 		.orderBy(desc(submissions.submittedAt))
 		.limit(normalizeSubmissionLimit(limit));
 

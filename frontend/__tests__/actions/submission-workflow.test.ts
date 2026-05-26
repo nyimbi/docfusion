@@ -164,7 +164,7 @@ function selectedDocument(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	requireUserContextMock.mockResolvedValue({ userId: "session-user-1", roles: ["proposal_manager"] });
+	requireUserContextMock.mockResolvedValue({ userId: "session-user-1", organizationId: "org-1", roles: ["proposal_manager"] });
 	vi.mocked(preSubmissionAudit).mockResolvedValue(readyAudit);
 	vi.mocked(evaluateFinalSubmissionChecklistWorkflow).mockResolvedValue({
 		opportunityId: "opp-1",
@@ -196,6 +196,7 @@ describe("submission workflow gates", () => {
 	it("requires proposal or executive authority before recording submission", async () => {
 		requireUserContextMock.mockResolvedValueOnce({
 			userId: "writer-1",
+			organizationId: "org-1",
 			roles: ["writer"],
 		});
 
@@ -437,6 +438,7 @@ describe("submission workflow gates", () => {
 		});
 
 		expect(insertedSubmission).toMatchObject({
+			organizationId: "org-1",
 			opportunityId: "opp-1",
 			submittedBy: "session-user-1",
 			confirmationNumber: "PORTAL-123",
@@ -469,6 +471,7 @@ describe("submission workflow gates", () => {
 		});
 		expect(evaluateFinalSubmissionChecklistWorkflow).toHaveBeenCalledWith("opp-1");
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
+			organizationId: "org-1",
 			evidenceLinks: expect.arrayContaining([
 				"PORTAL-123",
 				"submission:receipt:PORTAL-123",

@@ -529,6 +529,7 @@ export const opportunityAIScores = pgTable(
 	"opportunity_ai_scores",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }),
 		opportunityId: uuid("opportunity_id").notNull().references(() => opportunities.id, { onDelete: "cascade" }),
 		/** Type of score: "fit", "win_probability", "risk", "effort" */
 		scoreType: varchar("score_type", { length: 50 }).notNull(),
@@ -701,6 +702,7 @@ export const submissions = pgTable(
 	"submissions",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
+		organizationId: varchar("organization_id", { length: 100 }),
 		opportunityId: uuid("opportunity_id").notNull().references(() => opportunities.id, { onDelete: "cascade" }),
 		/** When proposal was submitted */
 		submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull(),
@@ -734,6 +736,7 @@ export const submissions = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => [
+		index("submissions_organization_idx").on(table.organizationId),
 		index("submissions_opportunity_idx").on(table.opportunityId),
 		index("submissions_status_idx").on(table.status),
 		index("submissions_outcome_idx").on(table.outcome),

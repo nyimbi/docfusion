@@ -2742,6 +2742,33 @@ Remaining after this slice:
 - Continue auditing opportunity-linked workflow domain tables that still scope through opportunity assignment because their tables do not yet carry organization IDs.
 - Live persisted DB import-to-parse proof remains externally blocked by the refused database connection.
 
+### 2026-05-26 - Submission Tenant Anchor
+
+Status: implemented and verified.
+
+Purpose: keep final submission dispatch, correction, outcome, and analytics records tenant-bound instead of relying only on assigned opportunity checks.
+
+Changes in this slice:
+- Add nullable `organization_id` support to `submissions`, with migration backfill for single-tenant deployments and an organization index.
+- Persist the caller organization on new submission rows and production submission workflow instances.
+- Scope submission reads, lists, status updates, outcome updates, win/loss analytics, recent submissions, correction workflows, and workflow-domain submission compensation by submission organization plus assigned opportunity.
+- Carry organization context into final submission checklist workflow runtime records.
+- Extend submission scope and workflow tests to assert tenant predicates and tenant persistence.
+
+Verification:
+- `npm test -- submissions-scope.test.ts submission-workflow.test.ts submission-correction-workflow.test.ts final-submission-checklist-workflow.test.ts workflow-domain.test.ts` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- `npm run platform:proof -- --run wave6-final-submission-gate` passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed.
+
+Testing scope note:
+- Battery constraints are lifted. This slice ran focused submission coverage, TypeScript checking, diff whitespace checks, and both Wave 6 final-submission proof scenarios.
+
+Remaining after this slice:
+- Continue auditing proposal reviews, review comments, gate reviews, and cost/pricing records for first-class organization anchors.
+- Live persisted DB import-to-parse proof remains externally blocked by the refused database connection.
+
 ### 2026-05-26 - Persistent Discovery Warning History
 
 Status: implemented and verified.

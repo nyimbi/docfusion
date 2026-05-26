@@ -289,6 +289,7 @@ describe("final submission checklist workflow", () => {
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({
 				workflowKey: "final_submission_checklist_gate",
+				organizationId: "org-1",
 				toState: "blocked",
 				priority: "critical",
 				terminal: false,
@@ -350,6 +351,7 @@ describe("final submission checklist workflow", () => {
 		expect(result.items.every((item) => item.passed)).toBe(true);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({
+				organizationId: "org-1",
 				toState: "ready",
 				eventType: "final_submission_checklist_passed",
 				terminal: true,

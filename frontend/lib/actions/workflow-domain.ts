@@ -187,9 +187,13 @@ function workflowDocumentApprovalCondition(approvalId: string, actorId: string):
 	)!;
 }
 
-function workflowSubmissionCondition(submissionId: string, actorId: string): SQL {
+function workflowSubmissionCondition(submissionId: string, organizationId: string, actorId: string): SQL {
 	return and(
 		eq(submissions.id, submissionId),
+		or(
+			eq(submissions.organizationId, organizationId),
+			isNull(submissions.organizationId)
+		),
 		assignedOpportunityExistsSql(submissions.opportunityId, actorId)
 	)!;
 }
@@ -837,7 +841,7 @@ async function applyDomainCompensation(input: {
 						outcomeNotes: `Resolved by workflow: ${input.reason}`,
 						updatedAt: now,
 					};
-			await db.update(submissions).set(patch).where(workflowSubmissionCondition(input.instance.subjectId, input.actorId));
+			await db.update(submissions).set(patch).where(workflowSubmissionCondition(input.instance.subjectId, input.organizationId, input.actorId));
 			break;
 		}
 		case "scraper_run": {
