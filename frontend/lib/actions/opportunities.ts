@@ -220,6 +220,13 @@ export async function createOpportunity(input: OpportunityInput): Promise<Opport
 			isReviewed: input.isReviewed ?? false,
 			tags: input.tags ?? [],
 			metadata: input.metadata,
+			source: input.source,
+			fingerprint: input.fingerprint,
+			noticeId: input.noticeId,
+			portalUrl: input.portalUrl,
+			documentUrl: input.documentUrl,
+			scrapedAt: input.scrapedAt ? new Date(input.scrapedAt) : undefined,
+			publishedDate: input.publishedDate ? new Date(input.publishedDate) : undefined,
 			// searchVector is auto-populated by PostgreSQL trigger
 		})
 		.returning();

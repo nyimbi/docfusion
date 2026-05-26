@@ -35,8 +35,15 @@ vi.mock("@/lib/actions/opportunities", () => ({
 	createOpportunity: vi.fn(),
 	updateOpportunity: vi.fn(),
 }));
+vi.mock("@/lib/services/searxng-client", () => ({
+	searchSearxng: vi.fn(),
+}));
+vi.mock("@/lib/scrapers/firecrawl", () => ({
+	FirecrawlClient: vi.fn(),
+}));
 
 import {
+	discoverAndImportOpportunities,
 	importAllScraperExports,
 	importFromBuffer,
 	importFromDirectory,
@@ -59,6 +66,7 @@ describe("opportunity import action auth", () => {
 		await expect(importFromBuffer(Buffer.from("title\nExample"), "opportunities.csv")).rejects.toThrow("Unauthorized");
 		await expect(previewImport("/tmp/opportunities.csv")).rejects.toThrow("Unauthorized");
 		await expect(previewImportFromBuffer(Buffer.from("title\nExample"), "opportunities.csv")).rejects.toThrow("Unauthorized");
+		await expect(discoverAndImportOpportunities({ query: "rfp kenya" })).rejects.toThrow("Unauthorized");
 		await expect(importFromScraperExport("/tmp/export.jsonl")).rejects.toThrow("Unauthorized");
 		await expect(importAllScraperExports("/tmp/sync")).rejects.toThrow("Unauthorized");
 		await expect(importFromDirectory("/tmp/imports")).rejects.toThrow("Unauthorized");

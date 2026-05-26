@@ -18,7 +18,7 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ### 2026-05-26 - Discovery Infrastructure Alignment
 
-Status: implemented; ready for commit after lightweight final checks.
+Status: implemented and verified.
 
 Purpose: make the product's configured search/scraping infrastructure match the available services, so opportunity discovery work starts from the correct live endpoints instead of stale host defaults.
 
@@ -47,3 +47,28 @@ Remaining after this slice:
 - Connect discovery search results to a durable opportunity ingestion workflow where gaps remain.
 - Add or strengthen fallback behavior for browser-only sources, including CloakHQ/cloakbrowser only if existing Firecrawl/Playwright paths cannot handle a target source.
 - Continue auditing the full opportunity-to-winning-response workflow against the JTBD catalogue.
+
+### 2026-05-26 - SearXNG Opportunity Ingestion
+
+Status: implemented and verified.
+
+Purpose: connect live external search results to durable opportunity records instead of leaving web discovery as a document-only helper.
+
+Changes in this slice:
+- Add `discoverAndImportOpportunities`, a server action that searches SearXNG, filters likely opportunity notices, deduplicates by normalized URL fingerprint and source ID, and records an audited import job.
+- Support optional Firecrawl enrichment for top search results so high-value runs can store cleaner titles and summaries without making every search import expensive.
+- Assign discovered opportunities to the importing user and store provenance metadata including search query, engine, score, normalized URL, and Firecrawl scrape status.
+- Persist scraper/discovery identity fields in `createOpportunity` so `source`, `fingerprint`, `portalUrl`, `documentUrl`, and scrape dates are not dropped on new records.
+- Add focused tests for SearXNG ingestion, Firecrawl enrichment, duplicate update handling, and unauthenticated access blocking.
+
+Verification:
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts __tests__/actions/import-opportunities-auth.test.ts` passed.
+- `npx tsc --noEmit` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally deferred while on battery. This slice used focused Vitest coverage plus TypeScript checking because the changed surface is a server action boundary.
+
+Remaining after this slice:
+- Wire the discovery import action into scheduled/source workflows or an operator UI so target query sets can run without a developer console.
+- Add browser-only fallback behavior for pages Firecrawl cannot scrape cleanly, using the existing Playwright service first and CloakHQ/cloakbrowser only if needed.
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
