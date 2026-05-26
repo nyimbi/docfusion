@@ -41,6 +41,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	return Object.values(value as Record<string, unknown>).flatMap((item) => collectSqlFragments(item, seen));
 }
 
+function expectOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("pipeline-user-1");
+}
+
 var dbMock: {
 	select: ReturnType<typeof vi.fn>;
 	insert: ReturnType<typeof vi.fn>;
@@ -136,8 +144,8 @@ describe("pipeline row scoping", () => {
 			success: true,
 			data: { id: pipeline.id, currentStage: "qualification" },
 		});
-		expect(collectSqlFragments(loadWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(loadWhere);
+		expectOpportunityTenantScope(updateWhere);
 	});
 
 	it("scopes activity updates through the owning pipeline opportunity", async () => {
@@ -162,7 +170,7 @@ describe("pipeline row scoping", () => {
 			success: true,
 			data: { id: "55555555-5555-4555-8555-555555555555" },
 		});
-		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(updateWhere);
 	});
 
 	it("scopes gate review updates through the owning pipeline opportunity", async () => {
@@ -187,7 +195,7 @@ describe("pipeline row scoping", () => {
 			success: true,
 			data: { id: "66666666-6666-4666-8666-666666666666" },
 		});
-		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(updateWhere);
 	});
 
 	it("scopes milestone updates through the owning pipeline opportunity", async () => {
@@ -212,7 +220,7 @@ describe("pipeline row scoping", () => {
 			success: true,
 			data: { id: "77777777-7777-4777-8777-777777777777" },
 		});
-		expect(collectSqlFragments(updateWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(updateWhere);
 	});
 
 	it("scopes suggested PWin activity reads through the owning pipeline opportunity", async () => {
@@ -240,8 +248,8 @@ describe("pipeline row scoping", () => {
 			success: true,
 			data: { confidence: 0.7 },
 		});
-		expect(collectSqlFragments(activityWhere).join(" ")).toContain("opportunities.assigned_to");
-		expect(collectSqlFragments(partnersWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(activityWhere);
+		expectOpportunityTenantScope(partnersWhere);
 	});
 
 	it("scopes analytics reads to assigned opportunities", async () => {
@@ -259,7 +267,7 @@ describe("pipeline row scoping", () => {
 			success: true,
 			data: { totalOpportunities: 1 },
 		});
-		expect(collectSqlFragments(analyticsWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(analyticsWhere);
 	});
 
 	it("scopes forecast reads to assigned opportunities", async () => {
@@ -277,7 +285,7 @@ describe("pipeline row scoping", () => {
 			success: true,
 			data: { totalForecastedValue: 55_000 },
 		});
-		expect(collectSqlFragments(forecastWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(forecastWhere);
 	});
 
 	it("scopes at-risk reads to assigned opportunities", async () => {
@@ -295,7 +303,7 @@ describe("pipeline row scoping", () => {
 			success: true,
 			data: [],
 		});
-		expect(collectSqlFragments(atRiskWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(atRiskWhere);
 	});
 
 	it("scopes pipeline summary reads through the assigned opportunity", async () => {
@@ -334,7 +342,7 @@ describe("pipeline row scoping", () => {
 		});
 		expect(wheres).toHaveLength(4);
 		for (const where of wheres) {
-			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
+			expectOpportunityTenantScope(where);
 		}
 	});
 });

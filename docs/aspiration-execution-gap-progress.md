@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Pipeline Opportunity Tenant Predicates
+
+Status: implemented and focused verified; broad Vitest suite still has unrelated blockers.
+
+Purpose: keep capture pipeline, activity, gate, milestone, partner, analytics, forecast, and risk reads/writes scoped to the caller's organization through the owning opportunity.
+
+Changes in this slice:
+- Require pipeline opportunity predicates to use the organization-aware pipeline context.
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to assigned-opportunity and assigned-pipeline visibility helpers.
+- Preserve capture pipeline, gate review, and milestone row predicates while adding the missing opportunity tenant boundary.
+- Extend pipeline scope tests to assert opportunity organization predicates across pipeline, activity, gate, milestone, partner, analytics, forecast, risk, and summary paths.
+
+Verification:
+- `npm test -- pipeline-scope.test.ts` from `frontend/` passed, running 9 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --list` from `frontend/` showed no dedicated pipeline/capture platform-proof scenario.
+- `npm test -- --run` from `frontend/` was attempted; pipeline coverage passed, but the full suite remained red because `rfp-tenant-isolation.test.ts` could not connect to `88.80.188.224:5432` and `import-opportunities-auth.test.ts` has an existing `requireUserContext` auth-utils mock mismatch.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as task management, pricing, proposal documents, and win themes.
+- Add a dedicated pipeline/capture platform-proof scenario so pipeline tenant isolation is covered by the proof harness instead of only the action scope test.
+
 ### 2026-05-27 - Submissions Opportunity Tenant Predicates
 
 Status: implemented and verified.

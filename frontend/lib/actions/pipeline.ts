@@ -349,17 +349,19 @@ async function requirePipelineContext(organizationId?: string | null): Promise<P
 	return userContext as PipelineUserContext;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, actorId: string, organizationId: string): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
+			and (opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)
 			and opportunities.assigned_to = ${actorId}
 	)`;
 }
 
-function assignedOpportunityCondition(actorId: string): SQL {
-	return sql`opportunities.assigned_to = ${actorId}`;
+function assignedOpportunityCondition(actorId: string, organizationId: string): SQL {
+	return sql`(opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)
+		and opportunities.assigned_to = ${actorId}`;
 }
 
 function pipelineOrganizationCondition(organizationId: string): SQL {
@@ -376,39 +378,33 @@ function gateReviewOrganizationCondition(organizationId: string): SQL {
 	)!;
 }
 
-function visibleOpportunityCondition(opportunityId: string, actorId: string): SQL {
+function visibleOpportunityCondition(opportunityId: string, actorId: string, organizationId: string): SQL {
 	return and(
 		eq(opportunities.id, opportunityId),
-		assignedOpportunityCondition(actorId)
+		assignedOpportunityCondition(actorId, organizationId)
 	)!;
 }
 
-function visiblePipelineCondition(pipelineId: string, actorId: string, organizationId?: string): SQL {
-	const conditions = [
+function visiblePipelineCondition(pipelineId: string, actorId: string, organizationId: string): SQL {
+	return and(
 		eq(capturePipeline.id, pipelineId),
-		assignedOpportunityExistsSql(capturePipeline.opportunityId, actorId),
-	];
-	if (organizationId) {
-		conditions.push(pipelineOrganizationCondition(organizationId));
-	}
-	return and(...conditions)!;
+		assignedOpportunityExistsSql(capturePipeline.opportunityId, actorId, organizationId),
+		pipelineOrganizationCondition(organizationId)
+	)!;
 }
 
-function visiblePipelineForOpportunityCondition(opportunityId: string, actorId: string, organizationId?: string): SQL {
-	const conditions = [
+function visiblePipelineForOpportunityCondition(opportunityId: string, actorId: string, organizationId: string): SQL {
+	return and(
 		eq(capturePipeline.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, actorId),
-	];
-	if (organizationId) {
-		conditions.push(pipelineOrganizationCondition(organizationId));
-	}
-	return and(...conditions)!;
+		assignedOpportunityExistsSql(opportunityId, actorId, organizationId),
+		pipelineOrganizationCondition(organizationId)
+	)!;
 }
 
-function visibleOpportunityPartnersForOpportunityCondition(opportunityId: string, actorId: string): SQL {
+function visibleOpportunityPartnersForOpportunityCondition(opportunityId: string, actorId: string, organizationId: string): SQL {
 	return and(
 		eq(opportunityPartners.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, actorId)
+		assignedOpportunityExistsSql(opportunityId, actorId, organizationId)
 	)!;
 }
 
@@ -419,6 +415,7 @@ function assignedPipelineExistsSql(pipelineId: unknown, actorId: string, organiz
 		join opportunities on opportunities.id = capture_pipeline.opportunity_id
 		where capture_pipeline.id = ${pipelineId}
 			${organizationId ? sql`and (capture_pipeline.organization_id = ${organizationId} or capture_pipeline.organization_id is null)` : sql``}
+			${organizationId ? sql`and (opportunities.organization_id = ${organizationId} or opportunities.organization_id is null)` : sql``}
 			and opportunities.assigned_to = ${actorId}
 	)`;
 }
@@ -477,7 +474,7 @@ function visibleMilestoneCondition(milestoneId: string, actorId: string, organiz
 	)!;
 }
 
-async function loadVisiblePipeline(pipelineId: string, actorId: string, organizationId?: string): Promise<CapturePipeline | null> {
+async function loadVisiblePipeline(pipelineId: string, actorId: string, organizationId: string): Promise<CapturePipeline | null> {
 	const [pipeline] = await db
 		.select()
 		.from(capturePipeline)
@@ -503,7 +500,7 @@ export async function initializePipeline(opportunityId: string): Promise<ActionR
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(visibleOpportunityCondition(opportunityId, actorId))
+			.where(visibleOpportunityCondition(opportunityId, actorId, userContext.organizationId))
 			.limit(1);
 
 		if (!opportunity) {
@@ -661,7 +658,7 @@ export async function listPipelines(): Promise<ActionResult<{
 			.from(capturePipeline)
 			.innerJoin(opportunities, eq(capturePipeline.opportunityId, opportunities.id))
 			.where(and(
-				assignedOpportunityCondition(actorId),
+				assignedOpportunityCondition(actorId, userContext.organizationId),
 				pipelineOrganizationCondition(userContext.organizationId)
 			))
 			.orderBy(desc(capturePipeline.updatedAt));
@@ -882,7 +879,7 @@ export async function calculateSuggestedPwin(opportunityId: string): Promise<Act
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(visibleOpportunityCondition(opportunityId, actorId))
+			.where(visibleOpportunityCondition(opportunityId, actorId, userContext.organizationId))
 			.limit(1);
 
 		if (!opportunity) {
@@ -908,7 +905,7 @@ export async function calculateSuggestedPwin(opportunityId: string): Promise<Act
 		const partnerResults = await db
 			.select()
 			.from(opportunityPartners)
-			.where(visibleOpportunityPartnersForOpportunityCondition(opportunityId, actorId));
+			.where(visibleOpportunityPartnersForOpportunityCondition(opportunityId, actorId, userContext.organizationId));
 
 		// Define scoring factors
 		const factors: PwinCalculation["factors"] = [];
@@ -1673,7 +1670,7 @@ export async function generateBidDecisionPackage(pipelineId: string): Promise<Ac
 		const [opportunity] = await db
 			.select()
 			.from(opportunities)
-			.where(visibleOpportunityCondition(pipeline.opportunityId!, actorId))
+			.where(visibleOpportunityCondition(pipeline.opportunityId!, actorId, userContext.organizationId))
 			.limit(1);
 
 		if (!opportunity) {
@@ -2007,7 +2004,7 @@ export async function getPipelineAnalytics(organizationId?: string): Promise<Act
 			.from(capturePipeline)
 			.innerJoin(opportunities, eq(capturePipeline.opportunityId, opportunities.id))
 			.where(and(
-				assignedOpportunityCondition(actorId),
+				assignedOpportunityCondition(actorId, userContext.organizationId),
 				pipelineOrganizationCondition(userContext.organizationId)
 			));
 
@@ -2131,7 +2128,7 @@ export async function forecastPipeline(organizationId?: string): Promise<ActionR
 				and(
 					inArray(capturePipeline.currentStage, ["capture", "proposal", "submitted", "evaluation"]),
 					pipelineOrganizationCondition(userContext.organizationId),
-					assignedOpportunityCondition(actorId)
+					assignedOpportunityCondition(actorId, userContext.organizationId)
 				)
 			);
 
@@ -2228,7 +2225,7 @@ export async function identifyAtRiskOpportunities(): Promise<ActionResult<AtRisk
 				and(
 					inArray(capturePipeline.currentStage, ["discovery", "qualification", "capture", "proposal", "submitted", "evaluation"]),
 					pipelineOrganizationCondition(userContext.organizationId),
-					assignedOpportunityCondition(actorId)
+					assignedOpportunityCondition(actorId, userContext.organizationId)
 				)
 			);
 
