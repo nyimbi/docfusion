@@ -16,6 +16,24 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Win Theme Tenant Predicate Audit
+
+Status: audited and verified; no code change required.
+
+Purpose: confirm win-theme and competitive strategy workflows already bind opportunity-derived reads and writes to the caller's organization through the owning opportunity.
+
+Findings:
+- `win-themes.ts` already applies opportunity organization predicates, with legacy null-opportunity fallback, to theme, occurrence, injection, and proposal-document scan visibility paths.
+- `competitive-win-theme-workflow.ts` already applies opportunity organization predicates to strategy workflow visibility paths.
+- Existing tests already assert both `opportunities.organization_id` and `opportunities.assigned_to` for the win-theme paths.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts competitive-win-theme-workflow.test.ts` from `frontend/` passed, running 8 tests.
+
+Remaining after this slice:
+- Resolve the existing full-suite blockers recorded in the pipeline slice so the full Vitest suite can become a clean proof again.
+- Continue scanning for other assignment-only opportunity predicates outside the already remediated workflow surfaces.
+
 ### 2026-05-27 - Proposal Documents Opportunity Tenant Predicates
 
 Status: implemented and verified.
