@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Bounded Discovery Source Document Download
+
+Status: implemented and verified.
+
+Purpose: reduce the manual gap between live opportunity discovery and RFP parser intake by allowing discovery runs to download newly seeded source documents under an explicit small limit.
+
+Changes in this slice:
+- Add `downloadDiscoveredDocuments` and `downloadLimit` to the live discovery import contract and API route.
+- Download only newly seeded source-document rows, bounded by the configured limit, so successful downloads continue into the existing storage and parser queue path.
+- Return source-document download attempted/succeeded/failed counts from discovery import results.
+- Surface bounded download controls and intake download counts in the live discovery dialog.
+- Record download failures as discovery warnings without marking the opportunity import failed.
+- Update the opportunity discovery runbook with the bounded download option and operating guidance.
+
+Verification:
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts __tests__/api/opportunity-discovery-route.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+- `npx tsc --noEmit` was attempted from `frontend/` and failed on pre-existing unrelated diagnostics in content/document authoring workflow tests, final artifact test config, pricing user-context typing, RFP parser tenant-context typing, RFP document service Buffer typing, and an attachment receipt fixture. No diagnostics pointed at the discovery files changed in this slice.
+
+Testing scope note:
+- Battery constraints are no longer active. Full TypeScript checking is currently blocked by unrelated repository diagnostics listed above; focused discovery action/API tests cover the changed behavior in this slice.
+
+Remaining after this slice:
+- Continue connecting successful parser output into requirements acceptance and response-package generation with fewer manual handoffs.
+
 ### 2026-05-26 - Discovery Source Document Seeding Warning Telemetry
 
 Status: implemented and verified.

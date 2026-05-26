@@ -92,6 +92,8 @@ describe("opportunity discovery run route", () => {
 			countryRegion: "Kenya",
 			scrapeTopResults: true,
 			scrapeLimit: 1,
+			downloadDiscoveredDocuments: true,
+			downloadLimit: 1,
 		}));
 		const body = await response.json();
 
@@ -112,6 +114,8 @@ describe("opportunity discovery run route", () => {
 			scrapeLimit: 1,
 			browserFallback: undefined,
 			browserFallbackLimit: undefined,
+			downloadDiscoveredDocuments: true,
+			downloadLimit: 1,
 		});
 		expect(body).toMatchObject({
 			success: true,

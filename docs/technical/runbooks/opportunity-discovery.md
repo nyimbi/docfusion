@@ -41,7 +41,9 @@ curl -s -X POST "$APP_URL/api/opportunities/discovery/run" \
     "limitPerQuery": 10,
     "scrapeTopResults": true,
     "scrapeLimit": 3,
-    "browserFallback": true
+    "browserFallback": true,
+    "downloadDiscoveredDocuments": true,
+    "downloadLimit": 3
   }'
 ```
 
@@ -85,5 +87,6 @@ Example cron entry:
 - Keep scheduled runs sequential and bounded; the route intentionally runs presets one at a time.
 - Start with `limitPerQuery` between 5 and 10 and `scrapeLimit` between 0 and 3.
 - Enable `browserFallback` only for presets that target sources with frequent Firecrawl failures.
+- Enable `downloadDiscoveredDocuments` only for high-confidence presets; keep `downloadLimit` between 1 and 3 so discovery can seed parser intake without turning broad search into an unbounded file-download run.
 - Use `dryRun` after changing `DISCOVERY_IMPORT_USER_ID` to confirm the scheduler can see the expected presets.
 - Treat a response with `success: false` and `failedPresets > 0` as a partial failure; later presets may still have run and imported opportunities.

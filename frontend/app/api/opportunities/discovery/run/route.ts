@@ -72,6 +72,8 @@ function parseDiscoveryInput(body: DiscoveryRequestBody): DiscoveryImportInput {
 		scrapeLimit: optionalNumber(body.scrapeLimit, "scrapeLimit"),
 		browserFallback: optionalBoolean(body.browserFallback, "browserFallback"),
 		browserFallbackLimit: optionalNumber(body.browserFallbackLimit, "browserFallbackLimit"),
+		downloadDiscoveredDocuments: optionalBoolean(body.downloadDiscoveredDocuments, "downloadDiscoveredDocuments"),
+		downloadLimit: optionalNumber(body.downloadLimit, "downloadLimit"),
 	};
 }
 

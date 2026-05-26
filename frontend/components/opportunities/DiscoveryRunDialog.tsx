@@ -31,6 +31,9 @@ interface DiscoveryRunSummary {
 	failed: number;
 	sourceDocumentsCreated: number;
 	sourceDocumentsExisting: number;
+	sourceDocumentsDownloadAttempted: number;
+	sourceDocumentsDownloaded: number;
+	sourceDocumentsDownloadFailed: number;
 	warnings: DiscoveryRunWarning[];
 	errors: Array<{
 		rowIndex: number;
@@ -70,6 +73,8 @@ export function DiscoveryRunDialog({
 	const [scrapeTopResults, setScrapeTopResults] = React.useState(true);
 	const [scrapeLimit, setScrapeLimit] = React.useState(3);
 	const [browserFallback, setBrowserFallback] = React.useState(true);
+	const [downloadDiscoveredDocuments, setDownloadDiscoveredDocuments] = React.useState(false);
+	const [downloadLimit, setDownloadLimit] = React.useState(3);
 	const [includeUnmatchedResults, setIncludeUnmatchedResults] = React.useState(false);
 	const [isRunning, startTransition] = React.useTransition();
 	const [presets, setPresets] = React.useState<DiscoveryPreset[]>([]);
@@ -91,10 +96,14 @@ export function DiscoveryRunDialog({
 		scrapeLimit: clampNumber(scrapeLimit, 0, 10),
 		browserFallback,
 		browserFallbackLimit: clampNumber(scrapeLimit, 0, 10),
+		downloadDiscoveredDocuments,
+		downloadLimit: clampNumber(downloadLimit, 0, 10),
 	}), [
 		browserFallback,
 		category,
 		countryRegion,
+		downloadDiscoveredDocuments,
+		downloadLimit,
 		includeUnmatchedResults,
 		limitPerQuery,
 		queries,
@@ -130,6 +139,8 @@ export function DiscoveryRunDialog({
 		setScrapeTopResults(input.scrapeTopResults ?? true);
 		setScrapeLimit(input.scrapeLimit ?? 3);
 		setBrowserFallback(input.browserFallback ?? true);
+		setDownloadDiscoveredDocuments(input.downloadDiscoveredDocuments ?? false);
+		setDownloadLimit(input.downloadLimit ?? 3);
 		setIncludeUnmatchedResults(input.includeUnmatchedResults ?? false);
 		setSummary(null);
 		setError(null);
@@ -203,6 +214,9 @@ export function DiscoveryRunDialog({
 					failed: result.results.failed,
 					sourceDocumentsCreated: result.sourceDocumentsCreated ?? 0,
 					sourceDocumentsExisting: result.sourceDocumentsExisting ?? 0,
+					sourceDocumentsDownloadAttempted: result.sourceDocumentsDownloadAttempted ?? 0,
+					sourceDocumentsDownloaded: result.sourceDocumentsDownloaded ?? 0,
+					sourceDocumentsDownloadFailed: result.sourceDocumentsDownloadFailed ?? 0,
 					warnings: result.warnings ?? [],
 					errors: result.errors
 						.filter((item) => item.status === "failed")
@@ -395,6 +409,14 @@ export function DiscoveryRunDialog({
 							/>
 							<span>Include broad matches</span>
 						</label>
+						<label className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+							<input
+								type="checkbox"
+								checked={downloadDiscoveredDocuments}
+								onChange={(event) => setDownloadDiscoveredDocuments(event.target.checked)}
+							/>
+							<span>Download seeded docs</span>
+						</label>
 						<div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
 							<label htmlFor="discovery-scrape-limit">Enrich</label>
 							<input
@@ -404,6 +426,18 @@ export function DiscoveryRunDialog({
 								max={10}
 								value={scrapeLimit}
 								onChange={(event) => setScrapeLimit(Number(event.target.value))}
+								className="h-8 w-20 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+							/>
+						</div>
+						<div className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+							<label htmlFor="discovery-download-limit">Download</label>
+							<input
+								id="discovery-download-limit"
+								type="number"
+								min={0}
+								max={10}
+								value={downloadLimit}
+								onChange={(event) => setDownloadLimit(Number(event.target.value))}
 								className="h-8 w-20 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
 							/>
 						</div>
@@ -427,6 +461,11 @@ export function DiscoveryRunDialog({
 									{summary.sourceDocumentsExisting > 0
 										? `, ${summary.sourceDocumentsExisting} already linked`
 										: ""}.
+								</p>
+							)}
+							{summary.sourceDocumentsDownloadAttempted > 0 && (
+								<p>
+									{summary.sourceDocumentsDownloaded} downloaded for intake, {summary.sourceDocumentsDownloadFailed} failed.
 								</p>
 							)}
 							{summary.warnings.length > 0 && (

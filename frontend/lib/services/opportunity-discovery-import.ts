@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
+import { downloadDocument } from "@/lib/services/rfp-document-service";
 import { searchSearxng, type SearchOptions, type SearxngResult } from "@/lib/services/searxng-client";
 import type { ImportConfig, ImportRecordResult, OpportunityInput } from "@/lib/types/opportunity";
 import {
@@ -27,6 +28,8 @@ export interface DiscoveryImportInput {
 	scrapeLimit?: number;
 	browserFallback?: boolean;
 	browserFallbackLimit?: number;
+	downloadDiscoveredDocuments?: boolean;
+	downloadLimit?: number;
 }
 
 interface DiscoveryCandidate {
@@ -52,7 +55,12 @@ export type ImportResultsSummary = {
 };
 
 export interface DiscoveryRunWarning {
-	type: "firecrawl_failed" | "browser_fallback_failed" | "browser_fallback_used" | "source_document_seed_failed";
+	type:
+		| "firecrawl_failed"
+		| "browser_fallback_failed"
+		| "browser_fallback_used"
+		| "source_document_seed_failed"
+		| "source_document_download_failed";
 	query: string;
 	title: string;
 	url: string;
@@ -66,7 +74,14 @@ export interface DiscoveryImportResult {
 	warnings: DiscoveryRunWarning[];
 	sourceDocumentsCreated: number;
 	sourceDocumentsExisting: number;
+	sourceDocumentsDownloadAttempted: number;
+	sourceDocumentsDownloaded: number;
+	sourceDocumentsDownloadFailed: number;
 }
+
+type SourceDocumentSeedResult =
+	| { state: "created" | "existing"; documentId: string }
+	| { state: "none" | "failed"; documentId?: undefined };
 
 const DEFAULT_DISCOVERY_QUERIES = [
 	"software development RFP Africa",
@@ -254,8 +269,8 @@ function discoveredSourceDocumentType(url: string): "rfp" | "attachment" {
 async function ensureDiscoveredSourceDocument(
 	opportunityId: string,
 	opportunity: OpportunityInput
-): Promise<"created" | "existing" | "none"> {
-	if (!opportunity.documentUrl) return "none";
+): Promise<SourceDocumentSeedResult> {
+	if (!opportunity.documentUrl) return { state: "none" };
 
 	const [existing] = await db
 		.select({ id: opportunityDocuments.id })
@@ -265,9 +280,9 @@ async function ensureDiscoveredSourceDocument(
 			eq(opportunityDocuments.sourceUrl, opportunity.documentUrl)
 		)!)
 		.limit(1);
-	if (existing?.id) return "existing";
+	if (existing?.id) return { state: "existing", documentId: existing.id };
 
-	await db.insert(opportunityDocuments).values({
+	const [created] = await db.insert(opportunityDocuments).values({
 		opportunityId,
 		documentName: discoveredSourceDocumentName(opportunity.documentUrl, opportunity.title),
 		documentType: discoveredSourceDocumentType(opportunity.documentUrl),
@@ -275,8 +290,11 @@ async function ensureDiscoveredSourceDocument(
 		sourceUrl: opportunity.documentUrl,
 		status: "discovered",
 		isSelected: true,
-	});
-	return "created";
+	}).returning({ id: opportunityDocuments.id });
+	if (!created?.id) {
+		throw new Error("Source document row was not returned after insert");
+	}
+	return { state: "created", documentId: created.id };
 }
 
 async function ensureDiscoveredSourceDocumentSafely(
@@ -284,7 +302,7 @@ async function ensureDiscoveredSourceDocumentSafely(
 	opportunity: OpportunityInput,
 	candidate: DiscoveryCandidate,
 	warnings: DiscoveryRunWarning[]
-): Promise<"created" | "existing" | "none" | "failed"> {
+): Promise<SourceDocumentSeedResult> {
 	try {
 		return await ensureDiscoveredSourceDocument(opportunityId, opportunity);
 	} catch (error) {
@@ -295,8 +313,40 @@ async function ensureDiscoveredSourceDocumentSafely(
 			url: opportunity.documentUrl ?? candidate.result.url,
 			message: error instanceof Error ? error.message : "Source document row could not be seeded",
 		});
-		return "failed";
+		return { state: "failed" };
 	}
+}
+
+async function downloadSeededSourceDocumentSafely(
+	documentId: string,
+	opportunityId: string,
+	userId: string,
+	candidate: DiscoveryCandidate,
+	warnings: DiscoveryRunWarning[]
+): Promise<boolean> {
+	try {
+		const result = await downloadDocument(documentId, userId, opportunityId);
+		if (result.success) {
+			return true;
+		}
+
+		warnings.push({
+			type: "source_document_download_failed",
+			query: candidate.query,
+			title: candidate.result.title,
+			url: candidate.result.url,
+			message: result.error ?? "Seeded source document could not be downloaded",
+		});
+	} catch (error) {
+		warnings.push({
+			type: "source_document_download_failed",
+			query: candidate.query,
+			title: candidate.result.title,
+			url: candidate.result.url,
+			message: error instanceof Error ? error.message : "Seeded source document could not be downloaded",
+		});
+	}
+	return false;
 }
 
 function importConfigWithWarnings(
@@ -560,6 +610,9 @@ export async function executeOpportunityDiscoveryImport(
 	const queries = normalizeDiscoveryQueries(input);
 	const limitPerQuery = Math.min(Math.max(input.limitPerQuery ?? 10, 1), 50);
 	const updateExisting = input.updateExisting ?? true;
+	const downloadLimit = input.downloadDiscoveredDocuments
+		? Math.min(Math.max(input.downloadLimit ?? 3, 0), 10)
+		: 0;
 	const candidates: DiscoveryCandidate[] = [];
 	const seenUrls = new Set<string>();
 	const searchFailures: ImportRecordResult[] = [];
@@ -624,6 +677,9 @@ export async function executeOpportunityDiscoveryImport(
 	};
 	let sourceDocumentsCreated = 0;
 	let sourceDocumentsExisting = 0;
+	let sourceDocumentsDownloadAttempted = 0;
+	let sourceDocumentsDownloaded = 0;
+	let sourceDocumentsDownloadFailed = 0;
 	const allErrors: ImportRecordResult[] = [...searchFailures];
 
 	for (let i = 0; i < candidates.length; i++) {
@@ -651,8 +707,24 @@ export async function executeOpportunityDiscoveryImport(
 					candidate,
 					warnings
 				);
-				if (sourceDocumentState === "created") sourceDocumentsCreated++;
-				if (sourceDocumentState === "existing") sourceDocumentsExisting++;
+				if (sourceDocumentState.state === "created") {
+					sourceDocumentsCreated++;
+					if (sourceDocumentsDownloadAttempted < downloadLimit) {
+						sourceDocumentsDownloadAttempted++;
+						if (await downloadSeededSourceDocumentSafely(
+							sourceDocumentState.documentId,
+							existingId,
+							userId,
+							candidate,
+							warnings
+						)) {
+							sourceDocumentsDownloaded++;
+						} else {
+							sourceDocumentsDownloadFailed++;
+						}
+					}
+				}
+				if (sourceDocumentState.state === "existing") sourceDocumentsExisting++;
 				importResults.updated++;
 				allErrors.push({
 					rowIndex: searchFailures.length + i + 1,
@@ -667,8 +739,24 @@ export async function executeOpportunityDiscoveryImport(
 					candidate,
 					warnings
 				);
-				if (sourceDocumentState === "created") sourceDocumentsCreated++;
-				if (sourceDocumentState === "existing") sourceDocumentsExisting++;
+				if (sourceDocumentState.state === "created") {
+					sourceDocumentsCreated++;
+					if (sourceDocumentsDownloadAttempted < downloadLimit) {
+						sourceDocumentsDownloadAttempted++;
+						if (await downloadSeededSourceDocumentSafely(
+							sourceDocumentState.documentId,
+							created.id,
+							userId,
+							candidate,
+							warnings
+						)) {
+							sourceDocumentsDownloaded++;
+						} else {
+							sourceDocumentsDownloadFailed++;
+						}
+					}
+				}
+				if (sourceDocumentState.state === "existing") sourceDocumentsExisting++;
 				importResults.imported++;
 				allErrors.push({
 					rowIndex: searchFailures.length + i + 1,
@@ -707,5 +795,8 @@ export async function executeOpportunityDiscoveryImport(
 		warnings,
 		sourceDocumentsCreated,
 		sourceDocumentsExisting,
+		sourceDocumentsDownloadAttempted,
+		sourceDocumentsDownloaded,
+		sourceDocumentsDownloadFailed,
 	};
 }

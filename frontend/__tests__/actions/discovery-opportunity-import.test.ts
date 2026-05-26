@@ -7,6 +7,7 @@ const updateImportRecordMock = vi.hoisted(() => vi.fn());
 const createOpportunityMock = vi.hoisted(() => vi.fn());
 const updateOpportunityMock = vi.hoisted(() => vi.fn());
 const firecrawlScrapeMock = vi.hoisted(() => vi.fn());
+const downloadDocumentMock = vi.hoisted(() => vi.fn());
 const fetchMock = vi.hoisted(() => vi.fn());
 const selectResultsQueue = vi.hoisted(() => [] as unknown[][]);
 
@@ -22,6 +23,10 @@ vi.mock("@/lib/scrapers/firecrawl", () => ({
 	FirecrawlClient: vi.fn(() => ({
 		scrape: firecrawlScrapeMock,
 	})),
+}));
+
+vi.mock("@/lib/services/rfp-document-service", () => ({
+	downloadDocument: downloadDocumentMock,
 }));
 
 vi.mock("@/lib/actions/opportunities", () => ({
@@ -63,9 +68,13 @@ vi.mock("@/lib/db", () => ({
 			};
 			return builder;
 		}),
-		insert: vi.fn(() => ({
-			values: vi.fn(async () => undefined),
-		})),
+		insert: vi.fn(() => {
+			const builder = {
+				values: vi.fn(() => builder),
+				returning: vi.fn(async () => [{ id: "source-doc-1" }]),
+			};
+			return builder;
+		}),
 	},
 }));
 
@@ -81,6 +90,7 @@ beforeEach(() => {
 	createOpportunityMock.mockResolvedValue({ id: "opp-1" });
 	updateOpportunityMock.mockResolvedValue({ id: "opp-existing" });
 	firecrawlScrapeMock.mockResolvedValue({ success: false, error: "not scraped" });
+	downloadDocumentMock.mockResolvedValue({ success: true, documentId: "source-doc-1" });
 	fetchMock.mockResolvedValue({
 		ok: false,
 		status: 503,
@@ -294,10 +304,12 @@ describe("discoverAndImportOpportunities", () => {
 			},
 		});
 		selectResultsQueue.push([], [], []);
-		const values = vi.fn(async () => {
+		const returning = vi.fn(async () => {
 			throw new Error("source document insert failed");
 		});
-		vi.mocked(db.insert).mockReturnValueOnce({ values } as unknown as ReturnType<typeof db.insert>);
+		vi.mocked(db.insert).mockReturnValueOnce({
+			values: vi.fn(() => ({ returning })),
+		} as unknown as ReturnType<typeof db.insert>);
 
 		const result = await discoverAndImportOpportunities({
 			query: "records platform tender",
@@ -326,6 +338,46 @@ describe("discoverAndImportOpportunities", () => {
 				},
 			}),
 		}), "user-1");
+	});
+
+	it("downloads newly seeded source documents when bounded discovery intake is enabled", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Records platform tender notice",
+					url: "https://procurement.example.com/tenders/records-platform",
+					content: "Tender notice with document downloads.",
+					engine: "google",
+					score: 11,
+					category: "general",
+				},
+			],
+		});
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "[Download RFP document](/documents/records-platform-rfp.pdf)",
+				metadata: {
+					title: "Records Platform Tender",
+					description: "Implementation scope and document download links.",
+				},
+			},
+		});
+		selectResultsQueue.push([], [], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "records platform tender",
+			scrapeTopResults: true,
+			downloadDiscoveredDocuments: true,
+			downloadLimit: 1,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(result.sourceDocumentsDownloadAttempted).toBe(1);
+		expect(result.sourceDocumentsDownloaded).toBe(1);
+		expect(result.sourceDocumentsDownloadFailed).toBe(0);
+		expect(downloadDocumentMock).toHaveBeenCalledWith("source-doc-1", "user-1", "opp-1");
 	});
 
 	it("falls back to the browser service when Firecrawl cannot scrape a top result cleanly", async () => {
