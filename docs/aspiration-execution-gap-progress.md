@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Content Library Outcome Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep snippet/template proposal outcome recording and win-rate recalculation scoped to the caller's organization through the associated opportunity.
+
+Changes in this slice:
+- Require organization context for proposal outcome recording in the content library.
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to snippet/template usage outcome update and read predicates.
+- Extend content-library outcome tests to assert opportunity organization predicates as well as assignment predicates.
+
+Verification:
+- `npm test -- content-library-outcome-scope.test.ts content-library-auth.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 111 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue closing larger remaining surfaces such as task management, workflow domain, submissions, pipeline, pricing, reviews, proposal documents, win themes, rendering, and final artifact workflows.
+
 ### 2026-05-26 - DLP Export Policy Opportunity Tenant Predicates
 
 Status: implemented and verified.

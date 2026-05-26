@@ -102,6 +102,8 @@ describe("content library proposal outcome scope", () => {
 		expect(updateWheres).toHaveLength(2);
 		for (const where of updateWheres) {
 			const sqlText = collectSqlFragments(where).join(" ");
+			expect(sqlText).toContain("organization_id");
+			expect(sqlText).toContain("org-1");
 			expect(sqlText).toContain("assigned_to");
 			expect(sqlText).toContain("user-1");
 		}
@@ -110,6 +112,8 @@ describe("content library proposal outcome scope", () => {
 		const templateReadWhere = dbMock.query.templateUsageLog.findMany.mock.calls[0][0].where;
 		for (const where of [snippetReadWhere, templateReadWhere]) {
 			const sqlText = collectSqlFragments(where).join(" ");
+			expect(sqlText).toContain("organization_id");
+			expect(sqlText).toContain("org-1");
 			expect(sqlText).toContain("assigned_to");
 			expect(sqlText).toContain("user-1");
 		}

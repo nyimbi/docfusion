@@ -66,6 +66,8 @@ import { logger } from "@/lib/utils/logger";
 // Helper Functions for Type Conversion
 // ============================================================================
 
+type ContentLibraryUserContext = UserContext & { organizationId: string };
+
 async function requireContentContext(organizationId?: string | null): Promise<UserContext> {
 	const userContext = await requireUserContext();
 	if (organizationId && organizationId !== userContext.organizationId) {
@@ -78,38 +80,50 @@ async function requireContentActor(): Promise<string> {
 	return (await requireContentContext()).userId;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+async function requireContentLibraryContext(): Promise<ContentLibraryUserContext> {
+	const userContext = await requireContentContext();
+	if (!userContext.organizationId) {
+		throw new Error("Organization context required");
+	}
+	return userContext as ContentLibraryUserContext;
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: ContentLibraryUserContext): SQL {
 	return sql`exists (
 		select 1 from ${opportunities}
 		where ${opportunities.id} = ${opportunityId}
-		and ${opportunities.assignedTo} = ${userId}
+		and (
+			${opportunities.organizationId} = ${userContext.organizationId}
+			or ${opportunities.organizationId} is null
+		)
+		and ${opportunities.assignedTo} = ${userContext.userId}
 	)`;
 }
 
-function snippetUsageForAssignedOpportunityCondition(opportunityId: string, userId: string): SQL {
+function snippetUsageForAssignedOpportunityCondition(opportunityId: string, userContext: ContentLibraryUserContext): SQL {
 	return and(
 		eq(snippetUsageLog.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
-function pendingSnippetUsageForAssignedOpportunityCondition(opportunityId: string, userId: string): SQL {
+function pendingSnippetUsageForAssignedOpportunityCondition(opportunityId: string, userContext: ContentLibraryUserContext): SQL {
 	return and(
-		snippetUsageForAssignedOpportunityCondition(opportunityId, userId),
+		snippetUsageForAssignedOpportunityCondition(opportunityId, userContext),
 		eq(snippetUsageLog.proposalOutcome, "pending")
 	)!;
 }
 
-function templateUsageForAssignedOpportunityCondition(opportunityId: string, userId: string): SQL {
+function templateUsageForAssignedOpportunityCondition(opportunityId: string, userContext: ContentLibraryUserContext): SQL {
 	return and(
 		eq(templateUsageLog.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
-function pendingTemplateUsageForAssignedOpportunityCondition(opportunityId: string, userId: string): SQL {
+function pendingTemplateUsageForAssignedOpportunityCondition(opportunityId: string, userContext: ContentLibraryUserContext): SQL {
 	return and(
-		templateUsageForAssignedOpportunityCondition(opportunityId, userId),
+		templateUsageForAssignedOpportunityCondition(opportunityId, userContext),
 		eq(templateUsageLog.proposalOutcome, "pending")
 	)!;
 }
@@ -530,7 +544,7 @@ export async function recordProposalOutcome(input: ContentOutcomeInput): Promise
 	templatesUpdated: number;
 	error?: string;
 }> {
-	const userId = await requireContentActor();
+	const userContext = await requireContentLibraryContext();
 	try {
 		const now = new Date();
 
@@ -540,7 +554,7 @@ export async function recordProposalOutcome(input: ContentOutcomeInput): Promise
 				proposalOutcome: input.outcome,
 				outcomeRecordedAt: now,
 			})
-			.where(pendingSnippetUsageForAssignedOpportunityCondition(input.opportunityId, userId));
+			.where(pendingSnippetUsageForAssignedOpportunityCondition(input.opportunityId, userContext));
 
 		// Update all template usages for this opportunity
 		const templateResult = await db.update(templateUsageLog)
@@ -549,11 +563,11 @@ export async function recordProposalOutcome(input: ContentOutcomeInput): Promise
 				outcomeRecordedAt: now,
 				evaluatorFeedback: input.evaluatorFeedback,
 			})
-			.where(pendingTemplateUsageForAssignedOpportunityCondition(input.opportunityId, userId));
+			.where(pendingTemplateUsageForAssignedOpportunityCondition(input.opportunityId, userContext));
 
 		// Recalculate win rates for affected snippets
 		const snippetUsages = await db.query.snippetUsageLog.findMany({
-			where: snippetUsageForAssignedOpportunityCondition(input.opportunityId, userId),
+			where: snippetUsageForAssignedOpportunityCondition(input.opportunityId, userContext),
 			columns: { snippetId: true },
 		});
 
@@ -564,7 +578,7 @@ export async function recordProposalOutcome(input: ContentOutcomeInput): Promise
 
 		// Recalculate win rates for affected templates
 		const templateUsages = await db.query.templateUsageLog.findMany({
-			where: templateUsageForAssignedOpportunityCondition(input.opportunityId, userId),
+			where: templateUsageForAssignedOpportunityCondition(input.opportunityId, userContext),
 			columns: { templateId: true },
 		});
 
