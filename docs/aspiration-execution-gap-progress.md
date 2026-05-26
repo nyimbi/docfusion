@@ -711,6 +711,29 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.
 
+### 2026-05-26 - Final Gate Task Navigation
+
+Status: implemented and verified.
+
+Purpose: send operators from workflow tasks to the opportunity screens where final submission and compliance blockers can actually be resolved.
+
+Changes in this slice:
+- Point final submission checklist workflow tasks to `/opportunities/{id}/submission`.
+- Point compliance matrix final-lock workflow tasks to the opportunity requirements page when the matrix is opportunity-scoped.
+- Add focused assertions for both workflow action URLs.
+
+Verification:
+- `npm run test -- __tests__/actions/final-submission-checklist-workflow.test.ts` passed.
+- `npm run test -- __tests__/actions/compliance-entry-workflow.test.ts` passed.
+- `npx tsc --noEmit` passed.
+
+Testing scope note:
+- Full frontend suite and production build remain intentionally skipped while on battery. This was a narrow workflow metadata fix covered by focused action tests and TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.
+
 ### 2026-05-26 - Submission Checklist Refresh
 
 Status: implemented and verified.

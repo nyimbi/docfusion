@@ -527,7 +527,9 @@ export async function transitionComplianceMatrixWorkflow(
 				status,
 			},
 			terminal: nextState === "locked",
-			actionUrl: `/compliance-matrix/${input.matrixId}`,
+			actionUrl: matrix.opportunityId
+				? `/opportunities/${matrix.opportunityId}/requirements`
+				: `/compliance-matrix/${input.matrixId}`,
 		}, tx);
 
 		return {

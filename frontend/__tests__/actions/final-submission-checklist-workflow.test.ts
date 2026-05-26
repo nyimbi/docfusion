@@ -180,6 +180,7 @@ describe("final submission checklist workflow", () => {
 				toState: "blocked",
 				priority: "critical",
 				terminal: false,
+				actionUrl: "/opportunities/opp-1/submission",
 				metadata: expect.objectContaining({
 					blockerCount: result.blockers.length,
 					blockingDlpFindingCount: 1,

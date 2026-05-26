@@ -422,5 +422,12 @@ describe("compliance entry workflow", () => {
 			state: "locked",
 			reason: "All mandatory entries approved",
 		});
+		const { recordWorkflowRuntimeTransition } = await import("@/lib/actions/workflow-runtime");
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				actionUrl: "/opportunities/opp-1/requirements",
+			}),
+			dbMock
+		);
 	});
 });

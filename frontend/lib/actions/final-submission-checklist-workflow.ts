@@ -142,7 +142,7 @@ export async function evaluateFinalSubmissionChecklistWorkflow(
 			items,
 		},
 		terminal: allowed,
-		actionUrl: `/submissions`,
+		actionUrl: `/opportunities/${opportunityId}/submission`,
 	});
 
 	await upsertWorkflowRuntimeTask({
