@@ -16,6 +16,19 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Wave 9 Discovery-To-Submission Proof
+
+Status: verified.
+
+Purpose: prove the current core path from opportunity discovery through submission readiness has executable regression coverage after the latest intake, requirement, response, and build-readiness slices.
+
+Verification:
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed.
+- The proof ran 13 test files and 105 tests covering opportunity discovery routes/import, document discovery, document download, RFP document service, RFP parse workflow, requirement workflow, proposal document drafting, final artifact routes/workflow, final submission checklist, submission workflow, and submission scoping.
+
+Remaining after this slice:
+- Continue expanding from core regression proof into live-service proof with SearXNG/Firecrawl, deployed scraping, and end-to-end generated response evidence against realistic opportunities.
+
 ### 2026-05-26 - Workflow Templates Build Readiness
 
 Status: implemented and verified.
