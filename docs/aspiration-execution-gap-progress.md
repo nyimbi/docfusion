@@ -16,6 +16,24 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - RFP Upload Opportunity Tenant Gate
+
+Status: implemented and verified.
+
+Purpose: ensure uploaded RFP documents can only be attached to opportunities in the caller's organization, not merely opportunities assigned to the caller.
+
+Changes in this slice:
+- Add the current organization to the RFP upload route's opportunity access check.
+- Preserve legacy null-row fallback while deployed opportunity rows are being backfilled.
+
+Verification:
+- `npm test -- rfp-upload-route.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Continue applying tenant-aware opportunity predicates to AI scoring, requirements, evidence, and response-support modules.
+
 ### 2026-05-26 - Opportunity Document Action Tenant Predicates
 
 Status: implemented and verified.

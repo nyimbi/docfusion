@@ -14,7 +14,7 @@ import { buildSignedTenantHeaders } from "@/lib/auth/tenant-signature";
 import { db } from "@/lib/db";
 import { opportunities } from "@/lib/db/schema";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import {
 	buildRfpObjectKey,
 	getLinodeE3ConfigFromEnv,
@@ -47,7 +47,8 @@ interface UploadResponse {
 
 async function validateOpportunityAccess(
 	opportunityId: string | null,
-	userId: string
+	userId: string,
+	organizationId: string
 ): Promise<NextResponse | null> {
 	if (!opportunityId) return null;
 
@@ -63,6 +64,10 @@ async function validateOpportunityAccess(
 		.from(opportunities)
 		.where(and(
 			eq(opportunities.id, opportunityId),
+			or(
+				eq(opportunities.organizationId, organizationId),
+				isNull(opportunities.organizationId)
+			),
 			eq(opportunities.assignedTo, userId)
 		))
 		.limit(1);
@@ -123,7 +128,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			);
 		}
 
-		const opportunityAccessError = await validateOpportunityAccess(opportunityId, userId);
+		const opportunityAccessError = await validateOpportunityAccess(opportunityId, userId, organizationId);
 		if (opportunityAccessError) return opportunityAccessError;
 
 		const objectStoreConfig = getLinodeE3ConfigFromEnv();
