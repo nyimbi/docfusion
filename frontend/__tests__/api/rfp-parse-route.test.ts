@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 
 interface ChainConfig {
 	onSet?: (value: Record<string, unknown>) => void;
@@ -196,6 +197,28 @@ describe("RFP parse route", () => {
 			reason: "OCR output requires human review",
 			startProcessing: false,
 		});
+		expect(parserMock.processRfpParsingJob).not.toHaveBeenCalled();
+	});
+
+	it("returns 403 when explicit parse workflow authority is denied", async () => {
+		parserMock.transitionRfpParseWorkflow.mockRejectedValueOnce(new WorkflowAuthorityDeniedError({
+			action: "rfp parse reject",
+			requiredRoles: ["proposal_manager", "operations"],
+		}));
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			id: "00000000-0000-4000-8000-000000000601",
+			parsingStatus: "failed",
+		});
+
+		const response = await POST(parseWorkflowRequest({
+			action: "reject",
+			reason: "Rejecting bad source document",
+		}), {
+			params: Promise.resolve({ rfpId: "00000000-0000-4000-8000-000000000601" }),
+		});
+
+		expect(response.status).toBe(403);
+		expect(await response.json()).toEqual({ error: "Forbidden" });
 		expect(parserMock.processRfpParsingJob).not.toHaveBeenCalled();
 	});
 });

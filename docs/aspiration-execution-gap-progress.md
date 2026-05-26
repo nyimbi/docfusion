@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - RFP Parse Authority Denial Response
+
+Status: implemented and verified.
+
+Purpose: make explicit RFP parse workflow actions return 403 when workflow authority is denied instead of surfacing those denials as generic 500 parse errors.
+
+Changes in this slice:
+- Map `WorkflowAuthorityDeniedError` from `transitionRfpParseWorkflow` to a generic 403 `Forbidden` response.
+- Preserve existing parse queue, retry, manual extraction, legacy proxy, and internal-error behavior for non-authority paths.
+- Add focused route coverage for authority-denied explicit parse workflow actions.
+
+Verification:
+- `npm run test -- __tests__/api/rfp-parse-route.test.ts __tests__/actions/rfp-parse-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets RFP parse workflow authority response behavior with focused route/action tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct API routes that mutate discovery, intake, or response workflow state without corresponding authority checks or clear 403 mappings.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Scraper Source Delete Authority Check
 
 Status: implemented and verified.

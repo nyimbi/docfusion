@@ -18,6 +18,7 @@ import {
 	transitionRfpParseWorkflow,
 } from "@/lib/actions/rfp-parser";
 import { getLinodeE3ConfigFromEnv } from "@/lib/storage/linode-e3";
+import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 
 const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
 const USE_PYTHON_RFP = process.env.USE_PYTHON_RFP !== "false";
@@ -204,6 +205,12 @@ export async function POST(
 
 		return NextResponse.json(response, { status: 202 });
 	} catch (error) {
+		if (error instanceof WorkflowAuthorityDeniedError) {
+			return NextResponse.json(
+				{ error: "Forbidden" },
+				{ status: 403 }
+			);
+		}
 		console.error("RFP parse error:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
