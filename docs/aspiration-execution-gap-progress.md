@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Actor-Scoped Opportunity Import Telemetry
+
+Status: implemented and verified.
+
+Purpose: keep opportunity import history and discovery warning telemetry scoped to the actor or service assignee that ran the import instead of mixing import records globally.
+
+Changes in this slice:
+- Scope opportunity import history reads to the current opportunity user.
+- Persist `importedBy` when spreadsheet, scraper-export, and SearXNG discovery imports create import records.
+- Finalize import records only for the same actor that created the import record.
+- Pass the scheduled discovery assignee through import creation/finalization so service-run warning telemetry stays attached to that assignee.
+- Apply the same owner-scoped import-history contract to the opportunity repository helper.
+- Add focused coverage for actor-scoped import history, current-user import record creation, explicit service-run owners, and discovery import record finalization.
+
+Verification:
+- `npm run test -- __tests__/actions/discovery-opportunity-import.test.ts __tests__/actions/opportunities.test.ts __tests__/actions/import-opportunities-auth.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets opportunity import/discovery telemetry ownership with focused action tests and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning opportunity import/export and discovery surfaces for direct tenant-wide reads or writes that should be actor-scoped.
+- Continue closing gaps between discovery results, RFP intake, and response-generation workflows.
+
 ### 2026-05-26 - Compliance API Authority Denial Responses
 
 Status: implemented and verified.

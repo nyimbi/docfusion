@@ -577,9 +577,11 @@ export async function getFilterOptions(): Promise<{
  * Get import history.
  */
 export async function getImportHistory(limit: number = 20): Promise<OpportunityImport[]> {
+	const userId = await requireOpportunityUserId();
 	const rows = await db
 		.select()
 		.from(opportunityImports)
+		.where(eq(opportunityImports.importedBy, userId))
 		.orderBy(desc(opportunityImports.startedAt))
 		.limit(limit);
 
@@ -597,8 +599,10 @@ export async function getImportHistory(limit: number = 20): Promise<OpportunityI
 export async function createImportRecord(
 	filename: string,
 	totalRecords: number,
-	config?: OpportunityImport["config"]
+	config?: OpportunityImport["config"],
+	importedBy?: string
 ): Promise<string> {
+	const actorId = importedBy ?? await requireOpportunityUserId();
 	const [row] = await db
 		.insert(opportunityImports)
 		.values({
@@ -606,6 +610,7 @@ export async function createImportRecord(
 			totalRecords,
 			status: "processing",
 			config,
+			importedBy: actorId,
 		})
 		.returning({ id: opportunityImports.id });
 
@@ -625,15 +630,20 @@ export async function updateImportRecord(
 		status: OpportunityImport["status"];
 		errors?: OpportunityImport["errors"];
 		config?: OpportunityImport["config"];
-	}
+	},
+	importedBy?: string
 ): Promise<void> {
+	const actorId = importedBy ?? await requireOpportunityUserId();
 	await db
 		.update(opportunityImports)
 		.set({
 			...results,
 			completedAt: new Date(),
 		})
-		.where(eq(opportunityImports.id, id));
+		.where(and(
+			eq(opportunityImports.id, id),
+			eq(opportunityImports.importedBy, actorId)
+		));
 }
 
 /**

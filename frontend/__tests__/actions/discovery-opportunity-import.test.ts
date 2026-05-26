@@ -123,7 +123,7 @@ describe("discoverAndImportOpportunities", () => {
 			sheetName: "searxng_discovery",
 			updateExisting: true,
 			matchBy: "sourceId",
-		});
+		}, "user-1");
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			assignedTo: "user-1",
 			title: "Request for Proposals: Case management platform",
@@ -145,7 +145,7 @@ describe("discoverAndImportOpportunities", () => {
 			updatedRecords: 0,
 			failedRecords: 0,
 			status: "completed",
-		}));
+		}), "user-1");
 	});
 
 	it("updates existing discovered opportunities and can enrich top results with Firecrawl", async () => {
@@ -282,7 +282,7 @@ describe("discoverAndImportOpportunities", () => {
 					],
 				},
 			}),
-		}));
+		}), "user-1");
 	});
 
 	it("surfaces enrichment warnings when Firecrawl and browser fallback fail but the opportunity is still imported", async () => {
@@ -347,7 +347,7 @@ describe("discoverAndImportOpportunities", () => {
 					],
 				},
 			}),
-		}));
+		}), "user-1");
 	});
 
 	it("records search failures without touching opportunity rows", async () => {
@@ -364,7 +364,7 @@ describe("discoverAndImportOpportunities", () => {
 			skipped: 0,
 			failed: 1,
 		});
-		expect(createImportRecordMock).toHaveBeenCalledWith("searxng-discovery", 1, expect.any(Object));
+		expect(createImportRecordMock).toHaveBeenCalledWith("searxng-discovery", 1, expect.any(Object), "user-1");
 		expect(createOpportunityMock).not.toHaveBeenCalled();
 		expect(updateOpportunityMock).not.toHaveBeenCalled();
 		expect(updateImportRecordMock).toHaveBeenCalledWith("import-1", expect.objectContaining({
@@ -373,6 +373,6 @@ describe("discoverAndImportOpportunities", () => {
 				status: "failed",
 				error: expect.stringContaining("SearXNG unavailable"),
 			})],
-		}));
+		}), "user-1");
 	});
 });

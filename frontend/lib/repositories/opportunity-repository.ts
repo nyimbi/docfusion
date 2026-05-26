@@ -625,10 +625,11 @@ export class OpportunityRepository extends BaseRepository<
 	/**
 	 * Recent import records, ordered newest-first.
 	 */
-	async getImportHistory(limit: number = 20): Promise<OpportunityImport[]> {
+	async getImportHistory(importedBy: string, limit: number = 20): Promise<OpportunityImport[]> {
 		const rows = await this.db
 			.select()
 			.from(opportunityImports)
+			.where(eq(opportunityImports.importedBy, importedBy))
 			.orderBy(desc(opportunityImports.startedAt))
 			.limit(limit);
 
@@ -646,11 +647,12 @@ export class OpportunityRepository extends BaseRepository<
 	async createImportRecord(
 		filename: string,
 		totalRecords: number,
-		config?: OpportunityImport["config"],
+		config: OpportunityImport["config"] | undefined,
+		importedBy: string,
 	): Promise<string> {
 		const [row] = await this.db
 			.insert(opportunityImports)
-			.values({ filename, totalRecords, status: "processing", config })
+			.values({ filename, totalRecords, status: "processing", config, importedBy })
 			.returning({ id: opportunityImports.id });
 		return row.id;
 	}
@@ -669,11 +671,15 @@ export class OpportunityRepository extends BaseRepository<
 			errors?: OpportunityImport["errors"];
 			config?: OpportunityImport["config"];
 		},
+		importedBy: string,
 	): Promise<void> {
 		await this.db
 			.update(opportunityImports)
 			.set({ ...results, completedAt: new Date() })
-			.where(eq(opportunityImports.id, id));
+			.where(and(
+				eq(opportunityImports.id, id),
+				eq(opportunityImports.importedBy, importedBy)
+			));
 	}
 
 	// ──────────────────────────────────────────────────────────────────────

@@ -1313,6 +1313,7 @@ describe("Import Operations", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
+		getCurrentUserIdMock.mockResolvedValue("admin");
 		const mod = await import("@/lib/actions/opportunities");
 		getImportHistory = mod.getImportHistory;
 		createImportRecord = mod.createImportRecord;
@@ -1321,7 +1322,7 @@ describe("Import Operations", () => {
 
 	it("getImportHistory returns typed import records", async () => {
 		const now = new Date();
-		mockChain([
+		const qb = mockChain([
 			{
 				id: "imp-1",
 				filename: "rfps.xlsx",
@@ -1346,6 +1347,9 @@ describe("Import Operations", () => {
 		expect(result[0].filename).toBe("rfps.xlsx");
 		expect(result[0].status).toBe("completed");
 		expect(result[0].errors).toHaveLength(1);
+		const whereSql = collectSqlFragments(qb.where.mock.calls[0][0]).join(" ");
+		expect(whereSql).toContain("imported_by");
+		expect(whereSql).toContain("admin");
 	});
 
 	it("getImportHistory defaults null errors to empty array", async () => {
@@ -1373,9 +1377,23 @@ describe("Import Operations", () => {
 	});
 
 	it("createImportRecord returns the new record ID", async () => {
-		mockChain([{ id: "imp-new-1" }]);
+		const qb = mockChain([{ id: "imp-new-1" }]);
 		const id = await createImportRecord("new-data.xlsx", 50);
 		expect(id).toBe("imp-new-1");
+		expect(qb.values).toHaveBeenCalledWith(expect.objectContaining({
+			importedBy: "admin",
+		}));
+	});
+
+	it("createImportRecord accepts an explicit import owner for service runs", async () => {
+		const qb = mockChain([{ id: "imp-service-1" }]);
+		const id = await createImportRecord("scheduled.jsonl", 3, undefined, "service-user-1");
+
+		expect(id).toBe("imp-service-1");
+		expect(qb.values).toHaveBeenCalledWith(expect.objectContaining({
+			importedBy: "service-user-1",
+		}));
+		expect(getCurrentUserIdMock).not.toHaveBeenCalled();
 	});
 
 	it("updateImportRecord calls db.update", async () => {
@@ -1392,6 +1410,9 @@ describe("Import Operations", () => {
 		});
 
 		expect(mockDb.update).toHaveBeenCalled();
+		const whereSql = collectSqlFragments(qb.where.mock.calls[0][0]).join(" ");
+		expect(whereSql).toContain("imported_by");
+		expect(whereSql).toContain("admin");
 	});
 });
 
@@ -1485,6 +1506,7 @@ describe("SavedSearch hydration round-trip", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
+		getCurrentUserIdMock.mockResolvedValue("user-1");
 		const mod = await import("@/lib/actions/opportunities");
 		saveSearch = mod.saveSearch;
 	});

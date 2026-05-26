@@ -179,7 +179,8 @@ interface SpreadsheetImportResult {
 async function executeSpreadsheetImport(
 	sheets: { name: string; data: RawSpreadsheetRow[] }[],
 	filename: string,
-	config?: Partial<ImportConfig>
+	config?: Partial<ImportConfig>,
+	userId?: string
 ): Promise<SpreadsheetImportResult> {
 	// Detect formats
 	const sheetFormats = detectSheetFormats(sheets);
@@ -214,7 +215,7 @@ async function executeSpreadsheetImport(
 		sheetName: targetSheet.sheet,
 		updateExisting: config?.updateExisting ?? true,
 		matchBy: config?.matchBy ?? "sourceIdAndFile",
-	});
+	}, userId);
 
 	// Import to database
 	const importResults = {
@@ -318,7 +319,7 @@ async function executeSpreadsheetImport(
 		failedRecords: importResults.failed,
 		status: "completed",
 		errors: allErrors.filter((e) => e.status === "failed"),
-	});
+	}, userId);
 
 	return {
 		importId,
@@ -334,11 +335,11 @@ export async function importFromFile(
 	filePath: string,
 	config?: Partial<ImportConfig>
 ): Promise<SpreadsheetImportResult> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const allowedPath = resolveConfiguredImportPath(filePath, "OPPORTUNITY_IMPORT_ROOT");
 	const { sheets, filename } = await parseDelimitedFile(allowedPath);
-	return executeSpreadsheetImport(sheets, filename, config);
+	return executeSpreadsheetImport(sheets, filename, config, userId);
 }
 
 /**
@@ -349,13 +350,14 @@ export async function importFromBuffer(
 	filename: string,
 	config?: Partial<ImportConfig>
 ): Promise<SpreadsheetImportResult> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 	const buffer = toImportBuffer(data);
 
 	return executeSpreadsheetImport(
 		[{ name: "Data", data: parseDelimitedRows(buffer.toString("utf-8"), filename) }],
 		filename,
-		config
+		config,
+		userId
 	);
 }
 
@@ -482,7 +484,7 @@ export async function importFromScraperExport(
 	};
 	errors: ImportRecordResult[];
 }> {
-	await requireCurrentUserId();
+	const userId = await requireCurrentUserId();
 
 	const allowedPath = resolveConfiguredImportPath(jsonlPath, "SCRAPER_EXPORT_ROOT");
 	const content = await fs.readFile(allowedPath, "utf-8");
@@ -498,7 +500,7 @@ export async function importFromScraperExport(
 		sheetName: "scraper_export",
 		updateExisting: true,
 		matchBy: "sourceId",
-	});
+	}, userId);
 
 	const importResults = {
 		total: records.length,
@@ -608,7 +610,7 @@ export async function importFromScraperExport(
 		failedRecords: importResults.failed,
 		status: "completed",
 		errors: allErrors.filter((e) => e.status === "failed"),
-	});
+	}, userId);
 
 	return {
 		importId,

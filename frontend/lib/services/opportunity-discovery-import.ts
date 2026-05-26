@@ -453,7 +453,7 @@ export async function executeOpportunityDiscoveryImport(
 	};
 
 	const totalRecords = candidates.length + searchFailures.length;
-	const importId = await createImportRecord("searxng-discovery", totalRecords, importConfig);
+	const importId = await createImportRecord("searxng-discovery", totalRecords, importConfig, userId);
 
 	const importResults: ImportResultsSummary = {
 		total: totalRecords,
@@ -520,7 +520,7 @@ export async function executeOpportunityDiscoveryImport(
 		status: "completed",
 		errors: allErrors.filter((e) => e.status === "failed"),
 		config: importConfig,
-	});
+	}, userId);
 
 	return {
 		importId,
