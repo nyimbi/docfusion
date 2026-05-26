@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { documents, proposalDocuments } from "@/lib/db/schema";
 import { complianceMatrices } from "@/lib/db/schema-rfp";
 import { claimAnalysis } from "@/lib/db/schema-evidence";
+import { themeAnalysisResults } from "@/lib/db/schema-win-themes";
 import {
 	hasBlockingDlpFindings,
 	scanDocumentsForDlpFindings,
@@ -35,6 +36,7 @@ type ProposalDocumentWithDocument = {
 
 type ComplianceMatrixRow = typeof complianceMatrices.$inferSelect;
 type ClaimAnalysisRow = typeof claimAnalysis.$inferSelect;
+type ThemeAnalysisRow = typeof themeAnalysisResults.$inferSelect;
 type FinalArtifactMetadata = {
 	artifactHash?: unknown;
 	storagePath?: unknown;
@@ -114,11 +116,18 @@ function visibleClaimsForOpportunityCondition(opportunityId: string, userId: str
 	)!;
 }
 
+function visibleThemeAnalysesForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(themeAnalysisResults.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(themeAnalysisResults.opportunityId, userId)
+	)!;
+}
+
 export async function evaluateFinalSubmissionChecklistWorkflow(
 	opportunityId: string
 ): Promise<FinalSubmissionChecklistResult> {
 	const userContext = await requireUserContext();
-	const [docs, matrices, claims] = await Promise.all([
+	const [docs, matrices, claims, themeAnalyses] = await Promise.all([
 		loadProposalDocuments(opportunityId, userContext.userId),
 		db
 			.select()
@@ -128,13 +137,17 @@ export async function evaluateFinalSubmissionChecklistWorkflow(
 			.select()
 			.from(claimAnalysis)
 			.where(visibleClaimsForOpportunityCondition(opportunityId, userContext.userId)),
+		db
+			.select()
+			.from(themeAnalysisResults)
+			.where(visibleThemeAnalysesForOpportunityCondition(opportunityId, userContext.userId)),
 	]);
 	const dlpFindings = scanDocumentsForDlpFindings(docs.map((doc) => ({
 		documentId: doc.documentId,
 		title: doc.title,
 		content: doc.content,
 	})));
-	const items = buildChecklistItems(docs, matrices, claims, dlpFindings);
+	const items = buildChecklistItems(docs, matrices, claims, themeAnalyses, dlpFindings);
 	const blockers = items
 		.filter((item) => item.required && !item.passed)
 		.map((item) => `${item.label}: ${item.message}`);
@@ -226,6 +239,7 @@ function buildChecklistItems(
 	docs: ProposalDocumentWithDocument[],
 	matrices: ComplianceMatrixRow[],
 	claims: ClaimAnalysisRow[],
+	themeAnalyses: ThemeAnalysisRow[],
 	dlpFindings: DlpFinding[]
 ): FinalSubmissionChecklistItem[] {
 	const items: FinalSubmissionChecklistItem[] = [];
@@ -240,6 +254,7 @@ function buildChecklistItems(
 	}
 	items.push(complianceLockItem(matrices));
 	items.push(claimEvidenceItem(claims));
+	items.push(themeConsistencyItem(themeAnalyses));
 	items.push(dlpItem(dlpFindings));
 	return items;
 }
@@ -446,6 +461,60 @@ function isBlockingClaim(claim: ClaimAnalysisRow): boolean {
 
 function truncateClaim(value: string): string {
 	return value.length > 120 ? `${value.slice(0, 117)}...` : value;
+}
+
+function themeConsistencyItem(analyses: ThemeAnalysisRow[]): FinalSubmissionChecklistItem {
+	const latest = latestThemeAnalysis(analyses);
+	if (!latest) {
+		return {
+			id: "evidence:win-theme-consistency",
+			category: "evidence",
+			label: "Win theme consistency",
+			required: false,
+			passed: false,
+			message: "No win theme consistency analysis recorded before final submission",
+			subjectId: null,
+			assignedRole: "capture_manager",
+		};
+	}
+
+	const critical = latest.criticalGapCount ?? 0;
+	const major = latest.majorGapCount ?? 0;
+	const minor = latest.minorGapCount ?? 0;
+	const passed = critical === 0 && major === 0 && minor === 0;
+	return {
+		id: "evidence:win-theme-consistency",
+		category: "evidence",
+		label: "Win theme consistency",
+		required: critical > 0,
+		passed,
+		message: passed
+			? "Latest win theme consistency analysis has no open gaps"
+			: themeConsistencyFailureMessage(critical, major, minor),
+		subjectId: latest.id,
+		assignedRole: "capture_manager",
+	};
+}
+
+function latestThemeAnalysis(analyses: ThemeAnalysisRow[]): ThemeAnalysisRow | undefined {
+	return analyses.reduce<ThemeAnalysisRow | undefined>((latest, analysis) => {
+		if (!latest) return analysis;
+		return timestampMs(analysis.analyzedAt) > timestampMs(latest.analyzedAt) ? analysis : latest;
+	}, undefined);
+}
+
+function timestampMs(value: Date | string | null | undefined): number {
+	if (!value) return 0;
+	const date = value instanceof Date ? value : new Date(value);
+	return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function themeConsistencyFailureMessage(critical: number, major: number, minor: number): string {
+	const parts: string[] = [];
+	if (critical > 0) parts.push(`${critical} critical`);
+	if (major > 0) parts.push(`${major} major`);
+	if (minor > 0) parts.push(`${minor} minor`);
+	return `Latest win theme consistency analysis has ${parts.join(", ")} open gap${parts.length === 1 && parts[0]?.startsWith("1 ") ? "" : "s"}`;
 }
 
 function dlpItem(findings: DlpFinding[]): FinalSubmissionChecklistItem {

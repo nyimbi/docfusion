@@ -211,6 +211,32 @@ const highRiskClaim = {
 	createdAt: new Date("2026-05-03T00:00:00.000Z"),
 };
 
+const cleanThemeAnalysis = {
+	id: "theme-analysis-clean",
+	opportunityId: "opp-1",
+	analyzedAt: new Date("2026-05-05T00:00:00.000Z"),
+	analyzedBy: "capture-manager-1",
+	documentVersionId: null,
+	analysisRunId: null,
+	totalThemes: 3,
+	averageCoverage: 85,
+	consistencyScore: 92,
+	winProbabilityImpact: 12,
+	coverageByVolume: [],
+	themeDistribution: [],
+	gaps: [],
+	criticalGapCount: 0,
+	majorGapCount: 0,
+	minorGapCount: 0,
+	recommendations: [],
+	highPriorityRecommendations: 0,
+	previousAnalysisId: null,
+	coverageChange: null,
+	consistencyChange: null,
+	analysisDurationMs: 120,
+	createdAt: new Date("2026-05-05T00:00:00.000Z"),
+};
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	requireUserContextMock.mockResolvedValue({
@@ -238,6 +264,10 @@ describe("final submission checklist workflow", () => {
 			.mockReturnValueOnce(createChain({
 				onWhere: (value) => wheres.push(value),
 				result: [{ ...lockedMatrix, status: "review", approvedBy: null, approvedAt: null }],
+			}))
+			.mockReturnValueOnce(createChain({
+				onWhere: (value) => wheres.push(value),
+				result: [],
 			}))
 			.mockReturnValueOnce(createChain({
 				onWhere: (value) => wheres.push(value),
@@ -276,7 +306,7 @@ describe("final submission checklist workflow", () => {
 				priority: "critical",
 			})
 		);
-		expect(wheres).toHaveLength(3);
+		expect(wheres).toHaveLength(4);
 		for (const where of wheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 		}
@@ -310,7 +340,8 @@ describe("final submission checklist workflow", () => {
 				],
 			}))
 			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
-			.mockReturnValueOnce(createChain({ result: [] }));
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({ result: [cleanThemeAnalysis] }));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
 
@@ -367,6 +398,7 @@ describe("final submission checklist workflow", () => {
 					mandatoryComplianceScore: 85,
 				}],
 			}))
+			.mockReturnValueOnce(createChain({ result: [] }))
 			.mockReturnValueOnce(createChain({ result: [] }));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
@@ -424,6 +456,7 @@ describe("final submission checklist workflow", () => {
 				],
 			}))
 			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
 			.mockReturnValueOnce(createChain({ result: [] }));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
@@ -473,6 +506,7 @@ describe("final submission checklist workflow", () => {
 				],
 			}))
 			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
 			.mockReturnValueOnce(createChain({ result: [] }));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
@@ -527,6 +561,7 @@ describe("final submission checklist workflow", () => {
 				],
 			}))
 			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
 			.mockReturnValueOnce(createChain({ result: [] }));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
@@ -564,7 +599,8 @@ describe("final submission checklist workflow", () => {
 				],
 			}))
 			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
-			.mockReturnValueOnce(createChain({ result: [highRiskClaim] }));
+			.mockReturnValueOnce(createChain({ result: [highRiskClaim] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
 
@@ -577,6 +613,66 @@ describe("final submission checklist workflow", () => {
 			passed: false,
 			subjectId: "claim-1",
 			assignedRole: "proposal_writer",
+		});
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "blocked",
+				eventType: "final_submission_checklist_blocked",
+				terminal: false,
+			})
+		);
+	});
+
+	it("blocks known critical win-theme consistency gaps before final submission", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					docFixture(),
+					docFixture({
+						proposalDocumentId: "pd-management",
+						documentId: "doc-management",
+						documentType: "management_plan",
+						title: "Management Plan",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-management", proposalDocumentId: "pd-management" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-cost",
+						documentId: "doc-cost",
+						documentType: "cost_proposal",
+						title: "Cost Proposal",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-cost", proposalDocumentId: "pd-cost" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+				],
+			}))
+			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					...cleanThemeAnalysis,
+					id: "theme-analysis-critical",
+					criticalGapCount: 1,
+					majorGapCount: 2,
+					minorGapCount: 0,
+				}],
+			}));
+
+		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
+
+		expect(result.allowed).toBe(false);
+		expect(result.blockers.join("\n")).toContain("Win theme consistency");
+		expect(result.blockers.join("\n")).toContain("1 critical, 2 major open gaps");
+		expect(result.items.find((item) => item.id === "evidence:win-theme-consistency")).toMatchObject({
+			category: "evidence",
+			required: true,
+			passed: false,
+			subjectId: "theme-analysis-critical",
+			assignedRole: "capture_manager",
 		});
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -616,7 +712,8 @@ describe("final submission checklist workflow", () => {
 				],
 			}))
 			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
-			.mockReturnValueOnce(createChain({ result: [] }));
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({ result: [cleanThemeAnalysis] }));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
 
