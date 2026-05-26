@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Pricing Approval Server Authority Checks
+
+Status: implemented and verified.
+
+Purpose: prevent cost element approval and final pricing package lock/reopen from trusting a client-supplied pricing authority role.
+
+Changes in this slice:
+- Enforce the shared server-side authority-role helper in cost element pricing approval.
+- Enforce the shared authority helper in pricing package lock and reopen transitions.
+- Preserve existing workflow authority-policy metadata while ensuring it reflects a role the session actually holds.
+- Add focused forged-authority coverage for cost element approval and package lock.
+
+Verification:
+- `npm run test -- __tests__/actions/pricing-approval-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets pricing authority enforcement with focused workflow tests and whitespace validation.
+
+Remaining after this slice:
+- Continue applying the same role-authority helper to import governance, review waivers, and any remaining authorityRole workflow surfaces.
+- Connect pricing lock status into final submission readiness and command-center blockers where not already projected.
+
 ### 2026-05-26 - Final-Mile Server Authority Checks
 
 Status: implemented and verified.

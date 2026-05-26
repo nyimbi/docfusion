@@ -1,6 +1,10 @@
 "use server";
 
-import { requireUserContext } from "@/lib/auth-utils";
+import {
+	assertUserHasAuthorityRole,
+	requireUserContext,
+	type UserContext,
+} from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
 	upsertWorkflowRuntimeTask,
@@ -124,7 +128,7 @@ export async function transitionCostElementPricingWorkflow(
 	const transition = buildCostElementTransition({
 		input,
 		costElement,
-		actorId: userContext.userId,
+		actor: userContext,
 	});
 
 	const [updatedCostElement] = await db
@@ -222,7 +226,7 @@ export async function transitionPricingPackageWorkflow(
 		summary,
 		costElements: elements,
 		trackingRows,
-		actorId: userContext.userId,
+		actor: userContext,
 	});
 
 	const [updatedSummary] = await db
@@ -296,7 +300,7 @@ export async function transitionPricingPackageWorkflow(
 function buildCostElementTransition(input: {
 	input: CostElementPricingWorkflowInput;
 	costElement: CostElementRow;
-	actorId: string;
+	actor: UserContext;
 }): {
 	toState: string;
 	terminal: boolean;
@@ -337,7 +341,7 @@ function buildCostElementTransition(input: {
 				["pending_review"],
 				"Only cost elements pending review can be approved"
 			);
-			requireAuthority(input.input.authorityRole, "Approving cost elements requires pricing authority");
+			requireAuthority(input.actor, input.input.authorityRole, "Approving cost elements requires pricing authority");
 			if (!narrative) {
 				throw new Error("Approving a cost element requires a BOE narrative");
 			}
@@ -351,7 +355,7 @@ function buildCostElementTransition(input: {
 				patch: {
 					status: "approved",
 					boeNarrative: narrative,
-					approvedBy: input.actorId,
+					approvedBy: input.actor.userId,
 					approvedAt: now,
 					updatedAt: now,
 				},
@@ -405,7 +409,7 @@ function buildPricingPackageTransition(input: {
 	summary: PricingSummaryRow;
 	costElements: CostElementRow[];
 	trackingRows: CostTechnicalTrackingRow[];
-	actorId: string;
+	actor: UserContext;
 }): {
 	toState: string;
 	terminal: boolean;
@@ -436,13 +440,13 @@ function buildPricingPackageTransition(input: {
 				assignedRole: "pricing_reviewer",
 				criticalIssues,
 				patch: {
-					calculatedBy: input.summary.calculatedBy ?? input.actorId,
+					calculatedBy: input.summary.calculatedBy ?? input.actor.userId,
 					calculatedAt: input.summary.calculatedAt ?? now,
 					updatedAt: now,
 				},
 			};
 		case "approve_lock":
-			requireAuthority(input.input.authorityRole, "Locking pricing requires pricing approval authority");
+			requireAuthority(input.actor, input.input.authorityRole, "Locking pricing requires pricing approval authority");
 			if (input.costElements.length === 0) {
 				throw new Error("Locking a pricing package requires cost elements");
 			}
@@ -461,7 +465,7 @@ function buildPricingPackageTransition(input: {
 				assignedRole: "pricing_approver",
 				criticalIssues,
 				patch: {
-					calculatedBy: input.actorId,
+					calculatedBy: input.actor.userId,
 					calculatedAt: now,
 					updatedAt: now,
 				},
@@ -480,7 +484,7 @@ function buildPricingPackageTransition(input: {
 				},
 			};
 		case "reopen":
-			requireAuthority(input.input.authorityRole, "Reopening locked pricing requires pricing authority");
+			requireAuthority(input.actor, input.input.authorityRole, "Reopening locked pricing requires pricing authority");
 			return {
 				toState: "package_reopened",
 				terminal: false,
@@ -514,10 +518,12 @@ function requireReason(value: string | null | undefined, message: string) {
 	return reason;
 }
 
-function requireAuthority(value: string | null | undefined, message: string) {
-	if (!value?.trim()) {
-		throw new Error(message);
-	}
+function requireAuthority(
+	actor: UserContext,
+	value: string | null | undefined,
+	message: string
+): string {
+	return assertUserHasAuthorityRole(actor, value, message);
 }
 
 function hasText(value: string | null | undefined) {

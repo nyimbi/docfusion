@@ -4,12 +4,25 @@ const { requireUserContextMock } = vi.hoisted(() => ({
 	requireUserContextMock: vi.fn(async () => ({
 		userId: "pricing-lead-1",
 		organizationId: "org-1",
+		roles: ["pricing_approver"],
 	})),
 }));
 
-vi.mock("@/lib/auth-utils", () => ({
-	requireUserContext: requireUserContextMock,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const assertUserHasAuthorityRole = (context: { role?: string; roles?: string[] }, requiredRole: string | null | undefined, message: string) => {
+		const role = requiredRole?.trim().toLowerCase();
+		if (!role) throw new Error(message);
+		const roles = new Set([context.role, ...(context.roles ?? [])].filter(Boolean).map((value) => String(value).trim().toLowerCase()));
+		if (!roles.has("admin") && !roles.has(role)) {
+			throw new Error(`${message}: requires ${role}`);
+		}
+		return role;
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		assertUserHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "pricing-workflow-1" })),
@@ -172,6 +185,7 @@ beforeEach(() => {
 	requireUserContextMock.mockResolvedValue({
 		userId: "pricing-lead-1",
 		organizationId: "org-1",
+		roles: ["pricing_approver"],
 	});
 	dbMock.select.mockReset();
 	dbMock.update.mockReset();
@@ -267,6 +281,25 @@ describe("pricing approval workflow", () => {
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
+	it("rejects claimed pricing authority when approving actor lacks the role", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["proposal_writer"],
+		});
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{ ...baseCostElement, status: "pending_review" }],
+		}));
+
+		await expect(transitionCostElementPricingWorkflow({
+			costElementId: "cost-1",
+			action: "approve",
+			reason: "Approve price basis",
+			authorityRole: "pricing_approver",
+		})).rejects.toThrow("requires pricing_approver");
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
 	it("approves a cost element with authority and completes the projected task", async () => {
 		let patch: Record<string, unknown> | undefined;
 		dbMock.select.mockReturnValueOnce(createChain({
@@ -329,6 +362,27 @@ describe("pricing approval workflow", () => {
 			reason: "Lock final price",
 			authorityRole: "pricing_approver",
 		})).rejects.toThrow("all cost elements to be approved");
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("rejects claimed pricing package authority when locking actor lacks the role", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "writer-1",
+			organizationId: "org-1",
+			roles: ["proposal_writer"],
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [pricingSummary] }))
+			.mockReturnValueOnce(createChain({ result: [{ ...baseCostElement, status: "approved" }] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		await expect(transitionPricingPackageWorkflow({
+			pricingSummaryId: "pricing-1",
+			action: "approve_lock",
+			reason: "Lock final price",
+			authorityRole: "pricing_approver",
+			waiveCriticalAlignment: true,
+		})).rejects.toThrow("requires pricing_approver");
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
