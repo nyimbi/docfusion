@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Full Non-Live Platform Proof Refresh
+
+Status: verified.
+
+Purpose: re-run the complete non-live proof manifest after response readiness, final-render gating, documents UI, workflow task projection, and command-center readiness changes.
+
+Verification:
+- `npm run platform:proof -- --all --continue-on-failure` from `frontend/` passed.
+- The proof covered Wave 0 through Wave 9 non-live scenarios, including typecheck, API/action tests, workflow tests, browser E2E control-plane tests, discovery-to-response bridge coverage, response package readiness, and discovery-to-submission core coverage.
+- The final scenario, `wave9-discovery-to-submission-core`, passed 13 test files and 115 tests.
+
+Remaining after this slice:
+- Live-safe proofs remain separate from this non-live manifest.
+- Persisted live end-to-end proof still depends on a reachable PostgreSQL endpoint.
+
 ### 2026-05-27 - Command Center Response Quality Blockers
 
 Status: implemented and verified.
