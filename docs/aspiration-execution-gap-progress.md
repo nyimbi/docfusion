@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Final Checklist Live Source Freshness
+
+Status: implemented and verified.
+
+Purpose: prevent the final submission checklist from passing artifacts whose source receipts no longer match the live document.
+
+Changes in this slice:
+- Load document `plainText` and `currentVersion` with final checklist proposal documents.
+- Hash the live document title, structured content, and plain text during checklist evaluation.
+- Require approved final artifact source version and source hash to match the live document before the artifact gate passes.
+- Return an explicit stale-artifact blocker directing operators to re-render the current document version.
+- Add focused coverage for stale final artifacts after a document version change.
+
+Verification:
+- `npm run test -- __tests__/actions/final-submission-checklist-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, production build, and the aggregate proof scenario remain intentionally skipped while on battery. This slice targets final checklist source freshness with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue closing the discovery-to-submission path with focused remediation until power allows running `wave9-discovery-to-submission-core`.
+
 ### 2026-05-26 - Final Artifact Download Freshness Guard
 
 Status: implemented and verified.

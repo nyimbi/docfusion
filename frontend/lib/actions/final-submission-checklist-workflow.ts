@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { requireUserContext } from "@/lib/auth-utils";
 import {
 	recordWorkflowRuntimeTransition,
@@ -27,6 +28,8 @@ type ProposalDocumentWithDocument = {
 	title: string;
 	documentStatus: string;
 	content: unknown;
+	plainText: string | null;
+	currentVersion: number | null;
 	metadata: unknown;
 };
 
@@ -210,6 +213,8 @@ async function loadProposalDocuments(opportunityId: string, userId: string): Pro
 			title: documents.title,
 			documentStatus: documents.status,
 			content: documents.content,
+			plainText: documents.plainText,
+			currentVersion: documents.currentVersion,
 			metadata: documents.metadata,
 		})
 		.from(proposalDocuments)
@@ -273,7 +278,7 @@ function approvalItem(doc: ProposalDocumentWithDocument): FinalSubmissionCheckli
 
 function artifactItem(doc: ProposalDocumentWithDocument): FinalSubmissionChecklistItem {
 	const artifact = finalArtifact(doc.metadata);
-	const passed = hasCompleteFinalArtifactReceipt(artifact);
+	const passed = hasCompleteFinalArtifactReceipt(artifact, doc);
 	return {
 		id: `artifact:${doc.documentId}`,
 		category: "artifact",
@@ -282,13 +287,16 @@ function artifactItem(doc: ProposalDocumentWithDocument): FinalSubmissionCheckli
 		passed,
 		message: passed
 			? `Final artifact ${artifact?.artifactHash} stored at ${artifact?.storagePath}`
-			: finalArtifactFailureMessage(artifact),
+			: finalArtifactFailureMessage(artifact, doc),
 		subjectId: doc.documentId,
 		assignedRole: "production_specialist",
 	};
 }
 
-function hasCompleteFinalArtifactReceipt(artifact: FinalArtifactMetadata | null): boolean {
+function hasCompleteFinalArtifactReceipt(
+	artifact: FinalArtifactMetadata | null,
+	doc: ProposalDocumentWithDocument
+): boolean {
 	if (!artifact) {
 		return false;
 	}
@@ -299,18 +307,52 @@ function hasCompleteFinalArtifactReceipt(artifact: FinalArtifactMetadata | null)
 		(typeof artifact.approvedAt === "string" || artifact.approvedAt instanceof Date) &&
 		"sourceDocumentVersion" in artifact &&
 		(typeof artifact.sourceDocumentVersion === "number" || artifact.sourceDocumentVersion === null) &&
-		typeof artifact.sourceContentHash === "string"
+		typeof artifact.sourceContentHash === "string" &&
+		artifactMatchesCurrentDocument(artifact, doc)
 	);
 }
 
-function finalArtifactFailureMessage(artifact: FinalArtifactMetadata | null): string {
+function finalArtifactFailureMessage(
+	artifact: FinalArtifactMetadata | null,
+	doc: ProposalDocumentWithDocument
+): string {
 	if (!artifact || typeof artifact.artifactHash !== "string" || typeof artifact.storagePath !== "string") {
 		return "Approved final artifact storage receipt is missing";
 	}
 	if (typeof artifact.approvedBy !== "string" || !(typeof artifact.approvedAt === "string" || artifact.approvedAt instanceof Date)) {
 		return "Approved final artifact approval receipt is missing";
 	}
+	if (
+		!("sourceDocumentVersion" in artifact) ||
+		!(typeof artifact.sourceDocumentVersion === "number" || artifact.sourceDocumentVersion === null) ||
+		typeof artifact.sourceContentHash !== "string"
+	) {
+		return "Approved final artifact freshness receipt is missing";
+	}
+	if (!artifactMatchesCurrentDocument(artifact, doc)) {
+		return "Approved final artifact is stale; re-render the current document version";
+	}
 	return "Approved final artifact freshness receipt is missing";
+}
+
+function artifactMatchesCurrentDocument(
+	artifact: FinalArtifactMetadata,
+	doc: ProposalDocumentWithDocument
+): boolean {
+	return (
+		artifact.sourceDocumentVersion === doc.currentVersion &&
+		artifact.sourceContentHash === hashDocumentSource(doc)
+	);
+}
+
+function hashDocumentSource(doc: Pick<ProposalDocumentWithDocument, "title" | "content" | "plainText">): string {
+	return createHash("sha256")
+		.update(JSON.stringify({
+			title: doc.title,
+			content: doc.content,
+			plainText: doc.plainText,
+		}))
+		.digest("hex");
 }
 
 function signatureItem(doc: ProposalDocumentWithDocument): FinalSubmissionChecklistItem {

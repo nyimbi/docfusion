@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { requireUserContextMock } = vi.hoisted(() => ({
@@ -92,8 +93,12 @@ const finalArtifact = {
 	pageCount: 12,
 };
 
+const defaultContent = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Clean proposal content." }] }] };
+const defaultPlainText = "Clean proposal content.";
+const defaultVersion = 4;
+
 function docFixture(overrides: Partial<Record<string, unknown>> = {}) {
-	return {
+	const doc = {
 		proposalDocumentId: "pd-technical",
 		documentId: "doc-technical",
 		documentType: "technical_approach",
@@ -102,7 +107,9 @@ function docFixture(overrides: Partial<Record<string, unknown>> = {}) {
 		approvedAt: new Date("2026-05-04T00:00:00.000Z"),
 		title: "Technical Approach",
 		documentStatus: "final",
-		content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Clean proposal content." }] }] },
+		content: defaultContent,
+		plainText: defaultPlainText,
+		currentVersion: defaultVersion,
 		metadata: {
 			finalArtifact,
 			finalSubmissionSignoff: {
@@ -112,6 +119,42 @@ function docFixture(overrides: Partial<Record<string, unknown>> = {}) {
 		},
 		...overrides,
 	};
+	return {
+		...doc,
+		metadata: normalizeFixtureArtifactMetadata(doc),
+	};
+}
+
+function normalizeFixtureArtifactMetadata(doc: Record<string, unknown>) {
+	const metadata = asRecord(doc.metadata);
+	const artifact = asRecord(metadata.finalArtifact);
+	if (!artifact.artifactHash || artifact.sourceContentHash !== "source-hash-technical") {
+		return doc.metadata;
+	}
+	return {
+		...metadata,
+		finalArtifact: {
+			...artifact,
+			sourceDocumentVersion: doc.currentVersion,
+			sourceContentHash: sourceContentHash(doc),
+		},
+	};
+}
+
+function sourceContentHash(doc: Record<string, unknown>): string {
+	return createHash("sha256")
+		.update(JSON.stringify({
+			title: doc.title,
+			content: doc.content,
+			plainText: doc.plainText,
+		}))
+		.digest("hex");
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? value as Record<string, unknown>
+		: {};
 }
 
 const lockedMatrix = {
@@ -437,6 +480,60 @@ describe("final submission checklist workflow", () => {
 		expect(result.allowed).toBe(false);
 		expect(result.blockers.join("\n")).toContain("stored final artifact");
 		expect(result.blockers.join("\n")).toContain("freshness receipt is missing");
+	});
+
+	it("blocks approved final artifacts that no longer match the current document source", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					docFixture({
+						currentVersion: defaultVersion + 1,
+						metadata: {
+							finalArtifact: {
+								...finalArtifact,
+								sourceDocumentVersion: defaultVersion,
+								sourceContentHash: sourceContentHash({
+									title: "Technical Approach",
+									content: defaultContent,
+									plainText: defaultPlainText,
+								}),
+							},
+							finalSubmissionSignoff: {
+								signedBy: "executive-1",
+								signedAt: "2026-05-05T00:00:00.000Z",
+							},
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-management",
+						documentId: "doc-management",
+						documentType: "management_plan",
+						title: "Management Plan",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-management", proposalDocumentId: "pd-management" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-cost",
+						documentId: "doc-cost",
+						documentType: "cost_proposal",
+						title: "Cost Proposal",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-cost", proposalDocumentId: "pd-cost" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+				],
+			}))
+			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
+
+		expect(result.allowed).toBe(false);
+		expect(result.blockers.join("\n")).toContain("stored final artifact");
+		expect(result.blockers.join("\n")).toContain("is stale");
 	});
 
 	it("blocks unresolved high-risk unsupported claims before final submission", async () => {
