@@ -68,6 +68,7 @@ import {
 	Send,
 	ShieldCheck,
 	XCircle,
+	LockKeyhole,
 } from "lucide-react";
 import type {
 	RequirementCategory,
@@ -244,6 +245,11 @@ type ComplianceWorkflowAction =
 	| "waive"
 	| "reopen";
 
+type ComplianceMatrixWorkflowAction =
+	| "submit_for_review"
+	| "lock_final"
+	| "reopen";
+
 const WORKFLOW_ACTION_CONFIG: Record<
 	ComplianceWorkflowAction,
 	{ label: string; description: string; icon: React.ReactNode }
@@ -271,6 +277,27 @@ const WORKFLOW_ACTION_CONFIG: Record<
 	reopen: {
 		label: "Reopen",
 		description: "Move an approved, rejected, or waived entry back to draft.",
+		icon: <RotateCcw className="h-4 w-4 mr-2" />,
+	},
+};
+
+const MATRIX_WORKFLOW_ACTION_CONFIG: Record<
+	ComplianceMatrixWorkflowAction,
+	{ label: string; description: string; icon: React.ReactNode }
+> = {
+	submit_for_review: {
+		label: "Submit Matrix for Review",
+		description: "Move the compliance matrix into review once entries are ready for final checks.",
+		icon: <Send className="h-4 w-4 mr-2" />,
+	},
+	lock_final: {
+		label: "Lock Final Matrix",
+		description: "Lock the compliance matrix after all mandatory entries are approved.",
+		icon: <LockKeyhole className="h-4 w-4 mr-2" />,
+	},
+	reopen: {
+		label: "Reopen Matrix",
+		description: "Reopen a reviewed or locked matrix for corrections.",
 		icon: <RotateCcw className="h-4 w-4 mr-2" />,
 	},
 };
@@ -304,6 +331,9 @@ export function ComplianceMatrix({
 	const [workflowDialog, setWorkflowDialog] = useState<{
 		entry: ComplianceEntry;
 		action: ComplianceWorkflowAction;
+	} | null>(null);
+	const [matrixWorkflowDialog, setMatrixWorkflowDialog] = useState<{
+		action: ComplianceMatrixWorkflowAction;
 	} | null>(null);
 	const [workflowReason, setWorkflowReason] = useState("");
 	const [workflowError, setWorkflowError] = useState<string | null>(null);
@@ -412,6 +442,14 @@ export function ComplianceMatrix({
 
 	const openWorkflowDialog = useCallback((entry: ComplianceEntry, action: ComplianceWorkflowAction) => {
 		setWorkflowDialog({ entry, action });
+		setMatrixWorkflowDialog(null);
+		setWorkflowReason("");
+		setWorkflowError(null);
+	}, []);
+
+	const openMatrixWorkflowDialog = useCallback((action: ComplianceMatrixWorkflowAction) => {
+		setMatrixWorkflowDialog({ action });
+		setWorkflowDialog(null);
 		setWorkflowReason("");
 		setWorkflowError(null);
 	}, []);
@@ -449,6 +487,55 @@ export function ComplianceMatrix({
 			setIsWorkflowSubmitting(false);
 		}
 	}, [fetchMatrix, matrixId, workflowDialog, workflowReason]);
+
+	const submitMatrixWorkflowAction = useCallback(async () => {
+		if (!matrixWorkflowDialog) return;
+
+		setIsWorkflowSubmitting(true);
+		setWorkflowError(null);
+
+		try {
+			const response = await fetch(
+				`/api/v1/compliance-matrix/${matrixId}/workflow`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						action: matrixWorkflowDialog.action,
+						reason: workflowReason,
+					}),
+				}
+			);
+			const payload = await response.json().catch(() => ({}));
+
+			if (!response.ok) {
+				throw new Error(payload.error ?? "Matrix workflow transition failed");
+			}
+
+			setMatrixWorkflowDialog(null);
+			setWorkflowReason("");
+			await fetchMatrix();
+		} catch (err) {
+			setWorkflowError(err instanceof Error ? err.message : "Matrix workflow transition failed");
+		} finally {
+			setIsWorkflowSubmitting(false);
+		}
+	}, [fetchMatrix, matrixId, matrixWorkflowDialog, workflowReason]);
+
+	const matrixWorkflowActions = useMemo<ComplianceMatrixWorkflowAction[]>(() => {
+		if (!matrix) return [];
+		switch (matrix.status) {
+			case "draft":
+				return ["submit_for_review"];
+			case "review":
+				return ["lock_final", "reopen"];
+			case "final":
+			case "submitted":
+				return ["reopen"];
+			default:
+				return ["submit_for_review"];
+		}
+	}, [matrix]);
 
 	// Calculate overall progress
 	const overallProgress = matrix
@@ -710,6 +797,30 @@ export function ComplianceMatrix({
 							<RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
 							Refresh
 						</Button>
+						{matrixWorkflowActions.length > 0 && (
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button variant="outline" size="sm" disabled={isWorkflowSubmitting}>
+										<ShieldCheck className="h-4 w-4 mr-2" />
+										Matrix Review
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent>
+									{matrixWorkflowActions.map((action) => {
+										const config = MATRIX_WORKFLOW_ACTION_CONFIG[action];
+										return (
+											<DropdownMenuItem
+												key={action}
+												onClick={() => openMatrixWorkflowDialog(action)}
+											>
+												{config.icon}
+												{config.label}
+											</DropdownMenuItem>
+										);
+									})}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						)}
 						{onExport && (
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
@@ -990,10 +1101,11 @@ export function ComplianceMatrix({
 			</CardContent>
 
 			<Dialog
-				open={workflowDialog !== null}
+				open={workflowDialog !== null || matrixWorkflowDialog !== null}
 				onOpenChange={(open) => {
 					if (!open) {
 						setWorkflowDialog(null);
+						setMatrixWorkflowDialog(null);
 						setWorkflowError(null);
 					}
 				}}
@@ -1003,11 +1115,15 @@ export function ComplianceMatrix({
 						<DialogTitle>
 							{workflowDialog
 								? WORKFLOW_ACTION_CONFIG[workflowDialog.action].label
+								: matrixWorkflowDialog
+									? MATRIX_WORKFLOW_ACTION_CONFIG[matrixWorkflowDialog.action].label
 								: "Compliance Workflow"}
 						</DialogTitle>
 						<DialogDescription>
 							{workflowDialog
 								? WORKFLOW_ACTION_CONFIG[workflowDialog.action].description
+								: matrixWorkflowDialog
+									? MATRIX_WORKFLOW_ACTION_CONFIG[matrixWorkflowDialog.action].description
 								: ""}
 						</DialogDescription>
 					</DialogHeader>
@@ -1045,13 +1161,16 @@ export function ComplianceMatrix({
 					<DialogFooter>
 						<Button
 							variant="outline"
-							onClick={() => setWorkflowDialog(null)}
+							onClick={() => {
+								setWorkflowDialog(null);
+								setMatrixWorkflowDialog(null);
+							}}
 							disabled={isWorkflowSubmitting}
 						>
 							Cancel
 						</Button>
 						<Button
-							onClick={submitWorkflowAction}
+							onClick={matrixWorkflowDialog ? submitMatrixWorkflowAction : submitWorkflowAction}
 							disabled={isWorkflowSubmitting || workflowReason.trim().length === 0}
 						>
 							{isWorkflowSubmitting && (

@@ -297,3 +297,27 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Add operator-visible review controls that make the evidence promotion path easy to use from proposal/compliance screens.
+
+### 2026-05-26 - Operator Matrix Final Lock Controls
+
+Status: implemented and verified.
+
+Purpose: make final compliance review and matrix locking accessible to operators, not only available as an internal server action.
+
+Changes in this slice:
+- Add a tenant-scoped matrix workflow API route for submitting a matrix for review, locking the final matrix, and reopening it.
+- Add a `Matrix Review` control to the compliance matrix UI.
+- Show valid matrix workflow actions by current matrix state: draft matrices can be submitted for review, review matrices can be locked or reopened, and final/submitted matrices can be reopened.
+- Reuse the existing workflow reason dialog so matrix lock decisions preserve an explicit audit reason.
+- Surface server-side matrix lock blockers directly in the UI error message.
+
+Verification:
+- `npx tsc --noEmit` passed.
+- `npm run test -- __tests__/actions/compliance-entry-workflow.test.ts` passed.
+
+Testing scope note:
+- Full frontend suite, production build, and browser visual pass remain intentionally skipped while on battery. This slice used the focused compliance workflow test and TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Add route-level tests for the new matrix workflow API when broader API testing is worth the battery cost.
