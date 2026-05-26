@@ -710,3 +710,25 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.
+
+### 2026-05-26 - Submission Checklist Refresh
+
+Status: implemented and verified.
+
+Purpose: let operators re-check final submission readiness after fixing artifact, signoff, compliance, or DLP blockers without leaving the submission form.
+
+Changes in this slice:
+- Add a refresh action to the pre-submission checklist panel.
+- Show checklist refresh loading state and prevent submission while readiness is being refreshed.
+- Preserve server-derived final gate rows as system-verified checklist evidence.
+
+Verification:
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, component tests, and production build remain intentionally skipped while on battery. This was a narrow client interaction change verified with TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.

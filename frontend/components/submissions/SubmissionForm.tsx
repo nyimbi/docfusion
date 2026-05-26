@@ -6,7 +6,8 @@
 
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { RefreshCw } from "lucide-react";
 import type {
 	PreSubmissionChecklistItem,
 	SubmissionMethod,
@@ -60,13 +61,26 @@ export function SubmissionForm({
 	const [submittedBy, setSubmittedBy] = useState("");
 	const [isPending, startTransition] = useTransition();
 	const [error, setError] = useState<string | null>(null);
+	const [isChecklistLoading, setIsChecklistLoading] = useState(false);
 
-	// Load checklist if not provided
+	const refreshChecklist = useCallback(async () => {
+		setIsChecklistLoading(true);
+		try {
+			const nextChecklist = await getPreSubmissionChecklist(opportunityId);
+			setChecklist(nextChecklist);
+			setError(null);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to refresh checklist");
+		} finally {
+			setIsChecklistLoading(false);
+		}
+	}, [opportunityId]);
+
 	useEffect(() => {
 		if (!initialChecklist) {
-			getPreSubmissionChecklist(opportunityId).then(setChecklist);
+			void refreshChecklist();
 		}
-	}, [initialChecklist, opportunityId]);
+	}, [initialChecklist, refreshChecklist]);
 
 	const toggleChecklistItem = (itemId: string) => {
 		setChecklist((prev) =>
@@ -142,9 +156,22 @@ export function SubmissionForm({
 
 			{/* Pre-Submission Checklist */}
 			<div className="bg-[var(--background)] border border-[var(--border)] rounded-lg p-4">
-				<h3 className="font-medium text-[var(--foreground)] mb-3">
-					Pre-Submission Checklist
-				</h3>
+				<div className="mb-3 flex items-center justify-between gap-3">
+					<h3 className="font-medium text-[var(--foreground)]">
+						Pre-Submission Checklist
+					</h3>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => void refreshChecklist()}
+						disabled={isChecklistLoading || isPending}
+						isLoading={isChecklistLoading}
+						loadingText="Refreshing checklist"
+					>
+						<RefreshCw className="h-4 w-4" />
+						Refresh
+					</Button>
+				</div>
 				<div className="space-y-2">
 					{checklist.map((item) => (
 						<label
@@ -308,7 +335,7 @@ export function SubmissionForm({
 			<div className="flex justify-end gap-3">
 				<Button
 					onClick={handleSubmit}
-					disabled={isPending || !requiredItemsCompleted}
+					disabled={isPending || isChecklistLoading || !requiredItemsCompleted}
 					isLoading={isPending}
 				>
 					Record Submission
