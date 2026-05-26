@@ -100,6 +100,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { discoverAndImportOpportunities } from "@/lib/actions/import-opportunities";
+import { executeOpportunityDiscoveryImport } from "@/lib/services/opportunity-discovery-import";
 import { db } from "@/lib/db";
 
 beforeEach(() => {
@@ -689,6 +690,65 @@ describe("discoverAndImportOpportunities", () => {
 				}),
 			}),
 		}));
+	});
+
+	it("persists service-run discoveries under the explicit import tenant", async () => {
+		getUserContextMock.mockResolvedValue({
+			userId: "interactive-user-1",
+			organizationId: "org-interactive-1",
+			roles: [],
+		});
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Tender for document management platform",
+					url: "https://example.org/tenders/document-management",
+					content: "Tender notice for document management implementation.",
+					engine: "brave",
+					score: 9,
+					category: "general",
+				},
+			],
+		});
+		selectResultsQueue.push([]);
+
+		const result = await executeOpportunityDiscoveryImport(
+			{ query: "document management tender", limitPerQuery: 1 },
+			"service-user-1",
+			"org-service-1"
+		);
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createImportRecordMock).toHaveBeenCalledWith(
+			"searxng-discovery",
+			1,
+			expect.any(Object),
+			"service-user-1",
+			"org-service-1"
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				assignedTo: "service-user-1",
+				title: "Tender for document management platform",
+				source: "searxng",
+			}),
+			{ actorId: "service-user-1", organizationId: "org-service-1" }
+		);
+		expect(updateImportRecordMock).toHaveBeenCalledWith(
+			"import-1",
+			expect.objectContaining({
+				importedRecords: 1,
+				status: "completed",
+			}),
+			"service-user-1",
+			"org-service-1"
+		);
 	});
 
 	it("imports Kenya PPIP configured sources through the public JSON API before Firecrawl", async () => {

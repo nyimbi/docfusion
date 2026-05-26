@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Discovery Import Tenant Persistence Proof
+
+Status: implemented and verified.
+
+Purpose: prove scheduled/API-key discovery imports persist discovered opportunities under the explicit service tenant rather than relying on the ambient interactive session.
+
+Changes in this slice:
+- Add regression coverage for `executeOpportunityDiscoveryImport` when the active user context differs from the supplied import actor and organization.
+- Assert import record creation, opportunity creation, and import record completion all receive the explicit `{ actorId, organizationId }` override.
+- Keep the discovery route proof aligned with the service path used for API-key discovery runs.
+
+Verification:
+- `npm test -- discovery-opportunity-import.test.ts opportunity-discovery-route.test.ts` from `frontend/` passed, running 19 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 13 discovery-to-submission test files and 112 tests.
+- `git diff --check` from the repo root passed.
+
+Remaining after this slice:
+- Prove a selected discovered opportunity can drive RFP/document intake and response-package generation end to end.
+- Add an environment-backed persistence proof only when a reachable test database is available.
+
 ### 2026-05-27 - Live Discovery Source Proofs
 
 Status: verified against live services.
