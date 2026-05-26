@@ -135,6 +135,30 @@ const lockedMatrix = {
 	updatedAt: new Date("2026-05-04T00:00:00.000Z"),
 };
 
+const highRiskClaim = {
+	id: "claim-1",
+	documentId: "doc-technical",
+	sectionId: null,
+	opportunityId: "opp-1",
+	claimText: "Datacraft will deliver flawless integration outcomes without transition risk.",
+	claimType: "performance",
+	claimLocation: null,
+	hasEvidence: false,
+	evidenceStrength: "none",
+	linkedEvidenceIds: [],
+	suggestedEvidence: [],
+	quantificationSuggestion: "Add implementation evidence from prior programmes.",
+	riskLevel: "high",
+	evaluatorImpact: "Evaluator may discount unsupported absolute delivery claims.",
+	status: "open",
+	resolution: null,
+	resolvedBy: null,
+	resolvedAt: null,
+	resolutionNotes: null,
+	analyzedAt: new Date("2026-05-03T00:00:00.000Z"),
+	createdAt: new Date("2026-05-03T00:00:00.000Z"),
+};
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	requireUserContextMock.mockResolvedValue({
@@ -162,6 +186,10 @@ describe("final submission checklist workflow", () => {
 			.mockReturnValueOnce(createChain({
 				onWhere: (value) => wheres.push(value),
 				result: [{ ...lockedMatrix, status: "review", approvedBy: null, approvedAt: null }],
+			}))
+			.mockReturnValueOnce(createChain({
+				onWhere: (value) => wheres.push(value),
+				result: [],
 			}));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
@@ -196,7 +224,7 @@ describe("final submission checklist workflow", () => {
 				priority: "critical",
 			})
 		);
-		expect(wheres).toHaveLength(2);
+		expect(wheres).toHaveLength(3);
 		for (const where of wheres) {
 			expect(collectSqlFragments(where).join(" ")).toContain("opportunities.assigned_to");
 		}
@@ -229,7 +257,8 @@ describe("final submission checklist workflow", () => {
 					}),
 				],
 			}))
-			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }));
+			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
 
@@ -285,13 +314,65 @@ describe("final submission checklist workflow", () => {
 					nonCompliantCount: 1,
 					mandatoryComplianceScore: 85,
 				}],
-			}));
+			}))
+			.mockReturnValueOnce(createChain({ result: [] }));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
 
 		expect(result.allowed).toBe(false);
 		expect(result.blockers.join("\n")).toContain("Compliance matrix final lock");
 		expect(result.blockers.join("\n")).toContain("still has 2 unresolved compliance gaps");
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "blocked",
+				eventType: "final_submission_checklist_blocked",
+				terminal: false,
+			})
+		);
+	});
+
+	it("blocks unresolved high-risk unsupported claims before final submission", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					docFixture(),
+					docFixture({
+						proposalDocumentId: "pd-management",
+						documentId: "doc-management",
+						documentType: "management_plan",
+						title: "Management Plan",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-management", proposalDocumentId: "pd-management" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-cost",
+						documentId: "doc-cost",
+						documentType: "cost_proposal",
+						title: "Cost Proposal",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-cost", proposalDocumentId: "pd-cost" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+				],
+			}))
+			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [highRiskClaim] }));
+
+		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
+
+		expect(result.allowed).toBe(false);
+		expect(result.blockers.join("\n")).toContain("High-risk claim evidence");
+		expect(result.blockers.join("\n")).toContain("1 high-risk unsupported claim requires remediation");
+		expect(result.items.find((item) => item.id === "evidence:high-risk-claims")).toMatchObject({
+			category: "evidence",
+			required: true,
+			passed: false,
+			subjectId: "claim-1",
+			assignedRole: "proposal_writer",
+		});
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({
 				toState: "blocked",
@@ -329,7 +410,8 @@ describe("final submission checklist workflow", () => {
 					}),
 				],
 			}))
-			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }));
+			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
 
 		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
 

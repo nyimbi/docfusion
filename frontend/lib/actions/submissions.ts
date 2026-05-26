@@ -449,12 +449,13 @@ export async function getPreSubmissionChecklist(
 }
 
 function mapFinalChecklistCategory(
-	category: "documents" | "artifact" | "approval" | "signature" | "compliance" | "privacy" | "administrative"
+	category: "documents" | "artifact" | "approval" | "signature" | "compliance" | "evidence" | "privacy" | "administrative"
 ): PreSubmissionChecklistItem["category"] {
 	switch (category) {
 		case "documents":
 			return "documents";
 		case "compliance":
+		case "evidence":
 		case "privacy":
 			return "compliance";
 		case "artifact":

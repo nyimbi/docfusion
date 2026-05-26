@@ -18,6 +18,10 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 	recordWorkflowRuntimeTransition: vi.fn(async () => ({ id: "workflow-instance-1" })),
 }));
 
+vi.mock("next/cache", () => ({
+	revalidatePath: vi.fn(),
+}));
+
 interface ChainConfig {
 	result?: unknown[];
 	onValues?: (value: Record<string, unknown>) => void;

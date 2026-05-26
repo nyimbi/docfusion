@@ -8,6 +8,7 @@ import {
 import { db } from "@/lib/db";
 import { documents, proposalDocuments } from "@/lib/db/schema";
 import { complianceMatrices } from "@/lib/db/schema-rfp";
+import { claimAnalysis } from "@/lib/db/schema-evidence";
 import {
 	hasBlockingDlpFindings,
 	scanDocumentsForDlpFindings,
@@ -30,6 +31,7 @@ type ProposalDocumentWithDocument = {
 };
 
 type ComplianceMatrixRow = typeof complianceMatrices.$inferSelect;
+type ClaimAnalysisRow = typeof claimAnalysis.$inferSelect;
 
 export type FinalChecklistCategory =
 	| "documents"
@@ -37,6 +39,7 @@ export type FinalChecklistCategory =
 	| "approval"
 	| "signature"
 	| "compliance"
+	| "evidence"
 	| "privacy"
 	| "administrative";
 
@@ -93,23 +96,34 @@ function visibleComplianceMatricesForOpportunityCondition(opportunityId: string,
 	)!;
 }
 
+function visibleClaimsForOpportunityCondition(opportunityId: string, userId: string): SQL {
+	return and(
+		eq(claimAnalysis.opportunityId, opportunityId),
+		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userId)
+	)!;
+}
+
 export async function evaluateFinalSubmissionChecklistWorkflow(
 	opportunityId: string
 ): Promise<FinalSubmissionChecklistResult> {
 	const userContext = await requireUserContext();
-	const [docs, matrices] = await Promise.all([
+	const [docs, matrices, claims] = await Promise.all([
 		loadProposalDocuments(opportunityId, userContext.userId),
 		db
 			.select()
 			.from(complianceMatrices)
 			.where(visibleComplianceMatricesForOpportunityCondition(opportunityId, userContext.userId)),
+		db
+			.select()
+			.from(claimAnalysis)
+			.where(visibleClaimsForOpportunityCondition(opportunityId, userContext.userId)),
 	]);
 	const dlpFindings = scanDocumentsForDlpFindings(docs.map((doc) => ({
 		documentId: doc.documentId,
 		title: doc.title,
 		content: doc.content,
 	})));
-	const items = buildChecklistItems(docs, matrices, dlpFindings);
+	const items = buildChecklistItems(docs, matrices, claims, dlpFindings);
 	const blockers = items
 		.filter((item) => item.required && !item.passed)
 		.map((item) => `${item.label}: ${item.message}`);
@@ -198,6 +212,7 @@ async function loadProposalDocuments(opportunityId: string, userId: string): Pro
 function buildChecklistItems(
 	docs: ProposalDocumentWithDocument[],
 	matrices: ComplianceMatrixRow[],
+	claims: ClaimAnalysisRow[],
 	dlpFindings: DlpFinding[]
 ): FinalSubmissionChecklistItem[] {
 	const items: FinalSubmissionChecklistItem[] = [];
@@ -211,6 +226,7 @@ function buildChecklistItems(
 		}
 	}
 	items.push(complianceLockItem(matrices));
+	items.push(claimEvidenceItem(claims));
 	items.push(dlpItem(dlpFindings));
 	return items;
 }
@@ -327,6 +343,34 @@ function complianceLockFailureMessage(
 		return `Compliance matrix ${matrix.name} is locked but mandatory compliance is ${mandatoryScore}%`;
 	}
 	return "A final or submitted compliance matrix with approval is required";
+}
+
+function claimEvidenceItem(claims: ClaimAnalysisRow[]): FinalSubmissionChecklistItem {
+	const unresolved = claims.filter(isBlockingClaim);
+	const first = unresolved[0];
+	return {
+		id: "evidence:high-risk-claims",
+		category: "evidence",
+		label: "High-risk claim evidence",
+		required: true,
+		passed: unresolved.length === 0,
+		message: unresolved.length === 0
+			? "No unresolved high-risk unsupported claims detected"
+			: `${unresolved.length} high-risk unsupported claim${unresolved.length === 1 ? "" : "s"} ${unresolved.length === 1 ? "requires" : "require"} remediation${first ? `; first: ${truncateClaim(first.claimText)}` : ""}`,
+		subjectId: first?.id ?? null,
+		assignedRole: "proposal_writer",
+	};
+}
+
+function isBlockingClaim(claim: ClaimAnalysisRow): boolean {
+	if (claim.status === "resolved" || claim.status === "wont_fix") {
+		return false;
+	}
+	return claim.riskLevel === "high";
+}
+
+function truncateClaim(value: string): string {
+	return value.length > 120 ? `${value.slice(0, 117)}...` : value;
 }
 
 function dlpItem(findings: DlpFinding[]): FinalSubmissionChecklistItem {

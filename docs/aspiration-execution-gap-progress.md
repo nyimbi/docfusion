@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Final Submission Claim Evidence Gate
+
+Status: implemented and verified.
+
+Purpose: prevent final submission readiness from passing while high-risk unsupported proposal claims remain unresolved.
+
+Changes in this slice:
+- Add claim-analysis state to the final submission checklist under the same assigned-opportunity scope as documents and compliance matrices.
+- Add a required evidence gate that blocks unresolved high-risk claims and points operators to the first blocking claim.
+- Map the new evidence checklist category into the existing pre-submission checklist category model.
+- Repair the submission workflow test harness so route revalidation is mocked during focused submission tests.
+
+Verification:
+- `npm run test -- __tests__/actions/final-submission-checklist-workflow.test.ts __tests__/actions/submission-workflow.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This was a focused final-gate/evidence-claim blocker slice covered by the directly affected workflow tests and whitespace validation.
+
+Remaining after this slice:
+- Continue auditing evidence matrix coverage and claim remediation handoff into writer tasks.
+- Add broader authenticated discovery-to-receipt proof when the power budget allows.
+
 ### 2026-05-26 - Final Submission Compliance Gap Gate
 
 Status: implemented and verified.
