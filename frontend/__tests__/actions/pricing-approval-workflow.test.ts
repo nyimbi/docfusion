@@ -73,6 +73,14 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 	);
 }
 
+function expectOpportunityTenantScope(where: unknown) {
+	const sqlText = collectSqlFragments(where).join(" ");
+	expect(sqlText).toContain("opportunities.organization_id");
+	expect(sqlText).toContain("org-1");
+	expect(sqlText).toContain("opportunities.assigned_to");
+	expect(sqlText).toContain("pricing-lead-1");
+}
+
 var dbMock: any;
 
 vi.mock("@/lib/db", () => {
@@ -226,11 +234,20 @@ describe("pricing approval workflow", () => {
 
 	it("submits a cost element for BOE review and projects reviewer work", async () => {
 		let patch: Record<string, unknown> | undefined;
-		dbMock.select.mockReturnValueOnce(createChain({ result: [baseCostElement] }));
+		const whereClauses: unknown[] = [];
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [baseCostElement],
+			onWhere: (value) => {
+				whereClauses.push(value);
+			},
+		}));
 		dbMock.update.mockReturnValueOnce(createChain({
 			result: [{ ...baseCostElement, status: "pending_review" }],
 			onSet: (value) => {
 				patch = value;
+			},
+			onWhere: (value) => {
+				whereClauses.push(value);
 			},
 		}));
 
@@ -252,13 +269,20 @@ describe("pricing approval workflow", () => {
 			status: "pending_review",
 			boeNarrative: baseCostElement.boeNarrative,
 		});
+		expect(whereClauses).toHaveLength(2);
+		expectOpportunityTenantScope(whereClauses[0]);
+		expectOpportunityTenantScope(whereClauses[1]);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({
 				workflowKey: "cost_element_pricing_approval",
 				subjectType: "cost_element",
+				organizationId: "org-1",
 				eventType: "cost_element_pricing_submit_review",
 				assignedRole: "pricing_reviewer",
 				terminal: false,
+				metadata: expect.objectContaining({
+					organizationId: "org-1",
+				}),
 			})
 		);
 		expect(upsertWorkflowRuntimeTask).toHaveBeenCalledWith(
@@ -266,6 +290,9 @@ describe("pricing approval workflow", () => {
 				taskKey: "pricing-cost-element:cost-1",
 				state: "open",
 				assignedRole: "pricing_reviewer",
+				metadata: expect.objectContaining({
+					organizationId: "org-1",
+				}),
 			})
 		);
 	});
@@ -443,14 +470,16 @@ describe("pricing approval workflow", () => {
 			calculatedBy: "pricing-lead-1",
 		});
 		expect(patch?.calculatedAt).toBeInstanceOf(Date);
-		expect(collectSqlFragments(trackingWhere).join(" ")).toContain("opportunities.assigned_to");
+		expectOpportunityTenantScope(trackingWhere);
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
 			expect.objectContaining({
 				workflowKey: "pricing_package_approval",
 				subjectType: "pricing_summary",
+				organizationId: "org-1",
 				toState: "locked",
 				terminal: true,
 				metadata: expect.objectContaining({
+					organizationId: "org-1",
 					criticalAlignmentIssueCount: 1,
 					criticalAlignmentWaived: true,
 				}),
@@ -460,6 +489,9 @@ describe("pricing approval workflow", () => {
 			expect.objectContaining({
 				taskKey: "pricing-package:pricing-1",
 				state: "completed",
+				metadata: expect.objectContaining({
+					organizationId: "org-1",
+				}),
 			})
 		);
 	});

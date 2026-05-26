@@ -21,6 +21,7 @@ import { and, eq, sql, type SQL } from "drizzle-orm";
 type CostElementRow = typeof costElements.$inferSelect;
 type CostTechnicalTrackingRow = typeof costTechnicalTracking.$inferSelect;
 type PricingSummaryRow = typeof pricingSummaries.$inferSelect;
+type PricingApprovalUserContext = UserContext & { organizationId: string };
 
 export type CostElementPricingAction =
 	| "submit_review"
@@ -66,60 +67,67 @@ export interface PricingApprovalWorkflowResult {
 const COST_ELEMENT_WORKFLOW_KEY = "cost_element_pricing_approval";
 const PRICING_PACKAGE_WORKFLOW_KEY = "pricing_package_approval";
 
-function requirePricingApprovalContext(userContext: { userId: string; organizationId?: string | null }) {
+function requirePricingApprovalContext(userContext: UserContext): PricingApprovalUserContext {
 	if (!userContext.organizationId) {
 		throw new Error("No organization context");
 	}
+	return userContext as PricingApprovalUserContext;
 }
 
-function assignedOpportunityExistsSql(opportunityId: unknown, userId: string): SQL {
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: PricingApprovalUserContext): SQL {
 	return sql`exists (
 		select 1
 		from opportunities
 		where opportunities.id = ${opportunityId}
-			and opportunities.assigned_to = ${userId}
+			and (
+				opportunities.organization_id = ${userContext.organizationId}
+				or opportunities.organization_id is null
+			)
+			and opportunities.assigned_to = ${userContext.userId}
 	)`;
 }
 
-function visibleCostElementByIdCondition(costElementId: string, userId: string): SQL {
+function visibleCostElementByIdCondition(costElementId: string, userContext: PricingApprovalUserContext): SQL {
 	return and(
 		eq(costElements.id, costElementId),
-		assignedOpportunityExistsSql(costElements.opportunityId, userId)
+		assignedOpportunityExistsSql(costElements.opportunityId, userContext)
 	)!;
 }
 
-function visiblePricingSummaryByIdCondition(pricingSummaryId: string, userId: string): SQL {
+function visiblePricingSummaryByIdCondition(pricingSummaryId: string, userContext: PricingApprovalUserContext): SQL {
 	return and(
 		eq(pricingSummaries.id, pricingSummaryId),
-		assignedOpportunityExistsSql(pricingSummaries.opportunityId, userId)
+		assignedOpportunityExistsSql(pricingSummaries.opportunityId, userContext)
 	)!;
 }
 
-function visibleCostElementsByOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleCostElementsByOpportunityCondition(opportunityId: string, userContext: PricingApprovalUserContext): SQL {
 	return and(
 		eq(costElements.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
-function visibleCostTechnicalTrackingByOpportunityCondition(opportunityId: string, userId: string): SQL {
+function visibleCostTechnicalTrackingByOpportunityCondition(
+	opportunityId: string,
+	userContext: PricingApprovalUserContext
+): SQL {
 	return and(
 		eq(costTechnicalTracking.opportunityId, opportunityId),
-		assignedOpportunityExistsSql(opportunityId, userId)
+		assignedOpportunityExistsSql(opportunityId, userContext)
 	)!;
 }
 
 export async function transitionCostElementPricingWorkflow(
 	input: CostElementPricingWorkflowInput
 ): Promise<PricingApprovalWorkflowResult> {
-	const userContext = await requireUserContext();
-	requirePricingApprovalContext(userContext);
+	const userContext = requirePricingApprovalContext(await requireUserContext());
 	const reason = requireReason(input.reason, "Pricing cost element transitions require a reason");
 	requireCostElementPricingActionAuthority(userContext, input);
 	const [costElement] = await db
 		.select()
 		.from(costElements)
-		.where(visibleCostElementByIdCondition(input.costElementId, userContext.userId))
+		.where(visibleCostElementByIdCondition(input.costElementId, userContext))
 		.limit(1);
 	if (!costElement) {
 		throw new Error("Cost element not found");
@@ -135,7 +143,7 @@ export async function transitionCostElementPricingWorkflow(
 	const [updatedCostElement] = await db
 		.update(costElements)
 		.set(transition.patch)
-		.where(visibleCostElementByIdCondition(input.costElementId, userContext.userId))
+		.where(visibleCostElementByIdCondition(input.costElementId, userContext))
 		.returning();
 	if (!updatedCostElement) {
 		throw new Error("Failed to update cost element pricing state");
@@ -146,6 +154,7 @@ export async function transitionCostElementPricingWorkflow(
 		subjectType: "cost_element",
 		subjectId: input.costElementId,
 		opportunityId: updatedCostElement.opportunityId,
+		organizationId: userContext.organizationId,
 		fromState,
 		toState: transition.toState,
 		eventType: `cost_element_pricing_${input.action}`,
@@ -160,6 +169,7 @@ export async function transitionCostElementPricingWorkflow(
 			: undefined,
 		metadata: {
 			costElementId: input.costElementId,
+			organizationId: userContext.organizationId,
 			wbsCode: updatedCostElement.wbsCode ?? null,
 			wbsTitle: updatedCostElement.wbsTitle ?? null,
 			elementType: updatedCostElement.elementType ?? null,
@@ -184,6 +194,7 @@ export async function transitionCostElementPricingWorkflow(
 		dueAt: transition.terminal ? null : normalizeDueAt(input.dueAt, 2),
 		metadata: {
 			costElementId: input.costElementId,
+			organizationId: userContext.organizationId,
 			fromState,
 			toState: transition.toState,
 			authorityRole: input.authorityRole ?? null,
@@ -203,23 +214,22 @@ export async function transitionCostElementPricingWorkflow(
 export async function transitionPricingPackageWorkflow(
 	input: PricingPackageWorkflowInput
 ): Promise<PricingApprovalWorkflowResult> {
-	const userContext = await requireUserContext();
-	requirePricingApprovalContext(userContext);
+	const userContext = requirePricingApprovalContext(await requireUserContext());
 	const reason = requireReason(input.reason, "Pricing package transitions require a reason");
 	requirePricingPackageActionAuthority(userContext, input);
 	const [summary] = await db
 		.select()
 		.from(pricingSummaries)
-		.where(visiblePricingSummaryByIdCondition(input.pricingSummaryId, userContext.userId))
+		.where(visiblePricingSummaryByIdCondition(input.pricingSummaryId, userContext))
 		.limit(1);
 	if (!summary) {
 		throw new Error("Pricing summary not found");
 	}
 
 	const [elements, trackingRows] = await Promise.all([
-		db.select().from(costElements).where(visibleCostElementsByOpportunityCondition(summary.opportunityId, userContext.userId)),
+		db.select().from(costElements).where(visibleCostElementsByOpportunityCondition(summary.opportunityId, userContext)),
 		db.select().from(costTechnicalTracking).where(
-			visibleCostTechnicalTrackingByOpportunityCondition(summary.opportunityId, userContext.userId)
+			visibleCostTechnicalTrackingByOpportunityCondition(summary.opportunityId, userContext)
 		),
 	]);
 	const fromState = derivePricingSummaryState(summary, elements);
@@ -234,7 +244,7 @@ export async function transitionPricingPackageWorkflow(
 	const [updatedSummary] = await db
 		.update(pricingSummaries)
 		.set(transition.patch)
-		.where(visiblePricingSummaryByIdCondition(input.pricingSummaryId, userContext.userId))
+		.where(visiblePricingSummaryByIdCondition(input.pricingSummaryId, userContext))
 		.returning();
 	if (!updatedSummary) {
 		throw new Error("Failed to update pricing summary workflow projection");
@@ -245,6 +255,7 @@ export async function transitionPricingPackageWorkflow(
 		subjectType: "pricing_summary",
 		subjectId: input.pricingSummaryId,
 		opportunityId: updatedSummary.opportunityId,
+		organizationId: userContext.organizationId,
 		fromState,
 		toState: transition.toState,
 		eventType: `pricing_package_${input.action}`,
@@ -259,6 +270,7 @@ export async function transitionPricingPackageWorkflow(
 			: undefined,
 		metadata: {
 			pricingSummaryId: input.pricingSummaryId,
+			organizationId: userContext.organizationId,
 			action: input.action,
 			authorityRole: input.authorityRole ?? null,
 			costElementCount: elements.length,
@@ -283,6 +295,7 @@ export async function transitionPricingPackageWorkflow(
 		dueAt: transition.terminal ? null : normalizeDueAt(input.dueAt, 2),
 		metadata: {
 			pricingSummaryId: input.pricingSummaryId,
+			organizationId: userContext.organizationId,
 			fromState,
 			toState: transition.toState,
 			criticalAlignmentIssueCount: transition.criticalIssues.length,

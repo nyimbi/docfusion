@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Pricing Approval Opportunity Tenant Predicates
+
+Status: implemented and verified.
+
+Purpose: keep cost-element pricing reviews and pricing-package approval transitions scoped to the caller's organization through the owning opportunity before pricing state or runtime task updates.
+
+Changes in this slice:
+- Require typed organization context for pricing approval workflows.
+- Add opportunity organization predicates, with legacy null-opportunity fallback, to cost element, pricing summary, cost element collection, and cost-technical tracking visibility checks.
+- Include organization context in pricing approval workflow runtime transitions and task metadata.
+- Extend pricing approval tests to assert opportunity organization predicates and runtime organization payloads.
+
+Verification:
+- `npm test -- pricing-approval-workflow.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` from the repo root passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 5 approval/production/correction test files and 42 tests.
+
+Remaining after this slice:
+- Continue closing remaining assignment-only workflow surfaces such as work items, review package, final artifacts, task management, workflow domain, submissions, pipeline, pricing, reviews, proposal documents, win themes, and rendering.
+
 ### 2026-05-27 - Claim Remediation Opportunity Tenant Predicates
 
 Status: implemented and verified.
