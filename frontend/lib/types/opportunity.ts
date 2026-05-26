@@ -780,6 +780,22 @@ export type ProposalDocumentStatus =
 	| "approved"
 	| "final";
 
+export interface ProposalFinalArtifactSummary {
+	format: ExportFormat;
+	filename: string;
+	artifactHash: string;
+	downloadUrl?: string | null;
+	approvedBy?: string | null;
+	approvedAt?: Date | string | null;
+	renderedAt?: Date | string | null;
+}
+
+export interface ProposalFinalSubmissionSignoff {
+	signedBy: string;
+	signedAt: Date | string;
+	signoffRole?: string | null;
+}
+
 /**
  * A proposal document linked to an opportunity.
  */
@@ -798,6 +814,9 @@ export interface ProposalDocument {
 	aiAnalysisScore: number | null;
 	aiAnalysisAt: Date | null;
 	notes: string | null;
+	renderedArtifact: ProposalFinalArtifactSummary | null;
+	finalArtifact: ProposalFinalArtifactSummary | null;
+	finalSubmissionSignoff: ProposalFinalSubmissionSignoff | null;
 	createdAt: Date;
 	updatedAt: Date;
 	/** Joined document data */

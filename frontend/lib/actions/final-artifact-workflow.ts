@@ -15,7 +15,7 @@ import { and, eq, sql, type SQL } from "drizzle-orm";
 type DocumentRow = typeof documents.$inferSelect;
 type ProposalDocumentRow = typeof proposalDocuments.$inferSelect;
 
-export type FinalArtifactAction = "request_render" | "render" | "approve" | "reopen";
+export type FinalArtifactAction = "request_render" | "render" | "approve" | "signoff" | "reopen";
 
 export interface FinalArtifactManifest {
 	documentId: string;
@@ -343,6 +343,43 @@ async function buildTransition(input: {
 					: undefined,
 			};
 		}
+		case "signoff": {
+			requireAuthority(input.input.approvalRole, "Recording final submission signoff requires executive or legal authority");
+			const artifact = finalArtifact(input.document.metadata);
+			if (!artifact) {
+				throw new Error("Final submission signoff requires an approved final artifact");
+			}
+			return {
+				toState: "submission_signed_off",
+				terminal: true,
+				taskState: "completed",
+				taskTitle: "Final submission signoff recorded",
+				priority: "medium",
+				assignedRole: "proposal_manager",
+				artifact,
+				documentPatch: {
+					metadata: mergeMetadata(input.document.metadata, {
+						finalSubmissionSignoff: {
+							signedAt: now.toISOString(),
+							signedBy: input.actorId,
+							signoffRole: input.input.approvalRole,
+						},
+						finalArtifactWorkflow: {
+							state: "submission_signed_off",
+							signedAt: now.toISOString(),
+							signedBy: input.actorId,
+							signoffRole: input.input.approvalRole,
+						},
+					}),
+					updatedAt: now,
+				},
+				proposalPatch: input.proposalDocument
+					? {
+						updatedAt: now,
+					}
+					: undefined,
+			};
+		}
 		case "reopen":
 			requireAuthority(input.input.approvalRole, "Reopening an approved final artifact requires production authority");
 			return {
@@ -356,6 +393,7 @@ async function buildTransition(input: {
 					status: "draft",
 					metadata: mergeMetadata(input.document.metadata, {
 						finalArtifact: null,
+						finalSubmissionSignoff: null,
 						finalArtifactWorkflow: {
 							state: "artifact_reopened",
 							reopenedAt: now.toISOString(),
@@ -516,6 +554,11 @@ function latestArtifact(metadata: unknown, format: ExportFormat | undefined): Fi
 	return null;
 }
 
+function finalArtifact(metadata: unknown): FinalArtifactManifest | null {
+	const current = asRecord(metadata);
+	return isArtifact(current.finalArtifact) ? current.finalArtifact : null;
+}
+
 function isArtifact(value: unknown): value is FinalArtifactManifest {
 	return Boolean(
 		value &&
@@ -527,6 +570,9 @@ function isArtifact(value: unknown): value is FinalArtifactManifest {
 
 function finalArtifactState(document: DocumentRow, proposalDocument: ProposalDocumentRow | null) {
 	const metadata = asRecord(document.metadata);
+	if (isRecord(metadata.finalSubmissionSignoff) && isArtifact(metadata.finalArtifact)) {
+		return "submission_signed_off";
+	}
 	if (isArtifact(metadata.finalArtifact)) {
 		return "artifact_approved";
 	}
@@ -534,6 +580,10 @@ function finalArtifactState(document: DocumentRow, proposalDocument: ProposalDoc
 		return "artifact_rendered";
 	}
 	return proposalDocument?.status ?? document.status ?? "draft";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function requireReason(value: string | null | undefined, message: string) {

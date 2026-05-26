@@ -663,3 +663,29 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Strengthen final artifact/signoff creation paths if operators cannot yet produce the metadata required by the final submission gate.
+
+### 2026-05-26 - Proposal Final Package Signoff Path
+
+Status: implemented and verified.
+
+Purpose: give operators a first-class path to produce the artifact hash and executive/legal signoff metadata required by the enforced final submission gate.
+
+Changes in this slice:
+- Add a `signoff` transition to the final artifact workflow that requires authority, only runs after an approved final artifact exists, and records `finalSubmissionSignoff` metadata.
+- Clear final submission signoff metadata when a final artifact is reopened for correction.
+- Surface rendered artifact, approved artifact, and signoff summaries on proposal document records.
+- Add a proposal-document finalization server action that renders/approves/signs/reopens a final package and returns the refreshed proposal document.
+- Add final package controls to the opportunity proposal document cards for render, approve, sign off, and reopen actions.
+
+Verification:
+- `npm run test -- __tests__/actions/final-artifact-workflow.test.ts` passed.
+- `npm run test -- __tests__/actions/proposal-documents-scope.test.ts` passed.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Full frontend suite, production build, and browser visual pass remain intentionally skipped while on battery. This slice used focused final artifact/proposal action coverage plus TypeScript checking.
+
+Remaining after this slice:
+- Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
+- Check whether compliance matrix final lock/approval is similarly reachable from the operator workflow before final submission.

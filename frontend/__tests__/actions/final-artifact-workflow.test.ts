@@ -394,6 +394,109 @@ describe("final artifact workflow", () => {
 		);
 	});
 
+	it("records executive signoff only after the final artifact is approved", async () => {
+		const artifact = {
+			documentId: "doc-1",
+			proposalDocumentId: "proposal-doc-1",
+			opportunityId: "opp-1",
+			format: "docx",
+			filename: "technical-approach.docx",
+			mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			size: Buffer.byteLength("rendered final proposal"),
+			artifactHash: renderedHash,
+			downloadUrl: `/api/documents/doc-1/download?format=docx&artifactHash=${renderedHash}`,
+			renderedAt: "2026-05-05T00:00:00.000Z",
+			renderedBy: "production-lead-1",
+			renderTimeMs: 42,
+			pageCount: 12,
+		};
+		let documentPatch: Record<string, unknown> | undefined;
+		let proposalPatch: Record<string, unknown> | undefined;
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ ...proposalDocument, status: "final" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					...baseDocument,
+					status: "final",
+					metadata: {
+						finalArtifact: artifact,
+					},
+				}],
+			}));
+		dbMock.update
+			.mockReturnValueOnce(createChain({
+				result: [{ ...baseDocument, status: "final" }],
+				onSet: (value) => {
+					documentPatch = value;
+				},
+			}))
+			.mockReturnValueOnce(createChain({
+				onSet: (value) => {
+					proposalPatch = value;
+				},
+			}));
+
+		const result = await transitionFinalArtifactWorkflow({
+			documentId: "doc-1",
+			proposalDocumentId: "proposal-doc-1",
+			action: "signoff",
+			reason: "Executive reviewed the final package",
+			approvalRole: "executive_or_legal",
+		});
+
+		expect(result).toMatchObject({
+			fromState: "artifact_approved",
+			toState: "submission_signed_off",
+			artifact,
+		});
+		expect(documentPatch?.metadata).toMatchObject({
+			finalSubmissionSignoff: {
+				signedBy: "production-lead-1",
+				signoffRole: "executive_or_legal",
+			},
+			finalArtifactWorkflow: {
+				state: "submission_signed_off",
+				signedBy: "production-lead-1",
+				signoffRole: "executive_or_legal",
+			},
+		});
+		expect(proposalPatch).toMatchObject({
+			updatedAt: expect.any(Date),
+		});
+		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "submission_signed_off",
+				eventType: "final_artifact_signoff",
+				terminal: true,
+				authorityPolicy: { requiredRoles: ["executive_or_legal"] },
+			})
+		);
+	});
+
+	it("blocks signoff when no approved final artifact exists", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ ...proposalDocument, status: "approved" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					...baseDocument,
+					metadata: {
+						renderedArtifacts: {
+							docx: { artifactHash: renderedHash, filename: "technical-approach.docx" },
+						},
+					},
+				}],
+			}));
+
+		await expect(transitionFinalArtifactWorkflow({
+			documentId: "doc-1",
+			proposalDocumentId: "proposal-doc-1",
+			action: "signoff",
+			reason: "Executive reviewed the final package",
+			approvalRole: "executive_or_legal",
+		})).rejects.toThrow("approved final artifact");
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
 	it("reopens an approved artifact and clears the final proposal state", async () => {
 		let documentPatch: Record<string, unknown> | undefined;
 		let proposalPatch: Record<string, unknown> | undefined;
@@ -405,6 +508,10 @@ describe("final artifact workflow", () => {
 					status: "final",
 					metadata: {
 						finalArtifact: { artifactHash: renderedHash, filename: "technical-approach.docx" },
+						finalSubmissionSignoff: {
+							signedBy: "executive-1",
+							signedAt: "2026-05-05T00:00:00.000Z",
+						},
 					},
 				}],
 			}));
@@ -430,13 +537,14 @@ describe("final artifact workflow", () => {
 		});
 
 		expect(result).toMatchObject({
-			fromState: "artifact_approved",
+			fromState: "submission_signed_off",
 			toState: "artifact_reopened",
 		});
 		expect(documentPatch).toMatchObject({
 			status: "draft",
 			metadata: {
 				finalArtifact: null,
+				finalSubmissionSignoff: null,
 				finalArtifactWorkflow: {
 					state: "artifact_reopened",
 					reopenedBy: "production-lead-1",

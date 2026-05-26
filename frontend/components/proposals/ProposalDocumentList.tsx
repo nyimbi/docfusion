@@ -9,7 +9,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { BadgeCheck, FileCheck2, PenLine, RotateCcw, Sparkles } from "lucide-react";
 import type {
 	ProposalDocument,
 	ProposalDocumentStatus,
@@ -18,6 +18,7 @@ import type {
 } from "@/lib/types/opportunity";
 import {
 	generateRequirementAwareProposalDraft,
+	transitionProposalDocumentFinalization,
 	updateProposalDocumentStatus,
 	unlinkProposalDocument,
 } from "@/lib/actions/proposal-documents";
@@ -97,6 +98,7 @@ export function ProposalDocumentList({
 }: ProposalDocumentListProps) {
 	const [isPending, startTransition] = useTransition();
 	const [draftingDocumentId, setDraftingDocumentId] = useState<string | null>(null);
+	const [finalizingDocumentId, setFinalizingDocumentId] = useState<string | null>(null);
 
 	const handleStatusChange = (doc: ProposalDocument, newStatus: ProposalDocumentStatus) => {
 		startTransition(async () => {
@@ -121,6 +123,28 @@ export function ProposalDocumentList({
 				console.error("Failed to generate requirement-aware draft:", error);
 			} finally {
 				setDraftingDocumentId(null);
+			}
+		});
+	};
+
+	const handleFinalization = (
+		doc: ProposalDocument,
+		action: "render" | "approve" | "signoff" | "reopen"
+	) => {
+		setFinalizingDocumentId(doc.id);
+		startTransition(async () => {
+			try {
+				const updated = await transitionProposalDocumentFinalization(doc.id, {
+					action,
+					format: "docx",
+					approvalRole: finalizationApprovalRole(action),
+					reason: finalizationReason(action),
+				});
+				onDocumentUpdate?.(updated);
+			} catch (error) {
+				console.error("Failed to update final package workflow:", error);
+			} finally {
+				setFinalizingDocumentId(null);
 			}
 		});
 	};
@@ -199,9 +223,11 @@ export function ProposalDocumentList({
 							document={doc}
 							onStatusChange={(status) => handleStatusChange(doc, status)}
 							onGenerateDraft={() => handleGenerateDraft(doc)}
+							onFinalization={(action) => handleFinalization(doc, action)}
 							onRemove={() => handleRemove(doc.id)}
 							isPending={isPending}
 							isDrafting={draftingDocumentId === doc.id}
+							isFinalizing={finalizingDocumentId === doc.id}
 						/>
 					))}
 
@@ -237,16 +263,20 @@ function ProposalDocumentCard({
 	document,
 	onStatusChange,
 	onGenerateDraft,
+	onFinalization,
 	onRemove,
 	isPending,
 	isDrafting,
+	isFinalizing,
 }: {
 	document: ProposalDocument;
 	onStatusChange: (status: ProposalDocumentStatus) => void;
 	onGenerateDraft: () => void;
+	onFinalization: (action: "render" | "approve" | "signoff" | "reopen") => void;
 	onRemove: () => void;
 	isPending: boolean;
 	isDrafting: boolean;
+	isFinalizing: boolean;
 }) {
 	const statusStyle = STATUS_COLORS[document.status];
 	const icon = DOCUMENT_TYPE_ICONS[document.documentType];
@@ -392,6 +422,13 @@ function ProposalDocumentCard({
 				)}
 
 				{/* Quick Action */}
+				<FinalPackagePanel
+					document={document}
+					isPending={isPending}
+					isFinalizing={isFinalizing}
+					onFinalization={onFinalization}
+				/>
+
 				<div className="grid grid-cols-2 gap-2">
 					<Button
 						variant="outline"
@@ -422,6 +459,133 @@ function ProposalDocumentCard({
 			</CardContent>
 		</Card>
 	);
+}
+
+function FinalPackagePanel({
+	document,
+	isPending,
+	isFinalizing,
+	onFinalization,
+}: {
+	document: ProposalDocument;
+	isPending: boolean;
+	isFinalizing: boolean;
+	onFinalization: (action: "render" | "approve" | "signoff" | "reopen") => void;
+}) {
+	const approvedForRender = document.status === "approved" || document.status === "final";
+	const hash = document.finalArtifact?.artifactHash ?? document.renderedArtifact?.artifactHash ?? null;
+	const hashLabel = hash ? `${hash.slice(0, 10)}...${hash.slice(-6)}` : "No artifact hash";
+	const signoffLabel = document.finalSubmissionSignoff
+		? `Signed by ${document.finalSubmissionSignoff.signedBy}`
+		: "Awaiting signoff";
+
+	return (
+		<div className="space-y-2 rounded-md border border-[var(--border)] bg-[var(--background-muted)] p-3">
+			<div className="flex items-center justify-between gap-2">
+				<div className="min-w-0">
+					<p className="text-xs font-medium text-[var(--foreground)]">Final package</p>
+					<p className="truncate text-xs text-[var(--foreground-muted)]">{hashLabel}</p>
+				</div>
+				<span
+					className={cn(
+						"shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
+						document.finalSubmissionSignoff
+							? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
+							: document.finalArtifact
+							? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+							: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+					)}
+				>
+					{document.finalSubmissionSignoff ? "Signed" : document.finalArtifact ? "Approved" : "Open"}
+				</span>
+			</div>
+			<p className="truncate text-xs text-[var(--foreground-muted)]">{signoffLabel}</p>
+			{!approvedForRender && (
+				<p className="text-xs text-amber-600 dark:text-amber-400">
+					Approve the proposal document before rendering the final package.
+				</p>
+			)}
+			<div className="grid grid-cols-2 gap-2">
+				{!document.finalArtifact && (
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => onFinalization("render")}
+						disabled={isPending || !approvedForRender}
+						isLoading={isFinalizing}
+						loadingText="Rendering final package"
+					>
+						<FileCheck2 className="h-4 w-4" />
+						{document.renderedArtifact ? "Re-render" : "Render"}
+					</Button>
+				)}
+				{document.renderedArtifact && !document.finalArtifact && (
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => onFinalization("approve")}
+						disabled={isPending}
+						isLoading={isFinalizing}
+						loadingText="Approving final package"
+					>
+						<BadgeCheck className="h-4 w-4" />
+						Approve
+					</Button>
+				)}
+				{document.finalArtifact && !document.finalSubmissionSignoff && (
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => onFinalization("signoff")}
+						disabled={isPending}
+						isLoading={isFinalizing}
+						loadingText="Recording signoff"
+					>
+						<PenLine className="h-4 w-4" />
+						Sign off
+					</Button>
+				)}
+				{document.finalArtifact && (
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={() => onFinalization("reopen")}
+						disabled={isPending}
+						isLoading={isFinalizing}
+						loadingText="Reopening final package"
+					>
+						<RotateCcw className="h-4 w-4" />
+						Reopen
+					</Button>
+				)}
+			</div>
+		</div>
+	);
+}
+
+function finalizationReason(action: "render" | "approve" | "signoff" | "reopen") {
+	switch (action) {
+		case "render":
+			return "Render the approved proposal document into the final DOCX package";
+		case "approve":
+			return "Approve the rendered final package for submission";
+		case "signoff":
+			return "Record executive or legal signoff for final submission";
+		case "reopen":
+			return "Reopen the final package for correction before submission";
+	}
+}
+
+function finalizationApprovalRole(action: "render" | "approve" | "signoff" | "reopen") {
+	switch (action) {
+		case "approve":
+		case "reopen":
+			return "proposal_manager";
+		case "signoff":
+			return "executive_or_legal";
+		case "render":
+			return undefined;
+	}
 }
 
 function StatusCount({

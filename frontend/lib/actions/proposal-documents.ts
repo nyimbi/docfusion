@@ -25,14 +25,26 @@ import type {
 	UpdateSectionInput,
 	SectionProgress,
 	DocumentSectionStatus,
+	ExportFormat,
 } from "@/lib/types/opportunity";
 import type { DocumentContent } from "@/lib/types/document";
 import { getDocumentTypeLabel } from "@/lib/utils/proposal-labels";
+import {
+	transitionFinalArtifactWorkflow,
+	type FinalArtifactAction,
+} from "@/lib/actions/final-artifact-workflow";
 import {
 	getDatacraftProposalDocumentContent,
 	getDatacraftProposalSectionSeeds,
 } from "@/lib/data/datacraft-response-content";
 import { getCurrentUserId } from "@/lib/auth-utils";
+
+export interface ProposalDocumentFinalizationInput {
+	action: FinalArtifactAction;
+	reason: string;
+	format?: ExportFormat;
+	approvalRole?: string;
+}
 
 // ============================================================================
 // Helper Functions
@@ -45,6 +57,7 @@ function mapProposalDocument(
 	row: typeof proposalDocuments.$inferSelect,
 	doc?: typeof documents.$inferSelect | null
 ): ProposalDocument {
+	const metadata = asRecord(doc?.metadata);
 	return {
 		id: row.id,
 		opportunityId: row.opportunityId,
@@ -60,6 +73,9 @@ function mapProposalDocument(
 		aiAnalysisScore: row.aiAnalysisScore,
 		aiAnalysisAt: row.aiAnalysisAt,
 		notes: row.notes,
+		renderedArtifact: latestRenderedArtifact(metadata),
+		finalArtifact: artifactSummary(metadata.finalArtifact),
+		finalSubmissionSignoff: signoffSummary(metadata.finalSubmissionSignoff),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 		document: doc
@@ -72,6 +88,65 @@ function mapProposalDocument(
 			  }
 			: undefined,
 	};
+}
+
+function latestRenderedArtifact(metadata: unknown): ProposalDocument["renderedArtifact"] {
+	const renderedArtifacts = asRecord(asRecord(metadata).renderedArtifacts);
+	const preferred = artifactSummary(renderedArtifacts.docx) ?? artifactSummary(renderedArtifacts.pdf);
+	if (preferred) {
+		return preferred;
+	}
+	for (const candidate of Object.values(renderedArtifacts).reverse()) {
+		const artifact = artifactSummary(candidate);
+		if (artifact) {
+			return artifact;
+		}
+	}
+	return null;
+}
+
+function artifactSummary(value: unknown): ProposalDocument["finalArtifact"] {
+	const record = asRecord(value);
+	const format = typeof record.format === "string" ? record.format : null;
+	if (!isExportFormat(format) || typeof record.artifactHash !== "string" || typeof record.filename !== "string") {
+		return null;
+	}
+	return {
+		format,
+		filename: record.filename,
+		artifactHash: record.artifactHash,
+		downloadUrl: typeof record.downloadUrl === "string" ? record.downloadUrl : null,
+		approvedBy: typeof record.approvedBy === "string" ? record.approvedBy : null,
+		approvedAt: typeof record.approvedAt === "string" || record.approvedAt instanceof Date ? record.approvedAt : null,
+		renderedAt: typeof record.renderedAt === "string" || record.renderedAt instanceof Date ? record.renderedAt : null,
+	};
+}
+
+function signoffSummary(value: unknown): ProposalDocument["finalSubmissionSignoff"] {
+	const record = asRecord(value);
+	if (typeof record.signedBy !== "string" || !(typeof record.signedAt === "string" || record.signedAt instanceof Date)) {
+		return null;
+	}
+	return {
+		signedBy: record.signedBy,
+		signedAt: record.signedAt,
+		signoffRole: typeof record.signoffRole === "string" ? record.signoffRole : null,
+	};
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? value as Record<string, unknown>
+		: {};
+}
+
+function isExportFormat(value: string | null): value is ExportFormat {
+	return value === "pdf" ||
+		value === "docx" ||
+		value === "pptx" ||
+		value === "latex" ||
+		value === "markdown" ||
+		value === "html";
 }
 
 /**
@@ -963,6 +1038,35 @@ export async function updateProposalDocumentStatus(
 	notes?: string
 ): Promise<ProposalDocument> {
 	return updateProposalDocument(id, { status, notes });
+}
+
+/**
+ * Advance the final package workflow for a proposal document and return the refreshed link.
+ */
+export async function transitionProposalDocumentFinalization(
+	id: string,
+	input: ProposalDocumentFinalizationInput
+): Promise<ProposalDocument> {
+	const proposalDocument = await getProposalDocument(id);
+	if (!proposalDocument) {
+		throw new Error("Proposal document not found");
+	}
+
+	await transitionFinalArtifactWorkflow({
+		documentId: proposalDocument.documentId,
+		proposalDocumentId: proposalDocument.id,
+		opportunityId: proposalDocument.opportunityId,
+		action: input.action,
+		reason: input.reason,
+		format: input.format ?? "docx",
+		approvalRole: input.approvalRole,
+	});
+
+	const updated = await getProposalDocument(id);
+	if (!updated) {
+		throw new Error("Proposal document not found after finalization transition");
+	}
+	return updated;
 }
 
 /**
