@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-26 - Opportunity Digest Authority Check
+
+Status: implemented and verified.
+
+Purpose: prevent opportunity digest delivery workflows from evaluating saved-search matches and queueing notifications unless the authenticated actor has proposal or capture authority.
+
+Changes in this slice:
+- Resolve role-bearing user context for opportunity digest execution.
+- Preserve the existing self-only digest guard while adding `proposal_manager`, `capture_manager`, or admin authority before saved-search reads.
+- Stop unauthorized digest attempts before saved-search evaluation, opportunity matching, notification queueing, or workflow runtime recording.
+- Add focused coverage for non-authority digest attempts.
+
+Verification:
+- `npm run test -- __tests__/actions/opportunity-digest.test.ts` from `frontend/` passed.
+- `git diff --check` passed.
+
+Testing scope note:
+- Typecheck, full frontend suite, browser checks, and production build remain intentionally skipped while on battery. This slice targets opportunity-digest authority with one focused action test file and whitespace validation.
+
+Remaining after this slice:
+- Continue scanning direct workflow transitions that only store authority metadata after mutations rather than enforcing authority up front.
+- Continue closing discovery-to-response workflow gaps.
+
 ### 2026-05-26 - Final Submission Authority Check
 
 Status: implemented and verified.

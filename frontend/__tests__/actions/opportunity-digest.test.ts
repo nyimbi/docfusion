@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const recordTransitionMock = vi.hoisted(() => vi.fn());
-const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const requireUserContextMock = vi.hoisted(() => vi.fn());
 const opportunityActionsMock = vi.hoisted(() => ({
 	getSavedSearches: vi.fn(),
 	getOpportunities: vi.fn(),
@@ -13,9 +13,21 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 
 vi.mock("@/lib/actions/opportunities", () => opportunityActionsMock);
 
-vi.mock("@/lib/auth-utils", () => ({
-	getCurrentUserId: getCurrentUserIdMock,
-}));
+vi.mock("@/lib/auth-utils", () => {
+	const userHasAuthorityRole = (
+		context: { role?: string; roles?: string[] },
+		requiredRole: string
+	) => {
+		const roles = new Set([context.role, ...(context.roles ?? [])]
+			.filter(Boolean)
+			.map((value) => String(value).trim().toLowerCase()));
+		return roles.has("admin") || roles.has(requiredRole.trim().toLowerCase());
+	};
+	return {
+		requireUserContext: requireUserContextMock,
+		userHasAuthorityRole,
+	};
+});
 
 vi.mock("@/lib/utils/logger", () => ({
 	logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
@@ -55,7 +67,10 @@ const opportunity = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	getCurrentUserIdMock.mockResolvedValue("pm-1");
+	requireUserContextMock.mockResolvedValue({
+		userId: "pm-1",
+		roles: ["proposal_manager"],
+	});
 	recordTransitionMock.mockResolvedValue({
 		id: "00000000-0000-4000-8000-00000000wf01",
 	});
@@ -138,7 +153,10 @@ describe("sendOpportunityDigestWorkflow", () => {
 	});
 
 	it("rejects attempts to evaluate another user's digest", async () => {
-		getCurrentUserIdMock.mockResolvedValueOnce("attacker-1");
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "attacker-1",
+			roles: ["proposal_manager"],
+		});
 
 		await expect(sendOpportunityDigestWorkflow({
 			userId: "pm-1",
@@ -146,6 +164,22 @@ describe("sendOpportunityDigestWorkflow", () => {
 		})).rejects.toThrow("Unauthorized");
 
 		expect(opportunityActionsMock.getSavedSearches).not.toHaveBeenCalled();
+		expect(recordTransitionMock).not.toHaveBeenCalled();
+	});
+
+	it("requires proposal or capture authority before evaluating digest matches", async () => {
+		requireUserContextMock.mockResolvedValueOnce({
+			userId: "pm-1",
+			roles: ["writer"],
+		});
+
+		await expect(sendOpportunityDigestWorkflow({
+			userId: "pm-1",
+			digestDate: "2026-05-05T06:30:00.000Z",
+		})).rejects.toThrow("Sending opportunity digest requires proposal or capture authority");
+
+		expect(opportunityActionsMock.getSavedSearches).not.toHaveBeenCalled();
+		expect(opportunityActionsMock.getOpportunities).not.toHaveBeenCalled();
 		expect(recordTransitionMock).not.toHaveBeenCalled();
 	});
 });

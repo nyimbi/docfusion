@@ -8,7 +8,7 @@ import {
 } from "@/lib/actions/opportunities";
 import type { OpportunityListItem } from "@/lib/types/opportunity";
 import { logger } from "@/lib/utils/logger";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireUserContext, userHasAuthorityRole, type UserContext } from "@/lib/auth-utils";
 
 export interface OpportunityDigestWorkflowInput {
 	userId: string;
@@ -110,11 +110,23 @@ export async function sendOpportunityDigestWorkflow(
 }
 
 async function requireDigestActor(userId: string): Promise<string> {
-	const currentUserId = await getCurrentUserId();
+	const userContext = await requireUserContext();
+	const currentUserId = userContext.userId;
 	if (!currentUserId || currentUserId !== userId) {
 		throw new Error("Unauthorized");
 	}
+	requireDigestAuthority(userContext);
 	return currentUserId;
+}
+
+function requireDigestAuthority(userContext: Pick<UserContext, "role" | "roles">): void {
+	const requiredRoles = ["proposal_manager", "capture_manager"];
+	if (requiredRoles.some((role) => userHasAuthorityRole(userContext, role))) {
+		return;
+	}
+	throw new Error(
+		`Sending opportunity digest requires proposal or capture authority: requires ${requiredRoles.join(" or ")}`
+	);
 }
 
 async function collectDigestCandidates(
