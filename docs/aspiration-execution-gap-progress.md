@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Full Non-Live Wave 9 Proof After Evaluator Coverage
+
+Status: verified.
+
+Purpose: revalidate the non-DB discovery-to-submission path after tightening live response evaluator-criteria extraction, win-theme coverage, and Docling retry behavior.
+
+Verification:
+- `npm run platform:proof -- --all --wave 9` passed.
+- Covered discovery-to-response package bridge, response package readiness, presentation export/practice readiness, and discovery-to-submission core proof scenarios.
+- The run passed 21 test files and 234 tests across live response package readiness, discovery parsing/import, opportunity document download, source document intake, RFP parse workflow, requirements workflow, proposal documents, final artifacts, final submission gates, submissions scope, and presentation export.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity and rerun the DB-backed live persisted import-response proof.
+- Keep Wave 9 as the non-live regression chunk for response-readiness and discovery-to-submission changes.
+
 ### 2026-05-27 - Live Kenya PPIP Evaluator Criteria Coverage
 
 Status: implemented and verified.
