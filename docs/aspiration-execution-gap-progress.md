@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable AI Resume Parse Fallbacks
+
+Status: implemented and verified.
+
+Purpose: prevent resume parsing from reporting success when AI returns syntactically valid JSON that does not contain a usable candidate identity or resume structure.
+
+Changes in this slice:
+- Validate AI-parsed resume JSON before returning a successful parsed resume.
+- Require non-blank first and last names for AI parse acceptance.
+- Normalize optional education, experience, skills, certification, and clearance arrays without preserving empty objects.
+- Reuse deterministic resume extraction when AI parse output is unusable.
+
+Verification:
+- `npm test -- personnel-auth.test.ts --run` passed with 2 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave4-planning-collaboration-tasks` passed with 34 tests.
+
+Remaining after this slice:
+- Continue hardening generated response artifacts and analysis outputs against invalid successful AI results.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Unusable LLM Score Analysis Fallbacks
 
 Status: implemented and verified.

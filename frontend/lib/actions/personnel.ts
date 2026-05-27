@@ -119,6 +119,123 @@ interface ParsedResume {
 	};
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function nonBlankString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function normalizeResumeEducation(value: unknown): ParsedResume["education"][number] | null {
+	if (!isRecord(value)) return null;
+	const degree = nonBlankString(value.degree);
+	const institution = nonBlankString(value.institution);
+	if (!degree || !institution) return null;
+	return {
+		degree,
+		field: nonBlankString(value.field) ?? "General",
+		institution,
+		year: typeof value.year === "number" && Number.isFinite(value.year)
+			? Math.floor(value.year)
+			: new Date().getUTCFullYear(),
+	};
+}
+
+function normalizeResumeExperience(value: unknown): ParsedResume["experience"][number] | null {
+	if (!isRecord(value)) return null;
+	const title = nonBlankString(value.title);
+	const company = nonBlankString(value.company);
+	if (!title || !company) return null;
+	return {
+		title,
+		company,
+		startDate: nonBlankString(value.startDate) ?? "",
+		endDate: nonBlankString(value.endDate),
+		description: nonBlankString(value.description) ?? "",
+		accomplishments: Array.isArray(value.accomplishments)
+			? value.accomplishments.map(nonBlankString).filter((item): item is string => Boolean(item))
+			: [],
+	};
+}
+
+function normalizeResumeSkill(value: unknown): ParsedResume["skills"][number] | null {
+	if (!isRecord(value)) return null;
+	const skillName = nonBlankString(value.skillName);
+	if (!skillName) return null;
+	return {
+		skillName,
+		proficiency: nonBlankString(value.proficiency) ?? "intermediate",
+		yearsExperience: typeof value.yearsExperience === "number" && Number.isFinite(value.yearsExperience)
+			? Math.max(0, value.yearsExperience)
+			: undefined,
+	};
+}
+
+function normalizeResumeCertification(value: unknown): ParsedResume["certifications"][number] | null {
+	if (!isRecord(value)) return null;
+	const name = nonBlankString(value.name);
+	const issuer = nonBlankString(value.issuer);
+	if (!name || !issuer) return null;
+	return {
+		name,
+		issuer,
+		dateObtained: nonBlankString(value.dateObtained),
+	};
+}
+
+function normalizeParsedResume(value: unknown): ParsedResume | null {
+	if (!isRecord(value)) return null;
+	const firstName = nonBlankString(value.firstName);
+	const lastName = nonBlankString(value.lastName);
+	if (!firstName || !lastName) return null;
+
+	return {
+		firstName,
+		lastName,
+		email: nonBlankString(value.email),
+		phone: nonBlankString(value.phone),
+		currentTitle: nonBlankString(value.currentTitle),
+		professionalSummary: nonBlankString(value.professionalSummary),
+		education: Array.isArray(value.education)
+			? value.education.map(normalizeResumeEducation).filter((item): item is ParsedResume["education"][number] => item !== null)
+			: [],
+		experience: Array.isArray(value.experience)
+			? value.experience.map(normalizeResumeExperience).filter((item): item is ParsedResume["experience"][number] => item !== null)
+			: [],
+		skills: Array.isArray(value.skills)
+			? value.skills.map(normalizeResumeSkill).filter((item): item is ParsedResume["skills"][number] => item !== null)
+			: [],
+		certifications: Array.isArray(value.certifications)
+			? value.certifications.map(normalizeResumeCertification).filter((item): item is ParsedResume["certifications"][number] => item !== null)
+			: [],
+		clearance: isRecord(value.clearance) && nonBlankString(value.clearance.level) && nonBlankString(value.clearance.status)
+			? {
+				level: nonBlankString(value.clearance.level)!,
+				status: nonBlankString(value.clearance.status)!,
+			}
+			: undefined,
+	};
+}
+
+function buildFallbackParsedResume(fileContent: string): ParsedResume {
+	const lines = fileContent.split("\n");
+	const emailMatch = fileContent.match(/[\w.-]+@[\w.-]+\.\w+/);
+	const phoneMatch = fileContent.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+
+	return {
+		firstName: lines[0]?.split(" ")[0] || "Unknown",
+		lastName: lines[0]?.split(" ").slice(1).join(" ") || "Unknown",
+		email: emailMatch?.[0],
+		phone: phoneMatch?.[0],
+		currentTitle: lines[1]?.trim(),
+		education: [],
+		experience: [],
+		skills: [],
+		certifications: [],
+	};
+}
+
 interface DateRange {
 	start: Date;
 	end: Date;
@@ -980,26 +1097,14 @@ Return ONLY valid JSON, no additional text.`;
 				throw new Error("No JSON found in AI response");
 			}
 
-			parsed = JSON.parse(jsonMatch[0]) as ParsedResume;
+			const normalized = normalizeParsedResume(JSON.parse(jsonMatch[0]));
+			if (!normalized) {
+				throw new Error("AI response did not contain a usable parsed resume");
+			}
+			parsed = normalized;
 		} catch (aiError) {
 			logger.error("AI parsing failed, using fallback extraction:", aiError);
-
-			// Fallback: Basic extraction
-			const lines = fileContent.split("\n");
-			const emailMatch = fileContent.match(/[\w.-]+@[\w.-]+\.\w+/);
-			const phoneMatch = fileContent.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
-
-			parsed = {
-				firstName: lines[0]?.split(" ")[0] || "Unknown",
-				lastName: lines[0]?.split(" ").slice(1).join(" ") || "Unknown",
-				email: emailMatch?.[0],
-				phone: phoneMatch?.[0],
-				currentTitle: lines[1]?.trim(),
-				education: [],
-				experience: [],
-				skills: [],
-				certifications: [],
-			};
+			parsed = buildFallbackParsedResume(fileContent);
 		}
 
 		return { success: true, data: parsed };

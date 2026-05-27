@@ -118,4 +118,29 @@ describe("personnel action auth", () => {
 		expect(dbAccessMock).not.toHaveBeenCalled();
 		expect(completeMock).not.toHaveBeenCalled();
 	});
+
+	it("falls back to deterministic resume extraction when AI returns unusable parsed JSON", async () => {
+		getCurrentUserIdMock.mockResolvedValueOnce("staff-user-1");
+		completeMock.mockResolvedValueOnce({ content: "{}" });
+
+		const result = await parseResume(
+			"Ada Lovelace\nSenior Engineer\nada@example.com",
+			"ada.txt"
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			data: {
+				firstName: "Ada",
+				lastName: "Lovelace",
+				email: "ada@example.com",
+				currentTitle: "Senior Engineer",
+				education: [],
+				experience: [],
+				skills: [],
+				certifications: [],
+			},
+		});
+		expect(dbAccessMock).not.toHaveBeenCalled();
+	});
 });
