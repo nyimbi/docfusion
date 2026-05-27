@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Blank AI Practice Feedback Fallbacks
+
+Status: implemented and verified.
+
+Purpose: prevent oral-presentation practice recordings from storing blank successful AI feedback.
+
+Changes in this slice:
+- Treat blank AI practice-feedback responses as unusable.
+- Reuse deterministic practice-session feedback when AI returns empty text.
+- Add regression coverage proving blank AI feedback still persists a meaningful practice summary.
+
+Verification:
+- `npm test -- presentations-scope.test.ts --run` passed with 8 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-presentation-export-artifacts` passed with 18 tests.
+
+Remaining after this slice:
+- Continue hardening generated response artifacts and analysis outputs against invalid successful AI results.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Live Persisted Import Response Retry Still Blocked
 
 Status: attempted; externally blocked.

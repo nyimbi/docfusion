@@ -2836,7 +2836,7 @@ Keep feedback constructive and motivating. Target 150-200 words.`;
 				maxTokens: 400,
 				temperature: 0.7,
 			});
-			feedback = result.content;
+			feedback = result.content.trim() || generateFallbackFeedback(recording);
 		} catch (aiError) {
 			logger.error("AI feedback generation failed:", aiError);
 			feedback = generateFallbackFeedback(recording);

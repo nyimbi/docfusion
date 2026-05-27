@@ -92,6 +92,7 @@ import {
 	anticipateQuestions,
 	createPresentation,
 	generateAnswerSuggestion,
+	generatePracticeFeedback,
 	generateSpeakerNotes,
 	generateSlidesFromProposal,
 } from "@/lib/actions/presentations";
@@ -370,6 +371,43 @@ describe("presentation opportunity scoping", () => {
 		expect(result.data).toContain("TRANSITION:");
 		expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
 			speakerNotes: result.data,
+		}));
+		expect(revalidatePathMock).toHaveBeenCalledWith(`/presentations/${presentationId}`);
+	});
+
+	it("falls back to deterministic practice feedback when AI returns blank content", async () => {
+		completeMock.mockResolvedValueOnce({ content: "  \n\t" });
+		const updateChain = createChain();
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "recording-1",
+					presentationId,
+					duration: 540,
+					overallScore: 82,
+					pacingAnalysis: { averageWPM: 145, pauseScore: 80 },
+					fillerWordAnalysis: [{ word: "um", count: 2 }],
+					contentCoverage: [{ slideNumber: 1, coverageScore: 90 }],
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: presentationId,
+					opportunityId,
+					title: "Oral presentation",
+					audienceDescription: "Evaluation panel",
+				}],
+			}));
+		dbMock.update.mockReturnValueOnce(updateChain);
+
+		const result = await generatePracticeFeedback("recording-1");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toContain("Practice Session Complete");
+		expect(result.data).toContain("9 minutes");
+		expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+			aiFeedback: result.data,
 		}));
 		expect(revalidatePathMock).toHaveBeenCalledWith(`/presentations/${presentationId}`);
 	});
