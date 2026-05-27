@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Process Flow Generation Fallback
+
+Status: implemented and verified.
+
+Purpose: keep process-flow graphics generation usable when AI output is malformed but the submitted process description already contains enough ordered steps to create a Mermaid diagram.
+
+Changes in this slice:
+- Derive process-flow steps from the provided description using sentence, line, and transition-word boundaries.
+- Build deterministic Mermaid `flowchart TD` output with sanitized labels when AI output cannot be parsed or contains no usable diagram.
+- Preserve existing raw Mermaid extraction when AI returns a flowchart outside JSON.
+- Add regression coverage proving malformed AI output still returns a non-empty process flow without touching persistence when no opportunity is supplied.
+
+Verification:
+- `npm test -- graphics-scope.test.ts` passed with 11 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 179 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing AI-only generation failures where user-supplied structured text can produce deterministic review artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Graphics Suggestion Fallbacks
 
 Status: implemented and verified.

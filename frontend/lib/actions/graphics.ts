@@ -441,6 +441,60 @@ export type GraphicResult = {
 	suggestedActionCaption: string;
 };
 
+type ProcessFlowDraft = {
+	diagramCode: string;
+	title: string;
+	stepCount: number;
+};
+
+function sanitizeMermaidLabel(value: string, fallback: string): string {
+	const sanitized = value
+		.replace(/[`[\]{}<>|]/g, "")
+		.replace(/\s+/g, " ")
+		.trim()
+		.slice(0, 48);
+	return sanitized || fallback;
+}
+
+function deriveProcessSteps(processDescription: string): string[] {
+	const normalized = processDescription
+		.replace(/\r/g, "\n")
+		.replace(/\b(?:then|next|after that|finally)\b/gi, "\n")
+		.replace(/[;>]+/g, "\n");
+	const steps = normalized
+		.split(/\n+|\.\s+/)
+		.map(step => step.replace(/^[-*\d.)\s]+/, "").trim())
+		.filter(step => step.length >= 4)
+		.slice(0, 8);
+
+	if (steps.length >= 2) {
+		return steps;
+	}
+
+	if (steps.length === 1) {
+		return [steps[0], "Validate completion", "Report outcome"];
+	}
+
+	return ["Initiate request", "Execute work", "Validate outcome", "Report results"];
+}
+
+function buildDeterministicProcessFlowDraft(processDescription: string): ProcessFlowDraft {
+	const steps = deriveProcessSteps(processDescription);
+	const lines = ["flowchart TD"];
+	steps.forEach((step, index) => {
+		lines.push(`  S${index + 1}[${sanitizeMermaidLabel(step, `Step ${index + 1}`)}]`);
+	});
+	for (let index = 0; index < steps.length - 1; index++) {
+		lines.push(`  S${index + 1} --> S${index + 2}`);
+	}
+
+	return {
+		diagramCode: lines.join("\n"),
+		title: "Process Flow",
+		stepCount: steps.length,
+	};
+}
+
 /**
  * Input data for org chart generation.
  */
@@ -1036,44 +1090,55 @@ Return a JSON object with:
 
 Ensure the diagram is valid Mermaid syntax and renders correctly.`;
 
-		const response = await manager.complete({
-			messages: [
-				{ role: "system", content: systemPrompt },
-				{ role: "user", content: `Create a process flow diagram for:\n\n${processDescription}` },
-			],
-			temperature: 0.5,
-			maxTokens: 2000,
-		});
-
-		// Parse AI response
 		let diagramCode: string;
 		let title: string = "Process Flow";
 		let stepCount: number = 5;
+		let responseContent = "";
 
 		try {
-			let jsonStr = response.content;
+			const response = await manager.complete({
+				messages: [
+					{ role: "system", content: systemPrompt },
+					{ role: "user", content: `Create a process flow diagram for:\n\n${processDescription}` },
+				],
+				temperature: 0.5,
+				maxTokens: 2000,
+			});
+			responseContent = response.content;
+
+			let jsonStr = responseContent;
 			const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
 			if (jsonMatch) {
 				jsonStr = jsonMatch[1];
 			}
 
 			// Try to find standalone mermaid code block
-			const mermaidMatch = response.content.match(/```mermaid\s*([\s\S]*?)```/);
+			const mermaidMatch = responseContent.match(/```mermaid\s*([\s\S]*?)```/);
 			if (mermaidMatch) {
 				diagramCode = mermaidMatch[1].trim();
 			} else {
 				const parsed = JSON.parse(jsonStr.trim());
-				diagramCode = parsed.diagramCode;
-				title = parsed.title || title;
-				stepCount = parsed.stepCount || stepCount;
+				if (typeof parsed.diagramCode !== "string" || parsed.diagramCode.trim().length === 0) {
+					throw new Error("AI response did not include diagramCode");
+				}
+				diagramCode = parsed.diagramCode.trim();
+				title = typeof parsed.title === "string" && parsed.title.trim().length > 0
+					? parsed.title.trim()
+					: title;
+				stepCount = typeof parsed.stepCount === "number" && parsed.stepCount > 0
+					? parsed.stepCount
+					: stepCount;
 			}
 		} catch {
-			// Fallback: try to extract any flowchart code
-			const flowchartMatch = response.content.match(/(flowchart\s+TD[\s\S]*?)(?:```|$)/);
+			const flowchartMatch = responseContent.match(/(flowchart\s+TD[\s\S]*?)(?:```|$)/);
 			if (flowchartMatch) {
 				diagramCode = flowchartMatch[1].trim();
 			} else {
-				return { success: false, error: "Failed to generate valid diagram code" };
+				logger.warn("Falling back to deterministic process flow generation");
+				const fallback = buildDeterministicProcessFlowDraft(processDescription);
+				diagramCode = fallback.diagramCode;
+				title = fallback.title;
+				stepCount = fallback.stepCount;
 			}
 		}
 

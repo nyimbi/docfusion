@@ -85,6 +85,7 @@ vi.mock("@/lib/ai/providers", () => ({
 import {
 	createGraphic,
 	exportGraphics,
+	generateProcessFlow,
 	listGraphics,
 	recordGraphicFeedback,
 	searchGraphics,
@@ -316,5 +317,21 @@ describe("graphics opportunity scoping", () => {
 		expect(result.data.map((suggestion) => suggestion.graphicType)).toEqual(
 			expect.arrayContaining(["schedule", "org_chart", "chart"])
 		);
+	});
+
+	it("generates a deterministic process flow when AI output has no diagram", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: "not a diagram" });
+
+		const result = await generateProcessFlow(
+			"Receive intake request. Validate requirements. Assign delivery team. Report completion."
+		);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.diagramCode).toContain("flowchart TD");
+		expect(result.data.diagramCode).toContain("Receive intake request");
+		expect(result.data.diagramCode).toContain("S1 --> S2");
+		expect(result.data.suggestedCaption).toContain("4-step");
+		expect(dbMock.insert).not.toHaveBeenCalled();
 	});
 });
