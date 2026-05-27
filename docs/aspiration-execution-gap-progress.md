@@ -25,6 +25,7 @@ Purpose: add UNICEF Supply Division as a live configured source so the platform 
 Changes in this slice:
 - Add a UNICEF Supply Division parser for service-contract tender calendar tables and tender-calendar document cards.
 - Preserve UNICEF source identity, platform name, UN procurement tags, service duration, issuance window, and contact channel through configured-source imports.
+- Preserve parser-emitted source tags through configured-source imports so useful qualifiers such as `ict` and `service-contract` survive persistence.
 - Add UNICEF's service contracts tender calendar to the default live discovery source list.
 - Add a `live-unicef-source` platform proof that verifies live Firecrawl scrape extraction, ICT row detection, metadata preservation, and no fabricated deadlines.
 - Add focused parser, configured-source import, proof-manifest, and default-source regression coverage.
@@ -34,6 +35,8 @@ Verification:
 - `npx tsc --noEmit --pretty false` from `frontend/` passed.
 - `npm run platform:proof -- --include-live-safe --run live-unicef-source` from `frontend/` passed. It scraped `https://www.unicef.org/supply/service-contracts-tender-calendar`, returned 9 normalized UNICEF opportunities, and proved the ICT telephony/software row with Q3 issuance metadata and UNICEF contact email.
 - `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 discovery-to-response bridge test files and 51 tests.
+- Follow-up tag preservation check: `npm test -- discovery-opportunity-import.test.ts` from `frontend/` passed, running 18 tests.
+- Follow-up tag preservation check: `npx tsc --noEmit --pretty false` from `frontend/` passed.
 
 Remaining after this slice:
 - Continue adding high-value live sources where Firecrawl or source APIs can produce normalized opportunities with low noise and useful source documents.

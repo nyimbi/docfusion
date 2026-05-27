@@ -1113,7 +1113,7 @@ describe("discoverAndImportOpportunities", () => {
 			portalUrl: "https://www.unicef.org/supply/service-contracts-tender-calendar",
 			documentUrl: undefined,
 			submissionMethod: "Express interest by emailing sd.servicecontracting@unicef.org; suppliers should also be registered on UNGM.",
-			tags: ["external-discovery", "source-scrape", "unicef", "un-procurement", "tender-calendar"],
+			tags: ["external-discovery", "source-scrape", "unicef", "un-procurement", "tender-calendar", "service-contract", "ict"],
 			metadata: expect.objectContaining({
 				unicef: expect.objectContaining({
 					sourcePage: "service-contracts-tender-calendar",

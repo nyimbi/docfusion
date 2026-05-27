@@ -359,7 +359,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 
 function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: DiscoveryCandidate["discoveryMethod"]): string[] {
 	if (discoveryMethod !== "source_scrape") return ["external-discovery"];
-	return [
+	return [...new Set([
 		"external-discovery",
 		"source-scrape",
 		...(opportunity?.source === "afdb" ? ["afdb", "development-bank", "regional-procurement"] : []),
@@ -369,7 +369,8 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "world_bank" ? ["world-bank", "development-bank", "global-procurement"] : []),
 		...(opportunity?.source === "comesa" ? ["comesa", "regional-procurement"] : []),
 		...(opportunity?.source === "unicef" ? ["unicef", "un-procurement", "tender-calendar"] : []),
-	];
+		...(opportunity?.tags ?? []),
+	])];
 }
 
 function sourceOpportunityType(opportunity: OpportunityData | undefined): OpportunityInput["opportunityType"] | undefined {
