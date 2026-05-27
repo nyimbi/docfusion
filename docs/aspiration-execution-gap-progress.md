@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Cost Realism Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep pricing review usable when AI cost-realism output is malformed but calculated pricing totals, labor mix, and cost elements are already available.
+
+Changes in this slice:
+- Add deterministic cost-realism analysis from calculated pricing summary, cost elements, labor hours, labor rate, direct-cost mix, and indirect-rate signals.
+- Generate bounded scores, factor assessments, risks, mitigations, and narrative from explicit pricing evidence.
+- Return deterministic analysis after AI parse failure instead of failing the action.
+- Add regression coverage proving malformed AI output still produces a reviewable cost-realism assessment.
+
+Verification:
+- `npm test -- pricing.test.ts` passed with 96 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue replacing AI-only pricing and BOE paths where calculated cost data can support deterministic review artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic WBS Generation Fallback
 
 Status: implemented and verified.

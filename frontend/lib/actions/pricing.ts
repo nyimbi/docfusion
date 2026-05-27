@@ -453,6 +453,109 @@ export interface CostRealismAnalysis {
 	narrative: string;
 }
 
+function buildDeterministicCostRealismAnalysis(
+	pricing: PricingSummaryResult,
+	elements: CostElement[]
+): CostRealismAnalysis {
+	const risks: CostRealismAnalysis["risks"] = [];
+	let score = 85;
+	const totalLaborHours = elements
+		.filter(element => element.elementType === "labor")
+		.reduce((sum, element) => sum + (element.hours || 0), 0);
+	const overheadRate = pricing.grandTotals.laborCost > 0
+		? pricing.grandTotals.overhead / pricing.grandTotals.laborCost
+		: 0;
+	const gaRate = pricing.periodSummaries[0]?.gaRate || 0;
+	const feeRate = pricing.periodSummaries[0]?.feeRate || 0;
+
+	if (pricing.grandTotals.totalPrice <= 0) {
+		score -= 35;
+		risks.push({
+			risk: "Total price is zero or missing",
+			likelihood: "high",
+			impact: "high",
+			mitigation: "Complete direct costs, indirect rates, and fee before cost realism review.",
+		});
+	}
+
+	if (totalLaborHours === 0) {
+		score -= 20;
+		risks.push({
+			risk: "No labor hours are priced",
+			likelihood: "medium",
+			impact: "high",
+			mitigation: "Validate that the technical approach has priced staffing for required delivery work.",
+		});
+	}
+
+	if (pricing.metrics.averageLaborRate > 0 && pricing.metrics.averageLaborRate < 35) {
+		score -= 15;
+		risks.push({
+			risk: "Average labor rate appears low",
+			likelihood: "medium",
+			impact: "medium",
+			mitigation: "Check labor categories, seniority mix, and rate build-up against market and contract requirements.",
+		});
+	}
+
+	if (pricing.metrics.laborPercentage > 85 || (pricing.metrics.laborPercentage > 0 && pricing.metrics.laborPercentage < 25)) {
+		score -= 10;
+		risks.push({
+			risk: "Direct-cost mix is concentrated",
+			likelihood: "medium",
+			impact: "medium",
+			mitigation: "Confirm labor, subcontract, travel, material, and ODC allocations match the technical approach.",
+		});
+	}
+
+	if (overheadRate > 0.65 || gaRate > 0.18 || feeRate > 0.18) {
+		score -= 10;
+		risks.push({
+			risk: "Indirect rate or fee is above common planning ranges",
+			likelihood: "low",
+			impact: "medium",
+			mitigation: "Attach approved rate support or update the pricing build-up before submission.",
+		});
+	}
+
+	const boundedScore = Math.max(0, Math.min(100, Math.round(score)));
+	const overallAssessment: CostRealismAnalysis["overallAssessment"] =
+		boundedScore < 60
+			? "potentially_understated"
+			: boundedScore < 75
+				? "potentially_overstated"
+				: "realistic";
+
+	return {
+		overallAssessment,
+		score: boundedScore,
+		factors: {
+			laborRates: {
+				assessment: pricing.metrics.averageLaborRate > 0
+					? `Average labor rate is $${pricing.metrics.averageLaborRate.toFixed(2)} per hour.`
+					: "No labor rate evidence was available.",
+				marketComparison: "Deterministic fallback flags unusually low or missing labor rates for review.",
+			},
+			laborHours: {
+				assessment: `${totalLaborHours} labor hours are priced across ${pricing.laborMix.length} labor categories.`,
+				scopeAlignment: totalLaborHours > 0
+					? "Priced labor exists and should be compared against the final technical approach."
+					: "No priced labor hours were found for technical-scope alignment.",
+			},
+			odcs: {
+				assessment: `${pricing.metrics.odcPercentage.toFixed(1)}% of direct cost is non-labor.`,
+				marketPricing: "Review ODC, subcontract, travel, and material support for vendor quotes or historical basis.",
+			},
+			indirectRates: {
+				assessment: `Estimated overhead ${(overheadRate * 100).toFixed(1)}%, G&A ${(gaRate * 100).toFixed(1)}%, fee ${(feeRate * 100).toFixed(1)}%.`,
+				industryComparison: "Fallback compares indirect rates with common planning ranges and requires approved support for final pricing.",
+			},
+		},
+		risks,
+		narrative: `Deterministic cost realism fallback reviewed ${elements.length} cost elements and a total price of $${pricing.grandTotals.totalPrice.toLocaleString()}. The assessment is ${overallAssessment} with a score of ${boundedScore}; review the listed risks and attach pricing support before submission.`,
+	};
+}
+
 /**
  * Cost summary table for export.
  */
@@ -2923,10 +3026,8 @@ Provide your analysis in JSON format:
 				},
 			};
 		} catch {
-			return {
-				success: false,
-				error: "Failed to parse AI analysis",
-			};
+			logger.warn("Falling back to deterministic cost realism analysis after AI parse failure");
+			return { success: true, data: buildDeterministicCostRealismAnalysis(pricing, elements) };
 		}
 	} catch (error) {
 		logger.error("Error analyzing cost realism:", error);

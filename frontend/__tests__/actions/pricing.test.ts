@@ -873,6 +873,45 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		expect(dbMock.select).not.toHaveBeenCalled();
 	});
 
+	test("returns deterministic cost realism analysis when AI output is malformed", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: "not json", tokensUsed: 0 });
+		const laborElement = {
+			id: "ce-labor-1",
+			elementType: "labor",
+			periodNumber: 1,
+			laborCost: 15000,
+			hours: 100,
+			laborCategoryName: "Systems Engineer",
+		};
+		const odcElement = {
+			id: "ce-odc-1",
+			elementType: "odc",
+			periodNumber: 1,
+			odcAmount: 5000,
+		};
+
+		mockAssignedOpportunity(opportunityId);
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([laborElement, odcElement]))
+			.mockImplementationOnce(() => createChainableQuery([
+				{ rateType: "overhead", rateValue: 0.45 },
+				{ rateType: "ga", rateValue: 0.1 },
+				{ rateType: "fee", rateValue: 0.08 },
+			]))
+			.mockImplementationOnce(() => createChainableQuery([]))
+			.mockImplementationOnce(() => createChainableQuery([laborElement, odcElement]));
+
+		const result = await analyzeCostRealism(opportunityId);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.overallAssessment).toBe("realistic");
+		expect(result.data.score).toBeGreaterThan(0);
+		expect(result.data.factors.laborRates.assessment).toContain("$150.00");
+		expect(result.data.factors.laborHours.assessment).toContain("100 labor hours");
+		expect(result.data.narrative).toContain("Deterministic cost realism fallback");
+	});
+
 	test("requires organization context before exporting cost volume", async () => {
 		mockUserContext.organizationId = undefined;
 
