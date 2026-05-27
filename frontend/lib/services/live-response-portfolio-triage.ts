@@ -50,7 +50,7 @@ export function triageLiveResponsePortfolio(
 	candidates: LiveResponsePortfolioCandidate[],
 	options: { generatedAt?: Date; limit?: number } = {}
 ): LiveResponsePortfolioTriage {
-	const latestCandidates = latestCandidatePerOpportunity(candidates);
+	const latestCandidates = latestCandidatePerOpportunity(latestCandidatePerSourceFeed(candidates));
 	const ranked = latestCandidates
 		.map(scoreCandidate)
 		.sort((left, right) =>
@@ -114,6 +114,18 @@ export function formatLiveResponsePortfolioBrief(triage: LiveResponsePortfolioTr
 	}
 
 	return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function latestCandidatePerSourceFeed(candidates: LiveResponsePortfolioCandidate[]): LiveResponsePortfolioCandidate[] {
+	const latest = new Map<string, LiveResponsePortfolioCandidate>();
+	for (const candidate of candidates) {
+		const key = `${candidate.sourceKind}|${candidate.sourceUrl}`;
+		const current = latest.get(key);
+		if (!current || compareIso(candidate.completedAt, current.completedAt) > 0) {
+			latest.set(key, candidate);
+		}
+	}
+	return [...latest.values()];
 }
 
 function latestCandidatePerOpportunity(candidates: LiveResponsePortfolioCandidate[]): LiveResponsePortfolioCandidate[] {

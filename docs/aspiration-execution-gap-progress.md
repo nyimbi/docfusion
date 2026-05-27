@@ -8100,3 +8100,26 @@ Verification:
 
 Remaining after this slice:
 - Continue hardening operator-visible proof and remediation loops while DB-backed live persistence remains blocked by PostgreSQL connectivity.
+
+### 2026-05-27 - World Bank Live Response Recovery and Current Portfolio Triage
+
+Status: implemented and verified.
+
+Purpose: recover the World Bank live response-readiness lane when the JavaScript-rendered procurement listing does not expose usable markdown rows, and prevent stale proof artifacts from outranking current source evidence.
+
+Changes in this slice:
+- Added a World Bank public `procnotices` API-list parser and fetch fallback for response-readiness source discovery.
+- Tightened response-readiness term matching so `system` no longer matches inside unrelated words such as `ecosystem`.
+- Ranked World Bank source opportunities by response-ready term strength before selecting a notice for package generation.
+- Made portfolio triage keep the latest completed proof per source feed before opportunity deduplication, preventing corrected-away historical picks from polluting operator rankings.
+
+Verification:
+- `npm test -- live-response-portfolio-triage.test.ts world-bank-parser.test.ts platform-proof-scenarios.test.ts --run` passed with 14 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-world-bank-response-readiness --include-live-safe` passed with run `live_world_bank_response_readiness_20260527T182357Z`, selecting World Bank notice `OP00440843` for energy-management systems and capacity building with six draft artifacts and `ready_for_review` readiness.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260527T182552Z`, ranking UNGM as `pursue_now`, World Bank as `review_before_pursuit`, and COMESA as `review_before_pursuit`.
+- `npm run platform:proof -- --all --wave 9` passed with 235 tests across discovery, response-readiness package, presentation export, and discovery-to-submission core scenarios.
+
+Remaining after this slice:
+- Continue non-DB live-source recovery work for AFDB and Kenya PPIP intermittent failures.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity to `88.80.188.224:5432` is restored.

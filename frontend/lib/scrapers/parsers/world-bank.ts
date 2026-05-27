@@ -26,6 +26,7 @@ export interface WorldBankNoticeDetail {
 
 const WORLD_BANK_BASE_URL = "https://projects.worldbank.org";
 const WORLD_BANK_NOTICE_API_BASE_URL = "https://search.worldbank.org/api/procnotices";
+const WORLD_BANK_NOTICE_LIST_API_BASE_URL = "https://search.worldbank.org/api/v2/procnotices";
 const PROCUREMENT_DETAIL_PATTERN = /projects\.worldbank\.org\/en\/projects-operations\/procurement-detail\/(OP\d+)/i;
 const PROJECT_LINK_PATTERN = /\[([^\]]+)]\((https?:\/\/projects\.worldbank\.org\/en\/projects-operations\/project-detail\/[^)]+)\)/i;
 const DESCRIPTION_LINK_PATTERN = /\[([^\]]+)]\((https?:\/\/projects\.worldbank\.org\/en\/projects-operations\/procurement-detail\/[^)]+)\)/i;
@@ -232,6 +233,72 @@ function parseWorldBankApiDeadline(record: WorldBankApiRecord): Date | undefined
 	return parseDate(date);
 }
 
+function worldBankProcurementDetailUrl(noticeId: string): string {
+	return `${WORLD_BANK_BASE_URL}/en/projects-operations/procurement-detail/${noticeId}`;
+}
+
+function worldBankProjectDetailUrl(projectId: string | undefined): string | undefined {
+	return projectId ? `${WORLD_BANK_BASE_URL}/en/projects-operations/project-detail/${projectId}` : undefined;
+}
+
+export function parseWorldBankNoticeListApiResponse(value: unknown): OpportunityData[] {
+	if (!value || typeof value !== "object") return [];
+	const procnotices = (value as { procnotices?: unknown }).procnotices;
+	if (!Array.isArray(procnotices)) return [];
+	const opportunities: OpportunityData[] = [];
+	const seen = new Set<string>();
+
+	for (const item of procnotices) {
+		if (!item || typeof item !== "object") continue;
+		const record = item as WorldBankApiRecord;
+		const noticeId = stringField(record, "id");
+		const noticeType = stringField(record, "notice_type") ?? "Procurement notice";
+		const noticeStatus = stringField(record, "notice_status");
+		if (!noticeId || seen.has(noticeId) || /\baward\b/iu.test(noticeType)) continue;
+		seen.add(noticeId);
+
+		const title = stringField(record, "bid_description") ?? stringField(record, "project_name");
+		if (!title) continue;
+		const projectId = stringField(record, "project_id");
+		const projectTitle = stringField(record, "project_name");
+		const language = stringField(record, "notice_lang_name");
+		const publishedDate = parseDate(stringField(record, "noticedate"));
+		const portalUrl = worldBankProcurementDetailUrl(noticeId);
+		const projectUrl = worldBankProjectDetailUrl(projectId);
+
+		opportunities.push({
+			title,
+			source: "world_bank",
+			sourceId: noticeId,
+			noticeId,
+			organization: "World Bank",
+			countryRegion: stringField(record, "project_ctry_name"),
+			category: noticeType,
+			opportunityType: inferOpportunityType(noticeType),
+			publishedDate,
+			portalUrl,
+			documentUrl: portalUrl,
+			rfpLink: portalUrl,
+			projectSummary: projectTitle ? `Project: ${projectTitle}` : undefined,
+			funder: "World Bank",
+			tags: ["world-bank", "development-bank", "global-procurement", "api-list"],
+			metadata: {
+				worldBank: {
+					projectTitle: projectTitle ?? null,
+					projectUrl: projectUrl ?? null,
+					noticeType,
+					noticeStatus: noticeStatus ?? null,
+					language: language ?? null,
+					publishedDate: publishedDate?.toISOString() ?? null,
+					discoveryMethod: "procnotices-api-v2",
+				},
+			},
+		});
+	}
+
+	return opportunities;
+}
+
 export function parseWorldBankNoticeDetailApiResponse(value: unknown): WorldBankNoticeDetail {
 	if (!value || typeof value !== "object") return {};
 	const procnotices = (value as { procnotices?: unknown }).procnotices;
@@ -262,6 +329,41 @@ export function worldBankNoticeApiUrl(noticeId: string): string {
 	return url.toString();
 }
 
+export function worldBankNoticeListApiUrl(rows = 20, offset = 0): string {
+	const url = new URL(WORLD_BANK_NOTICE_LIST_API_BASE_URL);
+	url.searchParams.set("format", "json");
+	url.searchParams.set("fct", [
+		"procurement_group_desc_exact",
+		"notice_type_exact",
+		"procurement_method_code_exact",
+		"procurement_method_name_exact",
+		"project_ctry_code_exact",
+		"project_ctry_name_exact",
+		"regionname_exact",
+		"rregioncode",
+		"project_id",
+		"sector_exact",
+		"sectorcode_exact",
+	].join(","));
+	url.searchParams.set("fl", [
+		"id",
+		"bid_description",
+		"project_ctry_name",
+		"project_id",
+		"project_name",
+		"notice_type",
+		"notice_status",
+		"notice_lang_name",
+		"submission_date",
+		"noticedate",
+	].join(","));
+	url.searchParams.set("srt", "submission_date desc,id asc");
+	url.searchParams.set("apilang", "en");
+	url.searchParams.set("rows", String(rows));
+	url.searchParams.set("os", String(offset));
+	return url.toString();
+}
+
 export async function fetchWorldBankNoticeDetail(noticeId: string): Promise<WorldBankNoticeDetail> {
 	const response = await fetch(worldBankNoticeApiUrl(noticeId), {
 		headers: {
@@ -272,6 +374,18 @@ export async function fetchWorldBankNoticeDetail(noticeId: string): Promise<Worl
 		throw new Error(`World Bank notice API returned ${response.status}`);
 	}
 	return parseWorldBankNoticeDetailApiResponse(await response.json());
+}
+
+export async function fetchWorldBankNoticeList(rows = 20, offset = 0): Promise<OpportunityData[]> {
+	const response = await fetch(worldBankNoticeListApiUrl(rows, offset), {
+		headers: {
+			"Accept": "application/json",
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`World Bank notice list API returned ${response.status}`);
+	}
+	return parseWorldBankNoticeListApiResponse(await response.json());
 }
 
 export function parseWorldBankNoticeDetailMarkdown(markdown: string | undefined): WorldBankNoticeDetail {

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	parseWorldBankNoticeListApiResponse,
 	parseWorldBankNoticeDetailApiResponse,
 	parseWorldBankNoticeDetailMarkdown,
 	worldBankNoticeApiUrl,
+	worldBankNoticeListApiUrl,
 	worldBankParser,
 } from "@/lib/scrapers/parsers/world-bank";
 
@@ -172,5 +174,59 @@ Feedback Survey
 		expect(detail.publishedDate).toEqual(new Date(2026, 4, 25));
 		expect(detail.details).toContain("SOLICITACAO DE MANIFESTACAO DE INTERESSE");
 		expect(detail.details).toContain("digital infrastructure planning");
+	});
+
+	it("maps public World Bank notice API list records into active procurement opportunities", () => {
+		const opportunities = parseWorldBankNoticeListApiResponse({
+			procnotices: [
+				{
+					id: "OP00440843",
+					bid_description: "Support the development of energy management systems and capacity building",
+					project_ctry_name: "Viet Nam",
+					project_id: "P164938",
+					project_name: "Vietnam Scaling Up Energy Efficiency Project",
+					notice_type: "Request for Expression of Interest",
+					notice_status: "Published",
+					notice_lang_name: "English",
+					noticedate: "26-May-2026",
+				},
+				{
+					id: "OP00440000",
+					bid_description: "Awarded consultant contract",
+					project_ctry_name: "Kenya",
+					project_name: "Awarded Project",
+					notice_type: "Contract Award",
+					notice_status: "Published",
+					notice_lang_name: "English",
+					noticedate: "26-May-2026",
+				},
+			],
+		});
+
+		expect(worldBankNoticeListApiUrl(5, 10)).toContain("/api/v2/procnotices");
+		expect(opportunities).toHaveLength(1);
+		expect(opportunities[0]).toMatchObject({
+			title: "Support the development of energy management systems and capacity building",
+			source: "world_bank",
+			sourceId: "OP00440843",
+			noticeId: "OP00440843",
+			organization: "World Bank",
+			countryRegion: "Viet Nam",
+			category: "Request for Expression of Interest",
+			opportunityType: "eoi",
+			portalUrl: "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00440843",
+			documentUrl: "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00440843",
+			tags: ["world-bank", "development-bank", "global-procurement", "api-list"],
+			metadata: {
+				worldBank: expect.objectContaining({
+					projectTitle: "Vietnam Scaling Up Energy Efficiency Project",
+					projectUrl: "https://projects.worldbank.org/en/projects-operations/project-detail/P164938",
+					noticeType: "Request for Expression of Interest",
+					noticeStatus: "Published",
+					language: "English",
+					discoveryMethod: "procnotices-api-v2",
+				}),
+			},
+		});
 	});
 });

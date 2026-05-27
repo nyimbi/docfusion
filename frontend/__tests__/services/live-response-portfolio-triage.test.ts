@@ -163,6 +163,42 @@ describe("live response portfolio triage", () => {
 		expect(triage.ranked[0]?.runId).toBe("newer");
 	});
 
+	it("keeps only the latest run for the same source feed", () => {
+		const triage = triageLiveResponsePortfolio([
+			candidate({
+				runId: "older-world-bank",
+				sourceKind: "world_bank",
+				sourceUrl: "https://projects.worldbank.org/en/projects-operations/procurement",
+				completedAt: "2026-05-27T10:00:00.000Z",
+				opportunity: {
+					title: "Critical Habitat Assessment",
+					sourceId: "OP00435405",
+					documentUrl: "https://search.worldbank.org/api/procnotices?format=json&apilang=en&id=OP00435405",
+				},
+			}),
+			candidate({
+				runId: "newer-world-bank",
+				sourceKind: "world_bank",
+				sourceUrl: "https://projects.worldbank.org/en/projects-operations/procurement",
+				completedAt: "2026-05-27T12:00:00.000Z",
+				opportunity: {
+					title: "Support the development of energy management systems and capacity building",
+					sourceId: "OP00440843",
+					documentUrl: "https://search.worldbank.org/api/procnotices?format=json&apilang=en&id=OP00440843",
+				},
+			}),
+			candidate({
+				runId: "ungm",
+				sourceKind: "ungm",
+				sourceUrl: "https://www.ungm.org/Public/Notice?title=software",
+			}),
+		]);
+
+		expect(triage.totalCandidates).toBe(2);
+		expect(triage.ranked.map((item) => item.runId)).toContain("newer-world-bank");
+		expect(triage.ranked.map((item) => item.runId)).not.toContain("older-world-bank");
+	});
+
 	it("keeps blocked or weak-fit opportunities out of pursue-now priority", () => {
 		const triage = triageLiveResponsePortfolio([
 			candidate({

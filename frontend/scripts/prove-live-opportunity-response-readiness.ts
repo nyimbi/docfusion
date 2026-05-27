@@ -26,6 +26,8 @@ import { searchSearxng, type SearxngResult } from "@/lib/services/searxng-client
 import { fetchUngmOpportunities } from "@/lib/services/ungm-client";
 import {
 	fetchWorldBankNoticeDetail,
+	fetchWorldBankNoticeList,
+	worldBankNoticeListApiUrl,
 	worldBankNoticeApiUrl,
 	worldBankNoticeIdFromUrl,
 	worldBankParser,
@@ -73,6 +75,29 @@ const AFDB_SEARCH_QUERIES = [
 	"afdb project related procurement pdf consulting services",
 	"African Development Bank funded procurement REOI PDF consultant services",
 ];
+const RESPONSE_READY_TERM_PATTERNS = [
+	{ pattern: /\bsoftware\b/iu, weight: 12 },
+	{ pattern: /\bsystems?\b/iu, weight: 11 },
+	{ pattern: /\bsistema\b/iu, weight: 11 },
+	{ pattern: /\bapi\b/iu, weight: 10 },
+	{ pattern: /\bsecurity\b/iu, weight: 10 },
+	{ pattern: /\bdigital\b/iu, weight: 10 },
+	{ pattern: /\bdata\b/iu, weight: 9 },
+	{ pattern: /\bapplications?\b/iu, weight: 9 },
+	{ pattern: /\bmobile\b/iu, weight: 9 },
+	{ pattern: /\bplatforms?\b/iu, weight: 9 },
+	{ pattern: /\bsolutions?\b/iu, weight: 8 },
+	{ pattern: /\baudit\b/iu, weight: 7 },
+	{ pattern: /\bict\b/iu, weight: 7 },
+	{ pattern: /\benergy\s+management\b/iu, weight: 7 },
+	{ pattern: /\bcapacity\s+building\b/iu, weight: 6 },
+	{ pattern: /\bimplementation\b/iu, weight: 6 },
+	{ pattern: /\bconsultants?\b/iu, weight: 4 },
+	{ pattern: /\bconsulting\b/iu, weight: 4 },
+	{ pattern: /\bconsultancy\b/iu, weight: 4 },
+	{ pattern: /\bservices?\b/iu, weight: 3 },
+	{ pattern: /\bsurvey\b/iu, weight: 2 },
+] as const;
 const PROPOSAL_DOCUMENT_TYPES: ProposalDocumentType[] = [
 	"cover_letter",
 	"executive_summary",
@@ -332,13 +357,23 @@ async function fetchWorldBankResponseReadyOpportunities(): Promise<LiveResponseR
 	}
 	const parsed = await worldBankParser.parse({ markdown, links, url: SOURCE_URL });
 	const opportunities = parsed.opportunities.filter((opportunity) => !/\baward\b/iu.test(opportunity.category ?? ""));
-	if (opportunities.length === 0) {
-		throw new Error("World Bank parser returned no active source opportunities");
+	if (opportunities.length > 0) {
+		return {
+			kind: "world_bank",
+			url: SOURCE_URL,
+			opportunities,
+		};
+	}
+
+	const apiOpportunities = await fetchWorldBankNoticeList(Math.max(SOURCE_LIMIT * 4, 20));
+	if (apiOpportunities.length === 0) {
+		throw new Error("World Bank parser and notice list API returned no active source opportunities");
 	}
 	return {
 		kind: "world_bank",
 		url: SOURCE_URL,
-		opportunities,
+		apiUrl: worldBankNoticeListApiUrl(Math.max(SOURCE_LIMIT * 4, 20)),
+		opportunities: apiOpportunities,
 	};
 }
 
@@ -609,10 +644,32 @@ function selectResponseReadyOpportunity(opportunities: OpportunityData[]): Oppor
 }
 
 function selectWorldBankResponseReadyOpportunity(opportunities: OpportunityData[]): OpportunityData | undefined {
-	return opportunities.find((opportunity) => {
-		const sourceUrl = opportunity.portalUrl ?? opportunity.rfpLink ?? opportunity.documentUrl ?? "";
-		return Boolean(worldBankNoticeIdFromUrl(sourceUrl)) && hasResponseReadyTerms(opportunity, sourceUrl);
-	}) ?? opportunities.find((opportunity) => Boolean(worldBankNoticeIdFromUrl(opportunity.portalUrl)));
+	const scored = opportunities
+		.map((opportunity, index) => {
+			const sourceUrl = opportunity.portalUrl ?? opportunity.rfpLink ?? opportunity.documentUrl ?? "";
+			return {
+				opportunity,
+				index,
+				hasNoticeId: Boolean(worldBankNoticeIdFromUrl(sourceUrl)),
+				score: scoreResponseReadyTerms(opportunity, sourceUrl),
+			};
+		})
+		.filter((candidate) => candidate.hasNoticeId)
+		.sort((left, right) => right.score - left.score || left.index - right.index);
+	return scored.find((candidate) => candidate.score > 0)?.opportunity
+		?? scored[0]?.opportunity;
+}
+
+function hasResponseReadyTerms(opportunity: OpportunityData, sourceUrl: string): boolean {
+	return scoreResponseReadyTerms(opportunity, sourceUrl) > 0;
+}
+
+function scoreResponseReadyTerms(opportunity: OpportunityData, sourceUrl: string): number {
+	const haystack = `${opportunity.title} ${opportunity.projectSummary ?? ""} ${opportunity.category ?? ""} ${sourceUrl}`.toLowerCase();
+	return RESPONSE_READY_TERM_PATTERNS.reduce(
+		(score, { pattern, weight }) => score + (pattern.test(haystack) ? weight : 0),
+		0
+	);
 }
 
 function selectComesaResponseReadyOpportunity(opportunities: OpportunityData[]): OpportunityData | undefined {
@@ -622,31 +679,6 @@ function selectComesaResponseReadyOpportunity(opportunities: OpportunityData[]):
 		return /\.(pdf|docx?)(?:$|[?#])/iu.test(documentUrl)
 			&& /\b(rfp|request|proposal|tender|procurement|consultancy|services?)\b/iu.test(haystack);
 	});
-}
-
-function hasResponseReadyTerms(opportunity: OpportunityData, sourceUrl: string): boolean {
-	const haystack = `${opportunity.title} ${opportunity.projectSummary ?? ""} ${opportunity.category ?? ""} ${sourceUrl}`.toLowerCase();
-	return [
-		"software",
-		"system",
-		"sistema",
-		"api",
-		"security",
-		"digital",
-		"data",
-		"application",
-		"mobile",
-		"platform",
-		"solution",
-		"audit",
-		"consultant",
-		"consulting",
-		"consultancy",
-		"services",
-		"survey",
-		"ict",
-		"energy management",
-	].some((term) => haystack.includes(term));
 }
 
 async function fetchAndExtractWorldBankNotice(opportunity: OpportunityData): Promise<ExtractedSourceDocument> {
