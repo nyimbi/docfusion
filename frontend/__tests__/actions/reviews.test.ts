@@ -1905,6 +1905,49 @@ describe("Reporting & Analytics", () => {
 			expectAssignedReviewScope(dbMock.query.proposalReviews.findMany.mock.calls[0][0].where);
 		});
 
+		test("calculates review win-rate correlation from submission outcomes", async () => {
+			const reviews = [
+				makeReviewRow({
+					id: UUID,
+					opportunityId: UUID2,
+					status: "completed",
+					recommendation: "ready_to_submit",
+					reviewers: [],
+					comments: [],
+				}),
+				makeReviewRow({
+					id: UUID3,
+					opportunityId: UUID4,
+					status: "completed",
+					recommendation: "ready_to_submit",
+					reviewers: [],
+					comments: [],
+				}),
+				makeReviewRow({
+					id: UUID5,
+					opportunityId: "00000000-0000-4000-8000-000000000006",
+					status: "completed",
+					recommendation: "needs_major_revisions",
+					reviewers: [],
+					comments: [],
+				}),
+			];
+			dbMock.query.proposalReviews.findMany.mockResolvedValue(reviews);
+			dbMock.select.mockReturnValueOnce(createChainableQuery([
+				{ opportunityId: UUID2, outcome: "won" },
+				{ opportunityId: UUID4, outcome: "lost" },
+				{ opportunityId: "00000000-0000-4000-8000-000000000006", outcome: "lost" },
+			]));
+
+			const result = await trackReviewEffectiveness(undefined, 30);
+
+			expect(result.success).toBe(true);
+			expect(result.metrics?.winRateCorrelation).toEqual(expect.arrayContaining([
+				{ reviewScore: "ready_to_submit", winRate: 0.5, proposalCount: 2 },
+				{ reviewScore: "needs_major_revisions", winRate: 0, proposalCount: 1 },
+			]));
+		});
+
 		test("handles no completed reviews in timeframe", async () => {
 			dbMock.query.proposalReviews.findMany.mockResolvedValue([]);
 

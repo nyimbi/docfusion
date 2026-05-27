@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Outcome-Backed Review Effectiveness
+
+Status: implemented and verified.
+
+Purpose: make review effectiveness analytics correlate review recommendations with actual submitted outcomes instead of hard-coded win-rate assumptions.
+
+Changes in this slice:
+- Query submission outcomes for completed review opportunities within the reporting timeframe.
+- Scope outcome correlation to the actor's organization and assigned opportunities.
+- Bucket actual won/lost outcomes by review recommendation and calculate observed win rates.
+- Preserve zero-sample buckets for standard recommendation categories so the analytics shape remains stable.
+- Extend the Wave 6 approval/production proof manifest with review effectiveness coverage.
+
+Verification:
+- `npm test -- reviews.test.ts` from `frontend/` passed, running 111 tests.
+- `npm test -- reviews.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 117 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 163 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Outcome-Backed Past Performance Analytics
 
 Status: implemented and verified.

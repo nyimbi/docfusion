@@ -135,6 +135,7 @@ describe("platform proof scenarios", () => {
 				expectedArtifacts: expect.arrayContaining([
 					"vitest:document-render-pdf",
 					"vitest:formatting-scope",
+					"vitest:reviews",
 				]),
 			}),
 		]);

@@ -223,12 +223,12 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		kind: "integration",
 		proofTargets: ["F-018", "F-019", "F-020", "F-021", "O-016"],
 		requiresLiveServices: false,
-		description: "Validates gate review enforcement, review packages, pricing approval, formatting compliance, real PDF artifact rendering, final artifact workflow, and submission correction semantics.",
+		description: "Validates gate review enforcement, review packages, review effectiveness analytics, pricing approval, formatting compliance, real PDF artifact rendering, final artifact workflow, and submission correction semantics.",
 		command: {
 			command: "npm",
-			args: ["test", "--", "gate-review-workflow.test.ts", "review-package-workflow.test.ts", "pricing-approval-workflow.test.ts", "formatting-scope.test.ts", "document-render-pdf.test.ts", "final-artifact-workflow.test.ts", "submission-correction-workflow.test.ts"],
+			args: ["test", "--", "gate-review-workflow.test.ts", "review-package-workflow.test.ts", "reviews.test.ts", "pricing-approval-workflow.test.ts", "formatting-scope.test.ts", "document-render-pdf.test.ts", "final-artifact-workflow.test.ts", "submission-correction-workflow.test.ts"],
 		},
-		expectedArtifacts: ["vitest:gate-review-workflow", "vitest:review-package-workflow", "vitest:pricing-approval-workflow", "vitest:formatting-scope", "vitest:document-render-pdf", "vitest:final-artifact-workflow", "vitest:submission-correction-workflow"],
+		expectedArtifacts: ["vitest:gate-review-workflow", "vitest:review-package-workflow", "vitest:reviews", "vitest:pricing-approval-workflow", "vitest:formatting-scope", "vitest:document-render-pdf", "vitest:final-artifact-workflow", "vitest:submission-correction-workflow"],
 	},
 	{
 		id: "wave6-finalization-authority-browser",

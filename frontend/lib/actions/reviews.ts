@@ -26,7 +26,7 @@ import {
 	reviewTemplates,
 	reviewChecklists,
 } from "@/lib/db/schema-reviews";
-import { opportunities } from "@/lib/db/schema";
+import { opportunities, submissions } from "@/lib/db/schema";
 import { eq, and, desc, sql, inArray, gte, lte, isNull, or, count, avg, type SQL } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
 import { getCurrentUserId, requireUserContext, type UserContext } from "@/lib/auth-utils";
@@ -2475,17 +2475,53 @@ export async function trackReviewEffectiveness(
 				resolutionRate: counts.total > 0 ? counts.resolved / counts.total : 0,
 			}));
 
-		// Calculate win rate correlation (simplified - would need submission data)
-		const winRateCorrelation = [
-			{ reviewScore: "ready_to_submit", winRate: 0.70, proposalCount: 0 },
-			{ reviewScore: "needs_minor_revisions", winRate: 0.55, proposalCount: 0 },
-			{ reviewScore: "needs_major_revisions", winRate: 0.30, proposalCount: 0 },
-		];
-
+		const reviewedOpportunityIds = Array.from(new Set(
+			reviewsInTimeframe.map((review) => review.opportunityId).filter((id): id is string => Boolean(id))
+		));
+		const submissionOutcomeRows = reviewedOpportunityIds.length > 0
+			? await db
+				.select({
+					opportunityId: submissions.opportunityId,
+					outcome: submissions.outcome,
+				})
+				.from(submissions)
+				.where(and(
+					sql`(${submissions.organizationId} = ${actorContext.organizationId} or ${submissions.organizationId} is null)`,
+					assignedOpportunityExistsSql(submissions.opportunityId, actorId, actorContext.organizationId),
+					inArray(submissions.opportunityId, reviewedOpportunityIds),
+					inArray(submissions.outcome, ["won", "lost"])
+				))
+				.orderBy(desc(submissions.submittedAt))
+			: [];
+		const outcomeByOpportunity = new Map<string, string | null>();
+		for (const row of submissionOutcomeRows) {
+			if (!outcomeByOpportunity.has(row.opportunityId)) {
+				outcomeByOpportunity.set(row.opportunityId, row.outcome);
+			}
+		}
+		const recommendationBuckets = new Map([
+			"ready_to_submit",
+			"needs_minor_revisions",
+			"needs_major_revisions",
+			"not_ready",
+			"recommend_no_bid",
+		].map((recommendation) => [recommendation, { wins: 0, total: 0 }]));
 		reviewsInTimeframe.forEach(review => {
-			const entry = winRateCorrelation.find(w => w.reviewScore === review.recommendation);
-			if (entry) entry.proposalCount++;
+			if (!review.recommendation) return;
+			const outcome = outcomeByOpportunity.get(review.opportunityId);
+			if (outcome !== "won" && outcome !== "lost") return;
+			if (!recommendationBuckets.has(review.recommendation)) {
+				recommendationBuckets.set(review.recommendation, { wins: 0, total: 0 });
+			}
+			const bucket = recommendationBuckets.get(review.recommendation)!;
+			bucket.total++;
+			if (outcome === "won") bucket.wins++;
 		});
+		const winRateCorrelation = Array.from(recommendationBuckets.entries()).map(([reviewScore, bucket]) => ({
+			reviewScore,
+			winRate: bucket.total > 0 ? Math.round((bucket.wins / bucket.total) * 100) / 100 : 0,
+			proposalCount: bucket.total,
+		}));
 
 		const metrics: EffectivenessMetrics = {
 			timeframe: {
