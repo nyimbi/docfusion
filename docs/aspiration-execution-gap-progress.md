@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable AI Win Theme Artifact Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep response strategy support from treating non-empty AI arrays with blank or malformed win-theme artifacts as usable generated content.
+
+Changes in this slice:
+- Validate AI win-theme suggestions for non-empty statement text before returning them.
+- Validate AI ghost-theme suggestions for non-empty counter-positioning statements, normalize phrasings, and clamp subtlety.
+- Validate AI reinforcement options for non-empty text, safe tone, and finite word count.
+- Reuse deterministic win-theme, ghost-theme, and reinforcement fallbacks when AI arrays contain no usable artifacts.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts --run` passed with 20 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 154 tests.
+
+Remaining after this slice:
+- Continue auditing discovery and response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - AI Discovery Query Fallbacks
 
 Status: implemented and verified.

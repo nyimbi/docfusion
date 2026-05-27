@@ -356,6 +356,35 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
+function isNonBlankText(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+	return Math.min(max, Math.max(min, value));
+}
+
+function isWinThemeType(value: unknown): value is WinThemeType {
+	return value === "value_prop" ||
+		value === "differentiator" ||
+		value === "proof_point" ||
+		value === "risk_mitigation";
+}
+
+function isReinforcementTone(value: unknown): value is ReinforcementText["options"][0]["tone"] {
+	return value === "assertive" ||
+		value === "professional" ||
+		value === "technical" ||
+		value === "persuasive";
+}
+
+function nonBlankStringArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter(isNonBlankText).map(item => item.trim())
+		: [];
+}
+
 function isAcceptedRfpRequirement(requirement: typeof rfpRequirements.$inferSelect): boolean {
 	const metadata = isRecord(requirement.metadata) ? requirement.metadata : {};
 	const workflow = isRecord(metadata.workflow) ? metadata.workflow : {};
@@ -1495,33 +1524,41 @@ Respond in JSON format:
 				throw new Error("No JSON found in AI response");
 			}
 
-			const parsed = JSON.parse(jsonMatch[0]) as {
-				suggestions: Array<{
-					statement: string;
-					shortVersion: string;
-					type: WinThemeType;
-					confidence: number;
-					rationale: string;
-					suggestedKeywords: string[];
-				}>;
-			};
+			const parsed = JSON.parse(jsonMatch[0]) as { suggestions?: unknown };
 			if (!Array.isArray(parsed.suggestions) || parsed.suggestions.length === 0) {
 				throw new Error("AI response did not include theme suggestions");
 			}
 
-			const suggestions: ThemeSuggestion[] = parsed.suggestions.map((s, i) => ({
-				id: `suggestion-${Date.now()}-${i}`,
-				opportunityId: input.opportunityId,
-				statement: s.statement,
-				shortVersion: s.shortVersion,
-				type: s.type,
-				confidence: s.confidence,
-				rationale: s.rationale,
-				sources: [],
-				suggestedKeywords: s.suggestedKeywords,
-				status: "pending",
-				generatedAt: new Date(),
-			}));
+			const suggestions: ThemeSuggestion[] = parsed.suggestions
+				.map((s, i): ThemeSuggestion | null => {
+					if (!isRecord(s) || !isNonBlankText(s.statement)) return null;
+					const statement = s.statement.trim();
+					const shortVersion = isNonBlankText(s.shortVersion)
+						? s.shortVersion.trim().slice(0, 100)
+						: statement.slice(0, 100);
+					const type = isWinThemeType(s.type)
+						? s.type
+						: input.themeTypes?.[0] ?? "differentiator";
+					return {
+						id: `suggestion-${Date.now()}-${i}`,
+						opportunityId: input.opportunityId,
+						statement,
+						shortVersion,
+						type,
+						confidence: clampNumber(s.confidence, 0, 1, 0.5),
+						rationale: isNonBlankText(s.rationale)
+							? s.rationale.trim()
+							: "AI-generated win theme suggestion with limited rationale.",
+						sources: [],
+						suggestedKeywords: nonBlankStringArray(s.suggestedKeywords).slice(0, 12),
+						status: "pending",
+						generatedAt: new Date(),
+					};
+				})
+				.filter((suggestion): suggestion is ThemeSuggestion => suggestion !== null);
+			if (suggestions.length === 0) {
+				throw new Error("AI response did not include usable theme suggestions");
+			}
 
 			return { success: true, data: suggestions };
 		} catch (parseError) {
@@ -2676,31 +2713,38 @@ Respond in JSON format:
 				throw new Error("No JSON found in AI response");
 			}
 
-			const parsed = JSON.parse(jsonMatch[0]) as {
-				ghostThemes: Array<{
-					competitorId?: string;
-					competitorName: string;
-					statement: string;
-					phrasings: string[];
-					subtletyLevel: 1 | 2 | 3 | 4 | 5;
-					rationale: string;
-				}>;
-			};
+			const parsed = JSON.parse(jsonMatch[0]) as { ghostThemes?: unknown };
 			if (!Array.isArray(parsed.ghostThemes) || parsed.ghostThemes.length === 0) {
 				throw new Error("AI response did not include ghost themes");
 			}
 
-			const suggestions: GhostThemeSuggestion[] = parsed.ghostThemes.map((g, i) => ({
-				id: `ghost-${Date.now()}-${i}`,
-				competitorId: competitors.find(c => c.competitorName === g.competitorName)?.id,
-				competitorName: g.competitorName,
-				statement: g.statement,
-				phrasings: g.phrasings,
-				subtletyLevel: g.subtletyLevel,
-				rationale: g.rationale,
-				status: "pending",
-				generatedAt: new Date(),
-			}));
+			const suggestions: GhostThemeSuggestion[] = parsed.ghostThemes
+				.map((g, i): GhostThemeSuggestion | null => {
+					if (!isRecord(g) || !isNonBlankText(g.statement)) return null;
+					const competitor = competitors.find(c =>
+						(isNonBlankText(g.competitorId) && c.id === g.competitorId.trim()) ||
+						(isNonBlankText(g.competitorName) && c.competitorName === g.competitorName.trim())
+					);
+					const statement = g.statement.trim();
+					const phrasings = nonBlankStringArray(g.phrasings);
+					return {
+						id: `ghost-${Date.now()}-${i}`,
+						competitorId: competitor?.id ?? (isNonBlankText(g.competitorId) ? g.competitorId.trim() : undefined),
+						competitorName: competitor?.competitorName ?? (isNonBlankText(g.competitorName) ? g.competitorName.trim() : undefined),
+						statement,
+						phrasings: phrasings.length ? phrasings : [statement],
+						subtletyLevel: Math.round(clampNumber(g.subtletyLevel, 1, 5, 3)) as 1 | 2 | 3 | 4 | 5,
+						rationale: isNonBlankText(g.rationale)
+							? g.rationale.trim()
+							: "AI-generated ghost theme suggestion with limited rationale.",
+						status: "pending",
+						generatedAt: new Date(),
+					};
+				})
+				.filter((suggestion): suggestion is GhostThemeSuggestion => suggestion !== null);
+			if (suggestions.length === 0) {
+				throw new Error("AI response did not include usable ghost themes");
+			}
 
 			return { success: true, data: suggestions };
 		} catch (parseError) {
@@ -3070,15 +3114,25 @@ Respond in JSON format:
 			}
 
 			const parsed = JSON.parse(jsonMatch[0]) as {
-				options: Array<{
-					text: string;
-					tone: ReinforcementText["options"][0]["tone"];
-					wordCount: number;
-				}>;
-				placementSuggestion: string;
+				options?: unknown;
+				placementSuggestion?: unknown;
 			};
 			if (!Array.isArray(parsed.options) || parsed.options.length === 0) {
 				throw new Error("AI response did not include reinforcement options");
+			}
+			const options = parsed.options
+				.map((option): ReinforcementText["options"][0] | null => {
+					if (!isRecord(option) || !isNonBlankText(option.text)) return null;
+					const text = option.text.trim();
+					return {
+						text,
+						tone: isReinforcementTone(option.tone) ? option.tone : tone,
+						wordCount: Math.round(clampNumber(option.wordCount, 1, 500, countWords(text))),
+					};
+				})
+				.filter((option): option is ReinforcementText["options"][0] => option !== null);
+			if (options.length === 0) {
+				throw new Error("AI response did not include usable reinforcement options");
 			}
 
 			return {
@@ -3087,8 +3141,10 @@ Respond in JSON format:
 					id: `reinforcement-${Date.now()}`,
 					themeId: input.themeId,
 					sectionId: input.sectionId,
-					options: parsed.options,
-					placementSuggestion: parsed.placementSuggestion,
+					options,
+					placementSuggestion: isNonBlankText(parsed.placementSuggestion)
+						? parsed.placementSuggestion.trim()
+						: "Place near the section opening or immediately after the primary approach statement.",
 					generatedAt: new Date(),
 				},
 			};

@@ -222,6 +222,33 @@ describe("win theme authorization", () => {
 		expect(data[0].suggestedKeywords.length).toBeGreaterThan(0);
 	});
 
+	it("returns deterministic theme suggestions when AI returns unusable suggestion objects", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ suggestions: [{}] }) });
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "competitor-1",
+					competitorName: "IncumbentCo",
+					competitorWeaknesses: ["slow mobilization"],
+				}],
+			}));
+
+		const result = await generateThemeSuggestions({
+			opportunityId: "22222222-2222-4222-8222-222222222222",
+			count: 3,
+			additionalContext: "Past performance proof, cost efficiency, and local certified delivery team.",
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		const data = result.data!;
+		expect(data.length).toBeGreaterThan(0);
+		expect(data[0].statement).toContain("slow mobilization");
+		expect(data[0].rationale).toContain("Deterministic fallback");
+	});
+
 	it("returns deterministic reinforcement text when AI output is malformed", async () => {
 		aiCompleteMock.mockResolvedValueOnce({ content: "not json" });
 		dbMock.select.mockReturnValueOnce(createChain({
@@ -256,6 +283,33 @@ describe("win theme authorization", () => {
 
 	it("returns deterministic reinforcement text when AI returns empty options", async () => {
 		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ options: [], placementSuggestion: "" }) });
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				id: "theme-1",
+				themeStatement: "validated transition governance",
+				shortVersion: "Transition governance",
+				supportingEvidence: ["two prior transition programs"],
+			}],
+		}));
+
+		const result = await generateReinforcementText({
+			themeId: "theme-1",
+			sectionId: "section-1",
+			tone: "technical",
+			optionCount: 2,
+			targetWordCount: 40,
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		const data = result.data!;
+		expect(data.options).toHaveLength(2);
+		expect(data.options[0].text).toContain("validated transition governance");
+		expect(data.placementSuggestion).toContain("section opening");
+	});
+
+	it("returns deterministic reinforcement text when AI returns unusable option objects", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ options: [{ text: "   " }], placementSuggestion: "" }) });
 		dbMock.select.mockReturnValueOnce(createChain({
 			result: [{
 				id: "theme-1",
@@ -332,6 +386,30 @@ describe("win theme authorization", () => {
 		expect(data.length).toBeGreaterThan(0);
 		expect(data[0].statement).toContain("rapid transition governance");
 		expect(data[0].phrasings.length).toBeGreaterThan(1);
+	});
+
+	it("returns deterministic ghost themes when AI returns unusable ghost-theme objects", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ ghostThemes: [{}] }) });
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "competitor-1",
+					competitorName: "IncumbentCo",
+					competitorWeaknesses: ["slow mobilization"],
+					ourDifferentiators: ["rapid transition governance"],
+					isIncumbent: true,
+				}],
+			}));
+
+		const result = await generateGhostThemeSuggestions("22222222-2222-4222-8222-222222222222");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		const data = result.data!;
+		expect(data.length).toBeGreaterThan(0);
+		expect(data[0].statement).toContain("rapid transition governance");
+		expect(data[0].rationale).toContain("Deterministic fallback");
 	});
 
 	it("does not suggest win themes for evaluation criteria already covered by existing themes", async () => {
