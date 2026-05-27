@@ -1235,7 +1235,8 @@ describe("discoverAndImportOpportunities", () => {
 	});
 
 	it("imports AFDB configured sources with the AFDB parser", async () => {
-		firecrawlScrapeMock.mockResolvedValue({
+		const documentUrl = "https://www.afdb.org/sites/default/files/documents/project-related-procurement/reoi_for_meteorology_mobile_application87.pdf";
+		firecrawlScrapeMock.mockResolvedValueOnce({
 			success: true,
 			data: {
 				markdown: [
@@ -1255,8 +1256,19 @@ describe("discoverAndImportOpportunities", () => {
 				],
 				metadata: { title: "Procurement" },
 			},
+		}).mockResolvedValueOnce({
+			success: true,
+			data: {
+				markdown: [
+					"# EOI - Ethiopia - Development of Meteorological and Climate Mobile Application - BREFONS-Ethiopia",
+					"",
+					"[](https://www.afdb.org/sites/default/files/documents/project-related-procurement/reoi_for_meteorology_mobile_application87.pdf \"Download PDF\")",
+				].join("\n"),
+				links: [documentUrl],
+				metadata: { title: "EOI - Ethiopia - Development of Meteorological and Climate Mobile Application" },
+			},
 		});
-		selectResultsQueue.push([]);
+		selectResultsQueue.push([], []);
 
 		const result = await discoverAndImportOpportunities({
 			sourceUrls: ["https://www.afdb.org/en/projects-and-operations/procurement"],
@@ -1279,12 +1291,17 @@ describe("discoverAndImportOpportunities", () => {
 			category: "Expression of interest",
 			countryRegion: "Ethiopia",
 			organization: "African Development Bank",
-			rfpLink: "https://www.afdb.org/en/documents/eoi-ethiopia-development-meteorological-and-climate-mobile-application-brefons-ethiopia",
+			rfpLink: documentUrl,
 			portalUrl: "https://www.afdb.org/en/documents/eoi-ethiopia-development-meteorological-and-climate-mobile-application-brefons-ethiopia",
-			documentUrl: "https://www.afdb.org/en/documents/eoi-ethiopia-development-meteorological-and-climate-mobile-application-brefons-ethiopia",
+			documentUrl,
+			submissionMethod: undefined,
 			tags: ["external-discovery", "source-scrape", "afdb", "development-bank", "regional-procurement"],
 			metadata: expect.objectContaining({
-				afdb: expect.objectContaining({ noticePrefix: "EOI", language: "en" }),
+				afdb: expect.objectContaining({
+					noticePrefix: "EOI",
+					language: "en",
+					primaryLink: expect.objectContaining({ url: documentUrl }),
+				}),
 				discovery: expect.objectContaining({
 					resultEngine: "firecrawl-source",
 					scrapeMethod: "firecrawl",
@@ -1293,6 +1310,7 @@ describe("discoverAndImportOpportunities", () => {
 				}),
 			}),
 		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
 	});
 
 	it("imports World Bank configured sources with the World Bank parser", async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { afdbParser } from "@/lib/scrapers/parsers/afdb";
+import { afdbParser, parseAfdbNoticeDetailMarkdown } from "@/lib/scrapers/parsers/afdb";
 
 const afdbMarkdown = `
 * [New procurement framework](https://www.afdb.org/en/projects-and-operations/procurement/new-procurement-policy)
@@ -57,5 +57,22 @@ describe("AFDB parser", () => {
 			category: "Tender",
 			opportunityType: "tender",
 		});
+	});
+
+	it("ranks downloadable procurement documents from AFDB detail pages", () => {
+		const detail = parseAfdbNoticeDetailMarkdown(`
+[Follow us on X](https://twitter.com/AfDB_Group)
+
+[](https://www.afdb.org/sites/default/files/documents/project-related-procurement/reoi_for_meteorology_mobile_application87.pdf "Download PDF")
+
+https://www.afdb.org/sites/default/files/documents/project-related-procurement/reoi\\_for\\_meteorology\\_mobile\\_application87.pdf
+		`);
+
+		expect(detail.primaryLink).toEqual(expect.objectContaining({
+			url: "https://www.afdb.org/sites/default/files/documents/project-related-procurement/reoi_for_meteorology_mobile_application87.pdf",
+		}));
+		expect(detail.links.map((link) => link.url)).toEqual([
+			"https://www.afdb.org/sites/default/files/documents/project-related-procurement/reoi_for_meteorology_mobile_application87.pdf",
+		]);
 	});
 });

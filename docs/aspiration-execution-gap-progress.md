@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - AFDB Detail Document Enrichment
+
+Status: implemented and verified.
+
+Purpose: make AFDB configured-source opportunities response-ready by resolving AFDB document detail pages to the actual downloadable procurement PDFs instead of seeding only AFDB HTML notice pages.
+
+Changes in this slice:
+- Add AFDB detail-page parsing that ranks downloadable procurement documents and ignores social/navigation links.
+- Enrich bounded AFDB configured-source imports with primary detail-page document URLs, updating `documentUrl`, `rfpLink`, source-document seeding, and AFDB metadata.
+- Replace the generic AFDB live proof wrapper with a source-specific proof that verifies listing extraction plus a live detail-page document.
+- Update AFDB parser/import/proof coverage.
+
+Verification:
+- `npm test -- afdb-parser.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 27 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-afdb-source` from `frontend/` passed. It scraped `https://www.afdb.org/en/projects-and-operations/procurement`, returned 13 normalized AFDB opportunities, and proved a downloadable detail-page PDF at `https://www.afdb.org/sites/default/files/documents/project-related-procurement/spn_bridep.pdf`.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 discovery-to-response bridge test files and 53 tests.
+
+Remaining after this slice:
+- Continue adding detail/document enrichment for source pages that expose stable procurement package attachments.
+- Continue proving document download and parsing for live source documents that are now seeded from configured sources.
+
 ### 2026-05-27 - Configured Source Retry Resilience
 
 Status: implemented and verified.

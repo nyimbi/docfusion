@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { genericParser, getParser, type ParseResult, type TenderParser } from "@/lib/scrapers/parsers";
+import { parseAfdbNoticeDetailMarkdown } from "@/lib/scrapers/parsers/afdb";
 import { parseComesaTenderDetailMarkdown } from "@/lib/scrapers/parsers/comesa";
 import { parseUndpNoticeDetailMarkdown } from "@/lib/scrapers/parsers/undp";
 import {
@@ -149,6 +150,7 @@ const OPPORTUNITY_KEYWORDS = [
 
 const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
 const MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH = 120;
+const DEFAULT_AFDB_DETAIL_LIMIT = 5;
 const DEFAULT_COMESA_DETAIL_LIMIT = 5;
 const DEFAULT_UNDP_DETAIL_LIMIT = 5;
 const DEFAULT_WORLD_BANK_DETAIL_LIMIT = 5;
@@ -722,6 +724,12 @@ async function discoverConfiguredSourceCandidates(
 				firecrawl,
 				Math.min(DEFAULT_UNDP_DETAIL_LIMIT, limitPerSource)
 			)
+			: parser.sourceId === "afdb"
+				? await enrichAfdbOpportunitiesWithDetails(
+					parseResult.opportunities.slice(0, limitPerSource),
+					firecrawl,
+					Math.min(DEFAULT_AFDB_DETAIL_LIMIT, limitPerSource)
+				)
 			: parser.sourceId === "world_bank"
 				? await enrichWorldBankOpportunitiesWithDetails(
 					parseResult.opportunities.slice(0, limitPerSource),
@@ -827,6 +835,50 @@ async function scrapeAndParseConfiguredSource(
 
 function metadataRecord(value: OpportunityData["metadata"]): Record<string, unknown> {
 	return value ?? {};
+}
+
+async function enrichAfdbOpportunitiesWithDetails(
+	opportunities: OpportunityData[],
+	firecrawl: FirecrawlClient,
+	detailLimit: number
+): Promise<OpportunityData[]> {
+	if (detailLimit <= 0) return opportunities;
+	const enriched = [...opportunities];
+	for (let index = 0; index < Math.min(detailLimit, enriched.length); index++) {
+		const opportunity = enriched[index];
+		if (!opportunity.portalUrl) continue;
+		try {
+			const detailResult = await firecrawl.scrape(opportunity.portalUrl, {
+				formats: ["markdown", "links"],
+				timeout: 20000,
+			});
+			if (!detailResult.success || !detailResult.data) continue;
+			const detail = parseAfdbNoticeDetailMarkdown(
+				detailResult.data.markdown,
+				detailResult.data.links ?? [],
+				opportunity.portalUrl
+			);
+			if (!detail.primaryLink) continue;
+			const afdbMetadata = metadataRecord(metadataRecord(opportunity.metadata).afdb as Record<string, unknown> | undefined);
+			enriched[index] = {
+				...opportunity,
+				documentUrl: detail.primaryLink.url,
+				rfpLink: detail.primaryLink.url,
+				submissionMethod: detail.primaryLink.description ?? opportunity.submissionMethod,
+				metadata: {
+					...metadataRecord(opportunity.metadata),
+					afdb: {
+						...afdbMetadata,
+						links: detail.links,
+						primaryLink: detail.primaryLink,
+					},
+				},
+			};
+		} catch {
+			// Detail enrichment is opportunistic; the listing row remains usable.
+		}
+	}
+	return enriched;
 }
 
 async function enrichComesaOpportunitiesWithDetails(
