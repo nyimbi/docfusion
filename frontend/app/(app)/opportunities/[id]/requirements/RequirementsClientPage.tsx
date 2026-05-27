@@ -19,12 +19,15 @@ import {
 } from "@/lib/actions/requirements";
 import { listComplianceMatrices, reviewRfpParseConfidence } from "@/lib/actions/rfp-parser";
 import { createAndDraftStandardProposalSet } from "@/lib/actions/proposal-documents";
+import { getResponseWinThemeSeedReview } from "@/lib/actions/win-themes";
 import { RequirementsTable } from "@/components/requirements/RequirementsTable";
 import { RequirementDetail } from "@/components/requirements/RequirementDetail";
 import { ComplianceMatrix } from "@/components/rfp/ComplianceMatrix";
+import { ResponseWinThemeSeedReview } from "@/components/win-themes";
 import { RequirementExtractor } from "./RequirementExtractor";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ResponseWinThemeSeedReviewData } from "@/lib/types/win-themes";
 
 interface RequirementsClientPageProps {
 	opportunityId: string;
@@ -32,6 +35,7 @@ interface RequirementsClientPageProps {
 	initialStats: RequirementStats;
 	initialRfpDocuments: RfpParseDocumentSummary[];
 	initialComplianceMatrices: ComplianceMatrixSummary[];
+	initialWinThemeSeedReview?: ResponseWinThemeSeedReviewData;
 }
 
 interface RfpParseDocumentSummary {
@@ -84,12 +88,20 @@ export function RequirementsClientPage({
 	initialStats,
 	initialRfpDocuments,
 	initialComplianceMatrices,
+	initialWinThemeSeedReview,
 }: RequirementsClientPageProps) {
 	const router = useRouter();
 	const [requirements, setRequirements] = useState(initialRequirements);
 	const [stats, setStats] = useState(initialStats);
 	const [rfpDocuments, setRfpDocuments] = useState(initialRfpDocuments);
 	const [complianceMatrices, setComplianceMatrices] = useState(initialComplianceMatrices);
+	const [winThemeSeedReview, setWinThemeSeedReview] = useState<ResponseWinThemeSeedReviewData>(
+		initialWinThemeSeedReview ?? {
+			seeds: [],
+			acceptedRequirementCount: 0,
+			evaluationCriteriaCount: 0,
+		}
+	);
 	const [selectedRequirement, setSelectedRequirement] = useState<Requirement | null>(null);
 	const [showExtractor, setShowExtractor] = useState(false);
 	const [isAcceptingParsedRequirements, setIsAcceptingParsedRequirements] = useState(false);
@@ -106,17 +118,26 @@ export function RequirementsClientPage({
 		setStats(initialStats);
 		setRfpDocuments(initialRfpDocuments);
 		setComplianceMatrices(initialComplianceMatrices);
-	}, [initialRequirements, initialStats, initialRfpDocuments, initialComplianceMatrices]);
+		setWinThemeSeedReview(initialWinThemeSeedReview ?? {
+			seeds: [],
+			acceptedRequirementCount: 0,
+			evaluationCriteriaCount: 0,
+		});
+	}, [initialRequirements, initialStats, initialRfpDocuments, initialComplianceMatrices, initialWinThemeSeedReview]);
 
 	const refreshRequirementsState = useCallback(async () => {
-		const [requirementsResponse, nextStats, matricesResponse] = await Promise.all([
+		const [requirementsResponse, nextStats, matricesResponse, nextSeedReview] = await Promise.all([
 			getRequirements(opportunityId),
 			getRequirementStats(opportunityId),
 			listComplianceMatrices({ opportunityId, limit: 5 }),
+			getResponseWinThemeSeedReview(opportunityId),
 		]);
 		setRequirements(requirementsResponse.data);
 		setStats(nextStats);
 		setComplianceMatrices(matricesResponse.matrices.map(toComplianceMatrixSummary));
+		if (nextSeedReview.success && nextSeedReview.data) {
+			setWinThemeSeedReview(nextSeedReview.data);
+		}
 		router.refresh();
 	}, [opportunityId, router]);
 
@@ -177,6 +198,14 @@ export function RequirementsClientPage({
 					: "Response package is ready"
 			);
 			await refreshRequirementsState();
+			const nextSeedReview = await getResponseWinThemeSeedReview(opportunityId);
+			if (nextSeedReview.success && nextSeedReview.data) {
+				setWinThemeSeedReview(nextSeedReview.data);
+				if (nextSeedReview.data.seeds.length > 0) {
+					toast.info("Review generated win-theme seeds before final response approval");
+					return;
+				}
+			}
 			router.push(`/opportunities/${opportunityId}/documents`);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to build response package");
@@ -203,6 +232,14 @@ export function RequirementsClientPage({
 			/>
 
 			<ComplianceReadinessPanel matrices={complianceMatrices} />
+
+			<ResponseWinThemeReviewPanel
+				opportunityId={opportunityId}
+				review={winThemeSeedReview}
+				onCreated={() => {
+					void refreshRequirementsState();
+				}}
+			/>
 
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-3">
@@ -277,6 +314,41 @@ export function RequirementsClientPage({
 // ============================================================================
 // Sub-Components
 // ============================================================================
+
+function ResponseWinThemeReviewPanel({
+	opportunityId,
+	review,
+	onCreated,
+}: {
+	opportunityId: string;
+	review: ResponseWinThemeSeedReviewData;
+	onCreated: () => void;
+}) {
+	if (review.acceptedRequirementCount === 0) return null;
+
+	if (review.seeds.length === 0) {
+		return (
+			<Card>
+				<CardHeader className="pb-2">
+					<CardTitle className="text-base">Response Win Themes</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<p className="text-sm text-[var(--foreground-muted)]">
+						{review.acceptedRequirementCount} accepted requirement{review.acceptedRequirementCount === 1 ? "" : "s"} reviewed; no new generated win-theme seed is pending approval.
+					</p>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	return (
+		<ResponseWinThemeSeedReview
+			opportunityId={opportunityId}
+			seeds={review.seeds}
+			onCreated={onCreated}
+		/>
+	);
+}
 
 function ComplianceReadinessPanel({ matrices }: { matrices: ComplianceMatrixSummary[] }) {
 	const latest = matrices[0];

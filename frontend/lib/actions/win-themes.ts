@@ -23,6 +23,13 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { AIClient } from "@/lib/ai/client";
 import { documents, opportunities, proposalDocuments } from "@/lib/db/schema";
+import { rfpRequirements } from "@/lib/db/schema-rfp";
+import {
+	buildLiveResponseWinThemeSeeds,
+	type LiveResponseEvaluationSignal,
+	type LiveResponseRequirementSignal,
+} from "@/lib/services/live-response-package";
+import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import {
 	winThemes,
 	themeOccurrences,
@@ -75,6 +82,7 @@ import type {
 	GenerateReinforcementInput,
 	GetThemesResult,
 	GetThemeResult,
+	GetResponseWinThemeSeedReviewResult,
 	CreateThemeResult,
 	CreateThemesFromResponseSeedsResult,
 	UpdateThemeResult,
@@ -100,8 +108,11 @@ import type {
 	WinThemeType,
 	ThemePriority,
 	ThemeStatus,
+	ResponseWinThemeSeedInput,
 } from "@/lib/types/win-themes";
+import type { ProposalDocumentType } from "@/lib/types/opportunity";
 import { logger } from "@/lib/utils/logger";
+import { getDocumentTypeLabel } from "@/lib/utils/proposal-labels";
 
 // ============================================================================
 // Zod Validation Schemas
@@ -341,6 +352,75 @@ function normalizeThemeStatement(statement: string): string {
 	return statement.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function isAcceptedRfpRequirement(requirement: typeof rfpRequirements.$inferSelect): boolean {
+	const metadata = isRecord(requirement.metadata) ? requirement.metadata : {};
+	const workflow = isRecord(metadata.workflow) ? metadata.workflow : {};
+	return workflow.state === "accepted";
+}
+
+function proposalDocumentTypeForRequirement(requirement: typeof rfpRequirements.$inferSelect): ProposalDocumentType {
+	const haystack = [
+		requirement.category,
+		requirement.subcategory,
+		requirement.sourceSection,
+		requirement.title,
+		requirement.requirementText,
+	]
+		.filter(Boolean)
+		.join(" ")
+		.toLowerCase();
+	if (/\b(cost|price|pricing|financial|budget)\b/.test(haystack)) return "cost_proposal";
+	if (/\b(past performance|experience|reference|case stud)\b/.test(haystack)) return "past_performance";
+	if (/\b(staff|personnel|key personnel|cv|resume|team)\b/.test(haystack)) return "staffing_plan";
+	if (/\b(management|governance|schedule|work plan|implementation plan|risk)\b/.test(haystack)) return "management_plan";
+	return "technical_approach";
+}
+
+function responseStrategyForRequirement(requirement: typeof rfpRequirements.$inferSelect, documentType: ProposalDocumentType): string {
+	const label = getDocumentTypeLabel(documentType).toLowerCase();
+	const source = requirement.sourceSection || requirement.requirementNumber || "the accepted requirement";
+	if (requirement.responseStrategy) return requirement.responseStrategy;
+	return `Turn ${source} into a ${label} claim with direct compliance language, Datacraft delivery proof, owner accountability, and evaluator-visible risk control.`;
+}
+
+function requirementToLiveSignal(requirement: typeof rfpRequirements.$inferSelect): LiveResponseRequirementSignal {
+	const documentType = proposalDocumentTypeForRequirement(requirement);
+	return {
+		id: requirement.id,
+		text: requirement.title || requirement.requirementText,
+		sourceSection: requirement.sourceSection ?? requirement.requirementNumber ?? undefined,
+		priority: requirement.priority === "preferred" || requirement.priority === "optional"
+			? "preferred"
+			: "mandatory",
+		documentType,
+		responseStrategy: responseStrategyForRequirement(requirement, documentType),
+	};
+}
+
+function requirementToEvaluationSignal(
+	requirement: typeof rfpRequirements.$inferSelect
+): LiveResponseEvaluationSignal | null {
+	const hasEvaluationSignal = requirement.evaluationWeight !== null || /\b(section m|evaluation|scoring|score|criteria|award)\b/i.test(
+		[requirement.sourceSection, requirement.category, requirement.subcategory, requirement.requirementText].filter(Boolean).join(" ")
+	);
+	if (!hasEvaluationSignal) return null;
+	const documentType = proposalDocumentTypeForRequirement(requirement);
+	return {
+		id: requirement.id,
+		text: requirement.title || requirement.requirementText,
+		sourceSection: requirement.sourceSection ?? requirement.requirementNumber ?? undefined,
+		weight: requirement.evaluationWeight !== null && requirement.evaluationWeight !== undefined
+			? `${requirement.evaluationWeight}%`
+			: undefined,
+		documentType,
+		responseStrategy: responseStrategyForRequirement(requirement, documentType),
+	};
+}
+
 /**
  * Map database occurrence to API type.
  */
@@ -531,6 +611,111 @@ export async function createTheme(input: CreateWinThemeInput): Promise<CreateThe
 			return { success: false, error: error.issues.map((issue: z.ZodIssue) => issue.message).join(", ") };
 		}
 		return { success: false, error: `Failed to create theme: ${error instanceof Error ? error.message : "Unknown error"}` };
+	}
+}
+
+/**
+ * Build reviewable win-theme seeds from accepted opportunity requirements.
+ *
+ * This gives the response-package review surface an operator-visible approval
+ * step before generated strategy themes are persisted.
+ */
+export async function getResponseWinThemeSeedReview(
+	opportunityId: string
+): Promise<GetResponseWinThemeSeedReviewResult> {
+	try {
+		const userContext = await requireWinThemeContext();
+		const validated = z.string().uuid("Invalid opportunity ID").parse(opportunityId);
+
+		await requireAssignedOpportunity(validated, userContext);
+
+		const [opportunity] = await db
+			.select({
+				id: opportunities.id,
+				title: opportunities.title,
+				organization: opportunities.organization,
+				sourceId: opportunities.sourceId,
+				deadline: opportunities.deadline,
+			})
+			.from(opportunities)
+			.where(
+				and(
+					eq(opportunities.id, validated),
+					sql`(${opportunities.organizationId} = ${userContext.organizationId} or ${opportunities.organizationId} is null)`,
+					eq(opportunities.assignedTo, userContext.userId)
+				)
+			)
+			.limit(1);
+
+		if (!opportunity) {
+			throw new Error("Opportunity not found");
+		}
+
+		const requirements = await db
+			.select()
+			.from(rfpRequirements)
+			.where(
+				and(
+					eq(rfpRequirements.opportunityId, validated),
+					eq(rfpRequirements.organizationId, userContext.organizationId)
+				)
+			)
+			.orderBy(asc(rfpRequirements.requirementNumber), asc(rfpRequirements.createdAt));
+		const acceptedRequirements = requirements.filter((requirement) =>
+			requirement.complianceStatus !== "not_applicable" &&
+			isAcceptedRfpRequirement(requirement)
+		);
+		const requirementSignals = acceptedRequirements.map(requirementToLiveSignal);
+		const evaluationCriteria = acceptedRequirements
+			.map(requirementToEvaluationSignal)
+			.filter((criterion): criterion is LiveResponseEvaluationSignal => Boolean(criterion));
+		const generatedSeeds = buildLiveResponseWinThemeSeeds({
+			opportunity: {
+				title: opportunity.title,
+				organization: opportunity.organization ?? undefined,
+				deadline: opportunity.deadline,
+				source: "accepted_requirements",
+				sourceId: opportunity.sourceId ?? opportunity.id,
+			} satisfies OpportunityData,
+			requirements: requirementSignals,
+			evaluationCriteria,
+			relevantSnippetShortcuts: ["/dc-win-themes", "/dc-technical", "/dc-proof", "/dc-management"],
+		}) satisfies ResponseWinThemeSeedInput[];
+
+		const existingThemes = await db
+			.select()
+			.from(winThemes)
+			.where(visibleOpportunityThemesCondition(validated, userContext));
+		const existingStatements = new Set(existingThemes.map((theme) => normalizeThemeStatement(theme.themeStatement)));
+		const existingCriteriaIds = new Set(existingThemes.flatMap((theme) => theme.evaluationCriteriaIds ?? []));
+		const seenStatements = new Set(existingStatements);
+		const seenCriteriaIds = new Set(existingCriteriaIds);
+		const seeds = generatedSeeds.filter((seed) => {
+			const normalizedStatement = normalizeThemeStatement(seed.statement);
+			if (seenStatements.has(normalizedStatement)) return false;
+			const criteriaIds = seed.evaluationCriteriaIds ?? [];
+			if (criteriaIds.length > 0 && criteriaIds.every((criteriaId) => seenCriteriaIds.has(criteriaId))) return false;
+			seenStatements.add(normalizedStatement);
+			for (const criteriaId of criteriaIds) {
+				seenCriteriaIds.add(criteriaId);
+			}
+			return true;
+		});
+
+		return {
+			success: true,
+			data: {
+				seeds,
+				acceptedRequirementCount: acceptedRequirements.length,
+				evaluationCriteriaCount: evaluationCriteria.length,
+			},
+		};
+	} catch (error) {
+		logger.error("Error getting response win-theme seed review:", error);
+		if (error instanceof z.ZodError) {
+			return { success: false, error: error.issues.map((issue: z.ZodIssue) => issue.message).join(", ") };
+		}
+		return { success: false, error: `Failed to get response win-theme seed review: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
 

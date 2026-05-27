@@ -11,6 +11,7 @@ import { Suspense } from "react";
 import { getOpportunity } from "@/lib/actions/opportunities";
 import { getRequirements, getRequirementStats, analyzeRequirementGaps } from "@/lib/actions/requirements";
 import { listComplianceMatrices, listRfpDocuments } from "@/lib/actions/rfp-parser";
+import { getResponseWinThemeSeedReview } from "@/lib/actions/win-themes";
 import { RequirementsClientPage } from "./RequirementsClientPage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -22,13 +23,14 @@ export default async function RequirementsPage({ params }: PageProps) {
 	const { id } = await params;
 
 	// Fetch data in parallel
-	const [opportunity, requirementsResponse, stats, gapAnalysis, rfpDocumentsResponse, complianceMatricesResponse] = await Promise.all([
+	const [opportunity, requirementsResponse, stats, gapAnalysis, rfpDocumentsResponse, complianceMatricesResponse, winThemeSeedReviewResponse] = await Promise.all([
 		getOpportunity(id),
 		getRequirements(id),
 		getRequirementStats(id),
 		analyzeRequirementGaps(id),
 		listRfpDocuments({ opportunityId: id, limit: null }),
 		listComplianceMatrices({ opportunityId: id, limit: 5 }),
+		getResponseWinThemeSeedReview(id),
 	]);
 
 	if (!opportunity) {
@@ -163,6 +165,7 @@ export default async function RequirementsPage({ params }: PageProps) {
 								notAddressedCount: matrix.notAddressedCount,
 								updatedAt: matrix.updatedAt.toISOString(),
 							}))}
+							initialWinThemeSeedReview={winThemeSeedReviewResponse.success ? winThemeSeedReviewResponse.data : undefined}
 						/>
 					</Suspense>
 				</div>

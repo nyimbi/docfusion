@@ -83,7 +83,7 @@ vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
-import { createThemesFromResponseSeeds, scanForOccurrences, updateTheme } from "@/lib/actions/win-themes";
+import { createThemesFromResponseSeeds, getResponseWinThemeSeedReview, scanForOccurrences, updateTheme } from "@/lib/actions/win-themes";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -94,6 +94,69 @@ beforeEach(() => {
 });
 
 describe("win theme authorization", () => {
+	it("builds reviewable response win theme seeds from accepted requirements", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "22222222-2222-4222-8222-222222222222",
+					title: "Digital public records platform",
+					organization: "Ministry of ICT",
+					sourceId: "rfp-ict-001",
+					deadline: null,
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [
+					{
+						id: "55555555-5555-4555-8555-555555555555",
+						requirementNumber: "M.2.1",
+						title: "Technical evaluation approach",
+						requirementText: "Evaluation criteria: technical approach carries 40 percent of the score.",
+						sourceSection: "Section M.2.1",
+						category: "technical",
+						subcategory: null,
+						priority: "mandatory",
+						evaluationWeight: 40,
+						responseStrategy: null,
+						complianceStatus: "partial",
+						metadata: { workflow: { state: "accepted" } },
+					},
+					{
+						id: "66666666-6666-4666-8666-666666666666",
+						requirementNumber: "L.3.4",
+						title: "Implementation work plan",
+						requirementText: "Provide a detailed work plan with milestones and risk controls.",
+						sourceSection: "Section L.3.4",
+						category: "management",
+						subcategory: null,
+						priority: "mandatory",
+						evaluationWeight: null,
+						responseStrategy: "Show governance, schedule control, and delivery assurance.",
+						complianceStatus: "partial",
+						metadata: { workflow: { state: "accepted" } },
+					},
+				],
+			}))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		const result = await getResponseWinThemeSeedReview("22222222-2222-4222-8222-222222222222");
+
+		expect(result.success).toBe(true);
+		expect(result.data).toMatchObject({
+			acceptedRequirementCount: 2,
+			evaluationCriteriaCount: 1,
+		});
+		expect(result.data?.seeds[0]).toMatchObject({
+			evaluationCriteriaIds: ["55555555-5555-4555-8555-555555555555"],
+			requirementIds: expect.arrayContaining([
+				"55555555-5555-4555-8555-555555555555",
+			]),
+			targetDocumentTypes: ["technical_approach"],
+		});
+		expect(result.data?.seeds[0]?.supportingEvidence?.join("\n")).toContain("Evaluator criterion 55555555-5555-4555-8555-555555555555");
+	});
+
 	it("creates opportunity win themes from live response package seeds", async () => {
 		let insertedValues: unknown;
 		dbMock.select

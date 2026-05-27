@@ -168,6 +168,12 @@ export interface CreateThemesFromResponseSeedsInput {
 	reviewRequired?: boolean;
 }
 
+export interface ResponseWinThemeSeedReviewData {
+	seeds: ResponseWinThemeSeedInput[];
+	acceptedRequirementCount: number;
+	evaluationCriteriaCount: number;
+}
+
 // =============================================================================
 // Theme Suggestions
 // =============================================================================
@@ -643,6 +649,7 @@ export interface ActionResult<T> {
 export type GetThemesResult = ActionResult<WinTheme[]>;
 export type GetThemeResult = ActionResult<WinTheme>;
 export type CreateThemeResult = ActionResult<WinTheme>;
+export type GetResponseWinThemeSeedReviewResult = ActionResult<ResponseWinThemeSeedReviewData>;
 export type CreateThemesFromResponseSeedsResult = ActionResult<{
 	created: WinTheme[];
 	skipped: number;

@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Requirement Page Win Theme Seed Review
+
+Status: implemented and verified.
+
+Purpose: make generated response win-theme seed approval part of the operator requirements workflow, so accepted requirements can become reviewed strategy themes before final response approval.
+
+Changes in this slice:
+- Add `getResponseWinThemeSeedReview`, a server action that derives reviewable win-theme seeds from accepted opportunity requirements.
+- Treat weighted or evaluation/scoring-sourced accepted requirements as evaluator criteria for generated seed coverage.
+- Filter out seeds whose statements or evaluator criteria are already covered by existing opportunity win themes.
+- Load initial seed-review data on the opportunity requirements page.
+- Refresh seed-review data with requirements/compliance state and after response-package drafting.
+- Keep operators on the requirements page to approve generated win-theme seeds when response-package drafting produces pending strategy seeds.
+- Reuse the `ResponseWinThemeSeedReview` component directly in the requirements workflow.
+- Add regression coverage proving accepted requirements create reviewable seed data with evaluator criteria and target document mappings.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts` from `frontend/` passed, running 6 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` from `frontend/` passed, running 15 strategic capability tests across competitive win themes, resource reuse, and search/RAG health.
+
+Remaining after this slice:
+- Add a browser-level operator proof for the requirements-page seed review panel once an authenticated seeded opportunity is available.
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Evaluator Criteria Evidence Traceability
 
 Status: implemented and verified.
