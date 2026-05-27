@@ -84,7 +84,10 @@ import {
 	deleteProject,
 	duplicateProject,
 	exportPastPerformanceVolume,
+	generateBriefDescription,
+	generateCPARNarrative,
 	generateRelevanceMatrix,
+	generateRelevanceNarrative,
 	getPastPerformanceAnalytics,
 	getProject,
 	searchProjects,
@@ -111,6 +114,26 @@ const requirement = {
 	requirementText: "Provide secure cloud analytics",
 	category: "Technical",
 	priority: "mandatory",
+};
+
+const project = {
+	id: projectId,
+	name: "Health Data Exchange",
+	customerName: "Ministry of Health",
+	customerAgency: "MOH",
+	contractValue: 2500000,
+	contractType: "fixed_price",
+	periodOfPerformance: { start: "2024-01-01", end: "2025-12-31" },
+	description: "Delivered secure health data exchange services.",
+	scopeSummary: "Cloud analytics and interoperability implementation.",
+	technicalAreas: ["cloud", "analytics"],
+	cparRatings: { quality: 5, schedule: 4, cost: 4, management: 5, overall: 4.5 },
+	keyAccomplishments: ["Connected 50 facilities"],
+	quantifiedResults: [{ metric: "Availability", value: "99.9%", context: "Production operations" }],
+	customerPOC: "Amina Lead",
+	customerPOCEmail: "amina@example.test",
+	customerPOCPhone: "+254700000000",
+	referenceStatus: "available",
 };
 
 beforeEach(() => {
@@ -382,6 +405,64 @@ describe("past performance opportunity scoping", () => {
 				pastPerformanceLosses: 1,
 			},
 		});
+	});
+
+	it("falls back to a deterministic CPAR narrative when AI returns blank content", async () => {
+		completeMock.mockResolvedValueOnce({ content: "  \n\t" });
+		dbMock.select.mockReturnValueOnce(createChain({ result: [project] }));
+		dbMock.update.mockReturnValueOnce(createChain());
+
+		const result = await generateCPARNarrative(projectId);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		const data = result.data;
+		expect(data).toBeDefined();
+		if (!data) return;
+		expect(data.narrative).toContain("Health Data Exchange");
+		expect(data.narrative.trim().length).toBeGreaterThan(100);
+	});
+
+	it("falls back to a deterministic brief description when AI returns blank content", async () => {
+		completeMock.mockResolvedValueOnce({ content: "  \n\t" });
+		dbMock.select.mockReturnValueOnce(createChain({ result: [project] }));
+		dbMock.update.mockReturnValueOnce(createChain());
+
+		const result = await generateBriefDescription(projectId, 60);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		const data = result.data;
+		expect(data).toBeDefined();
+		if (!data) return;
+		expect(data.narrative).toContain("Ministry of Health");
+		expect(data.narrative.trim().length).toBeGreaterThan(40);
+	});
+
+	it("falls back to a deterministic relevance narrative when AI returns blank content", async () => {
+		completeMock.mockResolvedValueOnce({ content: "  \n\t" });
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [project] }))
+			.mockReturnValueOnce(createChain({ result: [opportunity] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "score-1",
+					overallScore: 92,
+					scopeScore: 88,
+					customerScore: 80,
+				}],
+			}));
+		dbMock.update.mockReturnValueOnce(createChain());
+
+		const result = await generateRelevanceNarrative(projectId, opportunityId);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		const data = result.data;
+		expect(data).toBeDefined();
+		if (!data) return;
+		expect(data.narrative).toContain(opportunity.title);
+		expect(data.narrative).toContain("92% relevance");
 	});
 
 	it("scopes project ID reads and mutations to projects created by the caller", async () => {

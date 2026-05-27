@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Blank AI Past-Performance Narrative Fallbacks
+
+Status: implemented and verified.
+
+Purpose: stop past-performance support narratives from being saved as successful empty artifacts when an AI provider returns blank content.
+
+Changes in this slice:
+- Treat blank AI CPAR narrative output as unusable and reuse the deterministic CPAR fallback.
+- Treat blank AI brief-description output as unusable and reuse the deterministic brief-description fallback.
+- Treat blank AI relevance-narrative output as unusable and reuse the deterministic relevance fallback.
+- Add regression coverage for all three blank-AI narrative paths.
+
+Verification:
+- `npm test -- past-performance-scope.test.ts --run` passed with 12 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 144 tests.
+
+Remaining after this slice:
+- Continue auditing response-support generation paths for blank AI output that can still be reported as successful.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Blank AI Ghost Theme Fallback
 
 Status: implemented and verified.

@@ -1378,7 +1378,7 @@ Generate the CPAR narrative:`;
 				maxTokens: 1000,
 				temperature: 0.7,
 			});
-			narrative = result.content;
+			narrative = result.content.trim() || generateFallbackCPARNarrative(project);
 
 			// Extract key points from narrative
 			keyPoints = extractKeyPoints(narrative, project);
@@ -1509,7 +1509,7 @@ Write a concise, impactful summary highlighting the most impressive metrics and 
 				maxTokens: 200,
 				temperature: 0.5,
 			});
-			narrative = result.content;
+			narrative = result.content.trim() || generateFallbackBriefDescription(project, maxWords);
 		} catch (aiError) {
 			// Fallback to template-based brief
 			narrative = generateFallbackBriefDescription(project, maxWords);
@@ -1638,7 +1638,7 @@ Write a narrative that:
 				maxTokens: 300,
 				temperature: 0.6,
 			});
-			narrative = result.content;
+			narrative = result.content.trim() || generateFallbackRelevanceNarrative(project, opportunity, relevanceScore);
 		} catch (aiError) {
 			// Fallback to template-based narrative
 			narrative = generateFallbackRelevanceNarrative(project, opportunity, relevanceScore);
