@@ -5657,3 +5657,23 @@ Verification:
 Remaining after this slice:
 - Continue replacing remaining placeholder exports such as presentation handout and evidence export paths where no backing artifact exists.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Presentation Handout Export Artifact
+
+Status: implemented and verified.
+
+Purpose: make audience handout generation return a real PDF artifact instead of a placeholder `/api/presentations/handout` URL.
+
+Changes in this slice:
+- Generate handout PDFs directly from presentation title, agenda, visible slide summaries, and team details.
+- Return a base64 `data:application/pdf` URL with the actual generated page count.
+- Add regression coverage that decodes the handout and verifies the `%PDF-` signature.
+
+Verification:
+- `npm test -- presentations-export.test.ts` passed with 5 tests.
+- `npm run platform:proof -- --run wave9-presentation-export-artifacts` passed with 10 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing remaining placeholder exports such as evidence and graphics export paths where no backing artifact exists.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

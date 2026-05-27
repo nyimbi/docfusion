@@ -324,6 +324,65 @@ async function buildPresentationPdf(deck: PresentationExportDeck): Promise<Array
 	return pdf.output("arraybuffer");
 }
 
+type HandoutSection = {
+	title: string;
+	content: string;
+	slideNumber?: number;
+};
+
+async function buildHandoutPdf(handoutSections: HandoutSection[]): Promise<{ content: ArrayBuffer; pageCount: number }> {
+	const { jsPDF } = await import("jspdf");
+	const pdf = new jsPDF({ unit: "pt", format: "letter" });
+	const pageWidth = pdf.internal.pageSize.getWidth();
+	const pageHeight = pdf.internal.pageSize.getHeight();
+	const margin = 54;
+	const bodyWidth = pageWidth - (margin * 2);
+	let y = margin;
+
+	pdf.setProperties({
+		title: handoutSections[0]?.title ? `${handoutSections[0].title} Handout` : "Presentation Handout",
+		creator: "DocFusion",
+		subject: "Audience handout",
+	});
+
+	const addPageIfNeeded = (neededHeight: number) => {
+		if (y + neededHeight <= pageHeight - margin) return;
+		pdf.addPage();
+		y = margin;
+	};
+
+	const addWrappedText = (text: string, options: { size?: number; bold?: boolean; spacing?: number } = {}) => {
+		const fontSize = options.size ?? 10;
+		const lineHeight = fontSize + 4;
+		pdf.setFont("helvetica", options.bold ? "bold" : "normal");
+		pdf.setFontSize(fontSize);
+		const lines = pdf.splitTextToSize(text || " ", bodyWidth) as string[];
+		for (const line of lines) {
+			addPageIfNeeded(lineHeight);
+			pdf.text(line, margin, y);
+			y += lineHeight;
+		}
+		y += options.spacing ?? 4;
+	};
+
+	handoutSections.forEach((section, index) => {
+		if (index > 0) y += 8;
+		addPageIfNeeded(72);
+		addWrappedText(
+			section.slideNumber ? `Slide ${section.slideNumber}: ${section.title}` : section.title,
+			{ size: index === 0 ? 18 : 13, bold: true, spacing: 8 }
+		);
+		for (const paragraph of section.content.split(/\n+/).map((value) => value.trim()).filter(Boolean)) {
+			addWrappedText(paragraph);
+		}
+	});
+
+	return {
+		content: pdf.output("arraybuffer"),
+		pageCount: pdf.getNumberOfPages(),
+	};
+}
+
 async function buildPresentationPptx(deck: PresentationExportDeck): Promise<string | ArrayBuffer | Uint8Array> {
 	const { default: PptxGenJS } = await import("pptxgenjs");
 	const pptx = new PptxGenJS();
@@ -3023,11 +3082,7 @@ export async function generateHandout(
 		const { presentation, slides, team } = presentationResult.data;
 
 		// Build handout content
-		const handoutSections: Array<{
-			title: string;
-			content: string;
-			slideNumber?: number;
-		}> = [];
+		const handoutSections: HandoutSection[] = [];
 
 		// Title page
 		handoutSections.push({
@@ -3076,19 +3131,14 @@ export async function generateHandout(
 			});
 		}
 
-		// Estimate page count (roughly 3 slides per page)
-		const pageCount = Math.ceil(handoutSections.length / 3);
-
-		// Generate download URL
-		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-		const filename = `handout-${presentationId.slice(0, 8)}-${timestamp}.pdf`;
-		const downloadUrl = `/api/presentations/handout?id=${presentationId}&filename=${encodeURIComponent(filename)}`;
+		const handoutPdf = await buildHandoutPdf(handoutSections);
+		const downloadUrl = toBase64DataUrl("application/pdf", handoutPdf.content);
 
 		return {
 			success: true,
 			data: {
 				downloadUrl,
-				pageCount,
+				pageCount: handoutPdf.pageCount,
 			},
 		};
 	} catch (error) {

@@ -89,7 +89,7 @@ vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
-import { exportPresentation } from "@/lib/actions/presentations";
+import { exportPresentation, generateHandout } from "@/lib/actions/presentations";
 
 const presentation = {
 	id: "44444444-4444-4444-8444-444444444444",
@@ -178,5 +178,17 @@ describe("presentation export artifacts", () => {
 		expect(html).toContain("Mobilize in 30 days");
 		expect(html).toContain("Open with the evidence-backed delivery story.");
 		expect(html).toContain("Amina Lead");
+	});
+
+	it("generates a real PDF handout artifact", async () => {
+		const result = await generateHandout(presentation.id);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.downloadUrl).toMatch(/^data:application\/pdf;base64,/);
+		expect(result.data.downloadUrl).not.toContain("/api/presentations/handout");
+		const encoded = result.data.downloadUrl.split(",")[1] ?? "";
+		expect(Buffer.from(encoded, "base64").toString("latin1").startsWith("%PDF-")).toBe(true);
+		expect(result.data.pageCount).toBeGreaterThanOrEqual(1);
 	});
 });
