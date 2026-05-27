@@ -332,6 +332,35 @@ function buildDeterministicCostSuggestions(
 	return suggestions.slice(0, 5);
 }
 
+function buildDeterministicHoursEstimate(
+	title: string,
+	content: string,
+	categories: LaborCategory[],
+	complexityMultiplier = 1
+): HoursEstimate {
+	const estimateText = `${title}\n${content}`;
+	const totalHours = Math.max(8, Math.round(estimateDeterministicHours(estimateText) * complexityMultiplier));
+	const laborCategory = chooseLaborCategory(categories, estimateText);
+
+	return {
+		totalHours,
+		byCategory: laborCategory
+			? [{
+				categoryId: laborCategory.id,
+				categoryName: laborCategory.name,
+				hours: totalHours,
+				confidence: 0.62,
+				rationale: `Deterministic fallback matched the scope to active labor category ${laborCategory.name}.`,
+			}]
+			: [],
+		assumptions: [
+			"Estimate is a deterministic fallback derived from scope length, complexity keywords, and active labor categories.",
+			"Review hours against final technical approach before submission.",
+		],
+		methodology: "Deterministic fallback estimation from technical scope and active labor categories",
+	};
+}
+
 /**
  * Hours estimate with breakdown by category.
  */
@@ -1760,10 +1789,28 @@ Respond in JSON format:
 
 			return { success: true, data: estimate };
 		} catch {
-			return {
-				success: false,
-				error: "Failed to parse AI estimate",
-			};
+			logger.warn("Falling back to deterministic technical hours estimate after AI parse failure");
+			const estimate = buildDeterministicHoursEstimate(
+				tracking.sectionName || "Technical section",
+				tracking.sectionContent || "",
+				categories
+			);
+			const impliedStaffing: ImpliedStaffingEntry[] = estimate.byCategory.map(c => ({
+				role: c.categoryName,
+				effort: `${c.hours} hours`,
+				hours: c.hours,
+			}));
+
+			await db
+				.update(costTechnicalTracking)
+				.set({
+					impliedStaffing,
+					analyzedAt: new Date(),
+					updatedAt: new Date(),
+				})
+				.where(costTechnicalTrackingByIdCondition(tracking.id, userContext));
+
+			return { success: true, data: estimate };
 		}
 	} catch (error) {
 		logger.error("Error estimating hours from technical:", error);
@@ -1846,9 +1893,15 @@ Respond in JSON format:
 				},
 			};
 		} catch {
+			logger.warn("Falling back to deterministic scope hours estimate after AI parse failure");
 			return {
-				success: false,
-				error: "Failed to parse AI estimate",
+				success: true,
+				data: buildDeterministicHoursEstimate(
+					"Scope estimate",
+					scopeDescription,
+					categories,
+					complexityMultiplier
+				),
 			};
 		}
 	} catch (error) {

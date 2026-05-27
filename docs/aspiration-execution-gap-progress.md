@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Hours Estimate Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep BOE staffing work moving when AI hour-estimate output is malformed but technical scope and active labor categories are available.
+
+Changes in this slice:
+- Add deterministic hours estimates from scope length, complexity keywords, active labor categories, and explicit complexity multipliers.
+- Return fallback hour estimates for both technical-section estimates and freeform scope estimates after AI parse failure.
+- Persist implied staffing on technical tracking records when deterministic technical estimates are used.
+- Add regression coverage proving malformed AI output still stores implied staffing and returns a reviewable estimate.
+
+Verification:
+- `npm test -- pricing.test.ts` passed with 94 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue replacing AI-only BOE and pricing analysis paths where existing cost/technical records can produce deterministic review artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Cost Suggestion Fallbacks
 
 Status: implemented and verified.

@@ -170,6 +170,7 @@ import {
 	listCostElements,
 	lookupPerDiem,
 	calculateTravelCosts,
+	estimateHoursFromTechnical,
 } from "@/lib/actions/pricing";
 
 // ============================================================================
@@ -756,6 +757,39 @@ describe("Cost suggestion fallbacks", () => {
 				suggestedName: "Cloud Implementation Travel",
 			}),
 		]));
+	});
+});
+
+describe("Hours estimation fallbacks", () => {
+	test("stores deterministic implied staffing when AI estimate output is malformed", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: "not json", tokensUsed: 0 });
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([{
+				id: "tracking-2",
+				sectionName: "Systems Integration",
+				sectionContent:
+					"Engineering team will perform integration, configuration, testing, and compliance validation.",
+			}]))
+			.mockImplementationOnce(() => createChainableQuery([{
+				id: "labor-2",
+				name: "Systems Engineer",
+				fullyBurdenedRate: 190,
+				directRate: 140,
+			}]));
+
+		const result = await estimateHoursFromTechnical("section-2");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.totalHours).toBeGreaterThan(0);
+		expect(result.data.byCategory).toEqual([
+			expect.objectContaining({
+				categoryId: "labor-2",
+				categoryName: "Systems Engineer",
+				confidence: 0.62,
+			}),
+		]);
+		expect(dbMock.update).toHaveBeenCalled();
 	});
 });
 
