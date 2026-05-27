@@ -519,6 +519,16 @@ function visibleProposalDocumentsForComplianceCondition(opportunityId: string, o
 	);
 }
 
+function visibleProposalDocumentByDocumentCondition(documentId: string, organizationId: string) {
+	return and(
+		eq(proposalDocuments.documentId, documentId),
+		or(
+			eq(proposalDocuments.organizationId, organizationId),
+			isNull(proposalDocuments.organizationId)
+		)!
+	);
+}
+
 function nodeText(node: JSONContent | undefined): string {
 	if (!node) return "";
 	if (node.type === "text") return node.text || "";
@@ -639,6 +649,43 @@ function scoreSectionForRequirement(input: {
 		relevanceScore,
 		reason: `Matches requirement terms: ${previewTerms}`,
 	};
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function countRequirementReferences(sectionText: string, requirementNumber: string | null): number {
+	const normalized = requirementNumber?.trim();
+	if (!normalized) return 0;
+	const flexiblePattern = normalized
+		.split(/[.\s-]+/)
+		.filter(Boolean)
+		.map(escapeRegExp)
+		.join("[.\\s-]*");
+	const regex = new RegExp(`\\b${flexiblePattern || escapeRegExp(normalized)}\\b`, "gi");
+	return Array.from(sectionText.matchAll(regex)).length;
+}
+
+async function getResponseDocumentForCompliance(
+	documentId: string,
+	organizationId: string
+): Promise<(ResponseDocumentCandidate & { opportunityId: string }) | null> {
+	const [record] = await db
+		.select({
+			documentId: documents.id,
+			documentTitle: documents.title,
+			documentType: proposalDocuments.documentType,
+			opportunityId: proposalDocuments.opportunityId,
+			content: documents.content,
+			plainText: documents.plainText,
+		})
+		.from(proposalDocuments)
+		.innerJoin(documents, eq(proposalDocuments.documentId, documents.id))
+		.where(visibleProposalDocumentByDocumentCondition(documentId, organizationId))
+		.limit(1);
+
+	return record ?? null;
 }
 
 // ============================================================================
@@ -1905,31 +1952,20 @@ export async function detectMissingCrossReferences(
 	const userContext = await requireUserContext();
 	const organizationId = requireComplianceOrganization(userContext);
 
-	// Find the document and associated opportunity
-	const document = await db.query.documents.findFirst({
-		where: eq(documents.id, documentId),
-	});
-
+	const document = await getResponseDocumentForCompliance(documentId, organizationId);
 	if (!document) {
 		return [];
 	}
 
-	// Extract opportunityId from document metadata if available
-	const metadata = document.metadata as { opportunityId?: string } | null;
-	const opportunityId = metadata?.opportunityId;
-
-	if (!opportunityId) {
-		return [];
-	}
-
-	// Get requirements for this opportunity that are not addressed
 	const requirements = await db.query.rfpRequirements.findMany({
 		where: and(
-			eq(rfpRequirements.opportunityId, opportunityId),
+			eq(rfpRequirements.opportunityId, document.opportunityId),
 			eq(rfpRequirements.complianceStatus, "not_addressed"),
 			eq(rfpRequirements.organizationId, organizationId)
 		),
 	});
+
+	const sections = sectionizeDocument(document.content, document.plainText);
 
 	return requirements.map((req) => ({
 		requirementId: req.id,
@@ -1937,7 +1973,18 @@ export async function detectMissingCrossReferences(
 		requirementText: req.requirementText,
 		category: req.category ?? "other",
 		priority: req.priority ?? "medium",
-		suggestedSections: [],
+		suggestedSections: sections
+			.map((section) => scoreSectionForRequirement({
+				section,
+				document,
+				requirementText: req.requirementText,
+				requirementNumber: req.requirementNumber,
+				category: req.category,
+			}))
+			.filter((suggestion): suggestion is SuggestedLocation => suggestion !== null)
+			.sort((a, b) => b.relevanceScore - a.relevanceScore)
+			.slice(0, 3)
+			.map((suggestion) => `${suggestion.documentTitle} - ${suggestion.sectionTitle} (${suggestion.reason})`),
 	}));
 }
 
@@ -1945,12 +1992,39 @@ export async function detectMissingCrossReferences(
  * Detects requirements that are referenced too many times (potential redundancy).
  */
 export async function detectOverReferences(documentId: string): Promise<OverReference[]> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
+	const organizationId = requireComplianceOrganization(userContext);
 
-	// In production, would analyze document content for cross-references
-	// and identify requirements mentioned more than necessary
+	const document = await getResponseDocumentForCompliance(documentId, organizationId);
+	if (!document) {
+		return [];
+	}
 
-	return [];
+	const requirements = await db.query.rfpRequirements.findMany({
+		where: and(
+			eq(rfpRequirements.opportunityId, document.opportunityId),
+			eq(rfpRequirements.organizationId, organizationId)
+		),
+	});
+	const sections = sectionizeDocument(document.content, document.plainText);
+
+	return requirements.flatMap((requirement) => {
+		const locations = sections.flatMap((section) => {
+			const count = countRequirementReferences(`${section.title}\n${section.text}`, requirement.requirementNumber);
+			if (count === 0) return [];
+			return Array.from({ length: count }, () => `${document.documentTitle} - ${section.title}`);
+		});
+
+		if (locations.length <= 3) return [];
+
+		return [{
+			requirementId: requirement.id,
+			requirementNumber: requirement.requirementNumber ?? requirement.id,
+			referenceCount: locations.length,
+			locations,
+			recommendation: "Consolidate duplicate requirement references and keep the strongest response section as the primary compliance pointer.",
+		}];
+	}).sort((a, b) => b.referenceCount - a.referenceCount);
 }
 
 /**

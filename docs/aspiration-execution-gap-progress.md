@@ -5874,3 +5874,25 @@ Verification:
 Remaining after this slice:
 - Continue auditing generated response-support text for unresolved placeholders or generic evaluator-facing claims.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Compliance Cross-Reference Gap Detection
+
+Status: implemented and verified.
+
+Purpose: make compliance cross-reference diagnostics inspect scoped response document sections instead of returning empty placeholder findings.
+
+Changes in this slice:
+- Load response documents through scoped `proposalDocuments` joins before compliance cross-reference analysis.
+- Populate missing-reference findings with ranked suggested response sections using the existing requirement-section scorer.
+- Detect over-referenced requirements by counting requirement-number mentions across response sections.
+- Add regression coverage for suggested missing-reference sections and duplicate reference detection.
+
+Verification:
+- `npm test -- compliance-cross-reference-suggestions.test.ts` passed with 4 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 93 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue replacing compliance automation placeholders, especially automatic link creation for high-confidence requirement-section matches.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

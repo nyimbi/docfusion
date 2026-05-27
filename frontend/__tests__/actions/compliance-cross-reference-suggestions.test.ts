@@ -37,6 +37,7 @@ var dbMock: {
 	query: {
 		rfpRequirements: {
 			findFirst: ReturnType<typeof vi.fn>;
+			findMany: ReturnType<typeof vi.fn>;
 		};
 	};
 };
@@ -57,12 +58,17 @@ vi.mock("@/lib/db", () => ({
 		query: {
 			rfpRequirements: {
 				findFirst: vi.fn(),
+				findMany: vi.fn(),
 			},
 		},
 	},
 }));
 
-import { suggestCrossReferenceLocations } from "@/lib/actions/compliance-validator";
+import {
+	detectMissingCrossReferences,
+	detectOverReferences,
+	suggestCrossReferenceLocations,
+} from "@/lib/actions/compliance-validator";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -79,6 +85,7 @@ beforeEach(() => {
 		requirementText: "The contractor shall provide cybersecurity incident response monitoring and evidence reporting.",
 		category: "cybersecurity",
 	});
+	dbMock.query.rfpRequirements.findMany.mockResolvedValue([]);
 });
 
 describe("compliance cross-reference suggestions", () => {
@@ -163,5 +170,92 @@ describe("compliance cross-reference suggestions", () => {
 		const suggestions = await suggestCrossReferenceLocations("req-1");
 
 		expect(suggestions).toEqual([]);
+	});
+
+	it("adds suggested response sections to missing cross-reference findings", async () => {
+		dbMock.select.mockReturnValue(createChain({
+			result: [{
+				documentId: "doc-technical",
+				documentTitle: "Technical Approach",
+				documentType: "technical_approach",
+				opportunityId: "opp-1",
+				plainText: null,
+				content: {
+					type: "doc",
+					content: [
+						{
+							type: "heading",
+							content: [{ type: "text", text: "Incident Response Monitoring" }],
+						},
+						{
+							type: "paragraph",
+							content: [{
+								type: "text",
+								text: "Cybersecurity incident response monitoring includes evidence reporting and escalation.",
+							}],
+						},
+					],
+				},
+			}],
+		}));
+		dbMock.query.rfpRequirements.findMany.mockResolvedValue([{
+			id: "req-1",
+			requirementNumber: "C.3.2",
+			requirementText: "The contractor shall provide cybersecurity incident response monitoring and evidence reporting.",
+			category: "cybersecurity",
+			priority: "mandatory",
+		}]);
+
+		const missing = await detectMissingCrossReferences("doc-technical");
+
+		expect(missing).toHaveLength(1);
+		expect(missing[0]).toMatchObject({
+			requirementId: "req-1",
+			requirementNumber: "C.3.2",
+			category: "cybersecurity",
+			priority: "mandatory",
+		});
+		expect(missing[0].suggestedSections[0]).toContain("Technical Approach - Incident Response Monitoring");
+		expect(missing[0].suggestedSections[0]).toContain("cybersecurity");
+	});
+
+	it("detects over-referenced requirements from scoped response document sections", async () => {
+		dbMock.select.mockReturnValue(createChain({
+			result: [{
+				documentId: "doc-technical",
+				documentTitle: "Technical Approach",
+				documentType: "technical_approach",
+				opportunityId: "opp-1",
+				plainText: [
+					"C.3.2 establishes the monitoring baseline.",
+					"Our C.3.2 response includes evidence reporting.",
+					"The C.3.2 workflow is staffed continuously.",
+					"C.3.2 appears again in the closeout checklist.",
+				].join("\n"),
+				content: null,
+			}],
+		}));
+		dbMock.query.rfpRequirements.findMany.mockResolvedValue([{
+			id: "req-1",
+			requirementNumber: "C.3.2",
+			requirementText: "The contractor shall provide cybersecurity incident response monitoring and evidence reporting.",
+			category: "cybersecurity",
+			priority: "mandatory",
+		}]);
+
+		const overReferences = await detectOverReferences("doc-technical");
+
+		expect(overReferences).toEqual([{
+			requirementId: "req-1",
+			requirementNumber: "C.3.2",
+			referenceCount: 4,
+			locations: [
+				"Technical Approach - Document body",
+				"Technical Approach - Document body",
+				"Technical Approach - Document body",
+				"Technical Approach - Document body",
+			],
+			recommendation: expect.stringContaining("Consolidate duplicate requirement references"),
+		}]);
 	});
 });
