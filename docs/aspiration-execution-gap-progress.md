@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Explicit Document Analysis AI Fallbacks
+
+Status: implemented and verified.
+
+Purpose: prevent the older document-analysis workflow from silently assigning neutral scores when AI factor analysis is unavailable or malformed.
+
+Changes in this slice:
+- Replace silent `75` scores for unavailable AI analysis with deterministic structural/evidence fallback scoring.
+- Add explicit informational issues and suggestions when a factor uses fallback scoring, so approval gates can distinguish measured heuristics from unavailable AI analysis.
+- Treat malformed AI responses without a numeric score as fallback-scored instead of defaulting to neutral confidence.
+- Replace random analysis issue IDs with monotonic timestamp IDs.
+- Add regression coverage proving unavailable AI analysis records fallback findings and non-neutral scores.
+- Add document-analysis fallback coverage to the Wave 5 AI/content governance proof manifest.
+
+Verification:
+- `npm test -- document-analysis-scope.test.ts document-analysis-auth.test.ts platform-proof-scenarios.test.ts` passed with 11 tests.
+- `npm run platform:proof -- --run wave5-ai-content-governance` passed with 29 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue auditing response-support analysis paths for any remaining generic confidence values.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Quality Assessment Scoring
 
 Status: implemented and verified.

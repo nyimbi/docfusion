@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
+const getProviderManagerMock = vi.hoisted(() => vi.fn());
 
 interface ChainConfig {
 	result?: unknown[];
@@ -69,13 +70,14 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/ai/providers", () => ({
-	getProviderManager: vi.fn(),
+	getProviderManager: getProviderManagerMock,
 }));
 
 vi.mock("@/lib/utils/logger", () => ({
 	logger: {
 		debug: vi.fn(),
 		error: vi.fn(),
+		warn: vi.fn(),
 	},
 }));
 
@@ -97,6 +99,11 @@ const documentRow = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	getCurrentUserIdMock.mockResolvedValue("analysis-user-1");
+	getProviderManagerMock.mockReturnValue({
+		initialize: vi.fn(async () => undefined),
+		isAvailable: vi.fn(async () => false),
+		complete: vi.fn(),
+	});
 });
 
 describe("document analysis document scoping", () => {
@@ -159,5 +166,59 @@ describe("document analysis document scoping", () => {
 		await expect(deleteAnalysis(analysisId)).resolves.toBe(false);
 
 		expectDocumentScope(deleteWhere);
+	});
+
+	it("records explicit deterministic fallback findings when AI analysis is unavailable", async () => {
+		const savedAt = new Date("2026-05-27T08:00:00.000Z");
+		const richDocumentRow = {
+			id: documentId,
+			content: {
+				type: "doc",
+				content: [
+					{
+						type: "paragraph",
+						content: [{
+							type: "text",
+							text: "Datacraft will deliver the required analytics platform with 35% faster reporting. Therefore the proposal includes evidence [1] and Source: https://example.com.",
+						}],
+					},
+					{
+						type: "paragraph",
+						content: [{
+							type: "text",
+							text: "The implementation includes governance, migration, integration, risk controls, and clear acceptance criteria for the committee.",
+						}],
+					},
+					{
+						type: "paragraph",
+						content: [{
+							type: "text",
+							text: "Finally, the team will provide training and operational handover within 6 weeks.",
+						}],
+					},
+				],
+			},
+		};
+		const documentAnalysisInsert = createChain({ result: [{ id: analysisId, analyzedAt: savedAt }] });
+		const paragraphInsert = createChain();
+		dbMock.select.mockReturnValueOnce(createChain({ result: [richDocumentRow] }));
+		dbMock.insert
+			.mockReturnValueOnce(documentAnalysisInsert)
+			.mockReturnValueOnce(paragraphInsert);
+
+		const result = await analyzeDocument({
+			documentId,
+			categories: ["technical"],
+			includeParagraphs: false,
+		});
+
+		expect(result.factors).toHaveLength(8);
+		expect(result.factors.every((factor) => factor.score !== 75)).toBe(true);
+		expect(result.factors.every((factor) =>
+			factor.issues.some((issue) => issue.message.includes("deterministic fallback scoring because AI provider unavailable"))
+		)).toBe(true);
+		expect(result.suggestions.some((suggestion) =>
+			suggestion.text.includes("Add a dedicated heuristic or reliable AI analysis path")
+		)).toBe(true);
 	});
 });

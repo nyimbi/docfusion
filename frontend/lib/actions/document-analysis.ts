@@ -445,8 +445,10 @@ function findWeakLanguage(text: string): { text: string; suggestion: string }[] 
 /**
  * Generate a unique ID.
  */
+let generatedAnalysisIdCounter = 0;
 function generateId(): string {
-	return Math.random().toString(36).substring(2, 15);
+	generatedAnalysisIdCounter += 1;
+	return `analysis-${Date.now()}-${generatedAnalysisIdCounter.toString(36)}`;
 }
 
 function normalizeAnalysisHistoryLimit(limit: number | undefined, fallback = 10, maximum = 1000): number {
@@ -763,17 +765,7 @@ async function analyzeFactorWithAI(
 	await manager.initialize();
 
 	if (!(await manager.isAvailable())) {
-		// Return a reasonable default when AI is unavailable
-		return {
-			id: factor.id,
-			name: factor.name,
-			category: factor.category,
-			description: factor.description,
-			score: 75,
-			weight: factor.weight,
-			issues: [],
-			suggestions: [],
-		};
+		return analyzeFactorWithDeterministicFallback(factor, text, paragraphs, "AI provider unavailable");
 	}
 
 	const systemPrompt = `You are an expert document analyst. Analyze a document based on a specific quality factor.
@@ -827,7 +819,11 @@ Provide your JSON analysis.`;
 			suggestions?: Array<{ type: string; text: string; impact: string }>;
 		};
 
-		const score = Math.max(0, Math.min(100, analysis.score ?? 75));
+		if (!Number.isFinite(analysis.score)) {
+			return analyzeFactorWithDeterministicFallback(factor, text, paragraphs, "AI response omitted a numeric score");
+		}
+
+		const score = Math.max(0, Math.min(100, analysis.score));
 
 		const issues: AnalysisIssue[] = (analysis.issues || []).map((issue) => ({
 			id: generateId(),
@@ -855,18 +851,59 @@ Provide your JSON analysis.`;
 		};
 	} catch (error) {
 		logger.warn(`[AI Analysis Error] Factor ${factor.id}:`, error);
-		// Fallback to default score when AI fails
-		return {
-			id: factor.id,
-			name: factor.name,
-			category: factor.category,
-			description: factor.description,
-			score: 75,
-			weight: factor.weight,
-			issues: [],
-			suggestions: [],
-		};
+		return analyzeFactorWithDeterministicFallback(factor, text, paragraphs, "AI analysis failed");
 	}
+}
+
+function analyzeFactorWithDeterministicFallback(
+	factor: FactorDefinition,
+	text: string,
+	paragraphs: string[],
+	reason: string
+): AnalysisFactor {
+	const wordCount = countWords(text);
+	const avgSentenceLength = averageSentenceLength(text);
+	const paragraphCount = paragraphs.length;
+	const transitionSignals = [
+		"however",
+		"therefore",
+		"furthermore",
+		"moreover",
+		"additionally",
+		"consequently",
+		"for example",
+		"in summary",
+		"finally",
+	].filter((term) => text.toLowerCase().includes(term)).length;
+	const evidenceSignals = text.match(/\d+%|\$[\d,]+|\bsource:\s*\S+|\[[0-9]+\]/gi)?.length ?? 0;
+
+	let score = 45;
+	if (wordCount >= 300) score += 10;
+	if (paragraphCount >= 3) score += 10;
+	if (avgSentenceLength >= 10 && avgSentenceLength <= 28) score += 10;
+	if (transitionSignals > 0) score += 8;
+	if (evidenceSignals > 0) score += 7;
+
+	return {
+		id: factor.id,
+		name: factor.name,
+		category: factor.category,
+		description: factor.description,
+		score: Math.min(90, score),
+		weight: factor.weight,
+		issues: [{
+			id: generateId(),
+			severity: "info",
+			factorId: factor.id,
+			message: `${factor.name} used deterministic fallback scoring because ${reason}. Review this factor before approval gates rely on it.`,
+		}],
+		suggestions: [{
+			id: generateId(),
+			type: "clarify",
+			text: `Add a dedicated heuristic or reliable AI analysis path for ${factor.name}.`,
+			impact: "medium",
+		}],
+	};
 }
 
 /**
