@@ -416,14 +416,14 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		kind: "live-safe",
 		proofTargets: ["F-001", "F-005"],
 		requiresLiveServices: true,
-		description: "Scrapes UNDP procurement notices and verifies field-packed rows become normalized UNDP opportunity candidates.",
+		description: "Scrapes UNDP procurement notices and verifies field-packed rows plus a detail-page document link become normalized UNDP opportunity evidence.",
 		command: {
 			command: "npx",
 			args: ["tsx", "scripts/prove-live-undp-source.ts"],
 		},
 		expectedArtifacts: [
 			".omx/state/platform-live-source-discovery-evidence.md",
-			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-source-discovery.json",
+			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-undp-source.json",
 		],
 	},
 	{

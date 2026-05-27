@@ -898,7 +898,8 @@ describe("discoverAndImportOpportunities", () => {
 	});
 
 	it("imports UNDP configured sources with the UNDP parser", async () => {
-		firecrawlScrapeMock.mockResolvedValue({
+		const documentUrl = "https://undp.sharepoint.com/sites/Docs-Public/Procurement/Forms/AllItems.aspx?FilterValue1=UNDP-IND-00772%2C1";
+		firecrawlScrapeMock.mockResolvedValueOnce({
 			success: true,
 			data: {
 				markdown: [
@@ -906,6 +907,22 @@ describe("discoverAndImportOpportunities", () => {
 				].join("\n"),
 				links: ["https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879"],
 				metadata: { title: "UNDP Procurement Notices" },
+			},
+		}).mockResolvedValueOnce({
+			success: true,
+			data: {
+				markdown: [
+					"Contact",
+					"UNDP India - [procurement.in@undp.org](mailto:procurement.in@undp.org)",
+					"",
+					"Documents :",
+					"-----------",
+					"",
+					`[Negotiation Document(s)](${documentUrl})`,
+					"(Before Accessing other negotiations Document(s), please click on [this link](https://undp.sharepoint.com/:f:/s/Docs-Public/example?e=abc))",
+				].join("\n"),
+				links: [documentUrl],
+				metadata: { title: "Procurement Notices - UNDP-IND-00772,1" },
 			},
 		});
 		selectResultsQueue.push([]);
@@ -916,6 +933,12 @@ describe("discoverAndImportOpportunities", () => {
 		});
 
 		expect(searchSearxngMock).not.toHaveBeenCalled();
+		expect(firecrawlScrapeMock).toHaveBeenNthCalledWith(1, "https://procurement-notices.undp.org/", expect.objectContaining({
+			formats: ["markdown", "html", "links"],
+		}));
+		expect(firecrawlScrapeMock).toHaveBeenNthCalledWith(2, "https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879", expect.objectContaining({
+			formats: ["markdown", "links"],
+		}));
 		expect(result.results).toEqual({
 			total: 1,
 			imported: 1,
@@ -932,14 +955,17 @@ describe("discoverAndImportOpportunities", () => {
 			category: "RFP - Request for proposal",
 			countryRegion: "INDIA",
 			organization: "UNDP-IND",
-			rfpLink: "https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879",
+			rfpLink: documentUrl,
 			portalUrl: "https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879",
-			documentUrl: "https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879",
+			documentUrl,
+			submissionMethod: "Negotiation Document(s)",
 			tags: ["external-discovery", "source-scrape", "undp", "un-procurement"],
 			metadata: expect.objectContaining({
 				undp: expect.objectContaining({
 					refNo: "UNDP-IND-00772,1",
 					process: "RFP - Request for proposal",
+					contactEmail: "procurement.in@undp.org",
+					primaryLink: { description: "Negotiation Document(s)", url: documentUrl },
 				}),
 				discovery: expect.objectContaining({
 					resultEngine: "firecrawl-source",
@@ -949,6 +975,7 @@ describe("discoverAndImportOpportunities", () => {
 				}),
 			}),
 		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
 	});
 
 	it("imports COMESA configured sources with the COMESA parser", async () => {

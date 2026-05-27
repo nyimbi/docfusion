@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - UNDP Detail Document Enrichment
+
+Status: implemented and verified.
+
+Purpose: move UNDP configured-source imports beyond portal-only links by extracting procurement document links from live notice detail pages, so discovered opportunities can seed source documents for downstream RFP parsing and response work.
+
+Changes in this slice:
+- Parse UNDP notice detail markdown for contact email, procurement document links, and the primary negotiation-document link.
+- Enrich the first bounded set of UNDP configured-source opportunities with detail-page document URLs during import.
+- Update the source document URL and `rfpLink` to the primary UNDP negotiation document link when available.
+- Tighten the `live-undp-source` proof so it verifies both normalized UNDP list opportunities and a live detail-page document link.
+- Add focused parser/import/proof coverage for UNDP detail enrichment.
+
+Verification:
+- `npm test -- undp-parser.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts generic-parser.test.ts` from `frontend/` passed, running 25 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-undp-source` from `frontend/` passed. It scraped `https://procurement-notices.undp.org`, returned 589 normalized UNDP opportunities, and proved a SharePoint `Negotiation Document(s)` link from a live detail page.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 discovery-to-response bridge test files and 50 tests.
+
+Remaining after this slice:
+- Continue adding high-value live sources where Firecrawl or source APIs can produce normalized opportunities with low noise and source documents.
+- Persisted live import and response proof still waits on reachable PostgreSQL.
+
 ### 2026-05-27 - UNDP Source-Preserving Live Discovery
 
 Status: implemented and verified.

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { genericParser, getParser, type TenderParser } from "@/lib/scrapers/parsers";
+import { parseUndpNoticeDetailMarkdown } from "@/lib/scrapers/parsers/undp";
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 import { fetchKenyaPpipOpportunities, isKenyaPpipUrl } from "@/lib/services/kenya-ppip-client";
@@ -131,6 +132,7 @@ const OPPORTUNITY_KEYWORDS = [
 
 const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
 const MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH = 120;
+const DEFAULT_UNDP_DETAIL_LIMIT = 5;
 const DOCUMENT_URL_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)/i;
 const DOCUMENT_LINK_KEYWORDS = [
 	"rfp",
@@ -693,7 +695,15 @@ async function discoverConfiguredSourceCandidates(
 			continue;
 		}
 
-		for (const opportunity of parseResult.opportunities.slice(0, limitPerSource)) {
+		const opportunities = parser.sourceId === "undp"
+			? await enrichUndpOpportunitiesWithDetails(
+				parseResult.opportunities.slice(0, limitPerSource),
+				firecrawl,
+				Math.min(DEFAULT_UNDP_DETAIL_LIMIT, limitPerSource)
+			)
+			: parseResult.opportunities.slice(0, limitPerSource);
+
+		for (const opportunity of opportunities) {
 			const url = opportunity.portalUrl ?? sourceUrl;
 			const normalizedUrl = normalizeUrlForIdentity(url);
 			if (seenUrls.has(normalizedUrl)) continue;
@@ -724,6 +734,54 @@ async function discoverConfiguredSourceCandidates(
 	}
 
 	return candidates;
+}
+
+function metadataRecord(value: OpportunityData["metadata"]): Record<string, unknown> {
+	return value ?? {};
+}
+
+async function enrichUndpOpportunitiesWithDetails(
+	opportunities: OpportunityData[],
+	firecrawl: FirecrawlClient,
+	detailLimit: number
+): Promise<OpportunityData[]> {
+	if (detailLimit <= 0) return opportunities;
+	const enriched = [...opportunities];
+	for (let index = 0; index < Math.min(detailLimit, enriched.length); index++) {
+		const opportunity = enriched[index];
+		if (!opportunity.portalUrl) continue;
+		try {
+			const detailResult = await firecrawl.scrape(opportunity.portalUrl, {
+				formats: ["markdown", "links"],
+				timeout: 20000,
+			});
+			if (!detailResult.success || !detailResult.data) continue;
+			const detail = parseUndpNoticeDetailMarkdown(
+				detailResult.data.markdown,
+				detailResult.data.links ?? []
+			);
+			if (!detail.primaryLink) continue;
+			const undpMetadata = metadataRecord(metadataRecord(opportunity.metadata).undp as Record<string, unknown> | undefined);
+			enriched[index] = {
+				...opportunity,
+				documentUrl: detail.primaryLink.url,
+				rfpLink: detail.primaryLink.url,
+				submissionMethod: detail.primaryLink.description ?? opportunity.submissionMethod,
+				metadata: {
+					...metadataRecord(opportunity.metadata),
+					undp: {
+						...undpMetadata,
+						...(detail.contactEmail ? { contactEmail: detail.contactEmail } : {}),
+						links: detail.links,
+						primaryLink: detail.primaryLink,
+					},
+				},
+			};
+		} catch {
+			// Detail enrichment is opportunistic; the listing row remains usable.
+		}
+	}
+	return enriched;
 }
 
 async function discoverKenyaPpipCandidates(

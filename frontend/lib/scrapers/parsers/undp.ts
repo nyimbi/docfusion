@@ -9,9 +9,21 @@ import type { OpportunityData } from "../deduplicator";
 import type { ParseInput, ParseResult, TenderParser } from "./types";
 import { cleanText, registerParser } from "./types";
 
+export interface UndpNoticeDetailLink {
+	url: string;
+	description?: string;
+}
+
+export interface UndpNoticeDetail {
+	contactEmail?: string;
+	links: UndpNoticeDetailLink[];
+	primaryLink?: UndpNoticeDetailLink;
+}
+
 const UNDP_BASE_URL = "https://procurement-notices.undp.org";
 const LABEL_PATTERN = /\b(Title|Ref No|UNDP Office\/Country|Office\/Country|Process|Deadline|Posted)\b/gi;
 const LINK_PATTERN = /\[([^\]]+)]\((https?:\/\/procurement-notices\.undp\.org\/[^)]+)\)/gi;
+const MARKDOWN_LINK_PATTERN = /\[([^\]]+)]\((https?:\/\/[^)]+)\)/gi;
 
 function normalizeInlineText(text: string): string {
 	return cleanText(text.replace(/\\+/g, " "));
@@ -137,6 +149,62 @@ function parseUndpMarkdown(markdown: string | undefined): OpportunityData[] {
 	}
 
 	return opportunities;
+}
+
+function isProcurementDocumentLink(link: UndpNoticeDetailLink): boolean {
+	const url = link.url.toLowerCase();
+	const description = link.description?.toLowerCase() ?? "";
+	if (url.includes("sharepoint.com") && url.includes("docs-public")) return true;
+	if (url.includes("view_negotiation_dlink.cfm")) return true;
+	return /negotiation document|solicitation document|tender document|document\(s\)/i.test(description);
+}
+
+function documentLinkScore(link: UndpNoticeDetailLink): number {
+	const url = link.url.toLowerCase();
+	const description = link.description?.toLowerCase() ?? "";
+	let score = 0;
+	if (description.includes("negotiation document")) score += 80;
+	if (description.includes("solicitation document") || description.includes("tender document")) score += 70;
+	if (url.includes("sharepoint.com") && url.includes("docs-public")) score += 50;
+	if (url.includes("/:f:/s/docs-public")) score += 15;
+	if (url.includes("view_negotiation_dlink.cfm")) score += 20;
+	if (description === "this link") score -= 10;
+	if (url.includes("service-now.com") || url.includes("supplier-registration") || url.includes("resources-for-bidders")) score -= 100;
+	return score;
+}
+
+function uniqueLinks(links: UndpNoticeDetailLink[]): UndpNoticeDetailLink[] {
+	const seen = new Set<string>();
+	const unique: UndpNoticeDetailLink[] = [];
+	for (const link of links) {
+		if (seen.has(link.url)) continue;
+		seen.add(link.url);
+		unique.push(link);
+	}
+	return unique;
+}
+
+export function parseUndpNoticeDetailMarkdown(
+	markdown: string | undefined,
+	links: string[] = []
+): UndpNoticeDetail {
+	const markdownLinks = [...(markdown ?? "").matchAll(MARKDOWN_LINK_PATTERN)].map((match) => ({
+		description: cleanText(match[1]),
+		url: match[2],
+	}));
+	const rawLinks = links
+		.filter((url) => /^https?:\/\//i.test(url))
+		.map((url) => ({ url }));
+	const candidates = uniqueLinks([...markdownLinks, ...rawLinks])
+		.filter(isProcurementDocumentLink);
+	const ranked = [...candidates].sort((a, b) => documentLinkScore(b) - documentLinkScore(a));
+	const contactEmail = markdown?.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
+
+	return {
+		contactEmail,
+		links: ranked,
+		primaryLink: ranked[0],
+	};
 }
 
 export const undpParser: TenderParser = {

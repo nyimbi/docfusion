@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { undpParser } from "@/lib/scrapers/parsers/undp";
+import { parseUndpNoticeDetailMarkdown, undpParser } from "@/lib/scrapers/parsers/undp";
 
 const undpMarkdown = `
 [Title\\ \\ Wool handloom value chain, Livelihood Enterprise Development & Community Cons\\ \\ Ref No\\ \\ UNDP-IND-00772,1\\ \\ UNDP Office/Country\\ \\ UNDP-IND/INDIA\\ \\ Process\\ \\ RFP - Request for proposal\\ \\ Deadline\\ \\ 09-Jun-26 \\ 08:00 AM (New York time)\\ \\ Posted\\ \\ 26-May-26](https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879)
@@ -44,5 +44,31 @@ describe("UNDP parser", () => {
 			opportunityType: "tender",
 		});
 		expect(String(result.opportunities[0].title)).not.toContain("Ref No");
+	});
+
+	it("extracts primary document links from notice detail markdown", () => {
+		const detail = parseUndpNoticeDetailMarkdown(`
+Contact
+Ahmed Adegboye - [procurement.ng@undp.org](mailto:procurement.ng@undp.org)
+
+Documents :
+-----------
+
+[Negotiation Document(s)](https://undp.sharepoint.com/sites/Docs-Public/Procurement/Forms/AllItems.aspx?FilterValue1=UNDP-NGA-01432)
+ (Before Accessing other negotiations Document(s), please click on [this link](https://undp.sharepoint.com/:f:/s/Docs-Public/Ej0xTIhAuoZGr2MQnl3LcVMBYpIajxUk8mAyieFewxB7nQ?e=oK2ob7)
+)
+[user guide](https://undp.service-now.com/kb_view.do?sysparm_article=KB0014104)
+		`, [
+			"https://supplier.quantum.partneragencies.org/",
+			"https://undp.sharepoint.com/:f:/s/Docs-Public/Ej0xTIhAuoZGr2MQnl3LcVMBYpIajxUk8mAyieFewxB7nQ?e=oK2ob7",
+		]);
+
+		expect(detail.contactEmail).toBe("procurement.ng@undp.org");
+		expect(detail.primaryLink).toEqual({
+			description: "Negotiation Document(s)",
+			url: "https://undp.sharepoint.com/sites/Docs-Public/Procurement/Forms/AllItems.aspx?FilterValue1=UNDP-NGA-01432",
+		});
+		expect(detail.links.map((link) => link.url)).toContain("https://undp.sharepoint.com/:f:/s/Docs-Public/Ej0xTIhAuoZGr2MQnl3LcVMBYpIajxUk8mAyieFewxB7nQ?e=oK2ob7");
+		expect(detail.links.map((link) => link.url)).not.toContain("https://undp.service-now.com/kb_view.do?sysparm_article=KB0014104");
 	});
 });
