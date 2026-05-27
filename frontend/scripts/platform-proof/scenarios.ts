@@ -410,6 +410,23 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "live-afdb-source",
+		wave: 9,
+		title: "Live AFDB source discovery proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005"],
+		requiresLiveServices: true,
+		description: "Scrapes AFDB's procurement page and verifies the AFDB parser filters policy and award links into normalized notice candidates.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-afdb-source.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-source-discovery-evidence.md",
+			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-source-discovery.json",
+		],
+	},
+	{
 		id: "live-comesa-source",
 		wave: 9,
 		title: "Live COMESA source discovery proof",

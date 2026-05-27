@@ -957,4 +957,65 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 		}));
 	});
+
+	it("imports AFDB configured sources with the AFDB parser", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"* [New procurement framework](https://www.afdb.org/en/projects-and-operations/procurement/new-procurement-policy)",
+					"",
+					"26-May-2026",
+					"",
+					"[EOI - Ethiopia - Development of Meteorological and Climate Mobile Application - BREFONS-Ethiopia](https://www.afdb.org/en/documents/eoi-ethiopia-development-meteorological-and-climate-mobile-application-brefons-ethiopia)",
+					"",
+					"22-May-2026",
+					"",
+					"[Contract Awards - Angola - Individual Consultant for the Position of Entrepreneurship Specialist - AYEP](https://www.afdb.org/en/documents/contract-awards-angola-individual-consultant-position-entrepreneurship-specialist-ayep)",
+				].join("\n"),
+				links: [
+					"https://www.afdb.org/en/projects-and-operations/procurement/new-procurement-policy",
+					"https://www.afdb.org/en/documents/eoi-ethiopia-development-meteorological-and-climate-mobile-application-brefons-ethiopia",
+				],
+				metadata: { title: "Procurement" },
+			},
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.afdb.org/en/projects-and-operations/procurement"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(searchSearxngMock).not.toHaveBeenCalled();
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			source: "afdb",
+			sourcePlatform: "African Development Bank",
+			sourceFile: "source:https://www.afdb.org/en/projects-and-operations/procurement",
+			title: "EOI - Ethiopia - Development of Meteorological and Climate Mobile Application - BREFONS-Ethiopia",
+			category: "Expression of interest",
+			countryRegion: "Ethiopia",
+			organization: "African Development Bank",
+			rfpLink: "https://www.afdb.org/en/documents/eoi-ethiopia-development-meteorological-and-climate-mobile-application-brefons-ethiopia",
+			portalUrl: "https://www.afdb.org/en/documents/eoi-ethiopia-development-meteorological-and-climate-mobile-application-brefons-ethiopia",
+			documentUrl: "https://www.afdb.org/en/documents/eoi-ethiopia-development-meteorological-and-climate-mobile-application-brefons-ethiopia",
+			tags: ["external-discovery", "source-scrape", "afdb", "development-bank", "regional-procurement"],
+			metadata: expect.objectContaining({
+				afdb: expect.objectContaining({ noticePrefix: "EOI", language: "en" }),
+				discovery: expect.objectContaining({
+					resultEngine: "firecrawl-source",
+					scrapeMethod: "firecrawl",
+					scrapedWithFirecrawl: true,
+					sourceUrl: "https://www.afdb.org/en/projects-and-operations/procurement",
+				}),
+			}),
+		}));
+	});
 });

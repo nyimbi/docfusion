@@ -9,6 +9,7 @@
 export * from "./types";
 
 // Import parsers to trigger self-registration
+import "./afdb";
 import "./comesa";
 import "./dgmarket";
 import "./generic";
@@ -16,6 +17,7 @@ import "./kenya-ppip";
 import "./ungm";
 
 // Re-export for direct access
+export { afdbParser } from "./afdb";
 export { comesaParser } from "./comesa";
 export { dgmarketParser } from "./dgmarket";
 export { genericParser } from "./generic";

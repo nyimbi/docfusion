@@ -42,6 +42,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-discovery-services");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-opportunity-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-source-discovery");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-afdb-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-comesa-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-ungm-source");
@@ -197,6 +198,16 @@ describe("platform proof scenarios", () => {
 				id: "live-source-discovery",
 				kind: "live-safe",
 				proofTargets: expect.arrayContaining(["F-001"]),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-source-discovery-evidence.md",
+				]),
+			}),
+		]);
+		expect(listProofScenarios({ ids: ["live-afdb-source"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-afdb-source",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005"]),
 				expectedArtifacts: expect.arrayContaining([
 					".omx/state/platform-live-source-discovery-evidence.md",
 				]),

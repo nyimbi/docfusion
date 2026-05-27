@@ -108,6 +108,7 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 
 function parserForSourceUrl(sourceUrl: string) {
 	const host = new URL(sourceUrl).hostname.replace(/^www\./, "").toLowerCase();
+	if (host.includes("afdb.org")) return getParser("afdb") ?? genericParser;
 	if (host.includes("comesa.int")) return getParser("comesa") ?? genericParser;
 	if (host.includes("tenders.go.ke")) return getParser("kenya_ppip") ?? genericParser;
 	if (host.includes("ungm.org")) return getParser("ungm") ?? genericParser;

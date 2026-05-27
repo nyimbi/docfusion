@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - AFDB Live Source Discovery
+
+Status: implemented and verified.
+
+Purpose: add a higher-signal regional development-bank source to live opportunity discovery without counting AFDB policy, navigation, procurement-plan, or award links as active opportunities.
+
+Changes in this slice:
+- Add an AFDB procurement parser that extracts dated document notices for actionable prefixes such as EOI, SPN, AOI, AMI, GPN, and IFB.
+- Wire AFDB source URLs into configured-source discovery so imports preserve `source: "afdb"`, African Development Bank platform metadata, and regional-procurement tags.
+- Add a source-specific `live-afdb-source` platform proof and source-specific run IDs for AFDB and COMESA live wrappers.
+- Add parser, import, and proof-manifest regression coverage.
+
+Verification:
+- `npm test -- afdb-parser.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 21 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-afdb-source` from `frontend/` passed. It scraped `https://www.afdb.org/en/projects-and-operations/procurement` and returned 13 normalized AFDB opportunities.
+- `npm run platform:proof -- --include-live-safe --run live-comesa-source` from `frontend/` passed after the wrapper run-ID change, returning 2 normalized COMESA opportunities.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 discovery-to-response bridge test files and 48 tests.
+
+Remaining after this slice:
+- Continue adding high-value live sources where Firecrawl or source APIs can produce normalized opportunities with low noise.
+- Persisted live import and response proof still waits on reachable PostgreSQL.
+
 ### 2026-05-27 - COMESA Live Source Discovery
 
 Status: implemented and verified.
