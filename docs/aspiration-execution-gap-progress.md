@@ -6821,3 +6821,18 @@ Verification:
 Remaining after this slice:
 - Continue extending artifact integrity checks into DB-backed persisted import-response proof once PostgreSQL connectivity is restored.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Live Persisted Import-Response Recheck
+
+Status: externally blocked.
+
+Purpose: recheck whether the DB-backed live persisted import-to-response proof can now complete after discovery intake and response artifact integrity hardening.
+
+Result:
+- Ran `npm run platform:proof -- --run live-persisted-import-response --include-live-safe`.
+- Proof run `live_persisted_import_response_20260527T114834Z` failed before source discovery or persistence because PostgreSQL refused the connection: `connect ECONNREFUSED 88.80.188.224:5432`.
+- No cleanup rows were needed because the proof failed before inserts.
+
+Remaining after this recheck:
+- Restore PostgreSQL connectivity to `88.80.188.224:5432`, then rerun `npm run platform:proof -- --run live-persisted-import-response --include-live-safe`.
+- Continue non-DB hardening while the persisted live proof remains externally blocked.
