@@ -433,14 +433,14 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		kind: "live-safe",
 		proofTargets: ["F-001", "F-005"],
 		requiresLiveServices: true,
-		description: "Scrapes World Bank procurement notices and verifies table rows become normalized opportunity candidates without award rows.",
+		description: "Scrapes World Bank procurement notices and verifies table rows plus detail-page solicitation metadata become normalized opportunity evidence.",
 		command: {
 			command: "npx",
 			args: ["tsx", "scripts/prove-live-world-bank-source.ts"],
 		},
 		expectedArtifacts: [
 			".omx/state/platform-live-source-discovery-evidence.md",
-			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-source-discovery.json",
+			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-world-bank-source.json",
 		],
 	},
 	{

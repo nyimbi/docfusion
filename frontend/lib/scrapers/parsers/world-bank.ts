@@ -9,10 +9,28 @@ import type { OpportunityData } from "../deduplicator";
 import type { ParseInput, ParseResult, TenderParser } from "./types";
 import { cleanText, parseDate, registerParser } from "./types";
 
+export interface WorldBankNoticeDetail {
+	projectId?: string;
+	projectTitle?: string;
+	noticeNo?: string;
+	noticeType?: string;
+	borrowerBidReference?: string;
+	procurementMethod?: string;
+	language?: string;
+	submissionDeadline?: Date;
+	publishedDate?: Date;
+	organization?: string;
+	contactEmail?: string;
+	details?: string;
+}
+
 const WORLD_BANK_BASE_URL = "https://projects.worldbank.org";
+const WORLD_BANK_NOTICE_API_BASE_URL = "https://search.worldbank.org/api/procnotices";
 const PROCUREMENT_DETAIL_PATTERN = /projects\.worldbank\.org\/en\/projects-operations\/procurement-detail\/(OP\d+)/i;
 const PROJECT_LINK_PATTERN = /\[([^\]]+)]\((https?:\/\/projects\.worldbank\.org\/en\/projects-operations\/project-detail\/[^)]+)\)/i;
 const DESCRIPTION_LINK_PATTERN = /\[([^\]]+)]\((https?:\/\/projects\.worldbank\.org\/en\/projects-operations\/procurement-detail\/[^)]+)\)/i;
+
+type WorldBankApiRecord = Record<string, unknown>;
 
 function normalizeWorldBankUrl(url: string): string {
 	try {
@@ -31,6 +49,10 @@ function sourceIdFromUrl(url: string): string {
 		.replace(/[^a-z0-9]+/g, "-")
 		.replace(/^-+|-+$/g, "")
 		.slice(0, 80);
+}
+
+export function worldBankNoticeIdFromUrl(url: string | undefined): string | undefined {
+	return url?.match(PROCUREMENT_DETAIL_PATTERN)?.[1];
 }
 
 function splitMarkdownRow(line: string): string[] {
@@ -106,6 +128,169 @@ function parseWorldBankMarkdown(markdown: string | undefined): OpportunityData[]
 	}
 
 	return opportunities;
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractField(markdown: string, label: string): string | undefined {
+	const pattern = new RegExp(`\\*\\s+${escapeRegExp(label)}\\s*\\n+\\s*([^\\n]+)`, "i");
+	const match = markdown.match(pattern);
+	const value = cleanText(match?.[1]?.replace(/\[([^\]]+)]\([^)]+\)/g, "$1"));
+	return value || undefined;
+}
+
+function cleanMarkdownProse(value: string | undefined): string | undefined {
+	const cleaned = cleanText(value
+		?.replace(/!\[[^\]]*]\([^)]+\)/g, " ")
+		.replace(/\[([^\]]+)]\([^)]+\)/g, "$1")
+		.replace(/[*_`>#-]+/g, " ")
+		.replace(/\s+/g, " "));
+	return cleaned || undefined;
+}
+
+function extractDetailsSection(markdown: string): string | undefined {
+	const match = markdown.match(/Details\s*\n[-=]+\s*\n([\s\S]*?)(?=\nFeedback Survey\b|\n[A-Z][^\n]{0,80}\n[-=]{3,}|$)/i);
+	return cleanMarkdownProse(match?.[1]);
+}
+
+function stringField(record: WorldBankApiRecord, key: string): string | undefined {
+	const value = record[key];
+	return typeof value === "string" && value.trim() ? cleanText(value) : undefined;
+}
+
+function decodeHtmlEntities(value: string): string {
+	const namedEntities: Record<string, string> = {
+		amp: "&",
+		lt: "<",
+		gt: ">",
+		quot: "\"",
+		apos: "'",
+		nbsp: " ",
+		ndash: "-",
+		mdash: "-",
+		lsquo: "'",
+		rsquo: "'",
+		ldquo: "\"",
+		rdquo: "\"",
+		Aacute: "A",
+		aacute: "a",
+		Acirc: "A",
+		acirc: "a",
+		Agrave: "A",
+		agrave: "a",
+		Atilde: "A",
+		atilde: "a",
+		Ccedil: "C",
+		ccedil: "c",
+		Eacute: "E",
+		eacute: "e",
+		Ecirc: "E",
+		ecirc: "e",
+		Iacute: "I",
+		iacute: "i",
+		Oacute: "O",
+		oacute: "o",
+		Ocirc: "O",
+		ocirc: "o",
+		Otilde: "O",
+		otilde: "o",
+		Uacute: "U",
+		uacute: "u",
+	};
+	return value.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]+);/gi, (entity, name: string) => {
+		if (name.startsWith("#x")) {
+			const codePoint = Number.parseInt(name.slice(2), 16);
+			return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : entity;
+		}
+		if (name.startsWith("#")) {
+			const codePoint = Number.parseInt(name.slice(1), 10);
+			return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : entity;
+		}
+		return namedEntities[name] ?? entity;
+	});
+}
+
+function htmlToText(value: string | undefined): string | undefined {
+	if (!value) return undefined;
+	const text = decodeHtmlEntities(value
+		.replace(/<\s*br\s*\/?>/gi, "\n")
+		.replace(/<\s*\/p\s*>/gi, "\n")
+		.replace(/<[^>]+>/g, " "));
+	return cleanText(text) || undefined;
+}
+
+function parseWorldBankApiDeadline(record: WorldBankApiRecord): Date | undefined {
+	const date = stringField(record, "submission_deadline_date");
+	const time = stringField(record, "submission_deadline_time");
+	const datePart = date?.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+	if (datePart && time) {
+		const parsed = Date.parse(`${datePart} ${time}`);
+		if (!Number.isNaN(parsed)) return new Date(parsed);
+	}
+	return parseDate(date);
+}
+
+export function parseWorldBankNoticeDetailApiResponse(value: unknown): WorldBankNoticeDetail {
+	if (!value || typeof value !== "object") return {};
+	const procnotices = (value as { procnotices?: unknown }).procnotices;
+	if (!Array.isArray(procnotices) || !procnotices[0] || typeof procnotices[0] !== "object") return {};
+	const record = procnotices[0] as WorldBankApiRecord;
+	const noticeText = htmlToText(stringField(record, "notice_text"));
+	return {
+		projectId: stringField(record, "project_id"),
+		projectTitle: stringField(record, "project_name"),
+		noticeNo: stringField(record, "id"),
+		noticeType: stringField(record, "notice_type"),
+		borrowerBidReference: stringField(record, "bid_reference_no"),
+		procurementMethod: stringField(record, "procurement_method_name"),
+		language: stringField(record, "notice_lang_name"),
+		submissionDeadline: parseWorldBankApiDeadline(record),
+		publishedDate: parseDate(stringField(record, "noticedate")),
+		organization: stringField(record, "contact_organization"),
+		contactEmail: stringField(record, "contact_email"),
+		details: noticeText,
+	};
+}
+
+export function worldBankNoticeApiUrl(noticeId: string): string {
+	const url = new URL(WORLD_BANK_NOTICE_API_BASE_URL);
+	url.searchParams.set("format", "json");
+	url.searchParams.set("apilang", "en");
+	url.searchParams.set("id", noticeId);
+	return url.toString();
+}
+
+export async function fetchWorldBankNoticeDetail(noticeId: string): Promise<WorldBankNoticeDetail> {
+	const response = await fetch(worldBankNoticeApiUrl(noticeId), {
+		headers: {
+			"Accept": "application/json",
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`World Bank notice API returned ${response.status}`);
+	}
+	return parseWorldBankNoticeDetailApiResponse(await response.json());
+}
+
+export function parseWorldBankNoticeDetailMarkdown(markdown: string | undefined): WorldBankNoticeDetail {
+	if (!markdown) return {};
+	const contactEmail = markdown.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
+	return {
+		projectId: extractField(markdown, "Project ID"),
+		projectTitle: extractField(markdown, "Project Title"),
+		noticeNo: extractField(markdown, "Notice No"),
+		noticeType: extractField(markdown, "Notice Type"),
+		borrowerBidReference: extractField(markdown, "Borrower Bid Reference"),
+		procurementMethod: extractField(markdown, "Procurement Method"),
+		language: extractField(markdown, "Language of Notice"),
+		submissionDeadline: parseDate(extractField(markdown, "Submission Deadline Date/Time")),
+		publishedDate: parseDate(extractField(markdown, "Published Date")),
+		organization: extractField(markdown, "Organization/Department"),
+		contactEmail,
+		details: extractDetailsSection(markdown),
+	};
 }
 
 export const worldBankParser: TenderParser = {

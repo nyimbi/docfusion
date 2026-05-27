@@ -4254,6 +4254,30 @@ Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.
 
+### 2026-05-27 - World Bank Detail Enrichment
+
+Status: implemented and verified.
+
+Purpose: make World Bank discovery candidates immediately useful for qualification and response drafting by enriching listing rows with procurement-detail metadata and solicitation text.
+
+Changes in this slice:
+- Add World Bank procurement detail parsing for both markdown detail pages and the public `search.worldbank.org/api/procnotices` JSON endpoint.
+- Enrich configured World Bank imports with organization, deadline, publication date, procurement method, borrower reference, contact email, project metadata, and solicitation text.
+- Update the live World Bank proof so it verifies normalized listing rows plus a detail probe backed by the World Bank API.
+
+Verification:
+- `npm test -- world-bank-parser.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts default-discovery-sources.test.ts` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --include-live-safe --run live-world-bank-source` passed with run `live_world_bank_source_20260527T005255Z`, returning 18 live opportunities and a detail probe for `OP00300362`.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` passed 50 non-live bridge tests.
+
+Testing scope note:
+- Battery constraints were lifted for this slice. Verification included focused parser/import/proof-manifest tests, TypeScript checking, and the live-safe World Bank proof.
+- Full frontend suite and production build were not rerun for this source-specific backend enrichment slice.
+
+Remaining after this slice:
+- Continue adding live sources and detail/document enrichment for sources that reliably expose procurement packages.
+
 ### 2026-05-26 - Workflow Runtime Tenant Anchor
 
 Status: implemented and verified.

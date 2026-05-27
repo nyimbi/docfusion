@@ -1101,7 +1101,7 @@ describe("discoverAndImportOpportunities", () => {
 	});
 
 	it("imports World Bank configured sources with the World Bank parser", async () => {
-		firecrawlScrapeMock.mockResolvedValue({
+		firecrawlScrapeMock.mockResolvedValueOnce({
 			success: true,
 			data: {
 				markdown: [
@@ -1116,6 +1116,27 @@ describe("discoverAndImportOpportunities", () => {
 				metadata: { title: "Procurement Notices" },
 			},
 		});
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				procnotices: [{
+					id: "OP00428547",
+					notice_type: "Request for Expression of Interest",
+					noticedate: "25-May-2026",
+					notice_lang_name: "Portuguese",
+					submission_deadline_date: "2026-05-29T00:00:00Z",
+					submission_deadline_time: "15:00",
+					project_id: "P180693",
+					project_name: "Angola Digital Acceleration Project",
+					bid_reference_no: "05./C-105/COMP.1/ICS/PADA-2026/005",
+					procurement_method_name: "Individual Consultant Selection",
+					contact_email: "consultor.conectividade@ima.gov.ao",
+					contact_organization: "Institute of Administrative Modernization",
+					notice_text: "<p><strong>SOLICITACAO DE MANIFESTACAO DE INTERESSE</strong></p><p>The services include support to digital infrastructure planning and supervision.</p>",
+				}],
+			}),
+		});
 		selectResultsQueue.push([]);
 
 		const result = await discoverAndImportOpportunities({
@@ -1124,6 +1145,13 @@ describe("discoverAndImportOpportunities", () => {
 		});
 
 		expect(searchSearxngMock).not.toHaveBeenCalled();
+		expect(firecrawlScrapeMock).toHaveBeenNthCalledWith(1, "https://projects.worldbank.org/en/projects-operations/procurement", expect.objectContaining({
+			formats: ["markdown", "html", "links"],
+		}));
+		expect(firecrawlScrapeMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock).toHaveBeenCalledWith("https://search.worldbank.org/api/procnotices?format=json&apilang=en&id=OP00428547", expect.objectContaining({
+			headers: { Accept: "application/json" },
+		}));
 		expect(result.results).toEqual({
 			total: 1,
 			imported: 1,
@@ -1139,15 +1167,23 @@ describe("discoverAndImportOpportunities", () => {
 			title: "Contratacao de Especialista em Conectividade",
 			category: "Request for Expression of Interest",
 			countryRegion: "Angola",
-			organization: "World Bank",
+			organization: "Institute of Administrative Modernization",
+			deadline: new Date(Date.parse("May 29, 2026 15:00")),
+			publishedDate: new Date(2026, 4, 25),
+			submissionMethod: "Individual Consultant Selection",
+			projectSummary: expect.stringContaining("digital infrastructure planning"),
 			rfpLink: "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547",
 			portalUrl: "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547",
 			documentUrl: "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547",
 			tags: ["external-discovery", "source-scrape", "world-bank", "development-bank", "global-procurement"],
 			metadata: expect.objectContaining({
 				worldBank: expect.objectContaining({
-					projectTitle: "Angola Digital Acceleration Project - P180693",
+					projectTitle: "Angola Digital Acceleration Project",
 					noticeType: "Request for Expression of Interest",
+					projectId: "P180693",
+					borrowerBidReference: "05./C-105/COMP.1/ICS/PADA-2026/005",
+					procurementMethod: "Individual Consultant Selection",
+					contactEmail: "consultor.conectividade@ima.gov.ao",
 				}),
 				discovery: expect.objectContaining({
 					resultEngine: "firecrawl-source",
@@ -1157,5 +1193,6 @@ describe("discoverAndImportOpportunities", () => {
 				}),
 			}),
 		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
 	});
 });

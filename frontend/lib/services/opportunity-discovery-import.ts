@@ -4,6 +4,12 @@ import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { genericParser, getParser, type TenderParser } from "@/lib/scrapers/parsers";
 import { parseUndpNoticeDetailMarkdown } from "@/lib/scrapers/parsers/undp";
+import {
+	fetchWorldBankNoticeDetail,
+	parseWorldBankNoticeDetailMarkdown,
+	worldBankNoticeIdFromUrl,
+	type WorldBankNoticeDetail,
+} from "@/lib/scrapers/parsers/world-bank";
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 import { fetchKenyaPpipOpportunities, isKenyaPpipUrl } from "@/lib/services/kenya-ppip-client";
@@ -133,6 +139,7 @@ const OPPORTUNITY_KEYWORDS = [
 const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
 const MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH = 120;
 const DEFAULT_UNDP_DETAIL_LIMIT = 5;
+const DEFAULT_WORLD_BANK_DETAIL_LIMIT = 5;
 const DOCUMENT_URL_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)/i;
 const DOCUMENT_LINK_KEYWORDS = [
 	"rfp",
@@ -701,6 +708,12 @@ async function discoverConfiguredSourceCandidates(
 				firecrawl,
 				Math.min(DEFAULT_UNDP_DETAIL_LIMIT, limitPerSource)
 			)
+			: parser.sourceId === "world_bank"
+				? await enrichWorldBankOpportunitiesWithDetails(
+					parseResult.opportunities.slice(0, limitPerSource),
+					firecrawl,
+					Math.min(DEFAULT_WORLD_BANK_DETAIL_LIMIT, limitPerSource)
+				)
 			: parseResult.opportunities.slice(0, limitPerSource);
 
 		for (const opportunity of opportunities) {
@@ -782,6 +795,76 @@ async function enrichUndpOpportunitiesWithDetails(
 		}
 	}
 	return enriched;
+}
+
+async function enrichWorldBankOpportunitiesWithDetails(
+	opportunities: OpportunityData[],
+	firecrawl: FirecrawlClient,
+	detailLimit: number
+): Promise<OpportunityData[]> {
+	if (detailLimit <= 0) return opportunities;
+	const enriched = [...opportunities];
+	for (let index = 0; index < Math.min(detailLimit, enriched.length); index++) {
+		const opportunity = enriched[index];
+		if (!opportunity.portalUrl) continue;
+		try {
+			const detail = await resolveWorldBankNoticeDetail(opportunity, firecrawl);
+			if (!isUsefulWorldBankDetail(detail)) continue;
+			const worldBankMetadata = metadataRecord(metadataRecord(opportunity.metadata).worldBank as Record<string, unknown> | undefined);
+			enriched[index] = {
+				...opportunity,
+				organization: detail.organization ?? opportunity.organization,
+				deadline: detail.submissionDeadline ?? opportunity.deadline,
+				publishedDate: detail.publishedDate ?? opportunity.publishedDate,
+				projectSummary: detail.details ?? opportunity.projectSummary,
+				submissionMethod: detail.procurementMethod ?? opportunity.submissionMethod,
+				metadata: {
+					...metadataRecord(opportunity.metadata),
+					worldBank: {
+						...worldBankMetadata,
+						...(detail.projectId ? { projectId: detail.projectId } : {}),
+						...(detail.projectTitle ? { projectTitle: detail.projectTitle } : {}),
+						...(detail.noticeNo ? { noticeNo: detail.noticeNo } : {}),
+						...(detail.noticeType ? { noticeType: detail.noticeType } : {}),
+						...(detail.borrowerBidReference ? { borrowerBidReference: detail.borrowerBidReference } : {}),
+						...(detail.procurementMethod ? { procurementMethod: detail.procurementMethod } : {}),
+						...(detail.language ? { language: detail.language } : {}),
+						...(detail.contactEmail ? { contactEmail: detail.contactEmail } : {}),
+					},
+				},
+			};
+		} catch {
+			// Detail enrichment is opportunistic; the listing row remains usable.
+		}
+	}
+	return enriched;
+}
+
+async function resolveWorldBankNoticeDetail(
+	opportunity: OpportunityData,
+	firecrawl: FirecrawlClient
+): Promise<WorldBankNoticeDetail> {
+	const noticeId = opportunity.noticeId ?? opportunity.sourceId ?? worldBankNoticeIdFromUrl(opportunity.portalUrl);
+	if (noticeId) {
+		try {
+			const detail = await fetchWorldBankNoticeDetail(noticeId);
+			if (isUsefulWorldBankDetail(detail)) return detail;
+		} catch {
+			// Fall back to the rendered detail page when the public API is unavailable.
+		}
+	}
+
+	if (!opportunity.portalUrl) return {};
+	const detailResult = await firecrawl.scrape(opportunity.portalUrl, {
+		formats: ["markdown", "links"],
+		timeout: 20000,
+	});
+	if (!detailResult.success || !detailResult.data?.markdown) return {};
+	return parseWorldBankNoticeDetailMarkdown(detailResult.data.markdown);
+}
+
+function isUsefulWorldBankDetail(detail: WorldBankNoticeDetail): boolean {
+	return Boolean(detail.details || detail.organization || detail.borrowerBidReference);
 }
 
 async function discoverKenyaPpipCandidates(

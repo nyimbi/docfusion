@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { worldBankParser } from "@/lib/scrapers/parsers/world-bank";
+import {
+	parseWorldBankNoticeDetailApiResponse,
+	parseWorldBankNoticeDetailMarkdown,
+	worldBankNoticeApiUrl,
+	worldBankParser,
+} from "@/lib/scrapers/parsers/world-bank";
 
 const worldBankMarkdown = `
 | Description | Country | Project Title | Notice Type | Language | Published Date |
@@ -50,5 +55,122 @@ describe("World Bank parser", () => {
 			category: "Invitation for Bids",
 			opportunityType: "tender",
 		});
+	});
+
+	it("extracts rich detail fields from procurement notice pages", () => {
+		const detail = parseWorldBankNoticeDetailMarkdown(`
+Overview
+--------
+
+#### NOTICE AT-A-GLANCE
+
+*   Project ID
+
+    P180693
+
+*   Project Title
+
+    Angola Digital Acceleration Project
+
+*   Notice No
+
+    OP00428547
+
+*   Notice Type
+
+    Request for Expression of Interest
+
+*   Borrower Bid Reference
+
+    05./C-105/COMP.1/ICS/PADA-2026/005
+
+*   Procurement Method
+
+    Individual Consultant Selection
+
+*   Language of Notice
+
+    Portuguese
+
+*   Submission Deadline Date/Time
+
+    May 29, 2026 15:00
+
+*   Published Date
+
+    May 25, 2026
+
+#### CONTACT INFORMATION
+
+*   Organization/Department
+
+    Institute of Administrative Modernization
+
+*   Email
+
+    [consultor.conectividade@ima.gov.ao](mailto:consultor.conectividade@ima.gov.ao)
+
+Details
+-------
+
+**SOLICITACAO DE MANIFESTACAO DE INTERESSE**
+
+The services include support to digital infrastructure planning and supervision.
+
+Feedback Survey
+		`);
+
+		expect(detail).toMatchObject({
+			projectId: "P180693",
+			projectTitle: "Angola Digital Acceleration Project",
+			noticeNo: "OP00428547",
+			noticeType: "Request for Expression of Interest",
+			borrowerBidReference: "05./C-105/COMP.1/ICS/PADA-2026/005",
+			procurementMethod: "Individual Consultant Selection",
+			language: "Portuguese",
+			organization: "Institute of Administrative Modernization",
+			contactEmail: "consultor.conectividade@ima.gov.ao",
+		});
+		expect(detail.submissionDeadline).toEqual(new Date(Date.parse("May 29, 2026 15:00")));
+		expect(detail.publishedDate).toEqual(new Date(2026, 4, 25));
+		expect(detail.details).toContain("SOLICITACAO DE MANIFESTACAO DE INTERESSE");
+		expect(detail.details).toContain("digital infrastructure planning");
+	});
+
+	it("extracts rich detail fields from the public World Bank notice API", () => {
+		const detail = parseWorldBankNoticeDetailApiResponse({
+			procnotices: [{
+				id: "OP00428547",
+				notice_type: "Request for Expression of Interest",
+				noticedate: "25-May-2026",
+				notice_lang_name: "Portuguese",
+				submission_deadline_date: "2026-05-29T00:00:00Z",
+				submission_deadline_time: "15:00",
+				project_id: "P180693",
+				project_name: "Angola Digital Acceleration Project",
+				bid_reference_no: "05./C-105/COMP.1/ICS/PADA-2026/005",
+				procurement_method_name: "Individual Consultant Selection",
+				contact_email: "consultor.conectividade@ima.gov.ao",
+				contact_organization: "Institute of Administrative Modernization",
+				notice_text: "<p><strong>SOLICITA&Ccedil;&Atilde;O DE MANIFESTA&Ccedil;&Atilde;O DE INTERESSE</strong></p><p>Support to digital infrastructure planning.</p>",
+			}],
+		});
+
+		expect(worldBankNoticeApiUrl("OP00428547")).toBe("https://search.worldbank.org/api/procnotices?format=json&apilang=en&id=OP00428547");
+		expect(detail).toMatchObject({
+			projectId: "P180693",
+			projectTitle: "Angola Digital Acceleration Project",
+			noticeNo: "OP00428547",
+			noticeType: "Request for Expression of Interest",
+			borrowerBidReference: "05./C-105/COMP.1/ICS/PADA-2026/005",
+			procurementMethod: "Individual Consultant Selection",
+			language: "Portuguese",
+			organization: "Institute of Administrative Modernization",
+			contactEmail: "consultor.conectividade@ima.gov.ao",
+		});
+		expect(detail.submissionDeadline).toEqual(new Date(Date.parse("2026-05-29 15:00")));
+		expect(detail.publishedDate).toEqual(new Date(2026, 4, 25));
+		expect(detail.details).toContain("SOLICITACAO DE MANIFESTACAO DE INTERESSE");
+		expect(detail.details).toContain("digital infrastructure planning");
 	});
 });
