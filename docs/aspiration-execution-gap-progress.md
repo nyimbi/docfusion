@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic BOE Narrative Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep cost-volume Basis of Estimate drafting usable when AI narrative generation is unavailable but structured cost element data is already available.
+
+Changes in this slice:
+- Add deterministic BOE narrative generation for labor, ODC, subcontract, travel, and generic cost elements.
+- Preserve AI-generated BOE narratives when available while falling back on blank or failed AI responses.
+- Use existing WBS, labor category, hours, rates, direct costs, vendor, quote, subcontractor, and travel fields to draft auditable review text.
+- Add regression coverage proving unavailable AI still writes a BOE narrative back to the scoped cost element.
+
+Verification:
+- `npm test -- pricing.test.ts` passed with 97 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue closing pricing and response-production paths where structured records can produce deterministic draft artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Discriminator Suggestions
 
 Status: implemented and verified.

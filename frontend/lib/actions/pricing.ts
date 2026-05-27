@@ -2049,6 +2049,97 @@ Respond in JSON format:
 // BOE Generation Operations
 // ============================================================================
 
+function formatCurrency(value: unknown): string {
+	const amount = typeof value === "number"
+		? value
+		: typeof value === "string"
+			? Number(value)
+			: 0;
+	return Number.isFinite(amount)
+		? `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+		: "$0.00";
+}
+
+function formatQuantity(value: unknown, fallback = 0): number {
+	const amount = typeof value === "number"
+		? value
+		: typeof value === "string"
+			? Number(value)
+			: fallback;
+	return Number.isFinite(amount) ? amount : fallback;
+}
+
+function costElementWbsLabel(element: CostElement): string {
+	const code = element.wbsCode || "unassigned WBS";
+	const title = element.wbsTitle || "cost element";
+	return `${code} - ${title}`;
+}
+
+function buildDeterministicBOENarrative(element: CostElement): string {
+	const wbs = costElementWbsLabel(element);
+	const totalCost = formatCurrency(element.totalCost);
+
+	if (element.elementType === "labor") {
+		const hours = formatQuantity(element.hours);
+		const rate = formatCurrency(element.rate);
+		const laborCost = formatCurrency(element.laborCost ?? element.totalCost);
+		const category = element.laborCategoryName || "the proposed labor category";
+		return [
+			`Basis of Estimate: ${wbs}`,
+			`This labor estimate covers ${hours} hour${hours === 1 ? "" : "s"} of ${category} effort supporting the proposed scope. The estimate uses an engineering-judgment methodology tied to the WBS activity and the expected level of effort needed to complete the work.`,
+			`The direct labor calculation applies a rate of ${rate} per hour, producing ${laborCost} in labor cost and ${totalCost} in total cost for this element. The selected labor category is appropriate for the technical complexity, coordination, documentation, and review responsibilities assigned to this WBS element.`,
+			"Key assumptions are that the scope remains consistent with the current technical approach, required inputs are available on schedule, and customer reviews occur within the planned response windows. Primary risks are requirements churn and review delays; these are mitigated through task tracking, early issue escalation, and management review of actual hours against the BOE baseline.",
+		].join("\n\n");
+	}
+
+	if (element.elementType === "odc") {
+		const odcType = element.odcType || "other direct cost";
+		const description = element.odcDescription || "required direct support item";
+		const amount = formatCurrency(element.odcAmount ?? element.totalCost);
+		const vendor = element.odcVendor ? ` Vendor support is expected from ${element.odcVendor}.` : "";
+		const quote = element.odcQuoteReference ? ` Pricing support reference: ${element.odcQuoteReference}.` : "";
+		return [
+			`Basis of Estimate: ${wbs}`,
+			`This ODC estimate covers ${description} (${odcType}) required to perform the proposed work. The cost is necessary because the item directly supports delivery of the WBS scope and is not included in labor or indirect cost pools.`,
+			`The estimated amount is ${amount}, with total element cost of ${totalCost}.${vendor}${quote} The estimate should be supported by vendor quote, catalog pricing, historical purchase data, or another auditable pricing source before final submission.`,
+			"Key assumptions are that quantities, availability, and unit pricing remain valid through the proposal period. Primary risks are vendor price movement and delayed procurement; these are mitigated by validating quotes, documenting source data, and reviewing final pricing before submission.",
+		].join("\n\n");
+	}
+
+	if (element.elementType === "subcontract") {
+		const subcontractor = element.subcontractorName || "the proposed subcontractor";
+		const role = element.subcontractorRole || "the assigned subcontract scope";
+		const cost = formatCurrency(element.subcontractorCost ?? element.totalCost);
+		return [
+			`Basis of Estimate: ${wbs}`,
+			`This subcontract estimate covers ${role} to be performed by ${subcontractor}. A subcontractor is included where specialized capability, capacity, local presence, or teaming commitments are needed to execute the WBS scope.`,
+			`The estimated subcontract cost is ${cost}, with total element cost of ${totalCost}. The estimate should be supported by a subcontractor quote, negotiated workshare basis, historical subcontract pricing, or documented market research.`,
+			"Key assumptions are that the subcontractor can meet the required schedule, staffing, and quality expectations. Primary risks are scope misalignment and quote aging; these are mitigated through statement-of-work review, partner coordination, and final quote validation before submission.",
+		].join("\n\n");
+	}
+
+	if (element.elementType === "travel") {
+		const trips = formatQuantity(element.travelTrips);
+		const days = formatQuantity(element.travelDaysPerTrip);
+		const costPerTrip = formatCurrency(element.travelCostPerTrip);
+		const travelCost = formatCurrency(element.travelCost ?? element.totalCost);
+		const description = element.travelDescription || "required project travel";
+		return [
+			`Basis of Estimate: ${wbs}`,
+			`This travel estimate covers ${description}. The estimate includes ${trips} trip${trips === 1 ? "" : "s"} at ${days} day${days === 1 ? "" : "s"} per trip to support project execution, coordination, review, or customer engagement activities.`,
+			`The estimate uses ${costPerTrip} per trip, producing ${travelCost} in travel cost and ${totalCost} in total element cost. Travel pricing should be validated against GSA per diem, airfare assumptions, mileage, lodging, and historical travel costs as applicable.`,
+			"Key assumptions are that travel frequency and duration remain aligned with the technical and management approach. Primary risks are airfare volatility, schedule changes, and customer meeting shifts; these are mitigated by documenting assumptions and refreshing rates before final pricing.",
+		].join("\n\n");
+	}
+
+	return [
+		`Basis of Estimate: ${wbs}`,
+		`This estimate covers a ${element.elementType || "cost"} element required to execute the proposed scope. The cost is tied to the WBS activity and should be traceable to the technical approach, management plan, or supporting volume assumptions.`,
+		`The estimated total for this element is ${totalCost}. The estimate should be supported by engineering judgment, historical cost data, vendor pricing, catalog pricing, or another auditable estimating basis before final submission.`,
+		"Key assumptions are that the current scope, schedule, and estimating basis remain valid. Primary risks are scope change and pricing support gaps; these are mitigated through BOE review, source-document validation, and final cost-volume quality checks.",
+	].join("\n\n");
+}
+
 /**
  * Generate a BOE narrative for a cost element using AI.
  *
@@ -2176,20 +2267,30 @@ Write in a professional, third-person style suitable for DCAA review.
 `;
 		}
 
-		const result = await ai.complete(prompt);
+		let narrative: string;
+		try {
+			const result = await ai.complete(prompt);
+			narrative = result.content.trim();
+			if (narrative.length === 0) {
+				throw new Error("AI BOE narrative response was empty");
+			}
+		} catch (aiError) {
+			logger.warn("Falling back to deterministic BOE narrative generation", aiError);
+			narrative = buildDeterministicBOENarrative(element);
+		}
 
 		// Update the cost element with the generated BOE
 		await db
 			.update(costElements)
 			.set({
-				boeNarrative: result.content,
+				boeNarrative: narrative,
 				updatedAt: new Date(),
 			})
 			.where(costElementByIdCondition(costElementId, userContext));
 
 		revalidatePath(`/opportunities/${element.opportunityId}/pricing`);
 
-		return { success: true, data: result.content };
+		return { success: true, data: narrative };
 	} catch (error) {
 		logger.error("Error generating BOE narrative:", error);
 		return {

@@ -681,6 +681,36 @@ describe("BOE template tenant scoping", () => {
 		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
+	test("generates a deterministic BOE narrative when AI is unavailable", async () => {
+		aiCompleteMock.mockRejectedValueOnce(new Error("provider unavailable"));
+		const updateChain = createChainableQuery([]);
+		dbMock.select.mockImplementationOnce(() => createChainableQuery([{
+			id: "ce-1",
+			organizationId: "org-001",
+			opportunityId: "00000000-0000-4000-8000-000000000001",
+			elementType: "labor",
+			laborCategoryName: "Cloud Engineer",
+			hours: 160,
+			rate: 125,
+			laborCost: 20000,
+			totalCost: 20000,
+			wbsCode: "1.2.3",
+			wbsTitle: "Cloud Migration",
+		}]));
+		dbMock.update.mockImplementationOnce(() => updateChain);
+
+		const result = await generateBOENarrative("ce-1");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toContain("Basis of Estimate: 1.2.3 - Cloud Migration");
+		expect(result.data).toContain("160 hours of Cloud Engineer");
+		expect(result.data).toContain("$125.00 per hour");
+		expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+			boeNarrative: result.data,
+		}));
+	});
+
 	test("requires organization context before applying a template", async () => {
 		mockUserContext.organizationId = undefined;
 
