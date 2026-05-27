@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Full Non-Live Wave 9 Proof Revalidation
+
+Status: verified.
+
+Purpose: revalidate the non-DB discovery-to-submission path after live source hardening and while the DB-backed live persisted proof remains blocked.
+
+Verification:
+- `npm run platform:proof -- --all --wave 9` passed.
+- Covered discovery-to-response bridge, response package readiness, presentation export/practice readiness, and discovery-to-submission core proof scenarios.
+- The run passed 21 test files and 231 tests across discovery parsing/import, source document intake, RFP parse workflow, requirements workflow, proposal documents, final artifacts, final submission gates, submissions scope, and presentation export.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity and rerun the DB-backed live persisted import-response proof.
+- Continue using Wave 9 as the non-live regression chunk for discovery-to-submission hardening.
+
 ### 2026-05-27 - Live Persisted Import Response Retry Still Blocked
 
 Status: externally blocked.
