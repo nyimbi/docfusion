@@ -85,6 +85,7 @@ vi.mock("@/lib/ai/providers", () => ({
 import {
 	createGraphic,
 	exportGraphics,
+	generateActionCaption,
 	generateProcessFlow,
 	listGraphics,
 	recordGraphicFeedback,
@@ -333,5 +334,34 @@ describe("graphics opportunity scoping", () => {
 		expect(result.data.diagramCode).toContain("S1 --> S2");
 		expect(result.data.suggestedCaption).toContain("4-step");
 		expect(dbMock.insert).not.toHaveBeenCalled();
+	});
+
+	it("generates a deterministic action caption when AI is unavailable", async () => {
+		aiCompleteMock.mockRejectedValueOnce(new Error("provider unavailable"));
+		const updateChain = createChain();
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				id: graphicId,
+				title: "Implementation Workflow",
+				graphicType: "process_flow",
+				caption: "Implementation workflow from intake through delivery",
+				diagramCode: "flowchart TD\nA[Intake] --> B[Delivery]",
+				actionCaption: null,
+				opportunityId,
+			}],
+		}));
+		dbMock.update.mockReturnValueOnce(updateChain);
+
+		const result = await generateActionCaption(graphicId);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toContain("Maps implementation workflow from intake through delivery");
+		expect(result.data).toContain("ordered delivery approach");
+		expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+			actionCaption: result.data,
+		}));
+		expect(revalidatePathMock).toHaveBeenCalledWith("/opportunities");
+		expect(revalidatePathMock).toHaveBeenCalledWith("/documents");
 	});
 });

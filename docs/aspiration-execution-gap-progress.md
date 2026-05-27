@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Graphic Action Captions
+
+Status: implemented and verified.
+
+Purpose: keep proposal graphics captioning usable when AI caption generation is unavailable or fails.
+
+Changes in this slice:
+- Add deterministic action caption generation from stored graphic title, type, caption, and diagram context.
+- Preserve AI-generated captions when available while normalizing them to start with proposal action verbs.
+- Fall back to type-aware captions for process flows, org charts, schedules, timelines, infographics, charts, and generic diagrams.
+- Add regression coverage proving unavailable AI still writes a reviewable action caption to the graphic record.
+
+Verification:
+- `npm test -- graphics-scope.test.ts` passed with 12 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 180 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue closing AI-only response-support paths where stored proposal artifacts can produce deterministic review content.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Document Diagram Fallbacks
 
 Status: implemented and verified.

@@ -1384,6 +1384,58 @@ const ACTION_VERBS = [
 	"Conveys",
 ];
 
+function startsWithActionVerb(caption: string): boolean {
+	return ACTION_VERBS.some(
+		verb => caption.toLowerCase().startsWith(verb.toLowerCase())
+	);
+}
+
+function normalizeActionCaption(caption: string): string {
+	const normalized = caption.trim().replace(/^["']|["']$/g, "");
+	if (normalized.length === 0) {
+		return "";
+	}
+	if (startsWithActionVerb(normalized)) {
+		return normalized;
+	}
+	return `Illustrates ${normalized.charAt(0).toLowerCase()}${normalized.slice(1)}`;
+}
+
+function humanizeGraphicType(type: string | null): string {
+	const normalized = (type || "graphic").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+	return normalized.length > 0 ? normalized : "graphic";
+}
+
+function compactCaptionFragment(value: string | null | undefined, fallback: string): string {
+	const normalized = (value || fallback)
+		.replace(/\s+/g, " ")
+		.replace(/[.!?]+$/g, "")
+		.trim();
+	return (normalized || fallback).slice(0, 180);
+}
+
+function buildDeterministicActionCaption(graphic: ProposalGraphic): string {
+	const graphicType = humanizeGraphicType(graphic.graphicType);
+	const title = compactCaptionFragment(graphic.title, `proposal ${graphicType}`);
+	const currentCaption = compactCaptionFragment(graphic.caption, "");
+	const sourceSignal = currentCaption || `${title} ${graphicType}`;
+
+	if (graphicType.includes("process") || graphicType.includes("flow")) {
+		return `Maps ${sourceSignal.charAt(0).toLowerCase()}${sourceSignal.slice(1)}, showing reviewers the ordered delivery approach and decision path.`;
+	}
+	if (graphicType.includes("org")) {
+		return `Illustrates ${sourceSignal.charAt(0).toLowerCase()}${sourceSignal.slice(1)}, clarifying accountability, reporting lines, and delivery ownership.`;
+	}
+	if (graphicType.includes("schedule") || graphicType.includes("timeline") || graphicType.includes("gantt")) {
+		return `Presents ${sourceSignal.charAt(0).toLowerCase()}${sourceSignal.slice(1)}, demonstrating a sequenced plan with visible milestones and timing.`;
+	}
+	if (graphicType.includes("info") || graphicType.includes("chart") || graphicType.includes("metric")) {
+		return `Highlights ${sourceSignal.charAt(0).toLowerCase()}${sourceSignal.slice(1)}, connecting the quantified evidence to the proposal value story.`;
+	}
+
+	return `Demonstrates ${sourceSignal.charAt(0).toLowerCase()}${sourceSignal.slice(1)}, giving reviewers a concise visual summary of the supporting proposal point.`;
+}
+
 /**
  * Generates an action caption for a graphic following government best practices.
  *
@@ -1427,25 +1479,24 @@ Return only the caption text, no quotes or additional formatting.`;
 			diagramCode: graphic.diagramCode?.substring(0, 500),
 		};
 
-		const response = await manager.complete({
-			messages: [
-				{ role: "system", content: systemPrompt },
-				{ role: "user", content: `Generate an action caption for this ${graphic.graphicType}:\n${JSON.stringify(context, null, 2)}` },
-			],
-			temperature: 0.7,
-			maxTokens: 200,
-		});
-
-		const actionCaption = response.content.trim().replace(/^["']|["']$/g, "");
-
-		// Ensure it starts with an action verb
-		const startsWithVerb = ACTION_VERBS.some(
-			verb => actionCaption.toLowerCase().startsWith(verb.toLowerCase())
-		);
-
-		const finalCaption = startsWithVerb
-			? actionCaption
-			: `Illustrates ${actionCaption.charAt(0).toLowerCase()}${actionCaption.slice(1)}`;
+		let finalCaption: string;
+		try {
+			const response = await manager.complete({
+				messages: [
+					{ role: "system", content: systemPrompt },
+					{ role: "user", content: `Generate an action caption for this ${graphic.graphicType}:\n${JSON.stringify(context, null, 2)}` },
+				],
+				temperature: 0.7,
+				maxTokens: 200,
+			});
+			finalCaption = normalizeActionCaption(response.content);
+			if (finalCaption.length === 0) {
+				throw new Error("AI action caption response was empty");
+			}
+		} catch (captionError) {
+			logger.warn("Falling back to deterministic action caption generation", captionError);
+			finalCaption = buildDeterministicActionCaption(graphic);
+		}
 
 		// Update the graphic with the new action caption
 		await db
