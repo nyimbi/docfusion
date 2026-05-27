@@ -16,6 +16,23 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Post-AFDB Wave 9 Revalidation
+
+Status: implemented and verified.
+
+Purpose: revalidate the full non-live Wave 9 discovery-to-submission regression chunk after the AFDB response-readiness and browser-link capture changes.
+
+Changes in this slice:
+- Updated stale browser-fallback test expectations so they assert the current browser scrape request contract, including `markdown`, `html`, and `links` output formats.
+
+Verification:
+- `npm test -- discovery-opportunity-import.test.ts --run` passed with 23 tests.
+- `npm run platform:proof -- --all --wave 9` passed.
+- The Wave 9 proof covered 21 test files and 234 tests across discovery parsing/import, opportunity document download, source document intake, RFP parse workflow, requirements workflow, proposal documents, final artifacts, final submission gates, submissions scope, presentation export, and response package readiness.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+
 ### 2026-05-27 - AFDB Live Response Readiness via Search Fallback
 
 Status: implemented and verified.

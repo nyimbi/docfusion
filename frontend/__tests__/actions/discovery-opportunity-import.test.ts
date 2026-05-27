@@ -550,6 +550,7 @@ describe("discoverAndImportOpportunities", () => {
 						timeout: 15000,
 						humanScroll: true,
 						blockMedia: true,
+						formats: ["markdown", "html", "links"],
 					},
 				}),
 			})
@@ -818,6 +819,7 @@ describe("discoverAndImportOpportunities", () => {
 						timeout: 15000,
 						humanScroll: true,
 						blockMedia: true,
+						formats: ["markdown", "html", "links"],
 					},
 				}),
 			})
