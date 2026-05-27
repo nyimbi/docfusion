@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireUserContextMock = vi.hoisted(() => vi.fn());
+const aiCompleteMock = vi.hoisted(() => vi.fn(async () => ({ content: "{}" })));
 
 interface ChainConfig {
 	result?: unknown[];
@@ -71,7 +72,7 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/ai/client", () => ({
 	AIClient: vi.fn(() => ({
-		complete: vi.fn(async () => ({ content: "{}" })),
+		complete: aiCompleteMock,
 	})),
 }));
 
@@ -83,7 +84,7 @@ vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
-import { createThemesFromResponseSeeds, getResponseWinThemeSeedReview, getThemeSuggestions, scanForOccurrences, suggestCriteriaMappings, updateTheme } from "@/lib/actions/win-themes";
+import { createThemesFromResponseSeeds, generateInjectionSuggestions, getResponseWinThemeSeedReview, getThemeSuggestions, scanForOccurrences, suggestCriteriaMappings, updateTheme } from "@/lib/actions/win-themes";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -514,6 +515,76 @@ describe("win theme authorization", () => {
 				notes: expect.stringContaining("technical"),
 			}),
 		]);
+	});
+
+	it("falls back to deterministic injection suggestions when AI output is malformed", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: "not json" });
+		const insertedValues: unknown[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "33333333-3333-4333-8333-333333333333",
+					opportunityId: "22222222-2222-4222-8222-222222222222",
+					themeStatement: "Datacraft reduces delivery risk with proven implementation controls.",
+					shortVersion: "Proven delivery controls",
+					themeType: "risk_mitigation",
+					supportingEvidence: ["Three similar migrations completed on time", "ISO 27001 delivery governance"],
+					keywords: ["risk", "delivery", "controls"],
+					evaluationCriteriaIds: ["criteria-1"],
+					targetSections: ["Technical Approach", "Transition Plan"],
+					isActive: true,
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "occ-1",
+					themeId: "33333333-3333-4333-8333-333333333333",
+					sectionName: "Technical Approach",
+					textExcerpt: "Existing delivery controls mention.",
+				}],
+			}));
+		dbMock.insert.mockImplementation(() => createChain({
+			onValues: (value) => insertedValues.push(value),
+			result: [{
+				id: "injection-1",
+				themeId: "33333333-3333-4333-8333-333333333333",
+				documentId: "22222222-2222-4222-8222-222222222222",
+				sectionId: "transition-plan",
+				sectionName: "Transition Plan",
+				pageNumber: 1,
+				textContext: "Transition Plan section context for deterministic win-theme reinforcement.",
+				suggestedText: "Proven delivery controls Proof: Three similar migrations completed on time; ISO 27001 delivery governance.",
+				injectionType: "enhance",
+				rationale: "Deterministic fallback from active win theme with keywords: risk, delivery, controls.",
+				impactScore: 0.86,
+				status: "pending",
+				createdAt: new Date("2026-05-27T00:00:00.000Z"),
+			}],
+		}));
+
+		const result = await generateInjectionSuggestions({
+			opportunityId: "22222222-2222-4222-8222-222222222222",
+			maxSuggestions: 1,
+		});
+
+		expect(result.success).toBe(true);
+		expect(insertedValues).toEqual([
+			expect.objectContaining({
+				sectionId: "transition-plan",
+				sectionName: "Transition Plan",
+				injectionType: "enhance",
+				status: "pending",
+				suggestedText: expect.stringContaining("Proven delivery controls"),
+				rationale: expect.stringContaining("Deterministic fallback"),
+			}),
+		]);
+		expect(result.data?.[0]).toMatchObject({
+			themeId: "33333333-3333-4333-8333-333333333333",
+			sectionName: "Transition Plan",
+			impactScore: 86,
+			impactLevel: "high",
+		});
 	});
 
 	it("scopes theme updates to opportunities assigned to the actor", async () => {

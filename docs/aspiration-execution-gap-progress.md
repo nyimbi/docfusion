@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Win-Theme Injection Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep generated responses able to reinforce active win themes when AI injection suggestion output is malformed.
+
+Changes in this slice:
+- Add deterministic win-theme injection drafts from active theme statement, target sections, supporting evidence, keywords, and mapped criteria.
+- Avoid suggesting a deterministic injection into sections where the same theme already has an occurrence.
+- Persist deterministic fallback injections as pending review items with evidence-based rationale and bounded impact score.
+- Convert malformed AI injection output into deterministic suggestions instead of a failed generation response.
+- Add regression coverage proving malformed AI output still creates a reviewable injection suggestion.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts` passed with 10 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 134 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing response-generation paths where malformed AI output blocks deterministic, evidence-backed review artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Actionable PWin Recommendation Fallbacks
 
 Status: implemented and verified.

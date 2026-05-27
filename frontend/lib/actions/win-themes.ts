@@ -731,6 +731,108 @@ function mapDBInjectionToInjectionPoint(
 	};
 }
 
+type InjectionDraft = {
+	themeId: string;
+	sectionName: string;
+	pageNumber: number;
+	originalText: string;
+	suggestedText: string;
+	injectionType: InjectionType;
+	rationale: string;
+	impactScore: number;
+};
+
+function normalizeSectionId(sectionName: string): string {
+	return sectionName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "section";
+}
+
+function deterministicInjectionImpact(theme: DBWinTheme): number {
+	const criteriaCount = theme.evaluationCriteriaIds?.length ?? 0;
+	const evidenceCount = textList(theme.supportingEvidence).length;
+	const keywordCount = textList(theme.keywords).length;
+	const score = 0.48 + Math.min(0.18, criteriaCount * 0.06) + Math.min(0.16, evidenceCount * 0.04) + Math.min(0.08, keywordCount * 0.02);
+	return Math.round(Math.min(0.86, score) * 100) / 100;
+}
+
+function buildDeterministicInjectionDrafts(
+	themes: DBWinTheme[],
+	existingOccurrences: DBThemeOccurrence[],
+	maxSuggestions: number
+): InjectionDraft[] {
+	const usedSectionsByTheme = new Map<string, Set<string>>();
+	for (const occurrence of existingOccurrences) {
+		if (!occurrence.themeId || !occurrence.sectionName) continue;
+		const sections = usedSectionsByTheme.get(occurrence.themeId) ?? new Set<string>();
+		sections.add(occurrence.sectionName.toLowerCase());
+		usedSectionsByTheme.set(occurrence.themeId, sections);
+	}
+
+	const drafts: InjectionDraft[] = [];
+	for (const theme of themes) {
+		const sectionCandidates = [
+			...textList(theme.targetSections),
+			"Executive Summary",
+			"Technical Approach",
+			"Management Approach",
+			"Past Performance",
+		];
+		const usedSections = usedSectionsByTheme.get(theme.id) ?? new Set<string>();
+		const uniqueSections = [...new Set(sectionCandidates)]
+			.filter((section) => !usedSections.has(section.toLowerCase()))
+			.slice(0, maxSuggestions);
+
+		for (const [index, sectionName] of uniqueSections.entries()) {
+			const evidence = textList(theme.supportingEvidence).slice(0, 2);
+			const keywordText = textList(theme.keywords).slice(0, 3).join(", ");
+			drafts.push({
+				themeId: theme.id,
+				sectionName,
+				pageNumber: index + 1,
+				originalText: `${sectionName} section context for deterministic win-theme reinforcement.`,
+				suggestedText: `${theme.shortVersion || theme.themeStatement} ${evidence.length > 0 ? `Proof: ${evidence.join("; ")}.` : ""}`.trim(),
+				injectionType: "enhance",
+				rationale: `Deterministic fallback from active win theme${keywordText ? ` with keywords: ${keywordText}` : ""}.`,
+				impactScore: deterministicInjectionImpact(theme),
+			});
+		}
+	}
+
+	return drafts.slice(0, Math.max(1, maxSuggestions) * themes.length);
+}
+
+async function storeInjectionDrafts(
+	drafts: InjectionDraft[],
+	themes: DBWinTheme[],
+	opportunityId: string
+): Promise<InjectionPoint[]> {
+	const results: InjectionPoint[] = [];
+	for (const draft of drafts) {
+		const theme = themes.find(t => t.id === draft.themeId) || themes[0];
+		const [inserted] = await db
+			.insert(themeInjectionPoints)
+			.values({
+				themeId: theme.id,
+				documentId: opportunityId,
+				sectionId: normalizeSectionId(draft.sectionName),
+				sectionName: draft.sectionName,
+				pageNumber: draft.pageNumber,
+				textContext: draft.originalText,
+				suggestedText: draft.suggestedText,
+				injectionType: draft.injectionType,
+				rationale: draft.rationale,
+				impactScore: draft.impactScore,
+				status: "pending",
+			})
+			.returning();
+
+		results.push(mapDBInjectionToInjectionPoint(
+			inserted,
+			theme.shortVersion || theme.themeStatement.substring(0, 50)
+		));
+	}
+	return results;
+}
+
 /**
  * Map database competitor to API type.
  */
@@ -2074,44 +2176,32 @@ Respond in JSON format:
 				}>;
 			};
 
-			// Store and return injection points
-			const results: InjectionPoint[] = [];
-
-			for (const injection of parsed.injections) {
+			const drafts = parsed.injections.map((injection): InjectionDraft => {
 				const themeId = injection.themeId || themes[0].id;
-				const theme = themes.find(t => t.id === themeId) || themes[0];
-
 				const injectionType: InjectionType =
 					injection.insertPosition === "replace" ? "replace" :
 					injection.insertPosition === "inline" ? "enhance" : "insert";
+				return {
+					themeId,
+					sectionName: injection.sectionName,
+					pageNumber: injection.pageNumber,
+					originalText: injection.originalText,
+					suggestedText: injection.suggestedText,
+					injectionType,
+					rationale: injection.rationale,
+					impactScore: Math.max(0, Math.min(1, injection.impactScore / 100)),
+				};
+			});
 
-				const [inserted] = await db
-					.insert(themeInjectionPoints)
-					.values({
-						themeId: theme.id,
-						documentId: input.opportunityId,
-						sectionId: injection.sectionName.toLowerCase().replace(/\s+/g, "-"),
-						sectionName: injection.sectionName,
-						pageNumber: injection.pageNumber,
-						textContext: injection.originalText,
-						suggestedText: injection.suggestedText,
-						injectionType,
-						rationale: injection.rationale,
-						impactScore: injection.impactScore / 100,
-						status: "pending",
-					})
-					.returning();
-
-				results.push(mapDBInjectionToInjectionPoint(
-					inserted,
-					theme.shortVersion || theme.themeStatement.substring(0, 50)
-				));
-			}
-
-			return { success: true, data: results };
+			return { success: true, data: await storeInjectionDrafts(drafts, themes, input.opportunityId) };
 		} catch (parseError) {
 			logger.error("Error parsing AI response:", parseError);
-			return { success: false, error: "Failed to parse AI injection suggestions" };
+			const fallbackDrafts = buildDeterministicInjectionDrafts(
+				themes,
+				existingOccurrences,
+				input.maxSuggestions || 3
+			);
+			return { success: true, data: await storeInjectionDrafts(fallbackDrafts, themes, input.opportunityId) };
 		}
 	} catch (error) {
 		logger.error("Error generating injections:", error);
