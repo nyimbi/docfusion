@@ -17,6 +17,9 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 // ---------------------------------------------------------------------------
 
 const requireUserContextMock = vi.hoisted(() => vi.fn());
+const aiInitializeMock = vi.hoisted(() => vi.fn(async () => undefined));
+const aiAvailableMock = vi.hoisted(() => vi.fn(async () => false));
+const aiCompleteMock = vi.hoisted(() => vi.fn(async () => ({ content: "AI response" })));
 const testOrganizationId = "11111111-1111-1111-1111-111111111111";
 
 vi.mock("next/cache", () => ({
@@ -33,9 +36,9 @@ vi.mock("@/lib/auth-utils", () => ({
 
 vi.mock("@/lib/ai/providers", () => ({
 	getProviderManager: vi.fn(() => ({
-		initialize: vi.fn(),
-		isAvailable: vi.fn(async () => false),
-		complete: vi.fn(async () => ({ content: "AI response" })),
+		initialize: aiInitializeMock,
+		isAvailable: aiAvailableMock,
+		complete: aiCompleteMock,
 	})),
 }));
 
@@ -318,6 +321,9 @@ beforeEach(() => {
 		userId: "competitive-user-1",
 		organizationId: testOrganizationId,
 	});
+	aiInitializeMock.mockResolvedValue(undefined);
+	aiAvailableMock.mockResolvedValue(false);
+	aiCompleteMock.mockResolvedValue({ content: "AI response" });
 	dbMock.select.mockImplementation(() => createChainableQuery([]));
 	dbMock.insert.mockImplementation(() => createChainableQuery([]));
 	dbMock.update.mockImplementation(() => createChainableQuery([]));
@@ -713,6 +719,52 @@ describe("Competitive analysis auth", () => {
 			expect(result.data.aiInsights.map((insight) => insight.insight).join(" ")).not.toContain("Analysis generated using heuristic methods");
 			expect(result.data.aiInsights.every((insight) => insight.confidence >= 0.25 && insight.confidence <= 0.85)).toBe(true);
 		}
+	});
+
+	test("falls back to heuristic SWOT when available AI returns malformed output", async () => {
+		aiAvailableMock.mockResolvedValueOnce(true);
+		aiCompleteMock.mockResolvedValueOnce({ content: "not json" });
+		let insertedValues: Record<string, unknown> | undefined;
+		const insertChain = createChainableQuery([{ id: "analysis-2" }]);
+		(insertChain.values as ReturnType<typeof vi.fn>).mockImplementation((value: Record<string, unknown>) => {
+			insertedValues = value;
+			return insertChain;
+		});
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([makeOpportunity({
+				category: "GIS",
+				keyRequirements: "Cloud GIS migration and transition support",
+			})]))
+			.mockImplementationOnce(() => createChainableQuery([
+				{
+					link: { role: "prime" },
+					competitor: makeCompetitor({
+						name: "Legacy Prime",
+						weaknesses: ["Slow delivery"],
+						pricingTendency: "premium",
+					}),
+				},
+			]))
+			.mockImplementationOnce(() => createChainableQuery([
+				{
+					coreCapabilities: ["Cloud migration"],
+					differentiators: ["Rapid transition team"],
+					certifications: [],
+				},
+			]));
+		dbMock.insert.mockImplementationOnce(() => insertChain);
+
+		const result = await generateSWOT("00000000-0000-4000-8000-000000000002");
+
+		expect(result.success).toBe(true);
+		expect(insertedValues).toMatchObject({
+			analyzedBy: "system-heuristic",
+		});
+		if (!result.success) return;
+		expect(result.data.id).toBe("analysis-2");
+		expect(result.data.threats.join(" ")).toContain("Legacy Prime");
+		expect(result.data.aiInsights.map((insight) => insight.source)).toContain("linked-competitor-evidence");
+		expect(result.data.aiInsights.length).toBeGreaterThan(0);
 	});
 
 	test("scopes discriminator suggestions to assigned opportunity links", async () => {

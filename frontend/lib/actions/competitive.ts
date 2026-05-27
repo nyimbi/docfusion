@@ -1370,41 +1370,21 @@ export async function generateSWOT(
 
 		const manager = getProviderManager();
 		await manager.initialize();
+		const buildHeuristic = () => generateHeuristicSWOT(
+			opportunity,
+			competitorLinks.map(cl => cl.competitor),
+			companyCapabilities,
+			companyDifferentiators
+		);
+		let swotData: Omit<SWOTAnalysis, "id" | "opportunityId">;
+		let analyzedBy = "ai-analysis";
 
 		if (!(await manager.isAvailable())) {
-			// Return heuristic-based SWOT
-			const heuristicSWOT = generateHeuristicSWOT(
-				opportunity,
-				competitorLinks.map(cl => cl.competitor),
-				companyCapabilities,
-				companyDifferentiators
-			);
-
-			// Save to database
-			const [savedAnalysis] = await db
-				.insert(competitiveAnalyses)
-				.values({
-					opportunityId,
-					strengths: heuristicSWOT.strengths,
-					weaknesses: heuristicSWOT.weaknesses,
-					opportunityFactors: heuristicSWOT.opportunities,
-					threats: heuristicSWOT.threats,
-					ourPosition: heuristicSWOT.ourPosition,
-					winStrategy: heuristicSWOT.winStrategy,
-					pricingStrategy: heuristicSWOT.pricingStrategy,
-					aiInsights: heuristicSWOT.aiInsights,
-					analyzedAt: new Date(),
-					analyzedBy: "system-heuristic",
-					createdAt: new Date(),
-					updatedAt: new Date(),
-				})
-				.returning();
-
-			return { success: true, data: { ...heuristicSWOT, id: savedAnalysis.id } };
-		}
-
-		// AI-powered SWOT analysis
-		const systemPrompt = `You are a strategic proposal consultant performing SWOT analysis for government/enterprise bids.
+			swotData = buildHeuristic();
+			analyzedBy = "system-heuristic";
+		} else {
+			// AI-powered SWOT analysis
+			const systemPrompt = `You are a strategic proposal consultant performing SWOT analysis for government/enterprise bids.
 
 Output as JSON with this exact structure:
 {
@@ -1422,15 +1402,15 @@ Output as JSON with this exact structure:
 
 Be specific and actionable. Only output valid JSON.`;
 
-		const competitorSummary = competitorLinks.map(cl => ({
-			name: cl.competitor.name,
-			role: cl.link.role,
-			strengths: cl.competitor.strengths,
-			weaknesses: cl.competitor.weaknesses,
-			pricingTendency: cl.competitor.pricingTendency,
-		}));
+			const competitorSummary = competitorLinks.map(cl => ({
+				name: cl.competitor.name,
+				role: cl.link.role,
+				strengths: cl.competitor.strengths,
+				weaknesses: cl.competitor.weaknesses,
+				pricingTendency: cl.competitor.pricingTendency,
+			}));
 
-		const userPrompt = `Perform SWOT analysis for this opportunity:
+			const userPrompt = `Perform SWOT analysis for this opportunity:
 
 **Opportunity:**
 - Title: ${opportunity.title}
@@ -1450,21 +1430,28 @@ ${JSON.stringify(competitorSummary, null, 2)}
 
 Provide comprehensive SWOT analysis as JSON.`;
 
-		const response = await manager.complete({
-			messages: [
-				{ role: "system", content: systemPrompt },
-				{ role: "user", content: userPrompt },
-			],
-			temperature: 0.4,
-			maxTokens: 2000,
-		});
+			try {
+				const response = await manager.complete({
+					messages: [
+						{ role: "system", content: systemPrompt },
+						{ role: "user", content: userPrompt },
+					],
+					temperature: 0.4,
+					maxTokens: 2000,
+				});
 
-		const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-		if (!jsonMatch) {
-			throw new Error("Invalid JSON response from AI");
+				const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+				if (!jsonMatch) {
+					throw new Error("Invalid JSON response from AI");
+				}
+
+				swotData = JSON.parse(jsonMatch[0]) as Omit<SWOTAnalysis, "id" | "opportunityId">;
+			} catch (aiError) {
+				logger.warn("[generateSWOT] AI analysis failed, using heuristic SWOT:", aiError);
+				swotData = buildHeuristic();
+				analyzedBy = "system-heuristic";
+			}
 		}
-
-		const swotData = JSON.parse(jsonMatch[0]) as Omit<SWOTAnalysis, "id" | "opportunityId">;
 
 		// Save to database
 		const [savedAnalysis] = await db
@@ -1480,7 +1467,7 @@ Provide comprehensive SWOT analysis as JSON.`;
 				pricingStrategy: swotData.pricingStrategy,
 				aiInsights: swotData.aiInsights,
 				analyzedAt: new Date(),
-				analyzedBy: "ai-analysis",
+				analyzedBy,
 				createdAt: new Date(),
 				updatedAt: new Date(),
 			})

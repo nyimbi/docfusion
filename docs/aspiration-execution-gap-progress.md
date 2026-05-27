@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Heuristic SWOT Fallback on Malformed AI
+
+Status: implemented and verified.
+
+Purpose: keep competitive SWOT analysis usable when an AI provider is available but returns malformed analysis output.
+
+Changes in this slice:
+- Reuse the existing evidence-based heuristic SWOT generator when AI SWOT parsing fails.
+- Preserve AI-generated SWOT output when valid and the heuristic path when AI is unavailable.
+- Store malformed-AI fallbacks as `system-heuristic` analyses instead of failing the whole action.
+- Add regression coverage proving provider-available malformed AI still persists and returns a heuristic SWOT with evidence-based insights.
+
+Verification:
+- `npm test -- competitive.test.ts` passed with 78 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 140 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue closing malformed-provider strategic analysis paths where heuristic evidence already exists.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic BOE Narrative Fallbacks
 
 Status: implemented and verified.
