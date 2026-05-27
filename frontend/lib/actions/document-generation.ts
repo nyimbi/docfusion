@@ -352,7 +352,8 @@ function estimateTokens(targetWords: number): number {
 /**
  * Parse the AI response and create DocumentContent.
  */
-function parseContentResponse(responseContent: string): DocumentContent {
+function parseContentResponse(responseContent: string, fallbackText: string): DocumentContent {
+	let parsedJson = false;
 	try {
 		// Remove any markdown code block markers if present
 		const cleanContent = responseContent
@@ -362,36 +363,32 @@ function parseContentResponse(responseContent: string): DocumentContent {
 			.trim();
 
 		const parsed = JSON.parse(cleanContent);
+		parsedJson = true;
 
 		// Handle both { paragraphs: [...] } and direct array formats
-		const paragraphs: string[] = Array.isArray(parsed)
+		const paragraphs = Array.isArray(parsed)
 			? parsed
 			: parsed.paragraphs || [];
+		const usableParagraphs = Array.isArray(paragraphs)
+			? paragraphs.map((text) => String(text).trim()).filter(Boolean)
+			: [];
 
-		if (!Array.isArray(paragraphs) || paragraphs.length === 0) {
+		if (usableParagraphs.length === 0) {
 			throw new Error("Invalid response format: expected array of paragraphs");
 		}
 
 		return {
 			type: "doc",
-			content: paragraphs.map((text) => ({
+			content: usableParagraphs.map((text) => ({
 				type: "paragraph",
-				content: [{ type: "text", text: String(text) }],
+				content: [{ type: "text", text }],
 			})),
 		};
 	} catch (error) {
 		logger.error("[AI] Failed to parse content response:", error);
 
-		// Fallback: treat the entire response as a single paragraph
-		return {
-			type: "doc",
-			content: [
-				{
-					type: "paragraph",
-					content: [{ type: "text", text: responseContent.trim() }],
-				},
-			],
-		};
+		const text = parsedJson ? fallbackText : responseContent.trim() || fallbackText;
+		return paragraphContent(text);
 	}
 }
 
@@ -444,7 +441,20 @@ export async function generateSectionContent(
 		});
 
 		// Parse response and create DocumentContent
-		const content = parseContentResponse(response.content);
+		const fallbackText = buildDeterministicSectionDraft({
+			id: input.sectionId,
+			type: "section",
+			title: sectionTitle,
+			order: 0,
+			length,
+			children: keyPoints?.map((point, index) => ({
+				id: `${input.sectionId}-point-${index + 1}`,
+				type: "paragraph",
+				title: point,
+				order: index + 1,
+			})),
+		}, parentContext || "");
+		const content = parseContentResponse(response.content, fallbackText);
 
 		// Calculate word and character counts
 		const textContent = (content.content || [])

@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Empty AI Section Content Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep generated proposal sections from turning valid but empty AI paragraph JSON into successful documents containing raw JSON instead of proposal prose.
+
+Changes in this slice:
+- Filter AI-generated section paragraphs to non-empty text before creating document content.
+- Treat parsed JSON with no usable paragraphs as unusable and reuse deterministic section prose.
+- Preserve raw-text fallback for non-JSON provider responses while avoiding raw empty JSON artifacts.
+- Add regression coverage for empty paragraph strings.
+
+Verification:
+- `npm test -- document-generation-auth.test.ts --run` passed with 8 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave5-ai-content-governance` passed with 41 tests.
+
+Remaining after this slice:
+- Continue auditing response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Empty AI PWin Recommendation Fallbacks
 
 Status: implemented and verified.

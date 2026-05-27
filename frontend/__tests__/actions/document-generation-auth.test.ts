@@ -127,6 +127,30 @@ describe("document generation action auth", () => {
 		}));
 	});
 
+	it("uses deterministic section prose when AI returns empty paragraphs", async () => {
+		providerCompleteMock.mockResolvedValueOnce({
+			content: JSON.stringify({ paragraphs: ["   ", ""] }),
+		});
+		const { generateSectionContent } = await import("@/lib/actions/document-generation");
+
+		const result = await generateSectionContent({
+			documentId: "doc-1",
+			sectionId: "section-1",
+			sectionPath: ["Technical Approach"],
+			sectionTitle: "Technical Approach",
+			parentContext: "Executive Summary",
+			tone: "professional",
+			length: "brief",
+			keyPoints: ["Evidence-backed delivery controls"],
+		});
+
+		const serialized = JSON.stringify(result.content);
+		expect(serialized).toContain("Technical Approach within Executive Summary frames the response content");
+		expect(serialized).toContain("Evidence-backed delivery controls");
+		expect(serialized).not.toContain("paragraphs");
+		expect(result.wordCount).toBeGreaterThan(10);
+	});
+
 	it("creates an editable outline without fake section content", async () => {
 		const documentInsert = createInsertChain([{ id: "doc-1" }]);
 		const versionInsert = createInsertChain();
