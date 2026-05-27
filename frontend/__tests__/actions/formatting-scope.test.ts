@@ -172,6 +172,54 @@ describe("formatting document scoping", () => {
 		expect(sqlText).toContain("format-user-1");
 	});
 
+	it.each([
+		["pdf", "data:application/pdf;base64,", "%PDF-"],
+		["docx", "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,", "PK"],
+	] as const)("generates a real %s formatted document artifact", async (format, expectedPrefix, expectedSignature) => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: documentId,
+					title: "Technical Volume",
+					content: {
+						type: "doc",
+						content: [{
+							type: "paragraph",
+							content: [{ type: "text", text: "Evidence-backed response content." }],
+						}],
+					},
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "format-1",
+					documentId,
+					templateId,
+					overrides: null,
+					hasOverrides: false,
+					appliedAt: new Date("2026-05-01T00:00:00.000Z"),
+					appliedBy: "format-user-1",
+					isValid: true,
+					lastValidationId: null,
+					lastValidatedAt: null,
+					isLocked: false,
+					lockReason: null,
+					lockedAt: null,
+					lockedBy: null,
+					createdAt: new Date("2026-05-01T00:00:00.000Z"),
+					updatedAt: new Date("2026-05-01T00:00:00.000Z"),
+				}],
+			}));
+
+		const result = await exportFormattedDocument(documentId, format);
+
+		expect(result.filename).toMatch(new RegExp(`^Technical-Volume-.*\\.${format}$`));
+		expect(result.url).toMatch(new RegExp(`^${expectedPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+		expect(result.url).not.toContain("/api/documents/export");
+		const encoded = result.url.split(",")[1] ?? "";
+		expect(Buffer.from(encoded, "base64").toString("latin1").startsWith(expectedSignature)).toBe(true);
+	});
+
 	it("flags explicit font and spacing violations from document content", async () => {
 		let validationPayload: Record<string, unknown> | undefined;
 		dbMock.select

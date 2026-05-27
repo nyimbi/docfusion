@@ -722,6 +722,91 @@ function extractPlainText(content: unknown): string {
 	return "";
 }
 
+function toBase64DataUrl(mimeType: string, content: string | ArrayBuffer | Uint8Array): string {
+	const buffer = typeof content === "string"
+		? Buffer.from(content, "utf8")
+		: Buffer.from(content instanceof Uint8Array ? content : new Uint8Array(content));
+	return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+async function buildFormattedPdfArtifact(
+	document: { title: string; content?: unknown },
+	documentFormat: DocumentFormat | null
+): Promise<ArrayBuffer> {
+	const { jsPDF } = await import("jspdf");
+	const pdf = new jsPDF({ unit: "pt", format: "letter" });
+	const pageWidth = pdf.internal.pageSize.getWidth();
+	const pageHeight = pdf.internal.pageSize.getHeight();
+	const margin = 54;
+	const bodyWidth = pageWidth - (margin * 2);
+	let y = margin;
+
+	pdf.setProperties({
+		title: document.title,
+		creator: "DocFusion",
+		subject: documentFormat?.templateId ? `Template ${documentFormat.templateId}` : "Formatted document export",
+	});
+
+	const addPageIfNeeded = (neededHeight: number) => {
+		if (y + neededHeight <= pageHeight - margin) return;
+		pdf.addPage();
+		y = margin;
+	};
+
+	const addWrappedText = (text: string, options: { size?: number; bold?: boolean; spacing?: number } = {}) => {
+		const fontSize = options.size ?? 11;
+		const lineHeight = fontSize + 5;
+		pdf.setFont("times", options.bold ? "bold" : "normal");
+		pdf.setFontSize(fontSize);
+		const lines = pdf.splitTextToSize(text || " ", bodyWidth) as string[];
+		for (const line of lines) {
+			addPageIfNeeded(lineHeight);
+			pdf.text(line, margin, y);
+			y += lineHeight;
+		}
+		y += options.spacing ?? 4;
+	};
+
+	addWrappedText(document.title, { size: 16, bold: true, spacing: 14 });
+	for (const paragraph of extractPlainText(document.content).split(/\n+/).map((value) => value.trim()).filter(Boolean)) {
+		addWrappedText(paragraph);
+	}
+
+	return pdf.output("arraybuffer");
+}
+
+async function buildFormattedDocxArtifact(
+	document: { title: string; content?: unknown },
+	documentFormat: DocumentFormat | null
+): Promise<string> {
+	const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import("docx");
+	const bodyText = extractPlainText(document.content);
+	const children = [
+		new Paragraph({ text: document.title, heading: HeadingLevel.TITLE }),
+		...(documentFormat?.templateId
+			? [new Paragraph({
+				children: [
+					new TextRun({ text: "Template: ", bold: true }),
+					new TextRun({ text: documentFormat.templateId }),
+				],
+			})]
+			: []),
+		...bodyText.split(/\n+/)
+			.map((value) => value.trim())
+			.filter(Boolean)
+			.map((paragraph) => new Paragraph({ text: paragraph })),
+	];
+
+	const doc = new Document({
+		creator: "DocFusion",
+		title: document.title,
+		description: "Formatted document export",
+		sections: [{ properties: {}, children }],
+	});
+
+	return Packer.toBase64String(doc);
+}
+
 interface TextStyleRun {
 	text: string;
 	nodeType: string;
@@ -2901,16 +2986,9 @@ export async function exportFormattedDocument(
 		const timestamp = new Date().toISOString().split("T")[0];
 		const filename = `${sanitizedTitle}-${timestamp}.${format}`;
 
-		// Generate export URL
-		// In production, this would trigger actual document generation
-		const exportParams = new URLSearchParams({
-			documentId,
-			format,
-			filename,
-			templateId: documentFormat?.templateId ?? "",
-		});
-
-		const url = `/api/documents/export?${exportParams.toString()}`;
+		const url = format === "pdf"
+			? toBase64DataUrl("application/pdf", await buildFormattedPdfArtifact(document, documentFormat))
+			: `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${await buildFormattedDocxArtifact(document, documentFormat)}`;
 
 		return { url, filename };
 	} catch (error) {

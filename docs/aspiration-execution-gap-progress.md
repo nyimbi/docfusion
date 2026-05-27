@@ -5720,3 +5720,24 @@ Verification:
 Remaining after this slice:
 - Continue auditing remaining export/download paths for placeholders versus durable artifacts.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Formatted Document Export Artifacts
+
+Status: implemented and verified.
+
+Purpose: make formatted document export return real PDF/DOCX artifacts instead of a placeholder `/api/documents/export` URL.
+
+Changes in this slice:
+- Generate PDF formatted document exports from the scoped document title/content and applied format metadata.
+- Generate DOCX formatted document exports using the existing `docx` dependency.
+- Preserve the existing `{ url, filename }` response shape while replacing the inert route with data URL artifacts.
+- Add regression coverage that decodes both formats and verifies file signatures.
+
+Verification:
+- `npm test -- formatting-scope.test.ts` passed with 7 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 176 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue auditing remaining export/download paths for placeholders versus durable artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
