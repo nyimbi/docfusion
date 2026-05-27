@@ -4394,6 +4394,29 @@ Testing scope note:
 Remaining after this slice:
 - Reconcile older manual migrations with `frontend/drizzle/meta/_journal.json` before relying on `drizzle-kit migrate` for fresh database rebuilds.
 
+### 2026-05-27 - Drizzle Journal Reconciliation
+
+Status: implemented and verified.
+
+Purpose: make migration metadata match the SQL files in the repo so missing journal entries cannot silently hide schema work.
+
+Changes in this slice:
+- Add `0010` through `0032` to `frontend/drizzle/meta/_journal.json`, preserving the live-recorded `0032` created_at value.
+- Add a regression test that requires every `frontend/drizzle/*.sql` file to appear in the journal with sequential indexes and increasing timestamps.
+- Move `CREATE EXTENSION IF NOT EXISTS pg_trgm` ahead of the trigram indexes in the full-text-search migration so fresh replay has the extension before index creation.
+
+Verification:
+- `npm test -- drizzle-migration-journal.test.ts` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- Drizzle's `readMigrationFiles({ migrationsFolder: 'frontend/drizzle' })` returned 33 migrations and resolved the final `0032` hash to `28b827ba64784d8af4bdb674c11bcb7073a269eb18bf096200e628028bc4b5f3`.
+- `set -a; source .env.local; set +a; npm run db:record-migration -- 0032_live_response_persistence_tenant_repair.sql --dry-run` now reports source `journal` and status `already-recorded`.
+
+Testing scope note:
+- This validates metadata coverage and Drizzle migration-file parsing; it is not a full empty-database replay.
+
+Remaining after this slice:
+- Add a disposable empty-database migration replay once a cheap isolated PostgreSQL target is available.
+
 ### 2026-05-26 - Workflow Runtime Tenant Anchor
 
 Status: implemented and verified.

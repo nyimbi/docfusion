@@ -2,6 +2,12 @@
 -- Creates tsvector columns and GIN indexes for fast text search
 
 -- ============================================================================
+-- Add trigram extension before trigram indexes
+-- ============================================================================
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- ============================================================================
 -- Add search vector column
 -- ============================================================================
 
@@ -143,9 +149,3 @@ BEGIN
     OFFSET page_offset;
 END;
 $$ LANGUAGE plpgsql;
-
--- ============================================================================
--- Add trigram extension if not exists
--- ============================================================================
-
-CREATE EXTENSION IF NOT EXISTS pg_trgm;

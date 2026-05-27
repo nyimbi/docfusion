@@ -75,8 +75,162 @@
     {
       "idx": 10,
       "version": "7",
+      "when": 1770210396517,
+      "tag": "0010_opportunity_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1770296796517,
+      "tag": "0011_add_full_text_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
       "when": 1774396800000,
       "tag": "0012_saved_searches",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1776896586000,
+      "tag": "0013_unify_requirements",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778196160000,
+      "tag": "0014_add_user_keycloak_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1778196161000,
+      "tag": "0015_add_scraper_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1778196162000,
+      "tag": "0016_workflow_runtime",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1778196163000,
+      "tag": "0017_workflow_template_governance",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1778196164000,
+      "tag": "0018_template_snippet_placeholders",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1778196165000,
+      "tag": "0019_restore_rfp_core_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1778196166000,
+      "tag": "0020_repair_opportunity_search_vector",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1778199624000,
+      "tag": "0021_rfp_tenant_isolation",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1778332873000,
+      "tag": "0022_rfp_hash_per_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1779185001000,
+      "tag": "0023_company_settings_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1779236283000,
+      "tag": "0024_proposal_tasks_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1779819065000,
+      "tag": "0025_workflow_instances_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779819366000,
+      "tag": "0026_submissions_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1779819921000,
+      "tag": "0027_review_records_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1779820697000,
+      "tag": "0028_pipeline_gate_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1779821423000,
+      "tag": "0029_pricing_rows_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1779821799000,
+      "tag": "0030_proposal_documents_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1779822767000,
+      "tag": "0031_opportunity_root_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1779845173133,
+      "tag": "0032_live_response_persistence_tenant_repair",
       "breakpoints": true
     }
   ]
