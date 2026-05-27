@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Graphics Suggestion Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep proposal sections from receiving a successful empty graphics suggestion set when AI output is malformed but section content contains visualizable evidence.
+
+Changes in this slice:
+- Add deterministic graphics suggestions from section keywords for process flow, schedule, team structure, metrics chart, and summary infographic cases.
+- Return evidence-based fallback suggestions when AI graphic suggestion JSON parsing fails.
+- Preserve suggestion ordering by confidence and cap fallback output to five reviewable items.
+- Add regression coverage proving malformed AI output still returns non-empty graphics suggestions for workflow, milestone, team, and metric evidence.
+
+Verification:
+- `npm test -- graphics-scope.test.ts` passed with 10 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 178 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing response-production paths where malformed AI output hides deterministic review artifacts behind successful empty results.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Win-Theme Injection Fallbacks
 
 Status: implemented and verified.

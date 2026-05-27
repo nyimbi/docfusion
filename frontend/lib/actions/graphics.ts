@@ -356,6 +356,81 @@ export type GraphicSuggestion = {
 	confidence: number;
 };
 
+function buildDeterministicGraphicSuggestions(sectionName: string, contentText: string): GraphicSuggestion[] {
+	const text = `${sectionName} ${contentText}`.toLowerCase();
+	const suggestions: GraphicSuggestion[] = [];
+	const addSuggestion = (
+		graphicType: GraphicSuggestion["graphicType"],
+		title: string,
+		rationale: string,
+		confidence: number,
+		suggestedDiagramCode?: string
+	) => {
+		if (suggestions.some((suggestion) => suggestion.graphicType === graphicType && suggestion.title === title)) {
+			return;
+		}
+		suggestions.push({
+			graphicType,
+			title,
+			rationale,
+			confidence,
+			suggestedDiagramCode,
+		});
+	};
+
+	if (/\b(process|workflow|sequence|steps?|handoff|approval|governance)\b/.test(text)) {
+		addSuggestion(
+			"process_flow",
+			`${sectionName} Process Flow`,
+			"Section describes steps, handoffs, or governance flow that evaluators can verify faster as a process graphic.",
+			0.82,
+			"flowchart TD\n  A[Initiate] --> B[Execute]\n  B --> C[Validate]\n  C --> D[Report]"
+		);
+	}
+
+	if (/\b(schedule|timeline|milestone|phase|deadline|transition|mobilization|implementation)\b/.test(text)) {
+		addSuggestion(
+			"schedule",
+			`${sectionName} Milestone Timeline`,
+			"Section includes schedule or implementation language that benefits from a milestone view.",
+			0.78,
+			"gantt\n  title Delivery Timeline\n  dateFormat YYYY-MM-DD\n  Mobilization :a1, 2026-01-01, 14d\n  Implementation :a2, after a1, 45d\n  Validation :a3, after a2, 14d"
+		);
+	}
+
+	if (/\b(team|role|staff|personnel|organization|governance board|reporting)\b/.test(text)) {
+		addSuggestion(
+			"org_chart",
+			`${sectionName} Team Structure`,
+			"Section references roles or reporting lines that should be made explicit for evaluators.",
+			0.74,
+			"flowchart TD\n  Lead[Program Lead] --> Delivery[Delivery Team]\n  Lead --> Quality[Quality Lead]\n  Lead --> Client[Client Liaison]"
+		);
+	}
+
+	if (/\b(\d+%|\d+x|\$|cost|savings|uptime|sla|metric|kpi|score|performance)\b/.test(text)) {
+		addSuggestion(
+			"chart",
+			`${sectionName} Metrics Snapshot`,
+			"Section contains quantitative proof that can be easier to score as a compact chart.",
+			0.76,
+			"xychart-beta\n  title \"Performance Snapshot\"\n  x-axis [Baseline, Target]\n  y-axis \"Score\" 0 --> 100\n  bar [60, 90]"
+		);
+	}
+
+	if (suggestions.length === 0) {
+		addSuggestion(
+			"infographic",
+			`${sectionName} Evaluator Summary`,
+			"Section can be strengthened with a concise visual summary of the main proof points and outcomes.",
+			0.55,
+			"flowchart LR\n  Need[Evaluator Need] --> Approach[Our Approach]\n  Approach --> Proof[Proof Point]\n  Proof --> Outcome[Outcome]"
+		);
+	}
+
+	return suggestions.sort((a, b) => b.confidence - a.confidence).slice(0, 5);
+}
+
 /**
  * Result of graphic generation operations.
  */
@@ -781,9 +856,11 @@ Analyze this proposal section and suggest graphics that would enhance it. Return
 				)
 				.slice(0, 5);
 		} catch {
-			// If parsing fails, return empty array with a note
 			logger.warn("Failed to parse AI suggestions:", response.content);
-			return { success: true, data: [] };
+			return {
+				success: true,
+				data: buildDeterministicGraphicSuggestions(section.sectionName, contentText),
+			};
 		}
 
 		return { success: true, data: suggestions };

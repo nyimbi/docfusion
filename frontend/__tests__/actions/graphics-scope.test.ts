@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireUserContextMock = vi.hoisted(() => vi.fn());
 const revalidatePathMock = vi.hoisted(() => vi.fn());
+const aiCompleteMock = vi.hoisted(() =>
+	vi.fn(async () => ({ content: "not json" }))
+);
 
 interface ChainConfig {
 	result?: unknown[];
@@ -69,7 +72,14 @@ vi.mock("next/cache", () => ({
 vi.mock("@/lib/utils/logger", () => ({
 	logger: {
 		error: vi.fn(),
+		warn: vi.fn(),
 	},
+}));
+
+vi.mock("@/lib/ai/providers", () => ({
+	getProviderManager: vi.fn(() => ({
+		complete: aiCompleteMock,
+	})),
 }));
 
 import {
@@ -272,5 +282,39 @@ describe("graphics opportunity scoping", () => {
 		for (const where of wheres) {
 			expectAssignedOpportunityTenantScope(where);
 		}
+	});
+
+	it("returns deterministic graphic suggestions when AI output is malformed", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: "not json" });
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{ id: sectionId, proposalDocumentId, sectionName: "Implementation Approach" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: proposalDocumentId, documentId: "doc-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "doc-1",
+					plainText:
+						"Implementation workflow with milestones, governance approvals, team roles, and 99.9% uptime metric.",
+					content: {},
+				}],
+			}));
+
+		const result = await suggestGraphics(sectionId);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).not.toEqual([]);
+		expect(result.data[0]).toMatchObject({
+			graphicType: "process_flow",
+			title: "Implementation Approach Process Flow",
+			confidence: 0.82,
+		});
+		expect(result.data[0]?.suggestedDiagramCode).toContain("flowchart TD");
+		expect(result.data.map((suggestion) => suggestion.graphicType)).toEqual(
+			expect.arrayContaining(["schedule", "org_chart", "chart"])
+		);
 	});
 });
