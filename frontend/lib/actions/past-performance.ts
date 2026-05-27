@@ -280,6 +280,207 @@ function visibleRelevanceScorePairCondition(
 	)!;
 }
 
+const PAST_PERFORMANCE_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const PAST_PERFORMANCE_PDF_MIME = "application/pdf";
+
+function toBase64DataUrl(mimeType: string, content: string | ArrayBuffer | Uint8Array): string {
+	const buffer = typeof content === "string"
+		? Buffer.from(content, "utf8")
+		: Buffer.from(content instanceof Uint8Array ? content : new Uint8Array(content));
+	return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+function formatContractValue(value: number): string {
+	if (!Number.isFinite(value) || value <= 0) return "Not specified";
+	return new Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		maximumFractionDigits: 0,
+	}).format(value);
+}
+
+function formatPeriod(period: { start: string; end: string }): string {
+	if (!period.start && !period.end) return "Not specified";
+	return [period.start, period.end].filter(Boolean).join(" - ");
+}
+
+function normalizeArtifactLines(values: unknown[], formatter: (value: unknown) => string = String): string[] {
+	return values
+		.map(formatter)
+		.map((line) => line.trim())
+		.filter(Boolean);
+}
+
+async function buildPastPerformanceDocx(volumeData: PastPerformanceVolumeData): Promise<string> {
+	const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import("docx");
+	const children = [
+		new Paragraph({
+			text: "PAST PERFORMANCE VOLUME",
+			heading: HeadingLevel.TITLE,
+		}),
+		new Paragraph({
+			children: [
+				new TextRun({ text: "Opportunity: ", bold: true }),
+				new TextRun({ text: volumeData.opportunityTitle }),
+			],
+		}),
+		new Paragraph({
+			children: [
+				new TextRun({ text: "Opportunity Number: ", bold: true }),
+				new TextRun({ text: volumeData.opportunityNumber || "Not specified" }),
+			],
+		}),
+		new Paragraph({
+			children: [
+				new TextRun({ text: "Generated: ", bold: true }),
+				new TextRun({ text: volumeData.generatedAt }),
+			],
+		}),
+		new Paragraph({ text: "" }),
+		...volumeData.projects.flatMap((project) => [
+			new Paragraph({
+				text: `${project.rank}. ${project.projectName}`,
+				heading: HeadingLevel.HEADING_1,
+			}),
+			new Paragraph({
+				children: [
+					new TextRun({ text: "Customer: ", bold: true }),
+					new TextRun({ text: [project.customerAgency, project.customerName].filter(Boolean).join(" - ") || "Not specified" }),
+				],
+			}),
+			new Paragraph({
+				children: [
+					new TextRun({ text: "Contract: ", bold: true }),
+					new TextRun({ text: project.contractNumber || "Not specified" }),
+				],
+			}),
+			new Paragraph({
+				children: [
+					new TextRun({ text: "Value: ", bold: true }),
+					new TextRun({ text: formatContractValue(project.contractValue) }),
+					new TextRun({ text: " | Period: ", bold: true }),
+					new TextRun({ text: formatPeriod(project.periodOfPerformance) }),
+				],
+			}),
+			new Paragraph({
+				children: [
+					new TextRun({ text: "Relevance Score: ", bold: true }),
+					new TextRun({ text: String(project.relevanceScore) }),
+					new TextRun({ text: " | CPAR Overall: ", bold: true }),
+					new TextRun({ text: String(project.cparRatings.overall || "Not rated") }),
+				],
+			}),
+			new Paragraph({
+				text: project.scopeSummary || project.description || "No scope summary provided.",
+			}),
+			new Paragraph({
+				text: project.relevanceNarrative || "No relevance narrative provided.",
+			}),
+			...normalizeArtifactLines(project.keyAccomplishments).map((item) => new Paragraph({ text: `Accomplishment: ${item}` })),
+			...normalizeArtifactLines(project.quantifiedResults, (value) => {
+				const result = value as { metric?: string; value?: string; context?: string };
+				return [result.metric, result.value, result.context].filter(Boolean).join(" - ");
+			}).map((item) => new Paragraph({ text: `Quantified result: ${item}` })),
+			...normalizeArtifactLines(project.matchingRequirements, (value) => {
+				const requirement = value as { requirementText?: string; matchStrength?: number };
+				return `${requirement.requirementText ?? ""}${requirement.matchStrength ? ` (${requirement.matchStrength})` : ""}`;
+			}).map((item) => new Paragraph({ text: `Requirement match: ${item}` })),
+			new Paragraph({ text: "" }),
+		]),
+	];
+
+	const doc = new Document({
+		creator: "DocFusion",
+		title: `Past Performance Volume - ${volumeData.opportunityTitle}`,
+		description: "Generated past performance volume",
+		sections: [{ properties: {}, children }],
+	});
+
+	return Packer.toBase64String(doc);
+}
+
+async function buildPastPerformancePdf(volumeData: PastPerformanceVolumeData): Promise<ArrayBuffer> {
+	const { jsPDF } = await import("jspdf");
+	const pdf = new jsPDF({ unit: "pt", format: "letter" });
+	const pageWidth = pdf.internal.pageSize.getWidth();
+	const pageHeight = pdf.internal.pageSize.getHeight();
+	const margin = 54;
+	const bodyWidth = pageWidth - (margin * 2);
+	let y = margin;
+
+	pdf.setProperties({
+		title: `Past Performance Volume - ${volumeData.opportunityTitle}`,
+		creator: "DocFusion",
+		subject: volumeData.opportunityNumber || "Past performance volume",
+	});
+
+	const addPageIfNeeded = (neededHeight: number) => {
+		if (y + neededHeight <= pageHeight - margin) return;
+		pdf.addPage();
+		y = margin;
+	};
+
+	const addWrappedText = (text: string, options: { size?: number; bold?: boolean; spacing?: number } = {}) => {
+		const fontSize = options.size ?? 10;
+		const lineHeight = fontSize + 4;
+		pdf.setFont("helvetica", options.bold ? "bold" : "normal");
+		pdf.setFontSize(fontSize);
+		const lines = pdf.splitTextToSize(text || "Not specified", bodyWidth) as string[];
+		for (const line of lines) {
+			addPageIfNeeded(lineHeight);
+			pdf.text(line, margin, y);
+			y += lineHeight;
+		}
+		y += options.spacing ?? 4;
+	};
+
+	addWrappedText("PAST PERFORMANCE VOLUME", { size: 18, bold: true, spacing: 10 });
+	addWrappedText(`Opportunity: ${volumeData.opportunityTitle}`, { size: 12, bold: true });
+	addWrappedText(`Opportunity Number: ${volumeData.opportunityNumber || "Not specified"}`);
+	addWrappedText(`Generated: ${volumeData.generatedAt}`);
+	addWrappedText(`Selected Projects: ${volumeData.projects.length}`, { spacing: 14 });
+
+	for (const project of volumeData.projects) {
+		addWrappedText(`${project.rank}. ${project.projectName}`, { size: 14, bold: true, spacing: 8 });
+		addWrappedText(`Customer: ${[project.customerAgency, project.customerName].filter(Boolean).join(" - ") || "Not specified"}`);
+		addWrappedText(`Contract: ${project.contractNumber || "Not specified"} | Value: ${formatContractValue(project.contractValue)} | Period: ${formatPeriod(project.periodOfPerformance)}`);
+		addWrappedText(`Relevance Score: ${project.relevanceScore} | CPAR Overall: ${project.cparRatings.overall || "Not rated"} | Reference: ${project.referenceStatus}`);
+		addWrappedText(`Scope: ${project.scopeSummary || project.description || "No scope summary provided."}`);
+		addWrappedText(`Relevance: ${project.relevanceNarrative || "No relevance narrative provided."}`);
+
+		for (const accomplishment of normalizeArtifactLines(project.keyAccomplishments).slice(0, 5)) {
+			addWrappedText(`Accomplishment: ${accomplishment}`);
+		}
+		for (const result of normalizeArtifactLines(project.quantifiedResults, (value) => {
+			const quantifiedResult = value as { metric?: string; value?: string; context?: string };
+			return [quantifiedResult.metric, quantifiedResult.value, quantifiedResult.context].filter(Boolean).join(" - ");
+		}).slice(0, 5)) {
+			addWrappedText(`Quantified result: ${result}`);
+		}
+		for (const requirement of normalizeArtifactLines(project.matchingRequirements, (value) => {
+			const match = value as { requirementText?: string; matchStrength?: number };
+			return `${match.requirementText ?? ""}${match.matchStrength ? ` (${match.matchStrength})` : ""}`;
+		}).slice(0, 5)) {
+			addWrappedText(`Requirement match: ${requirement}`);
+		}
+		y += 8;
+	}
+
+	return pdf.output("arraybuffer");
+}
+
+async function buildPastPerformanceVolumeArtifact(
+	volumeData: PastPerformanceVolumeData,
+	format: "docx" | "pdf"
+): Promise<string> {
+	if (format === "pdf") {
+		return toBase64DataUrl(PAST_PERFORMANCE_PDF_MIME, await buildPastPerformancePdf(volumeData));
+	}
+
+	const base64Docx = await buildPastPerformanceDocx(volumeData);
+	return `data:${PAST_PERFORMANCE_DOCX_MIME};base64,${base64Docx}`;
+}
+
 /**
  * Create a new past performance project
  */
@@ -1705,14 +1906,7 @@ export async function exportPastPerformanceVolume(
 			})),
 		};
 
-		// Generate unique filename
-		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-		const filename = `past-performance-${opportunity.sourceId ?? opportunityId}-${timestamp}.${format}`;
-
-		// Store volume data for document generation service
-		// In production, this would trigger async document generation
-		// For now, return the structured data that can be used by document templates
-		const downloadUrl = `/api/documents/generate?type=past-performance&opportunityId=${opportunityId}&format=${format}&filename=${encodeURIComponent(filename)}`;
+		const downloadUrl = await buildPastPerformanceVolumeArtifact(volumeData, format);
 
 		return {
 			success: true,

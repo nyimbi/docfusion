@@ -5592,3 +5592,25 @@ Testing scope note:
 Remaining after this slice:
 - Continue auditing the opportunity-to-winning-response workflow against the JTBD catalogue.
 - Review whether matrix entry workflow bulk actions are needed for large RFPs so final lock remains operational at scale.
+
+### 2026-05-27 - Past Performance Volume Export Artifacts
+
+Status: implemented and verified.
+
+Purpose: make past-performance volume export produce real downloadable evidence artifacts instead of a placeholder document-generation URL.
+
+Changes in this slice:
+- Generate PDF past-performance volumes as base64 `data:application/pdf` artifacts with opportunity, project, relevance, CPAR, accomplishment, result, and matched-requirement details.
+- Generate DOCX past-performance volumes as base64 OpenXML artifacts using the existing `docx` dependency.
+- Preserve the existing `volumeData` response so downstream templates and UI callers can continue reading structured export data.
+- Add regression coverage that decodes both exported formats and checks file signatures instead of accepting an inert `/api/documents/generate` route.
+
+Verification:
+- `npm test -- past-performance-scope.test.ts` passed with 9 tests.
+- `npm test -- past-performance-scope.test.ts platform-proof-scenarios.test.ts` passed with 15 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 44 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing placeholder export URLs in adjacent response artifacts, especially compliance and review package exports.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

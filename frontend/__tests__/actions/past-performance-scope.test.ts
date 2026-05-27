@@ -225,6 +225,64 @@ describe("past performance opportunity scoping", () => {
 		expectAssignedOpportunityScope(wheres[1]);
 	});
 
+	it.each([
+		["pdf", "data:application/pdf;base64,", "%PDF-"],
+		["docx", "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,", "PK"],
+	] as const)("generates a real %s past performance volume artifact", async (format, expectedPrefix, expectedSignature) => {
+		const selectedProject = {
+			id: projectId,
+			name: "Health Data Exchange",
+			contractNumber: "HDX-2024",
+			customerName: "Ministry of Health",
+			customerAgency: "MOH",
+			contractValue: 2500000,
+			periodOfPerformance: { start: "2024-01-01", end: "2025-12-31" },
+			description: "Delivered secure health data exchange services.",
+			scopeSummary: "Cloud analytics and interoperability implementation.",
+			technicalAreas: ["cloud", "analytics"],
+			cparRatings: { quality: 5, schedule: 4, cost: 4, management: 5, overall: 4.5 },
+			keyAccomplishments: ["Connected 50 facilities"],
+			quantifiedResults: [{ metric: "Availability", value: "99.9%", context: "Production operations" }],
+			customerPOC: "Amina Lead",
+			customerPOCEmail: "amina@example.test",
+			customerPOCPhone: "+254700000000",
+			referenceStatus: "available",
+		};
+		const score = {
+			overallScore: 92,
+			relevanceNarrative: "Directly matches the secure analytics requirement.",
+			strengthsNarrative: "Strong health-sector delivery evidence.",
+			matchingRequirements: [{
+				requirementId: requirement.id,
+				requirementText: requirement.requirementText,
+				matchStrength: 90,
+			}],
+		};
+
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [opportunity] }))
+			.mockReturnValueOnce(createChain({
+				result: [{ score, project: selectedProject }],
+			}));
+
+		const result = await exportPastPerformanceVolume(opportunityId, format);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toBeDefined();
+		const data = result.data;
+		if (!data) return;
+		expect(data.downloadUrl).toMatch(new RegExp(`^${expectedPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+		expect(data.downloadUrl).not.toContain("/api/documents/generate");
+		const encoded = data.downloadUrl.split(",")[1] ?? "";
+		expect(Buffer.from(encoded, "base64").toString("latin1").startsWith(expectedSignature)).toBe(true);
+		expect(data.volumeData.projects[0]).toMatchObject({
+			projectName: "Health Data Exchange",
+			relevanceScore: 92,
+			keyAccomplishments: ["Connected 50 facilities"],
+		});
+	});
+
 	it("scopes portfolio gap analysis to assigned opportunities and requirements", async () => {
 		const wheres: unknown[] = [];
 		dbMock.select
