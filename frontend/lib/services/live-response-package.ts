@@ -55,6 +55,20 @@ export interface LiveResponseEvaluationSignal {
 	responseStrategy: string;
 }
 
+export interface LiveResponseWinThemeSeed {
+	id: string;
+	statement: string;
+	shortVersion: string;
+	type: "value_prop" | "differentiator" | "proof_point" | "risk_mitigation";
+	priority: 1 | 2 | 3 | 4 | 5;
+	evaluationCriteriaIds: string[];
+	requirementIds: string[];
+	targetDocumentTypes: ProposalDocumentType[];
+	supportingEvidence: string[];
+	keywords: string[];
+	rationale: string;
+}
+
 export interface LiveResponseDraftDocument {
 	documentType: ProposalDocumentType;
 	title: string;
@@ -73,6 +87,7 @@ export interface LiveResponsePackage {
 	generatedAt: string;
 	requirements: LiveResponseRequirementSignal[];
 	evaluationCriteria: LiveResponseEvaluationSignal[];
+	winThemeSeeds: LiveResponseWinThemeSeed[];
 	documents: LiveResponseDraftDocument[];
 	totalWordCount: number;
 	relevantSnippetCount: number;
@@ -89,12 +104,14 @@ export interface LiveResponseReadinessAssessment {
 		sourceRequirementCoverage: number;
 		mandatoryRequirementCoverage: number;
 		evaluationCriteriaCoverage: number;
+		winThemeCriteriaCoverage: number;
 		evidenceCueCoverage: number;
 		reviewGateCoverage: number;
 		unresolvedPlaceholderCount: number;
 		minDocumentWordCount: number;
 		totalDraftWordCount: number;
 		relevantSnippetCount: number;
+		winThemeSeedCount: number;
 	};
 }
 
@@ -147,6 +164,13 @@ export function buildLiveResponsePackage(input: {
 			relevantSnippetShortcuts: snippets.map((snippet) => snippet.shortcut),
 		};
 	});
+	const winThemeSeeds = buildLiveResponseWinThemeSeeds({
+		opportunity: input.opportunity,
+		requirements,
+		evaluationCriteria,
+		documents,
+		relevantSnippetShortcuts: relevantSnippets.map((snippet) => snippet.shortcut),
+	});
 
 	for (const document of documents) {
 		if (document.wordCount < 250) {
@@ -164,6 +188,7 @@ export function buildLiveResponsePackage(input: {
 		generatedAt: generatedAt.toISOString(),
 		requirements,
 		evaluationCriteria,
+		winThemeSeeds,
 		documents,
 		totalWordCount: documents.reduce((total, document) => total + document.wordCount, 0),
 		relevantSnippetCount: relevantSnippets.length,
@@ -185,6 +210,7 @@ export function assessLiveResponsePackageReadiness(
 	const missingDocumentTypes = LIVE_RESPONSE_DOCUMENT_TYPES.filter((type) => !documentTypes.has(type));
 	const assignedRequirementIds = new Set(responsePackage.documents.flatMap((document) => document.requirementIds));
 	const assignedEvaluationCriteriaIds = new Set(responsePackage.documents.flatMap((document) => document.evaluationCriteriaIds));
+	const winThemeEvaluationCriteriaIds = new Set(responsePackage.winThemeSeeds.flatMap((seed) => seed.evaluationCriteriaIds));
 	const requirementIds = responsePackage.requirements.map((requirement) => requirement.id);
 	const evaluationCriteriaIds = responsePackage.evaluationCriteria.map((criterion) => criterion.id);
 	const mandatoryRequirementIds = responsePackage.requirements
@@ -192,6 +218,7 @@ export function assessLiveResponsePackageReadiness(
 		.map((requirement) => requirement.id);
 	const coveredRequirementCount = requirementIds.filter((id) => assignedRequirementIds.has(id)).length;
 	const coveredEvaluationCriteriaCount = evaluationCriteriaIds.filter((id) => assignedEvaluationCriteriaIds.has(id)).length;
+	const winThemeCoveredEvaluationCriteriaCount = evaluationCriteriaIds.filter((id) => winThemeEvaluationCriteriaIds.has(id)).length;
 	const coveredMandatoryRequirementCount = mandatoryRequirementIds.filter((id) => assignedRequirementIds.has(id)).length;
 	const documentsWithEvidence = responsePackage.documents.filter((document) => document.relevantSnippetShortcuts.length > 0).length;
 	const documentsWithReviewGates = responsePackage.documents.filter((document) => document.markdown.includes("## Review Gates")).length;
@@ -207,12 +234,14 @@ export function assessLiveResponsePackageReadiness(
 		sourceRequirementCoverage: ratio(coveredRequirementCount, requirementIds.length),
 		mandatoryRequirementCoverage: ratio(coveredMandatoryRequirementCount, mandatoryRequirementIds.length),
 		evaluationCriteriaCoverage: ratio(coveredEvaluationCriteriaCount, evaluationCriteriaIds.length),
+		winThemeCriteriaCoverage: ratio(winThemeCoveredEvaluationCriteriaCount, evaluationCriteriaIds.length),
 		evidenceCueCoverage: ratio(documentsWithEvidence, responsePackage.documents.length),
 		reviewGateCoverage: ratio(documentsWithReviewGates, responsePackage.documents.length),
 		unresolvedPlaceholderCount,
 		minDocumentWordCount,
 		totalDraftWordCount: responsePackage.totalWordCount,
 		relevantSnippetCount: responsePackage.relevantSnippetCount,
+		winThemeSeedCount: responsePackage.winThemeSeeds.length,
 	};
 
 	if (missingDocumentTypes.length > 0) {
@@ -229,6 +258,12 @@ export function assessLiveResponsePackageReadiness(
 	}
 	if (responsePackage.evaluationCriteria.length > 0 && metrics.evaluationCriteriaCoverage < 1) {
 		blockers.push(`Only ${coveredEvaluationCriteriaCount}/${evaluationCriteriaIds.length} evaluator criteria are represented in draft documents`);
+	}
+	if (responsePackage.evaluationCriteria.length > 0 && metrics.winThemeCriteriaCoverage < 1) {
+		blockers.push(`Only ${winThemeCoveredEvaluationCriteriaCount}/${evaluationCriteriaIds.length} evaluator criteria are represented in win theme seeds`);
+	}
+	if (responsePackage.requirements.length > 0 && responsePackage.winThemeSeeds.length === 0) {
+		blockers.push("No win theme seeds were generated from the response package");
 	}
 	if (unresolvedPlaceholderCount > 0) {
 		blockers.push(`${unresolvedPlaceholderCount} unresolved template placeholder(s) remain in draft documents`);
@@ -354,6 +389,86 @@ export function extractLiveResponseEvaluationSignals(sourceText: string): LiveRe
 	}
 
 	return criteria;
+}
+
+export function buildLiveResponseWinThemeSeeds(input: {
+	opportunity: OpportunityData;
+	requirements: LiveResponseRequirementSignal[];
+	evaluationCriteria: LiveResponseEvaluationSignal[];
+	documents?: LiveResponseDraftDocument[];
+	relevantSnippetShortcuts?: string[];
+}): LiveResponseWinThemeSeed[] {
+	const seeds: LiveResponseWinThemeSeed[] = [];
+	const mandatoryRequirements = input.requirements.filter((requirement) => requirement.priority === "mandatory");
+	const requirementFallback = mandatoryRequirements.length > 0 ? mandatoryRequirements : input.requirements;
+	const sortedCriteria = [...input.evaluationCriteria].sort((left, right) =>
+		numericEvaluationWeight(right.weight) - numericEvaluationWeight(left.weight)
+	);
+
+	for (const criterion of sortedCriteria) {
+		const relatedRequirements = input.requirements
+			.filter((requirement) => requirement.documentType === criterion.documentType)
+			.slice(0, 3);
+		const requirementAnchors = relatedRequirements.length > 0
+			? relatedRequirements
+			: requirementFallback.slice(0, 2);
+		const targetDocumentTypes = uniqueProposalDocumentTypes([
+			criterion.documentType,
+			...(input.documents ?? [])
+				.filter((document) => document.evaluationCriteriaIds.includes(criterion.id))
+				.map((document) => document.documentType),
+		]).slice(0, 4);
+		const statement = compactText(
+			`Datacraft will win ${criterion.text} by turning ${getDocumentTypeLabel(criterion.documentType).toLowerCase()} into measurable delivery proof, risk control, and buyer-specific value.`,
+			280
+		);
+
+		seeds.push({
+			id: `LIVE-WIN-${String(seeds.length + 1).padStart(3, "0")}`,
+			statement,
+			shortVersion: compactText(statement, 96),
+			type: winThemeTypeForDocumentType(criterion.documentType),
+			priority: winThemePriorityForIndex(seeds.length),
+			evaluationCriteriaIds: [criterion.id],
+			requirementIds: requirementAnchors.map((requirement) => requirement.id),
+			targetDocumentTypes,
+			supportingEvidence: uniqueStrings([
+				`Evaluator criterion ${criterion.id}: ${criterion.text}`,
+				...requirementAnchors.map((requirement) => `Requirement ${requirement.id}: ${requirement.text}`),
+				...(input.relevantSnippetShortcuts?.slice(0, 4).map((shortcut) => `Datacraft evidence shortcut: ${shortcut}`) ?? []),
+			]).slice(0, 8),
+			keywords: keywordsForWinTheme(`${criterion.text} ${criterion.responseStrategy}`),
+			rationale: criterion.responseStrategy,
+		});
+		if (seeds.length >= 8) break;
+	}
+
+	if (seeds.length === 0) {
+		for (const requirement of uniqueRequirementsByDocumentType(requirementFallback).slice(0, 4)) {
+			const statement = compactText(
+				`Datacraft reduces buyer risk for ${requirement.text} through a documented ${getDocumentTypeLabel(requirement.documentType).toLowerCase()} response backed by delivery evidence.`,
+				280
+			);
+			seeds.push({
+				id: `LIVE-WIN-${String(seeds.length + 1).padStart(3, "0")}`,
+				statement,
+				shortVersion: compactText(statement, 96),
+				type: winThemeTypeForDocumentType(requirement.documentType),
+				priority: winThemePriorityForIndex(seeds.length),
+				evaluationCriteriaIds: [],
+				requirementIds: [requirement.id],
+				targetDocumentTypes: [requirement.documentType],
+				supportingEvidence: uniqueStrings([
+					`Requirement ${requirement.id}: ${requirement.text}`,
+					...(input.relevantSnippetShortcuts?.slice(0, 4).map((shortcut) => `Datacraft evidence shortcut: ${shortcut}`) ?? []),
+				]).slice(0, 6),
+				keywords: keywordsForWinTheme(`${requirement.text} ${requirement.responseStrategy}`),
+				rationale: requirement.responseStrategy,
+			});
+		}
+	}
+
+	return seeds;
 }
 
 export function selectLiveResponseSnippets(
@@ -522,6 +637,34 @@ function uniqueRequirementSignals(requirements: LiveResponseRequirementSignal[])
 	});
 }
 
+function uniqueRequirementsByDocumentType(requirements: LiveResponseRequirementSignal[]): LiveResponseRequirementSignal[] {
+	const seen = new Set<ProposalDocumentType>();
+	return requirements.filter((requirement) => {
+		if (seen.has(requirement.documentType)) return false;
+		seen.add(requirement.documentType);
+		return true;
+	});
+}
+
+function uniqueProposalDocumentTypes(documentTypes: ProposalDocumentType[]): ProposalDocumentType[] {
+	const seen = new Set<ProposalDocumentType>();
+	return documentTypes.filter((documentType) => {
+		if (seen.has(documentType)) return false;
+		seen.add(documentType);
+		return true;
+	});
+}
+
+function uniqueStrings(values: string[]): string[] {
+	const seen = new Set<string>();
+	return values.filter((value) => {
+		const key = value.trim();
+		if (!key || seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+}
+
 function snippetsForDocumentType(
 	snippets: DatacraftResponseSnippetInput[],
 	documentType: ProposalDocumentType
@@ -579,6 +722,44 @@ function evaluationStrategyFor(documentType: ProposalDocumentType, text: string)
 	}
 }
 
+function winThemeTypeForDocumentType(documentType: ProposalDocumentType): LiveResponseWinThemeSeed["type"] {
+	switch (documentType) {
+		case "cost_proposal":
+			return "value_prop";
+		case "past_performance":
+			return "proof_point";
+		case "management_plan":
+			return "risk_mitigation";
+		default:
+			return "differentiator";
+	}
+}
+
+function winThemePriorityForIndex(index: number): LiveResponseWinThemeSeed["priority"] {
+	return Math.min(index + 1, 5) as LiveResponseWinThemeSeed["priority"];
+}
+
+function keywordsForWinTheme(text: string): string[] {
+	const stopWords = new Set([
+		"and",
+		"are",
+		"for",
+		"from",
+		"into",
+		"that",
+		"the",
+		"this",
+		"will",
+		"with",
+	]);
+	const words = text
+		.toLowerCase()
+		.replace(/[^a-z0-9 ]+/g, " ")
+		.split(/\s+/)
+		.filter((word) => word.length >= 4 && !stopWords.has(word));
+	return uniqueStrings(words).slice(0, 12);
+}
+
 function isLikelyHeading(line: string): boolean {
 	return /^#{1,4}\s+\S/.test(line) ||
 		(/^[A-Z][A-Z0-9 /&().,-]{8,}$/.test(line) && line.length < 120);
@@ -613,6 +794,12 @@ function extractEvaluationWeight(text: string): string | undefined {
 	return `${match[1]} ${unit}`;
 }
 
+function numericEvaluationWeight(weight: string | undefined): number {
+	if (!weight) return 0;
+	const parsed = Number.parseFloat(weight);
+	return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function renderPlaceholders(text: string, values: Record<string, string>): string {
 	return Object.entries(values).reduce(
 		(rendered, [key, value]) => rendered.replaceAll(`{{${key}}}`, value),
@@ -630,12 +817,14 @@ function emptyReadinessAssessment(): LiveResponseReadinessAssessment {
 			sourceRequirementCoverage: 0,
 			mandatoryRequirementCoverage: 0,
 			evaluationCriteriaCoverage: 0,
+			winThemeCriteriaCoverage: 0,
 			evidenceCueCoverage: 0,
 			reviewGateCoverage: 0,
 			unresolvedPlaceholderCount: 0,
 			minDocumentWordCount: 0,
 			totalDraftWordCount: 0,
 			relevantSnippetCount: 0,
+			winThemeSeedCount: 0,
 		},
 	};
 }

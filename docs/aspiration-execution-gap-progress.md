@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Response Win Theme Seeds
+
+Status: implemented and verified.
+
+Purpose: generate initial win-theme strategy seeds directly from live response packages, so source requirements and evaluator criteria immediately become reusable proposal strategy inputs.
+
+Changes in this slice:
+- Add `LiveResponseWinThemeSeed` records to live response packages.
+- Generate criteria-driven win-theme seeds from evaluator/scoring signals, preserving evaluator criteria IDs, related requirement IDs, target response document types, supporting evidence, keywords, and rationale.
+- Generate requirement-driven fallback win-theme seeds when a live source document has no explicit scoring criteria.
+- Add readiness metrics and blockers for evaluator criteria that are not represented in win-theme seeds.
+- Record win-theme seed count and win-theme criteria coverage in live response readiness proof evidence.
+- Add focused coverage for win-theme seed generation and readiness blocking when seed coverage is removed.
+
+Verification:
+- `npm test -- live-response-package.test.ts` from `frontend/` passed, running 9 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-opportunity-response-readiness` from `frontend/` passed. It downloaded and parsed live UNGM source PDF `eoi24414.pdf`, generated all six response drafts, produced 3,897 total draft words, generated 2 requirement-derived win-theme seeds for the no-explicit-criteria source, and returned `ready_for_review`.
+
+Remaining after this slice:
+- Add a server-side action that persists response-package win-theme seeds into approved or draft win-theme rows for an opportunity.
+- Surface generated win-theme seeds in the response package review UI before final rendering.
+
 ### 2026-05-27 - Win Theme Criteria Persistence
 
 Status: implemented and verified.

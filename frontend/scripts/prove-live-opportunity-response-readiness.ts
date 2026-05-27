@@ -77,6 +77,7 @@ interface LiveOpportunityResponseReadinessProof {
 		documentTypes: ProposalDocumentType[];
 		totalSectionSeeds: number;
 		sourceRequirementCount: number;
+		winThemeSeedCount: number;
 		relevantSnippetCount: number;
 		relevantSnippetShortcuts: string[];
 		seededDocumentWordCounts: Record<string, number>;
@@ -252,6 +253,7 @@ function proveResponseSeedReadiness(
 		documentTypes: PROPOSAL_DOCUMENT_TYPES,
 		totalSectionSeeds,
 		sourceRequirementCount: responsePackage.requirements.length,
+		winThemeSeedCount: responsePackage.winThemeSeeds.length,
 		relevantSnippetCount: responsePackage.relevantSnippetCount,
 		relevantSnippetShortcuts: responsePackage.relevantSnippetShortcuts.slice(0, 12),
 		seededDocumentWordCounts,
@@ -316,10 +318,12 @@ async function writeArtifacts(
 			`docling-text:${proof.document?.extractedTextLength ?? 0}`,
 			`response-doc-types:${proof.responseReadiness?.documentTypes.length ?? 0}`,
 			`source-requirements:${proof.responseReadiness?.sourceRequirementCount ?? 0}`,
+			`win-theme-seeds:${proof.responseReadiness?.winThemeSeedCount ?? 0}`,
 			`response-draft-words:${proof.responseReadiness?.totalDraftWordCount ?? 0}`,
 			`response-snippets:${proof.responseReadiness?.relevantSnippetCount ?? 0}`,
 			`readiness:${proof.responseReadiness?.readiness.status ?? "not-run"}`,
 			`readiness-source-coverage:${proof.responseReadiness?.readiness.metrics.sourceRequirementCoverage ?? 0}`,
+			`readiness-win-theme-criteria-coverage:${proof.responseReadiness?.readiness.metrics.winThemeCriteriaCoverage ?? 0}`,
 		],
 		topology_tier: "live-connectivity",
 		verification_bucket: "live-safe opportunity response readiness",

@@ -3,6 +3,7 @@ import {
 	LIVE_RESPONSE_DOCUMENT_TYPES,
 	assessLiveResponsePackageReadiness,
 	buildLiveResponsePackage,
+	buildLiveResponseWinThemeSeeds,
 	extractLiveResponseEvaluationSignals,
 	extractLiveResponseRequirementSignals,
 	selectLiveResponseSnippets,
@@ -83,6 +84,34 @@ describe("live response package builder", () => {
 		);
 	});
 
+	it("builds win theme seeds from evaluator criteria", () => {
+		const requirements = extractLiveResponseRequirementSignals(sourceText);
+		const evaluationCriteria = extractLiveResponseEvaluationSignals(sourceText);
+		const seeds = buildLiveResponseWinThemeSeeds({
+			opportunity,
+			requirements,
+			evaluationCriteria,
+			relevantSnippetShortcuts: ["/dc-security", "/dc-technical", "/dc-proof"],
+		});
+
+		expect(seeds).toHaveLength(4);
+		expect(seeds[0]).toMatchObject({
+			id: "LIVE-WIN-001",
+			evaluationCriteriaIds: ["LIVE-EVAL-001"],
+			type: "differentiator",
+			priority: 1,
+		});
+		expect(seeds.flatMap((seed) => seed.evaluationCriteriaIds)).toEqual(
+			expect.arrayContaining(["LIVE-EVAL-001", "LIVE-EVAL-002", "LIVE-EVAL-003", "LIVE-EVAL-004"])
+		);
+		expect(seeds[0]?.supportingEvidence).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining("Evaluator criterion LIVE-EVAL-001"),
+				expect.stringContaining("Datacraft evidence shortcut"),
+			])
+		);
+	});
+
 	it("builds concrete response draft documents with requirement coverage", () => {
 		const responsePackage = buildLiveResponsePackage({
 			opportunity,
@@ -93,6 +122,7 @@ describe("live response package builder", () => {
 		expect(responsePackage.documents.map((document) => document.documentType)).toEqual(LIVE_RESPONSE_DOCUMENT_TYPES);
 		expect(responsePackage.requirements.length).toBeGreaterThanOrEqual(5);
 		expect(responsePackage.evaluationCriteria.length).toBe(4);
+		expect(responsePackage.winThemeSeeds.length).toBe(4);
 		expect(responsePackage.totalWordCount).toBeGreaterThan(2000);
 		expect(responsePackage.relevantSnippetCount).toBeGreaterThanOrEqual(12);
 		expect(responsePackage.readiness.status).toBe("ready_for_review");
@@ -102,9 +132,11 @@ describe("live response package builder", () => {
 			sourceRequirementCoverage: 1,
 			mandatoryRequirementCoverage: 1,
 			evaluationCriteriaCoverage: 1,
+			winThemeCriteriaCoverage: 1,
 			evidenceCueCoverage: 1,
 			reviewGateCoverage: 1,
 			unresolvedPlaceholderCount: 0,
+			winThemeSeedCount: 4,
 		});
 
 		for (const document of responsePackage.documents) {
@@ -123,6 +155,7 @@ describe("live response package builder", () => {
 		expect(technicalApproach?.markdown).toContain("Win response:");
 		expect(technicalApproach?.requirementIds.length).toBeGreaterThan(0);
 		expect(technicalApproach?.evaluationCriteriaIds.length).toBeGreaterThan(0);
+		expect(responsePackage.winThemeSeeds[0]?.statement).toContain("Datacraft will win");
 	});
 
 	it("adapts mandatory source signals for sections without explicit source clauses", () => {
@@ -190,5 +223,23 @@ Vendors interested in participating in the planned solicitation process should s
 		expect(readiness.status).toBe("blocked");
 		expect(readiness.blockers.join("\n")).toContain("evaluator criteria");
 		expect(readiness.metrics.evaluationCriteriaCoverage).toBe(0);
+	});
+
+	it("blocks readiness when evaluator criteria are not represented in win theme seeds", () => {
+		const responsePackage = buildLiveResponsePackage({
+			opportunity,
+			sourceText,
+			generatedAt: new Date("2026-05-27T00:00:00.000Z"),
+		});
+		const brokenPackage = {
+			...responsePackage,
+			winThemeSeeds: [],
+		};
+
+		const readiness = assessLiveResponsePackageReadiness(brokenPackage);
+
+		expect(readiness.status).toBe("blocked");
+		expect(readiness.blockers.join("\n")).toContain("win theme seeds");
+		expect(readiness.metrics.winThemeCriteriaCoverage).toBe(0);
 	});
 });
