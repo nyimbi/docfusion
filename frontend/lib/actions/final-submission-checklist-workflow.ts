@@ -77,6 +77,7 @@ type ResponsePackageReadinessSnapshot = {
 		complianceEntriesCreated: number;
 		sourceCitationCoverage: number;
 		evidenceCitationCoverage: number;
+		draftArtifactIntegrityCoverage: number;
 		winThemeCriteriaCoverage: number | null;
 		winThemeSeedCount: number | null;
 	};
@@ -328,6 +329,7 @@ function buildChecklistItems(
 	}
 	items.push(responsePackageReadinessItem(responsePackageReadiness));
 	items.push(responseCitationCoverageItem(responsePackageReadiness));
+	items.push(responseDraftArtifactIntegrityItem(responsePackageReadiness));
 	items.push(evaluatorWinThemeCoverageItem(responsePackageReadiness));
 	items.push(complianceLockItem(matrices));
 	items.push(claimEvidenceItem(claims));
@@ -494,6 +496,42 @@ function responseCitationCoverageItem(
 	};
 }
 
+function responseDraftArtifactIntegrityItem(
+	readiness: ResponsePackageReadinessSnapshot | null
+): FinalSubmissionChecklistItem {
+	if (!readiness) {
+		return {
+			id: "artifact:response-draft-integrity",
+			category: "artifact",
+			label: "Response draft artifact integrity",
+			required: true,
+			passed: false,
+			message: "Response draft artifact integrity is missing; rerun response package readiness before final submission",
+			subjectId: null,
+			assignedRole: "proposal_manager",
+		};
+	}
+
+	const coverage = readiness.metrics.draftArtifactIntegrityCoverage;
+	const passed = coverage >= 1;
+	return {
+		id: "artifact:response-draft-integrity",
+		category: "artifact",
+		label: "Response draft artifact integrity",
+		required: true,
+		passed,
+		message: passed
+			? "Response draft artifact manifests match the current drafted content"
+			: `Response draft artifact integrity is incomplete: ${formatPercent(coverage)} current`,
+		subjectId: readiness.workflowInstanceId,
+		assignedRole: "proposal_manager",
+		details: [
+			{ label: "Draft artifact integrity", value: formatPercent(coverage), tone: passed ? "success" : "danger" },
+			{ label: "Readiness workflow", value: readiness.workflowInstanceId, tone: "neutral" },
+		],
+	};
+}
+
 function responsePackageReadinessFailureMessage(readiness: ResponsePackageReadinessSnapshot): string {
 	if (readiness.status === "unknown") {
 		return "Response package readiness status is unrecognized; rerun response package drafting";
@@ -549,6 +587,7 @@ function responsePackageReadinessMetrics(value: unknown): ResponsePackageReadine
 		complianceEntriesCreated: numberMetric(metrics.complianceEntriesCreated),
 		sourceCitationCoverage: clampRatio(numberMetric(metrics.sourceCitationCoverage)),
 		evidenceCitationCoverage: clampRatio(numberMetric(metrics.evidenceCitationCoverage)),
+		draftArtifactIntegrityCoverage: clampRatio(numberMetric(metrics.draftArtifactIntegrityCoverage)),
 		winThemeCriteriaCoverage: optionalRatioMetric(metrics.winThemeCriteriaCoverage),
 		winThemeSeedCount: optionalNumberMetric(metrics.winThemeSeedCount),
 	};

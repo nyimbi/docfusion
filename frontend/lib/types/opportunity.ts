@@ -840,6 +840,7 @@ export interface ResponsePackageReadinessSummary {
 		minDocumentDraftWordCount: number;
 		evidenceChecklistCoverage: number;
 		evidenceCitationCoverage: number;
+		draftArtifactIntegrityCoverage: number;
 		reviewGateCoverage: number;
 		sourceCitationCoverage: number;
 		winThemeCoverage: number;

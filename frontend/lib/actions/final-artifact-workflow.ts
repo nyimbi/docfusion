@@ -47,6 +47,7 @@ interface ResponsePackageReadinessSnapshot {
 		minDocumentDraftWordCount: number;
 		evidenceChecklistCoverage: number;
 		evidenceCitationCoverage: number;
+		draftArtifactIntegrityCoverage: number;
 		reviewGateCoverage: number;
 		sourceCitationCoverage: number;
 		winThemeCoverage: number;
@@ -600,6 +601,9 @@ async function assertResponsePackageReadyForFinalRender(
 	if (readiness.status !== "ready_for_review") {
 		throw new Error(`Response package readiness is blocked before final rendering: ${responsePackageReadinessFailureMessage(readiness)}`);
 	}
+	if (readiness.metrics.draftArtifactIntegrityCoverage < 1) {
+		throw new Error("Response package readiness is missing current draft artifact integrity receipts; rerun response package drafting before final rendering");
+	}
 	return readiness;
 }
 
@@ -632,6 +636,7 @@ function responsePackageReadinessFromWorkflow(
 			minDocumentDraftWordCount: numberMetric(metrics.minDocumentDraftWordCount),
 			evidenceChecklistCoverage: clampRatio(numberMetric(metrics.evidenceChecklistCoverage)),
 			evidenceCitationCoverage: clampRatio(numberMetric(metrics.evidenceCitationCoverage)),
+			draftArtifactIntegrityCoverage: clampRatio(numberMetric(metrics.draftArtifactIntegrityCoverage)),
 			reviewGateCoverage: clampRatio(numberMetric(metrics.reviewGateCoverage)),
 			sourceCitationCoverage: clampRatio(numberMetric(metrics.sourceCitationCoverage)),
 			winThemeCoverage: clampRatio(numberMetric(metrics.winThemeCoverage)),

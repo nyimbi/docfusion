@@ -81,6 +81,7 @@ const readiness: ResponsePackageReadinessSummary = {
 		winThemeCoverage: 0.5,
 		evidenceChecklistCoverage: 1,
 		evidenceCitationCoverage: 1,
+		draftArtifactIntegrityCoverage: 1,
 		unresolvedPlaceholderCount: 0,
 	},
 	blockers: [],

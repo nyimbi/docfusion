@@ -8,6 +8,7 @@
 
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { documents, documentVersions, proposalDocuments, documentSections, opportunities } from "@/lib/db/schema";
@@ -268,7 +269,18 @@ export interface RequirementAwareProposalDraftResult {
 	evidenceCitationCount: number;
 	reviewGateCount: number;
 	sourceCitationCount: number;
+	draftArtifact: RequirementAwareDraftArtifact;
 	versionNumber: number | null;
+}
+
+export interface RequirementAwareDraftArtifact {
+	format: "tiptap-json";
+	contentHash: string;
+	sizeBytes: number;
+	generatedAt: string;
+	documentId: string;
+	versionNumber: number | null;
+	sectionsDrafted: number;
 }
 
 export interface ResponsePackageDraftResult {
@@ -300,6 +312,7 @@ export interface ResponsePackageDraftReadiness {
 		minDocumentDraftWordCount: number;
 		evidenceChecklistCoverage: number;
 		evidenceCitationCoverage: number;
+		draftArtifactIntegrityCoverage: number;
 		reviewGateCoverage: number;
 		sourceCitationCoverage: number;
 		winThemeCoverage: number;
@@ -981,6 +994,7 @@ function responsePackageReadinessSummary(
 			minDocumentDraftWordCount: numberMetric(metrics.minDocumentDraftWordCount),
 			evidenceChecklistCoverage: clampRatio(numberMetric(metrics.evidenceChecklistCoverage)),
 			evidenceCitationCoverage: clampRatio(numberMetric(metrics.evidenceCitationCoverage)),
+			draftArtifactIntegrityCoverage: clampRatio(numberMetric(metrics.draftArtifactIntegrityCoverage)),
 			reviewGateCoverage: clampRatio(numberMetric(metrics.reviewGateCoverage)),
 			sourceCitationCoverage: clampRatio(numberMetric(metrics.sourceCitationCoverage)),
 			winThemeCoverage: clampRatio(numberMetric(metrics.winThemeCoverage)),
@@ -1008,6 +1022,7 @@ function missingResponsePackageReadiness(): ResponsePackageReadinessSummary {
 			minDocumentDraftWordCount: 0,
 			evidenceChecklistCoverage: 0,
 			evidenceCitationCoverage: 0,
+			draftArtifactIntegrityCoverage: 0,
 			reviewGateCoverage: 0,
 			sourceCitationCoverage: 0,
 			winThemeCoverage: 0,
@@ -1962,7 +1977,7 @@ export async function generateRequirementAwareProposalDraft(
 
 	revalidateProposalWorkflowPaths(proposalDocument.opportunityId);
 
-	return {
+	const result = {
 		proposalDocumentId,
 		documentId: proposalDocument.documentId,
 		sectionsDrafted: results.length,
@@ -1980,6 +1995,10 @@ export async function generateRequirementAwareProposalDraft(
 		versionNumber: results.length > 0
 			? Math.max(...results.map((result) => result.versionNumber))
 			: null,
+	};
+	return {
+		...result,
+		draftArtifact: buildRequirementAwareDraftArtifact(result),
 	};
 }
 
@@ -2401,6 +2420,7 @@ function assessResponsePackageDraftReadiness(input: {
 	const sourceCitationCount = input.draftResults.reduce((total, result) => total + result.sourceCitationCount, 0);
 	const unresolvedPlaceholderCount = input.draftResults.reduce((total, result) => total + result.unresolvedPlaceholderCount, 0);
 	const documentsWithWinThemes = input.draftResults.filter((result) => result.winThemeIds.length > 0).length;
+	const documentsWithValidDraftArtifacts = input.draftResults.filter(hasValidRequirementAwareDraftArtifact).length;
 	const evidenceChecklistCoverage = input.sectionsDrafted > 0
 		? evidenceChecklistCount / input.sectionsDrafted
 		: 0;
@@ -2415,6 +2435,9 @@ function assessResponsePackageDraftReadiness(input: {
 		: 0;
 	const winThemeCoverage = input.documentsDrafted > 0
 		? documentsWithWinThemes / input.documentsDrafted
+		: 0;
+	const draftArtifactIntegrityCoverage = input.documentsDrafted > 0
+		? documentsWithValidDraftArtifacts / input.documentsDrafted
 		: 0;
 
 	if (acceptedRequirementIds.length === 0) {
@@ -2447,8 +2470,14 @@ function assessResponsePackageDraftReadiness(input: {
 	if (input.sectionsDrafted > 0 && sourceCitationCoverage < 1) {
 		blockers.push("At least one drafted response section is missing a source citation map");
 	}
+	if (input.documentsDrafted > 0 && draftArtifactIntegrityCoverage < 1) {
+		blockers.push("At least one drafted response document has a missing or stale draft artifact integrity manifest");
+	}
 	if (input.complianceEntriesCreated < acceptedRequirementIds.length) {
 		warnings.push(`${input.complianceEntriesCreated}/${acceptedRequirementIds.length} accepted requirement(s) received compliance matrix entries`);
+	}
+	if (input.documentsDrafted > 0 && draftArtifactIntegrityCoverage < 1) {
+		warnings.push(`${documentsWithValidDraftArtifacts}/${input.documentsDrafted} drafted response document(s) have current draft artifact integrity manifests`);
 	}
 	if (input.documentsDrafted > 0 && winThemeCoverage < 1) {
 		warnings.push(`${documentsWithWinThemes}/${input.documentsDrafted} drafted response document(s) include approved win themes`);
@@ -2470,6 +2499,7 @@ function assessResponsePackageDraftReadiness(input: {
 			minDocumentDraftWordCount,
 			evidenceChecklistCoverage,
 			evidenceCitationCoverage,
+			draftArtifactIntegrityCoverage,
 			reviewGateCoverage,
 			sourceCitationCoverage,
 			winThemeCoverage,
@@ -2480,6 +2510,64 @@ function assessResponsePackageDraftReadiness(input: {
 
 function countUnresolvedPlaceholders(value: string): number {
 	return value.match(/\{\{[^}]+\}\}/g)?.length ?? 0;
+}
+
+function buildRequirementAwareDraftArtifact(
+	result: Omit<RequirementAwareProposalDraftResult, "draftArtifact">
+): RequirementAwareDraftArtifact {
+	const contentSignature = requirementAwareDraftSignature(result);
+	return {
+		format: "tiptap-json",
+		contentHash: sha256Hex(contentSignature),
+		sizeBytes: Buffer.byteLength(contentSignature, "utf8"),
+		generatedAt: new Date().toISOString(),
+		documentId: result.documentId,
+		versionNumber: result.versionNumber,
+		sectionsDrafted: result.sectionsDrafted,
+	};
+}
+
+function hasValidRequirementAwareDraftArtifact(result: RequirementAwareProposalDraftResult): boolean {
+	const signature = requirementAwareDraftSignature(result);
+	return result.draftArtifact?.format === "tiptap-json"
+		&& result.draftArtifact.documentId === result.documentId
+		&& result.draftArtifact.versionNumber === result.versionNumber
+		&& result.draftArtifact.sectionsDrafted === result.sectionsDrafted
+		&& result.draftArtifact.contentHash === sha256Hex(signature)
+		&& result.draftArtifact.sizeBytes === Buffer.byteLength(signature, "utf8")
+		&& result.draftArtifact.sizeBytes > 0
+		&& Boolean(result.draftArtifact.generatedAt);
+}
+
+function requirementAwareDraftSignature(
+	result: Omit<RequirementAwareProposalDraftResult, "draftArtifact">,
+	sectionResults?: RequirementAwareSectionDraftResult[]
+): string {
+	return JSON.stringify({
+		documentId: result.documentId,
+		proposalDocumentId: result.proposalDocumentId,
+		versionNumber: result.versionNumber,
+		sectionsDrafted: result.sectionsDrafted,
+		requirementIds: [...result.requirementIds].sort(),
+		winThemeIds: [...result.winThemeIds].sort(),
+		wordCount: result.wordCount,
+		unresolvedPlaceholderCount: result.unresolvedPlaceholderCount,
+		evidenceChecklistCount: result.evidenceChecklistCount,
+		evidenceCitationCount: result.evidenceCitationCount,
+		reviewGateCount: result.reviewGateCount,
+		sourceCitationCount: result.sourceCitationCount,
+		sections: sectionResults?.map((section) => ({
+			sectionId: section.sectionId,
+			wordCount: section.wordCount,
+			characterCount: section.characterCount,
+			requirementIds: [...section.requirementIds].sort(),
+			plainTextHash: sha256Hex(section.plainText),
+		})),
+	});
+}
+
+function sha256Hex(value: string): string {
+	return createHash("sha256").update(value).digest("hex");
 }
 
 async function ensureAcceptedRequirementsComplianceMatrix(

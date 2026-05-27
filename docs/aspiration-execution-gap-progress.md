@@ -6836,3 +6836,26 @@ Result:
 Remaining after this recheck:
 - Restore PostgreSQL connectivity to `88.80.188.224:5432`, then rerun `npm run platform:proof -- --run live-persisted-import-response --include-live-safe`.
 - Continue non-DB hardening while the persisted live proof remains externally blocked.
+
+### 2026-05-27 - Persisted Response Draft Integrity Gate
+
+Status: implemented and verified.
+
+Purpose: carry draft artifact integrity from generated live response packages into the tenant-backed response package readiness, final rendering, and final submission gates.
+
+Changes in this slice:
+- Add draft artifact manifests to requirement-aware persisted proposal drafts.
+- Add `draftArtifactIntegrityCoverage` to tenant response package readiness metrics.
+- Block response package readiness when a persisted draft artifact manifest is missing or stale.
+- Require current draft artifact integrity receipts before final artifact rendering.
+- Add a final submission checklist item for response draft artifact integrity.
+
+Verification:
+- `npm test -- __tests__/actions/proposal-documents-scope.test.ts __tests__/actions/final-artifact-workflow.test.ts __tests__/actions/final-submission-checklist-workflow.test.ts --run` passed with 42 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave6-final-submission-gate --run wave9-response-readiness-package` passed with 35 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 180 tests.
+
+Remaining after this slice:
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+- Continue non-DB hardening around live discovery, source intake, response quality, and submission gates.
