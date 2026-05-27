@@ -475,6 +475,35 @@ export interface WBSItem {
 	technicalSectionId?: string;
 }
 
+function sanitizeWbsTitle(value: string | null | undefined, fallback: string): string {
+	const title = (value || fallback).replace(/\s+/g, " ").trim();
+	return title.length > 0 ? title.slice(0, 120) : fallback;
+}
+
+function buildDeterministicWBSItems(tracking: CostTechnicalTracking[]): WBSItem[] {
+	if (tracking.length === 0) {
+		return [];
+	}
+
+	const root: WBSItem = {
+		wbsCode: "1.0",
+		title: "Program Delivery",
+		level: 1,
+		children: tracking.slice(0, 9).map((record, index) => ({
+			wbsCode: `1.${index + 1}`,
+			title: sanitizeWbsTitle(record.sectionName, `Technical Work Package ${index + 1}`),
+			level: 2,
+			parentCode: "1.0",
+			technicalSectionId: record.technicalSectionId || undefined,
+		})),
+	};
+
+	return [
+		root,
+		...(root.children || []),
+	];
+}
+
 // ============================================================================
 // Zod Validation Schemas
 // ============================================================================
@@ -3468,10 +3497,8 @@ Provide the WBS in JSON format:
 
 			return { success: true, data: wbsItems };
 		} catch {
-			return {
-				success: false,
-				error: "Failed to parse AI-generated WBS",
-			};
+			logger.warn("Falling back to deterministic WBS generation after AI parse failure");
+			return { success: true, data: buildDeterministicWBSItems(tracking) };
 		}
 	} catch (error) {
 		logger.error("Error generating WBS from technical:", error);

@@ -960,6 +960,37 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		expectOpportunityTenantScope(trackingWhere);
 	});
 
+	test("returns deterministic WBS items when AI output is malformed", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: "not json", tokensUsed: 0 });
+		mockAssignedOpportunity(opportunityId);
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([
+				{ sectionName: "Mobilization", technicalSectionId: "section-1" },
+				{ sectionName: "Operations and Reporting", technicalSectionId: "section-2" },
+			]))
+			.mockImplementationOnce(() => createChainableQuery([]));
+
+		const result = await generateWBSFromTechnical(opportunityId);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toEqual([
+			expect.objectContaining({ wbsCode: "1.0", title: "Program Delivery", level: 1 }),
+			expect.objectContaining({
+				wbsCode: "1.1",
+				title: "Mobilization",
+				parentCode: "1.0",
+				technicalSectionId: "section-1",
+			}),
+			expect.objectContaining({
+				wbsCode: "1.2",
+				title: "Operations and Reporting",
+				parentCode: "1.0",
+				technicalSectionId: "section-2",
+			}),
+		]);
+	});
+
 	test("requires organization context before updating WBS codes", async () => {
 		mockUserContext.organizationId = undefined;
 

@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic WBS Generation Fallback
+
+Status: implemented and verified.
+
+Purpose: keep cost-volume work breakdown structure generation usable when AI WBS output is malformed but assigned technical tracking records are already available.
+
+Changes in this slice:
+- Add deterministic WBS generation from technical tracking section names.
+- Build a level-1 program delivery root with level-2 work packages linked to technical section IDs.
+- Return deterministic WBS items after AI parse failure instead of failing the action.
+- Add regression coverage proving malformed AI output still returns reviewable WBS items.
+
+Verification:
+- `npm test -- pricing.test.ts` passed with 95 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue replacing AI-only pricing/BOE paths where scoped technical records can produce deterministic artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Hours Estimate Fallbacks
 
 Status: implemented and verified.
