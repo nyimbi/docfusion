@@ -2040,6 +2040,10 @@ export async function autoLinkRequirements(documentId: string): Promise<AutoLink
 		});
 	}
 
+	if (linkedRequirements.length > 0) {
+		await recalculateComplianceMatrixStats(db, matrix.id, organizationId);
+	}
+
 	return {
 		successfulLinks: linkedRequirements.length,
 		failedLinks: unlinkedRequirements.length,

@@ -282,6 +282,7 @@ describe("compliance cross-reference suggestions", () => {
 	it("auto-links high-confidence requirement matches to response sections", async () => {
 		let entryUpdate: Record<string, unknown> | undefined;
 		let requirementUpdate: Record<string, unknown> | undefined;
+		let matrixUpdate: Record<string, unknown> | undefined;
 		dbMock.select
 			.mockReturnValueOnce(createChain({
 				result: [{
@@ -328,10 +329,21 @@ describe("compliance cross-reference suggestions", () => {
 						category: "cybersecurity",
 					},
 				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					entry: {
+						complianceStatus: "partial",
+					},
+					requirement: {
+						priority: "mandatory",
+					},
+				}],
 			}));
 		dbMock.update
 			.mockReturnValueOnce(createChain({ onSet: (value) => { entryUpdate = value; } }))
-			.mockReturnValueOnce(createChain({ onSet: (value) => { requirementUpdate = value; } }));
+			.mockReturnValueOnce(createChain({ onSet: (value) => { requirementUpdate = value; } }))
+			.mockReturnValueOnce(createChain({ onSet: (value) => { matrixUpdate = value; } }));
 
 		const result = await autoLinkRequirements("doc-technical");
 
@@ -358,6 +370,13 @@ describe("compliance cross-reference suggestions", () => {
 			complianceStatus: "partial",
 			responseDocumentId: "doc-technical",
 			responseSection: "Cybersecurity Incident Response Monitoring",
+		});
+		expect(matrixUpdate).toMatchObject({
+			totalRequirements: 1,
+			mandatoryCount: 1,
+			partialCount: 1,
+			complianceScore: 50,
+			mandatoryComplianceScore: 50,
 		});
 	});
 

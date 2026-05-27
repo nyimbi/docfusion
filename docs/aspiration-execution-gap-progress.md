@@ -5918,3 +5918,24 @@ Verification:
 Remaining after this slice:
 - Continue auditing compliance automation for stale matrix statistics after bulk auto-link operations.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Auto-Link Matrix Statistics Refresh
+
+Status: implemented and verified.
+
+Purpose: keep compliance matrix summary counters current after automatic response-section linking.
+
+Changes in this slice:
+- Recalculate compliance matrix statistics after successful automatic links.
+- Reuse the existing centralized matrix stats helper instead of duplicating counter logic.
+- Extend auto-link regression coverage to prove partial counts and mandatory coverage are refreshed after linking.
+
+Verification:
+- `npm test -- compliance-cross-reference-suggestions.test.ts` passed with 6 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 95 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue auditing bidirectional compliance validation for orphaned response sections and unresolved cross-reference targets.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
