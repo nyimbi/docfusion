@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { genericParser, getParser, type TenderParser } from "@/lib/scrapers/parsers";
+import { parseComesaTenderDetailMarkdown } from "@/lib/scrapers/parsers/comesa";
 import { parseUndpNoticeDetailMarkdown } from "@/lib/scrapers/parsers/undp";
 import {
 	fetchWorldBankNoticeDetail,
@@ -138,6 +139,7 @@ const OPPORTUNITY_KEYWORDS = [
 
 const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
 const MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH = 120;
+const DEFAULT_COMESA_DETAIL_LIMIT = 5;
 const DEFAULT_UNDP_DETAIL_LIMIT = 5;
 const DEFAULT_WORLD_BANK_DETAIL_LIMIT = 5;
 const DOCUMENT_URL_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)/i;
@@ -714,6 +716,12 @@ async function discoverConfiguredSourceCandidates(
 					firecrawl,
 					Math.min(DEFAULT_WORLD_BANK_DETAIL_LIMIT, limitPerSource)
 				)
+			: parser.sourceId === "comesa"
+				? await enrichComesaOpportunitiesWithDetails(
+					parseResult.opportunities.slice(0, limitPerSource),
+					firecrawl,
+					Math.min(DEFAULT_COMESA_DETAIL_LIMIT, limitPerSource)
+				)
 			: parseResult.opportunities.slice(0, limitPerSource);
 
 		for (const opportunity of opportunities) {
@@ -751,6 +759,50 @@ async function discoverConfiguredSourceCandidates(
 
 function metadataRecord(value: OpportunityData["metadata"]): Record<string, unknown> {
 	return value ?? {};
+}
+
+async function enrichComesaOpportunitiesWithDetails(
+	opportunities: OpportunityData[],
+	firecrawl: FirecrawlClient,
+	detailLimit: number
+): Promise<OpportunityData[]> {
+	if (detailLimit <= 0) return opportunities;
+	const enriched = [...opportunities];
+	for (let index = 0; index < Math.min(detailLimit, enriched.length); index++) {
+		const opportunity = enriched[index];
+		if (!opportunity.portalUrl) continue;
+		try {
+			const detailResult = await firecrawl.scrape(opportunity.portalUrl, {
+				formats: ["markdown", "links"],
+				timeout: 20000,
+			});
+			if (!detailResult.success || !detailResult.data) continue;
+			const detail = parseComesaTenderDetailMarkdown(
+				detailResult.data.markdown,
+				detailResult.data.links ?? [],
+				opportunity.portalUrl
+			);
+			if (!detail.primaryLink) continue;
+			const comesaMetadata = metadataRecord(metadataRecord(opportunity.metadata).comesa as Record<string, unknown> | undefined);
+			enriched[index] = {
+				...opportunity,
+				documentUrl: detail.primaryLink.url,
+				rfpLink: detail.primaryLink.url,
+				submissionMethod: detail.primaryLink.description ?? opportunity.submissionMethod,
+				metadata: {
+					...metadataRecord(opportunity.metadata),
+					comesa: {
+						...comesaMetadata,
+						links: detail.links,
+						primaryLink: detail.primaryLink,
+					},
+				},
+			};
+		} catch {
+			// Detail enrichment is opportunistic; the listing row remains usable.
+		}
+	}
+	return enriched;
 }
 
 async function enrichUndpOpportunitiesWithDetails(

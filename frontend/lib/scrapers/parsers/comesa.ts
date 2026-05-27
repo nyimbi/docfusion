@@ -9,9 +9,32 @@ import type { OpportunityData } from "../deduplicator";
 import type { ParseInput, ParseResult, TenderParser } from "./types";
 import { cleanText, parseDate, registerParser } from "./types";
 
+export interface ComesaTenderDetailLink {
+	description?: string;
+	url: string;
+	score: number;
+}
+
+export interface ComesaTenderDetail {
+	links: ComesaTenderDetailLink[];
+	primaryLink?: ComesaTenderDetailLink;
+}
+
 const COMESA_BASE_URL = "https://www.comesa.int";
 const POST_PATTERN = /###\s*\[([^\]]+)\]\((https?:\/\/www\.comesa\.int\/[^)]+)\)\s*\n+\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*\n+\s*([\s\S]*?)(?=\n\n\[\]\(|\n\n###\s*\[|\n\n\*\s+\[|$)/gi;
 const EXCLUDED_TITLES = new Set(["awarded tenders", "open tenders"]);
+const DOCUMENT_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)/i;
+const DOCUMENT_KEYWORDS = [
+	"rfp",
+	"request for proposal",
+	"request for expression",
+	"tender",
+	"bid",
+	"advert",
+	"terms of reference",
+	"tor",
+	"document",
+];
 
 function sourceIdFromUrl(url: string): string {
 	const slug = url
@@ -50,6 +73,81 @@ function inferOpportunityType(category: string): OpportunityData["opportunityTyp
 function extractDocumentUrl(summary: string | undefined, portalUrl: string): string {
 	const match = summary?.match(/https?:\/\/[^\s)]+/i);
 	return match?.[0]?.replace(/[.,;]+$/g, "") || portalUrl;
+}
+
+function normalizeComesaUrl(rawUrl: string, baseUrl: string): string | undefined {
+	const trimmed = rawUrl.trim().replace(/[),.;]+$/g, "");
+	if (!trimmed) return undefined;
+	try {
+		const parsed = new URL(trimmed, baseUrl);
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return undefined;
+		parsed.hash = "";
+		return parsed.toString();
+	} catch {
+		return undefined;
+	}
+}
+
+function scoreDetailLink(description: string | undefined, url: string): number {
+	const haystack = `${description ?? ""} ${url}`.toLowerCase();
+	if (haystack.includes("privacy")) return -100;
+	let score = 0;
+	if (/\.docx?(?:[?#]|$)/i.test(url)) score += 6;
+	if (/\.pdf(?:[?#]|$)/i.test(url)) score += 4;
+	if (/\.xlsx?(?:[?#]|$)/i.test(url)) score += 2;
+	for (const keyword of DOCUMENT_KEYWORDS) {
+		if (haystack.includes(keyword)) score += 3;
+	}
+	if (haystack.includes("rfp")) score += 5;
+	return score;
+}
+
+function collectDetailCandidate(
+	candidates: Map<string, ComesaTenderDetailLink>,
+	url: string | undefined,
+	description: string | undefined
+): void {
+	if (!url || !DOCUMENT_PATTERN.test(url)) return;
+	const score = scoreDetailLink(description, url);
+	if (score <= 0) return;
+	const existing = candidates.get(url);
+	if (!existing || score > existing.score) {
+		candidates.set(url, {
+			url,
+			description: description ? cleanText(description) : undefined,
+			score,
+		});
+	}
+}
+
+export function parseComesaTenderDetailMarkdown(
+	markdown: string | undefined,
+	links: string[] = [],
+	baseUrl = COMESA_BASE_URL
+): ComesaTenderDetail {
+	const candidates = new Map<string, ComesaTenderDetailLink>();
+	const markdownLinkPattern = /!?\[([^\]]{0,240})\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+	for (const match of markdown?.matchAll(markdownLinkPattern) ?? []) {
+		const url = normalizeComesaUrl(match[2] ?? "", baseUrl);
+		collectDetailCandidate(candidates, url, match[1]);
+	}
+
+	const bareUrlPattern = /https?:\/\/[^\s<>"')]+/g;
+	for (const match of markdown?.matchAll(bareUrlPattern) ?? []) {
+		const url = normalizeComesaUrl(match[0] ?? "", baseUrl);
+		collectDetailCandidate(candidates, url, undefined);
+	}
+
+	for (const rawLink of links) {
+		const url = normalizeComesaUrl(rawLink, baseUrl);
+		collectDetailCandidate(candidates, url, undefined);
+	}
+
+	const ranked = [...candidates.values()].sort((a, b) => b.score - a.score || a.url.localeCompare(b.url));
+	return {
+		links: ranked,
+		primaryLink: ranked[0],
+	};
 }
 
 function parseComesaMarkdown(markdown: string | undefined): OpportunityData[] {

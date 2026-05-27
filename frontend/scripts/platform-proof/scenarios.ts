@@ -467,14 +467,14 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		kind: "live-safe",
 		proofTargets: ["F-001", "F-005"],
 		requiresLiveServices: true,
-		description: "Scrapes COMESA's open tenders archive and verifies the COMESA parser filters navigation links into normalized opportunity candidates.",
+		description: "Scrapes COMESA's open tenders archive and verifies normalized opportunity rows plus detail-page tender package links.",
 		command: {
 			command: "npx",
 			args: ["tsx", "scripts/prove-live-comesa-source.ts"],
 		},
 		expectedArtifacts: [
 			".omx/state/platform-live-source-discovery-evidence.md",
-			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-source-discovery.json",
+			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-comesa-source.json",
 		],
 	},
 	{

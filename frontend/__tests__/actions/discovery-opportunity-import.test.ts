@@ -979,22 +979,40 @@ describe("discoverAndImportOpportunities", () => {
 	});
 
 	it("imports COMESA configured sources with the COMESA parser", async () => {
-		firecrawlScrapeMock.mockResolvedValue({
+		const documentUrl = "https://www.comesa.int/wp-content/uploads/2026/05/RFP-Medical-Scheme-2026-Final.docx";
+		firecrawlScrapeMock.mockResolvedValueOnce({
 			success: true,
 			data: {
 				markdown: [
 					"* [Open Tenders](https://www.comesa.int/category/open-tenders/)",
 					"",
-					"[](https://www.comesa.int/procurement-of-consultancy-services-to-review-the-development-of-comesa-regional-agri-food-systems-investment-plan-rasip-2026-2031/)",
+					"[](https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/)",
 					"",
-					"### [Procurement of Consultancy Services to Review the Development of COMESA Regional Agri Food Systems Investment Plan (RASIP) 2026-2031](https://www.comesa.int/procurement-of-consultancy-services-to-review-the-development-of-comesa-regional-agri-food-systems-investment-plan-rasip-2026-2031/)",
+					"### [Tender for Provision of Staff Medical Insurance Cover for Staff of The COMESA Secretariat](https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/)",
 					"",
-					"08/05/2026",
+					"12/05/2026",
 					"",
-					"REQUEST FOR EXPRESSIONS OF INTEREST (REOI) Procurement Title: Procurement of Consultancy Services to Review the Development of COMESA Regional Agri Food Systems Investment Plan (RASIP) 2026-2031 For more details visit https://www.nepad.org/tenders/procurement-of-consultancy-services-review-development-of-comesa-regional-agri-food-systems",
+					"The COMESA Secretariat has set aside funding towards contracting a medical insurance service provider.",
 				].join("\n"),
-				links: ["https://www.comesa.int/procurement-of-consultancy-services-to-review-the-development-of-comesa-regional-agri-food-systems-investment-plan-rasip-2026-2031/"],
+				links: ["https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/"],
 				metadata: { title: "Open Tenders Archives - COMESA" },
+			},
+		}).mockResolvedValueOnce({
+			success: true,
+			data: {
+				markdown: [
+					"[Privacy Policy](https://www.comesa.int/wp-content/uploads/2022/09/Approved-Data-Privacy-Policy.pdf)",
+					"",
+					"[Advert Medical Insurance](https://www.comesa.int/wp-content/uploads/2026/05/Advert-Medical-Insurance.docx)",
+					"",
+					"[RFP Medical Scheme 2026 Final](https://www.comesa.int/wp-content/uploads/2026/05/RFP-Medical-Scheme-2026-Final.docx)",
+				].join("\n"),
+				links: [
+					"https://www.comesa.int/wp-content/uploads/2022/09/Approved-Data-Privacy-Policy.pdf",
+					"https://www.comesa.int/wp-content/uploads/2026/05/Advert-Medical-Insurance.docx",
+					documentUrl,
+				],
+				metadata: { title: "Tender for Provision of Staff Medical Insurance Cover" },
 			},
 		});
 		selectResultsQueue.push([]);
@@ -1008,6 +1026,9 @@ describe("discoverAndImportOpportunities", () => {
 		expect(firecrawlScrapeMock).toHaveBeenCalledWith("https://www.comesa.int/category/open-tenders/", expect.objectContaining({
 			formats: ["markdown", "html", "links"],
 		}));
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith("https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/", expect.objectContaining({
+			formats: ["markdown", "links"],
+		}));
 		expect(result.results).toEqual({
 			total: 1,
 			imported: 1,
@@ -1019,16 +1040,20 @@ describe("discoverAndImportOpportunities", () => {
 			source: "comesa",
 			sourcePlatform: "COMESA",
 			sourceFile: "source:https://www.comesa.int/category/open-tenders/",
-			title: "Procurement of Consultancy Services to Review the Development of COMESA Regional Agri Food Systems Investment Plan (RASIP) 2026-2031",
-			category: "Consultancy",
+			title: "Tender for Provision of Staff Medical Insurance Cover for Staff of The COMESA Secretariat",
+			category: "Tender",
 			countryRegion: "Eastern and Southern Africa",
 			organization: "COMESA Secretariat",
-			rfpLink: "https://www.nepad.org/tenders/procurement-of-consultancy-services-review-development-of-comesa-regional-agri-food-systems",
-			portalUrl: "https://www.comesa.int/procurement-of-consultancy-services-to-review-the-development-of-comesa-regional-agri-food-systems-investment-plan-rasip-2026-2031/",
-			documentUrl: "https://www.nepad.org/tenders/procurement-of-consultancy-services-review-development-of-comesa-regional-agri-food-systems",
+			rfpLink: documentUrl,
+			portalUrl: "https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/",
+			documentUrl,
+			submissionMethod: "RFP Medical Scheme 2026 Final",
 			tags: ["external-discovery", "source-scrape", "comesa", "regional-procurement"],
 			metadata: expect.objectContaining({
-				comesa: expect.objectContaining({ sourceArchive: "open-tenders" }),
+				comesa: expect.objectContaining({
+					sourceArchive: "open-tenders",
+					primaryLink: expect.objectContaining({ url: documentUrl }),
+				}),
 				discovery: expect.objectContaining({
 					resultEngine: "firecrawl-source",
 					scrapeMethod: "firecrawl",

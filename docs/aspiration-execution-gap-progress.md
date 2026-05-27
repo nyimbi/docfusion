@@ -4278,6 +4278,30 @@ Testing scope note:
 Remaining after this slice:
 - Continue adding live sources and detail/document enrichment for sources that reliably expose procurement packages.
 
+### 2026-05-27 - COMESA Detail Package Enrichment
+
+Status: implemented and verified.
+
+Purpose: turn COMESA archive rows into response-ready opportunities by following detail pages to the actual tender package attachments.
+
+Changes in this slice:
+- Add COMESA detail-page parsing that ranks document attachments and filters unrelated site PDFs such as privacy policy links.
+- Enrich configured COMESA imports with primary tender package URLs, source document links, submission labels, and metadata for discovered package attachments.
+- Replace the generic COMESA live proof with a source-specific proof that verifies both archive parsing and a detail-page package document.
+
+Verification:
+- `npm test -- comesa-parser.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts default-discovery-sources.test.ts` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --include-live-safe --run live-comesa-source` passed with run `live_comesa_source_20260527T010114Z`, returning 2 live opportunities and `RFP-Medical-Scheme-2026-Final.docx`.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` passed 50 non-live bridge tests.
+
+Testing scope note:
+- Verification included focused parser/import/proof-manifest tests, TypeScript checking, the live-safe COMESA proof, and the non-live bridge proof.
+- Full frontend suite and production build were not rerun for this source-specific enrichment slice.
+
+Remaining after this slice:
+- Continue adding live source detail/document enrichment where source pages expose stable procurement packages.
+
 ### 2026-05-26 - Workflow Runtime Tenant Anchor
 
 Status: implemented and verified.

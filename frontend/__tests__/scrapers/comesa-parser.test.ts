@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { comesaParser } from "@/lib/scrapers/parsers/comesa";
+import { comesaParser, parseComesaTenderDetailMarkdown } from "@/lib/scrapers/parsers/comesa";
 
 const comesaMarkdown = `
 * [Open Tenders](https://www.comesa.int/category/open-tenders/)
@@ -51,5 +51,24 @@ describe("COMESA parser", () => {
 			category: "Consultancy",
 			documentUrl: "https://www.nepad.org/tenders/procurement-of-consultancy-services-review-development-of-comesa-regional-agri-food-systems",
 		});
+	});
+
+	it("ranks tender package attachments from detail pages", () => {
+		const detail = parseComesaTenderDetailMarkdown(`
+[Privacy Policy](https://www.comesa.int/wp-content/uploads/2022/09/Approved-Data-Privacy-Policy.pdf)
+
+[Advert Medical Insurance](https://www.comesa.int/wp-content/uploads/2026/05/Advert-Medical-Insurance.docx)
+
+[RFP Medical Scheme 2026 Final](https://www.comesa.int/wp-content/uploads/2026/05/RFP-Medical-Scheme-2026-Final.docx)
+		`);
+
+		expect(detail.primaryLink).toEqual(expect.objectContaining({
+			description: "RFP Medical Scheme 2026 Final",
+			url: "https://www.comesa.int/wp-content/uploads/2026/05/RFP-Medical-Scheme-2026-Final.docx",
+		}));
+		expect(detail.links.map((link) => link.url)).toEqual([
+			"https://www.comesa.int/wp-content/uploads/2026/05/RFP-Medical-Scheme-2026-Final.docx",
+			"https://www.comesa.int/wp-content/uploads/2026/05/Advert-Medical-Insurance.docx",
+		]);
 	});
 });
