@@ -44,6 +44,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-afdb-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-world-bank-response-readiness");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-comesa-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-persisted-import-response");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-persisted-import-response");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-source-discovery");
@@ -298,6 +299,22 @@ describe("platform proof scenarios", () => {
 				]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["live-comesa-response-readiness"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-comesa-response-readiness",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-020"]),
+				command: expect.objectContaining({
+					env: expect.objectContaining({
+						LIVE_RESPONSE_READINESS_SOURCE_KIND: "comesa",
+						LIVE_RESPONSE_READINESS_SOURCE_URL: "https://www.comesa.int/category/open-tenders/",
+					}),
+				}),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-opportunity-response-readiness-evidence.md",
+				]),
+			}),
+		]);
 		expect(listProofScenarios({ ids: ["live-persisted-import-response"], includeLiveSafe: true })).toEqual([
 			expect.objectContaining({
 				id: "live-persisted-import-response",
@@ -450,6 +467,10 @@ describe("platform proof scenarios", () => {
 		const [worldBankResponseScenario] = listProofScenarios({ ids: ["live-world-bank-response-readiness"], includeLiveSafe: true });
 		expect(formatProofCommand(worldBankResponseScenario)).toContain("LIVE_RESPONSE_READINESS_SOURCE_KIND=world_bank");
 		expect(formatProofCommand(worldBankResponseScenario)).toContain("LIVE_RESPONSE_READINESS_SOURCE_URL=https://projects.worldbank.org/en/projects-operations/procurement");
+
+		const [comesaResponseScenario] = listProofScenarios({ ids: ["live-comesa-response-readiness"], includeLiveSafe: true });
+		expect(formatProofCommand(comesaResponseScenario)).toContain("LIVE_RESPONSE_READINESS_SOURCE_KIND=comesa");
+		expect(formatProofCommand(comesaResponseScenario)).toContain("LIVE_RESPONSE_READINESS_SOURCE_URL=https://www.comesa.int/category/open-tenders/");
 
 		const [persistedResponseScenario] = listProofScenarios({ ids: ["live-persisted-import-response"], includeLiveSafe: true });
 		expect(formatProofCommand(persistedResponseScenario)).toContain("LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT=10");

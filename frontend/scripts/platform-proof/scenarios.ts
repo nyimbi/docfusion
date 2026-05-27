@@ -514,6 +514,28 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "live-comesa-response-readiness",
+		wave: 9,
+		title: "Live COMESA response readiness proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005", "F-008", "F-020"],
+		requiresLiveServices: true,
+		description: "Finds a live COMESA procurement notice, resolves a detail-page RFP package, extracts it with Docling, and verifies concrete Datacraft response package draft artifacts.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-opportunity-response-readiness.ts"],
+			env: {
+				LIVE_RESPONSE_READINESS_SOURCE_KIND: "comesa",
+				LIVE_RESPONSE_READINESS_SOURCE_URL: "https://www.comesa.int/category/open-tenders/",
+				LIVE_RESPONSE_READINESS_PROOF_PREFIX: "live_comesa_response_readiness",
+			},
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-opportunity-response-readiness-evidence.md",
+			".omx/logs/platform-completion/live-response-readiness-<run_id>/live-opportunity-response-readiness.json",
+		],
+	},
+	{
 		id: "live-persisted-import-response",
 		wave: 9,
 		title: "Live persisted import-to-response proof",

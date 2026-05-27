@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - COMESA Live DOCX Response Readiness
+
+Status: implemented and verified.
+
+Purpose: extend live regional-procurement response coverage to COMESA by resolving a detail-page RFP package and proving DOCX extraction can feed response drafting.
+
+Changes in this slice:
+- Added `comesa` as a live response-readiness source kind.
+- Added `live-comesa-response-readiness` to the platform proof manifest.
+- Reused the COMESA open-tenders parser and detail-page document ranking to attach downloadable RFP packages to live opportunities.
+- Broadened direct source-document selection from PDF-only to PDF/DOC/DOCX for Docling-backed response-readiness proofs.
+- Added a COMESA document-first selector so conventional RFP packages are not rejected by ICT-specific opportunity terms.
+
+Verification:
+- `npm run platform:proof -- --run live-comesa-source --include-live-safe` passed with run `live_comesa_source_20260527T173422Z`.
+- `LIVE_RESPONSE_READINESS_SOURCE_KIND=comesa LIVE_RESPONSE_READINESS_SOURCE_URL=https://www.comesa.int/category/open-tenders/ LIVE_RESPONSE_READINESS_PROOF_PREFIX=live_comesa_response_readiness npx tsx scripts/prove-live-opportunity-response-readiness.ts` passed with run `live_comesa_response_readiness_20260527T173619Z`.
+- `npm test -- platform-proof-scenarios.test.ts --run` passed with 6 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-comesa-response-readiness --include-live-safe` passed with run `live_comesa_response_readiness_20260527T173818Z`.
+- `npm run platform:proof -- --all --wave 9` passed after the COMESA response-readiness change.
+- The passing registered COMESA response run selected `Tender for Provision of Staff Medical Insurance Cover for Staff of The COMESA Secretariat`, downloaded `RFP-Medical-Scheme-2026-Final.docx` with HTTP 200 and 483278 bytes, extracted 19708 Docling characters, generated six response draft artifacts, captured 24 source requirement signals, 5 evaluator criteria, 5 win-theme seeds, 85 relevant snippets, 7975 draft words, readiness status `ready_for_review`, 0 warnings, and 0 blockers.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+- COMESA response readiness proves DOCX extraction and drafting; source-fit scoring remains a future product decision separate from technical response package readiness.
+
 ### 2026-05-27 - Persisted Kenya PPIP Proof Still DB Blocked After World Bank Slice
 
 Status: externally blocked.

@@ -13,6 +13,7 @@ import {
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { afdbParser, parseAfdbNoticeDetailMarkdown } from "@/lib/scrapers/parsers/afdb";
+import { comesaParser, parseComesaTenderDetailMarkdown } from "@/lib/scrapers/parsers/comesa";
 import { checkDoclingHealth, convertDocument, type DoclingConvertResponse } from "@/lib/services/docling-client";
 import {
 	buildLiveResponsePackage,
@@ -42,7 +43,9 @@ const PROOF_RUN_PREFIX = process.env.LIVE_RESPONSE_READINESS_PROOF_PREFIX ?? (
 			? "live_afdb_response_readiness"
 			: SOURCE_KIND === "world_bank"
 				? "live_world_bank_response_readiness"
-				: "live_response_readiness"
+				: SOURCE_KIND === "comesa"
+					? "live_comesa_response_readiness"
+					: "live_response_readiness"
 );
 const RUN_ID = process.env.LIVE_RESPONSE_READINESS_PROOF_RUN_ID ?? createProofRunId(PROOF_RUN_PREFIX);
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "live-response-readiness" });
@@ -54,7 +57,9 @@ const SOURCE_URL = process.env.LIVE_RESPONSE_READINESS_SOURCE_URL ?? (
 			? "https://www.afdb.org/en/projects-and-operations/procurement"
 			: SOURCE_KIND === "world_bank"
 				? "https://projects.worldbank.org/en/projects-operations/procurement"
-				: "https://www.ungm.org/Public/Notice?title=software"
+				: SOURCE_KIND === "comesa"
+					? "https://www.comesa.int/category/open-tenders/"
+					: "https://www.ungm.org/Public/Notice?title=software"
 );
 const MAX_DOCUMENT_BYTES = Number(process.env.LIVE_RESPONSE_READINESS_MAX_DOCUMENT_BYTES ?? 10 * 1024 * 1024);
 const SOURCE_PAGE_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_PAGE_LIMIT ?? (SOURCE_KIND === "kenya_ppip" ? 25 : 10));
@@ -143,7 +148,7 @@ interface SourceDocumentConversion {
 	procurementIndicators: string[];
 }
 
-type LiveResponseReadinessSourceKind = "ungm" | "kenya_ppip" | "afdb" | "world_bank";
+type LiveResponseReadinessSourceKind = "ungm" | "kenya_ppip" | "afdb" | "world_bank" | "comesa";
 
 interface LiveResponseReadinessSourceResult {
 	kind: LiveResponseReadinessSourceKind;
@@ -182,6 +187,8 @@ async function proveLiveOpportunityResponseReadiness(): Promise<Partial<LiveOppo
 	const source = await fetchSourceOpportunities();
 	const opportunity = source.kind === "world_bank"
 		? selectWorldBankResponseReadyOpportunity(source.opportunities)
+		: source.kind === "comesa"
+			? selectComesaResponseReadyOpportunity(source.opportunities)
 		: selectResponseReadyOpportunity(source.opportunities);
 	const sourceUrl = opportunity?.rfpLink ?? opportunity?.documentUrl ?? opportunity?.portalUrl;
 	if (!opportunity || !sourceUrl) {
@@ -238,6 +245,9 @@ async function fetchSourceOpportunities(): Promise<LiveResponseReadinessSourceRe
 	}
 	if (SOURCE_KIND === "world_bank") {
 		return fetchWorldBankResponseReadyOpportunities();
+	}
+	if (SOURCE_KIND === "comesa") {
+		return fetchComesaResponseReadyOpportunities();
 	}
 
 	const source = await fetchUngmOpportunities(SOURCE_URL, {
@@ -329,6 +339,72 @@ async function fetchWorldBankResponseReadyOpportunities(): Promise<LiveResponseR
 		url: SOURCE_URL,
 		opportunities,
 	};
+}
+
+async function fetchComesaResponseReadyOpportunities(): Promise<LiveResponseReadinessSourceResult> {
+	const client = new FirecrawlClient({ timeout: 60000 });
+	const result = await client.scrape(SOURCE_URL, {
+		formats: ["markdown", "links"],
+		timeout: 60000,
+	});
+	const markdown = result.data?.markdown ?? "";
+	const links = result.data?.links ?? [];
+	if (!result.success || markdown.trim().length === 0) {
+		throw new Error(result.error ?? "COMESA source scrape returned no content");
+	}
+	const parsed = await comesaParser.parse({ markdown, links, url: SOURCE_URL });
+	if (parsed.opportunities.length === 0) {
+		throw new Error("COMESA parser returned no active source opportunities");
+	}
+	const opportunities = await attachComesaSourceDocuments(client, parsed.opportunities);
+	if (!opportunities.some(hasDirectSourceDocument)) {
+		throw new Error("COMESA detail pages exposed no downloadable source documents");
+	}
+	return {
+		kind: "comesa",
+		url: SOURCE_URL,
+		opportunities,
+	};
+}
+
+async function attachComesaSourceDocuments(
+	client: FirecrawlClient,
+	opportunities: OpportunityData[]
+): Promise<OpportunityData[]> {
+	const enriched: OpportunityData[] = [];
+	for (const opportunity of opportunities.slice(0, SOURCE_LIMIT)) {
+		if (!opportunity.portalUrl) {
+			enriched.push(opportunity);
+			continue;
+		}
+		const detailResult = await client.scrape(opportunity.portalUrl, {
+			formats: ["markdown", "links"],
+			timeout: 60000,
+		});
+		const detail = parseComesaTenderDetailMarkdown(
+			detailResult.data?.markdown,
+			detailResult.data?.links ?? [],
+			opportunity.portalUrl
+		);
+		const documentUrl = detail.primaryLink?.url;
+		enriched.push(documentUrl
+			? {
+				...opportunity,
+				rfpLink: documentUrl,
+				documentUrl,
+				metadata: {
+					...(opportunity.metadata ?? {}),
+					comesa: {
+						...comesaMetadata(opportunity),
+						detailDocumentUrl: documentUrl,
+						detailDocumentLabel: detail.primaryLink?.description,
+						detailDocumentLinkCount: detail.links.length,
+					},
+				},
+			}
+			: opportunity);
+	}
+	return enriched;
 }
 
 async function fetchAfdbCloakBrowserOpportunities(previousFailure: string | undefined): Promise<OpportunityData[]> {
@@ -517,10 +593,17 @@ function afdbMetadata(opportunity: OpportunityData): Record<string, unknown> {
 		: {};
 }
 
+function comesaMetadata(opportunity: OpportunityData): Record<string, unknown> {
+	const value = opportunity.metadata?.comesa;
+	return value && typeof value === "object" && !Array.isArray(value)
+		? value as Record<string, unknown>
+		: {};
+}
+
 function selectResponseReadyOpportunity(opportunities: OpportunityData[]): OpportunityData | undefined {
 	return opportunities.find((opportunity) => {
 		const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl ?? "";
-		return documentUrl.toLowerCase().endsWith(".pdf") && hasResponseReadyTerms(opportunity, documentUrl);
+		return /\.(pdf|docx?)(?:$|[?#])/iu.test(documentUrl) && hasResponseReadyTerms(opportunity, documentUrl);
 	});
 }
 
@@ -529,6 +612,15 @@ function selectWorldBankResponseReadyOpportunity(opportunities: OpportunityData[
 		const sourceUrl = opportunity.portalUrl ?? opportunity.rfpLink ?? opportunity.documentUrl ?? "";
 		return Boolean(worldBankNoticeIdFromUrl(sourceUrl)) && hasResponseReadyTerms(opportunity, sourceUrl);
 	}) ?? opportunities.find((opportunity) => Boolean(worldBankNoticeIdFromUrl(opportunity.portalUrl)));
+}
+
+function selectComesaResponseReadyOpportunity(opportunities: OpportunityData[]): OpportunityData | undefined {
+	return opportunities.find((opportunity) => {
+		const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl ?? "";
+		const haystack = `${opportunity.title} ${opportunity.category ?? ""} ${documentUrl}`.toLowerCase();
+		return /\.(pdf|docx?)(?:$|[?#])/iu.test(documentUrl)
+			&& /\b(rfp|request|proposal|tender|procurement|consultancy|services?)\b/iu.test(haystack);
+	});
 }
 
 function hasResponseReadyTerms(opportunity: OpportunityData, sourceUrl: string): boolean {
@@ -744,6 +836,7 @@ function normalizeSourceKind(value: string | undefined): LiveResponseReadinessSo
 	if (value === "kenya_ppip") return "kenya_ppip";
 	if (value === "afdb") return "afdb";
 	if (value === "world_bank") return "world_bank";
+	if (value === "comesa") return "comesa";
 	return "ungm";
 }
 
