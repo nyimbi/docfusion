@@ -74,6 +74,7 @@ vi.mock("@/lib/utils/logger", () => ({
 
 import {
 	createGraphic,
+	exportGraphics,
 	listGraphics,
 	recordGraphicFeedback,
 	searchGraphics,
@@ -138,6 +139,38 @@ describe("graphics opportunity scoping", () => {
 
 		expect(result).toMatchObject({ success: true, data: [] });
 		expectAssignedOpportunityTenantScope(listWhere);
+	});
+
+	it.each([
+		["zip", "data:application/zip;base64,", "PK"],
+		["pdf", "data:application/pdf;base64,", "%PDF-"],
+	] as const)("generates a real %s graphics export artifact", async (format, expectedPrefix, expectedSignature) => {
+		const graphic = {
+			id: graphicId,
+			opportunityId,
+			title: "Implementation Flow",
+			figureNumber: "Figure 1",
+			graphicType: "process_flow",
+			format: "mermaid",
+			diagramCode: "graph TD\nA[Start] --> B[Delivery]",
+			imageUrl: null,
+			sourceData: null,
+			caption: "Implementation flow",
+			actionCaption: "Show the delivery flow",
+			status: "approved",
+		};
+		dbMock.select.mockReturnValueOnce(createChain({ result: [graphic] }));
+		dbMock.insert.mockReturnValueOnce(createChain());
+
+		const result = await exportGraphics(opportunityId, format);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.downloadUrl).toMatch(new RegExp(`^${expectedPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+		expect(result.data.downloadUrl).not.toContain("/api/exports/graphics");
+		const encoded = result.data.downloadUrl.split(",")[1] ?? "";
+		expect(Buffer.from(encoded, "base64").toString("latin1").startsWith(expectedSignature)).toBe(true);
+		expect(dbMock.insert).toHaveBeenCalled();
 	});
 
 	it("scopes single-graphic updates through the owning opportunity", async () => {

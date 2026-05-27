@@ -5698,3 +5698,25 @@ Verification:
 Remaining after this slice:
 - Continue replacing remaining placeholder exports such as graphics export paths where no backing artifact exists.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Graphics Export Artifacts
+
+Status: implemented and verified.
+
+Purpose: make proposal graphics export return real ZIP/PDF artifacts instead of a placeholder `/api/exports/graphics` path.
+
+Changes in this slice:
+- Generate ZIP graphics exports containing diagram/source files, captions, and `metadata.json`.
+- Generate PDF graphics exports with figure titles, types, statuses, captions, and source snippets.
+- Preserve export tracking through `graphic_feedback` while replacing the inert download path with data URL artifacts.
+- Add graphics export signature coverage and wire the graphics tests into the Wave 6 platform proof manifest.
+
+Verification:
+- `npm test -- graphics-scope.test.ts graphics-auth.test.ts` passed with 11 tests.
+- `npm test -- graphics-scope.test.ts graphics-auth.test.ts platform-proof-scenarios.test.ts` passed with 17 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 174 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue auditing remaining export/download paths for placeholders versus durable artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

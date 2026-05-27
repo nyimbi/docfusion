@@ -91,6 +91,123 @@ async function requireGraphicActor(): Promise<GraphicUserContext> {
 	return await requireGraphicContext();
 }
 
+function toBase64DataUrl(mimeType: string, content: string | ArrayBuffer | Uint8Array): string {
+	const buffer = typeof content === "string"
+		? Buffer.from(content, "utf8")
+		: Buffer.from(content instanceof Uint8Array ? content : new Uint8Array(content));
+	return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+function safeExportName(value: string | null | undefined, fallback: string): string {
+	const normalized = (value || fallback)
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+	return normalized || fallback;
+}
+
+function graphicSourceExtension(format: string | null): string {
+	if (format === "mermaid") return "mmd";
+	if (format === "d2") return "d2";
+	if (format === "svg") return "svg";
+	return "txt";
+}
+
+async function buildGraphicsZip(graphics: ProposalGraphic[]): Promise<string> {
+	const { default: JSZip } = await import("jszip");
+	const zip = new JSZip();
+	const metadata = graphics.map((graphic) => ({
+		id: graphic.id,
+		title: graphic.title,
+		figureNumber: graphic.figureNumber,
+		graphicType: graphic.graphicType,
+		format: graphic.format,
+		caption: graphic.caption,
+		actionCaption: graphic.actionCaption,
+		status: graphic.status,
+	}));
+
+	zip.file("metadata.json", JSON.stringify(metadata, null, 2));
+	graphics.forEach((graphic, index) => {
+		const baseName = `${String(index + 1).padStart(2, "0")}-${safeExportName(graphic.figureNumber || graphic.title, graphic.id)}`;
+		const source = graphic.diagramCode || graphic.imageUrl || JSON.stringify(graphic.sourceData ?? {}, null, 2);
+		zip.file(`${baseName}.${graphicSourceExtension(graphic.format)}`, source || "");
+		if (graphic.caption || graphic.actionCaption) {
+			zip.file(`${baseName}.caption.txt`, [graphic.caption, graphic.actionCaption].filter(Boolean).join("\n\n"));
+		}
+	});
+
+	return zip.generateAsync({ type: "base64", compression: "DEFLATE" });
+}
+
+async function buildGraphicsPdf(graphics: ProposalGraphic[]): Promise<ArrayBuffer> {
+	const { jsPDF } = await import("jspdf");
+	const pdf = new jsPDF({ unit: "pt", format: "letter" });
+	const pageWidth = pdf.internal.pageSize.getWidth();
+	const pageHeight = pdf.internal.pageSize.getHeight();
+	const margin = 54;
+	const bodyWidth = pageWidth - (margin * 2);
+	let y = margin;
+
+	pdf.setProperties({
+		title: "Graphics Export",
+		creator: "DocFusion",
+		subject: `${graphics.length} proposal graphic(s)`,
+	});
+
+	const addPageIfNeeded = (neededHeight: number) => {
+		if (y + neededHeight <= pageHeight - margin) return;
+		pdf.addPage();
+		y = margin;
+	};
+
+	const addWrappedText = (text: string, options: { size?: number; bold?: boolean; spacing?: number } = {}) => {
+		const fontSize = options.size ?? 10;
+		const lineHeight = fontSize + 4;
+		pdf.setFont("helvetica", options.bold ? "bold" : "normal");
+		pdf.setFontSize(fontSize);
+		const lines = pdf.splitTextToSize(text || "Not specified", bodyWidth) as string[];
+		for (const line of lines) {
+			addPageIfNeeded(lineHeight);
+			pdf.text(line, margin, y);
+			y += lineHeight;
+		}
+		y += options.spacing ?? 4;
+	};
+
+	addWrappedText("GRAPHICS EXPORT", { size: 18, bold: true, spacing: 10 });
+	addWrappedText(`Graphics: ${graphics.length}`, { spacing: 14 });
+
+	graphics.forEach((graphic, index) => {
+		addWrappedText(`${index + 1}. ${graphic.figureNumber ? `${graphic.figureNumber} - ` : ""}${graphic.title}`, { size: 13, bold: true, spacing: 8 });
+		addWrappedText(`Type: ${graphic.graphicType} | Format: ${graphic.format || "unknown"} | Status: ${graphic.status || "draft"}`);
+		if (graphic.actionCaption || graphic.caption) {
+			addWrappedText(`Caption: ${graphic.actionCaption || graphic.caption}`);
+		}
+		if (graphic.diagramCode) {
+			addWrappedText("Source:", { bold: true });
+			addWrappedText(graphic.diagramCode.slice(0, 1200));
+		} else if (graphic.imageUrl) {
+			addWrappedText(`Image URL: ${graphic.imageUrl}`);
+		}
+		y += 8;
+	});
+
+	return pdf.output("arraybuffer");
+}
+
+async function buildGraphicsExportArtifact(
+	graphics: ProposalGraphic[],
+	format: "zip" | "pdf"
+): Promise<string> {
+	if (format === "zip") {
+		const zip = await buildGraphicsZip(graphics);
+		return `data:application/zip;base64,${zip}`;
+	}
+
+	return toBase64DataUrl("application/pdf", await buildGraphicsPdf(graphics));
+}
+
 function mutableOrganizationCondition(column: OrganizationColumn, userContext: GraphicUserContext) {
 	return eq(column, userContext.organizationId);
 }
@@ -1396,18 +1513,7 @@ export async function exportGraphics(
 			return { success: false, error: "No graphics found for this opportunity" };
 		}
 
-		// Export workflow:
-		// 1. Store export request in database for async processing
-		// 2. Background worker renders Mermaid/D2 diagrams to SVG/PNG
-		// 3. Packages results and uploads to cloud storage
-		// 4. Updates export record with signed download URL
-		// Client polls the export endpoint for completion status
-
-		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-		const filename = `graphics-export-${opportunityId.substring(0, 8)}-${timestamp}.${format}`;
-
-		// In production, this would be a real signed URL
-		const downloadUrl = `/api/exports/graphics/${filename}`;
+		const downloadUrl = await buildGraphicsExportArtifact(graphics, format);
 
 		// Store export record for tracking
 		await db
