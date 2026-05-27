@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Requirements Page Win Theme Review Proof
+
+Status: implemented and verified.
+
+Purpose: keep the operator requirements workflow covered by an automated proof that generated win-theme seeds are visible before final response approval.
+
+Changes in this slice:
+- Add a requirements-page operator-surface test that renders the generated response win-theme seed review panel.
+- Verify the panel exposes generated seed statements, evaluator criteria IDs, target document types, requirement mappings, approval counts, and disabled persistence before operator decisions.
+- Add the new operator-surface proof to the Wave 8 strategic capability manifest so future platform proof runs include it.
+
+Verification:
+- `npm test -- RequirementsWinThemeSeedReview.test.ts` from `frontend/` passed, running 1 test.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` from `frontend/` passed, now running 16 strategic capability tests including requirements-page seed review coverage.
+
+Remaining after this slice:
+- Add authenticated browser-level proof when a seeded login path for this opportunity workflow is available.
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Requirement Page Win Theme Seed Review
 
 Status: implemented and verified.
