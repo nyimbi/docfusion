@@ -5614,3 +5614,24 @@ Verification:
 Remaining after this slice:
 - Continue replacing placeholder export URLs in adjacent response artifacts, especially compliance and review package exports.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Compliance Report Export Artifacts
+
+Status: implemented and verified.
+
+Purpose: make compliance report export produce real PDF/XLSX artifacts instead of returning a nonexistent document-generation URL.
+
+Changes in this slice:
+- Generate PDF compliance reports with matrix summary, coverage status, sectioned requirements, response references, and notes.
+- Generate XLSX compliance reports as a minimal OpenXML workbook using the existing `jszip` dependency.
+- Preserve the existing `reportData` response for downstream workflow and UI consumers.
+- Add regression coverage that decodes both exported formats and verifies file signatures instead of accepting `/api/documents/generate`.
+
+Verification:
+- `npm test -- compliance-entry-workflow.test.ts` passed with 11 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 81 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing placeholder export URLs in review package and presentation handout exports where no backing artifact path exists.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

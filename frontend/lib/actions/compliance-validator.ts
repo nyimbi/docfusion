@@ -30,6 +30,163 @@ import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/li
 import { logger } from "@/lib/utils/logger";
 import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 
+const COMPLIANCE_PDF_MIME = "application/pdf";
+const COMPLIANCE_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+function toBase64DataUrl(mimeType: string, content: string | ArrayBuffer | Uint8Array): string {
+	const buffer = typeof content === "string"
+		? Buffer.from(content, "utf8")
+		: Buffer.from(content instanceof Uint8Array ? content : new Uint8Array(content));
+	return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+function escapeXml(value: unknown): string {
+	return String(value ?? "")
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&apos;");
+}
+
+async function buildComplianceReportPdf(reportData: ComplianceReportData): Promise<ArrayBuffer> {
+	const { jsPDF } = await import("jspdf");
+	const pdf = new jsPDF({ unit: "pt", format: "letter" });
+	const pageWidth = pdf.internal.pageSize.getWidth();
+	const pageHeight = pdf.internal.pageSize.getHeight();
+	const margin = 54;
+	const bodyWidth = pageWidth - (margin * 2);
+	let y = margin;
+
+	pdf.setProperties({
+		title: `Compliance Report - ${reportData.matrixId}`,
+		creator: "DocFusion",
+		subject: reportData.summary.status,
+	});
+
+	const addPageIfNeeded = (neededHeight: number) => {
+		if (y + neededHeight <= pageHeight - margin) return;
+		pdf.addPage();
+		y = margin;
+	};
+
+	const addWrappedText = (text: string, options: { size?: number; bold?: boolean; spacing?: number } = {}) => {
+		const fontSize = options.size ?? 10;
+		const lineHeight = fontSize + 4;
+		pdf.setFont("helvetica", options.bold ? "bold" : "normal");
+		pdf.setFontSize(fontSize);
+		const lines = pdf.splitTextToSize(text || "Not specified", bodyWidth) as string[];
+		for (const line of lines) {
+			addPageIfNeeded(lineHeight);
+			pdf.text(line, margin, y);
+			y += lineHeight;
+		}
+		y += options.spacing ?? 4;
+	};
+
+	addWrappedText("COMPLIANCE REPORT", { size: 18, bold: true, spacing: 10 });
+	addWrappedText(`Matrix: ${reportData.matrixId}`, { size: 12, bold: true });
+	addWrappedText(`Generated: ${reportData.generatedAt}`);
+	addWrappedText(`Coverage: ${reportData.summary.coverageScore}% | Mandatory: ${reportData.summary.mandatoryCoverage}% | Status: ${reportData.summary.status}`, { spacing: 14 });
+
+	for (const section of reportData.sections) {
+		addWrappedText(section.name, { size: 14, bold: true, spacing: 8 });
+		for (const entry of section.entries) {
+			addWrappedText(`${entry.requirementNumber} | ${entry.priority} | ${entry.complianceStatus} | Score: ${entry.score}`, { bold: true });
+			addWrappedText(entry.requirementText);
+			if (entry.responseReference) addWrappedText(`Response reference: ${entry.responseReference}`);
+			if (entry.notes) addWrappedText(`Notes: ${entry.notes}`);
+			y += 4;
+		}
+		y += 6;
+	}
+
+	return pdf.output("arraybuffer");
+}
+
+function buildWorksheetXml(rows: string[][]): string {
+	const xmlRows = rows.map((row, rowIndex) => {
+		const cells = row.map((value, columnIndex) => {
+			const column = String.fromCharCode("A".charCodeAt(0) + columnIndex);
+			return `<c r="${column}${rowIndex + 1}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`;
+		}).join("");
+		return `<row r="${rowIndex + 1}">${cells}</row>`;
+	}).join("");
+
+	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+	<sheetData>${xmlRows}</sheetData>
+</worksheet>`;
+}
+
+async function buildComplianceReportXlsx(reportData: ComplianceReportData): Promise<string> {
+	const { default: JSZip } = await import("jszip");
+	const zip = new JSZip();
+	const rows: string[][] = [
+		["Compliance Report"],
+		["Matrix ID", reportData.matrixId],
+		["Generated", reportData.generatedAt],
+		["Total Requirements", String(reportData.summary.totalRequirements)],
+		["Mandatory Requirements", String(reportData.summary.mandatoryRequirements)],
+		["Addressed Requirements", String(reportData.summary.addressedRequirements)],
+		["Coverage Score", `${reportData.summary.coverageScore}%`],
+		["Mandatory Coverage", `${reportData.summary.mandatoryCoverage}%`],
+		["Status", reportData.summary.status],
+		[],
+		["Section", "Requirement", "Priority", "Compliance Status", "Score", "Response Reference", "Notes", "Requirement Text"],
+	];
+
+	for (const section of reportData.sections) {
+		for (const entry of section.entries) {
+			rows.push([
+				section.name,
+				entry.requirementNumber,
+				entry.priority,
+				entry.complianceStatus,
+				String(entry.score),
+				entry.responseReference,
+				entry.notes,
+				entry.requirementText,
+			]);
+		}
+	}
+
+	zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+	<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+	<Default Extension="xml" ContentType="application/xml"/>
+	<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+	<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>`);
+	zip.folder("_rels")?.file(".rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+	<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`);
+	zip.folder("xl")?.file("workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+	<sheets><sheet name="Compliance Report" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`);
+	zip.folder("xl")?.folder("_rels")?.file("workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+	<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>`);
+	zip.folder("xl")?.folder("worksheets")?.file("sheet1.xml", buildWorksheetXml(rows));
+
+	return zip.generateAsync({ type: "base64", compression: "DEFLATE" });
+}
+
+async function buildComplianceReportArtifact(
+	reportData: ComplianceReportData,
+	format: "pdf" | "xlsx"
+): Promise<string> {
+	if (format === "pdf") {
+		return toBase64DataUrl(COMPLIANCE_PDF_MIME, await buildComplianceReportPdf(reportData));
+	}
+
+	const xlsx = await buildComplianceReportXlsx(reportData);
+	return `data:${COMPLIANCE_XLSX_MIME};base64,${xlsx}`;
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -1883,10 +2040,7 @@ export async function exportComplianceReport(
 		})),
 	};
 
-	// Generate download URL for document generation API
-	const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-	const filename = `compliance-report-${matrixId.substring(0, 8)}-${timestamp}.${format}`;
-	const downloadUrl = `/api/documents/generate?type=compliance-report&matrixId=${matrixId}&format=${format}&filename=${encodeURIComponent(filename)}`;
+	const downloadUrl = await buildComplianceReportArtifact(reportData, format);
 
 	return { downloadUrl, reportData };
 }

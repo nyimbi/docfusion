@@ -92,6 +92,7 @@ vi.mock("@/lib/db", () => {
 });
 
 import {
+	exportComplianceReport,
 	transitionComplianceEntryWorkflow,
 	transitionComplianceMatrixWorkflow,
 	validateCompliance,
@@ -212,6 +213,67 @@ describe("compliance validation access scope", () => {
 		expect(collectSqlFragments(matrixWhere).join(" ")).toContain("org-1");
 		expect(collectSqlFragments(entriesWhere).join(" ")).toContain("organization_id");
 		expect(collectSqlFragments(entriesWhere).join(" ")).toContain("org-1");
+	});
+
+	it.each([
+		["pdf", "data:application/pdf;base64,", "%PDF-"],
+		["xlsx", "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,", "PK"],
+	] as const)("generates a real %s compliance report artifact", async (format, expectedPrefix, expectedSignature) => {
+		dbMock.query.complianceMatrices.findFirst.mockResolvedValue(baseMatrix);
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [
+				{
+					entry: {
+						...baseEntry,
+						complianceStatus: "compliant",
+						responseReference: "Volume 1, Section 2.1",
+						notes: "Reviewer accepted the response evidence",
+						strengthAssessment: "strong",
+					},
+					requirement: {
+						...baseRequirement,
+						requirementNumber: "REQ-001",
+						requirementText: "Provide secure cloud analytics.",
+						category: "Technical",
+						priority: "mandatory",
+					},
+				},
+				{
+					entry: {
+						...baseEntry,
+						id: "entry-2",
+						complianceStatus: "partial",
+						responseReference: "Volume 1, Section 2.2",
+						notes: "Needs added operations evidence",
+						strengthAssessment: "adequate",
+					},
+					requirement: {
+						...baseRequirement,
+						id: "req-2",
+						requirementNumber: "REQ-002",
+						requirementText: "Describe operations staffing.",
+						category: "Management",
+						priority: "preferred",
+					},
+				},
+			],
+		}));
+
+		const result = await exportComplianceReport("matrix-1", format);
+
+		expect(result.downloadUrl).toMatch(new RegExp(`^${expectedPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+		expect(result.downloadUrl).not.toContain("/api/documents/generate");
+		const encoded = result.downloadUrl.split(",")[1] ?? "";
+		expect(Buffer.from(encoded, "base64").toString("latin1").startsWith(expectedSignature)).toBe(true);
+		expect(result.reportData.summary).toMatchObject({
+			totalRequirements: 2,
+			mandatoryRequirements: 1,
+			addressedRequirements: 2,
+			coverageScore: 100,
+			mandatoryCoverage: 100,
+			status: "excellent",
+		});
+		expect(result.reportData.sections.map((section) => section.name)).toEqual(["Technical", "Management"]);
 	});
 });
 
