@@ -201,6 +201,10 @@ export async function transitionReviewCommentWorkflow(
 			commentType: comment.commentType,
 			severity: comment.severity ?? null,
 			sectionId: comment.sectionId ?? null,
+			evaluationCriteriaId: comment.evaluationCriteriaId ?? null,
+			evaluationCriteriaRef: comment.evaluationCriteriaRef ?? null,
+			relatedWinThemeId: comment.relatedWinThemeId ?? null,
+			themeAlignment: comment.themeAlignment ?? null,
 			resolutionAction: input.resolutionAction ?? null,
 		},
 		terminal: transition.terminal,
@@ -222,6 +226,10 @@ export async function transitionReviewCommentWorkflow(
 				commentId: input.commentId,
 				reviewId: comment.reviewId,
 				taskId: task.id,
+				evaluationCriteriaId: comment.evaluationCriteriaId ?? null,
+				evaluationCriteriaRef: comment.evaluationCriteriaRef ?? null,
+				relatedWinThemeId: comment.relatedWinThemeId ?? null,
+				themeAlignment: comment.themeAlignment ?? null,
 			},
 		});
 	}
@@ -344,6 +352,12 @@ async function upsertCommentTask(input: {
 		completedBy: input.status === "completed" ? input.actorId : null,
 		sourceType: "review_comment",
 		sourceId: input.comment.id,
+		evaluationCriteriaIds: input.comment.evaluationCriteriaId ? [input.comment.evaluationCriteriaId] : [],
+		tags: Array.from(new Set([
+			...(input.existingTask?.tags ?? []),
+			...(input.comment.evaluationCriteriaRef ? [`criterion:${input.comment.evaluationCriteriaRef}`] : []),
+			...(input.comment.relatedWinThemeId ? [`win-theme:${input.comment.relatedWinThemeId}`] : []),
+		])),
 		updatedAt: now,
 	};
 

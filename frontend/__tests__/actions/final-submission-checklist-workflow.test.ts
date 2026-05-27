@@ -848,6 +848,11 @@ describe("final submission checklist workflow", () => {
 					metadata: {
 						readiness: {
 							...readyResponsePackageWorkflow.metadata.readiness,
+							evaluationCriteriaIds: ["LIVE-EVAL-001", "LIVE-EVAL-002"],
+							draftCoveredEvaluationCriteriaIds: ["LIVE-EVAL-001", "LIVE-EVAL-002"],
+							winThemeCoveredEvaluationCriteriaIds: ["LIVE-EVAL-001"],
+							missingDraftEvaluationCriteriaIds: [],
+							missingWinThemeEvaluationCriteriaIds: ["LIVE-EVAL-002"],
 							metrics: {
 								...readyResponsePackageWorkflow.metadata.readiness.metrics,
 								winThemeCriteriaCoverage: 0.5,
@@ -872,6 +877,9 @@ describe("final submission checklist workflow", () => {
 			details: [
 				{ label: "Coverage", value: "50%", tone: "danger" },
 				{ label: "Win theme seeds", value: "1", tone: "neutral" },
+				{ label: "Evaluator criteria", value: "LIVE-EVAL-001, LIVE-EVAL-002", tone: "neutral" },
+				{ label: "Covered criteria", value: "LIVE-EVAL-001", tone: "success" },
+				{ label: "Missing criteria", value: "LIVE-EVAL-002", tone: "danger" },
 				{ label: "Readiness workflow", value: "response-package-workflow-criteria-gap", tone: "neutral" },
 			],
 		});

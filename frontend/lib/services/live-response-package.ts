@@ -99,6 +99,11 @@ export interface LiveResponseReadinessAssessment {
 	status: "ready_for_review" | "blocked";
 	blockers: string[];
 	warnings: string[];
+	evaluationCriteriaIds: string[];
+	draftCoveredEvaluationCriteriaIds: string[];
+	winThemeCoveredEvaluationCriteriaIds: string[];
+	missingDraftEvaluationCriteriaIds: string[];
+	missingWinThemeEvaluationCriteriaIds: string[];
 	metrics: {
 		documentTypeCoverage: number;
 		sourceRequirementCoverage: number;
@@ -219,6 +224,10 @@ export function assessLiveResponsePackageReadiness(
 	const coveredRequirementCount = requirementIds.filter((id) => assignedRequirementIds.has(id)).length;
 	const coveredEvaluationCriteriaCount = evaluationCriteriaIds.filter((id) => assignedEvaluationCriteriaIds.has(id)).length;
 	const winThemeCoveredEvaluationCriteriaCount = evaluationCriteriaIds.filter((id) => winThemeEvaluationCriteriaIds.has(id)).length;
+	const draftCoveredEvaluationCriteriaIds = evaluationCriteriaIds.filter((id) => assignedEvaluationCriteriaIds.has(id));
+	const winThemeCoveredEvaluationCriteriaIds = evaluationCriteriaIds.filter((id) => winThemeEvaluationCriteriaIds.has(id));
+	const missingDraftEvaluationCriteriaIds = evaluationCriteriaIds.filter((id) => !assignedEvaluationCriteriaIds.has(id));
+	const missingWinThemeEvaluationCriteriaIds = evaluationCriteriaIds.filter((id) => !winThemeEvaluationCriteriaIds.has(id));
 	const coveredMandatoryRequirementCount = mandatoryRequirementIds.filter((id) => assignedRequirementIds.has(id)).length;
 	const documentsWithEvidence = responsePackage.documents.filter((document) => document.relevantSnippetShortcuts.length > 0).length;
 	const documentsWithReviewGates = responsePackage.documents.filter((document) => document.markdown.includes("## Review Gates")).length;
@@ -300,6 +309,11 @@ export function assessLiveResponsePackageReadiness(
 		status: blockers.length === 0 ? "ready_for_review" : "blocked",
 		blockers,
 		warnings,
+		evaluationCriteriaIds,
+		draftCoveredEvaluationCriteriaIds,
+		winThemeCoveredEvaluationCriteriaIds,
+		missingDraftEvaluationCriteriaIds,
+		missingWinThemeEvaluationCriteriaIds,
 		metrics,
 	};
 }
@@ -812,6 +826,11 @@ function emptyReadinessAssessment(): LiveResponseReadinessAssessment {
 		status: "blocked",
 		blockers: [],
 		warnings: [],
+		evaluationCriteriaIds: [],
+		draftCoveredEvaluationCriteriaIds: [],
+		winThemeCoveredEvaluationCriteriaIds: [],
+		missingDraftEvaluationCriteriaIds: [],
+		missingWinThemeEvaluationCriteriaIds: [],
 		metrics: {
 			documentTypeCoverage: 0,
 			sourceRequirementCoverage: 0,

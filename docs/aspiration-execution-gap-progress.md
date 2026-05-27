@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Evaluator Criteria Evidence Traceability
+
+Status: implemented and verified.
+
+Purpose: carry evaluator criteria IDs through response readiness, final checklist evidence, and review-comment task projection so comments and submission blockers can point at the same scoring criteria.
+
+Changes in this slice:
+- Add evaluator criteria ID sets to live response readiness assessments, including draft-covered, win-theme-covered, and missing criteria IDs.
+- Parse those readiness criteria IDs into the final submission checklist workflow.
+- Show evaluator, covered, and missing criteria IDs in the evaluator win-theme coverage checklist details when the readiness workflow reports them.
+- Carry review-comment evaluator criteria IDs, references, related win-theme IDs, and theme alignment into workflow transition metadata.
+- Project review-comment resolution tasks with `evaluationCriteriaIds` and stable criteria/win-theme tags.
+- Add regression coverage for live readiness criteria ID evidence, final checklist criteria detail rows, and review-comment task metadata.
+
+Verification:
+- `npm test -- live-response-package.test.ts final-submission-checklist-workflow.test.ts review-comment-workflow.test.ts` from `frontend/` passed, running 24 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave6-final-submission-gate --run wave9-response-readiness-package` from `frontend/` passed, running 30 tests across final submission and response-readiness proof targets.
+
+Remaining after this slice:
+- Wire the seed review component into the response package review screen when that screen is selected as the primary operator surface.
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Win Theme Seed Review Approval
 
 Status: implemented and verified.

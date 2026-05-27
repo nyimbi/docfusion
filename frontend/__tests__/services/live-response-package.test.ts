@@ -127,6 +127,14 @@ describe("live response package builder", () => {
 		expect(responsePackage.relevantSnippetCount).toBeGreaterThanOrEqual(12);
 		expect(responsePackage.readiness.status).toBe("ready_for_review");
 		expect(responsePackage.readiness.blockers).toEqual([]);
+		expect(responsePackage.readiness.evaluationCriteriaIds).toEqual([
+			"LIVE-EVAL-001",
+			"LIVE-EVAL-002",
+			"LIVE-EVAL-003",
+			"LIVE-EVAL-004",
+		]);
+		expect(responsePackage.readiness.winThemeCoveredEvaluationCriteriaIds).toEqual(responsePackage.readiness.evaluationCriteriaIds);
+		expect(responsePackage.readiness.missingWinThemeEvaluationCriteriaIds).toEqual([]);
 		expect(responsePackage.readiness.metrics).toMatchObject({
 			documentTypeCoverage: 1,
 			sourceRequirementCoverage: 1,
@@ -223,6 +231,12 @@ Vendors interested in participating in the planned solicitation process should s
 		expect(readiness.status).toBe("blocked");
 		expect(readiness.blockers.join("\n")).toContain("evaluator criteria");
 		expect(readiness.metrics.evaluationCriteriaCoverage).toBe(0);
+		expect(readiness.missingDraftEvaluationCriteriaIds).toEqual([
+			"LIVE-EVAL-001",
+			"LIVE-EVAL-002",
+			"LIVE-EVAL-003",
+			"LIVE-EVAL-004",
+		]);
 	});
 
 	it("blocks readiness when evaluator criteria are not represented in win theme seeds", () => {
@@ -241,5 +255,11 @@ Vendors interested in participating in the planned solicitation process should s
 		expect(readiness.status).toBe("blocked");
 		expect(readiness.blockers.join("\n")).toContain("win theme seeds");
 		expect(readiness.metrics.winThemeCriteriaCoverage).toBe(0);
+		expect(readiness.missingWinThemeEvaluationCriteriaIds).toEqual([
+			"LIVE-EVAL-001",
+			"LIVE-EVAL-002",
+			"LIVE-EVAL-003",
+			"LIVE-EVAL-004",
+		]);
 	});
 });

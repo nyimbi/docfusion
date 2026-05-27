@@ -60,6 +60,11 @@ type ResponsePackageReadinessSnapshot = {
 	blockers: string[];
 	warnings: string[];
 	missingRequirementIds: string[];
+	evaluationCriteriaIds: string[];
+	draftCoveredEvaluationCriteriaIds: string[];
+	winThemeCoveredEvaluationCriteriaIds: string[];
+	missingDraftEvaluationCriteriaIds: string[];
+	missingWinThemeEvaluationCriteriaIds: string[];
 	metrics: {
 		acceptedRequirementCount: number;
 		draftedRequirementCount: number;
@@ -401,6 +406,29 @@ function evaluatorWinThemeCoverageItem(
 
 	const passed = coverage >= 1;
 	const seedCount = readiness.metrics.winThemeSeedCount ?? 0;
+	const criteriaDetails: NonNullable<FinalSubmissionChecklistItem["details"]> = [];
+	if (readiness.evaluationCriteriaIds.length > 0) {
+		criteriaDetails.push({
+			label: "Evaluator criteria",
+			value: readiness.evaluationCriteriaIds.join(", "),
+			tone: "neutral",
+		});
+	}
+	if (readiness.winThemeCoveredEvaluationCriteriaIds.length > 0) {
+		criteriaDetails.push({
+			label: "Covered criteria",
+			value: readiness.winThemeCoveredEvaluationCriteriaIds.join(", "),
+			tone: "success",
+		});
+	}
+	if (readiness.missingWinThemeEvaluationCriteriaIds.length > 0) {
+		criteriaDetails.push({
+			label: "Missing criteria",
+			value: readiness.missingWinThemeEvaluationCriteriaIds.join(", "),
+			tone: "danger",
+		});
+	}
+
 	return {
 		id: "evidence:evaluator-win-theme-coverage",
 		category: "evidence",
@@ -415,6 +443,7 @@ function evaluatorWinThemeCoverageItem(
 		details: [
 			{ label: "Coverage", value: formatPercent(coverage), tone: passed ? "success" : "danger" },
 			{ label: "Win theme seeds", value: String(seedCount), tone: seedCount > 0 ? "neutral" : "warning" },
+			...criteriaDetails,
 			{ label: "Readiness workflow", value: readiness.workflowInstanceId, tone: "neutral" },
 		],
 	};
@@ -448,6 +477,11 @@ function responsePackageReadinessFromWorkflow(
 		blockers: stringArray(readiness.blockers),
 		warnings: stringArray(readiness.warnings),
 		missingRequirementIds: stringArray(readiness.missingRequirementIds),
+		evaluationCriteriaIds: stringArray(readiness.evaluationCriteriaIds),
+		draftCoveredEvaluationCriteriaIds: stringArray(readiness.draftCoveredEvaluationCriteriaIds),
+		winThemeCoveredEvaluationCriteriaIds: stringArray(readiness.winThemeCoveredEvaluationCriteriaIds),
+		missingDraftEvaluationCriteriaIds: stringArray(readiness.missingDraftEvaluationCriteriaIds),
+		missingWinThemeEvaluationCriteriaIds: stringArray(readiness.missingWinThemeEvaluationCriteriaIds),
 		metrics: responsePackageReadinessMetrics(readiness.metrics),
 	};
 }

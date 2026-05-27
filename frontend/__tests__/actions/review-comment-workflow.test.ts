@@ -100,11 +100,11 @@ const baseComment: Record<string, any> = {
 	comment: "The integration claim needs evidence and a specific acceptance test.",
 	suggestedChange: "Add prior project evidence and acceptance test detail.",
 	rationale: null,
-	evaluationCriteriaId: null,
+	evaluationCriteriaId: "33333333-3333-4333-8333-333333333333",
 	evaluationCriteriaRef: "M.2.1",
 	impactOnScore: "high",
-	relatedWinThemeId: null,
-	themeAlignment: null,
+	relatedWinThemeId: "44444444-4444-4444-8444-444444444444",
+	themeAlignment: "conflicts",
 	tags: [],
 	resolutionStatus: "open",
 	resolutionNotes: null,
@@ -232,6 +232,11 @@ describe("review comment workflow", () => {
 			status: "assigned",
 			sourceType: "review_comment",
 			sourceId: baseComment.id,
+			evaluationCriteriaIds: ["33333333-3333-4333-8333-333333333333"],
+			tags: [
+				"criterion:M.2.1",
+				"win-theme:44444444-4444-4444-8444-444444444444",
+			],
 		});
 		expect(recordWorkflowRuntimeTransition).toHaveBeenCalledWith(expect.objectContaining({
 			workflowKey: "review_comment_resolution",
@@ -241,11 +246,23 @@ describe("review comment workflow", () => {
 			priority: "high",
 			assignedTo: "writer-1",
 			assignedRole: "proposal_writer",
+			metadata: expect.objectContaining({
+				evaluationCriteriaId: "33333333-3333-4333-8333-333333333333",
+				evaluationCriteriaRef: "M.2.1",
+				relatedWinThemeId: "44444444-4444-4444-8444-444444444444",
+				themeAlignment: "conflicts",
+			}),
 		}));
 		expect(upsertWorkflowRuntimeTask).toHaveBeenCalledWith(expect.objectContaining({
 			taskKey: `review-comment:${baseComment.id}`,
 			state: "open",
 			priority: "high",
+			metadata: expect.objectContaining({
+				evaluationCriteriaId: "33333333-3333-4333-8333-333333333333",
+				evaluationCriteriaRef: "M.2.1",
+				relatedWinThemeId: "44444444-4444-4444-8444-444444444444",
+				themeAlignment: "conflicts",
+			}),
 		}));
 	});
 
