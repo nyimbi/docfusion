@@ -12,6 +12,7 @@ import { accounts, type CommercialInsights } from "@/lib/db/schema-crm";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/utils/logger";
 import { requireUserContext } from "@/lib/auth-utils";
+import { searchSearxng, type SearchOptions, type SearxngResult } from "@/lib/services/searxng-client";
 
 // ============================================================================
 // Types
@@ -50,6 +51,11 @@ export interface ResearchItem {
 	source?: string;
 	relevanceScore?: number;
 	extractedData?: Record<string, string | string[]>;
+}
+
+interface CategorySearchFailure {
+	category: ResearchCategory;
+	error: string;
 }
 
 export interface AccountResearchResponse {
@@ -172,6 +178,162 @@ function getCategoryTitle(category: ResearchCategory): string {
 	return titles[category];
 }
 
+function getCategorySearchOptions(category: ResearchCategory): SearchOptions {
+	switch (category) {
+		case "news":
+			return { categories: ["news"], time_range: "year", safesearch: 1 };
+		case "linkedin":
+		case "twitter":
+			return { categories: ["social media", "general"], safesearch: 1 };
+		default:
+			return { categories: ["general"], safesearch: 1 };
+	}
+}
+
+function sourceFromUrl(url: string | undefined): string | undefined {
+	if (!url) return undefined;
+	try {
+		return new URL(url).hostname.replace(/^www\./, "");
+	} catch {
+		return undefined;
+	}
+}
+
+function normalizeResearchItem(result: SearxngResult, index: number): ResearchItem {
+	return {
+		title: result.title?.trim() || "Untitled result",
+		snippet: result.content?.trim() || "",
+		url: result.url,
+		source: sourceFromUrl(result.url) ?? result.engine,
+		relevanceScore: Math.max(1, Math.min(100, Math.round((result.score || 0) * 20) || 100 - index * 8)),
+		extractedData: {
+			engine: result.engine,
+			category: result.category ?? "general",
+		},
+	};
+}
+
+function dedupeResearchItems(items: ResearchItem[]): ResearchItem[] {
+	const seen = new Set<string>();
+	const deduped: ResearchItem[] = [];
+
+	for (const item of items) {
+		const key = (item.url || `${item.title}:${item.snippet}`).toLowerCase();
+		if (seen.has(key)) continue;
+		seen.add(key);
+		deduped.push(item);
+	}
+
+	return deduped;
+}
+
+async function searchResearchCategory(
+	category: ResearchCategory,
+	query: string
+): Promise<{ result: ResearchResult; failure?: CategorySearchFailure }> {
+	try {
+		const response = await searchSearxng(query, getCategorySearchOptions(category));
+		const items = dedupeResearchItems(response.results.map(normalizeResearchItem)).slice(0, 5);
+		return {
+			result: {
+				category,
+				title: getCategoryTitle(category),
+				results: items,
+				searchQuery: query,
+				timestamp: new Date(),
+			},
+		};
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "Search failed";
+		logger.error(`Account research search failed for ${category}:`, error);
+		return {
+			result: {
+				category,
+				title: getCategoryTitle(category),
+				results: [],
+				searchQuery: query,
+				timestamp: new Date(),
+			},
+			failure: { category, error: message },
+		};
+	}
+}
+
+function firstUrlMatching(results: ResearchResult[], predicate: (item: ResearchItem) => boolean): string | undefined {
+	for (const item of results.flatMap((result) => result.results)) {
+		if (item.url && predicate(item)) return item.url;
+	}
+	return undefined;
+}
+
+function extractRegexValue(results: ResearchResult[], pattern: RegExp): string | undefined {
+	for (const text of results.flatMap((result) =>
+		result.results.flatMap((item) => [item.title, item.snippet])
+	)) {
+		const match = text.match(pattern);
+		if (match?.[0]) return match[0];
+	}
+	return undefined;
+}
+
+function buildSuggestedUpdates(
+	results: ResearchResult[],
+	request: ResearchRequest,
+	account: typeof accounts.$inferSelect
+): Partial<AccountUpdateSuggestion> | undefined {
+	const suggested: Partial<AccountUpdateSuggestion> = {};
+	const officialWebsite = request.website || firstUrlMatching(results, (item) => {
+		const source = item.source || "";
+		return !source.includes("linkedin.") && !source.includes("twitter.") && !source.includes("x.com");
+	});
+	const linkedinUrl = firstUrlMatching(results, (item) => (item.source || "").includes("linkedin."));
+	const email = extractRegexValue(results, /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+	const phone = extractRegexValue(results, /\+?\d[\d\s().-]{7,}\d/);
+	const leadership = results
+		.find((result) => result.category === "management")
+		?.results
+		.slice(0, 3)
+		.map((item) => item.title)
+		.join("; ");
+	const notableClients = results
+		.find((result) => result.category === "clients")
+		?.results
+		.slice(0, 3)
+		.map((item) => item.title)
+		.join("; ");
+	const description = results
+		.find((result) => result.category === "company_info" || result.category === "general")
+		?.results
+		.find((item) => item.snippet)
+		?.snippet;
+
+	if (!account.website && officialWebsite) suggested.website = officialWebsite;
+	if (!account.linkedinUrl && linkedinUrl) suggested.linkedinUrl = linkedinUrl;
+	if (!account.email && email) suggested.email = email;
+	if (!account.phone && phone) suggested.phone = phone;
+	if (!account.keyLeadership && leadership) suggested.keyLeadership = leadership;
+	if (!account.notableClients && notableClients) suggested.notableClients = notableClients;
+	if (!account.description && description) suggested.description = description;
+
+	return Object.keys(suggested).length > 0 ? suggested : undefined;
+}
+
+function buildResearchSummary(accountName: string, results: ResearchResult[], failures: CategorySearchFailure[]): string {
+	const resultCount = results.reduce((count, result) => count + result.results.length, 0);
+	const categoriesWithResults = results
+		.filter((result) => result.results.length > 0)
+		.map((result) => result.title);
+	const failureSummary = failures.length
+		? ` ${failures.length} categor${failures.length === 1 ? "y" : "ies"} could not be searched.`
+		: "";
+
+	if (resultCount === 0) {
+		return `No live research results were found for ${accountName}.${failureSummary}`.trim();
+	}
+
+	return `Found ${resultCount} live research result${resultCount === 1 ? "" : "s"} for ${accountName} across ${categoriesWithResults.join(", ")}.${failureSummary}`.trim();
+}
+
 /**
  * Research an account using web search
  *
@@ -208,25 +370,23 @@ export async function researchAccount(
 			request.categories
 		);
 
-		// For now, return structured results that will be populated by the client
-		// The actual web search will be performed by the client using WebSearch tool
-		const results: ResearchResult[] = [];
-
-		for (const [category, query] of queries.entries()) {
-			results.push({
-				category,
-				title: getCategoryTitle(category),
-				results: [],
-				searchQuery: query,
-				timestamp: new Date(),
-			});
-		}
+		const researched = await Promise.all(
+			Array.from(queries.entries()).map(([category, query]) =>
+				searchResearchCategory(category, query)
+			)
+		);
+		const results = researched.map((item) => item.result);
+		const failures = researched
+			.map((item) => item.failure)
+			.filter((failure): failure is CategorySearchFailure => Boolean(failure));
 
 		return {
 			success: true,
 			accountId: request.accountId,
 			accountName: account.name,
 			results,
+			summary: buildResearchSummary(account.name, results, failures),
+			suggestedUpdates: buildSuggestedUpdates(results, request, account),
 		};
 	} catch (error) {
 		logger.error("Error researching account:", error);

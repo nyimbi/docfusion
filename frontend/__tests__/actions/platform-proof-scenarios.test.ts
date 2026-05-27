@@ -147,6 +147,9 @@ describe("platform proof scenarios", () => {
 			expect.objectContaining({
 				id: "wave8-strategic-capability-workflows",
 				proofTargets: expect.arrayContaining(["S-001", "UX-018"]),
+				expectedArtifacts: expect.arrayContaining([
+					"vitest:crm-account-research-search",
+				]),
 			}),
 		]);
 		expect(listProofScenarios({ ids: ["wave9-discovery-rfp-response-bridge"] })).toEqual([

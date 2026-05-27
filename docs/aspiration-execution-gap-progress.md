@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - CRM Account Live Research
+
+Status: implemented and verified.
+
+Purpose: make account research gather live web intelligence server-side instead of returning empty client-populated placeholders.
+
+Changes in this slice:
+- Wire CRM account research to the existing SearXNG client for server-side company, contact, leadership, client, social, news, and general searches.
+- Return normalized research items with source domains, snippets, URLs, engine metadata, relevance scores, and query timestamps.
+- Keep successful category results when another category search fails, while surfacing the degradation in the research summary.
+- Derive suggested account updates for website, LinkedIn URL, email, phone, leadership, description, and notable clients from returned sources without mutating the account.
+- Add regression coverage proving SearXNG-backed research replaces empty placeholders and tolerates category-level search failures.
+- Extend the Wave 8 strategic capability proof manifest with CRM account research coverage.
+
+Verification:
+- `npm test -- crm-account-research-search.test.ts crm-account-research-auth.test.ts` from `frontend/` passed, running 3 tests.
+- `npm test -- platform-proof-scenarios.test.ts crm-account-research-search.test.ts crm-account-research-auth.test.ts` from `frontend/` passed, running 9 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` from `frontend/` passed, running 19 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Compliance Cross-Reference Suggestions
 
 Status: implemented and verified.
