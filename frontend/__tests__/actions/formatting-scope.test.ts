@@ -5,6 +5,8 @@ const requireUserContextMock = vi.hoisted(() => vi.fn());
 interface ChainConfig {
 	result?: unknown[];
 	onWhere?: (value: unknown) => void;
+	onSet?: (value: Record<string, unknown>) => void;
+	onValues?: (value: Record<string, unknown>) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
@@ -16,8 +18,14 @@ function createChain(config: ChainConfig = {}) {
 		config.onWhere?.(value);
 		return chain;
 	});
-	chain.values = vi.fn(() => chain);
-	chain.set = vi.fn(() => chain);
+	chain.values = vi.fn((value: Record<string, unknown>) => {
+		config.onValues?.(value);
+		return chain;
+	});
+	chain.set = vi.fn((value: Record<string, unknown>) => {
+		config.onSet?.(value);
+		return chain;
+	});
 	chain.returning = vi.fn(async () => config.result ?? []);
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
@@ -78,6 +86,7 @@ import {
 	exportFormattedDocument,
 	getDocumentFormat,
 	removeDocumentFormat,
+	validateFormatCompliance,
 } from "@/lib/actions/formatting";
 
 const documentId = "11111111-1111-4111-8111-111111111111";
@@ -161,5 +170,98 @@ describe("formatting document scoping", () => {
 		expect(sqlText).toContain("documents.owner_id");
 		expect(sqlText).toContain("documents.visibility");
 		expect(sqlText).toContain("format-user-1");
+	});
+
+	it("flags explicit font and spacing violations from document content", async () => {
+		let validationPayload: Record<string, unknown> | undefined;
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: documentId,
+					content: {
+						type: "doc",
+						content: [
+							{
+								type: "paragraph",
+								attrs: { lineSpacing: 1 },
+								content: [{
+									type: "text",
+									text: "Small Arial body text",
+									marks: [{ type: "textStyle", attrs: { fontFamily: "Arial", fontSize: 9 } }],
+								}],
+							},
+							{
+								type: "paragraph",
+								attrs: { lineSpacing: 1.5 },
+								content: [{
+									type: "text",
+									text: "Compliant Times New Roman body text",
+									marks: [{ type: "textStyle", attrs: { fontFamily: "Times New Roman", fontSize: 11 } }],
+								}],
+							},
+						],
+					},
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "format-1",
+					documentId,
+					templateId,
+					overrides: null,
+					hasOverrides: false,
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: templateId,
+					name: "Agency template",
+					description: null,
+					agencyCode: "AGENCY",
+					agencyName: "Agency",
+					bodyFont: "Times New Roman",
+					bodyFontSize: 11,
+					headingFont: "Arial",
+					lineSpacing: 1.5,
+					minimumFontSize: 10,
+					margins: { top: 1, bottom: 1, left: 1, right: 1 },
+					pageLimits: [],
+					requireImageAltText: false,
+				}],
+			}));
+		dbMock.insert.mockReturnValueOnce(createChain({
+			result: [{ id: "validation-1" }],
+			onValues: (value) => {
+				validationPayload = value;
+			},
+		}));
+		dbMock.update.mockReturnValueOnce(createChain());
+
+		const result = await validateFormatCompliance(documentId);
+
+		expect(result.fontCompliance).toBe(false);
+		expect(result.spacingCompliance).toBe(false);
+		expect(result.issues).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				type: "font_non_compliant",
+				message: expect.stringContaining("Arial"),
+				location: "Small Arial body text",
+			}),
+			expect.objectContaining({
+				type: "font_non_compliant",
+				message: expect.stringContaining("9pt"),
+				severity: "critical",
+			}),
+			expect.objectContaining({
+				type: "spacing_violation",
+				message: expect.stringContaining("1) does not match required spacing (1.5)"),
+			}),
+		]));
+		expect(validationPayload).toMatchObject({
+			fontCompliance: false,
+			nonCompliantFonts: ["Arial"],
+			spacingCompliance: false,
+			spacingViolationSections: ["Small Arial body text"],
+		});
 	});
 });

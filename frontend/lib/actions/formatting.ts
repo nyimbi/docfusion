@@ -722,6 +722,105 @@ function extractPlainText(content: unknown): string {
 	return "";
 }
 
+interface TextStyleRun {
+	text: string;
+	nodeType: string;
+	fontFamily?: string;
+	fontSize?: number;
+}
+
+interface BlockSpacingRun {
+	nodeType: string;
+	label: string;
+	lineSpacing: number;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? value as Record<string, unknown>
+		: null;
+}
+
+function readStringAttr(attrs: Record<string, unknown> | null, keys: string[]): string | undefined {
+	for (const key of keys) {
+		const value = attrs?.[key];
+		if (typeof value === "string" && value.trim()) return value.trim();
+	}
+	return undefined;
+}
+
+function readNumberAttr(attrs: Record<string, unknown> | null, keys: string[]): number | undefined {
+	for (const key of keys) {
+		const value = attrs?.[key];
+		if (typeof value === "number" && Number.isFinite(value)) return value;
+		if (typeof value === "string") {
+			const parsed = Number.parseFloat(value.replace(/pt|px|em|rem|x$/i, ""));
+			if (Number.isFinite(parsed)) return parsed;
+		}
+	}
+	return undefined;
+}
+
+function extractTextStyleRuns(content: unknown): TextStyleRun[] {
+	const runs: TextStyleRun[] = [];
+	const visit = (node: unknown, parentType: string) => {
+		const record = asRecord(node);
+		if (!record) return;
+		const nodeType = typeof record.type === "string" ? record.type : parentType;
+		const attrs = asRecord(record.attrs);
+		let fontFamily = readStringAttr(attrs, ["fontFamily", "font", "fontFace"]);
+		let fontSize = readNumberAttr(attrs, ["fontSize", "size"]);
+
+		if (Array.isArray(record.marks)) {
+			for (const mark of record.marks) {
+				const markAttrs = asRecord(asRecord(mark)?.attrs);
+				fontFamily = readStringAttr(markAttrs, ["fontFamily", "font", "fontFace"]) ?? fontFamily;
+				fontSize = readNumberAttr(markAttrs, ["fontSize", "size"]) ?? fontSize;
+			}
+		}
+
+		if (typeof record.text === "string" && record.text.trim()) {
+			runs.push({ text: record.text, nodeType: parentType, fontFamily, fontSize });
+		}
+		if (Array.isArray(record.content)) {
+			for (const child of record.content) {
+				visit(child, nodeType);
+			}
+		}
+	};
+	visit(content, "doc");
+	return runs;
+}
+
+function extractBlockSpacingRuns(content: unknown): BlockSpacingRun[] {
+	const runs: BlockSpacingRun[] = [];
+	const visit = (node: unknown) => {
+		const record = asRecord(node);
+		if (!record) return;
+		const nodeType = typeof record.type === "string" ? record.type : "";
+		const attrs = asRecord(record.attrs);
+		const lineSpacing = readNumberAttr(attrs, ["lineSpacing", "lineHeight"]);
+		if (lineSpacing !== undefined && ["paragraph", "heading", "listItem", "blockquote", "tableCell"].includes(nodeType)) {
+			runs.push({
+				nodeType,
+				label: extractPlainText(record).slice(0, 80) || nodeType,
+				lineSpacing,
+			});
+		}
+		if (Array.isArray(record.content)) {
+			for (const child of record.content) {
+				visit(child);
+			}
+		}
+	};
+	visit(content);
+	return runs;
+}
+
+function normalizeFontName(font: string | null | undefined): string {
+	return (font ?? "").replace(/["']/g, "").trim().toLowerCase();
+}
+
 /**
  * Extracts headings from document content for TOC generation.
  */
@@ -940,16 +1039,12 @@ function extractAcronyms(content: unknown): { acronym: string; definition: strin
  * Validates font compliance against template specifications.
  */
 function validateFontCompliance(
-	_content: unknown,
+	content: unknown,
 	template: FormatTemplate
 ): { compliant: boolean; issues: FormatIssue[]; fontsUsed: string[]; nonCompliantFonts: string[] } {
 	const issues: FormatIssue[] = [];
-	const fontsUsed: string[] = [];
-	const nonCompliantFonts: string[] = [];
-
-	// In a production implementation, this would analyze the document's
-	// actual font usage. For now, we'll return compliance based on
-	// whether specs are defined.
+	const fontsUsed = new Set<string>();
+	const nonCompliantFonts = new Set<string>();
 
 	if (!template.bodyFont) {
 		issues.push({
@@ -959,11 +1054,11 @@ function validateFontCompliance(
 			autoFixable: false,
 		});
 	} else {
-		fontsUsed.push(template.bodyFont);
+		fontsUsed.add(template.bodyFont);
 	}
 
 	if (template.headingFont) {
-		fontsUsed.push(template.headingFont);
+		fontsUsed.add(template.headingFont);
 	}
 
 	if (template.bodyFontSize && template.minimumFontSize) {
@@ -977,11 +1072,42 @@ function validateFontCompliance(
 		}
 	}
 
+	const runs = extractTextStyleRuns(content);
+	const bodyFont = normalizeFontName(template.bodyFont);
+	const headingFont = normalizeFontName(template.headingFont ?? template.bodyFont);
+	const minimumFontSize = template.minimumFontSize ?? template.bodyFontSize ?? 0;
+	for (const run of runs) {
+		if (run.fontFamily) {
+			fontsUsed.add(run.fontFamily);
+			const expectedFont = run.nodeType === "heading" ? headingFont : bodyFont;
+			if (expectedFont && normalizeFontName(run.fontFamily) !== expectedFont) {
+				nonCompliantFonts.add(run.fontFamily);
+				issues.push({
+					type: "font_non_compliant",
+					severity: "major",
+					message: `${run.nodeType === "heading" ? "Heading" : "Body"} text uses ${run.fontFamily}, expected ${run.nodeType === "heading" ? template.headingFont ?? template.bodyFont : template.bodyFont}`,
+					location: run.text.slice(0, 80),
+					autoFixable: true,
+				});
+			}
+		}
+		if (run.fontSize !== undefined && minimumFontSize > 0 && run.fontSize < minimumFontSize) {
+			issues.push({
+				type: "font_non_compliant",
+				severity: "critical",
+				message: `Text font size (${run.fontSize}pt) is below minimum (${minimumFontSize}pt)`,
+				location: run.text.slice(0, 80),
+				autoFixable: true,
+			});
+		}
+	}
+
+	const criticalOrMajorIssues = issues.filter(i => i.severity === "critical" || i.severity === "major");
 	return {
-		compliant: issues.filter(i => i.severity === "critical").length === 0,
+		compliant: criticalOrMajorIssues.length === 0,
 		issues,
-		fontsUsed,
-		nonCompliantFonts,
+		fontsUsed: Array.from(fontsUsed),
+		nonCompliantFonts: Array.from(nonCompliantFonts),
 	};
 }
 
@@ -1047,17 +1173,39 @@ function validateMarginCompliance(
  * Validates spacing compliance against template specifications.
  */
 function validateSpacingCompliance(
-	_content: unknown,
-	_template: FormatTemplate
+	content: unknown,
+	template: FormatTemplate
 ): { compliant: boolean; issues: FormatIssue[]; violationSections: string[] } {
 	const issues: FormatIssue[] = [];
 	const violationSections: string[] = [];
+	const expectedLineSpacing = template.lineSpacing ?? null;
 
-	// In production, would analyze actual document spacing
-	// For now, return compliant if specs are reasonable
+	if (expectedLineSpacing !== null && (expectedLineSpacing < 1 || expectedLineSpacing > 3)) {
+		issues.push({
+			type: "spacing_violation",
+			severity: "critical",
+			message: `Template line spacing (${expectedLineSpacing}) is outside the supported 1.0-3.0 range`,
+			autoFixable: false,
+		});
+	}
+
+	if (expectedLineSpacing !== null) {
+		for (const run of extractBlockSpacingRuns(content)) {
+			if (Math.abs(run.lineSpacing - expectedLineSpacing) > 0.05) {
+				violationSections.push(run.label);
+				issues.push({
+					type: "spacing_violation",
+					severity: "major",
+					message: `${run.nodeType} line spacing (${run.lineSpacing}) does not match required spacing (${expectedLineSpacing})`,
+					location: run.label,
+					autoFixable: true,
+				});
+			}
+		}
+	}
 
 	return {
-		compliant: issues.filter(i => i.severity === "critical").length === 0,
+		compliant: issues.length === 0,
 		issues,
 		violationSections,
 	};

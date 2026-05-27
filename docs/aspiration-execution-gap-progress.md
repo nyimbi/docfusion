@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Content-Aware Formatting Compliance
+
+Status: implemented and verified.
+
+Purpose: make final formatting validation inspect document content for explicit font and spacing violations instead of trusting template metadata alone.
+
+Changes in this slice:
+- Extract text style runs from Tiptap-style document content, including text-style marks and node attributes.
+- Flag body text that uses a font outside the required body font and text below the minimum font size.
+- Extract paragraph/heading/list/table spacing attributes and flag line-spacing deviations from the applied template.
+- Persist non-compliant fonts and spacing violation sections in the validation payload.
+- Extend the Wave 6 approval/production proof manifest with formatting compliance coverage.
+
+Verification:
+- `npm test -- formatting-scope.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 11 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 52 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Deterministic Practice Recording Analysis
 
 Status: implemented and verified.

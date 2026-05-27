@@ -134,6 +134,7 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["F-018", "F-021"]),
 				expectedArtifacts: expect.arrayContaining([
 					"vitest:document-render-pdf",
+					"vitest:formatting-scope",
 				]),
 			}),
 		]);
