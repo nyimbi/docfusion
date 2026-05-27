@@ -91,6 +91,11 @@ export interface FinalSubmissionChecklistItem {
 	message: string;
 	subjectId?: string | null;
 	assignedRole?: string | null;
+	details?: Array<{
+		label: string;
+		value: string;
+		tone?: "success" | "warning" | "danger" | "neutral";
+	}>;
 }
 
 export interface FinalSubmissionChecklistResult {
@@ -385,10 +390,17 @@ function evaluatorWinThemeCoverageItem(
 			message: "Response readiness did not report evaluator-to-win-theme coverage",
 			subjectId: readiness?.workflowInstanceId ?? null,
 			assignedRole: "capture_manager",
+			details: [
+				{ label: "Coverage", value: "Not reported", tone: "warning" },
+				...(readiness
+					? [{ label: "Readiness workflow", value: readiness.workflowInstanceId, tone: "neutral" as const }]
+					: []),
+			],
 		};
 	}
 
 	const passed = coverage >= 1;
+	const seedCount = readiness.metrics.winThemeSeedCount ?? 0;
 	return {
 		id: "evidence:evaluator-win-theme-coverage",
 		category: "evidence",
@@ -396,10 +408,15 @@ function evaluatorWinThemeCoverageItem(
 		required: true,
 		passed,
 		message: passed
-			? `Evaluator criteria are covered by ${readiness.metrics.winThemeSeedCount ?? 0} win theme seed${readiness.metrics.winThemeSeedCount === 1 ? "" : "s"}`
+			? `Evaluator criteria are covered by ${seedCount} win theme seed${seedCount === 1 ? "" : "s"}`
 			: `Only ${formatPercent(coverage)} of evaluator criteria are mapped to win themes`,
 		subjectId: readiness.workflowInstanceId,
 		assignedRole: "capture_manager",
+		details: [
+			{ label: "Coverage", value: formatPercent(coverage), tone: passed ? "success" : "danger" },
+			{ label: "Win theme seeds", value: String(seedCount), tone: seedCount > 0 ? "neutral" : "warning" },
+			{ label: "Readiness workflow", value: readiness.workflowInstanceId, tone: "neutral" },
+		],
 	};
 }
 

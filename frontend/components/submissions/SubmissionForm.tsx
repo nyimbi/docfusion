@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { RefreshCw } from "lucide-react";
 import type {
+	PreSubmissionChecklistDetail,
 	PreSubmissionChecklistItem,
 	SubmissionMethod,
 	Submission,
@@ -108,6 +109,7 @@ export function SubmissionForm({
 	const requiredItemsCompleted = checklist
 		.filter((item) => item.isRequired)
 		.every((item) => item.isCompleted);
+	const winThemeCoverageItem = checklist.find((item) => item.id === "evidence:evaluator-win-theme-coverage");
 
 	const handleSubmit = () => {
 		if (!submittedBy.trim()) {
@@ -171,10 +173,48 @@ export function SubmissionForm({
 					>
 						<RefreshCw className="h-4 w-4" />
 						Refresh
-					</Button>
-				</div>
-				<div className="space-y-2">
-					{checklist.map((item) => (
+						</Button>
+					</div>
+					{winThemeCoverageItem?.details?.length ? (
+						<div
+							className={cn(
+								"mb-3 rounded-md border p-3",
+								winThemeCoverageItem.isCompleted
+									? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20"
+									: winThemeCoverageItem.isRequired
+										? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20"
+										: "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20"
+							)}
+						>
+							<div className="flex flex-wrap items-center justify-between gap-2">
+								<p className="text-sm font-medium text-[var(--foreground)]">
+									Evaluator win-theme coverage
+								</p>
+								<span
+									className={cn(
+										"rounded px-2 py-0.5 text-xs font-medium",
+										winThemeCoverageItem.isCompleted
+											? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+											: winThemeCoverageItem.isRequired
+												? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+												: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+									)}
+								>
+									{winThemeCoverageItem.isCompleted ? "Covered" : winThemeCoverageItem.isRequired ? "Blocking" : "Advisory"}
+								</span>
+							</div>
+							<p className="mt-1 text-xs text-[var(--foreground-muted)]">
+								{winThemeCoverageItem.description}
+							</p>
+							<div className="mt-3 grid gap-2 sm:grid-cols-3">
+								{winThemeCoverageItem.details.map((detail) => (
+									<ChecklistDetailBadge key={`${detail.label}:${detail.value}`} detail={detail} />
+								))}
+							</div>
+						</div>
+					) : null}
+					<div className="space-y-2">
+						{checklist.map((item) => (
 						<label
 							key={item.id}
 							className={cn(
@@ -212,11 +252,18 @@ export function SubmissionForm({
 										</span>
 									)}
 								</div>
-								<p className="text-xs text-[var(--foreground-muted)]">
-									{item.description}
-								</p>
-							</div>
-						</label>
+									<p className="text-xs text-[var(--foreground-muted)]">
+										{item.description}
+									</p>
+									{item.details?.length && item.id !== "evidence:evaluator-win-theme-coverage" ? (
+										<div className="mt-2 flex flex-wrap gap-2">
+											{item.details.map((detail) => (
+												<ChecklistDetailBadge key={`${detail.label}:${detail.value}`} detail={detail} />
+											))}
+										</div>
+									) : null}
+								</div>
+							</label>
 					))}
 				</div>
 
@@ -368,6 +415,27 @@ function StatusBadge({ status }: { status: string }) {
 		>
 			{status.replace("_", " ")}
 		</span>
+	);
+}
+
+function ChecklistDetailBadge({ detail }: { detail: PreSubmissionChecklistDetail }) {
+	return (
+		<div
+			className={cn(
+				"rounded border bg-[var(--background)] px-2 py-1",
+				detail.tone === "success" && "border-green-200 text-green-700 dark:border-green-900 dark:text-green-300",
+				detail.tone === "warning" && "border-amber-200 text-amber-700 dark:border-amber-900 dark:text-amber-300",
+				detail.tone === "danger" && "border-red-200 text-red-700 dark:border-red-900 dark:text-red-300",
+				(!detail.tone || detail.tone === "neutral") && "border-[var(--border)] text-[var(--foreground)]"
+			)}
+		>
+			<p className="text-[10px] uppercase text-[var(--foreground-muted)]">
+				{detail.label}
+			</p>
+			<p className="break-words text-xs font-medium">
+				{detail.value}
+			</p>
+		</div>
 	);
 }
 

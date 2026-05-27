@@ -869,6 +869,11 @@ describe("final submission checklist workflow", () => {
 			passed: false,
 			subjectId: "response-package-workflow-criteria-gap",
 			assignedRole: "capture_manager",
+			details: [
+				{ label: "Coverage", value: "50%", tone: "danger" },
+				{ label: "Win theme seeds", value: "1", tone: "neutral" },
+				{ label: "Readiness workflow", value: "response-package-workflow-criteria-gap", tone: "neutral" },
+			],
 		});
 	});
 

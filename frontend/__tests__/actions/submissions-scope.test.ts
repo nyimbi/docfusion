@@ -193,13 +193,17 @@ describe("submission row scoping", () => {
 			warnings: [],
 			items: [
 				{
-					id: "compliance:matrix-lock",
-					category: "compliance",
-					label: "Compliance matrix final lock",
+					id: "evidence:evaluator-win-theme-coverage",
+					category: "evidence",
+					label: "Evaluator criteria win-theme coverage",
 					required: true,
 					passed: false,
-					message: "A final or submitted compliance matrix with approval is required",
-					assignedRole: "compliance_officer",
+					message: "Only 50% of evaluator criteria are mapped to win themes",
+					assignedRole: "capture_manager",
+					details: [
+						{ label: "Coverage", value: "50%", tone: "danger" },
+						{ label: "Win theme seeds", value: "1", tone: "neutral" },
+					],
 				},
 			],
 			dlpFindings: [],
@@ -212,12 +216,16 @@ describe("submission row scoping", () => {
 		expect(finalChecklistMock).toHaveBeenCalledWith(submission.opportunityId);
 		expect(checklist).toEqual([
 			expect.objectContaining({
-				id: "compliance:matrix-lock",
+				id: "evidence:evaluator-win-theme-coverage",
 				category: "compliance",
 				isRequired: true,
 				isCompleted: false,
 				isSystemVerified: true,
-				notes: "Owner: compliance_officer",
+				notes: "Owner: capture_manager",
+				details: [
+					{ label: "Coverage", value: "50%", tone: "danger" },
+					{ label: "Win theme seeds", value: "1", tone: "neutral" },
+				],
 			}),
 		]);
 	});

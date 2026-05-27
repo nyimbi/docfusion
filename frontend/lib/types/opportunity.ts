@@ -1524,6 +1524,12 @@ export interface RecordOutcomeInput {
 /**
  * Pre-submission checklist item.
  */
+export interface PreSubmissionChecklistDetail {
+	label: string;
+	value: string;
+	tone?: "success" | "warning" | "danger" | "neutral";
+}
+
 export interface PreSubmissionChecklistItem {
 	id: string;
 	label: string;
@@ -1535,6 +1541,7 @@ export interface PreSubmissionChecklistItem {
 	completedAt?: Date;
 	completedBy?: string;
 	notes?: string;
+	details?: PreSubmissionChecklistDetail[];
 }
 
 /**

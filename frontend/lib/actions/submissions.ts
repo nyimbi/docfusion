@@ -592,6 +592,7 @@ export async function getPreSubmissionChecklist(
 		isCompleted: item.passed,
 		isSystemVerified: true,
 		notes: item.assignedRole ? `Owner: ${item.assignedRole}` : undefined,
+		details: item.details,
 	}));
 }
 

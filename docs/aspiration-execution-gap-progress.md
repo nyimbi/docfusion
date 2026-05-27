@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Final Checklist Shows Win Theme Coverage
+
+Status: implemented and verified.
+
+Purpose: make the final submission blocker for evaluator-to-win-theme coverage visible and actionable in the submission UI instead of only appearing as a flat checklist message.
+
+Changes in this slice:
+- Add structured checklist detail rows for evaluator criteria win-theme coverage, seed count, and response-readiness workflow ID.
+- Preserve those details when converting the enforced final submission gate into pre-submission checklist items.
+- Render a dedicated evaluator win-theme coverage panel in the submission form with covered, blocking, or advisory state.
+- Keep non-win-theme checklist details renderable as compact evidence badges.
+
+Verification:
+- `npm test -- final-submission-checklist-workflow.test.ts submissions-scope.test.ts` from `frontend/` passed, running 22 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave6-final-submission-gate` from `frontend/` passed, running 21 tests across final checklist and submission workflows.
+
+Remaining after this slice:
+- Add the same evaluator/win-theme coverage summary to opportunity command-center readiness cards so capture managers see the gap before opening the submission form.
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - UN Procurement Live Source Recovery
 
 Status: implemented and verified.
@@ -95,7 +116,7 @@ Verification:
 - `npm run platform:proof -- --run wave6-final-submission-gate` from `frontend/` passed, running 21 tests across final checklist and submission workflows.
 
 Remaining after this slice:
-- Surface evaluator/win-theme coverage in the final submission UI so capture managers can see the exact strategy gap before submission.
+- Add the same evaluator/win-theme coverage summary to opportunity command-center readiness cards so capture managers see the gap before opening the submission form.
 - Rerun persisted live database proof when PostgreSQL is reachable.
 
 ### 2026-05-27 - Persisted Proof Covers Win Themes
