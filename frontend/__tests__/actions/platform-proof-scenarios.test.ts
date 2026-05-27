@@ -129,6 +129,9 @@ describe("platform proof scenarios", () => {
 			expect.objectContaining({
 				id: "wave6-approval-production-corrections",
 				proofTargets: expect.arrayContaining(["F-018", "F-021"]),
+				expectedArtifacts: expect.arrayContaining([
+					"vitest:document-render-pdf",
+				]),
 			}),
 		]);
 		expect(listProofScenarios({ ids: ["wave7-import-operations-governance"] })).toEqual([
@@ -165,6 +168,7 @@ describe("platform proof scenarios", () => {
 					"vitest:opportunity-discovery-route",
 					"vitest:rfp-parse-workflow",
 					"vitest:opportunity-document-download-route",
+					"vitest:document-render-pdf",
 					"vitest:documents-final-artifact-route",
 					"vitest:final-submission-checklist-workflow",
 					"vitest:submission-workflow",

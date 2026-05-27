@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Document PDF Render Artifacts
+
+Status: implemented and verified.
+
+Purpose: make document PDF rendering produce actual PDF artifacts for final response packages instead of reporting success while returning LaTeX source.
+
+Changes in this slice:
+- Replace the `renderToPDF` LaTeX placeholder path with an actual PDF buffer generated through the existing `jspdf` dependency.
+- Preserve document structure for PDF output, including headings, paragraphs, lists, block quotes, code blocks, table rows, rules, brand colors, metadata, headers, footers, and page numbers.
+- Preserve PDF export options for table of contents and watermark output.
+- Preserve inline text marks and image references so final artifacts do not silently flatten or drop response content.
+- Return `application/pdf`, `.pdf` filenames, byte size, and page count for PDF render results.
+- Add regression coverage proving direct and unified PDF rendering return a real `%PDF-` artifact and never LaTeX source.
+- Add regression coverage for multi-page pagination, table of contents, watermarks, marked text, and image references.
+- Extend Wave 6 production/finalization proof and Wave 9 discovery-to-submission proof manifests with the real PDF render regression.
+
+Verification:
+- `npm test -- document-render-pdf.test.ts document-render-auth.test.ts document-render-scope.test.ts final-artifact-workflow.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 24 tests.
+- `npm test -- platform-proof-scenarios.test.ts` from `frontend/` passed, running 6 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` from `frontend/` passed, running 47 tests.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` from `frontend/` passed, running 130 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Presentation Export Artifacts
 
 Status: implemented and verified.

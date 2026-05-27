@@ -22,7 +22,7 @@ import type {
 	ProposalDocumentType,
 	ProposalDocumentStatus,
 } from "@/lib/types/opportunity";
-import { tiptapToLatex, tiptapToPlainText } from "@/lib/render/latex-converter";
+import { tiptapToLatex } from "@/lib/render/latex-converter";
 import { tiptapToDocx } from "@/lib/render/docx-converter";
 import { tiptapToPptx, estimateSlideCount } from "@/lib/render/pptx-converter";
 import {
@@ -382,14 +382,437 @@ ${body}
 </html>`;
 }
 
+type PdfTextBlock = {
+	type: "heading" | "paragraph" | "listItem" | "code" | "quote" | "tableRow" | "rule" | "image";
+	text: string;
+	spans?: PdfTextSpan[];
+	level?: number;
+	indent?: number;
+	src?: string;
+	alt?: string;
+	width?: number;
+	height?: number;
+};
+
+type PdfTextSpan = {
+	text: string;
+	bold?: boolean;
+	italic?: boolean;
+	code?: boolean;
+	link?: string;
+};
+
+function normalizePdfText(text: string): string {
+	return text.replace(/\s+/g, " ").trim();
+}
+
+function extractTextFromNode(node: JSONContent): string {
+	if (node.type === "text") {
+		return node.text || "";
+	}
+	if (node.type === "hardBreak") {
+		return "\n";
+	}
+	return (node.content || []).map(extractTextFromNode).join("");
+}
+
+function extractSpansFromNode(node: JSONContent): PdfTextSpan[] {
+	if (node.type === "text") {
+		const span: PdfTextSpan = { text: node.text || "" };
+		for (const mark of node.marks || []) {
+			if (mark.type === "bold") span.bold = true;
+			if (mark.type === "italic") span.italic = true;
+			if (mark.type === "code") span.code = true;
+			if (mark.type === "link") span.link = mark.attrs?.href;
+		}
+		return span.text ? [span] : [];
+	}
+	if (node.type === "hardBreak") {
+		return [{ text: "\n" }];
+	}
+	return (node.content || []).flatMap(extractSpansFromNode);
+}
+
+function textFromSpans(spans: PdfTextSpan[]): string {
+	return normalizePdfText(spans.map((span) => span.text).join(""));
+}
+
+function extractListBlocks(node: JSONContent, ordered: boolean, depth = 0): PdfTextBlock[] {
+	return (node.content || []).flatMap((item, index) => {
+		const childBlocks: PdfTextBlock[] = [];
+		const directSpans = (item.content || [])
+			.filter((child) => child.type === "paragraph")
+			.flatMap(extractSpansFromNode);
+		const label = ordered ? `${index + 1}.` : "-";
+		childBlocks.push({
+			type: "listItem",
+			text: `${label} ${textFromSpans(directSpans)}`,
+			spans: [{ text: `${label} ` }, ...directSpans],
+			indent: depth,
+		});
+		for (const child of item.content || []) {
+			if (child.type === "bulletList") {
+				childBlocks.push(...extractListBlocks(child, false, depth + 1));
+			}
+			if (child.type === "orderedList") {
+				childBlocks.push(...extractListBlocks(child, true, depth + 1));
+			}
+		}
+		return childBlocks;
+	}).filter((block) => block.text.trim() !== "-" && !/^\d+\.$/.test(block.text.trim()));
+}
+
+function extractPdfBlocks(content: JSONContent): PdfTextBlock[] {
+	const convertNode = (node: JSONContent): PdfTextBlock[] => {
+		switch (node.type) {
+			case "heading": {
+				const headingSpans = extractSpansFromNode(node);
+				return [{
+					type: "heading",
+					level: Number(node.attrs?.level || 1),
+					text: textFromSpans(headingSpans),
+					spans: headingSpans,
+				}];
+			}
+			case "paragraph": {
+				const spans = extractSpansFromNode(node);
+				const text = textFromSpans(spans);
+				return text ? [{ type: "paragraph", text, spans }] : [];
+			}
+			case "bulletList":
+				return extractListBlocks(node, false);
+			case "orderedList":
+				return extractListBlocks(node, true);
+			case "blockquote": {
+				const spans = extractSpansFromNode(node);
+				const text = textFromSpans(spans);
+				return text ? [{ type: "quote", text, spans }] : [];
+			}
+			case "codeBlock": {
+				const text = node.content?.[0]?.text?.trim() || "";
+				return text ? [{ type: "code", text }] : [];
+			}
+			case "table":
+				return (node.content || []).map((row): PdfTextBlock => ({
+					type: "tableRow",
+					text: (row.content || [])
+						.map((cell) => normalizePdfText(extractTextFromNode(cell)))
+						.filter(Boolean)
+						.join(" | "),
+				})).filter((block) => block.text);
+			case "image": {
+				const src = typeof node.attrs?.src === "string" ? node.attrs.src : "";
+				const alt = typeof node.attrs?.alt === "string" ? node.attrs.alt : "";
+				const text = alt ? `Image: ${alt}` : src ? `Image: ${src}` : "Image";
+				return [{
+					type: "image",
+					text,
+					src,
+					alt,
+					width: typeof node.attrs?.width === "number" ? node.attrs.width : undefined,
+					height: typeof node.attrs?.height === "number" ? node.attrs.height : undefined,
+				}];
+			}
+			case "horizontalRule":
+				return [{ type: "rule", text: "" }];
+			default:
+				return (node.content || []).flatMap(convertNode);
+		}
+	};
+
+	return (content.content || []).flatMap(convertNode);
+}
+
+function parseHexColor(value: string | undefined, fallback: [number, number, number]): [number, number, number] {
+	if (!value) return fallback;
+	const match = value.trim().match(/^#?([0-9a-f]{6})$/i);
+	if (!match) return fallback;
+	const hex = match[1];
+	return [
+		Number.parseInt(hex.slice(0, 2), 16),
+		Number.parseInt(hex.slice(2, 4), 16),
+		Number.parseInt(hex.slice(4, 6), 16),
+	];
+}
+
+async function buildPdfBuffer(
+	doc: { content: JSONContent; title: string; wordCount: number },
+	options: RenderOptions
+): Promise<{ buffer: Buffer; pageCount: number }> {
+	const { jsPDF } = await import("jspdf");
+	const orientation = options.orientation === "landscape" ? "landscape" : "portrait";
+	const format = options.paperSize === "a4" || options.paperSize === "legal" ? options.paperSize : "letter";
+	const pdf = new jsPDF({ orientation, unit: "pt", format });
+	const pageWidth = pdf.internal.pageSize.getWidth();
+	const pageHeight = pdf.internal.pageSize.getHeight();
+	const margins = {
+		top: (options.margins?.top ?? 0.75) * 72,
+		bottom: (options.margins?.bottom ?? 0.75) * 72,
+		left: (options.margins?.left ?? 0.75) * 72,
+		right: (options.margins?.right ?? 0.75) * 72,
+	};
+	const bodyWidth = pageWidth - margins.left - margins.right;
+	const title = options.metadata?.title || doc.title;
+	const [brandR, brandG, brandB] = parseHexColor(options.branding?.primaryColor, [31, 41, 55]);
+	const [mutedR, mutedG, mutedB] = parseHexColor(options.branding?.secondaryColor, [75, 85, 99]);
+
+	pdf.setProperties({
+		title,
+		author: options.metadata?.author || options.branding?.companyName || "DocFusion",
+		subject: options.metadata?.subject,
+		keywords: options.metadata?.keywords?.join(", "),
+		creator: "DocFusion",
+	});
+
+	let y = margins.top;
+	let currentPage = 1;
+	const pageNumbers: number[] = [1];
+
+	const setSpanFont = (span: PdfTextSpan, fallbackStyle: "normal" | "bold" | "italic" = "normal") => {
+		const family = span.code ? "courier" : "helvetica";
+		const style = span.bold && span.italic ? "bolditalic" : span.bold ? "bold" : span.italic ? "italic" : fallbackStyle;
+		pdf.setFont(family, style);
+		if (span.link) {
+			pdf.setTextColor(37, 99, 235);
+		}
+	};
+
+	const addWatermark = () => {
+		if (!options.watermark) return;
+		pdf.setFont("helvetica", "bold");
+		pdf.setFontSize(58);
+		pdf.setTextColor(229, 231, 235);
+		pdf.text(options.watermark, pageWidth / 2, pageHeight / 2, {
+			align: "center",
+			angle: -35,
+		});
+	};
+
+	const addHeaderFooter = () => {
+		addWatermark();
+		if (options.includeHeader || options.headerContent || options.branding?.companyName) {
+			pdf.setFont("helvetica", "normal");
+			pdf.setFontSize(9);
+			pdf.setTextColor(mutedR, mutedG, mutedB);
+			pdf.text(options.headerContent || options.branding?.companyName || title, margins.left, margins.top - 22, {
+				maxWidth: bodyWidth,
+			});
+		}
+		if (options.includeFooter || options.footerContent || options.includePageNumbers !== false) {
+			pdf.setFont("helvetica", "normal");
+			pdf.setFontSize(9);
+			pdf.setTextColor(mutedR, mutedG, mutedB);
+			const footerText = [
+				options.footerContent,
+				options.includePageNumbers !== false ? `Page ${currentPage}` : null,
+			].filter(Boolean).join("    ");
+			pdf.text(footerText, margins.left, pageHeight - Math.max(24, margins.bottom / 2), {
+				maxWidth: bodyWidth,
+			});
+		}
+	};
+
+	const addPageIfNeeded = (requiredHeight: number) => {
+		if (y + requiredHeight <= pageHeight - margins.bottom) return;
+		pdf.addPage();
+		currentPage += 1;
+		pageNumbers.push(currentPage);
+		y = margins.top;
+	};
+
+	const writeWrappedText = (
+		text: string,
+		x: number,
+		maxWidth: number,
+		lineHeight: number,
+		afterSpacing: number
+	) => {
+		const lines = pdf.splitTextToSize(text, maxWidth) as string[];
+		for (const line of lines) {
+			addPageIfNeeded(lineHeight);
+			pdf.text(line, x, y);
+			y += lineHeight;
+		}
+		addPageIfNeeded(afterSpacing);
+		y += afterSpacing;
+	};
+
+	const writeRichText = (
+		spans: PdfTextSpan[] | undefined,
+		x: number,
+		maxWidth: number,
+		fontSize: number,
+		lineHeight: number,
+		afterSpacing: number,
+		fallbackStyle: "normal" | "bold" | "italic",
+		color: [number, number, number]
+	) => {
+		if (!spans || spans.length === 0) return;
+		let cursorX = x;
+		addPageIfNeeded(lineHeight);
+		for (const span of spans) {
+			const tokens = span.text.split(/(\s+)/).filter((token) => token.length > 0);
+			for (const token of tokens) {
+				if (token.includes("\n")) {
+					y += lineHeight;
+					cursorX = x;
+					addPageIfNeeded(lineHeight);
+					continue;
+				}
+				pdf.setFontSize(fontSize);
+				pdf.setTextColor(...color);
+				setSpanFont(span, fallbackStyle);
+				const width = pdf.getTextWidth(token);
+				if (!/^\s+$/.test(token) && cursorX > x && cursorX + width > x + maxWidth) {
+					y += lineHeight;
+					cursorX = x;
+					addPageIfNeeded(lineHeight);
+				}
+				pdf.text(token, cursorX, y);
+				cursorX += width;
+			}
+		}
+		y += lineHeight;
+		addPageIfNeeded(afterSpacing);
+		y += afterSpacing;
+	};
+
+	const writeTableOfContents = (blocks: PdfTextBlock[]) => {
+		if (!options.includeTableOfContents) return;
+		const headings = blocks.filter((block) => block.type === "heading" && block.text);
+		if (headings.length === 0) return;
+		pdf.setFont("helvetica", "bold");
+		pdf.setFontSize(14);
+		pdf.setTextColor(brandR, brandG, brandB);
+		writeWrappedText("Table of Contents", margins.left, bodyWidth, 18, 8);
+		for (const heading of headings) {
+			const indent = Math.max(0, (heading.level || 1) - 1) * 14;
+			pdf.setFont("helvetica", heading.level === 1 ? "bold" : "normal");
+			pdf.setFontSize(10);
+			pdf.setTextColor(17, 24, 39);
+			writeWrappedText(heading.text, margins.left + indent, bodyWidth - indent, 13, 2);
+		}
+		y += 10;
+	};
+
+	const renderImageBlock = (block: PdfTextBlock) => {
+		addPageIfNeeded(120);
+		const src = block.src || "";
+		const imageType = src.match(/^data:image\/(png|jpe?g|webp);base64,/i)?.[1]?.toUpperCase().replace("JPG", "JPEG");
+		if (imageType) {
+			try {
+				const requestedWidth = block.width && block.width > 0 ? block.width : bodyWidth;
+				const requestedHeight = block.height && block.height > 0 ? block.height : requestedWidth * 0.56;
+				const displayWidth = Math.min(bodyWidth, requestedWidth);
+				const displayHeight = Math.min(pageHeight - margins.bottom - y, requestedHeight * (displayWidth / requestedWidth));
+				pdf.addImage(src, imageType, margins.left, y, displayWidth, Math.max(48, displayHeight));
+				y += Math.max(48, displayHeight) + 8;
+				if (block.alt) {
+					pdf.setFont("helvetica", "italic");
+					pdf.setFontSize(9);
+					pdf.setTextColor(75, 85, 99);
+					writeWrappedText(block.alt, margins.left, bodyWidth, 12, 8);
+				}
+				return;
+			} catch {
+				// Fall through to a textual image reference so the artifact does not lose content.
+			}
+		}
+		pdf.setFont("helvetica", "italic");
+		pdf.setFontSize(10);
+		pdf.setTextColor(75, 85, 99);
+		writeWrappedText(block.src ? `${block.text} (${block.src})` : block.text, margins.left, bodyWidth, 14, 8);
+	};
+
+	pdf.setFont("helvetica", "bold");
+	pdf.setFontSize(22);
+	pdf.setTextColor(brandR, brandG, brandB);
+	writeWrappedText(title, margins.left, bodyWidth, 26, 18);
+
+	if (options.metadata?.author || options.branding?.companyName) {
+		pdf.setFont("helvetica", "normal");
+		pdf.setFontSize(10);
+		pdf.setTextColor(mutedR, mutedG, mutedB);
+		writeWrappedText(options.metadata?.author || options.branding?.companyName || "", margins.left, bodyWidth, 13, 16);
+	}
+
+	const blocks = extractPdfBlocks(doc.content);
+	writeTableOfContents(blocks);
+
+	for (const block of blocks) {
+		switch (block.type) {
+			case "heading": {
+				const fontSize = block.level === 1 ? 18 : block.level === 2 ? 15 : 13;
+				pdf.setFont("helvetica", "bold");
+				pdf.setFontSize(fontSize);
+				pdf.setTextColor(brandR, brandG, brandB);
+				writeRichText(block.spans, margins.left, bodyWidth, fontSize, fontSize + 5, 10, "bold", [brandR, brandG, brandB]);
+				break;
+			}
+			case "listItem": {
+				const indent = (block.indent || 0) * 18;
+				pdf.setFont("helvetica", "normal");
+				pdf.setFontSize(11);
+				pdf.setTextColor(17, 24, 39);
+				writeRichText(block.spans, margins.left + indent, bodyWidth - indent, 11, 15, 5, "normal", [17, 24, 39]);
+				break;
+			}
+			case "quote":
+				pdf.setFont("helvetica", "italic");
+				pdf.setFontSize(11);
+				pdf.setTextColor(55, 65, 81);
+				writeRichText(block.spans, margins.left + 16, bodyWidth - 16, 11, 15, 8, "italic", [55, 65, 81]);
+				break;
+			case "code":
+				pdf.setFont("courier", "normal");
+				pdf.setFontSize(9);
+				pdf.setTextColor(31, 41, 55);
+				writeWrappedText(block.text, margins.left + 12, bodyWidth - 12, 12, 8);
+				break;
+			case "tableRow":
+				pdf.setFont("helvetica", "normal");
+				pdf.setFontSize(9);
+				pdf.setTextColor(17, 24, 39);
+				writeWrappedText(block.text, margins.left, bodyWidth, 13, 5);
+				break;
+			case "rule":
+				addPageIfNeeded(14);
+				pdf.setDrawColor(209, 213, 219);
+				pdf.line(margins.left, y, pageWidth - margins.right, y);
+				y += 14;
+				break;
+			case "image":
+				renderImageBlock(block);
+				break;
+			case "paragraph":
+			default:
+				pdf.setFont("helvetica", "normal");
+				pdf.setFontSize(11);
+				pdf.setTextColor(17, 24, 39);
+				writeRichText(block.spans, margins.left, bodyWidth, 11, 15, 8, "normal", [17, 24, 39]);
+				break;
+		}
+	}
+
+	for (const page of pageNumbers) {
+		pdf.setPage(page);
+		currentPage = page;
+		addHeaderFooter();
+	}
+
+	const pdfBytes = pdf.output("arraybuffer") as ArrayBuffer;
+	return {
+		buffer: Buffer.from(pdfBytes),
+		pageCount: pageNumbers.length,
+	};
+}
+
 // ============================================================================
 // Render Functions
 // ============================================================================
 
 /**
- * Render document to PDF (via LaTeX compilation).
- * Note: Actual LaTeX to PDF compilation would require a backend service
- * like latex-online or a local TeX installation.
+ * Render document to PDF.
  */
 export async function renderToPDF(
 	documentId: string,
@@ -404,8 +827,7 @@ export async function renderToPDF(
 			return { success: false, format: "pdf", error: "Document not found" };
 		}
 
-		// Generate LaTeX
-		const latex = tiptapToLatex(doc.content, {
+		const { buffer, pageCount } = await buildPdfBuffer(doc, {
 			...options,
 			metadata: {
 				...options.metadata,
@@ -413,23 +835,15 @@ export async function renderToPDF(
 			},
 		});
 
-		// In a production environment, you would:
-		// 1. Send LaTeX to a compilation service (e.g., latex.online, TeXLive API)
-		// 2. Receive the compiled PDF
-		// 3. Return the PDF data
-
-		// For now, return the LaTeX source with instructions
-		const latexBuffer = Buffer.from(latex, "utf-8");
-
 		return {
 			success: true,
 			format: "pdf",
-			data: latexBuffer.toString("base64"),
-			size: latexBuffer.length,
-			mimeType: "application/x-latex", // Return LaTeX, needs external compilation
-			filename: generateFilename(doc.title, "latex"),
+			data: buffer.toString("base64"),
+			size: buffer.length,
+			mimeType: MIME_TYPES.pdf,
+			filename: generateFilename(doc.title, "pdf"),
 			renderTimeMs: Date.now() - startTime,
-			// Note: PDF compilation would happen externally
+			pageCount,
 		};
 	} catch (error) {
 		return {
