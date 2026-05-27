@@ -9,7 +9,7 @@ interface ChainConfig {
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "limit", "orderBy", "values"]) {
+	for (const method of ["from", "limit", "orderBy", "values", "set"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	chain.where = vi.fn((value: unknown) => {
@@ -77,6 +77,7 @@ import {
 	assessPwin,
 	compareOpportunities,
 	forecastWinProbabilities,
+	getRecommendationsToImprovePwin,
 	getPortfolioMetrics,
 	optimizePortfolio,
 	rankOpportunities,
@@ -248,5 +249,79 @@ describe("PWin opportunity scoping", () => {
 
 		expect(result.success).toBe(true);
 		expectAssignedOpportunityScope(forecastWhere);
+	});
+
+	it("generates heuristic recommendations for moderate PWin improvement opportunities", async () => {
+		const assessment = {
+			id: "assessment-1",
+			organizationId: "org-1",
+			calculatedPwin: 61,
+			factorScores: [
+				{
+					factorId: "factor-solution",
+					factorName: "Solution Fit",
+					score: 7,
+					weight: 2,
+				},
+				{
+					factorId: "factor-price",
+					factorName: "Price Competitiveness",
+					score: 8,
+					weight: 1,
+				},
+			],
+			sensitivityAnalysis: [
+				{
+					factorId: "factor-solution",
+					factorName: "Solution Fit",
+					currentScore: 7,
+					impactIfImproved: 4,
+					improvementPotential: 2,
+				},
+				{
+					factorId: "factor-price",
+					factorName: "Price Competitiveness",
+					currentScore: 8,
+					impactIfImproved: 2,
+					improvementPotential: 1,
+				},
+			],
+		};
+		let updateValues: unknown;
+		const updateChain = createChain({
+			onWhere: (value) => {
+				expect(collectSqlFragments(value).join(" ")).toContain("org-1");
+			},
+		});
+		updateChain.set.mockImplementation((value: unknown) => {
+			updateValues = value;
+			return updateChain;
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{
+				id: "33333333-3333-4333-8333-333333333333",
+				title: "Revenue authority platform",
+				assignedTo: "pwin-user-1",
+			}] }))
+			.mockReturnValueOnce(createChain({ result: [assessment] }));
+		dbMock.update.mockReturnValueOnce(updateChain);
+
+		const result = await getRecommendationsToImprovePwin("33333333-3333-4333-8333-333333333333");
+
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data).toHaveLength(2);
+			expect(result.data[0]).toMatchObject({
+				factorId: "factor-solution",
+				factorName: "Solution Fit",
+				priority: "low",
+				expectedImpact: 4,
+			});
+			expect(result.data[0].recommendation).toContain("expected +4 PWin points");
+			expect(result.data[0].recommendation).toContain("current score 7/10");
+		}
+		expect(updateValues).toEqual({
+			recommendations: result.success ? result.data : [],
+		});
 	});
 });

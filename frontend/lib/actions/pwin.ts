@@ -1390,42 +1390,66 @@ function generateHeuristicRecommendations(
 ): PwinRecommendation[] {
 	const recommendations: PwinRecommendation[] = [];
 
-	// Focus on high-impact factors with improvement potential
-	const highImpactFactors = sensitivity.filter(s => s.priority === "high" || s.impactIfMaximized >= 8);
+	const scoreByFactorId = new Map(scores.map(score => [score.factorId, score]));
+	const actionableSensitivity = sensitivity
+		.filter(s => s.currentScore < s.maxScore && s.impactIfMaximized > 0)
+		.sort((a, b) => {
+			const priorityRank = { high: 3, medium: 2, low: 1 };
+			const priorityDiff = priorityRank[b.priority] - priorityRank[a.priority];
+			if (priorityDiff !== 0) return priorityDiff;
+			return b.impactIfMaximized - a.impactIfMaximized;
+		});
 
-	for (const factor of highImpactFactors.slice(0, 3)) {
+	const fallbackSensitivity = scores
+		.filter(score => score.score < 10 && !actionableSensitivity.some(s => s.factorId === score.factorId))
+		.map(score => ({
+			factorId: score.factorId,
+			factorName: score.factorName,
+			currentScore: score.score,
+			maxScore: 10,
+			weight: score.weight,
+			impactIfMaximized: Math.round((10 - score.score) * score.weight * 10) / 10,
+			impactPerPoint: score.weight,
+			improvementPotential: Math.round(((10 - score.score) / 10) * 100),
+			priority: score.score <= 4 ? "high" as const : score.score <= 7 ? "medium" as const : "low" as const,
+		}))
+		.sort((a, b) => b.impactIfMaximized - a.impactIfMaximized);
+
+	for (const factor of [...actionableSensitivity, ...fallbackSensitivity].slice(0, 3)) {
 		let recommendation = "";
 		let effort: "low" | "medium" | "high" = "medium";
 		let timeframe: "immediate" | "short_term" | "long_term" = "short_term";
+		const currentScore = scoreByFactorId.get(factor.factorId)?.score ?? factor.currentScore;
+		const impactLabel = `expected +${Math.round(factor.impactIfMaximized * 10) / 10} PWin point${Math.round(factor.impactIfMaximized * 10) / 10 === 1 ? "" : "s"}`;
 
 		switch (factor.factorName.toLowerCase()) {
 			case "customer relationship":
-				recommendation = "Schedule executive engagement meeting with key customer stakeholders";
+				recommendation = `Schedule executive engagement meeting with key customer stakeholders (${impactLabel}; current score ${currentScore}/10)`;
 				effort = "medium";
 				timeframe = "immediate";
 				break;
 			case "solution fit":
-				recommendation = "Conduct solution alignment workshop to identify additional customer requirements";
+				recommendation = `Conduct solution alignment workshop to identify additional customer requirements (${impactLabel}; current score ${currentScore}/10)`;
 				effort = "medium";
 				timeframe = "short_term";
 				break;
 			case "price competitiveness":
-				recommendation = "Review pricing strategy and identify cost reduction opportunities";
+				recommendation = `Review pricing strategy and identify cost reduction opportunities (${impactLabel}; current score ${currentScore}/10)`;
 				effort = "high";
 				timeframe = "short_term";
 				break;
 			case "past performance match":
-				recommendation = "Document additional relevant past performance and collect customer references";
+				recommendation = `Document additional relevant past performance and collect customer references (${impactLabel}; current score ${currentScore}/10)`;
 				effort = "low";
 				timeframe = "immediate";
 				break;
 			case "team qualifications":
-				recommendation = "Strengthen key personnel qualifications or identify alternative candidates";
+				recommendation = `Strengthen key personnel qualifications or identify alternative candidates (${impactLabel}; current score ${currentScore}/10)`;
 				effort = "medium";
 				timeframe = "short_term";
 				break;
 			default:
-				recommendation = `Develop action plan to improve ${factor.factorName} score`;
+				recommendation = `Develop action plan to improve ${factor.factorName} score (${impactLabel}; current score ${currentScore}/10)`;
 		}
 
 		recommendations.push({

@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Actionable PWin Recommendation Fallbacks
+
+Status: implemented and verified.
+
+Purpose: stop PWin improvement fallback generation from returning a successful empty recommendation set when moderate but actionable factor weaknesses are present.
+
+Changes in this slice:
+- Generate heuristic recommendations for all actionable sensitivity factors, not only high-priority/high-impact factors.
+- Fall back to scored factor gaps when stored sensitivity rows are missing or incomplete.
+- Include expected PWin impact and current factor score in deterministic recommendation text.
+- Preserve prioritization by factor priority and impact while limiting output to the top three actions.
+- Add regression coverage proving moderate sensitivity evidence produces persisted recommendations instead of an empty success.
+
+Verification:
+- `npm test -- pwin-opportunity-scope.test.ts` passed with 8 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 133 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing successful empty response-support outputs where the domain has enough evidence to produce actionable guidance.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Evidence-Based Win/Loss Pattern Confidence
 
 Status: implemented and verified.
