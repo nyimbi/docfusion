@@ -103,6 +103,31 @@ The procuring entity invites eligible consultants to submit a technical and fina
 		);
 	});
 
+	it("extracts evaluator criteria from unweighted RFP evaluation lists", () => {
+		const unweightedEvaluationText = `
+## EVALUATION CRITERIA
+1. Understanding of the Terms of Reference and proposed technical approach.
+2. Methodology, sampling plan, data collection quality controls, and reporting schedule.
+3. Relevant experience with similar assignments and qualifications of key personnel.
+4. Financial proposal, price realism, assumptions, and reimbursable costs.
+		`;
+
+		const criteria = extractLiveResponseEvaluationSignals(unweightedEvaluationText);
+
+		expect(criteria).toHaveLength(4);
+		expect(criteria.map((criterion) => criterion.documentType)).toEqual([
+			"technical_approach",
+			"technical_approach",
+			"past_performance",
+			"cost_proposal",
+		]);
+		expect(criteria[0]).toMatchObject({
+			id: "LIVE-EVAL-001",
+			sourceSection: "EVALUATION CRITERIA",
+			weight: undefined,
+		});
+	});
+
 	it("builds win theme seeds from evaluator criteria", () => {
 		const requirements = extractLiveResponseRequirementSignals(sourceText);
 		const evaluationCriteria = extractLiveResponseEvaluationSignals(sourceText);
@@ -129,6 +154,36 @@ The procuring entity invites eligible consultants to submit a technical and fina
 				expect.stringContaining("Datacraft evidence shortcut"),
 			])
 		);
+	});
+
+	it("keeps win theme coverage for evaluator criteria beyond eight rows", () => {
+		const multiCriteriaSourceText = `
+## Scope of Services
+The consultant must provide a technical methodology, work plan, personnel, similar experience, and financial proposal for the assignment.
+## Evaluation Criteria
+1. Technical approach will be evaluated at 10 points.
+2. Understanding of the Terms of Reference will be evaluated at 10 points.
+3. Methodology and sampling plan will be evaluated at 10 points.
+4. Data collection quality controls will be evaluated at 10 points.
+5. Reporting schedule and work plan will be evaluated at 10 points.
+6. Organization and team composition will be evaluated at 10 points.
+7. Key personnel qualifications will be evaluated at 10 points.
+8. Similar assignment experience will be evaluated at 10 points.
+9. Financial proposal price realism will be evaluated at 10 points.
+10. Compliance with submission instructions will be evaluated at 10 points.
+		`;
+
+		const responsePackage = buildLiveResponsePackage({
+			opportunity,
+			sourceText: multiCriteriaSourceText,
+			generatedAt: new Date("2026-05-27T00:00:00.000Z"),
+		});
+
+		expect(responsePackage.evaluationCriteria).toHaveLength(10);
+		expect(responsePackage.winThemeSeeds).toHaveLength(10);
+		expect(responsePackage.readiness.status).toBe("ready_for_review");
+		expect(responsePackage.readiness.winThemeCoveredEvaluationCriteriaIds).toEqual(responsePackage.readiness.evaluationCriteriaIds);
+		expect(responsePackage.readiness.missingWinThemeEvaluationCriteriaIds).toEqual([]);
 	});
 
 	it("builds concrete response draft documents with requirement coverage", () => {

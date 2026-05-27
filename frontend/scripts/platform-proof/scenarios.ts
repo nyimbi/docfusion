@@ -456,6 +456,7 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 				LIVE_RESPONSE_READINESS_SOURCE_KIND: "kenya_ppip",
 				LIVE_RESPONSE_READINESS_SOURCE_URL: "https://tenders.go.ke/tenders",
 				LIVE_RESPONSE_READINESS_PROOF_PREFIX: "live_kenya_ppip_response_readiness",
+				LIVE_RESPONSE_READINESS_PAGE_LIMIT: "25",
 			},
 		},
 		expectedArtifacts: [

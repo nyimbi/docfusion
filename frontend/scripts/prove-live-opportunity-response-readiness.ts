@@ -11,7 +11,7 @@ import {
 	type EvidenceRecord,
 } from "./platform-proof/core";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
-import { checkDoclingHealth, convertDocument } from "@/lib/services/docling-client";
+import { checkDoclingHealth, convertDocument, type DoclingConvertResponse } from "@/lib/services/docling-client";
 import {
 	buildLiveResponsePackage,
 	type LiveResponsePackage,
@@ -34,9 +34,10 @@ const SOURCE_URL = process.env.LIVE_RESPONSE_READINESS_SOURCE_URL ?? (
 	SOURCE_KIND === "kenya_ppip" ? "https://tenders.go.ke/tenders" : "https://www.ungm.org/Public/Notice?title=software"
 );
 const MAX_DOCUMENT_BYTES = Number(process.env.LIVE_RESPONSE_READINESS_MAX_DOCUMENT_BYTES ?? 10 * 1024 * 1024);
-const SOURCE_PAGE_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_PAGE_LIMIT ?? 10);
+const SOURCE_PAGE_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_PAGE_LIMIT ?? (SOURCE_KIND === "kenya_ppip" ? 25 : 10));
 const SOURCE_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_SOURCE_LIMIT ?? 10);
 const SOURCE_DETAIL_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_DETAIL_LIMIT ?? 5);
+const DOCLING_CONVERSION_ATTEMPTS = Number(process.env.LIVE_RESPONSE_READINESS_DOCLING_ATTEMPTS ?? 3);
 const PROPOSAL_DOCUMENT_TYPES: ProposalDocumentType[] = [
 	"cover_letter",
 	"executive_summary",
@@ -103,6 +104,12 @@ interface LiveOpportunityResponseReadinessProof {
 interface ExtractedSourceDocument {
 	document: NonNullable<LiveOpportunityResponseReadinessProof["document"]>;
 	sourceText: string;
+}
+
+interface SourceDocumentConversion {
+	converted: DoclingConvertResponse;
+	extractedText: string;
+	procurementIndicators: string[];
 }
 
 type LiveResponseReadinessSourceKind = "ungm" | "kenya_ppip";
@@ -250,25 +257,7 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<Extra
 	}
 
 	const filename = filenameFromUrl(documentUrl);
-	const converted = await convertDocument(documentBytes, filename, {
-		outputFormat: "text",
-		ocr: false,
-		extractTables: false,
-		extractImages: false,
-		pageRange: [1, SOURCE_PAGE_LIMIT],
-		documentTimeoutSeconds: 90,
-	});
-	const extractedText = cleanExtractedText(converted.text ?? converted.markdown ?? "");
-	if (converted.status && converted.status !== "success") {
-		throw new Error(`Docling conversion did not succeed: ${converted.status}`);
-	}
-	if (extractedText.length < 1000) {
-		throw new Error(`Docling extracted too little source text: ${extractedText.length} characters`);
-	}
-	const procurementIndicators = PROCUREMENT_INDICATORS.filter((indicator) => extractedText.toLowerCase().includes(indicator));
-	if (procurementIndicators.length === 0) {
-		throw new Error("Docling source text did not contain procurement response language");
-	}
+	const { converted, extractedText, procurementIndicators } = await convertSourceDocumentWithRetries(documentBytes, filename);
 
 	return {
 		document: {
@@ -283,6 +272,44 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<Extra
 		},
 		sourceText: extractedText,
 	};
+}
+
+async function convertSourceDocumentWithRetries(
+	documentBytes: Buffer,
+	filename: string
+): Promise<SourceDocumentConversion> {
+	let lastError: Error | undefined;
+	for (let attempt = 1; attempt <= DOCLING_CONVERSION_ATTEMPTS; attempt += 1) {
+		try {
+			const converted = await convertDocument(documentBytes, filename, {
+				outputFormat: "text",
+				ocr: false,
+				extractTables: false,
+				extractImages: false,
+				pageRange: [1, SOURCE_PAGE_LIMIT],
+				documentTimeoutSeconds: 90,
+			});
+			const extractedText = cleanExtractedText(converted.text ?? converted.markdown ?? "");
+			if (converted.status && converted.status !== "success" && converted.status !== "partial_success") {
+				throw new Error(`Docling conversion did not succeed: ${converted.status}`);
+			}
+			if (extractedText.length < 1000) {
+				throw new Error(`Docling extracted too little source text: ${extractedText.length} characters`);
+			}
+			const procurementIndicators = PROCUREMENT_INDICATORS.filter((indicator) => extractedText.toLowerCase().includes(indicator));
+			if (procurementIndicators.length === 0) {
+				throw new Error("Docling source text did not contain procurement response language");
+			}
+			return { converted, extractedText, procurementIndicators };
+		} catch (error) {
+			lastError = error instanceof Error ? error : new Error(String(error));
+			if (attempt < DOCLING_CONVERSION_ATTEMPTS) {
+				await delay(750 * attempt);
+			}
+		}
+	}
+
+	throw lastError ?? new Error("Docling conversion failed without an error detail");
 }
 
 function proveResponseSeedReadiness(
@@ -357,6 +384,10 @@ function compactText(text: string, maxLength: number): string {
 	return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
 }
 
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function writeResponsePackageArtifacts(responsePackage: LiveResponsePackage): Promise<string[]> {
 	const packageDir = path.resolve(LOG_DIR, "response-package");
 	await fs.mkdir(packageDir, { recursive: true });
@@ -396,12 +427,17 @@ async function writeArtifacts(
 			`opportunities:${proof.source.opportunityCount}`,
 			`document-bytes:${proof.document?.byteLength ?? 0}`,
 			`docling-text:${proof.document?.extractedTextLength ?? 0}`,
+			`docling-status:${proof.document?.doclingStatus ?? "not-run"}`,
 			`response-doc-types:${proof.responseReadiness?.documentTypes.length ?? 0}`,
 			`source-requirements:${proof.responseReadiness?.sourceRequirementCount ?? 0}`,
+			`evaluator-criteria:${proof.responseReadiness?.readiness.evaluationCriteriaIds.length ?? 0}`,
 			`win-theme-seeds:${proof.responseReadiness?.winThemeSeedCount ?? 0}`,
 			`response-draft-words:${proof.responseReadiness?.totalDraftWordCount ?? 0}`,
 			`response-snippets:${proof.responseReadiness?.relevantSnippetCount ?? 0}`,
 			`readiness:${proof.responseReadiness?.readiness.status ?? "not-run"}`,
+			`readiness-warnings:${proof.responseReadiness?.readiness.warnings.length ?? 0}`,
+			`readiness-missing-draft-criteria:${proof.responseReadiness?.readiness.missingDraftEvaluationCriteriaIds.length ?? 0}`,
+			`readiness-missing-win-theme-criteria:${proof.responseReadiness?.readiness.missingWinThemeEvaluationCriteriaIds.length ?? 0}`,
 			`readiness-source-coverage:${proof.responseReadiness?.readiness.metrics.sourceRequirementCoverage ?? 0}`,
 			`readiness-win-theme-criteria-coverage:${proof.responseReadiness?.readiness.metrics.winThemeCriteriaCoverage ?? 0}`,
 			`readiness-draft-artifact-integrity:${proof.responseReadiness?.readiness.metrics.draftArtifactIntegrityCoverage ?? 0}`,

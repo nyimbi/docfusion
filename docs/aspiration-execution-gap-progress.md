@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Kenya PPIP Evaluator Criteria Coverage
+
+Status: implemented and verified.
+
+Purpose: close the remaining live Kenya PPIP response-quality warning by extracting the RFP's technical evaluation section and preserving every evaluator criterion in win themes and draft alignment.
+
+Changes in this slice:
+- Increased Kenya PPIP live response-readiness extraction to the first 25 pages so the proof reaches the RFP's mandatory, technical, and financial evaluation sections.
+- Allowed unweighted criteria list rows under evaluation sections to become evaluator criteria when they contain technical, methodology, personnel, experience, schedule, quality, or financial scoring topics.
+- Raised win-theme generation coverage so live RFPs with more than eight evaluator criteria do not drop scored criteria from win-theme alignment.
+- Added bounded Docling conversion retries and accepted usable `partial_success` output when text and procurement-language checks still pass.
+- Added richer evidence row fields for Docling status, evaluator criteria, readiness warnings, and missing draft/win-theme criteria counts.
+
+Verification:
+- `npm test -- live-response-package.test.ts platform-proof-scenarios.test.ts --run` passed with 21 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-kenya-ppip-response-readiness --include-live-safe` passed with run `live_kenya_ppip_response_readiness_20260527T155355Z`.
+- The passing live run extracted 94041 characters from the 3180241-byte KNH source PDF, captured 24 source requirements, 10 evaluator criteria, 10 win-theme seeds, 10323 draft words, 85 relevant snippets, and produced readiness status `ready_for_review` with 0 blockers, 0 warnings, no missing draft criteria, and no missing win-theme criteria.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity and rerun the DB-backed live persisted import-response proof.
+- Consider making the persisted import-response proof use the same Docling retry semantics once the database path is reachable.
+
 ### 2026-05-27 - Live Kenya PPIP Response Readiness Proof
 
 Status: implemented and verified.

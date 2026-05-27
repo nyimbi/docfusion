@@ -570,7 +570,7 @@ export function buildLiveResponseWinThemeSeeds(input: {
 			keywords: keywordsForWinTheme(`${criterion.text} ${criterion.responseStrategy}`),
 			rationale: criterion.responseStrategy,
 		});
-		if (seeds.length >= 8) break;
+		if (seeds.length >= 16) break;
 	}
 
 	if (seeds.length === 0) {
@@ -949,10 +949,11 @@ function isEvaluationCriteriaLine(line: string, sourceSection: string): boolean 
 	const hasEvaluationPhrase = /\b(?:will|shall|must)\s+be\s+evaluated\b/i.test(line) ||
 		/\b(?:evaluation|selection)\s+criteria\b/i.test(line) ||
 		/\bbasis\s+of\s+award\b/i.test(line);
+	const hasCriterionTopic = /\b(technical|methodology|approach|experience|qualification|personnel|staff|work plan|schedule|quality|capacity|competence|understanding|terms of reference|similar assignment|financial|price|cost)\b/i.test(line);
 	const isListItem = /^(?:[-*]|\d+(?:\.\d+)*[.)]|[a-z][.)])\s+.{20,}$/.test(line);
 
 	return (hasEvaluationCue && (hasWeight || hasEvaluationPhrase)) ||
-		(sectionSignalsEvaluation && isListItem && (hasEvaluationCue || hasWeight));
+		(sectionSignalsEvaluation && isListItem && (hasEvaluationCue || hasWeight || hasCriterionTopic));
 }
 
 function extractEvaluationWeight(text: string): string | undefined {

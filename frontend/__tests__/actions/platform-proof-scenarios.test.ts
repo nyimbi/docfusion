@@ -248,6 +248,7 @@ describe("platform proof scenarios", () => {
 					env: expect.objectContaining({
 						LIVE_RESPONSE_READINESS_SOURCE_KIND: "kenya_ppip",
 						LIVE_RESPONSE_READINESS_SOURCE_URL: "https://tenders.go.ke/tenders",
+						LIVE_RESPONSE_READINESS_PAGE_LIMIT: "25",
 					}),
 				}),
 				expectedArtifacts: expect.arrayContaining([
@@ -370,6 +371,7 @@ describe("platform proof scenarios", () => {
 
 		const [kenyaResponseScenario] = listProofScenarios({ ids: ["live-kenya-ppip-response-readiness"], includeLiveSafe: true });
 		expect(formatProofCommand(kenyaResponseScenario)).toContain("LIVE_RESPONSE_READINESS_SOURCE_KIND=kenya_ppip");
+		expect(formatProofCommand(kenyaResponseScenario)).toContain("LIVE_RESPONSE_READINESS_PAGE_LIMIT=25");
 		expect(formatProofCommand(kenyaResponseScenario)).toContain("npx tsx scripts/prove-live-opportunity-response-readiness.ts");
 	});
 
