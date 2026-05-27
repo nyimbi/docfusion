@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable AI Competitive Insight Fallbacks
+
+Status: implemented and verified.
+
+Purpose: prevent competitive win/loss analysis from treating blank or non-string AI insight arrays as successful guidance.
+
+Changes in this slice:
+- Tighten competitive string-array normalization so only non-blank strings are accepted.
+- Apply normalized AI insight arrays to competitor win/loss analysis.
+- Preserve deterministic win/loss insight fallbacks when AI returns no usable insight strings.
+
+Verification:
+- `npm test -- competitive.test.ts --run` passed with 81 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 156 tests.
+
+Remaining after this slice:
+- Continue hardening generated response artifacts and analysis outputs against invalid successful AI results.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Blank AI Practice Feedback Fallbacks
 
 Status: implemented and verified.

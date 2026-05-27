@@ -1423,6 +1423,37 @@ describe("Competitive tenant-scoped utilities", () => {
 		expectAssignedOpportunityTenantScope(encountersWhere);
 	});
 
+	test("uses deterministic win/loss insights when AI returns no usable insight strings", async () => {
+		aiAvailableMock.mockResolvedValueOnce(true);
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify([{}, "  "]) });
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([makeCompetitor({
+				organizationId: testOrganizationId,
+				name: "Legacy Prime",
+			})]))
+			.mockImplementationOnce(() => createChainableQuery([
+				{
+					link: { outcome: "lost", outcomeNotes: "We won on delivery proof" },
+					opportunity: { category: "cloud", budgetNumeric: 100_000, budgetValue: "$100,000" },
+				},
+				{
+					link: { outcome: "lost", outcomeNotes: "We won on pricing" },
+					opportunity: { category: "cloud", budgetNumeric: 120_000, budgetValue: "$120,000" },
+				},
+				{
+					link: { outcome: "won", outcomeNotes: "Competitor won incumbent extension" },
+					opportunity: { category: "support", budgetNumeric: 80_000, budgetValue: "$80,000" },
+				},
+			]));
+
+		const result = await getWinLossAnalysis("00000000-0000-4000-8000-000000000001");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.aiInsights).toEqual(["Strong historical performance against this competitor"]);
+		expect(result.data.aiInsights.join(" ")).not.toContain("[object Object]");
+	});
+
 	test("scopes ghost theme usage updates to owned organization", async () => {
 		let updateWhere: unknown;
 		const updateChain = createChainableQuery([{ id: "gt-001", useCount: 4 }]);

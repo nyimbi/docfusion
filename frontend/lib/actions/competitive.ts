@@ -226,7 +226,7 @@ function isNonBlankText(value: unknown): value is string {
 
 function normalizeStringArray(value: unknown): string[] {
 	return Array.isArray(value)
-		? value.map((item) => String(item).trim()).filter(Boolean)
+		? value.filter(isNonBlankText).map((item) => item.trim())
 		: [];
 }
 
@@ -2654,7 +2654,7 @@ Provide strategic insights.`;
 		return [];
 	}
 
-	return JSON.parse(jsonMatch[0]) as string[];
+	return normalizeStringArray(JSON.parse(jsonMatch[0]));
 }
 
 // ============================================================================
