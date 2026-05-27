@@ -258,6 +258,20 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: ["vitest:competitive-win-theme-workflow", "vitest:requirements-win-theme-seed-review", "vitest:resource-reuse-workflow", "vitest:search-rag-health"],
 	},
 	{
+		id: "wave8-strategic-capability-browser",
+		wave: 8,
+		title: "Wave 8 strategic capability browser coverage",
+		kind: "browser",
+		proofTargets: ["S-001", "UX-018"],
+		requiresLiveServices: false,
+		description: "Exercises generated response win-theme seed review in a browser harness, including approve/reject decisions and reviewed persistence payloads.",
+		command: {
+			command: "npm",
+			args: ["run", "test:e2e", "--", "requirements-win-theme-seed-review.spec.ts"],
+		},
+		expectedArtifacts: ["playwright:requirements-win-theme-seed-review"],
+	},
+	{
 		id: "wave9-discovery-rfp-response-bridge",
 		wave: 9,
 		title: "Wave 9 discovery-to-response package bridge proof",
