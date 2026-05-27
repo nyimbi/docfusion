@@ -1807,6 +1807,9 @@ Respond in JSON format:
 				laborCategoryName: s.laborCategoryName as string | undefined,
 				confidence: s.confidence as number,
 			}));
+			if (suggestions.length === 0) {
+				throw new Error("AI cost suggestion response contained no suggestions");
+			}
 
 			return { success: true, data: suggestions };
 		} catch {
@@ -1902,6 +1905,9 @@ Respond in JSON format:
 				assumptions: parsed.assumptions || [],
 				methodology: parsed.methodology || "AI-assisted estimation based on technical content analysis",
 			};
+			if (estimate.totalHours <= 0 || estimate.byCategory.length === 0) {
+				throw new Error("AI technical hours estimate response contained no usable staffing");
+			}
 
 			// Store implied staffing in tracking record
 			const impliedStaffing: ImpliedStaffingEntry[] = estimate.byCategory.map(c => ({
@@ -2015,14 +2021,18 @@ Respond in JSON format:
 
 		try {
 			const parsed = JSON.parse(result.content);
+			const estimate: HoursEstimate = {
+				totalHours: parsed.totalHours || 0,
+				byCategory: parsed.byCategory || [],
+				assumptions: parsed.assumptions || [],
+				methodology: parsed.methodology || `Scope-based estimation with ${complexity} complexity`,
+			};
+			if (estimate.totalHours <= 0 || estimate.byCategory.length === 0) {
+				throw new Error("AI scope hours estimate response contained no usable staffing");
+			}
 			return {
 				success: true,
-				data: {
-					totalHours: parsed.totalHours || 0,
-					byCategory: parsed.byCategory || [],
-					assumptions: parsed.assumptions || [],
-					methodology: parsed.methodology || `Scope-based estimation with ${complexity} complexity`,
-				},
+				data: estimate,
 			};
 		} catch {
 			logger.warn("Falling back to deterministic scope hours estimate after AI parse failure");

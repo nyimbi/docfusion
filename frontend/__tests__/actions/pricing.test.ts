@@ -750,6 +750,34 @@ describe("BOE template tenant scoping", () => {
 });
 
 describe("Cost suggestion fallbacks", () => {
+	test("returns deterministic cost suggestions when AI output has an empty suggestions array", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ suggestions: [] }), tokensUsed: 0 });
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([{
+				id: "tracking-empty-suggestions",
+				sectionName: "Cloud Implementation",
+				sectionContent:
+					"Engineering team will configure cloud software, conduct onsite validation, and report compliance results.",
+			}]))
+			.mockImplementationOnce(() => createChainableQuery([{
+				id: "labor-empty-suggestions",
+				name: "Senior Software Engineer",
+				fullyBurdenedRate: 175,
+				directRate: 120,
+			}]));
+
+		const result = await suggestCostForSection("section-empty-suggestions");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.length).toBeGreaterThan(0);
+		expect(result.data[0]).toEqual(expect.objectContaining({
+			elementType: "labor",
+			suggestedName: "Cloud Implementation Labor",
+			laborCategoryId: "labor-empty-suggestions",
+		}));
+	});
+
 	test("returns deterministic cost suggestions when AI output is malformed", async () => {
 		aiCompleteMock.mockResolvedValueOnce({ content: "not json", tokensUsed: 0 });
 		dbMock.select
@@ -791,6 +819,40 @@ describe("Cost suggestion fallbacks", () => {
 });
 
 describe("Hours estimation fallbacks", () => {
+	test("stores deterministic implied staffing when AI estimate output is structurally empty", async () => {
+		aiCompleteMock.mockResolvedValueOnce({
+			content: JSON.stringify({ totalHours: 0, byCategory: [], assumptions: [] }),
+			tokensUsed: 0,
+		});
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([{
+				id: "tracking-empty-hours",
+				sectionName: "Systems Integration",
+				sectionContent:
+					"Engineering team will perform integration, configuration, testing, and compliance validation.",
+			}]))
+			.mockImplementationOnce(() => createChainableQuery([{
+				id: "labor-empty-hours",
+				name: "Systems Engineer",
+				fullyBurdenedRate: 190,
+				directRate: 140,
+			}]));
+
+		const result = await estimateHoursFromTechnical("section-empty-hours");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.totalHours).toBeGreaterThan(0);
+		expect(result.data.byCategory).toEqual([
+			expect.objectContaining({
+				categoryId: "labor-empty-hours",
+				categoryName: "Systems Engineer",
+				confidence: 0.62,
+			}),
+		]);
+		expect(dbMock.update).toHaveBeenCalled();
+	});
+
 	test("stores deterministic implied staffing when AI estimate output is malformed", async () => {
 		aiCompleteMock.mockResolvedValueOnce({ content: "not json", tokensUsed: 0 });
 		dbMock.select

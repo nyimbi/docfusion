@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Empty AI Pricing Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep pricing support from accepting syntactically valid but empty AI output as successful cost suggestions or staffing estimates.
+
+Changes in this slice:
+- Treat parsed AI cost-suggestion responses with no suggestions as unusable and reuse deterministic cost suggestions.
+- Treat parsed AI technical-hours responses with no usable hours or staffing as unusable and reuse deterministic hours estimates.
+- Apply the same empty-staffing guard to scope-based hours estimation.
+- Add pricing engine coverage to the Wave 6 production proof manifest.
+
+Verification:
+- `npm test -- pricing.test.ts --run` passed with 99 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 279 tests.
+
+Remaining after this slice:
+- Continue auditing pricing and response-production paths for structurally valid but unusable AI output.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Blank AI Past-Performance Narrative Fallbacks
 
 Status: implemented and verified.
