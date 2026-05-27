@@ -143,6 +143,7 @@ describe("live response package builder", () => {
 			winThemeCriteriaCoverage: 1,
 			evidenceCueCoverage: 1,
 			reviewGateCoverage: 1,
+			sourceCitationCoverage: 1,
 			unresolvedPlaceholderCount: 0,
 			winThemeSeedCount: 4,
 		});
@@ -241,6 +242,32 @@ Vendors interested in participating in the planned solicitation process should s
 			"LIVE-EVAL-003",
 			"LIVE-EVAL-004",
 		]);
+	});
+
+	it("blocks readiness when source citation maps are missing from drafts", () => {
+		const responsePackage = buildLiveResponsePackage({
+			opportunity,
+			sourceText,
+			generatedAt: new Date("2026-05-27T00:00:00.000Z"),
+		});
+		const brokenPackage = {
+			...responsePackage,
+			documents: responsePackage.documents.map((document) => ({
+				...document,
+				markdown: document.markdown.replace(/## Source Citation Map[\s\S]*?## Datacraft Evidence To Weave In/, "## Datacraft Evidence To Weave In"),
+			})),
+		};
+
+		const readiness = assessLiveResponsePackageReadiness(brokenPackage);
+
+		expect(readiness.status).toBe("blocked");
+		expect(readiness.blockers.join("\n")).toContain("source citation map");
+		expect(readiness.metrics.sourceCitationCoverage).toBe(0);
+		expect(readiness.warnings).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining("incomplete source citation mapping"),
+			])
+		);
 	});
 
 	it("blocks readiness when evaluator criteria are not represented in win theme seeds", () => {

@@ -5983,3 +5983,25 @@ Verification:
 Remaining after this slice:
 - Continue strengthening generated live response drafts with deeper evidence citation and rendered artifact checks.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Source Citation Readiness Gate
+
+Status: implemented and verified.
+
+Purpose: prevent live response packages from being marked ready when generated drafts lose their source citation maps.
+
+Changes in this slice:
+- Add `sourceCitationCoverage` to live response readiness metrics.
+- Require every draft to include a `Source Citation Map` containing its assigned source requirement and evaluator criterion IDs.
+- Block readiness and emit warnings when any draft has incomplete citation mapping.
+- Add regression coverage proving missing citation maps block readiness.
+
+Verification:
+- `npm test -- live-response-package.test.ts` passed with 10 tests.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 10 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue strengthening generated live response drafts with richer evidence citations and rendered artifact checks.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

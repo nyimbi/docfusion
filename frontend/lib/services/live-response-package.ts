@@ -112,6 +112,7 @@ export interface LiveResponseReadinessAssessment {
 		winThemeCriteriaCoverage: number;
 		evidenceCueCoverage: number;
 		reviewGateCoverage: number;
+		sourceCitationCoverage: number;
 		unresolvedPlaceholderCount: number;
 		minDocumentWordCount: number;
 		totalDraftWordCount: number;
@@ -231,6 +232,7 @@ export function assessLiveResponsePackageReadiness(
 	const coveredMandatoryRequirementCount = mandatoryRequirementIds.filter((id) => assignedRequirementIds.has(id)).length;
 	const documentsWithEvidence = responsePackage.documents.filter((document) => document.relevantSnippetShortcuts.length > 0).length;
 	const documentsWithReviewGates = responsePackage.documents.filter((document) => document.markdown.includes("## Review Gates")).length;
+	const documentsWithSourceCitations = responsePackage.documents.filter(hasCompleteSourceCitationMap).length;
 	const unresolvedPlaceholderCount = responsePackage.documents.reduce(
 		(total, document) => total + (document.markdown.match(/\{\{[^}]+\}\}/g)?.length ?? 0),
 		0
@@ -246,6 +248,7 @@ export function assessLiveResponsePackageReadiness(
 		winThemeCriteriaCoverage: ratio(winThemeCoveredEvaluationCriteriaCount, evaluationCriteriaIds.length),
 		evidenceCueCoverage: ratio(documentsWithEvidence, responsePackage.documents.length),
 		reviewGateCoverage: ratio(documentsWithReviewGates, responsePackage.documents.length),
+		sourceCitationCoverage: ratio(documentsWithSourceCitations, responsePackage.documents.length),
 		unresolvedPlaceholderCount,
 		minDocumentWordCount,
 		totalDraftWordCount: responsePackage.totalWordCount,
@@ -289,6 +292,9 @@ export function assessLiveResponsePackageReadiness(
 	if (metrics.reviewGateCoverage < 1) {
 		blockers.push("At least one response draft is missing review gates");
 	}
+	if (metrics.sourceCitationCoverage < 1) {
+		blockers.push("At least one response draft is missing a complete source citation map");
+	}
 
 	for (const document of responsePackage.documents) {
 		if (document.requirementIds.length === 0) {
@@ -299,6 +305,9 @@ export function assessLiveResponsePackageReadiness(
 		}
 		if (document.relevantSnippetShortcuts.length < 3) {
 			warnings.push(`${document.documentType} has fewer than three Datacraft evidence cues`);
+		}
+		if (!hasCompleteSourceCitationMap(document)) {
+			warnings.push(`${document.documentType} has incomplete source citation mapping`);
 		}
 	}
 	if (responsePackage.evaluationCriteria.length === 0) {
@@ -316,6 +325,13 @@ export function assessLiveResponsePackageReadiness(
 		missingWinThemeEvaluationCriteriaIds,
 		metrics,
 	};
+}
+
+function hasCompleteSourceCitationMap(document: LiveResponseDraftDocument): boolean {
+	if (!document.markdown.includes("## Source Citation Map")) return false;
+	return [...document.requirementIds, ...document.evaluationCriteriaIds].every((id) =>
+		document.markdown.includes(id)
+	);
 }
 
 export function extractLiveResponseRequirementSignals(sourceText: string): LiveResponseRequirementSignal[] {
@@ -859,11 +875,12 @@ function emptyReadinessAssessment(): LiveResponseReadinessAssessment {
 			sourceRequirementCoverage: 0,
 			mandatoryRequirementCoverage: 0,
 			evaluationCriteriaCoverage: 0,
-			winThemeCriteriaCoverage: 0,
-			evidenceCueCoverage: 0,
-			reviewGateCoverage: 0,
-			unresolvedPlaceholderCount: 0,
-			minDocumentWordCount: 0,
+		winThemeCriteriaCoverage: 0,
+		evidenceCueCoverage: 0,
+		reviewGateCoverage: 0,
+		sourceCitationCoverage: 0,
+		unresolvedPlaceholderCount: 0,
+		minDocumentWordCount: 0,
 			totalDraftWordCount: 0,
 			relevantSnippetCount: 0,
 			winThemeSeedCount: 0,
