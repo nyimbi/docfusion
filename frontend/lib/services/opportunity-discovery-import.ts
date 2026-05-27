@@ -90,6 +90,7 @@ export type ImportResultsSummary = {
 export interface DiscoveryRunWarning {
 	type:
 		| "firecrawl_failed"
+		| "search_no_candidates"
 		| "searxng_engine_degraded"
 		| "source_scrape_failed"
 		| "source_scrape_empty"
@@ -280,6 +281,16 @@ function collectSearxngEngineWarnings(
 		url: `${getSearxngBaseUrl()}/search`,
 		message: unresponsiveEngines.map(describeUnresponsiveEngine).join("; "),
 	}];
+}
+
+function collectSearchNoCandidateWarning(query: string): DiscoveryRunWarning {
+	return {
+		type: "search_no_candidates",
+		query,
+		title: "SearXNG returned no opportunity candidates",
+		url: `${getSearxngBaseUrl()}/search`,
+		message: `No opportunity-like search results were accepted for "${query}"; configured source scraping or query refinement is required to produce candidates.`,
+	};
 }
 
 function inferOpportunityType(candidate: DiscoveryCandidate): OpportunityInput["opportunityType"] {
@@ -1396,6 +1407,7 @@ export async function executeOpportunityDiscoveryImport(
 
 	for (const query of queries) {
 		try {
+			const candidateCountBeforeQuery = candidates.length;
 			const response = await searchSearxng(query, {
 				categories: input.categories ?? ["general", "news", "files"],
 				engines: input.engines,
@@ -1413,6 +1425,9 @@ export async function executeOpportunityDiscoveryImport(
 				if (seenUrls.has(normalizedUrl)) continue;
 				seenUrls.add(normalizedUrl);
 				candidates.push({ query, result });
+			}
+			if (candidates.length === candidateCountBeforeQuery) {
+				searchWarnings.push(collectSearchNoCandidateWarning(query));
 			}
 		} catch (err) {
 			searchFailures.push({

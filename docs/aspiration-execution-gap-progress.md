@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Search Zero-Candidate Discovery Warnings
+
+Status: implemented and verified.
+
+Purpose: make SearXNG-backed discovery runs explicitly report when a query produces no accepted opportunity candidates instead of appearing as a clean zero-result import.
+
+Changes in this slice:
+- Add `search_no_candidates` discovery warnings for each query that returns no accepted opportunity-like results.
+- Persist the zero-candidate warnings into the import audit config alongside engine degradation and scraper warnings.
+- Preserve existing source scraping behavior so configured sources can still recover candidates after weak search results.
+- Add regression coverage for a degraded SearXNG search with no accepted results.
+
+Verification:
+- `npm test -- discovery-opportunity-import.test.ts opportunity-discovery-route.test.ts` passed with 28 tests.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` passed with 133 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue improving source discovery fallback and ranking when web search quality is low.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Evidence-Based Portal Document Link Confidence
 
 Status: implemented and verified.

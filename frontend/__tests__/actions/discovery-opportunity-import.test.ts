@@ -633,6 +633,11 @@ describe("discoverAndImportOpportunities", () => {
 				query: "Kenya ICT tender RFP",
 				message: "google: access denied; duckduckgo: CAPTCHA; brave: too many requests",
 			}),
+			expect.objectContaining({
+				type: "search_no_candidates",
+				query: "Kenya ICT tender RFP",
+				message: expect.stringContaining("No opportunity-like search results were accepted"),
+			}),
 		]);
 		expect(createOpportunityMock).not.toHaveBeenCalled();
 		expect(updateImportRecordMock).toHaveBeenCalledWith("import-1", expect.objectContaining({
@@ -642,6 +647,10 @@ describe("discoverAndImportOpportunities", () => {
 						expect.objectContaining({
 							type: "searxng_engine_degraded",
 							message: expect.stringContaining("duckduckgo: CAPTCHA"),
+						}),
+						expect.objectContaining({
+							type: "search_no_candidates",
+							message: expect.stringContaining("query refinement"),
 						}),
 					],
 				},
