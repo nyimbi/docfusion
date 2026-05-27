@@ -16,6 +16,20 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Persisted Kenya PPIP Proof Still DB Blocked After World Bank Slice
+
+Status: externally blocked.
+
+Purpose: recheck whether the DB-backed Kenya PPIP persisted import-to-response path became reachable after the live-safe source/readiness expansions.
+
+Attempted:
+- `npm run platform:proof -- --run live-kenya-ppip-persisted-import-response --include-live-safe` failed with run `live_kenya_ppip_persisted_import_response_20260527T173235Z`.
+- The proof did not reach Kenya PPIP source discovery, source document persistence, RFP parsing, requirement persistence, or response draft persistence because PostgreSQL still refused the connection to `88.80.188.224:5432`.
+- The proof recorded database target `88.80.188.224:5432`, database `lnd`, timeout 5000ms, schema preflight `not-run`, and no cleanup rows.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity to `88.80.188.224:5432`, then rerun `live-persisted-import-response` and `live-kenya-ppip-persisted-import-response`.
+
 ### 2026-05-27 - World Bank Live Response Readiness via Notice API
 
 Status: implemented and verified.
