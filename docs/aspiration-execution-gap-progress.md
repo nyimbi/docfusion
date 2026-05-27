@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Persisted Import Response Retry Still Blocked
+
+Status: externally blocked.
+
+Purpose: recheck the DB-backed live path after confirming live discovery, extraction, and response-package generation outside the persistence layer.
+
+Attempted:
+- `npm run platform:proof -- --run live-persisted-import-response --include-live-safe` failed with run `live_persisted_import_response_20260527T151750Z`.
+- The proof did not reach source discovery or persistence because PostgreSQL refused the connection to `88.80.188.224:5432`.
+- Cleanup had no persisted rows to remove.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity for the live application database, then rerun `live-persisted-import-response`.
+- Keep using non-DB live proofs for discovery, document extraction, and response-package readiness until the database path is reachable again.
+
 ### 2026-05-27 - Live Source Discovery Matrix and AFDB Retry Hardening
 
 Status: implemented and verified.
