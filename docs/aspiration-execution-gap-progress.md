@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Command Center Readiness Dimension Resilience
+
+Status: implemented and verified.
+
+Purpose: keep the opportunity command center from crashing when a readiness-dimension projection omits optional detail rows.
+
+Changes in this slice:
+- Default readiness dimension details to an empty list at render time.
+- Preserve existing Response Readiness cards and action links when older or harnessed projections do not include detail arrays.
+- Use the broad non-live proof manifest to identify the failure, then rerun the failing Wave 1 browser scenario after the fix.
+
+Verification:
+- `npm run platform:proof -- --all --continue-on-failure` ran the full non-live proof manifest; every scenario passed except the pre-fix `wave1-control-plane-browser` command-center crash.
+- `npm run platform:proof -- --run wave1-control-plane-browser` passed with 3 browser tests after the fix.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+- Continue non-DB hardening while live persistence remains blocked by PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Firecrawl-Enriched SearXNG Discovery Results
 
 Status: implemented and verified.

@@ -112,36 +112,39 @@ export function OpportunityCommandCenter({
 					</CardTitle>
 				</CardHeader>
 				<CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-					{projection.readinessDimensions.map((dimension) => (
-						<div key={dimension.key} className="rounded-md border p-3">
-							<div className="flex items-center justify-between gap-2">
-								<div className="min-w-0">
-									<p className="truncate text-sm font-medium">{dimension.label}</p>
-									<p className="mt-1 text-xs text-muted-foreground">
-										{dimension.blockerCount} blockers, {dimension.warningCount} warnings
-									</p>
+					{projection.readinessDimensions.map((dimension) => {
+						const details = dimension.details ?? [];
+						return (
+							<div key={dimension.key} className="rounded-md border p-3">
+								<div className="flex items-center justify-between gap-2">
+									<div className="min-w-0">
+										<p className="truncate text-sm font-medium">{dimension.label}</p>
+										<p className="mt-1 text-xs text-muted-foreground">
+											{dimension.blockerCount} blockers, {dimension.warningCount} warnings
+										</p>
+									</div>
+									<ReadinessStatus status={dimension.status} />
 								</div>
-								<ReadinessStatus status={dimension.status} />
-							</div>
-							<div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-								<span>{dimension.owner ?? "No owner"}</span>
-								{dimension.actionUrl && (
-									<Link href={dimension.actionUrl} className="text-primary hover:underline">
-										Resolve
-									</Link>
+								<div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+									<span>{dimension.owner ?? "No owner"}</span>
+									{dimension.actionUrl && (
+										<Link href={dimension.actionUrl} className="text-primary hover:underline">
+											Resolve
+										</Link>
+									)}
+								</div>
+								{details.length > 0 && (
+									<div className="mt-3 space-y-1 border-t pt-2">
+										{details.map((detail) => (
+											<p key={detail} className="text-xs leading-relaxed text-muted-foreground">
+												{detail}
+											</p>
+										))}
+									</div>
 								)}
 							</div>
-							{dimension.details.length > 0 && (
-								<div className="mt-3 space-y-1 border-t pt-2">
-									{dimension.details.map((detail) => (
-										<p key={detail} className="text-xs leading-relaxed text-muted-foreground">
-											{detail}
-										</p>
-									))}
-								</div>
-							)}
-						</div>
-					))}
+						);
+					})}
 				</CardContent>
 			</Card>
 
