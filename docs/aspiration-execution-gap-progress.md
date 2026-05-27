@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Discovery Defaults Include AFDB And COMESA
+
+Status: implemented and verified.
+
+Purpose: put the newly live-proven AFDB and COMESA sources into the default operator discovery dialog instead of requiring manual URL entry.
+
+Changes in this slice:
+- Move default configured-source URLs into a shared discovery source module.
+- Add AFDB and COMESA to the default live discovery source list alongside Kenya PPIP, UNGM, and UNDP.
+- Expand the source URL textarea to show the full default source set without hiding the newly added sources.
+- Add focused coverage for the default source list.
+
+Verification:
+- `npm test -- default-discovery-sources.test.ts` from `frontend/` passed.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+
+Remaining after this slice:
+- Continue adding high-value live sources where Firecrawl or source APIs can produce normalized opportunities with low noise.
+- Persisted live import and response proof still waits on reachable PostgreSQL.
+
 ### 2026-05-27 - AFDB Live Source Discovery
 
 Status: implemented and verified.

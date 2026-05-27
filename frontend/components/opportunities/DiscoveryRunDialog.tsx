@@ -11,6 +11,7 @@ import {
 } from "@/lib/actions/saved-searches";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { DEFAULT_DISCOVERY_SOURCE_URLS } from "@/lib/services/default-discovery-sources";
 import type {
 	DiscoveryImportInput,
 	DiscoveryRunWarning,
@@ -60,12 +61,6 @@ function clampNumber(value: number, min: number, max: number): number {
 	if (!Number.isFinite(value)) return min;
 	return Math.min(max, Math.max(min, Math.trunc(value)));
 }
-
-const DEFAULT_DISCOVERY_SOURCE_URLS = [
-	"https://tenders.go.ke/tenders",
-	"https://www.ungm.org/Public/Notice",
-	"https://procurement-notices.undp.org",
-];
 
 export function DiscoveryRunDialog({
 	open,
@@ -377,7 +372,7 @@ export function DiscoveryRunDialog({
 							id="discovery-source-urls"
 							value={sourceUrls}
 							onChange={(event) => setSourceUrls(event.target.value)}
-							rows={3}
+							rows={5}
 							placeholder={DEFAULT_DISCOVERY_SOURCE_URLS.join("\n")}
 							className={cn(
 								"w-full rounded-md border border-input bg-background px-3 py-2 text-sm",
