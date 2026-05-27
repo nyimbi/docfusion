@@ -84,7 +84,7 @@ vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
-import { createThemesFromResponseSeeds, generateInjectionSuggestions, generateThemeSuggestions, getResponseWinThemeSeedReview, getThemeSuggestions, scanForOccurrences, suggestCriteriaMappings, updateTheme } from "@/lib/actions/win-themes";
+import { createThemesFromResponseSeeds, generateInjectionSuggestions, generateReinforcementText, generateThemeSuggestions, getResponseWinThemeSeedReview, getThemeSuggestions, scanForOccurrences, suggestCriteriaMappings, updateTheme } from "@/lib/actions/win-themes";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -193,6 +193,38 @@ describe("win theme authorization", () => {
 			}),
 		]));
 		expect(result.data?.[0]?.suggestedKeywords.length).toBeGreaterThan(0);
+	});
+
+	it("returns deterministic reinforcement text when AI output is malformed", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: "not json" });
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				id: "theme-1",
+				themeStatement: "validated transition governance",
+				shortVersion: "Transition governance",
+				supportingEvidence: ["two prior transition programs"],
+			}],
+		}));
+
+		const result = await generateReinforcementText({
+			themeId: "theme-1",
+			sectionId: "section-1",
+			tone: "technical",
+			optionCount: 2,
+			targetWordCount: 40,
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		const data = result.data;
+		expect(data?.options).toHaveLength(2);
+		expect(data?.options[0]).toMatchObject({
+			tone: "technical",
+			wordCount: expect.any(Number),
+		});
+		expect(data?.options[0]?.text).toContain("validated transition governance");
+		expect(data?.options[0]?.text).toContain("two prior transition programs");
+		expect(data?.placementSuggestion).toContain("section opening");
 	});
 
 	it("does not suggest win themes for evaluation criteria already covered by existing themes", async () => {

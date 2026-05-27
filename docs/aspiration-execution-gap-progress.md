@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Win-Theme Reinforcement Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep section-level win-theme reinforcement usable when AI reinforcement output is malformed but the active theme and supporting evidence are available.
+
+Changes in this slice:
+- Add deterministic reinforcement text options from theme statement, short version, supporting evidence, requested tone, and option count.
+- Return placement guidance and bounded word counts with generated reinforcement options.
+- Return deterministic reinforcement text after AI parse failure instead of failing the action.
+- Add regression coverage proving malformed AI output still produces reviewable reinforcement options.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts` passed with 12 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 136 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing AI-only competitive/ghost-theme paths where scoped competitor context can produce deterministic review artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Win-Theme Suggestion Fallbacks
 
 Status: implemented and verified.

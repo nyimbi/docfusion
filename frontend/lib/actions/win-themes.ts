@@ -651,6 +651,44 @@ function buildDeterministicThemeSuggestions(
 	return suggestions.slice(0, input.count || 5);
 }
 
+function countWords(text: string): number {
+	return text.split(/\s+/).filter(Boolean).length;
+}
+
+function buildDeterministicReinforcementText(
+	input: GenerateReinforcementInput,
+	theme: DBWinTheme
+): ReinforcementText {
+	const tone = input.tone || "professional";
+	const optionCount = Math.max(1, Math.min(input.optionCount || 3, 5));
+	const targetWordCount = input.targetWordCount || 50;
+	const evidence = ((theme.supportingEvidence as string[] | null) || []).filter(Boolean);
+	const proofPhrase = evidence[0]
+		? ` backed by ${evidence[0]}`
+		: " backed by measurable delivery controls";
+	const baseStatement = theme.themeStatement || theme.shortVersion || "our win theme";
+	const templates = [
+		`This section reinforces ${baseStatement}${proofPhrase}, giving evaluators a clear reason to trust our approach for this requirement.`,
+		`Our response converts ${baseStatement} into evaluator-visible execution detail, connecting the proposed approach to proof, accountability, and measurable outcomes.`,
+		`By applying ${baseStatement} in this section, we show how the team will reduce delivery risk while maintaining the evidence needed for confident award evaluation.`,
+		`The approach in this section should emphasize ${baseStatement} with concise proof points, clear ownership, and outcomes the customer can verify.`,
+		`This language should tie ${baseStatement} directly to the customer's evaluation priorities and demonstrate why our approach is lower risk.`,
+	];
+
+	return {
+		id: `reinforcement-${Date.now()}`,
+		themeId: input.themeId,
+		sectionId: input.sectionId,
+		options: templates.slice(0, optionCount).map(text => ({
+			text,
+			tone,
+			wordCount: Math.min(targetWordCount, countWords(text)),
+		})),
+		placementSuggestion: "Place near the section opening or immediately after the primary approach statement.",
+		generatedAt: new Date(),
+	};
+}
+
 const CRITERIA_MAPPING_STOPWORDS = new Set([
 	"and",
 	"are",
@@ -3016,7 +3054,7 @@ Respond in JSON format:
 			};
 		} catch (parseError) {
 			logger.error("Error parsing AI response:", parseError);
-			return { success: false, error: "Failed to parse AI reinforcement text" };
+			return { success: true, data: buildDeterministicReinforcementText(input, theme) };
 		}
 	} catch (error) {
 		logger.error("Error generating reinforcement:", error);
