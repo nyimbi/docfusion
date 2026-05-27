@@ -1389,6 +1389,34 @@ describe("Competitive tenant-scoped utilities", () => {
 		expect(sqlText).toContain("c.orgId");
 		expect(sqlText).toContain(testOrganizationId);
 	});
+
+	test("returns partner sourcing actions when capability gaps have no active partner match", async () => {
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([makeOpportunity({
+				keyRequirements: "Security operations and cloud migration support",
+				technicalRequirements: "Cybersecurity controls and AWS cloud engineering",
+			})]))
+			.mockImplementationOnce(() => createChainableQuery([{ coreCapabilities: [], certifications: [] }]))
+			.mockImplementationOnce(() => createChainableQuery([]))
+			.mockImplementationOnce(() => createChainableQuery([]));
+
+		const result = await suggestTeamingPartners("00000000-0000-4000-8000-000000000002");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				partnerName: "Partner sourcing required: security",
+				gapsFilled: ["security"],
+				relationshipType: "sub",
+				confidence: 0.35,
+			}),
+			expect.objectContaining({
+				partnerName: "Partner sourcing required: cloud",
+				gapsFilled: ["cloud"],
+			}),
+		]));
+	});
 });
 
 // ---------------------------------------------------------------------------

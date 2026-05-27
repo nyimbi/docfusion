@@ -210,6 +210,16 @@ export type TeamingSuggestion = {
 	confidence: number;
 };
 
+function buildPartnerSourcingSuggestions(gaps: string[]): TeamingSuggestion[] {
+	return gaps.slice(0, 5).map((gap) => ({
+		partnerName: `Partner sourcing required: ${gap}`,
+		gapsFilled: [gap],
+		rationale: `No active partner or teaming-capable competitor currently covers ${gap}; source or qualify a partner before final capture review.`,
+		relationshipType: "sub",
+		confidence: 0.35,
+	}));
+}
+
 /**
  * Win/loss analysis against a specific competitor.
  */
@@ -2180,7 +2190,19 @@ export async function suggestTeamingPartners(
 			return b.gapsFilled.length - a.gapsFilled.length;
 		});
 
-		return { success: true, data: suggestions.slice(0, 10) };
+		if (suggestions.length === 0) {
+			return { success: true, data: buildPartnerSourcingSuggestions(gaps) };
+		}
+
+		const coveredGaps = new Set(suggestions.flatMap((suggestion) => suggestion.gapsFilled));
+		const uncoveredGaps = gaps.filter((gap) => !coveredGaps.has(gap));
+		return {
+			success: true,
+			data: [
+				...suggestions,
+				...buildPartnerSourcingSuggestions(uncoveredGaps),
+			].slice(0, 10),
+		};
 	} catch (error) {
 		logger.error("[suggestTeamingPartners]", error);
 		return { success: false, error: "Failed to suggest teaming partners" };

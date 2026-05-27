@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Partner Sourcing Actions for Capability Gaps
+
+Status: implemented and verified.
+
+Purpose: keep capture planning actionable when opportunity capability gaps exist but no active partner or teaming-capable competitor currently matches them.
+
+Changes in this slice:
+- Add partner-sourcing fallback suggestions for uncovered capability gaps.
+- Preserve existing matched partner recommendations and append sourcing actions only for gaps not covered by any recommendation.
+- Return bounded, low-confidence sourcing actions without fabricating partner IDs.
+- Add regression coverage proving security and cloud gaps produce explicit sourcing actions when no partner records match.
+
+Verification:
+- `npm test -- competitive.test.ts` passed with 76 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 138 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing silent successful-empty capture/response support paths where scoped gaps can produce operator actions.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Ghost Theme Fallbacks
 
 Status: implemented and verified.
