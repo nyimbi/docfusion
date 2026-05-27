@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable AI Document Structure Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep document structure generation from accepting AI outline nodes that have no meaningful titles and turning them into generic successful sections.
+
+Changes in this slice:
+- Validate parsed AI document structure nodes before accepting them.
+- Drop top-level and child outline nodes that are not objects or have blank/missing titles.
+- Normalize accepted node type, length, order, and id fields without fabricating titles for unusable nodes.
+- Reuse the deterministic proposal structure fallback when no usable AI outline nodes remain.
+
+Verification:
+- `npm test -- document-generation-auth.test.ts --run` passed with 9 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave5-ai-content-governance` passed with 44 tests.
+
+Remaining after this slice:
+- Continue hardening generated response artifacts against invalid successful outputs.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Invalid AI Process Flow Fallbacks
 
 Status: implemented and verified.

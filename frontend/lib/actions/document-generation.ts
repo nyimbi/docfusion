@@ -38,6 +38,56 @@ export interface GenerateStructureInput {
 	maxSections?: number;
 }
 
+const VALID_STRUCTURE_TYPES = new Set<DocumentStructure["type"]>(["chapter", "section", "subsection", "paragraph"]);
+const VALID_STRUCTURE_LENGTHS = new Set<NonNullable<DocumentStructure["length"]>>(["brief", "medium", "comprehensive"]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function nonBlankText(value: unknown): string | null {
+	return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function normalizeStructureType(value: unknown, fallback: DocumentStructure["type"]): DocumentStructure["type"] {
+	const text = nonBlankText(value);
+	return text && VALID_STRUCTURE_TYPES.has(text as DocumentStructure["type"])
+		? text as DocumentStructure["type"]
+		: fallback;
+}
+
+function normalizeStructureLength(value: unknown): DocumentStructure["length"] {
+	const text = nonBlankText(value);
+	return text && VALID_STRUCTURE_LENGTHS.has(text as NonNullable<DocumentStructure["length"]>)
+		? text as NonNullable<DocumentStructure["length"]>
+		: "medium";
+}
+
+function normalizeStructureNode(value: unknown, index: number, fallbackType: DocumentStructure["type"]): DocumentStructure | null {
+	if (!isRecord(value)) return null;
+	const title = nonBlankText(value.title);
+	if (!title) return null;
+	const type = normalizeStructureType(value.type, fallbackType);
+	const childFallbackType = type === "chapter" ? "section" : "subsection";
+	const children = Array.isArray(value.children)
+		? value.children
+			.map((child, childIndex) => normalizeStructureNode(child, childIndex, childFallbackType))
+			.filter((child): child is DocumentStructure => child !== null)
+		: undefined;
+	const order = typeof value.order === "number" && Number.isFinite(value.order) && value.order > 0
+		? Math.floor(value.order)
+		: index + 1;
+
+	return {
+		id: nonBlankText(value.id) ?? crypto.randomUUID(),
+		type,
+		title,
+		order,
+		length: normalizeStructureLength(value.length),
+		...(children && children.length > 0 ? { children } : {}),
+	};
+}
+
 export interface GenerateSectionInput {
 	documentId: string;
 	sectionId: string;
@@ -214,7 +264,7 @@ Guidelines:
 		const content = response.content.trim();
 
 		// Try to parse the JSON response
-		let structure: DocumentStructure[];
+		let structure: unknown;
 		try {
 			// Remove any markdown code block markers if present
 			const cleanContent = content
@@ -233,24 +283,14 @@ Guidelines:
 				throw new Error("Response contained no structure nodes");
 			}
 
-			// Ensure all items have required fields
-			structure = structure.map((item, index) => ({
-				id: item.id || crypto.randomUUID(),
-				type: item.type || "section",
-				title: item.title || `Section ${index + 1}`,
-				order: item.order || index + 1,
-				length: item.length || "medium",
-				children: item.children?.map((child: DocumentStructure, childIndex: number) => ({
-					id: child.id || crypto.randomUUID(),
-					type: child.type || "subsection",
-					title: child.title || `Subsection ${childIndex + 1}`,
-					order: child.order || childIndex + 1,
-					length: child.length || "medium",
-					children: child.children,
-				})) as DocumentStructure[],
-			}));
+			const normalizedStructure = structure
+				.map((item, index) => normalizeStructureNode(item, index, "chapter"))
+				.filter((item): item is DocumentStructure => item !== null);
+			if (normalizedStructure.length === 0) {
+				throw new Error("Response contained no usable structure nodes");
+			}
 
-			return structure;
+			return normalizedStructure;
 		} catch (parseError) {
 			logger.error("[AI] Failed to parse structure, creating minimal fallback:", parseError);
 

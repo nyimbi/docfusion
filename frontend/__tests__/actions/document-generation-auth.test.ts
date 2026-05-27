@@ -87,6 +87,24 @@ describe("document generation action auth", () => {
 		expect(result[0].children?.length).toBeGreaterThan(0);
 	});
 
+	it("generates a deterministic structure when AI returns outline nodes without titles", async () => {
+		providerCompleteMock.mockResolvedValueOnce({ content: JSON.stringify([{}]) });
+		const { generateDocumentStructure } = await import("@/lib/actions/document-generation");
+
+		const result = await generateDocumentStructure({
+			prompt: "Draft a response plan for a digital health platform",
+			minSections: 2,
+			maxSections: 4,
+		});
+
+		expect(result.length).toBeGreaterThan(0);
+		expect(result[0]).toEqual(expect.objectContaining({
+			type: "chapter",
+			title: expect.stringContaining("Draft a response plan"),
+		}));
+		expect(result[0].children?.length).toBeGreaterThan(0);
+	});
+
 	it("rejects spoofed document creation owners before inserting", async () => {
 		const { createDocumentFromStructure } = await import("@/lib/actions/document-generation");
 
