@@ -214,25 +214,12 @@ Return direct document URLs only.`,
 
     // Try LLM extraction first
     if (scrapeResult.success && scrapeResult.data?.extract?.documents) {
-      const extractedDocs = scrapeResult.data.extract.documents as Array<{
-        name: string;
-        url: string;
-        type: string;
-        description?: string;
-      }>;
-      
+      const extractedDocs: unknown[] = Array.isArray(scrapeResult.data.extract.documents)
+        ? scrapeResult.data.extract.documents
+        : [];
       documents = extractedDocs
-        .map((doc) => ({
-          ...doc,
-          url: resolveUrl(doc.url, safeSourceUrl),
-        }))
-        .filter((doc) => isValidDocumentUrl(doc.url))
-        .map((doc) => ({
-          name: sanitizeFilename(doc.name),
-          url: doc.url,
-          type: validateDocumentType(doc.type),
-          description: doc.description,
-        }));
+        .map((doc) => normalizeExtractedDocument(doc, safeSourceUrl))
+        .filter((doc): doc is DiscoveredDocument => doc !== null);
     }
 
     // Fallback: Parse links from markdown if LLM extraction didn't find anything
@@ -243,6 +230,15 @@ Return direct document URLs only.`,
         safeSourceUrl
       );
       documents = linkDocs;
+    }
+
+    if (documents.length === 0) {
+      return {
+        success: false,
+        documents: [],
+        error: "No downloadable RFP documents found",
+        sourceUrl,
+      };
     }
 
     // Store discovered documents in database
@@ -305,6 +301,33 @@ function extractDocumentsFromLinks(
   }
 
   return documents;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function nonBlankString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function normalizeExtractedDocument(value: unknown, baseUrl: string): DiscoveredDocument | null {
+  if (!isRecord(value)) return null;
+  const rawUrl = nonBlankString(value.url);
+  if (!rawUrl) return null;
+
+  const resolvedUrl = resolveUrl(rawUrl, baseUrl);
+  if (!isValidDocumentUrl(resolvedUrl)) return null;
+
+  const extractedName = nonBlankString(value.name);
+  const sanitizedName = extractedName ? sanitizeFilename(extractedName) : "";
+  const extractedType = nonBlankString(value.type);
+  return {
+    name: sanitizedName || extractDocumentName(resolvedUrl, ""),
+    url: resolvedUrl,
+    type: extractedType ? validateDocumentType(extractedType) : classifyDocumentType(resolvedUrl, ""),
+    description: nonBlankString(value.description) ?? undefined,
+  };
 }
 
 /**

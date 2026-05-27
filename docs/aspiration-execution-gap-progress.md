@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - RFP Discovery No-Document Failure
+
+Status: implemented and verified.
+
+Purpose: keep RFP document discovery from reporting success and marking an opportunity as document-discovered when no downloadable RFP documents were found.
+
+Changes in this slice:
+- Normalize Firecrawl extracted document rows before accepting them as discovered documents.
+- Drop malformed extracted document rows with blank URLs and fall back to link extraction when possible.
+- Use filename fallback from the resolved URL when extracted document names are blank.
+- Return an explicit no-document failure before inserting rows or marking the opportunity as discovered.
+
+Verification:
+- `npm test -- rfp-document-service.test.ts --run` passed with 13 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` passed with 139 tests.
+
+Remaining after this slice:
+- Continue hardening discovery, intake, and response generation against false-positive success states.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Unusable AI Requirement Extraction Fallbacks
 
 Status: implemented and verified.

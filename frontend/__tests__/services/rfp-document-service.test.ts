@@ -213,6 +213,31 @@ describe("RFP document discovery", () => {
 			}),
 		]);
 	});
+
+	it("does not mark discovery successful when no downloadable documents are found", async () => {
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(null);
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "# Records Platform Tender\n\nNo downloadable files are published yet.",
+				links: ["https://buyer.example/tenders/records"],
+				extract: {
+					documents: [{ name: "   ", url: "   ", type: "rfp" }, {}],
+				},
+			},
+		});
+
+		const result = await discoverDocuments("opp-1", "https://buyer.example/tenders/records");
+
+		expect(result).toEqual({
+			success: false,
+			documents: [],
+			error: "No downloadable RFP documents found",
+			sourceUrl: "https://buyer.example/tenders/records",
+		});
+		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
+	});
 });
 
 describe("RFP document fetch storage", () => {
