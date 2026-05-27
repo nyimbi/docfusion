@@ -1131,6 +1131,53 @@ describe("discoverAndImportOpportunities", () => {
 		expect(result.sourceDocumentsCreated).toBe(0);
 	});
 
+	it("retries configured source scrapes when the first response parses empty", async () => {
+		firecrawlScrapeMock
+			.mockResolvedValueOnce({
+				success: true,
+				data: {
+					markdown: "# Service contracts tender calendar\n\nSearch form",
+					links: [],
+					metadata: { title: "Service contracts tender calendar" },
+				},
+			})
+			.mockResolvedValueOnce({
+				success: true,
+				data: {
+					markdown: [
+						"# Service contracts tender calendar",
+						"",
+						"| Description of tender | Estimated duration of LTA/Institutional Contract | Estimated time of tender issuance |",
+						"| --- | --- | --- |",
+						"| LTA for Mobile Satellite Devices and Services | 5 years (3+1+1) | Q4 |",
+					].join("\n"),
+					links: [],
+					metadata: { title: "Service contracts tender calendar" },
+				},
+			});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.unicef.org/supply/service-contracts-tender-calendar"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(firecrawlScrapeMock).toHaveBeenCalledTimes(2);
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(result.warnings).toEqual([]);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "LTA for Mobile Satellite Devices and Services",
+			source: "unicef",
+			tags: ["external-discovery", "source-scrape", "unicef", "un-procurement", "tender-calendar", "service-contract", "ict"],
+		}));
+	});
+
 	it("imports UNICEF tender calendar documents as source documents", async () => {
 		const documentUrl = "https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf";
 		firecrawlScrapeMock.mockResolvedValue({

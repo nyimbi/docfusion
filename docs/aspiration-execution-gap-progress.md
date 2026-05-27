@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Configured Source Retry Resilience
+
+Status: implemented and verified.
+
+Purpose: prevent transient Firecrawl/source-parser misses from making high-value configured sources appear empty after one bad scrape, which would skip opportunity and source-document intake for that run.
+
+Changes in this slice:
+- Add a bounded retry loop around configured-source Firecrawl scrape plus parser extraction.
+- Retry both failed source scrapes and successful scrapes that parse to zero opportunities before emitting a source warning.
+- Add the same retry behavior to the live UNICEF source proof script, which exposed the transient empty-source behavior during live verification.
+- Add regression coverage proving a source import recovers when the first UNICEF scrape parses empty and the second scrape returns opportunities.
+
+Verification:
+- `npm test -- discovery-opportunity-import.test.ts` from `frontend/` passed, running 20 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 discovery-to-response bridge test files and 53 tests.
+- `npm run platform:proof -- --include-live-safe --run live-unicef-source` from `frontend/` passed after the proof retry update, returning 9 UNICEF service-contract opportunities and the UNICEF medicines tender calendar PDF link.
+
+Remaining after this slice:
+- Continue adding durable live proofs for scheduled discovery runs under service credentials.
+- Continue tightening source-specific document extraction for sources that expose detail pages or calendar PDFs.
+
 ### 2026-05-27 - Discovery Runtime Defaults Preserve Source Documents
 
 Status: implemented and verified.

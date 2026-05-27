@@ -19,6 +19,10 @@ const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-live-source-discovery-evidence.md");
 const SERVICE_SOURCE_URL = process.env.LIVE_SOURCE_DISCOVERY_URL ?? "https://www.unicef.org/supply/service-contracts-tender-calendar";
 const TENDER_CALENDARS_SOURCE_URL = process.env.LIVE_UNICEF_TENDER_CALENDARS_URL ?? "https://www.unicef.org/supply/tender-calendars";
+const RAW_SOURCE_SCRAPE_ATTEMPTS = Number(process.env.LIVE_UNICEF_SOURCE_SCRAPE_ATTEMPTS ?? 3);
+const SOURCE_SCRAPE_ATTEMPTS = Number.isFinite(RAW_SOURCE_SCRAPE_ATTEMPTS)
+	? Math.max(1, Math.trunc(RAW_SOURCE_SCRAPE_ATTEMPTS))
+	: 3;
 
 type ParsedSourceSummary = LiveUnicefSourceProof["source"];
 
@@ -127,39 +131,46 @@ async function scrapeParsedSource(client: FirecrawlClient, sourceUrl: string): P
 	summary: ParsedSourceSummary;
 	opportunities: Awaited<ReturnType<typeof unicefParser.parse>>["opportunities"];
 }> {
-	const sourceResult = await client.scrape(sourceUrl, {
-		formats: ["markdown", "links"],
-		timeout: 60000,
-	});
-	const markdown = sourceResult.data?.markdown ?? "";
-	const links = sourceResult.data?.links ?? [];
-	if (!sourceResult.success || markdown.trim().length === 0) {
-		throw new Error(sourceResult.error ?? `Firecrawl returned no UNICEF source content for ${sourceUrl}`);
+	let lastError = "";
+	for (let attempt = 1; attempt <= SOURCE_SCRAPE_ATTEMPTS; attempt++) {
+		const sourceResult = await client.scrape(sourceUrl, {
+			formats: ["markdown", "links"],
+			timeout: 60000,
+		});
+		const markdown = sourceResult.data?.markdown ?? "";
+		const links = sourceResult.data?.links ?? [];
+		if (!sourceResult.success || markdown.trim().length === 0) {
+			lastError = sourceResult.error ?? `Firecrawl returned no UNICEF source content for ${sourceUrl}`;
+			continue;
+		}
+
+		const parsed = await unicefParser.parse({ markdown, links, url: sourceUrl });
+		if (parsed.opportunities.length === 0) {
+			lastError = `UNICEF parser returned no source opportunities for ${sourceUrl}`;
+			continue;
+		}
+
+		return {
+			summary: {
+				url: sourceUrl,
+				title: sourceResult.data?.metadata?.title,
+				markdownLength: markdown.trim().length,
+				linkCount: links.length,
+				opportunityCount: parsed.opportunities.length,
+				sampleOpportunities: parsed.opportunities.slice(0, 5).map((opportunity) => ({
+					title: opportunity.title,
+					noticeId: opportunity.noticeId ?? undefined,
+					countryRegion: opportunity.countryRegion ?? undefined,
+					category: opportunity.category ?? undefined,
+					opportunityType: opportunity.opportunityType ?? undefined,
+					portalUrl: opportunity.portalUrl ?? undefined,
+				})),
+			},
+			opportunities: parsed.opportunities,
+		};
 	}
 
-	const parsed = await unicefParser.parse({ markdown, links, url: sourceUrl });
-	if (parsed.opportunities.length === 0) {
-		throw new Error(`UNICEF parser returned no source opportunities for ${sourceUrl}`);
-	}
-
-	return {
-		summary: {
-			url: sourceUrl,
-			title: sourceResult.data?.metadata?.title,
-			markdownLength: markdown.trim().length,
-			linkCount: links.length,
-			opportunityCount: parsed.opportunities.length,
-			sampleOpportunities: parsed.opportunities.slice(0, 5).map((opportunity) => ({
-				title: opportunity.title,
-				noticeId: opportunity.noticeId ?? undefined,
-				countryRegion: opportunity.countryRegion ?? undefined,
-				category: opportunity.category ?? undefined,
-				opportunityType: opportunity.opportunityType ?? undefined,
-				portalUrl: opportunity.portalUrl ?? undefined,
-			})),
-		},
-		opportunities: parsed.opportunities,
-	};
+	throw new Error(`${lastError || `UNICEF source scrape failed for ${sourceUrl}`} after ${SOURCE_SCRAPE_ATTEMPTS} attempt(s)`);
 }
 
 async function writeArtifacts(proof: LiveUnicefSourceProof, disposition: EvidenceRecord["disposition"]) {

@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { opportunities, opportunityDocuments } from "@/lib/db/schema";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
-import { genericParser, getParser, type TenderParser } from "@/lib/scrapers/parsers";
+import { genericParser, getParser, type ParseResult, type TenderParser } from "@/lib/scrapers/parsers";
 import { parseComesaTenderDetailMarkdown } from "@/lib/scrapers/parsers/comesa";
 import { parseUndpNoticeDetailMarkdown } from "@/lib/scrapers/parsers/undp";
 import {
@@ -118,6 +118,16 @@ type SourceDocumentSeedResult =
 	| { state: "created" | "existing"; documentId: string }
 	| { state: "none" | "failed"; documentId?: undefined };
 
+type FirecrawlScrapeResult = Awaited<ReturnType<FirecrawlClient["scrape"]>>;
+
+interface ConfiguredSourceParseResult {
+	parser: TenderParser;
+	parseResult: ParseResult;
+	scrapeResult: FirecrawlScrapeResult;
+	attempts: number;
+	lastEmptyMessage?: string;
+}
+
 const DEFAULT_DISCOVERY_QUERIES = [
 	"software development RFP Africa",
 	"ICT tender East Africa",
@@ -142,6 +152,7 @@ const MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH = 120;
 const DEFAULT_COMESA_DETAIL_LIMIT = 5;
 const DEFAULT_UNDP_DETAIL_LIMIT = 5;
 const DEFAULT_WORLD_BANK_DETAIL_LIMIT = 5;
+const DEFAULT_CONFIGURED_SOURCE_SCRAPE_ATTEMPTS = 2;
 const DOCUMENT_URL_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)/i;
 const DOCUMENT_LINK_KEYWORDS = [
 	"rfp",
@@ -371,6 +382,11 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "unicef" ? ["unicef", "un-procurement", "tender-calendar"] : []),
 		...(opportunity?.tags ?? []),
 	])];
+}
+
+function configuredSourceScrapeAttempts(): number {
+	const parsed = Number(process.env.CONFIGURED_SOURCE_SCRAPE_ATTEMPTS ?? DEFAULT_CONFIGURED_SOURCE_SCRAPE_ATTEMPTS);
+	return Number.isFinite(parsed) ? Math.max(1, Math.trunc(parsed)) : DEFAULT_CONFIGURED_SOURCE_SCRAPE_ATTEMPTS;
 }
 
 function sourceOpportunityType(opportunity: OpportunityData | undefined): OpportunityInput["opportunityType"] | undefined {
@@ -675,35 +691,27 @@ async function discoverConfiguredSourceCandidates(
 			if (ungmResult.handled) continue;
 		}
 
-		const scrapeResult = await firecrawl.scrape(sourceUrl, {
-			formats: ["markdown", "html", "links"],
-			timeout: 20000,
-		});
-		if (!scrapeResult.success || !scrapeResult.data) {
+		const sourceResult = await scrapeAndParseConfiguredSource(firecrawl, sourceUrl);
+		if (!sourceResult.scrapeResult.success || !sourceResult.scrapeResult.data) {
 			warnings.push({
 				type: "source_scrape_failed",
 				query: `source:${sourceUrl}`,
 				title: "Configured source scrape failed",
 				url: sourceUrl,
-				message: scrapeResult.error ?? "Firecrawl returned no source content",
+				message: sourceResult.scrapeResult.error ?? "Firecrawl returned no source content",
 			});
 			continue;
 		}
 
-		const parser = parserForSourceUrl(sourceUrl);
-		const parseResult = await parser.parse({
-			html: scrapeResult.data.html,
-			markdown: scrapeResult.data.markdown ?? "",
-			links: scrapeResult.data.links ?? [],
-			url: sourceUrl,
-		});
+		const { parser, parseResult, scrapeResult } = sourceResult;
 		if (!parseResult.opportunities.length) {
 			warnings.push({
 				type: "source_scrape_empty",
 				query: `source:${sourceUrl}`,
 				title: "Configured source scrape found no opportunities",
 				url: sourceUrl,
-				message: "Firecrawl returned content, but the generic tender parser found no tender-like records.",
+				message: sourceResult.lastEmptyMessage
+					?? `Firecrawl returned content after ${sourceResult.attempts} attempt(s), but the ${parser.name} parser found no tender-like records.`,
 			});
 			continue;
 		}
@@ -751,7 +759,7 @@ async function discoverConfiguredSourceCandidates(
 					success: true,
 					title: opportunity.title,
 					description: opportunity.projectSummary,
-					markdown: scrapeResult.data.markdown,
+					markdown: scrapeResult.data?.markdown,
 					method: "firecrawl",
 				},
 			});
@@ -759,6 +767,62 @@ async function discoverConfiguredSourceCandidates(
 	}
 
 	return candidates;
+}
+
+async function scrapeAndParseConfiguredSource(
+	firecrawl: FirecrawlClient,
+	sourceUrl: string
+): Promise<ConfiguredSourceParseResult> {
+	const parser = parserForSourceUrl(sourceUrl);
+	const maxAttempts = configuredSourceScrapeAttempts();
+	let lastScrapeResult: FirecrawlScrapeResult | undefined;
+	let lastParseResult: ParseResult = { opportunities: [] };
+	let lastEmptyMessage: string | undefined;
+
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		const scrapeResult = await firecrawl.scrape(sourceUrl, {
+			formats: ["markdown", "html", "links"],
+			timeout: 20000,
+		});
+		lastScrapeResult = scrapeResult;
+		if (!scrapeResult.success || !scrapeResult.data) {
+			if (attempt < maxAttempts) continue;
+			return {
+				parser,
+				parseResult: lastParseResult,
+				scrapeResult,
+				attempts: attempt,
+			};
+		}
+
+		lastParseResult = await parser.parse({
+			html: scrapeResult.data.html,
+			markdown: scrapeResult.data.markdown ?? "",
+			links: scrapeResult.data.links ?? [],
+			url: sourceUrl,
+		});
+		if (lastParseResult.opportunities.length > 0) {
+			return {
+				parser,
+				parseResult: lastParseResult,
+				scrapeResult,
+				attempts: attempt,
+			};
+		}
+
+		lastEmptyMessage = `Firecrawl returned content but ${parser.name} found no opportunities on attempt ${attempt} of ${maxAttempts}.`;
+	}
+
+	return {
+		parser,
+		parseResult: lastParseResult,
+		scrapeResult: lastScrapeResult ?? {
+			success: false,
+			error: "Configured source scrape did not run",
+		},
+		attempts: maxAttempts,
+		lastEmptyMessage,
+	};
 }
 
 function metadataRecord(value: OpportunityData["metadata"]): Record<string, unknown> {
