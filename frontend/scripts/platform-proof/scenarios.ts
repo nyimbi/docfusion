@@ -410,6 +410,23 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "live-comesa-source",
+		wave: 9,
+		title: "Live COMESA source discovery proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005"],
+		requiresLiveServices: true,
+		description: "Scrapes COMESA's open tenders archive and verifies the COMESA parser filters navigation links into normalized opportunity candidates.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-comesa-source.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-source-discovery-evidence.md",
+			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-source-discovery.json",
+		],
+	},
+	{
 		id: "live-kenya-ppip-source",
 		wave: 9,
 		title: "Live Kenya PPIP source API proof",

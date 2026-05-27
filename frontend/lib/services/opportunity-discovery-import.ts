@@ -211,13 +211,11 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 		return genericParser;
 	}
 
-	const sourceId = host.includes("tenders.go.ke")
-		? "kenya_ppip"
-		: host === "ungm.org"
-			? "ungm"
-			: host.includes("dgmarket.com")
-			? "dgmarket"
-			: undefined;
+	let sourceId: string | undefined;
+	if (host.includes("tenders.go.ke")) sourceId = "kenya_ppip";
+	else if (host === "ungm.org") sourceId = "ungm";
+	else if (host.includes("dgmarket.com")) sourceId = "dgmarket";
+	else if (host.includes("comesa.int")) sourceId = "comesa";
 	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
 }
 
@@ -336,6 +334,7 @@ function extractDocumentUrlFromMarkdown(markdown: string | undefined, baseUrl: s
 function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryMethod: DiscoveryCandidate["discoveryMethod"]): string {
 	if (opportunity?.source === "kenya_ppip") return "Kenya PPIP";
 	if (opportunity?.source === "ungm") return "UNGM";
+	if (opportunity?.source === "comesa") return "COMESA";
 	return discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG";
 }
 
@@ -346,6 +345,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		"source-scrape",
 		...(opportunity?.source === "kenya_ppip" ? ["kenya-ppip"] : []),
 		...(opportunity?.source === "ungm" ? ["ungm", "un-procurement"] : []),
+		...(opportunity?.source === "comesa" ? ["comesa", "regional-procurement"] : []),
 	];
 }
 
@@ -494,7 +494,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = isDocumentUrl(candidate.result.url)
 		? candidate.result.url
 		: sourceOpportunity?.documentUrl || extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "ungm"
+	const source = sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "comesa"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 

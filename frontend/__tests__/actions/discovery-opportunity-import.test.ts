@@ -896,4 +896,65 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 		expect(result.sourceDocumentsCreated).toBe(0);
 	});
+
+	it("imports COMESA configured sources with the COMESA parser", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"* [Open Tenders](https://www.comesa.int/category/open-tenders/)",
+					"",
+					"[](https://www.comesa.int/procurement-of-consultancy-services-to-review-the-development-of-comesa-regional-agri-food-systems-investment-plan-rasip-2026-2031/)",
+					"",
+					"### [Procurement of Consultancy Services to Review the Development of COMESA Regional Agri Food Systems Investment Plan (RASIP) 2026-2031](https://www.comesa.int/procurement-of-consultancy-services-to-review-the-development-of-comesa-regional-agri-food-systems-investment-plan-rasip-2026-2031/)",
+					"",
+					"08/05/2026",
+					"",
+					"REQUEST FOR EXPRESSIONS OF INTEREST (REOI) Procurement Title: Procurement of Consultancy Services to Review the Development of COMESA Regional Agri Food Systems Investment Plan (RASIP) 2026-2031 For more details visit https://www.nepad.org/tenders/procurement-of-consultancy-services-review-development-of-comesa-regional-agri-food-systems",
+				].join("\n"),
+				links: ["https://www.comesa.int/procurement-of-consultancy-services-to-review-the-development-of-comesa-regional-agri-food-systems-investment-plan-rasip-2026-2031/"],
+				metadata: { title: "Open Tenders Archives - COMESA" },
+			},
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.comesa.int/category/open-tenders/"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(searchSearxngMock).not.toHaveBeenCalled();
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith("https://www.comesa.int/category/open-tenders/", expect.objectContaining({
+			formats: ["markdown", "html", "links"],
+		}));
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			source: "comesa",
+			sourcePlatform: "COMESA",
+			sourceFile: "source:https://www.comesa.int/category/open-tenders/",
+			title: "Procurement of Consultancy Services to Review the Development of COMESA Regional Agri Food Systems Investment Plan (RASIP) 2026-2031",
+			category: "Consultancy",
+			countryRegion: "Eastern and Southern Africa",
+			organization: "COMESA Secretariat",
+			rfpLink: "https://www.nepad.org/tenders/procurement-of-consultancy-services-review-development-of-comesa-regional-agri-food-systems",
+			portalUrl: "https://www.comesa.int/procurement-of-consultancy-services-to-review-the-development-of-comesa-regional-agri-food-systems-investment-plan-rasip-2026-2031/",
+			documentUrl: "https://www.nepad.org/tenders/procurement-of-consultancy-services-review-development-of-comesa-regional-agri-food-systems",
+			tags: ["external-discovery", "source-scrape", "comesa", "regional-procurement"],
+			metadata: expect.objectContaining({
+				comesa: expect.objectContaining({ sourceArchive: "open-tenders" }),
+				discovery: expect.objectContaining({
+					resultEngine: "firecrawl-source",
+					scrapeMethod: "firecrawl",
+					scrapedWithFirecrawl: true,
+					sourceUrl: "https://www.comesa.int/category/open-tenders/",
+				}),
+			}),
+		}));
+	});
 });

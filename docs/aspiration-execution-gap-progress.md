@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - COMESA Live Source Discovery
+
+Status: implemented and verified.
+
+Purpose: expand reliable live opportunity discovery beyond UNDP/UNGM/Kenya by adding a COMESA parser for regional open tenders.
+
+Changes in this slice:
+- Add a COMESA open-tenders parser that extracts dated tender posts and filters navigation/category links that the generic parser treated as opportunities.
+- Wire COMESA source URLs into configured-source discovery so imports preserve `source: "comesa"`, COMESA platform metadata, and regional-procurement tags.
+- Add a live-safe `live-comesa-source` platform proof scenario.
+- Add parser, import, and proof-manifest regression coverage.
+
+Verification:
+- `npm test -- comesa-parser.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 20 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-comesa-source` from `frontend/` passed. It scraped `https://www.comesa.int/category/open-tenders/` and returned 2 normalized COMESA opportunities.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 discovery-to-response bridge test files and 47 tests.
+
+Remaining after this slice:
+- Continue adding high-value live sources where Firecrawl or source APIs can produce normalized opportunities with low noise.
+- Persisted live import and response proof still waits on reachable PostgreSQL.
+
 ### 2026-05-27 - Command Center Response Quality Resolver Links
 
 Status: implemented and verified.

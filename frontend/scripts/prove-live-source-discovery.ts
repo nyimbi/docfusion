@@ -9,7 +9,7 @@ import {
 	type EvidenceRecord,
 } from "./platform-proof/core";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
-import { genericParser } from "@/lib/scrapers/parsers/generic";
+import { genericParser, getParser } from "@/lib/scrapers/parsers";
 
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
 const RUN_ID = process.env.LIVE_SOURCE_DISCOVERY_PROOF_RUN_ID ?? createProofRunId("live_source_discovery");
@@ -75,7 +75,8 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 		throw new Error(result.error ?? "Firecrawl returned no configured source content");
 	}
 
-	const parsed = await genericParser.parse({
+	const parser = parserForSourceUrl(SOURCE_URL);
+	const parsed = await parser.parse({
 		markdown,
 		links,
 		url: SOURCE_URL,
@@ -103,6 +104,14 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 			portalUrl: opportunity.portalUrl ?? undefined,
 		})),
 	};
+}
+
+function parserForSourceUrl(sourceUrl: string) {
+	const host = new URL(sourceUrl).hostname.replace(/^www\./, "").toLowerCase();
+	if (host.includes("comesa.int")) return getParser("comesa") ?? genericParser;
+	if (host.includes("tenders.go.ke")) return getParser("kenya_ppip") ?? genericParser;
+	if (host.includes("ungm.org")) return getParser("ungm") ?? genericParser;
+	return genericParser;
 }
 
 async function writeArtifacts(proof: LiveSourceDiscoveryProof, disposition: EvidenceRecord["disposition"]) {
