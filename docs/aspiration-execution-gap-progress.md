@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Wave 9 Revalidation After Procurement Discovery Proof
+
+Status: verified.
+
+Purpose: revalidate the non-live discovery-to-submission regression chunk after strengthening the live discovery-services proof to use procurement sources and procurement-language indicators.
+
+Verification:
+- `npm run platform:proof -- --all --wave 9` passed.
+- Covered discovery-to-response package bridge, response package readiness, presentation export/practice readiness, and discovery-to-submission core proof scenarios.
+- The run passed 21 test files and 234 tests across discovery parsing/import, opportunity document download, source document intake, RFP parse workflow, requirements workflow, proposal documents, final artifacts, final submission gates, submissions scope, and presentation export.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+- Keep using live-safe source/readiness proofs to harden non-DB discovery, extraction, and response-generation behavior while the database path is unreachable.
+
 ### 2026-05-27 - Procurement-Source Live Discovery Services Proof
 
 Status: implemented and verified.
