@@ -142,6 +142,7 @@ describe("live response package builder", () => {
 			evaluationCriteriaCoverage: 1,
 			winThemeCriteriaCoverage: 1,
 			evidenceCueCoverage: 1,
+			evidenceCitationCoverage: 1,
 			reviewGateCoverage: 1,
 			sourceCitationCoverage: 1,
 			unresolvedPlaceholderCount: 0,
@@ -155,6 +156,10 @@ describe("live response package builder", () => {
 			expect(document.markdown).toContain("## Source Citation Map");
 			expect(document.markdown).toContain("Source requirement LIVE-REQ-");
 			expect(document.markdown).toContain("## Datacraft Evidence To Weave In");
+			expect(document.markdown).toContain("## Datacraft Evidence Citation Map");
+			for (const shortcut of document.relevantSnippetShortcuts) {
+				expect(document.markdown).toContain(`Evidence ${shortcut}:`);
+			}
 			expect(document.markdown).not.toContain("Replace generic claims");
 			expect(document.markdown).not.toMatch(/\{\{[^}]+\}\}/);
 			expect(document.requirementIds).toHaveLength(new Set(document.requirementIds).size);
@@ -266,6 +271,32 @@ Vendors interested in participating in the planned solicitation process should s
 		expect(readiness.warnings).toEqual(
 			expect.arrayContaining([
 				expect.stringContaining("incomplete source citation mapping"),
+			])
+		);
+	});
+
+	it("blocks readiness when evidence citation maps are missing from drafts", () => {
+		const responsePackage = buildLiveResponsePackage({
+			opportunity,
+			sourceText,
+			generatedAt: new Date("2026-05-27T00:00:00.000Z"),
+		});
+		const brokenPackage = {
+			...responsePackage,
+			documents: responsePackage.documents.map((document) => ({
+				...document,
+				markdown: document.markdown.replace(/## Datacraft Evidence Citation Map[\s\S]*?## Review Gates/, "## Review Gates"),
+			})),
+		};
+
+		const readiness = assessLiveResponsePackageReadiness(brokenPackage);
+
+		expect(readiness.status).toBe("blocked");
+		expect(readiness.blockers.join("\n")).toContain("Datacraft evidence citation map");
+		expect(readiness.metrics.evidenceCitationCoverage).toBe(0);
+		expect(readiness.warnings).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining("incomplete Datacraft evidence citation mapping"),
 			])
 		);
 	});

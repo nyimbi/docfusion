@@ -6005,3 +6005,25 @@ Verification:
 Remaining after this slice:
 - Continue strengthening generated live response drafts with richer evidence citations and rendered artifact checks.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Evidence Citation Readiness Gate
+
+Status: implemented and verified.
+
+Purpose: make generated live response drafts carry auditable Datacraft evidence citations and fail readiness if those citations are missing.
+
+Changes in this slice:
+- Add a `Datacraft Evidence Citation Map` section to every generated live response draft.
+- Tie each assigned snippet shortcut to its evidence name, category, and intended use in the response.
+- Add `evidenceCitationCoverage` to response readiness metrics.
+- Block readiness and emit warnings when any draft lacks complete evidence citation mapping.
+
+Verification:
+- `npm test -- live-response-package.test.ts` passed with 11 tests.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 11 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue strengthening generated live response packages with rendered artifact checks and persistence proof once database connectivity is restored.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

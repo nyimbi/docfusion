@@ -111,6 +111,7 @@ export interface LiveResponseReadinessAssessment {
 		evaluationCriteriaCoverage: number;
 		winThemeCriteriaCoverage: number;
 		evidenceCueCoverage: number;
+		evidenceCitationCoverage: number;
 		reviewGateCoverage: number;
 		sourceCitationCoverage: number;
 		unresolvedPlaceholderCount: number;
@@ -231,6 +232,7 @@ export function assessLiveResponsePackageReadiness(
 	const missingWinThemeEvaluationCriteriaIds = evaluationCriteriaIds.filter((id) => !winThemeEvaluationCriteriaIds.has(id));
 	const coveredMandatoryRequirementCount = mandatoryRequirementIds.filter((id) => assignedRequirementIds.has(id)).length;
 	const documentsWithEvidence = responsePackage.documents.filter((document) => document.relevantSnippetShortcuts.length > 0).length;
+	const documentsWithEvidenceCitations = responsePackage.documents.filter(hasCompleteEvidenceCitationMap).length;
 	const documentsWithReviewGates = responsePackage.documents.filter((document) => document.markdown.includes("## Review Gates")).length;
 	const documentsWithSourceCitations = responsePackage.documents.filter(hasCompleteSourceCitationMap).length;
 	const unresolvedPlaceholderCount = responsePackage.documents.reduce(
@@ -247,6 +249,7 @@ export function assessLiveResponsePackageReadiness(
 		evaluationCriteriaCoverage: ratio(coveredEvaluationCriteriaCount, evaluationCriteriaIds.length),
 		winThemeCriteriaCoverage: ratio(winThemeCoveredEvaluationCriteriaCount, evaluationCriteriaIds.length),
 		evidenceCueCoverage: ratio(documentsWithEvidence, responsePackage.documents.length),
+		evidenceCitationCoverage: ratio(documentsWithEvidenceCitations, responsePackage.documents.length),
 		reviewGateCoverage: ratio(documentsWithReviewGates, responsePackage.documents.length),
 		sourceCitationCoverage: ratio(documentsWithSourceCitations, responsePackage.documents.length),
 		unresolvedPlaceholderCount,
@@ -289,6 +292,9 @@ export function assessLiveResponsePackageReadiness(
 	if (metrics.evidenceCueCoverage < 1) {
 		blockers.push("At least one response draft has no Datacraft evidence cues");
 	}
+	if (metrics.evidenceCitationCoverage < 1) {
+		blockers.push("At least one response draft is missing a complete Datacraft evidence citation map");
+	}
 	if (metrics.reviewGateCoverage < 1) {
 		blockers.push("At least one response draft is missing review gates");
 	}
@@ -305,6 +311,9 @@ export function assessLiveResponsePackageReadiness(
 		}
 		if (document.relevantSnippetShortcuts.length < 3) {
 			warnings.push(`${document.documentType} has fewer than three Datacraft evidence cues`);
+		}
+		if (!hasCompleteEvidenceCitationMap(document)) {
+			warnings.push(`${document.documentType} has incomplete Datacraft evidence citation mapping`);
 		}
 		if (!hasCompleteSourceCitationMap(document)) {
 			warnings.push(`${document.documentType} has incomplete source citation mapping`);
@@ -332,6 +341,11 @@ function hasCompleteSourceCitationMap(document: LiveResponseDraftDocument): bool
 	return [...document.requirementIds, ...document.evaluationCriteriaIds].every((id) =>
 		document.markdown.includes(id)
 	);
+}
+
+function hasCompleteEvidenceCitationMap(document: LiveResponseDraftDocument): boolean {
+	if (!document.markdown.includes("## Datacraft Evidence Citation Map")) return false;
+	return document.relevantSnippetShortcuts.every((shortcut) => document.markdown.includes(shortcut));
 }
 
 export function extractLiveResponseRequirementSignals(sourceText: string): LiveResponseRequirementSignal[] {
@@ -551,6 +565,7 @@ function buildDocumentMarkdown(input: {
 	const snippetLines = input.snippets.slice(0, 8).map((snippet) =>
 		`- ${snippet.shortcut}: ${snippet.name} (${snippet.topicCategory})`
 	);
+	const evidenceCitationLines = buildEvidenceCitationLines(input.snippets);
 	const opportunityContext = [
 		`Client: ${input.clientName}`,
 		`Opportunity: ${input.opportunity.title}`,
@@ -581,6 +596,9 @@ function buildDocumentMarkdown(input: {
 		"## Datacraft Evidence To Weave In",
 		...snippetLines,
 		"",
+		"## Datacraft Evidence Citation Map",
+		...evidenceCitationLines,
+		"",
 		"## Review Gates",
 		"- Verify every Source Citation Map item is reflected in the final compliance matrix and response narrative.",
 		"- Confirm every mandatory source requirement is mapped to a compliance matrix row.",
@@ -607,6 +625,16 @@ function buildSourceCitationLines(
 	return lines.length > 0
 		? lines
 		: ["- No source citations were extracted for this draft; refresh source parsing before final submission."];
+}
+
+function buildEvidenceCitationLines(snippets: DatacraftResponseSnippetInput[]): string[] {
+	const lines = snippets.slice(0, 8).map((snippet) =>
+		`- Evidence ${snippet.shortcut}: ${snippet.name}; category ${snippet.topicCategory}; apply where the response addresses ${compactText(snippet.description, 180)}`
+	);
+
+	return lines.length > 0
+		? lines
+		: ["- No Datacraft evidence snippets were assigned to this draft; refresh snippet matching before final submission."];
 }
 
 function requirementsForDocumentType(
@@ -877,6 +905,7 @@ function emptyReadinessAssessment(): LiveResponseReadinessAssessment {
 			evaluationCriteriaCoverage: 0,
 		winThemeCriteriaCoverage: 0,
 		evidenceCueCoverage: 0,
+		evidenceCitationCoverage: 0,
 		reviewGateCoverage: 0,
 		sourceCitationCoverage: 0,
 		unresolvedPlaceholderCount: 0,
