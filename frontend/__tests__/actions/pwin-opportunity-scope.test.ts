@@ -175,6 +175,51 @@ describe("PWin opportunity scoping", () => {
 		expectAssignedOpportunityScope(rankingWhere);
 	});
 
+	it("filters opportunity rankings by capture pipeline stage instead of category", async () => {
+		const wheres: unknown[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					opportunityId: "33333333-3333-4333-8333-333333333333",
+					currentStage: "proposal",
+				}],
+				onWhere: (value) => wheres.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "33333333-3333-4333-8333-333333333333",
+					title: "Revenue authority platform",
+					winProbability: 70,
+					budgetNumeric: 1000,
+					category: "technology",
+					createdAt: new Date("2026-05-27T00:00:00.000Z"),
+				}],
+				onWhere: (value) => wheres.push(value),
+			}));
+
+		const result = await rankOpportunities({ stage: "proposal", sortBy: "expected_value" });
+
+		expect(result).toEqual({
+			success: true,
+			data: [{
+				rank: 1,
+				opportunityId: "33333333-3333-4333-8333-333333333333",
+				opportunityName: "Revenue authority platform",
+				pwin: 70,
+				value: 1000,
+				expectedValue: 700,
+				stage: "proposal",
+			}],
+		});
+		expect(wheres).toHaveLength(2);
+		const pipelineWhere = collectSqlFragments(wheres[0]).join(" ");
+		expect(pipelineWhere).toContain("proposal");
+		expect(pipelineWhere).toContain("current_stage");
+		expect(pipelineWhere).toContain("org-1");
+		expectAssignedOpportunityScope(wheres[1]);
+		expect(collectSqlFragments(wheres[1]).join(" ")).not.toContain("technology");
+	});
+
 	it("scopes portfolio metrics to the assigned user", async () => {
 		let metricsWhere: unknown;
 		dbMock.select.mockReturnValueOnce(createChain({

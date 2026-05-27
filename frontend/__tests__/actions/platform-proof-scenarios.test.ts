@@ -153,6 +153,7 @@ describe("platform proof scenarios", () => {
 					"vitest:crm-account-research-search",
 					"vitest:win-themes-auth",
 					"vitest:past-performance-scope",
+					"vitest:pwin-opportunity-scope",
 				]),
 			}),
 		]);

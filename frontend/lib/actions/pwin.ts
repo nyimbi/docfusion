@@ -46,6 +46,7 @@ import {
 	type NewPortfolioOptimization,
 } from "@/lib/db/schema-pwin";
 import { opportunities } from "@/lib/db/schema";
+import { capturePipeline } from "@/lib/db/schema-pipeline";
 import { debriefs } from "@/lib/db/schema-winloss";
 import { eq, and, desc, asc, sql, gte, lte, inArray, count, avg, sum, isNotNull, or, isNull, type SQL } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm/column";
@@ -95,6 +96,16 @@ function visibleOpportunityCondition(opportunityId: string, userContext: PwinUse
 		or(eq(opportunities.organizationId, userContext.organizationId), isNull(opportunities.organizationId))!,
 		eq(opportunities.assignedTo, userContext.userId)
 	);
+}
+
+function assignedOpportunityExistsSql(opportunityId: unknown, userContext: PwinUserContext): SQL {
+	return sql`exists (
+		select 1
+		from opportunities
+		where opportunities.id = ${opportunityId}
+			and (opportunities.organization_id = ${userContext.organizationId} or opportunities.organization_id is null)
+			and opportunities.assigned_to = ${userContext.userId}
+	)`;
 }
 
 function assignedOpportunityConditions(userContext: PwinUserContext, conditions: SQL[] = []): SQL {
@@ -1946,10 +1957,28 @@ export async function rankOpportunities(
 			conditions.push(lte(opportunities.budgetNumeric, validated.maxValue));
 		}
 
-		// Note: stage filtering would require joining with pipeline table
-		// For now, we filter by category as a proxy
+		let stageByOpportunityId = new Map<string, string>();
 		if (validated.stage) {
-			conditions.push(eq(opportunities.category, validated.stage));
+			const pipelineRows = await db
+				.select({
+					opportunityId: capturePipeline.opportunityId,
+					currentStage: capturePipeline.currentStage,
+				})
+				.from(capturePipeline)
+				.where(and(
+					eq(capturePipeline.currentStage, validated.stage),
+					visibleOrganizationCondition(capturePipeline.organizationId, userContext),
+					assignedOpportunityExistsSql(capturePipeline.opportunityId, userContext)
+				));
+			stageByOpportunityId = new Map(
+				pipelineRows
+					.filter((row): row is { opportunityId: string; currentStage: string } => Boolean(row.opportunityId))
+					.map((row) => [row.opportunityId, row.currentStage])
+			);
+			if (stageByOpportunityId.size === 0) {
+				return { success: true, data: [] };
+			}
+			conditions.push(inArray(opportunities.id, Array.from(stageByOpportunityId.keys())));
 		}
 
 		const whereClause = assignedOpportunityConditions(userContext, conditions);
@@ -1990,7 +2019,7 @@ export async function rankOpportunities(
 				pwin,
 				value,
 				expectedValue: (pwin / 100) * value,
-				stage: opp.category ?? undefined,
+				stage: stageByOpportunityId.get(opp.id) ?? opp.category ?? undefined,
 			};
 		});
 

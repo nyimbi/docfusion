@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Capture-Stage PWin Ranking
+
+Status: implemented and verified.
+
+Purpose: make PWin opportunity rankings filter by real capture pipeline stage instead of using opportunity category as a stage proxy.
+
+Changes in this slice:
+- Add an assigned-opportunity existence predicate for PWin helper queries.
+- Query `capture_pipeline.current_stage` when a ranking stage filter is provided.
+- Scope pipeline-stage filtering to the actor's organization and assigned opportunities.
+- Filter ranked opportunities by matching pipeline opportunity IDs and return the real capture stage in ranking results.
+- Extend the Wave 8 strategic capability proof manifest with PWin opportunity scope coverage.
+
+Verification:
+- `npm test -- pwin-opportunity-scope.test.ts` from `frontend/` passed, running 7 tests.
+- `npm test -- pwin-opportunity-scope.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 13 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` from `frontend/` passed, running 42 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Outcome-Backed Review Effectiveness
 
 Status: implemented and verified.
