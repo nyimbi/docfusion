@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - World Bank Live Response Readiness via Notice API
+
+Status: implemented and verified.
+
+Purpose: extend live source-to-response coverage to World Bank procurement notices, where the response source is structured public solicitation text from the World Bank notice API rather than a downloadable PDF.
+
+Changes in this slice:
+- Added `world_bank` as a live response-readiness source kind.
+- Added `live-world-bank-response-readiness` to the platform proof manifest.
+- Reused the World Bank procurement listing parser to find active notices and skip award rows.
+- Added World Bank notice API extraction as a non-Docling source-text path, preserving extraction method evidence separately from PDF/document conversion status.
+- Kept existing PDF/Docling behavior for UNGM, Kenya PPIP, and AFDB response-readiness proofs.
+
+Verification:
+- `npm test -- platform-proof-scenarios.test.ts --run` passed with 6 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-world-bank-source --include-live-safe` passed with run `live_world_bank_source_20260527T172616Z`.
+- `npm run platform:proof -- --run live-world-bank-response-readiness --include-live-safe` passed with run `live_world_bank_response_readiness_20260527T172949Z`.
+- `npm run platform:proof -- --all --wave 9` passed after the World Bank response-readiness change.
+- The passing World Bank response run selected notice `OP00435405`, `Critical Habitat Assessment`, fetched public notice API source text with HTTP 200 and `application/json`, captured 20652 source-text characters, generated six response draft artifacts, captured 3 source requirement signals, 2 win-theme seeds, 85 relevant snippets, 4307 draft words, readiness status `ready_for_review`, 1 warning for no explicit evaluator scoring criteria, and 0 blockers.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+- World Bank response readiness is currently API-text based; add downloadable package traversal only if the source begins exposing direct bid-document links that are reachable without portal login.
+
 ### 2026-05-27 - Post-AFDB Wave 9 Revalidation
 
 Status: implemented and verified.

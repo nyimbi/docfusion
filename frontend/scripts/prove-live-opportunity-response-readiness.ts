@@ -23,6 +23,13 @@ import { scrapeWithCloakBrowser } from "@/lib/services/cloakbrowser-scraper-clie
 import { fetchKenyaPpipOpportunities } from "@/lib/services/kenya-ppip-client";
 import { searchSearxng, type SearxngResult } from "@/lib/services/searxng-client";
 import { fetchUngmOpportunities } from "@/lib/services/ungm-client";
+import {
+	fetchWorldBankNoticeDetail,
+	worldBankNoticeApiUrl,
+	worldBankNoticeIdFromUrl,
+	worldBankParser,
+	type WorldBankNoticeDetail,
+} from "@/lib/scrapers/parsers/world-bank";
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import type { ProposalDocumentType } from "@/lib/types/opportunity";
 
@@ -33,7 +40,9 @@ const PROOF_RUN_PREFIX = process.env.LIVE_RESPONSE_READINESS_PROOF_PREFIX ?? (
 		? "live_kenya_ppip_response_readiness"
 		: SOURCE_KIND === "afdb"
 			? "live_afdb_response_readiness"
-			: "live_response_readiness"
+			: SOURCE_KIND === "world_bank"
+				? "live_world_bank_response_readiness"
+				: "live_response_readiness"
 );
 const RUN_ID = process.env.LIVE_RESPONSE_READINESS_PROOF_RUN_ID ?? createProofRunId(PROOF_RUN_PREFIX);
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "live-response-readiness" });
@@ -43,7 +52,9 @@ const SOURCE_URL = process.env.LIVE_RESPONSE_READINESS_SOURCE_URL ?? (
 		? "https://tenders.go.ke/tenders"
 		: SOURCE_KIND === "afdb"
 			? "https://www.afdb.org/en/projects-and-operations/procurement"
-			: "https://www.ungm.org/Public/Notice?title=software"
+			: SOURCE_KIND === "world_bank"
+				? "https://projects.worldbank.org/en/projects-operations/procurement"
+				: "https://www.ungm.org/Public/Notice?title=software"
 );
 const MAX_DOCUMENT_BYTES = Number(process.env.LIVE_RESPONSE_READINESS_MAX_DOCUMENT_BYTES ?? 10 * 1024 * 1024);
 const SOURCE_PAGE_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_PAGE_LIMIT ?? (SOURCE_KIND === "kenya_ppip" ? 25 : 10));
@@ -101,6 +112,7 @@ interface LiveOpportunityResponseReadinessProof {
 		byteLength: number;
 		extractedTextLength: number;
 		doclingStatus?: string;
+		extractionMethod?: "docling-document" | "world-bank-notice-api";
 		procurementIndicators: string[];
 		extractedPreview: string;
 	};
@@ -131,7 +143,7 @@ interface SourceDocumentConversion {
 	procurementIndicators: string[];
 }
 
-type LiveResponseReadinessSourceKind = "ungm" | "kenya_ppip" | "afdb";
+type LiveResponseReadinessSourceKind = "ungm" | "kenya_ppip" | "afdb" | "world_bank";
 
 interface LiveResponseReadinessSourceResult {
 	kind: LiveResponseReadinessSourceKind;
@@ -168,13 +180,17 @@ async function main() {
 
 async function proveLiveOpportunityResponseReadiness(): Promise<Partial<LiveOpportunityResponseReadinessProof>> {
 	const source = await fetchSourceOpportunities();
-	const opportunity = selectResponseReadyOpportunity(source.opportunities);
-	const documentUrl = opportunity?.rfpLink ?? opportunity?.documentUrl;
-	if (!opportunity || !documentUrl) {
-		throw new Error(`${source.kind} source returned no response-ready opportunity with a direct source document`);
+	const opportunity = source.kind === "world_bank"
+		? selectWorldBankResponseReadyOpportunity(source.opportunities)
+		: selectResponseReadyOpportunity(source.opportunities);
+	const sourceUrl = opportunity?.rfpLink ?? opportunity?.documentUrl ?? opportunity?.portalUrl;
+	if (!opportunity || !sourceUrl) {
+		throw new Error(`${source.kind} source returned no response-ready opportunity with source material`);
 	}
 
-	const extracted = await fetchAndExtractSourceDocument(documentUrl);
+	const extracted = source.kind === "world_bank"
+		? await fetchAndExtractWorldBankNotice(opportunity)
+		: await fetchAndExtractSourceDocument(sourceUrl);
 	const responsePackage = buildLiveResponsePackage({
 		opportunity,
 		sourceText: extracted.sourceText,
@@ -196,7 +212,7 @@ async function proveLiveOpportunityResponseReadiness(): Promise<Partial<LiveOppo
 			organization: opportunity.organization,
 			sourceId: opportunity.sourceId,
 			portalUrl: opportunity.portalUrl,
-			documentUrl,
+			documentUrl: extracted.document.url,
 		},
 		document: extracted.document,
 		responseReadiness,
@@ -219,6 +235,9 @@ async function fetchSourceOpportunities(): Promise<LiveResponseReadinessSourceRe
 	}
 	if (SOURCE_KIND === "afdb") {
 		return fetchAfdbResponseReadyOpportunities();
+	}
+	if (SOURCE_KIND === "world_bank") {
+		return fetchWorldBankResponseReadyOpportunities();
 	}
 
 	const source = await fetchUngmOpportunities(SOURCE_URL, {
@@ -287,6 +306,29 @@ async function fetchAfdbResponseReadyOpportunities(): Promise<LiveResponseReadin
 	}
 
 	throw new Error(lastError ?? "AFDB source returned no response-ready opportunities");
+}
+
+async function fetchWorldBankResponseReadyOpportunities(): Promise<LiveResponseReadinessSourceResult> {
+	const client = new FirecrawlClient({ timeout: 60000 });
+	const result = await client.scrape(SOURCE_URL, {
+		formats: ["markdown", "links"],
+		timeout: 60000,
+	});
+	const markdown = result.data?.markdown ?? "";
+	const links = result.data?.links ?? [];
+	if (!result.success || markdown.trim().length === 0) {
+		throw new Error(result.error ?? "World Bank source scrape returned no content");
+	}
+	const parsed = await worldBankParser.parse({ markdown, links, url: SOURCE_URL });
+	const opportunities = parsed.opportunities.filter((opportunity) => !/\baward\b/iu.test(opportunity.category ?? ""));
+	if (opportunities.length === 0) {
+		throw new Error("World Bank parser returned no active source opportunities");
+	}
+	return {
+		kind: "world_bank",
+		url: SOURCE_URL,
+		opportunities,
+	};
 }
 
 async function fetchAfdbCloakBrowserOpportunities(previousFailure: string | undefined): Promise<OpportunityData[]> {
@@ -478,28 +520,99 @@ function afdbMetadata(opportunity: OpportunityData): Record<string, unknown> {
 function selectResponseReadyOpportunity(opportunities: OpportunityData[]): OpportunityData | undefined {
 	return opportunities.find((opportunity) => {
 		const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl ?? "";
-		const haystack = `${opportunity.title} ${opportunity.projectSummary ?? ""} ${documentUrl}`.toLowerCase();
-		return documentUrl.toLowerCase().endsWith(".pdf")
-			&& [
-				"software",
-				"system",
-				"api",
-				"security",
-				"digital",
-				"data",
-				"application",
-				"mobile",
-				"platform",
-				"solution",
-				"audit",
-				"consultant",
-				"consulting",
-				"consultancy",
-				"services",
-				"survey",
-				"ict",
-			].some((term) => haystack.includes(term));
+		return documentUrl.toLowerCase().endsWith(".pdf") && hasResponseReadyTerms(opportunity, documentUrl);
 	});
+}
+
+function selectWorldBankResponseReadyOpportunity(opportunities: OpportunityData[]): OpportunityData | undefined {
+	return opportunities.find((opportunity) => {
+		const sourceUrl = opportunity.portalUrl ?? opportunity.rfpLink ?? opportunity.documentUrl ?? "";
+		return Boolean(worldBankNoticeIdFromUrl(sourceUrl)) && hasResponseReadyTerms(opportunity, sourceUrl);
+	}) ?? opportunities.find((opportunity) => Boolean(worldBankNoticeIdFromUrl(opportunity.portalUrl)));
+}
+
+function hasResponseReadyTerms(opportunity: OpportunityData, sourceUrl: string): boolean {
+	const haystack = `${opportunity.title} ${opportunity.projectSummary ?? ""} ${opportunity.category ?? ""} ${sourceUrl}`.toLowerCase();
+	return [
+		"software",
+		"system",
+		"sistema",
+		"api",
+		"security",
+		"digital",
+		"data",
+		"application",
+		"mobile",
+		"platform",
+		"solution",
+		"audit",
+		"consultant",
+		"consulting",
+		"consultancy",
+		"services",
+		"survey",
+		"ict",
+		"energy management",
+	].some((term) => haystack.includes(term));
+}
+
+async function fetchAndExtractWorldBankNotice(opportunity: OpportunityData): Promise<ExtractedSourceDocument> {
+	const noticeId = opportunity.noticeId ?? opportunity.sourceId ?? worldBankNoticeIdFromUrl(opportunity.portalUrl);
+	if (!noticeId) {
+		throw new Error("World Bank opportunity did not expose a procurement notice ID");
+	}
+	const detail = await fetchWorldBankNoticeDetail(noticeId);
+	const sourceText = buildWorldBankNoticeSourceText(opportunity, detail);
+	if (sourceText.length < 1000) {
+		throw new Error(`World Bank notice API returned too little source text: ${sourceText.length} characters`);
+	}
+	const procurementIndicators = PROCUREMENT_INDICATORS.filter((indicator) => sourceText.toLowerCase().includes(indicator));
+	if (procurementIndicators.length === 0) {
+		throw new Error("World Bank notice source text did not contain procurement response language");
+	}
+	const apiUrl = worldBankNoticeApiUrl(noticeId);
+	const byteLength = Buffer.byteLength(sourceText, "utf8");
+	return {
+		document: {
+			url: apiUrl,
+			status: 200,
+			contentType: "application/json",
+			byteLength,
+			extractedTextLength: sourceText.length,
+			doclingStatus: "not-applicable",
+			extractionMethod: "world-bank-notice-api",
+			procurementIndicators,
+			extractedPreview: compactText(sourceText.replace(/\s+/g, " "), 500),
+		},
+		sourceText,
+	};
+}
+
+function buildWorldBankNoticeSourceText(opportunity: OpportunityData, detail: WorldBankNoticeDetail): string {
+	return [
+		"# World Bank Procurement Notice",
+		`Title: ${opportunity.title}`,
+		`Notice ID: ${opportunity.noticeId ?? opportunity.sourceId ?? ""}`,
+		`Notice Type: ${detail.noticeType ?? opportunity.category ?? ""}`,
+		`Project ID: ${detail.projectId ?? ""}`,
+		`Project Title: ${detail.projectTitle ?? ""}`,
+		`Borrower Bid Reference: ${detail.borrowerBidReference ?? ""}`,
+		`Procurement Method: ${detail.procurementMethod ?? ""}`,
+		`Submission Deadline: ${dateLikeToIso(detail.submissionDeadline) ?? ""}`,
+		`Published Date: ${dateLikeToIso(detail.publishedDate) ?? dateLikeToIso(opportunity.publishedDate) ?? ""}`,
+		`Organization: ${detail.organization ?? opportunity.organization ?? ""}`,
+		`Contact Email: ${detail.contactEmail ?? ""}`,
+		"",
+		"## Solicitation Details",
+		detail.details ?? opportunity.projectSummary ?? "",
+	].filter((line) => line !== undefined).join("\n").trim();
+}
+
+function dateLikeToIso(value: Date | string | null | undefined): string | undefined {
+	if (!value) return undefined;
+	if (value instanceof Date) return value.toISOString();
+	const parsed = new Date(value);
+	return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
 }
 
 async function fetchAndExtractSourceDocument(documentUrl: string): Promise<ExtractedSourceDocument> {
@@ -536,6 +649,7 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<Extra
 			byteLength: documentBytes.length,
 			extractedTextLength: extractedText.length,
 			doclingStatus: converted.status,
+			extractionMethod: "docling-document",
 			procurementIndicators,
 			extractedPreview: compactText(extractedText.replace(/\s+/g, " "), 500),
 		},
@@ -629,6 +743,7 @@ function proveResponseSeedReadiness(
 function normalizeSourceKind(value: string | undefined): LiveResponseReadinessSourceKind {
 	if (value === "kenya_ppip") return "kenya_ppip";
 	if (value === "afdb") return "afdb";
+	if (value === "world_bank") return "world_bank";
 	return "ungm";
 }
 
@@ -696,8 +811,10 @@ async function writeArtifacts(
 			`source:${proof.source.url}`,
 			`opportunities:${proof.source.opportunityCount}`,
 			`document-bytes:${proof.document?.byteLength ?? 0}`,
+			`source-text:${proof.document?.extractedTextLength ?? 0}`,
 			`docling-text:${proof.document?.extractedTextLength ?? 0}`,
 			`docling-status:${proof.document?.doclingStatus ?? "not-run"}`,
+			`source-extraction:${proof.document?.extractionMethod ?? "not-run"}`,
 			`response-doc-types:${proof.responseReadiness?.documentTypes.length ?? 0}`,
 			`source-requirements:${proof.responseReadiness?.sourceRequirementCount ?? 0}`,
 			`evaluator-criteria:${proof.responseReadiness?.readiness.evaluationCriteriaIds.length ?? 0}`,
@@ -719,7 +836,7 @@ async function writeArtifacts(
 		cleanup_status: "not-applicable",
 		disposition,
 		notes: disposition === "pass"
-			? `Live ${proof.source.kind} opportunity, source PDF extraction, and concrete Datacraft response-package drafts were verified.`
+			? `Live ${proof.source.kind} opportunity, source extraction, and concrete Datacraft response-package drafts were verified.`
 			: proof.error ?? "Live opportunity response readiness proof failed.",
 	}], {
 		title: "Platform Live Opportunity Response Readiness Evidence",
