@@ -8123,3 +8123,19 @@ Verification:
 Remaining after this slice:
 - Continue non-DB live-source recovery work for AFDB and Kenya PPIP intermittent failures.
 - Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity to `88.80.188.224:5432` is restored.
+
+### 2026-05-27 - Expanded Live Source Portfolio Recheck
+
+Status: verified.
+
+Purpose: recheck previously intermittent AFDB and Kenya PPIP live-source lanes after World Bank recovery, then refresh the operator portfolio ranking with current evidence.
+
+Result:
+- `npm run platform:proof -- --run live-afdb-response-readiness --include-live-safe` passed with run `live_afdb_response_readiness_20260527T182825Z`, selecting an AFDB Ethiopia meteorological and climate mobile application EOI with `strong_fit` pursuit fit and `ready_for_review` readiness.
+- An initial concurrent Kenya PPIP response-readiness run `live_kenya_ppip_response_readiness_20260527T182825Z` failed with `fetch failed`, while a direct API probe immediately returned 10 mapped opportunities from `https://tenders.go.ke/api/active-tenders?perpage=10&page=1`.
+- Rerunning Kenya PPIP alone passed with run `live_kenya_ppip_response_readiness_20260527T234723Z`, selecting a supplier-registration package with 13 evaluator criteria, 13 win-theme seeds, 11,668 draft words, and `ready_for_review` readiness.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260527T234859Z`, ranking 5 current source-feed candidates: Kenya PPIP, AFDB, and UNGM as `pursue_now`; World Bank and COMESA as `review_before_pursuit`.
+
+Remaining after this recheck:
+- Kenya PPIP source access appears live but sensitive to concurrent proof load; keep source proofs sequential when diagnosing that lane.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
