@@ -224,6 +224,53 @@ describe("opportunity AI row scoping", () => {
 		expect(JSON.stringify(insertValues)).not.toContain("\"factor\":{}");
 	});
 
+	it("falls back from LLM fit scoring when AI returns unusable score analysis", async () => {
+		let insertValues: unknown;
+		const providerAvailableMock = vi.fn()
+			.mockResolvedValueOnce(true)
+			.mockResolvedValueOnce(false);
+		getProviderManagerMock.mockReturnValue({
+			initialize: vi.fn(async () => undefined),
+			isAvailable: providerAvailableMock,
+		});
+		promptMock.mockResolvedValueOnce(JSON.stringify({
+			factors: [{}],
+			reasoning: "   ",
+		}));
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [opportunity] }))
+			.mockReturnValueOnce(createChain({ result: [opportunity] }));
+		dbMock.insert.mockReturnValueOnce(createChain({
+			result: [score],
+			onValues: (value) => {
+				insertValues = value;
+			},
+		}));
+		dbMock.update.mockReturnValueOnce(createChain());
+
+		const result = await calculateFitScoreWithLLM(opportunity.id);
+
+		expect(result).toMatchObject({
+			id: score.id,
+			opportunityId: opportunity.id,
+			scoreType: "fit",
+		});
+		expect(promptMock).toHaveBeenCalledTimes(1);
+		expect(insertValues).toMatchObject({
+			organizationId: "org-ai-1",
+			scoreType: "fit",
+			modelVersion: "v1.0-heuristic",
+			factors: expect.arrayContaining([
+				expect.objectContaining({
+					factor: "Budget Alignment",
+					reasoning: expect.stringContaining("Budget"),
+				}),
+			]),
+		});
+		expect(JSON.stringify(insertValues)).not.toContain("NaN");
+		expect(JSON.stringify(insertValues)).not.toContain("\"factor\":{}");
+	});
+
 	it("generates a metadata-backed opportunity summary when AI is unavailable", async () => {
 		dbMock.select.mockReturnValueOnce(createChain({ result: [opportunity] }));
 

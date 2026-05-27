@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable LLM Score Analysis Fallbacks
+
+Status: implemented and verified.
+
+Purpose: prevent LLM-powered opportunity scoring from writing successful score rows when the AI response is syntactically valid JSON but lacks a usable score, factor rationale, or reasoning.
+
+Changes in this slice:
+- Add shared validation for LLM score-analysis responses.
+- Require finite 0-100 scores, at least one usable score factor, and non-blank reasoning before persisting LLM score rows.
+- Apply the same validation to LLM fit score, win probability, and risk score paths.
+- Fall back to existing heuristic scoring when LLM score analysis is unusable instead of storing `NaN` scores or empty factor arrays.
+
+Verification:
+- `npm test -- opportunity-ai-scope.test.ts --run` passed with 6 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave5-ai-content-governance` passed with 45 tests.
+
+Remaining after this slice:
+- Continue hardening generated response artifacts and analysis outputs against invalid successful AI results.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Unusable AI Document Structure Fallbacks
 
 Status: implemented and verified.

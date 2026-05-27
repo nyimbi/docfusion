@@ -70,6 +70,30 @@ function normalizeAIScoreFactors(value: unknown): AIScoreFactor[] {
 		: [];
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function normalizeAIScorePercentage(value: unknown): number | null {
+	return typeof value === "number" && Number.isFinite(value)
+		? Math.max(0, Math.min(100, value))
+		: null;
+}
+
+function normalizeLLMScoreAnalysis(value: unknown): { score: number; factors: AIScoreFactor[]; reasoning: string } {
+	if (!isRecord(value)) {
+		throw new Error("LLM score analysis is not an object");
+	}
+	const score = normalizeAIScorePercentage(value.score);
+	const factors = normalizeAIScoreFactors(value.factors);
+	const reasoning = isNonBlankText(value.reasoning) ? value.reasoning.trim() : null;
+	if (score === null || factors.length === 0 || !reasoning) {
+		throw new Error("LLM score analysis contained no usable score factors");
+	}
+
+	return { score, factors, reasoning };
+}
+
 function normalizeAIScoreHistoryLimit(limit: number | undefined, fallback = 10, maximum = 1000): number {
 	if (limit === undefined || !Number.isFinite(limit)) {
 		return fallback;
@@ -1308,14 +1332,7 @@ Provide your fit analysis as JSON.`;
 			throw new Error("Invalid JSON response from LLM");
 		}
 
-		const analysis = JSON.parse(jsonMatch[0]) as {
-			score: number;
-			factors: AIScoreFactor[];
-			reasoning: string;
-		};
-
-		// Validate and clamp score
-		const finalScore = Math.max(0, Math.min(100, analysis.score));
+		const analysis = normalizeLLMScoreAnalysis(JSON.parse(jsonMatch[0]));
 
 		// Store the score
 		const [score] = await db
@@ -1324,10 +1341,10 @@ Provide your fit analysis as JSON.`;
 				organizationId: context.organizationId,
 				opportunityId,
 				scoreType: "fit",
-				score: Math.round(finalScore * 10) / 10,
-				factors: analysis.factors || [],
+				score: Math.round(analysis.score * 10) / 10,
+				factors: analysis.factors,
 				modelVersion: "v2.0-llm",
-				reasoning: analysis.reasoning || `Fit score: ${finalScore}%`,
+				reasoning: analysis.reasoning,
 				createdAt: new Date(),
 			})
 			.returning();
@@ -1336,7 +1353,7 @@ Provide your fit analysis as JSON.`;
 		await db
 			.update(opportunities)
 			.set({
-				fitScore: Math.round(finalScore * 10) / 10,
+				fitScore: Math.round(analysis.score * 10) / 10,
 				updatedAt: new Date(),
 			})
 			.where(visibleOpportunityCondition(opportunityId, context));
@@ -1417,13 +1434,7 @@ Provide your win probability analysis as JSON.`;
 			throw new Error("Invalid JSON response");
 		}
 
-		const analysis = JSON.parse(jsonMatch[0]) as {
-			score: number;
-			factors: AIScoreFactor[];
-			reasoning: string;
-		};
-
-		const finalScore = Math.max(0, Math.min(100, analysis.score));
+		const analysis = normalizeLLMScoreAnalysis(JSON.parse(jsonMatch[0]));
 
 		const [score] = await db
 			.insert(opportunityAIScores)
@@ -1431,10 +1442,10 @@ Provide your win probability analysis as JSON.`;
 				organizationId: context.organizationId,
 				opportunityId,
 				scoreType: "win_probability",
-				score: Math.round(finalScore * 10) / 10,
-				factors: analysis.factors || [],
+				score: Math.round(analysis.score * 10) / 10,
+				factors: analysis.factors,
 				modelVersion: "v2.0-llm",
-				reasoning: analysis.reasoning || `Win probability: ${finalScore}%`,
+				reasoning: analysis.reasoning,
 				createdAt: new Date(),
 			})
 			.returning();
@@ -1442,7 +1453,7 @@ Provide your win probability analysis as JSON.`;
 		await db
 			.update(opportunities)
 			.set({
-				winProbability: Math.round(finalScore * 10) / 10,
+				winProbability: Math.round(analysis.score * 10) / 10,
 				updatedAt: new Date(),
 			})
 			.where(visibleOpportunityCondition(opportunityId, context));
@@ -1516,13 +1527,7 @@ Provide your risk analysis as JSON.`;
 			throw new Error("Invalid JSON response");
 		}
 
-		const analysis = JSON.parse(jsonMatch[0]) as {
-			score: number;
-			factors: AIScoreFactor[];
-			reasoning: string;
-		};
-
-		const finalScore = Math.max(0, Math.min(100, analysis.score));
+		const analysis = normalizeLLMScoreAnalysis(JSON.parse(jsonMatch[0]));
 
 		const [score] = await db
 			.insert(opportunityAIScores)
@@ -1530,10 +1535,10 @@ Provide your risk analysis as JSON.`;
 				organizationId: context.organizationId,
 				opportunityId,
 				scoreType: "risk",
-				score: Math.round(finalScore * 10) / 10,
-				factors: analysis.factors || [],
+				score: Math.round(analysis.score * 10) / 10,
+				factors: analysis.factors,
 				modelVersion: "v2.0-llm",
-				reasoning: analysis.reasoning || `Risk level: ${finalScore}%`,
+				reasoning: analysis.reasoning,
 				createdAt: new Date(),
 			})
 			.returning();
