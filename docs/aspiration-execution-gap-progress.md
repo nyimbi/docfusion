@@ -16,6 +16,23 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Opportunity Response Readiness Revalidation
+
+Status: verified.
+
+Purpose: verify a live opportunity can be found, source documents can be extracted, and a concrete response package can be generated to review-ready state.
+
+Verification:
+- `npm run platform:proof -- --run live-opportunity-response-readiness --include-live-safe` passed with run `live_response_readiness_20260527T150649Z`.
+- The proof found 10 opportunity-relevant UNGM software notices and selected `Provision of Penetration Testing Services and Security Consultancy for goAML Software product (Web Applications and APIs).`
+- The selected UN Secretariat source PDF downloaded successfully with HTTP 200, 171406 bytes, and Docling extracted 3070 characters of procurement text.
+- Response readiness produced six Datacraft draft artifacts: cover letter, executive summary, technical approach, management plan, past performance, and cost proposal.
+- The readiness gate reported `ready_for_review`, 0 blockers, 8 source requirements covered, 2 win-theme seeds, 85 relevant snippets, 5527 total draft words, and draft artifact integrity coverage of 1.
+
+Remaining after this slice:
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+- Broaden source-specific live proof beyond the current UNGM software notice path.
+
 ### 2026-05-27 - Live Discovery Services Revalidation
 
 Status: verified.
