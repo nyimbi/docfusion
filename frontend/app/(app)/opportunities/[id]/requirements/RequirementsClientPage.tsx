@@ -23,7 +23,7 @@ import { getResponseWinThemeSeedReview } from "@/lib/actions/win-themes";
 import { RequirementsTable } from "@/components/requirements/RequirementsTable";
 import { RequirementDetail } from "@/components/requirements/RequirementDetail";
 import { ComplianceMatrix } from "@/components/rfp/ComplianceMatrix";
-import { ResponseWinThemeSeedReview } from "@/components/win-themes";
+import { ResponseWinThemeReviewPanel } from "@/components/win-themes";
 import { RequirementExtractor } from "./RequirementExtractor";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -314,41 +314,6 @@ export function RequirementsClientPage({
 // ============================================================================
 // Sub-Components
 // ============================================================================
-
-function ResponseWinThemeReviewPanel({
-	opportunityId,
-	review,
-	onCreated,
-}: {
-	opportunityId: string;
-	review: ResponseWinThemeSeedReviewData;
-	onCreated: () => void;
-}) {
-	if (review.acceptedRequirementCount === 0) return null;
-
-	if (review.seeds.length === 0) {
-		return (
-			<Card>
-				<CardHeader className="pb-2">
-					<CardTitle className="text-base">Response Win Themes</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<p className="text-sm text-[var(--foreground-muted)]">
-						{review.acceptedRequirementCount} accepted requirement{review.acceptedRequirementCount === 1 ? "" : "s"} reviewed; no new generated win-theme seed is pending approval.
-					</p>
-				</CardContent>
-			</Card>
-		);
-	}
-
-	return (
-		<ResponseWinThemeSeedReview
-			opportunityId={opportunityId}
-			seeds={review.seeds}
-			onCreated={onCreated}
-		/>
-	);
-}
 
 function ComplianceReadinessPanel({ matrices }: { matrices: ComplianceMatrixSummary[] }) {
 	const latest = matrices[0];

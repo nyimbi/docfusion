@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Documents Page Win Theme Review Surface
+
+Status: implemented and verified.
+
+Purpose: make generated response win-theme seed approval visible on the response package documents surface, not only on the requirements page.
+
+Changes in this slice:
+- Move the generated win-theme review panel into a shared `ResponseWinThemeReviewPanel` component.
+- Reuse the shared panel on the requirements workflow without changing existing behavior.
+- Load response win-theme seed review data on the opportunity documents page alongside proposal documents and response readiness.
+- Refresh documents, progress, response readiness, and seed-review state together after generated seeds are persisted.
+- Add component coverage proving the response package documents surface renders pending seed review evidence, evaluator criteria, target document types, requirement mappings, and proposal documents together.
+- Extend the Wave 8 strategic capability proof manifest to cover both requirements-page and documents-page seed review surfaces.
+
+Verification:
+- `npm test -- RequirementsWinThemeSeedReview.test.ts ProposalDocumentsWinThemeSeedReview.test.ts` from `frontend/` passed, running 2 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` from `frontend/` passed, now running 17 strategic capability tests including both generated seed review surfaces.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Final Package Authority Denial Visibility
 
 Status: implemented and verified.

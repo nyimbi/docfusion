@@ -251,6 +251,8 @@ export type { ThemeReinforcementGeneratorProps } from "./ThemeReinforcementGener
  */
 export { ResponseWinThemeSeedReview } from "./ResponseWinThemeSeedReview";
 export type { ResponseWinThemeSeedReviewProps } from "./ResponseWinThemeSeedReview";
+export { ResponseWinThemeReviewPanel } from "./ResponseWinThemeReviewPanel";
+export type { ResponseWinThemeReviewPanelProps } from "./ResponseWinThemeReviewPanel";
 
 // =============================================================================
 // Re-export Types from lib/types/win-themes

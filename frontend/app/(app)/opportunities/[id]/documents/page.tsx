@@ -10,6 +10,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getOpportunity } from "@/lib/actions/opportunities";
 import { getProposalDocuments, getProposalProgress, getResponsePackageReadiness } from "@/lib/actions/proposal-documents";
+import { getResponseWinThemeSeedReview } from "@/lib/actions/win-themes";
 import { ProposalDocumentsClientPage } from "./ProposalDocumentsClientPage";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -21,11 +22,12 @@ export default async function ProposalDocumentsPage({ params }: PageProps) {
 	const { id } = await params;
 
 	// Fetch data in parallel
-	const [opportunity, documents, progress, responsePackageReadiness] = await Promise.all([
+	const [opportunity, documents, progress, responsePackageReadiness, winThemeSeedReview] = await Promise.all([
 		getOpportunity(id),
 		getProposalDocuments(id),
 		getProposalProgress(id),
 		getResponsePackageReadiness(id),
+		getResponseWinThemeSeedReview(id),
 	]);
 
 	if (!opportunity) {
@@ -94,6 +96,7 @@ export default async function ProposalDocumentsPage({ params }: PageProps) {
 						initialDocuments={documents}
 						initialProgress={progress}
 						initialResponsePackageReadiness={responsePackageReadiness}
+						initialWinThemeSeedReview={winThemeSeedReview.success ? winThemeSeedReview.data : undefined}
 					/>
 				</Suspense>
 			</main>
