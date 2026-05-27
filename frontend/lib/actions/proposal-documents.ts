@@ -262,7 +262,9 @@ export interface RequirementAwareProposalDraftResult {
 	wordCount: number;
 	unresolvedPlaceholderCount: number;
 	evidenceChecklistCount: number;
+	evidenceCitationCount: number;
 	reviewGateCount: number;
+	sourceCitationCount: number;
 	versionNumber: number | null;
 }
 
@@ -294,7 +296,9 @@ export interface ResponsePackageDraftReadiness {
 		totalDraftWordCount: number;
 		minDocumentDraftWordCount: number;
 		evidenceChecklistCoverage: number;
+		evidenceCitationCoverage: number;
 		reviewGateCoverage: number;
+		sourceCitationCoverage: number;
 		winThemeCoverage: number;
 		unresolvedPlaceholderCount: number;
 	};
@@ -719,6 +723,22 @@ function sectionEvidenceLine(
 	return `${label}:${priority}${risk} Evidence to cite: ${proof}`;
 }
 
+function sectionSourceCitationLine(requirement: typeof rfpRequirements.$inferSelect): string {
+	const label = requirementLabel(requirement);
+	const source = compactText(requirement.sourceSection, 120) ??
+		(requirement.sourcePage != null ? `page ${requirement.sourcePage}` : "source document");
+	return `${label}: cite ${source} for "${compactText(requirement.requirementText, 220) ?? "the source requirement"}"`;
+}
+
+function sectionEvidenceCitationLine(
+	requirement: typeof rfpRequirements.$inferSelect,
+	documentType: ProposalDocumentType
+): string {
+	const label = requirementLabel(requirement);
+	const proof = proofPointsForDocumentType(documentType)[0];
+	return `${label}: pair this requirement with Datacraft proof "${proof}" before final review.`;
+}
+
 function buildRequirementAwareSectionDraftContent(
 	section: typeof documentSections.$inferSelect,
 	proposalDocument: typeof proposalDocuments.$inferSelect,
@@ -737,6 +757,10 @@ function buildRequirementAwareSectionDraftContent(
 
 	if (requirements.length > 0) {
 		content.push(bulletListNode(requirements.map(sectionRequirementDraftLine)));
+		content.push(
+			headingNode(3, "Source Citation Map"),
+			bulletListNode(requirements.map(sectionSourceCitationLine))
+		);
 	} else {
 		content.push(
 			paragraphNode(
@@ -762,6 +786,12 @@ function buildRequirementAwareSectionDraftContent(
 			requirements.length > 0
 				? requirements.map((requirement) => sectionEvidenceLine(requirement, documentType))
 				: proofPointsForDocumentType(documentType)
+		),
+		headingNode(3, "Datacraft Evidence Citation Map"),
+		bulletListNode(
+			requirements.length > 0
+				? requirements.map((requirement) => sectionEvidenceCitationLine(requirement, documentType))
+				: proofPointsForDocumentType(documentType).map((proof) => `Datacraft proof: ${proof}`)
 		),
 		headingNode(3, "Review Gate"),
 		bulletListNode([
@@ -947,7 +977,9 @@ function responsePackageReadinessSummary(
 			totalDraftWordCount: numberMetric(metrics.totalDraftWordCount),
 			minDocumentDraftWordCount: numberMetric(metrics.minDocumentDraftWordCount),
 			evidenceChecklistCoverage: clampRatio(numberMetric(metrics.evidenceChecklistCoverage)),
+			evidenceCitationCoverage: clampRatio(numberMetric(metrics.evidenceCitationCoverage)),
 			reviewGateCoverage: clampRatio(numberMetric(metrics.reviewGateCoverage)),
+			sourceCitationCoverage: clampRatio(numberMetric(metrics.sourceCitationCoverage)),
 			winThemeCoverage: clampRatio(numberMetric(metrics.winThemeCoverage)),
 			unresolvedPlaceholderCount: numberMetric(metrics.unresolvedPlaceholderCount),
 		},
@@ -972,7 +1004,9 @@ function missingResponsePackageReadiness(): ResponsePackageReadinessSummary {
 			totalDraftWordCount: 0,
 			minDocumentDraftWordCount: 0,
 			evidenceChecklistCoverage: 0,
+			evidenceCitationCoverage: 0,
 			reviewGateCoverage: 0,
+			sourceCitationCoverage: 0,
 			winThemeCoverage: 0,
 			unresolvedPlaceholderCount: 0,
 		},
@@ -1937,7 +1971,9 @@ export async function generateRequirementAwareProposalDraft(
 			0
 		),
 		evidenceChecklistCount: results.filter((result) => result.plainText.includes("Evidence Checklist")).length,
+		evidenceCitationCount: results.filter((result) => result.plainText.includes("Datacraft Evidence Citation Map")).length,
 		reviewGateCount: results.filter((result) => result.plainText.includes("Review Gate")).length,
+		sourceCitationCount: results.filter((result) => result.plainText.includes("Source Citation Map")).length,
 		versionNumber: results.length > 0
 			? Math.max(...results.map((result) => result.versionNumber))
 			: null,
@@ -2357,14 +2393,22 @@ function assessResponsePackageDraftReadiness(input: {
 		? Math.min(...input.draftResults.map((result) => result.wordCount))
 		: 0;
 	const evidenceChecklistCount = input.draftResults.reduce((total, result) => total + result.evidenceChecklistCount, 0);
+	const evidenceCitationCount = input.draftResults.reduce((total, result) => total + result.evidenceCitationCount, 0);
 	const reviewGateCount = input.draftResults.reduce((total, result) => total + result.reviewGateCount, 0);
+	const sourceCitationCount = input.draftResults.reduce((total, result) => total + result.sourceCitationCount, 0);
 	const unresolvedPlaceholderCount = input.draftResults.reduce((total, result) => total + result.unresolvedPlaceholderCount, 0);
 	const documentsWithWinThemes = input.draftResults.filter((result) => result.winThemeIds.length > 0).length;
 	const evidenceChecklistCoverage = input.sectionsDrafted > 0
 		? evidenceChecklistCount / input.sectionsDrafted
 		: 0;
+	const evidenceCitationCoverage = input.sectionsDrafted > 0
+		? evidenceCitationCount / input.sectionsDrafted
+		: 0;
 	const reviewGateCoverage = input.sectionsDrafted > 0
 		? reviewGateCount / input.sectionsDrafted
+		: 0;
+	const sourceCitationCoverage = input.sectionsDrafted > 0
+		? sourceCitationCount / input.sectionsDrafted
 		: 0;
 	const winThemeCoverage = input.documentsDrafted > 0
 		? documentsWithWinThemes / input.documentsDrafted
@@ -2391,8 +2435,14 @@ function assessResponsePackageDraftReadiness(input: {
 	if (input.sectionsDrafted > 0 && evidenceChecklistCoverage < 1) {
 		blockers.push("At least one drafted response section is missing an evidence checklist");
 	}
+	if (input.sectionsDrafted > 0 && evidenceCitationCoverage < 1) {
+		blockers.push("At least one drafted response section is missing a Datacraft evidence citation map");
+	}
 	if (input.sectionsDrafted > 0 && reviewGateCoverage < 1) {
 		blockers.push("At least one drafted response section is missing a review gate");
+	}
+	if (input.sectionsDrafted > 0 && sourceCitationCoverage < 1) {
+		blockers.push("At least one drafted response section is missing a source citation map");
 	}
 	if (input.complianceEntriesCreated < acceptedRequirementIds.length) {
 		warnings.push(`${input.complianceEntriesCreated}/${acceptedRequirementIds.length} accepted requirement(s) received compliance matrix entries`);
@@ -2416,7 +2466,9 @@ function assessResponsePackageDraftReadiness(input: {
 			totalDraftWordCount,
 			minDocumentDraftWordCount,
 			evidenceChecklistCoverage,
+			evidenceCitationCoverage,
 			reviewGateCoverage,
+			sourceCitationCoverage,
 			winThemeCoverage,
 			unresolvedPlaceholderCount,
 		},

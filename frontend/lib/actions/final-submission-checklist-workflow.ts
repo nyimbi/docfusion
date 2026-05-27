@@ -72,6 +72,8 @@ type ResponsePackageReadinessSnapshot = {
 		documentsDrafted: number;
 		sectionsDrafted: number;
 		complianceEntriesCreated: number;
+		sourceCitationCoverage: number;
+		evidenceCitationCoverage: number;
 		winThemeCriteriaCoverage: number | null;
 		winThemeSeedCount: number | null;
 	};
@@ -322,6 +324,7 @@ function buildChecklistItems(
 		}
 	}
 	items.push(responsePackageReadinessItem(responsePackageReadiness));
+	items.push(responseCitationCoverageItem(responsePackageReadiness));
 	items.push(evaluatorWinThemeCoverageItem(responsePackageReadiness));
 	items.push(complianceLockItem(matrices));
 	items.push(claimEvidenceItem(claims));
@@ -449,6 +452,45 @@ function evaluatorWinThemeCoverageItem(
 	};
 }
 
+function responseCitationCoverageItem(
+	readiness: ResponsePackageReadinessSnapshot | null
+): FinalSubmissionChecklistItem {
+	if (!readiness) {
+		return {
+			id: "evidence:response-citation-coverage",
+			category: "evidence",
+			label: "Response citation coverage",
+			required: true,
+			passed: false,
+			message: "Response package citation coverage is missing; rerun response package readiness before final submission",
+			subjectId: null,
+			assignedRole: "proposal_manager",
+		};
+	}
+
+	const sourceCoverage = readiness.metrics.sourceCitationCoverage;
+	const evidenceCoverage = readiness.metrics.evidenceCitationCoverage;
+	const passed = sourceCoverage >= 1 && evidenceCoverage >= 1;
+
+	return {
+		id: "evidence:response-citation-coverage",
+		category: "evidence",
+		label: "Response citation coverage",
+		required: true,
+		passed,
+		message: passed
+			? "Response drafts include complete source and Datacraft evidence citation maps"
+			: `Response citation coverage is incomplete: ${formatPercent(sourceCoverage)} source, ${formatPercent(evidenceCoverage)} evidence`,
+		subjectId: readiness.workflowInstanceId,
+		assignedRole: "proposal_manager",
+		details: [
+			{ label: "Source citation maps", value: formatPercent(sourceCoverage), tone: sourceCoverage >= 1 ? "success" : "danger" },
+			{ label: "Datacraft evidence citation maps", value: formatPercent(evidenceCoverage), tone: evidenceCoverage >= 1 ? "success" : "danger" },
+			{ label: "Readiness workflow", value: readiness.workflowInstanceId, tone: "neutral" },
+		],
+	};
+}
+
 function responsePackageReadinessFailureMessage(readiness: ResponsePackageReadinessSnapshot): string {
 	if (readiness.status === "unknown") {
 		return "Response package readiness status is unrecognized; rerun response package drafting";
@@ -502,6 +544,8 @@ function responsePackageReadinessMetrics(value: unknown): ResponsePackageReadine
 		documentsDrafted: numberMetric(metrics.documentsDrafted),
 		sectionsDrafted: numberMetric(metrics.sectionsDrafted),
 		complianceEntriesCreated: numberMetric(metrics.complianceEntriesCreated),
+		sourceCitationCoverage: clampRatio(numberMetric(metrics.sourceCitationCoverage)),
+		evidenceCitationCoverage: clampRatio(numberMetric(metrics.evidenceCitationCoverage)),
 		winThemeCriteriaCoverage: optionalRatioMetric(metrics.winThemeCriteriaCoverage),
 		winThemeSeedCount: optionalNumberMetric(metrics.winThemeSeedCount),
 	};

@@ -216,7 +216,9 @@ describe("proposal document row scoping", () => {
 							totalDraftWordCount: 1800,
 							minDocumentDraftWordCount: 750,
 							evidenceChecklistCoverage: 1,
+							evidenceCitationCoverage: 1,
 							reviewGateCoverage: 1,
+							sourceCitationCoverage: 1,
 							winThemeCoverage: 0.5,
 							unresolvedPlaceholderCount: 0,
 						},
@@ -241,6 +243,8 @@ describe("proposal document row scoping", () => {
 				draftedRequirementCount: 2,
 				requirementCoverage: 2 / 3,
 				reviewGateCoverage: 1,
+				sourceCitationCoverage: 1,
+				evidenceCitationCoverage: 1,
 				winThemeCoverage: 0.5,
 			}),
 		});
@@ -947,7 +951,9 @@ describe("proposal document row scoping", () => {
 					totalDraftWordCount: expect.any(Number),
 					minDocumentDraftWordCount: expect.any(Number),
 					evidenceChecklistCoverage: 1,
+					evidenceCitationCoverage: 1,
 					reviewGateCoverage: 1,
+					sourceCitationCoverage: 1,
 					winThemeCoverage: 0,
 					unresolvedPlaceholderCount: 0,
 				},
@@ -955,6 +961,8 @@ describe("proposal document row scoping", () => {
 		});
 		expect(result.readiness.metrics.totalDraftWordCount).toBeGreaterThan(80);
 		expect(result.readiness.metrics.minDocumentDraftWordCount).toBeGreaterThan(80);
+		expect(result.readiness.metrics.sourceCitationCoverage).toBe(1);
+		expect(result.readiness.metrics.evidenceCitationCoverage).toBe(1);
 		expect(result.readiness.warnings).toContain("0/1 drafted response document(s) include approved win themes");
 		expect(complianceEntryInsert).toEqual([
 			expect.objectContaining({

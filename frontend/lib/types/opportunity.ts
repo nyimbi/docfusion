@@ -836,7 +836,9 @@ export interface ResponsePackageReadinessSummary {
 		totalDraftWordCount: number;
 		minDocumentDraftWordCount: number;
 		evidenceChecklistCoverage: number;
+		evidenceCitationCoverage: number;
 		reviewGateCoverage: number;
+		sourceCitationCoverage: number;
 		winThemeCoverage: number;
 		unresolvedPlaceholderCount: number;
 	};

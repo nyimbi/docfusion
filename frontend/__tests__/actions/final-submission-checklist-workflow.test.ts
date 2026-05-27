@@ -91,7 +91,9 @@ const responseReadinessSnapshot = {
 		totalDraftWordCount: 1400,
 		minDocumentDraftWordCount: 220,
 		evidenceChecklistCoverage: 1,
+		evidenceCitationCoverage: 1,
 		reviewGateCoverage: 1,
+		sourceCitationCoverage: 1,
 		winThemeCoverage: 1,
 		unresolvedPlaceholderCount: 0,
 	},
@@ -283,6 +285,8 @@ const readyResponsePackageWorkflow = {
 				documentsDrafted: 3,
 				sectionsDrafted: 9,
 				complianceEntriesCreated: 3,
+				sourceCitationCoverage: 1,
+				evidenceCitationCoverage: 1,
 				winThemeCriteriaCoverage: 1,
 				winThemeSeedCount: 3,
 			},
@@ -775,6 +779,8 @@ describe("final submission checklist workflow", () => {
 								documentsDrafted: 2,
 								sectionsDrafted: 6,
 								complianceEntriesCreated: 2,
+								sourceCitationCoverage: 1,
+								evidenceCitationCoverage: 1,
 							},
 						},
 					},
@@ -809,6 +815,72 @@ describe("final submission checklist workflow", () => {
 				}),
 			})
 		);
+	});
+
+	it("blocks final submission when response citation coverage is incomplete", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					docFixture(),
+					docFixture({
+						proposalDocumentId: "pd-management",
+						documentId: "doc-management",
+						documentType: "management_plan",
+						title: "Management Plan",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-management", proposalDocumentId: "pd-management" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-cost",
+						documentId: "doc-cost",
+						documentType: "cost_proposal",
+						title: "Cost Proposal",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-cost", proposalDocumentId: "pd-cost" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+				],
+			}))
+			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({ result: [cleanThemeAnalysis] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					...readyResponsePackageWorkflow,
+					id: "response-package-workflow-citation-gap",
+					metadata: {
+						readiness: {
+							...readyResponsePackageWorkflow.metadata.readiness,
+							metrics: {
+								...readyResponsePackageWorkflow.metadata.readiness.metrics,
+								sourceCitationCoverage: 0.5,
+								evidenceCitationCoverage: 1,
+							},
+						},
+					},
+				}],
+			}));
+
+		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
+
+		expect(result.allowed).toBe(false);
+		expect(result.blockers.join("\n")).toContain("Response citation coverage");
+		expect(result.blockers.join("\n")).toContain("50% source, 100% evidence");
+		expect(result.items.find((item) => item.id === "evidence:response-citation-coverage")).toMatchObject({
+			category: "evidence",
+			required: true,
+			passed: false,
+			subjectId: "response-package-workflow-citation-gap",
+			assignedRole: "proposal_manager",
+			details: [
+				{ label: "Source citation maps", value: "50%", tone: "danger" },
+				{ label: "Datacraft evidence citation maps", value: "100%", tone: "success" },
+				{ label: "Readiness workflow", value: "response-package-workflow-citation-gap", tone: "neutral" },
+			],
+		});
 	});
 
 	it("blocks final submission when evaluator criteria are not mapped to win themes", async () => {

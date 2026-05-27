@@ -45,7 +45,9 @@ interface ResponsePackageReadinessSnapshot {
 		totalDraftWordCount: number;
 		minDocumentDraftWordCount: number;
 		evidenceChecklistCoverage: number;
+		evidenceCitationCoverage: number;
 		reviewGateCoverage: number;
+		sourceCitationCoverage: number;
 		winThemeCoverage: number;
 		unresolvedPlaceholderCount: number;
 	};
@@ -625,7 +627,9 @@ function responsePackageReadinessFromWorkflow(
 			totalDraftWordCount: numberMetric(metrics.totalDraftWordCount),
 			minDocumentDraftWordCount: numberMetric(metrics.minDocumentDraftWordCount),
 			evidenceChecklistCoverage: clampRatio(numberMetric(metrics.evidenceChecklistCoverage)),
+			evidenceCitationCoverage: clampRatio(numberMetric(metrics.evidenceCitationCoverage)),
 			reviewGateCoverage: clampRatio(numberMetric(metrics.reviewGateCoverage)),
+			sourceCitationCoverage: clampRatio(numberMetric(metrics.sourceCitationCoverage)),
 			winThemeCoverage: clampRatio(numberMetric(metrics.winThemeCoverage)),
 			unresolvedPlaceholderCount: numberMetric(metrics.unresolvedPlaceholderCount),
 		},
