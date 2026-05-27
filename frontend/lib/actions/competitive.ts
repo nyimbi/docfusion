@@ -1549,19 +1549,84 @@ function generateHeuristicSWOT(
 
 	return {
 		opportunityId: opportunity.id,
-		strengths: strengths.length > 0 ? strengths : ["Established track record"],
+		strengths: strengths.length > 0 ? strengths : ["No company capability strengths recorded"],
 		weaknesses: weaknesses.length > 0 ? weaknesses : ["Limited visibility into competition"],
-		opportunities: opportunityFactors.length > 0 ? opportunityFactors : ["Market expansion opportunity"],
+		opportunities: opportunityFactors.length > 0 ? opportunityFactors : [`Evaluate ${opportunity.title} for strategic fit before pursuit`],
 		threats: threats.length > 0 ? threats : ["Unknown competitive landscape"],
 		ourPosition,
 		winStrategy,
 		pricingStrategy,
-		aiInsights: [{
-			insight: "Analysis generated using heuristic methods",
-			confidence: 0.6,
-			source: "system-heuristic",
-		}],
+		aiInsights: buildHeuristicSWOTInsights(
+			opportunity,
+			identifiedCompetitors,
+			companyCapabilities,
+			companyDifferentiators
+		),
 	};
+}
+
+function buildHeuristicSWOTInsights(
+	opportunity: typeof opportunities.$inferSelect,
+	identifiedCompetitors: Competitor[],
+	companyCapabilities: string[],
+	companyDifferentiators: string[]
+): Array<{ insight: string; confidence: number; source: string }> {
+	const insights: Array<{ insight: string; confidence: number; source: string }> = [];
+	const opportunitySignals = [
+		opportunity.category,
+		opportunity.budgetValue,
+		opportunity.keyRequirements,
+		opportunity.daysLeft !== null && opportunity.daysLeft !== undefined ? String(opportunity.daysLeft) : null,
+	].filter(Boolean).length;
+
+	if (companyCapabilities.length > 0 || companyDifferentiators.length > 0) {
+		const signalCount = companyCapabilities.length + companyDifferentiators.length;
+		insights.push({
+			insight: `Company evidence includes ${companyCapabilities.length} recorded capability signal${companyCapabilities.length === 1 ? "" : "s"} and ${companyDifferentiators.length} differentiator signal${companyDifferentiators.length === 1 ? "" : "s"} for this SWOT.`,
+			confidence: boundedHeuristicConfidence(0.45 + Math.min(0.25, signalCount * 0.05)),
+			source: "company-capability-evidence",
+		});
+	} else {
+		insights.push({
+			insight: "No company capability or differentiator evidence is recorded; validate strengths before using this SWOT in a capture decision.",
+			confidence: 0.4,
+			source: "company-capability-gap",
+		});
+	}
+
+	if (identifiedCompetitors.length > 0) {
+		const competitorEvidenceCount = identifiedCompetitors.filter(comp =>
+			(comp.strengths && comp.strengths.length > 0) ||
+			(comp.weaknesses && comp.weaknesses.length > 0) ||
+			comp.pricingTendency ||
+			(comp.winCount !== null && comp.winCount !== undefined)
+		).length;
+		insights.push({
+			insight: `Competitive threat assessment uses ${identifiedCompetitors.length} linked competitor${identifiedCompetitors.length === 1 ? "" : "s"}, including ${competitorEvidenceCount} with recorded strength, weakness, pricing, or win-history evidence.`,
+			confidence: boundedHeuristicConfidence(0.45 + Math.min(0.25, identifiedCompetitors.length * 0.06) + Math.min(0.15, competitorEvidenceCount * 0.05)),
+			source: "linked-competitor-evidence",
+		});
+	} else {
+		insights.push({
+			insight: "No linked competitors are recorded for this opportunity; competitor threats should be refreshed before final win strategy approval.",
+			confidence: 0.35,
+			source: "linked-competitor-gap",
+		});
+	}
+
+	if (opportunitySignals > 0) {
+		insights.push({
+			insight: `Opportunity metadata contributes ${opportunitySignals} planning signal${opportunitySignals === 1 ? "" : "s"} across category, budget, requirements, and deadline pressure.`,
+			confidence: boundedHeuristicConfidence(0.4 + Math.min(0.3, opportunitySignals * 0.08)),
+			source: "opportunity-metadata-evidence",
+		});
+	}
+
+	return insights;
+}
+
+function boundedHeuristicConfidence(value: number): number {
+	return Math.round(Math.max(0.25, Math.min(0.85, value)) * 100) / 100;
 }
 
 /**

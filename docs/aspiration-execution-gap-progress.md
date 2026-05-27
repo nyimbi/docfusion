@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Evidence-Based Competitive SWOT Fallbacks
+
+Status: implemented and verified.
+
+Purpose: stop competitive SWOT fallback analysis from storing a generic heuristic insight with fixed confidence instead of showing which competitive evidence supported the recommendation.
+
+Changes in this slice:
+- Replace the generic `Analysis generated using heuristic methods` SWOT insight with evidence-specific insight rows for company capabilities, linked competitors, and opportunity metadata.
+- Derive heuristic confidence from available signal counts and cap it below AI-backed confidence.
+- Stop inventing an `Established track record` strength when company capability evidence is missing; the fallback now records that no capability strength evidence is present.
+- Add regression coverage proving heuristic SWOT insights are evidence-specific, bounded, and persisted.
+- Add competitive SWOT coverage to the Wave 8 strategic capability proof manifest.
+
+Verification:
+- `npm test -- competitive.test.ts` passed with 75 tests.
+- `npm test -- competitive.test.ts platform-proof-scenarios.test.ts` passed with 81 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 131 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing generic confidence values in response-support analysis paths where they are not backed by explicit evidence signals.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Metadata-Backed Opportunity Summaries
 
 Status: implemented and verified.

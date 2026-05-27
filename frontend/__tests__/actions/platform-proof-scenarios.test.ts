@@ -160,6 +160,7 @@ describe("platform proof scenarios", () => {
 				id: "wave8-strategic-capability-workflows",
 				proofTargets: expect.arrayContaining(["S-001", "UX-018"]),
 				expectedArtifacts: expect.arrayContaining([
+					"vitest:competitive",
 					"vitest:crm-account-research-search",
 					"vitest:win-themes-auth",
 					"vitest:past-performance-scope",

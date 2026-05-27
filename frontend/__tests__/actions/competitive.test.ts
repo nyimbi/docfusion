@@ -657,6 +657,64 @@ describe("Competitive analysis auth", () => {
 		expectAssignedOpportunityTenantScope(linkWhere);
 	});
 
+	test("stores heuristic SWOT insights with evidence signals instead of generic confidence", async () => {
+		let insertedValues: Record<string, unknown> | undefined;
+		const insertChain = createChainableQuery([{ id: "analysis-1" }]);
+		(insertChain.values as ReturnType<typeof vi.fn>).mockImplementation((value: Record<string, unknown>) => {
+			insertedValues = value;
+			return insertChain;
+		});
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([makeOpportunity({
+				category: "GIS",
+				budgetValue: "$1M",
+				keyRequirements: "Cloud GIS migration",
+				daysLeft: 18,
+			})]))
+			.mockImplementationOnce(() => createChainableQuery([
+				{
+					link: { role: "incumbent" },
+					competitor: makeCompetitor({
+						name: "Acme Corp",
+						strengths: ["Agency relationship"],
+						weaknesses: ["High pricing"],
+						pricingTendency: "premium",
+						winCount: 4,
+					}),
+				},
+			]))
+			.mockImplementationOnce(() => createChainableQuery([
+				{
+					coreCapabilities: ["GIS delivery", "Cloud migration"],
+					differentiators: ["Local delivery team"],
+					certifications: ["ISO 27001"],
+				},
+			]));
+		dbMock.insert.mockImplementationOnce(() => insertChain);
+
+		const result = await generateSWOT("00000000-0000-4000-8000-000000000002");
+
+		expect(result.success).toBe(true);
+		expect(insertedValues?.aiInsights).toEqual([
+			expect.objectContaining({
+				insight: expect.stringContaining("2 recorded capability signals"),
+				source: "company-capability-evidence",
+			}),
+			expect.objectContaining({
+				insight: expect.stringContaining("1 linked competitor"),
+				source: "linked-competitor-evidence",
+			}),
+			expect.objectContaining({
+				insight: expect.stringContaining("4 planning signals"),
+				source: "opportunity-metadata-evidence",
+			}),
+		]);
+		if (result.success) {
+			expect(result.data.aiInsights.map((insight) => insight.insight).join(" ")).not.toContain("Analysis generated using heuristic methods");
+			expect(result.data.aiInsights.every((insight) => insight.confidence >= 0.25 && insight.confidence <= 0.85)).toBe(true);
+		}
+	});
+
 	test("scopes discriminator suggestions to assigned opportunity links", async () => {
 		let linkWhere: unknown;
 		const linkChain = createChainableQuery([]);
