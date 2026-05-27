@@ -24,7 +24,7 @@ import {
 	winThemes,
 } from "@/lib/db/schema";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
-import { checkDoclingHealth, convertDocument } from "@/lib/services/docling-client";
+import { checkDoclingHealth, convertDocument, type DoclingConvertResponse } from "@/lib/services/docling-client";
 import { buildLiveResponsePackage, type LiveResponsePackage } from "@/lib/services/live-response-package";
 import { fetchUngmOpportunities } from "@/lib/services/ungm-client";
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
@@ -36,8 +36,10 @@ const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-live-persisted-import-response-evidence.md");
 const SOURCE_URL = process.env.LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_URL ?? "https://www.ungm.org/Public/Notice?title=software";
 const MAX_DOCUMENT_BYTES = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_MAX_DOCUMENT_BYTES ?? 10 * 1024 * 1024);
+const SOURCE_PAGE_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT ?? 10);
 const SOURCE_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_LIMIT ?? 10);
 const SOURCE_DETAIL_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_DETAIL_LIMIT ?? 5);
+const DOCLING_CONVERSION_ATTEMPTS = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_DOCLING_ATTEMPTS ?? 3);
 
 interface PersistedProofIds {
 	organizationId: string;
@@ -79,12 +81,15 @@ interface LivePersistedImportResponseProof {
 	};
 	responseReadiness?: {
 		sourceRequirementCount: number;
+		evaluationCriteriaCount: number;
 		responseDocumentCount: number;
 		responseDocumentTypes: ProposalDocumentType[];
 		totalDraftWordCount: number;
 		winThemeSeedCount: number;
 		readinessStatus: string;
 		readinessWarnings: string[];
+		missingDraftEvaluationCriteriaIds: string[];
+		missingWinThemeEvaluationCriteriaIds: string[];
 	};
 	persisted?: {
 		ids: PersistedProofIds;
@@ -99,6 +104,7 @@ interface LivePersistedImportResponseProof {
 			responseDocumentTypes: string[];
 			minResponseDocumentWordCount: number;
 			winThemeCriteriaIds: string[];
+			draftCoveredEvaluationCriteriaIds: string[];
 		};
 	};
 	schema?: {
@@ -120,6 +126,11 @@ interface ExtractedSourceDocument {
 	fileHash: string;
 	sourceText: string;
 	doclingStatus?: string;
+}
+
+interface SourceDocumentConversion {
+	converted: DoclingConvertResponse;
+	sourceText: string;
 }
 
 async function main() {
@@ -209,12 +220,15 @@ async function proveLivePersistedImportResponse(
 		},
 		responseReadiness: {
 			sourceRequirementCount: responsePackage.requirements.length,
+			evaluationCriteriaCount: responsePackage.evaluationCriteria.length,
 			responseDocumentCount: responsePackage.documents.length,
 			responseDocumentTypes: responsePackage.documents.map((document) => document.documentType),
 			totalDraftWordCount: responsePackage.totalWordCount,
 			winThemeSeedCount: responsePackage.winThemeSeeds.length,
 			readinessStatus: responsePackage.readiness.status,
 			readinessWarnings: responsePackage.readiness.warnings,
+			missingDraftEvaluationCriteriaIds: responsePackage.readiness.missingDraftEvaluationCriteriaIds,
+			missingWinThemeEvaluationCriteriaIds: responsePackage.readiness.missingWinThemeEvaluationCriteriaIds,
 		},
 		schema,
 		persisted,
@@ -318,21 +332,7 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<Extra
 		throw new Error(`Live persisted source document exceeded ${MAX_DOCUMENT_BYTES} bytes`);
 	}
 
-	const converted = await convertDocument(bytes, filenameFromUrl(documentUrl), {
-		outputFormat: "text",
-		ocr: false,
-		extractTables: false,
-		extractImages: false,
-		pageRange: [1, 2],
-		documentTimeoutSeconds: 60,
-	});
-	if (converted.status && converted.status !== "success") {
-		throw new Error(`Docling conversion did not succeed: ${converted.status}`);
-	}
-	const sourceText = cleanExtractedText(converted.text ?? converted.markdown ?? "");
-	if (sourceText.length < 1000) {
-		throw new Error(`Docling extracted too little source text: ${sourceText.length} characters`);
-	}
+	const { converted, sourceText } = await convertSourceDocumentWithRetries(bytes, filenameFromUrl(documentUrl));
 
 	return {
 		url: documentUrl,
@@ -343,6 +343,40 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<Extra
 		sourceText,
 		doclingStatus: converted.status,
 	};
+}
+
+async function convertSourceDocumentWithRetries(
+	bytes: Buffer,
+	filename: string
+): Promise<SourceDocumentConversion> {
+	let lastError: Error | undefined;
+	for (let attempt = 1; attempt <= DOCLING_CONVERSION_ATTEMPTS; attempt += 1) {
+		try {
+			const converted = await convertDocument(bytes, filename, {
+				outputFormat: "text",
+				ocr: false,
+				extractTables: false,
+				extractImages: false,
+				pageRange: [1, SOURCE_PAGE_LIMIT],
+				documentTimeoutSeconds: 90,
+			});
+			if (converted.status && converted.status !== "success" && converted.status !== "partial_success") {
+				throw new Error(`Docling conversion did not succeed: ${converted.status}`);
+			}
+			const sourceText = cleanExtractedText(converted.text ?? converted.markdown ?? "");
+			if (sourceText.length < 1000) {
+				throw new Error(`Docling extracted too little source text: ${sourceText.length} characters`);
+			}
+			return { converted, sourceText };
+		} catch (error) {
+			lastError = error instanceof Error ? error : new Error(String(error));
+			if (attempt < DOCLING_CONVERSION_ATTEMPTS) {
+				await delay(750 * attempt);
+			}
+		}
+	}
+
+	throw lastError ?? new Error("Docling conversion failed without an error detail");
 }
 
 async function persistProofRecords(
@@ -527,6 +561,7 @@ async function persistProofRecords(
 			proof: proofMetadata,
 			documentType: document.documentType,
 			requirementIds: document.requirementIds,
+			evaluationCriteriaIds: document.evaluationCriteriaIds,
 			relevantSnippetShortcuts: document.relevantSnippetShortcuts,
 		},
 	}))).returning({ id: documents.id, title: documents.title });
@@ -630,6 +665,7 @@ async function verifyPersistedProofRows(ids: PersistedProofIds): Promise<NonNull
 	const responseDocumentRows = await db.select({
 		id: documents.id,
 		wordCount: documents.wordCount,
+		metadata: documents.metadata,
 	}).from(documents).where(inArray(documents.id, ids.documentIds));
 	const proposalDocumentRows = await db.select({
 		id: proposalDocuments.id,
@@ -645,6 +681,9 @@ async function verifyPersistedProofRows(ids: PersistedProofIds): Promise<NonNull
 	const responseDocumentTypes = proposalDocumentRows.map((row) => row.documentType).sort();
 	const minResponseDocumentWordCount = Math.min(...responseDocumentRows.map((row) => row.wordCount));
 	const winThemeCriteriaIds = [...new Set(winThemeRows.flatMap((row) => row.evaluationCriteriaIds ?? []))].sort();
+	const draftCoveredEvaluationCriteriaIds = [...new Set(responseDocumentRows.flatMap((row) =>
+		evaluationCriteriaIdsFromMetadata(row.metadata)
+	))].sort();
 
 	if (opportunityRows.length !== 1) throw new Error("Persisted proof opportunity verification failed");
 	if (opportunityDocumentRows.length !== 1) throw new Error("Persisted proof opportunity document verification failed");
@@ -666,7 +705,14 @@ async function verifyPersistedProofRows(ids: PersistedProofIds): Promise<NonNull
 		responseDocumentTypes,
 		minResponseDocumentWordCount,
 		winThemeCriteriaIds,
+		draftCoveredEvaluationCriteriaIds,
 	};
+}
+
+function evaluationCriteriaIdsFromMetadata(metadata: unknown): string[] {
+	if (!metadata || typeof metadata !== "object" || !("evaluationCriteriaIds" in metadata)) return [];
+	const value = (metadata as { evaluationCriteriaIds?: unknown }).evaluationCriteriaIds;
+	return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string" && id.length > 0) : [];
 }
 
 async function countRemainingProofRows(ids: PersistedProofIds): Promise<Record<string, number>> {
@@ -749,12 +795,17 @@ function compactText(text: string, maxLength: number): string {
 	return compacted.length > maxLength ? `${compacted.slice(0, maxLength - 3)}...` : compacted;
 }
 
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function writeArtifacts(
 	proof: LivePersistedImportResponseProof,
 	disposition: EvidenceRecord["disposition"]
 ) {
 	const rawPath = await writeProofJson(LOG_DIR, "live-persisted-import-response.json", proof);
 	const relativeRawPath = path.relative(WORKSPACE_ROOT, rawPath);
+	const cleanupRemaining = Object.values(proof.cleanup?.remainingRows ?? {}).reduce((total, count) => total + count, 0);
 	await appendEvidenceRecords(EVIDENCE_PATH, [{
 		facility: "F-001/F-005/F-008/F-020",
 		journey: "J1/O1/O4",
@@ -763,21 +814,32 @@ async function writeArtifacts(
 			`log:${relativeRawPath}`,
 			`source:${proof.source.url}`,
 			`opportunities:${proof.source.opportunityCount}`,
+			`document-bytes:${proof.document?.byteLength ?? 0}`,
+			`docling-text:${proof.document?.extractedTextLength ?? 0}`,
+			`docling-status:${proof.document?.doclingStatus ?? "not-run"}`,
+			`source-requirements:${proof.responseReadiness?.sourceRequirementCount ?? 0}`,
+			`evaluator-criteria:${proof.responseReadiness?.evaluationCriteriaCount ?? 0}`,
+			`readiness:${proof.responseReadiness?.readinessStatus ?? "not-run"}`,
+			`readiness-warnings:${proof.responseReadiness?.readinessWarnings.length ?? 0}`,
+			`readiness-missing-draft-criteria:${proof.responseReadiness?.missingDraftEvaluationCriteriaIds.length ?? 0}`,
+			`readiness-missing-win-theme-criteria:${proof.responseReadiness?.missingWinThemeEvaluationCriteriaIds.length ?? 0}`,
 			`opportunity-row:${proof.persisted?.verified.opportunityRows ?? 0}`,
 			`source-document-row:${proof.persisted?.verified.opportunityDocumentRows ?? 0}`,
 			`rfp-document-row:${proof.persisted?.verified.rfpDocumentRows ?? 0}`,
 			`requirement-rows:${proof.persisted?.verified.requirementRows ?? 0}`,
 			`proposal-document-rows:${proof.persisted?.verified.proposalDocumentRows ?? 0}`,
 			`response-document-rows:${proof.persisted?.verified.responseDocumentRows ?? 0}`,
+			`response-draft-words:${proof.responseReadiness?.totalDraftWordCount ?? 0}`,
 			`win-theme-rows:${proof.persisted?.verified.winThemeRows ?? 0}`,
 			`win-theme-criteria:${proof.persisted?.verified.winThemeCriteriaIds.length ?? 0}`,
-			`cleanup-remaining:${Object.values(proof.cleanup?.remainingRows ?? {}).reduce((total, count) => total + count, 0)}`,
+			`draft-criteria:${proof.persisted?.verified.draftCoveredEvaluationCriteriaIds.length ?? 0}`,
+			`cleanup-remaining:${cleanupRemaining}`,
 		],
 		topology_tier: "live-connectivity",
 		verification_bucket: "live-safe persisted import-to-response",
 		timestamp: new Date().toISOString(),
 		operator: "Codex",
-		cleanup_status: disposition === "pass" ? "restored" : "cleanup-pending",
+		cleanup_status: cleanupStatusFor(disposition, cleanupRemaining),
 		disposition,
 		notes: disposition === "pass"
 			? "Live opportunity, source document, parsed RFP, requirements, response draft records, and win themes were persisted, verified, and cleaned up."
@@ -785,6 +847,14 @@ async function writeArtifacts(
 	}], {
 		title: "Platform Live Persisted Import Response Evidence",
 	});
+}
+
+function cleanupStatusFor(
+	disposition: EvidenceRecord["disposition"],
+	cleanupRemaining: number
+): EvidenceRecord["cleanup_status"] {
+	if (disposition === "pass") return "restored";
+	return cleanupRemaining > 0 ? "cleanup-pending" : "idempotent-noop";
 }
 
 main().catch(async (error) => {

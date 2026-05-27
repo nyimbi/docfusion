@@ -475,6 +475,10 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		command: {
 			command: "npx",
 			args: ["tsx", "scripts/prove-live-persisted-import-response.ts"],
+			env: {
+				LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT: "10",
+				LIVE_PERSISTED_IMPORT_RESPONSE_DOCLING_ATTEMPTS: "3",
+			},
 		},
 		expectedArtifacts: [
 			".omx/state/platform-live-persisted-import-response-evidence.md",

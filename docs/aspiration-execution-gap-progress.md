@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Persisted Proof Extraction and Evidence Hardening
+
+Status: implemented and partially verified; DB path still externally blocked.
+
+Purpose: prepare the DB-backed live persisted import-to-response proof to use the same source-extraction resilience and response-quality evidence as the live response-readiness proof once PostgreSQL connectivity is restored.
+
+Changes in this slice:
+- Added configurable persisted-proof Docling page limits and bounded conversion retries.
+- Accepted usable Docling `partial_success` output when extracted text is still sufficient.
+- Persisted draft evaluator-criteria IDs in response document metadata and verifies them from stored rows.
+- Expanded persisted-proof evidence rows with document bytes, Docling status/text length, source requirement count, evaluator criteria count, readiness warnings, missing evaluator-criteria counts, response draft words, and draft criteria counts.
+- Changed failed proof cleanup status to `idempotent-noop` when no rows were created, avoiding a misleading cleanup-pending signal for connection-refused failures.
+
+Verification:
+- `npm test -- platform-proof-scenarios.test.ts --run` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-persisted-import-response --include-live-safe` failed with run `live_persisted_import_response_20260527T160529Z` at the known PostgreSQL connection refusal before source discovery, but the new evidence row recorded `docling-status:not-run`, `readiness:not-run`, `cleanup-remaining:0`, and cleanup status `idempotent-noop`.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity to `88.80.188.224:5432`, then rerun `npm run platform:proof -- --run live-persisted-import-response --include-live-safe` to validate the full persisted path.
+
 ### 2026-05-27 - Live Persisted Import Response Retry After Wave 9
 
 Status: externally blocked.

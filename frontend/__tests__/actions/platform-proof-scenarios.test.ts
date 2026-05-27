@@ -261,6 +261,12 @@ describe("platform proof scenarios", () => {
 				id: "live-persisted-import-response",
 				kind: "live-safe",
 				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-008", "F-020", "S-001"]),
+				command: expect.objectContaining({
+					env: expect.objectContaining({
+						LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT: "10",
+						LIVE_PERSISTED_IMPORT_RESPONSE_DOCLING_ATTEMPTS: "3",
+					}),
+				}),
 				expectedArtifacts: expect.arrayContaining([
 					".omx/state/platform-live-persisted-import-response-evidence.md",
 				]),
@@ -373,6 +379,10 @@ describe("platform proof scenarios", () => {
 		expect(formatProofCommand(kenyaResponseScenario)).toContain("LIVE_RESPONSE_READINESS_SOURCE_KIND=kenya_ppip");
 		expect(formatProofCommand(kenyaResponseScenario)).toContain("LIVE_RESPONSE_READINESS_PAGE_LIMIT=25");
 		expect(formatProofCommand(kenyaResponseScenario)).toContain("npx tsx scripts/prove-live-opportunity-response-readiness.ts");
+
+		const [persistedResponseScenario] = listProofScenarios({ ids: ["live-persisted-import-response"], includeLiveSafe: true });
+		expect(formatProofCommand(persistedResponseScenario)).toContain("LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT=10");
+		expect(formatProofCommand(persistedResponseScenario)).toContain("LIVE_PERSISTED_IMPORT_RESPONSE_DOCLING_ATTEMPTS=3");
 	});
 
 	it("keeps continue-on-failure sweeps failed when any scenario fails", async () => {
