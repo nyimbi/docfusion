@@ -153,12 +153,12 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		kind: "integration",
 		proofTargets: ["F-009", "F-010", "F-011", "F-012", "UX-004", "UX-016"],
 		requiresLiveServices: false,
-		description: "Validates compliance entry lifecycle, requirement gates, evidence workflows, unsupported claim remediation, and DLP blocking behavior.",
+		description: "Validates compliance entry lifecycle, cross-reference suggestions, requirement gates, evidence workflows, unsupported claim remediation, and DLP blocking behavior.",
 		command: {
 			command: "npm",
-			args: ["test", "--", "compliance-entry-workflow.test.ts", "requirements-workflow.test.ts", "claim-remediation.test.ts", "evidence.test.ts", "dlp-policy.test.ts"],
+			args: ["test", "--", "compliance-entry-workflow.test.ts", "compliance-cross-reference-suggestions.test.ts", "requirements-workflow.test.ts", "claim-remediation.test.ts", "evidence.test.ts", "dlp-policy.test.ts"],
 		},
-		expectedArtifacts: ["vitest:compliance-entry-workflow", "vitest:requirements-workflow", "vitest:claim-remediation", "vitest:evidence", "vitest:dlp-policy"],
+		expectedArtifacts: ["vitest:compliance-entry-workflow", "vitest:compliance-cross-reference-suggestions", "vitest:requirements-workflow", "vitest:claim-remediation", "vitest:evidence", "vitest:dlp-policy"],
 	},
 	{
 		id: "wave4-planning-collaboration-tasks",

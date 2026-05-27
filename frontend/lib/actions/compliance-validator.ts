@@ -11,6 +11,7 @@
  */
 
 import { db } from "@/lib/db";
+import type { JSONContent } from "@tiptap/react";
 import {
 	rfpRequirements,
 	complianceMatrices,
@@ -18,8 +19,8 @@ import {
 	rfpDocuments,
 } from "@/lib/db/schema-rfp";
 import type { ComplianceEntryRow, ComplianceMatrixRow } from "@/lib/db/schema-rfp";
-import { documents } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { documents, proposalDocuments } from "@/lib/db/schema";
+import { eq, and, sql, or, isNull } from "drizzle-orm";
 import {
 	requireUserContext,
 	userHasAuthorityRole,
@@ -218,6 +219,21 @@ interface ComplianceWorkflowMetadata {
 	[key: string]: unknown;
 }
 
+interface ResponseDocumentSection {
+	id: string;
+	title: string;
+	text: string;
+	order: number;
+}
+
+interface ResponseDocumentCandidate {
+	documentId: string;
+	documentTitle: string;
+	documentType: string;
+	content: unknown;
+	plainText: string | null;
+}
+
 interface ComplianceEntryMetadata {
 	complianceWorkflow?: ComplianceWorkflowMetadata;
 	[key: string]: unknown;
@@ -334,6 +350,138 @@ function visibleRfpRequirementCondition(requirementId: string, organizationId: s
 		eq(rfpRequirements.id, requirementId),
 		eq(rfpRequirements.organizationId, organizationId)
 	);
+}
+
+function visibleProposalDocumentsForComplianceCondition(opportunityId: string, organizationId: string) {
+	return and(
+		eq(proposalDocuments.opportunityId, opportunityId),
+		or(
+			eq(proposalDocuments.organizationId, organizationId),
+			isNull(proposalDocuments.organizationId)
+		)!
+	);
+}
+
+function nodeText(node: JSONContent | undefined): string {
+	if (!node) return "";
+	if (node.type === "text") return node.text || "";
+	return (node.content || []).map(nodeText).join("");
+}
+
+function sectionizeDocument(content: unknown, fallbackText: string | null): ResponseDocumentSection[] {
+	const root = content as JSONContent | null;
+	if (!root?.content?.length) {
+		const text = (fallbackText || "").trim();
+		return text ? [{ id: "document", title: "Document body", text, order: 0 }] : [];
+	}
+
+	const sections: ResponseDocumentSection[] = [];
+	let current: ResponseDocumentSection = {
+		id: "section-0",
+		title: "Document body",
+		text: "",
+		order: 0,
+	};
+
+	for (const node of root.content) {
+		if (node.type === "heading") {
+			if (current.text.trim()) {
+				sections.push({ ...current, text: current.text.trim() });
+			}
+			const nextOrder = sections.length + 1;
+			const title = nodeText(node).trim() || `Section ${nextOrder}`;
+			current = {
+				id: `section-${nextOrder}`,
+				title,
+				text: title,
+				order: nextOrder,
+			};
+			continue;
+		}
+		const text = nodeText(node).trim();
+		if (text) {
+			current.text = `${current.text}\n${text}`.trim();
+		}
+	}
+
+	if (current.text.trim()) {
+		sections.push({ ...current, text: current.text.trim() });
+	}
+
+	return sections.length > 0 ? sections : sectionizeDocument(null, fallbackText);
+}
+
+const MATCH_STOPWORDS = new Set([
+	"shall",
+	"will",
+	"and",
+	"the",
+	"for",
+	"are",
+	"was",
+	"were",
+	"not",
+	"all",
+	"any",
+	"our",
+	"must",
+	"with",
+	"from",
+	"that",
+	"this",
+	"have",
+	"into",
+	"there",
+	"their",
+	"provide",
+	"include",
+	"including",
+	"required",
+	"requirement",
+	"contractor",
+	"offeror",
+]);
+
+function tokenizeMatchTerms(text: string): string[] {
+	const terms = text
+		.toLowerCase()
+		.match(/[a-z0-9][a-z0-9-]{2,}/g) || [];
+	return Array.from(new Set(terms.filter((term) => !MATCH_STOPWORDS.has(term))));
+}
+
+function scoreSectionForRequirement(input: {
+	section: ResponseDocumentSection;
+	document: ResponseDocumentCandidate;
+	requirementText: string;
+	requirementNumber: string | null;
+	category: string | null;
+}): SuggestedLocation | null {
+	const requirementTerms = tokenizeMatchTerms([
+		input.requirementNumber,
+		input.category,
+		input.requirementText,
+	].filter(Boolean).join(" "));
+	if (requirementTerms.length === 0) return null;
+
+	const sectionText = `${input.document.documentTitle} ${input.document.documentType} ${input.section.title} ${input.section.text}`;
+	const sectionTerms = new Set(tokenizeMatchTerms(sectionText));
+	const matchedTerms = requirementTerms.filter((term) => sectionTerms.has(term));
+	if (matchedTerms.length === 0) return null;
+
+	const titleTerms = new Set(tokenizeMatchTerms(input.section.title));
+	const titleMatches = matchedTerms.filter((term) => titleTerms.has(term)).length;
+	const rawScore = (matchedTerms.length / requirementTerms.length) * 80 + titleMatches * 7;
+	const relevanceScore = Math.min(98, Math.max(20, Math.round(rawScore)));
+	const previewTerms = matchedTerms.slice(0, 5).join(", ");
+
+	return {
+		documentId: input.document.documentId,
+		documentTitle: input.document.documentTitle,
+		sectionId: `${input.document.documentId}#${input.section.id}`,
+		sectionTitle: input.section.title,
+		relevanceScore,
+		reason: `Matches requirement terms: ${previewTerms}`,
+	};
 }
 
 // ============================================================================
@@ -1531,10 +1679,44 @@ export async function suggestCrossReferenceLocations(
 	if (!requirement) {
 		throw new Error("Requirement not found");
 	}
+	if (!requirement.opportunityId) {
+		return [];
+	}
 
-	// In production, this would use semantic search to find relevant document sections
-	// For now, return empty array
-	return [];
+	const responseDocuments = await db
+		.select({
+			documentId: documents.id,
+			documentTitle: documents.title,
+			documentType: proposalDocuments.documentType,
+			content: documents.content,
+			plainText: documents.plainText,
+		})
+		.from(proposalDocuments)
+		.innerJoin(documents, eq(proposalDocuments.documentId, documents.id))
+		.where(visibleProposalDocumentsForComplianceCondition(requirement.opportunityId, organizationId));
+
+	const suggestions = responseDocuments.flatMap((document) => {
+		const candidate: ResponseDocumentCandidate = {
+			documentId: document.documentId,
+			documentTitle: document.documentTitle,
+			documentType: document.documentType,
+			content: document.content,
+			plainText: document.plainText,
+		};
+		return sectionizeDocument(candidate.content, candidate.plainText)
+			.map((section) => scoreSectionForRequirement({
+				section,
+				document: candidate,
+				requirementText: requirement.requirementText,
+				requirementNumber: requirement.requirementNumber,
+				category: requirement.category,
+			}))
+			.filter((suggestion): suggestion is SuggestedLocation => suggestion !== null);
+	});
+
+	return suggestions
+		.sort((a, b) => b.relevanceScore - a.relevanceScore)
+		.slice(0, 5);
 }
 
 /**

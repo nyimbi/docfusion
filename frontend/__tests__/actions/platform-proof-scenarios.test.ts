@@ -105,6 +105,9 @@ describe("platform proof scenarios", () => {
 			expect.objectContaining({
 				id: "wave3-compliance-evidence-readiness",
 				proofTargets: expect.arrayContaining(["UX-004", "UX-016"]),
+				expectedArtifacts: expect.arrayContaining([
+					"vitest:compliance-cross-reference-suggestions",
+				]),
 			}),
 		]);
 		expect(listProofScenarios({ ids: ["wave4-planning-collaboration-tasks"] })).toEqual([

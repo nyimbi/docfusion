@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Compliance Cross-Reference Suggestions
+
+Status: implemented and verified.
+
+Purpose: make compliance reviewers receive concrete response-section suggestions for unlinked requirements instead of an empty placeholder list.
+
+Changes in this slice:
+- Replace empty cross-reference suggestions with deterministic matching against proposal documents for the requirement's opportunity.
+- Split Tiptap response documents into heading-based sections and fall back to stored plain text when structured content is absent.
+- Rank suggested sections by requirement-term overlap across requirement number, category, section title, document type, and section body.
+- Scope proposal-document reads to the user's organization while preserving legacy null-organization proposal documents.
+- Add regression coverage for ranked section suggestions, organization/opportunity scoping, and no-match behavior.
+- Extend the Wave 3 compliance/evidence proof manifest with the cross-reference suggestion regression.
+
+Verification:
+- `npm test -- compliance-cross-reference-suggestions.test.ts compliance-entry-workflow.test.ts` from `frontend/` passed, running 11 tests.
+- `npm test -- compliance-cross-reference-suggestions.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 8 tests.
+- `npm test -- platform-proof-scenarios.test.ts compliance-cross-reference-suggestions.test.ts compliance-entry-workflow.test.ts` from `frontend/` passed, running 17 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` from `frontend/` passed, running 79 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Document PDF Render Artifacts
 
 Status: implemented and verified.
