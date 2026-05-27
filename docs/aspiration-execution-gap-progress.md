@@ -6778,3 +6778,25 @@ Verification:
 Remaining after this slice:
 - Continue strengthening generated live response packages with rendered artifact checks and persistence proof once database connectivity is restored.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Firecrawl Document Link Intake
+
+Status: implemented and verified.
+
+Purpose: keep Firecrawl-enriched opportunity discovery from losing tender attachment links before the RFP intake and response bridge can use them.
+
+Changes in this slice:
+- Request Firecrawl `links` for top SearXNG result enrichment.
+- Preserve ranked discovered document links in opportunity discovery metadata.
+- Seed bounded source-document rows for high-signal discovered tender attachments, while keeping low-signal documents out of selected intake.
+- Retain the highest-ranked document link as the opportunity `documentUrl` for existing downstream RFP workflows.
+
+Verification:
+- `npm test -- __tests__/actions/discovery-opportunity-import.test.ts --run` passed with 23 tests.
+- `npm test -- __tests__/actions/discovery-opportunity-import.test.ts __tests__/api/opportunity-discovery-route.test.ts __tests__/api/opportunity-discovery-presets-route.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/rfp-document-service.test.ts --run` passed with 48 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` passed with 61 tests.
+
+Remaining after this slice:
+- Continue strengthening source-document intake with live persisted proof once database connectivity is restored.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

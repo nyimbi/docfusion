@@ -248,7 +248,7 @@ describe("discoverAndImportOpportunities", () => {
 		expect(result.results).toMatchObject({ total: 1, imported: 0, updated: 1, failed: 0 });
 		expect(firecrawlScrapeMock).toHaveBeenCalledWith(
 			"https://procurement.example.com/opportunity?id=123",
-			expect.objectContaining({ formats: ["markdown"], timeout: 15000 })
+			expect.objectContaining({ formats: ["markdown", "links"], timeout: 15000 })
 		);
 		expect(updateOpportunityMock).toHaveBeenCalledWith("opp-existing", expect.objectContaining({
 			title: "Digital Workflow Tender",
@@ -326,6 +326,79 @@ describe("discoverAndImportOpportunities", () => {
 			status: "discovered",
 			isSelected: true,
 		}));
+	});
+
+	it("preserves and seeds multiple high-signal Firecrawl document links", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Bid for grants management system",
+					url: "https://procurement.example.com/tenders/grants-management",
+					content: "Bid notice with tender attachments.",
+					engine: "brave",
+					score: 12,
+					category: "general",
+				},
+			],
+		});
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Grants Management Bid",
+					"[Annual report](/docs/annual-report.pdf)",
+					"[Terms of reference](/docs/grants-management-tor.pdf)",
+				].join("\n\n"),
+				links: [
+					"/docs/grants-management-bid-form.docx",
+					"/docs/vendor-profile.xlsx",
+				],
+				metadata: {
+					title: "Grants Management Bid",
+					description: "Tender attachments for a grants management platform.",
+				},
+			},
+		});
+		selectResultsQueue.push([], [], [], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "grants management bid",
+			scrapeTopResults: true,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(2);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			documentUrl: "https://procurement.example.com/docs/grants-management-tor.pdf",
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					documentLinks: expect.arrayContaining([
+						expect.objectContaining({
+							url: "https://procurement.example.com/docs/grants-management-tor.pdf",
+							label: "Terms of reference",
+							source: "scraped_markdown",
+						}),
+						expect.objectContaining({
+							url: "https://procurement.example.com/docs/grants-management-bid-form.docx",
+							source: "scraped_link",
+						}),
+						expect.objectContaining({
+							url: "https://procurement.example.com/docs/annual-report.pdf",
+							source: "scraped_markdown",
+						}),
+					]),
+				}),
+			}),
+		}));
+		const insertedSourceUrls = vi.mocked(db.insert).mock.results.map((result) => {
+			const insertBuilder = result.value as { values: ReturnType<typeof vi.fn> };
+			return insertBuilder.values.mock.calls[0][0].sourceUrl;
+		});
+		expect(insertedSourceUrls).toEqual([
+			"https://procurement.example.com/docs/grants-management-tor.pdf",
+			"https://procurement.example.com/docs/grants-management-bid-form.docx",
+		]);
+		expect(insertedSourceUrls).not.toContain("https://procurement.example.com/docs/annual-report.pdf");
 	});
 
 	it("keeps opportunity imports successful when source document row seeding fails", async () => {

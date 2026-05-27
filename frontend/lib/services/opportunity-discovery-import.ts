@@ -67,6 +67,7 @@ interface DiscoveryCandidate {
 		title?: string;
 		description?: string;
 		markdown?: string;
+		links?: string[];
 		success: boolean;
 		error?: string;
 		method: "firecrawl" | "browser_fallback" | "source_api";
@@ -117,10 +118,17 @@ export interface DiscoveryImportResult {
 }
 
 type SourceDocumentSeedResult =
-	| { state: "created" | "existing"; documentId: string }
-	| { state: "none" | "failed"; documentId?: undefined };
+	| { state: "created" | "existing"; documentId: string; sourceUrl: string }
+	| { state: "none" | "failed"; documentId?: undefined; sourceUrl?: string };
 
 type FirecrawlScrapeResult = Awaited<ReturnType<FirecrawlClient["scrape"]>>;
+
+type DiscoveryDocumentLink = {
+	url: string;
+	label?: string;
+	source: "result_url" | "opportunity_document_url" | "scraped_markdown" | "scraped_link";
+	score: number;
+};
 
 interface ConfiguredSourceParseResult {
 	parser: TenderParser;
@@ -158,6 +166,8 @@ const DEFAULT_COMESA_DETAIL_LIMIT = 5;
 const DEFAULT_UNDP_DETAIL_LIMIT = 5;
 const DEFAULT_WORLD_BANK_DETAIL_LIMIT = 5;
 const DEFAULT_CONFIGURED_SOURCE_SCRAPE_ATTEMPTS = 2;
+const MAX_DISCOVERY_SOURCE_DOCUMENTS = 5;
+const MIN_DISCOVERY_SOURCE_DOCUMENT_SCORE = 6;
 const DOCUMENT_URL_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)/i;
 const DOCUMENT_LINK_KEYWORDS = [
 	"rfp",
@@ -165,7 +175,6 @@ const DOCUMENT_LINK_KEYWORDS = [
 	"tender",
 	"bid",
 	"solicitation",
-	"document",
 	"download",
 	"attachment",
 	"terms of reference",
@@ -349,28 +358,120 @@ function scoreDocumentLink(label: string, url: string): number {
 	return score;
 }
 
+function addDocumentLinkCandidate(
+	candidates: DiscoveryDocumentLink[],
+	seenUrls: Map<string, number>,
+	link: DiscoveryDocumentLink
+): void {
+	const existingIndex = seenUrls.get(link.url);
+	if (existingIndex === undefined) {
+		seenUrls.set(link.url, candidates.length);
+		candidates.push(link);
+		return;
+	}
+
+	const existing = candidates[existingIndex];
+	if (!existing || existing.score >= link.score) return;
+	candidates[existingIndex] = {
+		...link,
+		label: link.label || existing.label,
+	};
+}
+
+function extractDocumentLinks(
+	markdown: string | undefined,
+	links: string[] | undefined,
+	baseUrl: string
+): DiscoveryDocumentLink[] {
+	const candidates: DiscoveryDocumentLink[] = [];
+	const seenUrls = new Map<string, number>();
+
+	if (markdown?.trim()) {
+		const markdownLinkPattern = /!?\[([^\]]{0,240})\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+		for (const match of markdown.matchAll(markdownLinkPattern)) {
+			const label = match[1] ?? "";
+			const url = normalizeCandidateDocumentUrl(match[2] ?? "", baseUrl);
+			if (!url || !isDocumentUrl(url)) continue;
+			addDocumentLinkCandidate(candidates, seenUrls, {
+				url,
+				label: label || undefined,
+				source: "scraped_markdown",
+				score: scoreDocumentLink(label, url),
+			});
+		}
+
+		const bareUrlPattern = /https?:\/\/[^\s<>"')]+/g;
+		for (const match of markdown.matchAll(bareUrlPattern)) {
+			const url = normalizeCandidateDocumentUrl(match[0] ?? "", baseUrl);
+			if (!url || !isDocumentUrl(url)) continue;
+			addDocumentLinkCandidate(candidates, seenUrls, {
+				url,
+				source: "scraped_markdown",
+				score: scoreDocumentLink("", url),
+			});
+		}
+	}
+
+	for (const rawLink of links ?? []) {
+		const url = normalizeCandidateDocumentUrl(rawLink, baseUrl);
+		if (!url || !isDocumentUrl(url)) continue;
+		addDocumentLinkCandidate(candidates, seenUrls, {
+			url,
+			source: "scraped_link",
+			score: scoreDocumentLink("", url),
+		});
+	}
+
+	return candidates
+		.map((candidate, order) => ({ ...candidate, order }))
+		.sort((a, b) => b.score - a.score || a.order - b.order)
+		.map(({ order: _order, ...candidate }) => candidate);
+}
+
+function collectCandidateDocumentLinks(candidate: DiscoveryCandidate): DiscoveryDocumentLink[] {
+	const candidates: DiscoveryDocumentLink[] = [];
+	const seenUrls = new Map<string, number>();
+
+	if (isDocumentUrl(candidate.result.url)) {
+		const url = normalizeCandidateDocumentUrl(candidate.result.url, candidate.result.url);
+		if (url) {
+			addDocumentLinkCandidate(candidates, seenUrls, {
+				url,
+				source: "result_url",
+				score: scoreDocumentLink(candidate.result.title, url),
+				label: candidate.result.title,
+			});
+		}
+	}
+
+	if (candidate.opportunity?.documentUrl) {
+		const url = normalizeCandidateDocumentUrl(
+			candidate.opportunity.documentUrl,
+			candidate.opportunity.portalUrl ?? candidate.result.url
+		);
+		if (url) {
+			addDocumentLinkCandidate(candidates, seenUrls, {
+				url,
+				source: "opportunity_document_url",
+				score: scoreDocumentLink(candidate.opportunity.title, url) + 2,
+				label: candidate.opportunity.title,
+			});
+		}
+	}
+
+	for (const link of extractDocumentLinks(candidate.scrape?.markdown, candidate.scrape?.links, candidate.result.url)) {
+		addDocumentLinkCandidate(candidates, seenUrls, link);
+	}
+
+	return candidates
+		.map((candidateLink, order) => ({ ...candidateLink, order }))
+		.sort((a, b) => b.score - a.score || a.order - b.order)
+		.slice(0, MAX_DISCOVERY_SOURCE_DOCUMENTS)
+		.map(({ order: _order, ...candidateLink }) => candidateLink);
+}
+
 function extractDocumentUrlFromMarkdown(markdown: string | undefined, baseUrl: string): string | undefined {
-	if (!markdown?.trim()) return undefined;
-
-	const candidates: Array<{ url: string; label: string; score: number; index: number }> = [];
-	let index = 0;
-	const markdownLinkPattern = /!?\[([^\]]{0,240})\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
-	for (const match of markdown.matchAll(markdownLinkPattern)) {
-		const label = match[1] ?? "";
-		const url = normalizeCandidateDocumentUrl(match[2] ?? "", baseUrl);
-		if (!url || !isDocumentUrl(url)) continue;
-		candidates.push({ url, label, score: scoreDocumentLink(label, url), index: index++ });
-	}
-
-	const bareUrlPattern = /https?:\/\/[^\s<>"')]+/g;
-	for (const match of markdown.matchAll(bareUrlPattern)) {
-		const url = normalizeCandidateDocumentUrl(match[0] ?? "", baseUrl);
-		if (!url || !isDocumentUrl(url)) continue;
-		candidates.push({ url, label: "", score: scoreDocumentLink("", url), index: index++ });
-	}
-
-	candidates.sort((a, b) => b.score - a.score || a.index - b.index);
-	return candidates[0]?.url;
+	return extractDocumentLinks(markdown, undefined, baseUrl)[0]?.url;
 }
 
 function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryMethod: DiscoveryCandidate["discoveryMethod"]): string {
@@ -437,12 +538,42 @@ function discoveredSourceDocumentType(url: string): "rfp" | "attachment" {
 		: "attachment";
 }
 
+function discoveryDocumentLinksFromOpportunity(opportunity: OpportunityInput): string[] {
+	const urls = new Set<string>();
+	if (opportunity.documentUrl) urls.add(opportunity.documentUrl);
+
+	const discovery = opportunity.metadata?.discovery;
+	if (discovery && typeof discovery === "object" && !Array.isArray(discovery)) {
+		const links = (discovery as { documentLinks?: unknown }).documentLinks;
+		if (Array.isArray(links)) {
+			for (const link of links) {
+				if (typeof link === "string") {
+					urls.add(link);
+				} else if (link && typeof link === "object") {
+					const { url, score } = link as { url?: unknown; score?: unknown };
+					if (
+						typeof score === "number"
+						&& score < MIN_DISCOVERY_SOURCE_DOCUMENT_SCORE
+						&& url !== opportunity.documentUrl
+					) {
+						continue;
+					}
+					if (typeof url === "string") urls.add(url);
+				}
+			}
+		}
+	}
+
+	return [...urls].slice(0, MAX_DISCOVERY_SOURCE_DOCUMENTS);
+}
+
 async function ensureDiscoveredSourceDocument(
 	opportunityId: string,
 	opportunity: OpportunityInput,
-	organizationId: string
+	organizationId: string,
+	documentUrl = opportunity.documentUrl
 ): Promise<SourceDocumentSeedResult> {
-	if (!opportunity.documentUrl) return { state: "none" };
+	if (!documentUrl) return { state: "none" };
 
 	const [existing] = await db
 		.select({ id: opportunityDocuments.id })
@@ -450,25 +581,25 @@ async function ensureDiscoveredSourceDocument(
 		.where(and(
 			eq(opportunityDocuments.opportunityId, opportunityId),
 			eq(opportunityDocuments.organizationId, organizationId),
-			eq(opportunityDocuments.sourceUrl, opportunity.documentUrl)
+			eq(opportunityDocuments.sourceUrl, documentUrl)
 		)!)
 		.limit(1);
-	if (existing?.id) return { state: "existing", documentId: existing.id };
+	if (existing?.id) return { state: "existing", documentId: existing.id, sourceUrl: documentUrl };
 
 	const [created] = await db.insert(opportunityDocuments).values({
 		organizationId,
 		opportunityId,
-		documentName: discoveredSourceDocumentName(opportunity.documentUrl, opportunity.title),
-		documentType: discoveredSourceDocumentType(opportunity.documentUrl),
+		documentName: discoveredSourceDocumentName(documentUrl, opportunity.title),
+		documentType: discoveredSourceDocumentType(documentUrl),
 		description: "Source document link from live opportunity discovery.",
-		sourceUrl: opportunity.documentUrl,
+		sourceUrl: documentUrl,
 		status: "discovered",
 		isSelected: true,
 	}).returning({ id: opportunityDocuments.id });
 	if (!created?.id) {
 		throw new Error("Source document row was not returned after insert");
 	}
-	return { state: "created", documentId: created.id };
+	return { state: "created", documentId: created.id, sourceUrl: documentUrl };
 }
 
 async function ensureDiscoveredSourceDocumentSafely(
@@ -476,20 +607,45 @@ async function ensureDiscoveredSourceDocumentSafely(
 	opportunity: OpportunityInput,
 	organizationId: string,
 	candidate: DiscoveryCandidate,
-	warnings: DiscoveryRunWarning[]
+	warnings: DiscoveryRunWarning[],
+	documentUrl = opportunity.documentUrl
 ): Promise<SourceDocumentSeedResult> {
 	try {
-		return await ensureDiscoveredSourceDocument(opportunityId, opportunity, organizationId);
+		return await ensureDiscoveredSourceDocument(opportunityId, opportunity, organizationId, documentUrl);
 	} catch (error) {
 		warnings.push({
 			type: "source_document_seed_failed",
 			query: candidate.query,
 			title: candidate.result.title,
-			url: opportunity.documentUrl ?? candidate.result.url,
+			url: documentUrl ?? candidate.result.url,
 			message: error instanceof Error ? error.message : "Source document row could not be seeded",
 		});
-		return { state: "failed" };
+		return { state: "failed", sourceUrl: documentUrl };
 	}
+}
+
+async function ensureDiscoveredSourceDocumentsSafely(
+	opportunityId: string,
+	opportunity: OpportunityInput,
+	organizationId: string,
+	candidate: DiscoveryCandidate,
+	warnings: DiscoveryRunWarning[]
+): Promise<SourceDocumentSeedResult[]> {
+	const documentUrls = discoveryDocumentLinksFromOpportunity(opportunity);
+	if (documentUrls.length === 0) return [{ state: "none" }];
+
+	const results: SourceDocumentSeedResult[] = [];
+	for (const documentUrl of documentUrls) {
+		results.push(await ensureDiscoveredSourceDocumentSafely(
+			opportunityId,
+			opportunity,
+			organizationId,
+			candidate,
+			warnings,
+			documentUrl
+		));
+	}
+	return results;
 }
 
 async function downloadSeededSourceDocumentSafely(
@@ -549,9 +705,10 @@ function buildOpportunityFromDiscovery(
 		2200
 	);
 	const host = resultHost(candidate.result.url);
-	const documentUrl = isDocumentUrl(candidate.result.url)
-		? candidate.result.url
-		: sourceOpportunity?.documentUrl || extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
+	const documentLinks = collectCandidateDocumentLinks(candidate);
+	const documentUrl = documentLinks[0]?.url
+		?? sourceOpportunity?.documentUrl
+		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
 	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
@@ -596,6 +753,12 @@ function buildOpportunityFromDiscovery(
 				browserFallbackReason: candidate.scrape?.fallbackReason,
 				scrapeError: candidate.scrape?.error,
 				documentUrl,
+				documentLinks: documentLinks.map(({ url, label, source, score }) => ({
+					url,
+					...(label ? { label } : {}),
+					source,
+					score,
+				})),
 				sourceUrl: candidate.sourceUrl,
 			},
 		},
@@ -659,7 +822,7 @@ async function scrapeDiscoveryCandidates(
 
 	for (const candidate of candidates.slice(0, scrapeLimit)) {
 		const scrapeResult = await firecrawl.scrape(candidate.result.url, {
-			formats: ["markdown"],
+			formats: ["markdown", "links"],
 			timeout: 15000,
 		});
 
@@ -668,6 +831,7 @@ async function scrapeDiscoveryCandidates(
 			title: scrapeResult.data?.metadata?.title,
 			description: scrapeResult.data?.metadata?.description,
 			markdown: scrapeResult.data?.markdown,
+			links: scrapeResult.data?.links,
 			error: scrapeResult.error,
 			method: "firecrawl",
 		};
@@ -787,6 +951,7 @@ async function discoverConfiguredSourceCandidates(
 					title: opportunity.title,
 					description: opportunity.projectSummary,
 					markdown: scrapeResult.data?.markdown,
+					links: scrapeResult.data?.links,
 					method: sourceResult.method,
 					fallbackReason: sourceResult.fallbackReason,
 				},
@@ -931,6 +1096,7 @@ async function maybeParseConfiguredSourceWithBrowserFallback(
 			success: true,
 			data: {
 				markdown: browserResult.markdown,
+				links: browserResult.links,
 				metadata: {
 					title: browserResult.title,
 					description: browserResult.description,
@@ -1206,6 +1372,7 @@ async function discoverKenyaPpipCandidates(
 						opportunity.deadline ? `Deadline: ${opportunity.deadline}` : undefined,
 						opportunity.documentUrl ? `Document: ${opportunity.documentUrl}` : undefined,
 					].filter(Boolean).join("\n"),
+					links: opportunity.documentUrl ? [opportunity.documentUrl] : undefined,
 					method: "source_api",
 				},
 			});
@@ -1365,6 +1532,7 @@ async function scrapeWithBrowserFallback(
 			timeout: 15000,
 			humanScroll: true,
 			blockMedia: true,
+			formats: ["markdown", "html", "links"],
 		});
 
 		return {
@@ -1372,6 +1540,7 @@ async function scrapeWithBrowserFallback(
 			title: result.data?.metadata?.title,
 			description: result.data?.metadata?.description,
 			markdown: result.data?.markdown,
+			links: result.data?.links,
 			error: result.error,
 			method: "browser_fallback",
 			fallbackReason,
@@ -1505,31 +1674,35 @@ export async function executeOpportunityDiscoveryImport(
 				} else {
 					await updateOpportunity(existingId, oppData);
 				}
-				const sourceDocumentState = await ensureDiscoveredSourceDocumentSafely(
+				const sourceDocumentStates = await ensureDiscoveredSourceDocumentsSafely(
 					existingId,
 					oppData,
 					organizationId,
 					candidate,
 					warnings
 				);
-				if (sourceDocumentState.state === "created") {
-					sourceDocumentsCreated++;
-					if (sourceDocumentsDownloadAttempted < downloadLimit) {
-						sourceDocumentsDownloadAttempted++;
-						if (await downloadSeededSourceDocumentSafely(
-							sourceDocumentState.documentId,
-							existingId,
-							userId,
-							candidate,
-							warnings
-						)) {
-							sourceDocumentsDownloaded++;
-						} else {
-							sourceDocumentsDownloadFailed++;
+				for (const sourceDocumentState of sourceDocumentStates) {
+					if (sourceDocumentState.state === "created") {
+						sourceDocumentsCreated++;
+						if (sourceDocumentsDownloadAttempted < downloadLimit) {
+							sourceDocumentsDownloadAttempted++;
+							if (await downloadSeededSourceDocumentSafely(
+								sourceDocumentState.documentId,
+								existingId,
+								userId,
+								candidate,
+								warnings
+							)) {
+								sourceDocumentsDownloaded++;
+							} else {
+								sourceDocumentsDownloadFailed++;
+							}
 						}
 					}
+					if (sourceDocumentState.state === "existing") {
+						sourceDocumentsExisting++;
+					}
 				}
-				if (sourceDocumentState.state === "existing") sourceDocumentsExisting++;
 				importResults.updated++;
 				allErrors.push({
 					rowIndex: searchFailures.length + i + 1,
@@ -1540,31 +1713,35 @@ export async function executeOpportunityDiscoveryImport(
 				const created = actionOverride
 					? await createOpportunity(oppData, actionOverride)
 					: await createOpportunity(oppData);
-				const sourceDocumentState = await ensureDiscoveredSourceDocumentSafely(
+				const sourceDocumentStates = await ensureDiscoveredSourceDocumentsSafely(
 					created.id,
 					oppData,
 					organizationId,
 					candidate,
 					warnings
 				);
-				if (sourceDocumentState.state === "created") {
-					sourceDocumentsCreated++;
-					if (sourceDocumentsDownloadAttempted < downloadLimit) {
-						sourceDocumentsDownloadAttempted++;
-						if (await downloadSeededSourceDocumentSafely(
-							sourceDocumentState.documentId,
-							created.id,
-							userId,
-							candidate,
-							warnings
-						)) {
-							sourceDocumentsDownloaded++;
-						} else {
-							sourceDocumentsDownloadFailed++;
+				for (const sourceDocumentState of sourceDocumentStates) {
+					if (sourceDocumentState.state === "created") {
+						sourceDocumentsCreated++;
+						if (sourceDocumentsDownloadAttempted < downloadLimit) {
+							sourceDocumentsDownloadAttempted++;
+							if (await downloadSeededSourceDocumentSafely(
+								sourceDocumentState.documentId,
+								created.id,
+								userId,
+								candidate,
+								warnings
+							)) {
+								sourceDocumentsDownloaded++;
+							} else {
+								sourceDocumentsDownloadFailed++;
+							}
 						}
 					}
+					if (sourceDocumentState.state === "existing") {
+						sourceDocumentsExisting++;
+					}
 				}
-				if (sourceDocumentState.state === "existing") sourceDocumentsExisting++;
 				importResults.imported++;
 				allErrors.push({
 					rowIndex: searchFailures.length + i + 1,
