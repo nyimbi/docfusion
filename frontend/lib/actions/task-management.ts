@@ -1487,6 +1487,7 @@ export async function balanceWorkload(
 		const workloads = teamResult.data;
 		const reassignments: RebalanceResult["reassignments"] = [];
 		const warnings: string[] = [];
+		const projectedUtilization = new Map(workloads.map((w) => [w.userName, w.utilizationRate]));
 
 		// Calculate before metrics
 		const beforeUtilizations = workloads.map((w) => w.utilizationRate);
@@ -1520,30 +1521,45 @@ export async function balanceWorkload(
 			for (const task of tasks) {
 				// Find best available user
 				const bestMatch = available.find((a) =>
-					a.utilizationRate < 70 &&
+					(projectedUtilization.get(a.userName) ?? a.utilizationRate) < 70 &&
 					a.userName !== overloadedUser.userName
 				);
 
 				if (bestMatch) {
+					const taskHours = task.estimatedHours ?? 4;
+					const overloadedProjected = projectedUtilization.get(overloadedUser.userName) ?? overloadedUser.utilizationRate;
+					const receiverProjected = projectedUtilization.get(bestMatch.userName) ?? bestMatch.utilizationRate;
+					const overloadedDelta = overloadedUser.availableHours > 0
+						? (taskHours / overloadedUser.availableHours) * 100
+						: 0;
+					const receiverDelta = bestMatch.availableHours > 0
+						? (taskHours / bestMatch.availableHours) * 100
+						: 0;
+					if (overloadedProjected <= 85 || receiverProjected + receiverDelta > 85) {
+						continue;
+					}
+
 					reassignments.push({
 						taskId: task.id,
 						fromUser: overloadedUser.userName,
 						toUser: bestMatch.userName,
-						reason: `${overloadedUser.userName} is ${overloadedUser.workloadHealth} (${overloadedUser.utilizationRate}% utilization), ${bestMatch.userName} has capacity (${bestMatch.utilizationRate}% utilization)`,
+						reason: `${overloadedUser.userName} is ${overloadedUser.workloadHealth} (${Math.round(overloadedProjected)}% projected utilization), ${bestMatch.userName} has capacity (${Math.round(receiverProjected)}% projected utilization)`,
 					});
 
-					// Update simulated utilization
-					const taskHours = task.estimatedHours ?? 4;
-					overloadedUser.utilizationRate -= (taskHours / overloadedUser.availableHours) * 100;
-					bestMatch.utilizationRate += (taskHours / bestMatch.availableHours) * 100;
+					projectedUtilization.set(overloadedUser.userName, Math.max(0, overloadedProjected - overloadedDelta));
+					projectedUtilization.set(bestMatch.userName, receiverProjected + receiverDelta);
 				}
 			}
 		}
 
-		// Calculate after metrics (simulated)
-		const afterUtilizations = workloads.map((w) => w.utilizationRate);
+		// Calculate after metrics from the proposed reassignments.
+		const afterUtilizations = workloads.map((w) => projectedUtilization.get(w.userName) ?? w.utilizationRate);
 		const afterVariance = calculateVariance(afterUtilizations);
 		const afterMax = Math.max(...afterUtilizations);
+		const afterOverloadedCount = afterUtilizations.filter((utilization) => {
+			const health = calculateWorkloadHealth(utilization);
+			return health === "overloaded" || health === "critical";
+		}).length;
 
 		// Check for low-expertise assignments
 		for (const r of reassignments) {
@@ -1580,7 +1596,7 @@ export async function balanceWorkload(
 				{
 					metric: "Overloaded team members",
 					before: overloaded.length,
-					after: workloads.filter((w) => w.utilizationRate > 100).length,
+					after: afterOverloadedCount,
 				},
 			],
 			warnings,

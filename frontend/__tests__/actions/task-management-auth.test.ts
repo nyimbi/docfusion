@@ -4,6 +4,7 @@ const requireServerSessionMock = vi.hoisted(() => vi.fn());
 const revalidatePathMock = vi.hoisted(() => vi.fn());
 const mockDb = vi.hoisted(() => ({
 	select: vi.fn(),
+	selectDistinct: vi.fn(),
 	insert: vi.fn(),
 	update: vi.fn(),
 	delete: vi.fn(),
@@ -81,6 +82,7 @@ describe("task-management action auth", () => {
 			},
 		});
 		mockDb.select.mockImplementation(() => createChainableQuery([]));
+		mockDb.selectDistinct.mockImplementation(() => createChainableQuery([]));
 		mockDb.insert.mockImplementation(() => createChainableQuery([]));
 		mockDb.update.mockImplementation(() => createChainableQuery([]));
 		mockDb.delete.mockImplementation(() => createChainableQuery([]));
@@ -360,6 +362,76 @@ describe("task-management action auth", () => {
 		expectOpportunityTenantScope(activityWhere);
 		expectOpportunityTenantScope(timeReadWhere);
 		expectOpportunityTenantScope(timeWriteWhere);
+	});
+
+	it("balances workload using projected reassignment impact", async () => {
+		const assigneeChain = createChainableQuery([
+			{ assignedTo: "Over Loaded" },
+			{ assignedTo: "Ava Ilable" },
+		]);
+		const overloadedAuthorByName = createChainableQuery([{ userId: "over-1", userName: "Over Loaded" }]);
+		const overloadedAuthorById = createChainableQuery([{ userId: "over-1", userName: "Over Loaded", availableHoursPerWeek: 40 }]);
+		const overloadedTasks = createChainableQuery([{
+			id: "over-existing",
+			title: "Existing overload",
+			status: "assigned",
+			priority: "high",
+			taskType: "writing",
+			estimatedHours: 44,
+			actualHours: 0,
+			dueDate: null,
+		}]);
+		const availableAuthorByName = createChainableQuery([{ userId: "available-1", userName: "Ava Ilable" }]);
+		const availableAuthorById = createChainableQuery([{ userId: "available-1", userName: "Ava Ilable", availableHoursPerWeek: 40 }]);
+		const availableTasks = createChainableQuery([{
+			id: "available-existing",
+			title: "Existing capacity",
+			status: "assigned",
+			priority: "medium",
+			taskType: "review",
+			estimatedHours: 20,
+			actualHours: 0,
+			dueDate: null,
+		}]);
+		const candidateTasks = createChainableQuery([{
+			id: "task-to-move",
+			title: "Moveable section draft",
+			status: "assigned",
+			priority: "medium",
+			estimatedHours: 12,
+		}]);
+		const targetExpertise = createChainableQuery([{
+			userName: "Ava Ilable",
+			expertiseAreas: [{ proficiency: "advanced" }],
+		}]);
+
+		mockDb.selectDistinct.mockImplementationOnce(() => assigneeChain);
+		mockDb.select
+			.mockImplementationOnce(() => overloadedAuthorByName)
+			.mockImplementationOnce(() => overloadedAuthorById)
+			.mockImplementationOnce(() => overloadedTasks)
+			.mockImplementationOnce(() => availableAuthorByName)
+			.mockImplementationOnce(() => availableAuthorById)
+			.mockImplementationOnce(() => availableTasks)
+			.mockImplementationOnce(() => candidateTasks)
+			.mockImplementationOnce(() => targetExpertise);
+
+		const { balanceWorkload } = await import("@/lib/actions/task-management");
+
+		const result = await balanceWorkload("00000000-0000-4000-8000-000000000001");
+
+		expect(result.success).toBe(true);
+		expect(result.data?.reassignments).toEqual([expect.objectContaining({
+			taskId: "task-to-move",
+			fromUser: "Over Loaded",
+			toUser: "Ava Ilable",
+			reason: expect.stringContaining("110% projected utilization"),
+		})]);
+		expect(result.data?.improvements).toEqual(expect.arrayContaining([
+			{ metric: "Max individual utilization", before: 110, after: 80 },
+			{ metric: "Overloaded team members", before: 1, after: 0 },
+		]));
+		expect(result.data?.warnings).toEqual([]);
 	});
 
 	it("prevents spoofed author expertise reads before querying", async () => {

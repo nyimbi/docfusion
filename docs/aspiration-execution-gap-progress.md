@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Projected Workload Rebalancing Metrics
+
+Status: implemented and verified.
+
+Purpose: make proposal workload balancing report defensible projected utilization improvements instead of mutating current workload records and labeling the result simulated.
+
+Changes in this slice:
+- Track proposed reassignment impact in a separate projected utilization map.
+- Stop proposed moves once the overloaded author is no longer over the target threshold.
+- Avoid proposed moves that would push the receiving author above the elevated-workload threshold.
+- Calculate after variance, max utilization, and overloaded-member count from projected reassignments.
+- Extend the Wave 4 planning/collaboration proof manifest with workload balancing coverage.
+
+Verification:
+- `npm test -- task-management-auth.test.ts` from `frontend/` passed, running 12 tests.
+- `npm test -- task-management-auth.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 18 tests.
+- `npm run platform:proof -- --run wave4-planning-collaboration-tasks` from `frontend/` passed, running 30 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Capture-Stage PWin Ranking
 
 Status: implemented and verified.
