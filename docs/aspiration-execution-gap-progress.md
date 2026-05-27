@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Final Artifact Storage Readback Receipts
+
+Status: implemented and verified.
+
+Purpose: prove rendered final artifacts can be read back from object storage before they are stored as submission-ready manifests.
+
+Changes in this slice:
+- Read final artifact objects back from Linode E3 immediately after upload.
+- Verify readback hash and size against the rendered artifact bytes before workflow state is updated.
+- Store readback hash, size, and timestamp receipts in final artifact manifests and proposal document summaries.
+- Require readback receipts in final submission checklist artifact gates and submission attachment locking.
+- Add regression coverage for corrupt storage readback rejection and missing readback receipt blockers.
+
+Verification:
+- `npm test -- final-artifact-workflow.test.ts final-submission-checklist-workflow.test.ts submission-workflow.test.ts proposal-documents-scope.test.ts` passed with 51 tests.
+- `npm run platform:proof -- --run wave6-final-submission-gate` passed with 23 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 177 tests.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` passed with 133 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Live Persisted Import-Response Proof Recheck
 
 Status: blocked by database connectivity.

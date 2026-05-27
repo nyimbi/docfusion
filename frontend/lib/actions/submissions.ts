@@ -374,6 +374,9 @@ type StoredFinalArtifactManifest = {
 	storageKey: string;
 	storageEtag: string | null;
 	storageEndpoint: string;
+	storageReadbackHash: string;
+	storageReadbackSize: number;
+	storageReadbackAt: string | Date;
 	approvedBy: string;
 	approvedAt: string | Date;
 	sourceDocumentVersion: number | null;
@@ -401,6 +404,11 @@ function finalArtifactManifest(
 		typeof artifact.storageBucket !== "string" ||
 		typeof artifact.storageKey !== "string" ||
 		typeof artifact.storageEndpoint !== "string" ||
+		artifact.storageReadbackHash !== artifact.artifactHash ||
+		typeof artifact.storageReadbackSize !== "number" ||
+		!Number.isFinite(artifact.storageReadbackSize) ||
+		artifact.storageReadbackSize <= 0 ||
+		!(typeof artifact.storageReadbackAt === "string" || artifact.storageReadbackAt instanceof Date) ||
 		typeof artifact.approvedBy !== "string" ||
 		!(typeof artifact.approvedAt === "string" || artifact.approvedAt instanceof Date) ||
 		!("sourceDocumentVersion" in artifact) ||
@@ -422,6 +430,9 @@ function finalArtifactManifest(
 		storageKey: artifact.storageKey,
 		storageEtag: typeof artifact.storageEtag === "string" ? artifact.storageEtag : null,
 		storageEndpoint: artifact.storageEndpoint,
+		storageReadbackHash: artifact.storageReadbackHash,
+		storageReadbackSize: artifact.storageReadbackSize,
+		storageReadbackAt: artifact.storageReadbackAt,
 		approvedBy: artifact.approvedBy,
 		approvedAt: artifact.approvedAt,
 		sourceDocumentVersion: artifact.sourceDocumentVersion,

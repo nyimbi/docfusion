@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { documents, proposalDocuments } from "@/lib/db/schema";
 import { workflowInstances } from "@/lib/db/schema-workflow-runtime";
 import {
+	downloadFromLinodeE3,
 	getLinodeE3ConfigFromEnv,
 	type LinodeE3Config,
 	uploadToLinodeE3,
@@ -70,6 +71,9 @@ export interface FinalArtifactManifest {
 	storageKey: string;
 	storageEtag: string | null;
 	storageEndpoint: string;
+	storageReadbackHash: string;
+	storageReadbackSize: number;
+	storageReadbackAt: string;
 	renderedAt: string;
 	renderedBy: string;
 	sourceDocumentVersion: number | null;
@@ -710,6 +714,11 @@ async function buildStoredManifest(input: {
 			"response-readiness-workflow-id": input.responsePackageReadiness?.workflowInstanceId ?? "",
 		},
 	});
+	const readback = await downloadFromLinodeE3(input.objectStoreConfig, upload.storagePath);
+	const storageReadbackHash = createHash("sha256").update(readback.body).digest("hex");
+	if (storageReadbackHash !== artifactHash || readback.body.length !== bytes.length) {
+		throw new Error("Final artifact object storage readback failed hash or size verification");
+	}
 	const downloadUrl = `/api/v1/documents/${input.documentId}/final-artifact?artifactHash=${artifactHash}&filename=${encodeURIComponent(input.renderResult.filename)}`;
 	return {
 		documentId: input.documentId,
@@ -726,6 +735,9 @@ async function buildStoredManifest(input: {
 		storageKey: upload.key,
 		storageEtag: upload.etag,
 		storageEndpoint: upload.endpoint,
+		storageReadbackHash,
+		storageReadbackSize: readback.body.length,
+		storageReadbackAt: new Date().toISOString(),
 		renderedAt: input.renderedAt.toISOString(),
 		renderedBy: input.renderedBy,
 		sourceDocumentVersion: input.sourceDocumentVersion,

@@ -46,6 +46,9 @@ type FinalChecklistUserContext = UserContext & { organizationId: string };
 type FinalArtifactMetadata = {
 	artifactHash?: unknown;
 	storagePath?: unknown;
+	storageReadbackHash?: unknown;
+	storageReadbackSize?: unknown;
+	storageReadbackAt?: unknown;
 	approvedBy?: unknown;
 	approvedAt?: unknown;
 	sourceDocumentVersion?: unknown;
@@ -619,6 +622,7 @@ function hasCompleteFinalArtifactReceipt(
 	return Boolean(
 		typeof artifact.artifactHash === "string" &&
 		typeof artifact.storagePath === "string" &&
+		hasStorageReadbackReceipt(artifact) &&
 		typeof artifact.approvedBy === "string" &&
 		(typeof artifact.approvedAt === "string" || artifact.approvedAt instanceof Date) &&
 		"sourceDocumentVersion" in artifact &&
@@ -649,10 +653,24 @@ function finalArtifactFailureMessage(
 	if (!artifactMatchesCurrentDocument(artifact, doc)) {
 		return "Approved final artifact is stale; re-render the current document version";
 	}
+	if (!hasStorageReadbackReceipt(artifact)) {
+		return "Approved final artifact storage readback receipt is missing or mismatched; re-render the final artifact";
+	}
 	if (!hasResponseReadinessReceipt(artifact)) {
 		return "Approved final artifact response readiness receipt is missing; re-render after response package readiness passes";
 	}
 	return "Approved final artifact freshness receipt is missing";
+}
+
+function hasStorageReadbackReceipt(artifact: FinalArtifactMetadata): boolean {
+	return (
+		typeof artifact.artifactHash === "string" &&
+		artifact.storageReadbackHash === artifact.artifactHash &&
+		typeof artifact.storageReadbackSize === "number" &&
+		Number.isFinite(artifact.storageReadbackSize) &&
+		artifact.storageReadbackSize > 0 &&
+		(typeof artifact.storageReadbackAt === "string" || artifact.storageReadbackAt instanceof Date)
+	);
 }
 
 function hasResponseReadinessReceipt(artifact: FinalArtifactMetadata): boolean {

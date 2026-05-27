@@ -806,6 +806,9 @@ export interface ProposalFinalArtifactSummary {
 	storageKey?: string | null;
 	storageEtag?: string | null;
 	storageEndpoint?: string | null;
+	storageReadbackHash?: string | null;
+	storageReadbackSize?: number | null;
+	storageReadbackAt?: Date | string | null;
 	approvedBy?: string | null;
 	approvedAt?: Date | string | null;
 	sourceDocumentVersion?: number | null;
@@ -1482,6 +1485,9 @@ export interface SubmissionAttachment {
 	storageKey?: string;
 	storageEtag?: string | null;
 	storageEndpoint?: string;
+	storageReadbackHash?: string;
+	storageReadbackSize?: number;
+	storageReadbackAt?: Date | string;
 	approvedBy?: string;
 	approvedAt?: Date | string;
 	sourceDocumentVersion?: number | null;

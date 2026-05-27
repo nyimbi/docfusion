@@ -71,6 +71,11 @@ const storageMock = vi.hoisted(() => ({
 		etag: "\"artifact-etag\"",
 		endpoint: "https://objects.example.com",
 	})),
+	downloadFromLinodeE3: vi.fn(async () => ({
+		body: Buffer.from("rendered final proposal"),
+		contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		etag: "\"artifact-etag\"",
+	})),
 }));
 
 vi.mock("@/lib/storage/linode-e3", () => storageMock);
@@ -211,6 +216,9 @@ function storedArtifact(overrides: Record<string, unknown> = {}) {
 		storageKey: "proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
 		storageEtag: "\"artifact-etag\"",
 		storageEndpoint: "https://objects.example.com",
+		storageReadbackHash: renderedHash,
+		storageReadbackSize: Buffer.byteLength("rendered final proposal"),
+		storageReadbackAt: "2026-05-05T00:00:01.000Z",
 		renderedAt: "2026-05-05T00:00:00.000Z",
 		renderedBy: "production-lead-1",
 		sourceDocumentVersion: baseDocument.currentVersion,
@@ -294,6 +302,11 @@ beforeEach(() => {
 		storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
 		etag: "\"artifact-etag\"",
 		endpoint: "https://objects.example.com",
+	});
+	storageMock.downloadFromLinodeE3.mockResolvedValue({
+		body: Buffer.from("rendered final proposal"),
+		contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		etag: "\"artifact-etag\"",
 	});
 	dbMock.select.mockReset();
 	dbMock.select.mockImplementation(() => createChain({ result: [readyResponsePackageWorkflow] }));
@@ -514,11 +527,17 @@ describe("final artifact workflow", () => {
 				}),
 			})
 		);
+		expect(storageMock.downloadFromLinodeE3).toHaveBeenCalledWith(
+			expect.objectContaining({ bucket: "mansa" }),
+			"s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx"
+		);
 		expect(documentPatch?.metadata).toMatchObject({
 			renderedArtifacts: {
 				docx: expect.objectContaining({
 					artifactHash: renderedHash,
 					storagePath: "s3://mansa/proposal/final-artifacts/opp-1/proposal-doc-1/rendered.docx",
+					storageReadbackHash: renderedHash,
+					storageReadbackSize: Buffer.byteLength("rendered final proposal"),
 					responsePackageReadiness: responseReadinessSnapshot,
 				}),
 			},
@@ -542,6 +561,29 @@ describe("final artifact workflow", () => {
 				}),
 			})
 		);
+	});
+
+	it("rejects a rendered artifact when object storage readback does not match", async () => {
+		storageMock.downloadFromLinodeE3.mockResolvedValueOnce({
+			body: Buffer.from("corrupt final proposal"),
+			contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			etag: "\"artifact-etag\"",
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [proposalDocument] }))
+			.mockReturnValueOnce(createChain({ result: [baseDocument] }));
+
+		await expect(transitionFinalArtifactWorkflow({
+			documentId: "doc-1",
+			proposalDocumentId: "proposal-doc-1",
+			action: "render",
+			reason: "Render approved final artifact",
+			format: "docx",
+		})).rejects.toThrow("object storage readback failed");
+
+		expect(storageMock.uploadToLinodeE3).toHaveBeenCalled();
+		expect(storageMock.downloadFromLinodeE3).toHaveBeenCalled();
+		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 
 	it("requires production authority before approving a rendered artifact", async () => {
