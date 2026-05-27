@@ -689,6 +689,34 @@ function buildDeterministicReinforcementText(
 	};
 }
 
+function buildDeterministicGhostThemeSuggestions(
+	competitors: DBCompetitorProfile[]
+): GhostThemeSuggestion[] {
+	const suggestions: GhostThemeSuggestion[] = [];
+	for (const competitor of competitors.slice(0, 5)) {
+		const weaknesses = ((competitor.competitorWeaknesses as string[] | null) || []).filter(Boolean);
+		const advantages = ((competitor.ourDifferentiators as string[] | null) || []).filter(Boolean);
+		const weakness = weaknesses[0] || "delivery risk";
+		const advantage = advantages[0] || "proven delivery controls";
+		const statement = `Our approach emphasizes ${advantage.toLowerCase()} to reduce ${weakness.toLowerCase()} without adding transition risk.`;
+		suggestions.push({
+			id: `ghost-${competitor.id || competitor.competitorName}-${suggestions.length + 1}`,
+			competitorId: competitor.id,
+			competitorName: competitor.competitorName,
+			statement,
+			phrasings: [
+				statement,
+				`Evaluators can rely on ${advantage.toLowerCase()} where delivery certainty matters most.`,
+			],
+			subtletyLevel: competitor.isIncumbent ? 2 : 3,
+			rationale: `Deterministic fallback links ${competitor.competitorName}'s weakness (${weakness}) to our advantage (${advantage}).`,
+			status: "pending",
+			generatedAt: new Date(),
+		});
+	}
+	return suggestions;
+}
+
 const CRITERIA_MAPPING_STOPWORDS = new Set([
 	"and",
 	"are",
@@ -2668,7 +2696,7 @@ Respond in JSON format:
 			return { success: true, data: suggestions };
 		} catch (parseError) {
 			logger.error("Error parsing AI response:", parseError);
-			return { success: false, error: "Failed to parse AI ghost theme suggestions" };
+			return { success: true, data: buildDeterministicGhostThemeSuggestions(competitors) };
 		}
 	} catch (error) {
 		logger.error("Error generating ghost themes:", error);

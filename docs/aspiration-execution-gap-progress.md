@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Ghost Theme Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep competitive ghost-theme generation usable when AI output is malformed but scoped competitor weaknesses and our differentiators are available.
+
+Changes in this slice:
+- Add deterministic ghost-theme suggestions from competitor weakness and our differentiator fields.
+- Preserve competitor linkage, subtlety level, phrasings, rationale, and pending review status.
+- Return deterministic ghost themes after AI parse failure instead of failing the action.
+- Add regression coverage proving malformed AI output still produces reviewable ghost-theme suggestions.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts` passed with 13 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 137 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing remaining successful-empty response-support paths where scoped evidence can produce deterministic artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Win-Theme Reinforcement Fallbacks
 
 Status: implemented and verified.

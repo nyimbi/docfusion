@@ -84,7 +84,7 @@ vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
-import { createThemesFromResponseSeeds, generateInjectionSuggestions, generateReinforcementText, generateThemeSuggestions, getResponseWinThemeSeedReview, getThemeSuggestions, scanForOccurrences, suggestCriteriaMappings, updateTheme } from "@/lib/actions/win-themes";
+import { createThemesFromResponseSeeds, generateGhostThemeSuggestions, generateInjectionSuggestions, generateReinforcementText, generateThemeSuggestions, getResponseWinThemeSeedReview, getThemeSuggestions, scanForOccurrences, suggestCriteriaMappings, updateTheme } from "@/lib/actions/win-themes";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -225,6 +225,35 @@ describe("win theme authorization", () => {
 		expect(data?.options[0]?.text).toContain("validated transition governance");
 		expect(data?.options[0]?.text).toContain("two prior transition programs");
 		expect(data?.placementSuggestion).toContain("section opening");
+	});
+
+	it("returns deterministic ghost themes when AI output is malformed", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: "not json" });
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "competitor-1",
+					competitorName: "IncumbentCo",
+					competitorWeaknesses: ["slow mobilization"],
+					ourDifferentiators: ["rapid transition governance"],
+					isIncumbent: true,
+				}],
+			}));
+
+		const result = await generateGhostThemeSuggestions("22222222-2222-4222-8222-222222222222");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data?.[0]).toMatchObject({
+			competitorId: "competitor-1",
+			competitorName: "IncumbentCo",
+			subtletyLevel: 2,
+			status: "pending",
+		});
+		expect(result.data?.[0]?.statement).toContain("rapid transition governance");
+		expect(result.data?.[0]?.statement).toContain("slow mobilization");
+		expect(result.data?.[0]?.phrasings.length).toBeGreaterThan(1);
 	});
 
 	it("does not suggest win themes for evaluation criteria already covered by existing themes", async () => {
