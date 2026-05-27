@@ -495,6 +495,23 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "live-unicef-source",
+		wave: 9,
+		title: "Live UNICEF source discovery proof",
+		kind: "live-safe",
+		proofTargets: ["F-001"],
+		requiresLiveServices: true,
+		description: "Scrapes UNICEF Supply Division's service contracts tender calendar and verifies calendar rows become normalized opportunity leads without fabricated deadlines.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-unicef-source.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-source-discovery-evidence.md",
+			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-unicef-source.json",
+		],
+	},
+	{
 		id: "live-kenya-ppip-source",
 		wave: 9,
 		title: "Live Kenya PPIP source API proof",

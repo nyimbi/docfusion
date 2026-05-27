@@ -47,6 +47,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-world-bank-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-afdb-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-comesa-source");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-unicef-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-ungm-source");
 	});
@@ -251,6 +252,16 @@ describe("platform proof scenarios", () => {
 				id: "live-comesa-source",
 				kind: "live-safe",
 				proofTargets: expect.arrayContaining(["F-001", "F-005"]),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-source-discovery-evidence.md",
+				]),
+			}),
+		]);
+		expect(listProofScenarios({ ids: ["live-unicef-source"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-unicef-source",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001"]),
 				expectedArtifacts: expect.arrayContaining([
 					".omx/state/platform-live-source-discovery-evidence.md",
 				]),

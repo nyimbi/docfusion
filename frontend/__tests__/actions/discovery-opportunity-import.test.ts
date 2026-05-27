@@ -1064,6 +1064,73 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports UNICEF configured sources with the UNICEF Supply parser", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Service contracts tender calendar",
+					"",
+					"Suppliers interested in these bidding exercises should express interest to sd.servicecontracting@unicef.org.",
+					"",
+					"| Description of tender | Estimated duration of LTA/Institutional Contract | Estimated time of tender issuance |",
+					"| --- | --- | --- |",
+					"| LTA for Conferencing Telephony Equipment (Ribbon hardware and software) - (ITB) | 4 years (2 +1+1) | Q3 |",
+				].join("\n"),
+				links: [],
+				metadata: { title: "Service contracts tender calendar" },
+			},
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.unicef.org/supply/service-contracts-tender-calendar"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(searchSearxngMock).not.toHaveBeenCalled();
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith("https://www.unicef.org/supply/service-contracts-tender-calendar", expect.objectContaining({
+			formats: ["markdown", "html", "links"],
+		}));
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			source: "unicef",
+			sourcePlatform: "UNICEF Supply Division",
+			sourceFile: "source:https://www.unicef.org/supply/service-contracts-tender-calendar",
+			sourceId: "unicef-lta-for-conferencing-telephony-equipment-ribbon-hardware-and-software-itb",
+			title: "LTA for Conferencing Telephony Equipment (Ribbon hardware and software) - (ITB)",
+			category: "Service contract tender calendar",
+			countryRegion: "Global",
+			organization: "UNICEF Supply Division",
+			opportunityType: "tender",
+			rfpLink: "https://www.unicef.org/supply/service-contracts-tender-calendar",
+			portalUrl: "https://www.unicef.org/supply/service-contracts-tender-calendar",
+			documentUrl: undefined,
+			submissionMethod: "Express interest by emailing sd.servicecontracting@unicef.org; suppliers should also be registered on UNGM.",
+			tags: ["external-discovery", "source-scrape", "unicef", "un-procurement", "tender-calendar"],
+			metadata: expect.objectContaining({
+				unicef: expect.objectContaining({
+					sourcePage: "service-contracts-tender-calendar",
+					estimatedDuration: "4 years (2 +1+1)",
+					estimatedIssuance: "Q3",
+				}),
+				discovery: expect.objectContaining({
+					resultEngine: "firecrawl-source",
+					scrapeMethod: "firecrawl",
+					scrapedWithFirecrawl: true,
+					sourceUrl: "https://www.unicef.org/supply/service-contracts-tender-calendar",
+				}),
+			}),
+		}));
+		expect(result.sourceDocumentsCreated).toBe(0);
+	});
+
 	it("imports AFDB configured sources with the AFDB parser", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: true,
