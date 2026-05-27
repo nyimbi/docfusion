@@ -92,6 +92,31 @@ describe("live response package builder", () => {
 		expect(technicalApproach?.requirementIds.length).toBeGreaterThan(0);
 	});
 
+	it("adapts mandatory source signals for sections without explicit source clauses", () => {
+		const eoiOnlySourceText = `
+## REQUEST FOR EXPRESSION OF INTEREST
+Please note that this document is solely an Expression of Interest and not a tender invitation.
+Expressions of Interest shall be submitted exclusively through the United Nations Global Marketplace.
+Vendors interested in participating in the planned solicitation process should submit the Vendor Response Form before the closing date.
+		`;
+
+		const responsePackage = buildLiveResponsePackage({
+			opportunity,
+			sourceText: eoiOnlySourceText,
+			generatedAt: new Date("2026-05-27T00:00:00.000Z"),
+		});
+
+		const managementPlan = responsePackage.documents.find((document) => document.documentType === "management_plan");
+		const pastPerformance = responsePackage.documents.find((document) => document.documentType === "past_performance");
+
+		expect(managementPlan?.requirementIds.length).toBeGreaterThan(0);
+		expect(pastPerformance?.requirementIds.length).toBeGreaterThan(0);
+		expect(managementPlan?.markdown).toContain("Show governance, staffing, schedule control");
+		expect(pastPerformance?.markdown).toContain("Map Lindela, MeGuard, and Wakala proof points");
+		expect(responsePackage.readiness.warnings).not.toContain("management_plan has no directly assigned source requirement signal");
+		expect(responsePackage.readiness.warnings).not.toContain("past_performance has no directly assigned source requirement signal");
+	});
+
 	it("blocks readiness when source requirements are not represented in drafts", () => {
 		const responsePackage = buildLiveResponsePackage({
 			opportunity,

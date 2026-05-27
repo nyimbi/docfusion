@@ -4302,6 +4302,30 @@ Testing scope note:
 Remaining after this slice:
 - Continue adding live source detail/document enrichment where source pages expose stable procurement packages.
 
+### 2026-05-27 - Warning-Free Live Response Readiness
+
+Status: implemented and verified.
+
+Purpose: make live response-package drafts fully source-grounded even when an EOI exposes mostly administrative and submission requirements rather than neatly sectioned management or past-performance clauses.
+
+Changes in this slice:
+- Adapt mandatory source requirement signals into section-specific response plans for document types that have no direct source clause.
+- Remove generic "no source requirement assigned" filler from management-plan and past-performance drafts when the source document still has mandatory response signals.
+- Add regression coverage for EOI-style sources that lack explicit management/past-performance requirements.
+
+Verification:
+- `npm test -- live-response-package.test.ts platform-proof-scenarios.test.ts` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --include-live-safe --run live-opportunity-response-readiness` passed with run `live_response_readiness_20260527T011242Z`; readiness was `ready_for_review` with zero warnings and 3,657 draft words.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed.
+
+Testing scope note:
+- Verification included focused response-package tests, TypeScript checking, the live-safe UNGM response-readiness proof, and the non-live response-readiness scenario.
+- Full frontend suite and production build were not rerun for this deterministic response-package grounding change.
+
+Remaining after this slice:
+- Continue replacing narrow proofs with broader source coverage and keep pursuing a persisted DB-backed import-to-response proof when database connectivity is available.
+
 ### 2026-05-26 - Workflow Runtime Tenant Anchor
 
 Status: implemented and verified.

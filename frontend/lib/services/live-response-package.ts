@@ -373,12 +373,31 @@ function requirementsForDocumentType(
 ): LiveResponseRequirementSignal[] {
 	const direct = requirements.filter((requirement) => requirement.documentType === documentType);
 	if (documentType === "cover_letter" || documentType === "executive_summary") {
-		return uniqueRequirementSignals([
+		return adaptRequirementsForDocumentType(uniqueRequirementSignals([
 			...direct,
 			...requirements.filter((requirement) => requirement.priority === "mandatory"),
-		]).slice(0, 8);
+		]).slice(0, 8), documentType);
 	}
-	return direct.slice(0, 8);
+
+	if (direct.length > 0) return direct.slice(0, 8);
+
+	const mandatory = requirements.filter((requirement) => requirement.priority === "mandatory");
+	const sourceAnchors = mandatory.length > 0 ? mandatory : requirements;
+	return adaptRequirementsForDocumentType(sourceAnchors.slice(0, 3), documentType);
+}
+
+function adaptRequirementsForDocumentType(
+	requirements: LiveResponseRequirementSignal[],
+	documentType: ProposalDocumentType
+): LiveResponseRequirementSignal[] {
+	return requirements.map((requirement) => {
+		if (requirement.documentType === documentType) return requirement;
+		return {
+			...requirement,
+			documentType,
+			responseStrategy: responseStrategyFor(documentType, requirement.text),
+		};
+	});
 }
 
 function uniqueRequirementSignals(requirements: LiveResponseRequirementSignal[]): LiveResponseRequirementSignal[] {
