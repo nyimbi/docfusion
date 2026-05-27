@@ -16,6 +16,22 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Current UNGM Live Response Readiness Revalidation
+
+Status: verified.
+
+Purpose: revalidate the non-DB live path from current UNGM opportunity discovery through source PDF extraction and Datacraft response draft generation.
+
+Verification:
+- `npm run platform:proof -- --run live-opportunity-response-readiness --include-live-safe` passed with run `live_response_readiness_20260527T163703Z`.
+- The proof found UNGM notice `300700`, `Provision of Penetration Testing Services and Security Consultancy for goAML Software product (Web Applications and APIs).`
+- The source PDF `eoi24414.pdf` downloaded with HTTP 200, `application/pdf`, 171406 bytes, and Docling extracted 9002 characters with status `success`.
+- Response readiness produced six draft artifacts, 24 source requirement signals, 3 win-theme seeds, 85 relevant Datacraft snippets, 7655 total draft words, readiness status `ready_for_review`, 0 blockers, and full source/draft artifact integrity coverage.
+
+Remaining after this slice:
+- The current UNGM EOI did not expose explicit evaluator scoring criteria; Kenya PPIP remains the stronger live evaluator-criteria proof.
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+
 ### 2026-05-27 - Live Discovery Actionable Evidence Hardening
 
 Status: implemented and verified.
