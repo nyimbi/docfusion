@@ -12,6 +12,7 @@ import {
 } from "@/lib/actions/import-opportunities";
 import { executeOpportunityDiscoveryImport } from "@/lib/services/opportunity-discovery-import";
 import { requireScraperAccess } from "@/lib/scrapers/api-auth";
+import { withDefaultDiscoveryRuntimeOptions } from "@/lib/services/default-discovery-sources";
 
 type DiscoveryRequestBody = Record<string, unknown>;
 
@@ -103,6 +104,8 @@ export async function POST(request: NextRequest) {
 				{ status: 400 }
 			);
 		}
+
+		input = withDefaultDiscoveryRuntimeOptions(input);
 
 		const serviceUserId = process.env.DISCOVERY_IMPORT_USER_ID?.trim();
 		const serviceOrganizationId = process.env.DISCOVERY_IMPORT_ORGANIZATION_ID?.trim();

@@ -147,6 +147,8 @@ describe("scheduled discovery preset run route", () => {
 					name: "Daily East Africa ICT",
 					input: {
 						queries: ["ICT tender Kenya", "digital transformation RFP Uganda"],
+						sourceUrls: expect.arrayContaining(["https://www.ungm.org/Public/Notice"]),
+						downloadDiscoveredDocuments: true,
 					},
 				},
 			],
@@ -167,6 +169,9 @@ describe("scheduled discovery preset run route", () => {
 			expect.objectContaining({
 				queries: ["ICT tender Kenya", "digital transformation RFP Uganda"],
 				countryRegion: "East Africa",
+				sourceUrls: expect.arrayContaining(["https://www.ungm.org/Public/Notice"]),
+				downloadDiscoveredDocuments: true,
+				downloadLimit: 3,
 			}),
 			"service-user-1",
 			"org-service-1"

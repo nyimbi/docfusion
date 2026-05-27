@@ -119,8 +119,8 @@ describe("opportunity discovery run route", () => {
 			includeUnmatchedResults: undefined,
 			scrapeTopResults: true,
 			scrapeLimit: 1,
-			browserFallback: undefined,
-			browserFallbackLimit: undefined,
+			browserFallback: true,
+			browserFallbackLimit: 1,
 			downloadDiscoveredDocuments: true,
 			downloadLimit: 1,
 		});
@@ -150,7 +150,12 @@ describe("opportunity discovery run route", () => {
 		expect(response.status).toBe(200);
 		expect(discoverAndImportOpportunitiesMock).not.toHaveBeenCalled();
 		expect(executeOpportunityDiscoveryImportMock).toHaveBeenCalledWith(
-			expect.objectContaining({ query: "scheduled rfp search" }),
+			expect.objectContaining({
+				query: "scheduled rfp search",
+				sourceUrls: expect.arrayContaining(["https://www.ungm.org/Public/Notice"]),
+				downloadDiscoveredDocuments: true,
+				downloadLimit: 3,
+			}),
 			"service-user-1",
 			"org-service-1"
 		);

@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { savedSearches } from "@/lib/db/schema";
 import { executeOpportunityDiscoveryImport } from "@/lib/services/opportunity-discovery-import";
 import { requireScraperAccess } from "@/lib/scrapers/api-auth";
+import { withDefaultDiscoveryRuntimeOptions } from "@/lib/services/default-discovery-sources";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { DiscoveryImportInput, DiscoveryImportResult } from "@/lib/services/opportunity-discovery-import";
 
@@ -84,7 +85,7 @@ function presetInputFromRow(row: DiscoveryPresetRow): DiscoveryImportInput {
 	if (payload.kind !== DISCOVERY_PRESET_KIND || !payload.input) {
 		throw new Error(`Saved search is not a discovery preset: ${row.id}`);
 	}
-	return payload.input;
+	return withDefaultDiscoveryRuntimeOptions(payload.input);
 }
 
 async function loadPresetRows(

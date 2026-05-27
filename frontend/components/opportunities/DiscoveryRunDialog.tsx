@@ -11,7 +11,15 @@ import {
 } from "@/lib/actions/saved-searches";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { DEFAULT_DISCOVERY_SOURCE_URLS } from "@/lib/services/default-discovery-sources";
+import {
+	DEFAULT_DISCOVERY_BROWSER_FALLBACK,
+	DEFAULT_DISCOVERY_DOWNLOAD_DISCOVERED_DOCUMENTS,
+	DEFAULT_DISCOVERY_DOWNLOAD_LIMIT,
+	DEFAULT_DISCOVERY_SCRAPE_LIMIT,
+	DEFAULT_DISCOVERY_SCRAPE_TOP_RESULTS,
+	DEFAULT_DISCOVERY_SOURCE_SCRAPE_LIMIT,
+	DEFAULT_DISCOVERY_SOURCE_URLS,
+} from "@/lib/services/default-discovery-sources";
 import type {
 	DiscoveryImportInput,
 	DiscoveryRunWarning,
@@ -79,13 +87,13 @@ export function DiscoveryRunDialog({
 	const [category, setCategory] = React.useState("External discovery");
 	const [engines, setEngines] = React.useState("");
 	const [sourceUrls, setSourceUrls] = React.useState(DEFAULT_DISCOVERY_SOURCE_URLS.join("\n"));
-	const [sourceScrapeLimit, setSourceScrapeLimit] = React.useState(10);
+	const [sourceScrapeLimit, setSourceScrapeLimit] = React.useState(DEFAULT_DISCOVERY_SOURCE_SCRAPE_LIMIT);
 	const [limitPerQuery, setLimitPerQuery] = React.useState(10);
-	const [scrapeTopResults, setScrapeTopResults] = React.useState(true);
-	const [scrapeLimit, setScrapeLimit] = React.useState(3);
-	const [browserFallback, setBrowserFallback] = React.useState(true);
-	const [downloadDiscoveredDocuments, setDownloadDiscoveredDocuments] = React.useState(true);
-	const [downloadLimit, setDownloadLimit] = React.useState(3);
+	const [scrapeTopResults, setScrapeTopResults] = React.useState(DEFAULT_DISCOVERY_SCRAPE_TOP_RESULTS);
+	const [scrapeLimit, setScrapeLimit] = React.useState(DEFAULT_DISCOVERY_SCRAPE_LIMIT);
+	const [browserFallback, setBrowserFallback] = React.useState(DEFAULT_DISCOVERY_BROWSER_FALLBACK);
+	const [downloadDiscoveredDocuments, setDownloadDiscoveredDocuments] = React.useState(DEFAULT_DISCOVERY_DOWNLOAD_DISCOVERED_DOCUMENTS);
+	const [downloadLimit, setDownloadLimit] = React.useState(DEFAULT_DISCOVERY_DOWNLOAD_LIMIT);
 	const [includeUnmatchedResults, setIncludeUnmatchedResults] = React.useState(false);
 	const [isRunning, startTransition] = React.useTransition();
 	const [presets, setPresets] = React.useState<DiscoveryPreset[]>([]);
@@ -153,14 +161,14 @@ export function DiscoveryRunDialog({
 		setCountryRegion(input.countryRegion ?? "");
 		setCategory(input.category ?? "External discovery");
 		setEngines((input.engines ?? []).join(", "));
-		setSourceUrls((input.sourceUrls ?? []).join("\n"));
-		setSourceScrapeLimit(input.sourceScrapeLimit ?? 10);
+		setSourceUrls((input.sourceUrls ?? [...DEFAULT_DISCOVERY_SOURCE_URLS]).join("\n"));
+		setSourceScrapeLimit(input.sourceScrapeLimit ?? DEFAULT_DISCOVERY_SOURCE_SCRAPE_LIMIT);
 		setLimitPerQuery(input.limitPerQuery ?? 10);
-		setScrapeTopResults(input.scrapeTopResults ?? true);
-		setScrapeLimit(input.scrapeLimit ?? 3);
-		setBrowserFallback(input.browserFallback ?? true);
-		setDownloadDiscoveredDocuments(input.downloadDiscoveredDocuments ?? false);
-		setDownloadLimit(input.downloadLimit ?? 3);
+		setScrapeTopResults(input.scrapeTopResults ?? DEFAULT_DISCOVERY_SCRAPE_TOP_RESULTS);
+		setScrapeLimit(input.scrapeLimit ?? DEFAULT_DISCOVERY_SCRAPE_LIMIT);
+		setBrowserFallback(input.browserFallback ?? DEFAULT_DISCOVERY_BROWSER_FALLBACK);
+		setDownloadDiscoveredDocuments(input.downloadDiscoveredDocuments ?? DEFAULT_DISCOVERY_DOWNLOAD_DISCOVERED_DOCUMENTS);
+		setDownloadLimit(input.downloadLimit ?? DEFAULT_DISCOVERY_DOWNLOAD_LIMIT);
 		setIncludeUnmatchedResults(input.includeUnmatchedResults ?? false);
 		setSummary(null);
 		setError(null);

@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Discovery Runtime Defaults Preserve Source Documents
+
+Status: implemented and verified.
+
+Purpose: keep scheduled/API-key discovery and legacy saved presets aligned with the operator default path that seeds and downloads source documents, so discovery does not stop at opportunity metadata when RFP or tender documents are available.
+
+Changes in this slice:
+- Centralize default live discovery source URLs, source scrape limit, enrichment, browser fallback, seeded-document download, and download limit.
+- Apply those runtime defaults to direct discovery API runs after request validation.
+- Apply those runtime defaults to scheduled discovery preset runs and dry-run output, while preserving explicit preset overrides such as empty source URL lists or disabled downloads.
+- Update the discovery dialog preset application path so older presets that lack source/document fields inherit the current source-document defaults instead of silently disabling downloads.
+- Add focused coverage for legacy preset/runtime default behavior.
+
+Verification:
+- `npm test -- default-discovery-sources.test.ts opportunity-discovery-route.test.ts opportunity-discovery-presets-route.test.ts discovery-opportunity-import.test.ts discovery-presets.test.ts` from `frontend/` passed, running 35 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 17 discovery-to-response/submission test files and 174 tests.
+
+Remaining after this slice:
+- Continue proving scheduled live discovery runs against production-like service credentials and persisted tenant records.
+- Continue closing source document parsing gaps for newly added live sources.
+
 ### 2026-05-27 - UNICEF Tender Calendar Source Discovery
 
 Status: implemented and verified.

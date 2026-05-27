@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_DISCOVERY_SOURCE_URLS } from "@/lib/services/default-discovery-sources";
+import {
+	DEFAULT_DISCOVERY_SOURCE_URLS,
+	withDefaultDiscoveryRuntimeOptions,
+} from "@/lib/services/default-discovery-sources";
 
 describe("default discovery sources", () => {
 	it("preloads live-proven configured procurement sources", () => {
@@ -15,5 +18,30 @@ describe("default discovery sources", () => {
 			"https://www.unicef.org/supply/tender-calendars",
 		]);
 		expect(new Set(DEFAULT_DISCOVERY_SOURCE_URLS).size).toBe(DEFAULT_DISCOVERY_SOURCE_URLS.length);
+	});
+
+	it("keeps scheduled and legacy discovery inputs on source-document defaults", () => {
+		expect(withDefaultDiscoveryRuntimeOptions({
+			query: "ICT tender East Africa",
+		})).toMatchObject({
+			query: "ICT tender East Africa",
+			sourceUrls: [...DEFAULT_DISCOVERY_SOURCE_URLS],
+			sourceScrapeLimit: 10,
+			scrapeTopResults: true,
+			scrapeLimit: 3,
+			browserFallback: true,
+			browserFallbackLimit: 3,
+			downloadDiscoveredDocuments: true,
+			downloadLimit: 3,
+		});
+
+		expect(withDefaultDiscoveryRuntimeOptions({
+			query: "ICT tender East Africa",
+			sourceUrls: [],
+			downloadDiscoveredDocuments: false,
+		})).toMatchObject({
+			sourceUrls: [],
+			downloadDiscoveredDocuments: false,
+		});
 	});
 });
