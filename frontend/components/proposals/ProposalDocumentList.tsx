@@ -102,6 +102,10 @@ export function ProposalDocumentList({
 	const [isPending, startTransition] = useTransition();
 	const [draftingDocumentId, setDraftingDocumentId] = useState<string | null>(null);
 	const [finalizingDocumentId, setFinalizingDocumentId] = useState<string | null>(null);
+	const [finalizationError, setFinalizationError] = useState<{
+		documentId: string;
+		message: string;
+	} | null>(null);
 
 	const handleStatusChange = (doc: ProposalDocument, newStatus: ProposalDocumentStatus) => {
 		startTransition(async () => {
@@ -135,6 +139,7 @@ export function ProposalDocumentList({
 		action: "render" | "approve" | "signoff" | "reopen"
 	) => {
 		setFinalizingDocumentId(doc.id);
+		setFinalizationError(null);
 		startTransition(async () => {
 			try {
 				const updated = await transitionProposalDocumentFinalization(doc.id, {
@@ -145,7 +150,14 @@ export function ProposalDocumentList({
 				});
 				onDocumentUpdate?.(updated);
 			} catch (error) {
-				console.error("Failed to update final package workflow:", error);
+				const message = error instanceof Error ? error.message : "Final package action could not be completed";
+				if (!isExpectedFinalizationBlocker(message)) {
+					console.error("Failed to update final package workflow:", error);
+				}
+				setFinalizationError({
+					documentId: doc.id,
+					message,
+				});
 			} finally {
 				setFinalizingDocumentId(null);
 			}
@@ -232,6 +244,7 @@ export function ProposalDocumentList({
 							isDrafting={draftingDocumentId === doc.id}
 							isFinalizing={finalizingDocumentId === doc.id}
 							responsePackageReadiness={responsePackageReadiness}
+							finalizationError={finalizationError?.documentId === doc.id ? finalizationError.message : null}
 						/>
 					))}
 
@@ -273,6 +286,7 @@ function ProposalDocumentCard({
 	isDrafting,
 	isFinalizing,
 	responsePackageReadiness,
+	finalizationError,
 }: {
 	document: ProposalDocument;
 	onStatusChange: (status: ProposalDocumentStatus) => void;
@@ -283,6 +297,7 @@ function ProposalDocumentCard({
 	isDrafting: boolean;
 	isFinalizing: boolean;
 	responsePackageReadiness?: ResponsePackageReadinessSummary;
+	finalizationError?: string | null;
 }) {
 	const statusStyle = STATUS_COLORS[document.status];
 	const icon = DOCUMENT_TYPE_ICONS[document.documentType];
@@ -433,6 +448,7 @@ function ProposalDocumentCard({
 					isPending={isPending}
 					isFinalizing={isFinalizing}
 					responsePackageReadiness={responsePackageReadiness}
+					errorMessage={finalizationError}
 					onFinalization={onFinalization}
 				/>
 
@@ -473,12 +489,14 @@ function FinalPackagePanel({
 	isPending,
 	isFinalizing,
 	responsePackageReadiness,
+	errorMessage,
 	onFinalization,
 }: {
 	document: ProposalDocument;
 	isPending: boolean;
 	isFinalizing: boolean;
 	responsePackageReadiness?: ResponsePackageReadinessSummary;
+	errorMessage?: string | null;
 	onFinalization: (action: "render" | "approve" | "signoff" | "reopen") => void;
 }) {
 	const approvedForRender = document.status === "approved" || document.status === "final";
@@ -526,6 +544,14 @@ function FinalPackagePanel({
 					)}
 				>
 					{responseReadinessLabel(responsePackageReadiness)}
+				</p>
+			)}
+			{errorMessage && (
+				<p
+					role="alert"
+					className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+				>
+					Final package action blocked: {errorMessage}
 				</p>
 			)}
 			<div className="grid grid-cols-2 gap-2">
@@ -626,6 +652,10 @@ function finalizationApprovalRole(action: "render" | "approve" | "signoff" | "re
 		case "render":
 			return undefined;
 	}
+}
+
+function isExpectedFinalizationBlocker(message: string): boolean {
+	return /\bauthority\b|\brequires\b|approved final artifact|response readiness|stale artifact/i.test(message);
 }
 
 function StatusCount({

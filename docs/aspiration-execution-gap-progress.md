@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Final Package Authority Denial Visibility
+
+Status: implemented and verified.
+
+Purpose: make final package approval authority failures visible in the operator UI instead of only logging them to the browser console.
+
+Changes in this slice:
+- Add document-scoped inline error state to the proposal final package panel.
+- Show blocked finalization messages for authority, readiness, stale-artifact, and other expected final package blockers.
+- Avoid console-error noise for expected operator blockers while preserving console logging for unexpected failures.
+- Add a Playwright browser harness proving a blocked final artifact approval surfaces the authority denial inline and does not mark the document updated.
+- Add the browser proof as a dedicated Wave 6 finalization authority scenario.
+
+Verification:
+- `npm run test:e2e -- proposal-finalization-authority.spec.ts` from `frontend/` passed, running 1 Playwright test.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave6-finalization-authority-browser` from `frontend/` passed, running the new Playwright proof through the platform manifest.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Browser Proof For Win Theme Seed Review
 
 Status: implemented and verified.

@@ -230,6 +230,20 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: ["vitest:gate-review-workflow", "vitest:review-package-workflow", "vitest:pricing-approval-workflow", "vitest:final-artifact-workflow", "vitest:submission-correction-workflow"],
 	},
 	{
+		id: "wave6-finalization-authority-browser",
+		wave: 6,
+		title: "Wave 6 finalization authority browser coverage",
+		kind: "browser",
+		proofTargets: ["F-018", "F-020", "UX-018"],
+		requiresLiveServices: false,
+		description: "Exercises final package approval authority denial in the browser so blocked approval actions remain operator-visible.",
+		command: {
+			command: "npm",
+			args: ["run", "test:e2e", "--", "proposal-finalization-authority.spec.ts"],
+		},
+		expectedArtifacts: ["playwright:proposal-finalization-authority"],
+	},
+	{
 		id: "wave7-import-operations-governance",
 		wave: 7,
 		title: "Wave 7 import and operations governance coverage",
