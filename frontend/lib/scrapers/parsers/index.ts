@@ -14,6 +14,7 @@ import "./comesa";
 import "./dgmarket";
 import "./generic";
 import "./kenya-ppip";
+import "./undp";
 import "./ungm";
 import "./world-bank";
 
@@ -23,6 +24,7 @@ export { comesaParser } from "./comesa";
 export { dgmarketParser } from "./dgmarket";
 export { genericParser } from "./generic";
 export { kenyaPpipParser } from "./kenya-ppip";
+export { undpParser } from "./undp";
 export { ungmParser } from "./ungm";
 export { worldBankParser } from "./world-bank";
 

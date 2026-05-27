@@ -897,6 +897,60 @@ describe("discoverAndImportOpportunities", () => {
 		expect(result.sourceDocumentsCreated).toBe(0);
 	});
 
+	it("imports UNDP configured sources with the UNDP parser", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"[Title\\ \\ Wool handloom value chain, Livelihood Enterprise Development & Community Cons\\ \\ Ref No\\ \\ UNDP-IND-00772,1\\ \\ UNDP Office/Country\\ \\ UNDP-IND/INDIA\\ \\ Process\\ \\ RFP - Request for proposal\\ \\ Deadline\\ \\ 09-Jun-26 \\ 08:00 AM (New York time)\\ \\ Posted\\ \\ 26-May-26](https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879)",
+				].join("\n"),
+				links: ["https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879"],
+				metadata: { title: "UNDP Procurement Notices" },
+			},
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://procurement-notices.undp.org"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(searchSearxngMock).not.toHaveBeenCalled();
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			source: "undp",
+			sourcePlatform: "UNDP",
+			sourceFile: "source:https://procurement-notices.undp.org/",
+			sourceId: "UNDP-IND-00772,1",
+			title: "Wool handloom value chain, Livelihood Enterprise Development & Community Cons",
+			category: "RFP - Request for proposal",
+			countryRegion: "INDIA",
+			organization: "UNDP-IND",
+			rfpLink: "https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879",
+			portalUrl: "https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879",
+			documentUrl: "https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879",
+			tags: ["external-discovery", "source-scrape", "undp", "un-procurement"],
+			metadata: expect.objectContaining({
+				undp: expect.objectContaining({
+					refNo: "UNDP-IND-00772,1",
+					process: "RFP - Request for proposal",
+				}),
+				discovery: expect.objectContaining({
+					resultEngine: "firecrawl-source",
+					scrapeMethod: "firecrawl",
+					scrapedWithFirecrawl: true,
+					sourceUrl: "https://procurement-notices.undp.org/",
+				}),
+			}),
+		}));
+	});
+
 	it("imports COMESA configured sources with the COMESA parser", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: true,

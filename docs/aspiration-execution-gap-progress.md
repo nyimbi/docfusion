@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - UNDP Source-Preserving Live Discovery
+
+Status: implemented and verified.
+
+Purpose: keep the default UNDP live source from degrading into generic source-scrape records by preserving UNDP notice IDs, office/country metadata, process type, and UN procurement tags through configured-source imports.
+
+Changes in this slice:
+- Add a UNDP procurement parser for Firecrawl's field-packed notice links.
+- Wire `procurement-notices.undp.org` into configured-source parser selection, import platform naming, source preservation, and tags.
+- Add a source-specific `live-undp-source` platform proof while keeping the generic live source proof backed by configured parser selection.
+- Add parser, import, generic-regression, and proof-manifest coverage.
+
+Verification:
+- `npm test -- undp-parser.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts generic-parser.test.ts` from `frontend/` passed, running 24 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-undp-source` from `frontend/` passed. It scraped `https://procurement-notices.undp.org` and returned 589 normalized UNDP opportunities.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 discovery-to-response bridge test files and 50 tests.
+
+Remaining after this slice:
+- Continue adding high-value live sources where Firecrawl or source APIs can produce normalized opportunities with low noise.
+- Persisted live import and response proof still waits on reachable PostgreSQL.
+
 ### 2026-05-27 - World Bank Live Source Discovery
 
 Status: implemented and verified.

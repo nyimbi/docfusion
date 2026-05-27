@@ -82,7 +82,7 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 		url: SOURCE_URL,
 	});
 	if (parsed.opportunities.length === 0) {
-		throw new Error("Generic tender parser returned no source opportunities");
+		throw new Error("Configured tender parser returned no source opportunities");
 	}
 
 	const firstTitle = parsed.opportunities[0]?.title ?? "";
@@ -111,6 +111,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host.includes("afdb.org")) return getParser("afdb") ?? genericParser;
 	if (host.includes("comesa.int")) return getParser("comesa") ?? genericParser;
 	if (host.includes("tenders.go.ke")) return getParser("kenya_ppip") ?? genericParser;
+	if (host.includes("procurement-notices.undp.org")) return getParser("undp") ?? genericParser;
 	if (host.includes("ungm.org")) return getParser("ungm") ?? genericParser;
 	if (host.includes("worldbank.org")) return getParser("world_bank") ?? genericParser;
 	return genericParser;

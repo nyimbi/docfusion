@@ -399,10 +399,27 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		kind: "live-safe",
 		proofTargets: ["F-001"],
 		requiresLiveServices: true,
-		description: "Scrapes a configured procurement source with Firecrawl and verifies generic parser extraction returns normalized opportunity candidates.",
+		description: "Scrapes a configured procurement source with Firecrawl and verifies configured parser extraction returns normalized opportunity candidates.",
 		command: {
 			command: "npx",
 			args: ["tsx", "scripts/prove-live-source-discovery.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-source-discovery-evidence.md",
+			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-source-discovery.json",
+		],
+	},
+	{
+		id: "live-undp-source",
+		wave: 9,
+		title: "Live UNDP source discovery proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005"],
+		requiresLiveServices: true,
+		description: "Scrapes UNDP procurement notices and verifies field-packed rows become normalized UNDP opportunity candidates.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-undp-source.ts"],
 		},
 		expectedArtifacts: [
 			".omx/state/platform-live-source-discovery-evidence.md",
