@@ -5830,3 +5830,25 @@ Verification:
 Remaining after this slice:
 - Continue auditing evidence and readiness workflows for generic placeholder logic that can produce plausible but unsupported recommendations.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Requirement-Aware Evidence Matrices
+
+Status: implemented and verified.
+
+Purpose: make generated evidence matrices reflect the opportunity's actual RFP requirements instead of hardcoded generic rows.
+
+Changes in this slice:
+- Build requirements and evaluation-criteria matrix rows from scoped `rfpRequirements` for the opportunity.
+- Fall back to generic rows only when no extracted requirements are available.
+- Match evidence cells by both evidence type and row-specific requirement text using the deterministic evidence scorer.
+- Store cell notes with the top matching rationale and preserve assigned-opportunity scoping for requirement, usage, and matrix reads.
+
+Verification:
+- `npm test -- evidence.test.ts` passed with 57 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 89 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue auditing generated readiness artifacts for hardcoded demo defaults that should come from opportunity-specific data.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

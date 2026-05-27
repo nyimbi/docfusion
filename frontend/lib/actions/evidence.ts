@@ -260,6 +260,14 @@ function visibleRequirementCondition(requirementId: string, userContext: Evidenc
 	)!;
 }
 
+function visibleRequirementsForOpportunityCondition(opportunityId: string, userContext: EvidenceUserContext): SQL {
+	return and(
+		eq(rfpRequirements.opportunityId, opportunityId),
+		eq(rfpRequirements.organizationId, userContext.organizationId),
+		assignedOpportunityExistsSql(opportunityId, userContext)
+	)!;
+}
+
 function visibleEvidenceMatrixForOpportunityCondition(
 	opportunityId: string,
 	matrixType: EvidenceMatrixType,
@@ -549,6 +557,74 @@ function criteriaTextForRequirement(requirement: typeof rfpRequirements.$inferSe
 		...(Array.isArray(requirement.keyTerms) ? requirement.keyTerms : []),
 		...(Array.isArray(requirement.tags) ? requirement.tags : []),
 	].filter(Boolean).join(" ");
+}
+
+function requirementMatrixRowName(requirement: typeof rfpRequirements.$inferSelect): string {
+	const label = requirement.title || requirement.requirementText.slice(0, 90);
+	return [requirement.sourceSection ?? requirement.requirementNumber, label].filter(Boolean).join(": ");
+}
+
+function isEvaluationRequirement(requirement: typeof rfpRequirements.$inferSelect): boolean {
+	if (typeof requirement.evaluationWeight === "number") return true;
+	return /\b(section m|evaluation|scoring|score|criteria|award)\b/i.test([
+		requirement.sourceSection,
+		requirement.title,
+		requirement.requirementText,
+		requirement.category,
+	].filter(Boolean).join(" "));
+}
+
+function fallbackMatrixRows(matrixType: EvidenceMatrixType): EvidenceMatrixRow[] {
+	if (matrixType === "evaluation_criteria") {
+		return [
+			{ id: "technical", name: "Technical Approach", weight: 40 },
+			{ id: "management", name: "Management Approach", weight: 25 },
+			{ id: "past_performance", name: "Past Performance", weight: 25 },
+			{ id: "price", name: "Price/Cost", weight: 10 },
+		];
+	}
+	if (matrixType === "sections") {
+		return [
+			{ id: "exec_summary", name: "Executive Summary" },
+			{ id: "technical", name: "Technical Volume" },
+			{ id: "management", name: "Management Volume" },
+			{ id: "past_perf", name: "Past Performance Volume" },
+		];
+	}
+	return [
+		{ id: "req1", name: "Requirement 1" },
+		{ id: "req2", name: "Requirement 2" },
+		{ id: "req3", name: "Requirement 3" },
+	];
+}
+
+function buildMatrixRows(input: {
+	matrixType: EvidenceMatrixType;
+	requirements: (typeof rfpRequirements.$inferSelect)[];
+}): { rows: EvidenceMatrixRow[]; rowTextById: Map<string, string> } {
+	if (input.matrixType === "sections") {
+		const rows = fallbackMatrixRows(input.matrixType);
+		return { rows, rowTextById: new Map(rows.map((row) => [row.id, row.name])) };
+	}
+
+	const selectedRequirements = input.matrixType === "evaluation_criteria"
+		? input.requirements.filter(isEvaluationRequirement)
+		: input.requirements;
+	const rows = selectedRequirements.map((requirement) => ({
+		id: requirement.id,
+		name: requirementMatrixRowName(requirement),
+		weight: typeof requirement.evaluationWeight === "number" ? requirement.evaluationWeight : undefined,
+	}));
+
+	if (rows.length === 0) {
+		const fallbackRows = fallbackMatrixRows(input.matrixType);
+		return { rows: fallbackRows, rowTextById: new Map(fallbackRows.map((row) => [row.id, row.name])) };
+	}
+
+	return {
+		rows,
+		rowTextById: new Map(selectedRequirements.map((requirement) => [requirement.id, criteriaTextForRequirement(requirement)])),
+	};
 }
 
 /**
@@ -2009,131 +2085,124 @@ export async function generateEvidenceMatrix(
 	try {
 		const userContext = await requireEvidenceContext();
 
-	// Check for existing matrix
-	const [existingMatrix] = await db
-		.select()
-		.from(evidenceMatrices)
-		.where(visibleEvidenceMatrixForOpportunityCondition(opportunityId, matrixType, userContext));
+		// Check for existing matrix
+		const [existingMatrix] = await db
+			.select()
+			.from(evidenceMatrices)
+			.where(visibleEvidenceMatrixForOpportunityCondition(opportunityId, matrixType, userContext));
 
-	if (existingMatrix) {
-		return {
-			success: true,
-			data: {
-				id: existingMatrix.id,
-				name: existingMatrix.name,
-				rows: (existingMatrix.rows as EvidenceMatrixRow[]) || [],
-				columns: (existingMatrix.columns as EvidenceMatrixColumn[]) || [],
-				cells: (existingMatrix.cells as EvidenceMatrixCell[]) || [],
-				overallCoverage: existingMatrix.overallCoverage,
-				gaps: (existingMatrix.gapAnalysis as EvidenceMatrixGap[]) || [],
-			},
-		};
-	}
-
-	// Define matrix rows based on type
-	const rows: EvidenceMatrixRow[] =
-		matrixType === "evaluation_criteria"
-			? [
-					{ id: "technical", name: "Technical Approach", weight: 40 },
-					{ id: "management", name: "Management Approach", weight: 25 },
-					{ id: "past_performance", name: "Past Performance", weight: 25 },
-					{ id: "price", name: "Price/Cost", weight: 10 },
-				]
-			: matrixType === "sections"
-				? [
-						{ id: "exec_summary", name: "Executive Summary" },
-						{ id: "technical", name: "Technical Volume" },
-						{ id: "management", name: "Management Volume" },
-						{ id: "past_perf", name: "Past Performance Volume" },
-					]
-				: [
-						{ id: "req1", name: "Requirement 1" },
-						{ id: "req2", name: "Requirement 2" },
-						{ id: "req3", name: "Requirement 3" },
-					];
-
-	// Define columns (evidence types)
-	const columns: EvidenceMatrixColumn[] = [
-		{ id: "metric", name: "Metrics" },
-		{ id: "testimonial", name: "Testimonials" },
-		{ id: "case_study", name: "Case Studies" },
-		{ id: "certification", name: "Certifications" },
-	];
-
-	// Get evidence used for this opportunity
-	const usages = await db
-		.select()
-		.from(evidenceUsages)
-		.where(visibleEvidenceUsagesForOpportunityCondition(opportunityId, userContext));
-
-	const evidenceIds = [...new Set(usages.map((u) => u.evidenceId))];
-	const evidenceItems =
-		evidenceIds.length > 0 ? await db.select().from(evidenceLibrary).where(visibleEvidenceIdsCondition(evidenceIds, userContext)) : [];
-
-	// Build cells mapping evidence to rows/columns
-	const cells: EvidenceMatrixCell[] = [];
-	const gaps: EvidenceMatrixGap[] = [];
-
-	for (const row of rows) {
-		const rowEvidenceByCol = new Map<string, string[]>();
-
-		for (const col of columns) {
-			// Find evidence matching this column's type
-			const matchingEvidence = evidenceItems.filter((e) => e.evidenceType === col.id);
-
-			rowEvidenceByCol.set(
-				col.id,
-				matchingEvidence.map((e) => e.id)
-			);
-
-			const coverageScore = matchingEvidence.length > 0 ? Math.min(100, matchingEvidence.length * 33) : 0;
-
-			cells.push({
-				rowId: row.id,
-				colId: col.id,
-				evidenceIds: matchingEvidence.map((e) => e.id),
-				coverageScore,
-			});
+		if (existingMatrix) {
+			return {
+				success: true,
+				data: {
+					id: existingMatrix.id,
+					name: existingMatrix.name,
+					rows: (existingMatrix.rows as EvidenceMatrixRow[]) || [],
+					columns: (existingMatrix.columns as EvidenceMatrixColumn[]) || [],
+					cells: (existingMatrix.cells as EvidenceMatrixCell[]) || [],
+					overallCoverage: existingMatrix.overallCoverage,
+					gaps: (existingMatrix.gapAnalysis as EvidenceMatrixGap[]) || [],
+				},
+			};
 		}
 
-		// Check for gaps in this row
-		const missingCategories = columns
-			.filter((col) => (rowEvidenceByCol.get(col.id)?.length || 0) === 0)
-			.map((col) => col.name);
+		const requirements = matrixType === "sections"
+			? []
+			: await db
+					.select()
+					.from(rfpRequirements)
+					.where(visibleRequirementsForOpportunityCondition(opportunityId, userContext));
+		const { rows, rowTextById } = buildMatrixRows({ matrixType, requirements });
 
-		if (missingCategories.length > 0) {
-			const criticality: GapCriticality =
-				missingCategories.length >= 3 ? "critical" : missingCategories.length >= 2 ? "major" : "minor";
+		// Define columns (evidence types)
+		const columns: EvidenceMatrixColumn[] = [
+			{ id: "metric", name: "Metrics" },
+			{ id: "testimonial", name: "Testimonials" },
+			{ id: "case_study", name: "Case Studies" },
+			{ id: "certification", name: "Certifications" },
+		];
 
-			gaps.push({
-				rowId: row.id,
-				rowName: row.name,
-				missingCategories,
-				criticality,
-			});
+		// Get evidence used for this opportunity
+		const usages = await db
+			.select()
+			.from(evidenceUsages)
+			.where(visibleEvidenceUsagesForOpportunityCondition(opportunityId, userContext));
+
+		const evidenceIds = [...new Set(usages.map((u) => u.evidenceId))];
+		const evidenceItems =
+			evidenceIds.length > 0 ? await db.select().from(evidenceLibrary).where(visibleEvidenceIdsCondition(evidenceIds, userContext)) : [];
+
+		// Build cells mapping evidence to row-specific requirements and evidence-type columns.
+		const cells: EvidenceMatrixCell[] = [];
+		const gaps: EvidenceMatrixGap[] = [];
+
+		for (const row of rows) {
+			const rowEvidenceByCol = new Map<string, string[]>();
+			const rowText = rowTextById.get(row.id) ?? row.name;
+
+			for (const col of columns) {
+				const scoredEvidence = evidenceItems
+					.filter((e) => e.evidenceType === col.id)
+					.map((e) => ({ evidence: e, scored: scoreEvidenceForText(rowText, e, "matrix terms") }))
+					.filter(({ scored }) => scored.relevanceScore >= 35 && scored.matchedSignals.length > 0)
+					.sort((left, right) => right.scored.relevanceScore - left.scored.relevanceScore);
+
+				rowEvidenceByCol.set(
+					col.id,
+					scoredEvidence.map(({ evidence }) => evidence.id)
+				);
+
+				const coverageScore = scoredEvidence.length > 0
+					? Math.min(100, Math.max(...scoredEvidence.map(({ scored }) => scored.relevanceScore)))
+					: 0;
+
+				cells.push({
+					rowId: row.id,
+					colId: col.id,
+					evidenceIds: scoredEvidence.map(({ evidence }) => evidence.id),
+					coverageScore,
+					notes: scoredEvidence[0]?.scored.reason,
+				});
+			}
+
+			// Check for gaps in this row
+			const missingCategories = columns
+				.filter((col) => (rowEvidenceByCol.get(col.id)?.length || 0) === 0)
+				.map((col) => col.name);
+
+			if (missingCategories.length > 0) {
+				const criticality: GapCriticality =
+					missingCategories.length >= 3 ? "critical" : missingCategories.length >= 2 ? "major" : "minor";
+
+				gaps.push({
+					rowId: row.id,
+					rowName: row.name,
+					missingCategories,
+					criticality,
+				});
+			}
 		}
-	}
 
-	// Calculate overall coverage
-	const totalCells = cells.length;
-	const coveredCells = cells.filter((c) => c.coverageScore > 0).length;
-	const overallCoverage = Math.round((coveredCells / totalCells) * 100);
+		// Calculate overall coverage
+		const totalCells = cells.length;
+		const coveredCells = cells.filter((c) => c.coverageScore > 0).length;
+		const overallCoverage = totalCells > 0 ? Math.round((coveredCells / totalCells) * 100) : 0;
 
-	// Store the matrix
-	const [newMatrix] = await db
-		.insert(evidenceMatrices)
-		.values({
-			opportunityId,
-			name: `${matrixType.replace("_", " ")} Matrix`,
-			matrixType,
-			rows,
-			columns,
-			cells,
-			overallCoverage,
-			gapAnalysis: gaps,
-			generatedBy: userContext.userId,
-		})
-		.returning();
+		// Store the matrix
+		const [newMatrix] = await db
+			.insert(evidenceMatrices)
+			.values({
+				opportunityId,
+				name: `${matrixType.replace("_", " ")} Matrix`,
+				matrixType,
+				rows,
+				columns,
+				cells,
+				overallCoverage,
+				gapAnalysis: gaps,
+				generatedBy: userContext.userId,
+			})
+			.returning();
 
 		return {
 			success: true,

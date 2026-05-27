@@ -874,31 +874,109 @@ describe("Evidence opportunity scoping", () => {
 	test("scopes matrix lookup and usage reads through assigned opportunities", async () => {
 		const wheres: unknown[] = [];
 		const matrixQuery = createChainableQuery([]);
+		const requirementsQuery = createChainableQuery([]);
 		const usagesQuery = createChainableQuery([]);
 		const insertedMatrix = {
 			id: "matrix-1",
 			name: "requirements Matrix",
 		};
-		(matrixQuery.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
-			wheres.push(value);
-			return matrixQuery;
-		});
-		(usagesQuery.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
-			wheres.push(value);
-			return usagesQuery;
-		});
+		for (const query of [matrixQuery, requirementsQuery, usagesQuery]) {
+			(query.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+				wheres.push(value);
+				return query;
+			});
+		}
 		dbMock.select
 			.mockReturnValueOnce(matrixQuery)
+			.mockReturnValueOnce(requirementsQuery)
 			.mockReturnValueOnce(usagesQuery);
 		dbMock.insert.mockReturnValueOnce(createChainableQuery([insertedMatrix]));
 
 		const result = await generateEvidenceMatrix("33333333-3333-4333-8333-333333333333", "requirements");
 
 		expect(result.success).toBe(true);
-		expect(wheres).toHaveLength(2);
+		expect(wheres).toHaveLength(3);
 		for (const where of wheres) {
 			expectAssignedOpportunityScope(where);
 		}
+	});
+
+	test("builds requirement matrix rows from opportunity requirements and row-matched evidence", async () => {
+		const matrixQuery = createChainableQuery([]);
+		const requirementsQuery = createChainableQuery([
+			makeDbRequirementRow({
+				id: "req-cloud",
+				requirementNumber: "C.1",
+				title: "Cloud Uptime",
+				requirementText: "Provide verified cloud migration uptime metrics for federal systems.",
+				evaluationWeight: null,
+				keyTerms: ["cloud migration", "uptime"],
+				tags: ["cloud"],
+			}),
+			makeDbRequirementRow({
+				id: "req-reporting",
+				requirementNumber: "C.2",
+				title: "Grant Reporting",
+				requirementText: "Describe grant reporting automation and audit preparation controls.",
+				evaluationWeight: null,
+				keyTerms: ["grant reporting", "audit"],
+				tags: ["reporting"],
+			}),
+		]);
+		const usagesQuery = createChainableQuery([
+			{ evidenceId: "ev-cloud" },
+			{ evidenceId: "ev-reporting" },
+		]);
+		const evidenceQuery = createChainableQuery([
+			makeDbEvidenceRow({
+				id: "ev-cloud",
+				title: "Federal Cloud Uptime Metrics",
+				content: "Cloud migration maintained uptime for federal systems.",
+				evidenceType: "metric",
+				tags: ["cloud", "uptime"],
+				metric: "uptime",
+				metricValue: "99.99",
+				metricUnit: "%",
+				metricContext: "Federal cloud migration",
+				sourceVerified: true,
+				strengthScore: 90,
+				relatedCapabilities: ["cloud migration"],
+			}),
+			makeDbEvidenceRow({
+				id: "ev-reporting",
+				title: "Grant Reporting Audit Reference",
+				content: "Grant reporting automation reduced audit preparation effort.",
+				evidenceType: "testimonial",
+				tags: ["grant reporting", "audit"],
+				isQuantified: false,
+				metric: null,
+				metricValue: null,
+				metricUnit: null,
+				metricContext: null,
+				sourceVerified: true,
+				strengthScore: 80,
+				relatedCapabilities: ["grant reporting automation"],
+			}),
+		]);
+		dbMock.select
+			.mockReturnValueOnce(matrixQuery)
+			.mockReturnValueOnce(requirementsQuery)
+			.mockReturnValueOnce(usagesQuery)
+			.mockReturnValueOnce(evidenceQuery);
+		dbMock.insert.mockReturnValueOnce(createChainableQuery([{ id: "matrix-1", name: "requirements Matrix" }]));
+
+		const result = await generateEvidenceMatrix("33333333-3333-4333-8333-333333333333", "requirements");
+
+		if (!result.success) throw new Error(result.error);
+		expect(result.data.rows.map((row) => row.id)).toEqual(["req-cloud", "req-reporting"]);
+		const cloudMetricCell = result.data.cells.find((cell) => cell.rowId === "req-cloud" && cell.colId === "metric");
+		const reportingTestimonialCell = result.data.cells.find((cell) => cell.rowId === "req-reporting" && cell.colId === "testimonial");
+		const cloudTestimonialCell = result.data.cells.find((cell) => cell.rowId === "req-cloud" && cell.colId === "testimonial");
+		expect(cloudMetricCell?.evidenceIds).toEqual(["ev-cloud"]);
+		expect(cloudMetricCell?.notes).toContain("matrix terms:");
+		expect(reportingTestimonialCell?.evidenceIds).toEqual(["ev-reporting"]);
+		expect(cloudTestimonialCell?.evidenceIds).toEqual([]);
+		expect(result.data.overallCoverage).toBeGreaterThan(0);
 	});
 
 	test("scopes report usage reads through assigned opportunities", async () => {
