@@ -6,6 +6,7 @@ const getProviderManagerMock = vi.hoisted(() => vi.fn());
 interface ChainConfig {
 	result?: unknown[];
 	onWhere?: (value: unknown) => void;
+	onValues?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
@@ -17,7 +18,10 @@ function createChain(config: ChainConfig = {}) {
 		config.onWhere?.(value);
 		return chain;
 	});
-	chain.values = vi.fn(() => chain);
+	chain.values = vi.fn((value: unknown) => {
+		config.onValues?.(value);
+		return chain;
+	});
 	chain.returning = vi.fn(async () => config.result ?? []);
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
@@ -98,6 +102,10 @@ const documentRow = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	dbMock.select.mockReset();
+	dbMock.insert.mockReset();
+	dbMock.update.mockReset();
+	dbMock.delete.mockReset();
 	getCurrentUserIdMock.mockResolvedValue("analysis-user-1");
 	getProviderManagerMock.mockReturnValue({
 		initialize: vi.fn(async () => undefined),
@@ -220,5 +228,71 @@ describe("document analysis document scoping", () => {
 		expect(result.suggestions.some((suggestion) =>
 			suggestion.text.includes("Add a dedicated heuristic or reliable AI analysis path")
 		)).toBe(true);
+	});
+
+	it("drops blank AI analysis issues and suggestions before saving results", async () => {
+		const savedAt = new Date("2026-05-27T09:00:00.000Z");
+		const richDocumentRow = {
+			id: documentId,
+			content: {
+				type: "doc",
+				content: [
+					{
+						type: "paragraph",
+						content: [{
+							type: "text",
+							text: "Datacraft will deliver analytics, migration, governance, integration, risk controls, training, and operational handover for the committee.",
+						}],
+					},
+				],
+			},
+		};
+		let insertValues: unknown;
+		getProviderManagerMock.mockReturnValue({
+			initialize: vi.fn(async () => undefined),
+			isAvailable: vi.fn(async () => true),
+			complete: vi.fn(async () => ({
+				content: JSON.stringify({
+					score: 82,
+					issues: [
+						{ severity: "warning", message: "   " },
+						{ severity: "invalid", message: "Add clearer technical proof." },
+					],
+					suggestions: [
+						{ type: "add", text: "", impact: "high" },
+						{ type: "invalid", text: " Include measurable implementation evidence. ", impact: "invalid" },
+					],
+				}),
+			})),
+		});
+		dbMock.select.mockReturnValueOnce(createChain({ result: [richDocumentRow] }));
+		dbMock.insert.mockReturnValueOnce(createChain({
+			result: [{ id: analysisId, analyzedAt: savedAt }],
+			onValues: (value) => {
+				insertValues = value;
+			},
+		}));
+
+		const result = await analyzeDocument({
+			documentId,
+			categories: ["technical"],
+			includeParagraphs: false,
+		});
+
+		expect(result.factors).toHaveLength(8);
+		expect(result.issues).toHaveLength(8);
+		expect(result.issues.every((issue) => issue.message.trim().length > 0)).toBe(true);
+		expect(result.issues.every((issue) => issue.message === "Add clearer technical proof.")).toBe(true);
+		expect(result.issues.every((issue) => issue.severity === "warning")).toBe(true);
+		expect(result.suggestions).toHaveLength(8);
+		expect(result.suggestions.every((suggestion) =>
+			suggestion.text === "Include measurable implementation evidence."
+		)).toBe(true);
+		expect(result.suggestions.every((suggestion) => suggestion.type === "rewrite")).toBe(true);
+		expect(result.suggestions.every((suggestion) => suggestion.impact === "medium")).toBe(true);
+		expect(insertValues).toEqual(expect.objectContaining({
+			issues: result.issues,
+			suggestions: result.suggestions,
+		}));
 	});
 });

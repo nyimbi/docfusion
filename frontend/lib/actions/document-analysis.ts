@@ -458,6 +458,26 @@ function normalizeAnalysisHistoryLimit(limit: number | undefined, fallback = 10,
 	return Math.max(1, Math.min(maximum, Math.floor(limit)));
 }
 
+function isNonBlankText(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function normalizeIssueSeverity(value: unknown): IssueSeverity {
+	return value === "error" || value === "warning" || value === "info" || value === "critical"
+		? value
+		: "warning";
+}
+
+function normalizeSuggestionType(value: unknown): AnalysisSuggestion["type"] {
+	return value === "rewrite" || value === "add" || value === "remove" || value === "restructure" || value === "clarify"
+		? value
+		: "rewrite";
+}
+
+function normalizeSuggestionImpact(value: unknown): SuggestionImpact {
+	return value === "high" || value === "medium" || value === "low" ? value : "medium";
+}
+
 // ============================================================================
 // Analysis Engine
 // ============================================================================
@@ -825,19 +845,23 @@ Provide your JSON analysis.`;
 
 		const score = Math.max(0, Math.min(100, analysis.score));
 
-		const issues: AnalysisIssue[] = (analysis.issues || []).map((issue) => ({
-			id: generateId(),
-			severity: (issue.severity as IssueSeverity) || "warning",
-			factorId: factor.id,
-			message: issue.message,
-		}));
+		const issues: AnalysisIssue[] = (analysis.issues || [])
+			.filter((issue) => isNonBlankText(issue.message))
+			.map((issue) => ({
+				id: generateId(),
+				severity: normalizeIssueSeverity(issue.severity),
+				factorId: factor.id,
+				message: issue.message.trim(),
+			}));
 
-		const suggestions: AnalysisSuggestion[] = (analysis.suggestions || []).map((suggestion) => ({
-			id: generateId(),
-			type: (suggestion.type as AnalysisSuggestion["type"]) || "rewrite",
-			text: suggestion.text,
-			impact: (suggestion.impact as SuggestionImpact) || "medium",
-		}));
+		const suggestions: AnalysisSuggestion[] = (analysis.suggestions || [])
+			.filter((suggestion) => isNonBlankText(suggestion.text))
+			.map((suggestion) => ({
+				id: generateId(),
+				type: normalizeSuggestionType(suggestion.type),
+				text: suggestion.text.trim(),
+				impact: normalizeSuggestionImpact(suggestion.impact),
+			}));
 
 		return {
 			id: factor.id,
