@@ -692,6 +692,97 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("uses browser fallback for configured source URLs when Firecrawl is blocked", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "DNS lookup failed",
+		});
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				success: true,
+				data: {
+					markdown: "[Tender for Source Browser Recovery](https://buyer.example/tenders/browser-recovery)\n\nDeadline: 31 December 2026",
+					metadata: {
+						title: "Buyer Tenders Browser",
+						description: "Recovered rendered tender listing.",
+					},
+				},
+			}),
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://buyer.example/tenders"],
+			sourceScrapeLimit: 5,
+			browserFallback: true,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://84.247.181.100:3003/v1/scrape",
+			expect.objectContaining({
+				method: "POST",
+				body: JSON.stringify({
+					url: "https://buyer.example/tenders",
+					options: {
+						timeout: 15000,
+						humanScroll: true,
+						blockMedia: true,
+					},
+				}),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Tender for Source Browser Recovery",
+			rfpLink: "https://buyer.example/tenders/browser-recovery",
+			portalUrl: "https://buyer.example/tenders/browser-recovery",
+			source: "source-scrape",
+			sourcePlatform: "Configured Source Scrape",
+			sourceFile: "source:https://buyer.example/tenders",
+			tags: ["external-discovery", "source-scrape"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://buyer.example/tenders",
+					resultEngine: "firecrawl-source",
+					scrapedWithFirecrawl: false,
+					scrapedWithBrowserFallback: true,
+					scrapeMethod: "browser_fallback",
+					browserFallbackReason: "DNS lookup failed",
+				}),
+			}),
+		}));
+		expect(result.warnings).toEqual([
+			expect.objectContaining({
+				type: "browser_fallback_used",
+				query: "source:https://buyer.example/tenders",
+				title: "Tender for Source Browser Recovery",
+				url: "https://buyer.example/tenders/browser-recovery",
+				message: "DNS lookup failed",
+			}),
+		]);
+		expect(updateImportRecordMock).toHaveBeenCalledWith("import-1", expect.objectContaining({
+			config: expect.objectContaining({
+				audit: {
+					warnings: [
+						expect.objectContaining({
+							type: "browser_fallback_used",
+							message: "DNS lookup failed",
+						}),
+					],
+				},
+			}),
+		}), "user-1");
+	});
+
 	it("persists service-run discoveries under the explicit import tenant", async () => {
 		getUserContextMock.mockResolvedValue({
 			userId: "interactive-user-1",

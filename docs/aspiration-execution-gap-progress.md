@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Configured Source Browser Fallback
+
+Status: implemented and verified.
+
+Purpose: recover configured procurement source imports when Firecrawl cannot fetch the listing page directly, using the platform browser service before declaring the source unavailable.
+
+Changes in this slice:
+- Route configured source scrape failures and empty parser passes through the existing Playwright/browser fallback when fallback is enabled.
+- Preserve the fallback reason on imported opportunity metadata and audit warnings.
+- Record source-candidate scrape method as `browser_fallback` when rendered content produced the opportunity.
+- Keep the existing `browserFallback: false` behavior available for callers that want Firecrawl-only source scraping.
+- Add regression coverage for a configured source where Firecrawl returns a DNS failure but browser fallback returns a tender listing.
+
+Verification:
+- `npm test -- discovery-opportunity-import.test.ts` from `frontend/` passed, running 21 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 54 tests across discovery import, opportunity documents, RFP document service, and proposal document scope.
+
+Remaining after this slice:
+- Run a live source proof against a previously blocked source such as `www.un.org/procurement/solicitations-opportunities` once the browser service can reach and render it reliably.
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Live Discovery Health Refresh
 
 Status: verified.

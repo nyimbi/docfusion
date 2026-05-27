@@ -126,6 +126,8 @@ interface ConfiguredSourceParseResult {
 	parseResult: ParseResult;
 	scrapeResult: FirecrawlScrapeResult;
 	attempts: number;
+	method: "firecrawl" | "browser_fallback";
+	fallbackReason?: string;
 	lastEmptyMessage?: string;
 }
 
@@ -674,7 +676,8 @@ async function discoverConfiguredSourceCandidates(
 	sourceUrls: string[],
 	limitPerSource: number,
 	seenUrls: Set<string>,
-	warnings: DiscoveryRunWarning[]
+	warnings: DiscoveryRunWarning[],
+	input: DiscoveryImportInput
 ): Promise<DiscoveryCandidate[]> {
 	if (!sourceUrls.length || limitPerSource <= 0) return [];
 
@@ -693,10 +696,12 @@ async function discoverConfiguredSourceCandidates(
 			if (ungmResult.handled) continue;
 		}
 
-		const sourceResult = await scrapeAndParseConfiguredSource(firecrawl, sourceUrl);
+		const sourceResult = await scrapeAndParseConfiguredSource(firecrawl, sourceUrl, {
+			browserFallback: input.browserFallback ?? true,
+		});
 		if (!sourceResult.scrapeResult.success || !sourceResult.scrapeResult.data) {
 			warnings.push({
-				type: "source_scrape_failed",
+				type: sourceResult.method === "browser_fallback" ? "browser_fallback_failed" : "source_scrape_failed",
 				query: `source:${sourceUrl}`,
 				title: "Configured source scrape failed",
 				url: sourceUrl,
@@ -713,7 +718,7 @@ async function discoverConfiguredSourceCandidates(
 				title: "Configured source scrape found no opportunities",
 				url: sourceUrl,
 				message: sourceResult.lastEmptyMessage
-					?? `Firecrawl returned content after ${sourceResult.attempts} attempt(s), but the ${parser.name} parser found no tender-like records.`,
+					?? `${sourceResult.method === "browser_fallback" ? "Browser fallback" : "Firecrawl"} returned content after ${sourceResult.attempts} attempt(s), but the ${parser.name} parser found no tender-like records.`,
 			});
 			continue;
 		}
@@ -768,7 +773,8 @@ async function discoverConfiguredSourceCandidates(
 					title: opportunity.title,
 					description: opportunity.projectSummary,
 					markdown: scrapeResult.data?.markdown,
-					method: "firecrawl",
+					method: sourceResult.method,
+					fallbackReason: sourceResult.fallbackReason,
 				},
 			});
 		}
@@ -779,7 +785,8 @@ async function discoverConfiguredSourceCandidates(
 
 async function scrapeAndParseConfiguredSource(
 	firecrawl: FirecrawlClient,
-	sourceUrl: string
+	sourceUrl: string,
+	options: { browserFallback: boolean }
 ): Promise<ConfiguredSourceParseResult> {
 	const parser = parserForSourceUrl(sourceUrl);
 	const maxAttempts = configuredSourceScrapeAttempts();
@@ -795,11 +802,24 @@ async function scrapeAndParseConfiguredSource(
 		lastScrapeResult = scrapeResult;
 		if (!scrapeResult.success || !scrapeResult.data) {
 			if (attempt < maxAttempts) continue;
+			if (options.browserFallback) {
+				return {
+					parser,
+					...await maybeParseConfiguredSourceWithBrowserFallback(
+						parser,
+						sourceUrl,
+						scrapeResult,
+						lastParseResult,
+						attempt
+					),
+				};
+			}
 			return {
 				parser,
 				parseResult: lastParseResult,
 				scrapeResult,
 				attempts: attempt,
+				method: "firecrawl",
 			};
 		}
 
@@ -815,21 +835,100 @@ async function scrapeAndParseConfiguredSource(
 				parseResult: lastParseResult,
 				scrapeResult,
 				attempts: attempt,
+				method: "firecrawl",
 			};
 		}
 
 		lastEmptyMessage = `Firecrawl returned content but ${parser.name} found no opportunities on attempt ${attempt} of ${maxAttempts}.`;
 	}
 
+	const scrapeResult = lastScrapeResult ?? {
+		success: false,
+		error: "Configured source scrape did not run",
+	};
+	if (!options.browserFallback) {
+		return {
+			parser,
+			parseResult: lastParseResult,
+			scrapeResult,
+			attempts: maxAttempts,
+			method: "firecrawl",
+			lastEmptyMessage,
+		};
+	}
+
 	return {
 		parser,
-		parseResult: lastParseResult,
-		scrapeResult: lastScrapeResult ?? {
-			success: false,
-			error: "Configured source scrape did not run",
+		...await maybeParseConfiguredSourceWithBrowserFallback(
+			parser,
+			sourceUrl,
+			scrapeResult,
+			lastParseResult,
+			maxAttempts,
+			lastEmptyMessage
+		),
+	};
+}
+
+async function maybeParseConfiguredSourceWithBrowserFallback(
+	parser: TenderParser,
+	sourceUrl: string,
+	firecrawlResult: FirecrawlScrapeResult,
+	lastParseResult: ParseResult,
+	attempts: number,
+	lastEmptyMessage?: string
+): Promise<Omit<ConfiguredSourceParseResult, "parser">> {
+	const fallbackReason = lastEmptyMessage
+		?? browserFallbackReason({
+			success: firecrawlResult.success,
+			title: firecrawlResult.data?.metadata?.title,
+			description: firecrawlResult.data?.metadata?.description,
+			markdown: firecrawlResult.data?.markdown,
+			error: firecrawlResult.error,
+			method: "firecrawl",
+		})
+		?? "Configured source parser found no tender-like records";
+	const browserResult = await scrapeWithBrowserFallback(sourceUrl, fallbackReason);
+	if (!isUsefulBrowserFallback(browserResult)) {
+		return {
+			parseResult: lastParseResult,
+			scrapeResult: {
+				...firecrawlResult,
+				error: [
+					firecrawlResult.error,
+					lastEmptyMessage,
+					browserResult.error ? `browser fallback: ${browserResult.error}` : undefined,
+				].filter(Boolean).join("; ") || "Configured source scrape failed",
+			},
+			attempts,
+			method: "browser_fallback",
+			fallbackReason,
+			lastEmptyMessage,
+		};
+	}
+
+	const parseResult = await parser.parse({
+		markdown: browserResult.markdown ?? "",
+		url: sourceUrl,
+	});
+	return {
+		parseResult,
+		scrapeResult: {
+			success: true,
+			data: {
+				markdown: browserResult.markdown,
+				metadata: {
+					title: browserResult.title,
+					description: browserResult.description,
+				},
+			},
 		},
-		attempts: maxAttempts,
-		lastEmptyMessage,
+		attempts,
+		method: "browser_fallback",
+		fallbackReason,
+		lastEmptyMessage: parseResult.opportunities.length > 0
+			? undefined
+			: `Browser fallback returned content but ${parser.name} found no tender-like records.`,
 	};
 }
 
@@ -1329,16 +1428,15 @@ export async function executeOpportunityDiscoveryImport(
 			input
 		);
 	}
-	const warnings = [
-		...searchWarnings,
-		...collectDiscoveryWarnings(candidates),
-	];
+	const warnings = [...searchWarnings];
 	candidates.push(...await discoverConfiguredSourceCandidates(
 		sourceUrls,
 		sourceScrapeLimit,
 		seenUrls,
-		warnings
+		warnings,
+		input
 	));
+	warnings.push(...collectDiscoveryWarnings(candidates));
 	const baseImportConfig: ImportConfig = {
 		columnMappings: [],
 		sheetName: "searxng_discovery",
