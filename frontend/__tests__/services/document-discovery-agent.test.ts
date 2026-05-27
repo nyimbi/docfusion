@@ -87,6 +87,8 @@ vi.mock("@/lib/utils/logger", () => ({
 	},
 }));
 
+import { quickComplete } from "@/lib/ai/providers/factory";
+import { searchDocuments, searchSearxng } from "@/lib/services/searxng-client";
 import { discoverDocumentsWithAgent } from "@/lib/services/document-discovery-agent";
 
 const baseOpportunity = {
@@ -207,6 +209,104 @@ describe("discoverDocumentsWithAgent", () => {
 		expect(insertedValues[0]).toEqual(expect.objectContaining({
 			description: expect.stringContaining("specification filename signal"),
 			isSelected: true,
+		}));
+	});
+
+	it("records confidence signals for SearXNG document results instead of a fixed score", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "no primary document links",
+		});
+		vi.mocked(quickComplete).mockResolvedValue(JSON.stringify({
+			queries: [{ query: "\"BID-2026-001\" filetype:pdf", priority: 10 }],
+			fileTypeQueries: [],
+		}));
+		vi.mocked(searchSearxng).mockResolvedValue({
+			query: "\"BID-2026-001\" filetype:pdf",
+			number_of_results: 0,
+			results: [],
+		});
+		vi.mocked(searchDocuments).mockResolvedValue([
+			{
+				title: "Records Platform RFP",
+				url: "https://buyer.example/files/BID-2026-001-records-platform-rfp.pdf",
+				content: "Buyer Ministry BID-2026-001 tender document for the records platform",
+				engine: "bing",
+				score: 7,
+			},
+		]);
+
+		const result = await discoverDocumentsWithAgent("opp-1", 2);
+
+		expect(result.success).toBe(true);
+		expect(result.strategiesAttempted).toEqual(["primary_portal", "web_search"]);
+		expect(result.strategiesSucceeded).toEqual(["web_search"]);
+		expect(result.sources[0]).toEqual(expect.objectContaining({
+			confidence: 88,
+			source: "searxng_documents",
+		}));
+		expect(insertedValues).toEqual([
+			expect.objectContaining({
+				documentName: "Records Platform RFP",
+				documentType: "rfp",
+				sourceUrl: "https://buyer.example/files/BID-2026-001-records-platform-rfp.pdf",
+				isSelected: true,
+				description: expect.stringContaining("confidence signals:"),
+			}),
+		]);
+		expect(insertedValues[0]).toEqual(expect.objectContaining({
+			description: expect.stringContaining("search engine score"),
+		}));
+		expect(insertedValues[0]).toEqual(expect.objectContaining({
+			description: expect.stringContaining("notice id match"),
+		}));
+	});
+
+	it("caps alternative portal confidence while preserving evidence signals", async () => {
+		firecrawlScrapeMock.mockImplementation(async (url: string) => {
+			if (url === "https://buyer.example/tenders/records") {
+				return { success: true, data: { markdown: "", links: [] } };
+			}
+			if (url === "https://www.ppip.go.ke/tenders") {
+				return {
+					success: true,
+					data: {
+						markdown: "Buyer Ministry BID-2026-001 Records Platform Tender",
+						links: ["/downloads/BID-2026-001-records-platform-rfp.pdf"],
+					},
+				};
+			}
+			return { success: false, error: "no relevant documents" };
+		});
+		vi.mocked(quickComplete).mockResolvedValue(JSON.stringify({
+			queries: [],
+			fileTypeQueries: [],
+		}));
+		vi.mocked(searchDocuments).mockResolvedValue([]);
+
+		const result = await discoverDocumentsWithAgent("opp-1", 3);
+
+		expect(result.success).toBe(true);
+		expect(result.strategiesAttempted).toEqual(["primary_portal", "web_search", "alternative_portals"]);
+		expect(result.strategiesSucceeded).toEqual(["alternative_portals"]);
+		expect(result.sources[0]).toEqual(expect.objectContaining({
+			confidence: 78,
+			source: "alternative_portal",
+			discoveryMethod: "portal: PPIP Kenya",
+		}));
+		expect(insertedValues).toEqual([
+			expect.objectContaining({
+				documentName: "BID-2026-001-records-platform-rfp.pdf",
+				sourceUrl: "https://www.ppip.go.ke/downloads/BID-2026-001-records-platform-rfp.pdf",
+				isSelected: true,
+				description: expect.stringContaining("alternative portal confidence signals:"),
+			}),
+		]);
+		expect(insertedValues[0]).toEqual(expect.objectContaining({
+			description: expect.stringContaining("same source host"),
+		}));
+		expect(insertedValues[0]).toEqual(expect.objectContaining({
+			description: expect.stringContaining("notice id match"),
 		}));
 	});
 });

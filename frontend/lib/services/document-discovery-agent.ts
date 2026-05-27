@@ -262,15 +262,26 @@ async function searchPrimaryPortal(context: DiscoveryContext): Promise<Discovere
         url: resolveUrl(doc.url, context.sourceUrl!),
       }))
       .filter(doc => isDocumentUrl(doc.url))
-      .map(doc => ({
-        url: doc.url,
-        name: doc.name,
-        type: validateDocumentType(doc.type),
-        confidence: 95,
-        source: "primary_portal",
-        discoveryMethod: "firecrawl_llm_extraction",
-        description: doc.description,
-      }));
+      .map(doc => {
+        const name = doc.name || extractFilenameFromUrl(doc.url);
+        const scoring = scoreDiscoveredDocumentConfidence({
+          url: doc.url,
+          name,
+          baseUrl: context.sourceUrl!,
+          pageText: `${doc.description || ""} ${result.data?.markdown || ""}`,
+          context,
+          sourceKind: "primary_llm",
+        });
+        return {
+          url: doc.url,
+          name,
+          type: validateDocumentType(doc.type),
+          confidence: scoring.confidence,
+          source: "primary_portal",
+          discoveryMethod: "firecrawl_llm_extraction",
+          description: `${doc.description ? `${doc.description}; ` : ""}firecrawl_llm_extraction confidence signals: ${scoring.signals.join(", ") || "schema-extracted document link"}`,
+        };
+      });
 
     if (extractedSources.length > 0) return extractedSources;
 
@@ -356,14 +367,23 @@ async function searchWeb(context: DiscoveryContext): Promise<DiscoveredSource[]>
         // Check if it's a document URL and relevant
         if (isDocumentUrl(result.url) && isRelevantLink(result.url, context)) {
           seenUrls.add(normalizedUrl);
+          const name = result.title || extractFilenameFromUrl(result.url);
+          const scoring = scoreDiscoveredDocumentConfidence({
+            url: result.url,
+            name,
+            pageText: result.content,
+            context,
+            sourceKind: "searxng",
+            engineScore: result.score,
+          });
           querySources.push({
             url: result.url,
-            name: result.title || extractFilenameFromUrl(result.url),
+            name,
             type: classifyDocumentFromUrl(result.url),
-            confidence: Math.min(85, 60 + (result.score || 0)),
+            confidence: scoring.confidence,
             source: "searxng_search",
             discoveryMethod: `searxng_query: "${query}" (engine: ${result.engine})`,
-            description: result.content?.substring(0, 200),
+            description: `${result.content?.substring(0, 200) || "SearXNG search result"}; confidence signals: ${scoring.signals.join(", ") || "document search result"}`,
           });
         }
       }
@@ -387,14 +407,23 @@ async function searchWeb(context: DiscoveryContext): Promise<DiscoveredSource[]>
       
       if (isRelevantLink(result.url, context)) {
         seenUrls.add(normalizedUrl);
+        const name = result.title || extractFilenameFromUrl(result.url);
+        const scoring = scoreDiscoveredDocumentConfidence({
+          url: result.url,
+          name,
+          pageText: result.content,
+          context,
+          sourceKind: "searxng_documents",
+          engineScore: result.score,
+        });
         sources.push({
           url: result.url,
-          name: result.title || extractFilenameFromUrl(result.url),
+          name,
           type: classifyDocumentFromUrl(result.url),
-          confidence: 80,
+          confidence: scoring.confidence,
           source: "searxng_documents",
           discoveryMethod: `searxng_document_search: "${docQuery}"`,
-          description: result.content?.substring(0, 200),
+          description: `${result.content?.substring(0, 200) || "SearXNG document result"}; confidence signals: ${scoring.signals.join(", ") || "dedicated document search result"}`,
         });
       }
     }
@@ -445,14 +474,25 @@ async function searchAlternativePortals(context: DiscoveryContext): Promise<Disc
         });
 
         for (const link of relevantLinks) {
-          if (isDocumentUrl(link)) {
+          const resolvedUrl = resolveUrl(link, portal.url);
+          if (isDocumentUrl(resolvedUrl)) {
+            const name = extractFilenameFromUrl(resolvedUrl);
+            const scoring = scoreDiscoveredDocumentConfidence({
+              url: resolvedUrl,
+              name,
+              baseUrl: portal.url,
+              pageText: result.data.markdown || "",
+              context,
+              sourceKind: "alternative_portal",
+            });
             sources.push({
-              url: resolveUrl(link, portal.url),
-              name: extractFilenameFromUrl(link),
-              type: classifyDocumentFromUrl(link),
-              confidence: 60,
+              url: resolvedUrl,
+              name,
+              type: classifyDocumentFromUrl(resolvedUrl),
+              confidence: scoring.confidence,
               source: "alternative_portal",
               discoveryMethod: `portal: ${portal.name}`,
+              description: `alternative portal confidence signals: ${scoring.signals.join(", ") || "relevant portal document link"}`,
               alternativeUrls: [portal.url],
             });
           }
@@ -500,16 +540,28 @@ async function searchArchive(context: DiscoveryContext): Promise<DiscoveredSourc
 
       if (result.success && result.data?.links) {
         return result.data.links
+          .map(link => resolveUrl(link, archivedUrl))
           .filter(isDocumentUrl)
-          .map(link => ({
-            url: link,
-            name: extractFilenameFromUrl(link),
-            type: classifyDocumentFromUrl(link),
-            confidence: 50,
-            source: "archive",
-            discoveryMethod: "wayback_machine",
-            alternativeUrls: [archivedUrl],
-          }));
+          .map(link => {
+            const name = extractFilenameFromUrl(link);
+            const scoring = scoreDiscoveredDocumentConfidence({
+              url: link,
+              name,
+              baseUrl: archivedUrl,
+              context,
+              sourceKind: "archive",
+            });
+            return {
+              url: link,
+              name,
+              type: classifyDocumentFromUrl(link),
+              confidence: scoring.confidence,
+              source: "archive",
+              discoveryMethod: "wayback_machine",
+              description: `archive confidence signals: ${scoring.signals.join(", ") || "archived document link"}`,
+              alternativeUrls: [archivedUrl],
+            };
+          });
       }
     }
   } catch (error) {
@@ -568,14 +620,26 @@ Based on common patterns for tender portals, construct likely direct download UR
         type: string; 
         confidence: number;
         reasoning: string;
-      }) => ({
-        url: guess.url,
-        name: guess.name,
-        type: validateDocumentType(guess.type),
-        confidence: (guess.confidence || 50) * 0.6, // Reduce confidence for guesses
-        source: "ai_guessed",
-        discoveryMethod: `ai_pattern_match: ${guess.reasoning}`,
-      }));
+      }) => {
+        const name = guess.name || extractFilenameFromUrl(guess.url);
+        const scoring = scoreDiscoveredDocumentConfidence({
+          url: guess.url,
+          name,
+          baseUrl: context.sourceUrl || undefined,
+          context,
+          sourceKind: "ai_guess",
+          aiConfidence: guess.confidence,
+        });
+        return {
+          url: guess.url,
+          name,
+          type: validateDocumentType(guess.type),
+          confidence: scoring.confidence,
+          source: "ai_guessed",
+          discoveryMethod: `ai_pattern_match: ${guess.reasoning}`,
+          description: `AI guess confidence signals: ${scoring.signals.join(", ") || "pattern-based guess"}`,
+        };
+      });
     }
     
     return [];
@@ -810,6 +874,53 @@ function validateDocumentType(type: string): DiscoveredSource["type"] {
     : "attachment";
 }
 
+type DocumentConfidenceSourceKind =
+  | "primary_llm"
+  | "primary_link"
+  | "searxng"
+  | "searxng_documents"
+  | "alternative_portal"
+  | "archive"
+  | "ai_guess";
+
+interface DocumentConfidenceInput {
+  url: string;
+  name: string;
+  sourceKind: DocumentConfidenceSourceKind;
+  context?: DiscoveryContext;
+  baseUrl?: string;
+  pageText?: string | null;
+  engineScore?: number | null;
+  aiConfidence?: number | null;
+}
+
+const CONFIDENCE_BASE_BY_SOURCE: Record<DocumentConfidenceSourceKind, number> = {
+  primary_llm: 58,
+  primary_link: 45,
+  searxng: 42,
+  searxng_documents: 48,
+  alternative_portal: 38,
+  archive: 34,
+  ai_guess: 28,
+};
+
+const CONFIDENCE_CAP_BY_SOURCE: Record<DocumentConfidenceSourceKind, number> = {
+  primary_llm: 95,
+  primary_link: 95,
+  searxng: 85,
+  searxng_documents: 88,
+  alternative_portal: 78,
+  archive: 70,
+  ai_guess: 60,
+};
+
+function normalizeExternalScore(score: number | null | undefined): number | null {
+  if (score === null || score === undefined || !Number.isFinite(score) || score <= 0) return null;
+  if (score <= 1) return Math.round(score * 10);
+  if (score <= 10) return Math.round(score);
+  return Math.min(10, Math.round(score / 10));
+}
+
 function extractContextTokens(value: string | null | undefined): Set<string> {
   return new Set((value || "")
     .toLowerCase()
@@ -840,24 +951,19 @@ function sameHost(url: string, baseUrl: string): boolean {
   }
 }
 
-function scoreDocumentLinkConfidence(
-  url: string,
-  name: string,
-  baseUrl: string,
-  markdown: string,
-  context?: DiscoveryContext
-): { confidence: number; signals: string[] } {
+function scoreDiscoveredDocumentConfidence(input: DocumentConfidenceInput): { confidence: number; signals: string[] } {
   const signals: string[] = [];
-  let confidence = 45;
+  let confidence = CONFIDENCE_BASE_BY_SOURCE[input.sourceKind];
+  const { url, name, baseUrl, context } = input;
   const lower = `${url} ${name}`.toLowerCase();
-  const markdownLower = markdown.toLowerCase();
+  const pageTextLower = (input.pageText || "").toLowerCase();
   const documentType = classifyDocumentFromUrl(url);
 
   if (isDocumentUrl(url)) {
     confidence += 18;
     signals.push("direct document extension");
   }
-  if (sameHost(url, baseUrl)) {
+  if (baseUrl && sameHost(url, baseUrl)) {
     confidence += 8;
     signals.push("same source host");
   }
@@ -869,12 +975,12 @@ function scoreDocumentLinkConfidence(
     confidence += 7;
     signals.push("procurement document term");
   }
-  if (markdownLower.includes(name.toLowerCase()) || markdownLower.includes(url.toLowerCase())) {
+  if (pageTextLower.includes(name.toLowerCase()) || pageTextLower.includes(url.toLowerCase())) {
     confidence += 5;
     signals.push("referenced in scraped page content");
   }
 
-  const tokenMatches = countContextTokenMatches(url, context);
+  const tokenMatches = countContextTokenMatches(`${url} ${name} ${input.pageText || ""}`, context);
   if (tokenMatches > 0) {
     confidence += Math.min(12, tokenMatches * 4);
     signals.push(`${tokenMatches} opportunity token match${tokenMatches === 1 ? "" : "es"}`);
@@ -884,10 +990,41 @@ function scoreDocumentLinkConfidence(
     signals.push("notice id match");
   }
 
+  const externalScore = normalizeExternalScore(input.engineScore);
+  if (externalScore !== null) {
+    confidence += externalScore;
+    signals.push("search engine score");
+  }
+
+  if (input.aiConfidence !== null && input.aiConfidence !== undefined && Number.isFinite(input.aiConfidence)) {
+    const bounded = Math.max(0, Math.min(100, input.aiConfidence));
+    const adjustment = Math.round((bounded - 50) * 0.2);
+    confidence += adjustment;
+    signals.push(`AI guess confidence ${bounded}%`);
+  }
+
+  const cap = CONFIDENCE_CAP_BY_SOURCE[input.sourceKind];
   return {
-    confidence: Math.max(40, Math.min(95, confidence)),
+    confidence: Math.max(25, Math.min(cap, confidence)),
     signals,
   };
+}
+
+function scoreDocumentLinkConfidence(
+  url: string,
+  name: string,
+  baseUrl: string,
+  markdown: string,
+  context?: DiscoveryContext
+): { confidence: number; signals: string[] } {
+  return scoreDiscoveredDocumentConfidence({
+    url,
+    name,
+    baseUrl,
+    pageText: markdown,
+    context,
+    sourceKind: "primary_link",
+  });
 }
 
 function extractFromLinks(

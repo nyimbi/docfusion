@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Evidence-Based Discovery Source Confidence
+
+Status: implemented and verified.
+
+Purpose: make non-primary document discovery strategies explain their confidence instead of assigning generic scores to SearXNG, alternative portal, archive, and AI-guessed URLs.
+
+Changes in this slice:
+- Replace fixed SearXNG document confidence with scoring from source type, document URL evidence, procurement terms, opportunity token matches, notice ID matches, and search engine score.
+- Replace fixed alternative portal and archive confidence with evidence scoring capped below primary portal confidence.
+- Keep AI-guessed URLs lower-confidence by source cap while still preserving the model's stated confidence as an auditable signal.
+- Store confidence-signal descriptions for these discovered documents so operators can audit why a source was trusted.
+- Add regression coverage for SearXNG document results and alternative portal results.
+
+Verification:
+- `npm test -- document-discovery-agent.test.ts` passed with 4 tests.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` passed with 135 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing generic confidence values in downstream response-support analysis paths where they are not backed by explicit evidence signals.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Search Zero-Candidate Discovery Warnings
 
 Status: implemented and verified.
