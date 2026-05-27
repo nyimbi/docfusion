@@ -139,6 +139,7 @@ import {
 	calculateEvidenceCoverage,
 	generateEvidenceMatrix,
 	generateEvidenceReport,
+	exportEvidenceLibrary,
 } from "@/lib/actions/evidence";
 
 // ============================================================================
@@ -562,6 +563,36 @@ describe("Evidence CRUD", () => {
 			expect(result.success).toBe(true);
 			expect(chain.limit as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(1);
 			expect(chain.offset as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(0);
+		});
+	});
+
+	describe("exportEvidenceLibrary", () => {
+		test.each([
+			["json", "data:application/json;base64,"],
+			["csv", "data:text/csv;charset=utf-8;base64,"],
+		] as const)("generates a real %s evidence export artifact", async (format, expectedPrefix) => {
+			const rows = [
+				makeDbEvidenceRow({ id: "ev-001" }),
+				makeDbEvidenceRow({ id: "ev-002", title: "Quoted, Evidence" }),
+			];
+			dbMock.select.mockImplementation(() => createChainableQuery(rows));
+
+			const result = await exportEvidenceLibrary(format);
+
+			expect(result.success).toBe(true);
+			if (!result.success) return;
+			expect(result.data.url).toMatch(new RegExp(`^${expectedPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+			expect(result.data.url).not.toContain("/api/evidence/export");
+			const payload = Buffer.from(result.data.url.split(",")[1] ?? "", "base64").toString("utf8");
+			if (format === "json") {
+				expect(JSON.parse(payload)).toEqual(expect.arrayContaining([
+					expect.objectContaining({ id: "ev-001", title: "Cloud Migration Success" }),
+					expect.objectContaining({ id: "ev-002", title: "Quoted, Evidence" }),
+				]));
+			} else {
+				expect(payload).toContain("id,title,evidenceType");
+				expect(payload).toContain("\"Quoted, Evidence\"");
+			}
 		});
 	});
 

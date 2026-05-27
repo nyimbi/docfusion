@@ -5677,3 +5677,24 @@ Verification:
 Remaining after this slice:
 - Continue replacing remaining placeholder exports such as evidence and graphics export paths where no backing artifact exists.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Evidence Library Export Artifacts
+
+Status: implemented and verified.
+
+Purpose: make evidence library export return real CSV/JSON artifacts instead of a placeholder `/api/evidence/export` URL.
+
+Changes in this slice:
+- Generate JSON evidence exports as base64 `data:application/json` artifacts.
+- Generate CSV evidence exports as base64 `data:text/csv` artifacts with quoted field handling.
+- Preserve the existing action response shape `{ url }` while replacing the inert API route.
+- Add regression coverage that decodes both formats and verifies exported evidence content.
+
+Verification:
+- `npm test -- evidence.test.ts` passed with 51 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 83 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing remaining placeholder exports such as graphics export paths where no backing artifact exists.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

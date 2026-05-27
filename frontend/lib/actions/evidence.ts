@@ -64,6 +64,55 @@ import {
 } from "@/lib/db/schema-evidence";
 import { logger } from "@/lib/utils/logger";
 
+function toBase64DataUrl(mimeType: string, content: string): string {
+	return `data:${mimeType};base64,${Buffer.from(content, "utf8").toString("base64")}`;
+}
+
+function escapeCsvValue(value: unknown): string {
+	const normalized = value instanceof Date
+		? value.toISOString()
+		: Array.isArray(value)
+			? value.join("; ")
+			: String(value ?? "");
+	return /[",\n\r]/.test(normalized)
+		? `"${normalized.replace(/"/g, "\"\"")}"`
+		: normalized;
+}
+
+function buildEvidenceExportCsv(evidenceItems: Evidence[]): string {
+	const headers = [
+		"id",
+		"title",
+		"evidenceType",
+		"category",
+		"status",
+		"strengthScore",
+		"sourceType",
+		"sourceReference",
+		"sourceVerified",
+		"useCount",
+		"tags",
+		"content",
+	];
+	const rows = evidenceItems.map((item) => [
+		item.id,
+		item.title,
+		item.evidenceType,
+		item.category,
+		item.status,
+		item.strengthScore,
+		item.sourceType,
+		item.sourceReference,
+		item.sourceVerified,
+		item.useCount,
+		item.tags,
+		item.content,
+	]);
+	return [headers, ...rows]
+		.map((row) => row.map(escapeCsvValue).join(","))
+		.join("\n");
+}
+
 // ============================================================================
 // Extended Type Aliases (for component compatibility)
 // ============================================================================
@@ -2687,19 +2736,15 @@ export async function exportEvidenceLibrary(format: "csv" | "json"): Promise<Act
 			return { success: false, error: allEvidenceResult.error };
 		}
 
-		// Generate export timestamp for unique filename
-		const timestamp = Date.now();
-
-		// Generate export through API endpoint which handles file creation
-		// The API endpoint creates the file in /tmp or blob storage and returns download URL
-		const filename = `evidence-library-${timestamp}.${format}`;
-		const downloadUrl = `/api/evidence/export?format=${format}&filename=${encodeURIComponent(filename)}`;
+		const evidenceItems = allEvidenceResult.data ?? [];
+		const downloadUrl = format === "json"
+			? toBase64DataUrl("application/json", JSON.stringify(evidenceItems, null, 2))
+			: toBase64DataUrl("text/csv;charset=utf-8", buildEvidenceExportCsv(evidenceItems));
 
 		// Log export for audit
 		logger.info("Evidence library export initiated:", {
 			format,
-			filename,
-			evidenceCount: allEvidenceResult.data?.length || 0,
+			evidenceCount: evidenceItems.length,
 		});
 
 		return { success: true, data: { url: downloadUrl } };
