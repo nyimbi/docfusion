@@ -115,7 +115,8 @@ function parseWinLossInsightList(content: string): string[] | null {
 		if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== "string")) {
 			return null;
 		}
-		return parsed.map((item) => item.trim()).filter(Boolean);
+		const insights = parsed.map((item) => item.trim()).filter(Boolean);
+		return insights.length > 0 ? insights : null;
 	} catch {
 		return null;
 	}

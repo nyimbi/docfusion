@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Blank AI Win/Loss Insight Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep win/loss strategy support from returning a successful empty insight list when AI returns only blank strings.
+
+Changes in this slice:
+- Treat AI win/loss insight arrays as unusable when trimming leaves zero substantive insights.
+- Reuse heuristic win/loss insights when blank AI output is unusable and observed evidence exists.
+- Add regression coverage for all-blank AI insight arrays.
+
+Verification:
+- `npm test -- winloss-auth.test.ts --run` passed with 14 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 150 tests.
+
+Remaining after this slice:
+- Continue auditing response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Blank AI Document Analysis Finding Guards
 
 Status: implemented and verified.

@@ -314,6 +314,33 @@ describe("Win/loss action auth", () => {
 		expect(result.success && result.data.join(" ")).not.toContain("Unable to generate AI insights");
 	});
 
+	test("falls back to heuristic win/loss insights when AI returns only blank insights", async () => {
+		vi.mocked(getProviderManager).mockReturnValue({
+			initialize: vi.fn(async () => undefined),
+			isAvailable: vi.fn(async () => true),
+			complete: vi.fn(async () => ({ content: JSON.stringify(["   ", ""]) })),
+		} as unknown as ReturnType<typeof getProviderManager>);
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([
+				{ outcome: "win" },
+				{ outcome: "loss" },
+			]))
+			.mockImplementationOnce(() => createChainableQuery([
+				{ patternName: "Past performance gap" },
+				{ patternName: "Pricing strength" },
+			]));
+
+		const result = await getWinLossInsights();
+
+		expect(result).toEqual({
+			success: true,
+			data: [
+				"Recent win rate: 50%",
+				"2 active patterns identified",
+			],
+		});
+	});
+
 	test("derives heuristic pattern confidence from observed win/loss evidence", async () => {
 		const insertedPatterns: Record<string, unknown>[] = [];
 		dbMock.select.mockImplementationOnce(() => createChainableQuery([
