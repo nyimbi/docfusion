@@ -1993,7 +1993,10 @@ Format the answer for verbal delivery (no bullet points).`;
 				maxTokens: 600,
 				temperature: 0.7,
 			});
-			suggestedAnswer = result.content;
+			suggestedAnswer = result.content.trim();
+			if (suggestedAnswer.length === 0) {
+				throw new Error("AI answer response was empty");
+			}
 		} catch (aiError) {
 			logger.error("AI answer generation failed:", aiError);
 			suggestedAnswer = generateFallbackAnswer(qaItem);

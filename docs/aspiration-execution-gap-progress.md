@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Presentation Q&A Answers on Blank AI
+
+Status: implemented and verified.
+
+Purpose: keep oral-presentation Q&A preparation usable when an AI provider returns blank answer text.
+
+Changes in this slice:
+- Treat blank AI answer suggestions as unusable instead of saving empty Q&A answers.
+- Reuse the existing deterministic answer fallback from stored question key points.
+- Add regression coverage proving blank AI output writes a reviewable answer back to the scoped Q&A item.
+
+Verification:
+- `npm test -- presentations-scope.test.ts` passed with 4 tests.
+- `npm run platform:proof -- --run wave9-presentation-export-artifacts` passed with 10 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue closing blank or malformed provider paths in response rehearsal and final presentation workflows.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Heuristic SWOT Fallback on Malformed AI
 
 Status: implemented and verified.

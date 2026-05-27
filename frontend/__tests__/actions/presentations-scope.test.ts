@@ -11,7 +11,7 @@ interface ChainConfig {
 
 function createChain(config: ChainConfig = {}) {
 	const chain: Record<string, any> = {};
-	for (const method of ["from", "limit", "orderBy"]) {
+	for (const method of ["from", "limit", "orderBy", "set"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	chain.where = vi.fn((value: unknown) => {
@@ -87,6 +87,7 @@ vi.mock("next/cache", () => ({
 import {
 	anticipateQuestions,
 	createPresentation,
+	generateAnswerSuggestion,
 	generateSlidesFromProposal,
 } from "@/lib/actions/presentations";
 
@@ -174,5 +175,43 @@ describe("presentation opportunity scoping", () => {
 		expect(result).toEqual({ success: false, error: "Proposal document not found" });
 		expect(wheres).toHaveLength(1);
 		expectAssignedOpportunityTenantScope(wheres[0]);
+	});
+
+	it("falls back to a key-point answer when AI returns blank content", async () => {
+		completeMock.mockResolvedValueOnce({ content: "   " });
+		const updateChain = createChain();
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "qa-1",
+					presentationId,
+					likelyQuestion: "How will you control transition risk?",
+					questionCategory: "risk",
+					difficulty: "medium",
+					relatedSlideIds: null,
+					keyPoints: ["Use a phased transition plan", "Track risks weekly"],
+					thingsToAvoid: [],
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: presentationId,
+					opportunityId,
+					title: "Oral presentation",
+					audienceDescription: "Evaluation panel",
+				}],
+			}));
+		dbMock.update.mockReturnValueOnce(updateChain);
+
+		const result = await generateAnswerSuggestion("qa-1");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toContain("Thank you for that question");
+		expect(result.data).toContain("use a phased transition plan");
+		expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+			suggestedAnswer: result.data,
+		}));
+		expect(revalidatePathMock).toHaveBeenCalledWith(`/presentations/${presentationId}`);
 	});
 });
