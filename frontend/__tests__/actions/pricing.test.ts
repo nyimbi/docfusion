@@ -1004,6 +1004,43 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 		expect(result.data.narrative).toContain("Deterministic cost realism fallback");
 	});
 
+	test("returns deterministic cost realism analysis when AI output is structurally empty", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ risks: [] }), tokensUsed: 0 });
+		const laborElement = {
+			id: "ce-labor-empty-analysis",
+			elementType: "labor",
+			periodNumber: 1,
+			laborCost: 15000,
+			hours: 100,
+			laborCategoryName: "Systems Engineer",
+		};
+		const odcElement = {
+			id: "ce-odc-empty-analysis",
+			elementType: "odc",
+			periodNumber: 1,
+			odcAmount: 5000,
+		};
+
+		mockAssignedOpportunity(opportunityId);
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([laborElement, odcElement]))
+			.mockImplementationOnce(() => createChainableQuery([
+				{ rateType: "overhead", rateValue: 0.45 },
+				{ rateType: "ga", rateValue: 0.1 },
+				{ rateType: "fee", rateValue: 0.08 },
+			]))
+			.mockImplementationOnce(() => createChainableQuery([]))
+			.mockImplementationOnce(() => createChainableQuery([laborElement, odcElement]));
+
+		const result = await analyzeCostRealism(opportunityId);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.overallAssessment).toBe("realistic");
+		expect(result.data.score).toBeGreaterThan(0);
+		expect(result.data.narrative).toContain("Deterministic cost realism fallback");
+	});
+
 	test("requires organization context before exporting cost volume", async () => {
 		mockUserContext.organizationId = undefined;
 
@@ -1093,6 +1130,37 @@ describe("Opportunity-wide pricing tenant scoping", () => {
 
 	test("returns deterministic WBS items when AI output is malformed", async () => {
 		aiCompleteMock.mockResolvedValueOnce({ content: "not json", tokensUsed: 0 });
+		mockAssignedOpportunity(opportunityId);
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([
+				{ sectionName: "Mobilization", technicalSectionId: "section-1" },
+				{ sectionName: "Operations and Reporting", technicalSectionId: "section-2" },
+			]))
+			.mockImplementationOnce(() => createChainableQuery([]));
+
+		const result = await generateWBSFromTechnical(opportunityId);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toEqual([
+			expect.objectContaining({ wbsCode: "1.0", title: "Program Delivery", level: 1 }),
+			expect.objectContaining({
+				wbsCode: "1.1",
+				title: "Mobilization",
+				parentCode: "1.0",
+				technicalSectionId: "section-1",
+			}),
+			expect.objectContaining({
+				wbsCode: "1.2",
+				title: "Operations and Reporting",
+				parentCode: "1.0",
+				technicalSectionId: "section-2",
+			}),
+		]);
+	});
+
+	test("returns deterministic WBS items when AI output contains no items", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ items: [] }), tokensUsed: 0 });
 		mockAssignedOpportunity(opportunityId);
 		dbMock.select
 			.mockImplementationOnce(() => createChainableQuery([

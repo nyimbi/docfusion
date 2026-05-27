@@ -3126,15 +3126,25 @@ Provide your analysis in JSON format:
 
 		try {
 			const parsed = JSON.parse(result.content);
+			const analysis: CostRealismAnalysis = {
+				overallAssessment: parsed.overallAssessment,
+				score: parsed.score,
+				factors: parsed.factors,
+				risks: parsed.risks || [],
+				narrative: parsed.narrative,
+			};
+			if (
+				!analysis.overallAssessment ||
+				typeof analysis.score !== "number" ||
+				!analysis.factors ||
+				typeof analysis.narrative !== "string" ||
+				analysis.narrative.trim().length === 0
+			) {
+				throw new Error("AI cost realism response contained no usable analysis");
+			}
 			return {
 				success: true,
-				data: {
-					overallAssessment: parsed.overallAssessment,
-					score: parsed.score,
-					factors: parsed.factors,
-					risks: parsed.risks || [],
-					narrative: parsed.narrative,
-				},
+				data: analysis,
 			};
 		} catch {
 			logger.warn("Falling back to deterministic cost realism analysis after AI parse failure");
@@ -3706,6 +3716,9 @@ Provide the WBS in JSON format:
 			};
 
 			const wbsItems = flattenWBS(parsed.items || []);
+			if (wbsItems.length === 0) {
+				throw new Error("AI WBS response contained no work breakdown items");
+			}
 
 			return { success: true, data: wbsItems };
 		} catch {

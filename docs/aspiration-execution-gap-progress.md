@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Empty AI Pricing Production Fallbacks
+
+Status: implemented and verified.
+
+Purpose: prevent pricing production support from returning successful but unusable cost realism or WBS artifacts when AI returns valid JSON with missing substantive content.
+
+Changes in this slice:
+- Treat parsed AI cost-realism responses as unusable unless they include assessment, numeric score, factors, and non-empty narrative.
+- Treat parsed AI WBS responses with zero flattened items as unusable.
+- Reuse deterministic cost-realism and WBS fallbacks for these structurally empty AI responses.
+- Add regression coverage for empty cost-realism JSON and empty WBS item arrays.
+
+Verification:
+- `npm run platform:proof -- --all --continue-on-failure` passed the full non-live proof manifest before this slice.
+- `npm test -- pricing.test.ts --run` passed with 101 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 281 tests.
+
+Remaining after this slice:
+- Continue auditing response-production paths for structurally valid but unusable AI output.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Empty AI Pricing Fallbacks
 
 Status: implemented and verified.
