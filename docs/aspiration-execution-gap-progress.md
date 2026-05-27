@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Document Structure Auto-Fill Creation
+
+Status: implemented and verified.
+
+Purpose: remove the deferred document-generation auto-fill path so generated response outlines can immediately become editable draft documents with generated section content.
+
+Changes in this slice:
+- Implement `createDocumentFromStructure(..., { autoFill: true })` by generating content for each structure node during document creation.
+- Preserve editable outline creation for `autoFill: false`.
+- Add per-section deterministic fallback content if AI section generation fails, so one failed section does not block draft creation.
+- Store generated content and word count in the created document and initial version.
+- Add document-generation auto-fill coverage to Wave 5 AI/content governance proof.
+
+Verification:
+- `npm test -- document-generation-auth.test.ts` passed with 4 tests.
+- `npm test -- platform-proof-scenarios.test.ts` passed with 6 tests.
+- `npm run platform:proof -- --run wave5-ai-content-governance` passed with 37 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue closing response-generation paths where authoring features are still unavailable or only partially wired.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Partner Sourcing Actions for Capability Gaps
 
 Status: implemented and verified.

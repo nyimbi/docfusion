@@ -63,6 +63,11 @@ export interface GeneratedDiagram {
 	description: string;
 }
 
+type GeneratedSectionContent = {
+	content: DocumentContent;
+	wordCount: number;
+};
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -706,12 +711,12 @@ export async function createDocumentFromStructure(
 ): Promise<{ id: string; content: DocumentContent }> {
 	try {
 		const currentUserId = await requireDocumentGenerationUserId(userId);
-		if (options?.autoFill) {
-			throw new Error("AI auto-fill during structure creation is unavailable; create the outline first and generate section content from the editor.");
-		}
 		logger.debug("[Server] createDocumentFromStructure called", { title, structureCount: structure.length, userId: currentUserId });
-		// Convert structure to document content
-		const content = structureToDocumentContent(structure);
+		const generatedSections = options?.autoFill
+			? await generateAutofillSections(structure, options.tone || "professional")
+			: new Map<string, GeneratedSectionContent>();
+		const content = structureToDocumentContent(structure, generatedSections);
+		const wordCount = Array.from(generatedSections.values()).reduce((sum, section) => sum + section.wordCount, 0);
 
 		const [doc] = await db
 			.insert(documents)
@@ -721,7 +726,7 @@ export async function createDocumentFromStructure(
 				ownerId: currentUserId,
 				templateId: options?.templateId ? uuidv4() : null,
 				status: "draft",
-				wordCount: 0,
+				wordCount,
 			})
 			.returning();
 
@@ -742,7 +747,81 @@ export async function createDocumentFromStructure(
 	}
 }
 
-function structureToDocumentContent(structure: DocumentStructure[]): DocumentContent {
+async function generateAutofillSections(
+	structure: DocumentStructure[],
+	tone: string
+): Promise<Map<string, GeneratedSectionContent>> {
+	const generated = new Map<string, GeneratedSectionContent>();
+
+	async function processNode(node: DocumentStructure, path: string[], parentContext: string) {
+		const sectionPath = [...path, node.title];
+		try {
+			const result = await generateSectionContent({
+				documentId: "new-document",
+				sectionId: node.id,
+				sectionPath,
+				sectionTitle: node.title,
+				parentContext,
+				tone,
+				length: node.length || "medium",
+				keyPoints: node.children?.map((child) => child.title) || [],
+			});
+			generated.set(node.id, {
+				content: result.content,
+				wordCount: result.wordCount,
+			});
+		} catch (error) {
+			logger.warn("[Server] Auto-fill section generation failed; using deterministic section draft", {
+				sectionId: node.id,
+				title: node.title,
+				error,
+			});
+			const fallbackText = buildDeterministicSectionDraft(node, parentContext);
+			generated.set(node.id, {
+				content: paragraphContent(fallbackText),
+				wordCount: countWords(fallbackText),
+			});
+		}
+
+		for (const child of node.children || []) {
+			await processNode(child, sectionPath, node.title);
+		}
+	}
+
+	for (const node of structure) {
+		await processNode(node, [], "");
+	}
+
+	return generated;
+}
+
+function buildDeterministicSectionDraft(node: DocumentStructure, parentContext: string): string {
+	const childTopics = node.children?.map((child) => child.title).filter(Boolean) || [];
+	const scope = parentContext ? ` within ${parentContext}` : "";
+	const topics = childTopics.length > 0
+		? ` It should address ${childTopics.join(", ")} with concrete evidence, ownership, and measurable outcomes.`
+		: " It should connect the proposed approach to evaluator requirements, proof points, and delivery outcomes.";
+	return `${node.title}${scope} frames the response content for this part of the proposal.${topics}`;
+}
+
+function paragraphContent(text: string): DocumentContent {
+	return {
+		type: "doc",
+		content: [{
+			type: "paragraph",
+			content: [{ type: "text", text }],
+		}],
+	};
+}
+
+function countWords(text: string): number {
+	return text.split(/\s+/).filter(Boolean).length;
+}
+
+function structureToDocumentContent(
+	structure: DocumentStructure[],
+	generatedSections = new Map<string, GeneratedSectionContent>()
+): DocumentContent {
 	const content: DocumentBlock[] = [];
 
 	function processNode(node: DocumentStructure, level: number) {
@@ -756,11 +835,15 @@ function structureToDocumentContent(structure: DocumentStructure[]): DocumentCon
 			content: [{ type: "text", text: node.title }],
 		});
 
-		// Add an editable blank paragraph without inventing section content.
-		content.push({
-			type: "paragraph",
-			content: [],
-		});
+		const generated = generatedSections.get(node.id);
+		if (generated?.content.content?.length) {
+			content.push(...(generated.content.content as DocumentBlock[]));
+		} else {
+			content.push({
+				type: "paragraph",
+				content: [],
+			});
+		}
 
 		// Process children
 		if (node.children?.length) {

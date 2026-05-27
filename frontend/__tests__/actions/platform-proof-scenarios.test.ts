@@ -128,6 +128,7 @@ describe("platform proof scenarios", () => {
 					"vitest:opportunity-ai-scope",
 					"vitest:quality-assessment",
 					"vitest:document-analysis-scope",
+					"vitest:document-generation-auth",
 				]),
 			}),
 		]);

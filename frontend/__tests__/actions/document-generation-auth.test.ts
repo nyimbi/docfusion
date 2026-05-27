@@ -30,6 +30,11 @@ vi.mock("@/lib/ai/providers", () => ({
 	getProviderManager: vi.fn(() => ({
 		isAvailable: vi.fn(async () => true),
 		getActiveProvider: vi.fn(),
+		complete: vi.fn(async () => ({
+			content: JSON.stringify({
+				paragraphs: ["Generated section content with concrete proposal detail."],
+			}),
+		})),
 	})),
 }));
 
@@ -66,17 +71,32 @@ describe("document generation action auth", () => {
 		expect(mockDb.insert).not.toHaveBeenCalled();
 	});
 
-	it("rejects structure auto-fill instead of silently inserting generated placeholders", async () => {
+	it("creates an auto-filled document from generated section content", async () => {
+		const documentInsert = createInsertChain([{ id: "doc-auto" }]);
+		const versionInsert = createInsertChain();
+		mockDb.insert
+			.mockReturnValueOnce(documentInsert)
+			.mockReturnValueOnce(versionInsert);
 		const { createDocumentFromStructure } = await import("@/lib/actions/document-generation");
 
-		await expect(createDocumentFromStructure(
+		const result = await createDocumentFromStructure(
 			"Executive Summary",
-			[],
+			[{
+				id: "section-1",
+				type: "section",
+				title: "Technical Approach",
+				order: 1,
+				length: "brief",
+			}],
 			"author-1",
 			{ autoFill: true }
-		)).rejects.toThrow("AI auto-fill during structure creation is unavailable");
+		);
 
-		expect(mockDb.insert).not.toHaveBeenCalled();
+		expect(JSON.stringify(result.content)).toContain("Generated section content with concrete proposal detail.");
+		expect(documentInsert.values).toHaveBeenCalledWith(expect.objectContaining({
+			content: result.content,
+			wordCount: 7,
+		}));
 	});
 
 	it("creates an editable outline without fake section content", async () => {
