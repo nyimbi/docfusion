@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable AI Competitive Discriminator Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep competitive differentiation support from accepting syntactically valid but empty AI discriminator rows that suppress deterministic discriminator suggestions.
+
+Changes in this slice:
+- Validate AI discriminator suggestions for non-empty statement and rationale before accepting them.
+- Trim accepted AI discriminator fields, normalize `effectiveAgainst`, and clamp confidence.
+- Reuse deterministic discriminator suggestions when AI returns only unusable suggestion objects.
+- Add regression coverage for an AI discriminator response of `[{}]`.
+
+Verification:
+- `npm test -- competitive.test.ts --run` passed with 80 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 151 tests.
+
+Remaining after this slice:
+- Continue auditing response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Blank AI Win/Loss Insight Fallbacks
 
 Status: implemented and verified.

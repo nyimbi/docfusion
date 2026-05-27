@@ -220,6 +220,22 @@ function buildPartnerSourcingSuggestions(gaps: string[]): TeamingSuggestion[] {
 	}));
 }
 
+function isNonBlankText(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.map((item) => String(item).trim()).filter(Boolean)
+		: [];
+}
+
+function boundedConfidence(value: unknown, fallback = 0.5): number {
+	return typeof value === "number" && Number.isFinite(value)
+		? Math.min(1, Math.max(0, value))
+		: fallback;
+}
+
 /**
  * Win/loss analysis against a specific competitor.
  */
@@ -1895,14 +1911,16 @@ Suggest 3-5 new, unique discriminator statements.`;
 		rationale: string;
 	}>;
 
-	return aiSuggestions.map(s => ({
-		statement: s.statement,
-		type: s.type,
-		effectiveAgainst: s.effectiveAgainst,
-		confidence: s.confidence,
-		rationale: s.rationale,
-		isNew: true,
-	}));
+	return aiSuggestions
+		.filter(s => isNonBlankText(s.statement) && isNonBlankText(s.rationale))
+		.map(s => ({
+			statement: s.statement.trim(),
+			type: isNonBlankText(s.type) ? s.type.trim() : "capability",
+			effectiveAgainst: normalizeStringArray(s.effectiveAgainst),
+			confidence: boundedConfidence(s.confidence),
+			rationale: s.rationale.trim(),
+			isNew: true,
+		}));
 }
 
 /**

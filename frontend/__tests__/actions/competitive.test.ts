@@ -824,6 +824,39 @@ describe("Competitive analysis auth", () => {
 		expect(result.data.every((suggestion) => suggestion.confidence >= 0.25 && suggestion.confidence <= 0.85)).toBe(true);
 	});
 
+	test("suggests deterministic discriminators when AI returns unusable suggestion objects", async () => {
+		aiAvailableMock.mockResolvedValueOnce(true);
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify([{}]) });
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([makeOpportunity({
+				title: "Cloud migration support",
+				keyRequirements: "Cost control, transition schedule, and resilient staffing",
+			})]))
+			.mockImplementationOnce(() => createChainableQuery([{
+				competitor: makeCompetitor({
+					id: "comp-002",
+					name: "Legacy Prime",
+					weaknesses: ["High pricing"],
+				}),
+			}]))
+			.mockImplementationOnce(() => createChainableQuery([]));
+
+		const result = await suggestDiscriminators("00000000-0000-4000-8000-000000000002");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				statement: expect.stringContaining("Legacy Prime's high pricing risk"),
+				type: "cost",
+				effectiveAgainst: ["comp-002"],
+				isNew: true,
+				rationale: expect.stringContaining("Deterministic fallback"),
+			}),
+		]));
+		expect(result.data.every((suggestion) => suggestion.statement.trim().length > 0)).toBe(true);
+	});
+
 	test("scopes competitive matrix links to assigned opportunities", async () => {
 		let linkWhere: unknown;
 		const linkChain = createChainableQuery([]);
