@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Blank AI Generated Resume Fallbacks
+
+Status: implemented and verified.
+
+Purpose: prevent generated personnel resumes from being stored as blank successful outputs when AI returns empty text.
+
+Changes in this slice:
+- Treat blank AI-generated resume content as unusable.
+- Reuse the deterministic resume template when AI generation returns empty text.
+- Add scoped regression coverage proving blank AI content still produces and stores a meaningful resume.
+
+Verification:
+- `npm test -- personnel-scope.test.ts --run` passed with 6 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave4-planning-collaboration-tasks` passed with 34 tests.
+
+Remaining after this slice:
+- Continue hardening generated response artifacts and analysis outputs against invalid successful AI results.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Unusable AI Resume Parse Fallbacks
 
 Status: implemented and verified.

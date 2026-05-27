@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
 const requireUserContextMock = vi.hoisted(() => vi.fn());
+const completeMock = vi.hoisted(() => vi.fn());
 
 function createChainableQuery(returnValue: unknown = []) {
 	const chain: Record<string, unknown> = {};
-	for (const method of ["from", "where", "orderBy", "limit", "offset", "values", "returning"]) {
+	for (const method of ["from", "where", "orderBy", "limit", "offset", "values", "set", "returning"]) {
 		chain[method] = vi.fn(() => chain);
 	}
 	(chain.returning as ReturnType<typeof vi.fn>).mockResolvedValue(
@@ -86,7 +87,7 @@ vi.mock("@/lib/db/schema-personnel", () => ({
 }));
 
 vi.mock("@/lib/ai/client", () => ({
-	complete: vi.fn(),
+	complete: completeMock,
 }));
 
 vi.mock("next/cache", () => ({
@@ -100,6 +101,7 @@ vi.mock("@/lib/utils/logger", () => ({
 import {
 	analyzeStaffingGaps,
 	generateOrgChart,
+	generateResume,
 	generateStaffingMatrix,
 	getPositionsForOpportunity,
 	searchPersonnel,
@@ -119,6 +121,46 @@ describe("personnel opportunity scoping", () => {
 		dbMock.insert.mockImplementation(() => createChainableQuery([]));
 		dbMock.update.mockImplementation(() => createChainableQuery([]));
 		dbMock.delete.mockImplementation(() => createChainableQuery([]));
+	});
+
+	it("uses deterministic resume content when AI returns blank generated text", async () => {
+		let updateValues: unknown;
+		completeMock.mockResolvedValueOnce({ content: "  \n\t" });
+		dbMock.select
+			.mockReturnValueOnce(createChainableQuery([{
+				id: "person-1",
+				firstName: "Ada",
+				lastName: "Lovelace",
+				currentTitle: "Senior Engineer",
+				professionalSummary: "Builds reliable data systems.",
+				education: [],
+				skills: [{ skillName: "PostgreSQL", proficiency: "expert" }],
+				certifications: [],
+				clearanceLevel: null,
+			}]))
+			.mockReturnValueOnce(createChainableQuery([{
+				title: "Lead Engineer",
+				company: "Datacraft",
+				startDate: "2024-01",
+				endDate: null,
+				description: "Delivered secure data platforms.",
+				accomplishments: ["Reduced reporting cycle time"],
+			}]));
+		const updateChain = createChainableQuery([]);
+		(updateChain.set as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+			updateValues = value;
+			return updateChain;
+		});
+		dbMock.update.mockReturnValueOnce(updateChain);
+
+		const result = await generateResume("person-1", "brief");
+
+		expect(result).toMatchObject({ success: true });
+		expect(result.success && result.data).toContain("Ada Lovelace");
+		expect(result.success && result.data?.trim().length).toBeGreaterThan(20);
+		expect(updateValues).toMatchObject({
+			resumeBrief: expect.stringContaining("Ada Lovelace"),
+		});
 	});
 
 	it("scopes staffing gap positions by assigned opportunity", async () => {

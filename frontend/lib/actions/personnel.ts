@@ -1267,7 +1267,7 @@ Generate the resume text:`;
 				maxTokens: 2000,
 				temperature: 0.7,
 			});
-			resumeContent = result.content;
+			resumeContent = result.content.trim() || generateFallbackResume(person, experience, format);
 		} catch (aiError) {
 			logger.error("AI generation failed, using template:", aiError);
 
