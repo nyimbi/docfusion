@@ -140,6 +140,7 @@ import {
 	listDiscriminators,
 	recordDiscriminatorUsage,
 	createGhostTheme,
+	generateGhostTheme,
 	listGhostThemes,
 	addCompetitorToOpportunity,
 	updateCompetitorOpportunity,
@@ -1158,6 +1159,30 @@ describe("Ghost Themes", () => {
 
 			const result = await listGhostThemes("comp-001");
 			expect(result.success).toBe(true);
+		});
+	});
+
+	describe("generateGhostTheme", () => {
+		test("falls back to deterministic ghost language when AI returns blank content", async () => {
+			aiAvailableMock.mockResolvedValueOnce(true);
+			aiCompleteMock.mockResolvedValueOnce({ content: "   \n\t" });
+			dbMock.select.mockImplementation(() => createChainableQuery([
+				makeCompetitor({
+					competitorType: "prime",
+					sizeStandard: "large",
+				}),
+			]));
+
+			const result = await generateGhostTheme(
+				"00000000-0000-4000-8000-000000000001",
+				"High cost on comparable work",
+			);
+
+			expect(result.success).toBe(true);
+			if (result.success) {
+				expect(result.data).toContain("pricing");
+				expect(result.data.trim().length).toBeGreaterThan(80);
+			}
 		});
 	});
 });

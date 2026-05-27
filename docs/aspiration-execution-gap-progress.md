@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Blank AI Ghost Theme Fallback
+
+Status: implemented and verified.
+
+Purpose: stop competitive ghost-theme generation from returning a successful empty response when an AI provider returns blank content.
+
+Changes in this slice:
+- Treat blank AI ghost-theme text as unusable.
+- Reuse the existing deterministic ghost-language fallback for the supplied competitor weakness.
+- Add regression coverage proving blank AI output still returns a non-empty evaluator-facing ghost theme.
+
+Verification:
+- `npm test -- competitive.test.ts --run` passed with 79 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 141 tests.
+
+Remaining after this slice:
+- Continue closing successful-empty response-support paths where AI returns syntactically valid but unusable content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Command Center Readiness Dimension Resilience
 
 Status: implemented and verified.

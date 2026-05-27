@@ -841,7 +841,8 @@ in this area without naming or directly attacking the competitor.`;
 			maxTokens: 300,
 		});
 
-		return { success: true, data: response.content.trim() };
+		const ghostLanguage = response.content.trim();
+		return { success: true, data: ghostLanguage || generateFallbackGhostLanguage(weakness) };
 	} catch (error) {
 		logger.error("[generateGhostTheme]", error);
 		return { success: false, error: "Failed to generate ghost theme language" };
