@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Discriminator Suggestions
+
+Status: implemented and verified.
+
+Purpose: keep competitive positioning actionable when AI discriminator generation is unavailable but linked competitor weaknesses are already recorded.
+
+Changes in this slice:
+- Add deterministic discriminator suggestions from assigned opportunity context and visible competitor weaknesses.
+- Classify weakness signals into cost, schedule, team, past-performance, innovation, approach, or capability discriminator types.
+- Avoid duplicating active discriminator statements while preserving existing relevant discriminator suggestions.
+- Add regression coverage proving unavailable AI still returns reviewable discriminator suggestions effective against the linked competitor.
+
+Verification:
+- `npm test -- competitive.test.ts` passed with 77 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 139 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing successful-empty strategic planning paths where recorded opportunity or competitor evidence can produce operator actions.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Graphic Action Captions
 
 Status: implemented and verified.

@@ -1639,6 +1639,90 @@ function boundedHeuristicConfidence(value: number): number {
 	return Math.round(Math.max(0.25, Math.min(0.85, value)) * 100) / 100;
 }
 
+function normalizeDiscriminatorText(value: string | null | undefined, fallback: string): string {
+	const normalized = (value || fallback).replace(/\s+/g, " ").trim();
+	return normalized.length > 0 ? normalized : fallback;
+}
+
+function classifyDiscriminatorWeakness(weakness: string): string {
+	const normalized = weakness.toLowerCase();
+	if (/\b(price|pricing|cost|rate|expensive|premium|budget)\b/.test(normalized)) {
+		return "cost";
+	}
+	if (/\b(schedule|timeline|delay|late|slow|delivery)\b/.test(normalized)) {
+		return "schedule";
+	}
+	if (/\b(team|staff|staffing|turnover|capacity|personnel)\b/.test(normalized)) {
+		return "team";
+	}
+	if (/\b(past performance|incumbent|experience|reference)\b/.test(normalized)) {
+		return "past_performance";
+	}
+	if (/\b(innovation|modern|automation|ai|technology)\b/.test(normalized)) {
+		return "innovation";
+	}
+	if (/\b(management|governance|oversight|risk|quality)\b/.test(normalized)) {
+		return "approach";
+	}
+	return "capability";
+}
+
+function discriminatorFocusForType(type: string): string {
+	if (type === "cost") return "cost-disciplined";
+	if (type === "schedule") return "schedule-assured";
+	if (type === "team") return "staffing-resilient";
+	if (type === "past_performance") return "past-performance-backed";
+	if (type === "innovation") return "modernization-focused";
+	if (type === "approach") return "governance-led";
+	return "capability-proven";
+}
+
+function buildDeterministicDiscriminatorSuggestions(
+	opportunity: typeof opportunities.$inferSelect,
+	identifiedCompetitors: Competitor[],
+	existingDiscriminators: Discriminator[]
+): DiscriminatorSuggestion[] {
+	const opportunityTitle = normalizeDiscriminatorText(opportunity.title, "this opportunity");
+	const requirementText = normalizeDiscriminatorText(opportunity.keyRequirements, "");
+	const existingStatements = new Set(
+		existingDiscriminators.map((disc) => normalizeDiscriminatorText(disc.statement, "").toLowerCase())
+	);
+	const suggestions: DiscriminatorSuggestion[] = [];
+	const seenStatements = new Set(existingStatements);
+
+	for (const competitor of identifiedCompetitors) {
+		const weaknesses = (competitor.weaknesses || [])
+			.map((weakness) => normalizeDiscriminatorText(weakness, ""))
+			.filter(Boolean)
+			.slice(0, 3);
+
+		for (const weakness of weaknesses) {
+			const type = classifyDiscriminatorWeakness(weakness);
+			const focus = discriminatorFocusForType(type);
+			const statement = `Our ${focus} approach directly mitigates ${competitor.name}'s ${weakness.toLowerCase()} risk for ${opportunityTitle}.`;
+			const normalizedStatement = statement.toLowerCase();
+			if (seenStatements.has(normalizedStatement)) {
+				continue;
+			}
+			seenStatements.add(normalizedStatement);
+			const requirementBoost = requirementText.length > 0 ? 0.06 : 0;
+			suggestions.push({
+				statement,
+				type,
+				effectiveAgainst: [competitor.id],
+				confidence: boundedHeuristicConfidence(0.56 + requirementBoost + Math.min(0.12, weaknesses.length * 0.03)),
+				rationale: `Deterministic fallback derived from ${competitor.name}'s recorded weakness "${weakness}"${requirementText ? " and the opportunity requirements" : ""}.`,
+				isNew: true,
+			});
+			if (suggestions.length >= 5) {
+				return suggestions;
+			}
+		}
+	}
+
+	return suggestions;
+}
+
 /**
  * Suggest discriminators for a specific opportunity based on competitive landscape.
  */
@@ -1707,6 +1791,7 @@ export async function suggestDiscriminators(
 		// Use AI to suggest new discriminators
 		const manager = getProviderManager();
 		await manager.initialize();
+		let aiSuggestionCount = 0;
 
 		if (await manager.isAvailable()) {
 			try {
@@ -1715,9 +1800,25 @@ export async function suggestDiscriminators(
 					competitorLinks.map(cl => cl.competitor),
 					existingDiscriminators
 				);
+				aiSuggestionCount = aiSuggestions.length;
 				suggestions.push(...aiSuggestions);
 			} catch (error) {
 				logger.warn("[suggestDiscriminators] AI suggestion failed:", error);
+			}
+		}
+
+		if (aiSuggestionCount === 0) {
+			const deterministicSuggestions = buildDeterministicDiscriminatorSuggestions(
+				opportunity,
+				competitorLinks.map(cl => cl.competitor),
+				existingDiscriminators
+			);
+			const currentStatements = new Set(suggestions.map((suggestion) => suggestion.statement.toLowerCase()));
+			for (const suggestion of deterministicSuggestions) {
+				if (!currentStatements.has(suggestion.statement.toLowerCase())) {
+					suggestions.push(suggestion);
+					currentStatements.add(suggestion.statement.toLowerCase());
+				}
 			}
 		}
 
