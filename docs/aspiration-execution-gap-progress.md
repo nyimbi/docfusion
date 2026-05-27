@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Firecrawl-Enriched SearXNG Discovery Results
+
+Status: implemented and verified.
+
+Purpose: move default opportunity discovery from thin SearXNG result cards toward usable RFP intake material by scraping top search hits through Firecrawl.
+
+Changes in this slice:
+- Add bounded Firecrawl enrichment to `DefaultDiscoveryService.discover_opportunities` after SearXNG candidate discovery.
+- Capture clean markdown, metadata, scraped links, extraction payload, truncation status, and likely RFP/document links on enriched opportunities.
+- Keep enrichment configurable through `enrich` and `enrich_limit` filters plus `DISCOVERY_FIRECRAWL_ENRICH_LIMIT`.
+- Add Firecrawl to discovery source listing alongside SearXNG.
+- Add regression coverage proving SearXNG results are enriched, cached, and produce absolute RFP document links without live network calls.
+
+Verification:
+- `uv run pytest tests/ci/test_discovery_service_contract.py tests/ci/test_search_infrastructure_config.py -q` passed with 7 tests.
+- `uv run pytest tests/ci/test_discovery_service_contract.py tests/ci/test_search_infrastructure_config.py tests/ci/test_intelligence_service_contract.py -q` passed with 10 tests.
+- `python -m py_compile src/docfusion/services/discovery_service.py tests/ci/test_discovery_service_contract.py` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue connecting enriched discovery output into persisted import/intake flows and live proof once PostgreSQL connectivity is restored.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Speaker Notes on Blank AI
 
 Status: implemented and verified.

@@ -66,6 +66,40 @@ class _FakeOpportunityAnalyzer:
 		return _FakeAnalysis()
 
 
+class _FakeScrapeResult:
+	success = True
+	markdown = (
+		"# Detailed tender notice\n\n"
+		"RFP package for digital case management implementation with submission requirements.\n\n"
+		"[RFP package](/docs/case-management-rfp.pdf)"
+	)
+	links = ["/docs/case-management-rfp.pdf", "https://example.test/news"]
+	metadata = {
+		"title": "Detailed case management tender",
+		"description": "Full tender notice from the buyer portal.",
+	}
+	extract: dict[str, Any] = {}
+	error = None
+
+
+class _FakeFirecrawlClient:
+	calls: list[dict[str, Any]] = []
+
+	def __init__(self, *args: Any, **kwargs: Any) -> None:
+		self.args = args
+		self.kwargs = kwargs
+
+	async def __aenter__(self) -> "_FakeFirecrawlClient":
+		return self
+
+	async def __aexit__(self, *args: Any) -> None:
+		return None
+
+	async def scrape(self, url: str, options: Any) -> _FakeScrapeResult:
+		self.calls.append({"url": url, "options": options})
+		return _FakeScrapeResult()
+
+
 def _bare_discovery_service() -> DefaultDiscoveryService:
 	service = DefaultDiscoveryService.__new__(DefaultDiscoveryService)
 	service._opportunity_cache = {}
@@ -74,6 +108,8 @@ def _bare_discovery_service() -> DefaultDiscoveryService:
 	service._qualification_analyzer = None
 	service._global_db = None
 	service._engine = None
+	service._firecrawl_url = "http://84.247.181.100:3002"
+	service._firecrawl_enrich_limit = 3
 	return service
 
 
@@ -83,7 +119,7 @@ async def test_default_discovery_searches_searxng_and_caches_opportunities(monke
 	monkeypatch.setattr("httpx.AsyncClient", _FakeAsyncClient)
 	service = _bare_discovery_service()
 
-	results = await service.discover_opportunities(filters={"query": "case management tender", "limit": 5})
+	results = await service.discover_opportunities(filters={"query": "case management tender", "limit": 5, "enrich": False})
 
 	assert len(results) == 1
 	assert results[0]["title"] == "Tender for case management platform"
@@ -91,6 +127,33 @@ async def test_default_discovery_searches_searxng_and_caches_opportunities(monke
 	assert await service.get_opportunity_details(results[0]["id"]) == results[0]
 	assert _FakeAsyncClient.calls[0]["url"] == "https://search.lindela.io/search"
 	assert _FakeAsyncClient.calls[0]["params"]["q"] == "case management tender"
+
+
+@pytest.mark.asyncio
+async def test_default_discovery_enriches_top_search_results_with_firecrawl(monkeypatch):
+	_FakeAsyncClient.calls = []
+	_FakeFirecrawlClient.calls = []
+	monkeypatch.setattr("httpx.AsyncClient", _FakeAsyncClient)
+	monkeypatch.setattr(
+		"docfusion.infrastructure.firecrawl_client.FirecrawlClient",
+		_FakeFirecrawlClient,
+	)
+	service = _bare_discovery_service()
+
+	results = await service.discover_opportunities(filters={"query": "case management tender", "limit": 5})
+
+	assert len(results) == 1
+	assert results[0]["title"] == "Detailed case management tender"
+	assert results[0]["description"] == "Full tender notice from the buyer portal."
+	assert results[0]["scrape_status"] == "success"
+	assert "RFP package for digital case management" in results[0]["requirements"]
+	assert "firecrawl-enriched" in results[0]["tags"]
+	assert results[0]["document_links"] == [{
+		"url": "https://example.test/docs/case-management-rfp.pdf",
+		"source": "firecrawl-link",
+	}]
+	assert _FakeFirecrawlClient.calls[0]["url"] == "https://example.test/tenders/case-management"
+	assert await service.get_opportunity_details(results[0]["id"]) == results[0]
 
 
 @pytest.mark.asyncio
@@ -133,4 +196,10 @@ async def test_default_discovery_lists_searxng_source():
 		"type": "metasearch",
 		"region": "global",
 		"url": "https://search.lindela.io",
+	}, {
+		"id": "firecrawl",
+		"name": "Firecrawl page enrichment",
+		"type": "scraper",
+		"region": "global",
+		"url": "http://84.247.181.100:3002",
 	}]

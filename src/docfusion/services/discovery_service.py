@@ -8,11 +8,16 @@ scrapers, analyzers, and matchers directly.
 import logging
 import hashlib
 import os
+import re
 from typing import Protocol, Any
+from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_SEARXNG_URL = "https://search.lindela.io"
+DEFAULT_FIRECRAWL_URL = "http://84.247.181.100:3002"
+DEFAULT_FIRECRAWL_ENRICH_LIMIT = 3
+MAX_SCRAPED_MARKDOWN_CHARS = 12_000
 
 
 class DiscoveryServiceInterface(Protocol):
@@ -121,6 +126,15 @@ class DefaultDiscoveryService:
 			or os.getenv("SEARXNG_BASE_URL")
 			or DEFAULT_SEARXNG_URL
 		).rstrip("/")
+		self._firecrawl_url = (
+			os.getenv("FIRECRAWL_URL")
+			or os.getenv("FIRECRAWL_BASE_URL")
+			or DEFAULT_FIRECRAWL_URL
+		).rstrip("/")
+		self._firecrawl_enrich_limit = self._coerce_limit(
+			os.getenv("DISCOVERY_FIRECRAWL_ENRICH_LIMIT"),
+			default=DEFAULT_FIRECRAWL_ENRICH_LIMIT,
+		)
 
 		try:
 			from docfusion.discovery import _SCRAPERS_AVAILABLE
@@ -162,6 +176,20 @@ class DefaultDiscoveryService:
 		except Exception as exc:
 			logger.warning("SearXNG discovery failed: %s", exc)
 			opportunities = []
+
+		if self._should_enrich_with_firecrawl(filters):
+			enrich_limit = self._coerce_limit(
+				filters.get("enrich_limit"),
+				default=getattr(
+					self,
+					"_firecrawl_enrich_limit",
+					DEFAULT_FIRECRAWL_ENRICH_LIMIT,
+				),
+			)
+			opportunities = await self._enrich_opportunities_with_firecrawl(
+				opportunities,
+				enrich_limit,
+			)
 
 		for opportunity in opportunities:
 			self._opportunity_cache[opportunity["id"]] = opportunity
@@ -225,6 +253,12 @@ class DefaultDiscoveryService:
 			"type": "metasearch",
 			"region": "global",
 			"url": self._searxng_url,
+		}, {
+			"id": "firecrawl",
+			"name": "Firecrawl page enrichment",
+			"type": "scraper",
+			"region": "global",
+			"url": getattr(self, "_firecrawl_url", DEFAULT_FIRECRAWL_URL),
 		}]
 		if source_type:
 			sources = [source for source in sources if source["type"] == source_type]
@@ -307,6 +341,152 @@ class DefaultDiscoveryService:
 			"expression of interest",
 			"eoi",
 		))
+
+	def _should_enrich_with_firecrawl(self, filters: dict[str, Any]) -> bool:
+		value = filters.get("enrich")
+		if value is None:
+			return True
+		if isinstance(value, str):
+			return value.strip().lower() not in {"0", "false", "no", "off"}
+		return bool(value)
+
+	async def _enrich_opportunities_with_firecrawl(
+		self,
+		opportunities: list[dict[str, Any]],
+		enrich_limit: int,
+	) -> list[dict[str, Any]]:
+		if not opportunities or enrich_limit <= 0:
+			return opportunities
+
+		try:
+			from docfusion.infrastructure.firecrawl_client import (
+				FirecrawlClient,
+				OutputFormat,
+				ScrapeOptions,
+			)
+		except ImportError as exc:
+			logger.warning("Firecrawl client unavailable; returning SearXNG-only discovery results: %s", exc)
+			return opportunities
+
+		enriched = [dict(opportunity) for opportunity in opportunities]
+		async with FirecrawlClient(base_url=getattr(self, "_firecrawl_url", DEFAULT_FIRECRAWL_URL)) as client:
+			for index, opportunity in enumerate(enriched[:enrich_limit]):
+				url = str(opportunity.get("source_url") or "")
+				if not url.startswith(("http://", "https://")):
+					opportunity["scrape_status"] = "skipped"
+					opportunity["scrape_error"] = "No public HTTP source URL available"
+					continue
+				try:
+					result = await client.scrape(
+						url,
+						ScrapeOptions(
+							formats=[OutputFormat.MARKDOWN, OutputFormat.LINKS],
+							only_main_content=True,
+							timeout=30_000,
+						),
+					)
+				except Exception as exc:  # FirecrawlClient should catch HTTP errors, but keep discovery resilient.
+					logger.warning("Firecrawl enrichment failed for %s: %s", url, exc)
+					opportunity["scrape_status"] = "failed"
+					opportunity["scrape_error"] = str(exc)
+					continue
+
+				if not result.success:
+					opportunity["scrape_status"] = "failed"
+					opportunity["scrape_error"] = result.error or "Firecrawl scrape failed"
+					continue
+
+				self._apply_firecrawl_result(opportunity, result)
+				opportunity["scrape_rank"] = index + 1
+
+		return enriched
+
+	def _apply_firecrawl_result(self, opportunity: dict[str, Any], scrape_result: Any) -> None:
+		markdown = str(getattr(scrape_result, "markdown", "") or "")
+		metadata = dict(getattr(scrape_result, "metadata", {}) or {})
+		links = list(getattr(scrape_result, "links", []) or [])
+		extract = dict(getattr(scrape_result, "extract", {}) or {})
+
+		title = str(metadata.get("title") or opportunity.get("title") or "Untitled opportunity")
+		description = self._first_non_empty(
+			metadata.get("description"),
+			self._summarize_markdown(markdown),
+			opportunity.get("description"),
+		)
+
+		opportunity.update({
+			"title": title,
+			"description": description,
+			"requirements": (
+				markdown[:MAX_SCRAPED_MARKDOWN_CHARS]
+				if markdown
+				else opportunity.get("requirements") or description
+			),
+			"scrape_status": "success",
+			"scraped_markdown": markdown[:MAX_SCRAPED_MARKDOWN_CHARS],
+			"scraped_markdown_truncated": len(markdown) > MAX_SCRAPED_MARKDOWN_CHARS,
+			"scraped_links": links[:100],
+			"scrape_metadata": metadata,
+			"extracted": extract,
+			"document_links": self._extract_document_links(
+				str(opportunity.get("source_url") or ""),
+				markdown,
+				links,
+			),
+			"tags": sorted(set((opportunity.get("tags") or []) + ["firecrawl-enriched"])),
+		})
+
+	def _first_non_empty(self, *values: Any) -> str:
+		for value in values:
+			text = str(value or "").strip()
+			if text:
+				return text
+		return ""
+
+	def _summarize_markdown(self, markdown: str) -> str:
+		for line in markdown.splitlines():
+			text = re.sub(r"\s+", " ", line).strip(" #*\t")
+			if len(text) >= 40:
+				return text[:500]
+		return re.sub(r"\s+", " ", markdown).strip()[:500]
+
+	def _extract_document_links(self, source_url: str, markdown: str, links: list[str]) -> list[dict[str, str]]:
+		candidates = set(links)
+		for match in re.finditer(r"https?://[^\s)\]\"']+", markdown):
+			candidates.add(match.group(0))
+		for match in re.finditer(r"\[[^\]]+\]\(([^)]+)\)", markdown):
+			candidates.add(match.group(1))
+
+		documents: list[dict[str, str]] = []
+		for raw_url in candidates:
+			url = urljoin(source_url, str(raw_url).strip())
+			lower_url = url.lower()
+			if not any(
+				token in lower_url
+				for token in (".pdf", ".doc", ".docx", ".zip", "download", "attachment")
+			):
+				continue
+			if not any(
+				token in lower_url
+				for token in (
+					"rfp",
+					"tender",
+					"bid",
+					"proposal",
+					"terms",
+					"tor",
+					"solicitation",
+					".pdf",
+					".doc",
+					".docx",
+				)
+			):
+				continue
+			documents.append({
+				"url": url,
+				"source": "firecrawl-link",
+			})
+		return sorted(documents, key=lambda item: item["url"])[:20]
 
 	def _to_opportunity_data(self, opportunity: dict[str, Any]) -> dict[str, Any]:
 		return {
