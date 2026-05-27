@@ -240,6 +240,18 @@ export type { ThemeSummaryCardProps } from "./ThemeSummaryCard";
 export { ThemeReinforcementGenerator } from "./ThemeReinforcementGenerator";
 export type { ThemeReinforcementGeneratorProps } from "./ThemeReinforcementGenerator";
 
+/**
+ * ResponseWinThemeSeedReview - Review generated response-package win-theme seeds
+ *
+ * Features:
+ * - Approve/reject decisions before persistence
+ * - Reviewer note capture
+ * - Evaluator criteria, requirement, and evidence visibility
+ * - Bulk persistence for approved seeds only
+ */
+export { ResponseWinThemeSeedReview } from "./ResponseWinThemeSeedReview";
+export type { ResponseWinThemeSeedReviewProps } from "./ResponseWinThemeSeedReview";
+
 // =============================================================================
 // Re-export Types from lib/types/win-themes
 // =============================================================================
@@ -264,6 +276,9 @@ export type {
 	ThemeCoverageMetrics,
 	CreateWinThemeInput,
 	UpdateWinThemeInput,
+	ResponseWinThemeSeedInput,
+	ResponseWinThemeSeedReviewDecision,
+	CreateThemesFromResponseSeedsInput,
 
 	// Suggestions
 	ThemeSuggestion,

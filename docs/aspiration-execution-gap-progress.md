@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Win Theme Seed Review Approval
+
+Status: implemented and verified.
+
+Purpose: require human review decisions before generated response-package win-theme seeds are bulk-persisted, while preserving the existing legacy import path for trusted callers.
+
+Changes in this slice:
+- Add reviewed seed fields for approve/reject decisions and reviewer notes.
+- Gate `createThemesFromResponseSeeds` with `reviewRequired`, so only approved seeds become durable win themes and rejected/pending seeds are counted separately.
+- Preserve backward-compatible bulk persistence for callers that do not require review.
+- Add a reusable `ResponseWinThemeSeedReview` UI component that shows evaluator criteria, requirements, evidence, reviewer notes, and persists only approved seeds.
+- Export the review component and reviewed seed types through the win-theme component barrel.
+- Add regression coverage proving rejected and pending-review seeds are not inserted.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts` from `frontend/` passed, running 5 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` from `frontend/` passed, running 15 strategic capability tests across competitive win themes, resource reuse, and search/RAG health.
+
+Remaining after this slice:
+- Wire the seed review component into the response package review screen when that screen is selected as the primary operator surface.
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Command Center Shows Win Theme Readiness
 
 Status: implemented and verified.

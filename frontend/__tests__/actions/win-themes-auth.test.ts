@@ -152,6 +152,92 @@ describe("win theme authorization", () => {
 		]);
 	});
 
+	it("persists only approved response win theme seed reviews", async () => {
+		let insertedValues: unknown;
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({ result: [{ maxOrder: 4 }] }));
+		dbMock.insert.mockReturnValueOnce(createChain({
+			result: [{
+				id: "44444444-4444-4444-8444-444444444444",
+				opportunityId: "22222222-2222-4222-8222-222222222222",
+				themeStatement: "Datacraft will reduce transition risk with a proven mobilisation playbook.",
+				shortVersion: "Transition risk reduction",
+				themeType: "risk_mitigation",
+				priority: 5,
+				supportingEvidence: ["Mobilisation evidence"],
+				relatedProjects: [],
+				evaluationCriteriaIds: ["LIVE-EVAL-010"],
+				keywords: ["transition", "risk"],
+				ghostTheme: null,
+				targetCompetitor: null,
+				isActive: true,
+				createdBy: "theme-user-1",
+				createdAt: new Date("2026-05-27T00:00:00.000Z"),
+				updatedAt: new Date("2026-05-27T00:00:00.000Z"),
+			}],
+			onValues: (value) => {
+				insertedValues = value;
+			},
+		}));
+
+		const result = await createThemesFromResponseSeeds({
+			opportunityId: "22222222-2222-4222-8222-222222222222",
+			reviewRequired: true,
+			seeds: [
+				{
+					id: "approved-seed",
+					statement: "Datacraft will reduce transition risk with a proven mobilisation playbook.",
+					shortVersion: "Transition risk reduction",
+					type: "risk_mitigation",
+					priority: 1,
+					evaluationCriteriaIds: ["LIVE-EVAL-010"],
+					targetDocumentTypes: ["transition_plan"],
+					supportingEvidence: ["Mobilisation evidence"],
+					keywords: ["transition", "risk"],
+					rationale: "Match evaluator risk scoring.",
+					reviewDecision: "approve",
+					reviewNote: "Strong enough for the initial strategy set.",
+				},
+				{
+					id: "rejected-seed",
+					statement: "Datacraft will win with a generic compliance theme that needs rewriting.",
+					shortVersion: "Generic compliance",
+					type: "value_prop",
+					priority: 2,
+					reviewDecision: "reject",
+				},
+				{
+					id: "pending-seed",
+					statement: "Datacraft can align training evidence to field adoption scoring.",
+					shortVersion: "Training adoption evidence",
+					type: "proof_point",
+					priority: 3,
+				},
+			],
+		});
+
+		expect(result.success).toBe(true);
+		expect(result.data).toMatchObject({
+			skipped: 0,
+			rejected: 1,
+			pendingReview: 1,
+		});
+		expect(insertedValues).toEqual([
+			expect.objectContaining({
+				themeStatement: "Datacraft will reduce transition risk with a proven mobilisation playbook.",
+				evaluationCriteriaIds: ["LIVE-EVAL-010"],
+				targetSections: ["transition_plan"],
+				variations: [
+					"Match evaluator risk scoring.",
+					"Review note: Strong enough for the initial strategy set.",
+				],
+				priority: 5,
+			}),
+		]);
+	});
+
 	it("persists evaluation criteria mappings on theme updates", async () => {
 		let patch: Record<string, unknown> | undefined;
 		dbMock.update.mockReturnValueOnce(createChain({

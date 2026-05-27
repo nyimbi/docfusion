@@ -143,11 +143,14 @@ const responseWinThemeSeedSchema = z.object({
 	supportingEvidence: z.array(z.string()).optional().default([]),
 	keywords: z.array(z.string()).optional().default([]),
 	rationale: z.string().optional(),
+	reviewDecision: z.enum(["approve", "reject"]).optional(),
+	reviewNote: z.string().max(1000).optional(),
 });
 
 const createThemesFromResponseSeedsSchema = z.object({
 	opportunityId: z.string().uuid("Invalid opportunity ID"),
 	seeds: z.array(responseWinThemeSeedSchema).min(1).max(12),
+	reviewRequired: z.boolean().optional().default(false),
 });
 
 const competitorInputSchema = z.object({
@@ -535,7 +538,7 @@ export async function createTheme(input: CreateWinThemeInput): Promise<CreateThe
  * Persist generated live response package win-theme seeds as opportunity win themes.
  *
  * @param input - Opportunity and generated seed records
- * @returns Created win themes and skipped duplicate count
+ * @returns Created win themes and review/duplicate disposition counts
  */
 export async function createThemesFromResponseSeeds(
 	input: CreateThemesFromResponseSeedsInput
@@ -549,12 +552,21 @@ export async function createThemesFromResponseSeeds(
 			.select()
 			.from(winThemes)
 			.where(visibleOpportunityThemesCondition(validated.opportunityId, userContext));
+		const reviewableSeeds = validated.reviewRequired
+			? validated.seeds.filter((seed) => seed.reviewDecision === "approve")
+			: validated.seeds;
+		const rejected = validated.reviewRequired
+			? validated.seeds.filter((seed) => seed.reviewDecision === "reject").length
+			: 0;
+		const pendingReview = validated.reviewRequired
+			? validated.seeds.filter((seed) => seed.reviewDecision === undefined).length
+			: 0;
 		const existingStatements = new Set(existingThemes.map((theme) => normalizeThemeStatement(theme.themeStatement)));
 		const existingCriteriaIds = new Set(existingThemes.flatMap((theme) => theme.evaluationCriteriaIds ?? []));
 		const displayOrder = await getNextDisplayOrder(validated.opportunityId, userContext);
 		const seenStatements = new Set(existingStatements);
 		const seenCriteriaIds = new Set(existingCriteriaIds);
-		const uniqueSeeds = validated.seeds.filter((seed) => {
+		const uniqueSeeds = reviewableSeeds.filter((seed) => {
 			const normalizedStatement = normalizeThemeStatement(seed.statement);
 			if (seenStatements.has(normalizedStatement)) return false;
 			const criteriaIds = seed.evaluationCriteriaIds ?? [];
@@ -567,7 +579,15 @@ export async function createThemesFromResponseSeeds(
 		});
 
 		if (uniqueSeeds.length === 0) {
-			return { success: true, data: { created: [], skipped: validated.seeds.length } };
+			return {
+				success: true,
+				data: {
+					created: [],
+					skipped: reviewableSeeds.length,
+					rejected,
+					pendingReview,
+				},
+			};
 		}
 
 		const createdThemes = await db
@@ -582,7 +602,8 @@ export async function createThemesFromResponseSeeds(
 				relatedProjects: [],
 				evaluationCriteriaIds: seed.evaluationCriteriaIds,
 				keywords: seed.keywords,
-				variations: seed.rationale ? [seed.rationale] : [],
+				variations: [seed.rationale, seed.reviewNote ? `Review note: ${seed.reviewNote}` : undefined]
+					.filter((value): value is string => Boolean(value)),
 				targetSections: seed.targetDocumentTypes,
 				minOccurrences: Math.max(2, Math.min(4, seed.targetDocumentTypes.length || 3)),
 				isActive: true,
@@ -596,7 +617,9 @@ export async function createThemesFromResponseSeeds(
 			success: true,
 			data: {
 				created: createdThemes.map(mapDBThemeToWinTheme),
-				skipped: validated.seeds.length - createdThemes.length,
+				skipped: reviewableSeeds.length - createdThemes.length,
+				rejected,
+				pendingReview,
 			},
 		};
 	} catch (error) {
