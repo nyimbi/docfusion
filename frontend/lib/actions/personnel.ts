@@ -124,6 +124,16 @@ interface DateRange {
 	end: Date;
 }
 
+type PersonnelCertification = NonNullable<DBPersonnel["certifications"]>[number] & {
+	reminder?: {
+		lastSentAt?: string;
+		reminderCount?: number;
+		sentBy?: string;
+		sentTo?: string;
+		channel?: string;
+	};
+};
+
 interface OrgChartData {
 	nodes: Array<{
 		id: string;
@@ -592,6 +602,47 @@ function positionRequirementsByOpportunityCondition(opportunityId: string, conte
 		eq(positionRequirements.opportunityId, opportunityId),
 		assignedOpportunityExistsSql(opportunityId, context)
 	)!;
+}
+
+function visiblePersonnelByIdsCondition(personnelIds: string[], context: PersonnelOpportunityContext): SQL {
+	return and(
+		inArray(personnel.id, personnelIds),
+		or(eq(personnel.organizationId, context.organizationId), isNull(personnel.organizationId))!
+	)!;
+}
+
+function certificationNeedsRenewalReminder(certification: PersonnelCertification): boolean {
+	return certification.status === "active" && Boolean(certification.expirationDate);
+}
+
+function applyCertificationReminderMetadata(
+	certifications: PersonnelCertification[],
+	input: {
+		sentAt: string;
+		sentBy: string;
+		sentTo: string;
+	}
+): { certifications: PersonnelCertification[]; reminderCount: number } {
+	let reminderCount = 0;
+	const updated = certifications.map((certification) => {
+		if (!certificationNeedsRenewalReminder(certification)) {
+			return certification;
+		}
+		reminderCount++;
+		const previousReminder = certification.reminder ?? {};
+		return {
+			...certification,
+			reminder: {
+				...previousReminder,
+				lastSentAt: input.sentAt,
+				reminderCount: (previousReminder.reminderCount ?? 0) + 1,
+				sentBy: input.sentBy,
+				sentTo: input.sentTo,
+				channel: "email",
+			},
+		};
+	});
+	return { certifications: updated, reminderCount };
 }
 
 /**
@@ -1914,19 +1965,44 @@ export async function getExpiringCertifications(
 export async function sendCertificationReminders(
 	personnelIds: string[]
 ): Promise<ActionResult<{ sent: number }>> {
-	await requireCurrentUserId();
+	const context = await requirePersonnelOpportunityContext();
 
 	try {
-		// In production, this would send emails via email service
-		// For now, just count and return
+		const uniquePersonnelIds = Array.from(new Set(personnelIds.filter(Boolean)));
+		if (uniquePersonnelIds.length === 0) {
+			return { success: true, data: { sent: 0 } };
+		}
 
 		const personnelToNotify = await db
 			.select()
 			.from(personnel)
-			.where(inArray(personnel.id, personnelIds));
+			.where(visiblePersonnelByIdsCondition(uniquePersonnelIds, context));
 
-		// Log the reminder action (in production, integrate with notification service)
-		const sentCount = personnelToNotify.filter((p) => p.email).length;
+		let sentCount = 0;
+		const sentAt = new Date().toISOString();
+		for (const person of personnelToNotify) {
+			if (!person.email) continue;
+			const { certifications, reminderCount } = applyCertificationReminderMetadata(
+				(person.certifications ?? []) as PersonnelCertification[],
+				{
+					sentAt,
+					sentBy: context.userId,
+					sentTo: person.email,
+				}
+			);
+			if (reminderCount === 0) continue;
+			await db
+				.update(personnel)
+				.set({
+					certifications,
+					updatedAt: new Date(),
+				})
+				.where(and(
+					eq(personnel.id, person.id),
+					or(eq(personnel.organizationId, context.organizationId), isNull(personnel.organizationId))!
+				));
+			sentCount++;
+		}
 
 		return { success: true, data: { sent: sentCount } };
 	} catch (error) {

@@ -167,12 +167,12 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		kind: "integration",
 		proofTargets: ["F-013", "F-014", "UX-003", "UX-011"],
 		requiresLiveServices: false,
-		description: "Validates proposal task workflow projection, workload balancing, review comment resolution, and clarification lifecycle handling.",
+		description: "Validates proposal task workflow projection, workload balancing, personnel readiness reminders, review comment resolution, and clarification lifecycle handling.",
 		command: {
 			command: "npm",
-			args: ["test", "--", "proposal-task-workflow.test.ts", "task-management-auth.test.ts", "review-comment-workflow.test.ts", "clarification-workflow.test.ts", "work-items-command-center.test.ts", "projections.test.ts"],
+			args: ["test", "--", "proposal-task-workflow.test.ts", "task-management-auth.test.ts", "personnel-reminders.test.ts", "personnel-auth.test.ts", "review-comment-workflow.test.ts", "clarification-workflow.test.ts", "work-items-command-center.test.ts", "projections.test.ts"],
 		},
-		expectedArtifacts: ["vitest:proposal-task-workflow", "vitest:task-management-auth", "vitest:review-comment-workflow", "vitest:clarification-workflow", "vitest:work-items-command-center", "vitest:work-items-projections"],
+		expectedArtifacts: ["vitest:proposal-task-workflow", "vitest:task-management-auth", "vitest:personnel-reminders", "vitest:personnel-auth", "vitest:review-comment-workflow", "vitest:clarification-workflow", "vitest:work-items-command-center", "vitest:work-items-projections"],
 	},
 	{
 		id: "wave4-capture-pipeline-scope",

@@ -5741,3 +5741,26 @@ Verification:
 Remaining after this slice:
 - Continue auditing remaining export/download paths for placeholders versus durable artifacts.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Durable Certification Reminder Tracking
+
+Status: implemented and verified.
+
+Purpose: make personnel certification reminders create auditable reminder state instead of only counting eligible email addresses.
+
+Changes in this slice:
+- Scope certification reminder reads and writes to the caller's organization.
+- Record reminder metadata on active certifications with expiration dates, including sent time, actor, recipient, channel, and reminder count.
+- Skip personnel without email and certifications that are not active renewal candidates.
+- Add focused regression coverage for reminder metadata persistence and organization scoping.
+- Wire personnel reminder/auth tests into the Wave 4 planning and collaboration proof manifest.
+
+Verification:
+- `npm test -- personnel-reminders.test.ts personnel-auth.test.ts` passed with 3 tests.
+- `npm test -- personnel-reminders.test.ts personnel-auth.test.ts platform-proof-scenarios.test.ts` passed with 9 tests.
+- `npm run platform:proof -- --run wave4-planning-collaboration-tasks` passed with 33 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue auditing staffing workflows for unscoped reads and non-durable operational actions.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
