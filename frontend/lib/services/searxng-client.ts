@@ -46,6 +46,7 @@ export interface SearchOptions {
   time_range?: string; // day, week, month, year
   safesearch?: 0 | 1 | 2;
   page?: number;
+  sendAcceptHeader?: boolean;
 }
 
 /**
@@ -83,9 +84,11 @@ export async function searchSearxng(
 
   const response = await fetch(url.toString(), {
     signal: AbortSignal.timeout(30000),
-    headers: {
-      "Accept": "application/json",
-    },
+    ...(options.sendAcceptHeader === false ? {} : {
+      headers: {
+        "Accept": "application/json",
+      },
+    }),
   });
 
   if (!response.ok) {

@@ -26,18 +26,20 @@ Changes in this slice:
 - Added `afdb` as a live response-readiness source kind.
 - Added `live-afdb-response-readiness` to the platform proof manifest.
 - Reused the AFDB parser/detail-page path when listing scrape content is available.
-- Added a SearXNG-backed AFDB document fallback that searches for direct AFDB procurement PDF/DOC results and excludes manuals before creating response-ready opportunity candidates.
+- Added an optional CloakBrowser CDP scrape path for challenge-protected AFDB listing traversal when `CLOAKBROWSER_CDP_URL`, `CLOAKBROWSER_WS_ENDPOINT`, or `CLOAKBROWSER_REMOTE_DEBUGGING_URL` is configured.
+- Added a SearXNG-backed AFDB-funded document fallback that searches for reachable procurement PDF/DOC results, omits the JSON Accept header for engines that reject it, excludes manuals and currently challenged AFDB-hosted documents, and probes candidate downloads before creating response-ready opportunity candidates.
 - Broadened response-ready selection terms for consulting, audit, application, mobile, platform, and solution opportunities.
 
 Verification:
 - `npm test -- platform-proof-scenarios.test.ts --run` passed with 6 tests.
 - `npm test -- live-response-package.test.ts platform-proof-scenarios.test.ts --run` passed with 21 tests.
+- `npm test -- cloakbrowser-scraper-client.test.ts live-response-package.test.ts platform-proof-scenarios.test.ts searxng-client-config.test.ts --run` passed with 30 tests.
 - `npx tsc --noEmit --pretty false` passed.
-- `npm run platform:proof -- --run live-afdb-response-readiness --include-live-safe` passed with run `live_afdb_response_readiness_20260527T165029Z`.
-- The passing AFDB live run used SearXNG fallback from `https://search.lindela.io`, found `Request for expression of interest (REOI) for Procurement Audit`, downloaded the AFDB PDF with HTTP 200 and 155750 bytes, extracted 5110 Docling characters, generated six response draft artifacts, captured 14 source requirements, 3 evaluator criteria, 3 win-theme seeds, 7474 draft words, readiness status `ready_for_review`, and 0 warnings or blockers.
+- `npm run platform:proof -- --run live-afdb-response-readiness --include-live-safe` passed with run `live_afdb_response_readiness_20260527T171333Z`.
+- The passing AFDB live run used SearXNG fallback from `https://search.lindela.io`, found an AfDB-funded mobile data collection REOI, downloaded the borrower-hosted PDF with HTTP 200 and 317058 bytes, extracted 4110 Docling characters, generated six response draft artifacts, captured 4 source requirements, 1 win-theme seed, 5919 draft words, readiness status `ready_for_review`, 1 warning for no explicit evaluator scoring criteria, and 0 blockers.
 
 Remaining after this slice:
-- AFDB direct listing scrape currently returns a bot/security verification page through Firecrawl and browser service; consider adding CloakBrowser or another stealth path for direct AFDB listing traversal.
+- AFDB direct listing scrape currently returns a bot/security verification page through Firecrawl and browser service; the optional CloakBrowser CDP hook is in place but was not live-configured in this run.
 - Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
 
 ### 2026-05-27 - Persisted Proof Database Target Evidence

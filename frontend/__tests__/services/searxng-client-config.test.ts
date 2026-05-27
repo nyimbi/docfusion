@@ -88,6 +88,23 @@ describe("SearXNG client configuration", () => {
 		expect(requestedUrl.searchParams.get("engines")).toBe("bing,wikipedia");
 		expect(requestedUrl.searchParams.get("safesearch")).toBe("1");
 	});
+
+	it("can omit the JSON Accept header for engines that reject it", async () => {
+		const fetchMock = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({ query: "afdb", number_of_results: 0, results: [] }),
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		await searchSearxng("afdb", { sendAcceptHeader: false });
+
+		const [, requestInit] = fetchMock.mock.calls[0] as unknown as [string, RequestInit?];
+		expect(requestInit).toEqual(expect.not.objectContaining({
+			headers: expect.anything(),
+		}));
+	});
 });
 
 describe("Docling client configuration", () => {

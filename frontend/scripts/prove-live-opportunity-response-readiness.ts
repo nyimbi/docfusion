@@ -19,6 +19,7 @@ import {
 	type LiveResponsePackage,
 	type LiveResponseReadinessAssessment,
 } from "@/lib/services/live-response-package";
+import { scrapeWithCloakBrowser } from "@/lib/services/cloakbrowser-scraper-client";
 import { fetchKenyaPpipOpportunities } from "@/lib/services/kenya-ppip-client";
 import { searchSearxng, type SearxngResult } from "@/lib/services/searxng-client";
 import { fetchUngmOpportunities } from "@/lib/services/ungm-client";
@@ -54,6 +55,7 @@ const AFDB_SEARCH_QUERIES = [
 	"afdb procurement reoi pdf mobile application",
 	"afdb procurement request for expressions of interest pdf software system",
 	"afdb project related procurement pdf consulting services",
+	"African Development Bank funded procurement REOI PDF consultant services",
 ];
 const PROPOSAL_DOCUMENT_TYPES: ProposalDocumentType[] = [
 	"cover_letter",
@@ -255,7 +257,7 @@ async function fetchAfdbResponseReadyOpportunities(): Promise<LiveResponseReadin
 		}
 
 		const opportunities = await attachAfdbSourceDocuments(client, parsed.opportunities);
-		if (opportunities.some((opportunity) => opportunity.rfpLink ?? opportunity.documentUrl)) {
+		if (opportunities.some(hasDirectSourceDocument)) {
 			return {
 				kind: "afdb",
 				url: SOURCE_URL,
@@ -263,6 +265,15 @@ async function fetchAfdbResponseReadyOpportunities(): Promise<LiveResponseReadin
 			};
 		}
 		lastError = `AFDB detail pages exposed no downloadable source documents on attempt ${attempt}`;
+	}
+
+	const cloakOpportunities = await fetchAfdbCloakBrowserOpportunities(lastError);
+	if (cloakOpportunities.length > 0) {
+		return {
+			kind: "afdb",
+			url: SOURCE_URL,
+			opportunities: cloakOpportunities,
+		};
 	}
 
 	const fallbackOpportunities = await fetchAfdbSearchFallbackOpportunities();
@@ -276,6 +287,44 @@ async function fetchAfdbResponseReadyOpportunities(): Promise<LiveResponseReadin
 	}
 
 	throw new Error(lastError ?? "AFDB source returned no response-ready opportunities");
+}
+
+async function fetchAfdbCloakBrowserOpportunities(previousFailure: string | undefined): Promise<OpportunityData[]> {
+	const result = await scrapeWithCloakBrowser(SOURCE_URL, {
+		timeout: 60000,
+		humanScroll: true,
+		blockMedia: true,
+	});
+	if (!result.success || !result.data) {
+		return [];
+	}
+	const markdown = result.data.markdown ?? result.data.html ?? "";
+	const links = result.data.links ?? [];
+	const parsed = await afdbParser.parse({ markdown, links, url: SOURCE_URL });
+	if (parsed.opportunities.length === 0) {
+		return [];
+	}
+	const client = new FirecrawlClient({ timeout: 60000 });
+	const opportunities = await attachAfdbSourceDocuments(client, parsed.opportunities);
+	if (opportunities.some(hasDirectSourceDocument)) {
+		return opportunities.map((opportunity) => ({
+			...opportunity,
+			metadata: {
+				...(opportunity.metadata ?? {}),
+				afdb: {
+					...afdbMetadata(opportunity),
+					listingDiscoveryMethod: "cloakbrowser-cdp",
+					previousListingFailure: previousFailure,
+				},
+			},
+		}));
+	}
+	return [];
+}
+
+function hasDirectSourceDocument(opportunity: OpportunityData): boolean {
+	const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl ?? "";
+	return /\.(pdf|docx?)(?:$|[?#])/iu.test(documentUrl);
 }
 
 async function attachAfdbSourceDocuments(
@@ -323,12 +372,13 @@ async function fetchAfdbSearchFallbackOpportunities(): Promise<OpportunityData[]
 	const seen = new Set<string>();
 	for (const query of AFDB_SEARCH_QUERIES) {
 		const response = await searchSearxng(query, {
-			language: "en",
-			safesearch: 1,
+			sendAcceptHeader: false,
 		});
 		for (const result of response.results) {
 			const opportunity = afdbOpportunityFromSearchResult(result, query);
 			if (!opportunity) continue;
+			const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl;
+			if (!documentUrl || !(await isDownloadableSourceDocument(documentUrl))) continue;
 			const key = opportunity.rfpLink ?? opportunity.documentUrl ?? opportunity.portalUrl ?? opportunity.title;
 			if (seen.has(key)) continue;
 			seen.add(key);
@@ -342,7 +392,7 @@ async function fetchAfdbSearchFallbackOpportunities(): Promise<OpportunityData[]
 }
 
 function afdbOpportunityFromSearchResult(result: SearxngResult, query: string): OpportunityData | undefined {
-	const documentUrl = afdbDocumentUrlFromSearchResult(result.url);
+	const documentUrl = afdbDocumentUrlFromSearchResult(result);
 	if (!documentUrl) return undefined;
 	const title = cleanSearchTitle(result.title);
 	const lower = `${title} ${result.content} ${documentUrl}`.toLowerCase();
@@ -378,17 +428,35 @@ function afdbOpportunityFromSearchResult(result: SearxngResult, query: string): 
 	};
 }
 
-function afdbDocumentUrlFromSearchResult(url: string): string | undefined {
+function afdbDocumentUrlFromSearchResult(result: SearxngResult): string | undefined {
 	try {
+		const url = result.url;
 		const parsed = new URL(url);
-		if (!/(^|\.)afdb\.org$/iu.test(parsed.hostname)) return undefined;
 		if (!/\.(pdf|docx?)(?:$|[?#])/iu.test(parsed.pathname)) return undefined;
 		if (/operations?[-_]?procurement[-_]?manual|opm-part/iu.test(parsed.pathname)) return undefined;
+		const haystack = `${result.title} ${result.content} ${url}`.toLowerCase();
+		if (/(^|\.)afdb\.org$/iu.test(parsed.hostname)) return undefined;
+		if (!/(african development bank|afdb)/iu.test(haystack)) {
+			return undefined;
+		}
 		parsed.hash = "";
 		return parsed.toString();
 	} catch {
 		return undefined;
 	}
+}
+
+async function isDownloadableSourceDocument(url: string): Promise<boolean> {
+	const response = await fetchPublicHttpUrl(url, {
+		headers: {
+			"User-Agent": "DocFusion/1.0 live-response-readiness-proof",
+			Range: "bytes=0-1023",
+		},
+		timeoutMs: 15000,
+	}, "AFDB response-readiness fallback document probe").catch(() => undefined);
+	if (!response?.ok) return false;
+	const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+	return !contentType.includes("text/html");
 }
 
 function cleanSearchTitle(title: string): string {
