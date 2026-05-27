@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Persisted Import Response Retry After Wave 9
+
+Status: externally blocked.
+
+Purpose: recheck the DB-backed live persisted import-to-response proof after the live Kenya PPIP response-readiness and Wave 9 verification slices passed.
+
+Attempted:
+- `npm run platform:proof -- --run live-persisted-import-response --include-live-safe` failed with run `live_persisted_import_response_20260527T155946Z`.
+- The proof did not reach source discovery, source document persistence, RFP parsing, requirement persistence, or response draft persistence because PostgreSQL refused the connection to `88.80.188.224:5432`.
+- Cleanup had no persisted rows to remove.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity to `88.80.188.224:5432`, then rerun `npm run platform:proof -- --run live-persisted-import-response --include-live-safe`.
+- Keep non-DB live source/readiness proofs as the current validated live path while the persistence layer is unreachable.
+
 ### 2026-05-27 - Full Non-Live Wave 9 Proof After Evaluator Coverage
 
 Status: verified.
