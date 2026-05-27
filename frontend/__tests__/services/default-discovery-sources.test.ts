@@ -12,6 +12,7 @@ describe("default discovery sources", () => {
 			"https://www.afdb.org/en/projects-and-operations/procurement",
 			"https://www.comesa.int/category/open-tenders/",
 			"https://www.unicef.org/supply/service-contracts-tender-calendar",
+			"https://www.unicef.org/supply/tender-calendars",
 		]);
 		expect(new Set(DEFAULT_DISCOVERY_SOURCE_URLS).size).toBe(DEFAULT_DISCOVERY_SOURCE_URLS.length);
 	});

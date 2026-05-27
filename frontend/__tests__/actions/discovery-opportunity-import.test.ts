@@ -1131,6 +1131,62 @@ describe("discoverAndImportOpportunities", () => {
 		expect(result.sourceDocumentsCreated).toBe(0);
 	});
 
+	it("imports UNICEF tender calendar documents as source documents", async () => {
+		const documentUrl = "https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf";
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Tender calendars",
+					"",
+					"### [Medicines tender calendar 2025-2026](https://www.unicef.org/supply/documents/medicines-tender-calendar)",
+					"",
+					"UNICEF Supply Division publishes calendar dates for planned medicines tenders.",
+					"",
+					"Files available for download (1)",
+					"",
+					`[Medicines tender calendar 2025-2026](${documentUrl})`,
+				].join("\n"),
+				links: [documentUrl],
+				metadata: { title: "Tender calendars" },
+			},
+		});
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.unicef.org/supply/tender-calendars"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			source: "unicef",
+			sourcePlatform: "UNICEF Supply Division",
+			sourceFile: "source:https://www.unicef.org/supply/tender-calendars",
+			title: "Medicines tender calendar 2025-2026",
+			category: "UNICEF tender calendar",
+			rfpLink: documentUrl,
+			portalUrl: "https://www.unicef.org/supply/documents/medicines-tender-calendar",
+			documentUrl,
+			tags: ["external-discovery", "source-scrape", "unicef", "un-procurement", "tender-calendar", "supply", "health-education"],
+		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
+		const insertBuilder = vi.mocked(db.insert).mock.results[0].value as {
+			values: ReturnType<typeof vi.fn>;
+		};
+		expect(insertBuilder.values).toHaveBeenCalledWith(expect.objectContaining({
+			documentName: "Medicines-Tender-Calendar-2025-2026.pdf",
+			documentType: "rfp",
+			sourceUrl: documentUrl,
+		}));
+	});
+
 	it("imports AFDB configured sources with the AFDB parser", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: true,

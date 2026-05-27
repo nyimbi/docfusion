@@ -26,8 +26,9 @@ Changes in this slice:
 - Add a UNICEF Supply Division parser for service-contract tender calendar tables and tender-calendar document cards.
 - Preserve UNICEF source identity, platform name, UN procurement tags, service duration, issuance window, and contact channel through configured-source imports.
 - Preserve parser-emitted source tags through configured-source imports so useful qualifiers such as `ict` and `service-contract` survive persistence.
-- Add UNICEF's service contracts tender calendar to the default live discovery source list.
+- Add UNICEF's service contracts tender calendar and downloadable tender-calendar document page to the default live discovery source list.
 - Add a `live-unicef-source` platform proof that verifies live Firecrawl scrape extraction, ICT row detection, metadata preservation, and no fabricated deadlines.
+- Extend the UNICEF live proof to verify a downloadable UNICEF tender calendar PDF link.
 - Add focused parser, configured-source import, proof-manifest, and default-source regression coverage.
 
 Verification:
@@ -37,6 +38,9 @@ Verification:
 - `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 discovery-to-response bridge test files and 51 tests.
 - Follow-up tag preservation check: `npm test -- discovery-opportunity-import.test.ts` from `frontend/` passed, running 18 tests.
 - Follow-up tag preservation check: `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- Default tender-calendar document check: `npm test -- unicef-parser.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts default-discovery-sources.test.ts` from `frontend/` passed, running 27 tests.
+- Default tender-calendar document check: `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- Default tender-calendar document check: `npm run platform:proof -- --include-live-safe --run live-unicef-source` from `frontend/` passed. It proved the UNICEF service-contract rows plus `https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf` from the tender calendars page.
 
 Remaining after this slice:
 - Continue adding high-value live sources where Firecrawl or source APIs can produce normalized opportunities with low noise and useful source documents.
