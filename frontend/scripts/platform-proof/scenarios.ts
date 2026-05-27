@@ -550,6 +550,7 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: [
 			".omx/state/platform-live-opportunity-portfolio-triage-evidence.md",
 			".omx/logs/platform-completion/live-opportunity-portfolio-triage-<run_id>/live-opportunity-portfolio-triage.json",
+			".omx/logs/platform-completion/live-opportunity-portfolio-triage-<run_id>/live-opportunity-portfolio-triage.md",
 		],
 	},
 	{

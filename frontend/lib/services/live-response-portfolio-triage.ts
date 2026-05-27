@@ -75,6 +75,47 @@ export function triageLiveResponsePortfolio(
 	};
 }
 
+export function formatLiveResponsePortfolioBrief(triage: LiveResponsePortfolioTriage): string {
+	const lines = [
+		"# Live Response Portfolio Triage",
+		"",
+		`Generated: ${triage.generatedAt}`,
+		"",
+		"## Summary",
+		"",
+		`- Ranked opportunities: ${triage.ranked.length}`,
+		`- Response-ready opportunities: ${triage.responseReadyCount}`,
+		`- Pursue now: ${triage.pursueNowCount}`,
+		`- Review before pursuit: ${triage.reviewBeforePursuitCount}`,
+		`- Hold or partner: ${triage.holdOrPartnerCount}`,
+		"",
+		"## Ranked Opportunities",
+		"",
+	];
+
+	for (const opportunity of triage.ranked) {
+		lines.push(
+			`### ${opportunity.portfolioRank}. ${opportunity.opportunity.title}`,
+			"",
+			`- Priority: \`${opportunity.portfolioRecommendation}\``,
+			`- Source: \`${opportunity.sourceKind}\``,
+			`- Run: \`${opportunity.runId}\``,
+			`- Portfolio score: ${opportunity.portfolioScore}/100`,
+			`- Pursuit fit: ${opportunity.response.pursuitFit.status} (${opportunity.response.pursuitFit.score}/100), ${opportunity.response.pursuitFit.recommendation}`,
+			`- Readiness: ${opportunity.response.readiness.status}`,
+			`- Evidence: ${opportunity.response.sourceRequirementCount} source requirements, ${opportunity.response.evaluatorCriteriaCount} evaluator criteria, ${opportunity.response.winThemeSeedCount} win-theme seeds, ${opportunity.response.totalDraftWordCount} draft words, ${opportunity.response.relevantSnippetCount} response snippets`,
+			...(opportunity.opportunity.portalUrl ? [`- Portal: ${opportunity.opportunity.portalUrl}`] : []),
+			...(opportunity.opportunity.documentUrl ? [`- Source document: ${opportunity.opportunity.documentUrl}`] : []),
+			"",
+			"Reasons:",
+			...opportunity.rankingReasons.map((reason) => `- ${reason}`),
+			"",
+		);
+	}
+
+	return `${lines.join("\n").trimEnd()}\n`;
+}
+
 function latestCandidatePerOpportunity(candidates: LiveResponsePortfolioCandidate[]): LiveResponsePortfolioCandidate[] {
 	const latest = new Map<string, LiveResponsePortfolioCandidate>();
 	for (const candidate of candidates) {

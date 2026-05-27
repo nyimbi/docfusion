@@ -323,6 +323,7 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-008", "F-020"]),
 				expectedArtifacts: expect.arrayContaining([
 					".omx/state/platform-live-opportunity-portfolio-triage-evidence.md",
+					".omx/logs/platform-completion/live-opportunity-portfolio-triage-<run_id>/live-opportunity-portfolio-triage.md",
 				]),
 			}),
 		]);

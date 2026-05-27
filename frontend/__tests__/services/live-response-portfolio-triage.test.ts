@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	formatLiveResponsePortfolioBrief,
 	triageLiveResponsePortfolio,
 	type LiveResponsePortfolioCandidate,
 } from "@/lib/services/live-response-portfolio-triage";
@@ -120,6 +121,13 @@ describe("live response portfolio triage", () => {
 			portfolioRecommendation: "review_before_pursuit",
 		});
 		expect(triage.ranked[1]?.rankingReasons.join("\n")).toContain("insurance domain");
+
+		const brief = formatLiveResponsePortfolioBrief(triage);
+		expect(brief).toContain("# Live Response Portfolio Triage");
+		expect(brief).toContain("### 1. Security API Platform");
+		expect(brief).toContain("- Priority: `pursue_now`");
+		expect(brief).toContain("### 2. Medical Insurance RFP");
+		expect(brief).toContain("insurance domain may require specialist partner");
 	});
 
 	it("keeps only the latest run for the same opportunity", () => {

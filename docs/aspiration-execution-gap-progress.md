@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Response Portfolio Operator Brief
+
+Status: implemented and verified.
+
+Purpose: make the portfolio triage proof directly usable by an operator without requiring them to inspect raw JSON.
+
+Changes in this slice:
+- Added a deterministic markdown formatter for live response portfolio triage.
+- Updated the live-safe triage proof to write `live-opportunity-portfolio-triage.md` alongside the JSON artifact.
+- Added the operator brief path to evidence rows and the platform proof manifest.
+- Extended service tests to verify the brief includes the ranked pursue-now and review-before-pursuit opportunities plus the risk rationale.
+
+Verification:
+- `npm test -- live-response-portfolio-triage.test.ts platform-proof-scenarios.test.ts --run` passed with 9 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260527T180427Z`.
+- The generated operator brief ranked UNGM run `live_response_readiness_20260527T174956Z` as `pursue_now` and COMESA run `live_comesa_response_readiness_20260527T175037Z` as `review_before_pursuit`, with source links, draft evidence counts, fit scores, and risk reasons.
+- `npm run platform:proof -- --all --wave 9` passed after the manifest update.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+- Surface the same brief or ranking in the authenticated product UI once persisted opportunity history is available.
+
 ### 2026-05-27 - Live Response Portfolio Triage
 
 Status: implemented and verified.

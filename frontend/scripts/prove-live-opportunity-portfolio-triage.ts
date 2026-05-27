@@ -10,6 +10,7 @@ import {
 	type EvidenceRecord,
 } from "./platform-proof/core";
 import {
+	formatLiveResponsePortfolioBrief,
 	triageLiveResponsePortfolio,
 	type LiveResponsePortfolioCandidate,
 	type LiveResponsePortfolioTriage,
@@ -38,6 +39,7 @@ interface LiveOpportunityPortfolioTriageProof {
 	sourceArtifactCount: number;
 	candidateCount: number;
 	triage?: LiveResponsePortfolioTriage;
+	operatorBriefPath?: string;
 	sourceArtifacts: Array<{
 		runId: string;
 		sourceKind: string;
@@ -215,6 +217,12 @@ async function writeArtifacts(
 	proof: LiveOpportunityPortfolioTriageProof,
 	disposition: EvidenceRecord["disposition"],
 ): Promise<void> {
+	if (proof.triage) {
+		const briefPath = path.resolve(LOG_DIR, "live-opportunity-portfolio-triage.md");
+		await fs.mkdir(path.dirname(briefPath), { recursive: true });
+		await fs.writeFile(briefPath, formatLiveResponsePortfolioBrief(proof.triage), "utf8");
+		proof.operatorBriefPath = path.relative(WORKSPACE_ROOT, briefPath);
+	}
 	const rawPath = await writeProofJson(LOG_DIR, "live-opportunity-portfolio-triage.json", proof);
 	const relativeRawPath = path.relative(WORKSPACE_ROOT, rawPath);
 	const top = proof.triage?.ranked[0];
@@ -224,6 +232,7 @@ async function writeArtifacts(
 		run_id: RUN_ID,
 		artifact_ids: [
 			`log:${relativeRawPath}`,
+			`brief:${proof.operatorBriefPath ?? "not-written"}`,
 			`source-artifacts:${proof.sourceArtifactCount}`,
 			`ranked:${proof.triage?.ranked.length ?? 0}`,
 			`pursue-now:${proof.triage?.pursueNowCount ?? 0}`,
