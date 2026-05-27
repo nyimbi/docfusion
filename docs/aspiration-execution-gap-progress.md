@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Cost Suggestion Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep cost-technical alignment work moving when AI cost-suggestion output is malformed but the technical section and active labor categories already provide enough pricing signals.
+
+Changes in this slice:
+- Add deterministic cost suggestions from section content, active labor categories, rates, and direct-cost keywords.
+- Map technical sections to likely labor categories and estimate bounded fallback hours.
+- Add ODC, travel, and subcontract suggestions from explicit section signals.
+- Return reviewable fallback suggestions after AI parse failure instead of failing the action.
+- Add regression coverage proving malformed AI output still produces labor, ODC, and travel suggestions.
+
+Verification:
+- `npm test -- pricing.test.ts` passed with 93 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue replacing AI-only pricing and BOE generation failures where existing technical/cost inputs can produce deterministic review artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Process Flow Generation Fallback
 
 Status: implemented and verified.

@@ -21,6 +21,9 @@ const mockUserContext: { userId: string; organizationId?: string } = {
 	userId: "user-001",
 	organizationId: "org-001",
 };
+const aiCompleteMock = vi.hoisted(() =>
+	vi.fn(async () => ({ content: "{}", tokensUsed: 0 }))
+);
 
 vi.mock("@/lib/auth-utils", () => ({
 	requireUserContext: vi.fn(async () => mockUserContext),
@@ -32,7 +35,7 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/ai/client", () => ({
 	AIClient: vi.fn().mockImplementation(() => ({
-		complete: vi.fn(async () => ({ content: "{}", tokensUsed: 0 })),
+		complete: aiCompleteMock,
 	})),
 }));
 
@@ -153,6 +156,7 @@ import {
 	listContractPeriods,
 	getWBSTree,
 	getPricingSummary,
+	suggestCostForSection,
 	createWBSNode,
 	updateWBSNode,
 	deleteWBSNode,
@@ -711,6 +715,47 @@ describe("BOE template tenant scoping", () => {
 		}
 		expect(dbMock.select).not.toHaveBeenCalled();
 		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+});
+
+describe("Cost suggestion fallbacks", () => {
+	test("returns deterministic cost suggestions when AI output is malformed", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: "not json", tokensUsed: 0 });
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([{
+				id: "tracking-1",
+				sectionName: "Cloud Implementation",
+				sectionContent:
+					"Engineering team will configure cloud software, conduct onsite validation, and report compliance results.",
+			}]))
+			.mockImplementationOnce(() => createChainableQuery([{
+				id: "labor-1",
+				name: "Senior Software Engineer",
+				fullyBurdenedRate: 175,
+				directRate: 120,
+			}]));
+
+		const result = await suggestCostForSection("section-1");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				elementType: "labor",
+				suggestedName: "Cloud Implementation Labor",
+				laborCategoryId: "labor-1",
+				laborCategoryName: "Senior Software Engineer",
+				suggestedRate: 175,
+			}),
+			expect.objectContaining({
+				elementType: "odc",
+				suggestedName: "Cloud Implementation Direct Support Costs",
+			}),
+			expect.objectContaining({
+				elementType: "travel",
+				suggestedName: "Cloud Implementation Travel",
+			}),
+		]));
 	});
 });
 

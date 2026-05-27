@@ -228,6 +228,110 @@ export interface CostSuggestion {
 	confidence: number;
 }
 
+function numberValue(value: number | string | null | undefined): number | undefined {
+	if (typeof value === "number" && Number.isFinite(value)) return value;
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : undefined;
+	}
+	return undefined;
+}
+
+function estimateDeterministicHours(sectionText: string): number {
+	const wordCount = sectionText.split(/\s+/).filter(Boolean).length;
+	let hours = wordCount > 240 ? 160 : wordCount > 120 ? 96 : 48;
+	if (/\b(integration|migration|implementation|development|engineering|configuration)\b/i.test(sectionText)) {
+		hours += 40;
+	}
+	if (/\b(review|quality|test|validation|compliance)\b/i.test(sectionText)) {
+		hours += 24;
+	}
+	return Math.min(hours, 320);
+}
+
+function chooseLaborCategory(categories: LaborCategory[], sectionText: string): LaborCategory | undefined {
+	const lowerText = sectionText.toLowerCase();
+	const preferredTerms = [
+		["manager", /\b(program|project|management|governance|coordination)\b/],
+		["engineer", /\b(engineering|development|integration|technical|software|system)\b/],
+		["analyst", /\b(analysis|requirements|data|reporting|assessment)\b/],
+		["specialist", /\b(security|quality|compliance|training|support)\b/],
+	] as const;
+
+	for (const [categoryTerm, sectionPattern] of preferredTerms) {
+		if (!sectionPattern.test(lowerText)) continue;
+		const match = categories.find(category => category.name.toLowerCase().includes(categoryTerm));
+		if (match) return match;
+	}
+
+	return categories[0];
+}
+
+function buildDeterministicCostSuggestions(
+	tracking: CostTechnicalTracking,
+	categories: LaborCategory[]
+): CostSuggestion[] {
+	const sectionName = tracking.sectionName || "Technical section";
+	const sectionText = `${sectionName}\n${tracking.sectionContent || ""}`;
+	const suggestions: CostSuggestion[] = [];
+	const laborCategory = chooseLaborCategory(categories, sectionText);
+	if (laborCategory) {
+		const suggestedRate = numberValue(laborCategory.fullyBurdenedRate) ?? numberValue(laborCategory.directRate);
+		suggestions.push({
+			elementType: "labor",
+			suggestedName: `${sectionName} Labor`,
+			laborCategoryId: laborCategory.id,
+			laborCategoryName: laborCategory.name,
+			suggestedHours: estimateDeterministicHours(sectionText),
+			suggestedRate,
+			rationale: `Deterministic fallback mapped the technical section to active labor category ${laborCategory.name}.`,
+			confidence: suggestedRate ? 0.68 : 0.6,
+		});
+	}
+
+	if (/\b(software|license|cloud|hosting|tool|equipment|device|subscription)\b/i.test(sectionText)) {
+		suggestions.push({
+			elementType: "odc",
+			suggestedName: `${sectionName} Direct Support Costs`,
+			suggestedCost: 5000,
+			rationale: "Section references tools, software, cloud, or equipment that may require direct support costs.",
+			confidence: 0.58,
+		});
+	}
+
+	if (/\b(travel|onsite|on-site|site visit|field|deployment)\b/i.test(sectionText)) {
+		suggestions.push({
+			elementType: "travel",
+			suggestedName: `${sectionName} Travel`,
+			suggestedCost: 2500,
+			rationale: "Section references onsite or field activity that may require travel budgeting.",
+			confidence: 0.56,
+		});
+	}
+
+	if (/\b(partner|subcontract|vendor|third[- ]party|specialized provider)\b/i.test(sectionText)) {
+		suggestions.push({
+			elementType: "subcontract",
+			suggestedName: `${sectionName} Partner Support`,
+			suggestedCost: 10000,
+			rationale: "Section references partner or vendor support that should be reviewed for subcontract pricing.",
+			confidence: 0.55,
+		});
+	}
+
+	if (suggestions.length === 0) {
+		suggestions.push({
+			elementType: "other",
+			suggestedName: `${sectionName} Execution Support`,
+			suggestedCost: 1000,
+			rationale: "Section has technical scope but no active labor category or direct-cost signal was available for a more specific fallback.",
+			confidence: 0.42,
+		});
+	}
+
+	return suggestions.slice(0, 5);
+}
+
 /**
  * Hours estimate with breakdown by category.
  */
@@ -1545,9 +1649,10 @@ Respond in JSON format:
 
 			return { success: true, data: suggestions };
 		} catch {
+			logger.warn("Falling back to deterministic cost suggestions after AI parse failure");
 			return {
-				success: false,
-				error: "Failed to parse AI suggestions",
+				success: true,
+				data: buildDeterministicCostSuggestions(tracking, categories),
 			};
 		}
 	} catch (error) {
