@@ -410,6 +410,23 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "live-world-bank-source",
+		wave: 9,
+		title: "Live World Bank source discovery proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005"],
+		requiresLiveServices: true,
+		description: "Scrapes World Bank procurement notices and verifies table rows become normalized opportunity candidates without award rows.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-world-bank-source.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-source-discovery-evidence.md",
+			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-source-discovery.json",
+		],
+	},
+	{
 		id: "live-afdb-source",
 		wave: 9,
 		title: "Live AFDB source discovery proof",

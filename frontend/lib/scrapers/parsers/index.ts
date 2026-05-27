@@ -15,6 +15,7 @@ import "./dgmarket";
 import "./generic";
 import "./kenya-ppip";
 import "./ungm";
+import "./world-bank";
 
 // Re-export for direct access
 export { afdbParser } from "./afdb";
@@ -23,6 +24,7 @@ export { dgmarketParser } from "./dgmarket";
 export { genericParser } from "./generic";
 export { kenyaPpipParser } from "./kenya-ppip";
 export { ungmParser } from "./ungm";
+export { worldBankParser } from "./world-bank";
 
 // LLM-based extraction (for sites without custom parsers)
 export * from "./llm-extractor";

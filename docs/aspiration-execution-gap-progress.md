@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - World Bank Live Source Discovery
+
+Status: implemented and verified.
+
+Purpose: add World Bank procurement notices as a high-volume live source using the site's current notices table instead of the low-recall generic parser.
+
+Changes in this slice:
+- Add a World Bank procurement table parser that extracts procurement-detail rows and skips award rows.
+- Wire World Bank source URLs into configured-source discovery so imports preserve `source: "world_bank"`, platform metadata, project metadata, and global-procurement tags.
+- Add a source-specific `live-world-bank-source` platform proof and include World Bank in the default discovery source list.
+- Add parser, import, proof-manifest, and default-source regression coverage.
+
+Verification:
+- `npm test -- world-bank-parser.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts default-discovery-sources.test.ts` from `frontend/` passed, running 23 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-world-bank-source` from `frontend/` passed. It scraped `https://projects.worldbank.org/en/projects-operations/procurement` and returned 18 normalized World Bank opportunities.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 4 discovery-to-response bridge test files and 49 tests.
+
+Remaining after this slice:
+- Continue adding high-value live sources where Firecrawl or source APIs can produce normalized opportunities with low noise.
+- Persisted live import and response proof still waits on reachable PostgreSQL.
+
 ### 2026-05-27 - Discovery Defaults Include AFDB And COMESA
 
 Status: implemented and verified.

@@ -1018,4 +1018,63 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 		}));
 	});
+
+	it("imports World Bank configured sources with the World Bank parser", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"| Description | Country | Project Title | Notice Type | Language | Published Date |",
+					"| --- | --- | --- | --- | --- | --- |",
+					"| [Contratacao de Especialista em Conectividade](http://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547) | Angola | [Angola Digital Acceleration Project - P180693](http://projects.worldbank.org/en/projects-operations/project-detail/P180693) | Request for Expression of Interest | Portuguese | May 25, 2026 |",
+					"| [Awarded consultant contract](http://projects.worldbank.org/en/projects-operations/procurement-detail/OP00440000) | Kenya | [Awarded Project - P100000](http://projects.worldbank.org/en/projects-operations/project-detail/P100000) | Contract Award | English | May 25, 2026 |",
+				].join("\n"),
+				links: [
+					"http://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547",
+				],
+				metadata: { title: "Procurement Notices" },
+			},
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://projects.worldbank.org/en/projects-operations/procurement"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(searchSearxngMock).not.toHaveBeenCalled();
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			source: "world_bank",
+			sourcePlatform: "World Bank",
+			sourceFile: "source:https://projects.worldbank.org/en/projects-operations/procurement",
+			sourceId: "OP00428547",
+			title: "Contratacao de Especialista em Conectividade",
+			category: "Request for Expression of Interest",
+			countryRegion: "Angola",
+			organization: "World Bank",
+			rfpLink: "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547",
+			portalUrl: "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547",
+			documentUrl: "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547",
+			tags: ["external-discovery", "source-scrape", "world-bank", "development-bank", "global-procurement"],
+			metadata: expect.objectContaining({
+				worldBank: expect.objectContaining({
+					projectTitle: "Angola Digital Acceleration Project - P180693",
+					noticeType: "Request for Expression of Interest",
+				}),
+				discovery: expect.objectContaining({
+					resultEngine: "firecrawl-source",
+					scrapeMethod: "firecrawl",
+					scrapedWithFirecrawl: true,
+					sourceUrl: "https://projects.worldbank.org/en/projects-operations/procurement",
+				}),
+			}),
+		}));
+	});
 });

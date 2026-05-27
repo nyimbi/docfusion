@@ -112,6 +112,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host.includes("comesa.int")) return getParser("comesa") ?? genericParser;
 	if (host.includes("tenders.go.ke")) return getParser("kenya_ppip") ?? genericParser;
 	if (host.includes("ungm.org")) return getParser("ungm") ?? genericParser;
+	if (host.includes("worldbank.org")) return getParser("world_bank") ?? genericParser;
 	return genericParser;
 }
 
