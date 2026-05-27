@@ -320,6 +320,42 @@ describe("graphics opportunity scoping", () => {
 		);
 	});
 
+	it("returns deterministic graphic suggestions when AI output has no usable suggestion text", async () => {
+		aiCompleteMock.mockResolvedValueOnce({
+			content: JSON.stringify([
+				{ graphicType: "process_flow", title: "   ", rationale: "   ", confidence: 0.9 },
+				{},
+			]),
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{ id: sectionId, proposalDocumentId, sectionName: "Implementation Approach" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: proposalDocumentId, documentId: "doc-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "doc-1",
+					plainText:
+						"Implementation workflow with milestones, governance approvals, team roles, and 99.9% uptime metric.",
+					content: {},
+				}],
+			}));
+
+		const result = await suggestGraphics(sectionId);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).not.toEqual([]);
+		expect(result.data[0]).toMatchObject({
+			graphicType: "process_flow",
+			title: "Implementation Approach Process Flow",
+			confidence: 0.82,
+		});
+		expect(result.data[0]?.rationale).toContain("process graphic");
+	});
+
 	it("generates a deterministic process flow when AI output has no diagram", async () => {
 		aiCompleteMock.mockResolvedValueOnce({ content: "not a diagram" });
 

@@ -356,6 +356,50 @@ export type GraphicSuggestion = {
 	confidence: number;
 };
 
+const VALID_GRAPHIC_TYPES = new Set([
+	"org_chart",
+	"process_flow",
+	"schedule",
+	"infographic",
+	"diagram",
+	"chart",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function isNonBlankText(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function clampConfidence(value: unknown): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) return 0.5;
+	return Math.min(1, Math.max(0, value));
+}
+
+function normalizeGraphicSuggestion(value: unknown): GraphicSuggestion | null {
+	if (!isRecord(value) ||
+		!isNonBlankText(value.graphicType) ||
+		!VALID_GRAPHIC_TYPES.has(value.graphicType.trim()) ||
+		!isNonBlankText(value.title) ||
+		!isNonBlankText(value.rationale)
+	) {
+		return null;
+	}
+
+	const suggestedDiagramCode = isNonBlankText(value.suggestedDiagramCode)
+		? value.suggestedDiagramCode.trim()
+		: undefined;
+	return {
+		graphicType: value.graphicType.trim(),
+		title: value.title.trim(),
+		rationale: value.rationale.trim(),
+		confidence: clampConfidence(value.confidence),
+		...(suggestedDiagramCode ? { suggestedDiagramCode } : {}),
+	};
+}
+
 function buildDeterministicGraphicSuggestions(sectionName: string, contentText: string): GraphicSuggestion[] {
 	const text = `${sectionName} ${contentText}`.toLowerCase();
 	const suggestions: GraphicSuggestion[] = [];
@@ -901,14 +945,16 @@ Analyze this proposal section and suggest graphics that would enhance it. Return
 			suggestions = JSON.parse(jsonStr.trim());
 
 			// Validate and sanitize suggestions
+			if (!Array.isArray(suggestions)) {
+				throw new Error("AI graphic suggestions response was not an array");
+			}
 			suggestions = suggestions
-				.filter((s): s is GraphicSuggestion =>
-					typeof s.graphicType === "string" &&
-					typeof s.title === "string" &&
-					typeof s.rationale === "string" &&
-					typeof s.confidence === "number"
-				)
+				.map(normalizeGraphicSuggestion)
+				.filter((suggestion): suggestion is GraphicSuggestion => suggestion !== null)
 				.slice(0, 5);
+			if (suggestions.length === 0) {
+				throw new Error("AI graphic suggestions response contained no usable suggestions");
+			}
 		} catch {
 			logger.warn("Failed to parse AI suggestions:", response.content);
 			return {

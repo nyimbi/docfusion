@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable AI Graphic Suggestion Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep proposal graphics support from returning a successful but empty or blank suggestion list when AI emits malformed suggestion objects.
+
+Changes in this slice:
+- Validate AI graphic suggestions as arrays of supported graphic types with non-empty titles and rationales.
+- Trim accepted graphic suggestion fields and clamp confidence into the supported range.
+- Reuse deterministic graphics suggestions when AI output has no usable suggestion text.
+- Add regression coverage for AI output containing blank suggestion objects.
+
+Verification:
+- `npm test -- graphics-scope.test.ts --run` passed with 13 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 282 tests.
+
+Remaining after this slice:
+- Continue auditing discovery and response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - AI Guessed Document URL Guards
 
 Status: implemented and verified.
