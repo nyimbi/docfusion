@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
 const initializeAIConfigMock = vi.hoisted(() => vi.fn());
+const providerAvailableMock = vi.hoisted(() => vi.fn(async () => true));
+const providerCompleteMock = vi.hoisted(() =>
+	vi.fn(async () => ({
+		content: JSON.stringify({
+			paragraphs: ["Generated section content with concrete proposal detail."],
+		}),
+	}))
+);
 const mockDb = vi.hoisted(() => ({
 	insert: vi.fn(),
 }));
@@ -28,13 +36,9 @@ vi.mock("@/lib/ai/config", () => ({
 
 vi.mock("@/lib/ai/providers", () => ({
 	getProviderManager: vi.fn(() => ({
-		isAvailable: vi.fn(async () => true),
+		isAvailable: providerAvailableMock,
 		getActiveProvider: vi.fn(),
-		complete: vi.fn(async () => ({
-			content: JSON.stringify({
-				paragraphs: ["Generated section content with concrete proposal detail."],
-			}),
-		})),
+		complete: providerCompleteMock,
 	})),
 }));
 
@@ -46,6 +50,12 @@ describe("document generation action auth", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		getCurrentUserIdMock.mockResolvedValue("author-1");
+		providerAvailableMock.mockResolvedValue(true);
+		providerCompleteMock.mockResolvedValue({
+			content: JSON.stringify({
+				paragraphs: ["Generated section content with concrete proposal detail."],
+			}),
+		});
 	});
 
 	it("requires a session before generating document structures", async () => {
@@ -137,5 +147,23 @@ describe("document generation action auth", () => {
 			content: result.content,
 			wordCount: 0,
 		}));
+	});
+
+	it("generates a deterministic diagram when the AI provider is unavailable", async () => {
+		providerAvailableMock.mockResolvedValueOnce(false);
+		const { generateDiagram } = await import("@/lib/actions/document-generation");
+
+		const result = await generateDiagram({
+			type: "flowchart",
+			description: "Intake request. Validate requirements. Produce response.",
+		});
+
+		expect(result).toMatchObject({
+			type: "mermaid",
+			code: expect.stringContaining("flowchart TD"),
+		});
+		expect(result.code).toContain("Intake request");
+		expect(result.code).toContain("S1 --> S2");
+		expect(providerCompleteMock).not.toHaveBeenCalled();
 	});
 });

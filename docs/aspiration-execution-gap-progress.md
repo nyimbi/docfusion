@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Document Diagram Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep response-authoring visuals available when AI diagram generation is unavailable or fails.
+
+Changes in this slice:
+- Add deterministic Mermaid generation for flowchart, sequence, state, gantt, mindmap, class, and ER diagram requests.
+- Preserve napkin sketch generation without requiring AI.
+- Return deterministic diagrams when the AI provider is unavailable or generation fails, instead of returning an error-only diagram.
+- Add regression coverage proving unavailable AI still produces a reviewable flowchart without calling the provider.
+
+Verification:
+- `npm test -- document-generation-auth.test.ts` passed with 5 tests.
+- `npm run platform:proof -- --run wave5-ai-content-governance` passed with 38 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue closing response-authoring gaps where draft artifacts can be generated deterministically from structured inputs.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Document Structure Auto-Fill Creation
 
 Status: implemented and verified.

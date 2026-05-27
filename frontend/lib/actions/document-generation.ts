@@ -504,24 +504,87 @@ Style: ${style}`;
 	return prompt;
 }
 
-/**
- * Generate diagrams using AI-powered Mermaid code generation.
- */
-export async function generateDiagram(
-	input: GenerateDiagramInput
-): Promise<GeneratedDiagram> {
-	await requireDocumentGenerationUserId();
-	const { description, type, style = "modern" } = input;
+function sanitizeDiagramLabel(value: string, fallback: string): string {
+	const label = value
+		.replace(/[`[\]{}<>|]/g, "")
+		.replace(/\s+/g, " ")
+		.trim()
+		.slice(0, 48);
+	return label || fallback;
+}
 
-	// Check if AI provider is available
-	const manager = getProviderManager();
-	const isAvailable = await manager.isAvailable();
+function deterministicMermaidDiagram(description: string, type: GenerateDiagramInput["type"]): string {
+	const cleanDescription = sanitizeDiagramLabel(description, "Concept");
+	const steps = description
+		.replace(/\b(?:then|next|finally|after that)\b/gi, ".")
+		.split(/[.;\n]+/)
+		.map((part) => sanitizeDiagramLabel(part, "Step"))
+		.filter((part) => part.length > 0)
+		.slice(0, 5);
+	const boundedSteps = steps.length >= 2 ? steps : [cleanDescription, "Review", "Outcome"];
 
-	if (!isAvailable) {
-		throw new Error("AI provider not available. Please check your configuration.");
+	switch (type) {
+		case "sequence":
+			return [
+				"sequenceDiagram",
+				"  participant User",
+				"  participant System",
+				`  User->>System: ${boundedSteps[0]}`,
+				`  System-->>User: ${boundedSteps[boundedSteps.length - 1]}`,
+			].join("\n");
+		case "state":
+			return [
+				"stateDiagram-v2",
+				"  [*] --> Draft",
+				"  Draft --> Review",
+				"  Review --> Approved",
+				"  Approved --> [*]",
+			].join("\n");
+		case "gantt":
+			return [
+				"gantt",
+				`  title ${cleanDescription}`,
+				"  dateFormat YYYY-MM-DD",
+				"  section Delivery",
+				"  Mobilize :a1, 2026-01-01, 14d",
+				"  Execute :a2, after a1, 30d",
+				"  Validate :a3, after a2, 10d",
+			].join("\n");
+		case "mindmap":
+			return [
+				"mindmap",
+				`  root((${cleanDescription}))`,
+				...boundedSteps.slice(0, 4).map((step) => `    ${step}`),
+			].join("\n");
+		case "class":
+			return [
+				"classDiagram",
+				"  class ResponseArtifact",
+				"  ResponseArtifact : +approach",
+				"  ResponseArtifact : +evidence",
+				"  ResponseArtifact : +outcome",
+			].join("\n");
+		case "er":
+			return [
+				"erDiagram",
+				"  REQUIREMENT ||--o{ RESPONSE : drives",
+				"  RESPONSE ||--o{ EVIDENCE : cites",
+				"  RESPONSE ||--o{ OUTCOME : produces",
+			].join("\n");
+		default:
+			return [
+				"flowchart TD",
+				...boundedSteps.map((step, index) => `  S${index + 1}[${step}]`),
+				...boundedSteps.slice(0, -1).map((_, index) => `  S${index + 1} --> S${index + 2}`),
+			].join("\n");
 	}
+}
 
-	// Handle napkin type - generate a simple ASCII/text-based conceptual diagram
+function deterministicGeneratedDiagram(
+	description: string,
+	type: GenerateDiagramInput["type"],
+	reason: string
+): GeneratedDiagram {
 	if (type === "napkin") {
 		const cleanDesc = description.slice(0, 200);
 		return {
@@ -543,6 +606,30 @@ export async function generateDiagram(
 `.trim(),
 			description: `Napkin sketch concept for: ${cleanDesc}`,
 		};
+	}
+
+	return {
+		type: "mermaid",
+		code: deterministicMermaidDiagram(description, type),
+		description: `Deterministic ${type} diagram generated because ${reason}: ${description.slice(0, 100)}...`,
+	};
+}
+
+/**
+ * Generate diagrams using AI-powered Mermaid code generation.
+ */
+export async function generateDiagram(
+	input: GenerateDiagramInput
+): Promise<GeneratedDiagram> {
+	await requireDocumentGenerationUserId();
+	const { description, type, style = "modern" } = input;
+
+	// Check if AI provider is available
+	const manager = getProviderManager();
+	const isAvailable = await manager.isAvailable();
+
+	if (!isAvailable) {
+		return deterministicGeneratedDiagram(description, type, "AI provider is unavailable");
 	}
 
 	// Build the AI prompt
@@ -576,13 +663,7 @@ export async function generateDiagram(
 		};
 	} catch (error) {
 		logger.error("[AI] Failed to generate diagram:", error);
-
-		// Return a simple fallback diagram
-		return {
-			type: "mermaid",
-			code: `flowchart TD\n    A[Start] --> B{Error}\n    B --> C[AI Generation Failed]\n    B --> D[Check Configuration]`,
-			description: `Failed to generate ${type} diagram. Using fallback.`,
-		};
+		return deterministicGeneratedDiagram(description, type, "AI diagram generation failed");
 	}
 }
 
