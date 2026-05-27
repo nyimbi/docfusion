@@ -418,6 +418,10 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		command: {
 			command: "npx",
 			args: ["tsx", "scripts/prove-live-discovery-services.ts"],
+			env: {
+				LIVE_DISCOVERY_FIRECRAWL_URL: "https://procurement-notices.undp.org",
+				LIVE_DISCOVERY_BROWSER_URL: "https://www.ungm.org/Public/Notice?title=software",
+			},
 		},
 		expectedArtifacts: [
 			".omx/state/platform-live-discovery-evidence.md",

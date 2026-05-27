@@ -26,7 +26,12 @@ const DEFAULT_SEARXNG_ENGINES = ["bing"];
 const SEARXNG_QUERIES = parseSearxngQueries();
 const SEARXNG_ENGINES = parseSearxngEngines();
 const SCRAPE_TIMEOUT_MS = Number(process.env.LIVE_DISCOVERY_SCRAPE_TIMEOUT_MS ?? 60000);
-const FIRECRAWL_URL = process.env.LIVE_DISCOVERY_FIRECRAWL_URL ?? "https://example.com";
+const FIRECRAWL_SCRAPE_URL = process.env.LIVE_DISCOVERY_FIRECRAWL_URL
+	?? process.env.LIVE_DISCOVERY_SCRAPE_URL
+	?? "https://procurement-notices.undp.org";
+const BROWSER_SCRAPE_URL = process.env.LIVE_DISCOVERY_BROWSER_URL
+	?? process.env.LIVE_DISCOVERY_SCRAPE_URL
+	?? "https://www.ungm.org/Public/Notice?title=software";
 const BROWSER_SCRAPER_URL = (process.env.STEALTH_SCRAPER_URL ?? "http://84.247.181.100:3003").replace(/\/$/, "");
 
 const OPPORTUNITY_SOURCE_HOSTS = [
@@ -63,6 +68,18 @@ const NON_OPPORTUNITY_HOSTS = [
 	"tinder.com",
 	"wikipedia.org",
 ];
+const SCRAPE_PROCUREMENT_INDICATORS = [
+	"bid",
+	"deadline",
+	"invitation to bid",
+	"procurement",
+	"procurement notice",
+	"request for proposal",
+	"rfp",
+	"solicitation",
+	"tender",
+	"undp",
+];
 
 interface LiveDiscoveryProof {
 	runId: string;
@@ -83,6 +100,8 @@ interface LiveDiscoveryProof {
 		success: boolean;
 		title?: string;
 		markdownLength: number;
+		procurementIndicators: string[];
+		procurementIndicatorCount: number;
 		error?: string;
 	};
 	browserFallback?: {
@@ -91,6 +110,8 @@ interface LiveDiscoveryProof {
 		success: boolean;
 		title?: string;
 		markdownLength: number;
+		procurementIndicators: string[];
+		procurementIndicatorCount: number;
 		error?: string;
 	};
 	error?: string;
@@ -199,41 +220,60 @@ function isOpportunityResult(result: SearxngResult): boolean {
 
 async function proveFirecrawl(): Promise<NonNullable<LiveDiscoveryProof["firecrawl"]>> {
 	const client = new FirecrawlClient({ timeout: SCRAPE_TIMEOUT_MS });
-	const result = await client.scrape(FIRECRAWL_URL, {
+	const result = await client.scrape(FIRECRAWL_SCRAPE_URL, {
 		formats: ["markdown", "html"],
 		timeout: SCRAPE_TIMEOUT_MS,
 	});
-	const markdownLength = result.data?.markdown?.trim().length ?? 0;
+	const markdown = result.data?.markdown?.trim() ?? "";
+	const markdownLength = markdown.length;
 	if (!result.success || markdownLength === 0) {
 		throw new Error(result.error ?? "Firecrawl returned no markdown content");
 	}
+	const procurementIndicators = procurementIndicatorsFor(markdown);
+	if (procurementIndicators.length === 0) {
+		throw new Error("Firecrawl returned content without procurement opportunity indicators");
+	}
 
 	return {
-		url: FIRECRAWL_URL,
+		url: FIRECRAWL_SCRAPE_URL,
 		success: true,
 		title: result.data?.metadata?.title,
 		markdownLength,
+		procurementIndicators,
+		procurementIndicatorCount: procurementIndicators.length,
 	};
 }
 
 async function proveBrowserFallback(): Promise<NonNullable<LiveDiscoveryProof["browserFallback"]>> {
-	const result = await scrapeWithBrowserService(BROWSER_SCRAPER_URL, FIRECRAWL_URL, {
+	const result = await scrapeWithBrowserService(BROWSER_SCRAPER_URL, BROWSER_SCRAPE_URL, {
 		timeout: SCRAPE_TIMEOUT_MS,
 		humanScroll: true,
 		blockMedia: true,
 	});
-	const markdownLength = result.data?.markdown?.trim().length ?? 0;
+	const markdown = result.data?.markdown?.trim() ?? "";
+	const markdownLength = markdown.length;
 	if (!result.success || markdownLength === 0) {
 		throw new Error(result.error ?? "Browser scraper returned no markdown content");
 	}
+	const procurementIndicators = procurementIndicatorsFor(markdown);
+	if (procurementIndicators.length === 0) {
+		throw new Error("Browser scraper returned content without procurement opportunity indicators");
+	}
 
 	return {
-		url: FIRECRAWL_URL,
+		url: BROWSER_SCRAPE_URL,
 		serviceUrl: BROWSER_SCRAPER_URL,
 		success: true,
 		title: result.data?.metadata?.title,
 		markdownLength,
+		procurementIndicators,
+		procurementIndicatorCount: procurementIndicators.length,
 	};
+}
+
+function procurementIndicatorsFor(markdown: string): string[] {
+	const haystack = markdown.toLowerCase();
+	return SCRAPE_PROCUREMENT_INDICATORS.filter((indicator) => haystack.includes(indicator));
 }
 
 async function writeArtifacts(proof: LiveDiscoveryProof, disposition: EvidenceRecord["disposition"]) {
@@ -248,7 +288,9 @@ async function writeArtifacts(proof: LiveDiscoveryProof, disposition: EvidenceRe
 			`searxng-opportunities:${proof.searxng?.opportunityResultCount ?? 0}`,
 			`searxng-total:${proof.searxng?.totalResultCount ?? 0}`,
 			`firecrawl:${proof.firecrawl?.markdownLength ?? 0}`,
+			`firecrawl-procurement-indicators:${proof.firecrawl?.procurementIndicatorCount ?? 0}`,
 			`browser:${proof.browserFallback?.markdownLength ?? 0}`,
+			`browser-procurement-indicators:${proof.browserFallback?.procurementIndicatorCount ?? 0}`,
 		],
 		topology_tier: "live-connectivity",
 		verification_bucket: "live-safe search + scrape",
@@ -257,7 +299,7 @@ async function writeArtifacts(proof: LiveDiscoveryProof, disposition: EvidenceRe
 		cleanup_status: "not-applicable",
 		disposition,
 		notes: disposition === "pass"
-			? "Live SearXNG search returned opportunity-relevant results; Firecrawl and browser fallback returned usable content."
+			? "Live SearXNG search returned opportunity-relevant results; Firecrawl and browser fallback returned procurement-source content."
 			: proof.error ?? "Live discovery service proof failed.",
 	}], {
 		title: "Platform Live Discovery Evidence",

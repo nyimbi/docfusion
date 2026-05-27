@@ -146,7 +146,7 @@ export async function searchMultiple(
 export async function checkSearxngHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${SEARXNG_BASE_URL}/health`, {
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(10000),
     });
     if (response.ok) {
       return true;
@@ -157,10 +157,13 @@ export async function checkSearxngHealth(): Promise<boolean> {
 
   try {
     const url = new URL(`${SEARXNG_BASE_URL}/search`);
-    url.searchParams.set("q", "rfp");
+    url.searchParams.set("q", "tenders.go.ke");
     url.searchParams.set("format", "json");
+    url.searchParams.set("engines", "bing");
+    url.searchParams.set("language", "en");
+    url.searchParams.set("safesearch", "1");
     const response = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(10000),
       headers: {
         "Accept": "application/json",
       },

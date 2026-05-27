@@ -56,15 +56,20 @@ describe("SearXNG client configuration", () => {
 
 		await expect(checkSearxngHealth()).resolves.toBe(true);
 		expect(fetchMock).toHaveBeenNthCalledWith(1, "https://search.lindela.io/health", expect.any(Object));
-		expect(fetchMock).toHaveBeenNthCalledWith(
-			2,
-			"https://search.lindela.io/search?q=rfp&format=json",
-			expect.objectContaining({
-				headers: {
-					"Accept": "application/json",
-				},
-			})
-		);
+		const [fallbackUrl, fallbackOptions] = fetchMock.mock.calls[1] as unknown as [string, RequestInit?];
+		const parsedFallbackUrl = new URL(fallbackUrl);
+		expect(parsedFallbackUrl.origin).toBe("https://search.lindela.io");
+		expect(parsedFallbackUrl.pathname).toBe("/search");
+		expect(parsedFallbackUrl.searchParams.get("q")).toBe("tenders.go.ke");
+		expect(parsedFallbackUrl.searchParams.get("format")).toBe("json");
+		expect(parsedFallbackUrl.searchParams.get("engines")).toBe("bing");
+		expect(parsedFallbackUrl.searchParams.get("language")).toBe("en");
+		expect(parsedFallbackUrl.searchParams.get("safesearch")).toBe("1");
+		expect(fallbackOptions).toEqual(expect.objectContaining({
+			headers: {
+				"Accept": "application/json",
+			},
+		}));
 	});
 
 	it("passes explicit engine filters to SearXNG search", async () => {

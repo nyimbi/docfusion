@@ -225,6 +225,12 @@ describe("platform proof scenarios", () => {
 				id: "live-discovery-services",
 				kind: "live-safe",
 				proofTargets: expect.arrayContaining(["F-001", "F-005"]),
+				command: expect.objectContaining({
+					env: expect.objectContaining({
+						LIVE_DISCOVERY_FIRECRAWL_URL: "https://procurement-notices.undp.org",
+						LIVE_DISCOVERY_BROWSER_URL: "https://www.ungm.org/Public/Notice?title=software",
+					}),
+				}),
 				expectedArtifacts: expect.arrayContaining([
 					".omx/state/platform-live-discovery-evidence.md",
 				]),
@@ -392,6 +398,10 @@ describe("platform proof scenarios", () => {
 
 		expect(formatProofCommand(scenario)).toContain("LIVE_SOURCE_DISCOVERY_URL=https://www.dgmarket.com");
 		expect(formatProofCommand(scenario)).toContain("npx tsx scripts/prove-live-source-discovery.ts");
+
+		const [discoveryServicesScenario] = listProofScenarios({ ids: ["live-discovery-services"], includeLiveSafe: true });
+		expect(formatProofCommand(discoveryServicesScenario)).toContain("LIVE_DISCOVERY_FIRECRAWL_URL=https://procurement-notices.undp.org");
+		expect(formatProofCommand(discoveryServicesScenario)).toContain("LIVE_DISCOVERY_BROWSER_URL=https://www.ungm.org/Public/Notice?title=software");
 
 		const [kenyaResponseScenario] = listProofScenarios({ ids: ["live-kenya-ppip-response-readiness"], includeLiveSafe: true });
 		expect(formatProofCommand(kenyaResponseScenario)).toContain("LIVE_RESPONSE_READINESS_SOURCE_KIND=kenya_ppip");

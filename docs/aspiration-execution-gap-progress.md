@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Procurement-Source Live Discovery Services Proof
+
+Status: implemented and verified.
+
+Purpose: strengthen the live discovery-services proof so SearXNG, Firecrawl, and the browser fallback demonstrate procurement-source discovery capability rather than only generic service availability.
+
+Changes in this slice:
+- Replaced the generic Firecrawl/browser scrape target with procurement-source defaults.
+- Split live scrape targets so Firecrawl proves `https://procurement-notices.undp.org` while the browser fallback proves `https://www.ungm.org/Public/Notice?title=software`.
+- Required procurement indicators from both scraped outputs before the live proof passes.
+- Recorded Firecrawl and browser procurement-indicator counts in the live discovery evidence table.
+- Aligned the SearXNG health fallback with the responsive Bing-backed `tenders.go.ke` procurement query and increased the health-probe timeout.
+
+Verification:
+- `npm test -- platform-proof-scenarios.test.ts searxng-client-config.test.ts --run` passed with 12 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-discovery-services --include-live-safe` passed with run `live_discovery_20260527T162225Z`.
+- The passing live run returned 7 opportunity-relevant SearXNG results from 10 total Bing results for `tenders.go.ke`, Firecrawl scraped 198382 markdown characters from UNDP procurement notices with 7 procurement indicators, and the browser fallback scraped 146872 characters from UNGM procurement opportunities with 7 procurement indicators.
+
+Remaining after this slice:
+- Keep using source-specific live proofs for parser-level normalization and response-readiness validation.
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+
 ### 2026-05-27 - Kenya PPIP Persisted Proof Routing
 
 Status: implemented and partially verified; DB path still externally blocked.
