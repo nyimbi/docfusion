@@ -4,6 +4,7 @@ const requireUserContextMock = vi.hoisted(() => vi.fn());
 
 interface ChainConfig {
 	result?: unknown[];
+	onSet?: (value: Record<string, unknown>) => void;
 	onWhere?: (value: unknown) => void;
 }
 
@@ -12,7 +13,10 @@ function createChain(config: ChainConfig = {}) {
 	for (const method of ["from", "innerJoin", "limit", "orderBy"]) {
 		chain[method] = vi.fn(() => chain);
 	}
-	chain.set = vi.fn(() => chain);
+	chain.set = vi.fn((value: Record<string, unknown>) => {
+		config.onSet?.(value);
+		return chain;
+	});
 	chain.where = vi.fn((value: unknown) => {
 		config.onWhere?.(value);
 		return chain;
@@ -85,6 +89,46 @@ beforeEach(() => {
 });
 
 describe("win theme authorization", () => {
+	it("persists evaluation criteria mappings on theme updates", async () => {
+		let patch: Record<string, unknown> | undefined;
+		dbMock.update.mockReturnValueOnce(createChain({
+			result: [{
+				id: "11111111-1111-4111-8111-111111111111",
+				opportunityId: "22222222-2222-4222-8222-222222222222",
+				themeStatement: "Score-aware delivery certainty backed by proof.",
+				shortVersion: "Score-aware delivery certainty",
+				themeType: "differentiator",
+				priority: 1,
+				supportingEvidence: [],
+				relatedProjects: [],
+				evaluationCriteriaIds: ["LIVE-EVAL-001", "LIVE-EVAL-002"],
+				keywords: [],
+				ghostTheme: null,
+				targetCompetitor: null,
+				isActive: true,
+				createdBy: "theme-user-1",
+				createdAt: new Date("2026-05-27T00:00:00.000Z"),
+				updatedAt: new Date("2026-05-27T00:00:00.000Z"),
+			}],
+			onSet: (value) => {
+				patch = value;
+			},
+		}));
+
+		const result = await updateTheme(
+			"11111111-1111-4111-8111-111111111111",
+			{
+				evaluationCriteriaIds: ["LIVE-EVAL-001", "LIVE-EVAL-002"],
+			}
+		);
+
+		expect(result.success).toBe(true);
+		expect(patch).toMatchObject({
+			evaluationCriteriaIds: ["LIVE-EVAL-001", "LIVE-EVAL-002"],
+		});
+		expect(result.data?.evaluationCriteriaIds).toEqual(["LIVE-EVAL-001", "LIVE-EVAL-002"]);
+	});
+
 	it("scopes theme updates to opportunities assigned to the actor", async () => {
 		let updateWhere: unknown;
 		dbMock.update.mockReturnValueOnce(createChain({

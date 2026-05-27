@@ -113,6 +113,7 @@ const createWinThemeSchema = z.object({
 	priority: z.number().int().min(1).max(5).optional().default(3) as z.ZodType<ThemePriority>,
 	supportingEvidence: z.array(z.string()).optional().default([]),
 	relatedProjectIds: z.array(z.string()).optional().default([]),
+	evaluationCriteriaIds: z.array(z.string()).optional().default([]),
 	keywords: z.array(z.string()).optional().default([]),
 	ghostTheme: z.object({
 		competitorId: z.string().optional(),
@@ -297,6 +298,7 @@ function mapDBThemeToWinTheme(row: DBWinTheme): WinTheme {
 		displayOrder: row.priority || 1,
 		supportingEvidence: (row.supportingEvidence as string[]) || [],
 		relatedProjectIds: (row.relatedProjects as string[]) || [],
+		evaluationCriteriaIds: (row.evaluationCriteriaIds as string[]) || [],
 		keywords: (row.keywords as string[]) || [],
 		ghostTheme: row.ghostTheme && row.targetCompetitor ? {
 			id: `ghost-${row.id}`,
@@ -480,6 +482,7 @@ export async function createTheme(input: CreateWinThemeInput): Promise<CreateThe
 				priority: displayOrder,
 				supportingEvidence: validated.supportingEvidence,
 				relatedProjects: validated.relatedProjectIds,
+				evaluationCriteriaIds: validated.evaluationCriteriaIds,
 				keywords: validated.keywords,
 				variations: [],
 				targetSections: [],
@@ -525,6 +528,7 @@ export async function updateTheme(
 		if (validated.type !== undefined) updates.themeType = validated.type as ThemeType;
 		if (validated.supportingEvidence !== undefined) updates.supportingEvidence = validated.supportingEvidence;
 		if (validated.relatedProjectIds !== undefined) updates.relatedProjects = validated.relatedProjectIds;
+		if (validated.evaluationCriteriaIds !== undefined) updates.evaluationCriteriaIds = validated.evaluationCriteriaIds;
 		if (validated.keywords !== undefined) updates.keywords = validated.keywords;
 		if (validated.status !== undefined) updates.isActive = validated.status === "active" || validated.status === "approved";
 		if (validated.displayOrder !== undefined) updates.priority = validated.displayOrder;

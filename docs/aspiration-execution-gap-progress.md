@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Win Theme Criteria Persistence
+
+Status: implemented and verified.
+
+Purpose: let evaluator criteria extracted from live response packages become durable win-theme mappings instead of staying only in generated response-package metadata.
+
+Changes in this slice:
+- Add evaluation criteria IDs to the public win-theme API type.
+- Allow win-theme create and update inputs to carry `evaluationCriteriaIds`.
+- Persist evaluation criteria IDs when creating or updating win themes.
+- Return evaluation criteria IDs from database win-theme rows through the action mapper.
+- Add regression coverage proving criteria mappings are preserved through theme update patches and response data.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts live-response-package.test.ts` from `frontend/` passed, running 10 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` from `frontend/` passed, running 15 strategic capability tests across competitive win themes, resource reuse, and search/RAG health.
+
+Remaining after this slice:
+- Add a direct import/generation path that converts live response package evaluator criteria into initial win-theme records for an opportunity.
+- Connect review comments and final checklist evidence to the same evaluator criteria IDs.
+
 ### 2026-05-27 - Evaluator Criteria Response Alignment
 
 Status: implemented and verified.

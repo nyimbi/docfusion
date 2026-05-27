@@ -67,6 +67,8 @@ export interface WinTheme {
 	supportingEvidence: string[];
 	/** Related past performance/project IDs */
 	relatedProjectIds: string[];
+	/** Evaluation criteria IDs this theme addresses */
+	evaluationCriteriaIds: string[];
 	/** Keywords for matching */
 	keywords: string[];
 	/** Ghost theme for competitive positioning */
@@ -120,6 +122,7 @@ export interface CreateWinThemeInput {
 	priority?: ThemePriority;
 	supportingEvidence?: string[];
 	relatedProjectIds?: string[];
+	evaluationCriteriaIds?: string[];
 	keywords?: string[];
 	ghostTheme?: Omit<GhostTheme, "id">;
 }
@@ -136,6 +139,7 @@ export interface UpdateWinThemeInput {
 	displayOrder?: number;
 	supportingEvidence?: string[];
 	relatedProjectIds?: string[];
+	evaluationCriteriaIds?: string[];
 	keywords?: string[];
 	ghostTheme?: Omit<GhostTheme, "id"> | null;
 }
