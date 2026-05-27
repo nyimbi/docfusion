@@ -84,7 +84,7 @@ vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
-import { createThemesFromResponseSeeds, generateInjectionSuggestions, getResponseWinThemeSeedReview, getThemeSuggestions, scanForOccurrences, suggestCriteriaMappings, updateTheme } from "@/lib/actions/win-themes";
+import { createThemesFromResponseSeeds, generateInjectionSuggestions, generateThemeSuggestions, getResponseWinThemeSeedReview, getThemeSuggestions, scanForOccurrences, suggestCriteriaMappings, updateTheme } from "@/lib/actions/win-themes";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -158,6 +158,41 @@ describe("win theme authorization", () => {
 				excerpt: expect.stringContaining("Evaluator criterion 55555555-5555-4555-8555-555555555555"),
 			}),
 		]));
+	});
+
+	it("returns deterministic theme suggestions when AI output is malformed", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: "not json" });
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "competitor-1",
+					competitorName: "IncumbentCo",
+					competitorWeaknesses: ["slow mobilization"],
+				}],
+			}));
+
+		const result = await generateThemeSuggestions({
+			opportunityId: "22222222-2222-4222-8222-222222222222",
+			count: 3,
+			additionalContext: "Past performance proof, cost efficiency, and local certified delivery team.",
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				statement: expect.stringContaining("slow mobilization"),
+				type: "risk_mitigation",
+				status: "pending",
+			}),
+			expect.objectContaining({
+				shortVersion: "Verifiable delivery proof",
+				type: "proof_point",
+			}),
+		]));
+		expect(result.data?.[0]?.suggestedKeywords.length).toBeGreaterThan(0);
 	});
 
 	it("does not suggest win themes for evaluation criteria already covered by existing themes", async () => {

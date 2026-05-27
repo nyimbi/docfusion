@@ -547,6 +547,110 @@ function responseSeedToThemeSuggestion(
 	};
 }
 
+function keywordsFromThemeText(text: string): string[] {
+	const stopwords = new Set(["and", "the", "for", "with", "from", "that", "this", "will", "our", "your"]);
+	return Array.from(new Set(
+		text
+			.toLowerCase()
+			.replace(/[^a-z0-9\s-]/g, " ")
+			.split(/\s+/)
+			.filter(word => word.length > 4 && !stopwords.has(word))
+	)).slice(0, 8);
+}
+
+function buildDeterministicThemeSuggestions(
+	input: GenerateThemeSuggestionsInput,
+	existingThemes: DBWinTheme[],
+	competitors: DBCompetitorProfile[]
+): ThemeSuggestion[] {
+	const existingStatements = new Set(
+		existingThemes.map(theme => normalizeThemeStatement(theme.themeStatement || ""))
+	);
+	const requestedTypes = input.themeTypes?.length ? input.themeTypes : undefined;
+	const suggestions: ThemeSuggestion[] = [];
+	const addSuggestion = (
+		statement: string,
+		shortVersion: string,
+		type: WinThemeType,
+		confidence: number,
+		rationale: string
+	) => {
+		if (requestedTypes && !requestedTypes.includes(type)) return;
+		const normalized = normalizeThemeStatement(statement);
+		if (!normalized || existingStatements.has(normalized)) return;
+		if (suggestions.some(suggestion => normalizeThemeStatement(suggestion.statement) === normalized)) return;
+		suggestions.push({
+			id: `suggestion-${input.opportunityId}-det-${suggestions.length + 1}`,
+			opportunityId: input.opportunityId,
+			statement,
+			shortVersion: shortVersion.slice(0, 100),
+			type,
+			confidence,
+			rationale,
+			sources: [],
+			suggestedKeywords: keywordsFromThemeText(statement),
+			status: "pending",
+			generatedAt: new Date(),
+		});
+	};
+
+	for (const competitor of competitors.slice(0, 3)) {
+		const weaknesses = (competitor.competitorWeaknesses as string[] | null) || [];
+		for (const weakness of weaknesses.slice(0, 2)) {
+			addSuggestion(
+				`We reduce evaluator risk by directly addressing ${weakness.toLowerCase()} with a proven, measurable delivery approach.`,
+				`Mitigate ${weakness}`,
+				"risk_mitigation",
+				0.72,
+				`Deterministic fallback derived from ${competitor.competitorName}'s recorded weakness: ${weakness}.`
+			);
+		}
+	}
+
+	if (input.additionalContext) {
+		const context = input.additionalContext.trim();
+		if (/\b(past performance|proven|track record|evidence|case stud|reference)\b/i.test(context)) {
+			addSuggestion(
+				"Our approach is backed by relevant delivery evidence and past-performance proof that evaluators can verify.",
+				"Verifiable delivery proof",
+				"proof_point",
+				0.68,
+				"Deterministic fallback found proof or past-performance language in the supplied context."
+			);
+		}
+		if (/\b(cost|value|efficien|savings|price|roi|budget)\b/i.test(context)) {
+			addSuggestion(
+				"We deliver measurable value by tying the technical approach to efficient, outcome-focused execution.",
+				"Measurable value delivery",
+				"value_prop",
+				0.66,
+				"Deterministic fallback found value, cost, or efficiency language in the supplied context."
+			);
+		}
+		if (/\b(unique|differenti|local|specialized|exclusive|certified)\b/i.test(context)) {
+			addSuggestion(
+				"Our differentiated capability gives the customer a lower-risk path to the required mission outcome.",
+				"Differentiated capability",
+				"differentiator",
+				0.65,
+				"Deterministic fallback found differentiation language in the supplied context."
+			);
+		}
+	}
+
+	if (suggestions.length === 0) {
+		addSuggestion(
+			"We combine disciplined delivery, measurable proof, and active risk controls to give evaluators a clear path to award confidence.",
+			"Award confidence through proof",
+			requestedTypes?.[0] || "differentiator",
+			0.55,
+			"Deterministic fallback used a generic proposal strategy because no stronger competitor or context signal was available."
+		);
+	}
+
+	return suggestions.slice(0, input.count || 5);
+}
+
 const CRITERIA_MAPPING_STOPWORDS = new Set([
 	"and",
 	"are",
@@ -1353,7 +1457,10 @@ Respond in JSON format:
 			return { success: true, data: suggestions };
 		} catch (parseError) {
 			logger.error("Error parsing AI response:", parseError);
-			return { success: false, error: "Failed to parse AI suggestions" };
+			return {
+				success: true,
+				data: buildDeterministicThemeSuggestions(input, existingThemes, competitors),
+			};
 		}
 	} catch (error) {
 		logger.error("Error generating suggestions:", error);

@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Win-Theme Suggestion Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep strategic win-theme generation usable when AI suggestion output is malformed but competitor weaknesses and operator context already contain theme signals.
+
+Changes in this slice:
+- Add deterministic win-theme suggestions from competitor weaknesses, past-performance proof, value/cost language, and differentiation context.
+- Avoid duplicating existing theme statements and respect requested theme-type filters.
+- Generate bounded confidence, rationale, keywords, and pending review status from explicit context signals.
+- Return deterministic theme suggestions after AI parse failure instead of failing the action.
+- Add regression coverage proving malformed AI output still produces reviewable win-theme suggestions.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts` passed with 11 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 135 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing AI-only win-theme and response-reinforcement paths where scoped context can produce deterministic review artifacts.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Cost Realism Fallbacks
 
 Status: implemented and verified.
