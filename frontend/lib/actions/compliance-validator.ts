@@ -667,6 +667,18 @@ function countRequirementReferences(sectionText: string, requirementNumber: stri
 	return Array.from(sectionText.matchAll(regex)).length;
 }
 
+function extractRequirementReferenceTokens(sectionText: string): string[] {
+	const references = sectionText.match(/\b[A-Z]{0,4}\.?\d+(?:[.\-]\d+)+[a-z]?\b/gi) || [];
+	return Array.from(new Set(references.map((reference) => reference.trim())));
+}
+
+function isKnownRequirementReference(
+	reference: string,
+	entries: Array<{ requirement: typeof rfpRequirements.$inferSelect }>
+): boolean {
+	return entries.some((entry) => countRequirementReferences(reference, entry.requirement.requirementNumber) > 0);
+}
+
 async function getResponseDocumentForCompliance(
 	documentId: string,
 	organizationId: string
@@ -686,6 +698,23 @@ async function getResponseDocumentForCompliance(
 		.limit(1);
 
 	return record ?? null;
+}
+
+async function getResponseDocumentsForOpportunity(
+	opportunityId: string,
+	organizationId: string
+): Promise<ResponseDocumentCandidate[]> {
+	return db
+		.select({
+			documentId: documents.id,
+			documentTitle: documents.title,
+			documentType: proposalDocuments.documentType,
+			content: documents.content,
+			plainText: documents.plainText,
+		})
+		.from(proposalDocuments)
+		.innerJoin(documents, eq(proposalDocuments.documentId, documents.id))
+		.where(visibleProposalDocumentsForComplianceCondition(opportunityId, organizationId));
 }
 
 // ============================================================================
@@ -1742,24 +1771,75 @@ export async function validateBidirectional(matrixId: string): Promise<Bidirecti
 			eq(rfpRequirements.organizationId, organizationId)
 		));
 
+	const responseDocuments = await getResponseDocumentsForOpportunity(matrix.opportunityId, organizationId);
+	const responseSections = responseDocuments.flatMap((document) =>
+		sectionizeDocument(document.content, document.plainText).map((section) => ({ document, section }))
+	);
+
 	// Find requirements without responses
 	const requirementsWithoutResponse: MissingReference[] = entries
 		.filter((e) =>
 			!e.entry.responseReference &&
 			e.entry.complianceStatus !== "not_applicable"
 		)
-		.map((e) => ({
-			requirementId: e.requirement.id,
-			requirementNumber: e.requirement.requirementNumber ?? e.requirement.id,
-			requirementText: e.requirement.requirementText,
-			category: e.requirement.category ?? "other",
-			priority: e.requirement.priority ?? "medium",
-			suggestedSections: [], // Would be populated by AI in production
-		}));
+		.map((e) => {
+			const suggestedSections = responseSections
+				.map(({ document, section }) => scoreSectionForRequirement({
+					section,
+					document,
+					requirementText: e.requirement.requirementText,
+					requirementNumber: e.requirement.requirementNumber,
+					category: e.requirement.category,
+				}))
+				.filter((suggestion): suggestion is SuggestedLocation => suggestion !== null)
+				.sort((a, b) => b.relevanceScore - a.relevanceScore)
+				.slice(0, 3)
+				.map((suggestion) => `${suggestion.documentTitle} - ${suggestion.sectionTitle} (${suggestion.reason})`);
+			return {
+				requirementId: e.requirement.id,
+				requirementNumber: e.requirement.requirementNumber ?? e.requirement.id,
+				requirementText: e.requirement.requirementText,
+				category: e.requirement.category ?? "other",
+				priority: e.requirement.priority ?? "medium",
+				suggestedSections,
+			};
+		});
 
-	// In production, would analyze response documents to find orphaned sections
-	const responsesWithoutRequirement: BidirectionalValidation["responsesWithoutRequirement"] = [];
-	const orphanedCrossReferences: BidirectionalValidation["orphanedCrossReferences"] = [];
+	const responsesWithoutRequirement: BidirectionalValidation["responsesWithoutRequirement"] = responseSections.flatMap(({ document, section }) => {
+		const potentialMatches = entries
+			.map((entry) => ({
+				entry,
+				suggestion: scoreSectionForRequirement({
+					section,
+					document,
+					requirementText: entry.requirement.requirementText,
+					requirementNumber: entry.requirement.requirementNumber,
+					category: entry.requirement.category,
+				}),
+			}))
+			.filter((match): match is { entry: typeof entries[number]; suggestion: SuggestedLocation } =>
+				match.suggestion !== null && match.suggestion.relevanceScore >= 35
+			)
+			.sort((a, b) => b.suggestion.relevanceScore - a.suggestion.relevanceScore)
+			.slice(0, 3)
+			.map((match) => `${match.entry.requirement.requirementNumber ?? match.entry.requirement.id}: ${match.suggestion.reason}`);
+
+		if (potentialMatches.length > 0) return [];
+		return [{
+			documentSection: `${document.documentTitle} - ${section.title}`,
+			content: section.text.slice(0, 500),
+			potentialMatches,
+		}];
+	});
+	const orphanedCrossReferences: BidirectionalValidation["orphanedCrossReferences"] = responseSections.flatMap(({ document, section }) =>
+		extractRequirementReferenceTokens(section.text)
+			.filter((reference) => !isKnownRequirementReference(reference, entries))
+			.map((reference) => ({
+				location: `${document.documentTitle} - ${section.title}`,
+				targetRequirement: reference,
+				issue: "Referenced requirement is not present in this compliance matrix",
+			}))
+	);
 
 	return {
 		requirementsWithoutResponse,

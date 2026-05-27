@@ -5939,3 +5939,25 @@ Verification:
 Remaining after this slice:
 - Continue auditing bidirectional compliance validation for orphaned response sections and unresolved cross-reference targets.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Bidirectional Compliance Section Analysis
+
+Status: implemented and verified.
+
+Purpose: make bidirectional compliance validation analyze actual response sections and unknown requirement references instead of only reporting requirements with missing response references.
+
+Changes in this slice:
+- Load scoped response documents for the compliance matrix opportunity.
+- Populate missing-response requirements with ranked suggested response sections.
+- Identify response sections that have no matching requirement in the matrix.
+- Detect requirement-number references in response text that do not correspond to a matrix requirement.
+
+Verification:
+- `npm test -- compliance-cross-reference-suggestions.test.ts` passed with 7 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 96 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue replacing generic proposal/support narratives with opportunity-specific evidence and source references.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

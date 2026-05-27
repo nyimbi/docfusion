@@ -82,6 +82,7 @@ import {
 	detectMissingCrossReferences,
 	detectOverReferences,
 	suggestCrossReferenceLocations,
+	validateBidirectional,
 } from "@/lib/actions/compliance-validator";
 
 beforeEach(() => {
@@ -423,5 +424,92 @@ describe("compliance cross-reference suggestions", () => {
 			reason: "No matching response section found",
 		});
 		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("validates bidirectional mappings with suggested sections and orphaned references", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					{
+						entry: {
+							id: "entry-1",
+							responseReference: null,
+							complianceStatus: "pending",
+						},
+						requirement: {
+							id: "req-1",
+							requirementNumber: "C.3.2",
+							requirementText: "The contractor shall provide cybersecurity incident response monitoring and evidence reporting.",
+							category: "cybersecurity",
+							priority: "mandatory",
+						},
+					},
+					{
+						entry: {
+							id: "entry-2",
+							responseReference: "Technical Approach - Staffing",
+							complianceStatus: "partial",
+						},
+						requirement: {
+							id: "req-2",
+							requirementNumber: "C.4.1",
+							requirementText: "The contractor shall provide qualified staffing and escalation roles.",
+							category: "staffing",
+							priority: "mandatory",
+						},
+					},
+				],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					documentId: "doc-technical",
+					documentTitle: "Technical Approach",
+					documentType: "technical_approach",
+					plainText: null,
+					content: {
+						type: "doc",
+						content: [
+							{
+								type: "heading",
+								content: [{ type: "text", text: "Cybersecurity Monitoring" }],
+							},
+							{
+								type: "paragraph",
+								content: [{
+									type: "text",
+									text: "The C.3.2 response provides cybersecurity incident response monitoring and evidence reporting. See Z.9.9 for a legacy appendix.",
+								}],
+							},
+							{
+								type: "heading",
+								content: [{ type: "text", text: "Corporate Story" }],
+							},
+							{
+								type: "paragraph",
+								content: [{ type: "text", text: "Our company history, values, and office locations." }],
+							},
+						],
+					},
+				}],
+			}));
+
+		const result = await validateBidirectional("matrix-1");
+
+		expect(result.requirementsWithoutResponse).toHaveLength(1);
+		expect(result.requirementsWithoutResponse[0]).toMatchObject({
+			requirementId: "req-1",
+			requirementNumber: "C.3.2",
+		});
+		expect(result.requirementsWithoutResponse[0].suggestedSections[0]).toContain("Technical Approach - Cybersecurity Monitoring");
+		expect(result.responsesWithoutRequirement).toEqual([{
+			documentSection: "Technical Approach - Corporate Story",
+			content: "Corporate Story\nOur company history, values, and office locations.",
+			potentialMatches: [],
+		}]);
+		expect(result.orphanedCrossReferences).toEqual([{
+			location: "Technical Approach - Cybersecurity Monitoring",
+			targetRequirement: "Z.9.9",
+			issue: "Referenced requirement is not present in this compliance matrix",
+		}]);
 	});
 });
