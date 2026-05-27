@@ -1556,7 +1556,10 @@ Keep notes concise but comprehensive. Target ${Math.ceil((slide.estimatedDuratio
 				maxTokens: 800,
 				temperature: 0.7,
 			});
-			speakerNotes = result.content;
+			speakerNotes = result.content.trim();
+			if (speakerNotes.length === 0) {
+				throw new Error("AI speaker notes response was empty");
+			}
 		} catch (aiError) {
 			logger.error("AI speaker notes generation failed:", aiError);
 			speakerNotes = generateFallbackSpeakerNotes(slide);

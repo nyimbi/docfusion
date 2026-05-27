@@ -92,6 +92,7 @@ import {
 	anticipateQuestions,
 	createPresentation,
 	generateAnswerSuggestion,
+	generateSpeakerNotes,
 	generateSlidesFromProposal,
 } from "@/lib/actions/presentations";
 
@@ -277,6 +278,47 @@ describe("presentation opportunity scoping", () => {
 		expect(result.data).toContain("use a phased transition plan");
 		expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
 			suggestedAnswer: result.data,
+		}));
+		expect(revalidatePathMock).toHaveBeenCalledWith(`/presentations/${presentationId}`);
+	});
+
+	it("falls back to deterministic speaker notes when AI returns blank content", async () => {
+		completeMock.mockResolvedValueOnce({ content: "\n\t " });
+		const updateChain = createChain();
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "slide-1",
+					presentationId,
+					slideNumber: 2,
+					slideType: "content",
+					title: "Transition Approach",
+					content: [{
+						type: "bullet",
+						data: ["Phased cutover", "Weekly risk review"],
+					}],
+					estimatedDuration: 120,
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: presentationId,
+					opportunityId,
+					title: "Oral presentation",
+					audienceDescription: "Evaluation panel",
+				}],
+			}));
+		dbMock.update.mockReturnValueOnce(updateChain);
+
+		const result = await generateSpeakerNotes("slide-1");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data).toContain("[SLIDE: Transition Approach]");
+		expect(result.data).toContain("- Phased cutover");
+		expect(result.data).toContain("TRANSITION:");
+		expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+			speakerNotes: result.data,
 		}));
 		expect(revalidatePathMock).toHaveBeenCalledWith(`/presentations/${presentationId}`);
 	});
