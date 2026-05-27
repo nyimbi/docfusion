@@ -134,6 +134,7 @@ import {
 	resolveClaim,
 	linkEvidenceToClaim,
 	suggestEvidenceForClaim,
+	suggestEvidenceForCriteria,
 	suggestEvidenceForSection,
 	getClaimsSummary,
 	calculateEvidenceCoverage,
@@ -208,6 +209,48 @@ function makeDbClaimRow(overrides: Record<string, unknown> = {}) {
 		resolutionNotes: null,
 		analyzedAt: new Date("2026-05-01T00:00:00.000Z"),
 		createdAt: new Date("2026-05-01T00:00:00.000Z"),
+		...overrides,
+	};
+}
+
+function makeDbRequirementRow(overrides: Record<string, unknown> = {}) {
+	return {
+		id: "criteria-001",
+		organizationId: "org-001",
+		rfpDocumentId: "rfp-001",
+		opportunityId: "opp-001",
+		requirementNumber: "M.2.1",
+		title: "Technical Approach",
+		requirementText: "Evaluation criteria require measurable uptime, cloud migration, and federal delivery proof.",
+		sourceQuote: null,
+		sourcePage: 12,
+		sourceSection: "Section M.2.1",
+		category: "technical",
+		subcategory: "cloud",
+		requirementType: "shall",
+		priority: "mandatory",
+		riskLevel: "high",
+		evaluationWeight: 40,
+		extractionConfidence: 95,
+		aiAnalysis: null,
+		isImplicit: false,
+		ambiguityLevel: "clear",
+		clarificationQuestions: [],
+		relatedRequirements: [],
+		keyTerms: ["uptime", "cloud migration", "federal delivery"],
+		suggestedApproach: "Use verified cloud migration metrics.",
+		embedding: null,
+		complianceStatus: "not_addressed",
+		responseStrategy: null,
+		assignedTo: null,
+		dueDate: null,
+		responseDocumentId: null,
+		responseSection: null,
+		notes: null,
+		tags: ["technical", "cloud"],
+		metadata: null,
+		createdAt: new Date("2026-05-01T00:00:00.000Z"),
+		updatedAt: new Date("2026-05-01T00:00:00.000Z"),
 		...overrides,
 	};
 }
@@ -1074,6 +1117,75 @@ describe("Evidence suggestions", () => {
 
 		if (!result.success) throw new Error(result.error);
 		expect(result.data).toEqual([]);
+	});
+
+	test("scores criteria suggestions against scoped evaluation requirement text", async () => {
+		const wheres: unknown[] = [];
+		const criteriaQuery = createChainableQuery([makeDbRequirementRow()]);
+		const evidenceQuery = createChainableQuery([
+			makeDbEvidenceRow({
+				id: "ev-unrelated",
+				title: "Data Center Latency Benchmark",
+				content: "Network latency decreased during server consolidation.",
+				tags: ["infrastructure"],
+				isQuantified: true,
+				metric: "latency",
+				metricValue: "12",
+				metricUnit: "ms",
+				metricContext: "Data center benchmark",
+				sourceVerified: true,
+				strengthScore: 95,
+				relatedCapabilities: ["data center operations"],
+				relatedAgencies: ["transportation"],
+			}),
+			makeDbEvidenceRow({
+				id: "ev-criteria-strong",
+				title: "Federal Cloud Migration Uptime",
+				content: "Federal cloud migration maintained measurable uptime for mission systems.",
+				summary: "Verified federal cloud migration proof with uptime metrics.",
+				tags: ["federal", "cloud", "uptime"],
+				isQuantified: true,
+				metric: "uptime",
+				metricValue: "99.99",
+				metricUnit: "%",
+				metricContext: "Federal cloud migration delivery",
+				sourceVerified: true,
+				strengthScore: 90,
+				relatedCapabilities: ["cloud migration"],
+				relatedAgencies: ["federal agencies"],
+			}),
+		]);
+		for (const query of [criteriaQuery, evidenceQuery]) {
+			(query.where as ReturnType<typeof vi.fn>).mockImplementation((value: unknown) => {
+				wheres.push(value);
+				return query;
+			});
+		}
+		dbMock.select
+			.mockReturnValueOnce(criteriaQuery)
+			.mockReturnValueOnce(evidenceQuery);
+
+		const result = await suggestEvidenceForCriteria("criteria-001");
+
+		if (!result.success) throw new Error(result.error);
+		expect(result.data.map((suggestion) => suggestion.evidenceId)).toEqual([
+			"ev-criteria-strong",
+		]);
+		expect(result.data[0].reason).toContain("criteria terms:");
+		expect(result.data[0].reason).toContain("verified source");
+		expect(result.data[0].reason).toContain("quantified proof");
+		expectAssignedOpportunityScope(wheres[0]);
+	});
+
+	test("returns no criteria suggestions when the criterion is not visible", async () => {
+		const criteriaQuery = createChainableQuery([]);
+		dbMock.select.mockReturnValueOnce(criteriaQuery);
+
+		const result = await suggestEvidenceForCriteria("criteria-missing");
+
+		if (!result.success) throw new Error(result.error);
+		expect(result.data).toEqual([]);
+		expect(dbMock.select).toHaveBeenCalledTimes(1);
 	});
 });
 

@@ -62,6 +62,7 @@ import {
 	type StrengthImprovementSuggestion,
 	type ClaimLocation,
 } from "@/lib/db/schema-evidence";
+import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { logger } from "@/lib/utils/logger";
 
 function toBase64DataUrl(mimeType: string, content: string): string {
@@ -248,6 +249,14 @@ function visibleClaimCondition(claimId: string, userContext: EvidenceUserContext
 	return and(
 		eq(claimAnalysis.id, claimId),
 		assignedOpportunityExistsSql(claimAnalysis.opportunityId, userContext)
+	)!;
+}
+
+function visibleRequirementCondition(requirementId: string, userContext: EvidenceUserContext): SQL {
+	return and(
+		eq(rfpRequirements.id, requirementId),
+		eq(rfpRequirements.organizationId, userContext.organizationId),
+		assignedOpportunityExistsSql(rfpRequirements.opportunityId, userContext)
 	)!;
 }
 
@@ -460,11 +469,12 @@ function tokenMatches(sourceTokens: Set<string>, targetTokens: string[]): string
 	return targetTokens.filter((token) => sourceTokens.has(token));
 }
 
-function scoreEvidenceForClaim(
-	claimText: string,
-	evidence: DBEvidence
+function scoreEvidenceForText(
+	sourceText: string,
+	evidence: DBEvidence,
+	matchedTermLabel = "claim terms"
 ): { relevanceScore: number; reason: string; matchedSignals: string[] } {
-	const claimTokens = uniqueTokens(claimText);
+	const claimTokens = uniqueTokens(sourceText);
 	const titleTokens = new Set(tokenizeEvidenceText(evidence.title));
 	const contentTokens = new Set(tokenizeEvidenceText(evidence.content));
 	const summaryTokens = new Set(tokenizeEvidenceText(evidence.summary));
@@ -506,7 +516,7 @@ function scoreEvidenceForClaim(
 	if (evidence.strengthScore) score += Math.min(15, Math.round(evidence.strengthScore * 0.15));
 
 	const matchedSignals = [
-		matchedTokens.length ? `claim terms: ${matchedTokens.slice(0, 5).join(", ")}` : "",
+		matchedTokens.length ? `${matchedTermLabel}: ${matchedTokens.slice(0, 5).join(", ")}` : "",
 		tagMatches.length ? `tags: ${tagMatches.slice(0, 3).join(", ")}` : "",
 		metricMatches.length ? `metrics: ${metricMatches.slice(0, 3).join(", ")}` : "",
 		evidence.sourceVerified ? "verified source" : "",
@@ -524,6 +534,21 @@ function scoreEvidenceForClaim(
 			: "No strong claim-aligned evidence signals found",
 		matchedSignals,
 	};
+}
+
+function criteriaTextForRequirement(requirement: typeof rfpRequirements.$inferSelect): string {
+	return [
+		requirement.requirementNumber,
+		requirement.title,
+		requirement.requirementText,
+		requirement.sourceQuote,
+		requirement.sourceSection,
+		requirement.category,
+		requirement.subcategory,
+		requirement.suggestedApproach,
+		...(Array.isArray(requirement.keyTerms) ? requirement.keyTerms : []),
+		...(Array.isArray(requirement.tags) ? requirement.tags : []),
+	].filter(Boolean).join(" ");
 }
 
 /**
@@ -1648,7 +1673,7 @@ export async function suggestEvidenceForClaim(claimId: string): Promise<ActionRe
 		const suggestions: EvidenceSuggestion[] = [];
 
 		for (const evidence of allEvidence) {
-			const scored = scoreEvidenceForClaim(claim.claimText, evidence);
+			const scored = scoreEvidenceForText(claim.claimText, evidence, "claim terms");
 
 			// Only include if relevance is above threshold
 			if (scored.relevanceScore >= 35 && scored.matchedSignals.length > 0) {
@@ -1723,29 +1748,43 @@ export async function suggestEvidenceForCriteria(criteriaId: string): Promise<Ac
 	try {
 		const userContext = await requireEvidenceContext();
 
-		// Get approved evidence with high strength scores
+		const [criterion] = await db
+			.select()
+			.from(rfpRequirements)
+			.where(visibleRequirementCondition(criteriaId, userContext));
+
+		if (!criterion) {
+			return { success: true, data: [] };
+		}
+
+		const criteriaText = criteriaTextForRequirement(criterion);
+
 		const allEvidence = await db
 			.select()
 			.from(evidenceLibrary)
 			.where(and(
 				visibleEvidenceCondition(userContext),
-				eq(evidenceLibrary.status, "approved"),
-				gte(evidenceLibrary.strengthScore, 60)
+				eq(evidenceLibrary.status, "approved")
 			))
-			.orderBy(desc(evidenceLibrary.strengthScore))
-			.limit(20);
+			.limit(100);
 
-		// Return as suggestions
-		const suggestions = allEvidence.map((e) => ({
-			evidenceId: e.id,
-			evidenceTitle: e.title,
-			evidenceType: e.evidenceType,
-			relevanceScore: e.strengthScore || 50,
-			reason: `Strong ${e.evidenceType || "evidence"} that may address evaluation criteria`,
-			suggestedUsage: e.summary || e.content.substring(0, 200),
-			strengthScore: e.strengthScore,
-		}));
-		return { success: true, data: suggestions };
+		const suggestions: EvidenceSuggestion[] = [];
+		for (const evidence of allEvidence) {
+			const scored = scoreEvidenceForText(criteriaText, evidence, "criteria terms");
+			if (scored.relevanceScore >= 35 && scored.matchedSignals.length > 0) {
+				suggestions.push({
+					evidenceId: evidence.id,
+					evidenceTitle: evidence.title,
+					evidenceType: evidence.evidenceType,
+					relevanceScore: scored.relevanceScore,
+					reason: scored.reason,
+					suggestedUsage: evidence.summary || evidence.content.substring(0, 200),
+					strengthScore: evidence.strengthScore,
+				});
+			}
+		}
+
+		return { success: true, data: suggestions.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 10) };
 	} catch (error) {
 		return { success: false, error: `Failed to suggest evidence for criteria: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}

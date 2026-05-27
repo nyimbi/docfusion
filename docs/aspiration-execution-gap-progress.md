@@ -5786,3 +5786,25 @@ Verification:
 Remaining after this slice:
 - Continue improving section and criteria-level evidence suggestions so they use the same richer scoring signals.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Criteria-Aware Evidence Suggestions
+
+Status: implemented and verified.
+
+Purpose: make evaluation-criteria evidence suggestions use the actual scoped criterion text instead of returning generic high-strength approved evidence.
+
+Changes in this slice:
+- Read the requested evaluation criterion from `rfpRequirements` with organization and assigned-opportunity scoping.
+- Build criteria scoring text from requirement number, title, body, source section, category, key terms, suggested approach, and tags.
+- Reuse the multi-signal evidence scorer with criteria-specific reason text.
+- Return no suggestions when the criterion is not visible and exclude unrelated high-strength evidence.
+
+Verification:
+- `npm test -- evidence.test.ts` passed with 55 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 87 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue improving section-level aggregation so duplicate evidence can preserve the strongest per-claim rationale.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
