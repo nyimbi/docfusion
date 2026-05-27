@@ -21,14 +21,20 @@ export interface RunProofScenariosOptions {
 }
 
 export function formatProofCommand(scenario: ProofScenarioDefinition): string {
-	return [scenario.command.command, ...scenario.command.args].join(" ");
+	const env = scenario.command.env
+		? Object.entries(scenario.command.env).map(([key, value]) => `${key}=${value}`)
+		: [];
+	return [...env, scenario.command.command, ...scenario.command.args].join(" ");
 }
 
 export async function runProofScenario(scenario: ProofScenarioDefinition): Promise<number> {
 	const child = spawn(scenario.command.command, scenario.command.args, {
 		cwd: scenario.command.cwd ? path.resolve(process.cwd(), scenario.command.cwd) : process.cwd(),
 		stdio: "inherit",
-		env: process.env,
+		env: {
+			...process.env,
+			...scenario.command.env,
+		},
 	});
 	return new Promise((resolve) => {
 		child.on("close", (code) => resolve(code ?? 1));

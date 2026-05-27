@@ -5,7 +5,7 @@ import {
 	type ProofScenarioDefinition,
 	validateProofScenarioManifest,
 } from "@/scripts/platform-proof/scenarios";
-import { runProofScenarios } from "@/scripts/platform-proof/runner";
+import { formatProofCommand, runProofScenarios } from "@/scripts/platform-proof/runner";
 
 function proofScenario(id: string): ProofScenarioDefinition {
 	return {
@@ -48,6 +48,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-afdb-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-comesa-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-unicef-source");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-dgmarket-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-ungm-source");
 	});
@@ -269,6 +270,21 @@ describe("platform proof scenarios", () => {
 				]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["live-dgmarket-source"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-dgmarket-source",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001"]),
+				command: expect.objectContaining({
+					env: expect.objectContaining({
+						LIVE_SOURCE_DISCOVERY_URL: "https://www.dgmarket.com",
+					}),
+				}),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-source-discovery-evidence.md",
+				]),
+			}),
+		]);
 		expect(listProofScenarios({ ids: ["live-kenya-ppip-source"], includeLiveSafe: true })).toEqual([
 			expect.objectContaining({
 				id: "live-kenya-ppip-source",
@@ -289,6 +305,13 @@ describe("platform proof scenarios", () => {
 				]),
 			}),
 		]);
+	});
+
+	it("prints scenario-specific environment for dry-run commands", () => {
+		const [scenario] = listProofScenarios({ ids: ["live-dgmarket-source"], includeLiveSafe: true });
+
+		expect(formatProofCommand(scenario)).toContain("LIVE_SOURCE_DISCOVERY_URL=https://www.dgmarket.com");
+		expect(formatProofCommand(scenario)).toContain("npx tsx scripts/prove-live-source-discovery.ts");
 	});
 
 	it("keeps continue-on-failure sweeps failed when any scenario fails", async () => {

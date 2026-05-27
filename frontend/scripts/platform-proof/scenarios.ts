@@ -4,6 +4,7 @@ export interface ProofScenarioCommand {
 	command: string;
 	args: string[];
 	cwd?: string;
+	env?: Record<string, string>;
 }
 
 export interface ProofScenarioDefinition {
@@ -541,6 +542,27 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: [
 			".omx/state/platform-live-source-discovery-evidence.md",
 			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-unicef-source.json",
+		],
+	},
+	{
+		id: "live-dgmarket-source",
+		wave: 9,
+		title: "Live DGMarket source discovery proof",
+		kind: "live-safe",
+		proofTargets: ["F-001"],
+		requiresLiveServices: true,
+		description: "Scrapes DGMarket through the configured source proof and verifies rendered listing rows become normalized opportunity candidates.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-source-discovery.ts"],
+			env: {
+				LIVE_SOURCE_DISCOVERY_URL: "https://www.dgmarket.com",
+				LIVE_SOURCE_DISCOVERY_PROOF_PREFIX: "live_dgmarket_source",
+			},
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-source-discovery-evidence.md",
+			".omx/logs/platform-completion/live-source-discovery-<run_id>/live-source-discovery.json",
 		],
 	},
 	{

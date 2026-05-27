@@ -16,6 +16,25 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - DGMarket Dedicated Live Proof
+
+Status: implemented and verified.
+
+Purpose: make DGMarket live-source verification repeatable through the platform proof manifest instead of relying on ad hoc shell environment variables.
+
+Changes in this slice:
+- Add scenario-specific environment support to the platform proof runner and dry-run command formatting.
+- Add a dedicated `live-dgmarket-source` live-safe proof scenario that targets `https://www.dgmarket.com`.
+- Allow the generic live configured-source proof script to use a scenario-provided run ID prefix.
+- Add proof-manifest coverage for the DGMarket scenario and environment-aware command formatting.
+
+Verification:
+- `npm test -- platform-proof-scenarios.test.ts` from `frontend/` passed, running 6 tests.
+- `npm run platform:proof -- --include-live-safe --run live-dgmarket-source` from `frontend/` passed; the scenario produced run `live_dgmarket_source_20260527T044441Z` with 16 normalized DGMarket opportunities.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - DGMarket Default Discovery Coverage
 
 Status: implemented and verified.

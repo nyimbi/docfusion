@@ -13,7 +13,8 @@ import { genericParser, getParser } from "@/lib/scrapers/parsers";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
-const RUN_ID = process.env.LIVE_SOURCE_DISCOVERY_PROOF_RUN_ID ?? createProofRunId("live_source_discovery");
+const RUN_ID = process.env.LIVE_SOURCE_DISCOVERY_PROOF_RUN_ID
+	?? createProofRunId(process.env.LIVE_SOURCE_DISCOVERY_PROOF_PREFIX ?? "live_source_discovery");
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "live-source-discovery" });
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-live-source-discovery-evidence.md");
 const SOURCE_URL = process.env.LIVE_SOURCE_DISCOVERY_URL ?? "https://procurement-notices.undp.org";
