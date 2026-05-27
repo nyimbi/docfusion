@@ -163,7 +163,7 @@ export function PresentationExporter({
 				if (result.data.downloadUrl) {
 					const link = document.createElement("a");
 					link.href = result.data.downloadUrl;
-					link.download = `${presentation.title}.${format}`;
+					link.download = result.data.filename ?? `${presentation.title}.${format}`;
 					document.body.appendChild(link);
 					link.click();
 					document.body.removeChild(link);

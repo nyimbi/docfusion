@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Presentation Export Artifacts
+
+Status: implemented and verified.
+
+Purpose: make oral presentation exports produce real downloadable artifacts for response delivery instead of returning inert placeholder export routes.
+
+Changes in this slice:
+- Replace the presentation export placeholder URL with generated data-download artifacts.
+- Generate self-contained HTML decks with slide content, speaker notes, team members, branding colors, and print styling.
+- Generate PDF deck exports from the same slide content using the existing PDF dependency.
+- Generate editable PPTX deck exports using the existing PowerPoint dependency and include speaker notes.
+- Return artifact filename and MIME type metadata to the exporter UI.
+- Add focused regression coverage for HTML, PDF, and PPTX data artifacts and decoded HTML content.
+- Add a dedicated Wave 9 platform proof scenario for presentation export artifacts.
+
+Verification:
+- `npm test -- presentations-export.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 10 tests.
+- `npm run platform:proof -- --run wave9-presentation-export-artifacts` from `frontend/` passed, running the new presentation export proof.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - DGMarket Dedicated Live Proof
 
 Status: implemented and verified.

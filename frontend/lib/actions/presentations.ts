@@ -86,6 +86,42 @@ interface SupportingEvidence {
 	slideId?: string;
 }
 
+interface PresentationExportDeck {
+	title: string;
+	description?: string | null;
+	presentationDate?: Date | string | null;
+	venue?: string | null;
+	isVirtual?: boolean | null;
+	theme?: string | null;
+	customBranding?: {
+		primaryColor?: string;
+		secondaryColor?: string;
+		logoUrl?: string;
+		fontFamily?: string;
+	} | null;
+	slides: Array<{
+		slideNumber: number;
+		slideType?: string | null;
+		title?: string | null;
+		content?: unknown;
+		speakerNotes?: string | null;
+		layout?: string | null;
+		backgroundImage?: string | null;
+		backgroundColor?: string | null;
+	}>;
+	team: Array<{
+		name: string;
+		role?: string | null;
+		assignedSlideIds?: unknown;
+	}>;
+}
+
+interface PresentationExportArtifact {
+	downloadUrl: string;
+	filename: string;
+	mimeType: string;
+}
+
 async function requirePresentationContext(): Promise<PresentationActionContext> {
 	const context = await requireUserContext();
 	if (!context.organizationId) {
@@ -137,6 +173,239 @@ function visibleRequirementsForOpportunityCondition(opportunityId: string, conte
 		eq(rfpRequirements.opportunityId, opportunityId),
 		assignedOpportunityExistsSql(opportunityId, context)
 	)!;
+}
+
+function escapeHtml(value: unknown): string {
+	return String(value ?? "")
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
+function safeCssColor(value: string | null | undefined, fallback: string): string {
+	const normalized = value?.trim();
+	if (!normalized) return fallback;
+	return /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(normalized) ? normalized : fallback;
+}
+
+function safeFontFamily(value: string | null | undefined): string {
+	const normalized = value?.trim();
+	if (!normalized) return "Inter, Arial, sans-serif";
+	return /^[a-z0-9 ,.'"-]{1,80}$/i.test(normalized) ? normalized : "Inter, Arial, sans-serif";
+}
+
+function toBase64DataUrl(mimeType: string, content: string | ArrayBuffer | Uint8Array): string {
+	const buffer = typeof content === "string"
+		? Buffer.from(content, "utf8")
+		: Buffer.from(content instanceof Uint8Array ? content : new Uint8Array(content));
+	return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+function plainTextFromSlideContent(content: unknown): string[] {
+	if (!Array.isArray(content)) return [];
+
+	const lines: string[] = [];
+	for (const item of content as SlideContent[]) {
+		if (!item || typeof item !== "object") continue;
+		if (item.type === "bullet" && Array.isArray(item.data)) {
+			lines.push(...item.data.map((value) => `- ${String(value)}`));
+		} else if (item.type === "text" || item.type === "quote" || item.type === "code") {
+			lines.push(String(item.data ?? ""));
+		} else if (item.type === "table" && Array.isArray(item.data)) {
+			lines.push(...(item.data as unknown[]).map((row) => Array.isArray(row) ? row.join(" | ") : String(row)));
+		} else if (item.type === "chart") {
+			lines.push(`Chart: ${JSON.stringify(item.data)}`);
+		} else if (item.type === "image") {
+			lines.push(`Image: ${String(item.data ?? "")}`);
+		}
+	}
+	return lines.map((line) => line.trim()).filter(Boolean);
+}
+
+function buildPresentationHtml(deck: PresentationExportDeck): string {
+	const primary = safeCssColor(deck.customBranding?.primaryColor, "#1f2937");
+	const secondary = safeCssColor(deck.customBranding?.secondaryColor, "#2563eb");
+	const fontFamily = safeFontFamily(deck.customBranding?.fontFamily);
+	const slides = deck.slides
+		.filter((slide) => slide.slideType !== "backup")
+		.map((slide) => {
+			const body = plainTextFromSlideContent(slide.content)
+				.map((line) => `<p>${escapeHtml(line)}</p>`)
+				.join("\n");
+			const notes = slide.speakerNotes
+				? `<aside><strong>Speaker notes</strong><p>${escapeHtml(slide.speakerNotes)}</p></aside>`
+				: "";
+			const backgroundColor = safeCssColor(slide.backgroundColor, "");
+			const background = backgroundColor
+				? ` style="background:${backgroundColor}"`
+				: "";
+			return `
+				<section class="slide"${background}>
+					<div class="slide-number">Slide ${slide.slideNumber}</div>
+					<h2>${escapeHtml(slide.title ?? `Slide ${slide.slideNumber}`)}</h2>
+					<div class="content">${body || "<p>No slide body content.</p>"}</div>
+					${notes}
+				</section>
+			`;
+		})
+		.join("\n");
+	const team = deck.team.length
+		? `<section class="team"><h2>Presentation Team</h2><ul>${deck.team.map((member) => `<li>${escapeHtml(member.name)}${member.role ? ` - ${escapeHtml(member.role)}` : ""}</li>`).join("")}</ul></section>`
+		: "";
+
+	return `<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>${escapeHtml(deck.title)}</title>
+	<style>
+		body { margin: 0; font-family: ${fontFamily}; color: #111827; background: #f8fafc; }
+		header { padding: 40px 56px; background: ${primary}; color: #fff; }
+		header p { max-width: 900px; line-height: 1.5; }
+		.meta { color: #dbeafe; font-size: 14px; }
+		.slide { min-height: 560px; margin: 24px auto; padding: 44px 56px; max-width: 1120px; background: #fff; border: 1px solid #e5e7eb; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); page-break-after: always; }
+		.slide-number { color: ${secondary}; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+		h1 { margin: 0 0 12px; font-size: 36px; }
+		h2 { margin: 10px 0 24px; font-size: 30px; }
+		p { font-size: 18px; line-height: 1.55; }
+		aside { margin-top: 28px; padding: 16px; border-left: 4px solid ${secondary}; background: #eff6ff; }
+		.team { max-width: 1120px; margin: 24px auto 48px; padding: 32px 56px; background: #fff; border: 1px solid #e5e7eb; }
+		@media print { body { background: #fff; } .slide { box-shadow: none; margin: 0; border: 0; } }
+	</style>
+</head>
+<body>
+	<header>
+		<h1>${escapeHtml(deck.title)}</h1>
+		${deck.description ? `<p>${escapeHtml(deck.description)}</p>` : ""}
+		<p class="meta">${escapeHtml(deck.isVirtual ? "Virtual presentation" : deck.venue ?? "")}${deck.presentationDate ? ` ${escapeHtml(new Date(deck.presentationDate).toLocaleDateString())}` : ""}</p>
+	</header>
+	${slides}
+	${team}
+</body>
+</html>`;
+}
+
+async function buildPresentationPdf(deck: PresentationExportDeck): Promise<ArrayBuffer> {
+	const { jsPDF } = await import("jspdf");
+	const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+	const pageWidth = pdf.internal.pageSize.getWidth();
+	const pageHeight = pdf.internal.pageSize.getHeight();
+
+	deck.slides.forEach((slide, index) => {
+		if (index > 0) pdf.addPage();
+		pdf.setFillColor(248, 250, 252);
+		pdf.rect(0, 0, pageWidth, pageHeight, "F");
+		pdf.setFont("helvetica", "bold");
+		pdf.setFontSize(index === 0 ? 26 : 22);
+		pdf.text(slide.title ?? deck.title, 48, 70, { maxWidth: pageWidth - 96 });
+		pdf.setFont("helvetica", "normal");
+		pdf.setFontSize(13);
+		let y = 118;
+		for (const line of plainTextFromSlideContent(slide.content)) {
+			const wrapped = pdf.splitTextToSize(line, pageWidth - 96) as string[];
+			pdf.text(wrapped, 58, y);
+			y += wrapped.length * 17 + 8;
+			if (y > pageHeight - 76) break;
+		}
+		if (slide.speakerNotes && y < pageHeight - 90) {
+			pdf.setFont("helvetica", "bold");
+			pdf.text("Speaker notes", 58, y + 12);
+			pdf.setFont("helvetica", "normal");
+			const wrappedNotes = pdf.splitTextToSize(slide.speakerNotes, pageWidth - 96) as string[];
+			pdf.text(wrappedNotes.slice(0, 4), 58, y + 32);
+		}
+		pdf.setFontSize(10);
+		pdf.text(`Slide ${slide.slideNumber}`, pageWidth - 92, pageHeight - 28);
+	});
+
+	return pdf.output("arraybuffer");
+}
+
+async function buildPresentationPptx(deck: PresentationExportDeck): Promise<string | ArrayBuffer | Uint8Array> {
+	const { default: PptxGenJS } = await import("pptxgenjs");
+	const pptx = new PptxGenJS();
+	pptx.author = "DocFusion";
+	pptx.company = "DocFusion";
+	pptx.subject = deck.description ?? "Oral presentation";
+	pptx.title = deck.title;
+	pptx.layout = "LAYOUT_WIDE";
+	pptx.theme = {
+		headFontFace: safeFontFamily(deck.customBranding?.fontFamily),
+		bodyFontFace: safeFontFamily(deck.customBranding?.fontFamily),
+	};
+
+	for (const sourceSlide of deck.slides) {
+		const slide = pptx.addSlide();
+		const backgroundColor = safeCssColor(sourceSlide.backgroundColor, "");
+		if (backgroundColor) {
+			slide.background = { color: backgroundColor.replace(/^#/, "") };
+		}
+		slide.addText(sourceSlide.title ?? deck.title, {
+			x: 0.55,
+			y: 0.35,
+			w: 12.2,
+			h: 0.55,
+			fontFace: safeFontFamily(deck.customBranding?.fontFamily),
+			fontSize: 26,
+			bold: true,
+			color: safeCssColor(deck.customBranding?.primaryColor, "#1f2937").replace(/^#/, ""),
+		});
+		const body = plainTextFromSlideContent(sourceSlide.content);
+		const useBullets = body.some((line) => line.startsWith("- "));
+		slide.addText(body.length ? body.map((line) => line.replace(/^- /, "")).join("\n") : "No slide body content.", {
+			x: 0.8,
+			y: 1.25,
+			w: 11.8,
+			h: 5.2,
+			fontFace: safeFontFamily(deck.customBranding?.fontFamily),
+			fontSize: 15,
+			breakLine: false,
+			fit: "shrink",
+			color: "111827",
+			bullet: useBullets ? { type: "bullet" } : undefined,
+		});
+		if (sourceSlide.speakerNotes) {
+			slide.addNotes(sourceSlide.speakerNotes);
+		}
+	}
+
+	return await pptx.write({ outputType: "base64", compression: true }) as string;
+}
+
+async function buildPresentationExportArtifact(
+	deck: PresentationExportDeck,
+	format: "pptx" | "pdf" | "html",
+	filename: string
+): Promise<PresentationExportArtifact> {
+	if (format === "html") {
+		const mimeType = "text/html;charset=utf-8";
+		return {
+			downloadUrl: toBase64DataUrl(mimeType, buildPresentationHtml(deck)),
+			filename,
+			mimeType,
+		};
+	}
+	if (format === "pdf") {
+		const mimeType = "application/pdf";
+		return {
+			downloadUrl: toBase64DataUrl(mimeType, await buildPresentationPdf(deck)),
+			filename,
+			mimeType,
+		};
+	}
+
+	const mimeType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+	const pptx = await buildPresentationPptx(deck);
+	return {
+		downloadUrl: typeof pptx === "string"
+			? `data:${mimeType};base64,${pptx}`
+			: toBase64DataUrl(mimeType, pptx),
+		filename,
+		mimeType,
+	};
 }
 
 function visibleProposalDocumentCondition(proposalDocumentId: string, context: PresentationActionContext): SQL {
@@ -2650,7 +2919,7 @@ export async function listTeamMembers(
 export async function exportPresentation(
 	presentationId: string,
 	format: "pptx" | "pdf" | "html"
-): Promise<ActionResult<{ downloadUrl: string; format: string }>> {
+): Promise<ActionResult<{ downloadUrl: string; format: string; filename: string; mimeType: string }>> {
 	try {
 		const presentationResult = await getPresentation(presentationId);
 
@@ -2660,8 +2929,7 @@ export async function exportPresentation(
 
 		const { presentation, slides, team } = presentationResult.data;
 
-		// Build export data structure
-		const exportData = {
+		const exportData: PresentationExportDeck = {
 			title: presentation.title,
 			description: presentation.description,
 			presentationDate: presentation.presentationDate,
@@ -2689,16 +2957,15 @@ export async function exportPresentation(
 		// Generate unique filename
 		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 		const filename = `presentation-${presentationId.slice(0, 8)}-${timestamp}.${format}`;
-
-		// In production, this would call a document generation service
-		// For now, return a placeholder URL with the data encoded
-		const downloadUrl = `/api/presentations/export?id=${presentationId}&format=${format}&filename=${encodeURIComponent(filename)}`;
+		const artifact = await buildPresentationExportArtifact(exportData, format, filename);
 
 		return {
 			success: true,
 			data: {
-				downloadUrl,
+				downloadUrl: artifact.downloadUrl,
 				format,
+				filename: artifact.filename,
+				mimeType: artifact.mimeType,
 			},
 		};
 	} catch (error) {

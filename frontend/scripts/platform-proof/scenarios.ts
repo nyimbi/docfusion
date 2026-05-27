@@ -331,6 +331,20 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: ["vitest:live-response-package"],
 	},
 	{
+		id: "wave9-presentation-export-artifacts",
+		wave: 9,
+		title: "Wave 9 presentation export artifact proof",
+		kind: "integration",
+		proofTargets: ["F-020"],
+		requiresLiveServices: false,
+		description: "Validates oral presentation export returns real downloadable HTML, PDF, and PPTX artifacts instead of inert placeholder routes.",
+		command: {
+			command: "npm",
+			args: ["test", "--", "presentations-export.test.ts"],
+		},
+		expectedArtifacts: ["vitest:presentations-export"],
+	},
+	{
 		id: "wave9-discovery-to-submission-core",
 		wave: 9,
 		title: "Wave 9 discovery-to-submission core proof",
