@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Source Discovery Matrix and AFDB Retry Hardening
+
+Status: implemented and verified.
+
+Purpose: broaden live opportunity-discovery proof across configured sources and harden AFDB source verification against transient empty/challenge responses.
+
+Changes in this slice:
+- Added bounded Firecrawl retries to the dedicated AFDB live proof.
+- Aligned the AFDB proof source scrape formats with the generic source proof path by requesting markdown, HTML, and links.
+- Kept the browser fallback path available for AFDB source pages and recorded the final scrape method in evidence rows.
+
+Verification:
+- Source matrix run covered UNDP, World Bank, AFDB, COMESA, UNICEF, DGMarket, Kenya PPIP, and UNGM with `npm run platform:proof -- --run live-undp-source --run live-world-bank-source --run live-afdb-source --run live-comesa-source --run live-unicef-source --run live-dgmarket-source --run live-kenya-ppip-source --run live-ungm-source --include-live-safe --continue-on-failure`.
+- The initial matrix found live opportunities for 7 of 8 sources and captured AFDB as a transient failure when the parser received unusable source content.
+- A generic AFDB source check then passed with run `live_afdb_generic_check_20260527T151250Z`, proving the AFDB parser still matched current live content.
+- After hardening, the dedicated AFDB proof passed with run `live_afdb_source_20260527T151528Z`, finding 4 normalized AFDB opportunities and a downloadable PDF at `https://www.afdb.org/sites/default/files/documents/project-related-procurement/reoi_for_meteorology_mobile_application87.pdf`.
+- `npm test -- afdb-parser.test.ts platform-proof-scenarios.test.ts --run` passed with 8 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+- Continue expanding live proof from source discovery into persisted import and response generation once database access is available.
+
 ### 2026-05-27 - Live Opportunity Response Readiness Revalidation
 
 Status: verified.

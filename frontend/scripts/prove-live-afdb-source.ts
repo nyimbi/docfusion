@@ -10,6 +10,7 @@ import {
 } from "./platform-proof/core";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { afdbParser, parseAfdbNoticeDetailMarkdown } from "@/lib/scrapers/parsers/afdb";
+import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
 const RUN_ID = process.env.LIVE_SOURCE_DISCOVERY_PROOF_RUN_ID
@@ -18,7 +19,12 @@ const RUN_ID = process.env.LIVE_SOURCE_DISCOVERY_PROOF_RUN_ID
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "live-source-discovery" });
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-live-source-discovery-evidence.md");
 const SOURCE_URL = process.env.LIVE_SOURCE_DISCOVERY_URL ?? "https://www.afdb.org/en/projects-and-operations/procurement";
+const SCRAPE_TIMEOUT_MS = Number(process.env.LIVE_SOURCE_DISCOVERY_SCRAPE_TIMEOUT_MS ?? 60000);
+const BROWSER_SCRAPER_URL = (process.env.STEALTH_SCRAPER_URL ?? "http://84.247.181.100:3003").replace(/\/$/, "");
 const DETAIL_PROBE_LIMIT = 5;
+const SOURCE_SCRAPE_ATTEMPTS = 3;
+
+type AfdbParseResult = Awaited<ReturnType<typeof afdbParser.parse>>;
 
 interface LiveAfdbSourceProof {
 	runId: string;
@@ -30,6 +36,9 @@ interface LiveAfdbSourceProof {
 		markdownLength: number;
 		linkCount: number;
 		opportunityCount: number;
+		scrapeMethod?: "firecrawl" | "browser_fallback";
+		browserServiceUrl?: string;
+		fallbackReason?: string;
 		sampleOpportunities: Array<{
 			title: string;
 			noticeId?: string;
@@ -49,6 +58,16 @@ interface LiveAfdbSourceProof {
 	error?: string;
 }
 
+interface AfdbSourceScrape {
+	title?: string;
+	markdown: string;
+	links: string[];
+	parsed: AfdbParseResult;
+	scrapeMethod: "firecrawl" | "browser_fallback";
+	browserServiceUrl?: string;
+	fallbackReason?: string;
+}
+
 async function main() {
 	const proof: LiveAfdbSourceProof = {
 		runId: RUN_ID,
@@ -63,18 +82,9 @@ async function main() {
 	};
 
 	try {
-		const client = new FirecrawlClient({ timeout: 60000 });
-		const sourceResult = await client.scrape(SOURCE_URL, {
-			formats: ["markdown", "links"],
-			timeout: 60000,
-		});
-		const markdown = sourceResult.data?.markdown ?? "";
-		const links = sourceResult.data?.links ?? [];
-		if (!sourceResult.success || markdown.trim().length === 0) {
-			throw new Error(sourceResult.error ?? "Firecrawl returned no AFDB source content");
-		}
-
-		const parsed = await afdbParser.parse({ markdown, links, url: SOURCE_URL });
+		const client = new FirecrawlClient({ timeout: SCRAPE_TIMEOUT_MS });
+		const sourceScrape = await scrapeAfdbSource(client);
+		const { markdown, links, parsed } = sourceScrape;
 		if (parsed.opportunities.length === 0) {
 			throw new Error("AFDB parser returned no source opportunities");
 		}
@@ -84,10 +94,13 @@ async function main() {
 
 		proof.source = {
 			url: SOURCE_URL,
-			title: sourceResult.data?.metadata?.title,
+			title: sourceScrape.title,
 			markdownLength: markdown.trim().length,
 			linkCount: links.length,
 			opportunityCount: parsed.opportunities.length,
+			scrapeMethod: sourceScrape.scrapeMethod,
+			browserServiceUrl: sourceScrape.browserServiceUrl,
+			fallbackReason: sourceScrape.fallbackReason,
 			sampleOpportunities: parsed.opportunities.slice(0, 5).map((opportunity) => ({
 				title: opportunity.title,
 				noticeId: opportunity.noticeId ?? undefined,
@@ -101,7 +114,7 @@ async function main() {
 			if (!opportunity.portalUrl) continue;
 			const detailResult = await client.scrape(opportunity.portalUrl, {
 				formats: ["markdown", "links"],
-				timeout: 60000,
+				timeout: SCRAPE_TIMEOUT_MS,
 			});
 			if (!detailResult.success || !detailResult.data) continue;
 			const detail = parseAfdbNoticeDetailMarkdown(
@@ -135,6 +148,68 @@ async function main() {
 	}
 }
 
+async function scrapeAfdbSource(client: FirecrawlClient): Promise<AfdbSourceScrape> {
+	let fallbackReason = "Firecrawl returned no AFDB source content";
+	for (let attempt = 1; attempt <= SOURCE_SCRAPE_ATTEMPTS; attempt += 1) {
+		const sourceResult = await client.scrape(SOURCE_URL, {
+			formats: ["markdown", "html", "links"],
+			timeout: SCRAPE_TIMEOUT_MS,
+		});
+		const markdown = sourceResult.data?.markdown ?? sourceResult.data?.html ?? "";
+		const links = sourceResult.data?.links ?? [];
+		if (!sourceResult.success || markdown.trim().length === 0) {
+			fallbackReason = sourceResult.error ?? `Firecrawl returned no AFDB source content on attempt ${attempt}`;
+			continue;
+		}
+
+		const parsed = await afdbParser.parse({ markdown, links, url: SOURCE_URL });
+		if (parsed.opportunities.length > 0) {
+			return {
+				title: sourceResult.data?.metadata?.title,
+				markdown,
+				links,
+				parsed,
+				scrapeMethod: "firecrawl",
+				fallbackReason: attempt > 1 ? fallbackReason : undefined,
+			};
+		}
+		fallbackReason = `Firecrawl returned AFDB content but the parser found no source opportunities on attempt ${attempt}`;
+	}
+
+	const fallback = await scrapeAfdbSourceWithBrowser(fallbackReason);
+	const parsed = await afdbParser.parse({ markdown: fallback.markdown, links: fallback.links, url: SOURCE_URL });
+	return {
+		title: fallback.title,
+		markdown: fallback.markdown,
+		links: fallback.links,
+		parsed,
+		scrapeMethod: "browser_fallback",
+		browserServiceUrl: BROWSER_SCRAPER_URL,
+		fallbackReason,
+	};
+}
+
+async function scrapeAfdbSourceWithBrowser(fallbackReason: string): Promise<{
+	title?: string;
+	markdown: string;
+	links: string[];
+}> {
+	const result = await scrapeWithBrowserService(BROWSER_SCRAPER_URL, SOURCE_URL, {
+		timeout: SCRAPE_TIMEOUT_MS,
+		humanScroll: true,
+		blockMedia: true,
+	});
+	const markdown = result.data?.markdown ?? result.data?.html ?? "";
+	if (!result.success || markdown.trim().length === 0) {
+		throw new Error(`${fallbackReason}; browser fallback failed: ${result.error ?? "no rendered content"}`);
+	}
+	return {
+		title: result.data?.metadata?.title,
+		markdown,
+		links: result.data?.links ?? [],
+	};
+}
+
 async function writeArtifacts(proof: LiveAfdbSourceProof, disposition: EvidenceRecord["disposition"]) {
 	const rawPath = await writeProofJson(LOG_DIR, "live-afdb-source.json", proof);
 	const relativeRawPath = path.relative(WORKSPACE_ROOT, rawPath);
@@ -146,6 +221,7 @@ async function writeArtifacts(proof: LiveAfdbSourceProof, disposition: EvidenceR
 			`log:${relativeRawPath}`,
 			`source:${proof.source.url}`,
 			`opportunities:${proof.source.opportunityCount}`,
+			...(proof.source.scrapeMethod ? [`scrape:${proof.source.scrapeMethod}`] : []),
 			...(proof.documentProbe ? [`document:${proof.documentProbe.documentUrl}`] : []),
 		],
 		topology_tier: "live-connectivity",
