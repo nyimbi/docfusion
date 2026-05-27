@@ -433,6 +433,28 @@ export function extractLiveResponseRequirementSignals(sourceText: string): LiveR
 		if (requirements.length >= 24) break;
 	}
 
+	if (requirements.length < 3) {
+		const existingTexts = new Set(requirements.map((requirement) => requirement.text));
+		for (const text of extractRequirementSentences(sourceText)) {
+			const compacted = compactText(text, 380);
+			if (existingTexts.has(compacted)) continue;
+			existingTexts.add(compacted);
+			const documentType = documentTypeForRequirementText(compacted);
+			const priority = /\b(shall|must|required|mandatory|submit|provide|proposal|tender|bidder)\b/i.test(compacted)
+				? "mandatory"
+				: "administrative";
+			requirements.push({
+				id: `LIVE-REQ-${String(requirements.length + 1).padStart(3, "0")}`,
+				text: compacted,
+				sourceSection: "Source Document",
+				priority,
+				documentType,
+				responseStrategy: responseStrategyFor(documentType, compacted),
+			});
+			if (requirements.length >= 12) break;
+		}
+	}
+
 	if (requirements.length === 0) {
 		const fallback = sourceText.replace(/\s+/g, " ").trim();
 		if (fallback.length >= 120) {
@@ -448,6 +470,22 @@ export function extractLiveResponseRequirementSignals(sourceText: string): LiveR
 	}
 
 	return requirements;
+}
+
+function extractRequirementSentences(sourceText: string): string[] {
+	const normalized = sourceText
+		.replace(/\r/g, "\n")
+		.replace(/[ \t]+/g, " ")
+		.replace(/\n+/g, ". ")
+		.trim();
+	if (!normalized) return [];
+
+	return uniqueStrings(normalized
+		.split(/(?<=[.;:!?])\s+/)
+		.map((sentence) => sentence.replace(/^[-*]?\s*/, "").trim())
+		.filter((sentence) => sentence.length >= 45 && sentence.length <= 600)
+		.filter((sentence) => /\b(shall|must|required|requires|mandatory|should|submit|provide|proposal|tender|bidder|consultant|service|scope|terms of reference|deliverable|evaluation|criteria|qualification|experience|financial|technical|deadline|closing date)\b/i.test(sentence))
+	).slice(0, 24);
 }
 
 export function extractLiveResponseEvaluationSignals(sourceText: string): LiveResponseEvaluationSignal[] {
@@ -697,7 +735,7 @@ function requirementsForDocumentType(
 		]).slice(0, 8), documentType);
 	}
 
-	if (direct.length > 0) return direct.slice(0, 8);
+	if (direct.length > 0) return direct;
 
 	const mandatory = requirements.filter((requirement) => requirement.priority === "mandatory");
 	const sourceAnchors = mandatory.length > 0 ? mandatory : requirements;
@@ -730,7 +768,7 @@ function evaluationCriteriaForDocumentType(
 		]).slice(0, 8), documentType);
 	}
 
-	if (direct.length > 0) return direct.slice(0, 8);
+	if (direct.length > 0) return direct;
 	return adaptEvaluationCriteriaForDocumentType(criteria.slice(0, 3), documentType);
 }
 
@@ -808,6 +846,7 @@ function snippetsForDocumentType(
 
 function documentTypeForRequirementText(text: string): ProposalDocumentType {
 	const lower = text.toLowerCase();
+	if (/\b(technical proposal|technical approach|methodology|sampling|data collection|technical)\b/.test(lower)) return "technical_approach";
 	if (/\b(cost|price|pricing|commercial|financial|fee|budget)\b/.test(lower)) return "cost_proposal";
 	if (/\b(past performance|experience|reference|similar assignment|qualification)\b/.test(lower)) return "past_performance";
 	if (/\b(management|schedule|work plan|project plan|risk|governance|consultancy)\b/.test(lower)) return "management_plan";

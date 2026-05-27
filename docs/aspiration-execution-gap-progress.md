@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Kenya PPIP Response Readiness Proof
+
+Status: implemented and verified.
+
+Purpose: broaden live response-package readiness beyond the UNGM software path by proving a Kenya PPIP opportunity can be found, its source PDF can be extracted, and review-ready Datacraft response drafts can be generated.
+
+Changes in this slice:
+- Added a Kenya PPIP mode to the live opportunity response-readiness proof and registered `live-kenya-ppip-response-readiness` as a Wave 9 live-safe scenario.
+- Added paragraph-heavy procurement text extraction so source PDFs without neat requirement lists still yield actionable response requirements.
+- Removed direct requirement assignment caps from draft generation so all extracted source requirements can be represented in the response package.
+
+Verification:
+- Initial live attempts exposed two real readiness gaps: too few extracted source requirement signals, then partial draft coverage of extracted requirements.
+- `npm test -- live-response-package.test.ts platform-proof-scenarios.test.ts --run` passed.
+- `npm test -- live-response-package.test.ts --run` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-kenya-ppip-response-readiness --include-live-safe` passed with run `live_kenya_ppip_response_readiness_20260527T153526Z`.
+- The passing live run selected Kenyatta National Hospital RFP `KNH/RFP/004/2025-2026`, `PROVISION OF CONSULTANCY SERVICES FOR CUSTOMER SATISFACTION SURVEY`, from `https://tenders.go.ke/tenders`.
+- The source PDF downloaded with HTTP 200, 3180241 bytes, and Docling extracted 43479 characters from the first 10 pages.
+- Response readiness produced six draft artifacts, 24 source requirement signals, 1 win-theme seed, 85 relevant snippets, 7222 total draft words, readiness status `ready_for_review`, 0 blockers, and full source/draft artifact integrity coverage.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity and rerun the DB-backed live persisted import-response proof.
+- Continue expanding live proof coverage into persisted import and response creation once the database path is reachable.
+
 ### 2026-05-27 - Full Non-Live Wave 9 Proof Revalidation
 
 Status: verified.

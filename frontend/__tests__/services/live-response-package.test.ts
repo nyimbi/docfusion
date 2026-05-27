@@ -55,6 +55,25 @@ describe("live response package builder", () => {
 		});
 	});
 
+	it("extracts requirement signals from paragraph-heavy procurement text", () => {
+		const paragraphText = `
+The procuring entity invites eligible consultants to submit a technical and financial proposal for customer satisfaction survey services. The successful bidder shall provide a detailed methodology, sampling approach, data collection plan, quality assurance process, and reporting schedule. The consultant must demonstrate similar experience delivering survey assignments for public institutions and regulated environments. Bidders are required to submit statutory compliance documents, company profile, work plan, and evidence of qualified personnel before the closing date. The financial proposal should include all fees, assumptions, reimbursable costs, and taxes.
+		`;
+
+		const requirements = extractLiveResponseRequirementSignals(paragraphText);
+
+		expect(requirements.length).toBeGreaterThanOrEqual(4);
+		expect(requirements.map((requirement) => requirement.documentType)).toEqual(
+			expect.arrayContaining([
+				"technical_approach",
+				"management_plan",
+				"past_performance",
+				"cost_proposal",
+			])
+		);
+		expect(requirements[0]?.text).toContain("technical and financial proposal");
+	});
+
 	it("selects Datacraft snippets relevant to the opportunity and source text", () => {
 		const snippets = selectLiveResponseSnippets(opportunity, sourceText);
 

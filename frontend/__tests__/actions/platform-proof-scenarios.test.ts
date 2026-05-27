@@ -41,6 +41,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("phase1-live-safe-control-plane");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-discovery-services");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-opportunity-response-readiness");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-persisted-import-response");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-source-discovery");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-undp-source");
@@ -238,6 +239,22 @@ describe("platform proof scenarios", () => {
 				]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["live-kenya-ppip-response-readiness"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-kenya-ppip-response-readiness",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-020"]),
+				command: expect.objectContaining({
+					env: expect.objectContaining({
+						LIVE_RESPONSE_READINESS_SOURCE_KIND: "kenya_ppip",
+						LIVE_RESPONSE_READINESS_SOURCE_URL: "https://tenders.go.ke/tenders",
+					}),
+				}),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-opportunity-response-readiness-evidence.md",
+				]),
+			}),
+		]);
 		expect(listProofScenarios({ ids: ["live-persisted-import-response"], includeLiveSafe: true })).toEqual([
 			expect.objectContaining({
 				id: "live-persisted-import-response",
@@ -350,6 +367,10 @@ describe("platform proof scenarios", () => {
 
 		expect(formatProofCommand(scenario)).toContain("LIVE_SOURCE_DISCOVERY_URL=https://www.dgmarket.com");
 		expect(formatProofCommand(scenario)).toContain("npx tsx scripts/prove-live-source-discovery.ts");
+
+		const [kenyaResponseScenario] = listProofScenarios({ ids: ["live-kenya-ppip-response-readiness"], includeLiveSafe: true });
+		expect(formatProofCommand(kenyaResponseScenario)).toContain("LIVE_RESPONSE_READINESS_SOURCE_KIND=kenya_ppip");
+		expect(formatProofCommand(kenyaResponseScenario)).toContain("npx tsx scripts/prove-live-opportunity-response-readiness.ts");
 	});
 
 	it("keeps continue-on-failure sweeps failed when any scenario fails", async () => {

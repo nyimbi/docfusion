@@ -442,6 +442,28 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "live-kenya-ppip-response-readiness",
+		wave: 9,
+		title: "Live Kenya PPIP response readiness proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005", "F-008", "F-020"],
+		requiresLiveServices: true,
+		description: "Finds a live Kenya PPIP opportunity, extracts its source PDF with Docling, and verifies concrete Datacraft response package draft artifacts.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-opportunity-response-readiness.ts"],
+			env: {
+				LIVE_RESPONSE_READINESS_SOURCE_KIND: "kenya_ppip",
+				LIVE_RESPONSE_READINESS_SOURCE_URL: "https://tenders.go.ke/tenders",
+				LIVE_RESPONSE_READINESS_PROOF_PREFIX: "live_kenya_ppip_response_readiness",
+			},
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-opportunity-response-readiness-evidence.md",
+			".omx/logs/platform-completion/live-response-readiness-<run_id>/live-opportunity-response-readiness.json",
+		],
+	},
+	{
 		id: "live-persisted-import-response",
 		wave: 9,
 		title: "Live persisted import-to-response proof",

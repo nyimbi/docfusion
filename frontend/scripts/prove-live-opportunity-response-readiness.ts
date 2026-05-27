@@ -17,16 +17,24 @@ import {
 	type LiveResponsePackage,
 	type LiveResponseReadinessAssessment,
 } from "@/lib/services/live-response-package";
+import { fetchKenyaPpipOpportunities } from "@/lib/services/kenya-ppip-client";
 import { fetchUngmOpportunities } from "@/lib/services/ungm-client";
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import type { ProposalDocumentType } from "@/lib/types/opportunity";
 
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
-const RUN_ID = process.env.LIVE_RESPONSE_READINESS_PROOF_RUN_ID ?? createProofRunId("live_response_readiness");
+const SOURCE_KIND = normalizeSourceKind(process.env.LIVE_RESPONSE_READINESS_SOURCE_KIND);
+const PROOF_RUN_PREFIX = process.env.LIVE_RESPONSE_READINESS_PROOF_PREFIX ?? (
+	SOURCE_KIND === "kenya_ppip" ? "live_kenya_ppip_response_readiness" : "live_response_readiness"
+);
+const RUN_ID = process.env.LIVE_RESPONSE_READINESS_PROOF_RUN_ID ?? createProofRunId(PROOF_RUN_PREFIX);
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "live-response-readiness" });
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-live-opportunity-response-readiness-evidence.md");
-const SOURCE_URL = process.env.LIVE_RESPONSE_READINESS_SOURCE_URL ?? "https://www.ungm.org/Public/Notice?title=software";
+const SOURCE_URL = process.env.LIVE_RESPONSE_READINESS_SOURCE_URL ?? (
+	SOURCE_KIND === "kenya_ppip" ? "https://tenders.go.ke/tenders" : "https://www.ungm.org/Public/Notice?title=software"
+);
 const MAX_DOCUMENT_BYTES = Number(process.env.LIVE_RESPONSE_READINESS_MAX_DOCUMENT_BYTES ?? 10 * 1024 * 1024);
+const SOURCE_PAGE_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_PAGE_LIMIT ?? 10);
 const SOURCE_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_SOURCE_LIMIT ?? 10);
 const SOURCE_DETAIL_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_DETAIL_LIMIT ?? 5);
 const PROPOSAL_DOCUMENT_TYPES: ProposalDocumentType[] = [
@@ -52,8 +60,10 @@ interface LiveOpportunityResponseReadinessProof {
 	startedAt: string;
 	completedAt?: string;
 	source: {
+		kind: LiveResponseReadinessSourceKind;
 		url: string;
 		searchUrl?: string;
+		apiUrl?: string;
 		total?: number;
 		opportunityCount: number;
 	};
@@ -95,11 +105,23 @@ interface ExtractedSourceDocument {
 	sourceText: string;
 }
 
+type LiveResponseReadinessSourceKind = "ungm" | "kenya_ppip";
+
+interface LiveResponseReadinessSourceResult {
+	kind: LiveResponseReadinessSourceKind;
+	url: string;
+	searchUrl?: string;
+	apiUrl?: string;
+	total?: number;
+	opportunities: OpportunityData[];
+}
+
 async function main() {
 	const proof: LiveOpportunityResponseReadinessProof = {
 		runId: RUN_ID,
 		startedAt: new Date().toISOString(),
 		source: {
+			kind: SOURCE_KIND,
 			url: SOURCE_URL,
 			opportunityCount: 0,
 		},
@@ -119,17 +141,14 @@ async function main() {
 }
 
 async function proveLiveOpportunityResponseReadiness(): Promise<Partial<LiveOpportunityResponseReadinessProof>> {
-	const source = await fetchUngmOpportunities(SOURCE_URL, {
-		limit: SOURCE_LIMIT,
-		timeoutMs: 20000,
-		detailLimit: SOURCE_DETAIL_LIMIT,
-	});
+	const source = await fetchSourceOpportunities();
 	const opportunity = selectResponseReadyOpportunity(source.opportunities);
-	if (!opportunity?.rfpLink) {
-		throw new Error("UNGM software source returned no response-ready opportunity with a direct source document");
+	const documentUrl = opportunity?.rfpLink ?? opportunity?.documentUrl;
+	if (!opportunity || !documentUrl) {
+		throw new Error(`${source.kind} source returned no response-ready opportunity with a direct source document`);
 	}
 
-	const extracted = await fetchAndExtractSourceDocument(opportunity.rfpLink);
+	const extracted = await fetchAndExtractSourceDocument(documentUrl);
 	const responsePackage = buildLiveResponsePackage({
 		opportunity,
 		sourceText: extracted.sourceText,
@@ -139,8 +158,10 @@ async function proveLiveOpportunityResponseReadiness(): Promise<Partial<LiveOppo
 
 	return {
 		source: {
+			kind: source.kind,
 			url: SOURCE_URL,
 			searchUrl: source.searchUrl,
+			apiUrl: source.apiUrl,
 			total: source.total,
 			opportunityCount: source.opportunities.length,
 		},
@@ -149,19 +170,59 @@ async function proveLiveOpportunityResponseReadiness(): Promise<Partial<LiveOppo
 			organization: opportunity.organization,
 			sourceId: opportunity.sourceId,
 			portalUrl: opportunity.portalUrl,
-			documentUrl: opportunity.rfpLink,
+			documentUrl,
 		},
 		document: extracted.document,
 		responseReadiness,
 	};
 }
 
+async function fetchSourceOpportunities(): Promise<LiveResponseReadinessSourceResult> {
+	if (SOURCE_KIND === "kenya_ppip") {
+		const source = await fetchKenyaPpipOpportunities(SOURCE_URL, {
+			limit: SOURCE_LIMIT,
+			timeoutMs: 20000,
+		});
+		return {
+			kind: "kenya_ppip",
+			url: SOURCE_URL,
+			apiUrl: source.apiUrl,
+			total: source.total,
+			opportunities: source.opportunities,
+		};
+	}
+
+	const source = await fetchUngmOpportunities(SOURCE_URL, {
+		limit: SOURCE_LIMIT,
+		timeoutMs: 20000,
+		detailLimit: SOURCE_DETAIL_LIMIT,
+	});
+	return {
+		kind: "ungm",
+		url: SOURCE_URL,
+		searchUrl: source.searchUrl,
+		total: source.total,
+		opportunities: source.opportunities,
+	};
+}
+
 function selectResponseReadyOpportunity(opportunities: OpportunityData[]): OpportunityData | undefined {
 	return opportunities.find((opportunity) => {
-		const documentUrl = opportunity.rfpLink ?? "";
+		const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl ?? "";
 		const haystack = `${opportunity.title} ${opportunity.projectSummary ?? ""} ${documentUrl}`.toLowerCase();
 		return documentUrl.toLowerCase().endsWith(".pdf")
-			&& ["software", "system", "api", "security", "digital", "data"].some((term) => haystack.includes(term));
+			&& [
+				"software",
+				"system",
+				"api",
+				"security",
+				"digital",
+				"data",
+				"consultancy",
+				"services",
+				"survey",
+				"ict",
+			].some((term) => haystack.includes(term));
 	});
 }
 
@@ -176,6 +237,7 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<Extra
 			"User-Agent": "DocFusion/1.0 live-response-readiness-proof",
 		},
 		timeoutMs: 30000,
+		allowInvalidTlsForHosts: ["tenders.go.ke"],
 	}, "live response readiness source document");
 	if (!response.ok) {
 		throw new Error(`Live response source document returned HTTP ${response.status}`);
@@ -193,8 +255,8 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<Extra
 		ocr: false,
 		extractTables: false,
 		extractImages: false,
-		pageRange: [1, 2],
-		documentTimeoutSeconds: 60,
+		pageRange: [1, SOURCE_PAGE_LIMIT],
+		documentTimeoutSeconds: 90,
 	});
 	const extractedText = cleanExtractedText(converted.text ?? converted.markdown ?? "");
 	if (converted.status && converted.status !== "success") {
@@ -268,6 +330,11 @@ function proveResponseSeedReadiness(
 	};
 }
 
+function normalizeSourceKind(value: string | undefined): LiveResponseReadinessSourceKind {
+	if (value === "kenya_ppip") return "kenya_ppip";
+	return "ungm";
+}
+
 function filenameFromUrl(url: string): string {
 	try {
 		const pathname = new URL(url).pathname;
@@ -324,6 +391,7 @@ async function writeArtifacts(
 		run_id: RUN_ID,
 		artifact_ids: [
 			`log:${relativeRawPath}`,
+			`source-kind:${proof.source.kind}`,
 			`source:${proof.source.url}`,
 			`opportunities:${proof.source.opportunityCount}`,
 			`document-bytes:${proof.document?.byteLength ?? 0}`,
@@ -345,7 +413,7 @@ async function writeArtifacts(
 		cleanup_status: "not-applicable",
 		disposition,
 		notes: disposition === "pass"
-			? "Live UNGM software opportunity, source PDF extraction, and concrete Datacraft response-package drafts were verified."
+			? `Live ${proof.source.kind} opportunity, source PDF extraction, and concrete Datacraft response-package drafts were verified.`
 			: proof.error ?? "Live opportunity response readiness proof failed.",
 	}], {
 		title: "Platform Live Opportunity Response Readiness Evidence",
