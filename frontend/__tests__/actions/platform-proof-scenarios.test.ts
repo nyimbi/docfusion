@@ -151,6 +151,7 @@ describe("platform proof scenarios", () => {
 				expectedArtifacts: expect.arrayContaining([
 					"vitest:crm-account-research-search",
 					"vitest:win-themes-auth",
+					"vitest:past-performance-scope",
 				]),
 			}),
 		]);

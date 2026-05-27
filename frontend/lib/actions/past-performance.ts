@@ -19,7 +19,7 @@ import {
 	type Project as DBProject,
 	type NewProject,
 } from "@/lib/db/schema-past-performance";
-import { opportunities } from "@/lib/db/schema";
+import { opportunities, submissions } from "@/lib/db/schema";
 import { rfpRequirements } from "@/lib/db/schema-rfp";
 import { eq, and, or, ilike, gte, lte, desc, asc, sql, inArray, isNull, type SQL } from "drizzle-orm";
 import { complete } from "@/lib/ai/client";
@@ -1779,6 +1779,9 @@ export async function getPastPerformanceAnalytics(): Promise<ActionResult<{
 	projectsByType: Record<string, number>;
 	totalContractValue: number;
 	winRateWithPastPerf: number;
+	pastPerformanceSubmissionCount: number;
+	pastPerformanceWins: number;
+	pastPerformanceLosses: number;
 }>> {
 	const userContext = await requirePastPerformanceContext();
 
@@ -1823,11 +1826,29 @@ export async function getPastPerformanceAnalytics(): Promise<ActionResult<{
 			0
 		);
 
-		// Calculate win rate (based on submissions with past performance cited)
-		// For now, estimate based on CPAR ratings - projects with high ratings have higher win correlation
-		const highRatedProjects = projectsWithCPAR.filter(p => (p.cparRatings?.overall ?? 0) >= 4);
-		const winRateWithPastPerf = projectsWithCPAR.length > 0
-			? highRatedProjects.length / projectsWithCPAR.length
+		const submissionRows = await db
+			.select({
+				submissionId: submissions.id,
+				outcome: submissions.outcome,
+			})
+			.from(submissions)
+			.innerJoin(projectRelevanceScores, eq(projectRelevanceScores.opportunityId, submissions.opportunityId))
+			.innerJoin(projects, eq(projects.id, projectRelevanceScores.projectId))
+			.where(and(
+				sql`(${submissions.organizationId} = ${userContext.organizationId} or ${submissions.organizationId} is null)`,
+				assignedOpportunityExistsSql(submissions.opportunityId, userContext),
+				visibleProjectCondition(userContext),
+				inArray(submissions.outcome, ["won", "lost"])
+			));
+		const submissionsById = new Map<string, string | null>();
+		for (const row of submissionRows) {
+			submissionsById.set(row.submissionId, row.outcome);
+		}
+		const pastPerformanceWins = Array.from(submissionsById.values()).filter((outcome) => outcome === "won").length;
+		const pastPerformanceLosses = Array.from(submissionsById.values()).filter((outcome) => outcome === "lost").length;
+		const pastPerformanceSubmissionCount = pastPerformanceWins + pastPerformanceLosses;
+		const winRateWithPastPerf = pastPerformanceSubmissionCount > 0
+			? pastPerformanceWins / pastPerformanceSubmissionCount
 			: 0;
 
 		return {
@@ -1839,6 +1860,9 @@ export async function getPastPerformanceAnalytics(): Promise<ActionResult<{
 				projectsByType,
 				totalContractValue,
 				winRateWithPastPerf: Math.round(winRateWithPastPerf * 100) / 100,
+				pastPerformanceSubmissionCount,
+				pastPerformanceWins,
+				pastPerformanceLosses,
 			},
 		};
 	} catch (error) {

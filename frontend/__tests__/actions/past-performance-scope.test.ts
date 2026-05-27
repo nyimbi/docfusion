@@ -264,6 +264,10 @@ describe("past performance opportunity scoping", () => {
 			.mockReturnValueOnce(createChain({
 				result: [],
 				onWhere: (value) => wheres.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [],
+				onWhere: (value) => wheres.push(value),
 			}));
 
 		const searchResult = await searchProjects({ limit: 10, offset: 0 });
@@ -271,8 +275,55 @@ describe("past performance opportunity scoping", () => {
 
 		expect(searchResult).toMatchObject({ success: true, data: { projects: [], total: 0 } });
 		expect(analyticsResult).toMatchObject({ success: true });
-		expect(wheres).toHaveLength(3);
+		expect(wheres).toHaveLength(4);
 		wheres.forEach(expectProjectOwnerScope);
+	});
+
+	it("calculates past-performance win rate from actual submission outcomes", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					{
+						id: "project-1",
+						customerAgency: "Ministry of Health",
+						contractType: "fixed_price",
+						contractValue: 100,
+						cparRatings: { overall: 4.8 },
+						isActive: true,
+					},
+					{
+						id: "project-2",
+						customerAgency: "Ministry of Health",
+						contractType: "time_and_materials",
+						contractValue: 50,
+						cparRatings: { overall: 3.2 },
+						isActive: true,
+					},
+				],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [
+					{ submissionId: "submission-1", outcome: "won" },
+					{ submissionId: "submission-1", outcome: "won" },
+					{ submissionId: "submission-2", outcome: "lost" },
+					{ submissionId: "submission-3", outcome: "won" },
+				],
+			}));
+
+		const result = await getPastPerformanceAnalytics();
+
+		expect(result).toMatchObject({
+			success: true,
+			data: {
+				totalProjects: 2,
+				averageCPAR: 4,
+				totalContractValue: 150,
+				winRateWithPastPerf: 0.67,
+				pastPerformanceSubmissionCount: 3,
+				pastPerformanceWins: 2,
+				pastPerformanceLosses: 1,
+			},
+		});
 	});
 
 	it("scopes project ID reads and mutations to projects created by the caller", async () => {

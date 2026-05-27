@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Outcome-Backed Past Performance Analytics
+
+Status: implemented and verified.
+
+Purpose: make past-performance analytics report actual win correlation from submitted proposal outcomes instead of estimating win rate from high CPAR ratings.
+
+Changes in this slice:
+- Join submissions to project relevance records and visible past-performance projects to identify submitted opportunities that cited past performance.
+- Scope the outcome query to the actor's assigned opportunities, organization submissions, and visible projects.
+- De-duplicate submissions before calculating wins and losses so multiple cited projects do not inflate the sample.
+- Return actual past-performance submission count, wins, losses, and rounded win rate.
+- Extend the Wave 8 strategic capability proof manifest with past-performance analytics coverage.
+
+Verification:
+- `npm test -- past-performance-scope.test.ts` from `frontend/` passed, running 7 tests.
+- `npm test -- past-performance-scope.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 13 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` from `frontend/` passed, running 35 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Content-Aware Formatting Compliance
 
 Status: implemented and verified.
