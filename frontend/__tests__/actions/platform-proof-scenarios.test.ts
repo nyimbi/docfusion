@@ -149,6 +149,7 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["S-001", "UX-018"]),
 				expectedArtifacts: expect.arrayContaining([
 					"vitest:crm-account-research-search",
+					"vitest:win-themes-auth",
 				]),
 			}),
 		]);

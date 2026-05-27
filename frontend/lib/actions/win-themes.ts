@@ -421,6 +421,132 @@ function requirementToEvaluationSignal(
 	};
 }
 
+interface ReviewableResponseWinThemeSeeds {
+	seeds: ResponseWinThemeSeedInput[];
+	acceptedRequirementCount: number;
+	evaluationCriteriaCount: number;
+}
+
+async function buildReviewableResponseWinThemeSeeds(
+	opportunityId: string,
+	userContext: WinThemeUserContext
+): Promise<ReviewableResponseWinThemeSeeds> {
+	const [opportunity] = await db
+		.select({
+			id: opportunities.id,
+			title: opportunities.title,
+			organization: opportunities.organization,
+			sourceId: opportunities.sourceId,
+			deadline: opportunities.deadline,
+		})
+		.from(opportunities)
+		.where(
+			and(
+				eq(opportunities.id, opportunityId),
+				sql`(${opportunities.organizationId} = ${userContext.organizationId} or ${opportunities.organizationId} is null)`,
+				eq(opportunities.assignedTo, userContext.userId)
+			)
+		)
+		.limit(1);
+
+	if (!opportunity) {
+		throw new Error("Opportunity not found");
+	}
+
+	const requirements = await db
+		.select()
+		.from(rfpRequirements)
+		.where(
+			and(
+				eq(rfpRequirements.opportunityId, opportunityId),
+				eq(rfpRequirements.organizationId, userContext.organizationId)
+			)
+		)
+		.orderBy(asc(rfpRequirements.requirementNumber), asc(rfpRequirements.createdAt));
+	const acceptedRequirements = requirements.filter((requirement) =>
+		requirement.complianceStatus !== "not_applicable" &&
+		isAcceptedRfpRequirement(requirement)
+	);
+	const requirementSignals = acceptedRequirements.map(requirementToLiveSignal);
+	const evaluationCriteria = acceptedRequirements
+		.map(requirementToEvaluationSignal)
+		.filter((criterion): criterion is LiveResponseEvaluationSignal => Boolean(criterion));
+	const generatedSeeds = buildLiveResponseWinThemeSeeds({
+		opportunity: {
+			title: opportunity.title,
+			organization: opportunity.organization ?? undefined,
+			deadline: opportunity.deadline,
+			source: "accepted_requirements",
+			sourceId: opportunity.sourceId ?? opportunity.id,
+		} satisfies OpportunityData,
+		requirements: requirementSignals,
+		evaluationCriteria,
+		relevantSnippetShortcuts: ["/dc-win-themes", "/dc-technical", "/dc-proof", "/dc-management"],
+	}) satisfies ResponseWinThemeSeedInput[];
+
+	const existingThemes = await db
+		.select()
+		.from(winThemes)
+		.where(visibleOpportunityThemesCondition(opportunityId, userContext));
+	const existingStatements = new Set(existingThemes.map((theme) => normalizeThemeStatement(theme.themeStatement)));
+	const existingCriteriaIds = new Set(existingThemes.flatMap((theme) => theme.evaluationCriteriaIds ?? []));
+	const seenStatements = new Set(existingStatements);
+	const seenCriteriaIds = new Set(existingCriteriaIds);
+	const seeds = generatedSeeds.filter((seed) => {
+		const normalizedStatement = normalizeThemeStatement(seed.statement);
+		if (seenStatements.has(normalizedStatement)) return false;
+		const criteriaIds = seed.evaluationCriteriaIds ?? [];
+		if (criteriaIds.length > 0 && criteriaIds.every((criteriaId) => seenCriteriaIds.has(criteriaId))) return false;
+		seenStatements.add(normalizedStatement);
+		for (const criteriaId of criteriaIds) {
+			seenCriteriaIds.add(criteriaId);
+		}
+		return true;
+	});
+
+	return {
+		seeds,
+		acceptedRequirementCount: acceptedRequirements.length,
+		evaluationCriteriaCount: evaluationCriteria.length,
+	};
+}
+
+function confidenceForResponseSeed(seed: ResponseWinThemeSeedInput): number {
+	const criteriaBonus = seed.evaluationCriteriaIds?.length ? 0.12 : 0;
+	const requirementBonus = Math.min((seed.requirementIds?.length ?? 0) * 0.025, 0.08);
+	const evidenceBonus = Math.min((seed.supportingEvidence?.length ?? 0) * 0.01, 0.05);
+	return Number(Math.min(0.95, 0.7 + criteriaBonus + requirementBonus + evidenceBonus).toFixed(2));
+}
+
+function responseSeedToThemeSuggestion(
+	seed: ResponseWinThemeSeedInput,
+	opportunityId: string
+): ThemeSuggestion {
+	const sourceIds = [
+		...(seed.evaluationCriteriaIds ?? []),
+		...(seed.requirementIds ?? []),
+	];
+	const sources = (seed.supportingEvidence ?? [])
+		.slice(0, 4)
+		.map((excerpt, index) => ({
+			sectionId: sourceIds[index] ?? sourceIds[0],
+			excerpt,
+		}));
+	return {
+		id: `suggestion-${opportunityId}-${seed.id ?? normalizeThemeStatement(seed.statement).replace(/[^a-z0-9]+/g, "-").slice(0, 48)}`,
+		opportunityId,
+		statement: seed.statement,
+		shortVersion: seed.shortVersion,
+		type: seed.type,
+		confidence: confidenceForResponseSeed(seed),
+		rationale: seed.rationale ?? "Suggested from accepted RFP requirements and evaluator-visible response strategy.",
+		sources,
+		suggestedKeywords: seed.keywords ?? [],
+		status: "pending",
+		generatedAt: new Date(),
+	};
+}
+
 /**
  * Map database occurrence to API type.
  */
@@ -628,86 +754,14 @@ export async function getResponseWinThemeSeedReview(
 		const validated = z.string().uuid("Invalid opportunity ID").parse(opportunityId);
 
 		await requireAssignedOpportunity(validated, userContext);
-
-		const [opportunity] = await db
-			.select({
-				id: opportunities.id,
-				title: opportunities.title,
-				organization: opportunities.organization,
-				sourceId: opportunities.sourceId,
-				deadline: opportunities.deadline,
-			})
-			.from(opportunities)
-			.where(
-				and(
-					eq(opportunities.id, validated),
-					sql`(${opportunities.organizationId} = ${userContext.organizationId} or ${opportunities.organizationId} is null)`,
-					eq(opportunities.assignedTo, userContext.userId)
-				)
-			)
-			.limit(1);
-
-		if (!opportunity) {
-			throw new Error("Opportunity not found");
-		}
-
-		const requirements = await db
-			.select()
-			.from(rfpRequirements)
-			.where(
-				and(
-					eq(rfpRequirements.opportunityId, validated),
-					eq(rfpRequirements.organizationId, userContext.organizationId)
-				)
-			)
-			.orderBy(asc(rfpRequirements.requirementNumber), asc(rfpRequirements.createdAt));
-		const acceptedRequirements = requirements.filter((requirement) =>
-			requirement.complianceStatus !== "not_applicable" &&
-			isAcceptedRfpRequirement(requirement)
-		);
-		const requirementSignals = acceptedRequirements.map(requirementToLiveSignal);
-		const evaluationCriteria = acceptedRequirements
-			.map(requirementToEvaluationSignal)
-			.filter((criterion): criterion is LiveResponseEvaluationSignal => Boolean(criterion));
-		const generatedSeeds = buildLiveResponseWinThemeSeeds({
-			opportunity: {
-				title: opportunity.title,
-				organization: opportunity.organization ?? undefined,
-				deadline: opportunity.deadline,
-				source: "accepted_requirements",
-				sourceId: opportunity.sourceId ?? opportunity.id,
-			} satisfies OpportunityData,
-			requirements: requirementSignals,
-			evaluationCriteria,
-			relevantSnippetShortcuts: ["/dc-win-themes", "/dc-technical", "/dc-proof", "/dc-management"],
-		}) satisfies ResponseWinThemeSeedInput[];
-
-		const existingThemes = await db
-			.select()
-			.from(winThemes)
-			.where(visibleOpportunityThemesCondition(validated, userContext));
-		const existingStatements = new Set(existingThemes.map((theme) => normalizeThemeStatement(theme.themeStatement)));
-		const existingCriteriaIds = new Set(existingThemes.flatMap((theme) => theme.evaluationCriteriaIds ?? []));
-		const seenStatements = new Set(existingStatements);
-		const seenCriteriaIds = new Set(existingCriteriaIds);
-		const seeds = generatedSeeds.filter((seed) => {
-			const normalizedStatement = normalizeThemeStatement(seed.statement);
-			if (seenStatements.has(normalizedStatement)) return false;
-			const criteriaIds = seed.evaluationCriteriaIds ?? [];
-			if (criteriaIds.length > 0 && criteriaIds.every((criteriaId) => seenCriteriaIds.has(criteriaId))) return false;
-			seenStatements.add(normalizedStatement);
-			for (const criteriaId of criteriaIds) {
-				seenCriteriaIds.add(criteriaId);
-			}
-			return true;
-		});
+		const review = await buildReviewableResponseWinThemeSeeds(validated, userContext);
 
 		return {
 			success: true,
 			data: {
-				seeds,
-				acceptedRequirementCount: acceptedRequirements.length,
-				evaluationCriteriaCount: evaluationCriteria.length,
+				seeds: review.seeds,
+				acceptedRequirementCount: review.acceptedRequirementCount,
+				evaluationCriteriaCount: review.evaluationCriteriaCount,
 			},
 		};
 	} catch (error) {
@@ -943,9 +997,9 @@ export async function reorderThemes(
 /**
  * Get pending theme suggestions for an opportunity.
  *
- * Note: This currently returns AI-generated suggestions that haven't been
- * persisted to database yet. In a full implementation, suggestions would
- * be stored and retrieved from a dedicated table.
+ * Note: Suggestions are generated from accepted requirements and existing
+ * theme coverage at read time. In a full implementation, operator decisions
+ * could be stored and retrieved from a dedicated suggestions table.
  *
  * @param opportunityId - Opportunity ID
  * @returns Array of theme suggestions
@@ -955,13 +1009,20 @@ export async function getThemeSuggestions(
 ): Promise<GetSuggestionsResult> {
 	try {
 		const userContext = await requireWinThemeContext();
-		await requireAssignedOpportunity(opportunityId, userContext);
+		const validated = z.string().uuid("Invalid opportunity ID").parse(opportunityId);
 
-		// In a full implementation, we would query a suggestions table
-		// For now, return empty array (suggestions are generated on-demand)
-		return { success: true, data: [] };
+		await requireAssignedOpportunity(validated, userContext);
+		const review = await buildReviewableResponseWinThemeSeeds(validated, userContext);
+		const suggestions = review.seeds
+			.slice(0, 8)
+			.map((seed) => responseSeedToThemeSuggestion(seed, validated));
+
+		return { success: true, data: suggestions };
 	} catch (error) {
 		logger.error("Error getting suggestions:", error);
+		if (error instanceof z.ZodError) {
+			return { success: false, error: error.issues.map((issue: z.ZodIssue) => issue.message).join(", ") };
+		}
 		return { success: false, error: `Failed to get suggestions: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }

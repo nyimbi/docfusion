@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Win Theme Suggestions
+
+Status: implemented and verified.
+
+Purpose: make win-theme suggestions produce evaluator-aware candidate themes from accepted RFP requirements instead of returning an empty placeholder.
+
+Changes in this slice:
+- Reuse the accepted-requirement win-theme seed pipeline for pending theme suggestions.
+- Convert reviewable response seeds into `ThemeSuggestion` records with confidence scores, rationale, evidence sources, and suggested keywords.
+- Filter suggestions against existing theme statements and already-covered evaluation criteria before returning them.
+- Add regression coverage for populated pending suggestions and suppression of already-covered criteria.
+- Extend the Wave 8 strategic capability proof manifest with win-theme authorization and suggestion coverage.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 14 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` from `frontend/` passed, running 27 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - CRM Account Live Research
 
 Status: implemented and verified.
