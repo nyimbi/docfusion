@@ -372,6 +372,27 @@ describe("graphics opportunity scoping", () => {
 		expect(dbMock.insert).not.toHaveBeenCalled();
 	});
 
+	it("generates a deterministic process flow when AI returns an unusable diagram", async () => {
+		aiCompleteMock.mockResolvedValueOnce({
+			content: JSON.stringify({
+				diagramCode: "sequenceDiagram\n  User->>System: Start",
+				title: "Invalid Diagram",
+				stepCount: 1,
+			}),
+		});
+
+		const result = await generateProcessFlow(
+			"Receive intake request. Validate requirements. Assign delivery team. Report completion."
+		);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.diagramCode).toContain("flowchart TD");
+		expect(result.data.diagramCode).toContain("Receive intake request");
+		expect(result.data.diagramCode).toContain("S1 --> S2");
+		expect(result.data.suggestedCaption).toContain("4-step");
+	});
+
 	it("generates a deterministic action caption when AI is unavailable", async () => {
 		aiCompleteMock.mockRejectedValueOnce(new Error("provider unavailable"));
 		const updateChain = createChain();

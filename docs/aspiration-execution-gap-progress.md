@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Invalid AI Process Flow Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep proposal graphics generation from returning successful visual artifacts when AI emits non-flowchart or otherwise unusable Mermaid diagram code.
+
+Changes in this slice:
+- Validate AI process-flow diagram code before accepting it.
+- Require generated process flows to start as `flowchart TD` and include Mermaid edges.
+- Reuse deterministic process-flow generation when AI returns a different diagram type or edge-less content.
+- Add regression coverage for AI returning a non-flowchart Mermaid diagram in JSON.
+
+Verification:
+- `npm test -- graphics-scope.test.ts --run` passed with 14 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 284 tests.
+
+Remaining after this slice:
+- Continue hardening generated response artifacts against invalid successful outputs.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Live Persisted Import Response Retry Still Blocked
 
 Status: attempted; externally blocked.

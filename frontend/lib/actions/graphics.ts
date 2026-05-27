@@ -539,6 +539,14 @@ function buildDeterministicProcessFlowDraft(processDescription: string): Process
 	};
 }
 
+function normalizeProcessFlowDiagramCode(value: unknown): string | null {
+	if (!isNonBlankText(value)) return null;
+	const diagramCode = value.trim();
+	if (!/^flowchart\s+TD(?:\s|$)/i.test(diagramCode)) return null;
+	if (!/-->|---|==>/.test(diagramCode)) return null;
+	return diagramCode;
+}
+
 /**
  * Input data for org chart generation.
  */
@@ -1161,13 +1169,18 @@ Ensure the diagram is valid Mermaid syntax and renders correctly.`;
 			// Try to find standalone mermaid code block
 			const mermaidMatch = responseContent.match(/```mermaid\s*([\s\S]*?)```/);
 			if (mermaidMatch) {
-				diagramCode = mermaidMatch[1].trim();
+				const normalizedDiagram = normalizeProcessFlowDiagramCode(mermaidMatch[1]);
+				if (!normalizedDiagram) {
+					throw new Error("AI mermaid response was not a usable process flow");
+				}
+				diagramCode = normalizedDiagram;
 			} else {
 				const parsed = JSON.parse(jsonStr.trim());
-				if (typeof parsed.diagramCode !== "string" || parsed.diagramCode.trim().length === 0) {
+				const normalizedDiagram = normalizeProcessFlowDiagramCode(parsed.diagramCode);
+				if (!normalizedDiagram) {
 					throw new Error("AI response did not include diagramCode");
 				}
-				diagramCode = parsed.diagramCode.trim();
+				diagramCode = normalizedDiagram;
 				title = typeof parsed.title === "string" && parsed.title.trim().length > 0
 					? parsed.title.trim()
 					: title;
@@ -1177,8 +1190,9 @@ Ensure the diagram is valid Mermaid syntax and renders correctly.`;
 			}
 		} catch {
 			const flowchartMatch = responseContent.match(/(flowchart\s+TD[\s\S]*?)(?:```|$)/);
-			if (flowchartMatch) {
-				diagramCode = flowchartMatch[1].trim();
+			const normalizedFlowchart = flowchartMatch ? normalizeProcessFlowDiagramCode(flowchartMatch[1]) : null;
+			if (normalizedFlowchart) {
+				diagramCode = normalizedFlowchart;
 			} else {
 				logger.warn("Falling back to deterministic process flow generation");
 				const fallback = buildDeterministicProcessFlowDraft(processDescription);
