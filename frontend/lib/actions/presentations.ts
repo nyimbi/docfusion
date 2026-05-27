@@ -86,6 +86,44 @@ interface SupportingEvidence {
 	slideId?: string;
 }
 
+type AnticipatedQuestion = {
+	likelyQuestion: string;
+	questionCategory: string;
+	difficulty: string;
+	probability: number;
+	questionSource: string;
+	keyPoints: string[];
+	thingsToAvoid: string[];
+};
+
+function isNonBlankText(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.map((item) => String(item).trim()).filter(Boolean)
+		: [];
+}
+
+function normalizeAnticipatedQuestion(value: unknown): AnticipatedQuestion | null {
+	if (!value || typeof value !== "object") return null;
+	const question = value as Record<string, unknown>;
+	if (!isNonBlankText(question.likelyQuestion)) return null;
+
+	return {
+		likelyQuestion: question.likelyQuestion.trim(),
+		questionCategory: isNonBlankText(question.questionCategory) ? question.questionCategory.trim() : "general",
+		difficulty: isNonBlankText(question.difficulty) ? question.difficulty.trim() : "medium",
+		probability: typeof question.probability === "number" && Number.isFinite(question.probability)
+			? Math.min(1, Math.max(0, question.probability))
+			: 0.5,
+		questionSource: isNonBlankText(question.questionSource) ? question.questionSource.trim() : "evaluator_pattern",
+		keyPoints: normalizeStringArray(question.keyPoints),
+		thingsToAvoid: normalizeStringArray(question.thingsToAvoid),
+	};
+}
+
 interface PresentationExportDeck {
 	title: string;
 	description?: string | null;
@@ -1695,15 +1733,7 @@ Return as JSON array:
 
 Return ONLY the JSON array.`;
 
-		let questionsData: Array<{
-			likelyQuestion: string;
-			questionCategory: string;
-			difficulty: string;
-			probability: number;
-			questionSource: string;
-			keyPoints: string[];
-			thingsToAvoid: string[];
-		}>;
+		let questionsData: AnticipatedQuestion[];
 
 		try {
 			const result = await complete(prompt, {
@@ -1716,7 +1746,16 @@ Return ONLY the JSON array.`;
 				throw new Error("No valid JSON array found");
 			}
 
-			questionsData = JSON.parse(jsonMatch[0]);
+			const parsed = JSON.parse(jsonMatch[0]) as unknown;
+			if (!Array.isArray(parsed)) {
+				throw new Error("AI question response was not an array");
+			}
+			questionsData = parsed
+				.map(normalizeAnticipatedQuestion)
+				.filter((question): question is AnticipatedQuestion => question !== null);
+			if (questionsData.length === 0 && (slides.length > 0 || reqContext.trim().length > 0)) {
+				throw new Error("AI question response did not include usable questions");
+			}
 		} catch (aiError) {
 			logger.error("AI question anticipation failed, using fallback:", aiError);
 			questionsData = generateFallbackQuestions(presentation);

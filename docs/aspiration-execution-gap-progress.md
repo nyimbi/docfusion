@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Empty AI Presentation Q&A Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep oral-presentation preparation from returning zero anticipated questions when AI returns an empty or unusable JSON array despite available slide or requirement context.
+
+Changes in this slice:
+- Normalize AI-generated anticipated questions to require non-empty question text.
+- Clamp probability and default optional classification fields when usable question text exists.
+- Fall back to deterministic Q&A generation when contextual presentations receive no usable AI questions.
+- Add presentation scope coverage to the Wave 9 presentation proof manifest.
+
+Verification:
+- `npm test -- presentations-scope.test.ts --run` passed with 7 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-presentation-export-artifacts` passed with 17 tests.
+
+Remaining after this slice:
+- Continue auditing response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Empty AI Section Content Fallbacks
 
 Status: implemented and verified.

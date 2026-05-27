@@ -340,9 +340,9 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		description: "Validates oral presentation export returns real downloadable HTML, PDF, and PPTX artifacts and practice recording analysis returns deterministic timing evidence.",
 		command: {
 			command: "npm",
-			args: ["test", "--", "presentations-export.test.ts", "presentations-auth.test.ts"],
+			args: ["test", "--", "presentations-export.test.ts", "presentations-auth.test.ts", "presentations-scope.test.ts"],
 		},
-		expectedArtifacts: ["vitest:presentations-export", "vitest:presentations-auth"],
+		expectedArtifacts: ["vitest:presentations-export", "vitest:presentations-auth", "vitest:presentations-scope"],
 	},
 	{
 		id: "wave9-discovery-to-submission-core",

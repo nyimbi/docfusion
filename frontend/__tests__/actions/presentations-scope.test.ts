@@ -156,6 +156,57 @@ describe("presentation opportunity scoping", () => {
 		expectAssignedOpportunityTenantScope(requirementsWhere);
 	});
 
+	it("falls back to deterministic Q&A when AI returns no usable questions for slide context", async () => {
+		completeMock.mockResolvedValueOnce({ content: "[]" });
+		const insertedQuestions: unknown[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: presentationId,
+					opportunityId,
+					title: "Oral presentation",
+					audienceDescription: "Evaluation panel",
+					evaluationCriteria: [{
+						criterion: "Technical Approach",
+						weight: 60,
+						description: "Migration execution plan",
+					}],
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "slide-1",
+					presentationId,
+					slideNumber: 1,
+					title: "Technical Approach",
+					content: [{ type: "bullet", data: ["Phased migration", "Risk controls"] }],
+				}],
+			}))
+			.mockReturnValueOnce(createChain({ result: [] }));
+		dbMock.insert.mockImplementation(() => createChain({
+			result: [{
+				id: `qa-${insertedQuestions.length + 1}`,
+				presentationId,
+			}],
+			onValues: (value) => insertedQuestions.push(value),
+		}));
+
+		const result = await anticipateQuestions(presentationId);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(insertedQuestions.length).toBeGreaterThan(0);
+		expect(insertedQuestions).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				likelyQuestion: expect.stringContaining("technical approach"),
+				questionCategory: "technical",
+				isReviewed: false,
+			}),
+		]));
+		expect(result.data.length).toBe(insertedQuestions.length);
+		expect(revalidatePathMock).toHaveBeenCalledWith(`/presentations/${presentationId}`);
+	});
+
 	it("scopes slide generation proposal reads through assigned opportunities", async () => {
 		const wheres: unknown[] = [];
 		dbMock.select
