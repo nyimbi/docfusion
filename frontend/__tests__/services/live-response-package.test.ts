@@ -3,6 +3,7 @@ import {
 	LIVE_RESPONSE_DOCUMENT_TYPES,
 	assessLiveResponsePackageReadiness,
 	buildLiveResponsePackage,
+	extractLiveResponseEvaluationSignals,
 	extractLiveResponseRequirementSignals,
 	selectLiveResponseSnippets,
 } from "@/lib/services/live-response-package";
@@ -27,6 +28,11 @@ The contractor shall deliver a security consultancy report with remediation prio
 Offerors should describe similar experience with enterprise software platforms and regulated environments.
 The response must include project management, schedule, risk controls, and quality assurance.
 The financial proposal shall include all pricing assumptions, fees, and exclusions.
+## Evaluation Criteria
+Technical approach will be evaluated at 40 points.
+Similar experience with enterprise software platforms will be evaluated at 25 points.
+Project management, schedule, risk controls, and quality assurance will be evaluated at 20 points.
+Financial proposal price realism will be evaluated at 15 points.
 `;
 
 describe("live response package builder", () => {
@@ -57,6 +63,26 @@ describe("live response package builder", () => {
 		);
 	});
 
+	it("extracts evaluator criteria signals from scoring sections", () => {
+		const criteria = extractLiveResponseEvaluationSignals(sourceText);
+
+		expect(criteria).toHaveLength(4);
+		expect(criteria[0]).toMatchObject({
+			id: "LIVE-EVAL-001",
+			sourceSection: "Evaluation Criteria",
+			weight: "40 points",
+			documentType: "technical_approach",
+		});
+		expect(criteria.map((criterion) => criterion.documentType)).toEqual(
+			expect.arrayContaining([
+				"technical_approach",
+				"past_performance",
+				"management_plan",
+				"cost_proposal",
+			])
+		);
+	});
+
 	it("builds concrete response draft documents with requirement coverage", () => {
 		const responsePackage = buildLiveResponsePackage({
 			opportunity,
@@ -66,6 +92,7 @@ describe("live response package builder", () => {
 
 		expect(responsePackage.documents.map((document) => document.documentType)).toEqual(LIVE_RESPONSE_DOCUMENT_TYPES);
 		expect(responsePackage.requirements.length).toBeGreaterThanOrEqual(5);
+		expect(responsePackage.evaluationCriteria.length).toBe(4);
 		expect(responsePackage.totalWordCount).toBeGreaterThan(2000);
 		expect(responsePackage.relevantSnippetCount).toBeGreaterThanOrEqual(12);
 		expect(responsePackage.readiness.status).toBe("ready_for_review");
@@ -74,6 +101,7 @@ describe("live response package builder", () => {
 			documentTypeCoverage: 1,
 			sourceRequirementCoverage: 1,
 			mandatoryRequirementCoverage: 1,
+			evaluationCriteriaCoverage: 1,
 			evidenceCueCoverage: 1,
 			reviewGateCoverage: 1,
 			unresolvedPlaceholderCount: 0,
@@ -82,14 +110,19 @@ describe("live response package builder", () => {
 		for (const document of responsePackage.documents) {
 			expect(document.wordCount).toBeGreaterThan(250);
 			expect(document.markdown).toContain("## Source-Driven Response Plan");
+			expect(document.markdown).toContain("## Evaluator Alignment Plan");
 			expect(document.markdown).toContain("## Datacraft Evidence To Weave In");
 			expect(document.markdown).not.toMatch(/\{\{[^}]+\}\}/);
 			expect(document.requirementIds).toHaveLength(new Set(document.requirementIds).size);
+			expect(document.evaluationCriteriaIds).toHaveLength(new Set(document.evaluationCriteriaIds).size);
 		}
 
 		const technicalApproach = responsePackage.documents.find((document) => document.documentType === "technical_approach");
 		expect(technicalApproach?.markdown).toContain("penetration testing");
+		expect(technicalApproach?.markdown).toContain("LIVE-EVAL-001");
+		expect(technicalApproach?.markdown).toContain("Win response:");
 		expect(technicalApproach?.requirementIds.length).toBeGreaterThan(0);
+		expect(technicalApproach?.evaluationCriteriaIds.length).toBeGreaterThan(0);
 	});
 
 	it("adapts mandatory source signals for sections without explicit source clauses", () => {
@@ -136,5 +169,26 @@ Vendors interested in participating in the planned solicitation process should s
 		expect(readiness.status).toBe("blocked");
 		expect(readiness.blockers.join("\n")).toContain("source requirement signals");
 		expect(readiness.metrics.sourceRequirementCoverage).toBe(0);
+	});
+
+	it("blocks readiness when evaluator criteria are not represented in drafts", () => {
+		const responsePackage = buildLiveResponsePackage({
+			opportunity,
+			sourceText,
+			generatedAt: new Date("2026-05-27T00:00:00.000Z"),
+		});
+		const brokenPackage = {
+			...responsePackage,
+			documents: responsePackage.documents.map((document) => ({
+				...document,
+				evaluationCriteriaIds: [],
+			})),
+		};
+
+		const readiness = assessLiveResponsePackageReadiness(brokenPackage);
+
+		expect(readiness.status).toBe("blocked");
+		expect(readiness.blockers.join("\n")).toContain("evaluator criteria");
+		expect(readiness.metrics.evaluationCriteriaCoverage).toBe(0);
 	});
 });

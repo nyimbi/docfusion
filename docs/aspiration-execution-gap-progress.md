@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Evaluator Criteria Response Alignment
+
+Status: implemented and verified.
+
+Purpose: move generated live response packages from requirement coverage alone toward score-aware response drafting by extracting explicit evaluator/scoring criteria and requiring drafts to map those criteria into win-response plans.
+
+Changes in this slice:
+- Add evaluator criteria signals alongside source requirement signals in live response packages.
+- Extract scoring/evaluation lines from solicitation sections such as evaluation criteria, including point/percent/mark weights when present.
+- Add evaluator criteria IDs to every generated draft document and include an `Evaluator Alignment Plan` section with score-aware response strategy bullets.
+- Add readiness metrics and blockers for missing evaluator criteria coverage, while allowing source documents with no published criteria to remain ready with an explicit warning.
+- Add focused regression coverage for evaluator extraction, draft inclusion, readiness metrics, and blocked readiness when criteria mappings are removed.
+
+Verification:
+- `npm test -- live-response-package.test.ts` from `frontend/` passed, running 7 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` from `frontend/` passed.
+- `npm run platform:proof -- --include-live-safe --run live-opportunity-response-readiness` from `frontend/` passed. It downloaded and parsed live UNGM source PDF `eoi24414.pdf`, generated all six response drafts, produced 3,897 total draft words, covered 8 source requirement signals, matched 85 Datacraft evidence snippets, and returned `ready_for_review` with a warning that no explicit evaluator scoring criteria were present in that source.
+
+Remaining after this slice:
+- Connect extracted evaluator criteria to persisted win-theme and review workflows so downstream scoring, comments, and final submission checks can reference the same IDs.
+- Continue improving response-generation quality from aligned plans toward final artifact rendering and reviewer-approved submission packages.
+
 ### 2026-05-27 - AFDB Detail Document Enrichment
 
 Status: implemented and verified.

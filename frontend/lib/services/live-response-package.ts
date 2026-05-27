@@ -46,6 +46,15 @@ export interface LiveResponseRequirementSignal {
 	responseStrategy: string;
 }
 
+export interface LiveResponseEvaluationSignal {
+	id: string;
+	text: string;
+	sourceSection?: string;
+	weight?: string;
+	documentType: ProposalDocumentType;
+	responseStrategy: string;
+}
+
 export interface LiveResponseDraftDocument {
 	documentType: ProposalDocumentType;
 	title: string;
@@ -53,6 +62,7 @@ export interface LiveResponseDraftDocument {
 	wordCount: number;
 	sectionSeedCount: number;
 	requirementIds: string[];
+	evaluationCriteriaIds: string[];
 	relevantSnippetShortcuts: string[];
 }
 
@@ -62,6 +72,7 @@ export interface LiveResponsePackage {
 	solicitationNumber?: string;
 	generatedAt: string;
 	requirements: LiveResponseRequirementSignal[];
+	evaluationCriteria: LiveResponseEvaluationSignal[];
 	documents: LiveResponseDraftDocument[];
 	totalWordCount: number;
 	relevantSnippetCount: number;
@@ -77,6 +88,7 @@ export interface LiveResponseReadinessAssessment {
 		documentTypeCoverage: number;
 		sourceRequirementCoverage: number;
 		mandatoryRequirementCoverage: number;
+		evaluationCriteriaCoverage: number;
 		evidenceCueCoverage: number;
 		reviewGateCoverage: number;
 		unresolvedPlaceholderCount: number;
@@ -96,6 +108,7 @@ export function buildLiveResponsePackage(input: {
 	const generatedAt = input.generatedAt ?? new Date();
 	const clientName = input.opportunity.organization ?? "Procuring Entity";
 	const requirements = extractLiveResponseRequirementSignals(input.sourceText);
+	const evaluationCriteria = extractLiveResponseEvaluationSignals(input.sourceText);
 	const relevantSnippets = selectLiveResponseSnippets(input.opportunity, input.sourceText);
 	const sharedValues = {
 		client_name: clientName,
@@ -110,6 +123,7 @@ export function buildLiveResponsePackage(input: {
 			sharedValues
 		);
 		const assignedRequirements = requirementsForDocumentType(requirements, documentType);
+		const assignedEvaluationCriteria = evaluationCriteriaForDocumentType(evaluationCriteria, documentType);
 		const snippets = snippetsForDocumentType(relevantSnippets, documentType);
 		const markdown = buildDocumentMarkdown({
 			documentType,
@@ -117,6 +131,7 @@ export function buildLiveResponsePackage(input: {
 			opportunity: input.opportunity,
 			clientName,
 			requirements: assignedRequirements,
+			evaluationCriteria: assignedEvaluationCriteria,
 			snippets,
 			generatedAt,
 		});
@@ -128,6 +143,7 @@ export function buildLiveResponsePackage(input: {
 			wordCount: countWords(markdown),
 			sectionSeedCount: getDatacraftProposalSectionSeeds(documentType).length,
 			requirementIds: assignedRequirements.map((requirement) => requirement.id),
+			evaluationCriteriaIds: assignedEvaluationCriteria.map((criterion) => criterion.id),
 			relevantSnippetShortcuts: snippets.map((snippet) => snippet.shortcut),
 		};
 	});
@@ -147,6 +163,7 @@ export function buildLiveResponsePackage(input: {
 		solicitationNumber: input.opportunity.sourceId ?? input.opportunity.noticeId,
 		generatedAt: generatedAt.toISOString(),
 		requirements,
+		evaluationCriteria,
 		documents,
 		totalWordCount: documents.reduce((total, document) => total + document.wordCount, 0),
 		relevantSnippetCount: relevantSnippets.length,
@@ -167,11 +184,14 @@ export function assessLiveResponsePackageReadiness(
 	const documentTypes = new Set(responsePackage.documents.map((document) => document.documentType));
 	const missingDocumentTypes = LIVE_RESPONSE_DOCUMENT_TYPES.filter((type) => !documentTypes.has(type));
 	const assignedRequirementIds = new Set(responsePackage.documents.flatMap((document) => document.requirementIds));
+	const assignedEvaluationCriteriaIds = new Set(responsePackage.documents.flatMap((document) => document.evaluationCriteriaIds));
 	const requirementIds = responsePackage.requirements.map((requirement) => requirement.id);
+	const evaluationCriteriaIds = responsePackage.evaluationCriteria.map((criterion) => criterion.id);
 	const mandatoryRequirementIds = responsePackage.requirements
 		.filter((requirement) => requirement.priority === "mandatory")
 		.map((requirement) => requirement.id);
 	const coveredRequirementCount = requirementIds.filter((id) => assignedRequirementIds.has(id)).length;
+	const coveredEvaluationCriteriaCount = evaluationCriteriaIds.filter((id) => assignedEvaluationCriteriaIds.has(id)).length;
 	const coveredMandatoryRequirementCount = mandatoryRequirementIds.filter((id) => assignedRequirementIds.has(id)).length;
 	const documentsWithEvidence = responsePackage.documents.filter((document) => document.relevantSnippetShortcuts.length > 0).length;
 	const documentsWithReviewGates = responsePackage.documents.filter((document) => document.markdown.includes("## Review Gates")).length;
@@ -186,6 +206,7 @@ export function assessLiveResponsePackageReadiness(
 		documentTypeCoverage: ratio(LIVE_RESPONSE_DOCUMENT_TYPES.length - missingDocumentTypes.length, LIVE_RESPONSE_DOCUMENT_TYPES.length),
 		sourceRequirementCoverage: ratio(coveredRequirementCount, requirementIds.length),
 		mandatoryRequirementCoverage: ratio(coveredMandatoryRequirementCount, mandatoryRequirementIds.length),
+		evaluationCriteriaCoverage: ratio(coveredEvaluationCriteriaCount, evaluationCriteriaIds.length),
 		evidenceCueCoverage: ratio(documentsWithEvidence, responsePackage.documents.length),
 		reviewGateCoverage: ratio(documentsWithReviewGates, responsePackage.documents.length),
 		unresolvedPlaceholderCount,
@@ -205,6 +226,9 @@ export function assessLiveResponsePackageReadiness(
 	}
 	if (metrics.mandatoryRequirementCoverage < 1) {
 		blockers.push(`Only ${coveredMandatoryRequirementCount}/${mandatoryRequirementIds.length} mandatory source requirement signals are represented in draft documents`);
+	}
+	if (responsePackage.evaluationCriteria.length > 0 && metrics.evaluationCriteriaCoverage < 1) {
+		blockers.push(`Only ${coveredEvaluationCriteriaCount}/${evaluationCriteriaIds.length} evaluator criteria are represented in draft documents`);
 	}
 	if (unresolvedPlaceholderCount > 0) {
 		blockers.push(`${unresolvedPlaceholderCount} unresolved template placeholder(s) remain in draft documents`);
@@ -226,9 +250,15 @@ export function assessLiveResponsePackageReadiness(
 		if (document.requirementIds.length === 0) {
 			warnings.push(`${document.documentType} has no directly assigned source requirement signal`);
 		}
+		if (responsePackage.evaluationCriteria.length > 0 && document.evaluationCriteriaIds.length === 0) {
+			warnings.push(`${document.documentType} has no evaluator criteria alignment`);
+		}
 		if (document.relevantSnippetShortcuts.length < 3) {
 			warnings.push(`${document.documentType} has fewer than three Datacraft evidence cues`);
 		}
+	}
+	if (responsePackage.evaluationCriteria.length === 0) {
+		warnings.push("No explicit evaluator scoring criteria were extracted from the source text");
 	}
 
 	return {
@@ -293,6 +323,39 @@ export function extractLiveResponseRequirementSignals(sourceText: string): LiveR
 	return requirements;
 }
 
+export function extractLiveResponseEvaluationSignals(sourceText: string): LiveResponseEvaluationSignal[] {
+	const lines = sourceText.split(/\r?\n/);
+	const criteria: LiveResponseEvaluationSignal[] = [];
+	let sourceSection = "Source Document";
+
+	for (const rawLine of lines) {
+		const line = rawLine.replace(/\s+/g, " ").trim();
+		if (!line) continue;
+
+		if (isLikelyHeading(line)) {
+			sourceSection = stripMarkdownHeading(line);
+			continue;
+		}
+		if (!isEvaluationCriteriaLine(line, sourceSection)) continue;
+
+		const text = line.replace(/^(?:[-*]|\d+(?:\.\d+)*[.)]|[a-z][.)])\s+/i, "").trim();
+		if (text.length < 25) continue;
+
+		const documentType = documentTypeForRequirementText(text);
+		criteria.push({
+			id: `LIVE-EVAL-${String(criteria.length + 1).padStart(3, "0")}`,
+			text: compactText(text, 360),
+			sourceSection,
+			weight: extractEvaluationWeight(text),
+			documentType,
+			responseStrategy: evaluationStrategyFor(documentType, text),
+		});
+		if (criteria.length >= 16) break;
+	}
+
+	return criteria;
+}
+
 export function selectLiveResponseSnippets(
 	opportunity: OpportunityData,
 	sourceText: string
@@ -323,6 +386,7 @@ function buildDocumentMarkdown(input: {
 	opportunity: OpportunityData;
 	clientName: string;
 	requirements: LiveResponseRequirementSignal[];
+	evaluationCriteria: LiveResponseEvaluationSignal[];
 	snippets: DatacraftResponseSnippetInput[];
 	generatedAt: Date;
 }): string {
@@ -332,6 +396,12 @@ function buildDocumentMarkdown(input: {
 			`- ${requirement.id} (${requirement.priority}, ${requirement.sourceSection ?? "source"}): ${requirement.text} Response plan: ${requirement.responseStrategy}`
 		)
 		: ["- No source requirement was assigned to this document type; review the source extraction before final approval."];
+	const evaluationLines = input.evaluationCriteria.length > 0
+		? input.evaluationCriteria.map((criterion) => {
+			const weight = criterion.weight ? `, ${criterion.weight}` : "";
+			return `- ${criterion.id} (${criterion.sourceSection ?? "source"}${weight}): ${criterion.text} Win response: ${criterion.responseStrategy}`;
+		})
+		: ["- No explicit evaluator or scoring criterion was assigned to this document type; validate evaluator criteria before final approval."];
 	const snippetLines = input.snippets.slice(0, 8).map((snippet) =>
 		`- ${snippet.shortcut}: ${snippet.name} (${snippet.topicCategory})`
 	);
@@ -356,12 +426,16 @@ function buildDocumentMarkdown(input: {
 		"## Source-Driven Response Plan",
 		...requirementLines,
 		"",
+		"## Evaluator Alignment Plan",
+		...evaluationLines,
+		"",
 		"## Datacraft Evidence To Weave In",
 		...snippetLines,
 		"",
 		"## Review Gates",
 		"- Replace generic claims with direct source references before final submission.",
 		"- Confirm every mandatory source requirement is mapped to a compliance matrix row.",
+		"- Confirm every explicit evaluator criterion is mapped to a win theme, proof point, and response section.",
 		"- Confirm pricing, assumptions, exclusions, and evidence citations are approved before rendering final artifacts.",
 		"",
 	].join("\n");
@@ -397,6 +471,45 @@ function adaptRequirementsForDocumentType(
 			documentType,
 			responseStrategy: responseStrategyFor(documentType, requirement.text),
 		};
+	});
+}
+
+function evaluationCriteriaForDocumentType(
+	criteria: LiveResponseEvaluationSignal[],
+	documentType: ProposalDocumentType
+): LiveResponseEvaluationSignal[] {
+	const direct = criteria.filter((criterion) => criterion.documentType === documentType);
+	if (documentType === "cover_letter" || documentType === "executive_summary") {
+		return adaptEvaluationCriteriaForDocumentType(uniqueEvaluationSignals([
+			...direct,
+			...criteria,
+		]).slice(0, 8), documentType);
+	}
+
+	if (direct.length > 0) return direct.slice(0, 8);
+	return adaptEvaluationCriteriaForDocumentType(criteria.slice(0, 3), documentType);
+}
+
+function adaptEvaluationCriteriaForDocumentType(
+	criteria: LiveResponseEvaluationSignal[],
+	documentType: ProposalDocumentType
+): LiveResponseEvaluationSignal[] {
+	return criteria.map((criterion) => {
+		if (criterion.documentType === documentType) return criterion;
+		return {
+			...criterion,
+			documentType,
+			responseStrategy: evaluationStrategyFor(documentType, criterion.text),
+		};
+	});
+}
+
+function uniqueEvaluationSignals(criteria: LiveResponseEvaluationSignal[]): LiveResponseEvaluationSignal[] {
+	const seen = new Set<string>();
+	return criteria.filter((criterion) => {
+		if (seen.has(criterion.id)) return false;
+		seen.add(criterion.id);
+		return true;
 	});
 }
 
@@ -448,6 +561,24 @@ function responseStrategyFor(documentType: ProposalDocumentType, text: string): 
 	}
 }
 
+function evaluationStrategyFor(documentType: ProposalDocumentType, text: string): string {
+	const topic = compactText(text, 140);
+	switch (documentType) {
+		case "cost_proposal":
+			return `Show price realism, assumption control, and value evidence that protect the score for ${topic}.`;
+		case "past_performance":
+			return `Convert comparable Lindela, MeGuard, and Wakala work into evaluator confidence for ${topic}.`;
+		case "management_plan":
+			return `Tie staffing, governance, schedule control, and quality checks directly to the scoring language for ${topic}.`;
+		case "cover_letter":
+			return `Signal compliance, buyer understanding, and score-aware executive intent for ${topic}.`;
+		case "executive_summary":
+			return `Turn the criterion into a clear win theme with named proof points and client outcomes for ${topic}.`;
+		default:
+			return `Map the technical approach, acceptance evidence, security controls, and delivery proof to the score for ${topic}.`;
+	}
+}
+
 function isLikelyHeading(line: string): boolean {
 	return /^#{1,4}\s+\S/.test(line) ||
 		(/^[A-Z][A-Z0-9 /&().,-]{8,}$/.test(line) && line.length < 120);
@@ -460,6 +591,26 @@ function stripMarkdownHeading(line: string): string {
 function isRequirementLine(line: string): boolean {
 	return /\b(shall|must|required|requires|mandatory|should|preferred|submit|provide|request|invited|deadline|expression of interest|eoi|proposal|tender)\b/i.test(line) ||
 		/^(?:[-*]|\d+(?:\.\d+)*[.)]|[a-z][.)])\s+.{20,}$/.test(line);
+}
+
+function isEvaluationCriteriaLine(line: string, sourceSection: string): boolean {
+	const sectionSignalsEvaluation = /\b(evaluation|scoring|award|selection criteria|criteria|basis of award|methodology)\b/i.test(sourceSection);
+	const hasEvaluationCue = /\b(evaluat(?:ed|ion)|score|scoring|points?|marks?|weight(?:ed|ing)?|criteria|criterion|basis of award|selection)\b/i.test(line);
+	const hasWeight = /\b\d{1,3}(?:\.\d+)?\s*(?:%|percent|points?|marks?)\b/i.test(line);
+	const hasEvaluationPhrase = /\b(?:will|shall|must)\s+be\s+evaluated\b/i.test(line) ||
+		/\b(?:evaluation|selection)\s+criteria\b/i.test(line) ||
+		/\bbasis\s+of\s+award\b/i.test(line);
+	const isListItem = /^(?:[-*]|\d+(?:\.\d+)*[.)]|[a-z][.)])\s+.{20,}$/.test(line);
+
+	return (hasEvaluationCue && (hasWeight || hasEvaluationPhrase)) ||
+		(sectionSignalsEvaluation && isListItem && (hasEvaluationCue || hasWeight));
+}
+
+function extractEvaluationWeight(text: string): string | undefined {
+	const match = text.match(/\b(\d{1,3}(?:\.\d+)?)\s*(%|percent|points?|marks?)\b/i);
+	if (!match) return undefined;
+	const unit = match[2].toLowerCase() === "percent" ? "%" : match[2].toLowerCase();
+	return `${match[1]} ${unit}`;
 }
 
 function renderPlaceholders(text: string, values: Record<string, string>): string {
@@ -478,6 +629,7 @@ function emptyReadinessAssessment(): LiveResponseReadinessAssessment {
 			documentTypeCoverage: 0,
 			sourceRequirementCoverage: 0,
 			mandatoryRequirementCoverage: 0,
+			evaluationCriteriaCoverage: 0,
 			evidenceCueCoverage: 0,
 			reviewGateCoverage: 0,
 			unresolvedPlaceholderCount: 0,
