@@ -5852,3 +5852,25 @@ Verification:
 Remaining after this slice:
 - Continue auditing generated readiness artifacts for hardcoded demo defaults that should come from opportunity-specific data.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Context-Aware Claim Quantification
+
+Status: implemented and verified.
+
+Purpose: make claim quantification suggestions deterministic and evaluator-facing instead of emitting unresolved metric placeholder text.
+
+Changes in this slice:
+- Use optional context when detecting claim quantification patterns such as uptime, availability, savings, and efficiency.
+- Generate quantified uptime and savings wording even when the original claim lacks replaceable adjectives.
+- Replace the generic `(add specific metrics here)` fallback with dated performance record, delivery example, and outcome-data language.
+- Add regression coverage for context-driven metric selection and placeholder-free fallback output.
+
+Verification:
+- `npm test -- evidence.test.ts` passed with 59 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 91 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue auditing generated response-support text for unresolved placeholders or generic evaluator-facing claims.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

@@ -141,6 +141,7 @@ import {
 	generateEvidenceMatrix,
 	generateEvidenceReport,
 	exportEvidenceLibrary,
+	quantifyClaim,
 } from "@/lib/actions/evidence";
 
 // ============================================================================
@@ -1306,6 +1307,36 @@ describe("Evidence suggestions", () => {
 		expect(result.data[0].relevanceScore).toBeGreaterThan(90);
 		expect(result.data[0].reason).toContain("federal");
 		expect(result.data[0].reason).toContain("uptime");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Claim quantification
+// ---------------------------------------------------------------------------
+
+describe("Claim quantification", () => {
+	test("uses context when selecting quantification metrics", async () => {
+		const result = await quantifyClaim(
+			"Our operations team keeps critical systems resilient",
+			"Availability, uptime, and SLA response for federal cloud systems"
+		);
+
+		if (!result.success) throw new Error(result.error);
+		expect(result.data.quantifiedVersions[0].text).toContain("99.9% uptime");
+		expect(result.data.metrics.map((metric) => metric.name)).toContain("Uptime percentage");
+	});
+
+	test("generic fallback avoids unresolved metric placeholders", async () => {
+		const result = await quantifyClaim("Our team brings a thoughtful delivery model");
+
+		if (!result.success) throw new Error(result.error);
+		expect(result.data.quantifiedVersions[0].text).not.toContain("add specific metrics here");
+		expect(result.data.quantifiedVersions[0].text).toContain("dated performance records");
+		expect(result.data.metrics.map((metric) => metric.name)).toEqual([
+			"Outcome count",
+			"Improvement percentage",
+			"Delivery timeframe",
+		]);
 	});
 });
 

@@ -2337,78 +2337,81 @@ export async function quantifyClaim(claimText: string, context?: string): Promis
 	try {
 		await requireUserContext();
 
-		// Generate quantification suggestions based on claim type analysis
-		// In production, this would use AI for intelligent suggestions
-
 		const suggestions: QuantificationSuggestion = {
-		originalClaim: claimText,
-		quantifiedVersions: [],
-		metrics: [],
-	};
+			originalClaim: claimText,
+			quantifiedVersions: [],
+			metrics: [],
+		};
 
-	// Detect claim type and generate appropriate quantifications
-	const claimLower = claimText.toLowerCase();
+		// Detect claim type and generate appropriate quantifications.
+		const claimLower = [claimText, context].filter(Boolean).join(" ").toLowerCase();
 
-	if (claimLower.includes("experience") || claimLower.includes("delivered") || claimLower.includes("completed")) {
-		suggestions.quantifiedVersions.push({
-			text: claimText.replace(/extensive|significant|substantial/gi, "15+ years of"),
-			evidenceNeeded: "Project records, contract history",
-			strengthIncrease: 35,
-			dataSource: "Contract management system",
-		});
-		suggestions.quantifiedVersions.push({
-			text: claimText + ", completing over 50 similar projects for federal agencies",
-			evidenceNeeded: "Past performance records",
-			strengthIncrease: 45,
-			dataSource: "CPARS records, proposal library",
-		});
-		suggestions.metrics.push(
-			{ name: "Years of experience", unit: "years", example: "15+" },
-			{ name: "Projects completed", unit: "count", example: "50+" },
-			{ name: "Contract value delivered", unit: "dollars", example: "$100M+" }
-		);
-	}
+		if (claimLower.includes("experience") || claimLower.includes("delivered") || claimLower.includes("completed")) {
+			suggestions.quantifiedVersions.push({
+				text: claimText.replace(/extensive|significant|substantial/gi, "15+ years of"),
+				evidenceNeeded: "Project records, contract history",
+				strengthIncrease: 35,
+				dataSource: "Contract management system",
+			});
+			suggestions.quantifiedVersions.push({
+				text: claimText + ", completing over 50 similar projects for federal agencies",
+				evidenceNeeded: "Past performance records",
+				strengthIncrease: 45,
+				dataSource: "CPARS records, proposal library",
+			});
+			suggestions.metrics.push(
+				{ name: "Years of experience", unit: "years", example: "15+" },
+				{ name: "Projects completed", unit: "count", example: "50+" },
+				{ name: "Contract value delivered", unit: "dollars", example: "$100M+" }
+			);
+		}
 
-	if (claimLower.includes("uptime") || claimLower.includes("availability") || claimLower.includes("reliable")) {
-		suggestions.quantifiedVersions.push({
-			text: claimText.replace(/high|excellent|superior/gi, "99.9%"),
-			evidenceNeeded: "System monitoring data, SLA compliance reports",
-			strengthIncrease: 50,
-			dataSource: "Infrastructure monitoring tools",
-		});
-		suggestions.metrics.push(
-			{ name: "Uptime percentage", unit: "%", example: "99.9%" },
-			{ name: "Mean time to recovery", unit: "minutes", example: "<15 min" }
-		);
-	}
+		if (claimLower.includes("uptime") || claimLower.includes("availability") || claimLower.includes("reliable")) {
+			const text = /high|excellent|superior/i.test(claimText)
+				? claimText.replace(/high|excellent|superior/gi, "99.9%")
+				: `${claimText}, achieving 99.9% uptime across monitored services`;
+			suggestions.quantifiedVersions.push({
+				text,
+				evidenceNeeded: "System monitoring data, SLA compliance reports",
+				strengthIncrease: 50,
+				dataSource: "Infrastructure monitoring tools",
+			});
+			suggestions.metrics.push(
+				{ name: "Uptime percentage", unit: "%", example: "99.9%" },
+				{ name: "Mean time to recovery", unit: "minutes", example: "<15 min" }
+			);
+		}
 
-	if (claimLower.includes("savings") || claimLower.includes("efficiency") || claimLower.includes("reduce")) {
-		suggestions.quantifiedVersions.push({
-			text: claimText.replace(/significant|substantial/gi, "25%"),
-			evidenceNeeded: "Cost analysis, before/after comparison data",
-			strengthIncrease: 40,
-			dataSource: "Financial reports, customer testimonials",
-		});
-		suggestions.metrics.push(
-			{ name: "Cost reduction", unit: "%", example: "25%" },
-			{ name: "Time savings", unit: "hours/week", example: "40 hours/week" },
-			{ name: "ROI achieved", unit: "ratio", example: "3:1" }
-		);
-	}
+		if (claimLower.includes("savings") || claimLower.includes("efficiency") || claimLower.includes("reduce")) {
+			const text = /significant|substantial/i.test(claimText)
+				? claimText.replace(/significant|substantial/gi, "25%")
+				: `${claimText}, reducing cost or effort by 25% against the documented baseline`;
+			suggestions.quantifiedVersions.push({
+				text,
+				evidenceNeeded: "Cost analysis, before/after comparison data",
+				strengthIncrease: 40,
+				dataSource: "Financial reports, customer testimonials",
+			});
+			suggestions.metrics.push(
+				{ name: "Cost reduction", unit: "%", example: "25%" },
+				{ name: "Time savings", unit: "hours/week", example: "40 hours/week" },
+				{ name: "ROI achieved", unit: "ratio", example: "3:1" }
+			);
+		}
 
-	// Add generic suggestions if no specific patterns matched
-	if (suggestions.quantifiedVersions.length === 0) {
-		suggestions.quantifiedVersions.push({
-			text: claimText + " (add specific metrics here)",
-			evidenceNeeded: "Relevant project data, performance records",
-			strengthIncrease: 30,
-			dataSource: "Internal records, customer feedback",
-		});
-		suggestions.metrics.push(
-			{ name: "Quantity", unit: "count", example: "number of items/projects" },
-			{ name: "Percentage", unit: "%", example: "improvement rate" },
-			{ name: "Time", unit: "days/weeks", example: "duration or time saved" }
-		);
+		// Add evaluator-facing baseline suggestions if no specific patterns matched.
+		if (suggestions.quantifiedVersions.length === 0) {
+			suggestions.quantifiedVersions.push({
+				text: `${claimText}, supported by dated performance records, named delivery examples, and measured outcome data`,
+				evidenceNeeded: "Project records with dates, quantities, outcomes, and source references",
+				strengthIncrease: 30,
+				dataSource: "Delivery records, performance dashboards, customer acceptance artifacts",
+			});
+			suggestions.metrics.push(
+				{ name: "Outcome count", unit: "count", example: "12 accepted deliverables" },
+				{ name: "Improvement percentage", unit: "%", example: "18% improvement" },
+				{ name: "Delivery timeframe", unit: "days/weeks", example: "delivered within 30 days" }
+			);
 		}
 
 		return { success: true, data: suggestions };
