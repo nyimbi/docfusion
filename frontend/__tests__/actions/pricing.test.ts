@@ -778,6 +778,35 @@ describe("Cost suggestion fallbacks", () => {
 		}));
 	});
 
+	test("returns deterministic cost suggestions when AI output has unusable suggestion objects", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ suggestions: [{}] }), tokensUsed: 0 });
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([{
+				id: "tracking-unusable-suggestions",
+				sectionName: "Cloud Implementation",
+				sectionContent:
+					"Engineering team will configure cloud software, conduct onsite validation, and report compliance results.",
+			}]))
+			.mockImplementationOnce(() => createChainableQuery([{
+				id: "labor-unusable-suggestions",
+				name: "Senior Software Engineer",
+				fullyBurdenedRate: 175,
+				directRate: 120,
+			}]));
+
+		const result = await suggestCostForSection("section-unusable-suggestions");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.length).toBeGreaterThan(0);
+		expect(result.data[0]).toEqual(expect.objectContaining({
+			elementType: "labor",
+			suggestedName: "Cloud Implementation Labor",
+			laborCategoryId: "labor-unusable-suggestions",
+			rationale: expect.stringContaining("Deterministic fallback"),
+		}));
+	});
+
 	test("returns deterministic cost suggestions when AI output is malformed", async () => {
 		aiCompleteMock.mockResolvedValueOnce({ content: "not json", tokensUsed: 0 });
 		dbMock.select

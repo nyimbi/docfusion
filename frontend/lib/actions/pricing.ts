@@ -228,13 +228,60 @@ export interface CostSuggestion {
 	confidence: number;
 }
 
-function numberValue(value: number | string | null | undefined): number | undefined {
+const VALID_COST_ELEMENT_TYPES = new Set<CostElementType>([
+	"labor",
+	"odc",
+	"subcontract",
+	"travel",
+	"material",
+	"other",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function isNonBlankText(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function numberValue(value: unknown): number | undefined {
 	if (typeof value === "number" && Number.isFinite(value)) return value;
 	if (typeof value === "string") {
 		const parsed = Number(value);
 		return Number.isFinite(parsed) ? parsed : undefined;
 	}
 	return undefined;
+}
+
+function positiveNumberValue(value: unknown): number | undefined {
+	const parsed = numberValue(value);
+	return parsed !== undefined && parsed > 0 ? parsed : undefined;
+}
+
+function normalizeCostSuggestion(value: unknown): CostSuggestion | null {
+	if (
+		!isRecord(value) ||
+		!isNonBlankText(value.elementType) ||
+		!VALID_COST_ELEMENT_TYPES.has(value.elementType.trim() as CostElementType) ||
+		!isNonBlankText(value.suggestedName) ||
+		!isNonBlankText(value.rationale)
+	) {
+		return null;
+	}
+
+	const confidence = numberValue(value.confidence);
+	return {
+		elementType: value.elementType.trim() as CostElementType,
+		suggestedName: value.suggestedName.trim(),
+		suggestedHours: positiveNumberValue(value.suggestedHours),
+		suggestedRate: positiveNumberValue(value.suggestedRate),
+		suggestedCost: positiveNumberValue(value.suggestedCost),
+		rationale: value.rationale.trim(),
+		laborCategoryId: isNonBlankText(value.laborCategoryId) ? value.laborCategoryId.trim() : undefined,
+		laborCategoryName: isNonBlankText(value.laborCategoryName) ? value.laborCategoryName.trim() : undefined,
+		confidence: confidence === undefined ? 0.5 : Math.min(1, Math.max(0, confidence)),
+	};
 }
 
 function estimateDeterministicHours(sectionText: string): number {
@@ -1795,20 +1842,13 @@ Respond in JSON format:
 		const result = await ai.complete(prompt);
 
 		try {
-			const parsed = JSON.parse(result.content);
-			const suggestions: CostSuggestion[] = (parsed.suggestions || []).map((s: Record<string, unknown>) => ({
-				elementType: s.elementType as CostElementType,
-				suggestedName: s.suggestedName as string,
-				suggestedHours: s.suggestedHours as number | undefined,
-				suggestedRate: s.suggestedRate as number | undefined,
-				suggestedCost: s.suggestedCost as number | undefined,
-				rationale: s.rationale as string,
-				laborCategoryId: s.laborCategoryId as string | undefined,
-				laborCategoryName: s.laborCategoryName as string | undefined,
-				confidence: s.confidence as number,
-			}));
+			const parsed = JSON.parse(result.content) as { suggestions?: unknown };
+			const rawSuggestions: unknown[] = Array.isArray(parsed.suggestions) ? parsed.suggestions : [];
+			const suggestions: CostSuggestion[] = rawSuggestions
+				.map(normalizeCostSuggestion)
+				.filter((suggestion): suggestion is CostSuggestion => suggestion !== null);
 			if (suggestions.length === 0) {
-				throw new Error("AI cost suggestion response contained no suggestions");
+				throw new Error("AI cost suggestion response contained no usable suggestions");
 			}
 
 			return { success: true, data: suggestions };

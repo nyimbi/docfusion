@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable AI Cost Suggestion Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep pricing support from returning successful cost suggestions when AI emits non-empty arrays with blank or malformed suggestion objects.
+
+Changes in this slice:
+- Validate AI cost suggestion rows for supported cost element type, non-empty suggested name, and non-empty rationale.
+- Normalize accepted cost suggestion fields, positive numeric estimates, optional labor category labels, and confidence.
+- Reuse deterministic cost suggestions when AI output contains no usable suggestion objects.
+- Add regression coverage for an AI response of `{ "suggestions": [{}] }`.
+
+Verification:
+- `npm test -- pricing.test.ts --run` passed with 102 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 283 tests.
+
+Remaining after this slice:
+- Continue auditing discovery and response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Unusable AI Graphic Suggestion Fallbacks
 
 Status: implemented and verified.
