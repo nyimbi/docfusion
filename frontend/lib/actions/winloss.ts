@@ -82,6 +82,45 @@ function assignedOpportunityByIdCondition(opportunityId: string, userContext: Us
 	)!;
 }
 
+function buildHeuristicWinLossInsights(contextData: {
+	opportunity?: { title?: string | null };
+	debriefs: Array<{ outcome?: string | null }>;
+	patterns: unknown[];
+}): string[] {
+	const insights: string[] = [];
+
+	if (contextData.debriefs.length > 0) {
+		const wins = contextData.debriefs.filter(d => d.outcome === "win");
+		const winRate = wins.length / contextData.debriefs.length;
+		insights.push(`Recent win rate: ${Math.round(winRate * 100)}%`);
+	}
+
+	if (contextData.patterns.length > 0) {
+		insights.push(`${contextData.patterns.length} active patterns identified`);
+	}
+
+	if (contextData.opportunity) {
+		insights.push(`Analyzing opportunity: ${contextData.opportunity.title}`);
+	}
+
+	return insights;
+}
+
+function parseWinLossInsightList(content: string): string[] | null {
+	const jsonMatch = content.match(/\[[\s\S]*\]/);
+	if (!jsonMatch) return null;
+
+	try {
+		const parsed = JSON.parse(jsonMatch[0]);
+		if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== "string")) {
+			return null;
+		}
+		return parsed.map((item) => item.trim()).filter(Boolean);
+	} catch {
+		return null;
+	}
+}
+
 /**
  * Input for creating a new debrief record.
  */
@@ -2335,24 +2374,7 @@ export async function getWinLossInsights(
 		await manager.initialize();
 
 		if (!(await manager.isAvailable())) {
-			// Return heuristic insights
-			const insights: string[] = [];
-
-			if (contextData.debriefs.length > 0) {
-				const wins = contextData.debriefs.filter(d => d.outcome === "win");
-				const winRate = wins.length / contextData.debriefs.length;
-				insights.push(`Recent win rate: ${Math.round(winRate * 100)}%`);
-			}
-
-			if (contextData.patterns.length > 0) {
-				insights.push(`${contextData.patterns.length} active patterns identified`);
-			}
-
-			if (contextData.opportunity) {
-				insights.push(`Analyzing opportunity: ${contextData.opportunity.title}`);
-			}
-
-			return { success: true, data: insights };
+			return { success: true, data: buildHeuristicWinLossInsights(contextData) };
 		}
 
 		const systemPrompt = `You are a proposal strategy advisor.
@@ -2396,12 +2418,20 @@ ${contextData.patterns.map(p => `- ${p.patternName} (correlation: ${p.winCorrela
 			maxTokens: 500,
 		});
 
-		const jsonMatch = response.content.match(/\[[\s\S]*\]/);
-		if (!jsonMatch) {
-			return { success: true, data: ["Unable to generate AI insights at this time"] };
+		const parsedInsights = parseWinLossInsightList(response.content);
+		if (!parsedInsights) {
+			const fallbackInsights = buildHeuristicWinLossInsights(contextData);
+			if (fallbackInsights.length > 0) {
+				logger.warn("[getWinLossInsights] AI returned malformed insights; using heuristic win/loss insights");
+				return { success: true, data: fallbackInsights };
+			}
+			return {
+				success: false,
+				error: "AI insights unavailable and no win/loss evidence found",
+			};
 		}
 
-		return { success: true, data: JSON.parse(jsonMatch[0]) as string[] };
+		return { success: true, data: parsedInsights };
 	} catch (error) {
 		logger.error("[getWinLossInsights]", error);
 		return { success: false, error: "Failed to generate insights" };

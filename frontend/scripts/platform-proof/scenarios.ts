@@ -265,12 +265,12 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		kind: "integration",
 		proofTargets: ["S-001", "S-002", "S-003", "UX-018"],
 		requiresLiveServices: false,
-		description: "Validates competitive win themes, deterministic win-theme suggestions, CRM account research, PWin ranking, past-performance analytics, requirements/documents seed review, resource reuse, and search/RAG health workflows that support longer-term proposal memory and differentiation.",
+		description: "Validates competitive win themes, deterministic win-theme suggestions, CRM account research, PWin ranking, win/loss insights, past-performance analytics, requirements/documents seed review, resource reuse, and search/RAG health workflows that support longer-term proposal memory and differentiation.",
 		command: {
 			command: "npm",
-			args: ["test", "--", "competitive-win-theme-workflow.test.ts", "win-themes-auth.test.ts", "crm-account-research-search.test.ts", "pwin-opportunity-scope.test.ts", "past-performance-scope.test.ts", "RequirementsWinThemeSeedReview.test.ts", "ProposalDocumentsWinThemeSeedReview.test.ts", "resource-reuse-workflow.test.ts", "search-rag-health.test.ts"],
+			args: ["test", "--", "competitive-win-theme-workflow.test.ts", "win-themes-auth.test.ts", "crm-account-research-search.test.ts", "pwin-opportunity-scope.test.ts", "winloss-auth.test.ts", "past-performance-scope.test.ts", "RequirementsWinThemeSeedReview.test.ts", "ProposalDocumentsWinThemeSeedReview.test.ts", "resource-reuse-workflow.test.ts", "search-rag-health.test.ts"],
 		},
-		expectedArtifacts: ["vitest:competitive-win-theme-workflow", "vitest:win-themes-auth", "vitest:crm-account-research-search", "vitest:pwin-opportunity-scope", "vitest:past-performance-scope", "vitest:requirements-win-theme-seed-review", "vitest:proposal-documents-win-theme-seed-review", "vitest:resource-reuse-workflow", "vitest:search-rag-health"],
+		expectedArtifacts: ["vitest:competitive-win-theme-workflow", "vitest:win-themes-auth", "vitest:crm-account-research-search", "vitest:pwin-opportunity-scope", "vitest:winloss-auth", "vitest:past-performance-scope", "vitest:requirements-win-theme-seed-review", "vitest:proposal-documents-win-theme-seed-review", "vitest:resource-reuse-workflow", "vitest:search-rag-health"],
 	},
 	{
 		id: "wave8-strategic-capability-browser",

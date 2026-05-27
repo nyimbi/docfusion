@@ -160,6 +160,7 @@ describe("platform proof scenarios", () => {
 					"vitest:win-themes-auth",
 					"vitest:past-performance-scope",
 					"vitest:pwin-opportunity-scope",
+					"vitest:winloss-auth",
 				]),
 			}),
 		]);

@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Honest Win/Loss Insight Fallbacks
+
+Status: implemented and verified.
+
+Purpose: stop malformed AI win/loss insight output from returning a successful generic placeholder as if it were actionable strategy.
+
+Changes in this slice:
+- Extract deterministic win/loss heuristic insights for reuse when the AI provider is unavailable or returns malformed output.
+- Parse AI insight output defensively and reject non-array or non-string payloads.
+- Return heuristic insights when there is real debrief or pattern evidence, and return an explicit unavailable error when there is no evidence to synthesize.
+- Add regression coverage proving malformed AI output falls back to measured win/loss evidence instead of the generic unavailable string.
+- Add win/loss auth and fallback coverage to the Wave 8 strategic capability proof manifest.
+
+Verification:
+- `npm test -- winloss-auth.test.ts` passed with 12 tests.
+- `npm test -- winloss-auth.test.ts platform-proof-scenarios.test.ts` passed with 18 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 56 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue auditing response-support analysis paths for success responses that contain placeholders instead of actionable evidence or explicit unavailable states.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Evidence-Based Discovery Source Confidence
 
 Status: implemented and verified.

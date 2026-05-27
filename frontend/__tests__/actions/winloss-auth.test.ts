@@ -84,6 +84,7 @@ vi.mock("@/lib/db/schema-competitors", () => ({
 	},
 }));
 
+import { getProviderManager } from "@/lib/ai/providers";
 import {
 	calculateProposalROI,
 	compareToCompetitors,
@@ -282,5 +283,33 @@ describe("Win/loss action auth", () => {
 
 		expect(result.success).toBe(false);
 		expect(collectSqlFragments(opportunityWhere).join(" ")).toContain("opportunities.assignedTo");
+	});
+
+	test("falls back to heuristic win/loss insights when AI output is malformed", async () => {
+		vi.mocked(getProviderManager).mockReturnValue({
+			initialize: vi.fn(async () => undefined),
+			isAvailable: vi.fn(async () => true),
+			complete: vi.fn(async () => ({ content: "not json" })),
+		} as unknown as ReturnType<typeof getProviderManager>);
+		dbMock.select
+			.mockImplementationOnce(() => createChainableQuery([
+				{ outcome: "win" },
+				{ outcome: "loss" },
+			]))
+			.mockImplementationOnce(() => createChainableQuery([
+				{ patternName: "Past performance gap" },
+				{ patternName: "Pricing strength" },
+			]));
+
+		const result = await getWinLossInsights();
+
+		expect(result).toEqual({
+			success: true,
+			data: [
+				"Recent win rate: 50%",
+				"2 active patterns identified",
+			],
+		});
+		expect(result.success && result.data.join(" ")).not.toContain("Unable to generate AI insights");
 	});
 });
