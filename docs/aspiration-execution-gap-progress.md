@@ -5635,3 +5635,25 @@ Verification:
 Remaining after this slice:
 - Continue replacing placeholder export URLs in review package and presentation handout exports where no backing artifact path exists.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Review Package Export Artifacts
+
+Status: implemented and verified.
+
+Purpose: make review package export produce real PDF/XLSX/DOCX artifacts instead of advertising an API export URL.
+
+Changes in this slice:
+- Generate PDF review reports with review metadata, score summary, executive summary, reviewers, key findings, and compliance gaps.
+- Generate XLSX review reports as a minimal OpenXML workbook using the existing `jszip` dependency.
+- Generate DOCX review reports using the existing `docx` dependency.
+- Keep export tracking on `proposal_reviews` while replacing the inert `/api/reviews/{id}/export` URL with immediate data URL artifacts.
+- Update export tests to decode all three formats and verify file signatures.
+
+Verification:
+- `npm test -- reviews.test.ts` passed with 111 tests.
+- `npm run platform:proof -- --run wave6-approval-production-corrections` passed with 163 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing remaining placeholder exports such as presentation handout and evidence export paths where no backing artifact exists.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

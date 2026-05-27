@@ -128,6 +128,237 @@ function assignedOpportunityByIdCondition(opportunityId: string, actorId: string
 	)!;
 }
 
+const REVIEW_PDF_MIME = "application/pdf";
+const REVIEW_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const REVIEW_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+function toBase64DataUrl(mimeType: string, content: string | ArrayBuffer | Uint8Array): string {
+	const buffer = typeof content === "string"
+		? Buffer.from(content, "utf8")
+		: Buffer.from(content instanceof Uint8Array ? content : new Uint8Array(content));
+	return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+function escapeXml(value: unknown): string {
+	return String(value ?? "")
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&apos;");
+}
+
+function reviewReportRows(report: ReviewReport): string[][] {
+	const rows: string[][] = [
+		["Review Report"],
+		["Review", report.review.reviewName],
+		["Type", report.review.reviewType],
+		["Status", report.review.status],
+		["Recommendation", report.recommendation || "Not specified"],
+		["Generated", report.generatedAt],
+		["Overall Score", `${report.scores.normalizedScore}/${report.scores.maxPossibleScore}`],
+		["Resolution Rate", `${Math.round(report.statistics.resolutionRate * 100)}%`],
+		["Total Comments", String(report.statistics.totalComments)],
+		["Resolved Comments", String(report.statistics.resolvedCount)],
+		["Open Comments", String(report.statistics.openCount)],
+		[],
+		["Executive Summary", report.executiveSummary || "No executive summary provided."],
+		[],
+		["Reviewer", "Role", "Status", "Comments", "Scores"],
+		...report.reviewers.map((reviewer) => [
+			reviewer.name,
+			reviewer.role,
+			reviewer.status,
+			String(reviewer.commentsCount),
+			String(reviewer.scoresCount),
+		]),
+		[],
+		["Finding Type", "Finding"],
+		...report.keyFindings.strengths.map((value) => ["Strength", value]),
+		...report.keyFindings.weaknesses.map((value) => ["Weakness", value]),
+		...report.keyFindings.criticalIssues.map((value) => ["Critical Issue", value]),
+		...report.keyFindings.recommendations.map((value) => ["Recommendation", value]),
+		[],
+		["Compliance Gap", "Severity", "Suggested Resolution"],
+		...report.complianceGaps.map((gap) => [
+			gap.gapDescription,
+			gap.severity,
+			gap.suggestedResolution,
+		]),
+	];
+	return rows;
+}
+
+async function buildReviewReportPdf(report: ReviewReport): Promise<ArrayBuffer> {
+	const { jsPDF } = await import("jspdf");
+	const pdf = new jsPDF({ unit: "pt", format: "letter" });
+	const pageWidth = pdf.internal.pageSize.getWidth();
+	const pageHeight = pdf.internal.pageSize.getHeight();
+	const margin = 54;
+	const bodyWidth = pageWidth - (margin * 2);
+	let y = margin;
+
+	pdf.setProperties({
+		title: `Review Report - ${report.review.reviewName}`,
+		creator: "DocFusion",
+		subject: report.recommendation || report.review.status,
+	});
+
+	const addPageIfNeeded = (neededHeight: number) => {
+		if (y + neededHeight <= pageHeight - margin) return;
+		pdf.addPage();
+		y = margin;
+	};
+
+	const addWrappedText = (text: string, options: { size?: number; bold?: boolean; spacing?: number } = {}) => {
+		const fontSize = options.size ?? 10;
+		const lineHeight = fontSize + 4;
+		pdf.setFont("helvetica", options.bold ? "bold" : "normal");
+		pdf.setFontSize(fontSize);
+		const lines = pdf.splitTextToSize(text || "Not specified", bodyWidth) as string[];
+		for (const line of lines) {
+			addPageIfNeeded(lineHeight);
+			pdf.text(line, margin, y);
+			y += lineHeight;
+		}
+		y += options.spacing ?? 4;
+	};
+
+	addWrappedText("REVIEW REPORT", { size: 18, bold: true, spacing: 10 });
+	addWrappedText(report.review.reviewName, { size: 14, bold: true });
+	addWrappedText(`Type: ${report.review.reviewType} | Status: ${report.review.status} | Recommendation: ${report.recommendation || "Not specified"}`);
+	addWrappedText(`Score: ${report.scores.normalizedScore}/${report.scores.maxPossibleScore} | Resolution: ${Math.round(report.statistics.resolutionRate * 100)}%`);
+	addWrappedText(`Generated: ${report.generatedAt}`, { spacing: 12 });
+	addWrappedText("Executive Summary", { size: 12, bold: true });
+	addWrappedText(report.executiveSummary || "No executive summary provided.", { spacing: 12 });
+
+	addWrappedText("Reviewers", { size: 12, bold: true });
+	for (const reviewer of report.reviewers) {
+		addWrappedText(`${reviewer.name} | ${reviewer.role} | ${reviewer.status} | comments ${reviewer.commentsCount} | scores ${reviewer.scoresCount}`);
+	}
+
+	addWrappedText("Key Findings", { size: 12, bold: true, spacing: 8 });
+	for (const row of reviewReportRows(report).filter((row) => ["Strength", "Weakness", "Critical Issue", "Recommendation"].includes(row[0]))) {
+		addWrappedText(`${row[0]}: ${row[1]}`);
+	}
+
+	addWrappedText("Compliance Gaps", { size: 12, bold: true, spacing: 8 });
+	for (const gap of report.complianceGaps) {
+		addWrappedText(`${gap.severity}: ${gap.gapDescription} ${gap.suggestedResolution ? `Resolution: ${gap.suggestedResolution}` : ""}`);
+	}
+
+	return pdf.output("arraybuffer");
+}
+
+function buildWorksheetXml(rows: string[][]): string {
+	const xmlRows = rows.map((row, rowIndex) => {
+		const cells = row.map((value, columnIndex) => {
+			const column = String.fromCharCode("A".charCodeAt(0) + columnIndex);
+			return `<c r="${column}${rowIndex + 1}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`;
+		}).join("");
+		return `<row r="${rowIndex + 1}">${cells}</row>`;
+	}).join("");
+
+	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+	<sheetData>${xmlRows}</sheetData>
+</worksheet>`;
+}
+
+async function buildReviewReportXlsx(report: ReviewReport): Promise<string> {
+	const { default: JSZip } = await import("jszip");
+	const zip = new JSZip();
+
+	zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+	<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+	<Default Extension="xml" ContentType="application/xml"/>
+	<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+	<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>`);
+	zip.folder("_rels")?.file(".rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+	<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`);
+	zip.folder("xl")?.file("workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+	<sheets><sheet name="Review Report" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`);
+	zip.folder("xl")?.folder("_rels")?.file("workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+	<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>`);
+	zip.folder("xl")?.folder("worksheets")?.file("sheet1.xml", buildWorksheetXml(reviewReportRows(report)));
+
+	return zip.generateAsync({ type: "base64", compression: "DEFLATE" });
+}
+
+async function buildReviewReportDocx(report: ReviewReport): Promise<string> {
+	const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import("docx");
+	const findingRows = reviewReportRows(report).filter((row) =>
+		["Strength", "Weakness", "Critical Issue", "Recommendation"].includes(row[0])
+	);
+	const children = [
+		new Paragraph({ text: "REVIEW REPORT", heading: HeadingLevel.TITLE }),
+		new Paragraph({ text: report.review.reviewName, heading: HeadingLevel.HEADING_1 }),
+		new Paragraph({
+			children: [
+				new TextRun({ text: "Type: ", bold: true }),
+				new TextRun({ text: report.review.reviewType }),
+				new TextRun({ text: " | Status: ", bold: true }),
+				new TextRun({ text: report.review.status }),
+				new TextRun({ text: " | Recommendation: ", bold: true }),
+				new TextRun({ text: report.recommendation || "Not specified" }),
+			],
+		}),
+		new Paragraph({
+			children: [
+				new TextRun({ text: "Score: ", bold: true }),
+				new TextRun({ text: `${report.scores.normalizedScore}/${report.scores.maxPossibleScore}` }),
+				new TextRun({ text: " | Resolution Rate: ", bold: true }),
+				new TextRun({ text: `${Math.round(report.statistics.resolutionRate * 100)}%` }),
+			],
+		}),
+		new Paragraph({ text: "Executive Summary", heading: HeadingLevel.HEADING_2 }),
+		new Paragraph({ text: report.executiveSummary || "No executive summary provided." }),
+		new Paragraph({ text: "Reviewers", heading: HeadingLevel.HEADING_2 }),
+		...report.reviewers.map((reviewer) => new Paragraph({
+			text: `${reviewer.name} | ${reviewer.role} | ${reviewer.status} | comments ${reviewer.commentsCount} | scores ${reviewer.scoresCount}`,
+		})),
+		new Paragraph({ text: "Key Findings", heading: HeadingLevel.HEADING_2 }),
+		...findingRows.map((row) => new Paragraph({ text: `${row[0]}: ${row[1]}` })),
+		new Paragraph({ text: "Compliance Gaps", heading: HeadingLevel.HEADING_2 }),
+		...report.complianceGaps.map((gap) => new Paragraph({
+			text: `${gap.severity}: ${gap.gapDescription}${gap.suggestedResolution ? ` Resolution: ${gap.suggestedResolution}` : ""}`,
+		})),
+	];
+
+	const doc = new Document({
+		creator: "DocFusion",
+		title: `Review Report - ${report.review.reviewName}`,
+		description: "Generated review package",
+		sections: [{ properties: {}, children }],
+	});
+
+	return Packer.toBase64String(doc);
+}
+
+async function buildReviewPackageArtifact(
+	report: ReviewReport,
+	format: "pdf" | "xlsx" | "docx"
+): Promise<string> {
+	if (format === "pdf") {
+		return toBase64DataUrl(REVIEW_PDF_MIME, await buildReviewReportPdf(report));
+	}
+	if (format === "xlsx") {
+		const xlsx = await buildReviewReportXlsx(report);
+		return `data:${REVIEW_XLSX_MIME};base64,${xlsx}`;
+	}
+
+	const docx = await buildReviewReportDocx(report);
+	return `data:${REVIEW_DOCX_MIME};base64,${docx}`;
+}
+
 function assignedScoresForReviewCondition(reviewId: string, actorId: string, organizationId?: string): SQL {
 	return and(
 		eq(reviewScores.reviewId, reviewId),
@@ -2572,18 +2803,12 @@ export async function exportReviewPackage(
 			})
 			.where(assignedReviewByIdCondition(reviewId, actorId, actorContext.organizationId));
 
-		// Generate export file through the API endpoint
-		// The API route handles actual file generation (PDF via pdfkit, DOCX via docx library)
-		// The endpoint returns a signed URL for download
-		const timestamp = Date.now();
-		const filename = `review-${reviewId.slice(0, 8)}-${timestamp}.${format}`;
-		const downloadUrl = `/api/reviews/${reviewId}/export?format=${format}&filename=${encodeURIComponent(filename)}`;
+		const downloadUrl = await buildReviewPackageArtifact(report, format);
 
 		// Log export for audit trail
 		logger.info("Review export initiated:", {
 			reviewId,
 			format,
-			filename,
 		});
 
 		return { success: true, downloadUrl };

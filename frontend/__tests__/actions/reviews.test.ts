@@ -1973,51 +1973,48 @@ describe("Reporting & Analytics", () => {
 	});
 
 	describe("exportReviewPackage", () => {
-		test("generates export URL for PDF format", async () => {
+		test.each([
+			["pdf", "data:application/pdf;base64,", "%PDF-"],
+			["xlsx", "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,", "PK"],
+			["docx", "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,", "PK"],
+		] as const)("generates a real %s export artifact", async (format, expectedPrefix, expectedSignature) => {
 			const review = makeReviewRow({
 				status: "completed",
-				reviewers: [],
-				comments: [],
+				recommendation: "ready_to_submit",
+				executiveSummary: "Review package is ready for export.",
+				keyFindings: {
+					strengths: ["Clear technical approach"],
+					weaknesses: ["Cost narrative needs tightening"],
+					criticalIssues: [],
+					recommendations: ["Tighten cost narrative"],
+				},
+				reviewers: [makeReviewerRow({
+					userName: "Jane Reviewer",
+					role: "red_team",
+					status: "completed",
+					commentsSubmitted: 2,
+					scoresSubmitted: 1,
+				})],
+				comments: [makeCommentRow({
+					commentType: "compliance_gap",
+					severity: "major",
+					comment: "Address staffing evidence.",
+					suggestedChange: "Add named staffing proof.",
+					evaluationCriteriaRef: "M-1",
+					resolutionStatus: "open",
+				})],
 			});
 			dbMock.query.proposalReviews.findFirst.mockResolvedValue(review);
 			dbMock.query.reviewScores.findMany.mockResolvedValue([]);
 
-			const result = await exportReviewPackage(UUID, "pdf");
+			const result = await exportReviewPackage(UUID, format);
 
 			expect(result.success).toBe(true);
-			expect(result.downloadUrl).toContain("/api/reviews/");
-			expect(result.downloadUrl).toContain("format=pdf");
+			expect(result.downloadUrl).toMatch(new RegExp(`^${expectedPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+			expect(result.downloadUrl).not.toContain("/api/reviews/");
+			const encoded = result.downloadUrl?.split(",")[1] ?? "";
+			expect(Buffer.from(encoded, "base64").toString("latin1").startsWith(expectedSignature)).toBe(true);
 			expect(dbMock.update).toHaveBeenCalled();
-		});
-
-		test("generates export URL for XLSX format", async () => {
-			const review = makeReviewRow({
-				status: "completed",
-				reviewers: [],
-				comments: [],
-			});
-			dbMock.query.proposalReviews.findFirst.mockResolvedValue(review);
-			dbMock.query.reviewScores.findMany.mockResolvedValue([]);
-
-			const result = await exportReviewPackage(UUID, "xlsx");
-
-			expect(result.success).toBe(true);
-			expect(result.downloadUrl).toContain("format=xlsx");
-		});
-
-		test("generates export URL for DOCX format", async () => {
-			const review = makeReviewRow({
-				status: "completed",
-				reviewers: [],
-				comments: [],
-			});
-			dbMock.query.proposalReviews.findFirst.mockResolvedValue(review);
-			dbMock.query.reviewScores.findMany.mockResolvedValue([]);
-
-			const result = await exportReviewPackage(UUID, "docx");
-
-			expect(result.success).toBe(true);
-			expect(result.downloadUrl).toContain("format=docx");
 		});
 
 		test("returns error when review not found for export", async () => {
