@@ -5808,3 +5808,25 @@ Verification:
 Remaining after this slice:
 - Continue improving section-level aggregation so duplicate evidence can preserve the strongest per-claim rationale.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Section Evidence Rationale Aggregation
+
+Status: implemented and verified.
+
+Purpose: make section-level evidence suggestions preserve the strongest rationale for duplicate evidence across all claims in the section.
+
+Changes in this slice:
+- Aggregate section suggestions by evidence ID with a map instead of first-seen duplicate suppression.
+- Replace an existing duplicate suggestion when a later claim produces a higher relevance score.
+- Preserve the top-10 relevance sort after duplicate consolidation.
+- Add regression coverage where the stronger duplicate rationale arrives after a weaker one.
+
+Verification:
+- `npm test -- evidence.test.ts` passed with 56 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 88 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue auditing evidence and readiness workflows for generic placeholder logic that can produce plausible but unsupported recommendations.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

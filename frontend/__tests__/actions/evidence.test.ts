@@ -1187,6 +1187,48 @@ describe("Evidence suggestions", () => {
 		expect(result.data).toEqual([]);
 		expect(dbMock.select).toHaveBeenCalledTimes(1);
 	});
+
+	test("keeps the strongest duplicate evidence rationale across section claims", async () => {
+		const lowMatchClaim = makeDbClaimRow({
+			id: "claim-low",
+			claimText: "We deliver cloud systems.",
+		});
+		const highMatchClaim = makeDbClaimRow({
+			id: "claim-high",
+			claimText: "We deliver measurable uptime improvements for federal cloud migrations.",
+		});
+		const sharedEvidence = makeDbEvidenceRow({
+			id: "ev-shared",
+			title: "Federal Cloud Uptime Proof",
+			content: "Federal cloud migration improved uptime for agency workloads.",
+			summary: "Verified federal cloud migration evidence showing measurable uptime improvements.",
+			tags: ["federal", "cloud", "uptime"],
+			isQuantified: true,
+			metric: "uptime improvements",
+			metricValue: "99.99",
+			metricUnit: "%",
+			metricContext: "Federal cloud migration program",
+			sourceVerified: true,
+			strengthScore: 92,
+			relatedCapabilities: ["cloud migrations"],
+			relatedAgencies: ["federal agencies"],
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChainableQuery([lowMatchClaim, highMatchClaim]))
+			.mockReturnValueOnce(createChainableQuery([lowMatchClaim]))
+			.mockReturnValueOnce(createChainableQuery([sharedEvidence]))
+			.mockReturnValueOnce(createChainableQuery([highMatchClaim]))
+			.mockReturnValueOnce(createChainableQuery([sharedEvidence]));
+
+		const result = await suggestEvidenceForSection("section-001");
+
+		if (!result.success) throw new Error(result.error);
+		expect(result.data).toHaveLength(1);
+		expect(result.data[0].evidenceId).toBe("ev-shared");
+		expect(result.data[0].relevanceScore).toBeGreaterThan(90);
+		expect(result.data[0].reason).toContain("federal");
+		expect(result.data[0].reason).toContain("uptime");
+	});
 });
 
 // ---------------------------------------------------------------------------

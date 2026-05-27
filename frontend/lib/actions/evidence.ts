@@ -1712,23 +1712,23 @@ export async function suggestEvidenceForSection(sectionId: string): Promise<Acti
 		// Get claims in this section
 		const claims = await db.select().from(claimAnalysis).where(visibleClaimsForSectionCondition(sectionId, userContext));
 
-		// Aggregate suggestions from all claims
-		const allSuggestions: EvidenceSuggestion[] = [];
-		const seenEvidenceIds = new Set<string>();
+		// Aggregate suggestions from all claims, keeping the strongest rationale per evidence item.
+		const suggestionsByEvidenceId = new Map<string, EvidenceSuggestion>();
 
 		for (const claim of claims) {
 			const suggestResult = await suggestEvidenceForClaim(claim.id);
 			if (suggestResult.success) {
 				for (const suggestion of suggestResult.data) {
-					if (!seenEvidenceIds.has(suggestion.evidenceId)) {
-						seenEvidenceIds.add(suggestion.evidenceId);
-						allSuggestions.push(suggestion);
+					const existing = suggestionsByEvidenceId.get(suggestion.evidenceId);
+					if (!existing || suggestion.relevanceScore > existing.relevanceScore) {
+						suggestionsByEvidenceId.set(suggestion.evidenceId, suggestion);
 					}
 				}
 			}
 		}
 
 		// Sort by relevance and return top results
+		const allSuggestions = Array.from(suggestionsByEvidenceId.values());
 		return { success: true, data: allSuggestions.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 10) };
 	} catch (error) {
 		return { success: false, error: `Failed to suggest evidence for section: ${error instanceof Error ? error.message : "Unknown error"}` };
