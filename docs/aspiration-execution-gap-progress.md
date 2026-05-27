@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Response Portfolio Triage
+
+Status: implemented and verified.
+
+Purpose: turn source-specific live response-readiness proofs into an evidence-backed portfolio priority order, so operators can pursue the strongest winnable opportunity first instead of manually comparing proof artifacts.
+
+Changes in this slice:
+- Added a live response portfolio triage service that deduplicates repeated proof runs by opportunity and keeps the latest completed response package evidence.
+- Ranked live opportunities from readiness, pursuit fit, source requirement coverage, evaluator criteria, draft word count, and response snippet evidence.
+- Capped `review_before_pursuit` and partner/no-bid opportunities below `pursue_now` priority, so evidence-rich but strategically weak opportunities do not outrank strong-fit opportunities.
+- Added a live-safe proof script that reads completed `live-opportunity-response-readiness.json` artifacts from `.omx/logs/platform-completion`, writes a portfolio triage artifact, and appends evidence rows.
+- Registered `live-opportunity-portfolio-triage` in the Wave 9 platform proof manifest.
+
+Verification:
+- `npm test -- live-response-portfolio-triage.test.ts platform-proof-scenarios.test.ts --run` passed with 9 tests.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260527T180019Z`.
+- The triage proof read 40 source artifacts, found 4 completed response-package candidates, deduplicated them to 2 ranked live opportunities, and produced 1 `pursue_now` candidate.
+- The top ranked opportunity was UNGM run `live_response_readiness_20260527T174956Z`, source `ungm`, `strong_fit`, fit score 89, portfolio score 100, readiness `ready_for_review`, recommendation `pursue_now`.
+- The second ranked opportunity was COMESA run `live_comesa_response_readiness_20260527T175037Z`, source `comesa`, `review_required`, fit score 72, portfolio score 84, readiness `ready_for_review`, recommendation `review_before_pursuit`.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --all --wave 9` passed after this change.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+- Portfolio triage currently consumes live proof artifacts; connect the same ranking to persisted opportunity history once the database proof path is reachable.
+
 ### 2026-05-27 - Live Response Pursuit Fit Evidence
 
 Status: implemented and verified.

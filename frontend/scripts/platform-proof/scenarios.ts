@@ -536,6 +536,23 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "live-opportunity-portfolio-triage",
+		wave: 9,
+		title: "Live opportunity portfolio triage proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005", "F-008", "F-020"],
+		requiresLiveServices: true,
+		description: "Ranks completed live response-readiness proof artifacts by readiness, pursuit fit, and response evidence so operators can pursue the strongest live opportunity first.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-opportunity-portfolio-triage.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-opportunity-portfolio-triage-evidence.md",
+			".omx/logs/platform-completion/live-opportunity-portfolio-triage-<run_id>/live-opportunity-portfolio-triage.json",
+		],
+	},
+	{
 		id: "live-persisted-import-response",
 		wave: 9,
 		title: "Live persisted import-to-response proof",
