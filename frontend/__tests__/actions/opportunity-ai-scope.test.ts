@@ -127,6 +127,11 @@ beforeEach(() => {
 		initialize: vi.fn(async () => undefined),
 		isAvailable: vi.fn(async () => false),
 	});
+	getCompanyCapabilitiesMock.mockResolvedValue({
+		capabilities: ["GIS", "PostgreSQL", "API delivery"],
+		differentiators: ["secure government delivery"],
+		certifications: ["ISO 27001"],
+	});
 });
 
 describe("opportunity AI row scoping", () => {
@@ -181,6 +186,42 @@ describe("opportunity AI row scoping", () => {
 		});
 		expect(promptMock).not.toHaveBeenCalled();
 		expect(getCompanyCapabilitiesMock).not.toHaveBeenCalled();
+	});
+
+	it("uses heuristic fit factors when AI returns unusable factor objects", async () => {
+		let insertValues: unknown;
+		getProviderManagerMock.mockReturnValue({
+			initialize: vi.fn(async () => undefined),
+			isAvailable: vi.fn(async () => true),
+			complete: vi.fn(async () => ({ content: JSON.stringify({ factors: [{}] }) })),
+		});
+		dbMock.select.mockReturnValueOnce(createChain({ result: [opportunity] }));
+		dbMock.insert.mockReturnValueOnce(createChain({
+			result: [score],
+			onValues: (value) => {
+				insertValues = value;
+			},
+		}));
+		dbMock.update.mockReturnValueOnce(createChain());
+
+		const result = await calculateFitScore(opportunity.id);
+
+		expect(result).toMatchObject({
+			id: score.id,
+			opportunityId: opportunity.id,
+			scoreType: "fit",
+		});
+		expect(insertValues).toMatchObject({
+			organizationId: "org-ai-1",
+			scoreType: "fit",
+			factors: expect.arrayContaining([
+				expect.objectContaining({
+					factor: "Budget Alignment",
+					reasoning: expect.stringContaining("Budget"),
+				}),
+			]),
+		});
+		expect(JSON.stringify(insertValues)).not.toContain("\"factor\":{}");
 	});
 
 	it("generates a metadata-backed opportunity summary when AI is unavailable", async () => {

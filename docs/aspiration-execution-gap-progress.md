@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable AI Opportunity Factor Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep opportunity fit, win-probability, and risk scoring from accepting valid JSON factor arrays that contain no usable scoring factors.
+
+Changes in this slice:
+- Validate AI score factors for non-empty factor names, finite weights/scores, and non-empty reasoning.
+- Clamp accepted AI weights and scores into supported ranges.
+- Reuse heuristic scoring when AI fit, win, or risk factor arrays contain no usable factors.
+- Add regression coverage for an AI factor response of `{ "factors": [{}] }`.
+
+Verification:
+- `npm test -- opportunity-ai-scope.test.ts --run` passed with 5 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave5-ai-content-governance` passed with 42 tests.
+
+Remaining after this slice:
+- Continue auditing response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Empty AI Presentation Q&A Fallbacks
 
 Status: implemented and verified.

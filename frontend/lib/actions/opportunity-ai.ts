@@ -38,6 +38,38 @@ async function requireOpportunityAIContext(): Promise<OpportunityAIContext> {
 	return requireTenantContext();
 }
 
+function isNonBlankText(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function normalizeAIScoreFactor(value: unknown): AIScoreFactor | null {
+	if (!value || typeof value !== "object") return null;
+	const factor = value as Record<string, unknown>;
+	if (
+		!isNonBlankText(factor.factor) ||
+		typeof factor.weight !== "number" ||
+		!Number.isFinite(factor.weight) ||
+		typeof factor.score !== "number" ||
+		!Number.isFinite(factor.score) ||
+		!isNonBlankText(factor.reasoning)
+	) {
+		return null;
+	}
+
+	return {
+		factor: factor.factor.trim(),
+		weight: Math.min(1, Math.max(0, factor.weight)),
+		score: Math.min(100, Math.max(0, factor.score)),
+		reasoning: factor.reasoning.trim(),
+	};
+}
+
+function normalizeAIScoreFactors(value: unknown): AIScoreFactor[] {
+	return Array.isArray(value)
+		? value.map(normalizeAIScoreFactor).filter((factor): factor is AIScoreFactor => factor !== null)
+		: [];
+}
+
 function normalizeAIScoreHistoryLimit(limit: number | undefined, fallback = 10, maximum = 1000): number {
 	if (limit === undefined || !Number.isFinite(limit)) {
 		return fallback;
@@ -470,8 +502,9 @@ Provide your fit analysis as JSON.`;
 	const analysis = JSON.parse(jsonMatch[0]) as {
 		factors?: AIScoreFactor[];
 	};
+	const factors = normalizeAIScoreFactors(analysis.factors);
 
-	return analysis.factors || calculateFitFactorsHeuristic(opp);
+	return factors.length > 0 ? factors : calculateFitFactorsHeuristic(opp);
 }
 
 /**
@@ -648,7 +681,10 @@ Provide your win factor analysis as JSON.`;
 	};
 
 	// Merge AI factors with relationship score if not included
-	let factors = analysis.factors || [];
+	let factors = normalizeAIScoreFactors(analysis.factors);
+	if (factors.length === 0) {
+		return await calculateWinFactorsHeuristic(opp, context);
+	}
 	const hasRelationshipFactor = factors.some(f => f.factor.toLowerCase().includes("relationship"));
 	
 	if (!hasRelationshipFactor) {
@@ -915,8 +951,9 @@ Provide your risk analysis as JSON.`;
 	const analysis = JSON.parse(jsonMatch[0]) as {
 		factors?: AIScoreFactor[];
 	};
+	const factors = normalizeAIScoreFactors(analysis.factors);
 
-	return analysis.factors || calculateRiskFactorsHeuristic(opp);
+	return factors.length > 0 ? factors : calculateRiskFactorsHeuristic(opp);
 }
 
 /**
