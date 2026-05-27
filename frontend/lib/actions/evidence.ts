@@ -410,6 +410,122 @@ export interface EvidenceSuggestion {
 	strengthScore: number | null;
 }
 
+const EVIDENCE_STOP_WORDS = new Set([
+	"about",
+	"across",
+	"after",
+	"also",
+	"and",
+	"are",
+	"because",
+	"been",
+	"being",
+	"can",
+	"could",
+	"did",
+	"does",
+	"for",
+	"from",
+	"had",
+	"has",
+	"have",
+	"into",
+	"our",
+	"over",
+	"that",
+	"the",
+	"their",
+	"this",
+	"through",
+	"was",
+	"were",
+	"will",
+	"with",
+	"within",
+]);
+
+function tokenizeEvidenceText(value: unknown): string[] {
+	return String(value ?? "")
+		.toLowerCase()
+		.split(/[^a-z0-9]+/)
+		.map((token) => token.trim())
+		.filter((token) => token.length > 2 && !EVIDENCE_STOP_WORDS.has(token));
+}
+
+function uniqueTokens(...values: unknown[]): string[] {
+	return Array.from(new Set(values.flatMap(tokenizeEvidenceText)));
+}
+
+function tokenMatches(sourceTokens: Set<string>, targetTokens: string[]): string[] {
+	return targetTokens.filter((token) => sourceTokens.has(token));
+}
+
+function scoreEvidenceForClaim(
+	claimText: string,
+	evidence: DBEvidence
+): { relevanceScore: number; reason: string; matchedSignals: string[] } {
+	const claimTokens = uniqueTokens(claimText);
+	const titleTokens = new Set(tokenizeEvidenceText(evidence.title));
+	const contentTokens = new Set(tokenizeEvidenceText(evidence.content));
+	const summaryTokens = new Set(tokenizeEvidenceText(evidence.summary));
+	const tagTokens = new Set(uniqueTokens(evidence.tags ?? []));
+	const metricTokens = new Set(uniqueTokens(evidence.metric, evidence.metricValue, evidence.metricUnit, evidence.metricContext));
+	const contextTokens = new Set(uniqueTokens(
+		evidence.evidenceType,
+		evidence.category,
+		evidence.subcategory,
+		evidence.relatedCapabilities ?? [],
+		evidence.relatedAgencies ?? [],
+		evidence.relatedNaicsCodes ?? []
+	));
+
+	const titleMatches = tokenMatches(titleTokens, claimTokens);
+	const contentMatches = tokenMatches(contentTokens, claimTokens);
+	const summaryMatches = tokenMatches(summaryTokens, claimTokens);
+	const tagMatches = tokenMatches(tagTokens, claimTokens);
+	const metricMatches = tokenMatches(metricTokens, claimTokens);
+	const contextMatches = tokenMatches(contextTokens, claimTokens);
+	const matchedTokens = Array.from(new Set([
+		...titleMatches,
+		...contentMatches,
+		...summaryMatches,
+		...tagMatches,
+		...metricMatches,
+		...contextMatches,
+	]));
+
+	const coverage = claimTokens.length > 0 ? matchedTokens.length / claimTokens.length : 0;
+	let score = Math.round(coverage * 45);
+	if (titleMatches.length > 0) score += Math.min(18, titleMatches.length * 6);
+	if (summaryMatches.length > 0) score += Math.min(12, summaryMatches.length * 4);
+	if (tagMatches.length > 0) score += Math.min(10, tagMatches.length * 5);
+	if (metricMatches.length > 0) score += Math.min(10, metricMatches.length * 5);
+	if (contextMatches.length > 0) score += Math.min(10, contextMatches.length * 4);
+	if (evidence.isQuantified) score += 5;
+	if (evidence.sourceVerified) score += 5;
+	if (evidence.strengthScore) score += Math.min(15, Math.round(evidence.strengthScore * 0.15));
+
+	const matchedSignals = [
+		matchedTokens.length ? `claim terms: ${matchedTokens.slice(0, 5).join(", ")}` : "",
+		tagMatches.length ? `tags: ${tagMatches.slice(0, 3).join(", ")}` : "",
+		metricMatches.length ? `metrics: ${metricMatches.slice(0, 3).join(", ")}` : "",
+		evidence.sourceVerified ? "verified source" : "",
+		evidence.isQuantified ? "quantified proof" : "",
+		contextMatches.length ? `context: ${contextMatches.slice(0, 3).join(", ")}` : "",
+		titleMatches.length ? `title: ${titleMatches.slice(0, 3).join(", ")}` : "",
+		summaryMatches.length ? `summary: ${summaryMatches.slice(0, 3).join(", ")}` : "",
+		contentMatches.length ? `content: ${contentMatches.slice(0, 3).join(", ")}` : "",
+	].filter((signal): signal is string => signal.length > 0);
+
+	return {
+		relevanceScore: Math.min(100, score),
+		reason: matchedSignals.length > 0
+			? `Matched ${matchedSignals.slice(0, 6).join("; ")}`
+			: "No strong claim-aligned evidence signals found",
+		matchedSignals,
+	};
+}
+
 /**
  * Distribution analysis results.
  */
@@ -1488,9 +1604,9 @@ export async function linkEvidenceToClaim(claimId: string, evidenceId: string): 
 /**
  * Suggest evidence items that could support a specific claim.
  *
- * Searches the evidence library for items that are semantically relevant
- * to the claim text. In a full implementation, this would use AI embeddings
- * for semantic matching. Currently uses keyword matching as a baseline.
+ * Searches the evidence library for items that are relevant to the claim text
+ * using deterministic signals from titles, content, summaries, tags, metrics,
+ * source verification, quantification, strength scores, and capability context.
  *
  * @param claimId - Claim ID to find evidence for
  * @returns Array of evidence suggestions with relevance scores
@@ -1529,36 +1645,19 @@ export async function suggestEvidenceForClaim(claimId: string): Promise<ActionRe
 			return { success: true, data: [] };
 		}
 
-		// Simple keyword matching for relevance scoring
-		// In production, this would use AI/embeddings for semantic matching
-		const claimWords = claim.claimText.toLowerCase().split(/\s+/);
 		const suggestions: EvidenceSuggestion[] = [];
 
 		for (const evidence of allEvidence) {
-			const contentLower = evidence.content.toLowerCase();
-			const titleLower = evidence.title.toLowerCase();
-
-			// Calculate match score based on keyword overlap
-			let matchCount = 0;
-			const matchedWords: string[] = [];
-
-			for (const word of claimWords) {
-				if (word.length > 3 && (contentLower.includes(word) || titleLower.includes(word))) {
-					matchCount++;
-					matchedWords.push(word);
-				}
-			}
-
-			const relevanceScore = Math.min(100, (matchCount / Math.max(1, claimWords.length)) * 100 + 20);
+			const scored = scoreEvidenceForClaim(claim.claimText, evidence);
 
 			// Only include if relevance is above threshold
-			if (relevanceScore >= 40 && matchedWords.length > 0) {
+			if (scored.relevanceScore >= 35 && scored.matchedSignals.length > 0) {
 				suggestions.push({
 					evidenceId: evidence.id,
 					evidenceTitle: evidence.title,
 					evidenceType: evidence.evidenceType,
-					relevanceScore: Math.round(relevanceScore),
-					reason: `Matches keywords: ${matchedWords.slice(0, 5).join(", ")}`,
+					relevanceScore: scored.relevanceScore,
+					reason: scored.reason,
 					suggestedUsage: evidence.summary || evidence.content.substring(0, 200),
 					strengthScore: evidence.strengthScore,
 				});

@@ -5764,3 +5764,25 @@ Verification:
 Remaining after this slice:
 - Continue auditing staffing workflows for unscoped reads and non-durable operational actions.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Evidence Suggestion Scoring
+
+Status: implemented and verified.
+
+Purpose: make claim evidence suggestions rank proof by multiple proposal-relevant signals instead of keyword overlap alone.
+
+Changes in this slice:
+- Score candidate evidence against claim text using title, content, summary, tags, metrics, capability context, agency context, quantification, source verification, and strength score.
+- Return evidence-specific reasons that expose matched claim terms, tags, metrics, verified source state, and quantified proof.
+- Keep unrelated evidence out of suggestions even when it has high strength and source verification.
+- Add focused regression coverage for ranking and unrelated-evidence rejection.
+
+Verification:
+- `npm test -- evidence.test.ts` passed with 53 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 85 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue improving section and criteria-level evidence suggestions so they use the same richer scoring signals.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

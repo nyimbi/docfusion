@@ -979,6 +979,105 @@ describe("Evidence opportunity scoping", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Evidence suggestions
+// ---------------------------------------------------------------------------
+
+describe("Evidence suggestions", () => {
+	test("prioritizes verified quantified evidence with claim-aligned tags, metrics, and context", async () => {
+		const claimQuery = createChainableQuery([
+			makeDbClaimRow({
+				claimText: "We deliver measurable uptime improvements for federal cloud migrations.",
+			}),
+		]);
+		const evidenceQuery = createChainableQuery([
+			makeDbEvidenceRow({
+				id: "ev-generic",
+				title: "Uptime Improvements",
+				content: "We deliver uptime improvements for cloud systems.",
+				summary: "General cloud uptime note.",
+				tags: [],
+				isQuantified: false,
+				metric: null,
+				metricValue: null,
+				metricUnit: null,
+				metricContext: null,
+				sourceVerified: false,
+				strengthScore: 20,
+				relatedCapabilities: [],
+				relatedAgencies: [],
+			}),
+			makeDbEvidenceRow({
+				id: "ev-strong",
+				title: "Federal Cloud Uptime Proof",
+				content: "Federal cloud migration improved uptime for agency workloads.",
+				summary: "Verified cloud migration evidence showing measurable uptime improvements.",
+				tags: ["federal", "cloud", "uptime"],
+				isQuantified: true,
+				metric: "uptime improvements",
+				metricValue: "99.99",
+				metricUnit: "%",
+				metricContext: "Federal cloud migration program",
+				sourceVerified: true,
+				strengthScore: 92,
+				relatedCapabilities: ["cloud migrations"],
+				relatedAgencies: ["federal agencies"],
+			}),
+		]);
+		dbMock.select
+			.mockReturnValueOnce(claimQuery)
+			.mockReturnValueOnce(evidenceQuery);
+
+		const result = await suggestEvidenceForClaim("claim-001");
+
+		if (!result.success) throw new Error(result.error);
+		expect(result.data.map((suggestion) => suggestion.evidenceId)).toEqual([
+			"ev-strong",
+			"ev-generic",
+		]);
+		expect(result.data[0].relevanceScore).toBeGreaterThan(result.data[1].relevanceScore);
+		expect(result.data[0].reason).toContain("claim terms:");
+		expect(result.data[0].reason).toContain("tags:");
+		expect(result.data[0].reason).toContain("metrics:");
+		expect(result.data[0].reason).toContain("verified source");
+		expect(result.data[0].reason).toContain("quantified proof");
+	});
+
+	test("does not suggest unrelated evidence solely because it is strong and verified", async () => {
+		const claimQuery = createChainableQuery([
+			makeDbClaimRow({
+				claimText: "Grant reporting automation reduces audit preparation effort.",
+			}),
+		]);
+		const evidenceQuery = createChainableQuery([
+			makeDbEvidenceRow({
+				id: "ev-unrelated",
+				title: "Legacy Data Center Performance",
+				content: "Archived server benchmark results for network latency.",
+				summary: "A verified technical benchmark for infrastructure operations.",
+				tags: ["infrastructure"],
+				isQuantified: true,
+				metric: "latency",
+				metricValue: "12",
+				metricUnit: "ms",
+				metricContext: "Network benchmark",
+				sourceVerified: true,
+				strengthScore: 100,
+				relatedCapabilities: ["data center operations"],
+				relatedAgencies: ["transportation"],
+			}),
+		]);
+		dbMock.select
+			.mockReturnValueOnce(claimQuery)
+			.mockReturnValueOnce(evidenceQuery);
+
+		const result = await suggestEvidenceForClaim("claim-001");
+
+		if (!result.success) throw new Error(result.error);
+		expect(result.data).toEqual([]);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // Validation edge cases
 // ---------------------------------------------------------------------------
 
