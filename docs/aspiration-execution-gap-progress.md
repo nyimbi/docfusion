@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - AFDB Live Response Readiness via Search Fallback
+
+Status: implemented and verified.
+
+Purpose: extend live opportunity-to-response coverage beyond UNGM and Kenya PPIP by proving AFDB procurement documents can still feed response generation when the AFDB listing page is protected by a bot challenge.
+
+Changes in this slice:
+- Added `afdb` as a live response-readiness source kind.
+- Added `live-afdb-response-readiness` to the platform proof manifest.
+- Reused the AFDB parser/detail-page path when listing scrape content is available.
+- Added a SearXNG-backed AFDB document fallback that searches for direct AFDB procurement PDF/DOC results and excludes manuals before creating response-ready opportunity candidates.
+- Broadened response-ready selection terms for consulting, audit, application, mobile, platform, and solution opportunities.
+
+Verification:
+- `npm test -- platform-proof-scenarios.test.ts --run` passed with 6 tests.
+- `npm test -- live-response-package.test.ts platform-proof-scenarios.test.ts --run` passed with 21 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-afdb-response-readiness --include-live-safe` passed with run `live_afdb_response_readiness_20260527T165029Z`.
+- The passing AFDB live run used SearXNG fallback from `https://search.lindela.io`, found `Request for expression of interest (REOI) for Procurement Audit`, downloaded the AFDB PDF with HTTP 200 and 155750 bytes, extracted 5110 Docling characters, generated six response draft artifacts, captured 14 source requirements, 3 evaluator criteria, 3 win-theme seeds, 7474 draft words, readiness status `ready_for_review`, and 0 warnings or blockers.
+
+Remaining after this slice:
+- AFDB direct listing scrape currently returns a bot/security verification page through Firecrawl and browser service; consider adding CloakBrowser or another stealth path for direct AFDB listing traversal.
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+
 ### 2026-05-27 - Persisted Proof Database Target Evidence
 
 Status: implemented and verified; DB path still externally blocked.

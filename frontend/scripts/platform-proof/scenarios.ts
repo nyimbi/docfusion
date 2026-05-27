@@ -469,6 +469,29 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "live-afdb-response-readiness",
+		wave: 9,
+		title: "Live AFDB response readiness proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005", "F-008", "F-020"],
+		requiresLiveServices: true,
+		description: "Finds a live AFDB procurement notice, resolves its detail-page source document, extracts it with Docling, and verifies concrete Datacraft response package draft artifacts.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-opportunity-response-readiness.ts"],
+			env: {
+				LIVE_RESPONSE_READINESS_SOURCE_KIND: "afdb",
+				LIVE_RESPONSE_READINESS_SOURCE_URL: "https://www.afdb.org/en/projects-and-operations/procurement",
+				LIVE_RESPONSE_READINESS_PROOF_PREFIX: "live_afdb_response_readiness",
+				LIVE_RESPONSE_READINESS_PAGE_LIMIT: "12",
+			},
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-opportunity-response-readiness-evidence.md",
+			".omx/logs/platform-completion/live-response-readiness-<run_id>/live-opportunity-response-readiness.json",
+		],
+	},
+	{
 		id: "live-persisted-import-response",
 		wave: 9,
 		title: "Live persisted import-to-response proof",

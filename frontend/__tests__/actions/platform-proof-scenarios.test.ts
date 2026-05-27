@@ -42,6 +42,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-discovery-services");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-opportunity-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-response-readiness");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-afdb-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-persisted-import-response");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-persisted-import-response");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-source-discovery");
@@ -263,6 +264,23 @@ describe("platform proof scenarios", () => {
 				]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["live-afdb-response-readiness"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-afdb-response-readiness",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-020"]),
+				command: expect.objectContaining({
+					env: expect.objectContaining({
+						LIVE_RESPONSE_READINESS_SOURCE_KIND: "afdb",
+						LIVE_RESPONSE_READINESS_SOURCE_URL: "https://www.afdb.org/en/projects-and-operations/procurement",
+						LIVE_RESPONSE_READINESS_PAGE_LIMIT: "12",
+					}),
+				}),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-opportunity-response-readiness-evidence.md",
+				]),
+			}),
+		]);
 		expect(listProofScenarios({ ids: ["live-persisted-import-response"], includeLiveSafe: true })).toEqual([
 			expect.objectContaining({
 				id: "live-persisted-import-response",
@@ -407,6 +425,10 @@ describe("platform proof scenarios", () => {
 		expect(formatProofCommand(kenyaResponseScenario)).toContain("LIVE_RESPONSE_READINESS_SOURCE_KIND=kenya_ppip");
 		expect(formatProofCommand(kenyaResponseScenario)).toContain("LIVE_RESPONSE_READINESS_PAGE_LIMIT=25");
 		expect(formatProofCommand(kenyaResponseScenario)).toContain("npx tsx scripts/prove-live-opportunity-response-readiness.ts");
+
+		const [afdbResponseScenario] = listProofScenarios({ ids: ["live-afdb-response-readiness"], includeLiveSafe: true });
+		expect(formatProofCommand(afdbResponseScenario)).toContain("LIVE_RESPONSE_READINESS_SOURCE_KIND=afdb");
+		expect(formatProofCommand(afdbResponseScenario)).toContain("LIVE_RESPONSE_READINESS_PAGE_LIMIT=12");
 
 		const [persistedResponseScenario] = listProofScenarios({ ids: ["live-persisted-import-response"], includeLiveSafe: true });
 		expect(formatProofCommand(persistedResponseScenario)).toContain("LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT=10");

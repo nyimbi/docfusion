@@ -11,6 +11,8 @@ import {
 	type EvidenceRecord,
 } from "./platform-proof/core";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
+import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
+import { afdbParser, parseAfdbNoticeDetailMarkdown } from "@/lib/scrapers/parsers/afdb";
 import { checkDoclingHealth, convertDocument, type DoclingConvertResponse } from "@/lib/services/docling-client";
 import {
 	buildLiveResponsePackage,
@@ -18,6 +20,7 @@ import {
 	type LiveResponseReadinessAssessment,
 } from "@/lib/services/live-response-package";
 import { fetchKenyaPpipOpportunities } from "@/lib/services/kenya-ppip-client";
+import { searchSearxng, type SearxngResult } from "@/lib/services/searxng-client";
 import { fetchUngmOpportunities } from "@/lib/services/ungm-client";
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import type { ProposalDocumentType } from "@/lib/types/opportunity";
@@ -25,19 +28,33 @@ import type { ProposalDocumentType } from "@/lib/types/opportunity";
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
 const SOURCE_KIND = normalizeSourceKind(process.env.LIVE_RESPONSE_READINESS_SOURCE_KIND);
 const PROOF_RUN_PREFIX = process.env.LIVE_RESPONSE_READINESS_PROOF_PREFIX ?? (
-	SOURCE_KIND === "kenya_ppip" ? "live_kenya_ppip_response_readiness" : "live_response_readiness"
+	SOURCE_KIND === "kenya_ppip"
+		? "live_kenya_ppip_response_readiness"
+		: SOURCE_KIND === "afdb"
+			? "live_afdb_response_readiness"
+			: "live_response_readiness"
 );
 const RUN_ID = process.env.LIVE_RESPONSE_READINESS_PROOF_RUN_ID ?? createProofRunId(PROOF_RUN_PREFIX);
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "live-response-readiness" });
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-live-opportunity-response-readiness-evidence.md");
 const SOURCE_URL = process.env.LIVE_RESPONSE_READINESS_SOURCE_URL ?? (
-	SOURCE_KIND === "kenya_ppip" ? "https://tenders.go.ke/tenders" : "https://www.ungm.org/Public/Notice?title=software"
+	SOURCE_KIND === "kenya_ppip"
+		? "https://tenders.go.ke/tenders"
+		: SOURCE_KIND === "afdb"
+			? "https://www.afdb.org/en/projects-and-operations/procurement"
+			: "https://www.ungm.org/Public/Notice?title=software"
 );
 const MAX_DOCUMENT_BYTES = Number(process.env.LIVE_RESPONSE_READINESS_MAX_DOCUMENT_BYTES ?? 10 * 1024 * 1024);
 const SOURCE_PAGE_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_PAGE_LIMIT ?? (SOURCE_KIND === "kenya_ppip" ? 25 : 10));
 const SOURCE_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_SOURCE_LIMIT ?? 10);
 const SOURCE_DETAIL_LIMIT = Number(process.env.LIVE_RESPONSE_READINESS_DETAIL_LIMIT ?? 5);
 const DOCLING_CONVERSION_ATTEMPTS = Number(process.env.LIVE_RESPONSE_READINESS_DOCLING_ATTEMPTS ?? 3);
+const SOURCE_SCRAPE_ATTEMPTS = Number(process.env.LIVE_RESPONSE_READINESS_SOURCE_SCRAPE_ATTEMPTS ?? 3);
+const AFDB_SEARCH_QUERIES = [
+	"afdb procurement reoi pdf mobile application",
+	"afdb procurement request for expressions of interest pdf software system",
+	"afdb project related procurement pdf consulting services",
+];
 const PROPOSAL_DOCUMENT_TYPES: ProposalDocumentType[] = [
 	"cover_letter",
 	"executive_summary",
@@ -112,7 +129,7 @@ interface SourceDocumentConversion {
 	procurementIndicators: string[];
 }
 
-type LiveResponseReadinessSourceKind = "ungm" | "kenya_ppip";
+type LiveResponseReadinessSourceKind = "ungm" | "kenya_ppip" | "afdb";
 
 interface LiveResponseReadinessSourceResult {
 	kind: LiveResponseReadinessSourceKind;
@@ -198,6 +215,9 @@ async function fetchSourceOpportunities(): Promise<LiveResponseReadinessSourceRe
 			opportunities: source.opportunities,
 		};
 	}
+	if (SOURCE_KIND === "afdb") {
+		return fetchAfdbResponseReadyOpportunities();
+	}
 
 	const source = await fetchUngmOpportunities(SOURCE_URL, {
 		limit: SOURCE_LIMIT,
@@ -213,6 +233,180 @@ async function fetchSourceOpportunities(): Promise<LiveResponseReadinessSourceRe
 	};
 }
 
+async function fetchAfdbResponseReadyOpportunities(): Promise<LiveResponseReadinessSourceResult> {
+	const client = new FirecrawlClient({ timeout: 60000 });
+	let lastError: string | undefined;
+	for (let attempt = 1; attempt <= SOURCE_SCRAPE_ATTEMPTS; attempt += 1) {
+		const result = await client.scrape(SOURCE_URL, {
+			formats: ["markdown", "html", "links"],
+			timeout: 60000,
+		});
+		const markdown = result.data?.markdown ?? result.data?.html ?? "";
+		const links = result.data?.links ?? [];
+		if (!result.success || markdown.trim().length === 0) {
+			lastError = result.error ?? `AFDB source scrape returned no content on attempt ${attempt}`;
+			continue;
+		}
+
+		const parsed = await afdbParser.parse({ markdown, links, url: SOURCE_URL });
+		if (parsed.opportunities.length === 0) {
+			lastError = `AFDB parser found no source opportunities on attempt ${attempt}`;
+			continue;
+		}
+
+		const opportunities = await attachAfdbSourceDocuments(client, parsed.opportunities);
+		if (opportunities.some((opportunity) => opportunity.rfpLink ?? opportunity.documentUrl)) {
+			return {
+				kind: "afdb",
+				url: SOURCE_URL,
+				opportunities,
+			};
+		}
+		lastError = `AFDB detail pages exposed no downloadable source documents on attempt ${attempt}`;
+	}
+
+	const fallbackOpportunities = await fetchAfdbSearchFallbackOpportunities();
+	if (fallbackOpportunities.length > 0) {
+		return {
+			kind: "afdb",
+			url: SOURCE_URL,
+			searchUrl: "https://search.lindela.io",
+			opportunities: fallbackOpportunities,
+		};
+	}
+
+	throw new Error(lastError ?? "AFDB source returned no response-ready opportunities");
+}
+
+async function attachAfdbSourceDocuments(
+	client: FirecrawlClient,
+	opportunities: OpportunityData[]
+): Promise<OpportunityData[]> {
+	const enriched: OpportunityData[] = [];
+	for (const opportunity of opportunities.slice(0, SOURCE_LIMIT)) {
+		if (!opportunity.portalUrl) {
+			enriched.push(opportunity);
+			continue;
+		}
+		const detailResult = await client.scrape(opportunity.portalUrl, {
+			formats: ["markdown", "links"],
+			timeout: 60000,
+		});
+		const detail = parseAfdbNoticeDetailMarkdown(
+			detailResult.data?.markdown,
+			detailResult.data?.links ?? [],
+			opportunity.portalUrl
+		);
+		const documentUrl = detail.primaryLink?.url;
+		enriched.push(documentUrl
+			? {
+				...opportunity,
+				rfpLink: documentUrl,
+				documentUrl,
+				metadata: {
+					...(opportunity.metadata ?? {}),
+					afdb: {
+						...afdbMetadata(opportunity),
+						detailDocumentUrl: documentUrl,
+						detailDocumentLabel: detail.primaryLink?.description,
+						detailDocumentLinkCount: detail.links.length,
+					},
+				},
+			}
+			: opportunity);
+	}
+	return enriched;
+}
+
+async function fetchAfdbSearchFallbackOpportunities(): Promise<OpportunityData[]> {
+	const candidates: OpportunityData[] = [];
+	const seen = new Set<string>();
+	for (const query of AFDB_SEARCH_QUERIES) {
+		const response = await searchSearxng(query, {
+			language: "en",
+			safesearch: 1,
+		});
+		for (const result of response.results) {
+			const opportunity = afdbOpportunityFromSearchResult(result, query);
+			if (!opportunity) continue;
+			const key = opportunity.rfpLink ?? opportunity.documentUrl ?? opportunity.portalUrl ?? opportunity.title;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			candidates.push(opportunity);
+			if (candidates.length >= SOURCE_LIMIT) {
+				return candidates;
+			}
+		}
+	}
+	return candidates;
+}
+
+function afdbOpportunityFromSearchResult(result: SearxngResult, query: string): OpportunityData | undefined {
+	const documentUrl = afdbDocumentUrlFromSearchResult(result.url);
+	if (!documentUrl) return undefined;
+	const title = cleanSearchTitle(result.title);
+	const lower = `${title} ${result.content} ${documentUrl}`.toLowerCase();
+	if (!/(reoi|eoi|ifb|spn|request|expression of interest|tender|procurement|consultant|consulting)/iu.test(lower)) {
+		return undefined;
+	}
+	const sourceId = crypto.createHash("sha256").update(documentUrl).digest("hex").slice(0, 24);
+	return {
+		title,
+		source: "afdb",
+		sourceId,
+		noticeId: sourceId,
+		organization: "African Development Bank",
+		category: lower.includes("expression of interest") || lower.includes("reoi") || lower.includes("eoi")
+			? "Expression of interest"
+			: "Tender",
+		opportunityType: lower.includes("expression of interest") || lower.includes("reoi") || lower.includes("eoi")
+			? "eoi"
+			: "tender",
+		portalUrl: result.url,
+		documentUrl,
+		rfpLink: documentUrl,
+		projectSummary: result.content || title,
+		tags: ["afdb", "development-bank", "regional-procurement", "search-fallback"],
+		metadata: {
+			afdb: {
+				discoveryMethod: "searxng-document-search",
+				query,
+				engine: result.engine,
+				score: result.score,
+			},
+		},
+	};
+}
+
+function afdbDocumentUrlFromSearchResult(url: string): string | undefined {
+	try {
+		const parsed = new URL(url);
+		if (!/(^|\.)afdb\.org$/iu.test(parsed.hostname)) return undefined;
+		if (!/\.(pdf|docx?)(?:$|[?#])/iu.test(parsed.pathname)) return undefined;
+		if (/operations?[-_]?procurement[-_]?manual|opm-part/iu.test(parsed.pathname)) return undefined;
+		parsed.hash = "";
+		return parsed.toString();
+	} catch {
+		return undefined;
+	}
+}
+
+function cleanSearchTitle(title: string): string {
+	return title
+		.replace(/\s*-\s*African Development Bank\s*$/iu, "")
+		.replace(/\s*\.\.\.\s*$/u, "")
+		.replace(/\s+/gu, " ")
+		.trim()
+		|| "AFDB procurement opportunity";
+}
+
+function afdbMetadata(opportunity: OpportunityData): Record<string, unknown> {
+	const value = opportunity.metadata?.afdb;
+	return value && typeof value === "object" && !Array.isArray(value)
+		? value as Record<string, unknown>
+		: {};
+}
+
 function selectResponseReadyOpportunity(opportunities: OpportunityData[]): OpportunityData | undefined {
 	return opportunities.find((opportunity) => {
 		const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl ?? "";
@@ -225,6 +419,13 @@ function selectResponseReadyOpportunity(opportunities: OpportunityData[]): Oppor
 				"security",
 				"digital",
 				"data",
+				"application",
+				"mobile",
+				"platform",
+				"solution",
+				"audit",
+				"consultant",
+				"consulting",
 				"consultancy",
 				"services",
 				"survey",
@@ -359,6 +560,7 @@ function proveResponseSeedReadiness(
 
 function normalizeSourceKind(value: string | undefined): LiveResponseReadinessSourceKind {
 	if (value === "kenya_ppip") return "kenya_ppip";
+	if (value === "afdb") return "afdb";
 	return "ungm";
 }
 
