@@ -7,6 +7,7 @@ const revalidatePathMock = vi.hoisted(() => vi.fn());
 interface ChainConfig {
 	result?: unknown[];
 	onWhere?: (value: unknown) => void;
+	onValues?: (value: unknown) => void;
 }
 
 function createChain(config: ChainConfig = {}) {
@@ -18,7 +19,10 @@ function createChain(config: ChainConfig = {}) {
 		config.onWhere?.(value);
 		return chain;
 	});
-	chain.values = vi.fn(() => chain);
+	chain.values = vi.fn((value: unknown) => {
+		config.onValues?.(value);
+		return chain;
+	});
 	chain.returning = vi.fn(async () => config.result ?? []);
 	chain.then = (resolve: (value: unknown[]) => void) =>
 		Promise.resolve(config.result ?? []).then(resolve);
@@ -175,6 +179,68 @@ describe("presentation opportunity scoping", () => {
 		expect(result).toEqual({ success: false, error: "Proposal document not found" });
 		expect(wheres).toHaveLength(1);
 		expectAssignedOpportunityTenantScope(wheres[0]);
+	});
+
+	it("falls back to a deterministic slide deck when AI returns an empty slide array", async () => {
+		completeMock.mockResolvedValueOnce({ content: "[]" });
+		const insertedSlides: unknown[] = [];
+		const presentationUpdateChain = createChain();
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: presentationId,
+					opportunityId,
+					title: "Oral presentation",
+					description: "Cloud migration proposal oral presentation",
+					timeLimit: 30,
+					qaTimeLimit: 10,
+					audienceDescription: "Evaluation panel",
+					evaluationCriteria: [{
+						criterion: "Technical Approach",
+						weight: 60,
+						description: "Migration execution plan",
+					}],
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: proposalDocumentId,
+					documentId: "doc-1",
+					opportunityId,
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "doc-1",
+					plainText: "Cloud migration approach with governance, staffing, risk controls, and transition milestones.",
+					content: {},
+				}],
+			}));
+		dbMock.insert.mockImplementation(() => createChain({
+			result: [{ id: `slide-${insertedSlides.length + 1}`, presentationId }],
+			onValues: (value) => insertedSlides.push(value),
+		}));
+		dbMock.update.mockReturnValueOnce(presentationUpdateChain);
+
+		const result = await generateSlidesFromProposal(presentationId, proposalDocumentId);
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(insertedSlides.length).toBeGreaterThan(0);
+		expect(insertedSlides).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				slideType: "title",
+				title: "Oral presentation",
+			}),
+			expect.objectContaining({
+				title: "Agenda",
+			}),
+		]));
+		expect(presentationUpdateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+			slideCount: insertedSlides.length,
+			sourceProposalId: proposalDocumentId,
+		}));
+		expect(revalidatePathMock).toHaveBeenCalledWith(`/presentations/${presentationId}`);
 	});
 
 	it("falls back to a key-point answer when AI returns blank content", async () => {

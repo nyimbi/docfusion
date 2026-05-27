@@ -1051,6 +1051,9 @@ Return ONLY the JSON array, no additional text.`;
 			}
 
 			slidesData = JSON.parse(jsonMatch[0]);
+			if (!Array.isArray(slidesData) || slidesData.length === 0) {
+				throw new Error("AI slide response did not include any slides");
+			}
 		} catch (aiError) {
 			logger.error("AI slide generation failed, using template:", aiError);
 			slidesData = generateFallbackSlides(presentation, doc);

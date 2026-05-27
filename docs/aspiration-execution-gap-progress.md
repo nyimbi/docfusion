@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Presentation Slides on Empty AI
+
+Status: implemented and verified.
+
+Purpose: keep oral-presentation deck generation usable when an AI provider returns a valid but empty slide array.
+
+Changes in this slice:
+- Treat empty AI slide arrays as unusable instead of creating a successful presentation with zero slides.
+- Reuse the existing deterministic slide-deck fallback from presentation context and proposal document text.
+- Add regression coverage proving empty AI output still inserts a reviewable title/agenda fallback deck and updates the presentation slide count.
+
+Verification:
+- `npm test -- presentations-scope.test.ts` passed with 5 tests.
+- `npm run platform:proof -- --run wave9-presentation-export-artifacts` passed with 10 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue closing successful-empty response artifacts, especially where providers return syntactically valid but unusable output.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Deterministic Presentation Q&A Answers on Blank AI
 
 Status: implemented and verified.
