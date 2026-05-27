@@ -171,6 +171,9 @@ describe("discoverDocumentsWithAgent", () => {
 				description: expect.stringContaining("browser_fallback_link_extraction: SCRAPE_ALL_ENGINES_FAILED"),
 			}),
 		]);
+		expect(insertedValues[0]).toEqual(expect.objectContaining({
+			description: expect.stringContaining("confidence signals: direct document extension"),
+		}));
 		expect(opportunityUpdates).toEqual([
 			expect.objectContaining({
 				documentsDiscovered: true,
@@ -201,5 +204,9 @@ describe("discoverDocumentsWithAgent", () => {
 				description: expect.stringContaining("link_extraction"),
 			}),
 		]);
+		expect(insertedValues[0]).toEqual(expect.objectContaining({
+			description: expect.stringContaining("specification filename signal"),
+			isSelected: true,
+		}));
 	});
 });

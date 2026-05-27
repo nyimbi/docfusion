@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Evidence-Based Portal Document Link Confidence
+
+Status: implemented and verified.
+
+Purpose: make source-document discovery explain why a portal link is trusted instead of assigning generic confidence to every extracted document URL.
+
+Changes in this slice:
+- Replace fixed primary-portal link confidence with scoring from direct document extension, same-host evidence, document type, procurement terms, opportunity token matches, and notice ID matches.
+- Carry confidence signals into stored opportunity document descriptions for both Firecrawl link extraction and browser fallback recovery.
+- Stop browser fallback from blindly forcing extracted links to a generic confidence; it now boosts the measured link score slightly and preserves the signal explanation.
+- Add regression coverage proving stored discovered documents include confidence signals and remain auto-selected only through measured confidence.
+
+Verification:
+- `npm test -- document-discovery-agent.test.ts` passed with 2 tests.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` passed with 133 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue replacing fixed confidence values in discovery and response-support ranking paths where they are not backed by explicit evidence signals.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Explicit Document Analysis AI Fallbacks
 
 Status: implemented and verified.

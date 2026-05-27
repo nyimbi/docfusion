@@ -241,10 +241,10 @@ async function searchPrimaryPortal(context: DiscoveryContext): Promise<Discovere
     if (!result.success || !result.data?.extract?.documents) {
       // Try link-based extraction as fallback
       fallbackReason = result.error || fallbackReason;
-      const linkSources = extractFromLinks(result.data?.links || [], result.data?.markdown || "", context.sourceUrl);
+      const linkSources = extractFromLinks(result.data?.links || [], result.data?.markdown || "", context.sourceUrl, context);
       if (linkSources.length > 0) return linkSources;
 
-      const browserSources = await searchPrimaryPortalWithBrowserFallback(context.sourceUrl, fallbackReason);
+      const browserSources = await searchPrimaryPortalWithBrowserFallback(context.sourceUrl, fallbackReason, context);
       if (browserSources.length > 0) return browserSources;
       return [];
     }
@@ -274,22 +274,23 @@ async function searchPrimaryPortal(context: DiscoveryContext): Promise<Discovere
 
     if (extractedSources.length > 0) return extractedSources;
 
-    const linkSources = extractFromLinks(result.data?.links || [], result.data?.markdown || "", context.sourceUrl);
+    const linkSources = extractFromLinks(result.data?.links || [], result.data?.markdown || "", context.sourceUrl, context);
     if (linkSources.length > 0) return linkSources;
 
-    const browserSources = await searchPrimaryPortalWithBrowserFallback(context.sourceUrl, fallbackReason);
+    const browserSources = await searchPrimaryPortalWithBrowserFallback(context.sourceUrl, fallbackReason, context);
     if (browserSources.length > 0) return browserSources;
     return [];
   } catch (error) {
     logger.error("[Discovery Agent] Primary portal search failed:", error);
     fallbackReason = error instanceof Error ? error.message : String(error);
-    return searchPrimaryPortalWithBrowserFallback(context.sourceUrl, fallbackReason);
+    return searchPrimaryPortalWithBrowserFallback(context.sourceUrl, fallbackReason, context);
   }
 }
 
 async function searchPrimaryPortalWithBrowserFallback(
   sourceUrl: string,
-  fallbackReason: string
+  fallbackReason: string,
+  context?: DiscoveryContext
 ): Promise<DiscoveredSource[]> {
   const stealthUrl = (process.env.STEALTH_SCRAPER_URL || DEFAULT_STEALTH_SCRAPER_URL).replace(/\/$/, "");
 
@@ -308,11 +309,12 @@ async function searchPrimaryPortalWithBrowserFallback(
       return [];
     }
 
-    return extractFromLinks(result.data.links || [], result.data.markdown || "", sourceUrl)
+    return extractFromLinks(result.data.links || [], result.data.markdown || "", sourceUrl, context)
       .map(source => ({
         ...source,
-        confidence: Math.max(source.confidence, 80),
+        confidence: Math.min(95, source.confidence + 5),
         discoveryMethod: `browser_fallback_link_extraction: ${fallbackReason}`,
+        description: `browser_fallback_link_extraction: ${fallbackReason}; ${source.description}`,
       }));
   } catch (error) {
     logger.error("[Discovery Agent] Browser fallback failed for primary portal:", error);
@@ -808,7 +810,92 @@ function validateDocumentType(type: string): DiscoveredSource["type"] {
     : "attachment";
 }
 
-function extractFromLinks(links: string[], markdown: string, baseUrl: string): DiscoveredSource[] {
+function extractContextTokens(value: string | null | undefined): Set<string> {
+  return new Set((value || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(token => token.length >= 4));
+}
+
+function countContextTokenMatches(url: string, context?: DiscoveryContext): number {
+  if (!context) return 0;
+  const urlTokens = extractContextTokens(url);
+  const contextTokens = new Set([
+    ...extractContextTokens(context.title),
+    ...extractContextTokens(context.organization),
+    ...extractContextTokens(context.noticeId),
+  ]);
+  let matches = 0;
+  for (const token of contextTokens) {
+    if (urlTokens.has(token)) matches++;
+  }
+  return matches;
+}
+
+function sameHost(url: string, baseUrl: string): boolean {
+  try {
+    return new URL(url).hostname === new URL(baseUrl).hostname;
+  } catch {
+    return false;
+  }
+}
+
+function scoreDocumentLinkConfidence(
+  url: string,
+  name: string,
+  baseUrl: string,
+  markdown: string,
+  context?: DiscoveryContext
+): { confidence: number; signals: string[] } {
+  const signals: string[] = [];
+  let confidence = 45;
+  const lower = `${url} ${name}`.toLowerCase();
+  const markdownLower = markdown.toLowerCase();
+  const documentType = classifyDocumentFromUrl(url);
+
+  if (isDocumentUrl(url)) {
+    confidence += 18;
+    signals.push("direct document extension");
+  }
+  if (sameHost(url, baseUrl)) {
+    confidence += 8;
+    signals.push("same source host");
+  }
+  if (["rfp", "specification", "evaluation"].includes(documentType)) {
+    confidence += 8;
+    signals.push(`${documentType} filename signal`);
+  }
+  if (/\b(?:tender|rfp|solicitation|bid|procurement|download|document)\b/i.test(lower)) {
+    confidence += 7;
+    signals.push("procurement document term");
+  }
+  if (markdownLower.includes(name.toLowerCase()) || markdownLower.includes(url.toLowerCase())) {
+    confidence += 5;
+    signals.push("referenced in scraped page content");
+  }
+
+  const tokenMatches = countContextTokenMatches(url, context);
+  if (tokenMatches > 0) {
+    confidence += Math.min(12, tokenMatches * 4);
+    signals.push(`${tokenMatches} opportunity token match${tokenMatches === 1 ? "" : "es"}`);
+  }
+  if (context?.noticeId && lower.includes(context.noticeId.toLowerCase())) {
+    confidence += 8;
+    signals.push("notice id match");
+  }
+
+  return {
+    confidence: Math.max(40, Math.min(95, confidence)),
+    signals,
+  };
+}
+
+function extractFromLinks(
+  links: string[],
+  markdown: string,
+  baseUrl: string,
+  context?: DiscoveryContext
+): DiscoveredSource[] {
   const sources: DiscoveredSource[] = [];
   const seen = new Set<string>();
   
@@ -819,13 +906,16 @@ function extractFromLinks(links: string[], markdown: string, baseUrl: string): D
     if (!isDocumentUrl(resolvedUrl)) continue;
     
     seen.add(normalized);
+    const name = extractFilenameFromUrl(resolvedUrl);
+    const scoring = scoreDocumentLinkConfidence(resolvedUrl, name, baseUrl, markdown, context);
     sources.push({
       url: resolvedUrl,
-      name: extractFilenameFromUrl(resolvedUrl),
+      name,
       type: classifyDocumentFromUrl(resolvedUrl),
-      confidence: 75,
+      confidence: scoring.confidence,
       source: "primary_portal",
       discoveryMethod: "link_extraction",
+      description: `link_extraction confidence signals: ${scoring.signals.join(", ") || "direct document link"}`,
     });
   }
   
