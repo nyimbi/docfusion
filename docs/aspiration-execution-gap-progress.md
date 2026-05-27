@@ -5896,3 +5896,25 @@ Verification:
 Remaining after this slice:
 - Continue replacing compliance automation placeholders, especially automatic link creation for high-confidence requirement-section matches.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Deterministic Compliance Auto-Linking
+
+Status: implemented and verified.
+
+Purpose: make automatic requirement linking create scoped compliance references for high-confidence response-section matches instead of returning a zero-result stub.
+
+Changes in this slice:
+- Load the scoped response document and active compliance matrix for the document's opportunity.
+- Score unlinked compliance entries against response sections with the existing requirement-section matcher.
+- Persist high-confidence links to compliance entries and matching RFP requirements with response document, section, confidence, and rationale metadata.
+- Return explicit unlinked reasons for already-linked, not-applicable, no-match, and below-threshold requirements.
+
+Verification:
+- `npm test -- compliance-cross-reference-suggestions.test.ts` passed with 6 tests.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 95 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue auditing compliance automation for stale matrix statistics after bulk auto-link operations.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

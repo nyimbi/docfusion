@@ -4,6 +4,7 @@ const requireUserContextMock = vi.hoisted(() => vi.fn());
 
 interface ChainConfig {
 	result?: unknown[];
+	onSet?: (value: Record<string, unknown>) => void;
 	onWhere?: (value: unknown) => void;
 }
 
@@ -14,6 +15,10 @@ function createChain(config: ChainConfig = {}) {
 	}
 	chain.where = vi.fn((value: unknown) => {
 		config.onWhere?.(value);
+		return chain;
+	});
+	chain.set = vi.fn((value: Record<string, unknown>) => {
+		config.onSet?.(value);
 		return chain;
 	});
 	chain.then = (resolve: (value: unknown[]) => void) =>
@@ -34,7 +39,11 @@ function collectSqlFragments(value: unknown, seen = new Set<object>()): string[]
 
 var dbMock: {
 	select: ReturnType<typeof vi.fn>;
+	update: ReturnType<typeof vi.fn>;
 	query: {
+		complianceMatrices: {
+			findFirst: ReturnType<typeof vi.fn>;
+		};
 		rfpRequirements: {
 			findFirst: ReturnType<typeof vi.fn>;
 			findMany: ReturnType<typeof vi.fn>;
@@ -55,7 +64,11 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 vi.mock("@/lib/db", () => ({
 	db: dbMock = {
 		select: vi.fn(),
+		update: vi.fn(),
 		query: {
+			complianceMatrices: {
+				findFirst: vi.fn(),
+			},
 			rfpRequirements: {
 				findFirst: vi.fn(),
 				findMany: vi.fn(),
@@ -65,6 +78,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import {
+	autoLinkRequirements,
 	detectMissingCrossReferences,
 	detectOverReferences,
 	suggestCrossReferenceLocations,
@@ -85,7 +99,13 @@ beforeEach(() => {
 		requirementText: "The contractor shall provide cybersecurity incident response monitoring and evidence reporting.",
 		category: "cybersecurity",
 	});
+	dbMock.query.complianceMatrices.findFirst.mockResolvedValue({
+		id: "matrix-1",
+		organizationId: "org-1",
+		opportunityId: "opp-1",
+	});
 	dbMock.query.rfpRequirements.findMany.mockResolvedValue([]);
+	dbMock.update.mockReturnValue(createChain());
 });
 
 describe("compliance cross-reference suggestions", () => {
@@ -257,5 +277,132 @@ describe("compliance cross-reference suggestions", () => {
 			],
 			recommendation: expect.stringContaining("Consolidate duplicate requirement references"),
 		}]);
+	});
+
+	it("auto-links high-confidence requirement matches to response sections", async () => {
+		let entryUpdate: Record<string, unknown> | undefined;
+		let requirementUpdate: Record<string, unknown> | undefined;
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					documentId: "doc-technical",
+					documentTitle: "Technical Approach",
+					documentType: "technical_approach",
+					opportunityId: "opp-1",
+					plainText: null,
+					content: {
+						type: "doc",
+						content: [
+							{
+								type: "heading",
+								content: [{ type: "text", text: "Cybersecurity Incident Response Monitoring" }],
+							},
+							{
+								type: "paragraph",
+								content: [{
+									type: "text",
+									text: "The C.3.2 response provides cybersecurity incident response monitoring and evidence reporting.",
+								}],
+							},
+						],
+					},
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					entry: {
+						id: "entry-1",
+						organizationId: "org-1",
+						matrixId: "matrix-1",
+						requirementId: "req-1",
+						responseReference: null,
+						complianceStatus: "pending",
+						completionPercent: 10,
+						metadata: { existing: true },
+					},
+					requirement: {
+						id: "req-1",
+						organizationId: "org-1",
+						requirementNumber: "C.3.2",
+						requirementText: "The contractor shall provide cybersecurity incident response monitoring and evidence reporting.",
+						category: "cybersecurity",
+					},
+				}],
+			}));
+		dbMock.update
+			.mockReturnValueOnce(createChain({ onSet: (value) => { entryUpdate = value; } }))
+			.mockReturnValueOnce(createChain({ onSet: (value) => { requirementUpdate = value; } }));
+
+		const result = await autoLinkRequirements("doc-technical");
+
+		expect(result.successfulLinks).toBe(1);
+		expect(result.failedLinks).toBe(0);
+		expect(result.linkedRequirements[0]).toMatchObject({
+			requirementId: "req-1",
+			requirementNumber: "C.3.2",
+			linkedTo: "Technical Approach - Cybersecurity Incident Response Monitoring",
+		});
+		expect(result.linkedRequirements[0].confidence).toBeGreaterThanOrEqual(60);
+		expect(entryUpdate).toMatchObject({
+			responseDocumentId: "doc-technical",
+			responseReference: "Technical Approach - Cybersecurity Incident Response Monitoring",
+			complianceStatus: "partial",
+			completionPercent: 60,
+		});
+		expect((entryUpdate?.metadata as Record<string, unknown>).autoLink).toMatchObject({
+			documentId: "doc-technical",
+			sectionTitle: "Cybersecurity Incident Response Monitoring",
+			linkedBy: "compliance-user-1",
+		});
+		expect(requirementUpdate).toMatchObject({
+			complianceStatus: "partial",
+			responseDocumentId: "doc-technical",
+			responseSection: "Cybersecurity Incident Response Monitoring",
+		});
+	});
+
+	it("leaves low-confidence automatic links unmodified", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [{
+					documentId: "doc-management",
+					documentTitle: "Management Plan",
+					documentType: "management_plan",
+					opportunityId: "opp-1",
+					plainText: "Program governance and staffing cadence.",
+					content: null,
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					entry: {
+						id: "entry-1",
+						organizationId: "org-1",
+						matrixId: "matrix-1",
+						requirementId: "req-1",
+						responseReference: null,
+						complianceStatus: "pending",
+						completionPercent: 10,
+						metadata: null,
+					},
+					requirement: {
+						id: "req-1",
+						organizationId: "org-1",
+						requirementNumber: "C.3.2",
+						requirementText: "The contractor shall provide cybersecurity incident response monitoring and evidence reporting.",
+						category: "cybersecurity",
+					},
+				}],
+			}));
+
+		const result = await autoLinkRequirements("doc-management");
+
+		expect(result.successfulLinks).toBe(0);
+		expect(result.failedLinks).toBe(1);
+		expect(result.unlinkedRequirements[0]).toMatchObject({
+			requirementId: "req-1",
+			reason: "No matching response section found",
+		});
+		expect(dbMock.update).not.toHaveBeenCalled();
 	});
 });

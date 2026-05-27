@@ -1927,19 +1927,124 @@ export async function suggestCrossReferenceLocations(
  * Automatically links requirements to response sections using AI matching.
  */
 export async function autoLinkRequirements(documentId: string): Promise<AutoLinkResult> {
-	await requireUserContext();
+	const userContext = await requireUserContext();
+	const organizationId = requireComplianceOrganization(userContext);
 
-	// In production, this would:
-	// 1. Extract sections from the document
-	// 2. Get all unlinked requirements
-	// 3. Use semantic matching to find best matches
-	// 4. Create compliance entry links above a confidence threshold
+	const document = await getResponseDocumentForCompliance(documentId, organizationId);
+	if (!document) {
+		return { successfulLinks: 0, failedLinks: 0, linkedRequirements: [], unlinkedRequirements: [] };
+	}
+
+	const matrix = await db.query.complianceMatrices.findFirst({
+		where: visibleComplianceMatrixForOpportunityCondition(document.opportunityId, organizationId),
+	});
+	if (!matrix) {
+		return { successfulLinks: 0, failedLinks: 0, linkedRequirements: [], unlinkedRequirements: [] };
+	}
+
+	const rows = await db
+		.select({
+			entry: complianceEntries,
+			requirement: rfpRequirements,
+		})
+		.from(complianceEntries)
+		.innerJoin(rfpRequirements, eq(complianceEntries.requirementId, rfpRequirements.id))
+		.where(and(
+			visibleComplianceEntriesForMatrixCondition(matrix.id, organizationId),
+			eq(rfpRequirements.organizationId, organizationId)
+		));
+	const sections = sectionizeDocument(document.content, document.plainText);
+	const now = new Date();
+	const linkedRequirements: AutoLinkResult["linkedRequirements"] = [];
+	const unlinkedRequirements: AutoLinkResult["unlinkedRequirements"] = [];
+
+	for (const row of rows) {
+		if (row.entry.responseReference || row.entry.complianceStatus === "not_applicable") {
+			unlinkedRequirements.push({
+				requirementId: row.requirement.id,
+				requirementNumber: row.requirement.requirementNumber ?? row.requirement.id,
+				reason: row.entry.responseReference ? "Already linked to a response reference" : "Requirement marked not applicable",
+			});
+			continue;
+		}
+
+		const bestMatch = sections
+			.map((section) => scoreSectionForRequirement({
+				section,
+				document,
+				requirementText: row.requirement.requirementText,
+				requirementNumber: row.requirement.requirementNumber,
+				category: row.requirement.category,
+			}))
+			.filter((suggestion): suggestion is SuggestedLocation => suggestion !== null)
+			.sort((a, b) => b.relevanceScore - a.relevanceScore)[0];
+
+		if (!bestMatch || bestMatch.relevanceScore < 60) {
+			unlinkedRequirements.push({
+				requirementId: row.requirement.id,
+				requirementNumber: row.requirement.requirementNumber ?? row.requirement.id,
+				reason: bestMatch
+					? `Best section match below confidence threshold (${bestMatch.relevanceScore})`
+					: "No matching response section found",
+			});
+			continue;
+		}
+
+		const responseReference = `${document.documentTitle} - ${bestMatch.sectionTitle}`;
+		const metadata = {
+			...((row.entry.metadata && typeof row.entry.metadata === "object" && !Array.isArray(row.entry.metadata))
+				? row.entry.metadata as Record<string, unknown>
+				: {}),
+			autoLink: {
+				documentId: document.documentId,
+				sectionId: bestMatch.sectionId,
+				sectionTitle: bestMatch.sectionTitle,
+				confidence: bestMatch.relevanceScore,
+				reason: bestMatch.reason,
+				linkedBy: userContext.userId,
+				linkedAt: now.toISOString(),
+			},
+		};
+
+		await db
+			.update(complianceEntries)
+			.set({
+				responseDocumentId: document.documentId,
+				responseReference,
+				responseSummary: bestMatch.reason,
+				complianceStatus: "partial",
+				strengthAssessment: bestMatch.relevanceScore >= 80 ? "strong" : "adequate",
+				status: "draft",
+				completionPercent: Math.max(row.entry.completionPercent ?? 0, 60),
+				metadata,
+				updatedAt: now,
+			})
+			.where(visibleComplianceEntryCondition(row.entry.id, organizationId));
+
+		await db
+			.update(rfpRequirements)
+			.set({
+				complianceStatus: "partial",
+				responseDocumentId: document.documentId,
+				responseSection: bestMatch.sectionTitle,
+				responseStrategy: bestMatch.reason,
+				updatedAt: now,
+			})
+			.where(visibleRfpRequirementCondition(row.requirement.id, organizationId));
+
+		linkedRequirements.push({
+			requirementId: row.requirement.id,
+			requirementNumber: row.requirement.requirementNumber ?? row.requirement.id,
+			linkedTo: responseReference,
+			confidence: bestMatch.relevanceScore,
+		});
+	}
 
 	return {
-		successfulLinks: 0,
-		failedLinks: 0,
-		linkedRequirements: [],
-		unlinkedRequirements: [],
+		successfulLinks: linkedRequirements.length,
+		failedLinks: unlinkedRequirements.length,
+		linkedRequirements,
+		unlinkedRequirements,
 	};
 }
 
