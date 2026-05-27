@@ -486,6 +486,30 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "live-kenya-ppip-persisted-import-response",
+		wave: 9,
+		title: "Live Kenya PPIP persisted import-to-response proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005", "F-008", "F-020", "S-001"],
+		requiresLiveServices: true,
+		description: "Persists a live Kenya PPIP opportunity, source document, parsed RFP, requirements, response drafts, and generated win themes into PostgreSQL, verifies tenant-scoped rows, then cleans them up.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-persisted-import-response.ts"],
+			env: {
+				LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_KIND: "kenya_ppip",
+				LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_URL: "https://tenders.go.ke/tenders",
+				LIVE_PERSISTED_IMPORT_RESPONSE_PROOF_PREFIX: "live_kenya_ppip_persisted_import_response",
+				LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT: "25",
+				LIVE_PERSISTED_IMPORT_RESPONSE_DOCLING_ATTEMPTS: "3",
+			},
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-persisted-import-response-evidence.md",
+			".omx/logs/platform-completion/live-persisted-import-response-<run_id>/live-persisted-import-response.json",
+		],
+	},
+	{
 		id: "live-source-discovery",
 		wave: 9,
 		title: "Live configured source discovery proof",

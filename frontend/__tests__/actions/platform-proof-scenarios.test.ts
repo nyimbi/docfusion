@@ -43,6 +43,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-opportunity-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-persisted-import-response");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-persisted-import-response");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-source-discovery");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-undp-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-world-bank-source");
@@ -272,6 +273,23 @@ describe("platform proof scenarios", () => {
 				]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["live-kenya-ppip-persisted-import-response"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-kenya-ppip-persisted-import-response",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-008", "F-020", "S-001"]),
+				command: expect.objectContaining({
+					env: expect.objectContaining({
+						LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_KIND: "kenya_ppip",
+						LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_URL: "https://tenders.go.ke/tenders",
+						LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT: "25",
+					}),
+				}),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-persisted-import-response-evidence.md",
+				]),
+			}),
+		]);
 		expect(listProofScenarios({ ids: ["live-source-discovery"], includeLiveSafe: true })).toEqual([
 			expect.objectContaining({
 				id: "live-source-discovery",
@@ -383,6 +401,10 @@ describe("platform proof scenarios", () => {
 		const [persistedResponseScenario] = listProofScenarios({ ids: ["live-persisted-import-response"], includeLiveSafe: true });
 		expect(formatProofCommand(persistedResponseScenario)).toContain("LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT=10");
 		expect(formatProofCommand(persistedResponseScenario)).toContain("LIVE_PERSISTED_IMPORT_RESPONSE_DOCLING_ATTEMPTS=3");
+
+		const [kenyaPersistedResponseScenario] = listProofScenarios({ ids: ["live-kenya-ppip-persisted-import-response"], includeLiveSafe: true });
+		expect(formatProofCommand(kenyaPersistedResponseScenario)).toContain("LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_KIND=kenya_ppip");
+		expect(formatProofCommand(kenyaPersistedResponseScenario)).toContain("LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT=25");
 	});
 
 	it("keeps continue-on-failure sweeps failed when any scenario fails", async () => {

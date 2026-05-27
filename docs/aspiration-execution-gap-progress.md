@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Kenya PPIP Persisted Proof Routing
+
+Status: implemented and partially verified; DB path still externally blocked.
+
+Purpose: make the DB-backed persisted import-to-response proof source-aware so it can validate the same Kenya PPIP opportunity path that already proved stronger evaluator-criteria response readiness outside the persistence layer.
+
+Changes in this slice:
+- Added `LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_KIND` support for `ungm` and `kenya_ppip`.
+- Added Kenya PPIP fetching, source metadata, invalid-TLS document download handling, and broader response-ready opportunity selection to the persisted proof.
+- Registered `live-kenya-ppip-persisted-import-response` as a Wave 9 live-safe scenario with Kenya PPIP source URL, 25-page extraction, and Docling retry settings.
+- Preserved source kind and source API URL in persisted-proof evidence rows when available.
+
+Verification:
+- `npm test -- platform-proof-scenarios.test.ts --run` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-kenya-ppip-persisted-import-response --include-live-safe` failed with run `live_kenya_ppip_persisted_import_response_20260527T161122Z` at the known PostgreSQL connection refusal before source discovery, but confirmed scenario routing, Kenya source-kind proof initialization, richer evidence output, and `idempotent-noop` cleanup status.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity to `88.80.188.224:5432`, then rerun both `live-persisted-import-response` and `live-kenya-ppip-persisted-import-response`.
+
 ### 2026-05-27 - Live Persisted Proof Extraction and Evidence Hardening
 
 Status: implemented and partially verified; DB path still externally blocked.

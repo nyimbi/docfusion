@@ -24,6 +24,7 @@ import {
 	winThemes,
 } from "@/lib/db/schema";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
+import { fetchKenyaPpipOpportunities } from "@/lib/services/kenya-ppip-client";
 import { checkDoclingHealth, convertDocument, type DoclingConvertResponse } from "@/lib/services/docling-client";
 import { buildLiveResponsePackage, type LiveResponsePackage } from "@/lib/services/live-response-package";
 import { fetchUngmOpportunities } from "@/lib/services/ungm-client";
@@ -31,12 +32,18 @@ import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import type { ProposalDocumentType } from "@/lib/types/opportunity";
 
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
-const RUN_ID = process.env.LIVE_PERSISTED_IMPORT_RESPONSE_PROOF_RUN_ID ?? createProofRunId("live_persisted_import_response");
+const SOURCE_KIND = normalizeSourceKind(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_KIND);
+const PROOF_RUN_PREFIX = process.env.LIVE_PERSISTED_IMPORT_RESPONSE_PROOF_PREFIX ?? (
+	SOURCE_KIND === "kenya_ppip" ? "live_kenya_ppip_persisted_import_response" : "live_persisted_import_response"
+);
+const RUN_ID = process.env.LIVE_PERSISTED_IMPORT_RESPONSE_PROOF_RUN_ID ?? createProofRunId(PROOF_RUN_PREFIX);
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "live-persisted-import-response" });
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-live-persisted-import-response-evidence.md");
-const SOURCE_URL = process.env.LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_URL ?? "https://www.ungm.org/Public/Notice?title=software";
+const SOURCE_URL = process.env.LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_URL ?? (
+	SOURCE_KIND === "kenya_ppip" ? "https://tenders.go.ke/tenders" : "https://www.ungm.org/Public/Notice?title=software"
+);
 const MAX_DOCUMENT_BYTES = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_MAX_DOCUMENT_BYTES ?? 10 * 1024 * 1024);
-const SOURCE_PAGE_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT ?? 10);
+const SOURCE_PAGE_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT ?? (SOURCE_KIND === "kenya_ppip" ? 25 : 10));
 const SOURCE_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_LIMIT ?? 10);
 const SOURCE_DETAIL_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_DETAIL_LIMIT ?? 5);
 const DOCLING_CONVERSION_ATTEMPTS = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_DOCLING_ATTEMPTS ?? 3);
@@ -58,8 +65,10 @@ interface LivePersistedImportResponseProof {
 	startedAt: string;
 	completedAt?: string;
 	source: {
+		kind: LivePersistedSourceKind;
 		url: string;
 		searchUrl?: string;
+		apiUrl?: string;
 		total?: number;
 		opportunityCount: number;
 	};
@@ -133,12 +142,24 @@ interface SourceDocumentConversion {
 	sourceText: string;
 }
 
+type LivePersistedSourceKind = "ungm" | "kenya_ppip";
+
+interface LivePersistedSourceResult {
+	kind: LivePersistedSourceKind;
+	url: string;
+	searchUrl?: string;
+	apiUrl?: string;
+	total?: number;
+	opportunities: OpportunityData[];
+}
+
 async function main() {
 	const cleanup = new ProofCleanupRegistry();
 	const proof: LivePersistedImportResponseProof = {
 		runId: RUN_ID,
 		startedAt: new Date().toISOString(),
 		source: {
+			kind: SOURCE_KIND,
 			url: SOURCE_URL,
 			opportunityCount: 0,
 		},
@@ -175,17 +196,14 @@ async function proveLivePersistedImportResponse(
 	cleanup: ProofCleanupRegistry
 ): Promise<Partial<LivePersistedImportResponseProof>> {
 	const schema = await assertPersistedProofSchemaReady();
-	const source = await fetchUngmOpportunities(SOURCE_URL, {
-		limit: SOURCE_LIMIT,
-		timeoutMs: 20000,
-		detailLimit: SOURCE_DETAIL_LIMIT,
-	});
+	const source = await fetchSourceOpportunities();
 	const opportunity = selectResponseReadyOpportunity(source.opportunities);
-	if (!opportunity?.rfpLink) {
-		throw new Error("UNGM software source returned no response-ready opportunity with a direct source document");
+	const documentUrl = opportunity?.rfpLink ?? opportunity?.documentUrl;
+	if (!opportunity || !documentUrl) {
+		throw new Error(`${source.kind} source returned no response-ready opportunity with a direct source document`);
 	}
 
-	const extracted = await fetchAndExtractSourceDocument(opportunity.rfpLink);
+	const extracted = await fetchAndExtractSourceDocument(documentUrl);
 	const responsePackage = buildLiveResponsePackage({
 		opportunity,
 		sourceText: extracted.sourceText,
@@ -197,8 +215,10 @@ async function proveLivePersistedImportResponse(
 
 	return {
 		source: {
+			kind: source.kind,
 			url: SOURCE_URL,
 			searchUrl: source.searchUrl,
+			apiUrl: source.apiUrl,
 			total: source.total,
 			opportunityCount: source.opportunities.length,
 		},
@@ -207,7 +227,7 @@ async function proveLivePersistedImportResponse(
 			organization: opportunity.organization,
 			sourceId: opportunity.sourceId,
 			portalUrl: opportunity.portalUrl,
-			documentUrl: opportunity.rfpLink,
+			documentUrl,
 		},
 		document: {
 			url: extracted.url,
@@ -301,12 +321,52 @@ async function assertPersistedProofSchemaReady(): Promise<NonNullable<LivePersis
 	}
 }
 
+async function fetchSourceOpportunities(): Promise<LivePersistedSourceResult> {
+	if (SOURCE_KIND === "kenya_ppip") {
+		const source = await fetchKenyaPpipOpportunities(SOURCE_URL, {
+			limit: SOURCE_LIMIT,
+			timeoutMs: 20000,
+		});
+		return {
+			kind: "kenya_ppip",
+			url: SOURCE_URL,
+			apiUrl: source.apiUrl,
+			total: source.total,
+			opportunities: source.opportunities,
+		};
+	}
+
+	const source = await fetchUngmOpportunities(SOURCE_URL, {
+		limit: SOURCE_LIMIT,
+		timeoutMs: 20000,
+		detailLimit: SOURCE_DETAIL_LIMIT,
+	});
+	return {
+		kind: "ungm",
+		url: SOURCE_URL,
+		searchUrl: source.searchUrl,
+		total: source.total,
+		opportunities: source.opportunities,
+	};
+}
+
 function selectResponseReadyOpportunity(opportunities: OpportunityData[]): OpportunityData | undefined {
 	return opportunities.find((opportunity) => {
-		const documentUrl = opportunity.rfpLink ?? "";
+		const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl ?? "";
 		const haystack = `${opportunity.title} ${opportunity.projectSummary ?? ""} ${documentUrl}`.toLowerCase();
 		return /\.(pdf|docx?)(?:[?#]|$)/i.test(documentUrl)
-			&& ["software", "system", "api", "security", "digital", "data"].some((term) => haystack.includes(term));
+			&& [
+				"software",
+				"system",
+				"api",
+				"security",
+				"digital",
+				"data",
+				"consultancy",
+				"services",
+				"survey",
+				"ict",
+			].some((term) => haystack.includes(term));
 	});
 }
 
@@ -321,6 +381,7 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<Extra
 			"User-Agent": "DocFusion/1.0 live-persisted-import-response-proof",
 		},
 		timeoutMs: 30000,
+		allowInvalidTlsForHosts: ["tenders.go.ke"],
 	}, "live persisted import-response source document");
 	if (!response.ok) {
 		throw new Error(`Live persisted source document returned HTTP ${response.status}`);
@@ -392,6 +453,7 @@ async function persistProofRecords(
 		proofRunId: RUN_ID,
 		source: "live-persisted-import-response",
 	};
+	const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl;
 
 	const [createdOpportunity] = await db.insert(opportunities).values({
 		organizationId,
@@ -403,15 +465,15 @@ async function persistProofRecords(
 		deadline: dateOrUndefined(opportunity.deadline),
 		projectSummary: opportunity.projectSummary,
 		submissionMethod: opportunity.submissionMethod,
-		rfpLink: opportunity.rfpLink,
-		sourcePlatform: opportunity.source === "ungm" ? "UNGM" : "Live source discovery",
+		rfpLink: documentUrl,
+		sourcePlatform: sourcePlatformLabel(opportunity.source),
 		sourceFile: `proof:${RUN_ID}`.slice(0, 500),
 		opportunityType: opportunity.opportunityType ?? "eoi",
 		source: opportunity.source,
-		fingerprint: crypto.createHash("sha256").update(`${RUN_ID}:${opportunity.rfpLink}`).digest("hex"),
+		fingerprint: crypto.createHash("sha256").update(`${RUN_ID}:${documentUrl ?? opportunity.portalUrl ?? opportunity.title}`).digest("hex"),
 		noticeId: opportunity.noticeId,
 		portalUrl: opportunity.portalUrl,
-		documentUrl: opportunity.rfpLink,
+		documentUrl,
 		scrapedAt: now,
 		publishedDate: dateOrUndefined(opportunity.publishedDate),
 		priorityRank: 4,
@@ -772,6 +834,17 @@ function fileTypeFromUrl(url: string): string {
 	return "pdf";
 }
 
+function normalizeSourceKind(value: string | undefined): LivePersistedSourceKind {
+	if (value === "kenya_ppip") return "kenya_ppip";
+	return "ungm";
+}
+
+function sourcePlatformLabel(source: OpportunityData["source"]): string {
+	if (source === "ungm") return "UNGM";
+	if (source === "kenya_ppip") return "Kenya PPIP";
+	return "Live source discovery";
+}
+
 function cleanExtractedText(text: string): string {
 	return text
 		.replace(/!\[Image]\(data:image\/[^)]+\)/g, " ")
@@ -812,7 +885,9 @@ async function writeArtifacts(
 		run_id: RUN_ID,
 		artifact_ids: [
 			`log:${relativeRawPath}`,
+			`source-kind:${proof.source.kind}`,
 			`source:${proof.source.url}`,
+			...(proof.source.apiUrl ? [`source-api:${proof.source.apiUrl}`] : []),
 			`opportunities:${proof.source.opportunityCount}`,
 			`document-bytes:${proof.document?.byteLength ?? 0}`,
 			`docling-text:${proof.document?.extractedTextLength ?? 0}`,
