@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Persisted Import-Response Proof Recheck
+
+Status: blocked by database connectivity.
+
+Purpose: recheck whether the previously blocked live persisted import-to-response proof can now complete after the latest response-readiness hardening.
+
+Result:
+- Ran `npm run platform:proof -- --run live-persisted-import-response --include-live-safe`.
+- Proof run `live_persisted_import_response_20260527T082025Z` failed before persistence with `connect ECONNREFUSED 88.80.188.224:5432`.
+- The generated evidence ledger recorded zero persisted opportunity, source document, RFP document, requirement, proposal document, response document, and win-theme rows for this failed run.
+
+Remaining after this recheck:
+- Restore PostgreSQL connectivity to `88.80.188.224:5432`, then rerun `npm run platform:proof -- --run live-persisted-import-response --include-live-safe`.
+- Keep the full aspiration execution goal active; this is an external connectivity blocker for the live persisted proof, not a completed platform proof.
+
 ### 2026-05-27 - Response Citation Coverage Through Final Gates
 
 Status: implemented and verified.
