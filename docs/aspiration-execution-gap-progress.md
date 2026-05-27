@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Discovery Health Refresh
+
+Status: verified.
+
+Purpose: confirm the currently configured live discovery stack still works after the response-generation and governance changes, and keep evidence current for the opportunity-finding side of the platform.
+
+Verification:
+- `npm run platform:proof -- --include-live-safe --run live-comesa-source` from `frontend/` passed. It scraped `https://www.comesa.int/category/open-tenders/`, returned 2 normalized COMESA opportunities, and proved tender package document `https://www.comesa.int/wp-content/uploads/2026/05/RFP-Medical-Scheme-2026-Final.docx`.
+- `npm run platform:proof -- --include-live-safe --run live-ungm-source` from `frontend/` passed. It called UNGM public notices, saw 1,657 total notices, mapped 10 opportunities, detail-enriched 5 sampled notices, and fetched a UNGM portal page with HTTP 200.
+- `npm run platform:proof -- --include-live-safe --run live-discovery-services` from `frontend/` passed. It verified SearXNG health/results, Firecrawl scrape output, and Playwright/browser fallback content from the connectivity host.
+
+Remaining after this slice:
+- Investigate blocked or DNS-restricted sources such as `www.un.org/procurement/solicitations-opportunities`; direct fetch returned CloudFront 403 and Firecrawl reported DNS safety verification failure for `www.un.org`.
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Final Checklist Enforces Evaluator Win Themes
 
 Status: implemented and verified.
