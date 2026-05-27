@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable AI Win/Loss Pattern Fallbacks
+
+Status: implemented and verified.
+
+Purpose: prevent AI win/loss pattern analysis from suppressing evidence-based heuristic patterns when the AI response contains only unusable pattern objects.
+
+Changes in this slice:
+- Add semantic normalization for AI pattern-analysis responses.
+- Require pattern type, name, and description before accepting AI-generated patterns.
+- Normalize recommendation text, priority, effort, correlation, confidence, insights, and overall recommendations.
+- Reuse heuristic win/loss pattern generation when AI returns no usable patterns.
+
+Verification:
+- `npm test -- winloss-auth.test.ts --run` passed with 15 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 157 tests.
+
+Remaining after this slice:
+- Continue hardening generated response artifacts and analysis outputs against invalid successful AI results.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Unusable AI Competitive Insight Fallbacks
 
 Status: implemented and verified.

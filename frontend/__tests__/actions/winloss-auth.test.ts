@@ -341,6 +341,84 @@ describe("Win/loss action auth", () => {
 		});
 	});
 
+	test("uses heuristic patterns when AI pattern analysis returns unusable pattern objects", async () => {
+		vi.mocked(getProviderManager).mockReturnValue({
+			initialize: vi.fn(async () => undefined),
+			isAvailable: vi.fn(async () => true),
+			complete: vi.fn(async () => ({
+				content: JSON.stringify({
+					patterns: [{}],
+					insights: ["  "],
+					recommendations: [{}],
+					confidence: 0.9,
+				}),
+			})),
+		} as unknown as ReturnType<typeof getProviderManager>);
+		const insertedPatterns: Record<string, unknown>[] = [];
+		dbMock.select.mockImplementationOnce(() => createChainableQuery([
+			{
+				debrief: {
+					id: "debrief-win-1",
+					outcome: "win",
+					strengthsIdentified: ["agency experience"],
+					weaknessesIdentified: [],
+					costScore: 88,
+				},
+				opportunity: null,
+			},
+			{
+				debrief: {
+					id: "debrief-win-2",
+					outcome: "win",
+					strengthsIdentified: ["agency experience"],
+					weaknessesIdentified: ["thin staffing"],
+					costScore: 82,
+				},
+				opportunity: null,
+			},
+			{
+				debrief: {
+					id: "debrief-loss-1",
+					outcome: "loss",
+					strengthsIdentified: [],
+					weaknessesIdentified: ["thin staffing"],
+					costScore: 45,
+				},
+				opportunity: null,
+			},
+		]));
+		dbMock.insert.mockImplementation(() => {
+			const chain = createChainableQuery([]);
+			(chain.values as ReturnType<typeof vi.fn>).mockImplementation((value: Record<string, unknown>) => {
+				insertedPatterns.push(value);
+				return chain;
+			});
+			(chain.returning as ReturnType<typeof vi.fn>).mockImplementation(async () => [
+				{ id: `pattern-${insertedPatterns.length}`, ...insertedPatterns[insertedPatterns.length - 1] },
+			]);
+			return chain;
+		});
+
+		const result = await analyzeWinLossPatterns();
+
+		expect(result.success).toBe(true);
+		expect(insertedPatterns).toHaveLength(3);
+		expect(insertedPatterns[0]).toMatchObject({
+			patternName: "Strong agency experience",
+			confidence: 0.63,
+		});
+		expect(insertedPatterns.map((pattern) => pattern.patternName)).not.toContain(undefined);
+		if (result.success) {
+			expect(result.data.insights).toEqual([
+				"Overall win rate: 67%",
+				"Analyzed 3 completed proposals",
+				"Top strength: \"agency experience\" (2 occurrences)",
+				"Common weakness: \"thin staffing\" (2 occurrences)",
+			]);
+			expect(result.data.confidence).toBe(0.68);
+		}
+	});
+
 	test("derives heuristic pattern confidence from observed win/loss evidence", async () => {
 		const insertedPatterns: Record<string, unknown>[] = [];
 		dbMock.select.mockImplementationOnce(() => createChainableQuery([

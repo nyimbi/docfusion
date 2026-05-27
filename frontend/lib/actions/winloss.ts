@@ -51,6 +51,26 @@ type ActionResult<T> = { success: true; data: T } | { success: false; error: str
 
 type OrganizationColumn = AnyColumn<{ data: string; notNull: false }>;
 
+type AIPatternRecommendation = {
+	recommendation: string;
+	priority: "high" | "medium" | "low";
+	effort: "low" | "medium" | "high";
+};
+
+type AIPatternAnalysis = {
+	patterns: Array<{
+		patternType: string;
+		patternName: string;
+		description: string;
+		winCorrelation: number;
+		confidence: number;
+		recommendations: AIPatternRecommendation[];
+	}>;
+	insights: string[];
+	recommendations: string[];
+	confidence: number;
+};
+
 async function requireWinLossContext(organizationId?: string | null): Promise<UserContext> {
 	const userContext = await requireUserContext();
 	if (organizationId && organizationId !== userContext.organizationId) {
@@ -73,6 +93,82 @@ function mutableOrganizationCondition(column: OrganizationColumn, userContext: U
 
 function organizationForInsert(inputOrganizationId: string | undefined, userContext: UserContext): string | undefined {
 	return inputOrganizationId ?? userContext.organizationId;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function nonBlankText(value: unknown): string | null {
+	return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function normalizeTextArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.map(nonBlankText).filter((item): item is string => item !== null)
+		: [];
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+	return typeof value === "number" && Number.isFinite(value)
+		? Math.max(min, Math.min(max, value))
+		: fallback;
+}
+
+function normalizePatternPriority(value: unknown): AIPatternRecommendation["priority"] {
+	return value === "high" || value === "medium" || value === "low" ? value : "medium";
+}
+
+function normalizePatternEffort(value: unknown): AIPatternRecommendation["effort"] {
+	return value === "high" || value === "medium" || value === "low" ? value : "medium";
+}
+
+function normalizeAIPatternRecommendation(value: unknown): AIPatternRecommendation | null {
+	if (!isRecord(value)) return null;
+	const recommendation = nonBlankText(value.recommendation);
+	if (!recommendation) return null;
+	return {
+		recommendation,
+		priority: normalizePatternPriority(value.priority),
+		effort: normalizePatternEffort(value.effort),
+	};
+}
+
+function normalizeAIPattern(value: unknown): AIPatternAnalysis["patterns"][number] | null {
+	if (!isRecord(value)) return null;
+	const patternType = nonBlankText(value.patternType);
+	const patternName = nonBlankText(value.patternName);
+	const description = nonBlankText(value.description);
+	if (!patternType || !patternName || !description) return null;
+
+	return {
+		patternType,
+		patternName,
+		description,
+		winCorrelation: clampNumber(value.winCorrelation, -1, 1, 0),
+		confidence: clampNumber(value.confidence, 0, 1, 0.5),
+		recommendations: Array.isArray(value.recommendations)
+			? value.recommendations
+				.map(normalizeAIPatternRecommendation)
+				.filter((item): item is AIPatternRecommendation => item !== null)
+			: [],
+	};
+}
+
+function normalizeAIPatternAnalysis(value: unknown): AIPatternAnalysis {
+	const patterns = isRecord(value) && Array.isArray(value.patterns)
+		? value.patterns.map(normalizeAIPattern).filter((pattern): pattern is AIPatternAnalysis["patterns"][number] => pattern !== null)
+		: [];
+	const confidence = isRecord(value)
+		? clampNumber(value.confidence, 0, 1, patterns.length > 0 ? averagePatternConfidence(patterns) : 0.5)
+		: 0.5;
+
+	return {
+		patterns,
+		insights: isRecord(value) ? normalizeTextArray(value.insights) : [],
+		recommendations: isRecord(value) ? normalizeTextArray(value.recommendations) : [],
+		confidence,
+	};
 }
 
 function assignedOpportunityByIdCondition(opportunityId: string, userContext: UserContext): SQL {
@@ -877,19 +973,7 @@ async function performAIPatternAnalysis(
 	losses: Array<{ debrief: Debrief; opportunity: typeof opportunities.$inferSelect | null }>,
 	strengthFrequency: Array<{ item: string; count: number }>,
 	weaknessFrequency: Array<{ item: string; count: number }>
-): Promise<{
-	patterns: Array<{
-		patternType: string;
-		patternName: string;
-		description: string;
-		winCorrelation: number;
-		confidence: number;
-		recommendations: Array<{ recommendation: string; priority: "high" | "medium" | "low"; effort: "low" | "medium" | "high" }>;
-	}>;
-	insights: string[];
-	recommendations: string[];
-	confidence: number;
-}> {
+): Promise<AIPatternAnalysis> {
 	const manager = getProviderManager();
 
 	const systemPrompt = `You are a proposal analytics expert analyzing win/loss patterns.
@@ -969,7 +1053,7 @@ Identify key patterns, insights, and recommendations.`;
 		throw new Error("Invalid JSON response from AI");
 	}
 
-	return JSON.parse(jsonMatch[0]);
+	return normalizeAIPatternAnalysis(JSON.parse(jsonMatch[0]));
 }
 
 /**
