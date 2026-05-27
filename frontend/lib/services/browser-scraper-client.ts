@@ -43,6 +43,7 @@ export async function scrapeWithBrowserService(
 					timeout: options.timeout,
 					humanScroll: options.humanScroll,
 					blockMedia: options.blockMedia,
+					formats: options.formats,
 				},
 			},
 		},

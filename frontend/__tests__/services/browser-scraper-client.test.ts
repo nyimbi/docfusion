@@ -24,6 +24,7 @@ describe("scrapeWithBrowserService", () => {
 			timeout: 15000,
 			humanScroll: true,
 			blockMedia: true,
+			formats: ["markdown", "html", "links"],
 		});
 
 		expect(result).toMatchObject({
@@ -45,6 +46,7 @@ describe("scrapeWithBrowserService", () => {
 						timeout: 15000,
 						humanScroll: true,
 						blockMedia: true,
+						formats: ["markdown", "html", "links"],
 					},
 				}),
 			}),

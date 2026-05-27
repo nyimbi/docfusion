@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Discovery Actionable Evidence Hardening
+
+Status: implemented and verified.
+
+Purpose: make the live discovery-services proof record actionable procurement evidence from scraped pages, not only service health, markdown length, and keyword counts.
+
+Changes in this slice:
+- Added source-host, sample opportunity links, sample opportunity snippets, and snippet counts to Firecrawl and browser fallback evidence.
+- Requested links from the browser scraper when a caller asks for link output.
+- Resolved the UNGM browser target from the software search page to a current live notice before scraping, so browser fallback proof captures an actual opportunity page and source document link.
+- Filtered static assets and client-side configuration text out of sample opportunity evidence.
+
+Verification:
+- `npm test -- browser-scraper-client.test.ts platform-proof-scenarios.test.ts --run` passed with 8 tests.
+- `npm test -- browser-scraper-client.test.ts fetcher-public-url.test.ts document-discovery-agent.test.ts --run` passed with 11 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-discovery-services --include-live-safe` passed with run `live_discovery_20260527T163413Z`.
+- The passing live run returned 9 opportunity-relevant SearXNG results from 10 total Bing results for `tenders.go.ke`, Firecrawl scraped 198382 markdown characters from UNDP procurement notices with 5 sample opportunity links, and browser fallback resolved UNGM notice `300700` for penetration testing/security consultancy, scraped 223569 markdown characters, found source PDF `eoi24414.pdf`, and recorded 5 opportunity snippets.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+- Continue moving live-safe proof evidence from service-level availability toward source-specific opportunity, document, and response artifacts.
+
 ### 2026-05-27 - Wave 9 Revalidation After Procurement Discovery Proof
 
 Status: verified.

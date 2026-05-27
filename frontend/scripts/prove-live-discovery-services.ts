@@ -11,6 +11,7 @@ import {
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 import { checkSearxngHealth, searchSearxng, type SearxngResult } from "@/lib/services/searxng-client";
+import { fetchUngmOpportunities } from "@/lib/services/ungm-client";
 
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
 const RUN_ID = process.env.LIVE_DISCOVERY_PROOF_RUN_ID ?? createProofRunId("live_discovery");
@@ -80,6 +81,32 @@ const SCRAPE_PROCUREMENT_INDICATORS = [
 	"tender",
 	"undp",
 ];
+const SAMPLE_LIMIT = 5;
+
+interface OpportunityEvidenceLink {
+	url: string;
+	host: string;
+	label: string;
+}
+
+interface ScrapeOpportunityEvidence {
+	sourceHost: string;
+	sampleLinks: OpportunityEvidenceLink[];
+	sampleOpportunitySnippets: string[];
+	opportunitySnippetCount: number;
+}
+
+interface ResolvedBrowserTarget {
+	url: string;
+	sourceUrl?: string;
+	searchUrl?: string;
+	selectedOpportunity?: {
+		title: string;
+		sourceId?: string;
+		organization?: string;
+		deadline?: string;
+	};
+}
 
 interface LiveDiscoveryProof {
 	runId: string;
@@ -102,16 +129,21 @@ interface LiveDiscoveryProof {
 		markdownLength: number;
 		procurementIndicators: string[];
 		procurementIndicatorCount: number;
+		opportunityEvidence: ScrapeOpportunityEvidence;
 		error?: string;
 	};
 	browserFallback?: {
 		url: string;
+		sourceUrl?: string;
+		searchUrl?: string;
 		serviceUrl: string;
 		success: boolean;
 		title?: string;
 		markdownLength: number;
 		procurementIndicators: string[];
 		procurementIndicatorCount: number;
+		opportunityEvidence: ScrapeOpportunityEvidence;
+		selectedOpportunity?: ResolvedBrowserTarget["selectedOpportunity"];
 		error?: string;
 	};
 	error?: string;
@@ -221,7 +253,7 @@ function isOpportunityResult(result: SearxngResult): boolean {
 async function proveFirecrawl(): Promise<NonNullable<LiveDiscoveryProof["firecrawl"]>> {
 	const client = new FirecrawlClient({ timeout: SCRAPE_TIMEOUT_MS });
 	const result = await client.scrape(FIRECRAWL_SCRAPE_URL, {
-		formats: ["markdown", "html"],
+		formats: ["markdown", "html", "links"],
 		timeout: SCRAPE_TIMEOUT_MS,
 	});
 	const markdown = result.data?.markdown?.trim() ?? "";
@@ -233,6 +265,15 @@ async function proveFirecrawl(): Promise<NonNullable<LiveDiscoveryProof["firecra
 	if (procurementIndicators.length === 0) {
 		throw new Error("Firecrawl returned content without procurement opportunity indicators");
 	}
+	const opportunityEvidence = buildScrapeOpportunityEvidence({
+		sourceUrl: FIRECRAWL_SCRAPE_URL,
+		markdown,
+		html: result.data?.html,
+		links: result.data?.links,
+	});
+	if (opportunityEvidence.opportunitySnippetCount === 0) {
+		throw new Error("Firecrawl returned procurement indicators but no actionable opportunity snippets");
+	}
 
 	return {
 		url: FIRECRAWL_SCRAPE_URL,
@@ -241,14 +282,17 @@ async function proveFirecrawl(): Promise<NonNullable<LiveDiscoveryProof["firecra
 		markdownLength,
 		procurementIndicators,
 		procurementIndicatorCount: procurementIndicators.length,
+		opportunityEvidence,
 	};
 }
 
 async function proveBrowserFallback(): Promise<NonNullable<LiveDiscoveryProof["browserFallback"]>> {
-	const result = await scrapeWithBrowserService(BROWSER_SCRAPER_URL, BROWSER_SCRAPE_URL, {
+	const target = await resolveBrowserScrapeTarget();
+	const result = await scrapeWithBrowserService(BROWSER_SCRAPER_URL, target.url, {
 		timeout: SCRAPE_TIMEOUT_MS,
 		humanScroll: true,
 		blockMedia: true,
+		formats: ["markdown", "html", "links"],
 	});
 	const markdown = result.data?.markdown?.trim() ?? "";
 	const markdownLength = markdown.length;
@@ -259,21 +303,302 @@ async function proveBrowserFallback(): Promise<NonNullable<LiveDiscoveryProof["b
 	if (procurementIndicators.length === 0) {
 		throw new Error("Browser scraper returned content without procurement opportunity indicators");
 	}
+	const opportunityEvidence = buildScrapeOpportunityEvidence({
+		sourceUrl: target.url,
+		markdown,
+		html: result.data?.html,
+		links: result.data?.links,
+	});
+	if (opportunityEvidence.opportunitySnippetCount === 0) {
+		throw new Error("Browser scraper returned procurement indicators but no actionable opportunity snippets");
+	}
 
 	return {
-		url: BROWSER_SCRAPE_URL,
+		url: target.url,
+		sourceUrl: target.sourceUrl,
+		searchUrl: target.searchUrl,
 		serviceUrl: BROWSER_SCRAPER_URL,
 		success: true,
 		title: result.data?.metadata?.title,
 		markdownLength,
 		procurementIndicators,
 		procurementIndicatorCount: procurementIndicators.length,
+		opportunityEvidence,
+		selectedOpportunity: target.selectedOpportunity,
 	};
+}
+
+async function resolveBrowserScrapeTarget(): Promise<ResolvedBrowserTarget> {
+	if (!isUngmSearchUrl(BROWSER_SCRAPE_URL)) {
+		return { url: BROWSER_SCRAPE_URL };
+	}
+
+	const result = await fetchUngmOpportunities(BROWSER_SCRAPE_URL, {
+		limit: 5,
+		timeoutMs: 20000,
+	});
+	const opportunity = result.opportunities.find((candidate) => candidate.portalUrl);
+	if (!opportunity?.portalUrl) {
+		throw new Error("UNGM browser target search returned no current opportunity portal URL");
+	}
+
+	return {
+		url: opportunity.portalUrl,
+		sourceUrl: BROWSER_SCRAPE_URL,
+		searchUrl: result.searchUrl,
+		selectedOpportunity: {
+			title: opportunity.title,
+			sourceId: opportunity.sourceId ?? undefined,
+			organization: opportunity.organization ?? undefined,
+			deadline: opportunity.deadline instanceof Date
+				? opportunity.deadline.toISOString()
+				: opportunity.deadline ?? undefined,
+		},
+	};
+}
+
+function isUngmSearchUrl(url: string): boolean {
+	try {
+		const parsed = new URL(url);
+		return parsed.hostname.replace(/^www\./, "").toLowerCase() === "ungm.org"
+			&& parsed.pathname.toLowerCase() === "/public/notice";
+	} catch {
+		return false;
+	}
 }
 
 function procurementIndicatorsFor(markdown: string): string[] {
 	const haystack = markdown.toLowerCase();
 	return SCRAPE_PROCUREMENT_INDICATORS.filter((indicator) => haystack.includes(indicator));
+}
+
+function buildScrapeOpportunityEvidence(input: {
+	sourceUrl: string;
+	markdown: string;
+	html?: string;
+	links?: string[];
+}): ScrapeOpportunityEvidence {
+	const sourceHost = sourceHostFor(input.sourceUrl);
+	const sampleOpportunitySnippets = extractOpportunitySnippets(input.markdown);
+
+	return {
+		sourceHost,
+		sampleLinks: extractSampleLinks(input),
+		sampleOpportunitySnippets,
+		opportunitySnippetCount: sampleOpportunitySnippets.length,
+	};
+}
+
+function sourceHostFor(url: string): string {
+	try {
+		return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+	} catch {
+		return "unknown";
+	}
+}
+
+function extractOpportunitySnippets(markdown: string): string[] {
+	const snippets: string[] = [];
+	const seen = new Set<string>();
+	for (const rawLine of markdown.split(/\r?\n/u)) {
+		const snippet = normalizeSnippet(rawLine);
+		if (!isUsableOpportunitySnippet(snippet)) {
+			continue;
+		}
+		addSnippet(snippets, seen, snippet);
+	}
+	if (snippets.length < SAMPLE_LIMIT) {
+		for (const snippet of extractContextSnippets(markdown)) {
+			addSnippet(snippets, seen, snippet);
+			if (snippets.length >= SAMPLE_LIMIT) {
+				break;
+			}
+		}
+	}
+	return snippets;
+}
+
+function normalizeSnippet(value: string): string {
+	return value
+		.replace(/<[^>]+>/gu, " ")
+		.replace(/&nbsp;/giu, " ")
+		.replace(/&amp;/giu, "&")
+		.replace(/\s+/gu, " ")
+		.replace(/^[-*#>\s]+/u, "")
+		.trim();
+}
+
+function isUsableOpportunitySnippet(snippet: string): boolean {
+	if (snippet.length < 20 || isStaticAssetReference(snippet) || isScriptConfigurationLine(snippet)) {
+		return false;
+	}
+	const lower = snippet.toLowerCase();
+	if (OPPORTUNITY_ACTION_KEYWORDS.some((keyword) => lower === keyword)) {
+		return false;
+	}
+	if (!OPPORTUNITY_ACTION_KEYWORDS.some((keyword) => lower.includes(keyword))) {
+		return false;
+	}
+	return OPPORTUNITY_CONTEXT_KEYWORDS.some((keyword) => lower.includes(keyword))
+		|| SCRAPE_PROCUREMENT_INDICATORS.some((indicator) => lower.includes(indicator));
+}
+
+function addSnippet(snippets: string[], seen: Set<string>, snippet: string) {
+	const key = snippet.toLowerCase().slice(0, 180);
+	if (seen.has(key) || snippets.length >= SAMPLE_LIMIT) {
+		return;
+	}
+	seen.add(key);
+	snippets.push(snippet.slice(0, 240));
+}
+
+function extractContextSnippets(markdown: string): string[] {
+	const text = normalizeSnippet(markdown);
+	const snippets: string[] = [];
+	const seen = new Set<string>();
+	for (const keyword of [...OPPORTUNITY_ACTION_KEYWORDS].sort((left, right) => right.length - left.length)) {
+		const pattern = new RegExp(escapeRegExp(keyword), "giu");
+		for (const match of text.matchAll(pattern)) {
+			const index = match.index ?? 0;
+			const snippet = normalizeSnippet(text.slice(Math.max(0, index - 90), Math.min(text.length, index + 170)));
+			if (!isUsableOpportunitySnippet(snippet)) {
+				continue;
+			}
+			addSnippet(snippets, seen, snippet);
+			if (snippets.length >= SAMPLE_LIMIT) {
+				return snippets;
+			}
+		}
+	}
+	return snippets;
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function extractSampleLinks(input: {
+	sourceUrl: string;
+	markdown: string;
+	html?: string;
+	links?: string[];
+}): OpportunityEvidenceLink[] {
+	const candidates = [
+		...(input.links ?? []),
+		...extractInlineLinks(input.markdown),
+		...extractInlineLinks(input.html ?? ""),
+	];
+	const seen = new Set<string>();
+	const normalizedCandidates: Array<{ index: number; score: number; url: string; host: string }> = [];
+	for (const [index, candidate] of candidates.entries()) {
+		const normalized = normalizeEvidenceUrl(candidate, input.sourceUrl);
+		if (!normalized || seen.has(normalized)) {
+			continue;
+		}
+		const host = sourceHostFor(normalized);
+		if (!isOpportunityEvidenceUrl(normalized, host)) {
+			continue;
+		}
+		seen.add(normalized);
+		normalizedCandidates.push({
+			index,
+			score: opportunityEvidenceUrlScore(normalized, host),
+			url: normalized,
+			host,
+		});
+	}
+
+	const sampleLinks: OpportunityEvidenceLink[] = [];
+	for (const candidate of normalizedCandidates.sort((left, right) => right.score - left.score || left.index - right.index)) {
+		sampleLinks.push({
+			url: candidate.url,
+			host: candidate.host,
+			label: evidenceLinkLabel(candidate.url),
+		});
+		if (sampleLinks.length >= SAMPLE_LIMIT) {
+			break;
+		}
+	}
+	return sampleLinks;
+}
+
+function extractInlineLinks(content: string): string[] {
+	return [
+		...[...content.matchAll(/\]\((https?:\/\/[^)\s]+|\/[^)\s]+)\)/giu)].map((match) => match[1]),
+		...[...content.matchAll(/\bhref=["']([^"']+)["']/giu)].map((match) => match[1]),
+		...[...content.matchAll(/\bhttps?:\/\/[^\s<>"')]+/giu)].map((match) => match[0]),
+	].filter((value): value is string => Boolean(value));
+}
+
+function normalizeEvidenceUrl(candidate: string, sourceUrl: string): string | undefined {
+	try {
+		return new URL(candidate, sourceUrl).toString();
+	} catch {
+		return undefined;
+	}
+}
+
+function opportunityEvidenceUrlScore(url: string, host: string): number {
+	const parsed = new URL(url);
+	const pathname = parsed.pathname.toLowerCase();
+	if (/\.(pdf|docx?|xlsx?)$/iu.test(pathname)) {
+		return 100;
+	}
+	if (host === "procurement-notices.undp.org" && pathname.includes("view_negotiation")) {
+		return 90;
+	}
+	if (host === "ungm.org" && /^\/public\/notice\/\d+/iu.test(pathname)) {
+		return 90;
+	}
+	if (host === "tenders.go.ke" && pathname.includes("tenders")) {
+		return 80;
+	}
+	if (host === "ungm.org" && pathname.startsWith("/public/notice")) {
+		return 50;
+	}
+	return 10;
+}
+
+function isOpportunityEvidenceUrl(url: string, host: string): boolean {
+	if (isStaticAssetReference(url)) {
+		return false;
+	}
+	const parsed = new URL(url);
+	const pathname = parsed.pathname.toLowerCase();
+	if (/\.(pdf|docx?|xlsx?)$/iu.test(pathname)) {
+		return true;
+	}
+	if (host === "procurement-notices.undp.org" && pathname.includes("view_negotiation")) {
+		return true;
+	}
+	if (host === "ungm.org" && pathname.startsWith("/public/notice")) {
+		return true;
+	}
+	if (host === "tenders.go.ke" && pathname.includes("tenders")) {
+		return true;
+	}
+
+	const haystack = url.toLowerCase();
+	return OPPORTUNITY_ACTION_KEYWORDS.some((keyword) => haystack.includes(keyword.replace(/\s+/gu, "-")))
+		&& OPPORTUNITY_CONTEXT_KEYWORDS.some((keyword) => haystack.includes(keyword.replace(/\s+/gu, "-")));
+}
+
+function isStaticAssetReference(value: string): boolean {
+	return /\.(?:avif|css|gif|ico|jpe?g|js|png|svg|webp|woff2?)(?:$|[?#)\s])/iu.test(value);
+}
+
+function isScriptConfigurationLine(value: string): boolean {
+	return /(?:selector|eoifailure|subscribetitle|subscribemessage|buttontext|has failed.*helpdesk|function\s*\(|var\s+|const\s+|let\s+|=>)/iu.test(value);
+}
+
+function evidenceLinkLabel(url: string): string {
+	try {
+		const parsed = new URL(url);
+		const finalSegment = parsed.pathname.split("/").filter(Boolean).at(-1) ?? parsed.hostname;
+		return decodeURIComponent(finalSegment).replace(/[-_]+/gu, " ").slice(0, 80);
+	} catch {
+		return url.slice(0, 80);
+	}
 }
 
 async function writeArtifacts(proof: LiveDiscoveryProof, disposition: EvidenceRecord["disposition"]) {
@@ -289,8 +614,14 @@ async function writeArtifacts(proof: LiveDiscoveryProof, disposition: EvidenceRe
 			`searxng-total:${proof.searxng?.totalResultCount ?? 0}`,
 			`firecrawl:${proof.firecrawl?.markdownLength ?? 0}`,
 			`firecrawl-procurement-indicators:${proof.firecrawl?.procurementIndicatorCount ?? 0}`,
+			`firecrawl-source-host:${proof.firecrawl?.opportunityEvidence.sourceHost ?? "unknown"}`,
+			`firecrawl-opportunity-snippets:${proof.firecrawl?.opportunityEvidence.opportunitySnippetCount ?? 0}`,
+			`firecrawl-sample-links:${proof.firecrawl?.opportunityEvidence.sampleLinks.length ?? 0}`,
 			`browser:${proof.browserFallback?.markdownLength ?? 0}`,
 			`browser-procurement-indicators:${proof.browserFallback?.procurementIndicatorCount ?? 0}`,
+			`browser-source-host:${proof.browserFallback?.opportunityEvidence.sourceHost ?? "unknown"}`,
+			`browser-opportunity-snippets:${proof.browserFallback?.opportunityEvidence.opportunitySnippetCount ?? 0}`,
+			`browser-sample-links:${proof.browserFallback?.opportunityEvidence.sampleLinks.length ?? 0}`,
 		],
 		topology_tier: "live-connectivity",
 		verification_bucket: "live-safe search + scrape",
