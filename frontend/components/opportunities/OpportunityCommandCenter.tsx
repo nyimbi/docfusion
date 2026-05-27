@@ -131,6 +131,15 @@ export function OpportunityCommandCenter({
 									</Link>
 								)}
 							</div>
+							{dimension.details.length > 0 && (
+								<div className="mt-3 space-y-1 border-t pt-2">
+									{dimension.details.map((detail) => (
+										<p key={detail} className="text-xs leading-relaxed text-muted-foreground">
+											{detail}
+										</p>
+									))}
+								</div>
+							)}
 						</div>
 					))}
 				</CardContent>

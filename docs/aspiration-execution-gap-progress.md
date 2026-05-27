@@ -16,6 +16,25 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Command Center Shows Win Theme Readiness
+
+Status: implemented and verified.
+
+Purpose: surface evaluator win-theme coverage before operators reach the submission form, so command-center readiness cards expose the response strategy gap early.
+
+Changes in this slice:
+- Include evaluator win-theme criteria coverage and seed count in proposal response package workflow descriptions.
+- Carry readiness dimension detail lines into command-center readiness cards.
+- Prevent detail text from making a response-readiness workflow match unrelated readiness dimensions.
+- Add command-center and projection coverage for blocked response-readiness win-theme gaps.
+
+Verification:
+- `npm test -- projections.test.ts work-items-command-center.test.ts` from `frontend/` passed, running 6 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Final Checklist Shows Win Theme Coverage
 
 Status: implemented and verified.
@@ -34,7 +53,6 @@ Verification:
 - `npm run platform:proof -- --run wave6-final-submission-gate` from `frontend/` passed, running 21 tests across final checklist and submission workflows.
 
 Remaining after this slice:
-- Add the same evaluator/win-theme coverage summary to opportunity command-center readiness cards so capture managers see the gap before opening the submission form.
 - Rerun the live persisted import-response proof when PostgreSQL is reachable.
 
 ### 2026-05-27 - UN Procurement Live Source Recovery

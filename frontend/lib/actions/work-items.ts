@@ -438,11 +438,15 @@ function workflowReadinessDescription(row: WorkflowInstanceRow): string | null {
 	}
 	const readiness = asRecord(asRecord(row.metadata).readiness);
 	const metrics = asRecord(readiness.metrics);
+	const winThemeCriteriaCoverage = metrics.winThemeCriteriaCoverage ?? metrics.winThemeCoverage;
+	const winThemeSeedCount = typeof metrics.winThemeSeedCount === "number" && Number.isFinite(metrics.winThemeSeedCount)
+		? metrics.winThemeSeedCount
+		: null;
 	return [
 		`Readiness: ${typeof readiness.status === "string" ? readiness.status : "missing"}`,
 		`Requirement coverage: ${formatPercent(numberMetric(metrics.requirementCoverage))}`,
 		`Review gates: ${formatPercent(numberMetric(metrics.reviewGateCoverage))}`,
-		`Win themes: ${formatPercent(numberMetric(metrics.winThemeCoverage))}`,
+		`Evaluator win themes: ${formatPercent(numberMetric(winThemeCriteriaCoverage))}${winThemeSeedCount === null ? "" : ` (${winThemeSeedCount} seed${winThemeSeedCount === 1 ? "" : "s"})`}`,
 	].join(" | ");
 }
 

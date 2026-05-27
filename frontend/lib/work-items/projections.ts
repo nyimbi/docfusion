@@ -74,6 +74,7 @@ export interface ReadinessDimension {
 	scoreImpact: number;
 	blockerCount: number;
 	warningCount: number;
+	details: string[];
 	owner?: string | null;
 	actionUrl?: string | null;
 }
@@ -218,10 +219,18 @@ export function deriveReadinessDimensions(items: WorkItem[], now = new Date()): 
 			scoreImpact: blockers.length * 18 + warnings.length * 4,
 			blockerCount: blockers.length,
 			warningCount: warnings.length,
+			details: uniqueDetails(matches),
 			owner: mostUrgent?.owner ?? mostUrgent?.role ?? null,
 			actionUrl: mostUrgent?.actionUrl ?? null,
 		};
 	});
+}
+
+function uniqueDetails(items: WorkItem[]): string[] {
+	return [...new Set(items
+		.map((item) => item.description?.trim())
+		.filter((description): description is string => Boolean(description)))]
+		.slice(0, 3);
 }
 
 function deriveItemBlocker(item: WorkItem, now: Date): string | null {
@@ -289,7 +298,6 @@ function itemMatchesDimension(
 	const text = [
 		item.kind,
 		item.title,
-		item.description,
 		item.status,
 		item.subjectType,
 		item.source,

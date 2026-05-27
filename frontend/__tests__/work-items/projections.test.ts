@@ -124,6 +124,17 @@ describe("work item projections", () => {
 				source: "workflow_runtime",
 			},
 			{
+				id: "workflow:response-readiness",
+				kind: "workflow",
+				title: "Response package readiness blocked",
+				description: "Readiness: blocked | Requirement coverage: 100% | Review gates: 100% | Evaluator win themes: 50% (1 seed)",
+				status: "blocked",
+				priority: "critical",
+				role: "capture_manager",
+				actionUrl: "/opportunities/opp-1/submission",
+				source: "workflow_runtime",
+			},
+			{
 				id: "workflow:dispatch",
 				kind: "workflow",
 				title: "Submission receipt captured",
@@ -147,6 +158,14 @@ describe("work item projections", () => {
 			status: "warn",
 			warningCount: 1,
 			owner: "pricing_approver",
+		}));
+		expect(dimensions).toContainEqual(expect.objectContaining({
+			key: "response_quality",
+			status: "block",
+			blockerCount: 1,
+			owner: "capture_manager",
+			actionUrl: "/opportunities/opp-1/submission",
+			details: ["Readiness: blocked | Requirement coverage: 100% | Review gates: 100% | Evaluator win themes: 50% (1 seed)"],
 		}));
 		expect(dimensions).toContainEqual(expect.objectContaining({
 			key: "dispatch",
