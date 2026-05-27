@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - AI Guessed Document URL Guards
+
+Status: implemented and verified.
+
+Purpose: keep the last-resort AI URL guessing strategy from storing blank, non-HTTP, or non-document guessed URLs as discovered tender documents.
+
+Changes in this slice:
+- Validate AI guessed URL rows for non-empty URL text before scoring.
+- Resolve guessed URLs against the source portal and require HTTP(S) document/download-style URLs.
+- Normalize guessed names, document type, reasoning, and numeric confidence before constructing discovered sources.
+- Add regression coverage proving blank AI guessed URL rows do not mark the strategy successful or store blank sources.
+
+Verification:
+- `npm test -- document-discovery-agent.test.ts --run` passed with 6 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` passed with 138 tests.
+
+Remaining after this slice:
+- Continue auditing discovery and response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Unusable AI Win Theme Artifact Fallbacks
 
 Status: implemented and verified.

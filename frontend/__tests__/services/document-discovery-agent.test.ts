@@ -311,6 +311,43 @@ describe("discoverDocumentsWithAgent", () => {
 		]);
 	});
 
+	it("ignores unusable AI guessed URL rows instead of storing blank sources", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: { markdown: "", links: [] },
+		});
+		vi.mocked(quickComplete)
+			.mockResolvedValueOnce(JSON.stringify({
+				queries: [],
+				fileTypeQueries: [],
+			}))
+			.mockResolvedValueOnce(JSON.stringify({
+				guessedUrls: [
+					{ url: "   ", name: "   ", type: "rfp", confidence: 95, reasoning: "blank" },
+					{},
+				],
+			}));
+		vi.mocked(searchSearxng).mockResolvedValue({
+			query: "no matches",
+			number_of_results: 0,
+			results: [],
+		});
+		vi.mocked(searchDocuments).mockResolvedValue([]);
+
+		const result = await discoverDocumentsWithAgent("opp-1", 5);
+
+		expect(result.success).toBe(false);
+		expect(result.strategiesAttempted).toEqual([
+			"primary_portal",
+			"web_search",
+			"alternative_portals",
+			"archive_search",
+			"ai_url_guessing",
+		]);
+		expect(result.strategiesSucceeded).not.toContain("ai_url_guessing");
+		expect(insertedValues).toEqual([]);
+	});
+
 	it("caps alternative portal confidence while preserving evidence signals", async () => {
 		firecrawlScrapeMock.mockImplementation(async (url: string) => {
 			if (url === "https://buyer.example/tenders/records") {

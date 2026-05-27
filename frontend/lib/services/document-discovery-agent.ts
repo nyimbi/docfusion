@@ -624,32 +624,48 @@ Based on common patterns for tender portals, construct likely direct download UR
     // Parse JSON from response
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return (parsed.guessedUrls || []).map((guess: { 
-        url: string; 
-        name: string; 
-        type: string; 
-        confidence: number;
-        reasoning: string;
-      }) => {
-        const name = guess.name || extractFilenameFromUrl(guess.url);
+      const parsed = JSON.parse(jsonMatch[0]) as { guessedUrls?: unknown };
+      const rawGuesses: unknown[] = Array.isArray(parsed.guessedUrls) ? parsed.guessedUrls : [];
+      return rawGuesses.flatMap((guess) => {
+        if (
+          !guess ||
+          typeof guess !== "object" ||
+          typeof (guess as { url?: unknown }).url !== "string" ||
+          (guess as { url: string }).url.trim().length === 0
+        ) {
+          return [];
+        }
+        const rawUrl = (guess as { url: string }).url.trim();
+        const resolvedUrl = normalizeHttpUrl(rawUrl, context.sourceUrl!);
+        if (!resolvedUrl || !isDocumentUrl(resolvedUrl)) return [];
+
+        const rawName = (guess as { name?: unknown }).name;
+        const name = typeof rawName === "string" && rawName.trim().length > 0
+          ? rawName.trim()
+          : extractFilenameFromUrl(resolvedUrl);
+        const rawConfidence = (guess as { confidence?: unknown }).confidence;
         const scoring = scoreDiscoveredDocumentConfidence({
-          url: guess.url,
+          url: resolvedUrl,
           name,
           baseUrl: context.sourceUrl || undefined,
           context,
           sourceKind: "ai_guess",
-          aiConfidence: guess.confidence,
+          aiConfidence: typeof rawConfidence === "number" ? rawConfidence : null,
         });
-        return {
-          url: guess.url,
+        const rawReasoning = (guess as { reasoning?: unknown }).reasoning;
+        const reasoning = typeof rawReasoning === "string" && rawReasoning.trim().length > 0
+          ? rawReasoning.trim()
+          : "pattern-based URL guess";
+        const rawType = (guess as { type?: unknown }).type;
+        return [{
+          url: resolvedUrl,
           name,
-          type: validateDocumentType(guess.type),
+          type: typeof rawType === "string" ? validateDocumentType(rawType) : classifyDocumentFromUrl(resolvedUrl),
           confidence: scoring.confidence,
           source: "ai_guessed",
-          discoveryMethod: `ai_pattern_match: ${guess.reasoning}`,
+          discoveryMethod: `ai_pattern_match: ${reasoning}`,
           description: `AI guess confidence signals: ${scoring.signals.join(", ") || "pattern-based guess"}`,
-        };
+        }];
       });
     }
     
@@ -873,6 +889,16 @@ function resolveUrl(url: string, baseUrl: string): string {
     return new URL(url, baseUrl).toString();
   } catch {
     return url;
+  }
+}
+
+function normalizeHttpUrl(url: string, baseUrl: string): string | null {
+  try {
+    const resolved = new URL(url, baseUrl);
+    if (resolved.protocol !== "http:" && resolved.protocol !== "https:") return null;
+    return resolved.toString();
+  } catch {
+    return null;
   }
 }
 
