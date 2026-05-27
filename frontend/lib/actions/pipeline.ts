@@ -151,6 +151,22 @@ export type ChecklistItem = {
 	description?: string;
 };
 
+function isNonBlankText(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function clampAiConfidence(value: unknown, fallback: number): number {
+	return typeof value === "number" && Number.isFinite(value)
+		? Math.min(0.95, Math.max(0.5, value))
+		: fallback;
+}
+
+const BID_RECOMMENDATIONS = ["bid", "no_bid", "conditional"] as const;
+
+function isBidRecommendation(value: unknown): value is BidDecisionPackage["recommendation"] {
+	return typeof value === "string" && (BID_RECOMMENDATIONS as readonly string[]).includes(value);
+}
+
 // ============================================================================
 // Zod Validation Schemas
 // ============================================================================
@@ -1041,7 +1057,7 @@ Respond with ONLY a JSON object: {"confidence": 0.XX, "note": "brief note"}`;
 
 				try {
 					const parsed = JSON.parse(response.content);
-					confidence = Math.min(0.95, Math.max(0.5, parsed.confidence));
+					confidence = clampAiConfidence(parsed.confidence, confidence);
 				} catch {
 					// Use default confidence if parsing fails
 				}
@@ -1709,6 +1725,18 @@ export async function generateBidDecisionPackage(pipelineId: string): Promise<Ac
 		let competitivePosition = "";
 		let recommendation: "bid" | "no_bid" | "conditional" = "conditional";
 		let conditions: string[] = [];
+		const fallbackAnalysis = () => ({
+			executiveSummary: `Opportunity with ${opportunity.organization} valued at ${opportunity.budgetValue ?? "unknown amount"}. Current PWin assessment is ${pwin}%.`,
+			competitivePosition: pipeline.incumbentStatus === "incumbent" ? "Strong position as incumbent" : "Challenger position requiring differentiation",
+			recommendation: pwin >= 60 ? "bid" as const : pwin >= 40 ? "conditional" as const : "no_bid" as const,
+			conditions: [] as string[],
+		});
+		const applyAnalysis = (analysis: ReturnType<typeof fallbackAnalysis>) => {
+			executiveSummary = analysis.executiveSummary;
+			competitivePosition = analysis.competitivePosition;
+			recommendation = analysis.recommendation;
+			conditions = analysis.conditions;
+		};
 
 		try {
 			const manager = getProviderManager();
@@ -1753,21 +1781,25 @@ Respond with a JSON object:
 
 				try {
 					const parsed = JSON.parse(response.content);
-					executiveSummary = parsed.executiveSummary ?? "";
-					competitivePosition = parsed.competitivePosition ?? "";
-					recommendation = parsed.recommendation ?? "conditional";
-					conditions = parsed.conditions ?? [];
+					if (
+						!isNonBlankText(parsed.executiveSummary) ||
+						!isNonBlankText(parsed.competitivePosition) ||
+						!isBidRecommendation(parsed.recommendation)
+					) {
+						applyAnalysis(fallbackAnalysis());
+					} else {
+						executiveSummary = parsed.executiveSummary.trim();
+						competitivePosition = parsed.competitivePosition.trim();
+						recommendation = parsed.recommendation;
+						conditions = Array.isArray(parsed.conditions)
+							? parsed.conditions.filter(isNonBlankText).map((condition: string) => condition.trim())
+							: [];
+					}
 				} catch {
-					// Generate fallback summary
-					executiveSummary = `Opportunity with ${opportunity.organization} valued at ${opportunity.budgetValue ?? "unknown amount"}. Current PWin assessment is ${pwin}%.`;
-					competitivePosition = pipeline.incumbentStatus === "incumbent" ? "Strong position as incumbent" : "Challenger position requiring differentiation";
-					recommendation = pwin >= 60 ? "bid" : pwin >= 40 ? "conditional" : "no_bid";
+					applyAnalysis(fallbackAnalysis());
 				}
 			} else {
-				// Generate summary without AI
-				executiveSummary = `Opportunity with ${opportunity.organization} valued at ${opportunity.budgetValue ?? "unknown amount"}. Current PWin assessment is ${pwin}%.`;
-				competitivePosition = pipeline.incumbentStatus === "incumbent" ? "Strong position as incumbent" : "Challenger position requiring differentiation";
-				recommendation = pwin >= 60 ? "bid" : pwin >= 40 ? "conditional" : "no_bid";
+				applyAnalysis(fallbackAnalysis());
 			}
 		} catch (aiError) {
 			logger.warn("[Pipeline] AI not available for bid decision package:", aiError);

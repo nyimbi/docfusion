@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Empty AI Capture Pipeline Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep capture pipeline decision support from treating syntactically valid but content-free AI output as successful PWin confidence or bid-decision analysis.
+
+Changes in this slice:
+- Keep suggested PWin confidence finite when AI returns empty JSON or a non-numeric confidence value.
+- Treat bid-decision AI responses with blank executive summary, blank competitive position, or invalid recommendation as unusable.
+- Reuse deterministic bid-decision analysis for unusable AI responses and trim accepted AI fields.
+- Add regression coverage for empty AI JSON in suggested PWin and bid-decision generation.
+
+Verification:
+- `npm test -- pipeline-scope.test.ts --run` passed with 11 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave4-capture-pipeline-scope` passed with 13 tests.
+
+Remaining after this slice:
+- Continue auditing response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Empty AI Document Generation Fallbacks
 
 Status: implemented and verified.

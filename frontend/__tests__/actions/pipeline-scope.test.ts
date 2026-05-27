@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireUserContextMock = vi.hoisted(() => vi.fn());
+const aiProviderMock = vi.hoisted(() => ({
+	isAvailable: vi.fn(async () => false),
+	complete: vi.fn(async () => ({ content: "{}" })),
+}));
 
 interface ChainConfig {
 	result?: unknown[];
@@ -72,10 +76,7 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/ai/providers", () => ({
-	getProviderManager: vi.fn(() => ({
-		isAvailable: vi.fn(async () => false),
-		complete: vi.fn(async () => ({ content: "{}" })),
-	})),
+	getProviderManager: vi.fn(() => aiProviderMock),
 }));
 
 vi.mock("@/lib/actions/workflow-runtime", () => ({
@@ -86,6 +87,7 @@ vi.mock("@/lib/actions/workflow-runtime", () => ({
 import {
 	calculateSuggestedPwin,
 	forecastPipeline,
+	generateBidDecisionPackage,
 	getPipelineAnalytics,
 	getPipelineSummary,
 	identifyAtRiskOpportunities,
@@ -118,6 +120,8 @@ beforeEach(() => {
 		userId: "pipeline-user-1",
 		organizationId: "org-1",
 	});
+	aiProviderMock.isAvailable.mockResolvedValue(false);
+	aiProviderMock.complete.mockResolvedValue({ content: "{}" });
 });
 
 describe("pipeline row scoping", () => {
@@ -250,6 +254,65 @@ describe("pipeline row scoping", () => {
 		});
 		expectOpportunityTenantScope(activityWhere);
 		expectOpportunityTenantScope(partnersWhere);
+	});
+
+	it("keeps suggested PWin confidence finite when AI returns empty JSON", async () => {
+		aiProviderMock.isAvailable.mockResolvedValue(true);
+		aiProviderMock.complete.mockResolvedValue({ content: "{}" });
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [pipeline] }))
+			.mockReturnValueOnce(createChain({ result: [{ ...opportunity, fitScore: 65, organization: "Acme" }] }))
+			.mockReturnValueOnce(createChain({ result: [{ count: 2 }] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		const result = await calculateSuggestedPwin(opportunity.id);
+
+		expect(result).toMatchObject({
+			success: true,
+			data: { confidence: 0.7 },
+		});
+		expect(result.success && Number.isFinite(result.data.confidence)).toBe(true);
+	});
+
+	it("uses deterministic bid-decision analysis when AI returns empty JSON", async () => {
+		aiProviderMock.isAvailable.mockResolvedValue(true);
+		aiProviderMock.complete.mockResolvedValue({ content: "{}" });
+		const activePipeline = {
+			...pipeline,
+			customerRelationshipScore: 8,
+			incumbentStatus: "challenger",
+			solutionReadiness: "ready",
+			teamingStatus: "complete",
+			totalInvestment: 5_000,
+			proposalInvestment: 10_000,
+		};
+		const bidOpportunity = {
+			...opportunity,
+			organization: "Acme",
+			budgetValue: "$100,000",
+			fitScore: 70,
+		};
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [activePipeline] }))
+			.mockReturnValueOnce(createChain({ result: [bidOpportunity] }))
+			.mockReturnValueOnce(createChain({ result: [{ status: "completed" }] }))
+			.mockReturnValueOnce(createChain({ result: [activePipeline] }))
+			.mockReturnValueOnce(createChain({ result: [bidOpportunity] }))
+			.mockReturnValueOnce(createChain({ result: [{ count: 2 }] }))
+			.mockReturnValueOnce(createChain({ result: [] }));
+
+		const result = await generateBidDecisionPackage(pipeline.id);
+
+		expect(result).toMatchObject({
+			success: true,
+			data: {
+				executiveSummary: "Opportunity with Acme valued at $100,000. Current PWin assessment is 86%.",
+				competitivePosition: "Challenger position requiring differentiation",
+				recommendation: "bid",
+			},
+		});
+		expect(result.success && result.data.executiveSummary.trim().length > 0).toBe(true);
+		expect(result.success && result.data.competitivePosition.trim().length > 0).toBe(true);
 	});
 
 	it("scopes analytics reads to assigned opportunities", async () => {
