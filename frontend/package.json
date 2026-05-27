@@ -10,6 +10,7 @@
     "test": "vitest",
     "test:e2e": "playwright test",
     "db:push": "npx drizzle-kit push",
+    "db:record-migration": "npx tsx scripts/record-drizzle-migration.ts",
     "db:seed:templates": "npx tsx scripts/seed-templates.ts",
     "db:import:partners": "npx tsx scripts/import-partners.ts",
     "workflow:worker": "npx tsx scripts/workflow-runtime-worker.ts",

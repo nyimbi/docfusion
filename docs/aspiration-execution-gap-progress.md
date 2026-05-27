@@ -4370,6 +4370,30 @@ Testing scope note:
 Remaining after this slice:
 - Continue broadening live source coverage and add operational migration tracking for manual live schema repairs.
 
+### 2026-05-27 - Live Migration Ledger Recording
+
+Status: implemented and verified.
+
+Purpose: prevent applied live schema repairs from remaining invisible to the Drizzle migration ledger.
+
+Changes in this slice:
+- Add `npm run db:record-migration -- <migration.sql>` to record an already-applied SQL migration in `drizzle.__drizzle_migrations`.
+- Compute the same SHA-256 hash Drizzle uses for migration files and use the migration journal timestamp when available, falling back to the SQL file mtime for manual repair files.
+- Make the recorder idempotent with a `--dry-run` path that reports whether a row would be inserted or is already recorded.
+
+Verification:
+- `npx tsc --noEmit --pretty false` passed.
+- `set -a; source .env.local; set +a; npm run db:record-migration -- 0032_live_response_persistence_tenant_repair.sql --dry-run` reported `would-insert` before recording.
+- `set -a; source .env.local; set +a; npm run db:record-migration -- 0032_live_response_persistence_tenant_repair.sql` inserted the live ledger row.
+- `psql` confirmed `drizzle.__drizzle_migrations` now contains hash `28b827ba64784d8af4bdb674c11bcb7073a269eb18bf096200e628028bc4b5f3` for created_at `1779845173133`.
+- A follow-up dry run reported `already-recorded`.
+
+Testing scope note:
+- This records the already-applied repair in the migration ledger; it does not retrofit the older missing Drizzle journal entries.
+
+Remaining after this slice:
+- Reconcile older manual migrations with `frontend/drizzle/meta/_journal.json` before relying on `drizzle-kit migrate` for fresh database rebuilds.
+
 ### 2026-05-26 - Workflow Runtime Tenant Anchor
 
 Status: implemented and verified.
