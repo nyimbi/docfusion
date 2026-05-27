@@ -47,6 +47,7 @@ const SOURCE_PAGE_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_PAGE
 const SOURCE_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_LIMIT ?? 10);
 const SOURCE_DETAIL_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_DETAIL_LIMIT ?? 5);
 const DOCLING_CONVERSION_ATTEMPTS = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_DOCLING_ATTEMPTS ?? 3);
+const DB_CONNECTION_TIMEOUT_MS = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_DB_TIMEOUT_MS ?? 5000);
 
 interface PersistedProofIds {
 	organizationId: string;
@@ -120,6 +121,15 @@ interface LivePersistedImportResponseProof {
 		checkedColumns: string[];
 		checkedIndexes: string[];
 	};
+	database?: {
+		configured: boolean;
+		host?: string;
+		port?: string;
+		database?: string;
+		sslMode?: string;
+		connectionTimeoutMs: number;
+		schemaPreflight: "not-run" | "passed";
+	};
 	cleanup?: {
 		results: CleanupResult[];
 		remainingRows?: Record<string, number>;
@@ -163,6 +173,7 @@ async function main() {
 			url: SOURCE_URL,
 			opportunityCount: 0,
 		},
+		database: databaseTargetFromEnv(),
 	};
 	let disposition: EvidenceRecord["disposition"] = "fail";
 
@@ -251,6 +262,10 @@ async function proveLivePersistedImportResponse(
 			missingWinThemeEvaluationCriteriaIds: responsePackage.readiness.missingWinThemeEvaluationCriteriaIds,
 		},
 		schema,
+		database: {
+			...databaseTargetFromEnv(),
+			schemaPreflight: "passed",
+		},
 		persisted,
 	};
 }
@@ -278,6 +293,7 @@ async function assertPersistedProofSchemaReady(): Promise<NonNullable<LivePersis
 	const pool = new Pool({
 		connectionString: databaseUrl,
 		ssl: { rejectUnauthorized: false },
+		connectionTimeoutMillis: DB_CONNECTION_TIMEOUT_MS,
 	});
 	try {
 		const columnPredicate = REQUIRED_DB_COLUMNS
@@ -845,6 +861,37 @@ function sourcePlatformLabel(source: OpportunityData["source"]): string {
 	return "Live source discovery";
 }
 
+function databaseTargetFromEnv(): NonNullable<LivePersistedImportResponseProof["database"]> {
+	const databaseUrl = process.env.DATABASE_URL;
+	if (!databaseUrl) {
+		return {
+			configured: false,
+			connectionTimeoutMs: DB_CONNECTION_TIMEOUT_MS,
+			schemaPreflight: "not-run",
+		};
+	}
+
+	try {
+		const parsed = new URL(databaseUrl);
+		return {
+			configured: true,
+			host: parsed.hostname,
+			port: parsed.port || "5432",
+			database: parsed.pathname.replace(/^\/+/u, "") || undefined,
+			sslMode: parsed.searchParams.get("sslmode") ?? undefined,
+			connectionTimeoutMs: DB_CONNECTION_TIMEOUT_MS,
+			schemaPreflight: "not-run",
+		};
+	} catch {
+		return {
+			configured: true,
+			host: "unparseable",
+			connectionTimeoutMs: DB_CONNECTION_TIMEOUT_MS,
+			schemaPreflight: "not-run",
+		};
+	}
+}
+
 function cleanExtractedText(text: string): string {
 	return text
 		.replace(/!\[Image]\(data:image\/[^)]+\)/g, " ")
@@ -887,6 +934,9 @@ async function writeArtifacts(
 			`log:${relativeRawPath}`,
 			`source-kind:${proof.source.kind}`,
 			`source:${proof.source.url}`,
+			`database-host:${proof.database?.host ?? "unconfigured"}`,
+			`database-port:${proof.database?.port ?? "unknown"}`,
+			`database-schema-preflight:${proof.database?.schemaPreflight ?? "not-run"}`,
 			...(proof.source.apiUrl ? [`source-api:${proof.source.apiUrl}`] : []),
 			`opportunities:${proof.source.opportunityCount}`,
 			`document-bytes:${proof.document?.byteLength ?? 0}`,

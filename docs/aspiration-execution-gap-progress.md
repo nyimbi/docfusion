@@ -16,6 +16,25 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Persisted Proof Database Target Evidence
+
+Status: implemented and verified; DB path still externally blocked.
+
+Purpose: make DB-backed persisted import-response failures record sanitized database target and schema-preflight state, so blocker evidence is clearer without exposing credentials.
+
+Changes in this slice:
+- Added sanitized database target metadata to the live persisted import-response proof: configured status, host, port, database name, SSL mode when present, connection timeout, and schema-preflight state.
+- Added a bounded PostgreSQL connection timeout for the persisted proof schema preflight.
+- Added database host, port, and schema-preflight state to persisted proof evidence rows.
+
+Verification:
+- `npm test -- platform-proof-scenarios.test.ts --run` passed with 6 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-kenya-ppip-persisted-import-response --include-live-safe` failed as expected with run `live_kenya_ppip_persisted_import_response_20260527T164138Z`, but the proof now records database host `88.80.188.224`, port `5432`, database `lnd`, timeout 5000ms, and schema preflight `not-run`.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity to `88.80.188.224:5432`, then rerun `live-persisted-import-response` and `live-kenya-ppip-persisted-import-response`.
+
 ### 2026-05-27 - Kenya PPIP Persisted Proof Retry Still DB Blocked
 
 Status: externally blocked.
