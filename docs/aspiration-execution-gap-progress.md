@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Quality Assessment Scoring
+
+Status: implemented and verified.
+
+Purpose: prevent document quality assessment from reporting random or placeholder scores while response drafts and review artifacts are being hardened.
+
+Changes in this slice:
+- Replace placeholder fact-accuracy and source-credibility descriptions with measurable evidence-signal language.
+- Fix the sentence-structure factor key so sentence variety no longer falls through to generic scoring.
+- Replace random default factor scoring with deterministic, evidence-based heuristics for flow, key message clarity, citations, hierarchy, transitions, data presentation, tone, jargon, format, visual consistency, compliance, audience alignment, risk mitigation, timeline, budget, and team qualification signals.
+- Keep unverified fact claims as explicit review warnings instead of fabricated neutral confidence.
+- Add regression coverage proving repeated assessments produce identical scores and no placeholder quality claims appear in measured factor output.
+- Add deterministic quality assessment coverage to the Wave 5 AI/content governance proof manifest.
+
+Verification:
+- `npm test -- quality-assessment.test.ts quality-assessment-auth.test.ts quality-assessment-scope.test.ts platform-proof-scenarios.test.ts` passed with 16 tests.
+- `npm run platform:proof -- --run wave5-ai-content-governance` passed with 24 tests.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 11 tests.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` passed with 133 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue replacing any response-support quality paths that still depend on generic confidence or unavailable-state placeholders.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Live Response Readiness Revalidation
 
 Status: passed.

@@ -96,14 +96,14 @@ export const QUALITY_FACTORS: QualityFactorDefinition[] = [
 		id: "fact_accuracy",
 		name: "Fact Accuracy",
 		category: "content",
-		description: "Correctness of stated facts (placeholder - requires external verification)",
+		description: "Presence of verifiable evidence signals for stated facts",
 		weight: 0.08,
 	},
 	{
 		id: "source_credibility",
 		name: "Source Credibility",
 		category: "content",
-		description: "Credibility of cited sources (placeholder)",
+		description: "Specificity and credibility signals in cited sources",
 		weight: 0.06,
 	},
 	{
@@ -438,8 +438,10 @@ export interface QualityAssessmentInput {
 /**
  * Generate a unique ID.
  */
+let generatedIdCounter = 0;
 export function generateId(): string {
-	return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+	generatedIdCounter += 1;
+	return `qa-${Date.now()}-${generatedIdCounter.toString(36)}`;
 }
 
 /**
@@ -821,34 +823,26 @@ export function checkSectionStructure(text: string): {
 	hasHeaders: boolean;
 	headerCount: number;
 } {
-	const lowerText = text.toLowerCase();
-
 	const introPatterns = [
-		/^#?\s*introduction/i,
-		/^##?\s*introduction/i,
-		/^#?\s*overview/i,
-		/^##?\s*overview/i,
-		/^#?\s*background/i,
+		/^#{0,6}\s*introduction\b/im,
+		/^#{0,6}\s*overview\b/im,
+		/^#{0,6}\s*background\b/im,
 	];
 
 	const conclusionPatterns = [
-		/^#?\s*conclusion/i,
-		/^##?\s*conclusion/i,
-		/^#?\s*summary/i,
-		/^##?\s*summary/i,
-		/^#?\s*next steps/i,
-		/^##?\s*next steps/i,
+		/^#{0,6}\s*conclusion\b/im,
+		/^#{0,6}\s*summary\b/im,
+		/^#{0,6}\s*next steps\b/im,
 	];
 
 	const execSummaryPatterns = [
-		/^#?\s*executive summary/i,
-		/^##?\s*executive summary/i,
-		/^#?\s*exec summary/i,
+		/^#{0,6}\s*executive summary\b/im,
+		/^#{0,6}\s*exec summary\b/im,
 	];
 
-	const hasIntroduction = introPatterns.some((p) => p.test(lowerText));
-	const hasConclusion = conclusionPatterns.some((p) => p.test(lowerText));
-	const hasExecutiveSummary = execSummaryPatterns.some((p) => p.test(lowerText));
+	const hasIntroduction = introPatterns.some((p) => p.test(text));
+	const hasConclusion = conclusionPatterns.some((p) => p.test(text));
+	const hasExecutiveSummary = execSummaryPatterns.some((p) => p.test(text));
 
 	// Count headers (markdown style)
 	const headerMatches = text.match(/^#{1,6}\s+/gm);
@@ -918,6 +912,37 @@ function createAnalysisContext(text: string): FactorAnalysisContext {
 		weakLanguage: findWeakLanguage(text),
 		sectionStructure: checkSectionStructure(text),
 	};
+}
+
+function countPatternMatches(text: string, patterns: RegExp[]): number {
+	return patterns.reduce((sum, pattern) => sum + (text.match(pattern)?.length ?? 0), 0);
+}
+
+function countKeywordMentions(text: string, keywords: string[]): number {
+	const escaped = keywords.map((keyword) => keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+	const pattern = new RegExp(`\\b(?:${escaped.join("|")})\\b`, "gi");
+	return text.match(pattern)?.length ?? 0;
+}
+
+function scoreFromCount(
+	count: number,
+	thresholds: { excellent: number; good: number; average: number },
+	emptyIssueScore = 45
+): number {
+	if (count >= thresholds.excellent) return 90;
+	if (count >= thresholds.good) return 78;
+	if (count >= thresholds.average) return 65;
+	return emptyIssueScore;
+}
+
+function deterministicBaselineScore(context: FactorAnalysisContext): number {
+	let score = 55;
+	if (context.wordCount >= 300) score += 10;
+	if (context.sectionStructure.hasHeaders) score += 10;
+	if (context.transitions.count > 0) score += 8;
+	if (context.readabilityGrade >= 8 && context.readabilityGrade <= 14) score += 7;
+	if (context.weakLanguage.reduce((sum, w) => sum + w.count, 0) === 0) score += 5;
+	return Math.min(score, 90);
 }
 
 /**
@@ -1000,6 +1025,78 @@ function analyzeFactor(
 			break;
 		}
 
+		case "logical_flow": {
+			const orderedMarkers = countKeywordMentions(context.text, [
+				"first",
+				"second",
+				"third",
+				"next",
+				"then",
+				"finally",
+				"therefore",
+				"because",
+				"consequently",
+			]);
+			const hasMultiSectionStructure = context.sectionStructure.headerCount >= 3;
+			actualValue = `${context.transitions.count} transitions, ${context.sectionStructure.headerCount} headers`;
+			score = scoreFromCount(context.transitions.count + orderedMarkers, {
+				excellent: 6,
+				good: 3,
+				average: 1,
+			});
+			if (hasMultiSectionStructure) score = Math.min(95, score + 8);
+			if (context.transitions.count === 0 && !hasMultiSectionStructure) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "Document has limited section structure or transition language to show idea progression",
+					suggestion: "Add section headings and connective phrases that make the evaluation logic explicit",
+				});
+			}
+			details = `Measured ${context.transitions.count} transition phrases, ${orderedMarkers} ordering markers, and ${context.sectionStructure.headerCount} markdown headers`;
+			break;
+		}
+
+		case "key_message_clarity": {
+			const firstParagraph = context.paragraphs.find((paragraph) =>
+				paragraph
+					.split("\n")
+					.some((line) => line.trim().length > 0 && !/^#{1,6}\s+\S+/.test(line.trim()))
+			) ?? "";
+			const messageSignals = countKeywordMentions(firstParagraph, [
+				"will",
+				"deliver",
+				"provide",
+				"enable",
+				"ensure",
+				"improve",
+				"reduce",
+				"support",
+				"objective",
+				"outcome",
+				"benefit",
+			]);
+			const headingSignal = /^#\s+\S+/m.test(context.text) ? 1 : 0;
+			actualValue = `${messageSignals} opening message signals`;
+			score = scoreFromCount(messageSignals + headingSignal, {
+				excellent: 5,
+				good: 3,
+				average: 1,
+			});
+			if (messageSignals === 0) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "Opening paragraph does not clearly state the primary offer, outcome, or reader benefit",
+					suggestion: "State the proposal's main outcome and value in the first paragraph",
+				});
+			}
+			details = `Opening paragraph contains ${messageSignals} explicit outcome or offer signals`;
+			break;
+		}
+
 		case "readability_score": {
 			actualValue = context.readabilityGrade.toFixed(1);
 			if (context.readabilityGrade < 8) {
@@ -1028,11 +1125,17 @@ function analyzeFactor(
 			break;
 		}
 
-		case "sentenc e_structure_variety": {
+		case "sentence_structure_variety": {
 			// Analyze sentence length distribution
 			const sentenceLengths = context.sentences.map((s) =>
 				s.trim().split(/\s+/).filter(Boolean).length
 			);
+			if (sentenceLengths.length === 0) {
+				score = 0;
+				actualValue = "0.0%";
+				details = "No sentences found";
+				break;
+			}
 			const avg = sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length;
 			const variance =
 				sentenceLengths.reduce((sum, l) => sum + Math.pow(l - avg, 2), 0) /
@@ -1476,7 +1579,7 @@ function analyzeFactor(
 				if (matches) evidenceCount += matches.length;
 			}
 
-			const evidenceRatio = evidenceCount / context.sentenceCount;
+			const evidenceRatio = context.sentenceCount > 0 ? evidenceCount / context.sentenceCount : 0;
 			actualValue = (evidenceRatio * 100).toFixed(1) + "%";
 
 			if (evidenceRatio < 0.1) {
@@ -1558,21 +1661,418 @@ function analyzeFactor(
 			break;
 		}
 
-		// === Default factors ===
-		case "fact_accuracy":
-		case "source_credibility": {
-			// Placeholder - would require external fact-checking
-			score = 75;
-			details = "Requires manual verification or external API";
-			actualValue = "N/A (placeholder)";
+		case "fact_accuracy": {
+			const verificationSignals = countPatternMatches(context.text, [
+				/\baccording to\b/gi,
+				/\bas reported by\b/gi,
+				/\bverified by\b/gi,
+				/\bevidence\b/gi,
+				/\bsource:\s*\S+/gi,
+				/\[[0-9]+\]/g,
+				/\b(?:https?:\/\/|www\.)\S+/gi,
+			]);
+			actualValue = `${verificationSignals} verification signals`;
+			score = scoreFromCount(verificationSignals, {
+				excellent: 5,
+				good: 3,
+				average: 1,
+			}, 50);
+			if (verificationSignals === 0) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "No verification signals found for factual claims",
+					suggestion: "Attach source references or evidence notes to factual and quantified claims",
+				});
+			}
+			details = `Found ${verificationSignals} citation, source, or evidence signals; external fact-checking is still required for final approval`;
 			break;
 		}
 
+		case "source_credibility": {
+			const sourceSignals = countPatternMatches(context.text, [
+				/\bsource:\s*[^\n]+/gi,
+				/\baccording to\s+[A-Z][A-Za-z0-9&., -]+/gi,
+				/\b(?:https?:\/\/|www\.)\S+/gi,
+				/\b(?:government|ministry|world bank|united nations|UNGM|auditor|annual report|procurement notice)\b/gi,
+			]);
+			actualValue = `${sourceSignals} source specificity signals`;
+			score = scoreFromCount(sourceSignals, {
+				excellent: 4,
+				good: 2,
+				average: 1,
+			}, 45);
+			if (sourceSignals === 0) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "Sources are not specific enough to evaluate credibility",
+					suggestion: "Name the source organization, publication, or URL for key evidence",
+				});
+			}
+			details = `Found ${sourceSignals} named-source, URL, or authority signals`;
+			break;
+		}
+
+		case "header_hierarchy": {
+			const headerLevels = [...context.text.matchAll(/^(#{1,6})\s+\S+/gm)].map((match) => match[1].length);
+			const jumps = headerLevels.filter((level, index) => index > 0 && level - headerLevels[index - 1] > 1).length;
+			actualValue = `${headerLevels.length} headers, ${jumps} hierarchy jumps`;
+			if (headerLevels.length === 0) {
+				score = 35;
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "No heading hierarchy found",
+					suggestion: "Use headings to show section order and reviewer navigation",
+				});
+			} else if (jumps > 0) {
+				score = 65;
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "low",
+					message: `${jumps} heading level jump(s) found`,
+					suggestion: "Avoid skipping heading levels in proposal sections",
+				});
+			} else {
+				score = headerLevels.length >= 3 ? 92 : 80;
+			}
+			details = `Header levels: ${headerLevels.join(", ") || "none"}`;
+			break;
+		}
+
+		case "transitions_sections": {
+			const transitionsPerSection = context.sectionStructure.headerCount > 0
+				? context.transitions.count / context.sectionStructure.headerCount
+				: context.transitions.count;
+			actualValue = transitionsPerSection.toFixed(2);
+			score = scoreFromCount(Math.round(transitionsPerSection * 10), {
+				excellent: 10,
+				good: 5,
+				average: 1,
+			}, 50);
+			if (context.transitions.count === 0) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "No transition language found between sections",
+					suggestion: "Add transition sentences that explain why the next section follows",
+				});
+			}
+			details = `${context.transitions.count} transition phrases across ${context.sectionStructure.headerCount || 1} section group(s)`;
+			break;
+		}
+
+		case "data_presentation_quality": {
+			const tableCount = context.text.match(/^\|.+\|$/gm)?.length ?? 0;
+			const listCount = context.text.match(/^\s*(?:[-*]|\d+\.)\s+\S+/gm)?.length ?? 0;
+			const figureMentions = countKeywordMentions(context.text, ["table", "figure", "chart", "dashboard", "matrix", "appendix"]);
+			const metricCount = countPatternMatches(context.text, [/\d+%/g, /\$[\d,]+/g, /\b\d+(?:\.\d+)?x\b/gi]);
+			const presentationSignals = tableCount + listCount + figureMentions + metricCount;
+			actualValue = `${presentationSignals} data presentation signals`;
+			score = scoreFromCount(presentationSignals, {
+				excellent: 8,
+				good: 4,
+				average: 1,
+			}, 45);
+			if (presentationSignals === 0) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "low",
+					message: "No tables, lists, figures, or quantified presentation signals found",
+					suggestion: "Use tables, bullets, or figures for dense data and evidence",
+				});
+			}
+			details = `${tableCount} table rows, ${listCount} list items, ${figureMentions} visual references, ${metricCount} key metrics`;
+			break;
+		}
+
+		case "tone_consistency": {
+			const weakPhraseCount = context.weakLanguage.reduce((sum, w) => sum + w.count, 0);
+			const informalCount = countPatternMatches(context.text, [
+				/\bain't\b/gi,
+				/\bgonna\b/gi,
+				/\bwanna\b/gi,
+				/!{2,}/g,
+			]);
+			const toneIssues = weakPhraseCount + informalCount;
+			actualValue = `${toneIssues} tone drift signals`;
+			score = toneIssues === 0 ? 92 : toneIssues <= 3 ? 78 : toneIssues <= 8 ? 62 : 45;
+			if (toneIssues > 3) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: `${toneIssues} weak or informal language signals may create inconsistent tone`,
+					suggestion: "Normalize language to a confident proposal voice",
+				});
+			}
+			details = `${weakPhraseCount} weak-language hits and ${informalCount} informal tone hits`;
+			break;
+		}
+
+		case "jargon_usage": {
+			const jargonSignals = countKeywordMentions(context.text, [
+				"architecture",
+				"integration",
+				"interoperability",
+				"governance",
+				"metadata",
+				"analytics",
+				"workflow",
+				"automation",
+				"security",
+				"migration",
+				"compliance",
+			]);
+			const contextSignals = countKeywordMentions(context.text, ["means", "defined", "called", "including", "such as", "for example"]);
+			actualValue = `${jargonSignals} technical terms, ${contextSignals} context signals`;
+			if (jargonSignals === 0) {
+				score = 70;
+			} else if (contextSignals >= Math.ceil(jargonSignals / 4)) {
+				score = 88;
+			} else {
+				score = 62;
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "low",
+					message: "Technical terms appear without enough explanatory context",
+					suggestion: "Define domain terms when they first appear or tie them to evaluator outcomes",
+				});
+			}
+			details = `Measured ${jargonSignals} technical terms against ${contextSignals} definition or example signals`;
+			break;
+		}
+
+		case "format_compliance": {
+			const formatSignals = Number(context.sectionStructure.hasHeaders)
+				+ Number(context.paragraphCount >= 3)
+				+ Number(context.wordCount >= 300)
+				+ Number(context.avgSentenceLength > 0 && context.avgSentenceLength <= 28);
+			actualValue = `${formatSignals}/4 format signals`;
+			score = [35, 55, 70, 85, 94][formatSignals] ?? 35;
+			if (formatSignals < 3) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "Document lacks enough structural signals for basic format compliance",
+					suggestion: "Use headings, complete paragraphs, and controlled sentence length",
+				});
+			}
+			details = `Headers: ${context.sectionStructure.hasHeaders}, paragraphs: ${context.paragraphCount}, words: ${context.wordCount}, average sentence length: ${context.avgSentenceLength.toFixed(1)}`;
+			break;
+		}
+
+		case "visual_consistency": {
+			const markdownArtifacts = countPatternMatches(context.text, [/^\s*[-*]\s+\S+/gm, /^\s*\d+\.\s+\S+/gm, /^\|.+\|$/gm, /\*\*[^*]+\*\*/g]);
+			const malformedMarkers = countPatternMatches(context.text, [/\*\*[^*]*(?:\n|$)/g, /^\s*[-*]\s*$/gm]);
+			actualValue = `${markdownArtifacts} visual markers, ${malformedMarkers} malformed markers`;
+			score = malformedMarkers === 0
+				? markdownArtifacts > 0 ? 88 : 75
+				: malformedMarkers <= 2 ? 65 : 45;
+			if (malformedMarkers > 0) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "low",
+					message: `${malformedMarkers} potentially malformed visual formatting marker(s) found`,
+					suggestion: "Review bold markers, list items, and table rows for consistency",
+				});
+			}
+			details = `Found ${markdownArtifacts} structural formatting markers and ${malformedMarkers} malformed markers`;
+			break;
+		}
+
+		case "compliance_alignment": {
+			const complianceSignals = countKeywordMentions(context.text, [
+				"shall",
+				"must",
+				"required",
+				"requirement",
+				"compliance",
+				"compliant",
+				"mandatory",
+				"evaluation",
+				"criteria",
+				"RFP",
+				"solicitation",
+			]);
+			actualValue = `${complianceSignals} compliance signals`;
+			score = scoreFromCount(complianceSignals, {
+				excellent: 8,
+				good: 4,
+				average: 1,
+			}, 45);
+			if (complianceSignals === 0) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "high",
+					message: "No explicit requirement or compliance language found",
+					suggestion: "Tie response sections to mandatory requirements and evaluation criteria",
+				});
+			}
+			details = `Found ${complianceSignals} requirement, mandatory, or evaluation criteria signals`;
+			break;
+		}
+
+		case "target_audience_alignment": {
+			const audienceSignals = countKeywordMentions(context.text, [
+				"client",
+				"agency",
+				"ministry",
+				"evaluator",
+				"committee",
+				"user",
+				"stakeholder",
+				"beneficiary",
+				"community",
+				"procurement",
+			]);
+			actualValue = `${audienceSignals} audience signals`;
+			score = scoreFromCount(audienceSignals, {
+				excellent: 6,
+				good: 3,
+				average: 1,
+			}, 50);
+			if (audienceSignals === 0) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "Document does not name the evaluator, client, users, or stakeholders",
+					suggestion: "Anchor benefits to the reader's role and operating context",
+				});
+			}
+			details = `Found ${audienceSignals} reader, stakeholder, or evaluator references`;
+			break;
+		}
+
+		case "risk_mitigation_quality": {
+			const riskMentions = countKeywordMentions(context.text, ["risk", "challenge", "issue", "constraint", "dependency"]);
+			const mitigationMentions = countKeywordMentions(context.text, ["mitigate", "mitigation", "control", "contingency", "monitor", "escalate", "owner"]);
+			actualValue = `${riskMentions} risks, ${mitigationMentions} mitigation signals`;
+			if (riskMentions === 0) {
+				score = 45;
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "Risks are not paired with mitigation plans",
+					suggestion: "Identify key delivery risks and assign controls, owners, and triggers",
+				});
+			} else if (mitigationMentions >= riskMentions) {
+				score = 90;
+			} else if (mitigationMentions > 0) {
+				score = 72;
+			} else {
+				score = 55;
+			}
+			details = `Risk mentions: ${riskMentions}; mitigation/control mentions: ${mitigationMentions}`;
+			break;
+		}
+
+		case "timeline_feasibility": {
+			const timelineSignals = countPatternMatches(context.text, [
+				/\b(?:day|week|month|quarter|phase|milestone|schedule|timeline|deadline)\b/gi,
+				/\b\d+\s*(?:days?|weeks?|months?|quarters?)\b/gi,
+			]);
+			actualValue = `${timelineSignals} timeline signals`;
+			score = scoreFromCount(timelineSignals, {
+				excellent: 5,
+				good: 3,
+				average: 1,
+			}, 45);
+			if (timelineSignals === 0) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "No schedule, phase, milestone, or duration evidence found",
+					suggestion: "Add a realistic phase or milestone timeline with durations",
+				});
+			}
+			details = `Found ${timelineSignals} schedule, milestone, or duration signals`;
+			break;
+		}
+
+		case "budget_justification": {
+			const budgetSignals = countPatternMatches(context.text, [
+				/\$[\d,]+/g,
+				/\b(?:budget|cost|price|pricing|fee|value for money|level of effort|LOE|resource|resources)\b/gi,
+			]);
+			const rationaleSignals = countKeywordMentions(context.text, ["because", "based on", "aligned", "reflects", "includes", "covers"]);
+			actualValue = `${budgetSignals} budget signals, ${rationaleSignals} rationale signals`;
+			if (budgetSignals === 0) {
+				score = 45;
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "No budget or cost justification language found",
+					suggestion: "Explain how costs map to scope, effort, and value for money",
+				});
+			} else if (rationaleSignals >= 2) {
+				score = 88;
+			} else {
+				score = 68;
+			}
+			details = `Budget/cost signals: ${budgetSignals}; rationale signals: ${rationaleSignals}`;
+			break;
+		}
+
+		case "team_qualifications_match": {
+			const qualificationSignals = countKeywordMentions(context.text, [
+				"team",
+				"personnel",
+				"expert",
+				"specialist",
+				"experience",
+				"certified",
+				"qualification",
+				"past performance",
+				"delivered",
+				"implemented",
+			]);
+			actualValue = `${qualificationSignals} qualification signals`;
+			score = scoreFromCount(qualificationSignals, {
+				excellent: 7,
+				good: 4,
+				average: 1,
+			}, 45);
+			if (qualificationSignals === 0) {
+				issues.push({
+					id: generateId(),
+					factorId: factor.id,
+					priority: "medium",
+					message: "Team qualifications are not tied to delivery requirements",
+					suggestion: "Name relevant roles, experience, certifications, and past delivery proof",
+				});
+			}
+			details = `Found ${qualificationSignals} team, credential, or delivery-experience signals`;
+			break;
+		}
+
+		// === Default factors ===
 		default: {
-			// Default scoring based on document length and structure
-			const structureBonus = context.sectionStructure.hasHeaders ? 10 : 0;
-			score = 70 + Math.random() * 15 + structureBonus; // 70-95 range
-			actualValue = "Auto-assessed";
+			score = deterministicBaselineScore(context);
+			actualValue = "Deterministic baseline";
+			details = "Scored from document length, section structure, transitions, readability, and weak-language signals";
+			issues.push({
+				id: generateId(),
+				factorId: factor.id,
+				priority: "low",
+				message: "No dedicated quality rule exists for this factor",
+				suggestion: "Add a factor-specific rule before using this score in approval gates",
+			});
 		}
 	}
 
@@ -1713,7 +2213,7 @@ export function runQualityAssessment(
 			weakLanguageCount: context.weakLanguage.reduce((sum, w) => sum + w.count, 0),
 		},
 		assessedAt: new Date(),
-		modelVersion: "quality-assessment-v1.0",
+		modelVersion: "quality-assessment-v1.1",
 	};
 }
 
