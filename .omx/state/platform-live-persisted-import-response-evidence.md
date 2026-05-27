@@ -1,0 +1,5 @@
+# Platform Live Persisted Import Response Evidence
+
+| facility | journey | run_id | artifact_ids | topology_tier | verification_bucket | timestamp | operator | cleanup_status | disposition | notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| F-001/F-005/F-008/F-020 | J1/O1/O4 | `live_persisted_import_response_20260527T013517Z` | `log:.omx/logs/platform-completion/live-persisted-import-response-live_persisted_import_response_20260527T013517Z/live-persisted-import-response.json`, `source:https://www.ungm.org/Public/Notice?title=software`, `opportunities:10`, `opportunity-row:1`, `source-document-row:1`, `rfp-document-row:1`, `requirement-rows:8`, `proposal-document-rows:6`, `response-document-rows:6`, `cleanup-remaining:0` | live-connectivity | live-safe persisted import-to-response | 2026-05-27T01:35:45.080Z | Codex | restored | pass | Live opportunity, source document, parsed RFP, requirements, and response draft records were persisted, verified, and cleaned up. |

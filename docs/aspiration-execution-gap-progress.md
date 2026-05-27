@@ -4326,6 +4326,50 @@ Testing scope note:
 Remaining after this slice:
 - Continue replacing narrow proofs with broader source coverage and keep pursuing a persisted DB-backed import-to-response proof when database connectivity is available.
 
+### 2026-05-27 - Discovery-to-Submission Core Proof Sweep
+
+Status: verified.
+
+Purpose: re-check the non-live core path after live source enrichment and response-package grounding changes.
+
+Verification:
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` passed.
+- The proof ran 13 focused test files and 120 tests covering opportunity discovery, configured import, document discovery, RFP document intake, parse workflow, requirements workflow, proposal document scope, final artifact workflow, final artifact route, final submission checklist, submission workflow, and submission scoping.
+
+Testing scope note:
+- This was a broader non-live proof sweep, not a production build or full frontend suite.
+- At the time of this sweep, the live persisted DB import-to-response proof still needed a live schema repair and proof run.
+
+Remaining after this slice:
+- Continue closing live/persisted gaps that are not covered by mocked non-live proof scenarios.
+
+### 2026-05-27 - Live Persisted Import-to-Response Proof
+
+Status: implemented and verified.
+
+Purpose: prove the platform can take a live discovered opportunity all the way into persisted response-workspace records, then clean the proof rows back out of PostgreSQL.
+
+Changes in this slice:
+- Add a live-safe platform proof scenario for persisted import-to-response coverage.
+- Add an idempotent live tenant repair migration for opportunity/proposal persistence tables whose live schema predated the app's tenant-scoped writes.
+- Add a schema preflight to the live proof so future drift fails before source fetching or Docling extraction.
+
+Verification:
+- Applied `frontend/drizzle/0032_live_response_persistence_tenant_repair.sql` to the live database; it added/backfilled opportunity, opportunity document, proposal document, document section, vote/import, and AI-score tenant columns and rebuilt opportunity uniqueness indexes as tenant-scoped indexes.
+- Live schema check confirmed all 2,602 existing opportunities had `organization_id`, and the expected tenant indexes were present.
+- `npm test -- platform-proof-scenarios.test.ts live-response-package.test.ts` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `set -a; source .env.local; set +a; npm run platform:proof -- --include-live-safe --run live-persisted-import-response` passed with run `live_persisted_import_response_20260527T013517Z`.
+- The live proof used UNGM notice `300700`, fetched `eoi24414.pdf`, extracted 3,070 characters through Docling, persisted one opportunity row, one source-document row, one RFP document row, eight requirement rows, six proposal-document rows, and six response-document rows.
+- Cleanup verification reported zero remaining proof rows across all persisted tables.
+
+Testing scope note:
+- This was a live-safe disposable-row proof, not a full production migration audit or full frontend suite.
+- The platform proof required explicitly sourcing `frontend/.env.local` because an ambient shell `DATABASE_URL` pointed at an unreachable stale endpoint.
+
+Remaining after this slice:
+- Continue broadening live source coverage and add operational migration tracking for manual live schema repairs.
+
 ### 2026-05-26 - Workflow Runtime Tenant Anchor
 
 Status: implemented and verified.

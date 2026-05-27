@@ -41,6 +41,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("phase1-live-safe-control-plane");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-discovery-services");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-opportunity-response-readiness");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-persisted-import-response");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-source-discovery");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-undp-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-world-bank-source");
@@ -192,6 +193,16 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-020"]),
 				expectedArtifacts: expect.arrayContaining([
 					".omx/state/platform-live-opportunity-response-readiness-evidence.md",
+				]),
+			}),
+		]);
+		expect(listProofScenarios({ ids: ["live-persisted-import-response"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-persisted-import-response",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-008", "F-020"]),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-persisted-import-response-evidence.md",
 				]),
 			}),
 		]);
