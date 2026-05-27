@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Kenya PPIP Persisted Proof Retry Still DB Blocked
+
+Status: externally blocked.
+
+Purpose: recheck the DB-backed Kenya PPIP persisted import-to-response proof after current live discovery and response-readiness proofs passed.
+
+Attempted:
+- `npm run platform:proof -- --run live-kenya-ppip-persisted-import-response --include-live-safe` failed with run `live_kenya_ppip_persisted_import_response_20260527T163854Z`.
+- The proof did not reach Kenya PPIP source discovery, source document persistence, RFP parsing, requirement persistence, or response draft persistence because PostgreSQL refused the connection to `88.80.188.224:5432`.
+- Cleanup had no persisted rows to remove.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity to `88.80.188.224:5432`, then rerun `live-persisted-import-response` and `live-kenya-ppip-persisted-import-response`.
+- Continue using the live-safe non-DB discovery and response-readiness proofs as validated live behavior while persistence is unreachable.
+
 ### 2026-05-27 - Current UNGM Live Response Readiness Revalidation
 
 Status: verified.
