@@ -6859,3 +6859,21 @@ Verification:
 Remaining after this slice:
 - Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
 - Continue non-DB hardening around live discovery, source intake, response quality, and submission gates.
+
+### 2026-05-27 - Draft Integrity Operator Visibility
+
+Status: implemented and verified.
+
+Purpose: make response draft artifact integrity visible in operator surfaces, not only enforced by backend readiness and submission gates.
+
+Changes in this slice:
+- Include draft artifact integrity coverage in response package workflow readiness descriptions.
+- Route draft artifact integrity language into the command-center response-quality readiness dimension.
+- Include draft artifact integrity in the proposal document readiness label shown before final rendering.
+
+Verification:
+- `npm test -- __tests__/actions/work-items-command-center.test.ts __tests__/work-items/projections.test.ts __tests__/components/ProposalDocumentsWinThemeSeedReview.test.ts --run` passed with 7 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue hardening operator-visible proof and remediation loops while DB-backed live persistence remains blocked by PostgreSQL connectivity.

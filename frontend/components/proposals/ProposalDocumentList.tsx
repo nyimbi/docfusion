@@ -614,7 +614,7 @@ function FinalPackagePanel({
 
 function responseReadinessLabel(readiness: ResponsePackageReadinessSummary): string {
 	if (readiness.status === "ready_for_review") {
-		return `Response readiness passed: ${formatPercent(readiness.metrics.requirementCoverage)} accepted requirement coverage, ${formatPercent(readiness.metrics.reviewGateCoverage)} review gates.`;
+		return `Response readiness passed: ${formatPercent(readiness.metrics.requirementCoverage)} accepted requirement coverage, ${formatPercent(readiness.metrics.reviewGateCoverage)} review gates, ${formatPercent(readiness.metrics.draftArtifactIntegrityCoverage)} draft artifacts.`;
 	}
 	if (readiness.status === "missing") {
 		return "Response readiness missing; draft and review the response package before final rendering.";

@@ -211,6 +211,7 @@ describe("opportunity command center projection", () => {
 						metrics: {
 							requirementCoverage: 1,
 							reviewGateCoverage: 0.5,
+							draftArtifactIntegrityCoverage: 0.75,
 							winThemeCriteriaCoverage: 0.5,
 							winThemeSeedCount: 1,
 						},
@@ -248,7 +249,7 @@ describe("opportunity command center projection", () => {
 			blockerCount: 1,
 			owner: "proposal_manager",
 			actionUrl: "/opportunities/opp-1/documents",
-			details: ["Readiness: blocked | Requirement coverage: 100% | Review gates: 50% | Evaluator win themes: 50% (1 seed)"],
+			details: ["Readiness: blocked | Requirement coverage: 100% | Review gates: 50% | Draft artifacts: 75% | Evaluator win themes: 50% (1 seed)"],
 		}));
 	});
 });

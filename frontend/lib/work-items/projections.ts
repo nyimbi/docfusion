@@ -267,7 +267,7 @@ const READINESS_DIMENSIONS = [
 	{
 		key: "response_quality",
 		label: "Response quality",
-		tokens: ["response package", "response readiness", "win theme", "review gate", "evidence checklist", "placeholder"],
+		tokens: ["response package", "response readiness", "win theme", "review gate", "evidence checklist", "draft artifact", "placeholder"],
 	},
 	{
 		key: "reviews",

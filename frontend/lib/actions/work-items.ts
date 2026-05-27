@@ -446,6 +446,7 @@ function workflowReadinessDescription(row: WorkflowInstanceRow): string | null {
 		`Readiness: ${typeof readiness.status === "string" ? readiness.status : "missing"}`,
 		`Requirement coverage: ${formatPercent(numberMetric(metrics.requirementCoverage))}`,
 		`Review gates: ${formatPercent(numberMetric(metrics.reviewGateCoverage))}`,
+		`Draft artifacts: ${formatPercent(numberMetric(metrics.draftArtifactIntegrityCoverage))}`,
 		`Evaluator win themes: ${formatPercent(numberMetric(winThemeCriteriaCoverage))}${winThemeSeedCount === null ? "" : ` (${winThemeSeedCount} seed${winThemeSeedCount === 1 ? "" : "s"})`}`,
 	].join(" | ");
 }
