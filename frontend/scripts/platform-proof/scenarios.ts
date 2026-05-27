@@ -195,12 +195,12 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		kind: "integration",
 		proofTargets: ["F-015", "F-016", "F-017", "UX-008", "UX-019"],
 		requiresLiveServices: false,
-		description: "Validates AI governance, LiteLLM provider behavior, deterministic quality and document analysis, content governance workflows, snippet provenance, and placeholder resolution.",
+		description: "Validates AI governance, LiteLLM provider behavior, deterministic opportunity summaries, deterministic quality and document analysis, content governance workflows, snippet provenance, and placeholder resolution.",
 		command: {
 			command: "npm",
-			args: ["test", "--", "ai-governance.test.ts", "quality-assessment.test.ts", "document-analysis-scope.test.ts", "document-analysis-auth.test.ts", "content-governance-workflow.test.ts", "snippet-expansion-provenance.test.ts", "snippet-placeholder-resolution.test.ts", "litellm-provider.test.ts"],
+			args: ["test", "--", "ai-governance.test.ts", "opportunity-ai-scope.test.ts", "quality-assessment.test.ts", "document-analysis-scope.test.ts", "document-analysis-auth.test.ts", "content-governance-workflow.test.ts", "snippet-expansion-provenance.test.ts", "snippet-placeholder-resolution.test.ts", "litellm-provider.test.ts"],
 		},
-		expectedArtifacts: ["vitest:ai-governance", "vitest:quality-assessment", "vitest:document-analysis-scope", "vitest:document-analysis-auth", "vitest:content-governance-workflow", "vitest:snippet-expansion-provenance", "vitest:snippet-placeholder-resolution", "vitest:litellm-provider"],
+		expectedArtifacts: ["vitest:ai-governance", "vitest:opportunity-ai-scope", "vitest:quality-assessment", "vitest:document-analysis-scope", "vitest:document-analysis-auth", "vitest:content-governance-workflow", "vitest:snippet-expansion-provenance", "vitest:snippet-placeholder-resolution", "vitest:litellm-provider"],
 	},
 	{
 		id: "wave6-final-submission-gate",

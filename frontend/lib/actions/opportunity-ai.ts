@@ -107,6 +107,28 @@ async function loadVisibleOpportunity(opportunityId: string, context: Opportunit
 	return opp;
 }
 
+function buildMetadataOpportunitySummary(opp: {
+	title: string;
+	organization?: string | null;
+	budgetValue?: string | null;
+	daysLeft?: number | null;
+	category?: string | null;
+	sector?: string | null;
+	projectSummary?: string | null;
+	keyRequirements?: string | null;
+}): string {
+	const organization = opp.organization || "Unknown organization";
+	const classification = [opp.category, opp.sector].filter(Boolean).join(" / ") || "unspecified category";
+	const budget = opp.budgetValue || "budget not specified";
+	const deadline = opp.daysLeft === null || opp.daysLeft === undefined
+		? "deadline not specified"
+		: `${opp.daysLeft} day${opp.daysLeft === 1 ? "" : "s"} remaining`;
+	const summary = opp.projectSummary?.trim() || "No project summary is recorded.";
+	const requirements = opp.keyRequirements?.trim() || "No key requirements are recorded.";
+
+	return `${opp.title} is an opportunity from ${organization} in ${classification}. Budget: ${budget}; ${deadline}. ${summary} Key requirements: ${requirements} Generated from available opportunity metadata.`;
+}
+
 /**
  * Calculate fit score for an opportunity.
  * Analyzes how well the opportunity matches our capabilities and strategy.
@@ -1510,14 +1532,13 @@ export async function calculateAllScoresWithLLM(opportunityId: string): Promise<
  */
 export async function generateOpportunitySummary(opportunityId: string): Promise<string> {
 	const context = await requireOpportunityAIContext();
+	const opp = await loadVisibleOpportunity(opportunityId, context);
 
 	const manager = getProviderManager();
 	await manager.initialize();
 	if (!(await manager.isAvailable())) {
-		return "AI summary not available. Configure an AI provider to enable this feature.";
+		return buildMetadataOpportunitySummary(opp);
 	}
-
-	const opp = await loadVisibleOpportunity(opportunityId, context);
 
 	const systemPrompt = `You are a business development analyst. Write a brief executive summary (3-4 sentences) highlighting the key aspects of this opportunity and why it might be worth pursuing. Be direct and actionable.`;
 
@@ -1543,6 +1564,6 @@ ${opp.keyRequirements || "Not specified"}`;
 		});
 	} catch (error) {
 		logger.error("[AI Summary Error]", error);
-		return "Unable to generate summary. Please try again later.";
+		return buildMetadataOpportunitySummary(opp);
 	}
 }

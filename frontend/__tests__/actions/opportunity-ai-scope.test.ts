@@ -86,6 +86,7 @@ vi.mock("@/lib/utils/logger", () => ({
 import {
 	calculateFitScore,
 	calculateFitScoreWithLLM,
+	generateOpportunitySummary,
 	getAIScoreHistory,
 } from "@/lib/actions/opportunity-ai";
 
@@ -180,6 +181,19 @@ describe("opportunity AI row scoping", () => {
 		});
 		expect(promptMock).not.toHaveBeenCalled();
 		expect(getCompanyCapabilitiesMock).not.toHaveBeenCalled();
+	});
+
+	it("generates a metadata-backed opportunity summary when AI is unavailable", async () => {
+		dbMock.select.mockReturnValueOnce(createChain({ result: [opportunity] }));
+
+		const summary = await generateOpportunitySummary(opportunity.id);
+
+		expect(summary).toContain("Secure Data Platform");
+		expect(summary).toContain("Ministry of Data");
+		expect(summary).toContain("Generated from available opportunity metadata");
+		expect(summary).not.toContain("AI summary not available");
+		expect(summary).not.toContain("Unable to generate summary");
+		expect(promptMock).not.toHaveBeenCalled();
 	});
 
 	it("scopes AI score history and normalizes caller limits", async () => {

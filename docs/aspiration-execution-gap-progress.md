@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Metadata-Backed Opportunity Summaries
+
+Status: implemented and verified.
+
+Purpose: stop opportunity summary generation from returning generic unavailable text when AI is unavailable or a provider call fails despite having useful opportunity metadata.
+
+Changes in this slice:
+- Generate deterministic opportunity summaries from title, buyer, category, budget, deadline, project summary, and key requirements.
+- Load the scoped opportunity before provider availability checks so no-provider runs can still return actionable metadata-backed summaries.
+- Use the same metadata-backed summary when prompt execution fails instead of returning "try again later" text.
+- Add regression coverage proving unavailable AI returns metadata-backed content without calling the prompt.
+- Add opportunity AI scope coverage to the Wave 5 AI/content governance proof manifest.
+
+Verification:
+- `npm test -- opportunity-ai-scope.test.ts platform-proof-scenarios.test.ts` passed with 10 tests.
+- `npm run platform:proof -- --run wave5-ai-content-governance` passed with 33 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing generic unavailable copy in user-facing response-support paths with either evidence-backed deterministic output or explicit failed action states.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Honest Win/Loss Insight Fallbacks
 
 Status: implemented and verified.

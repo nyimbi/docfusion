@@ -124,7 +124,11 @@ describe("platform proof scenarios", () => {
 			expect.objectContaining({
 				id: "wave5-ai-content-governance",
 				proofTargets: expect.arrayContaining(["F-015", "UX-019"]),
-				expectedArtifacts: expect.arrayContaining(["vitest:quality-assessment", "vitest:document-analysis-scope"]),
+				expectedArtifacts: expect.arrayContaining([
+					"vitest:opportunity-ai-scope",
+					"vitest:quality-assessment",
+					"vitest:document-analysis-scope",
+				]),
 			}),
 		]);
 		expect(listProofScenarios({ ids: ["wave6-final-submission-gate"] })).toEqual([
